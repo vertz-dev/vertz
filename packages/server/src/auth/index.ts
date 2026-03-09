@@ -2222,6 +2222,8 @@ export type {
   EntitlementDef,
   EntitlementValue,
   EntityDef,
+  GraceDuration,
+  GrandfatheringPolicy,
   LimitDef,
   PlanDef,
   PlanPrice,
@@ -2244,7 +2246,6 @@ export { InMemoryPasswordResetStore } from './password-reset-store';
 export type { PlanHashInput } from './plan-hash';
 export { computePlanHash } from './plan-hash';
 export type {
-  GraceDuration,
   MigrateOpts,
   PlanEvent,
   PlanEventHandler,

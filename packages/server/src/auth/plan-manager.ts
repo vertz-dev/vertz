@@ -34,9 +34,6 @@ export interface PlanEvent {
 
 export type PlanEventHandler = (event: PlanEvent) => void;
 
-/** Grace period duration string: e.g. '1m', '3m', '6m', '12m', or 'indefinite' */
-export type GraceDuration = '1m' | '3m' | '6m' | '12m' | 'indefinite';
-
 export interface TenantPlanState {
   planId: string;
   version: number;
@@ -93,9 +90,7 @@ const GRACE_DURATION_MS: Record<string, number> = {
 };
 
 function resolveGraceEnd(planDef: PlanDef, now: Date): Date | null {
-  const grandfathering = (planDef as PlanDef & { grandfathering?: { grace?: GraceDuration } })
-    .grandfathering;
-  const grace = grandfathering?.grace;
+  const grace = planDef.grandfathering?.grace;
 
   if (grace === 'indefinite') return null;
 

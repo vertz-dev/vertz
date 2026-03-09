@@ -6,6 +6,7 @@ import { InMemoryClosureStore } from '../closure-store';
 import { defineAccess } from '../define-access';
 import { InMemoryFlagStore } from '../flag-store';
 import { InMemoryPlanStore } from '../plan-store';
+import { InMemoryPlanVersionStore } from '../plan-version-store';
 import { InMemoryRoleAssignmentStore } from '../role-assignment-store';
 import { InMemoryWalletStore } from '../wallet-store';
 
@@ -1039,6 +1040,298 @@ describe('createAccessContext', () => {
       ]);
       expect(results.get('proj-1')).toBe(true);
       expect(results.get('proj-2')).toBe(false);
+    });
+  });
+
+  // ==========================================================================
+  // Versioned plan resolution — Phase 4 (grandfathered tenants)
+  // ==========================================================================
+
+  describe('versioned plan resolution (Phase 4)', () => {
+    function setupWithVersionedPlans() {
+      const accessDef = defineAccess({
+        entities: {
+          organization: { roles: ['owner', 'admin', 'member'] },
+          project: {
+            roles: ['manager', 'contributor', 'viewer'],
+            inherits: {
+              'organization:owner': 'manager',
+              'organization:admin': 'contributor',
+              'organization:member': 'viewer',
+            },
+          },
+        },
+        entitlements: {
+          'organization:create-project': { roles: ['admin', 'owner'] },
+          'project:view': { roles: ['viewer', 'contributor', 'manager'] },
+          'project:export': { roles: ['manager'] },
+          'project:analytics': { roles: ['manager'] },
+        },
+        plans: {
+          pro: {
+            group: 'main',
+            features: [
+              'organization:create-project',
+              'project:view',
+              'project:export',
+              'project:analytics',
+            ],
+            limits: {
+              projects: { max: 100, gates: 'organization:create-project', per: 'month' },
+            },
+          },
+        },
+      });
+
+      const closureStore = new InMemoryClosureStore();
+      const roleStore = new InMemoryRoleAssignmentStore();
+      const planStore = new InMemoryPlanStore();
+      const walletStore = new InMemoryWalletStore();
+      const planVersionStore = new InMemoryPlanVersionStore();
+      const orgResolver = async (_resource?: ResourceRef) => 'org-1';
+
+      return {
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        planVersionStore,
+        orgResolver,
+      };
+    }
+
+    it('grandfathered tenant uses versioned snapshot features (not current config)', async () => {
+      const {
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        planVersionStore,
+        orgResolver,
+      } = setupWithVersionedPlans();
+
+      await closureStore.addResource('organization', 'org-1');
+      await closureStore.addResource('project', 'proj-1', {
+        parentType: 'organization',
+        parentId: 'org-1',
+      });
+      await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
+      await planStore.assignPlan('org-1', 'pro');
+
+      // Create version 1 snapshot — only has project:view and project:export, NOT project:analytics
+      await planVersionStore.createVersion('pro', 'hash-v1', {
+        features: ['organization:create-project', 'project:view', 'project:export'],
+        limits: { projects: { max: 50, gates: 'organization:create-project', per: 'month' } },
+        price: null,
+      });
+
+      // Create version 2 (current) — adds project:analytics
+      await planVersionStore.createVersion('pro', 'hash-v2', {
+        features: [
+          'organization:create-project',
+          'project:view',
+          'project:export',
+          'project:analytics',
+        ],
+        limits: { projects: { max: 100, gates: 'organization:create-project', per: 'month' } },
+        price: null,
+      });
+
+      // Tenant is on v1 (grandfathered)
+      await planVersionStore.setTenantVersion('org-1', 'pro', 1);
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        orgResolver,
+        planVersionStore,
+      });
+
+      // project:analytics is in current config but NOT in tenant's v1 snapshot
+      const result = await ctx.can('project:analytics', {
+        type: 'project',
+        id: 'proj-1',
+      });
+      expect(result).toBe(false);
+
+      // project:export IS in tenant's v1 snapshot
+      const exportResult = await ctx.can('project:export', {
+        type: 'project',
+        id: 'proj-1',
+      });
+      expect(exportResult).toBe(true);
+    });
+
+    it('grandfathered tenant uses versioned snapshot limits (not current config)', async () => {
+      const {
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        planVersionStore,
+        orgResolver,
+      } = setupWithVersionedPlans();
+
+      await closureStore.addResource('organization', 'org-1');
+      await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
+      const startedAt = new Date();
+      await planStore.assignPlan('org-1', 'pro', startedAt);
+
+      // Create version 1 snapshot — limit is 50
+      await planVersionStore.createVersion('pro', 'hash-v1', {
+        features: ['organization:create-project', 'project:view', 'project:export'],
+        limits: { projects: { max: 50, gates: 'organization:create-project', per: 'month' } },
+        price: null,
+      });
+
+      // Create version 2 (current) — limit is 100
+      await planVersionStore.createVersion('pro', 'hash-v2', {
+        features: [
+          'organization:create-project',
+          'project:view',
+          'project:export',
+          'project:analytics',
+        ],
+        limits: { projects: { max: 100, gates: 'organization:create-project', per: 'month' } },
+        price: null,
+      });
+
+      // Tenant is on v1 (grandfathered) — limit should be 50 not 100
+      await planVersionStore.setTenantVersion('org-1', 'pro', 1);
+
+      // Consume 51 — over v1 limit (50) but within v2 limit (100)
+      const { periodStart, periodEnd } = calculateBillingPeriod(startedAt, 'month');
+      await walletStore.consume('org-1', 'projects', periodStart, periodEnd, 100, 51);
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        orgResolver,
+        planVersionStore,
+      });
+
+      // Should be denied because tenant is on v1 with max=50
+      const result = await ctx.can('organization:create-project', {
+        type: 'organization',
+        id: 'org-1',
+      });
+      expect(result).toBe(false);
+    });
+
+    it('new tenant without version uses current config', async () => {
+      const {
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        planVersionStore,
+        orgResolver,
+      } = setupWithVersionedPlans();
+
+      await closureStore.addResource('organization', 'org-1');
+      await closureStore.addResource('project', 'proj-1', {
+        parentType: 'organization',
+        parentId: 'org-1',
+      });
+      await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
+      await planStore.assignPlan('org-1', 'pro');
+
+      // Version store exists but tenant has NO version set (new tenant)
+      await planVersionStore.createVersion('pro', 'hash-v1', {
+        features: ['organization:create-project', 'project:view'],
+        limits: {},
+        price: null,
+      });
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        orgResolver,
+        planVersionStore,
+      });
+
+      // project:analytics is in current config — new tenant should have access
+      const result = await ctx.can('project:analytics', {
+        type: 'project',
+        id: 'proj-1',
+      });
+      expect(result).toBe(true);
+    });
+
+    it('after migration, tenant uses new version features', async () => {
+      const {
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        planVersionStore,
+        orgResolver,
+      } = setupWithVersionedPlans();
+
+      await closureStore.addResource('organization', 'org-1');
+      await closureStore.addResource('project', 'proj-1', {
+        parentType: 'organization',
+        parentId: 'org-1',
+      });
+      await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
+      await planStore.assignPlan('org-1', 'pro');
+
+      // Create v1 without project:analytics
+      await planVersionStore.createVersion('pro', 'hash-v1', {
+        features: ['organization:create-project', 'project:view', 'project:export'],
+        limits: {},
+        price: null,
+      });
+
+      // Create v2 with project:analytics
+      await planVersionStore.createVersion('pro', 'hash-v2', {
+        features: [
+          'organization:create-project',
+          'project:view',
+          'project:export',
+          'project:analytics',
+        ],
+        limits: {},
+        price: null,
+      });
+
+      // Simulate migration: tenant is now on v2
+      await planVersionStore.setTenantVersion('org-1', 'pro', 2);
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        orgResolver,
+        planVersionStore,
+      });
+
+      // project:analytics IS in tenant's v2 snapshot — should be allowed
+      const result = await ctx.can('project:analytics', {
+        type: 'project',
+        id: 'proj-1',
+      });
+      expect(result).toBe(true);
     });
   });
 });

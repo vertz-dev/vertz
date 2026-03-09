@@ -61,6 +61,14 @@ export interface LimitDef {
   scope?: string;
 }
 
+/** Grace period duration for grandfathering policy */
+export type GraceDuration = '1m' | '3m' | '6m' | '12m' | 'indefinite';
+
+/** Grandfathering policy for a plan */
+export interface GrandfatheringPolicy {
+  grace?: GraceDuration;
+}
+
 /** Plan definition — features, limits, metadata, and billing */
 export interface PlanDef {
   title?: string;
@@ -70,6 +78,8 @@ export interface PlanDef {
   price?: PlanPrice;
   features?: readonly string[] | string[];
   limits?: Record<string, LimitDef>;
+  /** Grandfathering policy — how long existing tenants keep old version on plan change */
+  grandfathering?: GrandfatheringPolicy;
 }
 
 // ============================================================================
@@ -458,6 +468,9 @@ export function defineAccess(input: DefineAccessInput): AccessDefinition {
                           ),
                         ),
                       }
+                    : {}),
+                  ...(planDef.grandfathering
+                    ? { grandfathering: Object.freeze({ ...planDef.grandfathering }) }
                     : {}),
                 }),
               ]),
