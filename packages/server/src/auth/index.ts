@@ -2204,6 +2204,11 @@ export type { Period } from './billing-period';
 export { calculateBillingPeriod } from './billing-period';
 export type { ClosureEntry, ClosureRow, ClosureStore, ParentRef } from './closure-store';
 export { InMemoryClosureStore } from './closure-store';
+export { DbClosureStore } from './db-closure-store';
+export { DbFlagStore } from './db-flag-store';
+export { DbOAuthAccountStore } from './db-oauth-account-store';
+export { DbPlanStore } from './db-plan-store';
+export { DbRoleAssignmentStore } from './db-role-assignment-store';
 export type {
   AccessCheckResult,
   AccessDefinition,
