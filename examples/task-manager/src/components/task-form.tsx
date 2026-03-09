@@ -94,7 +94,7 @@ export function TaskForm({ onSuccess, onCancel }: TaskFormProps) {
         <input
           class={inputStyles.base}
           id="task-title"
-          name="title"
+          name={taskForm.fields.title}
           type="text"
           placeholder="What needs to be done?"
         />
@@ -110,7 +110,7 @@ export function TaskForm({ onSuccess, onCancel }: TaskFormProps) {
         <textarea
           class={formStyles.textarea}
           id="task-description"
-          name="description"
+          name={taskForm.fields.description}
           placeholder="Describe the task in detail..."
         />
         <span class={formStyles.error} data-testid="description-error">
@@ -122,7 +122,7 @@ export function TaskForm({ onSuccess, onCancel }: TaskFormProps) {
         <label class={labelStyles.base} for="task-priority">
           Priority
         </label>
-        <select class={formStyles.select} id="task-priority" name="priority">
+        <select class={formStyles.select} id="task-priority" name={taskForm.fields.priority}>
           <option value="low">Low</option>
           <option value="medium" selected>
             Medium

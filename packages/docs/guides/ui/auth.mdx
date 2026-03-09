@@ -40,10 +40,10 @@ function LoginPage() {
       method={loginForm.method}
       onSubmit={loginForm.onSubmit}
     >
-      <input name="email" type="email" />
+      <input name={loginForm.fields.email} type="email" />
       <span>{loginForm.email.error}</span>
 
-      <input name="password" type="password" />
+      <input name={loginForm.fields.password} type="password" />
       <span>{loginForm.password.error}</span>
 
       <button type="submit" disabled={loginForm.submitting}>
@@ -210,7 +210,7 @@ function LoginPage() {
   if (auth.status === 'mfa_required') {
     return (
       <form onSubmit={mfaForm.onSubmit}>
-        <input name="code" placeholder="Enter 6-digit code" />
+        <input name={mfaForm.fields.code} placeholder="Enter 6-digit code" />
         <span>{mfaForm.code.error}</span>
         <button type="submit" disabled={mfaForm.submitting}>Verify</button>
       </form>
@@ -219,8 +219,8 @@ function LoginPage() {
 
   return (
     <form onSubmit={loginForm.onSubmit}>
-      <input name="email" type="email" />
-      <input name="password" type="password" />
+      <input name={loginForm.fields.email} type="email" />
+      <input name={loginForm.fields.password} type="password" />
       <button type="submit" disabled={loginForm.submitting}>Sign In</button>
     </form>
   );
@@ -248,7 +248,7 @@ function ForgotPasswordPage() {
 
   return (
     <form onSubmit={forgotForm.onSubmit}>
-      <input name="email" type="email" placeholder="Your email" />
+      <input name={forgotForm.fields.email} type="email" placeholder="Your email" />
       <span>{forgotForm.email.error}</span>
       <button type="submit" disabled={forgotForm.submitting}>
         Send Reset Link
@@ -271,8 +271,8 @@ function ResetPasswordPage() {
 
   return (
     <form onSubmit={resetForm.onSubmit}>
-      <input type="hidden" name="token" value={token} />
-      <input name="password" type="password" placeholder="New password" />
+      <input type="hidden" name={resetForm.fields.token} value={token} />
+      <input name={resetForm.fields.password} type="password" placeholder="New password" />
       <span>{resetForm.password.error}</span>
       <button type="submit" disabled={resetForm.submitting}>
         Reset Password
@@ -412,9 +412,9 @@ function AppContent() {
 const signupForm = form(auth.signUp);
 
 <form onSubmit={signupForm.onSubmit}>
-  <input name="email" type="email" />
-  <input name="password" type="password" />
-  <input name="name" />
+  <input name={signupForm.fields.email} type="email" />
+  <input name={signupForm.fields.password} type="password" />
+  <input name={signupForm.fields.name} />
   <button type="submit">Create Account</button>
 </form>
 ```

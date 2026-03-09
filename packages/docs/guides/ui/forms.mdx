@@ -20,7 +20,7 @@ export function CreateTaskForm({ onSuccess }: CreateTaskFormProps) {
       method={taskForm.method}
       onSubmit={taskForm.onSubmit}
     >
-      <input name="title" placeholder="Task title" />
+      <input name={taskForm.fields.title} placeholder="Task title" />
       {taskForm.title.error && <span>{taskForm.title.error}</span>}
 
       <button type="submit" disabled={taskForm.submitting}>

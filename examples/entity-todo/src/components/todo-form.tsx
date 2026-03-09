@@ -38,7 +38,7 @@ export function TodoForm({ onSuccess }: TodoFormProps) {
         <div class={styles.inputWrap}>
           <input
             class={inputStyles.base}
-            name="title"
+            name={todoForm.fields.title}
             type="text"
             placeholder="What needs to be done?"
             data-testid="todo-title-input"
