@@ -1,5 +1,21 @@
 {
-  "name": "landing",
-  "version": "0.0.0",
-  "private": true
+  "name": "@vertz/landing",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/dev-server.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vertz/theme-shadcn": "workspace:*",
+    "@vertz/ui": "workspace:*",
+    "@vertz/ui-primitives": "workspace:*",
+    "@vertz/ui-server": "workspace:*"
+  },
+  "devDependencies": {
+    "@vertz/ui-compiler": "workspace:*",
+    "bun-types": "^1.3.9",
+    "shiki": "^4.0.1",
+    "typescript": "^5.8.0"
+  }
 }

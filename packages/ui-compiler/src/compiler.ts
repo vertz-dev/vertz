@@ -163,12 +163,15 @@ export function compile(
 /** DOM helpers that the compiler may emit and need importing from @vertz/ui/internals. */
 const DOM_HELPERS = [
   '__append',
+  '__attr',
   '__child',
+  '__element',
   '__enterChildren',
   '__exitChildren',
   '__insert',
   '__conditional',
   '__list',
+  '__on',
   '__show',
   '__classList',
   '__staticText',
