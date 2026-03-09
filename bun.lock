@@ -221,6 +221,16 @@
         "typescript": "^5.7.0",
       },
     },
+    "packages/create-vertz": {
+      "name": "create-vertz",
+      "version": "0.2.12",
+      "bin": {
+        "create-vertz": "./bin/create-vertz.ts",
+      },
+      "dependencies": {
+        "@vertz/create-vertz-app": "workspace:*",
+      },
+    },
     "packages/create-vertz-app": {
       "name": "@vertz/create-vertz-app",
       "version": "0.2.12",
@@ -1132,6 +1142,8 @@
     "contacts-api-example": ["contacts-api-example@workspace:examples/contacts-api"],
 
     "cookie": ["cookie@1.1.1", "", {}, "sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ=="],
+
+    "create-vertz": ["create-vertz@workspace:packages/create-vertz"],
 
     "cross-spawn": ["cross-spawn@7.0.6", "", { "dependencies": { "path-key": "^3.1.0", "shebang-command": "^2.0.0", "which": "^2.0.1" } }, "sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA=="],
 

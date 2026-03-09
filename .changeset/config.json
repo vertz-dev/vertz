@@ -13,6 +13,7 @@
     "@vertz/compiler",
     "@vertz/core",
     "@vertz/create-vertz-app",
+    "create-vertz",
     "@vertz/db",
     "@vertz/errors",
     "@vertz/fetch",
