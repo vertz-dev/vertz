@@ -5,11 +5,11 @@
  * closure table, and role assignments using 5-layer resolution.
  *
  * Layers (cheapest-first for can(), all-layers for check()):
- * 1. Feature flags (stubbed — always pass)
+ * 1. Feature flags (requires flagStore + orgResolver)
  * 2. RBAC (effective role check)
  * 3. Hierarchy (closure table path check)
- * 4. Plan check (stubbed — always pass)
- * 5. Wallet check (stubbed — always pass)
+ * 4. Plan check (requires planStore + orgResolver)
+ * 5. Wallet check (requires walletStore + planStore + orgResolver)
  */
 
 import { AuthorizationError } from './access';

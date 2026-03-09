@@ -90,8 +90,22 @@ export function createAccessEventBroadcaster(
   const connectionsByUser = new Map<string, Set<BunWebSocket<AccessWsData>>>();
   let connectionCount = 0;
 
-  // Ping interval (30s)
+  // Ping keepalive — ping all connections every 30s
   const allConnections = new Set<BunWebSocket<AccessWsData>>();
+  const PING_INTERVAL_MS = 30_000;
+  const pingTimer = setInterval(() => {
+    for (const ws of allConnections) {
+      try {
+        ws.ping();
+      } catch {
+        // Connection may have been dropped — onclose will clean up
+      }
+    }
+  }, PING_INTERVAL_MS);
+  // Prevent the timer from keeping the process alive
+  if (typeof pingTimer === 'object' && 'unref' in pingTimer) {
+    pingTimer.unref();
+  }
 
   function addConnection(ws: BunWebSocket<AccessWsData>): void {
     const { orgId, userId } = ws.data;
