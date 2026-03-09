@@ -396,3 +396,98 @@ describe('createAccessEventBroadcaster', () => {
     expect(ws2.sentMessages.length).toBe(0);
   });
 });
+
+describe('plan event broadcasts', () => {
+  it('broadcastPlanAssigned sends plan:assigned event to org connections', () => {
+    const broadcaster = createAccessEventBroadcaster({
+      jwtSecret: TEST_SECRET,
+    });
+
+    const ws1 = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
+    const ws2 = createMockWs({ data: { userId: 'user-2', orgId: 'org-2' } });
+
+    broadcaster.websocket.open(ws1);
+    broadcaster.websocket.open(ws2);
+
+    broadcaster.broadcastPlanAssigned('org-1', 'pro_monthly');
+
+    expect(ws1.sentMessages.length).toBe(1);
+    const parsed = JSON.parse(ws1.sentMessages[0]);
+    expect(parsed.type).toBe('access:plan_assigned');
+    expect(parsed.orgId).toBe('org-1');
+    expect(parsed.planId).toBe('pro_monthly');
+    expect(ws2.sentMessages.length).toBe(0);
+  });
+
+  it('broadcastAddonAttached sends addon_attached event to org connections', () => {
+    const broadcaster = createAccessEventBroadcaster({
+      jwtSecret: TEST_SECRET,
+    });
+
+    const ws = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
+    broadcaster.websocket.open(ws);
+
+    broadcaster.broadcastAddonAttached('org-1', 'export_addon');
+
+    expect(ws.sentMessages.length).toBe(1);
+    const parsed = JSON.parse(ws.sentMessages[0]);
+    expect(parsed.type).toBe('access:addon_attached');
+    expect(parsed.orgId).toBe('org-1');
+    expect(parsed.addonId).toBe('export_addon');
+  });
+
+  it('broadcastAddonDetached sends addon_detached event to org connections', () => {
+    const broadcaster = createAccessEventBroadcaster({
+      jwtSecret: TEST_SECRET,
+    });
+
+    const ws = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
+    broadcaster.websocket.open(ws);
+
+    broadcaster.broadcastAddonDetached('org-1', 'export_addon');
+
+    expect(ws.sentMessages.length).toBe(1);
+    const parsed = JSON.parse(ws.sentMessages[0]);
+    expect(parsed.type).toBe('access:addon_detached');
+    expect(parsed.orgId).toBe('org-1');
+    expect(parsed.addonId).toBe('export_addon');
+  });
+
+  it('broadcastLimitReset sends limit_reset event to org connections', () => {
+    const broadcaster = createAccessEventBroadcaster({
+      jwtSecret: TEST_SECRET,
+    });
+
+    const ws = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
+    broadcaster.websocket.open(ws);
+
+    broadcaster.broadcastLimitReset('org-1', 'prompt:create', 100);
+
+    expect(ws.sentMessages.length).toBe(1);
+    const parsed = JSON.parse(ws.sentMessages[0]);
+    expect(parsed.type).toBe('access:limit_reset');
+    expect(parsed.orgId).toBe('org-1');
+    expect(parsed.entitlement).toBe('prompt:create');
+    expect(parsed.max).toBe(100);
+  });
+
+  it('new event types do not reach connections for other orgs', () => {
+    const broadcaster = createAccessEventBroadcaster({
+      jwtSecret: TEST_SECRET,
+    });
+
+    const ws1 = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
+    const ws2 = createMockWs({ data: { userId: 'user-2', orgId: 'org-2' } });
+
+    broadcaster.websocket.open(ws1);
+    broadcaster.websocket.open(ws2);
+
+    broadcaster.broadcastPlanAssigned('org-1', 'enterprise');
+    broadcaster.broadcastAddonAttached('org-1', 'extra_prompts');
+    broadcaster.broadcastAddonDetached('org-1', 'old_addon');
+    broadcaster.broadcastLimitReset('org-1', 'prompt:create', 200);
+
+    expect(ws1.sentMessages.length).toBe(4);
+    expect(ws2.sentMessages.length).toBe(0);
+  });
+});
