@@ -440,7 +440,7 @@ interface UserStore {
 
 ```ts
 interface RateLimitStore {
-  check(key: string, maxAttempts: number, windowMs: number): RateLimitResult;
+  check(key: string, maxAttempts: number, windowMs: number): Promise<RateLimitResult>;
   dispose(): void;
 }
 ```
@@ -649,18 +649,18 @@ import { InMemoryPlanStore } from '@vertz/server';
 const planStore = new InMemoryPlanStore();
 
 // Assign a plan (startedAt defaults to now)
-planStore.assignPlan('org-1', 'pro');
+await planStore.assignPlan('org-1', 'pro');
 
 // With explicit dates
-planStore.assignPlan('org-1', 'pro', new Date('2026-01-01'), new Date('2027-01-01'));
+await planStore.assignPlan('org-1', 'pro', new Date('2026-01-01'), new Date('2027-01-01'));
 
 // Per-customer limit overrides (can only increase, never decrease)
-planStore.updateOverrides('org-1', {
+await planStore.updateOverrides('org-1', {
   'ai:generate': { max: 5000 }, // 5x the plan default
 });
 
 // Remove a plan
-planStore.removePlan('org-1');
+await planStore.removePlan('org-1');
 ```
 
 When a plan expires, the system falls back to `defaultPlan` (or `'free'` if not configured). If the fallback plan doesn't exist in the definition, all plan-gated entitlements are denied.
