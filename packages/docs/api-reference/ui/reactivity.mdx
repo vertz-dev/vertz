@@ -1,0 +1,119 @@
+---
+title: Reactivity
+description: "API reference for Vertz reactivity — let, const, and the compiler-driven model"
+---
+
+Vertz reactivity is compiler-driven. You write plain `let` and `const` — the compiler makes them reactive. There are no hooks, no dependency arrays, and no special imports for component state.
+
+## State with `let`
+
+Declare mutable state with `let`. The compiler transforms it into a reactive value that updates the DOM when it changes.
+
+```tsx
+function Counter() {
+  let count = 0;
+
+  return (
+    <button onClick={() => { count++; }}>
+      Clicked {count} times
+    </button>
+  );
+}
+```
+
+That's it. When `count` changes, only the text node updates — no re-render of the entire component.
+
+## Derived values with `const`
+
+Derive values with `const` expressions. The compiler tracks their dependencies and recomputes them when needed.
+
+```tsx
+function TaskSummary({ tasks }: { tasks: Task[] }) {
+  let statusFilter = 'all';
+
+  const filtered = statusFilter === 'all'
+    ? tasks
+    : tasks.filter((t) => t.status === statusFilter);
+
+  const summary = `${filtered.length} tasks`;
+
+  return (
+    <div>
+      <select onChange={(e) => { statusFilter = e.target.value; }}>
+        <option value="all">All</option>
+        <option value="done">Done</option>
+      </select>
+      <p>{summary}</p>
+    </div>
+  );
+}
+```
+
+When `statusFilter` changes, `filtered` and `summary` recompute, and only the affected DOM nodes update.
+
+## What the compiler does
+
+The compiler transforms your code at build time. You never see or interact with the output — this is purely an implementation detail:
+
+| You write | Compiler handles |
+|-----------|-----------------|
+| `let count = 0` | Reactive state that tracks reads and notifies on write |
+| `const doubled = count * 2` | Lazy derived value that recomputes when dependencies change |
+| `<span>{count}</span>` | Fine-grained DOM binding that updates only the text node |
+| `<div class={isActive ? 'on' : 'off'}>` | Reactive attribute binding |
+
+## Rules
+
+- Use `let` for values that change. Use `const` for values derived from other values.
+- Mutations in event handlers (`onClick`, `onInput`, etc.) trigger updates automatically.
+- You don't need to import anything for component-level reactivity.
+
+---
+
+## Low-level APIs
+
+<Warning>
+These APIs are implementation details. You should not need them in normal component code. They exist for library authors, custom stores, and non-component contexts (e.g., a shared state module outside of any component).
+</Warning>
+
+### batch()
+
+Group multiple state changes into a single update flush. Useful in async callbacks or store logic where multiple values change at once.
+
+```ts
+import { batch } from '@vertz/ui';
+
+function resetForm() {
+  batch(() => {
+    name = '';
+    email = '';
+    status = 'idle';
+  });
+  // DOM updates once, not three times
+}
+```
+
+#### Signature
+
+```ts
+function batch(fn: () => void): void
+```
+
+Nested `batch()` calls are supported — only the outermost batch triggers the flush.
+
+### untrack()
+
+Read a reactive value without creating a dependency. Rarely needed — only useful when you intentionally want to skip reactivity for a specific read.
+
+```ts
+import { untrack } from '@vertz/ui';
+
+// Inside a derived expression, read `count` without subscribing to it
+const label = `${title}: ${untrack(() => count)}`;
+```
+
+#### Signature
+
+```ts
+function untrack<T>(fn: () => T): T
+```

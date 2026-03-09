@@ -2,3 +2,255 @@
 title: Router
 description: "API reference for defineRoutes(), createRouter(), RouterView, and Link"
 ---
+
+The Vertz router provides type-safe, file-system-free routing with loaders, nested layouts, and search param parsing. Route paths are inferred from your route map — typos in `navigate()` calls are caught at compile time.
+
+## defineRoutes()
+
+Define your route map. The `const` modifier preserves literal path types for type-safe navigation.
+
+```ts
+import { defineRoutes } from '@vertz/ui/router';
+
+const routes = defineRoutes({
+  '/': {
+    component: () => HomePage(),
+  },
+  '/tasks': {
+    component: () => TaskListPage(),
+    loader: async () => {
+      const res = await taskApi.list();
+      return res.ok ? res.data : [];
+    },
+  },
+  '/tasks/:id': {
+    component: () => TaskDetailPage(),
+    params: { id: (v) => Number(v) },
+  },
+});
+```
+
+### Signature
+
+```ts
+function defineRoutes<const T extends Record<string, RouteConfigLike>>(
+  map: T
+): TypedRoutes<T>
+```
+
+### RouteConfig
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `component` | `() => Node \| Promise<{ default: () => Node }>` | Component to render (supports lazy imports) |
+| `loader` | `(ctx: { params, signal }) => Promise<T> \| T` | Data loader — runs before the component renders |
+| `errorComponent` | `(error: Error) => Node` | Fallback component when loader fails |
+| `params` | `ParamSchema` | Parse and validate route params (`:id` → `number`) |
+| `searchParams` | `SearchParamSchema` | Parse and validate search/query params |
+| `children` | `RouteDefinitionMap` | Nested routes (rendered via `Outlet`) |
+
+---
+
+## createRouter()
+
+Create a router instance from a route definition.
+
+```ts
+import { createRouter, defineRoutes } from '@vertz/ui/router';
+
+const routes = defineRoutes({ /* ... */ });
+const router = createRouter(routes);
+```
+
+### Signature
+
+```ts
+function createRouter<T extends Record<string, RouteConfigLike>>(
+  routes: TypedRoutes<T>,
+  initialUrl?: string,
+  options?: RouterOptions
+): Router<T>
+```
+
+### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `routes` | `TypedRoutes<T>` | Compiled route list from `defineRoutes()` |
+| `initialUrl` | `string` | Override URL (used in SSR to set the server request URL) |
+| `options` | `RouterOptions` | Configuration for server navigation and prefetching |
+
+### RouterOptions
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `serverNav` | `boolean \| { timeout?: number }` | `false` | Enable server-side navigation (SSR prefetch on navigate) |
+
+### Router\<T\>
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `current` | `RouteMatch \| null` | Current matched route (reactive) |
+| `loaderData` | `unknown[]` | Data from the matched route's loader (reactive) |
+| `loaderError` | `Error \| null` | Error from the loader, if any (reactive) |
+| `searchParams` | `Record<string, unknown>` | Parsed search params (reactive) |
+| `navigate(url, options?)` | `(url: RoutePaths<T>, options?) => Promise<void>` | Navigate to a route — type-safe path |
+| `revalidate()` | `() => Promise<void>` | Re-run the current route's loader |
+| `dispose()` | `() => void` | Clean up the router |
+
+---
+
+## RouterView
+
+Renders the component matched by the current route.
+
+```tsx
+import { createRouter, defineRoutes, RouterView } from '@vertz/ui/router';
+
+const routes = defineRoutes({ /* ... */ });
+const router = createRouter(routes);
+
+function App() {
+  return (
+    <div>
+      <nav>...</nav>
+      <RouterView router={router} fallback={() => <div>Page not found</div>} />
+    </div>
+  );
+}
+```
+
+### Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `router` | `Router` | Router instance |
+| `fallback` | `() => Node` | Component to render when no route matches |
+
+---
+
+## Outlet
+
+Renders nested child routes inside a layout component. Must be used within a component rendered by `RouterView`.
+
+```tsx
+const routes = defineRoutes({
+  '/dashboard': {
+    component: () => DashboardLayout(),
+    children: {
+      '/': { component: () => DashboardHome() },
+      '/settings': { component: () => DashboardSettings() },
+    },
+  },
+});
+
+function DashboardLayout() {
+  return (
+    <div class={styles.layout}>
+      <Sidebar />
+      <main>
+        <Outlet />
+      </main>
+    </div>
+  );
+}
+```
+
+---
+
+## useRouter()
+
+Access the router instance from any component in the tree. Must be called within `RouterContext.Provider` (set up automatically by `RouterView`).
+
+```tsx
+import { useRouter } from '@vertz/ui/router';
+import type { InferRouteMap } from '@vertz/ui';
+
+function TaskCard({ taskId }: { taskId: string }) {
+  const router = useRouter<InferRouteMap<typeof routes>>();
+
+  const handleClick = () => {
+    router.navigate(`/tasks/${taskId}`);
+  };
+
+  return <div onClick={handleClick}>...</div>;
+}
+```
+
+### Signature
+
+```ts
+function useRouter<T extends Record<string, RouteConfigLike>>(): UnwrapSignals<Router<T>>
+```
+
+The generic parameter gives you type-safe `navigate()` calls — only valid paths from your route map are accepted.
+
+---
+
+## useParams()
+
+Read the current route's parsed parameters.
+
+```tsx
+import { useParams } from '@vertz/ui/router';
+
+function TaskDetailPage() {
+  const { id } = useParams<'/tasks/:id'>();
+  // id is typed based on the path pattern
+  return <div>Task {id}</div>;
+}
+```
+
+### Signature
+
+```ts
+function useParams<TPath extends string>(): ExtractParams<TPath>
+```
+
+When a `params` schema is defined on the route config, `useParams()` returns the parsed values (e.g., `id` as `number` instead of `string`).
+
+---
+
+## createLink()
+
+Create a Link component factory bound to a router's state. Used internally — most apps use the Link component via `RouterView` setup.
+
+```tsx
+import { createLink } from '@vertz/ui/router';
+
+const Link = createLink(router.current, (url) => router.navigate(url));
+```
+
+### LinkProps
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `href` | `string` | Target URL |
+| `children` | `string \| (() => Node)` | Link content |
+| `activeClass` | `string` | CSS class applied when the link matches the current route |
+| `className` | `string` | Base CSS class |
+| `prefetch` | `'hover'` | Prefetch route data on hover |
+
+---
+
+## Types
+
+```ts
+interface RouteMatch {
+  params: Record<string, string>;
+  parsedParams?: Record<string, unknown>;
+  route: CompiledRoute;
+  matched: MatchedRoute[];
+  searchParams: URLSearchParams;
+  search: Record<string, unknown>;
+}
+
+interface NavigateOptions {
+  replace?: boolean;
+}
+
+type RoutePaths<T extends Record<string, RouteConfigLike>> = keyof T & string;
+type ExtractParams<TPath extends string> = /* extracted param object */;
+type InferRouteMap<T> = T extends TypedRoutes<infer R> ? R : T;
+type TypedRoutes<T> = CompiledRoute[] & { readonly __routes: T };
+```
