@@ -3,17 +3,15 @@ import { css } from '@vertz/ui';
 const s = css({
   section: ['py:24', 'px:6'],
   container: ['max-w:4xl', 'mx:auto'],
-  label: ['font:xs', 'tracking:widest', 'uppercase', 'mb:4', 'text:center'],
+  label: ['font:xs', 'tracking:widest', 'uppercase', 'mb:4', 'text:center', 'text:gray.500'],
   heading: ['font:4xl', 'mb:4', 'text:center'],
-  subtitle: ['text:center', 'mb:12', 'max-w:xl', 'mx:auto'],
+  subtitle: ['text:center', 'mb:12', 'max-w:xl', 'mx:auto', 'text:gray.400'],
   list: ['flex', 'flex-col'],
   row: ['grid', 'gap:4', 'items:center', 'px:6', 'py:4'],
   pkg: ['font:sm'],
-  what: ['font:sm'],
-  replaces: ['font:xs', 'text:right'],
+  what: ['font:sm', 'text:gray.300'],
+  replaces: ['font:xs', 'text:right', 'text:gray.600'],
 });
-
-const MONO = "font-family: 'JetBrains Mono', monospace";
 
 const LAYERS = [
   {
@@ -76,21 +74,25 @@ const LAYERS = [
     replaces: 'Dockerfile + infra',
     color: '#fb923c',
   },
+  {
+    pkg: '@vertz/icons',
+    what: 'Tree-shakeable Lucide icons',
+    replaces: 'lucide-react',
+    color: '#94a3b8',
+  },
 ];
 
 export function TheStack() {
   return (
     <section class={s.section}>
       <div class={s.container}>
-        <p class={s.label} style={`${MONO}; color: #71717a`}>
+        <p class={s.label} style="font-family: var(--font-mono)">
           The stack
         </p>
-        <h2 class={s.heading} style="font-family: 'DM Serif Display', Georgia, serif">
+        <h2 class={s.heading} style="font-family: var(--font-display)">
           One framework. Not fifteen npm installs.
         </h2>
-        <p class={s.subtitle} style="color: #a1a1aa">
-          Every layer works together because they were built together.
-        </p>
+        <p class={s.subtitle}>Every layer works together because they were built together.</p>
 
         <div class={s.list}>
           {LAYERS.map((layer) => (
@@ -99,13 +101,11 @@ export function TheStack() {
               class={s.row}
               style={`grid-template-columns: 1fr 1.5fr 1fr; border-bottom: 1px solid #1e1e22`}
             >
-              <div class={s.pkg} style={`${MONO}; color: ${layer.color}`}>
+              <div class={s.pkg} style={`font-family: var(--font-mono); color: ${layer.color}`}>
                 {layer.pkg}
               </div>
-              <div class={s.what} style="color: #d4d4d8">
-                {layer.what}
-              </div>
-              <div class={s.replaces} style={`${MONO}; color: #52525b`}>
+              <div class={s.what}>{layer.what}</div>
+              <div class={s.replaces} style="font-family: var(--font-mono)">
                 replaces {layer.replaces}
               </div>
             </div>

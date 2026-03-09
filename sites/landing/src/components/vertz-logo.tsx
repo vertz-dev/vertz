@@ -1,7 +1,13 @@
+import { css } from '@vertz/ui';
+
+const s = css({
+  logo: ['h:7'],
+});
+
 export function VertzLogo() {
   return (
     <svg
-      style="height: 1.75rem"
+      class={s.logo}
       viewBox="0 0 689 272"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"

@@ -15,7 +15,7 @@ const TOOLTIP_CONTENT_STYLE = [
   'border: 1px solid #44475a',
   'border-radius: 4px',
   'padding: 8px 12px',
-  "font-family: 'JetBrains Mono', monospace",
+  'font-family: var(--font-mono)',
   'font-size: 12px',
   'line-height: 1.5',
   'color: #f8f8f2',

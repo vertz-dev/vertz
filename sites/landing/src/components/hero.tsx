@@ -1,7 +1,5 @@
 import { css } from '@vertz/ui';
 
-const MONO = "font-family: 'JetBrains Mono', monospace";
-
 const s = css({
   section: [
     'flex',
@@ -14,13 +12,14 @@ const s = css({
   ],
   badge: ['flex', 'items:center', 'gap:2', 'mb:8'],
   badgeDotWrap: ['relative', 'flex', 'h:2.5', 'w:2.5'],
-  badgeDotPing: ['absolute', 'inline-flex', 'h:full', 'w:full', 'rounded:full'],
+  badgeDotPing: ['absolute', 'inline-flex', 'h:full', 'w:full', 'rounded:full', 'opacity:40'],
   badgeDot: ['relative', 'inline-flex', 'rounded:full', 'h:2.5', 'w:2.5'],
-  badgeText: ['font:xs', 'tracking:widest', 'uppercase'],
+  badgeText: ['font:xs', 'tracking:widest', 'uppercase', 'text:gray.500'],
   h1: ['max-w:4xl'],
   h1Line: ['block'],
-  description: ['mt:8', 'font:xl', 'max-w:2xl', 'leading:relaxed'],
-  descriptionHighlight: ['weight:medium'],
+  h1LineFaded: ['block', 'text:gray.400'],
+  description: ['mt:8', 'font:xl', 'max-w:2xl', 'leading:relaxed', 'text:gray.400'],
+  descriptionHighlight: ['weight:medium', 'text:gray.200'],
   ctas: ['mt:12', 'flex', 'flex-row', 'items:center', 'gap:4'],
   githubLink: [
     'inline-flex',
@@ -33,6 +32,7 @@ const s = css({
     'uppercase',
     'tracking:wider',
     'transition:colors',
+    'text:gray.400',
   ],
   copyButton: [
     'flex',
@@ -44,8 +44,11 @@ const s = css({
     'font:sm',
     'cursor:pointer',
     'border:2',
+    'bg:gray.950',
+    'text:gray.300',
   ],
-  copyPrefix: ['font:xs'],
+  copyPrefix: ['font:xs', 'text:gray.500'],
+  dollarSign: ['text:gray.500'],
 });
 
 export function Hero() {
@@ -53,27 +56,25 @@ export function Hero() {
     <section class={s.section}>
       <div class={s.badge}>
         <span class={s.badgeDotWrap}>
-          <span class={s.badgeDotPing} style="background: #60a5fa; opacity: 0.4" />
+          <span class={s.badgeDotPing} style="background: #60a5fa" />
           <span class={s.badgeDot} style="background: #3b82f6" />
         </span>
-        <span class={s.badgeText} style={`${MONO}; color: #71717a`}>
+        <span class={s.badgeText} style="font-family: var(--font-mono)">
           Public Beta
         </span>
       </div>
 
       <h1
         class={s.h1}
-        style="font-family: 'DM Serif Display', Georgia, serif; font-size: clamp(3rem, 8vw, 6rem); letter-spacing: -0.025em; line-height: 1.1"
+        style="font-family: var(--font-display); font-size: clamp(3rem, 8vw, 6rem); letter-spacing: -0.025em; line-height: 1.1"
       >
         <span class={s.h1Line}>One command.</span>
-        <span class={s.h1Line} style="color: #a1a1aa">
-          Full stack. Running.
-        </span>
+        <span class={s.h1LineFaded}>Full stack. Running.</span>
       </h1>
 
-      <p class={s.description} style="color: #a1a1aa">
+      <p class={s.description}>
         One command. Database, API, and UI — running locally.{' '}
-        <span class={s.descriptionHighlight} style="color: #e4e4e7">
+        <span class={s.descriptionHighlight}>
           Define your schema once. Everything else is derived. Zero config.
         </span>
       </p>
@@ -85,7 +86,7 @@ export function Hero() {
           target="_blank"
           rel="noopener"
           class={s.githubLink}
-          style={`${MONO}; color: #a1a1aa`}
+          style="font-family: var(--font-mono)"
         >
           View on GitHub →
         </a>
@@ -110,12 +111,10 @@ function CopyButton() {
       type="button"
       onClick={handleClick}
       class={s.copyButton}
-      style={`${MONO}; background: #111113; border-color: #1e1e22; color: #d4d4d8; box-shadow: 4px 4px 0 rgba(255,255,255,0.06); transition: all 0.15s`}
+      style="font-family: var(--font-mono); border-color: #1e1e22; box-shadow: 4px 4px 0 rgba(255,255,255,0.06); transition: all 0.15s"
     >
-      <span style="color: #71717a">$</span> bun create vertz my-app
-      <span class={s.copyPrefix} style="color: #71717a">
-        {copied ? 'Copied!' : '(click to copy)'}
-      </span>
+      <span class={s.dollarSign}>$</span> bun create vertz my-app
+      <span class={s.copyPrefix}>{copied ? 'Copied!' : '(click to copy)'}</span>
     </button>
   );
 }

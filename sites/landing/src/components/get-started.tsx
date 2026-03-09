@@ -4,10 +4,12 @@ const s = css({
   section: ['py:24', 'px:6'],
   container: ['max-w:4xl', 'mx:auto', 'grid', 'grid-cols:2', 'gap:12', 'items:center'],
   heading: ['font:4xl', 'mb:6'],
-  desc: ['font:lg', 'mb:4'],
-  terminal: ['p:6', 'rounded:lg', 'font:sm', 'border:1'],
+  desc: ['font:lg', 'mb:4', 'text:gray.400'],
+  terminal: ['p:6', 'rounded:lg', 'font:sm', 'border:1', 'bg:gray.950'],
   terminalLine: ['mb:2'],
+  terminalCmd: ['text:gray.500'],
   successLine: ['mt:4'],
+  success: [],
 });
 
 export function GetStarted() {
@@ -18,30 +20,30 @@ export function GetStarted() {
     >
       <div class={s.container}>
         <div>
-          <h2 class={s.heading} style="font-family: 'DM Serif Display', Georgia, serif">
+          <h2 class={s.heading} style="font-family: var(--font-display)">
             Get started in 30 seconds.
           </h2>
-          <p class={s.desc} style="color: #a1a1aa">
+          <p class={s.desc}>
             SQLite database, REST API, and UI — all running locally. No Docker. No config files.
             Edit any layer and see it update instantly.
           </p>
         </div>
         <div
           class={s.terminal}
-          style="background: #0a0a0b; border-color: #1e1e22; font-family: 'JetBrains Mono', monospace; box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1)"
+          style="border-color: #1e1e22; font-family: var(--font-mono); box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1)"
         >
-          <div class={s.terminalLine} style="color: #71717a">
-            $ bun create vertz my-app
-          </div>
-          <div class={s.terminalLine} style="color: #71717a">
-            $ cd my-app
-          </div>
-          <div style="color: #71717a">$ bun dev</div>
-          <div class={s.successLine} style="color: #34d399">
+          <div class={`${s.terminalLine} ${s.terminalCmd}`}>$ bun create vertz my-app</div>
+          <div class={`${s.terminalLine} ${s.terminalCmd}`}>$ cd my-app</div>
+          <div class={s.terminalCmd}>$ bun dev</div>
+          <div class={s.successLine} style="color: #4ade80">
             ✓ SQLite database ready
           </div>
-          <div style="color: #34d399">✓ API server on http://localhost:3000/api</div>
-          <div style="color: #34d399">✓ UI on http://localhost:3000</div>
+          <div class={s.success} style="color: #4ade80">
+            ✓ API server on http://localhost:3000/api
+          </div>
+          <div class={s.success} style="color: #4ade80">
+            ✓ UI on http://localhost:3000
+          </div>
         </div>
       </div>
     </section>

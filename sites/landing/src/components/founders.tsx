@@ -1,15 +1,24 @@
+import { TwitterIcon } from '@vertz/icons';
 import { css } from '@vertz/ui';
 
 const s = css({
   section: ['py:24', 'px:6'],
   container: ['max-w:4xl', 'mx:auto'],
-  intro: ['font:lg', 'leading:relaxed', 'max-w:2xl', 'mx:auto', 'mb:12', 'text:center'],
+  intro: [
+    'font:lg',
+    'leading:relaxed',
+    'max-w:2xl',
+    'mx:auto',
+    'mb:12',
+    'text:center',
+    'text:gray.300',
+  ],
   grid: ['grid', 'grid-cols:2', 'gap:12', 'max-w:xl', 'mx:auto'],
   card: ['text:center'],
   img: ['w:20', 'h:20', 'mx:auto', 'mb:4', 'rounded:full'],
   name: ['weight:semibold', 'font:lg'],
-  role: ['font:xs', 'uppercase', 'tracking:wider', 'mt:1'],
-  bio: ['font:xs', 'mt:2', 'leading:relaxed', 'max-w:80', 'mx:auto'],
+  role: ['font:xs', 'uppercase', 'tracking:wider', 'mt:1', 'text:gray.500'],
+  bio: ['font:xs', 'mt:2', 'leading:relaxed', 'max-w:80', 'mx:auto', 'text:gray.400'],
   socialLink: [
     'inline-flex',
     'items:center',
@@ -19,8 +28,8 @@ const s = css({
     'uppercase',
     'tracking:wider',
     'transition:colors',
+    'text:gray.500',
   ],
-  icon: ['w:4', 'h:4'],
 });
 
 interface Founder {
@@ -53,7 +62,7 @@ export function Founders() {
       style="background: #0e0e11; border-top: 1px solid rgba(255,255,255,0.02)"
     >
       <div class={s.container}>
-        <p class={s.intro} style="color: #d4d4d8">
+        <p class={s.intro}>
           We spent years stitching together ORMs, API frameworks, validation libraries, and UI
           toolkits — and watching them drift apart. We built Vertz so the next team doesn't have to.
         </p>
@@ -68,20 +77,18 @@ export function Founders() {
                 style="object-fit: cover; outline: 2px solid #27272a; outline-offset: 2px"
               />
               <p class={s.name}>{f.name}</p>
-              <p class={s.role} style="font-family: 'JetBrains Mono', monospace; color: #71717a">
+              <p class={s.role} style="font-family: var(--font-mono)">
                 Co-founder
               </p>
-              <p class={s.bio} style="color: #a1a1aa">
-                {f.bio}
-              </p>
+              <p class={s.bio}>{f.bio}</p>
               <a
                 href={f.x.url}
                 target="_blank"
                 rel="noopener"
                 class={s.socialLink}
-                style="font-family: 'JetBrains Mono', monospace; color: #71717a"
+                style="font-family: var(--font-mono)"
               >
-                <XIcon />
+                <TwitterIcon size={16} />
                 {f.x.handle}
               </a>
             </div>
@@ -89,13 +96,5 @@ export function Founders() {
         </div>
       </div>
     </section>
-  );
-}
-
-function XIcon() {
-  return (
-    <svg class={s.icon} fill="currentColor" viewBox="0 0 24 24" aria-label="X">
-      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-    </svg>
   );
 }

@@ -5,7 +5,14 @@ const s = css({
   nav: ['fixed', 'z:50', 'flex', 'items:center', 'justify:between', 'px:6', 'py:4'],
   logoWrapper: ['flex', 'items:center', 'gap:2'],
   links: ['flex', 'items:center', 'gap:6'],
-  link: ['font:xs', 'uppercase', 'tracking:wider', 'cursor:pointer', 'transition:colors'],
+  link: [
+    'font:xs',
+    'uppercase',
+    'tracking:wider',
+    'cursor:pointer',
+    'transition:colors',
+    'text:gray.500',
+  ],
 });
 
 export function Nav() {
@@ -23,7 +30,7 @@ export function Nav() {
           target="_blank"
           rel="noopener"
           class={s.link}
-          style="font-family: 'JetBrains Mono', monospace; color: #71717a"
+          style="font-family: var(--font-mono)"
         >
           GitHub
         </a>
@@ -33,16 +40,12 @@ export function Nav() {
           target="_blank"
           rel="noopener"
           class={s.link}
-          style="font-family: 'JetBrains Mono', monospace; color: #71717a"
+          style="font-family: var(--font-mono)"
         >
           Discord
         </a>
         */}
-        <a
-          href="https://docs.vertz.dev"
-          class={s.link}
-          style="font-family: 'JetBrains Mono', monospace; color: #71717a"
-        >
+        <a href="https://docs.vertz.dev" class={s.link} style="font-family: var(--font-mono)">
           Docs
         </a>
       </div>

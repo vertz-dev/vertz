@@ -494,6 +494,7 @@
     "sites/landing": {
       "name": "@vertz/landing",
       "dependencies": {
+        "@vertz/icons": "workspace:*",
         "@vertz/theme-shadcn": "workspace:*",
         "@vertz/ui": "workspace:*",
         "@vertz/ui-primitives": "workspace:*",

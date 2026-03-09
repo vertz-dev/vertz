@@ -3,11 +3,11 @@ import { css } from '@vertz/ui';
 const s = css({
   section: ['py:24', 'px:6'],
   container: ['max-w:5xl', 'mx:auto'],
-  label: ['font:xs', 'tracking:widest', 'uppercase', 'mb:12', 'text:center'],
+  label: ['font:xs', 'tracking:widest', 'uppercase', 'mb:12', 'text:center', 'text:gray.500'],
   grid: ['grid', 'grid-cols:3', 'gap:6'],
   card: ['p:8', 'border:1', 'rounded:lg', 'transition:colors'],
-  title: ['font:2xl', 'mb:4'],
-  desc: ['leading:relaxed'],
+  title: ['font:2xl', 'mb:4', 'text:gray.200'],
+  desc: ['leading:relaxed', 'text:gray.400'],
 });
 
 const FEATURES = [
@@ -29,7 +29,7 @@ export function WhyVertz() {
   return (
     <section class={s.section}>
       <div class={s.container}>
-        <p class={s.label} style="font-family: 'JetBrains Mono', monospace; color: #71717a">
+        <p class={s.label} style="font-family: var(--font-mono)">
           Why Vertz
         </p>
         <div class={s.grid}>
@@ -39,15 +39,10 @@ export function WhyVertz() {
               class={s.card}
               style="background: rgba(17,17,19,0.5); border-color: rgba(30,30,34,0.5)"
             >
-              <h3
-                class={s.title}
-                style="font-family: 'DM Serif Display', Georgia, serif; color: #e4e4e7"
-              >
+              <h3 class={s.title} style="font-family: var(--font-display)">
                 {f.title}
               </h3>
-              <p class={s.desc} style="color: #a1a1aa">
-                {f.desc}
-              </p>
+              <p class={s.desc}>{f.desc}</p>
             </div>
           ))}
         </div>

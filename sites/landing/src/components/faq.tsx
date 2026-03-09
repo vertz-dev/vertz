@@ -6,11 +6,9 @@ const s = css({
   label: ['font:xs', 'tracking:widest', 'uppercase', 'mb:12', 'text:center'],
   list: ['flex', 'flex-col'],
   item: ['py:6', 'border-b:1'],
-  question: ['weight:semibold', 'mb:2'],
-  answer: ['leading:relaxed'],
+  question: ['weight:semibold', 'mb:2', 'text:gray.200'],
+  answer: ['leading:relaxed', 'text:gray.400'],
 });
-
-const MONO = "font-family: 'JetBrains Mono', monospace";
 
 const QUESTIONS = [
   {
@@ -35,19 +33,15 @@ export function FAQ() {
   return (
     <section class={s.section}>
       <div class={s.container}>
-        <p class={s.label} style={MONO}>
+        <p class={s.label} style="font-family: var(--font-mono)">
           What about...
         </p>
 
         <div class={s.list}>
           {QUESTIONS.map((item) => (
             <div key={item.q} class={s.item} style="border-color: #1e1e22">
-              <p class={s.question} style="color: #e4e4e7">
-                {item.q}
-              </p>
-              <p class={s.answer} style="color: #a1a1aa">
-                {item.a}
-              </p>
+              <p class={s.question}>{item.q}</p>
+              <p class={s.answer}>{item.a}</p>
             </div>
           ))}
         </div>
