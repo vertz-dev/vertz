@@ -333,6 +333,51 @@ describe('resolveToken', () => {
     });
   });
 
+  describe('font-style keywords', () => {
+    it('resolves italic to font-style: italic', () => {
+      const result = resolveToken({ property: 'italic', value: null, pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'font-style', value: 'italic' }]);
+    });
+
+    it('resolves not-italic to font-style: normal', () => {
+      const result = resolveToken({ property: 'not-italic', value: null, pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'font-style', value: 'normal' }]);
+    });
+  });
+
+  describe('list-style', () => {
+    it('resolves list:none to list-style: none', () => {
+      const result = resolveToken({ property: 'list', value: 'none', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'list-style', value: 'none' }]);
+    });
+
+    it('resolves list:disc to list-style: disc', () => {
+      const result = resolveToken({ property: 'list', value: 'disc', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'list-style', value: 'disc' }]);
+    });
+
+    it('resolves list:decimal to list-style: decimal', () => {
+      const result = resolveToken({ property: 'list', value: 'decimal', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'list-style', value: 'decimal' }]);
+    });
+
+    it('resolves list:inside to list-style-position: inside', () => {
+      const result = resolveToken({ property: 'list', value: 'inside', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'list-style-position', value: 'inside' }]);
+    });
+
+    it('resolves list:outside to list-style-position: outside', () => {
+      const result = resolveToken({ property: 'list', value: 'outside', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'list-style-position', value: 'outside' }]);
+    });
+
+    it('throws on invalid list value', () => {
+      expect(() => resolveToken({ property: 'list', value: 'potato', pseudo: null })).toThrow(
+        TokenResolveError,
+      );
+    });
+  });
+
   describe('error cases', () => {
     it('throws on unknown property', () => {
       expect(() => resolveToken({ property: 'xyzzy', value: '4', pseudo: null })).toThrow(
