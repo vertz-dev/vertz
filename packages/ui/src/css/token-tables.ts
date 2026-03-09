@@ -90,6 +90,9 @@ export const PROPERTY_MAP: Record<string, PropertyMapping> = {
   tracking: { properties: ['letter-spacing'], valueType: 'raw' },
   decoration: { properties: ['text-decoration'], valueType: 'raw' },
 
+  // List
+  list: { properties: ['list-style'], valueType: 'raw' },
+
   // Ring (outline)
   ring: { properties: ['outline'], valueType: 'ring' },
 
@@ -156,6 +159,10 @@ export const KEYWORD_MAP: Record<string, CSSDeclarationEntry[]> = {
 
   // Flex shrink
   'shrink-0': [{ property: 'flex-shrink', value: '0' }],
+
+  // Font style
+  italic: [{ property: 'font-style', value: 'italic' }],
+  'not-italic': [{ property: 'font-style', value: 'normal' }],
 };
 
 /**

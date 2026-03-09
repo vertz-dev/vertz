@@ -92,6 +92,9 @@ export function resolveToken(parsed: ParsedShorthand): ResolvedStyle {
   if (property === 'ring') {
     return { declarations: resolveRingMulti(value), pseudo };
   }
+  if (property === 'list') {
+    return { declarations: resolveList(value), pseudo };
+  }
 
   // Standard single-mode resolution.
   const resolvedValue = resolveValue(value, mapping.valueType, property);
@@ -339,6 +342,30 @@ function resolveRingMulti(value: string): CSSDeclaration[] {
   }
   // Color token: ring:primary.500 -> outline-color
   return [{ property: 'outline-color', value: resolveColor(value, 'ring') }];
+}
+
+/** List-style type keywords. */
+const LIST_STYLE_KEYWORDS = new Set(['none', 'disc', 'decimal']);
+
+/** List-style position keywords. */
+const LIST_POSITION_KEYWORDS = new Set(['inside', 'outside']);
+
+/**
+ * Resolve `list:value` -- multi-mode:
+ * - Style keywords (none, disc, decimal) -> list-style
+ * - Position keywords (inside, outside) -> list-style-position
+ */
+function resolveList(value: string): CSSDeclaration[] {
+  if (LIST_STYLE_KEYWORDS.has(value)) {
+    return [{ property: 'list-style', value }];
+  }
+  if (LIST_POSITION_KEYWORDS.has(value)) {
+    return [{ property: 'list-style-position', value }];
+  }
+  throw new TokenResolveError(
+    `Invalid list value '${value}'. Use: none, disc, decimal, inside, outside.`,
+    `list:${value}`,
+  );
 }
 
 /** Resolve raw values for properties that need custom mapping (border-width sides, transition, tracking, grid-cols, etc.). */
