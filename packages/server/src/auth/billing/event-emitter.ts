@@ -52,7 +52,11 @@ export function createBillingEventEmitter(): BillingEventEmitter {
       const list = handlers.get(eventType);
       if (!list) return;
       for (const handler of list) {
-        handler(event);
+        try {
+          handler(event);
+        } catch {
+          // Isolate handler errors — don't let one handler break others
+        }
       }
     },
   };

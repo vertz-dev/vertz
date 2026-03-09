@@ -162,4 +162,47 @@ describe('Feature: Stripe webhook handler', () => {
       expect(response.status).toBe(400);
     });
   });
+
+  describe('Given PlanStore throws during processing', () => {
+    it('returns 500 response', async () => {
+      const planStore = new InMemoryPlanStore();
+      // Override assignPlan to throw
+      planStore.assignPlan = async () => {
+        throw new Error('Store error');
+      };
+
+      const config = makeConfig({ planStore });
+      const handler = createWebhookHandler(config);
+
+      const body = makeStripeEvent('customer.subscription.created', {
+        id: 'sub_123',
+        metadata: { tenantId: 'org-1' },
+        items: { data: [{ price: { metadata: { vertzPlanId: 'pro' } } }] },
+      });
+
+      const response = await handler(await makeRequest(body));
+
+      expect(response.status).toBe(500);
+    });
+  });
+
+  describe('Given invalid JSON in request body', () => {
+    it('returns 400 response', async () => {
+      const config = makeConfig();
+      const handler = createWebhookHandler(config);
+
+      const response = await handler(
+        new Request('http://localhost/webhooks', {
+          method: 'POST',
+          body: 'not json',
+          headers: {
+            'content-type': 'application/json',
+            'stripe-signature': 'whsec_test',
+          },
+        }),
+      );
+
+      expect(response.status).toBe(400);
+    });
+  });
 });

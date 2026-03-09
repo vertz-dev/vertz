@@ -79,4 +79,22 @@ describe('Feature: Billing event emitter', () => {
       expect(count).toBe(1); // Still 1, handler not called again
     });
   });
+
+  describe('Given a handler that throws', () => {
+    it('still fires subsequent handlers', () => {
+      const emitter = createBillingEventEmitter();
+      let secondFired = false;
+
+      emitter.on('subscription:created', () => {
+        throw new Error('handler error');
+      });
+      emitter.on('subscription:created', () => {
+        secondFired = true;
+      });
+
+      // Should not throw and second handler should still fire
+      emitter.emit('subscription:created', { tenantId: 'org-1', planId: 'pro' });
+      expect(secondFired).toBe(true);
+    });
+  });
 });
