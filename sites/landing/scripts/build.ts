@@ -194,10 +194,9 @@ const PRODUCTION_HEAD = `
   <meta name="twitter:description" content="Define your schema once. Everything else is derived. Database, API, and UI from a single schema. Zero config." />
   <meta name="twitter:image" content="https://vertz.dev/public/og.png" />
 
-  <!-- Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=DM+Serif+Display&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap" rel="stylesheet" />
+  <!-- Font preloads (self-hosted, no external Google Fonts request) -->
+  <link rel="preload" href="/public/fonts/dm-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/public/fonts/dm-serif-display-latin.woff2" as="font" type="font/woff2" crossorigin />
 
   <!-- Canonical -->
   <link rel="canonical" href="https://vertz.dev" />
