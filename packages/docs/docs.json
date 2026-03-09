@@ -51,7 +51,8 @@
               "guides/ui/routing",
               "guides/ui/data-fetching",
               "guides/ui/forms",
-              "guides/ui/ssr"
+              "guides/ui/ssr",
+              "guides/ui/access-control"
             ]
           },
           {

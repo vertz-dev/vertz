@@ -379,6 +379,63 @@ function App() {
 
 ---
 
+## Access Control
+
+Client-side entitlement checks using `@vertz/ui/auth`. The server computes what the user can do, embeds it in the JWT, and the client uses it to show/hide UI without network requests.
+
+### `can()` -- check entitlements
+
+```tsx
+import { can } from '@vertz/ui/auth';
+
+function ProjectToolbar() {
+  const deleteCheck = can('project:delete');
+
+  return (
+    <div>
+      {deleteCheck.allowed && <button onClick={handleDelete}>Delete</button>}
+      {deleteCheck.reason === 'plan_required' && <span>Upgrade to unlock</span>}
+      {deleteCheck.meta?.limit && (
+        <span>{deleteCheck.meta.limit.remaining} uses left</span>
+      )}
+    </div>
+  );
+}
+```
+
+`can()` returns reactive properties: `allowed`, `reasons`, `reason`, `meta`, and `loading`. The compiler auto-unwraps signal values.
+
+For entity-scoped checks, pass the entity as the second argument:
+
+```tsx
+function ProjectCard({ project }) {
+  const editCheck = can('project:edit', project);
+  // reads project.__access if available, falls back to global access set
+}
+```
+
+### `AccessGate` -- wait for access data
+
+```tsx
+import { AccessContext, AccessGate, createAccessProvider } from '@vertz/ui/auth';
+
+function App() {
+  const accessValue = createAccessProvider();
+
+  return (
+    <AccessContext.Provider value={accessValue}>
+      <AccessGate fallback={() => <Spinner />}>
+        {() => <Router />}
+      </AccessGate>
+    </AccessContext.Provider>
+  );
+}
+```
+
+See the full [Access Control guide](https://vertz.dev/guides/ui/access-control) for SSR hydration, denial reasons, and usage limit display.
+
+---
+
 ## Advanced
 
 ### Watch
@@ -592,6 +649,16 @@ onMount(() => {
 | `createOutlet` | Create a route outlet |
 | `parseSearchParams` | Parse URL search parameters |
 | `useSearchParams` | Reactive search parameters |
+
+### Auth (`@vertz/ui/auth`)
+
+| Export | Description |
+|---|---|
+| `AccessContext` | Context for access set data |
+| `can` | Check if the user has an entitlement |
+| `AccessGate` | Gate rendering until access set loads |
+| `createAccessProvider` | Bootstrap access context from SSR data |
+| `useAccessContext` | Read the access context (throws without provider) |
 
 ### Testing (`@vertz/ui/test`)
 

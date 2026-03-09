@@ -46,6 +46,14 @@ const access = defineAccess({
     'org:create-team': { roles: ['admin', 'owner'] },
     'team:invite': { roles: ['lead', 'admin', 'owner'] },
   },
+  plans: {
+    enterprise: {
+      entitlements: [
+        'project:view', 'project:edit', 'project:delete', 'project:export',
+        'task:view', 'task:edit', 'org:create-team', 'team:invite',
+      ],
+    },
+  },
 });
 
 function buildHierarchy() {

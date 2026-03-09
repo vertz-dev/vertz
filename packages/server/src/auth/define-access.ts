@@ -42,6 +42,21 @@ export interface EntitlementDef {
   flags?: string[];
 }
 
+/** Billing period for plan limits */
+export type BillingPeriod = 'month' | 'day' | 'hour';
+
+/** Limit definition within a plan */
+export interface LimitDef {
+  per: BillingPeriod;
+  max: number;
+}
+
+/** Plan definition — which entitlements are included and their usage limits */
+export interface PlanDef {
+  entitlements: readonly string[] | string[];
+  limits?: Record<string, LimitDef>;
+}
+
 /** Inheritance config: parent role → child role mapping */
 export type InheritanceConfig = Record<string, Record<string, string>>;
 
@@ -51,6 +66,9 @@ export interface DefineAccessInput {
   roles: Record<string, string[]>;
   inheritance?: Record<string, Record<string, string>>;
   entitlements: Record<string, EntitlementDef>;
+  plans?: Record<string, PlanDef>;
+  /** Fallback plan name when an org's plan expires. Defaults to 'free'. */
+  defaultPlan?: string;
 }
 
 /** The frozen config returned by defineAccess() */
@@ -59,6 +77,9 @@ export interface AccessDefinition {
   readonly roles: Readonly<Record<string, readonly string[]>>;
   readonly inheritance: Readonly<Record<string, Readonly<Record<string, string>>>>;
   readonly entitlements: Readonly<Record<string, Readonly<EntitlementDef>>>;
+  readonly plans?: Readonly<Record<string, Readonly<PlanDef>>>;
+  /** Fallback plan name when an org's plan expires. Defaults to 'free'. */
+  readonly defaultPlan?: string;
 }
 
 // ============================================================================
@@ -106,6 +127,40 @@ export function defineAccess(input: DefineAccessInput): AccessDefinition {
     }
   }
 
+  // Validate entitlement plan references point to defined plan names
+  const planNameSet = new Set(Object.keys(input.plans ?? {}));
+  for (const [entName, entDef] of Object.entries(input.entitlements)) {
+    if (entDef.plans) {
+      for (const planRef of entDef.plans) {
+        if (!planNameSet.has(planRef)) {
+          throw new Error(`Entitlement "${entName}" references unknown plan: ${planRef}`);
+        }
+      }
+    }
+  }
+
+  // Validate plans
+  const entitlementSet = new Set(Object.keys(input.entitlements));
+  if (input.plans) {
+    for (const [planName, planDef] of Object.entries(input.plans)) {
+      const planEntitlementSet = new Set(planDef.entitlements);
+      for (const ent of planDef.entitlements) {
+        if (!entitlementSet.has(ent)) {
+          throw new Error(`Plan "${planName}" references unknown entitlement: ${ent}`);
+        }
+      }
+      if (planDef.limits) {
+        for (const limitKey of Object.keys(planDef.limits)) {
+          if (!planEntitlementSet.has(limitKey)) {
+            throw new Error(
+              `Plan "${planName}" has limit for "${limitKey}" which is not in the plan's entitlements`,
+            );
+          }
+        }
+      }
+    }
+  }
+
   // ---- Build frozen config ----
   const config: AccessDefinition = {
     hierarchy: Object.freeze([...input.hierarchy]),
@@ -122,6 +177,33 @@ export function defineAccess(input: DefineAccessInput): AccessDefinition {
         Object.entries(input.entitlements).map(([k, v]) => [k, Object.freeze({ ...v })]),
       ),
     ),
+    ...(input.defaultPlan ? { defaultPlan: input.defaultPlan } : {}),
+    ...(input.plans
+      ? {
+          plans: Object.freeze(
+            Object.fromEntries(
+              Object.entries(input.plans).map(([planName, planDef]) => [
+                planName,
+                Object.freeze({
+                  entitlements: Object.freeze([...planDef.entitlements]),
+                  ...(planDef.limits
+                    ? {
+                        limits: Object.freeze(
+                          Object.fromEntries(
+                            Object.entries(planDef.limits).map(([k, v]) => [
+                              k,
+                              Object.freeze({ ...v }),
+                            ]),
+                          ),
+                        ),
+                      }
+                    : {}),
+                }),
+              ]),
+            ),
+          ),
+        }
+      : {}),
   };
 
   return Object.freeze(config);

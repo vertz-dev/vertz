@@ -7,9 +7,13 @@
  * embedded in the JWT and delivered to the client for advisory UI checks.
  */
 
+import type { ResourceRef } from './access-context';
+import { calculateBillingPeriod } from './billing-period';
 import type { ClosureStore } from './closure-store';
 import type { AccessDefinition, DenialMeta, DenialReason } from './define-access';
+import { type PlanStore, resolveEffectivePlan } from './plan-store';
 import type { RoleAssignmentStore } from './role-assignment-store';
+import type { WalletStore } from './wallet-store';
 
 // ============================================================================
 // Types
@@ -35,6 +39,14 @@ export interface ComputeAccessSetConfig {
   roleStore: RoleAssignmentStore;
   closureStore: ClosureStore;
   plan?: string | null;
+  /** Plan store — for limit info in access set */
+  planStore?: PlanStore;
+  /** Wallet store — for consumption info in access set */
+  walletStore?: WalletStore;
+  /** Org resolver — for plan/wallet lookups */
+  orgResolver?: (resource?: ResourceRef) => Promise<string | null>;
+  /** Org ID — direct org ID for global access set (bypass orgResolver) */
+  orgId?: string | null;
 }
 
 // ============================================================================
@@ -42,8 +54,10 @@ export interface ComputeAccessSetConfig {
 // ============================================================================
 
 export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<AccessSet> {
-  const { userId, accessDef, roleStore, closureStore, plan } = config;
+  const { userId, accessDef, roleStore, closureStore, plan, planStore, walletStore, orgId } =
+    config;
   const entitlements: Record<string, AccessCheckData> = {};
+  let resolvedPlan = plan ?? null;
 
   // Unauthenticated user — all entitlements denied
   if (!userId) {
@@ -120,10 +134,81 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
     }
   }
 
+  // Enrich with plan/wallet info if stores are available
+  if (planStore && orgId) {
+    const orgPlan = planStore.getPlan(orgId);
+    if (orgPlan) {
+      const effectivePlanId = resolveEffectivePlan(orgPlan, accessDef.plans, accessDef.defaultPlan);
+      resolvedPlan = effectivePlanId;
+      if (effectivePlanId) {
+        const planDef = accessDef.plans?.[effectivePlanId];
+        if (planDef) {
+          for (const [name, entDef] of Object.entries(accessDef.entitlements)) {
+            // Plan check: if entitlement requires plans, verify plan includes it
+            if (entDef.plans?.length && !planDef.entitlements.includes(name)) {
+              const entry = entitlements[name];
+              const reasons: DenialReason[] = [...entry.reasons];
+              if (!reasons.includes('plan_required')) reasons.push('plan_required');
+              entitlements[name] = {
+                ...entry,
+                allowed: false,
+                reasons,
+                reason: reasons[0],
+                meta: { ...entry.meta, requiredPlans: [...entDef.plans] },
+              };
+            }
+
+            // Wallet check: add limit info if entitlement has limits
+            if (walletStore && planDef.limits?.[name]) {
+              const limitDef = planDef.limits[name];
+              const override = orgPlan.overrides[name];
+              const effectiveLimit = override ? Math.max(override.max, limitDef.max) : limitDef.max;
+              const { periodStart, periodEnd } = calculateBillingPeriod(
+                orgPlan.startedAt,
+                limitDef.per,
+              );
+              const consumed = await walletStore.getConsumption(
+                orgId,
+                name,
+                periodStart,
+                periodEnd,
+              );
+              const remaining = Math.max(0, effectiveLimit - consumed);
+              const entry = entitlements[name];
+
+              if (consumed >= effectiveLimit) {
+                const reasons: DenialReason[] = [...entry.reasons];
+                if (!reasons.includes('limit_reached')) reasons.push('limit_reached');
+                entitlements[name] = {
+                  ...entry,
+                  allowed: false,
+                  reasons,
+                  reason: reasons[0],
+                  meta: {
+                    ...entry.meta,
+                    limit: { max: effectiveLimit, consumed, remaining },
+                  },
+                };
+              } else {
+                entitlements[name] = {
+                  ...entry,
+                  meta: {
+                    ...entry.meta,
+                    limit: { max: effectiveLimit, consumed, remaining },
+                  },
+                };
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
   return {
     entitlements,
     flags: {},
-    plan: plan ?? null,
+    plan: resolvedPlan,
     computedAt: new Date().toISOString(),
   };
 }
@@ -157,7 +242,12 @@ export function encodeAccessSet(set: AccessSet): EncodedAccessSet {
 
   for (const [name, check] of Object.entries(set.entitlements)) {
     if (check.allowed) {
-      entitlements[name] = { allowed: true };
+      const entry: EncodedAccessCheckData = { allowed: true };
+      // Preserve limit info on allowed entries (for client-side usage display)
+      if (check.meta?.limit) {
+        entry.meta = { limit: { ...check.meta.limit } };
+      }
+      entitlements[name] = entry;
     } else if (check.meta && Object.keys(check.meta).length > 0) {
       // Strip organizational meta from JWT
       const strippedMeta: DenialMeta = { ...check.meta };

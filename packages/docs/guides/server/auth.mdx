@@ -1,6 +1,6 @@
 ---
-title: Authentication
-description: "Email/password auth, JWT sessions, refresh tokens, and session management"
+title: Authentication & Access Control
+description: "Email/password auth, JWT sessions, RBAC with hierarchy, plans & billing, and client-side access checks"
 ---
 
 `createAuth()` gives you a complete authentication system: sign-up, sign-in, JWT sessions with refresh token rotation, session management, rate limiting, and CSRF protection. One function call, no boilerplate.
@@ -203,9 +203,272 @@ Built-in protections — no configuration required:
 | **Secure cookies** | HttpOnly, Secure, SameSite=Lax by default |
 | **Cache headers** | All auth responses include `Cache-Control: no-store` |
 
+## Access control with `defineAccess()`
+
+Beyond basic `ctx.authenticated()` and `ctx.role()` checks, Vertz provides a full RBAC system with resource hierarchies, role inheritance, plan-based entitlements, and usage limits.
+
+### Defining the access model
+
+`defineAccess()` declares your entire authorization model in one place:
+
+```ts
+import { defineAccess } from '@vertz/server';
+
+const access = defineAccess({
+  // Resource hierarchy — parent to child
+  hierarchy: ['org', 'workspace', 'project'],
+
+  // Roles per resource type
+  roles: {
+    org: ['owner', 'admin', 'member'],
+    workspace: ['admin', 'editor', 'viewer'],
+    project: ['manager', 'contributor', 'viewer'],
+  },
+
+  // Role inheritance — parent role maps to child role
+  inheritance: {
+    org: { owner: 'admin', admin: 'editor', member: 'viewer' },
+    workspace: { admin: 'manager', editor: 'contributor', viewer: 'viewer' },
+  },
+
+  // Entitlements — map to required roles (and optionally plans)
+  entitlements: {
+    'project:create': { roles: ['admin', 'editor'] },
+    'project:delete': { roles: ['admin'] },
+    'project:read':   { roles: ['admin', 'editor', 'viewer'] },
+    'ai:generate':    { roles: ['editor'], plans: ['pro', 'enterprise'] },
+    'export:pdf':     { roles: ['viewer'], plans: ['pro', 'enterprise'] },
+  },
+});
+```
+
+The hierarchy, roles, and inheritance work together. If a user is an `owner` on an `org`, they inherit `admin` on all `workspace` children, which inherits `manager` on all `project` grandchildren. No need to assign roles at every level.
+
+### 5-layer resolution
+
+When you call `can()` or `check()`, the access context evaluates 5 layers in order:
+
+| Layer | What it checks | Denial reason |
+|-------|---------------|---------------|
+| 1. Feature flags | Whether the feature is enabled (stub -- always passes for now) | `flag_disabled` |
+| 2. RBAC | Does the user have a required role on the resource? | `role_required` |
+| 3. Hierarchy | Does the role propagate via the closure table? (implicit via Layer 2) | `hierarchy_denied` |
+| 4. Plan | Is the org on a plan that includes this entitlement? | `plan_required` |
+| 5. Wallet | Has the org exceeded its usage limit for the billing period? | `limit_reached` |
+
+`can()` short-circuits on the first denial (cheapest first). `check()` evaluates all layers and returns every reason, ordered by actionability.
+
+### Creating an access context
+
+At request time, create an access context with the user's identity and your stores:
+
+```ts
+import { createAccessContext } from '@vertz/server';
+
+const ctx = createAccessContext({
+  userId: session.userId,
+  accessDef: access,
+  closureStore,     // closure table for hierarchy lookups
+  roleStore,        // user-to-role assignments
+  planStore,        // org-to-plan assignments (optional)
+  walletStore,      // usage counters (optional)
+  orgResolver: async (resource) => {
+    // resolve which org a resource belongs to
+    return resource ? lookupOrgId(resource) : session.orgId;
+  },
+});
+```
+
+### Checking entitlements
+
+```ts
+// Simple boolean check — short-circuits on first denial
+const allowed = await ctx.can('project:create', { type: 'workspace', id: 'ws-1' });
+
+// Full check — all layers, structured result
+const result = await ctx.check('ai:generate', { type: 'project', id: 'proj-1' });
+// result.allowed    → false
+// result.reasons    → ['plan_required']
+// result.reason     → 'plan_required' (most actionable)
+// result.meta       → { requiredPlans: ['pro', 'enterprise'] }
+
+// Throws AuthorizationError on denial
+await ctx.authorize('project:delete', { type: 'project', id: 'proj-1' });
+
+// Bulk check — up to 100 at once
+const results = await ctx.canAll([
+  { entitlement: 'project:read', resource: { type: 'project', id: 'p1' } },
+  { entitlement: 'project:read', resource: { type: 'project', id: 'p2' } },
+]);
+```
+
+### Access set for the client
+
+`computeAccessSet()` builds a global snapshot of all entitlements for a user. This is embedded in the JWT and sent to the client for UI-advisory checks (the server always re-validates before mutations).
+
+```ts
+import { computeAccessSet, encodeAccessSet } from '@vertz/server';
+
+const accessSet = await computeAccessSet({
+  userId: user.id,
+  accessDef: access,
+  roleStore,
+  closureStore,
+  planStore,
+  walletStore,
+  orgId: user.orgId,
+});
+
+// Encode for JWT — sparse format (only includes allowed + denied-with-meta)
+const encoded = encodeAccessSet(accessSet);
+
+// Embed in JWT claims
+const jwt = await signJWT({ sub: user.id, acl: { set: encoded, hash: '...' } });
+```
+
+On the client, `decodeAccessSet()` restores the full shape (missing entitlements default to denied).
+
+## Plans and billing
+
+Extend `defineAccess()` with plans to gate entitlements by subscription tier and enforce usage limits.
+
+### Defining plans
+
+```ts
+const access = defineAccess({
+  hierarchy: ['org', 'workspace', 'project'],
+  roles: { /* ... */ },
+  entitlements: {
+    'ai:generate':  { roles: ['editor'], plans: ['pro', 'enterprise'] },
+    'export:pdf':   { roles: ['viewer'], plans: ['pro', 'enterprise'] },
+    'members:invite': { roles: ['admin'], plans: ['free', 'pro', 'enterprise'] },
+  },
+  plans: {
+    free: {
+      entitlements: ['members:invite'],
+      limits: {
+        'members:invite': { per: 'month', max: 5 },
+      },
+    },
+    pro: {
+      entitlements: ['ai:generate', 'export:pdf', 'members:invite'],
+      limits: {
+        'ai:generate': { per: 'month', max: 1000 },
+        'members:invite': { per: 'month', max: 50 },
+      },
+    },
+    enterprise: {
+      entitlements: ['ai:generate', 'export:pdf', 'members:invite'],
+      // no limits — unlimited usage
+    },
+  },
+  defaultPlan: 'free', // fallback when a plan expires
+});
+```
+
+Billing periods are `'month'`, `'day'`, or `'hour'`. Periods are anchored to the org's plan start date, not calendar months.
+
+### PlanStore
+
+Assign plans to organizations:
+
+```ts
+import { InMemoryPlanStore } from '@vertz/server';
+
+const planStore = new InMemoryPlanStore();
+
+// Assign a plan (startedAt defaults to now)
+planStore.assignPlan('org-1', 'pro');
+
+// With explicit dates
+planStore.assignPlan('org-1', 'pro', new Date('2026-01-01'), new Date('2027-01-01'));
+
+// Per-customer limit overrides (can only increase, never decrease)
+planStore.updateOverrides('org-1', {
+  'ai:generate': { max: 5000 }, // 5x the plan default
+});
+
+// Remove a plan
+planStore.removePlan('org-1');
+```
+
+When a plan expires, the system falls back to `defaultPlan` (or `'free'` if not configured). If the fallback plan doesn't exist in the definition, all plan-gated entitlements are denied.
+
+### WalletStore
+
+Track per-org usage within billing periods:
+
+```ts
+import { InMemoryWalletStore } from '@vertz/server';
+
+const walletStore = new InMemoryWalletStore();
+```
+
+The wallet store is used internally by `canAndConsume()` and `check()`. You don't call it directly in normal usage.
+
+### `canAndConsume()` -- atomic check + consume
+
+For operations that consume quota (AI generations, API calls, invites), use `canAndConsume()` instead of `can()`. It runs all access layers and atomically increments the usage counter:
+
+```ts
+// Check access AND consume 1 unit atomically
+const allowed = await ctx.canAndConsume('ai:generate', { type: 'project', id: 'proj-1' });
+
+if (!allowed) {
+  return { error: 'Upgrade your plan or wait for the next billing period.' };
+}
+
+// Do the actual work
+const result = await generateAI(prompt);
+```
+
+If the operation fails after consumption, roll back:
+
+```ts
+const allowed = await ctx.canAndConsume('ai:generate', { type: 'project', id: 'proj-1' });
+if (!allowed) return;
+
+try {
+  await generateAI(prompt);
+} catch (err) {
+  // Roll back the consumed unit
+  await ctx.unconsume('ai:generate', { type: 'project', id: 'proj-1' });
+  throw err;
+}
+```
+
+`canAndConsume()` avoids TOCTOU (time-of-check-time-of-use) races by skipping the read-only wallet check and going straight to an atomic consume that fails if the limit would be exceeded.
+
+## Entity access metadata
+
+For entity lists where each item has different permissions (e.g., some projects are editable, others read-only), pre-compute access metadata on the server so the client can check without extra requests.
+
+```ts
+import { computeEntityAccess } from '@vertz/server';
+
+// In your list handler
+const projects = await db.query('SELECT * FROM projects WHERE workspace_id = ?', [wsId]);
+
+const enriched = await Promise.all(
+  projects.map(async (project) => ({
+    ...project,
+    __access: await computeEntityAccess(
+      ['project:read', 'project:delete'],
+      { type: 'project', id: project.id },
+      accessContext,
+    ),
+  })),
+);
+```
+
+Each entity now carries `__access` metadata that the client-side `can()` function reads automatically. See the [client-side access control guide](/guides/ui/access-control) for usage.
+
 ## Next steps
 
 <CardGroup cols={2}>
+  <Card title="Client-Side Access Control" icon="shield" href="/guides/ui/access-control">
+    Use `can()` and `AccessGate` in your UI components.
+  </Card>
   <Card title="OAuth Providers" icon="key" href="/guides/server/oauth">
     Add Google, GitHub, or Discord sign-in.
   </Card>

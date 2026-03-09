@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'bun:test';
 import { computeAccessSet, decodeAccessSet, encodeAccessSet } from '../access-set';
+import { calculateBillingPeriod } from '../billing-period';
 import { InMemoryClosureStore } from '../closure-store';
 import { defineAccess } from '../define-access';
+import { InMemoryPlanStore } from '../plan-store';
 import { InMemoryRoleAssignmentStore } from '../role-assignment-store';
+import { InMemoryWalletStore } from '../wallet-store';
 
 const accessDef = defineAccess({
   hierarchy: ['Organization', 'Team', 'Project'],
@@ -190,6 +193,27 @@ describe('encodeAccessSet', () => {
     expect(encoded.entitlements['project:delete']).toBeDefined();
   });
 
+  it('preserves meta.limit in encoded output (not stripped)', () => {
+    const set = {
+      entitlements: {
+        'project:create': {
+          allowed: true,
+          reasons: [] as string[],
+          meta: { limit: { max: 5, consumed: 3, remaining: 2 } },
+        },
+      },
+      flags: {},
+      plan: 'free',
+      computedAt: '2026-01-01T00:00:00.000Z',
+    };
+
+    const encoded = encodeAccessSet(set);
+    const entry = encoded.entitlements['project:create'];
+
+    expect(entry).toBeDefined();
+    expect(entry?.meta?.limit).toEqual({ max: 5, consumed: 3, remaining: 2 });
+  });
+
   it('strips requiredRoles and requiredPlans from encoded output', () => {
     const set = {
       entitlements: {
@@ -255,6 +279,155 @@ describe('decodeAccessSet', () => {
         expect(check.reasons).toContain('role_required');
       }
     }
+  });
+});
+
+describe('decodeAccessSet — limit data', () => {
+  it('restores meta.limit from encoded data', () => {
+    const encoded = {
+      entitlements: {
+        'project:create': {
+          allowed: true,
+          meta: { limit: { max: 5, consumed: 3, remaining: 2 } },
+        },
+      },
+      flags: {},
+      plan: 'free',
+      computedAt: '2026-01-01T00:00:00.000Z',
+    };
+
+    const decoded = decodeAccessSet(encoded, accessDef);
+
+    expect(decoded.entitlements['project:create'].allowed).toBe(true);
+    expect(decoded.entitlements['project:create'].meta?.limit).toEqual({
+      max: 5,
+      consumed: 3,
+      remaining: 2,
+    });
+  });
+});
+
+describe('computeAccessSet — plan/wallet enrichment', () => {
+  const planAccessDef = defineAccess({
+    hierarchy: ['Organization', 'Team', 'Project'],
+    roles: {
+      Organization: ['owner', 'admin', 'member'],
+      Team: ['lead', 'editor', 'viewer'],
+      Project: ['manager', 'contributor', 'viewer'],
+    },
+    inheritance: {
+      Organization: { owner: 'lead', admin: 'editor', member: 'viewer' },
+      Team: { lead: 'manager', editor: 'contributor', viewer: 'viewer' },
+    },
+    entitlements: {
+      'project:create': { roles: ['admin', 'owner'], plans: ['pro'] },
+      'project:view': { roles: ['viewer', 'contributor', 'manager'] },
+      'project:edit': { roles: ['contributor', 'manager'] },
+      'project:delete': { roles: ['manager'] },
+      'app:use': { roles: [] },
+    },
+    plans: {
+      free: {
+        entitlements: ['project:view', 'project:edit', 'app:use'],
+      },
+      pro: {
+        entitlements: [
+          'project:create',
+          'project:view',
+          'project:edit',
+          'project:delete',
+          'app:use',
+        ],
+        limits: {
+          'project:create': { per: 'month', max: 10 },
+        },
+      },
+    },
+  });
+
+  it('includes limit info when planStore and walletStore are provided', async () => {
+    const { roleStore, closureStore } = createStores();
+    const planStore = new InMemoryPlanStore();
+    const walletStore = new InMemoryWalletStore();
+
+    closureStore.addResource('Organization', 'org-1');
+    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    const planStartedAt = new Date('2026-01-01T00:00:00Z');
+    planStore.assignPlan('org-1', 'pro', planStartedAt);
+
+    // Consume 3 of 10 — use the same billing period calculation as computeAccessSet
+    const { periodStart, periodEnd } = calculateBillingPeriod(planStartedAt, 'month');
+    await walletStore.consume('org-1', 'project:create', periodStart, periodEnd, 10, 3);
+
+    const result = await computeAccessSet({
+      userId: 'user-1',
+      accessDef: planAccessDef,
+      roleStore,
+      closureStore,
+      planStore,
+      walletStore,
+      orgId: 'org-1',
+    });
+
+    // project:create should be allowed (admin has role, pro plan includes it, 3/10 consumed)
+    expect(result.entitlements['project:create'].allowed).toBe(true);
+    expect(result.entitlements['project:create'].meta?.limit).toBeDefined();
+    expect(result.entitlements['project:create'].meta?.limit?.max).toBe(10);
+    expect(result.entitlements['project:create'].meta?.limit?.consumed).toBe(3);
+    expect(result.entitlements['project:create'].meta?.limit?.remaining).toBe(7);
+  });
+
+  it('denies when plan does not include entitlement', async () => {
+    const { roleStore, closureStore } = createStores();
+    const planStore = new InMemoryPlanStore();
+    const walletStore = new InMemoryWalletStore();
+
+    closureStore.addResource('Organization', 'org-1');
+    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    planStore.assignPlan('org-1', 'free'); // free plan does NOT include project:create
+
+    const result = await computeAccessSet({
+      userId: 'user-1',
+      accessDef: planAccessDef,
+      roleStore,
+      closureStore,
+      planStore,
+      walletStore,
+      orgId: 'org-1',
+    });
+
+    // project:create requires plans: ['pro'], but org is on free plan
+    expect(result.entitlements['project:create'].allowed).toBe(false);
+    expect(result.entitlements['project:create'].reasons).toContain('plan_required');
+  });
+
+  it('denies when limit is reached', async () => {
+    const { roleStore, closureStore } = createStores();
+    const planStore = new InMemoryPlanStore();
+    const walletStore = new InMemoryWalletStore();
+
+    closureStore.addResource('Organization', 'org-1');
+    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    const planStartedAt = new Date('2026-01-01T00:00:00Z');
+    planStore.assignPlan('org-1', 'pro', planStartedAt);
+
+    // Consume all 10 — use the same billing period calculation as computeAccessSet
+    const { periodStart, periodEnd } = calculateBillingPeriod(planStartedAt, 'month');
+    await walletStore.consume('org-1', 'project:create', periodStart, periodEnd, 10, 10);
+
+    const result = await computeAccessSet({
+      userId: 'user-1',
+      accessDef: planAccessDef,
+      roleStore,
+      closureStore,
+      planStore,
+      walletStore,
+      orgId: 'org-1',
+    });
+
+    expect(result.entitlements['project:create'].allowed).toBe(false);
+    expect(result.entitlements['project:create'].reasons).toContain('limit_reached');
+    expect(result.entitlements['project:create'].meta?.limit?.remaining).toBe(0);
   });
 });
 

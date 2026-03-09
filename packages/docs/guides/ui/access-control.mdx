@@ -1,0 +1,202 @@
+---
+title: Access Control
+description: "Client-side entitlement checks with can(), AccessGate, and SSR hydration"
+---
+
+The `@vertz/ui/auth` module provides UI-advisory access checks. The server computes an access set (what the user can do), embeds it in the JWT, and the client uses it to show/hide UI elements without network requests.
+
+**This is advisory only.** The server always re-validates before mutations. Client-side `can()` controls UI visibility, not authorization.
+
+## Setup
+
+### 1. Provide the access context
+
+Wrap your app with `AccessContext.Provider`. Use `createAccessProvider()` to bootstrap from the SSR-injected access set:
+
+```tsx
+import { AccessContext, createAccessProvider } from '@vertz/ui/auth';
+
+function App() {
+  const accessValue = createAccessProvider();
+
+  return (
+    <AccessContext.Provider value={accessValue}>
+      <Router />
+    </AccessContext.Provider>
+  );
+}
+```
+
+`createAccessProvider()` reads `window.__VERTZ_ACCESS_SET__` on load. If present (from SSR), the access set is immediately available with no loading state. If not, `loading` starts as `true` until you hydrate it.
+
+### 2. Inject the access set during SSR
+
+On the server, extract the access set from the JWT and inject it as a script tag:
+
+```ts
+import { getAccessSetForSSR, createAccessSetScript } from '@vertz/ui-server';
+
+// In your SSR handler
+const jwtPayload = await verifyJWT(token);
+const accessSet = getAccessSetForSSR(jwtPayload);
+
+const html = renderPage({
+  head: accessSet ? createAccessSetScript(accessSet) : '',
+  body: renderApp(),
+});
+```
+
+`createAccessSetScript()` produces a `<script>` tag that sets `window.__VERTZ_ACCESS_SET__`. It escapes all characters that could enable XSS via JSON injection. Pass a CSP nonce if your application uses nonce-based Content Security Policy:
+
+```ts
+createAccessSetScript(accessSet, request.nonce);
+// → <script nonce="abc123">window.__VERTZ_ACCESS_SET__={...}</script>
+```
+
+## Checking entitlements with `can()`
+
+`can()` checks if the current user has a specific entitlement. Call it in the component body (like `query()` or `form()`):
+
+```tsx
+import { can } from '@vertz/ui/auth';
+
+function ProjectSettings() {
+  const deleteCheck = can('project:delete');
+
+  return (
+    <div>
+      <h1>Settings</h1>
+      {deleteCheck.allowed && (
+        <button onClick={handleDelete}>Delete Project</button>
+      )}
+      {!deleteCheck.allowed && deleteCheck.reason === 'plan_required' && (
+        <p>Upgrade to delete projects.</p>
+      )}
+    </div>
+  );
+}
+```
+
+### Return shape
+
+`can()` returns an `AccessCheck` with reactive properties:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `allowed` | `boolean` | Whether the entitlement is granted |
+| `reasons` | `DenialReason[]` | All denial reasons, ordered by actionability |
+| `reason` | `DenialReason \| undefined` | The most actionable denial reason |
+| `meta` | `DenialMeta \| undefined` | Metadata (usage limits, required plans, etc.) |
+| `loading` | `boolean` | `true` while the access set is loading |
+
+All properties are reactive signals under the hood. The compiler auto-unwraps `.value` -- you use them like plain values in JSX and event handlers.
+
+### Denial reasons
+
+Reasons are ordered from most actionable (things the user can fix) to least:
+
+| Reason | Meaning | User action |
+|--------|---------|-------------|
+| `plan_required` | Entitlement requires a higher plan | Upgrade |
+| `role_required` | User lacks the required role | Request access |
+| `limit_reached` | Usage limit exceeded for the billing period | Wait or upgrade |
+| `flag_disabled` | Feature flag is off | None |
+| `hierarchy_denied` | No access path through the resource hierarchy | Request access |
+| `step_up_required` | Needs recent MFA verification | Re-authenticate |
+| `not_authenticated` | No user session | Sign in |
+
+### Usage limits in meta
+
+When an entitlement has a usage limit, `meta.limit` contains the current state:
+
+```tsx
+function AIGenerateButton() {
+  const aiCheck = can('ai:generate');
+
+  return (
+    <div>
+      <button disabled={!aiCheck.allowed} onClick={generate}>
+        Generate
+      </button>
+      {aiCheck.meta?.limit && (
+        <span>
+          {aiCheck.meta.limit.remaining} / {aiCheck.meta.limit.max} remaining
+        </span>
+      )}
+    </div>
+  );
+}
+```
+
+## Entity-scoped checks
+
+For entity lists where items have different permissions, the server can pre-compute access metadata per entity (see [server-side entity access](/guides/server/auth#entity-access-metadata)). Pass the entity as the second argument to `can()`:
+
+```tsx
+import { can } from '@vertz/ui/auth';
+
+function ProjectCard({ project }) {
+  const deleteCheck = can('project:delete', project);
+
+  return (
+    <div>
+      <h3>{project.name}</h3>
+      {deleteCheck.allowed && (
+        <button onClick={() => deleteProject(project.id)}>Delete</button>
+      )}
+    </div>
+  );
+}
+```
+
+`can()` checks `project.__access['project:delete']` first. If the entity doesn't have `__access` metadata, it falls back to the global access set.
+
+## AccessGate
+
+`AccessGate` prevents rendering children until the access set is loaded. Use it to avoid flicker on initial render:
+
+```tsx
+import { AccessGate } from '@vertz/ui/auth';
+
+function App() {
+  const accessValue = createAccessProvider();
+
+  return (
+    <AccessContext.Provider value={accessValue}>
+      <AccessGate fallback={() => <LoadingSpinner />}>
+        {() => <Router />}
+      </AccessGate>
+    </AccessContext.Provider>
+  );
+}
+```
+
+If the access set is hydrated from SSR (`window.__VERTZ_ACCESS_SET__`), the gate opens immediately with no loading flash.
+
+When no `AccessContext.Provider` is present, `AccessGate` renders children directly (fail-open for UI).
+
+## Compiler integration
+
+`can` is registered in the signal API registry, which means the compiler auto-unwraps signal properties. You write:
+
+```tsx
+const check = can('ai:generate');
+return <button disabled={!check.allowed}>Generate</button>;
+```
+
+The compiler transforms `.allowed` access to read from the underlying signal. You never need `.value` in JSX or event handlers.
+
+## Without a provider
+
+If `can()` is called without an `AccessContext.Provider` in the tree, it returns a fail-secure fallback where `allowed` is `false` and `reason` is `'not_authenticated'`. In development, a console warning is logged.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Server-Side Access Control" icon="lock" href="/guides/server/auth#access-control-with-defineaccess">
+    Configure hierarchy, roles, plans, and usage limits.
+  </Card>
+  <Card title="Entities" icon="database" href="/guides/server/entities">
+    Use access rules to protect entity operations.
+  </Card>
+</CardGroup>
