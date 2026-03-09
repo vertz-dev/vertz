@@ -20,11 +20,13 @@ import type { ClosureStore } from './closure-store';
 import type {
   AccessCheckResult,
   AccessDefinition,
+  BillingPeriod,
   DenialMeta,
   DenialReason,
 } from './define-access';
 import type { FlagStore } from './flag-store';
 import { type OrgPlan, type PlanStore, resolveEffectivePlan } from './plan-store';
+import type { PlanVersionStore } from './plan-version-store';
 import type { RoleAssignmentStore } from './role-assignment-store';
 import type { WalletStore } from './wallet-store';
 
@@ -52,6 +54,8 @@ export interface AccessContextConfig {
   walletStore?: WalletStore;
   /** Resolves an org ID from a resource. Required for plan/wallet checks. */
   orgResolver?: (resource?: ResourceRef) => Promise<string | null>;
+  /** Plan version store — required for versioned plan resolution (grandfathered tenants) */
+  planVersionStore?: PlanVersionStore;
 }
 
 export interface AccessContext {
@@ -85,6 +89,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     planStore,
     walletStore,
     orgResolver,
+    planVersionStore,
   } = config;
 
   // ==========================================================================
@@ -146,6 +151,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
         effectivePlanId,
         accessDef,
         planStore,
+        planVersionStore,
       );
       if (!hasFeature) return false;
     }
@@ -172,6 +178,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
         accessDef,
         planStore,
         walletStore,
+        planVersionStore,
       );
       for (const ws of walletStates) {
         if (ws.max === 0) return false; // disabled
@@ -272,6 +279,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
             effectivePlanId,
             accessDef,
             planStore,
+            planVersionStore,
           );
           if (!hasFeature) {
             planDenied = true;
@@ -303,6 +311,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
         accessDef,
         planStore,
         walletStore,
+        planVersionStore,
       );
       for (const ws of walletStates) {
         if (ws.max === 0 || (ws.max !== -1 && ws.consumed >= ws.max)) {
@@ -439,6 +448,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
       planStore,
       walletStore,
       orgPlan,
+      planVersionStore,
     );
 
     if (!limitsToConsume.length) return true; // No applicable limits
@@ -510,6 +520,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
       planStore,
       walletStore,
       orgPlan,
+      planVersionStore,
     );
 
     for (const lc of limitsToUnconsume) {
@@ -541,6 +552,8 @@ function orderDenialReasons(reasons: DenialReason[]): DenialReason[] {
 
 /**
  * Check if the entitlement is in the effective features (base plan + add-ons).
+ * When a planVersionStore is provided and the tenant has a specific version,
+ * uses the versioned snapshot's features instead of the current config.
  */
 async function resolveEffectiveFeatures(
   orgId: string,
@@ -548,7 +561,33 @@ async function resolveEffectiveFeatures(
   effectivePlanId: string,
   accessDef: AccessDefinition,
   planStore: PlanStore,
+  planVersionStore?: PlanVersionStore,
 ): Promise<boolean> {
+  // Check if tenant has a versioned snapshot to use
+  if (planVersionStore) {
+    const tenantVersion = await planVersionStore.getTenantVersion(orgId, effectivePlanId);
+    if (tenantVersion !== null) {
+      const versionInfo = await planVersionStore.getVersion(effectivePlanId, tenantVersion);
+      if (versionInfo) {
+        // Use versioned snapshot features instead of current config
+        const snapshotFeatures = versionInfo.snapshot.features;
+        if (snapshotFeatures.includes(entitlement)) return true;
+
+        // Check add-ons (add-ons are not versioned — they use current config)
+        const addOns = await planStore.getAddOns?.(orgId);
+        if (addOns) {
+          for (const addOnId of addOns) {
+            const addOnDef = accessDef.plans?.[addOnId];
+            if (addOnDef?.features?.includes(entitlement)) return true;
+          }
+        }
+
+        return false;
+      }
+    }
+  }
+
+  // Fallback to current config (no version store, or tenant not on a specific version)
   const planDef = accessDef.plans?.[effectivePlanId];
   if (planDef?.features?.includes(entitlement)) return true;
 
@@ -573,6 +612,8 @@ interface LimitState {
 /**
  * Resolve all limit states for an entitlement.
  * Returns states for ALL limits that gate this entitlement.
+ * When a planVersionStore is provided and the tenant has a specific version,
+ * uses the versioned snapshot's limits instead of the current config.
  */
 async function resolveAllLimitStates(
   entitlement: string,
@@ -580,6 +621,7 @@ async function resolveAllLimitStates(
   accessDef: AccessDefinition,
   planStore: PlanStore,
   walletStore: WalletStore,
+  planVersionStore?: PlanVersionStore,
 ): Promise<LimitState[]> {
   const orgPlan = await planStore.getPlan(orgId);
   const effectivePlanId = resolveEffectivePlan(orgPlan, accessDef.plans, accessDef.defaultPlan);
@@ -588,12 +630,31 @@ async function resolveAllLimitStates(
   const limitKeys = accessDef._entitlementToLimitKeys[entitlement];
   if (!limitKeys?.length) return [];
 
+  // Resolve versioned limits if available
+  let versionedLimits: Record<string, unknown> | null = null;
+  if (planVersionStore) {
+    const tenantVersion = await planVersionStore.getTenantVersion(orgId, effectivePlanId);
+    if (tenantVersion !== null) {
+      const versionInfo = await planVersionStore.getVersion(effectivePlanId, tenantVersion);
+      if (versionInfo) {
+        versionedLimits = versionInfo.snapshot.limits;
+      }
+    }
+  }
+
   const states: LimitState[] = [];
 
   for (const limitKey of limitKeys) {
-    // Find the limit definition in the effective plan
-    const planDef = accessDef.plans?.[effectivePlanId];
-    const limitDef = planDef?.limits?.[limitKey];
+    // Use versioned limits if available, otherwise fall back to current config
+    let limitDef: { max: number; gates: string; per?: BillingPeriod; scope?: string } | undefined;
+
+    if (versionedLimits && limitKey in versionedLimits) {
+      limitDef = versionedLimits[limitKey] as typeof limitDef;
+    } else {
+      const planDef = accessDef.plans?.[effectivePlanId];
+      limitDef = planDef?.limits?.[limitKey];
+    }
+
     if (!limitDef) continue;
 
     // Compute effective max (base + add-ons)
@@ -651,6 +712,8 @@ interface LimitConsumption {
 
 /**
  * Resolve all limits for consumption (canAndConsume / unconsume).
+ * When a planVersionStore is provided and the tenant has a specific version,
+ * uses the versioned snapshot's limits instead of the current config.
  */
 async function resolveAllLimitConsumptions(
   orgId: string,
@@ -660,15 +723,36 @@ async function resolveAllLimitConsumptions(
   planStore: PlanStore,
   _walletStore: WalletStore,
   orgPlan: OrgPlan,
+  planVersionStore?: PlanVersionStore,
 ): Promise<LimitConsumption[]> {
   const limitKeys = accessDef._entitlementToLimitKeys[entitlement];
   if (!limitKeys?.length) return [];
 
+  // Resolve versioned limits if available
+  let versionedLimits: Record<string, unknown> | null = null;
+  if (planVersionStore) {
+    const tenantVersion = await planVersionStore.getTenantVersion(orgId, effectivePlanId);
+    if (tenantVersion !== null) {
+      const versionInfo = await planVersionStore.getVersion(effectivePlanId, tenantVersion);
+      if (versionInfo) {
+        versionedLimits = versionInfo.snapshot.limits;
+      }
+    }
+  }
+
   const consumptions: LimitConsumption[] = [];
 
   for (const limitKey of limitKeys) {
-    const planDef = accessDef.plans?.[effectivePlanId];
-    const limitDef = planDef?.limits?.[limitKey];
+    // Use versioned limits if available, otherwise fall back to current config
+    let limitDef: { max: number; gates: string; per?: BillingPeriod; scope?: string } | undefined;
+
+    if (versionedLimits && limitKey in versionedLimits) {
+      limitDef = versionedLimits[limitKey] as typeof limitDef;
+    } else {
+      const planDef = accessDef.plans?.[effectivePlanId];
+      limitDef = planDef?.limits?.[limitKey];
+    }
+
     if (!limitDef) continue;
 
     // Compute effective max (base + add-ons)

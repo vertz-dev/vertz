@@ -42,6 +42,8 @@ export interface PlanStore {
   detachAddOn?(orgId: string, addOnId: string): Promise<void>;
   /** Get all active add-on IDs for an org. */
   getAddOns?(orgId: string): Promise<string[]>;
+  /** List all org IDs assigned to a specific plan. */
+  listByPlan?(planId: string): Promise<string[]>;
   dispose(): void;
 }
 
@@ -132,6 +134,16 @@ export class InMemoryPlanStore implements PlanStore {
 
   async getAddOns(orgId: string): Promise<string[]> {
     return [...(this.addOns.get(orgId) ?? [])];
+  }
+
+  async listByPlan(planId: string): Promise<string[]> {
+    const result: string[] = [];
+    for (const [orgId, plan] of this.plans.entries()) {
+      if (plan.planId === planId) {
+        result.push(orgId);
+      }
+    }
+    return result;
   }
 
   dispose(): void {
