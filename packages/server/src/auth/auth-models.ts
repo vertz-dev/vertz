@@ -7,6 +7,7 @@
  *   createDb({ models: { ...authModels, ...myModels } })
  */
 
+import type { ModelDef } from '@vertz/db';
 import { d } from '@vertz/db';
 
 // ---------------------------------------------------------------------------
@@ -100,7 +101,17 @@ const authOverridesTable = d.table('auth_overrides', {
 // Auth models — spread into createDb({ models: { ...authModels } })
 // ---------------------------------------------------------------------------
 
-export const authModels = {
+export const authModels: {
+  auth_users: ModelDef<typeof authUsersTable>;
+  auth_sessions: ModelDef<typeof authSessionsTable>;
+  auth_oauth_accounts: ModelDef<typeof authOauthAccountsTable>;
+  auth_role_assignments: ModelDef<typeof authRoleAssignmentsTable>;
+  auth_closure: ModelDef<typeof authClosureTable>;
+  auth_plans: ModelDef<typeof authPlansTable>;
+  auth_plan_addons: ModelDef<typeof authPlanAddonsTable>;
+  auth_flags: ModelDef<typeof authFlagsTable>;
+  auth_overrides: ModelDef<typeof authOverridesTable>;
+} = {
   auth_users: d.model(authUsersTable),
   auth_sessions: d.model(authSessionsTable),
   auth_oauth_accounts: d.model(authOauthAccountsTable),
