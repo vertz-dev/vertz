@@ -1,5 +1,11 @@
 # @vertz/create-vertz-app
 
+## 0.2.13
+
+### Patch Changes
+
+- [#944](https://github.com/vertz-dev/vertz/pull/944) [`cbda042`](https://github.com/vertz-dev/vertz/commit/cbda042603f9137cea2f032b7c842edc4c341dd7) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add `vertz start` command to serve production builds. Supports API-only, UI-only, and full-stack modes with SSR, static file serving, CSS inlining, and graceful shutdown.
+
 ## 0.2.12
 
 ## 0.2.11
