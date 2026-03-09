@@ -3,6 +3,7 @@ import { computeAccessSet, decodeAccessSet, encodeAccessSet } from '../access-se
 import { calculateBillingPeriod } from '../billing-period';
 import { InMemoryClosureStore } from '../closure-store';
 import { defineAccess } from '../define-access';
+import { InMemoryFlagStore } from '../flag-store';
 import { InMemoryPlanStore } from '../plan-store';
 import { InMemoryRoleAssignmentStore } from '../role-assignment-store';
 import { InMemoryWalletStore } from '../wallet-store';
@@ -465,5 +466,97 @@ describe('encode/decode round-trip', () => {
     expect(decoded.plan).toBe(original.plan);
     expect(decoded.computedAt).toBe(original.computedAt);
     expect(decoded.flags).toEqual(original.flags);
+  });
+
+  it('includes real flags from flagStore', async () => {
+    const flagAccessDef = defineAccess({
+      hierarchy: ['Organization', 'Project'],
+      roles: {
+        Organization: ['admin'],
+        Project: ['manager'],
+      },
+      inheritance: {
+        Organization: { admin: 'manager' },
+      },
+      entitlements: {
+        'project:view': { roles: ['manager'] },
+        'project:export': { roles: ['manager'], flags: ['export-v2'] },
+      },
+    });
+
+    const roleStore = new InMemoryRoleAssignmentStore();
+    const closureStore = new InMemoryClosureStore();
+    const flagStore = new InMemoryFlagStore();
+
+    closureStore.addResource('Organization', 'org-1');
+    closureStore.addResource('Project', 'proj-1', {
+      parentType: 'Organization',
+      parentId: 'org-1',
+    });
+    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+
+    flagStore.setFlag('org-1', 'export-v2', true);
+    flagStore.setFlag('org-1', 'some-other-flag', false);
+
+    const result = await computeAccessSet({
+      userId: 'user-1',
+      accessDef: flagAccessDef,
+      roleStore,
+      closureStore,
+      flagStore,
+      orgId: 'org-1',
+    });
+
+    expect(result.flags).toEqual({
+      'export-v2': true,
+      'some-other-flag': false,
+    });
+  });
+
+  it('marks entitlement denied with flag_disabled when flag is off', async () => {
+    const flagAccessDef = defineAccess({
+      hierarchy: ['Organization', 'Project'],
+      roles: {
+        Organization: ['admin'],
+        Project: ['manager'],
+      },
+      inheritance: {
+        Organization: { admin: 'manager' },
+      },
+      entitlements: {
+        'project:view': { roles: ['manager'] },
+        'project:export': { roles: ['manager'], flags: ['export-v2'] },
+      },
+    });
+
+    const roleStore = new InMemoryRoleAssignmentStore();
+    const closureStore = new InMemoryClosureStore();
+    const flagStore = new InMemoryFlagStore();
+
+    closureStore.addResource('Organization', 'org-1');
+    closureStore.addResource('Project', 'proj-1', {
+      parentType: 'Organization',
+      parentId: 'org-1',
+    });
+    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+
+    flagStore.setFlag('org-1', 'export-v2', false);
+
+    const result = await computeAccessSet({
+      userId: 'user-1',
+      accessDef: flagAccessDef,
+      roleStore,
+      closureStore,
+      flagStore,
+      orgId: 'org-1',
+    });
+
+    // project:export should be denied because flag is off
+    expect(result.entitlements['project:export'].allowed).toBe(false);
+    expect(result.entitlements['project:export'].reasons).toContain('flag_disabled');
+    expect(result.entitlements['project:export'].meta?.disabledFlags).toEqual(['export-v2']);
+
+    // project:view has no flags, should still be allowed
+    expect(result.entitlements['project:view'].allowed).toBe(true);
   });
 });

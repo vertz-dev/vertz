@@ -17,6 +17,7 @@ export type DenialReason =
 export interface DenialMeta {
   requiredPlans?: string[];
   requiredRoles?: string[];
+  disabledFlags?: string[];
   limit?: { max: number; consumed: number; remaining: number };
   fvaMaxAge?: number;
 }

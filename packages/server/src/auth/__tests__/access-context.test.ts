@@ -3,6 +3,7 @@ import type { ResourceRef } from '../access-context';
 import { createAccessContext } from '../access-context';
 import { InMemoryClosureStore } from '../closure-store';
 import { defineAccess } from '../define-access';
+import { InMemoryFlagStore } from '../flag-store';
 import { InMemoryPlanStore } from '../plan-store';
 import { InMemoryRoleAssignmentStore } from '../role-assignment-store';
 import { InMemoryWalletStore } from '../wallet-store';
@@ -742,6 +743,185 @@ describe('createAccessContext', () => {
       }));
 
       await expect(ctx.canAll(checks)).rejects.toThrow('canAll() is limited to 100 checks');
+    });
+  });
+
+  describe('flag layer (Layer 1)', () => {
+    function setupWithFlags() {
+      const accessDef = defineAccess({
+        hierarchy: ['Organization', 'Project'],
+        roles: {
+          Organization: ['owner', 'admin'],
+          Project: ['manager', 'contributor'],
+        },
+        inheritance: {
+          Organization: { owner: 'manager', admin: 'contributor' },
+        },
+        entitlements: {
+          'project:view': { roles: ['contributor', 'manager'] },
+          'project:export': { roles: ['manager'], flags: ['export-v2'] },
+          'project:ai': { roles: ['contributor', 'manager'], flags: ['ai-assist'] },
+          'project:beta': {
+            roles: ['manager'],
+            flags: ['beta-feature', 'beta-ui'],
+          },
+        },
+      });
+
+      const closureStore = new InMemoryClosureStore();
+      const roleStore = new InMemoryRoleAssignmentStore();
+      const flagStore = new InMemoryFlagStore();
+
+      closureStore.addResource('Organization', 'org-1');
+      closureStore.addResource('Project', 'proj-1', {
+        parentType: 'Organization',
+        parentId: 'org-1',
+      });
+
+      roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+
+      const orgResolver = async (resource?: ResourceRef) => {
+        if (!resource) return null;
+        const ancestors = closureStore.getAncestors(resource.type, resource.id);
+        const org = ancestors.find((a) => a.type === 'Organization');
+        return org?.id ?? null;
+      };
+
+      return { accessDef, closureStore, roleStore, flagStore, orgResolver };
+    }
+
+    it('can() returns false when entitlement flag is disabled', async () => {
+      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = setupWithFlags();
+      flagStore.setFlag('org-1', 'export-v2', false);
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        flagStore,
+        orgResolver,
+      });
+
+      const result = await ctx.can('project:export', {
+        type: 'Project',
+        id: 'proj-1',
+      });
+      expect(result).toBe(false);
+    });
+
+    it('can() returns true when entitlement flag is enabled', async () => {
+      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = setupWithFlags();
+      flagStore.setFlag('org-1', 'export-v2', true);
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        flagStore,
+        orgResolver,
+      });
+
+      const result = await ctx.can('project:export', {
+        type: 'Project',
+        id: 'proj-1',
+      });
+      expect(result).toBe(true);
+    });
+
+    it('can() passes when entitlement has no flags (backward compat)', async () => {
+      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = setupWithFlags();
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        flagStore,
+        orgResolver,
+      });
+
+      // project:view has no flags requirement
+      const result = await ctx.can('project:view', {
+        type: 'Project',
+        id: 'proj-1',
+      });
+      expect(result).toBe(true);
+    });
+
+    it('can() requires all flags to be enabled (multiple flags)', async () => {
+      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = setupWithFlags();
+      flagStore.setFlag('org-1', 'beta-feature', true);
+      flagStore.setFlag('org-1', 'beta-ui', false); // one of two flags off
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        flagStore,
+        orgResolver,
+      });
+
+      const result = await ctx.can('project:beta', {
+        type: 'Project',
+        id: 'proj-1',
+      });
+      expect(result).toBe(false);
+
+      // Enable both flags
+      flagStore.setFlag('org-1', 'beta-ui', true);
+      const result2 = await ctx.can('project:beta', {
+        type: 'Project',
+        id: 'proj-1',
+      });
+      expect(result2).toBe(true);
+    });
+
+    it('check() returns flag_disabled reason with meta.disabledFlags', async () => {
+      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = setupWithFlags();
+      flagStore.setFlag('org-1', 'export-v2', false);
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        flagStore,
+        orgResolver,
+      });
+
+      const result = await ctx.check('project:export', {
+        type: 'Project',
+        id: 'proj-1',
+      });
+      expect(result.allowed).toBe(false);
+      expect(result.reasons).toContain('flag_disabled');
+      expect(result.meta?.disabledFlags).toEqual(['export-v2']);
+    });
+
+    it('check() returns multiple disabled flags in meta', async () => {
+      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = setupWithFlags();
+      flagStore.setFlag('org-1', 'beta-feature', false);
+      flagStore.setFlag('org-1', 'beta-ui', false);
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        flagStore,
+        orgResolver,
+      });
+
+      const result = await ctx.check('project:beta', {
+        type: 'Project',
+        id: 'proj-1',
+      });
+      expect(result.allowed).toBe(false);
+      expect(result.reasons).toContain('flag_disabled');
+      expect(result.meta?.disabledFlags).toEqual(['beta-feature', 'beta-ui']);
     });
   });
 });

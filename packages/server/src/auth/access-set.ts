@@ -11,6 +11,7 @@ import type { ResourceRef } from './access-context';
 import { calculateBillingPeriod } from './billing-period';
 import type { ClosureStore } from './closure-store';
 import type { AccessDefinition, DenialMeta, DenialReason } from './define-access';
+import type { FlagStore } from './flag-store';
 import { type PlanStore, resolveEffectivePlan } from './plan-store';
 import type { RoleAssignmentStore } from './role-assignment-store';
 import type { WalletStore } from './wallet-store';
@@ -39,6 +40,8 @@ export interface ComputeAccessSetConfig {
   roleStore: RoleAssignmentStore;
   closureStore: ClosureStore;
   plan?: string | null;
+  /** Flag store — for feature flag state in access set */
+  flagStore?: FlagStore;
   /** Plan store — for limit info in access set */
   planStore?: PlanStore;
   /** Wallet store — for consumption info in access set */
@@ -54,8 +57,17 @@ export interface ComputeAccessSetConfig {
 // ============================================================================
 
 export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<AccessSet> {
-  const { userId, accessDef, roleStore, closureStore, plan, planStore, walletStore, orgId } =
-    config;
+  const {
+    userId,
+    accessDef,
+    roleStore,
+    closureStore,
+    plan,
+    flagStore,
+    planStore,
+    walletStore,
+    orgId,
+  } = config;
   const entitlements: Record<string, AccessCheckData> = {};
   let resolvedPlan = plan ?? null;
 
@@ -134,6 +146,37 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
     }
   }
 
+  // Populate flags and check flag-gated entitlements
+  const resolvedFlags: Record<string, boolean> = {};
+  if (flagStore && orgId) {
+    const orgFlags = flagStore.getFlags(orgId);
+    Object.assign(resolvedFlags, orgFlags);
+
+    // Check each entitlement for flag requirements
+    for (const [name, entDef] of Object.entries(accessDef.entitlements)) {
+      if (entDef.flags?.length) {
+        const disabledFlags: string[] = [];
+        for (const flag of entDef.flags) {
+          if (!flagStore.getFlag(orgId, flag)) {
+            disabledFlags.push(flag);
+          }
+        }
+        if (disabledFlags.length > 0) {
+          const entry = entitlements[name];
+          const reasons: DenialReason[] = [...entry.reasons];
+          if (!reasons.includes('flag_disabled')) reasons.push('flag_disabled');
+          entitlements[name] = {
+            ...entry,
+            allowed: false,
+            reasons,
+            reason: reasons[0],
+            meta: { ...entry.meta, disabledFlags },
+          };
+        }
+      }
+    }
+  }
+
   // Enrich with plan/wallet info if stores are available
   if (planStore && orgId) {
     const orgPlan = planStore.getPlan(orgId);
@@ -207,7 +250,7 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
 
   return {
     entitlements,
-    flags: {},
+    flags: resolvedFlags,
     plan: resolvedPlan,
     computedAt: new Date().toISOString(),
   };
