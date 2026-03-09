@@ -1,5 +1,14 @@
 # create-vertz
 
+## 0.2.15
+
+### Patch Changes
+
+- [#1086](https://github.com/vertz-dev/vertz/pull/1086) [`4a2d5b5`](https://github.com/vertz-dev/vertz/commit/4a2d5b504791ee772396248789b9ad65bd078abf) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add `create-vertz` package so `bun create vertz my-app` works as shown on the landing page
+
+- Updated dependencies []:
+  - @vertz/create-vertz-app@0.2.15
+
 ## 0.2.14
 
 ### Patch Changes

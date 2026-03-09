@@ -1,5 +1,18 @@
 # @vertz/codegen
 
+## 0.2.15
+
+### Patch Changes
+
+- [#1102](https://github.com/vertz-dev/vertz/pull/1102) [`d0f0941`](https://github.com/vertz-dev/vertz/commit/d0f09419950bd0d6d9229a11fa9bf07f632fb85d) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Generate router module augmentations so `useRouter()` picks up app route types by default after codegen.
+
+  Change router navigation to use a TanStack-style input object with route patterns
+  plus typed params, e.g. `navigate({ to: '/tasks/:id', params: { id: '123' } })`,
+  with search params passed in the same object.
+
+- Updated dependencies []:
+  - @vertz/compiler@0.2.15
+
 ## 0.2.14
 
 ### Patch Changes
