@@ -182,14 +182,9 @@ export function useSettings(): SettingsContextValue {
 ### `useRouter()` for navigation — no prop threading
 
 ```tsx
-// App-level typed router hook
-export function useAppRouter() {
-  return useRouter<InferRouteMap<typeof routes>>();
-}
-
 // Page — access via hook
 export function TaskListPage() {
-  const { navigate } = useAppRouter();
+  const { navigate } = useRouter();
   navigate('/tasks/new');
 }
 
@@ -198,6 +193,9 @@ export function TaskDetailPage() {
   const { id: taskId } = useParams<'/tasks/:id'>();
 }
 ```
+
+Scaffolded apps include `.vertz/generated` in `tsconfig.json`, so the generated
+`router.d.ts` file makes `useRouter()` typed by default after codegen runs.
 
 ### `RouterView` for declarative route rendering
 

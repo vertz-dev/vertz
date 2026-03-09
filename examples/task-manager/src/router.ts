@@ -6,10 +6,9 @@
  * - createRouter() for navigation state
  * - createLink() for client-side navigation with active state
  * - Outlet for nested route rendering
- * - Pages access navigation via useAppRouter() context (no prop threading)
+ * - Pages access navigation via useRouter() context (no prop threading)
  */
 
-import type { InferRouteMap } from '@vertz/ui';
 import {
   Outlet,
   OutletContext,
@@ -17,7 +16,6 @@ import {
   createLink,
   createRouter,
   defineRoutes,
-  useRouter,
 } from '@vertz/ui';
 import { api } from './api/mock-data';
 import { CreateTaskPage } from './pages/create-task';
@@ -73,16 +71,6 @@ const initialPath =
     : (globalThis as any).__SSR_URL__ || '/';
 
 export const appRouter = createRouter(routes, initialPath, { serverNav: true });
-
-/**
- * Typed useRouter hook for the app's route map.
- *
- * Use this instead of plain useRouter() to get typed navigate() that
- * validates paths at compile time.
- */
-export function useAppRouter() {
-  return useRouter<InferRouteMap<typeof routes>>();
-}
 
 /**
  * Create the Link component factory, bound to the router's current path.

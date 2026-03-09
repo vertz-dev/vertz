@@ -13,11 +13,10 @@
  */
 
 import { ArrowLeftIcon } from '@vertz/icons';
-import { css, query, queryMatch, useParams } from '@vertz/ui';
+import { css, query, queryMatch, useParams, useRouter } from '@vertz/ui';
 import { api } from '../api/mock-data';
 import { ConfirmDialog } from '../components/confirm-dialog';
 import type { TaskStatus } from '../lib/types';
-import { useAppRouter } from '../router';
 import { badge, button } from '../styles/components';
 
 const detailStyles = css({
@@ -58,10 +57,10 @@ const detailStyles = css({
  * {loading && ...} / {error && ...} / {!loading && !error && ...} guards.
  *
  * Task ID is accessed via useParams<TPath>() for typed params.
- * Navigation is accessed via useAppRouter() for typed navigate().
+ * Navigation is accessed via useRouter() for typed navigate().
  */
 export function TaskDetailPage() {
-  const { navigate } = useAppRouter();
+  const { navigate } = useRouter();
   const { id: taskId } = useParams<'/tasks/:id'>();
   // ── Data fetching ──────────────────────────────────
 

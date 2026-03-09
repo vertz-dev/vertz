@@ -21,7 +21,7 @@ export type { NavigateOptions, Router, TypedRouter } from './navigate';
 export { createRouter } from './navigate';
 export type { OutletContextValue } from './outlet';
 export { Outlet, OutletContext } from './outlet';
-export type { ExtractParams, PathWithParams, RoutePaths } from './params';
+export type { ExtractParams, PathWithParams, RoutePaths, RoutePattern } from './params';
 export { RouterContext, useParams, useRouter } from './router-context';
 export type { RouterViewProps } from './router-view';
 export { RouterView } from './router-view';

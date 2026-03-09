@@ -14,7 +14,7 @@
  * @see .claude/rules/public-api-validation.md
  */
 
-import type { InferRouteMap, LinkProps, PathWithParams, Router, RoutePaths } from '@vertz/ui';
+import type { InferRouteMap, LinkProps, PathWithParams, RoutePaths, Router } from '@vertz/ui';
 
 // Verify RoutePaths produces the expected union
 type AppPaths = RoutePaths<{
@@ -25,6 +25,7 @@ const _rpStatic: AppPaths = '/';
 const _rpParam: AppPaths = '/tasks/42';
 void _rpStatic;
 void _rpParam;
+
 import { createRouter, defineRoutes, useParams, useRouter } from '@vertz/ui';
 
 // ─── Phase 1: PathWithParams + RoutePaths ─────────────────────────────────────
@@ -46,14 +47,16 @@ const routes = defineRoutes({
 
 const router = createRouter(routes);
 
-// Valid paths
+// Valid route patterns
 router.navigate('/');
-router.navigate('/tasks/42');
-router.navigate('/users/1/posts/99');
+router.navigate('/tasks/:id', { params: { id: '42' } });
+router.navigate('/users/:userId/posts/:postId', {
+  params: { postId: '99', userId: '1' },
+});
 router.navigate('/settings');
-router.navigate('/files/docs/readme.md');
+router.navigate('/files/*', { params: { '*': 'docs/readme.md' } });
 
-// @ts-expect-error - invalid path
+// @ts-expect-error - invalid route pattern
 router.navigate('/nonexistent');
 
 // ─── Phase 4: useParams + useRouter<InferRouteMap> ────────────────────────────
@@ -69,9 +72,9 @@ void _badParam;
 
 // useRouter with InferRouteMap
 const typedRouter = useRouter<InferRouteMap<typeof routes>>();
-typedRouter.navigate('/tasks/42');
+typedRouter.navigate('/tasks/:id', { params: { id: '42' } });
 
-// @ts-expect-error - invalid path via InferRouteMap
+// @ts-expect-error - invalid route pattern via InferRouteMap
 typedRouter.navigate('/nonexistent');
 
 // TypedRouter assignable to Router (backward compat)

@@ -259,16 +259,22 @@ const _p3Routes = defineRoutes({
 
 const _p3Router = createRouter(_p3Routes);
 
-// @ts-expect-error - '/nonexistent' is not a valid path for this route map
+// @ts-expect-error - '/nonexistent' is not a valid route pattern for this route map
 _p3Router.navigate('/nonexistent');
 
-// @ts-expect-error - '/tasks' without param is not valid
+// @ts-expect-error - '/tasks' is not a defined route pattern
 _p3Router.navigate('/tasks');
 
-// Phase 3 Cycle 2: valid paths compile
+// @ts-expect-error - params are required for dynamic route patterns
+_p3Router.navigate('/tasks/:id');
+
+// @ts-expect-error - params are not allowed for static route patterns
+_p3Router.navigate('/', { params: { id: '42' } });
+
+// Phase 3 Cycle 2: valid route patterns compile
 _p3Router.navigate('/');
 _p3Router.navigate('/settings');
-_p3Router.navigate('/tasks/42');
+_p3Router.navigate('/tasks/:id', { params: { id: '42' } });
 
 // Phase 3 Cycle 3: TypedRouter<T> is assignable to Router (context boundary)
 const _p3AsRouter: Router = _p3Router;
@@ -337,16 +343,22 @@ const _p4Routes = defineRoutes({
 
 const _p4TypedRouter = useRouter<InferRouteMap<typeof _p4Routes>>();
 
-// Valid paths compile
+// Valid route patterns compile
 _p4TypedRouter.navigate('/');
 _p4TypedRouter.navigate('/settings');
-_p4TypedRouter.navigate('/tasks/42');
+_p4TypedRouter.navigate('/tasks/:id', { params: { id: '42' } });
 
-// @ts-expect-error - '/nonexistent' is not a valid path
+// @ts-expect-error - '/nonexistent' is not a valid route pattern
 _p4TypedRouter.navigate('/nonexistent');
 
-// @ts-expect-error - '/tasks' without param is not valid
+// @ts-expect-error - '/tasks' is not a defined route pattern
 _p4TypedRouter.navigate('/tasks');
+
+// @ts-expect-error - params are required for dynamic route patterns
+_p4TypedRouter.navigate('/tasks/:id');
+
+// @ts-expect-error - params are not allowed for static route patterns
+_p4TypedRouter.navigate('/settings', { params: { id: '42' } });
 
 // Phase 4 Cycle 4: useRouter() (no param) returns UnwrapSignals<Router> — backward compat
 const _p4UntypedRouter = useRouter();

@@ -11,14 +11,36 @@ import { getSSRContext } from '../ssr/ssr-render-context';
 import type { RouteConfigLike, RouteDefinitionMap, RouteMatch, TypedRoutes } from './define-routes';
 import { matchRoute } from './define-routes';
 import { executeLoaders } from './loader';
-import type { RoutePaths } from './params';
+import type { ExtractParams, RoutePattern } from './params';
 import { prefetchNavData as realPrefetchNavData } from './server-nav';
+
+export type NavigateSearchValue = string | number | boolean | null | undefined;
+export type NavigateSearch =
+  | string
+  | URLSearchParams
+  | Record<string, NavigateSearchValue | readonly NavigateSearchValue[]>;
 
 /** Options for router.navigate(). */
 export interface NavigateOptions {
   /** Use history.replaceState instead of pushState. */
   replace?: boolean;
+  /** Route params used to interpolate dynamic segments in the route pattern. */
+  params?: Record<string, string>;
+  /** Search params appended to the final URL. */
+  search?: NavigateSearch;
 }
+
+type NavigateOptionsFor<TPath extends string> = string extends TPath
+  ? NavigateOptions
+  : TPath extends `${string}:${string}` | `${string}*`
+    ? Omit<NavigateOptions, 'params'> & { params: ExtractParams<TPath> }
+    : Omit<NavigateOptions, 'params'> & { params?: never };
+
+type NavigateArgs<TPath extends string> = string extends TPath
+  ? [options?: NavigateOptionsFor<TPath>]
+  : TPath extends `${string}:${string}` | `${string}*`
+    ? [options: NavigateOptionsFor<TPath>]
+    : [options?: NavigateOptionsFor<TPath>];
 
 /** Handle returned by prefetchNavData for cancellation. */
 interface PrefetchHandle {
@@ -58,7 +80,8 @@ export interface RouterOptions {
  * parameter checking under `strictFunctionTypes`. This means `Router<T>` is
  * assignable to `Router` (the unparameterized default), which is required for
  * storing typed routers in the `RouterContext` without contravariance errors.
- * At call sites, TypeScript still enforces the `RoutePaths<T>` constraint.
+ * At call sites, TypeScript still enforces the `RoutePattern<T>` constraint and
+ * the params required for each route pattern.
  */
 export interface Router<T extends Record<string, RouteConfigLike> = RouteDefinitionMap> {
   /** Current matched route (reactive signal). */
@@ -69,8 +92,8 @@ export interface Router<T extends Record<string, RouteConfigLike> = RouteDefinit
   loaderError: Signal<Error | null>;
   /** Parsed search params from the current route (reactive signal). */
   searchParams: Signal<Record<string, unknown>>;
-  /** Navigate to a new URL path. */
-  navigate(url: RoutePaths<T>, options?: NavigateOptions): Promise<void>;
+  /** Navigate to a route pattern, interpolating params and search into the final URL. */
+  navigate<TPath extends RoutePattern<T>>(to: TPath, ...args: NavigateArgs<TPath>): Promise<void>;
   /** Re-run all loaders for the current route. */
   revalidate(): Promise<void>;
   /** Remove popstate listener and clean up the router. */
@@ -83,6 +106,67 @@ export interface Router<T extends Record<string, RouteConfigLike> = RouteDefinit
  * when the generic parameter makes the intent clearer.
  */
 export type TypedRouter<T extends Record<string, RouteConfigLike> = RouteDefinitionMap> = Router<T>;
+
+function interpolatePath(path: string, params?: Record<string, string>): string {
+  const segments = path.split('/');
+
+  return segments
+    .map((segment) => {
+      if (segment.startsWith(':')) {
+        const paramName = segment.slice(1);
+        const value = params?.[paramName];
+        if (value === undefined) {
+          throw new TypeError(`Missing route param "${paramName}" for path "${path}"`);
+        }
+        return encodeURIComponent(value);
+      }
+
+      if (segment === '*') {
+        const value = params?.['*'];
+        if (value === undefined) {
+          throw new TypeError(`Missing wildcard param "*" for path "${path}"`);
+        }
+        return value
+          .replace(/^\/+|\/+$/g, '')
+          .split('/')
+          .map((part) => encodeURIComponent(part))
+          .join('/');
+      }
+
+      return segment;
+    })
+    .join('/');
+}
+
+function buildSearch(search?: NavigateSearch): string {
+  if (!search) return '';
+
+  if (typeof search === 'string') {
+    if (search === '') return '';
+    return search.startsWith('?') ? search : `?${search}`;
+  }
+
+  const params =
+    search instanceof URLSearchParams ? new URLSearchParams(search) : new URLSearchParams();
+
+  if (!(search instanceof URLSearchParams)) {
+    const entries = Object.entries(search).sort(([left], [right]) => left.localeCompare(right));
+    for (const [key, rawValue] of entries) {
+      const values = Array.isArray(rawValue) ? rawValue : [rawValue];
+      for (const value of values) {
+        if (value === undefined || value === null) continue;
+        params.append(key, String(value));
+      }
+    }
+  }
+
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}
+
+function buildNavigationUrl(to: string, options?: NavigateOptions): string {
+  return `${interpolatePath(to, options?.params)}${buildSearch(options?.search)}`;
+}
 
 /**
  * Create a router instance.
@@ -322,7 +406,9 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     }
   }
 
-  async function navigate(navUrl: string, navOptions?: NavigateOptions): Promise<void> {
+  async function navigate(to: string, navOptions?: NavigateOptions): Promise<void> {
+    const navUrl = buildNavigationUrl(to, navOptions);
+
     // Capture generation at start — if a newer navigate() starts while we
     // await prefetch, this navigate should skip applyNavigation.
     const gen = ++navigateGen;
@@ -386,8 +472,8 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     }
   }
 
-  // Cast is safe: RoutePaths<T> narrows `string` at the type level only.
-  // At runtime, navigate always receives a string regardless of T.
+  // Cast is safe: the generic only narrows the route pattern and params shape
+  // at the type level. At runtime, navigate receives plain strings and objects.
   return {
     current,
     dispose,

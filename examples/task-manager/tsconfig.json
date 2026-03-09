@@ -13,5 +13,5 @@
     "target": "ES2022",
     "types": ["bun-types"]
   },
-  "include": ["src"]
+  "include": ["src", ".vertz/generated"]
 }

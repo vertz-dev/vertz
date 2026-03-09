@@ -32,6 +32,31 @@ describe('createRouter', () => {
     expect(router.current.value?.route.pattern).toBe('/about');
   });
 
+  test('navigate interpolates route params into the final URL', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/tasks/:id': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes, '/');
+
+    await router.navigate('/tasks/:id', { params: { id: '42' } });
+
+    expect(window.location.pathname).toBe('/tasks/42');
+    expect(router.current.value?.route.pattern).toBe('/tasks/:id');
+    expect(router.current.value?.params).toEqual({ id: '42' });
+  });
+
+  test('navigate rejects missing params at runtime', async () => {
+    const routes = defineRoutes({
+      '/tasks/:id': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes, '/tasks/1');
+
+    await expect((router as any).navigate('/tasks/:id')).rejects.toThrow(
+      'Missing route param "id" for path "/tasks/:id"',
+    );
+  });
+
   test('navigate runs loader and stores data', async () => {
     const loader = vi.fn().mockResolvedValue({ items: [1, 2, 3] });
     const routes = defineRoutes({
@@ -818,7 +843,7 @@ describe('createRouter SSR', () => {
   });
 
   test('returns lightweight router in SSR context', () => {
-    const ctx = enableTestSSR(createTestSSRContext('/about'));
+    const _ctx = enableTestSSR(createTestSSRContext('/about'));
     const routes = defineRoutes({
       '/': { component: () => document.createElement('div') },
       '/about': { component: () => document.createElement('div') },
