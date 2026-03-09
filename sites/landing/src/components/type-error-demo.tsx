@@ -24,9 +24,9 @@ const DIFF_LINES: Record<number, 'removed' | 'added'> = {
 
 const DIFF_STYLES = {
   removed:
-    'background: rgba(239,68,68,0.1); margin: 0 -1.5rem; padding: 0 1.5rem; border-left: 3px solid #ef4444',
+    'position: relative; background: rgba(239,68,68,0.1); margin: 0 -1.5rem; padding: 0 1.5rem 0 calc(1.5rem - 3px); border-left: 3px solid #ef4444',
   added:
-    'background: rgba(34,197,94,0.1); margin: 0 -1.5rem; padding: 0 1.5rem; border-left: 3px solid #22c55e',
+    'position: relative; background: rgba(34,197,94,0.1); margin: 0 -1.5rem; padding: 0 1.5rem 0 calc(1.5rem - 3px); border-left: 3px solid #22c55e',
 } as const;
 
 function DiffCodeBlock() {
@@ -43,7 +43,7 @@ function DiffCodeBlock() {
               return (
                 <div key={i} style={DIFF_STYLES[diff]}>
                   <span
-                    style={`color: ${diff === 'removed' ? '#ef4444' : '#22c55e'}; margin-right: 0.5rem`}
+                    style={`position: absolute; left: 0.5rem; color: ${diff === 'removed' ? '#ef4444' : '#22c55e'}`}
                   >
                     {diff === 'removed' ? '-' : '+'}
                   </span>
