@@ -7,7 +7,7 @@
 import { d } from '@vertz/db';
 
 export const oauthAccountsTable = d.table('oauth_accounts', {
-  id: d.uuid().primary({ generate: 'uuid' }),
+  id: d.uuid().primary(),
   userId: d.uuid(),
   provider: d.text(),
   providerId: d.text(),

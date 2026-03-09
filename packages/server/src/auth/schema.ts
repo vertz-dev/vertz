@@ -7,7 +7,7 @@
 import { d } from '@vertz/db';
 
 export const sessionsTable = d.table('sessions', {
-  id: d.uuid().primary({ generate: 'uuid' }),
+  id: d.uuid().primary(),
   userId: d.uuid(),
   refreshTokenHash: d.text(),
   previousRefreshHash: d.text().nullable(),

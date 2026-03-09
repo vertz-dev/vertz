@@ -207,7 +207,7 @@ export function schemaTemplate(): string {
   return `import { d } from 'vertz/db';
 
 export const tasksTable = d.table('tasks', {
-  id: d.uuid().primary({ generate: 'uuid' }),
+  id: d.uuid().primary(),
   title: d.text(),
   completed: d.boolean().default(false),
   createdAt: d.timestamp().default('now').readOnly(),
