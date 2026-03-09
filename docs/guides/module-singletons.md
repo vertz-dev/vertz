@@ -99,104 +99,23 @@ export function createClient(options = {}) {
 
 ## Application: Authentication
 
-Authentication follows the same shape as EntityStore — one session per app, needed by every HTTP request, needs SSR isolation.
-
-### The store
-
-```typescript
-// @vertz/ui (or @vertz/auth)
-export interface AuthStore {
-  /** Current token (reactive signal for UI binding) */
-  readonly token: ReadonlySignal<string | null>;
-  /** Set token after login */
-  setToken(token: string): void;
-  /** Clear token on logout */
-  clear(): void;
-  /** Returns auth headers for FetchClient */
-  getHeaders(): Record<string, string>;
-}
-
-let instance: AuthStore | undefined;
-
-export function getAuthStore(): AuthStore {
-  if (!instance) instance = createAuthStore();
-  return instance;
-}
-
-export function resetAuthStore(): void {
-  instance?.clear();
-  instance = undefined;
-}
-
-globalThis.__VERTZ_CLEAR_AUTH_STORE__ = resetAuthStore;
-```
-
-### Wiring to FetchClient
-
-```typescript
-// Generated createClient — auth auto-wired
-export function createClient(options = {}) {
-  const auth = getAuthStore();
-  const client = new FetchClient({
-    baseURL: options.baseURL ?? '/api',
-    onRequest(request) {
-      const headers = auth.getHeaders();
-      for (const [key, value] of Object.entries(headers)) {
-        request.headers.set(key, value);
-      }
-    },
-  });
-  // ...
-}
-```
-
-### Developer usage
-
-```typescript
-// After login — store the token
-import { getAuthStore } from '@vertz/ui';
-
-const auth = getAuthStore();
-auth.setToken(response.token);
-// Every subsequent api.todos.list() automatically includes the auth header
-
-// On logout
-auth.clear();
-```
-
-Components can also read auth state reactively:
+Vertz provides a built-in auth system via `AuthProvider` and `useAuth()` that manages JWT sessions, token refresh, MFA, and SSR hydration — see the full [Authentication Guide](./authentication.md).
 
 ```tsx
-const auth = getAuthStore();
-const isLoggedIn = auth.token !== null;  // reactive — compiler wraps in computed
+import { AuthProvider, useAuth } from '@vertz/ui/auth';
+import { form } from '@vertz/ui';
 
-return (
-  <div>
-    {isLoggedIn ? <UserMenu /> : <LoginButton />}
-  </div>
-);
+// Wrap your app
+<AuthProvider>
+  <App />
+</AuthProvider>
+
+// Use auth state anywhere
+const auth = useAuth();
+const loginForm = form(auth.signIn); // SdkMethod — form() works directly
 ```
 
-### API key authentication (no user session)
-
-For server-to-server or API key auth, the same singleton pattern works — just set the token at app startup:
-
-```typescript
-// Server-side client
-import { getAuthStore } from '@vertz/ui';
-
-getAuthStore().setToken(process.env.API_KEY!);
-const api = createClient();
-// All requests include the API key
-```
-
-Or bypass the store entirely:
-
-```typescript
-const api = createClient({
-  headers: { 'Authorization': `Bearer ${process.env.API_KEY}` },
-});
-```
+The module singleton pattern (EntityStore, etc.) is still the right choice for state that generated code needs to auto-wire. Authentication uses Context instead because it manages a complex lifecycle (token refresh, MFA, SSR hydration) that benefits from component-scoped setup and disposal.
 
 ## Why Not Context Providers?
 

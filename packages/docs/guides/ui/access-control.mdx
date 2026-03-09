@@ -9,9 +9,27 @@ The `@vertz/ui/auth` module provides UI-advisory access checks. The server compu
 
 ## Setup
 
-### 1. Provide the access context
+### With AuthProvider (recommended)
 
-Wrap your app with `AccessContext.Provider`. Use `createAccessProvider()` to bootstrap from the SSR-injected access set:
+If your app uses [`AuthProvider`](/guides/ui/auth), enable access control with a single prop:
+
+```tsx
+import { AuthProvider } from 'vertz/ui/auth';
+
+function App() {
+  return (
+    <AuthProvider accessControl>
+      <Router />
+    </AuthProvider>
+  );
+}
+```
+
+This automatically manages the `AccessContext.Provider`, fetches the access set after authentication, clears it on sign out, and hydrates from SSR.
+
+### Standalone (without AuthProvider)
+
+If you're not using `AuthProvider`, wrap your app with `AccessContext.Provider` manually:
 
 ```tsx
 import { AccessContext, createAccessProvider } from '@vertz/ui/auth';
@@ -29,7 +47,7 @@ function App() {
 
 `createAccessProvider()` reads `window.__VERTZ_ACCESS_SET__` on load. If present (from SSR), the access set is immediately available with no loading state. If not, `loading` starts as `true` until you hydrate it.
 
-### 2. Inject the access set during SSR
+### Inject the access set during SSR
 
 On the server, extract the access set from the JWT and inject it as a script tag:
 
@@ -193,6 +211,9 @@ If `can()` is called without an `AccessContext.Provider` in the tree, it returns
 ## Next steps
 
 <CardGroup cols={2}>
+  <Card title="Authentication" icon="user" href="/guides/ui/auth">
+    AuthProvider, useAuth(), sign-in forms, and token refresh.
+  </Card>
   <Card title="Server-Side Access Control" icon="lock" href="/guides/server/auth#access-control-with-defineaccess">
     Configure hierarchy, roles, plans, and usage limits.
   </Card>

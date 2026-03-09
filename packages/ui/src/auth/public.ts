@@ -1,10 +1,12 @@
 /**
- * @vertz/ui/auth — client-side access control.
+ * @vertz/ui/auth — client-side access control and authentication.
  *
- * Provides AccessContext, can(), AccessGate, and createAccessProvider
- * for UI-advisory access checks without network requests.
+ * Provides AccessContext, can(), AccessGate, createAccessProvider
+ * for UI-advisory access checks, and AuthContext, useAuth(), AuthProvider
+ * for session management and auth flows.
  */
 
+// --- Access control (existing) ---
 export type { AccessContextValue } from './access-context';
 export { AccessContext, can, useAccessContext } from './access-context';
 export type { AccessGateProps } from './access-gate';
@@ -16,4 +18,21 @@ export type {
   DenialMeta,
   DenialReason,
 } from './access-set-types';
+export type { AuthContextValue, AuthProviderProps } from './auth-context';
+export { AuthContext, AuthProvider, useAuth } from './auth-context';
+export type { AuthGateProps } from './auth-gate';
+export { AuthGate } from './auth-gate';
+// --- Authentication (new) ---
+export type {
+  AuthClientError,
+  AuthErrorCode,
+  AuthResponse,
+  AuthStatus,
+  ForgotInput,
+  MfaInput,
+  ResetInput,
+  SignInInput,
+  SignUpInput,
+  User,
+} from './auth-types';
 export { createAccessProvider } from './create-access-provider';

@@ -797,10 +797,16 @@ export function createAuth(config: AuthConfig): AuthInstance {
           );
         }
 
-        return new Response(JSON.stringify({ user: result.data.user }), {
-          status: 201,
-          headers,
-        });
+        return new Response(
+          JSON.stringify({
+            user: result.data.user,
+            expiresAt: result.data.expiresAt.getTime(),
+          }),
+          {
+            status: 201,
+            headers,
+          },
+        );
       }
 
       // Route: POST /api/auth/signin
@@ -855,10 +861,16 @@ export function createAuth(config: AuthConfig): AuthInstance {
           );
         }
 
-        return new Response(JSON.stringify({ user: result.data.user }), {
-          status: 200,
-          headers,
-        });
+        return new Response(
+          JSON.stringify({
+            user: result.data.user,
+            expiresAt: result.data.expiresAt.getTime(),
+          }),
+          {
+            status: 200,
+            headers,
+          },
+        );
       }
 
       // Route: POST /api/auth/signout
@@ -997,10 +1009,16 @@ export function createAuth(config: AuthConfig): AuthInstance {
           );
         }
 
-        return new Response(JSON.stringify({ user: result.data.user }), {
-          status: 200,
-          headers,
-        });
+        return new Response(
+          JSON.stringify({
+            user: result.data.user,
+            expiresAt: result.data.expiresAt.getTime(),
+          }),
+          {
+            status: 200,
+            headers,
+          },
+        );
       }
 
       // Route: GET /api/auth/sessions
