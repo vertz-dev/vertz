@@ -301,7 +301,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
     }
 
     // Rate limit check BEFORE user lookup to prevent email enumeration via timing
-    const signUpRateLimit = rateLimitStore.check(
+    const signUpRateLimit = await rateLimitStore.check(
       `signup:${email.toLowerCase()}`,
       emailPassword?.rateLimit?.maxAttempts || 3,
       signUpWindowMs,
@@ -388,7 +388,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
     const { email, password } = data;
 
     // Rate limit check BEFORE user lookup to prevent email enumeration via timing
-    const signInRateLimit = rateLimitStore.check(
+    const signInRateLimit = await rateLimitStore.check(
       `signin:${email.toLowerCase()}`,
       emailPassword?.rateLimit?.maxAttempts || 5,
       signInWindowMs,
@@ -502,7 +502,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
   // ==========================================================================
 
   async function refreshSession(ctx: { headers: Headers }): Promise<Result<Session, AuthError>> {
-    const refreshRateLimit = rateLimitStore.check(
+    const refreshRateLimit = await rateLimitStore.check(
       `refresh:${ctx.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'default'}`,
       10,
       refreshWindowMs,
@@ -1093,7 +1093,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
         // Rate limit: 10 OAuth initiations per 5 minutes per IP
         const oauthIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'default';
-        const oauthRateLimit = rateLimitStore.check(`oauth:${oauthIp}`, 10, 5 * 60 * 1000);
+        const oauthRateLimit = await rateLimitStore.check(`oauth:${oauthIp}`, 10, 5 * 60 * 1000);
         if (!oauthRateLimit.allowed) {
           return new Response(JSON.stringify({ error: 'Too many requests' }), {
             status: 429,
@@ -1354,7 +1354,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
         // Rate limit: 5 attempts per 15min per IP
         const challengeIp =
           request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'default';
-        const challengeRateLimit = rateLimitStore.check(
+        const challengeRateLimit = await rateLimitStore.check(
           `mfa-challenge:${challengeIp}`,
           5,
           signInWindowMs,
@@ -1754,7 +1754,11 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
         // Rate limit: 5 attempts per 15min per IP
         const stepUpIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'default';
-        const stepUpRateLimit = rateLimitStore.check(`mfa-stepup:${stepUpIp}`, 5, signInWindowMs);
+        const stepUpRateLimit = await rateLimitStore.check(
+          `mfa-stepup:${stepUpIp}`,
+          5,
+          signInWindowMs,
+        );
         if (!stepUpRateLimit.allowed) {
           return new Response(
             JSON.stringify({ error: createAuthRateLimitedError('Too many step-up attempts') }),
@@ -1937,7 +1941,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
         const userId = sessionResult.data.user.id;
 
         // Rate limit: 3 resend per hour per userId
-        const resendRateLimit = rateLimitStore.check(
+        const resendRateLimit = await rateLimitStore.check(
           `resend-verification:${userId}`,
           3,
           parseDuration('1h'),
@@ -1993,7 +1997,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
         const body = (await request.json()) as { email: string };
 
         // Rate limit: 3 per hour per email
-        const forgotRateLimit = rateLimitStore.check(
+        const forgotRateLimit = await rateLimitStore.check(
           `forgot-password:${(body.email ?? '').toLowerCase()}`,
           3,
           parseDuration('1h'),

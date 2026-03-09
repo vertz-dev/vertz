@@ -100,7 +100,7 @@ export interface StoredSession {
 }
 
 export interface RateLimitStore {
-  check(key: string, maxAttempts: number, windowMs: number): RateLimitResult;
+  check(key: string, maxAttempts: number, windowMs: number): Promise<RateLimitResult>;
   dispose(): void;
 }
 

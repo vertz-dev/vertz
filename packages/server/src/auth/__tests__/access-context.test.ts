@@ -8,7 +8,7 @@ import { InMemoryPlanStore } from '../plan-store';
 import { InMemoryRoleAssignmentStore } from '../role-assignment-store';
 import { InMemoryWalletStore } from '../wallet-store';
 
-function setup() {
+async function setup() {
   const accessDef = defineAccess({
     hierarchy: ['Organization', 'Team', 'Project', 'Task'],
     roles: {
@@ -48,16 +48,16 @@ function setup() {
   const roleStore = new InMemoryRoleAssignmentStore();
 
   // Build resource hierarchy
-  closureStore.addResource('Organization', 'org-1');
-  closureStore.addResource('Team', 'team-1', {
+  await closureStore.addResource('Organization', 'org-1');
+  await closureStore.addResource('Team', 'team-1', {
     parentType: 'Organization',
     parentId: 'org-1',
   });
-  closureStore.addResource('Project', 'proj-1', {
+  await closureStore.addResource('Project', 'proj-1', {
     parentType: 'Team',
     parentId: 'team-1',
   });
-  closureStore.addResource('Task', 'task-1', {
+  await closureStore.addResource('Task', 'task-1', {
     parentType: 'Project',
     parentId: 'proj-1',
   });
@@ -68,8 +68,8 @@ function setup() {
 describe('createAccessContext', () => {
   describe('can()', () => {
     it('returns true when user role grants entitlement on resource', async () => {
-      const { accessDef, closureStore, roleStore } = setup();
-      roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+      const { accessDef, closureStore, roleStore } = await setup();
+      await roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -86,8 +86,8 @@ describe('createAccessContext', () => {
     });
 
     it('returns false when user lacks required role', async () => {
-      const { accessDef, closureStore, roleStore } = setup();
-      roleStore.assign('user-1', 'Project', 'proj-1', 'viewer');
+      const { accessDef, closureStore, roleStore } = await setup();
+      await roleStore.assign('user-1', 'Project', 'proj-1', 'viewer');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -104,7 +104,7 @@ describe('createAccessContext', () => {
     });
 
     it('returns false for unauthenticated user', async () => {
-      const { accessDef, closureStore, roleStore } = setup();
+      const { accessDef, closureStore, roleStore } = await setup();
 
       const ctx = createAccessContext({
         userId: null,
@@ -121,8 +121,8 @@ describe('createAccessContext', () => {
     });
 
     it('resolves inherited roles via hierarchy', async () => {
-      const { accessDef, closureStore, roleStore } = setup();
-      roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+      const { accessDef, closureStore, roleStore } = await setup();
+      await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
       // admin on Org → editor on Team → contributor on Project
 
       const ctx = createAccessContext({
@@ -140,8 +140,8 @@ describe('createAccessContext', () => {
     });
 
     it('denies when inherited role is insufficient', async () => {
-      const { accessDef, closureStore, roleStore } = setup();
-      roleStore.assign('user-1', 'Organization', 'org-1', 'member');
+      const { accessDef, closureStore, roleStore } = await setup();
+      await roleStore.assign('user-1', 'Organization', 'org-1', 'member');
       // member on Org → viewer on Team → viewer on Project
 
       const ctx = createAccessContext({
@@ -159,8 +159,8 @@ describe('createAccessContext', () => {
     });
 
     it('plan check skipped when no planStore configured (backward compat)', async () => {
-      const { accessDef, closureStore, roleStore } = setup();
-      roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+      const { accessDef, closureStore, roleStore } = await setup();
+      await roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -180,7 +180,7 @@ describe('createAccessContext', () => {
   });
 
   describe('plan layer (Layer 4)', () => {
-    function setupWithPlans() {
+    async function setupWithPlans() {
       const accessDef = defineAccess({
         hierarchy: ['Organization', 'Project'],
         roles: {
@@ -211,15 +211,15 @@ describe('createAccessContext', () => {
       const roleStore = new InMemoryRoleAssignmentStore();
       const planStore = new InMemoryPlanStore();
 
-      closureStore.addResource('Organization', 'org-1');
-      closureStore.addResource('Project', 'proj-1', {
+      await closureStore.addResource('Organization', 'org-1');
+      await closureStore.addResource('Project', 'proj-1', {
         parentType: 'Organization',
         parentId: 'org-1',
       });
 
       const orgResolver = async (resource?: ResourceRef) => {
         if (!resource) return null;
-        const ancestors = closureStore.getAncestors(resource.type, resource.id);
+        const ancestors = await closureStore.getAncestors(resource.type, resource.id);
         const org = ancestors.find((a) => a.type === 'Organization');
         return org?.id ?? null;
       };
@@ -228,8 +228,8 @@ describe('createAccessContext', () => {
     }
 
     it('can() returns false when entitlement requires plans but org has no plan', async () => {
-      const { accessDef, closureStore, roleStore, planStore, orgResolver } = setupWithPlans();
-      roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+      const { accessDef, closureStore, roleStore, planStore, orgResolver } = await setupWithPlans();
+      await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -245,9 +245,9 @@ describe('createAccessContext', () => {
     });
 
     it('can() returns true when org plan includes the entitlement', async () => {
-      const { accessDef, closureStore, roleStore, planStore, orgResolver } = setupWithPlans();
-      roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
-      planStore.assignPlan('org-1', 'free');
+      const { accessDef, closureStore, roleStore, planStore, orgResolver } = await setupWithPlans();
+      await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+      await planStore.assignPlan('org-1', 'free');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -263,9 +263,9 @@ describe('createAccessContext', () => {
     });
 
     it('can() returns false when org plan does not include the entitlement', async () => {
-      const { accessDef, closureStore, roleStore, planStore, orgResolver } = setupWithPlans();
-      roleStore.assign('user-1', 'Organization', 'org-1', 'owner');
-      planStore.assignPlan('org-1', 'free');
+      const { accessDef, closureStore, roleStore, planStore, orgResolver } = await setupWithPlans();
+      await roleStore.assign('user-1', 'Organization', 'org-1', 'owner');
+      await planStore.assignPlan('org-1', 'free');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -282,8 +282,8 @@ describe('createAccessContext', () => {
     });
 
     it('plan check skipped when entitlement has no plans field', async () => {
-      const { accessDef, closureStore, roleStore, planStore, orgResolver } = setupWithPlans();
-      roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+      const { accessDef, closureStore, roleStore, planStore, orgResolver } = await setupWithPlans();
+      await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
       // No plan assigned — but project:view has no plans requirement
       // admin on Org → contributor on Project via inheritance
       const ctx = createAccessContext({
@@ -300,9 +300,9 @@ describe('createAccessContext', () => {
     });
 
     it('check() returns plan_required with requiredPlans meta when plan denies', async () => {
-      const { accessDef, closureStore, roleStore, planStore, orgResolver } = setupWithPlans();
-      roleStore.assign('user-1', 'Organization', 'org-1', 'owner');
-      planStore.assignPlan('org-1', 'free');
+      const { accessDef, closureStore, roleStore, planStore, orgResolver } = await setupWithPlans();
+      await roleStore.assign('user-1', 'Organization', 'org-1', 'owner');
+      await planStore.assignPlan('org-1', 'free');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -320,10 +320,10 @@ describe('createAccessContext', () => {
     });
 
     it('per-customer override increases limit above plan default', async () => {
-      const { accessDef, closureStore, roleStore, planStore, orgResolver } = setupWithPlans();
-      roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
-      planStore.assignPlan('org-1', 'free');
-      planStore.updateOverrides('org-1', {
+      const { accessDef, closureStore, roleStore, planStore, orgResolver } = await setupWithPlans();
+      await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+      await planStore.assignPlan('org-1', 'free');
+      await planStore.updateOverrides('org-1', {
         'project:create': { max: 200 },
       });
 
@@ -350,9 +350,9 @@ describe('createAccessContext', () => {
     });
 
     it('canAndConsume returns false when limit reached', async () => {
-      const { accessDef, closureStore, roleStore, planStore, orgResolver } = setupWithPlans();
-      roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
-      planStore.assignPlan('org-1', 'free');
+      const { accessDef, closureStore, roleStore, planStore, orgResolver } = await setupWithPlans();
+      await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+      await planStore.assignPlan('org-1', 'free');
 
       const walletStore = new InMemoryWalletStore();
       const ctx = createAccessContext({
@@ -378,9 +378,9 @@ describe('createAccessContext', () => {
     });
 
     it('canAndConsume returns false when can() fails (before wallet check)', async () => {
-      const { accessDef, closureStore, roleStore, planStore, orgResolver } = setupWithPlans();
-      roleStore.assign('user-1', 'Organization', 'org-1', 'member');
-      planStore.assignPlan('org-1', 'free');
+      const { accessDef, closureStore, roleStore, planStore, orgResolver } = await setupWithPlans();
+      await roleStore.assign('user-1', 'Organization', 'org-1', 'member');
+      await planStore.assignPlan('org-1', 'free');
 
       const walletStore = new InMemoryWalletStore();
       const ctx = createAccessContext({
@@ -402,9 +402,9 @@ describe('createAccessContext', () => {
     });
 
     it('canAndConsume with custom amount increments by that amount', async () => {
-      const { accessDef, closureStore, roleStore, planStore, orgResolver } = setupWithPlans();
-      roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
-      planStore.assignPlan('org-1', 'free');
+      const { accessDef, closureStore, roleStore, planStore, orgResolver } = await setupWithPlans();
+      await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+      await planStore.assignPlan('org-1', 'free');
 
       const walletStore = new InMemoryWalletStore();
       const ctx = createAccessContext({
@@ -432,9 +432,9 @@ describe('createAccessContext', () => {
     });
 
     it('unconsume rolls back wallet after operation failure', async () => {
-      const { accessDef, closureStore, roleStore, planStore, orgResolver } = setupWithPlans();
-      roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
-      planStore.assignPlan('org-1', 'free');
+      const { accessDef, closureStore, roleStore, planStore, orgResolver } = await setupWithPlans();
+      await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+      await planStore.assignPlan('org-1', 'free');
 
       const walletStore = new InMemoryWalletStore();
       const ctx = createAccessContext({
@@ -466,9 +466,9 @@ describe('createAccessContext', () => {
     });
 
     it('entitlement without limits: canAndConsume behaves like can()', async () => {
-      const { accessDef, closureStore, roleStore, planStore, orgResolver } = setupWithPlans();
-      roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
-      planStore.assignPlan('org-1', 'pro');
+      const { accessDef, closureStore, roleStore, planStore, orgResolver } = await setupWithPlans();
+      await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+      await planStore.assignPlan('org-1', 'pro');
 
       const walletStore = new InMemoryWalletStore();
       const ctx = createAccessContext({
@@ -484,7 +484,7 @@ describe('createAccessContext', () => {
       // project:export in pro plan has no limits
       // admin → contributor on Project (via inheritance), but manager required for export
       // Let's use a direct role assignment
-      roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+      await roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
       const result = await ctx.canAndConsume('project:export', {
         type: 'Project',
         id: 'proj-1',
@@ -493,9 +493,9 @@ describe('createAccessContext', () => {
     });
 
     it('check() returns limit_reached with meta when wallet exhausted', async () => {
-      const { accessDef, closureStore, roleStore, planStore, orgResolver } = setupWithPlans();
-      roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
-      planStore.assignPlan('org-1', 'free');
+      const { accessDef, closureStore, roleStore, planStore, orgResolver } = await setupWithPlans();
+      await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+      await planStore.assignPlan('org-1', 'free');
 
       const walletStore = new InMemoryWalletStore();
       const ctx = createAccessContext({
@@ -520,9 +520,9 @@ describe('createAccessContext', () => {
     });
 
     it('check() includes limit info when allowed (remaining > 0)', async () => {
-      const { accessDef, closureStore, roleStore, planStore, orgResolver } = setupWithPlans();
-      roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
-      planStore.assignPlan('org-1', 'free');
+      const { accessDef, closureStore, roleStore, planStore, orgResolver } = await setupWithPlans();
+      await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+      await planStore.assignPlan('org-1', 'free');
 
       const walletStore = new InMemoryWalletStore();
       const ctx = createAccessContext({
@@ -546,9 +546,9 @@ describe('createAccessContext', () => {
     });
 
     it('can() returns false when limit reached (Layer 5 short-circuit)', async () => {
-      const { accessDef, closureStore, roleStore, planStore, orgResolver } = setupWithPlans();
-      roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
-      planStore.assignPlan('org-1', 'free');
+      const { accessDef, closureStore, roleStore, planStore, orgResolver } = await setupWithPlans();
+      await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+      await planStore.assignPlan('org-1', 'free');
 
       const walletStore = new InMemoryWalletStore();
       const ctx = createAccessContext({
@@ -572,10 +572,10 @@ describe('createAccessContext', () => {
     });
 
     it('expired plan falls back to free plan', async () => {
-      const { accessDef, closureStore, roleStore, planStore, orgResolver } = setupWithPlans();
-      roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+      const { accessDef, closureStore, roleStore, planStore, orgResolver } = await setupWithPlans();
+      await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
       // Assign pro plan that's already expired
-      planStore.assignPlan(
+      await planStore.assignPlan(
         'org-1',
         'pro',
         new Date('2025-01-01'),
@@ -610,8 +610,8 @@ describe('createAccessContext', () => {
 
   describe('check()', () => {
     it('returns allowed=true with empty reasons when granted', async () => {
-      const { accessDef, closureStore, roleStore } = setup();
-      roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+      const { accessDef, closureStore, roleStore } = await setup();
+      await roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -630,8 +630,8 @@ describe('createAccessContext', () => {
     });
 
     it('returns role_required when user lacks role', async () => {
-      const { accessDef, closureStore, roleStore } = setup();
-      roleStore.assign('user-1', 'Project', 'proj-1', 'viewer');
+      const { accessDef, closureStore, roleStore } = await setup();
+      await roleStore.assign('user-1', 'Project', 'proj-1', 'viewer');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -651,7 +651,7 @@ describe('createAccessContext', () => {
     });
 
     it('returns not_authenticated for null user', async () => {
-      const { accessDef, closureStore, roleStore } = setup();
+      const { accessDef, closureStore, roleStore } = await setup();
 
       const ctx = createAccessContext({
         userId: null,
@@ -672,8 +672,8 @@ describe('createAccessContext', () => {
 
   describe('authorize()', () => {
     it('does not throw when authorized', async () => {
-      const { accessDef, closureStore, roleStore } = setup();
-      roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+      const { accessDef, closureStore, roleStore } = await setup();
+      await roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -688,8 +688,8 @@ describe('createAccessContext', () => {
     });
 
     it('throws AuthorizationError when denied', async () => {
-      const { accessDef, closureStore, roleStore } = setup();
-      roleStore.assign('user-1', 'Project', 'proj-1', 'viewer');
+      const { accessDef, closureStore, roleStore } = await setup();
+      await roleStore.assign('user-1', 'Project', 'proj-1', 'viewer');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -706,8 +706,8 @@ describe('createAccessContext', () => {
 
   describe('canAll()', () => {
     it('returns map of entitlement+resource → boolean', async () => {
-      const { accessDef, closureStore, roleStore } = setup();
-      roleStore.assign('user-1', 'Project', 'proj-1', 'contributor');
+      const { accessDef, closureStore, roleStore } = await setup();
+      await roleStore.assign('user-1', 'Project', 'proj-1', 'contributor');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -728,7 +728,7 @@ describe('createAccessContext', () => {
     });
 
     it('enforces max 100 checks', async () => {
-      const { accessDef, closureStore, roleStore } = setup();
+      const { accessDef, closureStore, roleStore } = await setup();
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -747,7 +747,7 @@ describe('createAccessContext', () => {
   });
 
   describe('flag layer (Layer 1)', () => {
-    function setupWithFlags() {
+    async function setupWithFlags() {
       const accessDef = defineAccess({
         hierarchy: ['Organization', 'Project'],
         roles: {
@@ -772,17 +772,17 @@ describe('createAccessContext', () => {
       const roleStore = new InMemoryRoleAssignmentStore();
       const flagStore = new InMemoryFlagStore();
 
-      closureStore.addResource('Organization', 'org-1');
-      closureStore.addResource('Project', 'proj-1', {
+      await closureStore.addResource('Organization', 'org-1');
+      await closureStore.addResource('Project', 'proj-1', {
         parentType: 'Organization',
         parentId: 'org-1',
       });
 
-      roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+      await roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
 
       const orgResolver = async (resource?: ResourceRef) => {
         if (!resource) return null;
-        const ancestors = closureStore.getAncestors(resource.type, resource.id);
+        const ancestors = await closureStore.getAncestors(resource.type, resource.id);
         const org = ancestors.find((a) => a.type === 'Organization');
         return org?.id ?? null;
       };
@@ -791,7 +791,7 @@ describe('createAccessContext', () => {
     }
 
     it('can() returns false when entitlement flag is disabled', async () => {
-      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = setupWithFlags();
+      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = await setupWithFlags();
       flagStore.setFlag('org-1', 'export-v2', false);
 
       const ctx = createAccessContext({
@@ -811,7 +811,7 @@ describe('createAccessContext', () => {
     });
 
     it('can() returns true when entitlement flag is enabled', async () => {
-      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = setupWithFlags();
+      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = await setupWithFlags();
       flagStore.setFlag('org-1', 'export-v2', true);
 
       const ctx = createAccessContext({
@@ -831,7 +831,7 @@ describe('createAccessContext', () => {
     });
 
     it('can() passes when entitlement has no flags (backward compat)', async () => {
-      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = setupWithFlags();
+      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = await setupWithFlags();
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -851,7 +851,7 @@ describe('createAccessContext', () => {
     });
 
     it('can() requires all flags to be enabled (multiple flags)', async () => {
-      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = setupWithFlags();
+      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = await setupWithFlags();
       flagStore.setFlag('org-1', 'beta-feature', true);
       flagStore.setFlag('org-1', 'beta-ui', false); // one of two flags off
 
@@ -880,7 +880,7 @@ describe('createAccessContext', () => {
     });
 
     it('check() returns flag_disabled reason with meta.disabledFlags', async () => {
-      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = setupWithFlags();
+      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = await setupWithFlags();
       flagStore.setFlag('org-1', 'export-v2', false);
 
       const ctx = createAccessContext({
@@ -902,7 +902,7 @@ describe('createAccessContext', () => {
     });
 
     it('check() returns multiple disabled flags in meta', async () => {
-      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = setupWithFlags();
+      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = await setupWithFlags();
       flagStore.setFlag('org-1', 'beta-feature', false);
       flagStore.setFlag('org-1', 'beta-ui', false);
 
@@ -925,7 +925,7 @@ describe('createAccessContext', () => {
     });
 
     it('can() denies global check (no resource) when roles are required', async () => {
-      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = setupWithFlags();
+      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = await setupWithFlags();
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -942,7 +942,7 @@ describe('createAccessContext', () => {
     });
 
     it('check() returns flag_disabled with all flags when orgId cannot be resolved', async () => {
-      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = setupWithFlags();
+      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = await setupWithFlags();
       flagStore.setFlag('org-1', 'export-v2', true);
 
       // orgResolver returns null for unknown resources
@@ -966,7 +966,7 @@ describe('createAccessContext', () => {
     });
 
     it('check() returns role_required for global check (no resource)', async () => {
-      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = setupWithFlags();
+      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = await setupWithFlags();
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -984,7 +984,7 @@ describe('createAccessContext', () => {
     });
 
     it('check() returns role_required for unknown entitlement', async () => {
-      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = setupWithFlags();
+      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = await setupWithFlags();
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -1005,7 +1005,7 @@ describe('createAccessContext', () => {
   });
 
   describe('canAndConsume edge cases', () => {
-    function setupWithPlansAndFlags() {
+    async function setupWithPlansAndFlags() {
       const accessDef = defineAccess({
         hierarchy: ['Organization', 'Project'],
         roles: {
@@ -1037,15 +1037,15 @@ describe('createAccessContext', () => {
       const planStore = new InMemoryPlanStore();
       const walletStore = new InMemoryWalletStore();
 
-      closureStore.addResource('Organization', 'org-1');
-      closureStore.addResource('Project', 'proj-1', {
+      await closureStore.addResource('Organization', 'org-1');
+      await closureStore.addResource('Project', 'proj-1', {
         parentType: 'Organization',
         parentId: 'org-1',
       });
 
       const orgResolver = async (resource?: ResourceRef) => {
         if (!resource) return null;
-        const ancestors = closureStore.getAncestors(resource.type, resource.id);
+        const ancestors = await closureStore.getAncestors(resource.type, resource.id);
         const org = ancestors.find((a) => a.type === 'Organization');
         return org?.id ?? null;
       };
@@ -1054,8 +1054,8 @@ describe('createAccessContext', () => {
     }
 
     it('canAndConsume returns true when no wallet/plan infrastructure', async () => {
-      const { accessDef, closureStore, roleStore } = setupWithPlansAndFlags();
-      roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+      const { accessDef, closureStore, roleStore } = await setupWithPlansAndFlags();
+      await roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -1074,9 +1074,9 @@ describe('createAccessContext', () => {
 
     it('canAndConsume returns false when orgId cannot be resolved', async () => {
       const { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
-        setupWithPlansAndFlags();
-      roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
-      planStore.assignPlan('org-1', 'free');
+        await setupWithPlansAndFlags();
+      await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+      await planStore.assignPlan('org-1', 'free');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -1098,10 +1098,10 @@ describe('createAccessContext', () => {
 
     it('canAndConsume returns false when plan does not include entitlement', async () => {
       const { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
-        setupWithPlansAndFlags();
+        await setupWithPlansAndFlags();
       // Assign manager directly on Project (satisfies role requirement for project:export)
-      roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
-      planStore.assignPlan('org-1', 'free'); // free doesn't include project:export
+      await roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+      await planStore.assignPlan('org-1', 'free'); // free doesn't include project:export
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -1123,10 +1123,10 @@ describe('createAccessContext', () => {
 
     it('can() returns false when plan does not include entitlement (Layer 4)', async () => {
       const { accessDef, closureStore, roleStore, planStore, orgResolver } =
-        setupWithPlansAndFlags();
+        await setupWithPlansAndFlags();
       // Assign manager directly on Project (satisfies role requirement for project:export)
-      roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
-      planStore.assignPlan('org-1', 'free'); // free doesn't include project:export
+      await roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+      await planStore.assignPlan('org-1', 'free'); // free doesn't include project:export
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -1146,8 +1146,8 @@ describe('createAccessContext', () => {
     });
 
     it('unconsume is a no-op without wallet/plan infrastructure', async () => {
-      const { accessDef, closureStore, roleStore } = setupWithPlansAndFlags();
-      roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+      const { accessDef, closureStore, roleStore } = await setupWithPlansAndFlags();
+      await roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -1162,8 +1162,8 @@ describe('createAccessContext', () => {
 
     it('unconsume is a no-op when entitlement has no plans', async () => {
       const { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
-        setupWithPlansAndFlags();
-      roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+        await setupWithPlansAndFlags();
+      await roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -1181,9 +1181,9 @@ describe('createAccessContext', () => {
 
     it('unconsume is a no-op when orgId cannot be resolved', async () => {
       const { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
-        setupWithPlansAndFlags();
-      roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
-      planStore.assignPlan('org-1', 'free');
+        await setupWithPlansAndFlags();
+      await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+      await planStore.assignPlan('org-1', 'free');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -1223,12 +1223,12 @@ describe('createAccessContext', () => {
       const roleStore = new InMemoryRoleAssignmentStore();
       const planStore = new InMemoryPlanStore();
 
-      closureStore.addResource('Organization', 'org-1');
-      closureStore.addResource('Project', 'proj-1', {
+      await closureStore.addResource('Organization', 'org-1');
+      await closureStore.addResource('Project', 'proj-1', {
         parentType: 'Organization',
         parentId: 'org-1',
       });
-      roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+      await roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -1258,8 +1258,8 @@ describe('createAccessContext', () => {
 
       const closureStore = new InMemoryClosureStore();
       const roleStore = new InMemoryRoleAssignmentStore();
-      closureStore.addResource('Organization', 'org-1');
-      roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+      await closureStore.addResource('Organization', 'org-1');
+      await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
 
       const ctx = createAccessContext({
         userId: 'user-1',

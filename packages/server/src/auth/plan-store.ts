@@ -27,10 +27,15 @@ export interface PlanStore {
    * Assign a plan to an org. Resets per-customer overrides (overrides are plan-specific).
    * To preserve overrides across plan changes, re-apply them after calling assignPlan().
    */
-  assignPlan(orgId: string, planId: string, startedAt?: Date, expiresAt?: Date | null): void;
-  getPlan(orgId: string): OrgPlan | null;
-  updateOverrides(orgId: string, overrides: Record<string, LimitOverride>): void;
-  removePlan(orgId: string): void;
+  assignPlan(
+    orgId: string,
+    planId: string,
+    startedAt?: Date,
+    expiresAt?: Date | null,
+  ): Promise<void>;
+  getPlan(orgId: string): Promise<OrgPlan | null>;
+  updateOverrides(orgId: string, overrides: Record<string, LimitOverride>): Promise<void>;
+  removePlan(orgId: string): Promise<void>;
   dispose(): void;
 }
 
@@ -78,12 +83,12 @@ export function resolveEffectivePlan(
 export class InMemoryPlanStore implements PlanStore {
   private plans = new Map<string, OrgPlan>();
 
-  assignPlan(
+  async assignPlan(
     orgId: string,
     planId: string,
     startedAt: Date = new Date(),
     expiresAt: Date | null = null,
-  ): void {
+  ): Promise<void> {
     this.plans.set(orgId, {
       orgId,
       planId,
@@ -93,17 +98,17 @@ export class InMemoryPlanStore implements PlanStore {
     });
   }
 
-  getPlan(orgId: string): OrgPlan | null {
+  async getPlan(orgId: string): Promise<OrgPlan | null> {
     return this.plans.get(orgId) ?? null;
   }
 
-  updateOverrides(orgId: string, overrides: Record<string, LimitOverride>): void {
+  async updateOverrides(orgId: string, overrides: Record<string, LimitOverride>): Promise<void> {
     const plan = this.plans.get(orgId);
     if (!plan) return;
     plan.overrides = { ...plan.overrides, ...overrides };
   }
 
-  removePlan(orgId: string): void {
+  async removePlan(orgId: string): Promise<void> {
     this.plans.delete(orgId);
   }
 

@@ -78,13 +78,13 @@ function createTestStores() {
   return { roleStore, closureStore, planStore, walletStore };
 }
 
-function setupHierarchy(closureStore: InstanceType<typeof InMemoryClosureStore>) {
-  closureStore.addResource('Organization', 'org-1');
-  closureStore.addResource('Team', 'team-1', {
+async function setupHierarchy(closureStore: InstanceType<typeof InMemoryClosureStore>) {
+  await closureStore.addResource('Organization', 'org-1');
+  await closureStore.addResource('Team', 'team-1', {
     parentType: 'Organization',
     parentId: 'org-1',
   });
-  closureStore.addResource('Project', 'proj-1', {
+  await closureStore.addResource('Project', 'proj-1', {
     parentType: 'Team',
     parentId: 'team-1',
   });
@@ -97,9 +97,9 @@ function setupHierarchy(closureStore: InstanceType<typeof InMemoryClosureStore>)
 describe('Plans & Wallet — Plan Layer (L4)', () => {
   it('can() denies entitlement when plan does not include it', async () => {
     const { roleStore, closureStore, planStore, walletStore } = createTestStores();
-    setupHierarchy(closureStore);
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
-    planStore.assignPlan('org-1', 'free');
+    await setupHierarchy(closureStore);
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await planStore.assignPlan('org-1', 'free');
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -118,9 +118,9 @@ describe('Plans & Wallet — Plan Layer (L4)', () => {
 
   it('can() allows entitlement when plan includes it', async () => {
     const { roleStore, closureStore, planStore, walletStore } = createTestStores();
-    setupHierarchy(closureStore);
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
-    planStore.assignPlan('org-1', 'pro');
+    await setupHierarchy(closureStore);
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await planStore.assignPlan('org-1', 'pro');
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -139,9 +139,9 @@ describe('Plans & Wallet — Plan Layer (L4)', () => {
 
   it('check() returns plan_required reason with requiredPlans meta', async () => {
     const { roleStore, closureStore, planStore, walletStore } = createTestStores();
-    setupHierarchy(closureStore);
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
-    planStore.assignPlan('org-1', 'free');
+    await setupHierarchy(closureStore);
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await planStore.assignPlan('org-1', 'free');
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -162,13 +162,13 @@ describe('Plans & Wallet — Plan Layer (L4)', () => {
 
   it('expired plan falls back to free', async () => {
     const { roleStore, closureStore, planStore, walletStore } = createTestStores();
-    setupHierarchy(closureStore);
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await setupHierarchy(closureStore);
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
 
     // Assign pro plan that expired yesterday
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    planStore.assignPlan('org-1', 'pro', new Date('2025-01-01'), yesterday);
+    await planStore.assignPlan('org-1', 'pro', new Date('2025-01-01'), yesterday);
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -193,10 +193,10 @@ describe('Plans & Wallet — Plan Layer (L4)', () => {
 describe('Plans & Wallet — Wallet Layer (L5)', () => {
   it('can() denies when limit is reached', async () => {
     const { roleStore, closureStore, planStore, walletStore } = createTestStores();
-    setupHierarchy(closureStore);
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await setupHierarchy(closureStore);
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    planStore.assignPlan('org-1', 'pro', planStart);
+    await planStore.assignPlan('org-1', 'pro', planStart);
 
     // Consume all 10 units
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
@@ -218,10 +218,10 @@ describe('Plans & Wallet — Wallet Layer (L5)', () => {
 
   it('check() returns limit_reached with limit meta', async () => {
     const { roleStore, closureStore, planStore, walletStore } = createTestStores();
-    setupHierarchy(closureStore);
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await setupHierarchy(closureStore);
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    planStore.assignPlan('org-1', 'pro', planStart);
+    await planStore.assignPlan('org-1', 'pro', planStart);
 
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
     await walletStore.consume('org-1', 'project:create', periodStart, periodEnd, 10, 10);
@@ -252,10 +252,10 @@ describe('Plans & Wallet — Wallet Layer (L5)', () => {
 describe('Plans & Wallet — canAndConsume / unconsume', () => {
   it('canAndConsume() atomically checks + increments wallet', async () => {
     const { roleStore, closureStore, planStore, walletStore } = createTestStores();
-    setupHierarchy(closureStore);
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await setupHierarchy(closureStore);
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    planStore.assignPlan('org-1', 'pro', planStart);
+    await planStore.assignPlan('org-1', 'pro', planStart);
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -288,10 +288,10 @@ describe('Plans & Wallet — canAndConsume / unconsume', () => {
 
   it('canAndConsume() fails when limit reached', async () => {
     const { roleStore, closureStore, planStore, walletStore } = createTestStores();
-    setupHierarchy(closureStore);
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await setupHierarchy(closureStore);
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    planStore.assignPlan('org-1', 'pro', planStart);
+    await planStore.assignPlan('org-1', 'pro', planStart);
 
     // Pre-consume 10 (the limit)
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
@@ -322,10 +322,10 @@ describe('Plans & Wallet — canAndConsume / unconsume', () => {
 
   it('unconsume() rolls back wallet consumption', async () => {
     const { roleStore, closureStore, planStore, walletStore } = createTestStores();
-    setupHierarchy(closureStore);
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await setupHierarchy(closureStore);
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    planStore.assignPlan('org-1', 'pro', planStart);
+    await planStore.assignPlan('org-1', 'pro', planStart);
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -359,12 +359,12 @@ describe('Plans & Wallet — canAndConsume / unconsume', () => {
 describe('Plans & Wallet — Per-customer overrides', () => {
   it('override increases the effective limit', async () => {
     const { roleStore, closureStore, planStore, walletStore } = createTestStores();
-    setupHierarchy(closureStore);
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await setupHierarchy(closureStore);
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    planStore.assignPlan('org-1', 'pro', planStart);
+    await planStore.assignPlan('org-1', 'pro', planStart);
     // Override: max 20 instead of plan's 10
-    planStore.updateOverrides('org-1', {
+    await planStore.updateOverrides('org-1', {
       'project:create': { max: 20 },
     });
 
@@ -396,10 +396,10 @@ describe('Plans & Wallet — Per-customer overrides', () => {
 describe('Plans & Wallet — AccessSet with limits', () => {
   it('computeAccessSet() includes limit info for plan-limited entitlements', async () => {
     const { roleStore, closureStore, planStore, walletStore } = createTestStores();
-    setupHierarchy(closureStore);
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await setupHierarchy(closureStore);
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    planStore.assignPlan('org-1', 'pro', planStart);
+    await planStore.assignPlan('org-1', 'pro', planStart);
 
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
     await walletStore.consume('org-1', 'project:create', periodStart, periodEnd, 10, 3);
@@ -424,10 +424,10 @@ describe('Plans & Wallet — AccessSet with limits', () => {
 
   it('encode/decode round-trip preserves limit data', async () => {
     const { roleStore, closureStore, planStore, walletStore } = createTestStores();
-    setupHierarchy(closureStore);
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await setupHierarchy(closureStore);
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    planStore.assignPlan('org-1', 'pro', planStart);
+    await planStore.assignPlan('org-1', 'pro', planStart);
 
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
     await walletStore.consume('org-1', 'project:create', periodStart, periodEnd, 10, 5);
@@ -495,11 +495,11 @@ describe('Plans & Wallet — E2E Acceptance: free -> exhaust -> upgrade -> succe
     const planStore = new InMemoryPlanStore();
     const walletStore = new InMemoryWalletStore();
 
-    closureStore.addResource('Organization', 'org-1');
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await closureStore.addResource('Organization', 'org-1');
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
 
     // Step 1: Assign org to free plan with limit 5 projects/month
-    planStore.assignPlan('org-1', 'free');
+    await planStore.assignPlan('org-1', 'free');
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -528,7 +528,7 @@ describe('Plans & Wallet — E2E Acceptance: free -> exhaust -> upgrade -> succe
     expect(sixthDenied).toBe(false);
 
     // Step 4: Upgrade to pro (limit 100)
-    planStore.assignPlan('org-1', 'pro');
+    await planStore.assignPlan('org-1', 'pro');
 
     // Step 5: 6th project now succeeds (pro limit is 100, only 5 consumed)
     const sixthAllowed = await ctx.canAndConsume('project:create', {

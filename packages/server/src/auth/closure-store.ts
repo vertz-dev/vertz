@@ -30,16 +30,16 @@ export interface ParentRef {
 }
 
 export interface ClosureStore {
-  addResource(type: string, id: string, parent?: ParentRef): void;
-  removeResource(type: string, id: string): void;
-  getAncestors(type: string, id: string): ClosureEntry[];
-  getDescendants(type: string, id: string): ClosureEntry[];
+  addResource(type: string, id: string, parent?: ParentRef): Promise<void>;
+  removeResource(type: string, id: string): Promise<void>;
+  getAncestors(type: string, id: string): Promise<ClosureEntry[]>;
+  getDescendants(type: string, id: string): Promise<ClosureEntry[]>;
   hasPath(
     ancestorType: string,
     ancestorId: string,
     descendantType: string,
     descendantId: string,
-  ): boolean;
+  ): Promise<boolean>;
   dispose(): void;
 }
 
@@ -52,7 +52,7 @@ const MAX_DEPTH = 4;
 export class InMemoryClosureStore implements ClosureStore {
   private rows: ClosureRow[] = [];
 
-  addResource(type: string, id: string, parent?: ParentRef): void {
+  async addResource(type: string, id: string, parent?: ParentRef): Promise<void> {
     // Self-reference row
     this.rows.push({
       ancestorType: type,
@@ -64,7 +64,7 @@ export class InMemoryClosureStore implements ClosureStore {
 
     if (parent) {
       // Get all ancestors of the parent
-      const parentAncestors = this.getAncestors(parent.parentType, parent.parentId);
+      const parentAncestors = await this.getAncestors(parent.parentType, parent.parentId);
 
       // Check depth cap: the parent's max depth + 1 (for the new child)
       const maxParentDepth = Math.max(...parentAncestors.map((a) => a.depth), 0);
@@ -87,9 +87,9 @@ export class InMemoryClosureStore implements ClosureStore {
     }
   }
 
-  removeResource(type: string, id: string): void {
+  async removeResource(type: string, id: string): Promise<void> {
     // Find all descendants of this resource (including self)
-    const descendants = this.getDescendants(type, id);
+    const descendants = await this.getDescendants(type, id);
     const descendantKeys = new Set(descendants.map((d) => `${d.type}:${d.id}`));
 
     // Remove all rows where any descendant appears as ancestor or descendant
@@ -100,7 +100,7 @@ export class InMemoryClosureStore implements ClosureStore {
     });
   }
 
-  getAncestors(type: string, id: string): ClosureEntry[] {
+  async getAncestors(type: string, id: string): Promise<ClosureEntry[]> {
     return this.rows
       .filter((row) => row.descendantType === type && row.descendantId === id)
       .map((row) => ({
@@ -110,7 +110,7 @@ export class InMemoryClosureStore implements ClosureStore {
       }));
   }
 
-  getDescendants(type: string, id: string): ClosureEntry[] {
+  async getDescendants(type: string, id: string): Promise<ClosureEntry[]> {
     return this.rows
       .filter((row) => row.ancestorType === type && row.ancestorId === id)
       .map((row) => ({
@@ -120,12 +120,12 @@ export class InMemoryClosureStore implements ClosureStore {
       }));
   }
 
-  hasPath(
+  async hasPath(
     ancestorType: string,
     ancestorId: string,
     descendantType: string,
     descendantId: string,
-  ): boolean {
+  ): Promise<boolean> {
     return this.rows.some(
       (row) =>
         row.ancestorType === ancestorType &&

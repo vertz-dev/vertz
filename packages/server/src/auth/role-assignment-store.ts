@@ -20,17 +20,17 @@ export interface RoleAssignment {
 }
 
 export interface RoleAssignmentStore {
-  assign(userId: string, resourceType: string, resourceId: string, role: string): void;
-  revoke(userId: string, resourceType: string, resourceId: string, role: string): void;
-  getRoles(userId: string, resourceType: string, resourceId: string): string[];
-  getRolesForUser(userId: string): RoleAssignment[];
+  assign(userId: string, resourceType: string, resourceId: string, role: string): Promise<void>;
+  revoke(userId: string, resourceType: string, resourceId: string, role: string): Promise<void>;
+  getRoles(userId: string, resourceType: string, resourceId: string): Promise<string[]>;
+  getRolesForUser(userId: string): Promise<RoleAssignment[]>;
   getEffectiveRole(
     userId: string,
     resourceType: string,
     resourceId: string,
     accessDef: AccessDefinition,
     closureStore: ClosureStore,
-  ): string | null;
+  ): Promise<string | null>;
   dispose(): void;
 }
 
@@ -41,7 +41,12 @@ export interface RoleAssignmentStore {
 export class InMemoryRoleAssignmentStore implements RoleAssignmentStore {
   private assignments: RoleAssignment[] = [];
 
-  assign(userId: string, resourceType: string, resourceId: string, role: string): void {
+  async assign(
+    userId: string,
+    resourceType: string,
+    resourceId: string,
+    role: string,
+  ): Promise<void> {
     // Deduplicate
     const exists = this.assignments.some(
       (a) =>
@@ -55,7 +60,12 @@ export class InMemoryRoleAssignmentStore implements RoleAssignmentStore {
     }
   }
 
-  revoke(userId: string, resourceType: string, resourceId: string, role: string): void {
+  async revoke(
+    userId: string,
+    resourceType: string,
+    resourceId: string,
+    role: string,
+  ): Promise<void> {
     this.assignments = this.assignments.filter(
       (a) =>
         !(
@@ -67,7 +77,7 @@ export class InMemoryRoleAssignmentStore implements RoleAssignmentStore {
     );
   }
 
-  getRoles(userId: string, resourceType: string, resourceId: string): string[] {
+  async getRoles(userId: string, resourceType: string, resourceId: string): Promise<string[]> {
     return this.assignments
       .filter(
         (a) =>
@@ -76,7 +86,7 @@ export class InMemoryRoleAssignmentStore implements RoleAssignmentStore {
       .map((a) => a.role);
   }
 
-  getRolesForUser(userId: string): RoleAssignment[] {
+  async getRolesForUser(userId: string): Promise<RoleAssignment[]> {
     return this.assignments.filter((a) => a.userId === userId);
   }
 
@@ -85,13 +95,13 @@ export class InMemoryRoleAssignmentStore implements RoleAssignmentStore {
    * Considers direct assignments + inherited roles from ancestors.
    * Most permissive role wins (additive model).
    */
-  getEffectiveRole(
+  async getEffectiveRole(
     userId: string,
     resourceType: string,
     resourceId: string,
     accessDef: AccessDefinition,
     closureStore: ClosureStore,
-  ): string | null {
+  ): Promise<string | null> {
     const rolesForType = accessDef.roles[resourceType];
     if (!rolesForType || rolesForType.length === 0) return null;
 
@@ -99,15 +109,15 @@ export class InMemoryRoleAssignmentStore implements RoleAssignmentStore {
     const candidateRoles: string[] = [];
 
     // 1. Direct roles on this resource
-    const directRoles = this.getRoles(userId, resourceType, resourceId);
+    const directRoles = await this.getRoles(userId, resourceType, resourceId);
     candidateRoles.push(...directRoles);
 
     // 2. Inherited roles from ancestors
-    const ancestors = closureStore.getAncestors(resourceType, resourceId);
+    const ancestors = await closureStore.getAncestors(resourceType, resourceId);
     for (const ancestor of ancestors) {
       if (ancestor.depth === 0) continue; // Skip self-reference
 
-      const ancestorRoles = this.getRoles(userId, ancestor.type, ancestor.id);
+      const ancestorRoles = await this.getRoles(userId, ancestor.type, ancestor.id);
       for (const ancestorRole of ancestorRoles) {
         // Walk the inheritance chain from ancestor type down to target type
         const inheritedRole = resolveInheritedRole(

@@ -48,26 +48,26 @@ const accessDef = defineAccess({
   },
 });
 
-function createStores() {
+async function createStores() {
   const closureStore = new InMemoryClosureStore();
   const roleStore = new InMemoryRoleAssignmentStore();
   const flagStore = new InMemoryFlagStore();
 
-  closureStore.addResource('Organization', 'org-1');
-  closureStore.addResource('Team', 'team-1', {
+  await closureStore.addResource('Organization', 'org-1');
+  await closureStore.addResource('Team', 'team-1', {
     parentType: 'Organization',
     parentId: 'org-1',
   });
-  closureStore.addResource('Project', 'proj-1', {
+  await closureStore.addResource('Project', 'proj-1', {
     parentType: 'Team',
     parentId: 'team-1',
   });
 
-  roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+  await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
 
   const orgResolver = async (resource?: ResourceRef) => {
     if (!resource) return null;
-    const ancestors = closureStore.getAncestors(resource.type, resource.id);
+    const ancestors = await closureStore.getAncestors(resource.type, resource.id);
     const org = ancestors.find((a) => a.type === 'Organization');
     return org?.id ?? null;
   };
@@ -81,7 +81,7 @@ function createStores() {
 
 describe('Feature Flag Store + Layer 1 (public imports)', () => {
   it('flag disabled → can() returns false with flag_disabled', async () => {
-    const { closureStore, roleStore, flagStore, orgResolver } = createStores();
+    const { closureStore, roleStore, flagStore, orgResolver } = await createStores();
     flagStore.setFlag('org-1', 'export-v2', false);
 
     const ctx = createAccessContext({
@@ -97,7 +97,7 @@ describe('Feature Flag Store + Layer 1 (public imports)', () => {
     // But user has 'admin' on Org which inherits 'editor' on Team which inherits 'contributor' on Project
     // project:export requires 'manager' role - admin -> editor -> contributor, NOT manager
     // So this would fail on role check first. Let me assign manager directly.
-    roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+    await roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
 
     const result = await ctx.can('project:export', {
       type: 'Project',
@@ -115,9 +115,9 @@ describe('Feature Flag Store + Layer 1 (public imports)', () => {
   });
 
   it('flag enabled → can() returns true (passes Layer 1)', async () => {
-    const { closureStore, roleStore, flagStore, orgResolver } = createStores();
+    const { closureStore, roleStore, flagStore, orgResolver } = await createStores();
     flagStore.setFlag('org-1', 'export-v2', true);
-    roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+    await roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -136,7 +136,7 @@ describe('Feature Flag Store + Layer 1 (public imports)', () => {
   });
 
   it('no flags on entitlement → backward compat (always passes Layer 1)', async () => {
-    const { closureStore, roleStore, flagStore, orgResolver } = createStores();
+    const { closureStore, roleStore, flagStore, orgResolver } = await createStores();
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -156,10 +156,10 @@ describe('Feature Flag Store + Layer 1 (public imports)', () => {
   });
 
   it('multiple flags — all must be enabled', async () => {
-    const { closureStore, roleStore, flagStore, orgResolver } = createStores();
+    const { closureStore, roleStore, flagStore, orgResolver } = await createStores();
     flagStore.setFlag('org-1', 'beta-feature', true);
     flagStore.setFlag('org-1', 'beta-ui', false);
-    roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+    await roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -186,13 +186,13 @@ describe('Feature Flag Store + Layer 1 (public imports)', () => {
   });
 
   it('computeAccessSet includes flags from flagStore', async () => {
-    const { closureStore, roleStore, flagStore } = createStores();
+    const { closureStore, roleStore, flagStore } = await createStores();
     flagStore.setFlag('org-1', 'export-v2', true);
     flagStore.setFlag('org-1', 'ai-assist', false);
 
     // admin on Org → editor on Team → contributor on Project
     // project:export requires 'manager' role, so assign manager directly
-    roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+    await roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
 
     const set = await computeAccessSet({
       userId: 'user-1',
@@ -215,7 +215,7 @@ describe('Feature Flag Store + Layer 1 (public imports)', () => {
   });
 
   it('encode/decode round-trip preserves flag data', async () => {
-    const { closureStore, roleStore, flagStore } = createStores();
+    const { closureStore, roleStore, flagStore } = await createStores();
     flagStore.setFlag('org-1', 'export-v2', true);
     flagStore.setFlag('org-1', 'ai-assist', false);
 

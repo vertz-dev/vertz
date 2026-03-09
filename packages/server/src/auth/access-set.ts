@@ -89,7 +89,7 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
   }
 
   // Collect all roles the user has across the hierarchy
-  const assignments = roleStore.getRolesForUser(userId);
+  const assignments = await roleStore.getRolesForUser(userId);
 
   // For each assignment, expand via descendants to find effective roles
   // Collect all roles per resource type that the user effectively has
@@ -100,7 +100,10 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
     addRole(effectiveRolesByType, assignment.resourceType, assignment.role);
 
     // Inherited roles on descendants
-    const descendants = closureStore.getDescendants(assignment.resourceType, assignment.resourceId);
+    const descendants = await closureStore.getDescendants(
+      assignment.resourceType,
+      assignment.resourceId,
+    );
     for (const desc of descendants) {
       if (desc.depth === 0) continue; // skip self
       const inheritedRole = resolveInheritedRole(
@@ -179,7 +182,7 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
 
   // Enrich with plan/wallet info if stores are available
   if (planStore && orgId) {
-    const orgPlan = planStore.getPlan(orgId);
+    const orgPlan = await planStore.getPlan(orgId);
     if (orgPlan) {
       const effectivePlanId = resolveEffectivePlan(orgPlan, accessDef.plans, accessDef.defaultPlan);
       resolvedPlan = effectivePlanId;

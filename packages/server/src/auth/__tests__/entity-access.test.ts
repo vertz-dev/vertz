@@ -21,12 +21,12 @@ const accessDef = defineAccess({
   },
 });
 
-function createTestContext(userId: string | null) {
+async function createTestContext(userId: string | null) {
   const roleStore = new InMemoryRoleAssignmentStore();
   const closureStore = new InMemoryClosureStore();
 
-  closureStore.addResource('Organization', 'org-1');
-  closureStore.addResource('Project', 'proj-1', {
+  await closureStore.addResource('Organization', 'org-1');
+  await closureStore.addResource('Project', 'proj-1', {
     parentType: 'Organization',
     parentId: 'org-1',
   });
@@ -36,8 +36,8 @@ function createTestContext(userId: string | null) {
 
 describe('computeEntityAccess', () => {
   it('returns allowed for entitled user on resource', async () => {
-    const { roleStore, closureStore, userId } = createTestContext('user-1');
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    const { roleStore, closureStore, userId } = await createTestContext('user-1');
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
 
     const ctx = createAccessContext({
       userId,
@@ -57,8 +57,8 @@ describe('computeEntityAccess', () => {
   });
 
   it('returns denied for unentitled user on resource', async () => {
-    const { roleStore, closureStore, userId } = createTestContext('user-1');
-    roleStore.assign('user-1', 'Organization', 'org-1', 'member');
+    const { roleStore, closureStore, userId } = await createTestContext('user-1');
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'member');
 
     const ctx = createAccessContext({
       userId,
@@ -78,8 +78,8 @@ describe('computeEntityAccess', () => {
   });
 
   it('handles multiple entitlements', async () => {
-    const { roleStore, closureStore, userId } = createTestContext('user-1');
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    const { roleStore, closureStore, userId } = await createTestContext('user-1');
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
 
     const ctx = createAccessContext({
       userId,
@@ -101,7 +101,7 @@ describe('computeEntityAccess', () => {
   });
 
   it('returns empty object for empty entitlements array', async () => {
-    const { roleStore, closureStore, userId } = createTestContext('user-1');
+    const { roleStore, closureStore, userId } = await createTestContext('user-1');
 
     const ctx = createAccessContext({
       userId,
@@ -116,8 +116,8 @@ describe('computeEntityAccess', () => {
   });
 
   it('result is serializable (no circular refs, no functions)', async () => {
-    const { roleStore, closureStore, userId } = createTestContext('user-1');
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    const { roleStore, closureStore, userId } = await createTestContext('user-1');
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
 
     const ctx = createAccessContext({
       userId,
