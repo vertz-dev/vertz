@@ -2209,8 +2209,11 @@ export type {
   DenialMeta,
   DenialReason,
   EntitlementDef,
+  EntitlementValue,
+  EntityDef,
   LimitDef,
   PlanDef,
+  RuleContext,
 } from './define-access';
 export { defineAccess } from './define-access';
 export { InMemoryEmailVerificationStore } from './email-verification-store';

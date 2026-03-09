@@ -83,6 +83,8 @@ export type {
   Entitlement,
   EntitlementDef,
   EntitlementDefinition,
+  EntitlementValue,
+  EntityDef,
   // Phase 9: Feature Flag types
   FlagStore,
   LimitDef,
@@ -112,6 +114,7 @@ export type {
   RoleAssignment,
   RoleAssignmentStore,
   RoleAssignmentTableEntry,
+  RuleContext,
   Session,
   SessionConfig,
   SessionInfo,
