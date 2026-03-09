@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import {
   buildScriptTag,
+  clearSSRRequireCache,
   createBunDevServer,
   createFetchInterceptor,
   createRuntimeErrorDeduplicator,
@@ -697,5 +698,37 @@ describe('createRuntimeErrorDeduplicator', () => {
     dedup.reset();
 
     expect(dedup.shouldLog('Error: foo', 'src/a.tsx', 10)).toBe(true);
+  });
+});
+
+describe('clearSSRRequireCache', () => {
+  it('clears cache entries outside srcDir and entryPath', () => {
+    const fakeKey = '/tmp/outside-project/lib/shared-utils.ts';
+    require.cache[fakeKey] = {} as NodeModule;
+
+    clearSSRRequireCache();
+
+    expect(require.cache[fakeKey]).toBeUndefined();
+  });
+
+  it('returns the number of cache entries cleared', () => {
+    require.cache['/tmp/fake-a.ts'] = {} as NodeModule;
+    require.cache['/tmp/fake-b.ts'] = {} as NodeModule;
+
+    const cleared = clearSSRRequireCache();
+
+    expect(cleared).toBeGreaterThanOrEqual(2);
+  });
+
+  it('clears all entries regardless of path prefix', () => {
+    require.cache['/project/src/app.tsx'] = {} as NodeModule;
+    require.cache['/project/lib/shared.ts'] = {} as NodeModule;
+    require.cache['/other/generated/routes.ts'] = {} as NodeModule;
+
+    clearSSRRequireCache();
+
+    expect(require.cache['/project/src/app.tsx']).toBeUndefined();
+    expect(require.cache['/project/lib/shared.ts']).toBeUndefined();
+    expect(require.cache['/other/generated/routes.ts']).toBeUndefined();
   });
 });
