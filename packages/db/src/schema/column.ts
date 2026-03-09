@@ -31,7 +31,7 @@ export interface ColumnBuilder<TType, TMeta extends ColumnMetadata = ColumnMetad
   readonly [PhantomType]: TType;
   readonly _meta: TMeta;
 
-  primary(options?: { generate?: 'cuid' | 'uuid' | 'nanoid' }): ColumnBuilder<
+  primary(options?: { generate?: 'cuid' | 'uuid' | 'nanoid'; generated?: boolean }): ColumnBuilder<
     TType,
     Omit<TMeta, 'primary' | 'hasDefault' | 'generate'> & {
       readonly primary: true;
@@ -122,10 +122,12 @@ function cloneWith(
 function createColumnWithMeta(meta: ColumnMetadata): ColumnBuilder<unknown, ColumnMetadata> {
   const col: ColumnBuilder<unknown, ColumnMetadata> = {
     _meta: meta,
-    primary(options?: { generate?: 'cuid' | 'uuid' | 'nanoid' }) {
+    primary(options?: { generate?: 'cuid' | 'uuid' | 'nanoid'; generated?: boolean }) {
       const meta: Record<string, unknown> = { primary: true, hasDefault: true };
       if (options?.generate) {
         meta.generate = options.generate;
+      } else if (this._meta.sqlType === 'uuid' && options?.generated !== false) {
+        meta.generate = 'uuid';
       }
       return cloneWith(this, meta) as ReturnType<ColumnBuilder<unknown, ColumnMetadata>['primary']>;
     },

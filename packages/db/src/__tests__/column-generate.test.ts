@@ -21,7 +21,7 @@ describe('Column generate metadata', () => {
   });
 
   // Test 10: d.text().primary()._meta.generate === undefined
-  it('leaves generate undefined when not specified', () => {
+  it('leaves generate undefined when not specified on non-uuid column', () => {
     const col = d.text().primary();
     expect(col._meta.generate).toBeUndefined();
   });
@@ -44,5 +44,29 @@ describe('Column generate metadata', () => {
     expect(col._meta.generate).toBe('uuid');
     expect(col._meta.primary).toBe(true);
     expect(col._meta.hasDefault).toBe(true);
+  });
+
+  it('d.uuid().primary() auto-generates uuid by default', () => {
+    const col = d.uuid().primary();
+    expect(col._meta.generate).toBe('uuid');
+    expect(col._meta.primary).toBe(true);
+    expect(col._meta.hasDefault).toBe(true);
+  });
+
+  it('d.uuid().primary({ generated: false }) opts out of auto-generation', () => {
+    const col = d.uuid().primary({ generated: false });
+    expect(col._meta.generate).toBeUndefined();
+    expect(col._meta.primary).toBe(true);
+    expect(col._meta.hasDefault).toBe(true);
+  });
+
+  it('d.uuid().primary({ generate: "cuid" }) overrides the auto-uuid default', () => {
+    const col = d.uuid().primary({ generate: 'cuid' });
+    expect(col._meta.generate).toBe('cuid');
+  });
+
+  it('d.text().primary() still has no auto-generation', () => {
+    const col = d.text().primary();
+    expect(col._meta.generate).toBeUndefined();
   });
 });
