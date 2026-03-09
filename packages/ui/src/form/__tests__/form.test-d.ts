@@ -166,6 +166,25 @@ form(mockSdk);
 const plainWithSchema = form(mockSdk, { schema: metaSchema });
 void plainWithSchema;
 
+// ─── 13b. fields — typed field names for compile-time input validation ──
+
+// fields.name should be typed as the string literal 'name'
+const _fieldName: 'name' = userForm.fields.name;
+void _fieldName;
+
+// fields.email should be typed as the string literal 'email'
+const _fieldEmail: 'email' = userForm.fields.email;
+void _fieldEmail;
+
+// Accessing a non-existent field should be a type error
+// @ts-expect-error - 'nonExistent' is not a key of UserBody
+userForm.fields.nonExistent;
+
+// Assigning to wrong literal should be a type error
+// @ts-expect-error - fields.name is 'name', not 'email'
+const _wrongLiteral: 'email' = userForm.fields.name;
+void _wrongLiteral;
+
 // ─── 14. No attrs() method ────────────────────────────────────────
 
 // @ts-expect-error - attrs() no longer exists on FormInstance
