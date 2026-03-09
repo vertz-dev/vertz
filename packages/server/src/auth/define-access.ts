@@ -361,7 +361,7 @@ export function defineAccess(input: DefineAccessInput): AccessDefinition {
         }
       }
     }
-    for (const [planName, planDef] of Object.entries(input.plans)) {
+    for (const [, planDef] of Object.entries(input.plans)) {
       if (planDef.addOn && planDef.limits) {
         for (const limitKey of Object.keys(planDef.limits)) {
           if (!basePlanLimitKeys.has(limitKey)) {

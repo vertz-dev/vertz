@@ -59,6 +59,8 @@ export interface AccessContext {
   canAll(
     checks: Array<{ entitlement: string; resource?: ResourceRef }>,
   ): Promise<Map<string, boolean>>;
+  /** Batch check: single entitlement across multiple entities. Returns Map<entityId, boolean>. */
+  canBatch(entitlement: string, resources: ResourceRef[]): Promise<Map<string, boolean>>;
   /** Atomic check + consume. Runs full can() then increments wallet if all layers pass. */
   canAndConsume(entitlement: string, resource?: ResourceRef, amount?: number): Promise<boolean>;
   /** Rollback a previous canAndConsume(). Use when the operation fails after consumption. */
@@ -372,6 +374,28 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
   }
 
   // ==========================================================================
+  // canBatch() — single entitlement across multiple entities
+  // ==========================================================================
+
+  async function canBatch(
+    entitlement: string,
+    resources: ResourceRef[],
+  ): Promise<Map<string, boolean>> {
+    if (resources.length > MAX_BULK_CHECKS) {
+      throw new Error(`canBatch() is limited to ${MAX_BULK_CHECKS} resources per call`);
+    }
+
+    const results = new Map<string, boolean>();
+
+    for (const resource of resources) {
+      const allowed = await can(entitlement, resource);
+      results.set(resource.id, allowed);
+    }
+
+    return results;
+  }
+
+  // ==========================================================================
   // canAndConsume() — atomic check + consume
   // ==========================================================================
 
@@ -492,7 +516,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     }
   }
 
-  return { can, check, authorize, canAll, canAndConsume, unconsume };
+  return { can, check, authorize, canAll, canBatch, canAndConsume, unconsume };
 }
 
 // ============================================================================

@@ -341,10 +341,12 @@ describe('computeAccessSet — plan/wallet enrichment', () => {
     },
     plans: {
       free: {
-        entitlements: ['project:view', 'project:edit', 'organization:use'],
+        group: 'main',
+        features: ['project:view', 'project:edit', 'organization:use'],
       },
       pro: {
-        entitlements: [
+        group: 'main',
+        features: [
           'organization:create-project',
           'project:view',
           'project:edit',
@@ -352,7 +354,7 @@ describe('computeAccessSet — plan/wallet enrichment', () => {
           'organization:use',
         ],
         limits: {
-          'organization:create-project': { per: 'month', max: 10 },
+          projects: { max: 10, gates: 'organization:create-project', per: 'month' },
         },
       },
     },
@@ -369,14 +371,7 @@ describe('computeAccessSet — plan/wallet enrichment', () => {
     await planStore.assignPlan('org-1', 'pro', planStartedAt);
 
     const { periodStart, periodEnd } = calculateBillingPeriod(planStartedAt, 'month');
-    await walletStore.consume(
-      'org-1',
-      'organization:create-project',
-      periodStart,
-      periodEnd,
-      10,
-      3,
-    );
+    await walletStore.consume('org-1', 'projects', periodStart, periodEnd, 10, 3);
 
     const result = await computeAccessSet({
       userId: 'user-1',
@@ -414,10 +409,11 @@ describe('computeAccessSet — plan/wallet enrichment', () => {
       orgId: 'org-1',
     });
 
-    // In the new API, entitlements don't reference plans directly.
-    // Plan feature checks are deferred to Phase 2.
-    // Role-based checks still work: admin has organization:create-project
-    expect(result.entitlements['organization:create-project'].allowed).toBe(true);
+    // organization:create-project is plan-gated (in pro's features, not free's)
+    // Even though admin has the role, the plan layer denies it on the free plan.
+    expect(result.entitlements['organization:create-project'].allowed).toBe(false);
+    expect(result.entitlements['organization:create-project'].reasons).toContain('plan_required');
+    // organization:use is in free's features and has no role requirement
     expect(result.entitlements['organization:use'].allowed).toBe(true);
   });
 
@@ -432,14 +428,7 @@ describe('computeAccessSet — plan/wallet enrichment', () => {
     await planStore.assignPlan('org-1', 'pro', planStartedAt);
 
     const { periodStart, periodEnd } = calculateBillingPeriod(planStartedAt, 'month');
-    await walletStore.consume(
-      'org-1',
-      'organization:create-project',
-      periodStart,
-      periodEnd,
-      10,
-      10,
-    );
+    await walletStore.consume('org-1', 'projects', periodStart, periodEnd, 10, 10);
 
     const result = await computeAccessSet({
       userId: 'user-1',
