@@ -1,13 +1,17 @@
 import { css } from '@vertz/ui';
-import {
-  TOKENS_SCHEMA,
-  TOKENS_ENTITY,
-  TOKENS_UI,
-} from './highlighted-code';
+import { TOKENS_ENTITY, TOKENS_SCHEMA, TOKENS_UI } from './highlighted-code';
 import { TokenLines } from './token-lines';
 
 const s = css({
   section: ['py:24', 'px:6'],
+  container: ['max-w:4xl', 'mx:auto'],
+  label: ['font:xs', 'tracking:widest', 'uppercase', 'mb:4', 'text:center'],
+  heading: ['font:4xl', 'mb:12', 'text:center'],
+  stepList: ['flex', 'flex-col', 'gap:8'],
+  stepHeader: ['flex', 'items:center', 'gap:3', 'mb:3'],
+  stepLabel: ['font:xs', 'weight:semibold'],
+  stepTitle: ['font:sm'],
+  codeBlock: ['border:1', 'rounded:lg', 'p:6', 'font:sm', 'leading:relaxed', 'shadow:2xl'],
 });
 
 const MONO = "font-family: 'JetBrains Mono', monospace";
@@ -21,26 +25,29 @@ const STEPS = [
 export function SchemaFlow() {
   return (
     <section class={s.section}>
-      <div style="max-width: 56rem; margin: 0 auto">
-        <p style={`${MONO}; font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: #71717a; margin-bottom: 1rem; text-align: center`}>
+      <div class={s.container}>
+        <p class={s.label} style={`${MONO}; color: #71717a`}>
           How it works
         </p>
-        <h2 style="font-family: 'DM Serif Display', Georgia, serif; font-size: 2.25rem; margin-bottom: 3rem; text-align: center">
+        <h2 class={s.heading} style="font-family: 'DM Serif Display', Georgia, serif">
           One schema. Three layers. Zero wiring.
         </h2>
 
-        <div style="display: flex; flex-direction: column; gap: 2rem">
+        <div class={s.stepList}>
           {STEPS.map((step) => (
             <div key={step.label}>
-              <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem">
-                <span style={`${MONO}; font-size: 0.75rem; color: #3b82f6; font-weight: 600`}>
+              <div class={s.stepHeader}>
+                <span class={s.stepLabel} style={`${MONO}; color: #3b82f6`}>
                   {step.label}
                 </span>
-                <span style={`${MONO}; font-size: 0.875rem; color: #e4e4e7`}>
+                <span class={s.stepTitle} style={`${MONO}; color: #e4e4e7`}>
                   {step.title}
                 </span>
               </div>
-              <div style="background: #0a0a0b; border: 1px solid #1e1e22; border-radius: 0.5rem; padding: 1.5rem; font-size: 0.875rem; line-height: 1.625; color: #d4d4d8; box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25)">
+              <div
+                class={s.codeBlock}
+                style="background: #0a0a0b; border-color: #1e1e22; color: #d4d4d8"
+              >
                 <TokenLines lines={step.tokens} />
               </div>
             </div>

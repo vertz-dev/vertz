@@ -2,6 +2,12 @@ import { css } from '@vertz/ui';
 
 const s = css({
   section: ['py:24', 'px:6'],
+  container: ['max-w:2xl', 'mx:auto'],
+  label: ['font:xs', 'tracking:widest', 'uppercase', 'mb:12', 'text:center'],
+  list: ['flex', 'flex-col'],
+  item: ['py:6', 'border-b:1'],
+  question: ['weight:semibold', 'mb:2'],
+  answer: ['leading:relaxed'],
 });
 
 const MONO = "font-family: 'JetBrains Mono', monospace";
@@ -28,18 +34,18 @@ const QUESTIONS = [
 export function FAQ() {
   return (
     <section class={s.section}>
-      <div style="max-width: 42rem; margin: 0 auto">
-        <p style={`${MONO}; font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: #71717a; margin-bottom: 3rem; text-align: center`}>
+      <div class={s.container}>
+        <p class={s.label} style={MONO}>
           What about...
         </p>
 
-        <div style="display: flex; flex-direction: column; gap: 0">
+        <div class={s.list}>
           {QUESTIONS.map((item) => (
-            <div key={item.q} style="padding: 1.5rem 0; border-bottom: 1px solid #1e1e22">
-              <p style="font-weight: 600; color: #e4e4e7; margin-bottom: 0.5rem">
+            <div key={item.q} class={s.item} style="border-color: #1e1e22">
+              <p class={s.question} style="color: #e4e4e7">
                 {item.q}
               </p>
-              <p style="color: #a1a1aa; line-height: 1.625">
+              <p class={s.answer} style="color: #a1a1aa">
                 {item.a}
               </p>
             </div>

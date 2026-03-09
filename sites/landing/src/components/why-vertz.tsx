@@ -2,8 +2,10 @@ import { css } from '@vertz/ui';
 
 const s = css({
   section: ['py:24', 'px:6'],
-  grid: ['grid', 'gap:6'],
-  card: ['p:8'],
+  container: ['max-w:5xl', 'mx:auto'],
+  label: ['font:xs', 'tracking:widest', 'uppercase', 'mb:12', 'text:center'],
+  grid: ['grid', 'grid-cols:3', 'gap:6'],
+  card: ['p:8', 'border:1', 'rounded:lg', 'transition:colors'],
   title: ['font:2xl', 'mb:4'],
   desc: ['leading:relaxed'],
 });
@@ -26,21 +28,26 @@ const FEATURES = [
 export function WhyVertz() {
   return (
     <section class={s.section}>
-      <div style="max-width: 64rem; margin: 0 auto">
-        <p style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: #71717a; margin-bottom: 3rem; text-align: center">
+      <div class={s.container}>
+        <p class={s.label} style="font-family: 'JetBrains Mono', monospace; color: #71717a">
           Why Vertz
         </p>
-        <div class={s.grid} style="grid-template-columns: repeat(3, 1fr)">
+        <div class={s.grid}>
           {FEATURES.map((f) => (
             <div
               key={f.title}
               class={s.card}
-              style="background: rgba(17,17,19,0.5); border: 1px solid rgba(30,30,34,0.5); transition: border-color 0.15s"
+              style="background: rgba(17,17,19,0.5); border-color: rgba(30,30,34,0.5)"
             >
-              <h3 class={s.title} style="font-family: 'DM Serif Display', Georgia, serif; color: #e4e4e7">
+              <h3
+                class={s.title}
+                style="font-family: 'DM Serif Display', Georgia, serif; color: #e4e4e7"
+              >
                 {f.title}
               </h3>
-              <p class={s.desc} style="color: #a1a1aa">{f.desc}</p>
+              <p class={s.desc} style="color: #a1a1aa">
+                {f.desc}
+              </p>
             </div>
           ))}
         </div>

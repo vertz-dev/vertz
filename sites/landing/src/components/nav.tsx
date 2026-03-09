@@ -2,17 +2,10 @@ import { css } from '@vertz/ui';
 import { VertzLogo } from './vertz-logo';
 
 const s = css({
-  nav: [
-    'fixed',
-    'z:50',
-    'flex',
-    'items:center',
-    'justify:between',
-    'px:6',
-    'py:4',
-  ],
+  nav: ['fixed', 'z:50', 'flex', 'items:center', 'justify:between', 'px:6', 'py:4'],
+  logoWrapper: ['flex', 'items:center', 'gap:2'],
   links: ['flex', 'items:center', 'gap:6'],
-  link: ['font:xs', 'uppercase', 'cursor:pointer'],
+  link: ['font:xs', 'uppercase', 'tracking:wider', 'cursor:pointer', 'transition:colors'],
 });
 
 export function Nav() {
@@ -21,7 +14,7 @@ export function Nav() {
       class={s.nav}
       style="top: 0; left: 0; right: 0; background: rgba(10,10,11,0.8); backdrop-filter: blur(12px); border-bottom: 2px solid rgba(255,255,255,0.04)"
     >
-      <div style="display: flex; align-items: center; gap: 0.5rem">
+      <div class={s.logoWrapper}>
         <VertzLogo />
       </div>
       <div class={s.links}>
@@ -30,7 +23,7 @@ export function Nav() {
           target="_blank"
           rel="noopener"
           class={s.link}
-          style="font-family: 'JetBrains Mono', monospace; letter-spacing: 0.05em; color: #71717a; transition: color 0.15s"
+          style="font-family: 'JetBrains Mono', monospace; color: #71717a"
         >
           GitHub
         </a>
@@ -40,15 +33,15 @@ export function Nav() {
           target="_blank"
           rel="noopener"
           class={s.link}
-          style="font-family: 'JetBrains Mono', monospace; letter-spacing: 0.05em; color: #71717a; transition: color 0.15s"
+          style="font-family: 'JetBrains Mono', monospace; color: #71717a"
         >
           Discord
         </a>
         */}
         <a
-          href="#"
+          href="https://docs.vertz.dev"
           class={s.link}
-          style="font-family: 'JetBrains Mono', monospace; letter-spacing: 0.05em; color: #71717a; transition: color 0.15s"
+          style="font-family: 'JetBrains Mono', monospace; color: #71717a"
         >
           Docs
         </a>

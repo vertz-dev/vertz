@@ -2,32 +2,51 @@ import { css } from '@vertz/ui';
 
 const s = css({
   footer: ['py:12', 'px:6'],
+  container: [
+    'max-w:4xl',
+    'mx:auto',
+    'flex',
+    'items:center',
+    'justify:between',
+    'gap:4',
+    'flex-wrap',
+    'font:xs',
+    'uppercase',
+    'tracking:wider',
+  ],
+  linkGroup: ['flex', 'items:center', 'gap:4'],
+  link: ['transition:colors'],
 });
 
 export function Footer() {
   return (
     <footer class={s.footer} style="border-top: 1px solid #1e1e22">
-      <div style="max-width: 56rem; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 1rem; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #71717a; flex-wrap: wrap">
-        <div style="display: flex; align-items: center; gap: 1rem">
-          <a href="https://github.com/vertz-dev/vertz" target="_blank" rel="noopener" style="transition: color 0.15s">
+      <div class={s.container} style="font-family: 'JetBrains Mono', monospace; color: #71717a">
+        <div class={s.linkGroup}>
+          <a
+            href="https://github.com/vertz-dev/vertz"
+            target="_blank"
+            rel="noopener"
+            class={s.link}
+          >
             GitHub
           </a>
           {/* FLAG:DISCORD - Uncomment when Discord invite is ready
           <span style="color: #3f3f46">|</span>
-          <a href="https://discord.gg/INVITE_CODE" target="_blank" rel="noopener" style="transition: color 0.15s">
+          <a href="https://discord.gg/INVITE_CODE" target="_blank" rel="noopener" class={s.link}>
             Discord
           </a>
           */}
           <span style="color: #3f3f46">|</span>
-          <a href="https://x.com/vinicius_dacal" target="_blank" rel="noopener" style="transition: color 0.15s">
+          <a href="https://x.com/vinicius_dacal" target="_blank" rel="noopener" class={s.link}>
             @vinicius_dacal
           </a>
           <span style="color: #3f3f46">|</span>
-          <a href="https://x.com/matheeuspoleza" target="_blank" rel="noopener" style="transition: color 0.15s">
+          <a href="https://x.com/matheeuspoleza" target="_blank" rel="noopener" class={s.link}>
             @matheeuspoleza
           </a>
         </div>
-        <div style="display: flex; align-items: center; gap: 1rem">
+        <div class={s.linkGroup}>
           <span>MIT License</span>
           <span style="color: #3f3f46">|</span>
           <span>Powered by Bun</span>

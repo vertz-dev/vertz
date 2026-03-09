@@ -1,10 +1,14 @@
-import { onMount } from '@vertz/ui';
+import { css, onMount } from '@vertz/ui';
 import { Tooltip } from '@vertz/ui-primitives';
 import type { CompactToken, Token, TokenLine } from './highlighted-code';
 
 function hasHint(token: Token): token is [string, string, CompactToken[][]] {
   return token.length > 2;
 }
+
+const s = css({
+  pre: ['m:0'],
+});
 
 const TOOLTIP_CONTENT_STYLE = [
   'background: #191a21',
@@ -64,14 +68,18 @@ function HintedToken({ token }: { token: [string, string, CompactToken[][]] }) {
 
 export function TokenLines({ lines }: { lines: TokenLine[] }) {
   return (
-    <pre style="margin: 0">
+    <pre class={s.pre}>
       <code>
         {lines.map((line) => (
           <span key={line.map((t) => t[1]).join('')}>
             {line.map((token) =>
-              hasHint(token)
-                ? <HintedToken key={token[1]} token={token} />
-                : <span key={token[1]} style={token[0]}>{token[1]}</span>,
+              hasHint(token) ? (
+                <HintedToken key={token[1]} token={token} />
+              ) : (
+                <span key={token[1]} style={token[0]}>
+                  {token[1]}
+                </span>
+              ),
             )}
             {'\n'}
           </span>

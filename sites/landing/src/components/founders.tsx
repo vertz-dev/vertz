@@ -2,7 +2,25 @@ import { css } from '@vertz/ui';
 
 const s = css({
   section: ['py:24', 'px:6'],
-  grid: ['grid', 'gap:12'],
+  container: ['max-w:4xl', 'mx:auto'],
+  intro: ['font:lg', 'leading:relaxed', 'max-w:2xl', 'mx:auto', 'mb:12', 'text:center'],
+  grid: ['grid', 'grid-cols:2', 'gap:12', 'max-w:xl', 'mx:auto'],
+  card: ['text:center'],
+  img: ['w:20', 'h:20', 'mx:auto', 'mb:4', 'rounded:full'],
+  name: ['weight:semibold', 'font:lg'],
+  role: ['font:xs', 'uppercase', 'tracking:wider', 'mt:1'],
+  bio: ['font:xs', 'mt:2', 'leading:relaxed', 'max-w:80', 'mx:auto'],
+  socialLink: [
+    'inline-flex',
+    'items:center',
+    'gap:1.5',
+    'mt:3',
+    'font:xs',
+    'uppercase',
+    'tracking:wider',
+    'transition:colors',
+  ],
+  icon: ['w:4', 'h:4'],
 });
 
 interface Founder {
@@ -34,31 +52,34 @@ export function Founders() {
       class={s.section}
       style="background: #0e0e11; border-top: 1px solid rgba(255,255,255,0.02)"
     >
-      <div style="max-width: 56rem; margin: 0 auto">
-        <p style="color: #d4d4d8; font-size: 1.125rem; line-height: 1.625; max-width: 42rem; margin: 0 auto 3rem; text-align: center">
-          We spent years stitching together ORMs, API frameworks, validation libraries, and UI toolkits — and watching them drift apart. We built Vertz so the next team doesn't have to.
+      <div class={s.container}>
+        <p class={s.intro} style="color: #d4d4d8">
+          We spent years stitching together ORMs, API frameworks, validation libraries, and UI
+          toolkits — and watching them drift apart. We built Vertz so the next team doesn't have to.
         </p>
 
-        <div class={s.grid} style="grid-template-columns: repeat(2, 1fr); max-width: 36rem; margin: 0 auto">
+        <div class={s.grid}>
           {FOUNDERS.map((f) => (
-            <div key={f.name} style="text-align: center">
+            <div key={f.name} class={s.card}>
               <img
                 src={f.photo}
                 alt={f.name}
-                style="width: 5rem; height: 5rem; margin: 0 auto 1rem; object-fit: cover; outline: 2px solid #27272a; outline-offset: 2px"
+                class={s.img}
+                style="object-fit: cover; outline: 2px solid #27272a; outline-offset: 2px"
               />
-              <p style="font-weight: 600; font-size: 1.125rem">{f.name}</p>
-              <p style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #71717a; margin-top: 0.25rem">
+              <p class={s.name}>{f.name}</p>
+              <p class={s.role} style="font-family: 'JetBrains Mono', monospace; color: #71717a">
                 Co-founder
               </p>
-              <p style="font-size: 0.75rem; color: #a1a1aa; margin-top: 0.5rem; line-height: 1.625; max-width: 20rem; margin-left: auto; margin-right: auto">
+              <p class={s.bio} style="color: #a1a1aa">
                 {f.bio}
               </p>
               <a
                 href={f.x.url}
                 target="_blank"
                 rel="noopener"
-                style="display: inline-flex; align-items: center; gap: 0.375rem; margin-top: 0.75rem; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #71717a; transition: color 0.15s"
+                class={s.socialLink}
+                style="font-family: 'JetBrains Mono', monospace; color: #71717a"
               >
                 <XIcon />
                 {f.x.handle}
@@ -73,7 +94,7 @@ export function Founders() {
 
 function XIcon() {
   return (
-    <svg style="width: 1rem; height: 1rem" fill="currentColor" viewBox="0 0 24 24">
+    <svg class={s.icon} fill="currentColor" viewBox="0 0 24 24" aria-label="X">
       <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
     </svg>
   );
