@@ -61,6 +61,10 @@
             "pages": ["guides/ui/compiler"]
           },
           {
+            "group": "vertz/icons",
+            "pages": ["guides/ui/icons"]
+          },
+          {
             "group": "vertz/schema",
             "pages": ["guides/schema"]
           },
@@ -94,10 +98,7 @@
           },
           {
             "group": "Deployment",
-            "pages": [
-              "guides/deploy/static-sites",
-              "guides/deploy/og-images"
-            ]
+            "pages": ["guides/deploy/static-sites", "guides/deploy/og-images"]
           }
         ],
         "tab": "Guides"
