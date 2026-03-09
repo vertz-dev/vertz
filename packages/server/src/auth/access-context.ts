@@ -13,14 +13,18 @@
  */
 
 import { AuthorizationError } from './access';
+import { calculateBillingPeriod } from './billing-period';
 import type { ClosureStore } from './closure-store';
 import type {
   AccessCheckResult,
   AccessDefinition,
   DenialMeta,
   DenialReason,
+  LimitDef,
 } from './define-access';
+import { type OrgPlan, type PlanStore, resolveEffectivePlan } from './plan-store';
 import type { RoleAssignmentStore } from './role-assignment-store';
+import type { WalletStore } from './wallet-store';
 
 // ============================================================================
 // Types
@@ -38,6 +42,12 @@ export interface AccessContextConfig {
   roleStore: RoleAssignmentStore;
   /** Factor verification age — seconds since last MFA. undefined if no MFA done. */
   fva?: number;
+  /** Plan store — required for Layer 4 plan checks */
+  planStore?: PlanStore;
+  /** Wallet store — required for Layer 5 wallet checks and canAndConsume() */
+  walletStore?: WalletStore;
+  /** Resolves an org ID from a resource. Required for plan/wallet checks. */
+  orgResolver?: (resource?: ResourceRef) => Promise<string | null>;
 }
 
 export interface AccessContext {
@@ -47,6 +57,10 @@ export interface AccessContext {
   canAll(
     checks: Array<{ entitlement: string; resource?: ResourceRef }>,
   ): Promise<Map<string, boolean>>;
+  /** Atomic check + consume. Runs full can() then increments wallet if all layers pass. */
+  canAndConsume(entitlement: string, resource?: ResourceRef, amount?: number): Promise<boolean>;
+  /** Rollback a previous canAndConsume(). Use when the operation fails after consumption. */
+  unconsume(entitlement: string, resource?: ResourceRef, amount?: number): Promise<void>;
 }
 
 const MAX_BULK_CHECKS = 100;
@@ -56,13 +70,18 @@ const MAX_BULK_CHECKS = 100;
 // ============================================================================
 
 export function createAccessContext(config: AccessContextConfig): AccessContext {
-  const { userId, accessDef, closureStore, roleStore } = config;
+  const { userId, accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
+    config;
 
   // ==========================================================================
-  // can() — short-circuits cheapest-first
+  // checkLayers1to4() — internal, checks Layers 1-4 with pre-resolved orgId
   // ==========================================================================
 
-  async function can(entitlement: string, resource?: ResourceRef): Promise<boolean> {
+  function checkLayers1to4(
+    entitlement: string,
+    resource: ResourceRef | undefined,
+    resolvedOrgId: string | null,
+  ): boolean {
     // Unauthenticated user — deny immediately
     if (!userId) return false;
 
@@ -91,10 +110,47 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
 
     // Layer 3: Hierarchy check (implicit — already handled via closure table in getEffectiveRole)
 
-    // Layer 4: Plan check (stub — always pass)
-    // if (entDef.plans?.length) { ... }
+    // Layer 4: Plan check
+    if (entDef.plans?.length && planStore && orgResolver) {
+      if (!resolvedOrgId) return false; // Cannot resolve org — deny
 
-    // Layer 5: Wallet check (stub — always pass)
+      const orgPlan = planStore.getPlan(resolvedOrgId);
+      const effectivePlanId = resolveEffectivePlan(orgPlan, accessDef.plans, accessDef.defaultPlan);
+      if (!effectivePlanId) return false; // No plan — deny
+
+      const planDef = accessDef.plans?.[effectivePlanId];
+      if (!planDef || !planDef.entitlements.includes(entitlement)) {
+        return false; // Plan doesn't include this entitlement
+      }
+    }
+
+    return true;
+  }
+
+  // ==========================================================================
+  // can() — short-circuits cheapest-first
+  // ==========================================================================
+
+  async function can(entitlement: string, resource?: ResourceRef): Promise<boolean> {
+    // Resolve org once for all layers
+    const resolvedOrgId = orgResolver ? await orgResolver(resource) : null;
+
+    if (!checkLayers1to4(entitlement, resource, resolvedOrgId)) return false;
+
+    // Layer 5: Wallet check (read-only — for UI display, not atomic)
+    const entDef = accessDef.entitlements[entitlement];
+    if (entDef?.plans?.length && walletStore && planStore && resolvedOrgId) {
+      const walletState = await resolveWalletStateFromOrgId(
+        entitlement,
+        resolvedOrgId,
+        accessDef,
+        planStore,
+        walletStore,
+      );
+      if (walletState && walletState.consumed >= walletState.limit) {
+        return false;
+      }
+    }
 
     return true;
   }
@@ -125,6 +181,9 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
       };
     }
 
+    // Resolve org once for all layers
+    const resolvedOrgId = orgResolver ? await orgResolver(resource) : null;
+
     // Layer 1: Feature flags (stub)
     // if (entDef.flags?.length) { ... }
 
@@ -149,10 +208,55 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
 
     // Layer 3: Hierarchy (implicit via effective role)
 
-    // Layer 4: Plan (stub)
-    // if (entDef.plans?.length) { reasons.push('plan_required'); meta.requiredPlans = [...entDef.plans]; }
+    // Layer 4: Plan check
+    if (entDef.plans?.length && planStore && orgResolver) {
+      let planDenied = false;
 
-    // Layer 5: Wallet (stub)
+      if (!resolvedOrgId) {
+        planDenied = true;
+      } else {
+        const orgPlan = planStore.getPlan(resolvedOrgId);
+        const effectivePlanId = resolveEffectivePlan(
+          orgPlan,
+          accessDef.plans,
+          accessDef.defaultPlan,
+        );
+        if (!effectivePlanId) {
+          planDenied = true;
+        } else {
+          const planDef = accessDef.plans?.[effectivePlanId];
+          if (!planDef || !planDef.entitlements.includes(entitlement)) {
+            planDenied = true;
+          }
+        }
+      }
+
+      if (planDenied) {
+        reasons.push('plan_required');
+        meta.requiredPlans = [...entDef.plans];
+      }
+    }
+
+    // Layer 5: Wallet check
+    if (entDef.plans?.length && walletStore && planStore && resolvedOrgId) {
+      const walletState = await resolveWalletStateFromOrgId(
+        entitlement,
+        resolvedOrgId,
+        accessDef,
+        planStore,
+        walletStore,
+      );
+      if (walletState) {
+        meta.limit = {
+          max: walletState.limit,
+          consumed: walletState.consumed,
+          remaining: Math.max(0, walletState.limit - walletState.consumed),
+        };
+        if (walletState.consumed >= walletState.limit) {
+          reasons.push('limit_reached');
+        }
+      }
+    }
 
     // Order denial reasons by actionability
     const orderedReasons = orderDenialReasons(reasons);
@@ -202,7 +306,92 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     return results;
   }
 
-  return { can, check, authorize, canAll };
+  // ==========================================================================
+  // canAndConsume() — atomic check + consume
+  // ==========================================================================
+
+  /**
+   * Runs Layers 1-4 access check, then atomically attempts to consume from the wallet.
+   * The wallet consume is atomic, but the access check and consume are not a single
+   * atomic operation -- concurrent requests may see stale state in the access check.
+   */
+  async function canAndConsume(
+    entitlement: string,
+    resource?: ResourceRef,
+    amount = 1,
+  ): Promise<boolean> {
+    // Resolve org once for all layers
+    const resolvedOrgId = orgResolver ? await orgResolver(resource) : null;
+
+    // Run Layers 1-4 (skips Layer 5 wallet read to avoid TOCTOU)
+    if (!checkLayers1to4(entitlement, resource, resolvedOrgId)) return false;
+
+    // If no wallet/plan infrastructure, just return true (no limit to enforce)
+    if (!walletStore || !planStore || !orgResolver) return true;
+
+    const entDef = accessDef.entitlements[entitlement];
+    if (!entDef?.plans?.length) return true; // No plan requirement, no limit possible
+
+    if (!resolvedOrgId) return false;
+
+    const orgPlan = planStore.getPlan(resolvedOrgId);
+    if (!orgPlan) return false;
+    const effectivePlanId = resolveEffectivePlan(orgPlan, accessDef.plans, accessDef.defaultPlan);
+    if (!effectivePlanId) return false;
+
+    const planDef = accessDef.plans?.[effectivePlanId];
+    if (!planDef) return false;
+
+    const limitDef = planDef.limits?.[entitlement];
+    if (!limitDef) return true; // No limit on this entitlement — always allowed
+
+    // Resolve effective limit (max of override and plan limit)
+    const effectiveLimit = resolveEffectiveLimit(orgPlan, entitlement, limitDef);
+
+    // Calculate billing period
+    const { periodStart, periodEnd } = calculateBillingPeriod(orgPlan.startedAt, limitDef.per);
+
+    // Atomic consume
+    const result = await walletStore.consume(
+      resolvedOrgId,
+      entitlement,
+      periodStart,
+      periodEnd,
+      effectiveLimit,
+      amount,
+    );
+
+    return result.success;
+  }
+
+  // ==========================================================================
+  // unconsume() — rollback
+  // ==========================================================================
+
+  async function unconsume(entitlement: string, resource?: ResourceRef, amount = 1): Promise<void> {
+    if (!walletStore || !planStore || !orgResolver) return;
+
+    const entDef = accessDef.entitlements[entitlement];
+    if (!entDef?.plans?.length) return;
+
+    const orgId = await orgResolver(resource);
+    if (!orgId) return;
+
+    const orgPlan = planStore.getPlan(orgId);
+    if (!orgPlan) return;
+    const effectivePlanId = resolveEffectivePlan(orgPlan, accessDef.plans, accessDef.defaultPlan);
+    if (!effectivePlanId) return;
+
+    const planDef = accessDef.plans?.[effectivePlanId];
+    const limitDef = planDef?.limits?.[entitlement];
+    if (!limitDef) return;
+
+    const { periodStart, periodEnd } = calculateBillingPeriod(orgPlan.startedAt, limitDef.per);
+
+    await walletStore.unconsume(orgId, entitlement, periodStart, periodEnd, amount);
+  }
+
+  return { can, check, authorize, canAll, canAndConsume, unconsume };
 }
 
 // ============================================================================
@@ -221,4 +410,45 @@ const DENIAL_ORDER: DenialReason[] = [
 
 function orderDenialReasons(reasons: DenialReason[]): DenialReason[] {
   return [...reasons].sort((a, b) => DENIAL_ORDER.indexOf(a) - DENIAL_ORDER.indexOf(b));
+}
+
+interface WalletState {
+  limit: number;
+  consumed: number;
+}
+
+/**
+ * Resolve the current wallet state for an entitlement using a pre-resolved org ID.
+ * Returns null if no limit is configured for this entitlement.
+ */
+async function resolveWalletStateFromOrgId(
+  entitlement: string,
+  orgId: string,
+  accessDef: AccessDefinition,
+  planStore: PlanStore,
+  walletStore: WalletStore,
+): Promise<WalletState | null> {
+  const orgPlan = planStore.getPlan(orgId);
+  const effectivePlanId = resolveEffectivePlan(orgPlan, accessDef.plans, accessDef.defaultPlan);
+  if (!effectivePlanId || !orgPlan) return null;
+
+  const planDef = accessDef.plans?.[effectivePlanId];
+  const limitDef = planDef?.limits?.[entitlement];
+  if (!limitDef) return null;
+
+  const effectiveLimit = resolveEffectiveLimit(orgPlan, entitlement, limitDef);
+  const { periodStart, periodEnd } = calculateBillingPeriod(orgPlan.startedAt, limitDef.per);
+  const consumed = await walletStore.getConsumption(orgId, entitlement, periodStart, periodEnd);
+
+  return { limit: effectiveLimit, consumed };
+}
+
+/**
+ * Resolve the effective limit for an entitlement.
+ * Uses max(override, plan_limit) — overrides can only increase limits.
+ */
+function resolveEffectiveLimit(orgPlan: OrgPlan, entitlement: string, planLimit: LimitDef): number {
+  const override = orgPlan.overrides[entitlement];
+  if (!override) return planLimit.max;
+  return Math.max(override.max, planLimit.max);
 }

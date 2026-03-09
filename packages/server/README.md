@@ -288,6 +288,82 @@ if (result.ok) {
 }
 ```
 
+## Access Control
+
+`defineAccess()` sets up hierarchical RBAC with plans and usage limits. `createAccessContext()` evaluates entitlements at request time.
+
+```typescript
+import { defineAccess, createAccessContext } from '@vertz/server';
+
+const access = defineAccess({
+  hierarchy: ['org', 'workspace', 'project'],
+  roles: {
+    org: ['owner', 'admin', 'member'],
+    workspace: ['admin', 'editor', 'viewer'],
+    project: ['manager', 'contributor', 'viewer'],
+  },
+  inheritance: {
+    org: { owner: 'admin', admin: 'editor', member: 'viewer' },
+    workspace: { admin: 'manager', editor: 'contributor', viewer: 'viewer' },
+  },
+  entitlements: {
+    'project:create': { roles: ['admin', 'editor'] },
+    'ai:generate':    { roles: ['editor'], plans: ['pro', 'enterprise'] },
+  },
+  plans: {
+    free: {
+      entitlements: ['project:create'],
+    },
+    pro: {
+      entitlements: ['project:create', 'ai:generate'],
+      limits: { 'ai:generate': { per: 'month', max: 1000 } },
+    },
+  },
+  defaultPlan: 'free',
+});
+```
+
+### Checking Entitlements
+
+```typescript
+const ctx = createAccessContext({
+  userId: session.userId,
+  accessDef: access,
+  closureStore,
+  roleStore,
+  planStore,
+  walletStore,
+  orgResolver: async (resource) => session.orgId,
+});
+
+// Boolean check
+const allowed = await ctx.can('project:create', { type: 'workspace', id: 'ws-1' });
+
+// Structured check with denial reasons
+const result = await ctx.check('ai:generate', { type: 'project', id: 'p-1' });
+// { allowed: false, reasons: ['plan_required'], meta: { requiredPlans: ['pro'] } }
+
+// Throws AuthorizationError on denial
+await ctx.authorize('project:create', { type: 'workspace', id: 'ws-1' });
+```
+
+### Consuming Usage Limits
+
+```typescript
+// Atomic check + consume — avoids TOCTOU races
+const allowed = await ctx.canAndConsume('ai:generate', { type: 'project', id: 'p-1' });
+if (!allowed) return { error: 'Limit reached' };
+
+try {
+  await generateAI(prompt);
+} catch (err) {
+  await ctx.unconsume('ai:generate', { type: 'project', id: 'p-1' });
+  throw err;
+}
+```
+
+See the full [Authentication & Access Control guide](https://vertz.dev/guides/server/auth) for hierarchy details, plan configuration, and entity access metadata.
+
 ## Error Handling
 
 Entity routes return consistent error responses:

@@ -115,6 +115,13 @@
 | [Auth Phase 2 Spec](plans/auth-phase2-spec.md) | ⏸️ Blocked | Blocked on auth module |
 | [Access System](plans/access-system.md) | 📋 Draft | Access control |
 
+### User-Facing Docs
+
+| Doc | Status | Description |
+|-----|--------|-------------|
+| [Server Auth & Access Guide](packages/docs/guides/server/auth.mdx) | ✅ Done | Authentication, `defineAccess()`, plans, `canAndConsume()`, entity access |
+| [Client Access Control Guide](packages/docs/guides/ui/access-control.mdx) | ✅ Done | `can()`, `AccessGate`, SSR hydration, denial reasons |
+
 ---
 
 ## Cloud & Deployment

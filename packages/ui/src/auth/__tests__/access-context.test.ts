@@ -164,6 +164,52 @@ describe('can()', () => {
     expect(result!.allowed.value).toBe(true);
   });
 
+  it('returns meta.limit when access set entitlement has limit data (allowed)', () => {
+    const accessSet = signal<AccessSet | null>(
+      makeAccessSet({
+        'project:create': {
+          allowed: true,
+          reasons: [],
+          meta: { limit: { max: 10, consumed: 3, remaining: 7 } },
+        },
+      }),
+    );
+    const loading = signal(false);
+
+    let result: ReturnType<typeof can>;
+    withProvider({ accessSet, loading }, () => {
+      result = can('project:create');
+    });
+
+    expect(result!.allowed.value).toBe(true);
+    expect(result!.meta.value?.limit).toEqual({ max: 10, consumed: 3, remaining: 7 });
+    expect(result!.meta.value?.limit?.remaining).toBe(7);
+  });
+
+  it('returns meta.limit with remaining:0 when limit_reached (denied)', () => {
+    const accessSet = signal<AccessSet | null>(
+      makeAccessSet({
+        'project:create': {
+          allowed: false,
+          reasons: ['limit_reached'],
+          reason: 'limit_reached',
+          meta: { limit: { max: 10, consumed: 10, remaining: 0 } },
+        },
+      }),
+    );
+    const loading = signal(false);
+
+    let result: ReturnType<typeof can>;
+    withProvider({ accessSet, loading }, () => {
+      result = can('project:create');
+    });
+
+    expect(result!.allowed.value).toBe(false);
+    expect(result!.reasons.value).toContain('limit_reached');
+    expect(result!.meta.value?.limit).toEqual({ max: 10, consumed: 10, remaining: 0 });
+    expect(result!.meta.value?.limit?.remaining).toBe(0);
+  });
+
   it('updates reactively when access set signal changes', () => {
     const accessSet = signal<AccessSet | null>(
       makeAccessSet({

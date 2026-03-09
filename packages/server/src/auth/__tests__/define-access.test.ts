@@ -127,8 +127,107 @@ describe('defineAccess', () => {
       entitlements: {
         'org:export': { roles: ['admin'], plans: ['enterprise'], flags: ['export-v2'] },
       },
+      plans: {
+        enterprise: { entitlements: ['org:export'] },
+      },
     });
     expect(config.entitlements['org:export'].plans).toEqual(['enterprise']);
     expect(config.entitlements['org:export'].flags).toEqual(['export-v2']);
+  });
+
+  describe('plans', () => {
+    it('defaults plans to undefined when omitted', () => {
+      const config = defineAccess({
+        hierarchy: ['Org'],
+        roles: { Org: ['admin'] },
+        entitlements: { 'org:manage': { roles: ['admin'] } },
+      });
+      expect(config.plans).toBeUndefined();
+    });
+
+    it('throws when plan limit key references an entitlement not in that plan', () => {
+      expect(() => {
+        defineAccess({
+          hierarchy: ['Org'],
+          roles: { Org: ['admin'] },
+          entitlements: {
+            'org:view': { roles: ['admin'] },
+            'org:edit': { roles: ['admin'] },
+          },
+          plans: {
+            free: {
+              entitlements: ['org:view'],
+              limits: { 'org:edit': { per: 'month', max: 5 } },
+            },
+          },
+        });
+      }).toThrow('Plan "free" has limit for "org:edit" which is not in the plan\'s entitlements');
+    });
+
+    it('throws when plan references an entitlement not defined in entitlements', () => {
+      expect(() => {
+        defineAccess({
+          hierarchy: ['Org'],
+          roles: { Org: ['admin'] },
+          entitlements: { 'org:view': { roles: ['admin'] } },
+          plans: {
+            free: { entitlements: ['org:view', 'org:nonexistent'] },
+          },
+        });
+      }).toThrow('Plan "free" references unknown entitlement: org:nonexistent');
+    });
+
+    it('throws when entitlement references unknown plan name', () => {
+      expect(() => {
+        defineAccess({
+          hierarchy: ['Org'],
+          roles: { Org: ['admin'] },
+          entitlements: {
+            'org:do': { roles: ['admin'], plans: ['nonexistent'] },
+          },
+          plans: {
+            free: { entitlements: ['org:do'] },
+          },
+        });
+      }).toThrow('Entitlement "org:do" references unknown plan: nonexistent');
+    });
+
+    it('preserves defaultPlan in AccessDefinition', () => {
+      const config = defineAccess({
+        hierarchy: ['Org'],
+        roles: { Org: ['admin'] },
+        entitlements: { 'org:manage': { roles: ['admin'] } },
+        plans: { basic: { entitlements: ['org:manage'] } },
+        defaultPlan: 'basic',
+      });
+      expect(config.defaultPlan).toBe('basic');
+    });
+
+    it('accepts plans config and freezes it in AccessDefinition', () => {
+      const config = defineAccess({
+        hierarchy: ['Org'],
+        roles: { Org: ['admin'] },
+        entitlements: {
+          'project:create': { roles: ['admin'], plans: ['free', 'pro'] },
+          'project:view': { roles: ['admin'] },
+        },
+        plans: {
+          free: {
+            entitlements: ['project:create', 'project:view'],
+            limits: { 'project:create': { per: 'month', max: 5 } },
+          },
+          pro: {
+            entitlements: ['project:create', 'project:view'],
+            limits: { 'project:create': { per: 'month', max: 100 } },
+          },
+        },
+      });
+
+      expect(config.plans).toBeDefined();
+      expect(Object.isFrozen(config.plans)).toBe(true);
+      expect(config.plans!.free.entitlements).toEqual(['project:create', 'project:view']);
+      expect(config.plans!.free.limits!['project:create']).toEqual({ per: 'month', max: 5 });
+      expect(Object.isFrozen(config.plans!.free)).toBe(true);
+    });
   });
 });

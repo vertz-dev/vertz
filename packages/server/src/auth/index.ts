@@ -2166,15 +2166,20 @@ export type {
   EncodedAccessSet,
 } from './access-set';
 export { computeAccessSet, decodeAccessSet, encodeAccessSet } from './access-set';
+export type { Period } from './billing-period';
+export { calculateBillingPeriod } from './billing-period';
 export type { ClosureEntry, ClosureRow, ClosureStore, ParentRef } from './closure-store';
 export { InMemoryClosureStore } from './closure-store';
 export type {
   AccessCheckResult,
   AccessDefinition,
+  BillingPeriod,
   DefineAccessInput,
   DenialMeta,
   DenialReason,
   EntitlementDef,
+  LimitDef,
+  PlanDef,
 } from './define-access';
 export { defineAccess } from './define-access';
 export { InMemoryEmailVerificationStore } from './email-verification-store';
@@ -2183,6 +2188,9 @@ export { checkFva } from './fva';
 export { InMemoryMFAStore } from './mfa-store';
 export { InMemoryOAuthAccountStore } from './oauth-account-store';
 export { InMemoryPasswordResetStore } from './password-reset-store';
+// Phase 8: Plans & Wallet
+export type { LimitOverride, OrgPlan, PlanStore } from './plan-store';
+export { InMemoryPlanStore, resolveEffectivePlan } from './plan-store';
 // Re-export provider factories
 export { discord, github, google } from './providers';
 export { InMemoryRateLimitStore } from './rate-limit-store';
@@ -2247,3 +2255,5 @@ export type {
   UserTableEntry,
 } from './types';
 export { InMemoryUserStore } from './user-store';
+export type { ConsumeResult, WalletEntry, WalletStore } from './wallet-store';
+export { InMemoryWalletStore } from './wallet-store';
