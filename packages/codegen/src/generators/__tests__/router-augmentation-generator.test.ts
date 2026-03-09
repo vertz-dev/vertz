@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -8,6 +9,8 @@ import type { CodegenIR } from '../../types';
 import { RouterAugmentationGenerator } from '../router-augmentation-generator';
 
 const execFileAsync = promisify(execFile);
+const require = createRequire(import.meta.url);
+const tscBin = require.resolve('typescript/bin/tsc');
 
 function createEmptyIR(): CodegenIR {
   return {
@@ -169,7 +172,9 @@ describe('RouterAugmentationGenerator', () => {
     expect(files).toEqual([]);
   });
 
-  it('type-checks generated augmentation so useRouter() rejects invalid routes', async () => {
+  it(
+    'type-checks generated augmentation so useRouter() rejects invalid routes',
+    async () => {
     await mkdir(join(projectRoot, 'src'), { recursive: true });
     await writeFile(
       join(projectRoot, 'ui.d.ts'),
@@ -256,10 +261,12 @@ describe('RouterAugmentationGenerator', () => {
       ),
     );
 
-    await expect(
-      execFileAsync('bunx', ['tsc', '-p', 'tsconfig.json'], { cwd: projectRoot }),
-    ).resolves.toMatchObject({
-      stderr: '',
-    });
-  });
+      await expect(
+        execFileAsync(process.execPath, [tscBin, '-p', 'tsconfig.json'], { cwd: projectRoot }),
+      ).resolves.toMatchObject({
+        stderr: '',
+      });
+    },
+    15_000,
+  );
 });
