@@ -25,8 +25,8 @@ export function Hero() {
       </h1>
 
       <p style="margin-top: 2rem; font-size: 1.25rem; color: #a1a1aa; max-width: 42rem; line-height: 1.625">
-        Define your schema once. It flows from database to API to UI.{' '}
-        <span style="color: #e4e4e7; font-weight: 500">One type system, zero glue code. Powered by Bun.</span>
+        One command. Database, API, and UI — running locally.{' '}
+        <span style="color: #e4e4e7; font-weight: 500">Define your schema once. Everything else is derived. Zero config.</span>
       </p>
 
       <div class={s.ctas} style="flex-direction: row">

@@ -13,14 +13,16 @@ export function GetStarted() {
             Get started in 30 seconds.
           </h2>
           <p style="font-size: 1.125rem; color: #a1a1aa; margin-bottom: 1rem">
-            Schema, API, and UI — running locally. Edit any layer. See it update instantly.
+            SQLite database, REST API, and UI — all running locally. No Docker. No config files. Edit any layer and see it update instantly.
           </p>
         </div>
         <div style="background: #0a0a0b; border: 1px solid #1e1e22; padding: 1.5rem; border-radius: 0.5rem; font-family: 'JetBrains Mono', monospace; font-size: 0.875rem; box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1)">
           <div style="color: #71717a; margin-bottom: 0.5rem">$ bun create vertz my-app</div>
           <div style="color: #71717a; margin-bottom: 0.5rem">$ cd my-app</div>
           <div style="color: #71717a">$ bun dev</div>
-          <div style="color: #34d399; margin-top: 1rem">✓ Full-stack app running on http://localhost:3000</div>
+          <div style="color: #34d399; margin-top: 1rem">✓ SQLite database ready</div>
+          <div style="color: #34d399">✓ API server on http://localhost:3000/api</div>
+          <div style="color: #34d399">✓ UI on http://localhost:3000</div>
         </div>
       </div>
     </section>

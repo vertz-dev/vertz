@@ -8,7 +8,7 @@ const devServer = createBunDevServer({
   port: PORT,
   ssrModule: true,
   title: 'Vertz — One command. Full stack. Running.',
-  description: 'Define your schema once. It flows from database to API to UI. One type system, zero glue code. Powered by Bun.',
+  description: 'One command. Database, API, and UI — running locally. Define your schema once. Everything else is derived. Zero config.',
   favicon: '/public/logo.svg',
   stylesheets: [
     'https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap',
