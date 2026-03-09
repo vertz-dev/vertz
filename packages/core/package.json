@@ -1,6 +1,6 @@
 {
   "name": "@vertz/core",
-  "version": "0.2.13",
+  "version": "0.2.14",
   "type": "module",
   "license": "MIT",
   "description": "Vertz core framework primitives",
