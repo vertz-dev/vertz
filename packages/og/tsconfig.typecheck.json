@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": false,
+    "jsx": "react",
+    "jsxFactory": "h",
+    "noEmit": true,
+    "noUncheckedIndexedAccess": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "skipLibCheck": true,
+    "types": ["bun-types"]
+  },
+  "extends": "../../tsconfig.json",
+  "include": ["src"]
+}
