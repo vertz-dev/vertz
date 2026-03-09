@@ -2180,6 +2180,13 @@ export type { AccessContext, AccessContextConfig, ResourceRef } from './access-c
 // Phase 6: Resource Hierarchy & defineAccess
 export { createAccessContext } from './access-context';
 export type {
+  AccessEvent,
+  AccessEventBroadcaster,
+  AccessEventBroadcasterConfig,
+  AccessWsData,
+} from './access-event-broadcaster';
+export { createAccessEventBroadcaster } from './access-event-broadcaster';
+export type {
   AccessCheckData,
   AccessSet,
   ComputeAccessSetConfig,
