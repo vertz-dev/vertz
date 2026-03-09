@@ -58,6 +58,8 @@ export interface BunDevServerOptions {
    * @default 'vscode'
    */
   editor?: string;
+  /** Extra HTML tags to inject into the <head> (e.g., font preloads, meta tags). */
+  headTags?: string;
 }
 
 export interface ErrorDetail {
@@ -210,6 +212,7 @@ export interface SSRPageHtmlOptions {
   ssrData: unknown[];
   scriptTag: string;
   editor?: string;
+  headTags?: string;
 }
 
 /**
@@ -467,6 +470,7 @@ export function generateSSRPageHtml({
   ssrData,
   scriptTag,
   editor = 'vscode',
+  headTags = '',
 }: SSRPageHtmlOptions): string {
   const ssrDataScript =
     ssrData.length > 0
@@ -479,6 +483,7 @@ export function generateSSRPageHtml({
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${title}</title>
+    ${headTags}
     ${css}
     ${buildErrorChannelScript(editor)}
     ${RELOAD_GUARD_SCRIPT}
@@ -620,6 +625,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     projectRoot = process.cwd(),
     logRequests = true,
     editor: editorOption,
+    headTags = '',
   } = options;
 
   const editor = detectEditor(editorOption);
@@ -1191,6 +1197,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
               ssrData: result.ssrData,
               scriptTag,
               editor,
+              headTags,
             });
 
             return new Response(html, {
@@ -1222,6 +1229,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
             ssrData: [],
             scriptTag,
             editor,
+            headTags,
           });
 
           return new Response(fallbackHtml, {

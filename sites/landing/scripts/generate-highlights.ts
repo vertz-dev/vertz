@@ -105,16 +105,19 @@ export const todosModel = d.model(todos, {
   user: d.ref.one(() => users, 'userId'),
 });`;
 
-const CODE_ENTITY = `import { entity, rules } from '@vertz/server';
+const CODE_ENTITY = `import { entity } from '@vertz/server';
 import { todosModel } from './schema';
 
 export const todos = entity('todos', {
   model: todosModel,
   access: {
-    list:   rules.authenticated(),
-    create: rules.authenticated(),
-    update: rules.where({ userId: rules.user.id }),
-    delete: rules.where({ userId: rules.user.id }),
+    list:   (ctx) => ctx.authenticated(),
+    create: (ctx) => ctx.authenticated(),
+    update: (ctx, row) => ctx.userId === row.userId,
+    delete: (ctx, row) => ctx.userId === row.userId,
+  },
+  before: {
+    create: (data, ctx) => ({ ...data, userId: ctx.userId }),
   },
 });
 // GET  /api/todos     — auto-generated
@@ -234,12 +237,17 @@ const HINTS_ENTITY: HintDef[] = [
   {
     line: 6,
     match: 'authenticated',
-    hint: 'rules.authenticated()\n// Requires a valid session.\n// Configure via authPlugin({ provider: ... })',
+    hint: 'ctx.authenticated(): boolean\n// Returns true if the request has a valid session.',
   },
   {
     line: 8,
-    match: 'where',
-    hint: 'rules.where({ column: rules.user.id })\n// Row-level security.\n// rules.user.id resolves to the current user at query time.',
+    match: 'userId',
+    hint: 'ctx.userId: string | null\n// The authenticated user\'s ID.\n// Row-level ownership check.',
+  },
+  {
+    line: 12,
+    match: 'create',
+    hint: 'before.create(data, ctx) => data\n// Stamps the current userId onto new rows.',
   },
 ];
 
