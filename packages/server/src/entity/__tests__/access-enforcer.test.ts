@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { EntityForbiddenError } from '@vertz/errors';
+import { rules } from '../../auth/rules';
 import { enforceAccess } from '../access-enforcer';
 import type { BaseContext, EntityContext } from '../types';
 
@@ -119,6 +120,32 @@ describe('Feature: enforceAccess', () => {
         };
 
         const result = await enforceAccess('login', { login: () => true }, baseCtx);
+        expect(result.ok).toBe(true);
+      });
+    });
+  });
+
+  describe('Given access rule is rules.public', () => {
+    describe('When enforceAccess is called', () => {
+      it('Then returns ok(undefined) (always allows)', async () => {
+        const ctx = stubCtx({ userId: null });
+
+        const result = await enforceAccess('list', { list: rules.public }, ctx);
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.data).toBeUndefined();
+        }
+      });
+    });
+
+    describe('When enforceAccess is called without authentication', () => {
+      it('Then still returns ok(undefined)', async () => {
+        const ctx = stubCtx({
+          userId: null,
+          authenticated: () => false,
+        });
+
+        const result = await enforceAccess('list', { list: rules.public }, ctx);
         expect(result.ok).toBe(true);
       });
     });

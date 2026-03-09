@@ -38,12 +38,17 @@ export interface AuthenticatedRule {
   readonly type: 'authenticated';
 }
 
+export interface PublicRule {
+  readonly type: 'public';
+}
+
 export interface FvaRule {
   readonly type: 'fva';
   readonly maxAge: number;
 }
 
 export type AccessRule =
+  | PublicRule
   | RoleRule
   | EntitlementRule
   | WhereRule
@@ -70,6 +75,9 @@ const userMarkers = {
 // ============================================================================
 
 export const rules = {
+  /** Endpoint is public — no authentication required */
+  public: Object.freeze({ type: 'public' }) as PublicRule,
+
   /** User has at least one of the specified roles (OR) */
   role(...roleNames: string[]): RoleRule {
     return { type: 'role', roles: Object.freeze([...roleNames]) };

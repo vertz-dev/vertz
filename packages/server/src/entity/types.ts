@@ -1,4 +1,5 @@
 import type { ModelDef, RelationDef, SchemaLike, TableDef } from '@vertz/db';
+import type { PublicRule } from '../auth/rules';
 import type { EntityOperations } from './entity-operations';
 
 // ---------------------------------------------------------------------------
@@ -55,6 +56,7 @@ export interface EntityContext<
 // allows actions to share the same AccessRule type.
 export type AccessRule =
   | false
+  | PublicRule
   | ((ctx: BaseContext, row: Record<string, unknown>) => boolean | Promise<boolean>);
 
 // ---------------------------------------------------------------------------
