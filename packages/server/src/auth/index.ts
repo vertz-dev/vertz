@@ -2197,33 +2197,100 @@ export type {
   EncodedAccessSet,
 } from './access-set';
 export { computeAccessSet, decodeAccessSet, encodeAccessSet } from './access-set';
+// DB-backed auth stores
+export { authModels } from './auth-models';
+export { AUTH_TABLE_NAMES, initializeAuthTables, validateAuthModels } from './auth-tables';
+// Billing
+export type { BillingAdapter } from './billing/adapter';
+export type {
+  BillingEvent,
+  BillingEventEmitter,
+  BillingEventHandler,
+  BillingEventType,
+} from './billing/event-emitter';
+export { createBillingEventEmitter } from './billing/event-emitter';
+export type { OverageInput } from './billing/overage';
+export { computeOverage } from './billing/overage';
+export type {
+  StripeBillingAdapterConfig,
+  StripeClient,
+  StripePrice,
+  StripeProduct,
+} from './billing/stripe-adapter';
+export { createStripeBillingAdapter } from './billing/stripe-adapter';
+export type { WebhookHandlerConfig } from './billing/webhook-handler';
+export { createWebhookHandler } from './billing/webhook-handler';
 export type { Period } from './billing-period';
 export { calculateBillingPeriod } from './billing-period';
 export type { ClosureEntry, ClosureRow, ClosureStore, ParentRef } from './closure-store';
 export { InMemoryClosureStore } from './closure-store';
+export { DbClosureStore } from './db-closure-store';
+export { DbFlagStore } from './db-flag-store';
+export { DbOAuthAccountStore } from './db-oauth-account-store';
+export { DbPlanStore } from './db-plan-store';
+export { DbRoleAssignmentStore } from './db-role-assignment-store';
+export { DbSessionStore } from './db-session-store';
+export type { AuthDbClient } from './db-types';
+export { DbUserStore } from './db-user-store';
 export type {
   AccessCheckResult,
   AccessDefinition,
+  AddOnRequires,
   BillingPeriod,
   DefineAccessInput,
   DenialMeta,
   DenialReason,
   EntitlementDef,
+  EntitlementValue,
+  EntityDef,
+  GraceDuration,
+  GrandfatheringPolicy,
   LimitDef,
+  OverageConfig,
   PlanDef,
+  PlanPrice,
+  PriceInterval,
+  RuleContext,
 } from './define-access';
 export { defineAccess } from './define-access';
+export type { DbDialectName } from './dialect-ddl';
 export { InMemoryEmailVerificationStore } from './email-verification-store';
 export { computeEntityAccess } from './entity-access';
 export type { FlagStore } from './flag-store';
 export { InMemoryFlagStore } from './flag-store';
 export { checkFva } from './fva';
+export type { GrandfatheringState, GrandfatheringStore } from './grandfathering-store';
+export { InMemoryGrandfatheringStore } from './grandfathering-store';
 export { InMemoryMFAStore } from './mfa-store';
 export { InMemoryOAuthAccountStore } from './oauth-account-store';
+// Phase 9: Override Store
+export type { LimitOverrideDef, OverrideStore, TenantOverrides } from './override-store';
+export { InMemoryOverrideStore, validateOverrides } from './override-store';
 export { InMemoryPasswordResetStore } from './password-reset-store';
+// Phase 4: Plan Versioning & Grandfathering
+export type { PlanHashInput } from './plan-hash';
+export { computePlanHash } from './plan-hash';
+export type {
+  MigrateOpts,
+  PlanEvent,
+  PlanEventHandler,
+  PlanEventType,
+  PlanManager,
+  PlanManagerConfig,
+  ScheduleOpts,
+  TenantPlanState,
+} from './plan-manager';
+export { createPlanManager } from './plan-manager';
 // Phase 8: Plans & Wallet
 export type { LimitOverride, OrgPlan, PlanStore } from './plan-store';
-export { InMemoryPlanStore, resolveEffectivePlan } from './plan-store';
+export {
+  checkAddOnCompatibility,
+  getIncompatibleAddOns,
+  InMemoryPlanStore,
+  resolveEffectivePlan,
+} from './plan-store';
+export type { PlanSnapshot, PlanVersionInfo, PlanVersionStore } from './plan-version-store';
+export { InMemoryPlanVersionStore } from './plan-version-store';
 // Re-export provider factories
 export { discord, github, google } from './providers';
 export { InMemoryRateLimitStore } from './rate-limit-store';

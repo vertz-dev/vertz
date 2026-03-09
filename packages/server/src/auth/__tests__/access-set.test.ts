@@ -9,22 +9,31 @@ import { InMemoryRoleAssignmentStore } from '../role-assignment-store';
 import { InMemoryWalletStore } from '../wallet-store';
 
 const accessDef = defineAccess({
-  hierarchy: ['Organization', 'Team', 'Project'],
-  roles: {
-    Organization: ['owner', 'admin', 'member'],
-    Team: ['lead', 'editor', 'viewer'],
-    Project: ['manager', 'contributor', 'viewer'],
-  },
-  inheritance: {
-    Organization: { owner: 'lead', admin: 'editor', member: 'viewer' },
-    Team: { lead: 'manager', editor: 'contributor', viewer: 'viewer' },
+  entities: {
+    organization: { roles: ['owner', 'admin', 'member'] },
+    team: {
+      roles: ['lead', 'editor', 'viewer'],
+      inherits: {
+        'organization:owner': 'lead',
+        'organization:admin': 'editor',
+        'organization:member': 'viewer',
+      },
+    },
+    project: {
+      roles: ['manager', 'contributor', 'viewer'],
+      inherits: {
+        'team:lead': 'manager',
+        'team:editor': 'contributor',
+        'team:viewer': 'viewer',
+      },
+    },
   },
   entitlements: {
-    'project:create': { roles: ['admin', 'owner'] },
+    'organization:create-project': { roles: ['admin', 'owner'] },
     'project:view': { roles: ['viewer', 'contributor', 'manager'] },
     'project:edit': { roles: ['contributor', 'manager'] },
     'project:delete': { roles: ['manager'] },
-    'app:use': { roles: [] },
+    'organization:use': { roles: [] },
   },
 });
 
@@ -37,8 +46,8 @@ function createStores() {
 describe('computeAccessSet', () => {
   it('returns allowed for user with admin role on an org', async () => {
     const { roleStore, closureStore } = createStores();
-    await closureStore.addResource('Organization', 'org-1');
-    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await closureStore.addResource('organization', 'org-1');
+    await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
 
     const result = await computeAccessSet({
       userId: 'user-1',
@@ -47,7 +56,7 @@ describe('computeAccessSet', () => {
       closureStore,
     });
 
-    expect(result.entitlements['project:create'].allowed).toBe(true);
+    expect(result.entitlements['organization:create-project'].allowed).toBe(true);
   });
 
   it('returns denied for unauthenticated user (null userId)', async () => {
@@ -66,18 +75,18 @@ describe('computeAccessSet', () => {
     }
   });
 
-  it('resolves inherited roles (owner on Org -> contributor on Project)', async () => {
+  it('resolves inherited roles (owner on org -> manager on project)', async () => {
     const { roleStore, closureStore } = createStores();
-    await closureStore.addResource('Organization', 'org-1');
-    await closureStore.addResource('Team', 'team-1', {
-      parentType: 'Organization',
+    await closureStore.addResource('organization', 'org-1');
+    await closureStore.addResource('team', 'team-1', {
+      parentType: 'organization',
       parentId: 'org-1',
     });
-    await closureStore.addResource('Project', 'proj-1', {
-      parentType: 'Team',
+    await closureStore.addResource('project', 'proj-1', {
+      parentType: 'team',
       parentId: 'team-1',
     });
-    await roleStore.assign('user-1', 'Organization', 'org-1', 'owner');
+    await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
 
     const result = await computeAccessSet({
       userId: 'user-1',
@@ -89,22 +98,22 @@ describe('computeAccessSet', () => {
     // owner -> lead -> manager, so project:delete (requires manager) should be allowed
     expect(result.entitlements['project:delete'].allowed).toBe(true);
     expect(result.entitlements['project:view'].allowed).toBe(true);
-    expect(result.entitlements['project:create'].allowed).toBe(true);
+    expect(result.entitlements['organization:create-project'].allowed).toBe(true);
   });
 
   it('handles user with partial entitlements (some allowed, some denied)', async () => {
     const { roleStore, closureStore } = createStores();
-    await closureStore.addResource('Organization', 'org-1');
-    await closureStore.addResource('Team', 'team-1', {
-      parentType: 'Organization',
+    await closureStore.addResource('organization', 'org-1');
+    await closureStore.addResource('team', 'team-1', {
+      parentType: 'organization',
       parentId: 'org-1',
     });
-    await closureStore.addResource('Project', 'proj-1', {
-      parentType: 'Team',
+    await closureStore.addResource('project', 'proj-1', {
+      parentType: 'team',
       parentId: 'team-1',
     });
-    // member -> viewer (Team) -> viewer (Project)
-    await roleStore.assign('user-1', 'Organization', 'org-1', 'member');
+    // member -> viewer (team) -> viewer (project)
+    await roleStore.assign('user-1', 'organization', 'org-1', 'member');
 
     const result = await computeAccessSet({
       userId: 'user-1',
@@ -116,7 +125,7 @@ describe('computeAccessSet', () => {
     expect(result.entitlements['project:view'].allowed).toBe(true);
     expect(result.entitlements['project:edit'].allowed).toBe(false);
     expect(result.entitlements['project:delete'].allowed).toBe(false);
-    expect(result.entitlements['project:create'].allowed).toBe(false);
+    expect(result.entitlements['organization:create-project'].allowed).toBe(false);
   });
 
   it('grants entitlements with empty roles array automatically', async () => {
@@ -129,8 +138,8 @@ describe('computeAccessSet', () => {
       closureStore,
     });
 
-    expect(result.entitlements['app:use'].allowed).toBe(true);
-    expect(result.entitlements['app:use'].reasons).toEqual([]);
+    expect(result.entitlements['organization:use'].allowed).toBe(true);
+    expect(result.entitlements['organization:use'].reasons).toEqual([]);
   });
 
   it('stubs flags as empty and uses config.plan', async () => {
@@ -159,10 +168,10 @@ describe('computeAccessSet', () => {
       closureStore,
     });
 
-    // All role-requiring entitlements denied, app:use granted
-    expect(result.entitlements['project:create'].allowed).toBe(false);
+    // All role-requiring entitlements denied, organization:use granted
+    expect(result.entitlements['organization:create-project'].allowed).toBe(false);
     expect(result.entitlements['project:view'].allowed).toBe(false);
-    expect(result.entitlements['app:use'].allowed).toBe(true);
+    expect(result.entitlements['organization:use'].allowed).toBe(true);
   });
 });
 
@@ -186,11 +195,8 @@ describe('encodeAccessSet', () => {
 
     const encoded = encodeAccessSet(set);
 
-    // Allowed entries should be present
     expect(encoded.entitlements['project:view']).toBeDefined();
-    // Denied without meta should NOT be present (sparse)
     expect(encoded.entitlements['project:edit']).toBeUndefined();
-    // Denied WITH meta should be present
     expect(encoded.entitlements['project:delete']).toBeDefined();
   });
 
@@ -253,9 +259,8 @@ describe('decodeAccessSet', () => {
     const decoded = decodeAccessSet(encoded, accessDef);
 
     expect(decoded.entitlements['project:view'].allowed).toBe(true);
-    // Missing entitlements filled in as denied
-    expect(decoded.entitlements['project:create'].allowed).toBe(false);
-    expect(decoded.entitlements['project:create'].reasons).toContain('role_required');
+    expect(decoded.entitlements['organization:create-project'].allowed).toBe(false);
+    expect(decoded.entitlements['organization:create-project'].reasons).toContain('role_required');
   });
 
   it('defaults missing entitlements to denied', () => {
@@ -272,8 +277,6 @@ describe('decodeAccessSet', () => {
       const check = decoded.entitlements[name];
       expect(check).toBeDefined();
       if (accessDef.entitlements[name].roles.length === 0) {
-        // No-role entitlement defaults to denied in sparse encoding
-        // (it was allowed but missing from encoded = treated as denied)
         expect(check.allowed).toBe(false);
       } else {
         expect(check.allowed).toBe(false);
@@ -287,7 +290,7 @@ describe('decodeAccessSet — limit data', () => {
   it('restores meta.limit from encoded data', () => {
     const encoded = {
       entitlements: {
-        'project:create': {
+        'organization:create-project': {
           allowed: true,
           meta: { limit: { max: 5, consumed: 3, remaining: 2 } },
         },
@@ -299,8 +302,8 @@ describe('decodeAccessSet — limit data', () => {
 
     const decoded = decodeAccessSet(encoded, accessDef);
 
-    expect(decoded.entitlements['project:create'].allowed).toBe(true);
-    expect(decoded.entitlements['project:create'].meta?.limit).toEqual({
+    expect(decoded.entitlements['organization:create-project'].allowed).toBe(true);
+    expect(decoded.entitlements['organization:create-project'].meta?.limit).toEqual({
       max: 5,
       consumed: 3,
       remaining: 2,
@@ -310,37 +313,48 @@ describe('decodeAccessSet — limit data', () => {
 
 describe('computeAccessSet — plan/wallet enrichment', () => {
   const planAccessDef = defineAccess({
-    hierarchy: ['Organization', 'Team', 'Project'],
-    roles: {
-      Organization: ['owner', 'admin', 'member'],
-      Team: ['lead', 'editor', 'viewer'],
-      Project: ['manager', 'contributor', 'viewer'],
-    },
-    inheritance: {
-      Organization: { owner: 'lead', admin: 'editor', member: 'viewer' },
-      Team: { lead: 'manager', editor: 'contributor', viewer: 'viewer' },
+    entities: {
+      organization: { roles: ['owner', 'admin', 'member'] },
+      team: {
+        roles: ['lead', 'editor', 'viewer'],
+        inherits: {
+          'organization:owner': 'lead',
+          'organization:admin': 'editor',
+          'organization:member': 'viewer',
+        },
+      },
+      project: {
+        roles: ['manager', 'contributor', 'viewer'],
+        inherits: {
+          'team:lead': 'manager',
+          'team:editor': 'contributor',
+          'team:viewer': 'viewer',
+        },
+      },
     },
     entitlements: {
-      'project:create': { roles: ['admin', 'owner'], plans: ['pro'] },
+      'organization:create-project': { roles: ['admin', 'owner'] },
       'project:view': { roles: ['viewer', 'contributor', 'manager'] },
       'project:edit': { roles: ['contributor', 'manager'] },
       'project:delete': { roles: ['manager'] },
-      'app:use': { roles: [] },
+      'organization:use': { roles: [] },
     },
     plans: {
       free: {
-        entitlements: ['project:view', 'project:edit', 'app:use'],
+        group: 'main',
+        features: ['project:view', 'project:edit', 'organization:use'],
       },
       pro: {
-        entitlements: [
-          'project:create',
+        group: 'main',
+        features: [
+          'organization:create-project',
           'project:view',
           'project:edit',
           'project:delete',
-          'app:use',
+          'organization:use',
         ],
         limits: {
-          'project:create': { per: 'month', max: 10 },
+          projects: { max: 10, gates: 'organization:create-project', per: 'month' },
         },
       },
     },
@@ -351,14 +365,13 @@ describe('computeAccessSet — plan/wallet enrichment', () => {
     const planStore = new InMemoryPlanStore();
     const walletStore = new InMemoryWalletStore();
 
-    await closureStore.addResource('Organization', 'org-1');
-    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await closureStore.addResource('organization', 'org-1');
+    await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStartedAt = new Date('2026-01-01T00:00:00Z');
     await planStore.assignPlan('org-1', 'pro', planStartedAt);
 
-    // Consume 3 of 10 — use the same billing period calculation as computeAccessSet
     const { periodStart, periodEnd } = calculateBillingPeriod(planStartedAt, 'month');
-    await walletStore.consume('org-1', 'project:create', periodStart, periodEnd, 10, 3);
+    await walletStore.consume('org-1', 'projects', periodStart, periodEnd, 10, 3);
 
     const result = await computeAccessSet({
       userId: 'user-1',
@@ -370,22 +383,21 @@ describe('computeAccessSet — plan/wallet enrichment', () => {
       orgId: 'org-1',
     });
 
-    // project:create should be allowed (admin has role, pro plan includes it, 3/10 consumed)
-    expect(result.entitlements['project:create'].allowed).toBe(true);
-    expect(result.entitlements['project:create'].meta?.limit).toBeDefined();
-    expect(result.entitlements['project:create'].meta?.limit?.max).toBe(10);
-    expect(result.entitlements['project:create'].meta?.limit?.consumed).toBe(3);
-    expect(result.entitlements['project:create'].meta?.limit?.remaining).toBe(7);
+    expect(result.entitlements['organization:create-project'].allowed).toBe(true);
+    expect(result.entitlements['organization:create-project'].meta?.limit).toBeDefined();
+    expect(result.entitlements['organization:create-project'].meta?.limit?.max).toBe(10);
+    expect(result.entitlements['organization:create-project'].meta?.limit?.consumed).toBe(3);
+    expect(result.entitlements['organization:create-project'].meta?.limit?.remaining).toBe(7);
   });
 
-  it('denies when plan does not include entitlement', async () => {
+  it('allows role-based entitlements even when plan store is present', async () => {
     const { roleStore, closureStore } = createStores();
     const planStore = new InMemoryPlanStore();
     const walletStore = new InMemoryWalletStore();
 
-    await closureStore.addResource('Organization', 'org-1');
-    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
-    await planStore.assignPlan('org-1', 'free'); // free plan does NOT include project:create
+    await closureStore.addResource('organization', 'org-1');
+    await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+    await planStore.assignPlan('org-1', 'free');
 
     const result = await computeAccessSet({
       userId: 'user-1',
@@ -397,9 +409,12 @@ describe('computeAccessSet — plan/wallet enrichment', () => {
       orgId: 'org-1',
     });
 
-    // project:create requires plans: ['pro'], but org is on free plan
-    expect(result.entitlements['project:create'].allowed).toBe(false);
-    expect(result.entitlements['project:create'].reasons).toContain('plan_required');
+    // organization:create-project is plan-gated (in pro's features, not free's)
+    // Even though admin has the role, the plan layer denies it on the free plan.
+    expect(result.entitlements['organization:create-project'].allowed).toBe(false);
+    expect(result.entitlements['organization:create-project'].reasons).toContain('plan_required');
+    // organization:use is in free's features and has no role requirement
+    expect(result.entitlements['organization:use'].allowed).toBe(true);
   });
 
   it('denies when limit is reached', async () => {
@@ -407,14 +422,13 @@ describe('computeAccessSet — plan/wallet enrichment', () => {
     const planStore = new InMemoryPlanStore();
     const walletStore = new InMemoryWalletStore();
 
-    await closureStore.addResource('Organization', 'org-1');
-    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await closureStore.addResource('organization', 'org-1');
+    await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStartedAt = new Date('2026-01-01T00:00:00Z');
     await planStore.assignPlan('org-1', 'pro', planStartedAt);
 
-    // Consume all 10 — use the same billing period calculation as computeAccessSet
     const { periodStart, periodEnd } = calculateBillingPeriod(planStartedAt, 'month');
-    await walletStore.consume('org-1', 'project:create', periodStart, periodEnd, 10, 10);
+    await walletStore.consume('org-1', 'projects', periodStart, periodEnd, 10, 10);
 
     const result = await computeAccessSet({
       userId: 'user-1',
@@ -426,25 +440,25 @@ describe('computeAccessSet — plan/wallet enrichment', () => {
       orgId: 'org-1',
     });
 
-    expect(result.entitlements['project:create'].allowed).toBe(false);
-    expect(result.entitlements['project:create'].reasons).toContain('limit_reached');
-    expect(result.entitlements['project:create'].meta?.limit?.remaining).toBe(0);
+    expect(result.entitlements['organization:create-project'].allowed).toBe(false);
+    expect(result.entitlements['organization:create-project'].reasons).toContain('limit_reached');
+    expect(result.entitlements['organization:create-project'].meta?.limit?.remaining).toBe(0);
   });
 });
 
 describe('encode/decode round-trip', () => {
   it('preserves all data through round-trip', async () => {
     const { roleStore, closureStore } = createStores();
-    await closureStore.addResource('Organization', 'org-1');
-    await closureStore.addResource('Team', 'team-1', {
-      parentType: 'Organization',
+    await closureStore.addResource('organization', 'org-1');
+    await closureStore.addResource('team', 'team-1', {
+      parentType: 'organization',
       parentId: 'org-1',
     });
-    await closureStore.addResource('Project', 'proj-1', {
-      parentType: 'Team',
+    await closureStore.addResource('project', 'proj-1', {
+      parentType: 'team',
       parentId: 'team-1',
     });
-    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
 
     const original = await computeAccessSet({
       userId: 'user-1',
@@ -457,12 +471,10 @@ describe('encode/decode round-trip', () => {
     const encoded = encodeAccessSet(original);
     const decoded = decodeAccessSet(encoded, accessDef);
 
-    // Allowed/denied status preserved
     for (const name of Object.keys(accessDef.entitlements)) {
       expect(decoded.entitlements[name].allowed).toBe(original.entitlements[name].allowed);
     }
 
-    // Metadata preserved
     expect(decoded.plan).toBe(original.plan);
     expect(decoded.computedAt).toBe(original.computedAt);
     expect(decoded.flags).toEqual(original.flags);
@@ -470,13 +482,12 @@ describe('encode/decode round-trip', () => {
 
   it('includes real flags from flagStore', async () => {
     const flagAccessDef = defineAccess({
-      hierarchy: ['Organization', 'Project'],
-      roles: {
-        Organization: ['admin'],
-        Project: ['manager'],
-      },
-      inheritance: {
-        Organization: { admin: 'manager' },
+      entities: {
+        organization: { roles: ['admin'] },
+        project: {
+          roles: ['manager'],
+          inherits: { 'organization:admin': 'manager' },
+        },
       },
       entitlements: {
         'project:view': { roles: ['manager'] },
@@ -488,12 +499,12 @@ describe('encode/decode round-trip', () => {
     const closureStore = new InMemoryClosureStore();
     const flagStore = new InMemoryFlagStore();
 
-    await closureStore.addResource('Organization', 'org-1');
-    await closureStore.addResource('Project', 'proj-1', {
-      parentType: 'Organization',
+    await closureStore.addResource('organization', 'org-1');
+    await closureStore.addResource('project', 'proj-1', {
+      parentType: 'organization',
       parentId: 'org-1',
     });
-    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
 
     flagStore.setFlag('org-1', 'export-v2', true);
     flagStore.setFlag('org-1', 'some-other-flag', false);
@@ -515,13 +526,12 @@ describe('encode/decode round-trip', () => {
 
   it('marks entitlement denied with flag_disabled when flag is off', async () => {
     const flagAccessDef = defineAccess({
-      hierarchy: ['Organization', 'Project'],
-      roles: {
-        Organization: ['admin'],
-        Project: ['manager'],
-      },
-      inheritance: {
-        Organization: { admin: 'manager' },
+      entities: {
+        organization: { roles: ['admin'] },
+        project: {
+          roles: ['manager'],
+          inherits: { 'organization:admin': 'manager' },
+        },
       },
       entitlements: {
         'project:view': { roles: ['manager'] },
@@ -533,12 +543,12 @@ describe('encode/decode round-trip', () => {
     const closureStore = new InMemoryClosureStore();
     const flagStore = new InMemoryFlagStore();
 
-    await closureStore.addResource('Organization', 'org-1');
-    await closureStore.addResource('Project', 'proj-1', {
-      parentType: 'Organization',
+    await closureStore.addResource('organization', 'org-1');
+    await closureStore.addResource('project', 'proj-1', {
+      parentType: 'organization',
       parentId: 'org-1',
     });
-    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
 
     flagStore.setFlag('org-1', 'export-v2', false);
 
@@ -551,12 +561,152 @@ describe('encode/decode round-trip', () => {
       orgId: 'org-1',
     });
 
-    // project:export should be denied because flag is off
     expect(result.entitlements['project:export'].allowed).toBe(false);
     expect(result.entitlements['project:export'].reasons).toContain('flag_disabled');
     expect(result.entitlements['project:export'].meta?.disabledFlags).toEqual(['export-v2']);
-
-    // project:view has no flags, should still be allowed
     expect(result.entitlements['project:view'].allowed).toBe(true);
+  });
+});
+
+describe('JWT access set with plan features', () => {
+  const planAccessDef = defineAccess({
+    entities: {
+      organization: { roles: ['owner', 'admin', 'member'] },
+      project: {
+        roles: ['manager', 'contributor', 'viewer'],
+        inherits: {
+          'organization:owner': 'manager',
+          'organization:admin': 'contributor',
+          'organization:member': 'viewer',
+        },
+      },
+    },
+    entitlements: {
+      'project:view': { roles: ['viewer', 'contributor', 'manager'] },
+      'project:edit': { roles: ['contributor', 'manager'] },
+      'project:export': { roles: ['manager'], flags: ['export-v2'] },
+      'project:delete': { roles: ['manager'] },
+    },
+    plans: {
+      free: {
+        group: 'main',
+        features: ['project:view', 'project:edit'],
+      },
+      pro: {
+        group: 'main',
+        features: ['project:view', 'project:edit', 'project:delete', 'project:export'],
+      },
+    },
+  });
+
+  it('encoded access set contains plan-gated entitlements with plan_required reason', async () => {
+    const roleStore = new InMemoryRoleAssignmentStore();
+    const closureStore = new InMemoryClosureStore();
+    const planStore = new InMemoryPlanStore();
+
+    await closureStore.addResource('organization', 'org-1');
+    await closureStore.addResource('project', 'proj-1', {
+      parentType: 'organization',
+      parentId: 'org-1',
+    });
+    await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
+    await planStore.assignPlan('org-1', 'free');
+
+    const accessSet = await computeAccessSet({
+      userId: 'user-1',
+      accessDef: planAccessDef,
+      roleStore,
+      closureStore,
+      planStore,
+      orgId: 'org-1',
+    });
+
+    const encoded = encodeAccessSet(accessSet);
+
+    // project:view and project:edit are in free plan features — allowed
+    expect(encoded.entitlements['project:view']?.allowed).toBe(true);
+    expect(encoded.entitlements['project:edit']?.allowed).toBe(true);
+
+    // project:delete is NOT in free plan features — denied with plan_required
+    expect(encoded.entitlements['project:delete']?.allowed).toBe(false);
+    expect(encoded.entitlements['project:delete']?.reasons).toContain('plan_required');
+  });
+
+  it('decode restores plan feature entitlements from JWT', async () => {
+    const roleStore = new InMemoryRoleAssignmentStore();
+    const closureStore = new InMemoryClosureStore();
+    const planStore = new InMemoryPlanStore();
+
+    await closureStore.addResource('organization', 'org-1');
+    await closureStore.addResource('project', 'proj-1', {
+      parentType: 'organization',
+      parentId: 'org-1',
+    });
+    await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
+    await planStore.assignPlan('org-1', 'pro');
+
+    const accessSet = await computeAccessSet({
+      userId: 'user-1',
+      accessDef: planAccessDef,
+      roleStore,
+      closureStore,
+      planStore,
+      orgId: 'org-1',
+    });
+
+    const encoded = encodeAccessSet(accessSet);
+    const json = JSON.stringify(encoded);
+    const parsed = JSON.parse(json);
+    const decoded = decodeAccessSet(parsed, planAccessDef);
+
+    // All pro features should be allowed
+    expect(decoded.entitlements['project:view'].allowed).toBe(true);
+    expect(decoded.entitlements['project:edit'].allowed).toBe(true);
+    expect(decoded.entitlements['project:delete'].allowed).toBe(true);
+    expect(decoded.plan).toBe('pro');
+  });
+
+  it('plan change updates access set hash (detected via encoded set difference)', async () => {
+    const roleStore = new InMemoryRoleAssignmentStore();
+    const closureStore = new InMemoryClosureStore();
+    const planStore = new InMemoryPlanStore();
+
+    await closureStore.addResource('organization', 'org-1');
+    await closureStore.addResource('project', 'proj-1', {
+      parentType: 'organization',
+      parentId: 'org-1',
+    });
+    await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
+    await planStore.assignPlan('org-1', 'free');
+
+    // Compute with free plan
+    const freeSet = await computeAccessSet({
+      userId: 'user-1',
+      accessDef: planAccessDef,
+      roleStore,
+      closureStore,
+      planStore,
+      orgId: 'org-1',
+    });
+    const freeEncoded = encodeAccessSet(freeSet);
+
+    // Change to pro plan
+    await planStore.assignPlan('org-1', 'pro');
+
+    // Compute with pro plan
+    const proSet = await computeAccessSet({
+      userId: 'user-1',
+      accessDef: planAccessDef,
+      roleStore,
+      closureStore,
+      planStore,
+      orgId: 'org-1',
+    });
+    const proEncoded = encodeAccessSet(proSet);
+
+    // Encoded sets should differ — different plan = different access
+    expect(JSON.stringify(freeEncoded)).not.toBe(JSON.stringify(proEncoded));
+    expect(freeEncoded.plan).toBe('free');
+    expect(proEncoded.plan).toBe('pro');
   });
 });

@@ -1,13 +1,18 @@
 /**
- * Type-level tests for defineAccess and access context types [#1020]
+ * Type-level tests for entity-centric defineAccess [#1072]
  */
 import { describe, it } from 'bun:test';
 import type { AccessContext } from '../access-context';
 import type {
   AccessCheckResult,
   AccessDefinition,
+  BillingPeriod,
   DenialReason,
   EntitlementDef,
+  LimitDef,
+  PlanDef,
+  PlanPrice,
+  PriceInterval,
 } from '../define-access';
 import { defineAccess } from '../define-access';
 import type { LimitOverride, OrgPlan, PlanStore } from '../plan-store';
@@ -16,9 +21,8 @@ import type { ConsumeResult, WalletEntry, WalletStore } from '../wallet-store';
 describe('Type-level: defineAccess', () => {
   it('returns AccessDefinition type', () => {
     const def = defineAccess({
-      hierarchy: ['Org'],
-      roles: { Org: ['admin'] },
-      entitlements: { 'org:manage': { roles: ['admin'] } },
+      entities: { workspace: { roles: ['admin'] } },
+      entitlements: { 'workspace:manage': { roles: ['admin'] } },
     });
     const _val: AccessDefinition = def;
     void _val;
@@ -26,8 +30,7 @@ describe('Type-level: defineAccess', () => {
 
   it('hierarchy is readonly', () => {
     const def = defineAccess({
-      hierarchy: ['Org'],
-      roles: { Org: ['admin'] },
+      entities: { workspace: { roles: ['admin'] } },
       entitlements: {},
     });
     // @ts-expect-error — cannot push to readonly array
@@ -36,8 +39,7 @@ describe('Type-level: defineAccess', () => {
 
   it('config is frozen (readonly)', () => {
     const def = defineAccess({
-      hierarchy: ['Org'],
-      roles: { Org: ['admin'] },
+      entities: { workspace: { roles: ['admin'] } },
       entitlements: {},
     });
     // @ts-expect-error — cannot reassign readonly property
@@ -52,7 +54,7 @@ describe('Type-level: defineAccess', () => {
 
   it('EntitlementDef requires roles', () => {
     // @ts-expect-error — roles is required
-    const _bad: EntitlementDef = { plans: ['pro'] };
+    const _bad: EntitlementDef = { flags: ['beta'] };
     void _bad;
   });
 
@@ -68,11 +70,11 @@ describe('Type-level: defineAccess', () => {
   });
 
   it('AccessContext methods return correct types', () => {
-    // Just validate types compile — no runtime needed
     type CanReturn = ReturnType<AccessContext['can']>;
     type CheckReturn = ReturnType<AccessContext['check']>;
     type AuthorizeReturn = ReturnType<AccessContext['authorize']>;
     type CanAllReturn = ReturnType<AccessContext['canAll']>;
+    type CanBatchReturn = ReturnType<AccessContext['canBatch']>;
     type CanAndConsumeReturn = ReturnType<AccessContext['canAndConsume']>;
     type UnconsumeReturn = ReturnType<AccessContext['unconsume']>;
 
@@ -83,6 +85,7 @@ describe('Type-level: defineAccess', () => {
     });
     const _authorize: AuthorizeReturn = Promise.resolve();
     const _canAll: CanAllReturn = Promise.resolve(new Map<string, boolean>());
+    const _canBatch: CanBatchReturn = Promise.resolve(new Map<string, boolean>());
     const _canAndConsume: CanAndConsumeReturn = Promise.resolve(true);
     const _unconsume: UnconsumeReturn = Promise.resolve();
 
@@ -90,22 +93,36 @@ describe('Type-level: defineAccess', () => {
     void _check;
     void _authorize;
     void _canAll;
+    void _canBatch;
     void _canAndConsume;
     void _unconsume;
   });
 
-  // ─── canAndConsume return type must be Promise<boolean> ──────────────
   it('canAndConsume returns Promise<boolean>, not boolean', () => {
     // @ts-expect-error — canAndConsume returns Promise<boolean>, not boolean
     const _bad: boolean = null as unknown as ReturnType<AccessContext['canAndConsume']>;
     void _bad;
   });
 
-  // ─── unconsume return type must be Promise<void> ────────────────────
   it('unconsume returns Promise<void>, not void', () => {
     // @ts-expect-error — unconsume returns Promise<void>, not void
     const _bad: void = null as unknown as ReturnType<AccessContext['unconsume']>;
     void _bad;
+  });
+
+  it('entities is required in input', () => {
+    // @ts-expect-error — entities is required
+    defineAccess({ entitlements: {} });
+  });
+
+  it('roles must be string array', () => {
+    defineAccess({
+      entities: {
+        // @ts-expect-error — roles must be string array
+        workspace: { roles: [123] },
+      },
+      entitlements: {},
+    });
   });
 });
 
@@ -214,5 +231,109 @@ describe('Type-level: WalletStore', () => {
     // @ts-expect-error — missing required fields
     const _bad: ConsumeResult = { success: true };
     void _bad;
+  });
+});
+
+describe('Type-level: Phase 2 plan types', () => {
+  it('PlanDef accepts features and limits with gates', () => {
+    const plan: PlanDef = {
+      group: 'main',
+      features: ['workspace:create'],
+      limits: {
+        workspaces: { max: 5, gates: 'workspace:create', per: 'month' },
+      },
+    };
+    void plan;
+  });
+
+  it('PlanDef accepts add-on shape', () => {
+    const addOn: PlanDef = {
+      addOn: true,
+      features: ['workspace:export'],
+    };
+    void addOn;
+  });
+
+  it('PlanDef accepts price', () => {
+    const plan: PlanDef = {
+      group: 'main',
+      features: [],
+      price: { amount: 999, interval: 'month' },
+      title: 'Pro',
+      description: 'Professional plan',
+    };
+    void plan;
+  });
+
+  it('LimitDef requires max and gates', () => {
+    // @ts-expect-error — missing 'gates'
+    const _bad: LimitDef = { max: 5 };
+    void _bad;
+  });
+
+  it('LimitDef gates is string not array', () => {
+    // @ts-expect-error — gates must be a string, not an array
+    const _bad: LimitDef = { max: 5, gates: ['workspace:create'] };
+    void _bad;
+  });
+
+  it('BillingPeriod includes quarter and year', () => {
+    const _month: BillingPeriod = 'month';
+    const _day: BillingPeriod = 'day';
+    const _hour: BillingPeriod = 'hour';
+    const _quarter: BillingPeriod = 'quarter';
+    const _year: BillingPeriod = 'year';
+    // @ts-expect-error — 'weekly' is not a valid BillingPeriod
+    const _bad: BillingPeriod = 'weekly';
+    void _month;
+    void _day;
+    void _hour;
+    void _quarter;
+    void _year;
+    void _bad;
+  });
+
+  it('PriceInterval includes one_off', () => {
+    const _month: PriceInterval = 'month';
+    const _quarter: PriceInterval = 'quarter';
+    const _year: PriceInterval = 'year';
+    const _oneOff: PriceInterval = 'one_off';
+    // @ts-expect-error — 'weekly' is not a valid PriceInterval
+    const _bad: PriceInterval = 'weekly';
+    void _month;
+    void _quarter;
+    void _year;
+    void _oneOff;
+    void _bad;
+  });
+
+  it('PlanPrice has correct shape', () => {
+    const price: PlanPrice = { amount: 1999, interval: 'month' };
+    const _amount: number = price.amount;
+    const _interval: PriceInterval = price.interval;
+    void _amount;
+    void _interval;
+  });
+
+  it('DenialMeta.limit includes optional key', () => {
+    const meta = {
+      limit: { key: 'projects', max: 10, consumed: 10, remaining: 0 },
+    };
+    const _key: string | undefined = meta.limit.key;
+    void _key;
+  });
+
+  it('AccessDefinition has computed plan-gated fields', () => {
+    const def = defineAccess({
+      entities: { workspace: { roles: ['admin'] } },
+      entitlements: { 'workspace:create': { roles: ['admin'] } },
+      plans: {
+        free: { group: 'main', features: ['workspace:create'] },
+      },
+    });
+    const _planGated: Set<string> = def._planGatedEntitlements;
+    const _limitKeys: Record<string, string[]> = def._entitlementToLimitKeys;
+    void _planGated;
+    void _limitKeys;
   });
 });

@@ -442,6 +442,116 @@ describe('createAccessEventClient', () => {
     expect(timers.length).toBe(0);
   });
 
+  it('onEvent called with parsed access:plan_assigned', () => {
+    const onEvent = mock(() => {});
+    const client = createAccessEventClient({
+      url: 'ws://localhost/api/auth/access-events',
+      onEvent,
+      onReconnect: () => {},
+    });
+
+    client.connect();
+    const ws = mockWebSockets[0];
+    ws.readyState = 1;
+    ws.onopen?.({});
+
+    ws.onmessage?.({
+      data: JSON.stringify({
+        type: 'access:plan_assigned',
+        planId: 'pro_monthly',
+      }),
+    });
+
+    expect(onEvent).toHaveBeenCalledTimes(1);
+    expect(onEvent).toHaveBeenCalledWith({
+      type: 'access:plan_assigned',
+      planId: 'pro_monthly',
+    });
+  });
+
+  it('onEvent called with parsed access:addon_attached', () => {
+    const onEvent = mock(() => {});
+    const client = createAccessEventClient({
+      url: 'ws://localhost/api/auth/access-events',
+      onEvent,
+      onReconnect: () => {},
+    });
+
+    client.connect();
+    const ws = mockWebSockets[0];
+    ws.readyState = 1;
+    ws.onopen?.({});
+
+    ws.onmessage?.({
+      data: JSON.stringify({
+        type: 'access:addon_attached',
+        addonId: 'export_addon',
+      }),
+    });
+
+    expect(onEvent).toHaveBeenCalledTimes(1);
+    expect(onEvent).toHaveBeenCalledWith({
+      type: 'access:addon_attached',
+      addonId: 'export_addon',
+    });
+  });
+
+  it('onEvent called with parsed access:addon_detached', () => {
+    const onEvent = mock(() => {});
+    const client = createAccessEventClient({
+      url: 'ws://localhost/api/auth/access-events',
+      onEvent,
+      onReconnect: () => {},
+    });
+
+    client.connect();
+    const ws = mockWebSockets[0];
+    ws.readyState = 1;
+    ws.onopen?.({});
+
+    ws.onmessage?.({
+      data: JSON.stringify({
+        type: 'access:addon_detached',
+        addonId: 'export_addon',
+      }),
+    });
+
+    expect(onEvent).toHaveBeenCalledTimes(1);
+    expect(onEvent).toHaveBeenCalledWith({
+      type: 'access:addon_detached',
+      addonId: 'export_addon',
+    });
+  });
+
+  it('onEvent called with parsed access:limit_reset', () => {
+    const onEvent = mock(() => {});
+    const client = createAccessEventClient({
+      url: 'ws://localhost/api/auth/access-events',
+      onEvent,
+      onReconnect: () => {},
+    });
+
+    client.connect();
+    const ws = mockWebSockets[0];
+    ws.readyState = 1;
+    ws.onopen?.({});
+
+    ws.onmessage?.({
+      data: JSON.stringify({
+        type: 'access:limit_reset',
+        entitlement: 'prompt:create',
+        max: 100,
+      }),
+    });
+
+    expect(onEvent).toHaveBeenCalledTimes(1);
+    expect(onEvent).toHaveBeenCalledWith({
+      type: 'access:limit_reset',
+      entitlement: 'prompt:create',
+      max: 100,
+    });
+  });
+
   it('onerror does not prevent onclose from reconnecting', () => {
     const client = createAccessEventClient({
       url: 'ws://localhost/api/auth/access-events',

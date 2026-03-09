@@ -1,5 +1,5 @@
 /**
- * Integration test — Reactive Invalidation + Feature Flags (Phase 9) [#1023]
+ * Integration test — Reactive Invalidation + Feature Flags (Phase 9) [#1072]
  *
  * Validates the full feature flag and reactive invalidation lifecycle:
  * - FlagStore interface with InMemoryFlagStore
@@ -25,19 +25,30 @@ import {
 } from '@vertz/server';
 
 // ============================================================================
-// Setup
+// Setup — entity-centric config
 // ============================================================================
 
 const accessDef = defineAccess({
-  hierarchy: ['Organization', 'Team', 'Project'],
-  roles: {
-    Organization: ['owner', 'admin', 'member'],
-    Team: ['lead', 'editor', 'viewer'],
-    Project: ['manager', 'contributor', 'viewer'],
-  },
-  inheritance: {
-    Organization: { owner: 'lead', admin: 'editor', member: 'viewer' },
-    Team: { lead: 'manager', editor: 'contributor', viewer: 'viewer' },
+  entities: {
+    organization: {
+      roles: ['owner', 'admin', 'member'],
+    },
+    team: {
+      roles: ['lead', 'editor', 'viewer'],
+      inherits: {
+        'organization:owner': 'lead',
+        'organization:admin': 'editor',
+        'organization:member': 'viewer',
+      },
+    },
+    project: {
+      roles: ['manager', 'contributor', 'viewer'],
+      inherits: {
+        'team:lead': 'manager',
+        'team:editor': 'contributor',
+        'team:viewer': 'viewer',
+      },
+    },
   },
   entitlements: {
     'project:view': { roles: ['viewer', 'contributor', 'manager'] },
@@ -53,22 +64,22 @@ async function createStores() {
   const roleStore = new InMemoryRoleAssignmentStore();
   const flagStore = new InMemoryFlagStore();
 
-  await closureStore.addResource('Organization', 'org-1');
-  await closureStore.addResource('Team', 'team-1', {
-    parentType: 'Organization',
+  await closureStore.addResource('organization', 'org-1');
+  await closureStore.addResource('team', 'team-1', {
+    parentType: 'organization',
     parentId: 'org-1',
   });
-  await closureStore.addResource('Project', 'proj-1', {
-    parentType: 'Team',
+  await closureStore.addResource('project', 'proj-1', {
+    parentType: 'team',
     parentId: 'team-1',
   });
 
-  await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+  await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
 
   const orgResolver = async (resource?: ResourceRef) => {
     if (!resource) return null;
     const ancestors = await closureStore.getAncestors(resource.type, resource.id);
-    const org = ancestors.find((a) => a.type === 'Organization');
+    const org = ancestors.find((a) => a.type === 'organization');
     return org?.id ?? null;
   };
 
@@ -93,20 +104,20 @@ describe('Feature Flag Store + Layer 1 (public imports)', () => {
       orgResolver,
     });
 
-    // admin inherits contributor on Project, manager check fails
-    // But user has 'admin' on Org which inherits 'editor' on Team which inherits 'contributor' on Project
+    // admin inherits contributor on project, manager check fails
+    // But user has 'admin' on org which inherits 'editor' on team which inherits 'contributor' on project
     // project:export requires 'manager' role - admin -> editor -> contributor, NOT manager
     // So this would fail on role check first. Let me assign manager directly.
-    await roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+    await roleStore.assign('user-1', 'project', 'proj-1', 'manager');
 
     const result = await ctx.can('project:export', {
-      type: 'Project',
+      type: 'project',
       id: 'proj-1',
     });
     expect(result).toBe(false);
 
     const checkResult = await ctx.check('project:export', {
-      type: 'Project',
+      type: 'project',
       id: 'proj-1',
     });
     expect(checkResult.allowed).toBe(false);
@@ -117,7 +128,7 @@ describe('Feature Flag Store + Layer 1 (public imports)', () => {
   it('flag enabled → can() returns true (passes Layer 1)', async () => {
     const { closureStore, roleStore, flagStore, orgResolver } = await createStores();
     flagStore.setFlag('org-1', 'export-v2', true);
-    await roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+    await roleStore.assign('user-1', 'project', 'proj-1', 'manager');
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -129,7 +140,7 @@ describe('Feature Flag Store + Layer 1 (public imports)', () => {
     });
 
     const result = await ctx.can('project:export', {
-      type: 'Project',
+      type: 'project',
       id: 'proj-1',
     });
     expect(result).toBe(true);
@@ -149,7 +160,7 @@ describe('Feature Flag Store + Layer 1 (public imports)', () => {
 
     // project:view has no flags requirement — should pass Layer 1
     const result = await ctx.can('project:view', {
-      type: 'Project',
+      type: 'project',
       id: 'proj-1',
     });
     expect(result).toBe(true);
@@ -159,7 +170,7 @@ describe('Feature Flag Store + Layer 1 (public imports)', () => {
     const { closureStore, roleStore, flagStore, orgResolver } = await createStores();
     flagStore.setFlag('org-1', 'beta-feature', true);
     flagStore.setFlag('org-1', 'beta-ui', false);
-    await roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+    await roleStore.assign('user-1', 'project', 'proj-1', 'manager');
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -171,7 +182,7 @@ describe('Feature Flag Store + Layer 1 (public imports)', () => {
     });
 
     const result = await ctx.can('project:beta', {
-      type: 'Project',
+      type: 'project',
       id: 'proj-1',
     });
     expect(result).toBe(false);
@@ -179,7 +190,7 @@ describe('Feature Flag Store + Layer 1 (public imports)', () => {
     // Enable both
     flagStore.setFlag('org-1', 'beta-ui', true);
     const result2 = await ctx.can('project:beta', {
-      type: 'Project',
+      type: 'project',
       id: 'proj-1',
     });
     expect(result2).toBe(true);
@@ -190,9 +201,9 @@ describe('Feature Flag Store + Layer 1 (public imports)', () => {
     flagStore.setFlag('org-1', 'export-v2', true);
     flagStore.setFlag('org-1', 'ai-assist', false);
 
-    // admin on Org → editor on Team → contributor on Project
+    // admin on org → editor on team → contributor on project
     // project:export requires 'manager' role, so assign manager directly
-    await roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+    await roleStore.assign('user-1', 'project', 'proj-1', 'manager');
 
     const set = await computeAccessSet({
       userId: 'user-1',

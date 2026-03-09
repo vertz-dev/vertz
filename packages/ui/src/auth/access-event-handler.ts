@@ -40,8 +40,16 @@ export function handleAccessEvent(
         event.max,
       );
       break;
+    case 'access:plan_assigned':
+      handlePlanAssigned(accessSet, current, event.planId);
+      break;
+    case 'access:limit_reset':
+      handleLimitReset(accessSet, current, event.entitlement, event.max);
+      break;
     case 'access:role_changed':
     case 'access:plan_changed':
+    case 'access:addon_attached':
+    case 'access:addon_detached':
       // These are handled at the caller level (jittered refetch)
       break;
   }
@@ -82,6 +90,43 @@ function handleFlagToggle(
   }
 
   accessSet.value = { ...current, flags: newFlags, entitlements: newEntitlements };
+}
+
+function handlePlanAssigned(
+  accessSet: Signal<AccessSet | null>,
+  current: AccessSet,
+  planId: string,
+): void {
+  accessSet.value = { ...current, plan: planId };
+}
+
+function handleLimitReset(
+  accessSet: Signal<AccessSet | null>,
+  current: AccessSet,
+  entitlement: string,
+  max: number,
+): void {
+  const existingEntry = current.entitlements[entitlement];
+  if (!existingEntry) return;
+
+  const newLimit = { max, consumed: 0, remaining: max };
+  const newEntitlements = { ...current.entitlements };
+
+  // Remove limit_reached denial since we reset
+  const reasons = existingEntry.reasons.filter((r) => r !== 'limit_reached');
+  // Re-evaluate allowed: if limit_reached was the only reason, it's now allowed
+  const wasOnlyLimitBlocked =
+    existingEntry.reasons.length > 0 && existingEntry.reasons.every((r) => r === 'limit_reached');
+
+  newEntitlements[entitlement] = {
+    ...existingEntry,
+    allowed: wasOnlyLimitBlocked ? true : existingEntry.allowed || reasons.length === 0,
+    reasons,
+    reason: reasons[0],
+    meta: { ...existingEntry.meta, limit: newLimit },
+  };
+
+  accessSet.value = { ...current, entitlements: newEntitlements };
 }
 
 function handleLimitUpdate(

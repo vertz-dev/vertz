@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
-import { InMemoryPlanStore } from '../plan-store';
+import { defineAccess } from '../define-access';
+import { checkAddOnCompatibility, getIncompatibleAddOns, InMemoryPlanStore } from '../plan-store';
 
 describe('InMemoryPlanStore', () => {
   it('assignPlan stores org plan and getPlan retrieves it', async () => {
@@ -75,5 +76,62 @@ describe('InMemoryPlanStore', () => {
     store.dispose();
     expect(await store.getPlan('org-1')).toBeNull();
     expect(await store.getPlan('org-2')).toBeNull();
+  });
+});
+
+describe('checkAddOnCompatibility()', () => {
+  const accessDef = defineAccess({
+    entities: {
+      workspace: { roles: ['admin'] },
+    },
+    entitlements: {
+      'workspace:create': { roles: ['admin'] },
+      'workspace:export': { roles: ['admin'] },
+    },
+    plans: {
+      free: {
+        group: 'main',
+        features: ['workspace:create'],
+      },
+      pro: {
+        group: 'main',
+        features: ['workspace:create', 'workspace:export'],
+      },
+      export_addon: {
+        addOn: true,
+        features: ['workspace:export'],
+        requires: { group: 'main', plans: ['pro'] },
+      },
+      basic_addon: {
+        addOn: true,
+        features: ['workspace:export'],
+      },
+    },
+  });
+
+  it('returns true for add-on compatible with current plan', () => {
+    expect(checkAddOnCompatibility(accessDef, 'export_addon', 'pro')).toBe(true);
+  });
+
+  it('returns false for add-on incompatible with current plan', () => {
+    expect(checkAddOnCompatibility(accessDef, 'export_addon', 'free')).toBe(false);
+  });
+
+  it('returns true for add-on without requires (always compatible)', () => {
+    expect(checkAddOnCompatibility(accessDef, 'basic_addon', 'free')).toBe(true);
+  });
+
+  it('returns true for unknown add-on (no plan def found)', () => {
+    expect(checkAddOnCompatibility(accessDef, 'nonexistent', 'pro')).toBe(true);
+  });
+
+  it('getIncompatibleAddOns returns add-ons incompatible with target plan', () => {
+    const incompatible = getIncompatibleAddOns(accessDef, ['export_addon', 'basic_addon'], 'free');
+    expect(incompatible).toEqual(['export_addon']);
+  });
+
+  it('getIncompatibleAddOns returns empty array when all compatible', () => {
+    const incompatible = getIncompatibleAddOns(accessDef, ['export_addon', 'basic_addon'], 'pro');
+    expect(incompatible).toEqual([]);
   });
 });

@@ -1,6 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 import { signal } from '../../runtime/signal';
-import type { ClientAccessEvent } from '../access-event-client';
 import { handleAccessEvent } from '../access-event-handler';
 import type { AccessSet } from '../access-set-types';
 
@@ -176,5 +175,114 @@ describe('handleAccessEvent — reactive cascade', () => {
 
     // Should be the same object (no inline update for plan changes)
     expect(accessSet.value).toBe(original);
+  });
+
+  it('plan_assigned updates plan field in accessSet', () => {
+    const accessSet = signal<AccessSet | null>({
+      entitlements: {
+        'project:view': { allowed: true, reasons: [] },
+      },
+      flags: {},
+      plan: 'free',
+      computedAt: new Date().toISOString(),
+    });
+
+    handleAccessEvent(accessSet, {
+      type: 'access:plan_assigned',
+      planId: 'pro_monthly',
+    });
+
+    expect(accessSet.value?.plan).toBe('pro_monthly');
+  });
+
+  it('addon_attached does not modify accessSet (handled externally via refetch)', () => {
+    const original: AccessSet = {
+      entitlements: {
+        'project:view': { allowed: true, reasons: [] },
+      },
+      flags: {},
+      plan: 'pro',
+      computedAt: new Date().toISOString(),
+    };
+    const accessSet = signal<AccessSet | null>(original);
+
+    handleAccessEvent(accessSet, {
+      type: 'access:addon_attached',
+      addonId: 'export_addon',
+    });
+
+    // Add-on changes require a full refetch — same as role/plan changes
+    expect(accessSet.value).toBe(original);
+  });
+
+  it('addon_detached does not modify accessSet (handled externally via refetch)', () => {
+    const original: AccessSet = {
+      entitlements: {
+        'project:view': { allowed: true, reasons: [] },
+      },
+      flags: {},
+      plan: 'pro',
+      computedAt: new Date().toISOString(),
+    };
+    const accessSet = signal<AccessSet | null>(original);
+
+    handleAccessEvent(accessSet, {
+      type: 'access:addon_detached',
+      addonId: 'export_addon',
+    });
+
+    // Add-on changes require a full refetch — same as role/plan changes
+    expect(accessSet.value).toBe(original);
+  });
+
+  it('limit_reset resets consumed to 0 and sets remaining to max', () => {
+    const accessSet = signal<AccessSet | null>({
+      entitlements: {
+        'prompt:create': {
+          allowed: false,
+          reasons: ['limit_reached'],
+          reason: 'limit_reached',
+          meta: { limit: { max: 100, consumed: 100, remaining: 0 } },
+        },
+      },
+      flags: {},
+      plan: 'pro',
+      computedAt: new Date().toISOString(),
+    });
+
+    handleAccessEvent(accessSet, {
+      type: 'access:limit_reset',
+      entitlement: 'prompt:create',
+      max: 100,
+    });
+
+    const entry = accessSet.value?.entitlements['prompt:create'];
+    expect(entry?.meta?.limit).toEqual({ max: 100, consumed: 0, remaining: 100 });
+    expect(entry?.allowed).toBe(true);
+    expect(entry?.reasons).not.toContain('limit_reached');
+  });
+
+  it('limit_reset with new max updates the max value', () => {
+    const accessSet = signal<AccessSet | null>({
+      entitlements: {
+        'prompt:create': {
+          allowed: true,
+          reasons: [],
+          meta: { limit: { max: 50, consumed: 30, remaining: 20 } },
+        },
+      },
+      flags: {},
+      plan: 'pro',
+      computedAt: new Date().toISOString(),
+    });
+
+    handleAccessEvent(accessSet, {
+      type: 'access:limit_reset',
+      entitlement: 'prompt:create',
+      max: 200,
+    });
+
+    const entry = accessSet.value?.entitlements['prompt:create'];
+    expect(entry?.meta?.limit).toEqual({ max: 200, consumed: 0, remaining: 200 });
   });
 });
