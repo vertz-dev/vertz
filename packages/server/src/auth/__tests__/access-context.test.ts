@@ -182,7 +182,7 @@ describe('createAccessContext', () => {
     });
   });
 
-  describe('plan layer (Layer 4)', () => {
+  describe('plan layer (Layer 3 — plan features)', () => {
     async function setupWithPlans() {
       const accessDef = defineAccess({
         entities: {
@@ -203,12 +203,18 @@ describe('createAccessContext', () => {
         },
         plans: {
           free: {
-            entitlements: ['organization:create-project', 'project:view'],
+            group: 'main',
+            features: ['organization:create-project', 'project:view'],
           },
           pro: {
-            entitlements: ['organization:create-project', 'project:view', 'project:export'],
+            group: 'main',
+            features: ['organization:create-project', 'project:view', 'project:export'],
             limits: {
-              'organization:create-project': { per: 'month', max: 10 },
+              project_creates: {
+                max: 10,
+                gates: 'organization:create-project',
+                per: 'month',
+              },
             },
           },
         },
@@ -225,48 +231,20 @@ describe('createAccessContext', () => {
         parentId: 'org-1',
       });
 
-      const orgResolver = async (resource?: ResourceRef) => 'org-1';
+      const orgResolver = async (_resource?: ResourceRef) => 'org-1';
 
       return { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver };
     }
 
-    it('can() passes when plan includes entitlement', async () => {
+    it('can() passes when plan includes entitlement in features', async () => {
       const { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
         await setupWithPlans();
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
       await planStore.assignPlan('org-1', 'pro');
 
-      // Set entitlement plans field to reference pro
-      const accessDefWithPlans = defineAccess({
-        entities: {
-          organization: { roles: ['owner', 'admin', 'member'] },
-          project: {
-            roles: ['manager', 'contributor', 'viewer'],
-            inherits: {
-              'organization:owner': 'manager',
-              'organization:admin': 'contributor',
-              'organization:member': 'viewer',
-            },
-          },
-        },
-        entitlements: {
-          'organization:create-project': { roles: ['admin', 'owner'] },
-          'project:view': { roles: ['viewer', 'contributor', 'manager'] },
-          'project:export': { roles: ['manager'] },
-        },
-        plans: {
-          free: {
-            entitlements: ['organization:create-project', 'project:view'],
-          },
-          pro: {
-            entitlements: ['organization:create-project', 'project:view', 'project:export'],
-          },
-        },
-      });
-
       const ctx = createAccessContext({
         userId: 'user-1',
-        accessDef: accessDefWithPlans,
+        accessDef,
         closureStore,
         roleStore,
         planStore,
@@ -279,6 +257,30 @@ describe('createAccessContext', () => {
         id: 'org-1',
       });
       expect(result).toBe(true);
+    });
+
+    it('can() denies when plan does not include entitlement in features', async () => {
+      const { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
+        await setupWithPlans();
+      await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
+      await planStore.assignPlan('org-1', 'free');
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        orgResolver,
+      });
+
+      // project:export is only in pro.features, not free.features
+      const result = await ctx.can('project:export', {
+        type: 'project',
+        id: 'proj-1',
+      });
+      expect(result).toBe(false);
     });
   });
 

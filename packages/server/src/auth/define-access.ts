@@ -27,7 +27,7 @@ export interface DenialMeta {
   requiredPlans?: string[];
   requiredRoles?: string[];
   disabledFlags?: string[];
-  limit?: { max: number; consumed: number; remaining: number };
+  limit?: { key?: string; max: number; consumed: number; remaining: number };
   fvaMaxAge?: number;
 }
 
@@ -40,17 +40,35 @@ export interface AccessCheckResult {
 }
 
 /** Billing period for plan limits */
-export type BillingPeriod = 'month' | 'day' | 'hour';
+export type BillingPeriod = 'month' | 'day' | 'hour' | 'quarter' | 'year';
 
-/** Limit definition within a plan */
-export interface LimitDef {
-  per: BillingPeriod;
-  max: number;
+/** Valid price intervals for plans */
+export type PriceInterval = 'month' | 'quarter' | 'year' | 'one_off';
+
+/** Plan price definition */
+export interface PlanPrice {
+  amount: number;
+  interval: PriceInterval;
 }
 
-/** Plan definition — which entitlements are included and their usage limits */
+/** Limit definition within a plan — gates an entitlement with optional scoping */
+export interface LimitDef {
+  max: number;
+  gates: string;
+  /** Billing period for the limit. Omitted = lifetime (no reset). */
+  per?: BillingPeriod;
+  /** Entity scope — omitted = tenant-level, string = per entity instance */
+  scope?: string;
+}
+
+/** Plan definition — features, limits, metadata, and billing */
 export interface PlanDef {
-  entitlements: readonly string[] | string[];
+  title?: string;
+  description?: string;
+  group?: string;
+  addOn?: boolean;
+  price?: PlanPrice;
+  features?: readonly string[] | string[];
   limits?: Record<string, LimitDef>;
 }
 
@@ -109,6 +127,16 @@ export interface AccessDefinition {
   readonly plans?: Readonly<Record<string, Readonly<PlanDef>>>;
   /** Fallback plan name when an org's plan expires. Defaults to 'free'. */
   readonly defaultPlan?: string;
+  /**
+   * Computed: Set of entitlements that are gated by at least one plan's `features`.
+   * If an entitlement is in this set, a plan check is required during `can()`.
+   */
+  readonly _planGatedEntitlements: ReadonlySet<string>;
+  /**
+   * Computed: Map from entitlement to all limit keys that gate it.
+   * Used during can() to find all limits that need to pass for an entitlement.
+   */
+  readonly _entitlementToLimitKeys: Readonly<Record<string, readonly string[]>>;
 }
 
 // ============================================================================
@@ -261,6 +289,113 @@ export function defineAccess(input: DefineAccessInput): AccessDefinition {
     resolvedEntitlements[entName] = entDef;
   }
 
+  // ---- Validate plans (Phase 2) ----
+  const entitlementSet = new Set(Object.keys(resolvedEntitlements));
+  const entityNameSet = new Set(Object.keys(entities));
+
+  if (input.plans) {
+    for (const [planName, planDef] of Object.entries(input.plans)) {
+      // Rule 12: Plan features must reference defined entitlements
+      if (planDef.features) {
+        for (const feature of planDef.features) {
+          if (!entitlementSet.has(feature)) {
+            throw new Error(`Plan '${planName}' feature '${feature}' is not a defined entitlement`);
+          }
+        }
+      }
+
+      // Rule 13: Limit gates must reference a defined entitlement
+      if (planDef.limits) {
+        for (const [limitKey, limitDef] of Object.entries(planDef.limits)) {
+          if (!entitlementSet.has(limitDef.gates)) {
+            throw new Error(`Limit '${limitKey}' gates '${limitDef.gates}' which is not defined`);
+          }
+
+          // Rule 14: Limit scope must reference a defined entity
+          if (limitDef.scope && !entityNameSet.has(limitDef.scope)) {
+            throw new Error(
+              `Limit '${limitKey}' scope '${limitDef.scope}' is not a defined entity`,
+            );
+          }
+
+          // Rule 19: limit.max must be -1, 0, or positive integer
+          if (limitDef.max < -1 || (limitDef.max < 0 && limitDef.max !== -1)) {
+            throw new Error(
+              `Limit '${limitKey}' max must be -1 (unlimited), 0 (disabled), or a positive integer, got ${limitDef.max}`,
+            );
+          }
+          if (!Number.isInteger(limitDef.max)) {
+            throw new Error(
+              `Limit '${limitKey}' max must be -1 (unlimited), 0 (disabled), or a positive integer, got ${limitDef.max}`,
+            );
+          }
+        }
+      }
+
+      // Rule 17: Base plans must have group; add-ons must NOT
+      if (planDef.addOn) {
+        if (planDef.group) {
+          throw new Error(`Add-on '${planName}' must not have a group`);
+        }
+      } else {
+        if (!planDef.group) {
+          throw new Error(`Base plan '${planName}' must have a group`);
+        }
+      }
+    }
+
+    // Rule 15: defaultPlan must reference a base plan (not an add-on)
+    if (input.defaultPlan) {
+      const defaultPlanDef = input.plans[input.defaultPlan];
+      if (defaultPlanDef?.addOn) {
+        throw new Error(`defaultPlan '${input.defaultPlan}' is an add-on, not a base plan`);
+      }
+    }
+
+    // Rule 18: Add-on limit keys must match existing base plan limit keys
+    const basePlanLimitKeys = new Set<string>();
+    for (const [, planDef] of Object.entries(input.plans)) {
+      if (!planDef.addOn && planDef.limits) {
+        for (const limitKey of Object.keys(planDef.limits)) {
+          basePlanLimitKeys.add(limitKey);
+        }
+      }
+    }
+    for (const [planName, planDef] of Object.entries(input.plans)) {
+      if (planDef.addOn && planDef.limits) {
+        for (const limitKey of Object.keys(planDef.limits)) {
+          if (!basePlanLimitKeys.has(limitKey)) {
+            throw new Error(`Add-on limit '${limitKey}' not defined in any base plan`);
+          }
+        }
+      }
+    }
+  }
+
+  // ---- Compute plan-gated entitlements and limit-to-entitlement mappings ----
+  const planGatedEntitlements = new Set<string>();
+  const entitlementToLimitKeys: Record<string, string[]> = {};
+
+  if (input.plans) {
+    for (const [, planDef] of Object.entries(input.plans)) {
+      if (planDef.features) {
+        for (const feature of planDef.features) {
+          planGatedEntitlements.add(feature);
+        }
+      }
+      if (planDef.limits) {
+        for (const [limitKey, limitDef] of Object.entries(planDef.limits)) {
+          if (!entitlementToLimitKeys[limitDef.gates]) {
+            entitlementToLimitKeys[limitDef.gates] = [];
+          }
+          if (!entitlementToLimitKeys[limitDef.gates].includes(limitKey)) {
+            entitlementToLimitKeys[limitDef.gates].push(limitKey);
+          }
+        }
+      }
+    }
+  }
+
   // ---- Build frozen config ----
   // Build roles map from entities
   const rolesMap: Record<string, readonly string[]> = {};
@@ -292,6 +427,12 @@ export function defineAccess(input: DefineAccessInput): AccessDefinition {
         Object.entries(resolvedEntitlements).map(([k, v]) => [k, Object.freeze({ ...v })]),
       ),
     ),
+    _planGatedEntitlements: Object.freeze(planGatedEntitlements),
+    _entitlementToLimitKeys: Object.freeze(
+      Object.fromEntries(
+        Object.entries(entitlementToLimitKeys).map(([k, v]) => [k, Object.freeze([...v])]),
+      ),
+    ),
     ...(input.defaultPlan ? { defaultPlan: input.defaultPlan } : {}),
     ...(input.plans
       ? {
@@ -300,7 +441,12 @@ export function defineAccess(input: DefineAccessInput): AccessDefinition {
               Object.entries(input.plans).map(([planName, planDef]) => [
                 planName,
                 Object.freeze({
-                  entitlements: Object.freeze([...planDef.entitlements]),
+                  ...(planDef.title ? { title: planDef.title } : {}),
+                  ...(planDef.description ? { description: planDef.description } : {}),
+                  ...(planDef.group ? { group: planDef.group } : {}),
+                  ...(planDef.addOn ? { addOn: planDef.addOn } : {}),
+                  ...(planDef.price ? { price: Object.freeze({ ...planDef.price }) } : {}),
+                  ...(planDef.features ? { features: Object.freeze([...planDef.features]) } : {}),
                   ...(planDef.limits
                     ? {
                         limits: Object.freeze(
