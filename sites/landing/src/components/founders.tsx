@@ -1,0 +1,100 @@
+import { TwitterIcon } from '@vertz/icons';
+import { css } from '@vertz/ui';
+
+const s = css({
+  section: ['py:24', 'px:6'],
+  container: ['max-w:4xl', 'mx:auto'],
+  intro: [
+    'font:lg',
+    'leading:relaxed',
+    'max-w:2xl',
+    'mx:auto',
+    'mb:12',
+    'text:center',
+    'text:gray.300',
+  ],
+  grid: ['grid', 'grid-cols:2', 'gap:12', 'max-w:xl', 'mx:auto'],
+  card: ['text:center'],
+  img: ['w:20', 'h:20', 'mx:auto', 'mb:4', 'rounded:full'],
+  name: ['weight:semibold', 'font:lg'],
+  role: ['font:xs', 'uppercase', 'tracking:wider', 'mt:1', 'text:gray.500'],
+  bio: ['font:xs', 'mt:2', 'leading:relaxed', 'max-w:80', 'mx:auto', 'text:gray.400'],
+  socialLink: [
+    'inline-flex',
+    'items:center',
+    'gap:1.5',
+    'mt:3',
+    'font:xs',
+    'uppercase',
+    'tracking:wider',
+    'transition:colors',
+    'text:gray.500',
+  ],
+});
+
+interface Founder {
+  name: string;
+  photo: string;
+  bio: string;
+  x: { handle: string; url: string };
+}
+
+const FOUNDERS: Founder[] = [
+  {
+    name: 'Vinicius Dacal',
+    photo: '/public/viniciusdacal.jpg',
+    bio: '15+ years building at scale. Senior Engineer at Scrunch. Previously Staff Engineer at Voiceflow. Led Angular-to-React migrations, built GraphQL servers, shipped NestJS backends \u2014 and got tired of fighting the frameworks.',
+    x: { handle: '@vinicius_dacal', url: 'https://x.com/vinicius_dacal' },
+  },
+  {
+    name: 'Matheus Poleza',
+    photo: '/public/matheuspoleza.jpg',
+    bio: '10+ years full-stack. Seed to Series C startups. Microservices, AI integration, performance at scale \u2014 now channeling it all into one stack that does it right.',
+    x: { handle: '@matheeuspoleza', url: 'https://x.com/matheeuspoleza' },
+  },
+];
+
+export function Founders() {
+  return (
+    <section
+      id="founders"
+      class={s.section}
+      style="background: #0e0e11; border-top: 1px solid rgba(255,255,255,0.02)"
+    >
+      <div class={s.container}>
+        <p class={s.intro}>
+          We spent years stitching together ORMs, API frameworks, validation libraries, and UI
+          toolkits — and watching them drift apart. We built Vertz so the next team doesn't have to.
+        </p>
+
+        <div class={s.grid}>
+          {FOUNDERS.map((f) => (
+            <div key={f.name} class={s.card}>
+              <img
+                src={f.photo}
+                alt={f.name}
+                class={s.img}
+                style="object-fit: cover; outline: 2px solid #27272a; outline-offset: 2px"
+              />
+              <p class={s.name}>{f.name}</p>
+              <p class={s.role} style="font-family: var(--font-mono)">
+                Co-founder
+              </p>
+              <p class={s.bio}>{f.bio}</p>
+              <a
+                href={f.x.url}
+                target="_blank"
+                rel="noopener"
+                class={s.socialLink}
+                style="font-family: var(--font-mono)"
+              >
+                <TwitterIcon size={16} />
+                {f.x.handle}
+              </a>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
