@@ -1,5 +1,12 @@
 # @vertz/codegen
 
+## 0.2.14
+
+### Patch Changes
+
+- Updated dependencies [[`3254588`](https://github.com/vertz-dev/vertz/commit/3254588a2cfb3590eebda53a4648256cc4d51139)]:
+  - @vertz/compiler@0.2.14
+
 ## 0.2.13
 
 ### Patch Changes

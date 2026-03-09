@@ -1,5 +1,25 @@
 # vertz
 
+## 0.2.14
+
+### Patch Changes
+
+- [#1089](https://github.com/vertz-dev/vertz/pull/1089) [`3254588`](https://github.com/vertz-dev/vertz/commit/3254588a2cfb3590eebda53a4648256cc4d51139) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Use `vertz` meta-package in scaffolded apps and add missing subpath exports (`db/sqlite`, `ui-server/bun-plugin`, `theme-shadcn`). Compiler now recognizes `vertz/*` imports alongside `@vertz/*`.
+
+- Updated dependencies []:
+  - @vertz/cloudflare@0.2.14
+  - @vertz/db@0.2.14
+  - @vertz/errors@0.2.14
+  - @vertz/fetch@0.2.14
+  - @vertz/schema@0.2.14
+  - @vertz/server@0.2.14
+  - @vertz/testing@0.2.14
+  - @vertz/tui@0.2.14
+  - @vertz/ui@0.2.14
+  - @vertz/ui-compiler@0.2.14
+  - @vertz/ui-primitives@0.2.14
+  - @vertz/ui-server@0.2.14
+
 ## 0.2.13
 
 ### Patch Changes
