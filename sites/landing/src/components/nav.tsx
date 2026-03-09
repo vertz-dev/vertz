@@ -21,10 +21,13 @@ export function Nav() {
       class={s.nav}
       style="top: 0; left: 0; right: 0; background: rgba(10,10,11,0.8); backdrop-filter: blur(12px); border-bottom: 2px solid rgba(255,255,255,0.04)"
     >
-      <div class={s.logoWrapper}>
+      <a href="/" class={s.logoWrapper}>
         <VertzLogo />
-      </div>
+      </a>
       <div class={s.links}>
+        <a href="/manifesto" class={s.link} style="font-family: var(--font-mono)">
+          Manifesto
+        </a>
         <a
           href="https://github.com/vertz-dev/vertz"
           target="_blank"

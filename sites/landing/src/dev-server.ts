@@ -8,6 +8,10 @@ const devServer = createBunDevServer({
   port: PORT,
   ssrModule: true,
   title: 'Vertz — One command. Full stack. Running.',
+  headTags: [
+    '<link rel="preload" href="/public/fonts/dm-sans-latin.woff2" as="font" type="font/woff2" crossorigin />',
+    '<link rel="preload" href="/public/fonts/dm-serif-display-latin.woff2" as="font" type="font/woff2" crossorigin />',
+  ].join('\n    '),
 });
 
 console.log(`
