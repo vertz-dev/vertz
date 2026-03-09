@@ -3,7 +3,7 @@ title: Routing
 description: "Type-safe client-side routing with defineRoutes and createRouter"
 ---
 
-Vertz routing is fully typed — route patterns, parameters, and navigation are all checked at compile time. If you add a route for `/tasks/:id`, then `navigate('/tasks/:id', { params: { id: 'abc' } })` compiles but `navigate('/bogus')` doesn't.
+Vertz routing is fully typed — route patterns, parameters, and navigation are all checked at compile time. If you add a route for `/tasks/:id`, then `navigate({ to: '/tasks/:id', params: { id: 'abc' } })` compiles but `navigate({ to: '/bogus' })` doesn't.
 
 ## Define routes
 
@@ -121,10 +121,10 @@ import { useRouter } from 'vertz/ui';
 
 const { navigate } = useRouter();
 
-navigate('/');              // OK
-navigate('/tasks/:id', { params: { id: 'abc' } }); // OK
-navigate('/bogus');         // Type error
-navigate('/tasks/:id');     // Type error — params required
+navigate({ to: '/' }); // OK
+navigate({ to: '/tasks/:id', params: { id: 'abc' } }); // OK
+navigate({ to: '/bogus' }); // Type error
+navigate({ to: '/tasks/:id' }); // Type error — params required
 ```
 
 The generated typing lives in `.vertz/generated/router.d.ts`. If you build a
@@ -135,7 +135,7 @@ project by hand, make sure `.vertz/generated` is included in `tsconfig.json`.
 Use `{ replace: true }` to replace the current history entry instead of pushing:
 
 ```tsx
-navigate('/', { replace: true });
+navigate({ to: '/', replace: true });
 ```
 
 ## Access route params

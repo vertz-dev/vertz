@@ -9,14 +9,7 @@
  * - Pages access navigation via useRouter() context (no prop threading)
  */
 
-import {
-  Outlet,
-  OutletContext,
-  computed,
-  createLink,
-  createRouter,
-  defineRoutes,
-} from '@vertz/ui';
+import { computed, createLink, createRouter, defineRoutes, Outlet, OutletContext } from '@vertz/ui';
 import { api } from './api/mock-data';
 import { CreateTaskPage } from './pages/create-task';
 import { SettingsPage } from './pages/settings';

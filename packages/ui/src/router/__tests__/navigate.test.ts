@@ -39,7 +39,7 @@ describe('createRouter', () => {
     });
     const router = createRouter(routes, '/');
 
-    await router.navigate('/tasks/:id', { params: { id: '42' } });
+    await router.navigate({ to: '/tasks/:id', params: { id: '42' } });
 
     expect(window.location.pathname).toBe('/tasks/42');
     expect(router.current.value?.route.pattern).toBe('/tasks/:id');
@@ -52,7 +52,7 @@ describe('createRouter', () => {
     });
     const router = createRouter(routes, '/tasks/1');
 
-    await expect((router as any).navigate('/tasks/:id')).rejects.toThrow(
+    await expect((router as any).navigate({ to: '/tasks/:id' })).rejects.toThrow(
       'Missing route param "id" for path "/tasks/:id"',
     );
   });

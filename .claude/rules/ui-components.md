@@ -185,7 +185,7 @@ export function useSettings(): SettingsContextValue {
 // Page — access via hook
 export function TaskListPage() {
   const { navigate } = useRouter();
-  navigate('/tasks/new');
+  navigate({ to: '/tasks/new' });
 }
 
 // Route params
