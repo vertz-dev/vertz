@@ -1,6 +1,8 @@
 {
   "compilerOptions": {
     "exactOptionalPropertyTypes": false,
+    "jsx": "react",
+    "jsxFactory": "h",
     "noEmit": true,
     "noUncheckedIndexedAccess": false,
     "noUnusedLocals": false,
