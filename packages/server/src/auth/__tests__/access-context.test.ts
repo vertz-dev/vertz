@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import type { ResourceRef } from '../access-context';
 import { createAccessContext } from '../access-context';
+import { calculateBillingPeriod } from '../billing-period';
 import { InMemoryClosureStore } from '../closure-store';
 import { defineAccess } from '../define-access';
 import { InMemoryFlagStore } from '../flag-store';
@@ -182,7 +183,7 @@ describe('createAccessContext', () => {
     });
   });
 
-  describe('plan layer (Layer 4)', () => {
+  describe('plan layer (Layer 3 — plan features)', () => {
     async function setupWithPlans() {
       const accessDef = defineAccess({
         entities: {
@@ -203,12 +204,18 @@ describe('createAccessContext', () => {
         },
         plans: {
           free: {
-            entitlements: ['organization:create-project', 'project:view'],
+            group: 'main',
+            features: ['organization:create-project', 'project:view'],
           },
           pro: {
-            entitlements: ['organization:create-project', 'project:view', 'project:export'],
+            group: 'main',
+            features: ['organization:create-project', 'project:view', 'project:export'],
             limits: {
-              'organization:create-project': { per: 'month', max: 10 },
+              project_creates: {
+                max: 10,
+                gates: 'organization:create-project',
+                per: 'month',
+              },
             },
           },
         },
@@ -225,48 +232,20 @@ describe('createAccessContext', () => {
         parentId: 'org-1',
       });
 
-      const orgResolver = async (resource?: ResourceRef) => 'org-1';
+      const orgResolver = async (_resource?: ResourceRef) => 'org-1';
 
       return { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver };
     }
 
-    it('can() passes when plan includes entitlement', async () => {
+    it('can() passes when plan includes entitlement in features', async () => {
       const { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
         await setupWithPlans();
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
       await planStore.assignPlan('org-1', 'pro');
 
-      // Set entitlement plans field to reference pro
-      const accessDefWithPlans = defineAccess({
-        entities: {
-          organization: { roles: ['owner', 'admin', 'member'] },
-          project: {
-            roles: ['manager', 'contributor', 'viewer'],
-            inherits: {
-              'organization:owner': 'manager',
-              'organization:admin': 'contributor',
-              'organization:member': 'viewer',
-            },
-          },
-        },
-        entitlements: {
-          'organization:create-project': { roles: ['admin', 'owner'] },
-          'project:view': { roles: ['viewer', 'contributor', 'manager'] },
-          'project:export': { roles: ['manager'] },
-        },
-        plans: {
-          free: {
-            entitlements: ['organization:create-project', 'project:view'],
-          },
-          pro: {
-            entitlements: ['organization:create-project', 'project:view', 'project:export'],
-          },
-        },
-      });
-
       const ctx = createAccessContext({
         userId: 'user-1',
-        accessDef: accessDefWithPlans,
+        accessDef,
         closureStore,
         roleStore,
         planStore,
@@ -279,6 +258,30 @@ describe('createAccessContext', () => {
         id: 'org-1',
       });
       expect(result).toBe(true);
+    });
+
+    it('can() denies when plan does not include entitlement in features', async () => {
+      const { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
+        await setupWithPlans();
+      await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
+      await planStore.assignPlan('org-1', 'free');
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        orgResolver,
+      });
+
+      // project:export is only in pro.features, not free.features
+      const result = await ctx.can('project:export', {
+        type: 'project',
+        id: 'proj-1',
+      });
+      expect(result).toBe(false);
     });
   });
 
@@ -479,6 +482,563 @@ describe('createAccessContext', () => {
         id: 'proj-1',
       });
       expect(result).toBe(true);
+    });
+  });
+
+  // ==========================================================================
+  // Limit layer (Layer 4) — Phase 2
+  // ==========================================================================
+
+  describe('limit layer (Layer 4)', () => {
+    function setupWithLimits() {
+      const accessDef = defineAccess({
+        entities: {
+          organization: { roles: ['owner', 'admin', 'member'] },
+          brand: {
+            roles: ['owner', 'editor'],
+            inherits: {
+              'organization:owner': 'owner',
+              'organization:admin': 'editor',
+            },
+          },
+        },
+        entitlements: {
+          'organization:create-prompt': { roles: ['admin', 'owner'] },
+        },
+        plans: {
+          free: {
+            group: 'main',
+            features: ['organization:create-prompt'],
+            limits: {
+              prompts: { max: 50, gates: 'organization:create-prompt' },
+            },
+          },
+          enterprise: {
+            group: 'main',
+            features: ['organization:create-prompt'],
+            limits: {
+              prompts: { max: -1, gates: 'organization:create-prompt' },
+            },
+          },
+        },
+      });
+
+      const closureStore = new InMemoryClosureStore();
+      const roleStore = new InMemoryRoleAssignmentStore();
+      const planStore = new InMemoryPlanStore();
+      const walletStore = new InMemoryWalletStore();
+      const orgResolver = async (_resource?: ResourceRef) => 'org-1';
+
+      return { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver };
+    }
+
+    it('can() returns true when within limit', async () => {
+      const { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
+        setupWithLimits();
+      await closureStore.addResource('organization', 'org-1');
+      await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+      await planStore.assignPlan('org-1', 'free');
+
+      // Consume 49 of 50
+      const { periodStart, periodEnd } = calculateBillingPeriod(new Date(), 'month');
+      await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 50, 49);
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        orgResolver,
+      });
+
+      const result = await ctx.can('organization:create-prompt', {
+        type: 'organization',
+        id: 'org-1',
+      });
+      expect(result).toBe(true);
+    });
+
+    it('can() returns false when limit reached', async () => {
+      const { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
+        setupWithLimits();
+      await closureStore.addResource('organization', 'org-1');
+      await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+      await planStore.assignPlan('org-1', 'free');
+
+      const { periodStart, periodEnd } = calculateBillingPeriod(new Date(), 'month');
+      await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 50, 50);
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        orgResolver,
+      });
+
+      const result = await ctx.can('organization:create-prompt', {
+        type: 'organization',
+        id: 'org-1',
+      });
+      expect(result).toBe(false);
+    });
+
+    it('can() returns true when limit is unlimited (-1)', async () => {
+      const { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
+        setupWithLimits();
+      await closureStore.addResource('organization', 'org-1');
+      await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+      await planStore.assignPlan('org-1', 'enterprise');
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        orgResolver,
+      });
+
+      const result = await ctx.can('organization:create-prompt', {
+        type: 'organization',
+        id: 'org-1',
+      });
+      expect(result).toBe(true);
+    });
+
+    it('check() returns limit_reached with meta when limit exceeded', async () => {
+      const { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
+        setupWithLimits();
+      await closureStore.addResource('organization', 'org-1');
+      await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+      await planStore.assignPlan('org-1', 'free');
+
+      const { periodStart, periodEnd } = calculateBillingPeriod(new Date(), 'month');
+      await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 50, 50);
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        orgResolver,
+      });
+
+      const result = await ctx.check('organization:create-prompt', {
+        type: 'organization',
+        id: 'org-1',
+      });
+      expect(result.allowed).toBe(false);
+      expect(result.reasons).toContain('limit_reached');
+      expect(result.meta?.limit?.key).toBe('prompts');
+      expect(result.meta?.limit?.max).toBe(50);
+      expect(result.meta?.limit?.consumed).toBe(50);
+      expect(result.meta?.limit?.remaining).toBe(0);
+    });
+  });
+
+  // ==========================================================================
+  // Multi-limit resolution — Phase 2
+  // ==========================================================================
+
+  describe('multi-limit resolution', () => {
+    function setupMultiLimit() {
+      const accessDef = defineAccess({
+        entities: {
+          organization: { roles: ['owner', 'admin'] },
+          brand: {
+            roles: ['owner', 'editor'],
+            inherits: {
+              'organization:owner': 'owner',
+              'organization:admin': 'editor',
+            },
+          },
+        },
+        entitlements: {
+          'organization:create-prompt': { roles: ['admin', 'owner'] },
+        },
+        plans: {
+          free: {
+            group: 'main',
+            features: ['organization:create-prompt'],
+            limits: {
+              prompts: { max: 50, gates: 'organization:create-prompt' },
+              prompts_per_brand: {
+                max: 5,
+                gates: 'organization:create-prompt',
+                scope: 'brand',
+              },
+            },
+          },
+        },
+      });
+
+      const closureStore = new InMemoryClosureStore();
+      const roleStore = new InMemoryRoleAssignmentStore();
+      const planStore = new InMemoryPlanStore();
+      const walletStore = new InMemoryWalletStore();
+      const orgResolver = async (_resource?: ResourceRef) => 'org-1';
+
+      return { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver };
+    }
+
+    it('denies when per-brand limit is exceeded even if tenant-level is within', async () => {
+      const { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
+        setupMultiLimit();
+      await closureStore.addResource('organization', 'org-1');
+      await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+      await planStore.assignPlan('org-1', 'free');
+
+      // Tenant-level: 3 of 50 (ok), per-brand: 5 of 5 (exceeded)
+      const { periodStart, periodEnd } = calculateBillingPeriod(new Date(), 'month');
+      await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 50, 3);
+      await walletStore.consume('org-1', 'prompts_per_brand', periodStart, periodEnd, 5, 5);
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        orgResolver,
+      });
+
+      const result = await ctx.can('organization:create-prompt', {
+        type: 'organization',
+        id: 'org-1',
+      });
+      expect(result).toBe(false);
+    });
+
+    it('check() denial meta includes the per-brand limit as the blocker', async () => {
+      const { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
+        setupMultiLimit();
+      await closureStore.addResource('organization', 'org-1');
+      await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+      await planStore.assignPlan('org-1', 'free');
+
+      const { periodStart, periodEnd } = calculateBillingPeriod(new Date(), 'month');
+      await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 50, 3);
+      await walletStore.consume('org-1', 'prompts_per_brand', periodStart, periodEnd, 5, 5);
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        orgResolver,
+      });
+
+      const result = await ctx.check('organization:create-prompt', {
+        type: 'organization',
+        id: 'org-1',
+      });
+      expect(result.allowed).toBe(false);
+      expect(result.meta?.limit?.key).toBe('prompts_per_brand');
+    });
+  });
+
+  // ==========================================================================
+  // canAndConsume with multi-limit — Phase 2
+  // ==========================================================================
+
+  describe('canAndConsume() with multi-limit', () => {
+    function setupCanAndConsume() {
+      const accessDef = defineAccess({
+        entities: {
+          organization: { roles: ['owner', 'admin'] },
+        },
+        entitlements: {
+          'organization:create-prompt': { roles: ['admin', 'owner'] },
+        },
+        plans: {
+          free: {
+            group: 'main',
+            features: ['organization:create-prompt'],
+            limits: {
+              prompts: { max: 5, gates: 'organization:create-prompt', per: 'month' },
+            },
+          },
+        },
+      });
+
+      const closureStore = new InMemoryClosureStore();
+      const roleStore = new InMemoryRoleAssignmentStore();
+      const planStore = new InMemoryPlanStore();
+      const walletStore = new InMemoryWalletStore();
+      const orgResolver = async (_resource?: ResourceRef) => 'org-1';
+
+      return { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver };
+    }
+
+    it('consumes from all limits atomically', async () => {
+      const { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
+        setupCanAndConsume();
+      await closureStore.addResource('organization', 'org-1');
+      await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+      const startedAt = new Date();
+      await planStore.assignPlan('org-1', 'free', startedAt);
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        orgResolver,
+      });
+
+      const result = await ctx.canAndConsume('organization:create-prompt', {
+        type: 'organization',
+        id: 'org-1',
+      });
+      expect(result).toBe(true);
+
+      // Verify consumption — use same startedAt as plan anchor
+      const { periodStart, periodEnd } = calculateBillingPeriod(startedAt, 'month');
+      const consumed = await walletStore.getConsumption('org-1', 'prompts', periodStart, periodEnd);
+      expect(consumed).toBe(1);
+    });
+
+    it('fails when limit is exactly at max', async () => {
+      const { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
+        setupCanAndConsume();
+      await closureStore.addResource('organization', 'org-1');
+      await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+      const startedAt = new Date();
+      await planStore.assignPlan('org-1', 'free', startedAt);
+
+      // Pre-consume 5 (the limit)
+      const { periodStart, periodEnd } = calculateBillingPeriod(startedAt, 'month');
+      await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 5, 5);
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        orgResolver,
+      });
+
+      const result = await ctx.canAndConsume('organization:create-prompt', {
+        type: 'organization',
+        id: 'org-1',
+      });
+      expect(result).toBe(false);
+    });
+
+    it('unconsume() rolls back a previous consumption', async () => {
+      const { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
+        setupCanAndConsume();
+      await closureStore.addResource('organization', 'org-1');
+      await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+      const startedAt = new Date();
+      await planStore.assignPlan('org-1', 'free', startedAt);
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        orgResolver,
+      });
+
+      await ctx.canAndConsume('organization:create-prompt', {
+        type: 'organization',
+        id: 'org-1',
+      });
+
+      const { periodStart, periodEnd } = calculateBillingPeriod(startedAt, 'month');
+      expect(await walletStore.getConsumption('org-1', 'prompts', periodStart, periodEnd)).toBe(1);
+
+      await ctx.unconsume('organization:create-prompt', {
+        type: 'organization',
+        id: 'org-1',
+      });
+      expect(await walletStore.getConsumption('org-1', 'prompts', periodStart, periodEnd)).toBe(0);
+    });
+  });
+
+  // ==========================================================================
+  // Add-on support — Phase 2
+  // ==========================================================================
+
+  describe('add-on support', () => {
+    function setupWithAddOns() {
+      const accessDef = defineAccess({
+        entities: {
+          organization: { roles: ['owner', 'admin'] },
+        },
+        entitlements: {
+          'organization:create-prompt': { roles: ['admin', 'owner'] },
+          'organization:export': { roles: ['admin', 'owner'] },
+        },
+        plans: {
+          free: {
+            group: 'main',
+            features: ['organization:create-prompt'],
+            limits: {
+              prompts: { max: 50, gates: 'organization:create-prompt', per: 'month' },
+            },
+          },
+          export_addon: {
+            addOn: true,
+            features: ['organization:export'],
+          },
+          extra_prompts_50: {
+            addOn: true,
+            limits: {
+              prompts: { max: 50, gates: 'organization:create-prompt', per: 'month' },
+            },
+          },
+        },
+      });
+
+      const closureStore = new InMemoryClosureStore();
+      const roleStore = new InMemoryRoleAssignmentStore();
+      const planStore = new InMemoryPlanStore();
+      const walletStore = new InMemoryWalletStore();
+      const orgResolver = async (_resource?: ResourceRef) => 'org-1';
+
+      return { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver };
+    }
+
+    it('add-on unlocks entitlement not in base plan features', async () => {
+      const { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
+        setupWithAddOns();
+      await closureStore.addResource('organization', 'org-1');
+      await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+      await planStore.assignPlan('org-1', 'free');
+      await planStore.attachAddOn('org-1', 'export_addon');
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        orgResolver,
+      });
+
+      const result = await ctx.can('organization:export', {
+        type: 'organization',
+        id: 'org-1',
+      });
+      expect(result).toBe(true);
+    });
+
+    it('add-on limit increases effective max', async () => {
+      const { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
+        setupWithAddOns();
+      await closureStore.addResource('organization', 'org-1');
+      await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+      await planStore.assignPlan('org-1', 'free');
+      await planStore.attachAddOn('org-1', 'extra_prompts_50');
+
+      // Consume 75 — over base (50) but within effective (100)
+      const { periodStart, periodEnd } = calculateBillingPeriod(new Date(), 'month');
+      await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 100, 75);
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        orgResolver,
+      });
+
+      const result = await ctx.can('organization:create-prompt', {
+        type: 'organization',
+        id: 'org-1',
+      });
+      expect(result).toBe(true);
+    });
+
+    it('without add-on, entitlement not in base plan is denied', async () => {
+      const { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
+        setupWithAddOns();
+      await closureStore.addResource('organization', 'org-1');
+      await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+      await planStore.assignPlan('org-1', 'free');
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        orgResolver,
+      });
+
+      const result = await ctx.can('organization:export', {
+        type: 'organization',
+        id: 'org-1',
+      });
+      expect(result).toBe(false);
+    });
+  });
+
+  // ==========================================================================
+  // canBatch() — Phase 2 (replaces canAll)
+  // ==========================================================================
+
+  describe('canBatch()', () => {
+    it('returns Map<string, AccessCheckResult> keyed by entity ID', async () => {
+      const { accessDef, closureStore, roleStore } = await setup();
+      await roleStore.assign('user-1', 'project', 'proj-1', 'contributor');
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+      });
+
+      const results = await ctx.canBatch('project:edit', [{ type: 'project', id: 'proj-1' }]);
+      expect(results.get('proj-1')).toBe(true);
+    });
+
+    it('returns mixed results for different entities', async () => {
+      const { accessDef, closureStore, roleStore } = await setup();
+      await closureStore.addResource('project', 'proj-2', {
+        parentType: 'team',
+        parentId: 'team-1',
+      });
+      await roleStore.assign('user-1', 'project', 'proj-1', 'contributor');
+      // No role on proj-2
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+      });
+
+      const results = await ctx.canBatch('project:edit', [
+        { type: 'project', id: 'proj-1' },
+        { type: 'project', id: 'proj-2' },
+      ]);
+      expect(results.get('proj-1')).toBe(true);
+      expect(results.get('proj-2')).toBe(false);
     });
   });
 });

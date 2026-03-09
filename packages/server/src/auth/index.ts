@@ -2224,6 +2224,8 @@ export type {
   EntityDef,
   LimitDef,
   PlanDef,
+  PlanPrice,
+  PriceInterval,
   RuleContext,
 } from './define-access';
 export { defineAccess } from './define-access';

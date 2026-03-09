@@ -364,7 +364,12 @@ describe('Feature: Entity-centric defineAccess()', () => {
       const config = defineAccess({
         entities: { workspace: { roles: ['admin'] } },
         entitlements: { 'workspace:manage': { roles: ['admin'] } },
-        plans: { basic: { entitlements: ['workspace:manage'] } },
+        plans: {
+          basic: {
+            group: 'main',
+            features: ['workspace:manage'],
+          },
+        },
         defaultPlan: 'basic',
       });
       expect(config.defaultPlan).toBe('basic');
@@ -379,20 +384,30 @@ describe('Feature: Entity-centric defineAccess()', () => {
         },
         plans: {
           free: {
-            entitlements: ['workspace:create', 'workspace:view'],
-            limits: { 'workspace:create': { per: 'month', max: 5 } },
+            group: 'main',
+            features: ['workspace:create', 'workspace:view'],
+            limits: {
+              workspace_creates: { max: 5, gates: 'workspace:create', per: 'month' },
+            },
           },
           pro: {
-            entitlements: ['workspace:create', 'workspace:view'],
-            limits: { 'workspace:create': { per: 'month', max: 100 } },
+            group: 'main',
+            features: ['workspace:create', 'workspace:view'],
+            limits: {
+              workspace_creates: { max: 100, gates: 'workspace:create', per: 'month' },
+            },
           },
         },
       });
 
       expect(config.plans).toBeDefined();
       expect(Object.isFrozen(config.plans)).toBe(true);
-      expect(config.plans!.free.entitlements).toEqual(['workspace:create', 'workspace:view']);
-      expect(config.plans!.free.limits!['workspace:create']).toEqual({ per: 'month', max: 5 });
+      expect(config.plans!.free.features).toEqual(['workspace:create', 'workspace:view']);
+      expect(config.plans!.free.limits!.workspace_creates).toEqual({
+        max: 5,
+        gates: 'workspace:create',
+        per: 'month',
+      });
       expect(Object.isFrozen(config.plans!.free)).toBe(true);
     });
   });
@@ -526,6 +541,284 @@ describe('Feature: Entitlement validation', () => {
       });
 
       expect(config.entitlements['project:export'].flags).toEqual(['export-v2']);
+    });
+  });
+});
+
+// ============================================================================
+// Plan validation (Phase 2)
+// ============================================================================
+
+describe('Feature: Plan validation', () => {
+  describe('Given plan features referencing undefined entitlement', () => {
+    it("throws \"Plan 'pro' feature 'nonexistent:action' is not a defined entitlement\"", () => {
+      expect(() => {
+        defineAccess({
+          entities: {
+            workspace: { roles: ['admin'] },
+          },
+          entitlements: {
+            'workspace:manage': { roles: ['admin'] },
+          },
+          plans: {
+            pro: {
+              group: 'main',
+              features: ['workspace:manage', 'nonexistent:action'],
+            },
+          },
+        });
+      }).toThrow("Plan 'pro' feature 'nonexistent:action' is not a defined entitlement");
+    });
+  });
+
+  describe('Given limit gates referencing undefined entitlement', () => {
+    it("throws \"Limit 'prompts' gates 'nonexistent:create' which is not defined\"", () => {
+      expect(() => {
+        defineAccess({
+          entities: {
+            workspace: { roles: ['admin'] },
+          },
+          entitlements: {
+            'workspace:manage': { roles: ['admin'] },
+          },
+          plans: {
+            pro: {
+              group: 'main',
+              features: ['workspace:manage'],
+              limits: {
+                prompts: { max: 50, gates: 'nonexistent:create' },
+              },
+            },
+          },
+        });
+      }).toThrow("Limit 'prompts' gates 'nonexistent:create' which is not defined");
+    });
+  });
+
+  describe('Given limit scope referencing undefined entity', () => {
+    it("throws \"Limit 'prompts_per_brand' scope 'nonexistent' is not a defined entity\"", () => {
+      expect(() => {
+        defineAccess({
+          entities: {
+            workspace: { roles: ['admin'] },
+          },
+          entitlements: {
+            'workspace:create': { roles: ['admin'] },
+          },
+          plans: {
+            pro: {
+              group: 'main',
+              features: ['workspace:create'],
+              limits: {
+                prompts_per_brand: { max: 5, gates: 'workspace:create', scope: 'nonexistent' },
+              },
+            },
+          },
+        });
+      }).toThrow("Limit 'prompts_per_brand' scope 'nonexistent' is not a defined entity");
+    });
+  });
+
+  describe('Given defaultPlan referencing an add-on', () => {
+    it('throws "defaultPlan \'extra_prompts\' is an add-on, not a base plan"', () => {
+      expect(() => {
+        defineAccess({
+          entities: {
+            workspace: { roles: ['admin'] },
+          },
+          entitlements: {
+            'workspace:create': { roles: ['admin'] },
+          },
+          plans: {
+            free: {
+              group: 'main',
+              features: ['workspace:create'],
+              limits: {
+                prompts: { max: 50, gates: 'workspace:create' },
+              },
+            },
+            extra_prompts: {
+              addOn: true,
+              limits: {
+                prompts: { max: 50, gates: 'workspace:create' },
+              },
+            },
+          },
+          defaultPlan: 'extra_prompts',
+        });
+      }).toThrow("defaultPlan 'extra_prompts' is an add-on, not a base plan");
+    });
+  });
+
+  describe('Given base plan without group', () => {
+    it('throws "Base plan \'pro\' must have a group"', () => {
+      expect(() => {
+        defineAccess({
+          entities: {
+            workspace: { roles: ['admin'] },
+          },
+          entitlements: {
+            'workspace:create': { roles: ['admin'] },
+          },
+          plans: {
+            pro: {
+              features: ['workspace:create'],
+            },
+          },
+        });
+      }).toThrow("Base plan 'pro' must have a group");
+    });
+  });
+
+  describe('Given add-on with group', () => {
+    it('throws "Add-on \'export_addon\' must not have a group"', () => {
+      expect(() => {
+        defineAccess({
+          entities: {
+            workspace: { roles: ['admin'] },
+          },
+          entitlements: {
+            'workspace:create': { roles: ['admin'] },
+          },
+          plans: {
+            free: {
+              group: 'main',
+              features: ['workspace:create'],
+            },
+            export_addon: {
+              addOn: true,
+              group: 'main',
+              features: ['workspace:create'],
+            },
+          },
+        });
+      }).toThrow("Add-on 'export_addon' must not have a group");
+    });
+  });
+
+  describe('Given add-on limit key not in any base plan', () => {
+    it('throws "Add-on limit \'nonexistent\' not defined in any base plan"', () => {
+      expect(() => {
+        defineAccess({
+          entities: {
+            workspace: { roles: ['admin'] },
+          },
+          entitlements: {
+            'workspace:create': { roles: ['admin'] },
+          },
+          plans: {
+            free: {
+              group: 'main',
+              features: ['workspace:create'],
+              limits: {
+                prompts: { max: 50, gates: 'workspace:create' },
+              },
+            },
+            extra: {
+              addOn: true,
+              limits: {
+                nonexistent: { max: 50, gates: 'workspace:create' },
+              },
+            },
+          },
+        });
+      }).toThrow("Add-on limit 'nonexistent' not defined in any base plan");
+    });
+  });
+
+  describe('Given limit max is negative (not -1)', () => {
+    it('throws "Limit max must be -1 (unlimited), 0 (disabled), or a positive integer"', () => {
+      expect(() => {
+        defineAccess({
+          entities: {
+            workspace: { roles: ['admin'] },
+          },
+          entitlements: {
+            'workspace:create': { roles: ['admin'] },
+          },
+          plans: {
+            free: {
+              group: 'main',
+              features: ['workspace:create'],
+              limits: {
+                prompts: { max: -2, gates: 'workspace:create' },
+              },
+            },
+          },
+        });
+      }).toThrow("Limit 'prompts' max must be -1 (unlimited), 0 (disabled), or a positive integer");
+    });
+  });
+
+  describe('Given limit max is non-integer', () => {
+    it('throws "Limit max must be -1 (unlimited), 0 (disabled), or a positive integer"', () => {
+      expect(() => {
+        defineAccess({
+          entities: {
+            workspace: { roles: ['admin'] },
+          },
+          entitlements: {
+            'workspace:create': { roles: ['admin'] },
+          },
+          plans: {
+            free: {
+              group: 'main',
+              features: ['workspace:create'],
+              limits: {
+                prompts: { max: 5.5, gates: 'workspace:create' },
+              },
+            },
+          },
+        });
+      }).toThrow("Limit 'prompts' max must be -1 (unlimited), 0 (disabled), or a positive integer");
+    });
+  });
+
+  describe('Given limit max is -1 (unlimited)', () => {
+    it('succeeds', () => {
+      const config = defineAccess({
+        entities: {
+          workspace: { roles: ['admin'] },
+        },
+        entitlements: {
+          'workspace:create': { roles: ['admin'] },
+        },
+        plans: {
+          enterprise: {
+            group: 'main',
+            features: ['workspace:create'],
+            limits: {
+              prompts: { max: -1, gates: 'workspace:create' },
+            },
+          },
+        },
+      });
+
+      expect(config.plans!.enterprise.limits!.prompts.max).toBe(-1);
+    });
+  });
+
+  describe('Given limit max is 0 (disabled)', () => {
+    it('succeeds', () => {
+      const config = defineAccess({
+        entities: {
+          workspace: { roles: ['admin'] },
+        },
+        entitlements: {
+          'workspace:create': { roles: ['admin'] },
+        },
+        plans: {
+          free: {
+            group: 'main',
+            features: ['workspace:create'],
+            limits: {
+              prompts: { max: 0, gates: 'workspace:create' },
+            },
+          },
+        },
+      });
+
+      expect(config.plans!.free.limits!.prompts.max).toBe(0);
     });
   });
 });

@@ -1,15 +1,16 @@
 /**
- * Integration test — Plans & Wallet (Phase 8) [#1022]
+ * Integration test — Plans & Wallet (Phase 2: Access Redesign) [#1073]
  *
  * Validates the full plan/wallet lifecycle end-to-end:
- * - defineAccess() with plans configuration
+ * - defineAccess() with new plan shape (features, group, limits with gates)
  * - PlanStore / WalletStore with InMemory implementations
- * - Plan check (Layer 4) in can() and check()
- * - Wallet check (Layer 5) with limit visibility
+ * - Plan check (Layer 3) in can() and check()
+ * - Wallet check (Layer 4) with limit visibility
  * - canAndConsume() / unconsume() atomic operations
  * - Plan expiration with free fallback
  * - Per-customer overrides (max of override, plan_limit)
  * - computeAccessSet() with limit info enrichment
+ * - Add-on support (additive features and limits)
  * - Billing period calculation
  * - encode/decode round-trip preserves limit data
  *
@@ -30,7 +31,7 @@ import {
 } from '@vertz/server';
 
 // ============================================================================
-// Setup — entity-centric config
+// Setup — entity-centric config with new plan shape
 // ============================================================================
 
 const accessDef = defineAccess({
@@ -56,21 +57,20 @@ const accessDef = defineAccess({
     },
   },
   entitlements: {
-    'organization:create-project': {
-      roles: ['admin', 'owner'],
-      plans: ['pro', 'enterprise'],
-    },
+    'organization:create-project': { roles: ['admin', 'owner'] },
     'project:view': { roles: ['viewer', 'contributor', 'manager'] },
-    'project:edit': { roles: ['contributor', 'manager'], plans: ['pro', 'enterprise'] },
+    'project:edit': { roles: ['contributor', 'manager'] },
     'project:delete': { roles: ['manager'] },
     'organization:use': { roles: [] },
   },
   plans: {
     free: {
-      entitlements: ['project:view', 'organization:use'],
+      group: 'main',
+      features: ['project:view', 'organization:use'],
     },
     pro: {
-      entitlements: [
+      group: 'main',
+      features: [
         'organization:create-project',
         'project:view',
         'project:edit',
@@ -78,11 +78,12 @@ const accessDef = defineAccess({
         'organization:use',
       ],
       limits: {
-        'organization:create-project': { per: 'month', max: 10 },
+        projects: { max: 10, gates: 'organization:create-project', per: 'month' },
       },
     },
     enterprise: {
-      entitlements: [
+      group: 'main',
+      features: [
         'organization:create-project',
         'project:view',
         'project:edit',
@@ -90,7 +91,7 @@ const accessDef = defineAccess({
         'organization:use',
       ],
       limits: {
-        'organization:create-project': { per: 'month', max: 100 },
+        projects: { max: 100, gates: 'organization:create-project', per: 'month' },
       },
     },
   },
@@ -117,11 +118,11 @@ async function setupHierarchy(closureStore: InstanceType<typeof InMemoryClosureS
 }
 
 // ============================================================================
-// Plan Layer (L4) — can() / check()
+// Plan Layer (L3) — can() / check()
 // ============================================================================
 
-describe('Plans & Wallet — Plan Layer (L4)', () => {
-  it('can() denies entitlement when plan does not include it', async () => {
+describe('Plans & Wallet — Plan Layer (L3)', () => {
+  it('can() denies entitlement when plan does not include it in features', async () => {
     const { roleStore, closureStore, planStore, walletStore } = createTestStores();
     await setupHierarchy(closureStore);
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
@@ -137,7 +138,7 @@ describe('Plans & Wallet — Plan Layer (L4)', () => {
       orgResolver: async () => 'org-1',
     });
 
-    // admin has role, but free plan doesn't include organization:create-project
+    // admin has role, but free plan's features don't include organization:create-project
     const allowed = await ctx.can('organization:create-project', {
       type: 'project',
       id: 'proj-1',
@@ -145,7 +146,7 @@ describe('Plans & Wallet — Plan Layer (L4)', () => {
     expect(allowed).toBe(false);
   });
 
-  it('can() allows entitlement when plan includes it', async () => {
+  it('can() allows entitlement when plan features include it', async () => {
     const { roleStore, closureStore, planStore, walletStore } = createTestStores();
     await setupHierarchy(closureStore);
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
@@ -161,7 +162,7 @@ describe('Plans & Wallet — Plan Layer (L4)', () => {
       orgResolver: async () => 'org-1',
     });
 
-    // admin -> editor -> contributor via inheritance; pro plan includes project:edit
+    // admin -> editor -> contributor via inheritance; pro plan features include project:edit
     const allowed = await ctx.can('project:edit', { type: 'project', id: 'proj-1' });
     expect(allowed).toBe(true);
   });
@@ -212,7 +213,7 @@ describe('Plans & Wallet — Plan Layer (L4)', () => {
       orgResolver: async () => 'org-1',
     });
 
-    // Pro plan expired -> fallback to free -> organization:create-project not in free
+    // Pro plan expired -> fallback to free -> organization:create-project not in free features
     const allowed = await ctx.can('organization:create-project', {
       type: 'project',
       id: 'proj-1',
@@ -222,10 +223,10 @@ describe('Plans & Wallet — Plan Layer (L4)', () => {
 });
 
 // ============================================================================
-// Wallet Layer (L5) — can() / check() with limits
+// Wallet Layer (L4) — can() / check() with limits
 // ============================================================================
 
-describe('Plans & Wallet — Wallet Layer (L5)', () => {
+describe('Plans & Wallet — Wallet Layer (L4)', () => {
   it('can() denies when limit is reached', async () => {
     const { roleStore, closureStore, planStore, walletStore } = createTestStores();
     await setupHierarchy(closureStore);
@@ -233,16 +234,9 @@ describe('Plans & Wallet — Wallet Layer (L5)', () => {
     const planStart = new Date('2026-01-01T00:00:00Z');
     await planStore.assignPlan('org-1', 'pro', planStart);
 
-    // Consume all 10 units
+    // Consume all 10 units using the limit key 'projects'
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
-    await walletStore.consume(
-      'org-1',
-      'organization:create-project',
-      periodStart,
-      periodEnd,
-      10,
-      10,
-    );
+    await walletStore.consume('org-1', 'projects', periodStart, periodEnd, 10, 10);
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -269,14 +263,7 @@ describe('Plans & Wallet — Wallet Layer (L5)', () => {
     await planStore.assignPlan('org-1', 'pro', planStart);
 
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
-    await walletStore.consume(
-      'org-1',
-      'organization:create-project',
-      periodStart,
-      periodEnd,
-      10,
-      10,
-    );
+    await walletStore.consume('org-1', 'projects', periodStart, periodEnd, 10, 10);
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -323,21 +310,15 @@ describe('Plans & Wallet — canAndConsume / unconsume', () => {
     });
 
     // First consume should succeed (0/10)
-    // Use organization resource where user has admin role directly
     const result1 = await ctx.canAndConsume('organization:create-project', {
       type: 'organization',
       id: 'org-1',
     });
     expect(result1).toBe(true);
 
-    // Verify consumption was recorded
+    // Verify consumption was recorded under the limit key 'projects'
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
-    const consumed = await walletStore.getConsumption(
-      'org-1',
-      'organization:create-project',
-      periodStart,
-      periodEnd,
-    );
+    const consumed = await walletStore.getConsumption('org-1', 'projects', periodStart, periodEnd);
     expect(consumed).toBe(1);
   });
 
@@ -350,14 +331,7 @@ describe('Plans & Wallet — canAndConsume / unconsume', () => {
 
     // Pre-consume 10 (the limit)
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
-    await walletStore.consume(
-      'org-1',
-      'organization:create-project',
-      periodStart,
-      periodEnd,
-      10,
-      10,
-    );
+    await walletStore.consume('org-1', 'projects', periodStart, periodEnd, 10, 10);
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -376,12 +350,7 @@ describe('Plans & Wallet — canAndConsume / unconsume', () => {
     expect(result).toBe(false);
 
     // Wallet should not have been incremented
-    const consumed = await walletStore.getConsumption(
-      'org-1',
-      'organization:create-project',
-      periodStart,
-      periodEnd,
-    );
+    const consumed = await walletStore.getConsumption('org-1', 'projects', periodStart, periodEnd);
     expect(consumed).toBe(10);
   });
 
@@ -408,28 +377,14 @@ describe('Plans & Wallet — canAndConsume / unconsume', () => {
       id: 'org-1',
     });
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
-    expect(
-      await walletStore.getConsumption(
-        'org-1',
-        'organization:create-project',
-        periodStart,
-        periodEnd,
-      ),
-    ).toBe(1);
+    expect(await walletStore.getConsumption('org-1', 'projects', periodStart, periodEnd)).toBe(1);
 
     // Unconsume (rollback)
     await ctx.unconsume('organization:create-project', {
       type: 'organization',
       id: 'org-1',
     });
-    expect(
-      await walletStore.getConsumption(
-        'org-1',
-        'organization:create-project',
-        periodStart,
-        periodEnd,
-      ),
-    ).toBe(0);
+    expect(await walletStore.getConsumption('org-1', 'projects', periodStart, periodEnd)).toBe(0);
   });
 });
 
@@ -444,21 +399,14 @@ describe('Plans & Wallet — Per-customer overrides', () => {
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
     await planStore.assignPlan('org-1', 'pro', planStart);
-    // Override: max 20 instead of plan's 10
+    // Override: max 20 instead of plan's 10 (keyed by limit key, not entitlement)
     await planStore.updateOverrides('org-1', {
-      'organization:create-project': { max: 20 },
+      projects: { max: 20 },
     });
 
     // Pre-consume 15 (above plan limit of 10, but below override of 20)
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
-    await walletStore.consume(
-      'org-1',
-      'organization:create-project',
-      periodStart,
-      periodEnd,
-      20,
-      15,
-    );
+    await walletStore.consume('org-1', 'projects', periodStart, periodEnd, 20, 15);
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -471,7 +419,6 @@ describe('Plans & Wallet — Per-customer overrides', () => {
     });
 
     // Should still be allowed because override raised the limit to 20
-    // Use organization resource where user has admin role directly
     const allowed = await ctx.can('organization:create-project', {
       type: 'organization',
       id: 'org-1',
@@ -493,14 +440,7 @@ describe('Plans & Wallet — AccessSet with limits', () => {
     await planStore.assignPlan('org-1', 'pro', planStart);
 
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
-    await walletStore.consume(
-      'org-1',
-      'organization:create-project',
-      periodStart,
-      periodEnd,
-      10,
-      3,
-    );
+    await walletStore.consume('org-1', 'projects', periodStart, periodEnd, 10, 3);
 
     const result = await computeAccessSet({
       userId: 'user-1',
@@ -528,14 +468,7 @@ describe('Plans & Wallet — AccessSet with limits', () => {
     await planStore.assignPlan('org-1', 'pro', planStart);
 
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
-    await walletStore.consume(
-      'org-1',
-      'organization:create-project',
-      periodStart,
-      periodEnd,
-      10,
-      5,
-    );
+    await walletStore.consume('org-1', 'projects', periodStart, periodEnd, 10, 5);
 
     const original = await computeAccessSet({
       userId: 'user-1',
@@ -584,20 +517,23 @@ describe('Plans & Wallet — E2E Acceptance: free -> exhaust -> upgrade -> succe
         },
       },
       entitlements: {
-        'organization:create-project': {
-          roles: ['admin', 'owner'],
-          plans: ['free', 'pro'],
-        },
+        'organization:create-project': { roles: ['admin', 'owner'] },
         'project:view': { roles: ['contributor', 'manager'] },
       },
       plans: {
         free: {
-          entitlements: ['organization:create-project', 'project:view'],
-          limits: { 'organization:create-project': { per: 'month', max: 5 } },
+          group: 'main',
+          features: ['organization:create-project', 'project:view'],
+          limits: {
+            projects: { max: 5, gates: 'organization:create-project', per: 'month' },
+          },
         },
         pro: {
-          entitlements: ['organization:create-project', 'project:view'],
-          limits: { 'organization:create-project': { per: 'month', max: 100 } },
+          group: 'main',
+          features: ['organization:create-project', 'project:view'],
+          limits: {
+            projects: { max: 100, gates: 'organization:create-project', per: 'month' },
+          },
         },
       },
     });

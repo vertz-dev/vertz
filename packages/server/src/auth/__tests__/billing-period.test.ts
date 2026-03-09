@@ -98,4 +98,50 @@ describe('calculateBillingPeriod', () => {
       expect(periodEnd).toEqual(new Date('2026-01-01T13:30:00Z'));
     });
   });
+
+  describe('quarterly', () => {
+    it('calculates quarterly period anchored to startedAt', () => {
+      const startedAt = new Date('2026-01-15T00:00:00Z');
+      const now = new Date('2026-05-20T00:00:00Z');
+
+      const { periodStart, periodEnd } = calculateBillingPeriod(startedAt, 'quarter', now);
+
+      // Started Jan 15, quarter = 3 months. Q1: Jan 15 - Apr 15, Q2: Apr 15 - Jul 15
+      expect(periodStart).toEqual(new Date('2026-04-15T00:00:00Z'));
+      expect(periodEnd).toEqual(new Date('2026-07-15T00:00:00Z'));
+    });
+
+    it('returns first quarter when now is within it', () => {
+      const startedAt = new Date('2026-01-15T00:00:00Z');
+      const now = new Date('2026-03-10T00:00:00Z');
+
+      const { periodStart, periodEnd } = calculateBillingPeriod(startedAt, 'quarter', now);
+
+      expect(periodStart).toEqual(new Date('2026-01-15T00:00:00Z'));
+      expect(periodEnd).toEqual(new Date('2026-04-15T00:00:00Z'));
+    });
+  });
+
+  describe('yearly', () => {
+    it('calculates yearly period anchored to startedAt', () => {
+      const startedAt = new Date('2024-03-15T00:00:00Z');
+      const now = new Date('2026-06-20T00:00:00Z');
+
+      const { periodStart, periodEnd } = calculateBillingPeriod(startedAt, 'year', now);
+
+      // Started Mar 15 2024, Y1: Mar 15 2024 - Mar 15 2025, Y2: Mar 15 2025 - Mar 15 2026, Y3: Mar 15 2026 - Mar 15 2027
+      expect(periodStart).toEqual(new Date('2026-03-15T00:00:00Z'));
+      expect(periodEnd).toEqual(new Date('2027-03-15T00:00:00Z'));
+    });
+
+    it('returns first year when now is within it', () => {
+      const startedAt = new Date('2026-06-01T00:00:00Z');
+      const now = new Date('2026-11-15T00:00:00Z');
+
+      const { periodStart, periodEnd } = calculateBillingPeriod(startedAt, 'year', now);
+
+      expect(periodStart).toEqual(new Date('2026-06-01T00:00:00Z'));
+      expect(periodEnd).toEqual(new Date('2027-06-01T00:00:00Z'));
+    });
+  });
 });
