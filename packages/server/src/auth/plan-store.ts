@@ -5,6 +5,8 @@
  * optional expiration, and per-customer limit overrides.
  */
 
+import type { AccessDefinition } from './define-access';
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -36,6 +38,14 @@ export interface PlanStore {
   getPlan(orgId: string): Promise<OrgPlan | null>;
   updateOverrides(orgId: string, overrides: Record<string, LimitOverride>): Promise<void>;
   removePlan(orgId: string): Promise<void>;
+  /** Attach an add-on to an org. */
+  attachAddOn?(orgId: string, addOnId: string): Promise<void>;
+  /** Detach an add-on from an org. */
+  detachAddOn?(orgId: string, addOnId: string): Promise<void>;
+  /** Get all active add-on IDs for an org. */
+  getAddOns?(orgId: string): Promise<string[]>;
+  /** List all org IDs assigned to a specific plan. */
+  listByPlan?(planId: string): Promise<string[]>;
   dispose(): void;
 }
 
@@ -82,6 +92,7 @@ export function resolveEffectivePlan(
 
 export class InMemoryPlanStore implements PlanStore {
   private plans = new Map<string, OrgPlan>();
+  private addOns = new Map<string, Set<string>>();
 
   async assignPlan(
     orgId: string,
@@ -112,7 +123,63 @@ export class InMemoryPlanStore implements PlanStore {
     this.plans.delete(orgId);
   }
 
+  async attachAddOn(orgId: string, addOnId: string): Promise<void> {
+    if (!this.addOns.has(orgId)) {
+      this.addOns.set(orgId, new Set());
+    }
+    this.addOns.get(orgId)!.add(addOnId);
+  }
+
+  async detachAddOn(orgId: string, addOnId: string): Promise<void> {
+    this.addOns.get(orgId)?.delete(addOnId);
+  }
+
+  async getAddOns(orgId: string): Promise<string[]> {
+    return [...(this.addOns.get(orgId) ?? [])];
+  }
+
+  async listByPlan(planId: string): Promise<string[]> {
+    const result: string[] = [];
+    for (const [orgId, plan] of this.plans.entries()) {
+      if (plan.planId === planId) {
+        result.push(orgId);
+      }
+    }
+    return result;
+  }
+
   dispose(): void {
     this.plans.clear();
+    this.addOns.clear();
   }
+}
+
+// ============================================================================
+// Add-on Compatibility
+// ============================================================================
+
+/**
+ * Check if an add-on is compatible with a given base plan.
+ * Returns true if the add-on has no `requires` or if the plan is in the requires list.
+ */
+export function checkAddOnCompatibility(
+  accessDef: AccessDefinition,
+  addOnId: string,
+  currentPlanId: string,
+): boolean {
+  const addOnDef = accessDef.plans?.[addOnId];
+  if (!addOnDef?.requires) return true; // No requirements — always compatible
+  return addOnDef.requires.plans.includes(currentPlanId);
+}
+
+/**
+ * Get add-ons that are incompatible with a target plan.
+ * Used to flag incompatible add-ons when a tenant downgrades.
+ */
+export function getIncompatibleAddOns(
+  accessDef: AccessDefinition,
+  activeAddOnIds: string[],
+  targetPlanId: string,
+): string[] {
+  return activeAddOnIds.filter((id) => !checkAddOnCompatibility(accessDef, id, targetPlanId));
 }

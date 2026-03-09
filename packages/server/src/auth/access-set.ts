@@ -13,6 +13,7 @@ import type { ClosureStore } from './closure-store';
 import type { AccessDefinition, DenialMeta, DenialReason } from './define-access';
 import type { FlagStore } from './flag-store';
 import { type PlanStore, resolveEffectivePlan } from './plan-store';
+import { resolveInheritedRole } from './resolve-inherited-role';
 import type { RoleAssignmentStore } from './role-assignment-store';
 import type { WalletStore } from './wallet-store';
 
@@ -189,60 +190,110 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
       if (effectivePlanId) {
         const planDef = accessDef.plans?.[effectivePlanId];
         if (planDef) {
-          for (const [name, entDef] of Object.entries(accessDef.entitlements)) {
-            // Plan check: if entitlement requires plans, verify plan includes it
-            if (entDef.plans?.length && !planDef.entitlements.includes(name)) {
+          // Compute effective features (base plan + add-ons)
+          const effectiveFeatures = new Set<string>(planDef.features ?? []);
+          const addOns = await planStore.getAddOns?.(orgId);
+          if (addOns) {
+            for (const addOnId of addOns) {
+              const addOnDef = accessDef.plans?.[addOnId];
+              if (addOnDef?.features) {
+                for (const f of addOnDef.features) effectiveFeatures.add(f);
+              }
+            }
+          }
+
+          for (const name of Object.keys(accessDef.entitlements)) {
+            // Plan check: if entitlement is plan-gated, verify effective features include it
+            if (accessDef._planGatedEntitlements.has(name) && !effectiveFeatures.has(name)) {
               const entry = entitlements[name];
               const reasons: DenialReason[] = [...entry.reasons];
               if (!reasons.includes('plan_required')) reasons.push('plan_required');
+              // Collect which plans include this entitlement
+              const requiredPlans: string[] = [];
+              for (const [pName, pDef] of Object.entries(accessDef.plans ?? {})) {
+                if (pDef.features?.includes(name)) requiredPlans.push(pName);
+              }
               entitlements[name] = {
                 ...entry,
                 allowed: false,
                 reasons,
                 reason: reasons[0],
-                meta: { ...entry.meta, requiredPlans: [...entDef.plans] },
+                meta: { ...entry.meta, requiredPlans },
               };
             }
 
             // Wallet check: add limit info if entitlement has limits
-            if (walletStore && planDef.limits?.[name]) {
-              const limitDef = planDef.limits[name];
-              const override = orgPlan.overrides[name];
-              const effectiveLimit = override ? Math.max(override.max, limitDef.max) : limitDef.max;
-              const { periodStart, periodEnd } = calculateBillingPeriod(
-                orgPlan.startedAt,
-                limitDef.per,
-              );
-              const consumed = await walletStore.getConsumption(
-                orgId,
-                name,
-                periodStart,
-                periodEnd,
-              );
-              const remaining = Math.max(0, effectiveLimit - consumed);
-              const entry = entitlements[name];
+            const limitKeys = accessDef._entitlementToLimitKeys[name];
+            if (walletStore && limitKeys?.length) {
+              // Use the first limit key for display in access set
+              // (multi-limit detail is for real-time checks, not JWT snapshots)
+              const limitKey = limitKeys[0];
+              const limitDef = planDef.limits?.[limitKey];
+              if (limitDef) {
+                // Compute effective max (base + add-ons + overrides)
+                let effectiveMax = limitDef.max;
+                if (addOns) {
+                  for (const addOnId of addOns) {
+                    const addOnDef = accessDef.plans?.[addOnId];
+                    const addOnLimit = addOnDef?.limits?.[limitKey];
+                    if (addOnLimit) {
+                      if (effectiveMax === -1) break;
+                      effectiveMax += addOnLimit.max;
+                    }
+                  }
+                }
+                const override = orgPlan.overrides[limitKey];
+                if (override) effectiveMax = Math.max(effectiveMax, override.max);
 
-              if (consumed >= effectiveLimit) {
-                const reasons: DenialReason[] = [...entry.reasons];
-                if (!reasons.includes('limit_reached')) reasons.push('limit_reached');
-                entitlements[name] = {
-                  ...entry,
-                  allowed: false,
-                  reasons,
-                  reason: reasons[0],
-                  meta: {
-                    ...entry.meta,
-                    limit: { max: effectiveLimit, consumed, remaining },
-                  },
-                };
-              } else {
-                entitlements[name] = {
-                  ...entry,
-                  meta: {
-                    ...entry.meta,
-                    limit: { max: effectiveLimit, consumed, remaining },
-                  },
-                };
+                if (effectiveMax === -1) {
+                  // Unlimited — no wallet check needed, but report in meta
+                  const entry = entitlements[name];
+                  entitlements[name] = {
+                    ...entry,
+                    meta: {
+                      ...entry.meta,
+                      limit: { key: limitKey, max: -1, consumed: 0, remaining: -1 },
+                    },
+                  };
+                } else {
+                  const period = limitDef.per
+                    ? calculateBillingPeriod(orgPlan.startedAt, limitDef.per)
+                    : {
+                        periodStart: orgPlan.startedAt,
+                        periodEnd: new Date('9999-12-31T23:59:59Z'),
+                      };
+                  const consumed = await walletStore.getConsumption(
+                    orgId,
+                    limitKey,
+                    period.periodStart,
+                    period.periodEnd,
+                  );
+                  const remaining = Math.max(0, effectiveMax - consumed);
+                  const entry = entitlements[name];
+
+                  if (consumed >= effectiveMax) {
+                    const reasons: DenialReason[] = [...entry.reasons];
+                    if (!reasons.includes('limit_reached')) reasons.push('limit_reached');
+                    entitlements[name] = {
+                      ...entry,
+                      allowed: false,
+                      reasons,
+                      reason: reasons[0],
+                      meta: {
+                        ...entry.meta,
+                        limit: { key: limitKey, max: effectiveMax, consumed, remaining },
+                      },
+                    };
+                  } else {
+                    entitlements[name] = {
+                      ...entry,
+                      meta: {
+                        ...entry.meta,
+                        limit: { key: limitKey, max: effectiveMax, consumed, remaining },
+                      },
+                    };
+                  }
+                }
               }
             }
           }
@@ -367,31 +418,4 @@ function addRole(map: Map<string, Set<string>>, resourceType: string, role: stri
     map.set(resourceType, roles);
   }
   roles.add(role);
-}
-
-/**
- * Walk the inheritance chain from a source resource type down to a target type.
- * Returns the inherited role at the target type, or null if no path exists.
- */
-function resolveInheritedRole(
-  sourceType: string,
-  sourceRole: string,
-  targetType: string,
-  accessDef: AccessDefinition,
-): string | null {
-  const hierarchy = accessDef.hierarchy;
-  const sourceIdx = hierarchy.indexOf(sourceType);
-  const targetIdx = hierarchy.indexOf(targetType);
-
-  if (sourceIdx === -1 || targetIdx === -1 || sourceIdx >= targetIdx) return null;
-
-  let currentRole = sourceRole;
-  for (let i = sourceIdx; i < targetIdx; i++) {
-    const currentType = hierarchy[i];
-    const inheritanceMap = accessDef.inheritance[currentType];
-    if (!inheritanceMap || !(currentRole in inheritanceMap)) return null;
-    currentRole = inheritanceMap[currentRole];
-  }
-
-  return currentRole;
 }

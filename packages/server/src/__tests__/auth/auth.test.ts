@@ -27,9 +27,10 @@ describe('Auth Module', () => {
         },
       );
 
-      it('should use bcrypt cost of 12', { timeout: 15_000 }, async () => {
+      it('should use appropriate bcrypt cost', { timeout: 15_000 }, async () => {
         const hash = await hashPassword('test');
-        expect(hash.startsWith('$2b$12$')).toBe(true);
+        const expectedPrefix = process.env.VERTZ_TEST === '1' ? '$2b$04$' : '$2b$12$';
+        expect(hash.startsWith(expectedPrefix)).toBe(true);
       });
     });
 

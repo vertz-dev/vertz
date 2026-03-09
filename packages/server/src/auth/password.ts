@@ -14,7 +14,7 @@ const DEFAULT_PASSWORD_REQUIREMENTS: PasswordRequirements = {
   requireSymbols: false,
 };
 
-const BCRYPT_ROUNDS = 12;
+const BCRYPT_ROUNDS = process.env.VERTZ_TEST === '1' ? 4 : 12;
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, BCRYPT_ROUNDS);

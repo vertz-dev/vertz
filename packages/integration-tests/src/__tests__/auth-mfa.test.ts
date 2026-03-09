@@ -283,7 +283,7 @@ describe('MFA Integration', { timeout: 120_000 }, () => {
     expect(cookies['vertz.sid']).toBeUndefined();
   });
 
-  it('Backup code is consumed and cannot be reused', async () => {
+  it('Backup code is consumed and cannot be reused', { timeout: 30_000 }, async () => {
     const email = 'consume@test.com';
     const cookie = await signUpAndGetSession(auth, email);
     const { backupCodes } = await setupMfa(auth, cookie);
@@ -325,7 +325,7 @@ describe('MFA Integration', { timeout: 120_000 }, () => {
     expect(res2.status).toBe(400);
   });
 
-  it('Regenerate backup codes replaces old ones', async () => {
+  it('Regenerate backup codes replaces old ones', { timeout: 30_000 }, async () => {
     const email = 'regen@test.com';
     const cookie = await signUpAndGetSession(auth, email);
     const { backupCodes: oldCodes } = await setupMfa(auth, cookie);

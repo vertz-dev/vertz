@@ -24,7 +24,15 @@ export function calculateBillingPeriod(
   now: Date = new Date(),
 ): Period {
   if (per === 'month') {
-    return calculateMonthlyPeriod(startedAt, now);
+    return calculateMultiMonthPeriod(startedAt, now, 1);
+  }
+
+  if (per === 'quarter') {
+    return calculateMultiMonthPeriod(startedAt, now, 3);
+  }
+
+  if (per === 'year') {
+    return calculateMultiMonthPeriod(startedAt, now, 12);
   }
 
   // day / hour — fixed duration
@@ -37,30 +45,33 @@ export function calculateBillingPeriod(
   return { periodStart, periodEnd };
 }
 
-function calculateMonthlyPeriod(startedAt: Date, now: Date): Period {
+function calculateMultiMonthPeriod(startedAt: Date, now: Date, monthInterval: number): Period {
   // Guard: if now is before startedAt, return the first period
   if (now.getTime() < startedAt.getTime()) {
-    return { periodStart: new Date(startedAt), periodEnd: addMonths(startedAt, 1) };
+    return { periodStart: new Date(startedAt), periodEnd: addMonths(startedAt, monthInterval) };
   }
-
-  // Walk months from startedAt until we find the period containing now
-  let periodStart = new Date(startedAt);
 
   // Fast-forward: calculate approximate months elapsed (UTC consistently)
   const approxMonths =
     (now.getUTCFullYear() - startedAt.getUTCFullYear()) * 12 +
     (now.getUTCMonth() - startedAt.getUTCMonth());
 
-  // Start from approximate position (may need to adjust by 1)
-  if (approxMonths > 0) {
-    periodStart = addMonths(startedAt, approxMonths);
-    // If we overshot, go back one month
-    if (periodStart.getTime() > now.getTime()) {
-      periodStart = addMonths(startedAt, approxMonths - 1);
-    }
+  // Align to the interval boundary
+  const periodsElapsed = Math.floor(approxMonths / monthInterval);
+  let periodStart = addMonths(startedAt, periodsElapsed * monthInterval);
+
+  // If we overshot, go back one interval
+  if (periodStart.getTime() > now.getTime()) {
+    periodStart = addMonths(startedAt, (periodsElapsed - 1) * monthInterval);
   }
 
-  const periodEnd = addMonths(startedAt, getMonthOffset(startedAt, periodStart) + 1);
+  // If the next period start is before now, move forward one interval
+  const nextStart = addMonths(startedAt, (periodsElapsed + 1) * monthInterval);
+  if (nextStart.getTime() <= now.getTime()) {
+    periodStart = nextStart;
+  }
+
+  const periodEnd = addMonths(startedAt, getMonthOffset(startedAt, periodStart) + monthInterval);
 
   return { periodStart, periodEnd };
 }

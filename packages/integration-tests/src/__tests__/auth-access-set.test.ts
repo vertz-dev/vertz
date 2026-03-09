@@ -1,5 +1,5 @@
 /**
- * Integration test — Access Set Bootstrap + Client-Side can() [#1021]
+ * Integration test — Access Set Bootstrap + Client-Side can() [#1072]
  *
  * Validates Phase 7 end-to-end:
  * - Server computes access set and embeds in JWT acl claim
@@ -29,26 +29,37 @@ import {
 import { signal } from '@vertz/ui';
 
 // ============================================================================
-// Setup
+// Setup — entity-centric config
 // ============================================================================
 
 const accessDef = defineAccess({
-  hierarchy: ['Organization', 'Team', 'Project'],
-  roles: {
-    Organization: ['owner', 'admin', 'member'],
-    Team: ['lead', 'editor', 'viewer'],
-    Project: ['manager', 'contributor', 'viewer'],
-  },
-  inheritance: {
-    Organization: { owner: 'lead', admin: 'editor', member: 'viewer' },
-    Team: { lead: 'manager', editor: 'contributor', viewer: 'viewer' },
+  entities: {
+    organization: {
+      roles: ['owner', 'admin', 'member'],
+    },
+    team: {
+      roles: ['lead', 'editor', 'viewer'],
+      inherits: {
+        'organization:owner': 'lead',
+        'organization:admin': 'editor',
+        'organization:member': 'viewer',
+      },
+    },
+    project: {
+      roles: ['manager', 'contributor', 'viewer'],
+      inherits: {
+        'team:lead': 'manager',
+        'team:editor': 'contributor',
+        'team:viewer': 'viewer',
+      },
+    },
   },
   entitlements: {
-    'project:create': { roles: ['admin', 'owner'] },
+    'organization:create-project': { roles: ['admin', 'owner'] },
     'project:view': { roles: ['viewer', 'contributor', 'manager'] },
     'project:edit': { roles: ['contributor', 'manager'] },
     'project:delete': { roles: ['manager'] },
-    'app:use': { roles: [] },
+    'organization:use': { roles: [] },
   },
 });
 
@@ -77,7 +88,7 @@ function createTestAuth() {
 describe('Access Set — Server Integration', () => {
   it('signUp with access config -> access-set endpoint returns computed entitlements', async () => {
     const { auth, closureStore } = createTestAuth();
-    await closureStore.addResource('Organization', 'org-1');
+    await closureStore.addResource('organization', 'org-1');
 
     const result = await auth.api.signUp({
       email: 'test@example.com',
@@ -98,16 +109,15 @@ describe('Access Set — Server Integration', () => {
 
     const body = await response.json();
     expect(body.accessSet).toBeDefined();
-    expect(body.accessSet.entitlements).toBeDefined();
-    // 'app:use' has empty roles array — auto-granted
-    expect(body.accessSet.entitlements['app:use'].allowed).toBe(true);
+    // 'organization:use' has empty roles array — auto-granted
+    expect(body.accessSet.entitlements['organization:use'].allowed).toBe(true);
     // ETag header is present (proves JWT had acl hash)
     expect(response.headers.get('ETag')).toBeTruthy();
   });
 
   it('GET /api/auth/access-set returns full access set for authenticated user', async () => {
     const { auth, roleStore, closureStore } = createTestAuth();
-    await closureStore.addResource('Organization', 'org-1');
+    await closureStore.addResource('organization', 'org-1');
 
     const signUpResult = await auth.api.signUp({
       email: 'test2@example.com',
@@ -116,7 +126,7 @@ describe('Access Set — Server Integration', () => {
     expect(signUpResult.ok).toBe(true);
     if (!signUpResult.ok) return;
 
-    await roleStore.assign(signUpResult.data.user.id, 'Organization', 'org-1', 'admin');
+    await roleStore.assign(signUpResult.data.user.id, 'organization', 'org-1', 'admin');
 
     const request = new Request('http://localhost/api/auth/access-set', {
       headers: { Cookie: `vertz.sid=${signUpResult.data.tokens?.jwt}` },
@@ -126,22 +136,22 @@ describe('Access Set — Server Integration', () => {
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body.accessSet).toBeDefined();
-    expect(body.accessSet.entitlements['project:create'].allowed).toBe(true);
-    expect(body.accessSet.entitlements['app:use'].allowed).toBe(true);
+    expect(body.accessSet.entitlements['organization:create-project'].allowed).toBe(true);
+    expect(body.accessSet.entitlements['organization:use'].allowed).toBe(true);
   });
 
   it('computeEntityAccess returns per-entity access metadata', async () => {
     const { roleStore, closureStore } = createTestAuth();
-    await closureStore.addResource('Organization', 'org-1');
-    await closureStore.addResource('Team', 'team-1', {
-      parentType: 'Organization',
+    await closureStore.addResource('organization', 'org-1');
+    await closureStore.addResource('team', 'team-1', {
+      parentType: 'organization',
       parentId: 'org-1',
     });
-    await closureStore.addResource('Project', 'proj-1', {
-      parentType: 'Team',
+    await closureStore.addResource('project', 'proj-1', {
+      parentType: 'team',
       parentId: 'team-1',
     });
-    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -152,7 +162,7 @@ describe('Access Set — Server Integration', () => {
 
     const entityAccess = await computeEntityAccess(
       ['project:view', 'project:edit', 'project:delete'],
-      { type: 'Project', id: 'proj-1' },
+      { type: 'project', id: 'proj-1' },
       ctx,
     );
 
@@ -164,8 +174,8 @@ describe('Access Set — Server Integration', () => {
 
   it('type drift check: server-encoded AccessSet can be deserialized by client types', async () => {
     const { roleStore, closureStore } = createTestAuth();
-    await closureStore.addResource('Organization', 'org-1');
-    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await closureStore.addResource('organization', 'org-1');
+    await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
 
     const accessSet = await computeAccessSet({
       userId: 'user-1',
@@ -185,10 +195,10 @@ describe('Access Set — Server Integration', () => {
 
     // Verify structure matches
     expect(decoded.plan).toBe('pro');
-    expect(decoded.entitlements['project:create'].allowed).toBe(
-      accessSet.entitlements['project:create'].allowed,
+    expect(decoded.entitlements['organization:create-project'].allowed).toBe(
+      accessSet.entitlements['organization:create-project'].allowed,
     );
-    expect(decoded.entitlements['app:use'].allowed).toBe(true);
+    expect(decoded.entitlements['organization:use'].allowed).toBe(true);
   });
 });
 

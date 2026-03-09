@@ -20,7 +20,11 @@ export type ClientAccessEvent =
       max: number;
     }
   | { type: 'access:role_changed' }
-  | { type: 'access:plan_changed' };
+  | { type: 'access:plan_changed' }
+  | { type: 'access:plan_assigned'; planId: string }
+  | { type: 'access:addon_attached'; addonId: string }
+  | { type: 'access:addon_detached'; addonId: string }
+  | { type: 'access:limit_reset'; entitlement: string; max: number };
 
 export interface AccessEventClientOptions {
   /** WebSocket URL. Defaults to deriving from window.location. */

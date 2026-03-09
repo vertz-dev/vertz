@@ -3,7 +3,14 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test-d.ts"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.test-d.ts",
+    "**/*.tests.ts",
+    "**/__tests__/test-*.ts"
+  ],
   "extends": "../../tsconfig.json",
   "include": ["src"]
 }

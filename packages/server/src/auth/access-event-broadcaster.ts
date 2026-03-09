@@ -22,7 +22,11 @@ export type AccessEvent =
       max: number;
     }
   | { type: 'access:role_changed'; userId: string }
-  | { type: 'access:plan_changed'; orgId: string };
+  | { type: 'access:plan_changed'; orgId: string }
+  | { type: 'access:plan_assigned'; orgId: string; planId: string }
+  | { type: 'access:addon_attached'; orgId: string; addonId: string }
+  | { type: 'access:addon_detached'; orgId: string; addonId: string }
+  | { type: 'access:limit_reset'; orgId: string; entitlement: string; max: number };
 
 export interface AccessWsData {
   userId: string;
@@ -55,6 +59,10 @@ export interface AccessEventBroadcaster {
   ): void;
   broadcastRoleChange(userId: string): void;
   broadcastPlanChange(orgId: string): void;
+  broadcastPlanAssigned(orgId: string, planId: string): void;
+  broadcastAddonAttached(orgId: string, addonId: string): void;
+  broadcastAddonDetached(orgId: string, addonId: string): void;
+  broadcastLimitReset(orgId: string, entitlement: string, max: number): void;
   getConnectionCount: number;
 }
 
@@ -253,6 +261,26 @@ export function createAccessEventBroadcaster(
     broadcastToOrg(orgId, JSON.stringify(event));
   }
 
+  function broadcastPlanAssigned(orgId: string, planId: string): void {
+    const event: AccessEvent = { type: 'access:plan_assigned', orgId, planId };
+    broadcastToOrg(orgId, JSON.stringify(event));
+  }
+
+  function broadcastAddonAttached(orgId: string, addonId: string): void {
+    const event: AccessEvent = { type: 'access:addon_attached', orgId, addonId };
+    broadcastToOrg(orgId, JSON.stringify(event));
+  }
+
+  function broadcastAddonDetached(orgId: string, addonId: string): void {
+    const event: AccessEvent = { type: 'access:addon_detached', orgId, addonId };
+    broadcastToOrg(orgId, JSON.stringify(event));
+  }
+
+  function broadcastLimitReset(orgId: string, entitlement: string, max: number): void {
+    const event: AccessEvent = { type: 'access:limit_reset', orgId, entitlement, max };
+    broadcastToOrg(orgId, JSON.stringify(event));
+  }
+
   return {
     handleUpgrade,
     websocket,
@@ -260,6 +288,10 @@ export function createAccessEventBroadcaster(
     broadcastLimitUpdate,
     broadcastRoleChange,
     broadcastPlanChange,
+    broadcastPlanAssigned,
+    broadcastAddonAttached,
+    broadcastAddonDetached,
+    broadcastLimitReset,
     get getConnectionCount() {
       return connectionCount;
     },

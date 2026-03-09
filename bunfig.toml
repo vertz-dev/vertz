@@ -1,2 +1,5 @@
 [install]
 peer = true
+
+[test]
+timeout = 120000

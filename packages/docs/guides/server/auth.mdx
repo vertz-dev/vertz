@@ -277,6 +277,19 @@ The `rules` object provides declarative access rule builders for entity access d
 import { rules } from '@vertz/server';
 ```
 
+### `rules.public`
+
+Marks an endpoint as public — no authentication required. This is a constant (not a function call).
+
+```ts
+const posts = entity('posts', {
+  model: postsModel,
+  access: {
+    list: rules.public,
+  },
+});
+```
+
 ### `rules.authenticated()`
 
 Requires the user to be authenticated. No specific role is needed.
@@ -401,6 +414,61 @@ try {
 | `message` | `string` | Human-readable error message |
 | `name` | `string` | Always `'AuthorizationError'` |
 
+## DB-backed stores
+
+When you pass both `db` and `auth` to `createServer()`, Vertz auto-wires DB-backed stores and returns a `ServerInstance` with `.auth` and `.initialize()`:
+
+```ts
+import { authModels, createAuth, createDb, createServer } from '@vertz/server';
+
+const db = createDb({
+  dialect: 'sqlite',
+  models: {
+    ...authModels,  // sessions, users, oauth_accounts, etc.
+    // ... your app models
+  },
+});
+
+const auth = createAuth({
+  session: { strategy: 'jwt', ttl: '60s' },
+});
+
+const app = createServer({
+  entities: [/* ... */],
+  db,
+  auth,
+});
+
+// Initialize creates auth tables if they don't exist
+await app.initialize();
+
+// Access the auth instance
+const session = await app.auth.api.signUp({
+  email: 'alice@example.com',
+  password: 'hunter2',
+});
+```
+
+The `authModels` export provides table definitions for all auth stores: sessions, users, OAuth accounts, role assignments, closure table entries, plan assignments, flags, and more. These are registered in your `createDb()` call alongside your application models.
+
+### Individual DB stores
+
+If you need finer control, you can use the DB-backed store classes directly:
+
+```ts
+import {
+  DbUserStore,
+  DbSessionStore,
+  DbRoleAssignmentStore,
+  DbClosureStore,
+  DbFlagStore,
+  DbPlanStore,
+  DbOAuthAccountStore,
+} from '@vertz/server';
+```
+
+Each accepts a database client and provides the same interface as its in-memory counterpart.
+
 ## Pluggable stores
 
 All storage is abstracted behind interfaces. The defaults use in-memory stores — swap them for database-backed implementations in production.
@@ -480,26 +548,34 @@ Beyond basic `ctx.authenticated()` and `ctx.role()` checks, Vertz provides a ful
 
 ### Defining the access model
 
-`defineAccess()` declares your entire authorization model in one place:
+`defineAccess()` declares your entire authorization model in one place. The API is **entity-centric** — each entity is a self-contained group with its own roles. Hierarchy is inferred from `inherits` declarations.
 
 ```ts
 import { defineAccess } from '@vertz/server';
 
 const access = defineAccess({
-  // Resource hierarchy — parent to child
-  hierarchy: ['org', 'workspace', 'project'],
-
-  // Roles per resource type
-  roles: {
-    org: ['owner', 'admin', 'member'],
-    workspace: ['admin', 'editor', 'viewer'],
-    project: ['manager', 'contributor', 'viewer'],
-  },
-
-  // Role inheritance — parent role maps to child role
-  inheritance: {
-    org: { owner: 'admin', admin: 'editor', member: 'viewer' },
-    workspace: { admin: 'manager', editor: 'contributor', viewer: 'viewer' },
+  // Entities — each defines its own roles and inheritance
+  entities: {
+    organization: {
+      roles: ['owner', 'admin', 'member'],
+    },
+    workspace: {
+      roles: ['admin', 'editor', 'viewer'],
+      // Parent role → child role mapping
+      inherits: {
+        'organization:owner': 'admin',
+        'organization:admin': 'editor',
+        'organization:member': 'viewer',
+      },
+    },
+    project: {
+      roles: ['manager', 'contributor', 'viewer'],
+      inherits: {
+        'workspace:admin': 'manager',
+        'workspace:editor': 'contributor',
+        'workspace:viewer': 'viewer',
+      },
+    },
   },
 
   // Entitlements — map to required roles (and optionally plans)
@@ -513,7 +589,7 @@ const access = defineAccess({
 });
 ```
 
-The hierarchy, roles, and inheritance work together. If a user is an `owner` on an `org`, they inherit `admin` on all `workspace` children, which inherits `manager` on all `project` grandchildren. No need to assign roles at every level.
+The hierarchy is inferred from `inherits` declarations. If a user is an `owner` on an `organization`, they inherit `admin` on all `workspace` children (via `'organization:owner': 'admin'`), which inherits `manager` on all `project` grandchildren. No need to assign roles at every level.
 
 ### 5-layer resolution
 
@@ -605,31 +681,35 @@ Extend `defineAccess()` with plans to gate entitlements by subscription tier and
 
 ### Defining plans
 
+Plans use a **feature-based** shape. Each plan declares which entitlements it unlocks (`features`) and what usage limits apply. Plans are organized into `group`s — a tenant can only have one base plan per group active at a time.
+
 ```ts
 const access = defineAccess({
-  hierarchy: ['org', 'workspace', 'project'],
-  roles: { /* ... */ },
+  entities: { /* ... */ },
   entitlements: {
-    'ai:generate':  { roles: ['editor'], plans: ['pro', 'enterprise'] },
-    'export:pdf':   { roles: ['viewer'], plans: ['pro', 'enterprise'] },
-    'members:invite': { roles: ['admin'], plans: ['free', 'pro', 'enterprise'] },
+    'ai:generate':    { roles: ['editor'] },
+    'export:pdf':     { roles: ['viewer'] },
+    'members:invite': { roles: ['admin'] },
   },
   plans: {
     free: {
-      entitlements: ['members:invite'],
+      group: 'main',
+      features: ['members:invite'],
       limits: {
-        'members:invite': { per: 'month', max: 5 },
+        'invite-limit': { gates: 'members:invite', per: 'month', max: 5 },
       },
     },
     pro: {
-      entitlements: ['ai:generate', 'export:pdf', 'members:invite'],
+      group: 'main',
+      features: ['ai:generate', 'export:pdf', 'members:invite'],
       limits: {
-        'ai:generate': { per: 'month', max: 1000 },
-        'members:invite': { per: 'month', max: 50 },
+        'ai-limit': { gates: 'ai:generate', per: 'month', max: 1000 },
+        'invite-limit': { gates: 'members:invite', per: 'month', max: 50 },
       },
     },
     enterprise: {
-      entitlements: ['ai:generate', 'export:pdf', 'members:invite'],
+      group: 'main',
+      features: ['ai:generate', 'export:pdf', 'members:invite'],
       // no limits — unlimited usage
     },
   },
@@ -637,7 +717,34 @@ const access = defineAccess({
 });
 ```
 
-Billing periods are `'month'`, `'day'`, or `'hour'`. Periods are anchored to the org's plan start date, not calendar months.
+Billing periods are `'month'`, `'day'`, `'hour'`, `'quarter'`, or `'year'`. Periods are anchored to the org's plan start date, not calendar months.
+
+#### Plan groups and add-ons
+
+Base plans have a `group` — only one base plan per group can be active. **Add-ons** are supplementary plans that can be stacked on top of a base plan:
+
+```ts
+plans: {
+  pro: {
+    group: 'main',
+    features: ['ai:generate'],
+    limits: {
+      'ai-limit': { gates: 'ai:generate', per: 'month', max: 1000 },
+    },
+  },
+  'ai-boost': {
+    addOn: true,
+    features: ['ai:generate'],
+    limits: {
+      'ai-limit': { gates: 'ai:generate', per: 'month', max: 5000 },
+    },
+    // Optional: restrict which base plans this add-on works with
+    requires: { group: 'main', plans: ['pro', 'enterprise'] },
+  },
+}
+```
+
+Add-on limits are **additive** — if the base plan has 1000 and the add-on adds 5000, the effective limit is 6000.
 
 ### PlanStore
 
