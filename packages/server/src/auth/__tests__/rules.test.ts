@@ -81,6 +81,17 @@ describe('rules builders', () => {
     });
   });
 
+  describe('rules.public', () => {
+    it('is a frozen object with type "public"', () => {
+      expect(rules.public).toEqual({ type: 'public' });
+      expect(Object.isFrozen(rules.public)).toBe(true);
+    });
+
+    it('is a constant (same reference every time)', () => {
+      expect(rules.public).toBe(rules.public);
+    });
+  });
+
   describe('rules.user markers', () => {
     it('has id marker', () => {
       expect(rules.user.id).toEqual({ __marker: 'user.id' });

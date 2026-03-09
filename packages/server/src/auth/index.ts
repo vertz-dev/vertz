@@ -2236,6 +2236,7 @@ export type {
   AuthenticatedRule,
   EntitlementRule,
   FvaRule,
+  PublicRule,
   RoleRule,
   UserMarker,
   WhereRule,

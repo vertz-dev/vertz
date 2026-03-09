@@ -9,6 +9,7 @@ import type { AccessRule, BaseContext } from './types';
  *
  * - No rule defined → deny (deny by default)
  * - Rule is false → operation is disabled
+ * - Rule is { type: 'public' } → always allow
  * - Rule is a function → evaluate and deny if returns false
  */
 export async function enforceAccess(
@@ -32,10 +33,14 @@ export async function enforceAccess(
   }
 
   // Function rule — evaluate
-  const allowed = await rule(ctx, row ?? {});
-  if (!allowed) {
-    return err(new EntityForbiddenError(`Access denied for operation "${operation}"`));
+  if (typeof rule === 'function') {
+    const allowed = await rule(ctx, row ?? {});
+    if (!allowed) {
+      return err(new EntityForbiddenError(`Access denied for operation "${operation}"`));
+    }
+    return ok(undefined);
   }
 
+  // Public rule — always allow
   return ok(undefined);
 }
