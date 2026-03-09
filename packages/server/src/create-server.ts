@@ -6,6 +6,12 @@ import {
   type EntityDbAdapter,
   type ModelEntry,
 } from '@vertz/db';
+import { initializeAuthTables, validateAuthModels } from './auth/auth-tables';
+import { DbSessionStore } from './auth/db-session-store';
+import type { AuthDbClient } from './auth/db-types';
+import { DbUserStore } from './auth/db-user-store';
+import { createAuth } from './auth/index';
+import type { AuthConfig, AuthInstance } from './auth/types';
 import type { EntityOperations } from './entity/entity-operations';
 import { EntityRegistry } from './entity/entity-registry';
 import { stripHiddenFields } from './entity/field-filter';
@@ -32,6 +38,15 @@ function isDatabaseClient(
 }
 
 // ---------------------------------------------------------------------------
+// ServerInstance — extended return type when db + auth are provided
+// ---------------------------------------------------------------------------
+
+export interface ServerInstance extends AppBuilder {
+  auth: AuthInstance;
+  initialize(): Promise<void>;
+}
+
+// ---------------------------------------------------------------------------
 // Extended config for @vertz/server's createServer
 // ---------------------------------------------------------------------------
 
@@ -49,6 +64,8 @@ export interface ServerConfig extends Omit<AppConfig, '_entityDbFactory' | 'enti
   db?: DatabaseClient<Record<string, ModelEntry>> | EntityDbAdapter;
   /** @internal Factory to create a DB adapter for each entity. Prefer `db` instead. */
   _entityDbFactory?: (entityDef: EntityDefinition) => EntityDbAdapter;
+  /** Auth configuration — when combined with db, auto-wires DB-backed stores */
+  auth?: AuthConfig;
 }
 
 // ---------------------------------------------------------------------------
@@ -127,20 +144,37 @@ function createEntityOps(entityDef: EntityDefinition, db: EntityDbAdapter): Enti
 /**
  * Creates an HTTP server with entity route generation.
  * Wraps @vertz/core's createServer to inject entity CRUD handlers.
+ *
+ * When both `db` (DatabaseClient) and `auth` are provided:
+ * - Validates auth models are registered in the DatabaseClient
+ * - Auto-wires DB-backed UserStore and SessionStore
+ * - Returns ServerInstance with `.auth` and `.initialize()`
  */
-export function createServer(config: ServerConfig): AppBuilder {
+export function createServer(config: ServerConfig): AppBuilder;
+export function createServer(
+  config: ServerConfig & { db: DatabaseClient<Record<string, ModelEntry>>; auth: AuthConfig },
+): ServerInstance;
+export function createServer(config: ServerConfig): AppBuilder | ServerInstance {
   const allRoutes: EntityRouteEntry[] = [];
   const registry = new EntityRegistry();
   const apiPrefix = config.apiPrefix === undefined ? '/api' : config.apiPrefix;
+  const { db } = config;
+  const hasDbClient = db && isDatabaseClient(db);
+
+  // ---------------------------------------------------------------------------
+  // Auth model validation — when both db (DatabaseClient) and auth are provided
+  // ---------------------------------------------------------------------------
+  if (hasDbClient && config.auth) {
+    validateAuthModels(db as AuthDbClient);
+  }
 
   // Process entities first (so registry has all entities registered for DI)
   if (config.entities && config.entities.length > 0) {
-    const { db } = config;
     let dbFactory: (entityDef: EntityDefinition) => EntityDbAdapter;
 
-    if (db && isDatabaseClient(db)) {
+    if (hasDbClient) {
       // Validate all entity models are registered in the DatabaseClient
-      const dbModels = db._internals.models;
+      const dbModels = (db as DatabaseClient<Record<string, ModelEntry>>)._internals.models;
       const missing = config.entities
         .filter((e) => !(e.name in dbModels))
         .map((e) => `"${e.name}"`);
@@ -192,8 +226,38 @@ export function createServer(config: ServerConfig): AppBuilder {
     }
   }
 
-  return coreCreateServer({
+  const app = coreCreateServer({
     ...config,
     _entityRoutes: allRoutes.length > 0 ? allRoutes : undefined,
   } as AppConfig);
+
+  // ---------------------------------------------------------------------------
+  // Wire auth with DB-backed stores when db + auth are provided
+  // ---------------------------------------------------------------------------
+  if (hasDbClient && config.auth) {
+    const dbClient = db as AuthDbClient;
+    const authConfig: AuthConfig = {
+      ...config.auth,
+      // Auto-wire DB-backed stores unless explicitly overridden
+      userStore: config.auth.userStore ?? new DbUserStore(dbClient),
+      sessionStore: config.auth.sessionStore ?? new DbSessionStore(dbClient),
+    };
+
+    const auth = createAuth(authConfig);
+
+    const serverInstance = app as AppBuilder & {
+      auth: AuthInstance;
+      initialize: () => Promise<void>;
+    };
+
+    serverInstance.auth = auth;
+    serverInstance.initialize = async () => {
+      await initializeAuthTables(dbClient);
+      await auth.initialize();
+    };
+
+    return serverInstance as ServerInstance;
+  }
+
+  return app;
 }

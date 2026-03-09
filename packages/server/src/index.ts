@@ -169,7 +169,7 @@ export {
   verifyPassword,
 } from './auth';
 // Server — wraps core's createServer with entity route generation
-export type { ServerConfig } from './create-server';
+export type { ServerConfig, ServerInstance } from './create-server';
 export { createServer } from './create-server';
 // Entity API
 export type {
