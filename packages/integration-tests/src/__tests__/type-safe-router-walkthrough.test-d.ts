@@ -48,17 +48,16 @@ const routes = defineRoutes({
 const router = createRouter(routes);
 
 // Valid route patterns
-router.navigate({ to: '/' });
-router.navigate({ to: '/tasks/:id', params: { id: '42' } });
-router.navigate({
-  to: '/users/:userId/posts/:postId',
+router.navigate('/');
+router.navigate('/tasks/:id', { params: { id: '42' } });
+router.navigate('/users/:userId/posts/:postId', {
   params: { postId: '99', userId: '1' },
 });
-router.navigate({ to: '/settings' });
-router.navigate({ to: '/files/*', params: { '*': 'docs/readme.md' } });
+router.navigate('/settings');
+router.navigate('/files/*', { params: { '*': 'docs/readme.md' } });
 
 // @ts-expect-error - invalid route pattern
-router.navigate({ to: '/nonexistent' });
+router.navigate('/nonexistent');
 
 // ─── Phase 4: useParams + useRouter<InferRouteMap> ────────────────────────────
 
@@ -73,10 +72,10 @@ void _badParam;
 
 // useRouter with InferRouteMap
 const typedRouter = useRouter<InferRouteMap<typeof routes>>();
-typedRouter.navigate({ to: '/tasks/:id', params: { id: '42' } });
+typedRouter.navigate('/tasks/:id', { params: { id: '42' } });
 
 // @ts-expect-error - invalid route pattern via InferRouteMap
-typedRouter.navigate({ to: '/nonexistent' });
+typedRouter.navigate('/nonexistent');
 
 // TypedRouter assignable to Router (backward compat)
 const _asRouter: Router = router;

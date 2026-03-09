@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -9,8 +8,6 @@ import type { CodegenIR } from '../../types';
 import { RouterAugmentationGenerator } from '../router-augmentation-generator';
 
 const execFileAsync = promisify(execFile);
-const require = createRequire(import.meta.url);
-const tscBin = require.resolve('typescript/bin/tsc');
 
 function createEmptyIR(): CodegenIR {
   return {
@@ -196,7 +193,7 @@ describe('RouterAugmentationGenerator', () => {
         '  }',
         '  export type UnwrapSignals<T> = T;',
         '  export function defineRoutes<const T extends Record<string, RouteConfigLike>>(map: T): TypedRoutes<T>;',
-        '  export function useRouter<T extends Record<string, RouteConfigLike> = Record<string, RouteConfigLike>>(): UnwrapSignals<TypedRouter<T>>;',
+        "  export function useRouter<T extends Record<string, RouteConfigLike> = Record<string, RouteConfigLike>>(): UnwrapSignals<TypedRouter<T>>;",
         '}',
         "declare module '@vertz/ui/router' {",
         "  export { useRouter } from '@vertz/ui';",
@@ -227,7 +224,7 @@ describe('RouterAugmentationGenerator', () => {
         "router.navigate('/');",
         "router.navigate('/tasks/new');",
         '',
-        '// @ts-expect-error invalid route should be rejected by generated augmentation',
+        "// @ts-expect-error invalid route should be rejected by generated augmentation",
         "router.navigate('/bad');",
         '',
       ].join('\n'),
@@ -240,16 +237,8 @@ describe('RouterAugmentationGenerator', () => {
     });
 
     expect(files).toHaveLength(1);
-    const generatedRouter = files[0];
-    expect(generatedRouter).toBeDefined();
-    if (!generatedRouter) {
-      throw new Error('Expected router augmentation file to be generated');
-    }
     await mkdir(join(projectRoot, '.vertz', 'generated'), { recursive: true });
-    await writeFile(
-      join(projectRoot, '.vertz', 'generated', 'router.d.ts'),
-      generatedRouter.content,
-    );
+    await writeFile(join(projectRoot, '.vertz', 'generated', 'router.d.ts'), files[0]!.content);
     await writeFile(
       join(projectRoot, 'tsconfig.json'),
       JSON.stringify(
@@ -266,10 +255,11 @@ describe('RouterAugmentationGenerator', () => {
         2,
       ),
     );
+
     await expect(
-      execFileAsync(process.execPath, [tscBin, '-p', 'tsconfig.json'], { cwd: projectRoot }),
+      execFileAsync('bunx', ['tsc', '-p', 'tsconfig.json'], { cwd: projectRoot }),
     ).resolves.toMatchObject({
       stderr: '',
     });
-  }, 15_000);
+  });
 });

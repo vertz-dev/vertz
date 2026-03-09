@@ -63,7 +63,7 @@ export function TaskListPage() {
           type="button"
           class={button({ intent: 'primary', size: 'md' })}
           data-testid="create-task-btn"
-          onClick={() => navigate({ to: '/tasks/new' })}
+          onClick={() => navigate('/tasks/new')}
         >
           <PlusIcon size={14} />
           New Task
@@ -105,7 +105,7 @@ export function TaskListPage() {
                 <button
                   type="button"
                   class={button({ intent: 'primary', size: 'md' })}
-                  onClick={() => navigate({ to: '/tasks/new' })}
+                  onClick={() => navigate('/tasks/new')}
                 >
                   Create Task
                 </button>
@@ -119,7 +119,7 @@ export function TaskListPage() {
                 <TaskCard
                   key={task.id}
                   task={task}
-                  onClick={(id) => navigate({ to: '/tasks/:id', params: { id } })}
+                  onClick={(id) => navigate('/tasks/:id', { params: { id } })}
                 />
               ))}
             </div>
