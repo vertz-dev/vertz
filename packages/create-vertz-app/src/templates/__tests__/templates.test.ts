@@ -33,13 +33,10 @@ describe('templates', () => {
       expect(pkg.name).toBe('my-app');
     });
 
-    it('includes full-stack dependencies', () => {
+    it('uses vertz meta-package as single dependency', () => {
       const result = packageJsonTemplate('test-app');
       const pkg = JSON.parse(result);
-      expect(pkg.dependencies['@vertz/server']).toBeDefined();
-      expect(pkg.dependencies['@vertz/db']).toBeDefined();
-      expect(pkg.dependencies['@vertz/ui']).toBeDefined();
-      expect(pkg.dependencies['@vertz/theme-shadcn']).toBeDefined();
+      expect(pkg.dependencies.vertz).toBeDefined();
     });
 
     it('includes dev dependencies', () => {
@@ -47,7 +44,6 @@ describe('templates', () => {
       const pkg = JSON.parse(result);
       expect(pkg.devDependencies['@vertz/cli']).toBeDefined();
       expect(pkg.devDependencies['@vertz/ui-compiler']).toBeDefined();
-      expect(pkg.devDependencies['@vertz/ui-server']).toBeDefined();
       expect(pkg.devDependencies['bun-types']).toBeDefined();
     });
 
@@ -128,9 +124,9 @@ describe('templates', () => {
   });
 
   describe('bunPluginShimTemplate', () => {
-    it('imports createVertzBunPlugin from @vertz/ui-server/bun-plugin', () => {
+    it('imports createVertzBunPlugin from vertz/ui-server/bun-plugin', () => {
       const result = bunPluginShimTemplate();
-      expect(result).toContain("from '@vertz/ui-server/bun-plugin'");
+      expect(result).toContain("from 'vertz/ui-server/bun-plugin'");
       expect(result).toContain('createVertzBunPlugin');
     });
 
@@ -150,9 +146,9 @@ describe('templates', () => {
   });
 
   describe('envModuleTemplate', () => {
-    it('uses createEnv from @vertz/server', () => {
+    it('uses createEnv from vertz/server', () => {
       const result = envModuleTemplate();
-      expect(result).toContain("from '@vertz/server'");
+      expect(result).toContain("from 'vertz/server'");
       expect(result).toContain('createEnv');
     });
 
@@ -168,9 +164,9 @@ describe('templates', () => {
   });
 
   describe('serverTemplate', () => {
-    it('uses createServer from @vertz/server', () => {
+    it('uses createServer from vertz/server', () => {
       const result = serverTemplate();
-      expect(result).toContain("from '@vertz/server'");
+      expect(result).toContain("from 'vertz/server'");
       expect(result).toContain('createServer');
     });
 
@@ -252,10 +248,10 @@ describe('templates', () => {
   });
 
   describe('themeTemplate', () => {
-    it('uses configureTheme from @vertz/theme-shadcn', () => {
+    it('uses configureTheme from vertz/theme-shadcn', () => {
       const result = themeTemplate();
       expect(result).toContain('configureTheme');
-      expect(result).toContain("from '@vertz/theme-shadcn'");
+      expect(result).toContain("from 'vertz/theme-shadcn'");
     });
   });
 

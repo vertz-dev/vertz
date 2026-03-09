@@ -20,15 +20,11 @@ export function packageJsonTemplate(projectName: string): string {
       '#generated/types': './.vertz/generated/types/index.ts',
     },
     dependencies: {
-      '@vertz/db': '^0.2.0',
-      '@vertz/server': '^0.2.0',
-      '@vertz/theme-shadcn': '^0.2.0',
-      '@vertz/ui': '^0.2.0',
+      vertz: '^0.2.0',
     },
     devDependencies: {
       '@vertz/cli': '^0.2.0',
       '@vertz/ui-compiler': '^0.2.0',
-      '@vertz/ui-server': '^0.2.0',
       'bun-types': '^1.0.0',
       typescript: '^5.8.0',
     },
@@ -118,7 +114,7 @@ export function bunPluginShimTemplate(): string {
  * The @vertz/ui-server/bun-plugin package exports a factory function (createVertzBunPlugin)
  * as a named export — this shim bridges the two.
  */
-import { createVertzBunPlugin } from '@vertz/ui-server/bun-plugin';
+import { createVertzBunPlugin } from 'vertz/ui-server/bun-plugin';
 
 const { plugin } = createVertzBunPlugin();
 
@@ -166,8 +162,8 @@ Thumbs.db
  * src/api/env.ts — validated environment variables
  */
 export function envModuleTemplate(): string {
-  return `import { createEnv } from '@vertz/server';
-import { s } from '@vertz/schema';
+  return `import { createEnv } from 'vertz/server';
+import { s } from 'vertz/schema';
 
 export const env = createEnv({
   schema: s.object({
@@ -182,7 +178,7 @@ export const env = createEnv({
  * src/api/server.ts — createServer with entities + db
  */
 export function serverTemplate(): string {
-  return `import { createServer } from '@vertz/server';
+  return `import { createServer } from 'vertz/server';
 import { db } from './db';
 import { env } from './env';
 import { tasks } from './entities/tasks.entity';
@@ -207,7 +203,7 @@ if (import.meta.main) {
  * src/api/schema.ts — tasks table + model
  */
 export function schemaTemplate(): string {
-  return `import { d } from '@vertz/db';
+  return `import { d } from 'vertz/db';
 
 export const tasksTable = d.table('tasks', {
   id: d.uuid().primary({ generate: 'uuid' }),
@@ -225,7 +221,7 @@ export const tasksModel = d.model(tasksTable);
  * src/api/db.ts — createSqliteAdapter with autoApply migrations
  */
 export function dbTemplate(): string {
-  return `import { createSqliteAdapter } from '@vertz/db/sqlite';
+  return `import { createSqliteAdapter } from 'vertz/db/sqlite';
 import { tasksTable } from './schema';
 
 export const db = await createSqliteAdapter({
@@ -239,7 +235,7 @@ export const db = await createSqliteAdapter({
  * src/api/entities/tasks.entity.ts — entity with CRUD access
  */
 export function tasksEntityTemplate(): string {
-  return `import { entity } from '@vertz/server';
+  return `import { entity } from 'vertz/server';
 import { tasksModel } from '../schema';
 
 export const tasks = entity('tasks', {
@@ -271,7 +267,7 @@ export const api = createClient();
  * src/app.tsx — SSR module exports + ThemeProvider + render HomePage
  */
 export function appComponentTemplate(): string {
-  return `import { css, getInjectedCSS, globalCss, ThemeProvider } from '@vertz/ui';
+  return `import { css, getInjectedCSS, globalCss, ThemeProvider } from 'vertz/ui';
 import { HomePage } from './pages/home';
 import { appTheme, themeGlobals } from './styles/theme';
 
@@ -324,7 +320,7 @@ export function App() {
  * src/entry-client.ts — mount + HMR self-accept
  */
 export function entryClientTemplate(): string {
-  return `import { mount } from '@vertz/ui';
+  return `import { mount } from 'vertz/ui';
 import { App, globalStyles, theme } from './app';
 
 import.meta.hot.accept();
@@ -340,7 +336,7 @@ mount(App, {
  * src/styles/theme.ts — configureTheme from @vertz/theme-shadcn
  */
 export function themeTemplate(): string {
-  return `import { configureTheme } from '@vertz/theme-shadcn';
+  return `import { configureTheme } from 'vertz/theme-shadcn';
 
 const { theme, globals } = configureTheme({
   palette: 'zinc',
@@ -366,7 +362,7 @@ export function homePageTemplate(): string {
   query,
   queryMatch,
   slideInFromTop,
-} from '@vertz/ui';
+} from 'vertz/ui';
 import { api } from '../client';
 
 // Inject global CSS for list item enter/exit animations

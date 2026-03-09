@@ -27,6 +27,10 @@
       "import": "./src/db.ts",
       "types": "./src/db.ts"
     },
+    "./db/sqlite": {
+      "import": "./src/db-sqlite.ts",
+      "types": "./src/db-sqlite.ts"
+    },
     "./testing": {
       "import": "./src/testing.ts",
       "types": "./src/testing.ts"
@@ -62,6 +66,14 @@
     "./ui-server": {
       "import": "./src/ui-server.ts",
       "types": "./src/ui-server.ts"
+    },
+    "./ui-server/bun-plugin": {
+      "import": "./src/ui-server-bun-plugin.ts",
+      "types": "./src/ui-server-bun-plugin.ts"
+    },
+    "./theme-shadcn": {
+      "import": "./src/theme-shadcn.ts",
+      "types": "./src/theme-shadcn.ts"
     }
   },
   "scripts": {
@@ -80,6 +92,7 @@
     "@vertz/cloudflare": "workspace:^",
     "@vertz/tui": "workspace:^",
     "@vertz/ui-primitives": "workspace:^",
+    "@vertz/theme-shadcn": "workspace:^",
     "@vertz/ui-server": "workspace:^"
   },
   "devDependencies": {}
