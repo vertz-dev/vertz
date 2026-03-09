@@ -77,7 +77,7 @@ function createTestAuth() {
 describe('Access Set — Server Integration', () => {
   it('signUp with access config -> access-set endpoint returns computed entitlements', async () => {
     const { auth, closureStore } = createTestAuth();
-    closureStore.addResource('Organization', 'org-1');
+    await closureStore.addResource('Organization', 'org-1');
 
     const result = await auth.api.signUp({
       email: 'test@example.com',
@@ -107,7 +107,7 @@ describe('Access Set — Server Integration', () => {
 
   it('GET /api/auth/access-set returns full access set for authenticated user', async () => {
     const { auth, roleStore, closureStore } = createTestAuth();
-    closureStore.addResource('Organization', 'org-1');
+    await closureStore.addResource('Organization', 'org-1');
 
     const signUpResult = await auth.api.signUp({
       email: 'test2@example.com',
@@ -116,7 +116,7 @@ describe('Access Set — Server Integration', () => {
     expect(signUpResult.ok).toBe(true);
     if (!signUpResult.ok) return;
 
-    roleStore.assign(signUpResult.data.user.id, 'Organization', 'org-1', 'admin');
+    await roleStore.assign(signUpResult.data.user.id, 'Organization', 'org-1', 'admin');
 
     const request = new Request('http://localhost/api/auth/access-set', {
       headers: { Cookie: `vertz.sid=${signUpResult.data.tokens?.jwt}` },
@@ -132,16 +132,16 @@ describe('Access Set — Server Integration', () => {
 
   it('computeEntityAccess returns per-entity access metadata', async () => {
     const { roleStore, closureStore } = createTestAuth();
-    closureStore.addResource('Organization', 'org-1');
-    closureStore.addResource('Team', 'team-1', {
+    await closureStore.addResource('Organization', 'org-1');
+    await closureStore.addResource('Team', 'team-1', {
       parentType: 'Organization',
       parentId: 'org-1',
     });
-    closureStore.addResource('Project', 'proj-1', {
+    await closureStore.addResource('Project', 'proj-1', {
       parentType: 'Team',
       parentId: 'team-1',
     });
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -164,8 +164,8 @@ describe('Access Set — Server Integration', () => {
 
   it('type drift check: server-encoded AccessSet can be deserialized by client types', async () => {
     const { roleStore, closureStore } = createTestAuth();
-    closureStore.addResource('Organization', 'org-1');
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await closureStore.addResource('Organization', 'org-1');
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
 
     const accessSet = await computeAccessSet({
       userId: 'user-1',

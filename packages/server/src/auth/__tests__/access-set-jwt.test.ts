@@ -46,7 +46,7 @@ function createTestAuth(options?: {
 describe('JWT acl claim', () => {
   it('signUp with access config produces JWT with acl claim', async () => {
     const { auth, closureStore } = createTestAuth();
-    closureStore.addResource('Organization', 'org-1');
+    await closureStore.addResource('Organization', 'org-1');
 
     const result = await auth.api.signUp({
       email: 'test@example.com',
@@ -67,7 +67,7 @@ describe('JWT acl claim', () => {
 
   it('signIn with access config produces JWT with acl claim', async () => {
     const { auth, roleStore, closureStore } = createTestAuth();
-    closureStore.addResource('Organization', 'org-1');
+    await closureStore.addResource('Organization', 'org-1');
 
     // Create user first
     const signUpResult = await auth.api.signUp({
@@ -78,7 +78,7 @@ describe('JWT acl claim', () => {
     if (!signUpResult.ok) return;
 
     // Assign role to the created user
-    roleStore.assign(signUpResult.data.user.id, 'Organization', 'org-1', 'admin');
+    await roleStore.assign(signUpResult.data.user.id, 'Organization', 'org-1', 'admin');
 
     // Sign in
     const result = await auth.api.signIn({
@@ -162,7 +162,7 @@ describe('JWT acl claim', () => {
 
   it('refresh recomputes acl from fresh user data', async () => {
     const { auth, roleStore, closureStore } = createTestAuth();
-    closureStore.addResource('Organization', 'org-1');
+    await closureStore.addResource('Organization', 'org-1');
 
     // Sign up (no roles yet)
     const signUpResult = await auth.api.signUp({
@@ -185,7 +185,7 @@ describe('JWT acl claim', () => {
     expect(initialPayload?.acl?.set?.entitlements['project:create']?.allowed).toBeFalsy();
 
     // Assign admin role
-    roleStore.assign(userId, 'Organization', 'org-1', 'admin');
+    await roleStore.assign(userId, 'Organization', 'org-1', 'admin');
 
     // Refresh session
     const headers = new Headers();
@@ -205,7 +205,7 @@ describe('JWT acl claim', () => {
 
   it('GET /api/auth/access-set returns full access set for authenticated user', async () => {
     const { auth, roleStore, closureStore } = createTestAuth();
-    closureStore.addResource('Organization', 'org-1');
+    await closureStore.addResource('Organization', 'org-1');
 
     const signUpResult = await auth.api.signUp({
       email: 'test@example.com',
@@ -214,7 +214,7 @@ describe('JWT acl claim', () => {
     expect(signUpResult.ok).toBe(true);
     if (!signUpResult.ok) return;
 
-    roleStore.assign(signUpResult.data.user.id, 'Organization', 'org-1', 'admin');
+    await roleStore.assign(signUpResult.data.user.id, 'Organization', 'org-1', 'admin');
     const tokens = signUpResult.data.tokens;
     expect(tokens).toBeDefined();
 
@@ -231,7 +231,7 @@ describe('JWT acl claim', () => {
 
   it('GET /api/auth/access-set returns 304 when ETag matches hash', async () => {
     const { auth, roleStore, closureStore } = createTestAuth();
-    closureStore.addResource('Organization', 'org-1');
+    await closureStore.addResource('Organization', 'org-1');
 
     const signUpResult = await auth.api.signUp({
       email: 'test@example.com',
@@ -240,7 +240,7 @@ describe('JWT acl claim', () => {
     expect(signUpResult.ok).toBe(true);
     if (!signUpResult.ok) return;
 
-    roleStore.assign(signUpResult.data.user.id, 'Organization', 'org-1', 'admin');
+    await roleStore.assign(signUpResult.data.user.id, 'Organization', 'org-1', 'admin');
     const tokens = signUpResult.data.tokens;
     expect(tokens).toBeDefined();
 
@@ -292,7 +292,7 @@ describe('JWT acl claim', () => {
 
     const roleStore = new InMemoryRoleAssignmentStore();
     const closureStore = new InMemoryClosureStore();
-    closureStore.addResource('Organization', 'org-1');
+    await closureStore.addResource('Organization', 'org-1');
 
     const auth = createAuth({
       session: { strategy: 'jwt', ttl: '60s' },
@@ -328,7 +328,7 @@ describe('JWT acl claim', () => {
     // verify the acl claim coexists without clobbering
     const roleStore = new InMemoryRoleAssignmentStore();
     const closureStore = new InMemoryClosureStore();
-    closureStore.addResource('Organization', 'org-1');
+    await closureStore.addResource('Organization', 'org-1');
 
     const auth = createAuth({
       session: { strategy: 'jwt', ttl: '60s' },

@@ -37,8 +37,8 @@ function createStores() {
 describe('computeAccessSet', () => {
   it('returns allowed for user with admin role on an org', async () => {
     const { roleStore, closureStore } = createStores();
-    closureStore.addResource('Organization', 'org-1');
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await closureStore.addResource('Organization', 'org-1');
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
 
     const result = await computeAccessSet({
       userId: 'user-1',
@@ -68,16 +68,16 @@ describe('computeAccessSet', () => {
 
   it('resolves inherited roles (owner on Org -> contributor on Project)', async () => {
     const { roleStore, closureStore } = createStores();
-    closureStore.addResource('Organization', 'org-1');
-    closureStore.addResource('Team', 'team-1', {
+    await closureStore.addResource('Organization', 'org-1');
+    await closureStore.addResource('Team', 'team-1', {
       parentType: 'Organization',
       parentId: 'org-1',
     });
-    closureStore.addResource('Project', 'proj-1', {
+    await closureStore.addResource('Project', 'proj-1', {
       parentType: 'Team',
       parentId: 'team-1',
     });
-    roleStore.assign('user-1', 'Organization', 'org-1', 'owner');
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'owner');
 
     const result = await computeAccessSet({
       userId: 'user-1',
@@ -94,17 +94,17 @@ describe('computeAccessSet', () => {
 
   it('handles user with partial entitlements (some allowed, some denied)', async () => {
     const { roleStore, closureStore } = createStores();
-    closureStore.addResource('Organization', 'org-1');
-    closureStore.addResource('Team', 'team-1', {
+    await closureStore.addResource('Organization', 'org-1');
+    await closureStore.addResource('Team', 'team-1', {
       parentType: 'Organization',
       parentId: 'org-1',
     });
-    closureStore.addResource('Project', 'proj-1', {
+    await closureStore.addResource('Project', 'proj-1', {
       parentType: 'Team',
       parentId: 'team-1',
     });
     // member -> viewer (Team) -> viewer (Project)
-    roleStore.assign('user-1', 'Organization', 'org-1', 'member');
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'member');
 
     const result = await computeAccessSet({
       userId: 'user-1',
@@ -351,10 +351,10 @@ describe('computeAccessSet — plan/wallet enrichment', () => {
     const planStore = new InMemoryPlanStore();
     const walletStore = new InMemoryWalletStore();
 
-    closureStore.addResource('Organization', 'org-1');
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await closureStore.addResource('Organization', 'org-1');
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
     const planStartedAt = new Date('2026-01-01T00:00:00Z');
-    planStore.assignPlan('org-1', 'pro', planStartedAt);
+    await planStore.assignPlan('org-1', 'pro', planStartedAt);
 
     // Consume 3 of 10 — use the same billing period calculation as computeAccessSet
     const { periodStart, periodEnd } = calculateBillingPeriod(planStartedAt, 'month');
@@ -383,9 +383,9 @@ describe('computeAccessSet — plan/wallet enrichment', () => {
     const planStore = new InMemoryPlanStore();
     const walletStore = new InMemoryWalletStore();
 
-    closureStore.addResource('Organization', 'org-1');
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
-    planStore.assignPlan('org-1', 'free'); // free plan does NOT include project:create
+    await closureStore.addResource('Organization', 'org-1');
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await planStore.assignPlan('org-1', 'free'); // free plan does NOT include project:create
 
     const result = await computeAccessSet({
       userId: 'user-1',
@@ -407,10 +407,10 @@ describe('computeAccessSet — plan/wallet enrichment', () => {
     const planStore = new InMemoryPlanStore();
     const walletStore = new InMemoryWalletStore();
 
-    closureStore.addResource('Organization', 'org-1');
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await closureStore.addResource('Organization', 'org-1');
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
     const planStartedAt = new Date('2026-01-01T00:00:00Z');
-    planStore.assignPlan('org-1', 'pro', planStartedAt);
+    await planStore.assignPlan('org-1', 'pro', planStartedAt);
 
     // Consume all 10 — use the same billing period calculation as computeAccessSet
     const { periodStart, periodEnd } = calculateBillingPeriod(planStartedAt, 'month');
@@ -435,16 +435,16 @@ describe('computeAccessSet — plan/wallet enrichment', () => {
 describe('encode/decode round-trip', () => {
   it('preserves all data through round-trip', async () => {
     const { roleStore, closureStore } = createStores();
-    closureStore.addResource('Organization', 'org-1');
-    closureStore.addResource('Team', 'team-1', {
+    await closureStore.addResource('Organization', 'org-1');
+    await closureStore.addResource('Team', 'team-1', {
       parentType: 'Organization',
       parentId: 'org-1',
     });
-    closureStore.addResource('Project', 'proj-1', {
+    await closureStore.addResource('Project', 'proj-1', {
       parentType: 'Team',
       parentId: 'team-1',
     });
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
 
     const original = await computeAccessSet({
       userId: 'user-1',
@@ -488,12 +488,12 @@ describe('encode/decode round-trip', () => {
     const closureStore = new InMemoryClosureStore();
     const flagStore = new InMemoryFlagStore();
 
-    closureStore.addResource('Organization', 'org-1');
-    closureStore.addResource('Project', 'proj-1', {
+    await closureStore.addResource('Organization', 'org-1');
+    await closureStore.addResource('Project', 'proj-1', {
       parentType: 'Organization',
       parentId: 'org-1',
     });
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
 
     flagStore.setFlag('org-1', 'export-v2', true);
     flagStore.setFlag('org-1', 'some-other-flag', false);
@@ -533,12 +533,12 @@ describe('encode/decode round-trip', () => {
     const closureStore = new InMemoryClosureStore();
     const flagStore = new InMemoryFlagStore();
 
-    closureStore.addResource('Organization', 'org-1');
-    closureStore.addResource('Project', 'proj-1', {
+    await closureStore.addResource('Organization', 'org-1');
+    await closureStore.addResource('Project', 'proj-1', {
       parentType: 'Organization',
       parentId: 'org-1',
     });
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
 
     flagStore.setFlag('org-1', 'export-v2', false);
 

@@ -24,55 +24,55 @@ const accessDef: AccessDefinition = Object.freeze({
 });
 
 describe('InMemoryRoleAssignmentStore', () => {
-  it('assigns a role to a user on a resource', () => {
+  it('assigns a role to a user on a resource', async () => {
     const store = new InMemoryRoleAssignmentStore();
-    store.assign('user-1', 'Organization', 'org-1', 'admin');
+    await store.assign('user-1', 'Organization', 'org-1', 'admin');
 
-    const roles = store.getRoles('user-1', 'Organization', 'org-1');
+    const roles = await store.getRoles('user-1', 'Organization', 'org-1');
     expect(roles).toEqual(['admin']);
   });
 
-  it('revokes a role from a user on a resource', () => {
+  it('revokes a role from a user on a resource', async () => {
     const store = new InMemoryRoleAssignmentStore();
-    store.assign('user-1', 'Organization', 'org-1', 'admin');
-    store.revoke('user-1', 'Organization', 'org-1', 'admin');
+    await store.assign('user-1', 'Organization', 'org-1', 'admin');
+    await store.revoke('user-1', 'Organization', 'org-1', 'admin');
 
-    const roles = store.getRoles('user-1', 'Organization', 'org-1');
+    const roles = await store.getRoles('user-1', 'Organization', 'org-1');
     expect(roles).toEqual([]);
   });
 
-  it('supports multiple roles on same resource', () => {
+  it('supports multiple roles on same resource', async () => {
     const store = new InMemoryRoleAssignmentStore();
-    store.assign('user-1', 'Organization', 'org-1', 'admin');
-    store.assign('user-1', 'Organization', 'org-1', 'member');
+    await store.assign('user-1', 'Organization', 'org-1', 'admin');
+    await store.assign('user-1', 'Organization', 'org-1', 'member');
 
-    const roles = store.getRoles('user-1', 'Organization', 'org-1');
+    const roles = await store.getRoles('user-1', 'Organization', 'org-1');
     expect(roles).toContain('admin');
     expect(roles).toContain('member');
     expect(roles).toHaveLength(2);
   });
 
-  it('does not duplicate role assignments', () => {
+  it('does not duplicate role assignments', async () => {
     const store = new InMemoryRoleAssignmentStore();
-    store.assign('user-1', 'Organization', 'org-1', 'admin');
-    store.assign('user-1', 'Organization', 'org-1', 'admin');
+    await store.assign('user-1', 'Organization', 'org-1', 'admin');
+    await store.assign('user-1', 'Organization', 'org-1', 'admin');
 
-    const roles = store.getRoles('user-1', 'Organization', 'org-1');
+    const roles = await store.getRoles('user-1', 'Organization', 'org-1');
     expect(roles).toEqual(['admin']);
   });
 
-  it('computes effective role with inheritance (most permissive wins)', () => {
+  it('computes effective role with inheritance (most permissive wins)', async () => {
     const closureStore = new InMemoryClosureStore();
-    closureStore.addResource('Organization', 'org-1');
-    closureStore.addResource('Team', 'team-1', {
+    await closureStore.addResource('Organization', 'org-1');
+    await closureStore.addResource('Team', 'team-1', {
       parentType: 'Organization',
       parentId: 'org-1',
     });
 
     const roleStore = new InMemoryRoleAssignmentStore();
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
 
-    const effectiveRole = roleStore.getEffectiveRole(
+    const effectiveRole = await roleStore.getEffectiveRole(
       'user-1',
       'Team',
       'team-1',
@@ -83,19 +83,19 @@ describe('InMemoryRoleAssignmentStore', () => {
     expect(effectiveRole).toBe('editor');
   });
 
-  it('effective role: direct assignment wins over less permissive inherited role', () => {
+  it('effective role: direct assignment wins over less permissive inherited role', async () => {
     const closureStore = new InMemoryClosureStore();
-    closureStore.addResource('Organization', 'org-1');
-    closureStore.addResource('Team', 'team-1', {
+    await closureStore.addResource('Organization', 'org-1');
+    await closureStore.addResource('Team', 'team-1', {
       parentType: 'Organization',
       parentId: 'org-1',
     });
 
     const roleStore = new InMemoryRoleAssignmentStore();
-    roleStore.assign('user-1', 'Organization', 'org-1', 'member'); // inherits viewer
-    roleStore.assign('user-1', 'Team', 'team-1', 'lead'); // direct lead
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'member'); // inherits viewer
+    await roleStore.assign('user-1', 'Team', 'team-1', 'lead'); // direct lead
 
-    const effectiveRole = roleStore.getEffectiveRole(
+    const effectiveRole = await roleStore.getEffectiveRole(
       'user-1',
       'Team',
       'team-1',
@@ -106,19 +106,19 @@ describe('InMemoryRoleAssignmentStore', () => {
     expect(effectiveRole).toBe('lead');
   });
 
-  it('effective role: inherited role wins over less permissive direct assignment', () => {
+  it('effective role: inherited role wins over less permissive direct assignment', async () => {
     const closureStore = new InMemoryClosureStore();
-    closureStore.addResource('Organization', 'org-1');
-    closureStore.addResource('Team', 'team-1', {
+    await closureStore.addResource('Organization', 'org-1');
+    await closureStore.addResource('Team', 'team-1', {
       parentType: 'Organization',
       parentId: 'org-1',
     });
 
     const roleStore = new InMemoryRoleAssignmentStore();
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin'); // inherits editor
-    roleStore.assign('user-1', 'Team', 'team-1', 'viewer'); // direct viewer
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin'); // inherits editor
+    await roleStore.assign('user-1', 'Team', 'team-1', 'viewer'); // direct viewer
 
-    const effectiveRole = roleStore.getEffectiveRole(
+    const effectiveRole = await roleStore.getEffectiveRole(
       'user-1',
       'Team',
       'team-1',
@@ -129,13 +129,13 @@ describe('InMemoryRoleAssignmentStore', () => {
     expect(effectiveRole).toBe('editor');
   });
 
-  it('effective role returns null when no roles assigned', () => {
+  it('effective role returns null when no roles assigned', async () => {
     const closureStore = new InMemoryClosureStore();
-    closureStore.addResource('Organization', 'org-1');
+    await closureStore.addResource('Organization', 'org-1');
 
     const roleStore = new InMemoryRoleAssignmentStore();
 
-    const effectiveRole = roleStore.getEffectiveRole(
+    const effectiveRole = await roleStore.getEffectiveRole(
       'user-1',
       'Organization',
       'org-1',
@@ -145,22 +145,22 @@ describe('InMemoryRoleAssignmentStore', () => {
     expect(effectiveRole).toBeNull();
   });
 
-  it('effective role resolves through multiple inheritance levels', () => {
+  it('effective role resolves through multiple inheritance levels', async () => {
     const closureStore = new InMemoryClosureStore();
-    closureStore.addResource('Organization', 'org-1');
-    closureStore.addResource('Team', 'team-1', {
+    await closureStore.addResource('Organization', 'org-1');
+    await closureStore.addResource('Team', 'team-1', {
       parentType: 'Organization',
       parentId: 'org-1',
     });
-    closureStore.addResource('Project', 'proj-1', {
+    await closureStore.addResource('Project', 'proj-1', {
       parentType: 'Team',
       parentId: 'team-1',
     });
 
     const roleStore = new InMemoryRoleAssignmentStore();
-    roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+    await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
 
-    const effectiveRole = roleStore.getEffectiveRole(
+    const effectiveRole = await roleStore.getEffectiveRole(
       'user-1',
       'Project',
       'proj-1',
@@ -171,22 +171,22 @@ describe('InMemoryRoleAssignmentStore', () => {
     expect(effectiveRole).toBe('contributor');
   });
 
-  it('dispose clears all assignments', () => {
+  it('dispose clears all assignments', async () => {
     const store = new InMemoryRoleAssignmentStore();
-    store.assign('user-1', 'Organization', 'org-1', 'admin');
+    await store.assign('user-1', 'Organization', 'org-1', 'admin');
     store.dispose();
 
-    const roles = store.getRoles('user-1', 'Organization', 'org-1');
+    const roles = await store.getRoles('user-1', 'Organization', 'org-1');
     expect(roles).toEqual([]);
   });
 
-  it('getRolesForUser returns all assignments for a user', () => {
+  it('getRolesForUser returns all assignments for a user', async () => {
     const store = new InMemoryRoleAssignmentStore();
-    store.assign('user-1', 'Organization', 'org-1', 'admin');
-    store.assign('user-1', 'Team', 'team-1', 'lead');
-    store.assign('user-2', 'Organization', 'org-1', 'member');
+    await store.assign('user-1', 'Organization', 'org-1', 'admin');
+    await store.assign('user-1', 'Team', 'team-1', 'lead');
+    await store.assign('user-2', 'Organization', 'org-1', 'member');
 
-    const assignments = store.getRolesForUser('user-1');
+    const assignments = await store.getRolesForUser('user-1');
     expect(assignments).toHaveLength(2);
     expect(assignments).toContainEqual({
       userId: 'user-1',
@@ -202,11 +202,11 @@ describe('InMemoryRoleAssignmentStore', () => {
     });
   });
 
-  it('getRolesForUser returns empty array for unknown user', () => {
+  it('getRolesForUser returns empty array for unknown user', async () => {
     const store = new InMemoryRoleAssignmentStore();
-    store.assign('user-1', 'Organization', 'org-1', 'admin');
+    await store.assign('user-1', 'Organization', 'org-1', 'admin');
 
-    const assignments = store.getRolesForUser('user-999');
+    const assignments = await store.getRolesForUser('user-999');
     expect(assignments).toEqual([]);
   });
 });

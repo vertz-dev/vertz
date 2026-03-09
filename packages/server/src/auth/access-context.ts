@@ -88,11 +88,11 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
   // checkLayers1to4() — internal, checks Layers 1-4 with pre-resolved orgId
   // ==========================================================================
 
-  function checkLayers1to4(
+  async function checkLayers1to4(
     entitlement: string,
     resource: ResourceRef | undefined,
     resolvedOrgId: string | null,
-  ): boolean {
+  ): Promise<boolean> {
     // Unauthenticated user — deny immediately
     if (!userId) return false;
 
@@ -111,7 +111,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
 
     // Layer 2: RBAC check
     if (entDef.roles.length > 0 && resource) {
-      const effectiveRole = roleStore.getEffectiveRole(
+      const effectiveRole = await roleStore.getEffectiveRole(
         userId,
         resource.type,
         resource.id,
@@ -132,7 +132,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     if (entDef.plans?.length && planStore && orgResolver) {
       if (!resolvedOrgId) return false; // Cannot resolve org — deny
 
-      const orgPlan = planStore.getPlan(resolvedOrgId);
+      const orgPlan = await planStore.getPlan(resolvedOrgId);
       const effectivePlanId = resolveEffectivePlan(orgPlan, accessDef.plans, accessDef.defaultPlan);
       if (!effectivePlanId) return false; // No plan — deny
 
@@ -153,7 +153,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     // Resolve org once for all layers
     const resolvedOrgId = orgResolver ? await orgResolver(resource) : null;
 
-    if (!checkLayers1to4(entitlement, resource, resolvedOrgId)) return false;
+    if (!(await checkLayers1to4(entitlement, resource, resolvedOrgId))) return false;
 
     // Layer 5: Wallet check (read-only — for UI display, not atomic)
     const entDef = accessDef.entitlements[entitlement];
@@ -225,7 +225,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     if (entDef.roles.length > 0) {
       let hasRole = false;
       if (resource) {
-        const effectiveRole = roleStore.getEffectiveRole(
+        const effectiveRole = await roleStore.getEffectiveRole(
           userId,
           resource.type,
           resource.id,
@@ -249,7 +249,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
       if (!resolvedOrgId) {
         planDenied = true;
       } else {
-        const orgPlan = planStore.getPlan(resolvedOrgId);
+        const orgPlan = await planStore.getPlan(resolvedOrgId);
         const effectivePlanId = resolveEffectivePlan(
           orgPlan,
           accessDef.plans,
@@ -358,7 +358,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     const resolvedOrgId = orgResolver ? await orgResolver(resource) : null;
 
     // Run Layers 1-4 (skips Layer 5 wallet read to avoid TOCTOU)
-    if (!checkLayers1to4(entitlement, resource, resolvedOrgId)) return false;
+    if (!(await checkLayers1to4(entitlement, resource, resolvedOrgId))) return false;
 
     // If no wallet/plan infrastructure, just return true (no limit to enforce)
     if (!walletStore || !planStore || !orgResolver) return true;
@@ -368,7 +368,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
 
     if (!resolvedOrgId) return false;
 
-    const orgPlan = planStore.getPlan(resolvedOrgId);
+    const orgPlan = await planStore.getPlan(resolvedOrgId);
     if (!orgPlan) return false;
     const effectivePlanId = resolveEffectivePlan(orgPlan, accessDef.plans, accessDef.defaultPlan);
     if (!effectivePlanId) return false;
@@ -411,7 +411,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     const orgId = await orgResolver(resource);
     if (!orgId) return;
 
-    const orgPlan = planStore.getPlan(orgId);
+    const orgPlan = await planStore.getPlan(orgId);
     if (!orgPlan) return;
     const effectivePlanId = resolveEffectivePlan(orgPlan, accessDef.plans, accessDef.defaultPlan);
     if (!effectivePlanId) return;
@@ -462,7 +462,7 @@ async function resolveWalletStateFromOrgId(
   planStore: PlanStore,
   walletStore: WalletStore,
 ): Promise<WalletState | null> {
-  const orgPlan = planStore.getPlan(orgId);
+  const orgPlan = await planStore.getPlan(orgId);
   const effectivePlanId = resolveEffectivePlan(orgPlan, accessDef.plans, accessDef.defaultPlan);
   if (!effectivePlanId || !orgPlan) return null;
 

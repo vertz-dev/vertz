@@ -49,28 +49,34 @@ const access = defineAccess({
   plans: {
     enterprise: {
       entitlements: [
-        'project:view', 'project:edit', 'project:delete', 'project:export',
-        'task:view', 'task:edit', 'org:create-team', 'team:invite',
+        'project:view',
+        'project:edit',
+        'project:delete',
+        'project:export',
+        'task:view',
+        'task:edit',
+        'org:create-team',
+        'team:invite',
       ],
     },
   },
 });
 
-function buildHierarchy() {
+async function buildHierarchy() {
   const closureStore = new InMemoryClosureStore();
   const roleStore = new InMemoryRoleAssignmentStore();
 
   // Build: Org → Team → Project → Task
-  closureStore.addResource('Organization', 'org-1');
-  closureStore.addResource('Team', 'team-1', {
+  await closureStore.addResource('Organization', 'org-1');
+  await closureStore.addResource('Team', 'team-1', {
     parentType: 'Organization',
     parentId: 'org-1',
   });
-  closureStore.addResource('Project', 'proj-1', {
+  await closureStore.addResource('Project', 'proj-1', {
     parentType: 'Team',
     parentId: 'team-1',
   });
-  closureStore.addResource('Task', 'task-1', {
+  await closureStore.addResource('Task', 'task-1', {
     parentType: 'Project',
     parentId: 'proj-1',
   });
@@ -85,8 +91,8 @@ function buildHierarchy() {
 describe('Resource Hierarchy — E2E Integration', () => {
   describe('Acceptance: Org admin inherits down the hierarchy', () => {
     it('admin on Org inherits editor on Team and contributor on Project', async () => {
-      const { closureStore, roleStore } = buildHierarchy();
-      roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+      const { closureStore, roleStore } = await buildHierarchy();
+      await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -128,8 +134,8 @@ describe('Resource Hierarchy — E2E Integration', () => {
 
   describe('ctx.can() — role-based checks', () => {
     it('returns true when user role grants entitlement', async () => {
-      const { closureStore, roleStore } = buildHierarchy();
-      roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+      const { closureStore, roleStore } = await buildHierarchy();
+      await roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -142,8 +148,8 @@ describe('Resource Hierarchy — E2E Integration', () => {
     });
 
     it('returns false when user lacks required role', async () => {
-      const { closureStore, roleStore } = buildHierarchy();
-      roleStore.assign('user-1', 'Project', 'proj-1', 'viewer');
+      const { closureStore, roleStore } = await buildHierarchy();
+      await roleStore.assign('user-1', 'Project', 'proj-1', 'viewer');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -156,7 +162,7 @@ describe('Resource Hierarchy — E2E Integration', () => {
     });
 
     it('returns false for unauthenticated user', async () => {
-      const { closureStore, roleStore } = buildHierarchy();
+      const { closureStore, roleStore } = await buildHierarchy();
 
       const ctx = createAccessContext({
         userId: null,
@@ -171,8 +177,8 @@ describe('Resource Hierarchy — E2E Integration', () => {
 
   describe('ctx.check() — structured denial reasons', () => {
     it('returns allowed=true with empty reasons when granted', async () => {
-      const { closureStore, roleStore } = buildHierarchy();
-      roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+      const { closureStore, roleStore } = await buildHierarchy();
+      await roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -187,8 +193,8 @@ describe('Resource Hierarchy — E2E Integration', () => {
     });
 
     it('returns role_required with meta when denied', async () => {
-      const { closureStore, roleStore } = buildHierarchy();
-      roleStore.assign('user-1', 'Project', 'proj-1', 'viewer');
+      const { closureStore, roleStore } = await buildHierarchy();
+      await roleStore.assign('user-1', 'Project', 'proj-1', 'viewer');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -204,7 +210,7 @@ describe('Resource Hierarchy — E2E Integration', () => {
     });
 
     it('returns not_authenticated for null user', async () => {
-      const { closureStore, roleStore } = buildHierarchy();
+      const { closureStore, roleStore } = await buildHierarchy();
 
       const ctx = createAccessContext({
         userId: null,
@@ -221,8 +227,8 @@ describe('Resource Hierarchy — E2E Integration', () => {
 
   describe('ctx.authorize() — throws on denial', () => {
     it('does not throw when authorized', async () => {
-      const { closureStore, roleStore } = buildHierarchy();
-      roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+      const { closureStore, roleStore } = await buildHierarchy();
+      await roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -237,7 +243,7 @@ describe('Resource Hierarchy — E2E Integration', () => {
     });
 
     it('throws AuthorizationError when denied', async () => {
-      const { closureStore, roleStore } = buildHierarchy();
+      const { closureStore, roleStore } = await buildHierarchy();
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -254,8 +260,8 @@ describe('Resource Hierarchy — E2E Integration', () => {
 
   describe('ctx.canAll() — bulk check', () => {
     it('returns map of entitlement+resource → boolean', async () => {
-      const { closureStore, roleStore } = buildHierarchy();
-      roleStore.assign('user-1', 'Project', 'proj-1', 'contributor');
+      const { closureStore, roleStore } = await buildHierarchy();
+      await roleStore.assign('user-1', 'Project', 'proj-1', 'contributor');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -278,11 +284,11 @@ describe('Resource Hierarchy — E2E Integration', () => {
 
   describe('Role inheritance — additive model', () => {
     it('most permissive role wins across direct + inherited', async () => {
-      const { closureStore, roleStore } = buildHierarchy();
+      const { closureStore, roleStore } = await buildHierarchy();
       // Member on org → viewer on team (inherited)
-      roleStore.assign('user-1', 'Organization', 'org-1', 'member');
+      await roleStore.assign('user-1', 'Organization', 'org-1', 'member');
       // Direct lead on team (more permissive)
-      roleStore.assign('user-1', 'Team', 'team-1', 'lead');
+      await roleStore.assign('user-1', 'Team', 'team-1', 'lead');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -296,11 +302,11 @@ describe('Resource Hierarchy — E2E Integration', () => {
     });
 
     it('inherited role wins over less permissive direct assignment', async () => {
-      const { closureStore, roleStore } = buildHierarchy();
+      const { closureStore, roleStore } = await buildHierarchy();
       // Admin on org → editor on team (inherited)
-      roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+      await roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
       // Direct viewer on team (less permissive)
-      roleStore.assign('user-1', 'Team', 'team-1', 'viewer');
+      await roleStore.assign('user-1', 'Team', 'team-1', 'viewer');
 
       const ctx = createAccessContext({
         userId: 'user-1',
@@ -315,34 +321,34 @@ describe('Resource Hierarchy — E2E Integration', () => {
   });
 
   describe('Closure table integrity', () => {
-    it('insert maintains ancestor paths', () => {
+    it('insert maintains ancestor paths', async () => {
       const closureStore = new InMemoryClosureStore();
-      closureStore.addResource('Organization', 'org-1');
-      closureStore.addResource('Team', 'team-1', {
+      await closureStore.addResource('Organization', 'org-1');
+      await closureStore.addResource('Team', 'team-1', {
         parentType: 'Organization',
         parentId: 'org-1',
       });
 
-      const ancestors = closureStore.getAncestors('Team', 'team-1');
+      const ancestors = await closureStore.getAncestors('Team', 'team-1');
       expect(ancestors).toContainEqual({ type: 'Team', id: 'team-1', depth: 0 });
       expect(ancestors).toContainEqual({ type: 'Organization', id: 'org-1', depth: 1 });
     });
 
-    it('delete cascades closure rows', () => {
+    it('delete cascades closure rows', async () => {
       const closureStore = new InMemoryClosureStore();
-      closureStore.addResource('Organization', 'org-1');
-      closureStore.addResource('Team', 'team-1', {
+      await closureStore.addResource('Organization', 'org-1');
+      await closureStore.addResource('Team', 'team-1', {
         parentType: 'Organization',
         parentId: 'org-1',
       });
-      closureStore.addResource('Project', 'proj-1', {
+      await closureStore.addResource('Project', 'proj-1', {
         parentType: 'Team',
         parentId: 'team-1',
       });
 
-      closureStore.removeResource('Team', 'team-1');
+      await closureStore.removeResource('Team', 'team-1');
 
-      const orgDescendants = closureStore.getDescendants('Organization', 'org-1');
+      const orgDescendants = await closureStore.getDescendants('Organization', 'org-1');
       expect(orgDescendants).toHaveLength(1); // only self
     });
   });

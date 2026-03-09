@@ -19,7 +19,7 @@ export class InMemoryRateLimitStore implements RateLimitStore {
     this.cleanupTimer = setInterval(() => this.cleanup(), CLEANUP_INTERVAL_MS);
   }
 
-  check(key: string, maxAttempts: number, windowMs: number): RateLimitResult {
+  async check(key: string, maxAttempts: number, windowMs: number): Promise<RateLimitResult> {
     const now = new Date();
     const entry = this.store.get(key);
 

@@ -12,24 +12,24 @@ describe('InMemoryRateLimitStore', () => {
     store.dispose();
   });
 
-  it('allows requests within the limit', () => {
-    const result = store.check('key-1', 3, 60_000);
+  it('allows requests within the limit', async () => {
+    const result = await store.check('key-1', 3, 60_000);
     expect(result.allowed).toBe(true);
     expect(result.remaining).toBe(2);
   });
 
-  it('denies requests exceeding the limit', () => {
-    store.check('key-2', 2, 60_000);
-    store.check('key-2', 2, 60_000);
-    const result = store.check('key-2', 2, 60_000);
+  it('denies requests exceeding the limit', async () => {
+    await store.check('key-2', 2, 60_000);
+    await store.check('key-2', 2, 60_000);
+    const result = await store.check('key-2', 2, 60_000);
     expect(result.allowed).toBe(false);
     expect(result.remaining).toBe(0);
   });
 
-  it('resets after window expires', () => {
+  it('resets after window expires', async () => {
     // Use a very short window (1ms)
-    store.check('key-3', 1, 1);
-    store.check('key-3', 1, 1);
+    await store.check('key-3', 1, 1);
+    await store.check('key-3', 1, 1);
 
     // Wait for the window to expire
     const start = Date.now();
@@ -37,7 +37,7 @@ describe('InMemoryRateLimitStore', () => {
       // busy wait
     }
 
-    const result = store.check('key-3', 1, 1);
+    const result = await store.check('key-3', 1, 1);
     expect(result.allowed).toBe(true);
   });
 
@@ -47,16 +47,16 @@ describe('InMemoryRateLimitStore', () => {
     s.dispose(); // double dispose is safe
   });
 
-  it('tracks separate keys independently', () => {
-    store.check('key-a', 1, 60_000);
-    const result = store.check('key-b', 1, 60_000);
+  it('tracks separate keys independently', async () => {
+    await store.check('key-a', 1, 60_000);
+    const result = await store.check('key-b', 1, 60_000);
     expect(result.allowed).toBe(true);
     expect(result.remaining).toBe(0);
   });
 
-  it('returns resetAt in the result', () => {
+  it('returns resetAt in the result', async () => {
     const before = Date.now();
-    const result = store.check('key-reset', 5, 60_000);
+    const result = await store.check('key-reset', 5, 60_000);
     const after = Date.now();
 
     expect(result.resetAt).toBeInstanceOf(Date);
@@ -64,19 +64,19 @@ describe('InMemoryRateLimitStore', () => {
     expect(result.resetAt.getTime()).toBeLessThanOrEqual(after + 60_000);
   });
 
-  it('decrements remaining correctly across multiple checks', () => {
-    const r1 = store.check('key-dec', 3, 60_000);
+  it('decrements remaining correctly across multiple checks', async () => {
+    const r1 = await store.check('key-dec', 3, 60_000);
     expect(r1.remaining).toBe(2);
 
-    const r2 = store.check('key-dec', 3, 60_000);
+    const r2 = await store.check('key-dec', 3, 60_000);
     expect(r2.remaining).toBe(1);
 
-    const r3 = store.check('key-dec', 3, 60_000);
+    const r3 = await store.check('key-dec', 3, 60_000);
     expect(r3.remaining).toBe(0);
     expect(r3.allowed).toBe(true);
 
     // Next should be denied
-    const r4 = store.check('key-dec', 3, 60_000);
+    const r4 = await store.check('key-dec', 3, 60_000);
     expect(r4.allowed).toBe(false);
     expect(r4.remaining).toBe(0);
   });
