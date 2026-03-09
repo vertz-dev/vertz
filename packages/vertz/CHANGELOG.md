@@ -1,5 +1,25 @@
 # vertz
 
+## 0.2.13
+
+### Patch Changes
+
+- [#961](https://github.com/vertz-dev/vertz/pull/961) [`4bcfa46`](https://github.com/vertz-dev/vertz/commit/4bcfa46b97623c8d42b174cf3ac3d627c4ef3491) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add `vertz/ui-server` subpath export to meta package
+
+- Updated dependencies [[`337e1b3`](https://github.com/vertz-dev/vertz/commit/337e1b3dfca6768575e57cf54069beb4f37366b7), [`2f6d58a`](https://github.com/vertz-dev/vertz/commit/2f6d58a818d0ecbbd7999b0bfc072e2424640f59), [`127df59`](https://github.com/vertz-dev/vertz/commit/127df59424102142ac1aee9dfcc31b22c2959343), [`a5ceec8`](https://github.com/vertz-dev/vertz/commit/a5ceec812613d92f7261407e86b1a39993687a7a), [`3a79c2f`](https://github.com/vertz-dev/vertz/commit/3a79c2fad5bfbaed61f252cf2b908592e12a82bd), [`58fffce`](https://github.com/vertz-dev/vertz/commit/58fffceb6c4e1660fb3d4d1891cd4ce662dca22b), [`efda760`](https://github.com/vertz-dev/vertz/commit/efda76032901138dca7a22acd60ad947a4bdf02a), [`a9211ca`](https://github.com/vertz-dev/vertz/commit/a9211ca751305f541987b93d493d349838cf4822), [`3d2799a`](https://github.com/vertz-dev/vertz/commit/3d2799ac4c3e0d8f65d864b4471e205a64db886a), [`7b125db`](https://github.com/vertz-dev/vertz/commit/7b125db968ba9157ce97932b392cb3be7fcc0344), [`d4af7d0`](https://github.com/vertz-dev/vertz/commit/d4af7d0fa0ff1f3cfc21625e9bd16621f833f9cd), [`a82b2ec`](https://github.com/vertz-dev/vertz/commit/a82b2ec1ccc94f278916796783c33d81ffead211), [`45e84cf`](https://github.com/vertz-dev/vertz/commit/45e84cf2f11123bf3ed66ae8cf311efc1393238c), [`1011e51`](https://github.com/vertz-dev/vertz/commit/1011e51fbfe528e35930e3dd5c32b76568b0684a), [`de34f8d`](https://github.com/vertz-dev/vertz/commit/de34f8dc9d3e69b507874f33d80bf7dc4420001d), [`4eac71c`](https://github.com/vertz-dev/vertz/commit/4eac71c98369d12a0cd7a3cbbeda60ea7cc5bd05), [`eab229b`](https://github.com/vertz-dev/vertz/commit/eab229bc63a08ae6877ff4905d99c364a8694358)]:
+  - @vertz/server@0.2.13
+  - @vertz/ui@0.2.13
+  - @vertz/ui-compiler@0.2.13
+  - @vertz/ui-server@0.2.13
+  - @vertz/db@0.2.13
+  - @vertz/fetch@0.2.13
+  - @vertz/errors@0.2.13
+  - @vertz/cloudflare@0.2.13
+  - @vertz/schema@0.2.13
+  - @vertz/testing@0.2.13
+  - @vertz/tui@0.2.13
+  - @vertz/ui-primitives@0.2.13
+
 ## 0.2.12
 
 ### Patch Changes

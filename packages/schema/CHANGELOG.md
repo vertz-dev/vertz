@@ -1,5 +1,12 @@
 # @vertz/schema
 
+## 0.2.13
+
+### Patch Changes
+
+- Updated dependencies [[`efda760`](https://github.com/vertz-dev/vertz/commit/efda76032901138dca7a22acd60ad947a4bdf02a), [`3d2799a`](https://github.com/vertz-dev/vertz/commit/3d2799ac4c3e0d8f65d864b4471e205a64db886a), [`7b125db`](https://github.com/vertz-dev/vertz/commit/7b125db968ba9157ce97932b392cb3be7fcc0344)]:
+  - @vertz/errors@0.2.13
+
 ## 0.2.12
 
 ### Patch Changes
