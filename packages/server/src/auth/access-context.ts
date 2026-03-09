@@ -1,15 +1,17 @@
 /**
- * Access Context — the resolution engine for can/check/authorize/canAll.
+ * Access Context — the resolution engine for can/check/authorize/canAll/canBatch.
  *
  * Evaluates access rules against the defineAccess() config,
- * closure table, and role assignments using 5-layer resolution.
+ * closure table, and role assignments using 7-layer resolution.
  *
  * Layers (cheapest-first for can(), all-layers for check()):
- * 1. Feature flags (requires flagStore + orgResolver)
- * 2. RBAC (effective role check)
- * 3. Hierarchy (closure table path check)
- * 4. Plan check (requires planStore + orgResolver)
- * 5. Wallet check (requires walletStore + planStore + orgResolver)
+ * 1. Auth (not_authenticated)
+ * 2. Feature flags (requires flagStore + orgResolver)
+ * 3. Plan features (requires planStore + orgResolver — plan-gated entitlements)
+ * 4. Limits / wallet (requires walletStore + planStore — multi-limit, add-ons)
+ * 5. RBAC (effective role check via closure table)
+ * 6. Attribute rules (not yet implemented)
+ * 7. Step-up / FVA (not yet implemented)
  */
 
 import { AuthorizationError } from './access';
