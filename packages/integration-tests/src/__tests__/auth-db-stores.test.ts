@@ -23,6 +23,8 @@ import {
   DbOAuthAccountStore,
   DbPlanStore,
   DbRoleAssignmentStore,
+  DbSessionStore,
+  DbUserStore,
   defineAccess,
   InMemoryClosureStore,
   initializeAuthTables,
@@ -95,6 +97,73 @@ describe('DB-Backed Auth Stores Integration', () => {
   it('validates auth models are present in DatabaseClient', () => {
     // Should not throw when all auth models are present
     expect(() => validateAuthModels(db)).not.toThrow();
+  });
+
+  it('DbUserStore persists users and supports case-insensitive email lookup', async () => {
+    const userStore = new DbUserStore(db);
+    const user = {
+      id: 'user-1',
+      email: 'Test@Example.com',
+      role: 'user',
+      emailVerified: false,
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      updatedAt: new Date('2026-01-01T00:00:00Z'),
+    };
+
+    await userStore.createUser(user, 'hashed-pw');
+
+    // Find by email (case-insensitive)
+    const found = await userStore.findByEmail('test@example.com');
+    expect(found).not.toBeNull();
+    expect(found?.user.id).toBe('user-1');
+    expect(found?.passwordHash).toBe('hashed-pw');
+
+    // Find by ID
+    const byId = await userStore.findById('user-1');
+    expect(byId).not.toBeNull();
+    expect(byId?.email).toBe('test@example.com');
+
+    // Update email verified
+    await userStore.updateEmailVerified('user-1', true);
+    const updated = await userStore.findById('user-1');
+    expect(updated?.emailVerified).toBe(true);
+  });
+
+  it('DbSessionStore persists sessions with current_tokens as JSON', async () => {
+    const sessionStore = new DbSessionStore(db);
+
+    const session = await sessionStore.createSessionWithId('sess-1', {
+      userId: 'user-1',
+      refreshTokenHash: 'hash-abc',
+      ipAddress: '127.0.0.1',
+      userAgent: 'test-agent',
+      expiresAt: new Date(Date.now() + 86400000), // +1 day
+      currentTokens: { jwt: 'jwt-token', refreshToken: 'refresh-token' },
+    });
+
+    expect(session.id).toBe('sess-1');
+    expect(session.userId).toBe('user-1');
+
+    // Find by refresh hash
+    const found = await sessionStore.findByRefreshHash('hash-abc');
+    expect(found).not.toBeNull();
+    expect(found?.id).toBe('sess-1');
+
+    // Get current tokens (stored as JSON)
+    const tokens = await sessionStore.getCurrentTokens('sess-1');
+    expect(tokens).not.toBeNull();
+    expect(tokens?.jwt).toBe('jwt-token');
+
+    // Count active sessions
+    const count = await sessionStore.countActiveSessions('user-1');
+    expect(count).toBe(1);
+
+    // Revoke and verify
+    await sessionStore.revokeSession('sess-1');
+    const revoked = await sessionStore.findByRefreshHash('hash-abc');
+    expect(revoked).toBeNull();
+
+    sessionStore.dispose();
   });
 
   it('DbRoleAssignmentStore persists role assignments and resolves effective roles', async () => {
@@ -271,20 +340,22 @@ describe('DB-Backed Auth Stores Integration', () => {
         },
       },
       entitlements: {
-        'project:create': { roles: ['manager', 'contributor'], plans: ['free', 'pro'] },
+        'project:create': { roles: ['manager', 'contributor'] },
         'project:view': { roles: ['viewer', 'contributor', 'manager'] },
       },
       plans: {
         free: {
-          entitlements: ['project:create', 'project:view'],
+          group: 'main',
+          features: ['project:create', 'project:view'],
           limits: {
-            'project:create': { per: 'month', max: 5 },
+            projects: { max: 5, gates: 'project:create', per: 'month' },
           },
         },
         pro: {
-          entitlements: ['project:create', 'project:view'],
+          group: 'main',
+          features: ['project:create', 'project:view'],
           limits: {
-            'project:create': { per: 'month', max: 100 },
+            projects: { max: 100, gates: 'project:create', per: 'month' },
           },
         },
       },

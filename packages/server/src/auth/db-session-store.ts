@@ -103,8 +103,13 @@ export class DbSessionStore implements SessionStore {
   }
 
   async countActiveSessions(userId: string): Promise<number> {
-    const sessions = await this.listActiveSessions(userId);
-    return sessions.length;
+    const nowStr = new Date().toISOString();
+    const result = await this.db.query<{ cnt: number }>(
+      sql`SELECT COUNT(*) as cnt FROM auth_sessions WHERE user_id = ${userId} AND revoked_at IS NULL AND expires_at > ${nowStr}`,
+    );
+
+    if (!result.ok) return 0;
+    return result.data.rows[0]?.cnt ?? 0;
   }
 
   async getCurrentTokens(sessionId: string): Promise<AuthTokens | null> {
