@@ -2,3 +2,138 @@
 title: Form
 description: "API reference for form() — type-safe form handling with validation"
 ---
+
+`form()` creates a type-safe form instance bound to a [generated SDK](/api-reference/fetch/sdk) mutation method. It provides reactive field state, schema validation, progressive enhancement attributes (`action`, `method`), and per-field error tracking.
+
+The SDK method carries the validation schema in its metadata, so `form()` picks it up automatically — the `Result` type is handled internally. When the mutation returns `{ ok: false }`, field errors are extracted and mapped to the form fields.
+
+## form()
+
+```tsx
+import { form } from '@vertz/ui/form';
+
+function CreateTaskForm({ onSuccess }: { onSuccess: () => void }) {
+  const taskForm = form(api.tasks.create, {
+    onSuccess,
+  });
+
+  return (
+    <form action={taskForm.action} method={taskForm.method} onSubmit={taskForm.onSubmit}>
+      <input name="title" />
+      {taskForm.title.error && <span>{taskForm.title.error}</span>}
+
+      <textarea name="description" />
+      {taskForm.description.error && <span>{taskForm.description.error}</span>}
+
+      <button type="submit" disabled={taskForm.submitting}>Create</button>
+    </form>
+  );
+}
+```
+
+### Signature
+
+```ts
+function form<TBody, TResult>(
+  sdkMethod: SdkMethod<TBody, TResult>,
+  options?: FormOptions<TBody, TResult>
+): FormInstance<TBody, TResult>
+```
+
+---
+
+## FormInstance
+
+The returned instance has two kinds of properties: reserved form properties and per-field accessors.
+
+### Form properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `action` | `string` | URL for the form's `action` attribute (progressive enhancement) |
+| `method` | `string` | HTTP method for the form's `method` attribute |
+| `onSubmit` | `(e: Event) => Promise<void>` | Submit handler — validates, then calls the SDK method |
+| `submitting` | `boolean` | `true` while the submission is in flight |
+| `dirty` | `boolean` | `true` if any field has been modified |
+| `valid` | `boolean` | `true` if all fields pass validation |
+| `reset()` | `() => void` | Reset all fields to initial values |
+| `submit()` | `(formData?: FormData) => Promise<void>` | Programmatic submit |
+| `setFieldError()` | `(field: string, message: string) => void` | Set a custom error on a field |
+
+### Per-field accessors
+
+Access any field by name on the form instance (e.g., `taskForm.title`). Each field is a `FieldState`:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `value` | `T` | Current field value |
+| `error` | `string \| undefined` | Validation error message |
+| `dirty` | `boolean` | `true` if the field has been modified |
+| `touched` | `boolean` | `true` if the field has been interacted with |
+| `pristine` | `boolean` | `true` if the field has not been modified |
+| `setTouched()` | `(touched: boolean) => void` | Mark the field as touched |
+| `validate()` | `(value: T) => void` | Manually trigger validation |
+
+---
+
+## FormOptions
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `schema` | `FormSchema<TBody>` | — | Validation schema (auto-inferred from SDK metadata when available) |
+| `initial` | `Partial<TBody> \| () => Partial<TBody>` | — | Initial field values |
+| `onSuccess` | `(result: TResult) => void` | — | Callback after successful submission |
+| `onError` | `(errors: Record<string, string>) => void` | — | Callback on validation or submission error |
+| `resetOnSuccess` | `boolean` | `false` | Reset fields after successful submission |
+
+---
+
+## Progressive enhancement
+
+The `action` and `method` properties enable the form to work without JavaScript. When JS is available, `onSubmit` intercepts the submission and handles it client-side with validation.
+
+```tsx
+<form action={taskForm.action} method={taskForm.method} onSubmit={taskForm.onSubmit}>
+  {/* Works with and without JS */}
+</form>
+```
+
+---
+
+## Types
+
+```ts
+interface FormOptions<TBody, TResult> {
+  schema?: FormSchema<TBody>;
+  initial?: Partial<TBody> | (() => Partial<TBody>);
+  onSuccess?: (result: TResult) => void;
+  onError?: (errors: Record<string, string>) => void;
+  resetOnSuccess?: boolean;
+}
+
+type FormInstance<TBody, TResult> = {
+  action: string;
+  method: string;
+  onSubmit: (e: Event) => Promise<void>;
+  reset: () => void;
+  setFieldError: (field: keyof TBody & string, message: string) => void;
+  submit: (formData?: FormData) => Promise<void>;
+  submitting: boolean;
+  dirty: boolean;
+  valid: boolean;
+} & { [K in keyof TBody]: FieldState<TBody[K]> }
+
+interface FieldState<T = unknown> {
+  value: T;
+  error: string | undefined;
+  dirty: boolean;
+  touched: boolean;
+  pristine: boolean;
+  setTouched: (touched: boolean) => void;
+  validate: (value: T) => void;
+}
+
+interface FormSchema<T> {
+  parse(data: unknown): { ok: true; data: T } | { ok: false; error: unknown };
+}
+```
