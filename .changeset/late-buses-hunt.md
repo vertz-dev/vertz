@@ -1,6 +1,6 @@
 ---
 '@vertz/codegen': patch
-'@vertz/ui': minor
+'@vertz/ui': patch
 ---
 
 Generate router module augmentations so `useRouter()` picks up app route types by default after codegen.
