@@ -52,11 +52,12 @@ describe('useAuth', () => {
 });
 
 describe('AuthProvider', () => {
-  it('initializes with idle status in non-browser environment', () => {
-    // bun test has no `window` — status stays idle (SSR/Node)
+  it('initializes with no user and not authenticated', () => {
     const auth = captureAuth();
 
-    expect(auth.status).toBe('idle');
+    // Status is 'idle' (no window) or 'unauthenticated' (window exists, no session)
+    const expectedStatus = typeof window !== 'undefined' ? 'unauthenticated' : 'idle';
+    expect(auth.status).toBe(expectedStatus);
     expect(auth.user).toBeNull();
     expect(auth.isAuthenticated).toBe(false);
     expect(auth.isLoading).toBe(false);
