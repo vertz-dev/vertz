@@ -1,5 +1,12 @@
 # @vertz/ui-compiler
 
+## 0.2.15
+
+### Patch Changes
+
+- Updated dependencies [[`4a2d5b5`](https://github.com/vertz-dev/vertz/commit/4a2d5b504791ee772396248789b9ad65bd078abf), [`d0f0941`](https://github.com/vertz-dev/vertz/commit/d0f09419950bd0d6d9229a11fa9bf07f632fb85d)]:
+  - @vertz/ui@0.2.15
+
 ## 0.2.14
 
 ### Patch Changes

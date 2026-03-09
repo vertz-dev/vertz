@@ -1,5 +1,18 @@
 # @vertz/server
 
+## 0.2.15
+
+### Patch Changes
+
+- [#1086](https://github.com/vertz-dev/vertz/pull/1086) [`4a2d5b5`](https://github.com/vertz-dev/vertz/commit/4a2d5b504791ee772396248789b9ad65bd078abf) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Redesign access control system with entity-centric `defineAccess()`, plan features/limits with multi-limit resolution, override store with overage billing, plan versioning with grandfathering and grace periods, billing adapter interface with Stripe implementation, and client-side plan event broadcasting.
+
+- [#1086](https://github.com/vertz-dev/vertz/pull/1086) [`4a2d5b5`](https://github.com/vertz-dev/vertz/commit/4a2d5b504791ee772396248789b9ad65bd078abf) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add DB-backed auth store implementations (DbUserStore, DbSessionStore, DbRoleAssignmentStore, DbClosureStore, DbFlagStore, DbPlanStore, DbOAuthAccountStore) with dialect-aware DDL for SQLite and PostgreSQL. Export authModels, initializeAuthTables, validateAuthModels, and all DB store classes from @vertz/server.
+
+- Updated dependencies []:
+  - @vertz/core@0.2.15
+  - @vertz/db@0.2.15
+  - @vertz/errors@0.2.15
+
 ## 0.2.14
 
 ### Patch Changes
