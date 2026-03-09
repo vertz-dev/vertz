@@ -1,6 +1,7 @@
 export type { FieldState } from './field-state';
 export { createFieldState } from './field-state';
 export type {
+  FieldNames,
   FormInstance,
   FormOptions,
   SdkMethod,

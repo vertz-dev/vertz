@@ -549,6 +549,32 @@ describe('form', () => {
     });
   });
 
+  describe('fields', () => {
+    it('fields.<name> returns the field name as a string', () => {
+      const sdk = mockSdkMethod({
+        url: '/api/users',
+        method: 'POST',
+        handler: async () => ({ id: 1 }),
+      });
+
+      const f = form(sdk, { schema: passingSchema() });
+      expect(f.fields.title).toBe('title');
+      expect(f.fields.name).toBe('name');
+      expect(f.fields.email).toBe('email');
+    });
+
+    it('fields returns the same object on repeated access', () => {
+      const sdk = mockSdkMethod({
+        url: '/api/users',
+        method: 'POST',
+        handler: async () => ({ id: 1 }),
+      });
+
+      const f = form(sdk, { schema: passingSchema() });
+      expect(f.fields).toBe(f.fields);
+    });
+  });
+
   describe('per-field setValue and reset', () => {
     it('field.setValue() updates value and dirty through form proxy', () => {
       const sdk = mockSdkMethod({

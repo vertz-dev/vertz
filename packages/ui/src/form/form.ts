@@ -36,12 +36,16 @@ export type ReservedFormNames =
   | 'reset'
   | 'setFieldError'
   | 'submit'
+  | 'fields'
   | '__bindElement';
 
 export type { FieldState };
 
 /** Mapped type providing FieldState for each field in TBody. */
 export type FieldAccessors<TBody> = { [K in keyof TBody]: FieldState<TBody[K]> };
+
+/** Mapped type providing typed field name strings for compile-time input validation. */
+export type FieldNames<TBody> = { readonly [K in keyof TBody & string]: K };
 
 /** Base properties available on every form instance. */
 export interface FormBaseProperties<TBody> {
@@ -54,6 +58,7 @@ export interface FormBaseProperties<TBody> {
   submitting: Signal<boolean>;
   dirty: ReadonlySignal<boolean>;
   valid: ReadonlySignal<boolean>;
+  fields: FieldNames<TBody>;
   __bindElement: (el: HTMLFormElement) => void;
 }
 
@@ -247,6 +252,12 @@ export function form<TBody, TResult>(
     submitting,
     dirty,
     valid,
+    fields: new Proxy(Object.create(null) as Record<string, string>, {
+      get(_target, prop) {
+        if (typeof prop === 'string') return prop;
+        return undefined;
+      },
+    }),
     __bindElement: (el: HTMLFormElement) => {
       boundElement = el;
       el.addEventListener('input', handleInputOrChange);
