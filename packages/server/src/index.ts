@@ -62,6 +62,7 @@ export type {
   AuthApi,
   AuthConfig,
   AuthContext,
+  AuthDbClient,
   AuthInstance,
   AuthTokens,
   AuthUser,
@@ -73,6 +74,7 @@ export type {
   ComputeAccessSetConfig,
   ConsumeResult,
   CookieConfig,
+  DbDialectName,
   DefineAccessInput,
   DenialMeta,
   DenialReason,
@@ -85,7 +87,6 @@ export type {
   EntitlementDefinition,
   EntitlementValue,
   EntityDef,
-  DbDialectName,
   // Phase 9: Feature Flag types
   FlagStore,
   LimitDef,
@@ -134,6 +135,7 @@ export type {
 } from './auth';
 // Auth Module
 export {
+  AUTH_TABLE_NAMES,
   AuthorizationError,
   // DB-backed auth stores
   authModels,
@@ -150,6 +152,8 @@ export {
   DbOAuthAccountStore,
   DbPlanStore,
   DbRoleAssignmentStore,
+  DbSessionStore,
+  DbUserStore,
   decodeAccessSet,
   defaultAccess,
   defineAccess,
@@ -170,7 +174,9 @@ export {
   InMemorySessionStore,
   InMemoryUserStore,
   InMemoryWalletStore,
+  initializeAuthTables,
   rules,
+  validateAuthModels,
   validatePassword,
   verifyPassword,
 } from './auth';

@@ -2209,6 +2209,9 @@ export { DbFlagStore } from './db-flag-store';
 export { DbOAuthAccountStore } from './db-oauth-account-store';
 export { DbPlanStore } from './db-plan-store';
 export { DbRoleAssignmentStore } from './db-role-assignment-store';
+export { DbSessionStore } from './db-session-store';
+export type { AuthDbClient } from './db-types';
+export { DbUserStore } from './db-user-store';
 export type {
   AccessCheckResult,
   AccessDefinition,
