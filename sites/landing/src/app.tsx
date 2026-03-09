@@ -2,14 +2,13 @@ import { getInjectedCSS, ThemeProvider } from '@vertz/ui';
 import { createRouter, defineRoutes, RouterView } from '@vertz/ui/router';
 import { HomePage } from './pages/home';
 import { ManifestoPage } from './pages/manifesto';
-import { fontFaces } from './styles/fonts';
 import { appGlobals } from './styles/globals';
 import { landingTheme, themeGlobals } from './styles/theme';
 
 // ── SSR module exports ─────────────────────────────────────
 export { getInjectedCSS };
 export const theme = landingTheme;
-export const styles = [fontFaces, themeGlobals.css, appGlobals.css];
+export const styles = [themeGlobals.css, appGlobals.css];
 
 // ── Routes ─────────────────────────────────────────────────
 const routes = defineRoutes({

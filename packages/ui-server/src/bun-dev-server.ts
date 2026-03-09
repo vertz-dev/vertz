@@ -1204,6 +1204,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
               htmlBytes: result.html.length,
             });
             const scriptTag = buildScriptTag(bundledScriptUrl, hmrBootstrapScript, clientSrc);
+            const combinedHeadTags = [headTags, result.headTags].filter(Boolean).join('\n');
             const html = generateSSRPageHtml({
               title,
               css: result.css,
@@ -1211,7 +1212,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
               ssrData: result.ssrData,
               scriptTag,
               editor,
-              headTags,
+              headTags: combinedHeadTags,
             });
 
             return new Response(html, {

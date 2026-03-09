@@ -141,10 +141,7 @@ let clean = html
     /<style>bun-hmr\{display:none!important\}<\/style><script>\(function\(\)\{var V=window\.__vertz_overlay[\s\S]*?\}\)\(\)<\/script>/g,
     '',
   )
-  .replace(
-    /<script>\(function\(\)\{var K="__vertz_reload_count"[\s\S]*?\}\)\(\)<\/script>/g,
-    '',
-  )
+  .replace(/<script>\(function\(\)\{var K="__vertz_reload_count"[\s\S]*?\}\)\(\)<\/script>/g, '')
   .replace(/<script type="text\/plain"[^>]*data-bun-dev-server-script[^>]*><\/script>/g, '')
   .replace(
     /<script>\(\(a\)=>\{document\.addEventListener[\s\S]*?\}\)\(document\.querySelector[\s\S]*?\)<\/script>/g,
@@ -159,7 +156,13 @@ let clean = html
   .replace(/\n\s*\n\s*\n/g, '\n');
 
 // Verify dev references are stripped
-for (const ref of ['__vertz_overlay', 'bun-hmr', '__vertz_reload', '_bun/client', 'data-bun-dev-server']) {
+for (const ref of [
+  '__vertz_overlay',
+  'bun-hmr',
+  '__vertz_reload',
+  '_bun/client',
+  'data-bun-dev-server',
+]) {
   if (clean.includes(ref)) {
     console.warn(`[build] WARNING: Still contains dev reference: ${ref}`);
   }
@@ -194,10 +197,6 @@ const PRODUCTION_HEAD = `
   <meta name="twitter:description" content="Define your schema once. Everything else is derived. Database, API, and UI from a single schema. Zero config." />
   <meta name="twitter:image" content="https://vertz.dev/public/og.png" />
 
-  <!-- Font preloads (self-hosted, no external Google Fonts request) -->
-  <link rel="preload" href="/public/fonts/dm-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
-  <link rel="preload" href="/public/fonts/dm-serif-display-latin.woff2" as="font" type="font/woff2" crossorigin />
-
   <!-- Canonical -->
   <link rel="canonical" href="https://vertz.dev" />
 
@@ -205,10 +204,7 @@ const PRODUCTION_HEAD = `
 ${cssLinks}`;
 
 // Inject meta tags after <title>
-clean = clean.replace(
-  /(<title>[^<]*<\/title>)/,
-  `$1\n${PRODUCTION_HEAD}`,
-);
+clean = clean.replace(/(<title>[^<]*<\/title>)/, `$1\n${PRODUCTION_HEAD}`);
 
 // Inject production client bundle before </body>
 clean = clean.replace(

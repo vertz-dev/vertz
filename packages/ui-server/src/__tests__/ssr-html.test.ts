@@ -76,6 +76,51 @@ describe('generateSSRHtml', () => {
     expect(html).toContain('lang="en"');
   });
 
+  describe('headTags', () => {
+    it('injects headTags into <head> when provided', () => {
+      const html = generateSSRHtml({
+        appHtml: '<p>App</p>',
+        css: '<style>.app{}</style>',
+        ssrData: [],
+        clientEntry: '/app.js',
+        headTags:
+          '<link rel="preload" href="/fonts/sans.woff2" as="font" type="font/woff2" crossorigin>',
+      });
+
+      expect(html).toContain('href="/fonts/sans.woff2"');
+    });
+
+    it('places headTags before CSS in <head>', () => {
+      const headTags = '<link rel="preload" href="/fonts/sans.woff2" as="font">';
+      const css = '<style>.app { color: red; }</style>';
+      const html = generateSSRHtml({
+        appHtml: '',
+        css,
+        ssrData: [],
+        clientEntry: '/app.js',
+        headTags,
+      });
+
+      const headTagsPos = html.indexOf('href="/fonts/sans.woff2"');
+      const cssPos = html.indexOf('.app { color: red; }');
+      expect(headTagsPos).toBeGreaterThan(-1);
+      expect(cssPos).toBeGreaterThan(-1);
+      expect(headTagsPos).toBeLessThan(cssPos);
+    });
+
+    it('renders without headTags when not provided', () => {
+      const html = generateSSRHtml({
+        appHtml: '',
+        css: '',
+        ssrData: [],
+        clientEntry: '/app.js',
+      });
+
+      // Should not have any preload tags
+      expect(html).not.toContain('rel="preload"');
+    });
+  });
+
   describe('XSS escaping', () => {
     it('escapes title to prevent tag injection', () => {
       const html = generateSSRHtml({

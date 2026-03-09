@@ -1,5 +1,5 @@
-import { defineTheme } from '@vertz/ui';
 import { describe, expect, it } from 'bun:test';
+import { defineTheme } from '@vertz/ui';
 import { registerSSRQuery } from '../ssr-context';
 import { createSSRHandler } from '../ssr-handler';
 import type { SSRModule } from '../ssr-render';
@@ -148,6 +148,46 @@ describe('createSSRHandler', () => {
     // '<' should be escaped as \u003c
     expect(body).not.toContain('<script>alert');
     expect(body).toContain('\\u003c');
+  });
+
+  it('injects font preload tags into <head> when theme has fonts', async () => {
+    const { font } = await import('@vertz/ui');
+    const sans = font('DM Sans', {
+      weight: '100..1000',
+      src: '/fonts/dm-sans.woff2',
+      fallback: ['system-ui', 'sans-serif'],
+    });
+    const theme = defineTheme({
+      colors: { primary: { 500: '#3b82f6' } },
+      fonts: { sans },
+    });
+
+    const moduleWithFonts: SSRModule = {
+      default: () => {
+        const el = document.createElement('div');
+        el.textContent = 'Fonts App';
+        return el;
+      },
+      theme,
+    };
+
+    const handler = createSSRHandler({ module: moduleWithFonts, template });
+    const response = await handler(new Request('http://localhost/'));
+    const html = await response.text();
+
+    // Preload tag should appear in <head>
+    expect(html).toContain('rel="preload"');
+    expect(html).toContain('href="/fonts/dm-sans.woff2"');
+    expect(html).toContain('type="font/woff2"');
+
+    // Preload tag should appear before </head>
+    const preloadIdx = html.indexOf('href="/fonts/dm-sans.woff2"');
+    const headCloseIdx = html.indexOf('</head>');
+    expect(preloadIdx).toBeLessThan(headCloseIdx);
+
+    // Preload tag should appear before CSS
+    const cssIdx = html.indexOf('--color-primary');
+    expect(preloadIdx).toBeLessThan(cssIdx);
   });
 
   it('returns 500 for SSR render errors', async () => {

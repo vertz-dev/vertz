@@ -4,11 +4,6 @@ export const appGlobals = globalCss({
   html: {
     scrollBehavior: 'smooth',
   },
-  ':root': {
-    '--font-mono': "'JetBrains Mono', monospace",
-    '--font-display': "'DM Serif Display', Georgia, serif",
-    '--font-sans': '"DM Sans", system-ui, sans-serif',
-  },
   'html body': {
     backgroundColor: '#0a0a0b',
     fontFamily: 'var(--font-sans)',

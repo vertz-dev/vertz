@@ -21,6 +21,8 @@ export {
 export { generateClassName } from './class-generator';
 export type { CSSInput, CSSOutput, RawDeclaration, StyleEntry, StyleValue } from './css';
 export { css, getInjectedCSS, injectCSS, resetInjectedStyles } from './css';
+export type { CompiledFonts, FontDescriptor, FontOptions, FontSrc } from './font';
+export { compileFonts, font } from './font';
 export type { GlobalCSSInput, GlobalCSSOutput } from './global-css';
 export { globalCss } from './global-css';
 export { keyframes } from './keyframes';

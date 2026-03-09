@@ -10,6 +10,8 @@
 
 export type { CSSInput, CSSOutput, StyleEntry } from './css';
 export { css } from './css';
+export type { CompiledFonts, FontDescriptor, FontOptions, FontSrc } from './font';
+export { compileFonts, font } from './font';
 export type { GlobalCSSInput, GlobalCSSOutput } from './global-css';
 export { globalCss } from './global-css';
 export { s } from './s';
