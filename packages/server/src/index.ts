@@ -134,6 +134,8 @@ export type {
 // Auth Module
 export {
   AuthorizationError,
+  // DB-backed auth stores
+  authModels,
   calculateBillingPeriod,
   checkFva,
   computeAccessSet,

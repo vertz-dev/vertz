@@ -2197,6 +2197,9 @@ export type {
   EncodedAccessSet,
 } from './access-set';
 export { computeAccessSet, decodeAccessSet, encodeAccessSet } from './access-set';
+// DB-backed auth stores
+export { authModels } from './auth-models';
+export { AUTH_TABLE_NAMES, initializeAuthTables, validateAuthModels } from './auth-tables';
 export type { Period } from './billing-period';
 export { calculateBillingPeriod } from './billing-period';
 export type { ClosureEntry, ClosureRow, ClosureStore, ParentRef } from './closure-store';
@@ -2216,6 +2219,7 @@ export type {
   RuleContext,
 } from './define-access';
 export { defineAccess } from './define-access';
+export type { DbDialectName } from './dialect-ddl';
 export { InMemoryEmailVerificationStore } from './email-verification-store';
 export { computeEntityAccess } from './entity-access';
 export type { FlagStore } from './flag-store';
