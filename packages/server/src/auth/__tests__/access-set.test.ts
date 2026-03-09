@@ -567,3 +567,146 @@ describe('encode/decode round-trip', () => {
     expect(result.entitlements['project:view'].allowed).toBe(true);
   });
 });
+
+describe('JWT access set with plan features', () => {
+  const planAccessDef = defineAccess({
+    entities: {
+      organization: { roles: ['owner', 'admin', 'member'] },
+      project: {
+        roles: ['manager', 'contributor', 'viewer'],
+        inherits: {
+          'organization:owner': 'manager',
+          'organization:admin': 'contributor',
+          'organization:member': 'viewer',
+        },
+      },
+    },
+    entitlements: {
+      'project:view': { roles: ['viewer', 'contributor', 'manager'] },
+      'project:edit': { roles: ['contributor', 'manager'] },
+      'project:export': { roles: ['manager'], flags: ['export-v2'] },
+      'project:delete': { roles: ['manager'] },
+    },
+    plans: {
+      free: {
+        group: 'main',
+        features: ['project:view', 'project:edit'],
+      },
+      pro: {
+        group: 'main',
+        features: ['project:view', 'project:edit', 'project:delete', 'project:export'],
+      },
+    },
+  });
+
+  it('encoded access set contains plan-gated entitlements with plan_required reason', async () => {
+    const roleStore = new InMemoryRoleAssignmentStore();
+    const closureStore = new InMemoryClosureStore();
+    const planStore = new InMemoryPlanStore();
+
+    await closureStore.addResource('organization', 'org-1');
+    await closureStore.addResource('project', 'proj-1', {
+      parentType: 'organization',
+      parentId: 'org-1',
+    });
+    await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
+    await planStore.assignPlan('org-1', 'free');
+
+    const accessSet = await computeAccessSet({
+      userId: 'user-1',
+      accessDef: planAccessDef,
+      roleStore,
+      closureStore,
+      planStore,
+      orgId: 'org-1',
+    });
+
+    const encoded = encodeAccessSet(accessSet);
+
+    // project:view and project:edit are in free plan features — allowed
+    expect(encoded.entitlements['project:view']?.allowed).toBe(true);
+    expect(encoded.entitlements['project:edit']?.allowed).toBe(true);
+
+    // project:delete is NOT in free plan features — denied with plan_required
+    expect(encoded.entitlements['project:delete']?.allowed).toBe(false);
+    expect(encoded.entitlements['project:delete']?.reasons).toContain('plan_required');
+  });
+
+  it('decode restores plan feature entitlements from JWT', async () => {
+    const roleStore = new InMemoryRoleAssignmentStore();
+    const closureStore = new InMemoryClosureStore();
+    const planStore = new InMemoryPlanStore();
+
+    await closureStore.addResource('organization', 'org-1');
+    await closureStore.addResource('project', 'proj-1', {
+      parentType: 'organization',
+      parentId: 'org-1',
+    });
+    await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
+    await planStore.assignPlan('org-1', 'pro');
+
+    const accessSet = await computeAccessSet({
+      userId: 'user-1',
+      accessDef: planAccessDef,
+      roleStore,
+      closureStore,
+      planStore,
+      orgId: 'org-1',
+    });
+
+    const encoded = encodeAccessSet(accessSet);
+    const json = JSON.stringify(encoded);
+    const parsed = JSON.parse(json);
+    const decoded = decodeAccessSet(parsed, planAccessDef);
+
+    // All pro features should be allowed
+    expect(decoded.entitlements['project:view'].allowed).toBe(true);
+    expect(decoded.entitlements['project:edit'].allowed).toBe(true);
+    expect(decoded.entitlements['project:delete'].allowed).toBe(true);
+    expect(decoded.plan).toBe('pro');
+  });
+
+  it('plan change updates access set hash (detected via encoded set difference)', async () => {
+    const roleStore = new InMemoryRoleAssignmentStore();
+    const closureStore = new InMemoryClosureStore();
+    const planStore = new InMemoryPlanStore();
+
+    await closureStore.addResource('organization', 'org-1');
+    await closureStore.addResource('project', 'proj-1', {
+      parentType: 'organization',
+      parentId: 'org-1',
+    });
+    await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
+    await planStore.assignPlan('org-1', 'free');
+
+    // Compute with free plan
+    const freeSet = await computeAccessSet({
+      userId: 'user-1',
+      accessDef: planAccessDef,
+      roleStore,
+      closureStore,
+      planStore,
+      orgId: 'org-1',
+    });
+    const freeEncoded = encodeAccessSet(freeSet);
+
+    // Change to pro plan
+    await planStore.assignPlan('org-1', 'pro');
+
+    // Compute with pro plan
+    const proSet = await computeAccessSet({
+      userId: 'user-1',
+      accessDef: planAccessDef,
+      roleStore,
+      closureStore,
+      planStore,
+      orgId: 'org-1',
+    });
+    const proEncoded = encodeAccessSet(proSet);
+
+    // Encoded sets should differ — different plan = different access
+    expect(JSON.stringify(freeEncoded)).not.toBe(JSON.stringify(proEncoded));
+    expect(freeEncoded.plan).toBe('free');
+    expect(proEncoded.plan).toBe('pro');
+  });
+});
