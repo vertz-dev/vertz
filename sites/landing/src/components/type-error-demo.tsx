@@ -1,4 +1,5 @@
 import { css } from '@vertz/ui';
+import { TOKENS_DIFF_SCHEMA, TOKENS_ERROR_API, TOKENS_ERROR_UI_RENDER } from './highlighted-code';
 
 const s = css({
   section: ['py:24', 'px:6'],
@@ -7,14 +8,134 @@ const s = css({
   heading: ['font:4xl', 'mb:4', 'text:center'],
   subtitle: ['text:center', 'mb:12', 'max-w:xl', 'mx:auto', 'text:gray.400'],
   grid: ['grid', 'grid-cols:2', 'gap:8'],
-  columnLabelZinc: ['font:xs', 'uppercase', 'tracking:wider', 'mb:3', 'text:gray.500'],
-  columnLabelRed: ['font:xs', 'uppercase', 'tracking:wider', 'mb:3'],
+  columnLabel: ['font:xs', 'uppercase', 'tracking:wider', 'mb:3'],
   codeBlock: ['border:1', 'rounded:lg', 'p:6', 'font:sm', 'bg:gray.950'],
-  codeLine: ['pl:6'],
   errorHint: ['font:xs', 'pl:4', 'text:gray.500'],
   errorSpacer: ['mt:4', 'mb:1', 'text:gray.500'],
   errorLabel: ['mb:1', 'text:gray.500'],
 });
+
+// Diff metadata: which lines in TOKENS_DIFF_SCHEMA get diff treatment
+// Line indices: 0=opening, 1=id, 2=title(removed), 3=name(added), 4=done, 5=closing
+const DIFF_LINES: Record<number, 'removed' | 'added'> = {
+  2: 'removed',
+  3: 'added',
+};
+
+const DIFF_STYLES = {
+  removed:
+    'position: relative; background: rgba(239,68,68,0.1); margin: 0 -1.5rem; padding: 0 1.5rem 0 calc(1.5rem - 3px); border-left: 3px solid #ef4444',
+  added:
+    'position: relative; background: rgba(34,197,94,0.1); margin: 0 -1.5rem; padding: 0 1.5rem 0 calc(1.5rem - 3px); border-left: 3px solid #22c55e',
+} as const;
+
+function DiffCodeBlock() {
+  return (
+    <div
+      class={s.codeBlock}
+      style="border-color: #1e1e22; font-family: var(--font-mono); line-height: 1.75"
+    >
+      <pre style="margin: 0">
+        <code>
+          {TOKENS_DIFF_SCHEMA.map((line, i) => {
+            const diff = DIFF_LINES[i];
+            if (diff) {
+              return (
+                <div key={i} style={DIFF_STYLES[diff]}>
+                  <span
+                    style={`position: absolute; left: 0.5rem; color: ${diff === 'removed' ? '#ef4444' : '#22c55e'}`}
+                  >
+                    {diff === 'removed' ? '-' : '+'}
+                  </span>
+                  <span style={diff === 'removed' ? 'opacity: 0.5' : undefined}>
+                    {line.map((token) => (
+                      <span key={token[1]} style={token[0]}>
+                        {token[1]}
+                      </span>
+                    ))}
+                  </span>
+                </div>
+              );
+            }
+            return (
+              <span key={i}>
+                {line.map((token) => (
+                  <span key={token[1]} style={token[0]}>
+                    {token[1]}
+                  </span>
+                ))}
+                {'\n'}
+              </span>
+            );
+          })}
+        </code>
+      </pre>
+    </div>
+  );
+}
+
+function ErrorCodeBlock() {
+  return (
+    <div
+      class={s.codeBlock}
+      style="border-color: rgba(239,68,68,0.3); font-family: var(--font-mono); font-size: 0.8rem; line-height: 1.75"
+    >
+      <div class={s.errorLabel}>
+        <span style="color: #ef4444">✗</span> API call
+      </div>
+      <div>
+        <pre style="margin: 0; display: inline">
+          <code>
+            {TOKENS_ERROR_API[0].map((token) => {
+              const isTitle = token[1] === ' title';
+              return (
+                <span
+                  key={token[1]}
+                  style={`${token[0]}${isTitle ? '; text-decoration: wavy underline; text-decoration-color: #ef4444' : ''}`}
+                >
+                  {token[1]}
+                </span>
+              );
+            })}
+          </code>
+        </pre>
+      </div>
+      <div class={s.errorHint}>Property 'title' does not exist. Did you mean 'name'?</div>
+
+      <div class={s.errorSpacer}>
+        <span style="color: #ef4444">✗</span> UI render
+      </div>
+      <div>
+        <pre style="margin: 0; display: inline">
+          <code>
+            {TOKENS_ERROR_UI_RENDER[0].map((token) => {
+              const hasTitle = token[1].includes('title');
+              if (!hasTitle) {
+                return (
+                  <span key={token[1]} style={token[0]}>
+                    {token[1]}
+                  </span>
+                );
+              }
+              // Split token content around 'title' to apply wavy underline only to that word
+              const parts = token[1].split('title');
+              return (
+                <span key={token[1]} style={token[0]}>
+                  {parts[0]}
+                  <span style="text-decoration: wavy underline; text-decoration-color: #ef4444">
+                    title
+                  </span>
+                  {parts[1]}
+                </span>
+              );
+            })}
+          </code>
+        </pre>
+      </div>
+      <div class={s.errorHint}>Property 'title' does not exist on type 'Todo'.</div>
+    </div>
+  );
+}
 
 export function TypeErrorDemo() {
   return (
@@ -32,82 +153,17 @@ export function TypeErrorDemo() {
 
         <div class={s.grid}>
           <div>
-            <p class={s.columnLabelZinc} style="font-family: var(--font-mono)">
+            <p class={s.columnLabel} style="font-family: var(--font-mono); color: #a1a1aa">
               The change
             </p>
-            <div
-              class={s.codeBlock}
-              style="border-color: #1e1e22; font-family: var(--font-mono); line-height: 1.75"
-            >
-              <div style="color: #f8f8f2">
-                <span style="color: #bd93f9">const </span>todos ={' '}
-                <span style="color: #50fa7b">d</span>.table(
-                <span style="color: #f1fa8c">'todos'</span>, {'{'}
-              </div>
-              <div class={s.codeLine} style="color: #f8f8f2">
-                id:{'   '}
-                <span style="color: #50fa7b">d</span>.uuid().primary(),
-              </div>
-              <div style="padding-left: 1.5rem; background: rgba(239,68,68,0.1); margin: 0 -1.5rem; padding-right: 1.5rem; border-left: 3px solid #ef4444">
-                <span style="color: #ef4444; margin-right: 0.5rem">-</span>
-                <span style="color: #f8f8f2; opacity: 0.5">
-                  title: <span style="color: #50fa7b">d</span>.text(),
-                </span>
-              </div>
-              <div style="padding-left: 1.5rem; background: rgba(34,197,94,0.1); margin: 0 -1.5rem; padding-right: 1.5rem; border-left: 3px solid #22c55e">
-                <span style="color: #22c55e; margin-right: 0.5rem">+</span>
-                <span style="color: #f8f8f2">
-                  name:{'  '}
-                  <span style="color: #50fa7b">d</span>.text(),
-                </span>
-              </div>
-              <div class={s.codeLine} style="color: #f8f8f2">
-                done:{'  '}
-                <span style="color: #50fa7b">d</span>.boolean().default(
-                <span style="color: #bd93f9">false</span>),
-              </div>
-              <div style="color: #f8f8f2">{'}'});</div>
-            </div>
+            <DiffCodeBlock />
           </div>
 
           <div>
-            <p class={s.columnLabelRed} style="font-family: var(--font-mono); color: #ef4444">
+            <p class={s.columnLabel} style="font-family: var(--font-mono); color: #ef4444">
               Compile errors
             </p>
-            <div
-              class={s.codeBlock}
-              style="border-color: rgba(239,68,68,0.3); font-family: var(--font-mono); font-size: 0.8rem; line-height: 1.75"
-            >
-              <div class={s.errorLabel}>
-                <span style="color: #ef4444">✗</span> API call
-              </div>
-              <div style="color: #f8f8f2">
-                api.todos.create({'{'}{' '}
-                <span style="text-decoration: wavy underline; text-decoration-color: #ef4444; color: #f8f8f2">
-                  title
-                </span>
-                : <span style="color: #f1fa8c">'Buy milk'</span> {'}'});
-              </div>
-              <div class={s.errorHint}>Property 'title' does not exist. Did you mean 'name'?</div>
-
-              <div class={s.errorSpacer}>
-                <span style="color: #ef4444">✗</span> UI render
-              </div>
-              <div style="color: #f8f8f2">
-                {'<'}
-                <span style="color: #ff79c6">li</span>
-                {'>'}
-                {'{'}t.
-                <span style="text-decoration: wavy underline; text-decoration-color: #ef4444">
-                  title
-                </span>
-                {'}'}
-                {' </'}
-                <span style="color: #ff79c6">li</span>
-                {'>'}
-              </div>
-              <div class={s.errorHint}>Property 'title' does not exist on type 'Todo'.</div>
-            </div>
+            <ErrorCodeBlock />
           </div>
         </div>
       </div>
