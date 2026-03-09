@@ -91,6 +91,13 @@
           {
             "group": "vertz/fetch",
             "pages": ["guides/fetch"]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "guides/deploy/static-sites",
+              "guides/deploy/og-images"
+            ]
           }
         ],
         "tab": "Guides"
