@@ -2261,6 +2261,26 @@ export type { LimitOverride, OrgPlan, PlanStore } from './plan-store';
 export { InMemoryPlanStore, resolveEffectivePlan } from './plan-store';
 export type { PlanSnapshot, PlanVersionInfo, PlanVersionStore } from './plan-version-store';
 export { InMemoryPlanVersionStore } from './plan-version-store';
+// Billing
+export type { BillingAdapter } from './billing/adapter';
+export type {
+  BillingEvent,
+  BillingEventEmitter,
+  BillingEventHandler,
+  BillingEventType,
+} from './billing/event-emitter';
+export { createBillingEventEmitter } from './billing/event-emitter';
+export type { OverageInput } from './billing/overage';
+export { computeOverage } from './billing/overage';
+export type {
+  StripeClient,
+  StripeBillingAdapterConfig,
+  StripePrice,
+  StripeProduct,
+} from './billing/stripe-adapter';
+export { createStripeBillingAdapter } from './billing/stripe-adapter';
+export type { WebhookHandlerConfig } from './billing/webhook-handler';
+export { createWebhookHandler } from './billing/webhook-handler';
 // Re-export provider factories
 export { discord, github, google } from './providers';
 export { InMemoryRateLimitStore } from './rate-limit-store';
