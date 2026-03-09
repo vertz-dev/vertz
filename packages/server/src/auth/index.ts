@@ -220,6 +220,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
         accessDef: config.access.definition,
         roleStore: config.access.roleStore,
         closureStore: config.access.closureStore,
+        flagStore: config.access.flagStore,
         plan: user.plan ?? null,
       });
       const encoded = encodeAccessSet(accessSet);
@@ -932,6 +933,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
           accessDef: config.access.definition,
           roleStore: config.access.roleStore,
           closureStore: config.access.closureStore,
+          flagStore: config.access.flagStore,
           plan: sessionResult.data.user.plan ?? null,
         });
 
@@ -2178,6 +2180,13 @@ export type { AccessContext, AccessContextConfig, ResourceRef } from './access-c
 // Phase 6: Resource Hierarchy & defineAccess
 export { createAccessContext } from './access-context';
 export type {
+  AccessEvent,
+  AccessEventBroadcaster,
+  AccessEventBroadcasterConfig,
+  AccessWsData,
+} from './access-event-broadcaster';
+export { createAccessEventBroadcaster } from './access-event-broadcaster';
+export type {
   AccessCheckData,
   AccessSet,
   ComputeAccessSetConfig,
@@ -2202,6 +2211,8 @@ export type {
 export { defineAccess } from './define-access';
 export { InMemoryEmailVerificationStore } from './email-verification-store';
 export { computeEntityAccess } from './entity-access';
+export type { FlagStore } from './flag-store';
+export { InMemoryFlagStore } from './flag-store';
 export { checkFva } from './fva';
 export { InMemoryMFAStore } from './mfa-store';
 export { InMemoryOAuthAccountStore } from './oauth-account-store';

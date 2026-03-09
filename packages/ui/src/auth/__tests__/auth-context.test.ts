@@ -1,6 +1,7 @@
 import { describe, expect, it, spyOn } from 'bun:test';
 import { createContext, useContext } from '../../component/context';
 import { AccessContext } from '../access-context';
+import * as accessEventClientModule from '../access-event-client';
 import type { AccessSet } from '../access-set-types';
 import type { AuthContextValue } from '../auth-context';
 import { AuthContext, AuthProvider, useAuth } from '../auth-context';
@@ -555,6 +556,40 @@ describe('AuthProvider', () => {
       restoreWindow();
     });
 
+    it('hydrates access set from window.__VERTZ_ACCESS_SET__ when accessControl enabled', () => {
+      const session = {
+        user: { id: '1', email: 'a@b.com', role: 'admin' },
+        expiresAt: Date.now() + 3_600_000,
+      };
+      const fakeWindow = createFakeWindow(session);
+      (fakeWindow as Record<string, unknown>).__VERTZ_ACCESS_SET__ = {
+        entitlements: { 'task:read': { allowed: true, reasons: [] } },
+        flags: {},
+        plan: 'pro',
+        computedAt: new Date().toISOString(),
+      };
+      setWindow(fakeWindow);
+
+      let accessCtx: { accessSet: AccessSet | null; loading: boolean } | undefined;
+      AuthProvider({
+        accessControl: true,
+        children: () => {
+          useAuth();
+          accessCtx = useContext(AccessContext) as {
+            accessSet: AccessSet | null;
+            loading: boolean;
+          };
+        },
+      });
+
+      expect(accessCtx).toBeDefined();
+      expect(accessCtx?.accessSet).toBeDefined();
+      expect(accessCtx?.accessSet?.entitlements['task:read'].allowed).toBe(true);
+      expect(accessCtx?.loading).toBe(false);
+
+      restoreWindow();
+    });
+
     it('signOut clears window.__VERTZ_SESSION__', async () => {
       const session = {
         user: { id: '1', email: 'a@b.com', role: 'user' },
@@ -641,6 +676,246 @@ describe('AuthProvider', () => {
       expect(accessInit.credentials).toBe('include');
 
       fetchSpy.mockRestore();
+    });
+
+    it('creates access event client when accessEvents is enabled', () => {
+      let connectCalled = false;
+      const createSpy = spyOn(accessEventClientModule, 'createAccessEventClient').mockReturnValue({
+        connect: () => {
+          connectCalled = true;
+        },
+        disconnect: () => {},
+        dispose: () => {},
+      });
+
+      AuthProvider({
+        accessControl: true,
+        accessEvents: true,
+        children: () => {
+          useAuth();
+        },
+      });
+
+      expect(createSpy).toHaveBeenCalledTimes(1);
+      expect(connectCalled).toBe(true);
+
+      createSpy.mockRestore();
+    });
+
+    it('does not create access event client when accessEvents is false', () => {
+      const createSpy = spyOn(accessEventClientModule, 'createAccessEventClient').mockReturnValue({
+        connect: () => {},
+        disconnect: () => {},
+        dispose: () => {},
+      });
+
+      AuthProvider({
+        accessControl: true,
+        accessEvents: false,
+        children: () => {
+          useAuth();
+        },
+      });
+
+      expect(createSpy).toHaveBeenCalledTimes(0);
+
+      createSpy.mockRestore();
+    });
+
+    it('does not create access event client when accessControl is false', () => {
+      const createSpy = spyOn(accessEventClientModule, 'createAccessEventClient').mockReturnValue({
+        connect: () => {},
+        disconnect: () => {},
+        dispose: () => {},
+      });
+
+      AuthProvider({
+        accessEvents: true,
+        children: () => {
+          useAuth();
+        },
+      });
+
+      expect(createSpy).toHaveBeenCalledTimes(0);
+
+      createSpy.mockRestore();
+    });
+
+    it('access event client onEvent handles flag_toggled inline', async () => {
+      let capturedOnEvent: ((event: accessEventClientModule.ClientAccessEvent) => void) | undefined;
+      const createSpy = spyOn(
+        accessEventClientModule,
+        'createAccessEventClient',
+      ).mockImplementation((opts) => {
+        capturedOnEvent = opts.onEvent;
+        return {
+          connect: () => {},
+          disconnect: () => {},
+          dispose: () => {},
+        };
+      });
+
+      const accessSetData: AccessSet = {
+        entitlements: {
+          'project:export': { allowed: true, reasons: [] },
+        },
+        flags: { 'export-v2': true },
+        plan: 'pro',
+        computedAt: new Date().toISOString(),
+      };
+
+      const fetchSpy = spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response(JSON.stringify(accessSetData), { status: 200 }),
+      );
+
+      AuthProvider({
+        accessControl: true,
+        accessEvents: true,
+        flagEntitlementMap: { 'project:export': ['export-v2'] },
+        children: () => {
+          useAuth();
+        },
+      });
+
+      expect(capturedOnEvent).toBeDefined();
+
+      // Exercise the onEvent callback to cover lines 338-340
+      capturedOnEvent?.({ type: 'access:flag_toggled', flag: 'export-v2', enabled: false });
+
+      createSpy.mockRestore();
+      fetchSpy.mockRestore();
+    });
+
+    it('access event client onEvent handles limit_updated inline', () => {
+      let capturedOnEvent: ((event: accessEventClientModule.ClientAccessEvent) => void) | undefined;
+      const createSpy = spyOn(
+        accessEventClientModule,
+        'createAccessEventClient',
+      ).mockImplementation((opts) => {
+        capturedOnEvent = opts.onEvent;
+        return {
+          connect: () => {},
+          disconnect: () => {},
+          dispose: () => {},
+        };
+      });
+
+      AuthProvider({
+        accessControl: true,
+        accessEvents: true,
+        children: () => {
+          useAuth();
+        },
+      });
+
+      // Exercise limit_updated to cover inline update path
+      capturedOnEvent?.({
+        type: 'access:limit_updated',
+        entitlement: 'project:create',
+        consumed: 99,
+        remaining: 1,
+        max: 100,
+      });
+
+      createSpy.mockRestore();
+    });
+
+    it('access event client onEvent handles role_changed with jittered refetch', () => {
+      let capturedOnEvent: ((event: accessEventClientModule.ClientAccessEvent) => void) | undefined;
+      const createSpy = spyOn(
+        accessEventClientModule,
+        'createAccessEventClient',
+      ).mockImplementation((opts) => {
+        capturedOnEvent = opts.onEvent;
+        return {
+          connect: () => {},
+          disconnect: () => {},
+          dispose: () => {},
+        };
+      });
+
+      const fetchSpy = spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response(JSON.stringify({}), { status: 200 }),
+      );
+
+      AuthProvider({
+        accessControl: true,
+        accessEvents: true,
+        children: () => {
+          useAuth();
+        },
+      });
+
+      // Fire role_changed event — exercises lines 342-346 (setTimeout + fetchAccessSet)
+      capturedOnEvent?.({ type: 'access:role_changed' });
+
+      // Fire plan_changed too — same code path
+      capturedOnEvent?.({ type: 'access:plan_changed' });
+
+      createSpy.mockRestore();
+      fetchSpy.mockRestore();
+    });
+
+    it('access event client onReconnect triggers refetch', () => {
+      let capturedOnReconnect: (() => void) | undefined;
+      const createSpy = spyOn(
+        accessEventClientModule,
+        'createAccessEventClient',
+      ).mockImplementation((opts) => {
+        capturedOnReconnect = opts.onReconnect;
+        return {
+          connect: () => {},
+          disconnect: () => {},
+          dispose: () => {},
+        };
+      });
+
+      const fetchSpy = spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response(JSON.stringify({}), { status: 200 }),
+      );
+
+      AuthProvider({
+        accessControl: true,
+        accessEvents: true,
+        children: () => {
+          useAuth();
+        },
+      });
+
+      expect(capturedOnReconnect).toBeDefined();
+      // Fire onReconnect — exercises line 351
+      capturedOnReconnect?.();
+
+      createSpy.mockRestore();
+      fetchSpy.mockRestore();
+    });
+
+    it('passes accessEventsUrl to event client', () => {
+      let capturedUrl: string | undefined;
+      const createSpy = spyOn(
+        accessEventClientModule,
+        'createAccessEventClient',
+      ).mockImplementation((opts) => {
+        capturedUrl = opts.url;
+        return {
+          connect: () => {},
+          disconnect: () => {},
+          dispose: () => {},
+        };
+      });
+
+      AuthProvider({
+        accessControl: true,
+        accessEvents: true,
+        accessEventsUrl: 'wss://custom.example.com/ws',
+        children: () => {
+          useAuth();
+        },
+      });
+
+      expect(capturedUrl).toBe('wss://custom.example.com/ws');
+
+      createSpy.mockRestore();
     });
 
     it('clears access set on signOut', async () => {

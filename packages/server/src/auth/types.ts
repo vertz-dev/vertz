@@ -316,6 +316,7 @@ export interface AuthAccessConfig {
   definition: import('./define-access').AccessDefinition;
   roleStore: import('./role-assignment-store').RoleAssignmentStore;
   closureStore: import('./closure-store').ClosureStore;
+  flagStore?: import('./flag-store').FlagStore;
 }
 
 // ============================================================================

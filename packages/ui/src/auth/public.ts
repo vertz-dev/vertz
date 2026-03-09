@@ -9,6 +9,12 @@
 // --- Access control (existing) ---
 export type { AccessContextValue } from './access-context';
 export { AccessContext, can, useAccessContext } from './access-context';
+export type {
+  AccessEventClient,
+  AccessEventClientOptions,
+  ClientAccessEvent,
+} from './access-event-client';
+export { createAccessEventClient } from './access-event-client';
 export type { AccessGateProps } from './access-gate';
 export { AccessGate } from './access-gate';
 export type {

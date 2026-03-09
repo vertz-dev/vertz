@@ -5,6 +5,8 @@ import { _tryOnCleanup } from '../runtime/disposal';
 import { computed, signal } from '../runtime/signal';
 import type { ReadonlySignal, Signal } from '../runtime/signal-types';
 import { AccessContext } from './access-context';
+import { createAccessEventClient } from './access-event-client';
+import { handleAccessEvent } from './access-event-handler';
 import type { AccessSet } from './access-set-types';
 import { createAuthMethod } from './auth-client';
 import type {
@@ -70,6 +72,12 @@ export function useAuth(): UnwrapSignals<AuthContextValue> {
 export interface AuthProviderProps {
   basePath?: string;
   accessControl?: boolean;
+  /** Enable WebSocket-based real-time access event updates. Requires accessControl. */
+  accessEvents?: boolean;
+  /** WebSocket URL for access events. Defaults to deriving from window.location. */
+  accessEventsUrl?: string;
+  /** Map of entitlement names to their required flags. Used for inline flag toggle updates. */
+  flagEntitlementMap?: Record<string, string[]>;
   children: (() => unknown) | unknown;
 }
 
@@ -78,6 +86,9 @@ export interface AuthProviderProps {
 export function AuthProvider({
   basePath = '/api/auth',
   accessControl,
+  accessEvents,
+  accessEventsUrl,
+  flagEntitlementMap,
   children,
 }: AuthProviderProps): HTMLElement {
   const userSignal = signal<User | null>(null);
@@ -316,9 +327,41 @@ export function AuthProvider({
     return refreshInFlight;
   };
 
+  // Access event client (WebSocket for real-time access invalidation)
+  const eventClient =
+    accessControl && accessEvents && accessSetSignal
+      ? createAccessEventClient({
+          url: accessEventsUrl,
+          onEvent: (event) => {
+            if (!accessSetSignal) return;
+
+            if (event.type === 'access:flag_toggled' || event.type === 'access:limit_updated') {
+              // Inline update — modify accessSet signal directly
+              handleAccessEvent(accessSetSignal, event, flagEntitlementMap);
+            } else {
+              // role_changed / plan_changed — jittered refetch
+              const jitter = Math.random() * 1000;
+              setTimeout(() => {
+                void fetchAccessSet();
+              }, jitter);
+            }
+          },
+          onReconnect: () => {
+            // Immediate refetch on reconnection
+            void fetchAccessSet();
+          },
+        })
+      : null;
+
+  // Auto-connect event client when authenticated
+  if (eventClient) {
+    eventClient.connect();
+  }
+
   // Register disposal for timer cleanup
   _tryOnCleanup(() => {
     tokenRefresh.dispose();
+    eventClient?.dispose();
   });
 
   const contextValue: AuthContextValue = {

@@ -5,11 +5,11 @@
  * closure table, and role assignments using 5-layer resolution.
  *
  * Layers (cheapest-first for can(), all-layers for check()):
- * 1. Feature flags (stubbed — always pass)
+ * 1. Feature flags (requires flagStore + orgResolver)
  * 2. RBAC (effective role check)
  * 3. Hierarchy (closure table path check)
- * 4. Plan check (stubbed — always pass)
- * 5. Wallet check (stubbed — always pass)
+ * 4. Plan check (requires planStore + orgResolver)
+ * 5. Wallet check (requires walletStore + planStore + orgResolver)
  */
 
 import { AuthorizationError } from './access';
@@ -22,6 +22,7 @@ import type {
   DenialReason,
   LimitDef,
 } from './define-access';
+import type { FlagStore } from './flag-store';
 import { type OrgPlan, type PlanStore, resolveEffectivePlan } from './plan-store';
 import type { RoleAssignmentStore } from './role-assignment-store';
 import type { WalletStore } from './wallet-store';
@@ -42,6 +43,8 @@ export interface AccessContextConfig {
   roleStore: RoleAssignmentStore;
   /** Factor verification age — seconds since last MFA. undefined if no MFA done. */
   fva?: number;
+  /** Flag store — required for Layer 1 feature flag checks */
+  flagStore?: FlagStore;
   /** Plan store — required for Layer 4 plan checks */
   planStore?: PlanStore;
   /** Wallet store — required for Layer 5 wallet checks and canAndConsume() */
@@ -70,8 +73,16 @@ const MAX_BULK_CHECKS = 100;
 // ============================================================================
 
 export function createAccessContext(config: AccessContextConfig): AccessContext {
-  const { userId, accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
-    config;
+  const {
+    userId,
+    accessDef,
+    closureStore,
+    roleStore,
+    flagStore,
+    planStore,
+    walletStore,
+    orgResolver,
+  } = config;
 
   // ==========================================================================
   // checkLayers1to4() — internal, checks Layers 1-4 with pre-resolved orgId
@@ -88,8 +99,15 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     const entDef = accessDef.entitlements[entitlement];
     if (!entDef) return false; // Unknown entitlement — deny
 
-    // Layer 1: Feature flags (stub — always pass)
-    // if (entDef.flags?.length) { ... }
+    // Layer 1: Feature flags
+    if (entDef.flags?.length && flagStore && orgResolver) {
+      if (!resolvedOrgId) return false;
+      for (const flag of entDef.flags) {
+        if (!flagStore.getFlag(resolvedOrgId, flag)) {
+          return false;
+        }
+      }
+    }
 
     // Layer 2: RBAC check
     if (entDef.roles.length > 0 && resource) {
@@ -184,8 +202,24 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     // Resolve org once for all layers
     const resolvedOrgId = orgResolver ? await orgResolver(resource) : null;
 
-    // Layer 1: Feature flags (stub)
-    // if (entDef.flags?.length) { ... }
+    // Layer 1: Feature flags
+    if (entDef.flags?.length && flagStore && orgResolver) {
+      if (resolvedOrgId) {
+        const disabledFlags: string[] = [];
+        for (const flag of entDef.flags) {
+          if (!flagStore.getFlag(resolvedOrgId, flag)) {
+            disabledFlags.push(flag);
+          }
+        }
+        if (disabledFlags.length > 0) {
+          reasons.push('flag_disabled');
+          meta.disabledFlags = disabledFlags;
+        }
+      } else {
+        reasons.push('flag_disabled');
+        meta.disabledFlags = [...entDef.flags];
+      }
+    }
 
     // Layer 2: RBAC
     if (entDef.roles.length > 0) {
