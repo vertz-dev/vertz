@@ -21,6 +21,7 @@ export function packageJsonTemplate(projectName: string): string {
     },
     dependencies: {
       vertz: '^0.2.0',
+      '@vertz/theme-shadcn': '^0.2.0',
     },
     devDependencies: {
       '@vertz/cli': '^0.2.0',
@@ -336,7 +337,7 @@ mount(App, {
  * src/styles/theme.ts — configureTheme from @vertz/theme-shadcn
  */
 export function themeTemplate(): string {
-  return `import { configureTheme } from 'vertz/theme-shadcn';
+  return `import { configureTheme } from '@vertz/theme-shadcn';
 
 const { theme, globals } = configureTheme({
   palette: 'zinc',

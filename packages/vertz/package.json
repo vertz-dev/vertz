@@ -70,10 +70,6 @@
     "./ui-server/bun-plugin": {
       "import": "./src/ui-server-bun-plugin.ts",
       "types": "./src/ui-server-bun-plugin.ts"
-    },
-    "./theme-shadcn": {
-      "import": "./src/theme-shadcn.ts",
-      "types": "./src/theme-shadcn.ts"
     }
   },
   "scripts": {
@@ -92,7 +88,6 @@
     "@vertz/cloudflare": "workspace:^",
     "@vertz/tui": "workspace:^",
     "@vertz/ui-primitives": "workspace:^",
-    "@vertz/theme-shadcn": "workspace:^",
     "@vertz/ui-server": "workspace:^"
   },
   "devDependencies": {}

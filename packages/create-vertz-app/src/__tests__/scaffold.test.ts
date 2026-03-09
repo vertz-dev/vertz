@@ -282,7 +282,7 @@ describe('scaffold', () => {
 
       const content = await fs.readFile(projectPath('src', 'styles', 'theme.ts'), 'utf-8');
       expect(content).toContain('configureTheme');
-      expect(content).toContain("from 'vertz/theme-shadcn'");
+      expect(content).toContain("from '@vertz/theme-shadcn'");
     });
 
     it('generates src/pages/home.tsx with query + form', async () => {

@@ -248,10 +248,10 @@ describe('templates', () => {
   });
 
   describe('themeTemplate', () => {
-    it('uses configureTheme from vertz/theme-shadcn', () => {
+    it('uses configureTheme from @vertz/theme-shadcn', () => {
       const result = themeTemplate();
       expect(result).toContain('configureTheme');
-      expect(result).toContain("from 'vertz/theme-shadcn'");
+      expect(result).toContain("from '@vertz/theme-shadcn'");
     });
   });
 

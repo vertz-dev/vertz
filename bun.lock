@@ -494,7 +494,6 @@
         "@vertz/schema": "workspace:^",
         "@vertz/server": "workspace:^",
         "@vertz/testing": "workspace:^",
-        "@vertz/theme-shadcn": "workspace:^",
         "@vertz/tui": "workspace:^",
         "@vertz/ui": "workspace:^",
         "@vertz/ui-compiler": "workspace:^",
