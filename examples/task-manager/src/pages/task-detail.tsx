@@ -100,7 +100,7 @@ export function TaskDetailPage() {
           type="button"
           class={button({ intent: 'ghost', size: 'sm' })}
           style="margin-bottom: 1rem"
-          onClick={() => navigate('/')}
+          onClick={() => navigate({ to: '/' })}
         >
           <ArrowLeftIcon size={14} />
           Back to Tasks
@@ -126,7 +126,7 @@ export function TaskDetailPage() {
                   console.error('Failed to delete task:', result.error.message);
                   return;
                 }
-                navigate('/');
+                navigate({ to: '/' });
               }}
             />
           </div>

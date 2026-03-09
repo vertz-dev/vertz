@@ -7,12 +7,12 @@
  * - Navigation after successful form submission
  */
 
-import { css, useRouter } from "@vertz/ui";
-import { TaskForm } from "../components/task-form";
+import { css, useRouter } from '@vertz/ui';
+import { TaskForm } from '../components/task-form';
 
 const pageStyles = css({
-  page: ["max-w:lg", "mx:auto"],
-  title: ["font:2xl", "font:bold", "text:foreground", "mb:6"],
+  page: ['max-w:lg', 'mx:auto'],
+  title: ['font:2xl', 'font:bold', 'text:foreground', 'mb:6'],
 });
 
 /**
@@ -26,10 +26,7 @@ export function CreateTaskPage() {
   return (
     <div class={pageStyles.page} data-testid="create-task-page">
       <h1 class={pageStyles.title}>Create New Task</h1>
-      <TaskForm
-        onSuccess={() => navigate("/")}
-        onCancel={() => navigate("/")}
-      />
+      <TaskForm onSuccess={() => navigate({ to: '/' })} onCancel={() => navigate({ to: '/' })} />
     </div>
   );
 }

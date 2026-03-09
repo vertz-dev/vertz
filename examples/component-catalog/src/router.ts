@@ -32,5 +32,5 @@ const currentPath = computed(() => {
 });
 
 export const Link = createLink(currentPath, (url: string) => {
-  appRouter.navigate(url as Parameters<typeof appRouter.navigate>[0]);
+  appRouter.navigate({ to: url as Parameters<typeof appRouter.navigate>[0]['to'] });
 });

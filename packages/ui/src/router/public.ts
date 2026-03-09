@@ -21,7 +21,7 @@ export type {
 export { defineRoutes } from './define-routes';
 export type { LinkProps } from './link';
 export { createLink } from './link';
-export type { NavigateOptions, Router, TypedRouter } from './navigate';
+export type { NavigateInput, NavigateOptions, Router, TypedRouter } from './navigate';
 export { createRouter } from './navigate';
 export type { OutletContextValue } from './outlet';
 export { Outlet, OutletContext } from './outlet';

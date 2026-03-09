@@ -94,7 +94,7 @@ function createRouter<T extends Record<string, RouteConfigLike>>(
 | `loaderData` | `unknown[]` | Data from the matched route's loader (reactive) |
 | `loaderError` | `Error \| null` | Error from the loader, if any (reactive) |
 | `searchParams` | `Record<string, unknown>` | Parsed search params (reactive) |
-| `navigate(to, options?)` | `<TPath extends keyof T & string>(to: TPath, options?) => Promise<void>` | Navigate to a route pattern with typed params |
+| `navigate(input)` | `<TPath extends keyof T & string>(input: { to: TPath, ... }) => Promise<void>` | Navigate to a route pattern with typed params |
 | `revalidate()` | `() => Promise<void>` | Re-run the current route's loader |
 | `dispose()` | `() => void` | Clean up the router |
 
@@ -169,7 +169,7 @@ function TaskCard({ taskId }: { taskId: string }) {
   const router = useRouter();
 
   const handleClick = () => {
-    router.navigate('/tasks/:id', { params: { id: taskId } });
+    router.navigate({ to: '/tasks/:id', params: { id: taskId } });
   };
 
   return <div onClick={handleClick}>...</div>;
@@ -220,7 +220,7 @@ Create a Link component factory bound to a router's state. Used internally — m
 import { createLink } from '@vertz/ui/router';
 
 const Link = createLink(router.current, (url) =>
-  router.navigate(url as Parameters<typeof router.navigate>[0]),
+  router.navigate({ to: url as Parameters<typeof router.navigate>[0]['to'] }),
 );
 ```
 
@@ -253,6 +253,10 @@ interface NavigateOptions {
   params?: Record<string, string>;
   search?: string | URLSearchParams | Record<string, string | number | boolean>;
 }
+
+type NavigateInput<TPath extends string> = {
+  to: TPath;
+} & NavigateOptions;
 
 type RoutePattern<T extends Record<string, RouteConfigLike>> = keyof T & string;
 type RoutePaths<T extends Record<string, RouteConfigLike>> = /* concrete URL union */;

@@ -121,7 +121,13 @@ export type {
 export { defineRoutes } from './router/define-routes';
 export type { LinkFactoryOptions, LinkProps } from './router/link';
 export { createLink } from './router/link';
-export type { NavigateOptions, Router, RouterOptions, TypedRouter } from './router/navigate';
+export type {
+  NavigateInput,
+  NavigateOptions,
+  Router,
+  RouterOptions,
+  TypedRouter,
+} from './router/navigate';
 export { createRouter } from './router/navigate';
 export type { OutletContextValue } from './router/outlet';
 export { Outlet, OutletContext } from './router/outlet';

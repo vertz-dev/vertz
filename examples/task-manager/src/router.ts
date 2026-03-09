@@ -9,14 +9,7 @@
  * - Pages access navigation via useRouter() context (no prop threading)
  */
 
-import {
-  Outlet,
-  OutletContext,
-  computed,
-  createLink,
-  createRouter,
-  defineRoutes,
-} from '@vertz/ui';
+import { computed, createLink, createRouter, defineRoutes, Outlet, OutletContext } from '@vertz/ui';
 import { api } from './api/mock-data';
 import { CreateTaskPage } from './pages/create-task';
 import { SettingsPage } from './pages/settings';
@@ -68,7 +61,7 @@ export const routes = defineRoutes({
 const initialPath =
   typeof window !== 'undefined' && window.location
     ? window.location.pathname
-    : (globalThis as any).__SSR_URL__ || '/';
+    : ((globalThis as Record<string, unknown>).__SSR_URL__ as string) || '/';
 
 export const appRouter = createRouter(routes, initialPath, { serverNav: true });
 
@@ -87,7 +80,7 @@ const currentPath = computed(() => {
 });
 
 export const Link = createLink(currentPath, (url: string) => {
-  appRouter.navigate(url as Parameters<typeof appRouter.navigate>[0]);
+  appRouter.navigate({ to: url as Parameters<typeof appRouter.navigate>[0]['to'] });
 });
 
 /**

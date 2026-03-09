@@ -60,7 +60,7 @@ export async function createTestRouter(
   await renderCurrentRoute(router, container);
 
   async function navigate(path: string): Promise<void> {
-    await router.navigate(path);
+    await router.navigate({ to: path });
     await renderCurrentRoute(router, container);
   }
 

@@ -185,7 +185,7 @@ export function useSettings(): SettingsContextValue {
 // Page — access via hook
 export function TaskListPage() {
   const { navigate } = useRouter();
-  navigate('/tasks/new');
+  navigate({ to: '/tasks/new' });
 }
 
 // Route params
@@ -210,7 +210,7 @@ const view = RouterView({
 
 ```tsx
 // WRONG
-'/': { component: () => TaskListPage({ navigate: (url) => router.navigate(url) }) }
+'/': { component: () => TaskListPage({ navigate: (url) => router.navigate({ to: url }) }) }
 
 // RIGHT
 '/': { component: () => TaskListPage() }

@@ -31,7 +31,7 @@ function LoginPage() {
   const auth = useAuth();
 
   const loginForm = form(auth.signIn, {
-    onSuccess: () => navigate('/dashboard'),
+    onSuccess: () => navigate({ to: '/dashboard' }),
   });
 
   return (
@@ -203,7 +203,7 @@ function LoginPage() {
 
   const loginForm = form(auth.signIn);
   const mfaForm = form(auth.mfaChallenge, {
-    onSuccess: () => navigate('/dashboard'),
+    onSuccess: () => navigate({ to: '/dashboard' }),
   });
 
   // Show MFA form when required
@@ -266,7 +266,7 @@ function ResetPasswordPage() {
   const token = new URLSearchParams(location.search).get('token');
 
   const resetForm = form(auth.resetPassword, {
-    onSuccess: () => navigate('/login'),
+    onSuccess: () => navigate({ to: '/login' }),
   });
 
   return (

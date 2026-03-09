@@ -36,11 +36,9 @@ type NavigateOptionsFor<TPath extends string> = string extends TPath
     ? Omit<NavigateOptions, 'params'> & { params: ExtractParams<TPath> }
     : Omit<NavigateOptions, 'params'> & { params?: never };
 
-type NavigateArgs<TPath extends string> = string extends TPath
-  ? [options?: NavigateOptionsFor<TPath>]
-  : TPath extends `${string}:${string}` | `${string}*`
-    ? [options: NavigateOptionsFor<TPath>]
-    : [options?: NavigateOptionsFor<TPath>];
+export type NavigateInput<TPath extends string = string> = {
+  to: TPath;
+} & NavigateOptionsFor<TPath>;
 
 /** Handle returned by prefetchNavData for cancellation. */
 interface PrefetchHandle {
@@ -74,7 +72,7 @@ export interface RouterOptions {
  *
  * Generic over the route map `T`. Defaults to `RouteDefinitionMap` (string
  * index signature) for backward compatibility — unparameterized `Router`
- * accepts any string in `navigate()`.
+ * accepts any string in `navigate().to`.
  *
  * Method syntax on `navigate`, `revalidate`, and `dispose` enables bivariant
  * parameter checking under `strictFunctionTypes`. This means `Router<T>` is
@@ -93,7 +91,7 @@ export interface Router<T extends Record<string, RouteConfigLike> = RouteDefinit
   /** Parsed search params from the current route (reactive signal). */
   searchParams: Signal<Record<string, unknown>>;
   /** Navigate to a route pattern, interpolating params and search into the final URL. */
-  navigate<TPath extends RoutePattern<T>>(to: TPath, ...args: NavigateArgs<TPath>): Promise<void>;
+  navigate<TPath extends RoutePattern<T>>(input: NavigateInput<TPath>): Promise<void>;
   /** Re-run all loaders for the current route. */
   revalidate(): Promise<void>;
   /** Remove popstate listener and clean up the router. */
@@ -406,8 +404,8 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     }
   }
 
-  async function navigate(to: string, navOptions?: NavigateOptions): Promise<void> {
-    const navUrl = buildNavigationUrl(to, navOptions);
+  async function navigate(input: NavigateInput): Promise<void> {
+    const navUrl = buildNavigationUrl(input.to, input);
 
     // Capture generation at start — if a newer navigate() starts while we
     // await prefetch, this navigate should skip applyNavigation.
@@ -417,7 +415,7 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     const handle = startPrefetch(navUrl);
 
     // Update browser history
-    if (navOptions?.replace) {
+    if (input.replace) {
       window.history.replaceState(null, '', navUrl);
     } else {
       window.history.pushState(null, '', navUrl);

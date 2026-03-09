@@ -1,18 +1,8 @@
-import {
-  getInjectedCSS,
-  globalCss,
-  ThemeProvider,
-} from '@vertz/ui';
+import { getInjectedCSS, globalCss, ThemeProvider } from '@vertz/ui';
 import type { ComponentEntry } from './demos';
-import {
-  categoryLabels,
-  categoryOrder,
-  componentRegistry,
-  groupByCategory,
-} from './demos';
+import { categoryLabels, categoryOrder, componentRegistry, groupByCategory } from './demos';
 import { appRouter, Link } from './router';
-import { layoutStyles, navStyles, scrollStyles } from './styles/catalog';
-import { demoStyles, homeStyles } from './styles/catalog';
+import { demoStyles, homeStyles, layoutStyles, navStyles, scrollStyles } from './styles/catalog';
 import { catalogTheme, themeGlobals, themeStyles } from './styles/theme';
 
 const appGlobals = globalCss({
@@ -24,7 +14,7 @@ const appGlobals = globalCss({
 
 // Collect all component CSS from theme styles
 const componentCss = Object.values(themeStyles)
-  .map((s: any) => s.css)
+  .map((s: { css?: string }) => s.css)
   .filter(Boolean);
 
 export { getInjectedCSS };
@@ -53,7 +43,9 @@ function renderHome(): HTMLElement {
     card.className = homeStyles.categoryCard;
     card.addEventListener('click', () => {
       if (entries.length > 0) {
-        appRouter.navigate(`/${entries[0].slug}` as any);
+        appRouter.navigate({
+          to: `/${entries[0].slug}` as Parameters<typeof appRouter.navigate>[0]['to'],
+        });
       }
     });
 
@@ -108,7 +100,12 @@ function Sidebar() {
   navLinks.style.cssText = 'display: flex; flex-direction: column; gap: 2px;';
 
   navLinks.append(
-    Link({ href: '/', children: 'Overview', className: navStyles.navItem, activeClass: navStyles.navItemActive }),
+    Link({
+      href: '/',
+      children: 'Overview',
+      className: navStyles.navItem,
+      activeClass: navStyles.navItemActive,
+    }),
   );
 
   for (const cat of categoryOrder) {
