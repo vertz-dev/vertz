@@ -1,0 +1,25 @@
+{
+  "name": "create-vertz",
+  "version": "0.2.12",
+  "type": "module",
+  "license": "MIT",
+  "description": "Create a new Vertz application — delegates to @vertz/create-vertz-app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vertz-dev/vertz.git",
+    "directory": "packages/create-vertz"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "bin": {
+    "create-vertz": "./bin/create-vertz.ts"
+  },
+  "files": [
+    "bin"
+  ],
+  "dependencies": {
+    "@vertz/create-vertz-app": "workspace:*"
+  }
+}
