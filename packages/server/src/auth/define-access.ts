@@ -27,7 +27,14 @@ export interface DenialMeta {
   requiredPlans?: string[];
   requiredRoles?: string[];
   disabledFlags?: string[];
-  limit?: { key?: string; max: number; consumed: number; remaining: number };
+  limit?: {
+    key?: string;
+    max: number;
+    consumed: number;
+    remaining: number;
+    /** True when the tenant is consuming beyond the limit under overage billing */
+    overage?: boolean;
+  };
   fvaMaxAge?: number;
 }
 
@@ -51,6 +58,16 @@ export interface PlanPrice {
   interval: PriceInterval;
 }
 
+/** Overage billing configuration for a limit */
+export interface OverageConfig {
+  /** Price per unit of overage (e.g., 0.01 for $0.01 per extra unit) */
+  amount: number;
+  /** Units per charge (e.g., 1 = charge per unit, 100 = charge per 100 units) */
+  per: number;
+  /** Maximum overage charge per period (safety cap). Omit for no cap. */
+  cap?: number;
+}
+
 /** Limit definition within a plan — gates an entitlement with optional scoping */
 export interface LimitDef {
   max: number;
@@ -59,6 +76,14 @@ export interface LimitDef {
   per?: BillingPeriod;
   /** Entity scope — omitted = tenant-level, string = per entity instance */
   scope?: string;
+  /** Overage billing: allow usage beyond limit at per-unit cost */
+  overage?: OverageConfig;
+}
+
+/** Add-on compatibility — restricts which base plans an add-on can be attached to */
+export interface AddOnRequires {
+  group: string;
+  plans: readonly string[] | string[];
 }
 
 /** Plan definition — features, limits, metadata, and billing */
@@ -70,6 +95,8 @@ export interface PlanDef {
   price?: PlanPrice;
   features?: readonly string[] | string[];
   limits?: Record<string, LimitDef>;
+  /** Add-on only: restricts attachment to tenants on compatible base plans */
+  requires?: AddOnRequires;
 }
 
 // ============================================================================
@@ -341,6 +368,19 @@ export function defineAccess(input: DefineAccessInput): AccessDefinition {
         if (!planDef.group) {
           throw new Error(`Base plan '${planName}' must have a group`);
         }
+        // requires is only valid on add-ons
+        if (planDef.requires) {
+          throw new Error(`Plan '${planName}': 'requires' is only valid on add-on plans`);
+        }
+      }
+
+      // Validate requires references
+      if (planDef.addOn && planDef.requires) {
+        for (const reqPlan of planDef.requires.plans) {
+          if (!input.plans[reqPlan]) {
+            throw new Error(`Add-on '${planName}' requires plan '${reqPlan}' is not defined`);
+          }
+        }
       }
     }
 
@@ -457,6 +497,14 @@ export function defineAccess(input: DefineAccessInput): AccessDefinition {
                             ]),
                           ),
                         ),
+                      }
+                    : {}),
+                  ...(planDef.requires
+                    ? {
+                        requires: Object.freeze({
+                          group: planDef.requires.group,
+                          plans: Object.freeze([...planDef.requires.plans]),
+                        }),
                       }
                     : {}),
                 }),

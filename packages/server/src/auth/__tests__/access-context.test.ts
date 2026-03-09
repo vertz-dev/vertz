@@ -5,6 +5,7 @@ import { calculateBillingPeriod } from '../billing-period';
 import { InMemoryClosureStore } from '../closure-store';
 import { defineAccess } from '../define-access';
 import { InMemoryFlagStore } from '../flag-store';
+import { InMemoryOverrideStore } from '../override-store';
 import { InMemoryPlanStore } from '../plan-store';
 import { InMemoryRoleAssignmentStore } from '../role-assignment-store';
 import { InMemoryWalletStore } from '../wallet-store';
@@ -1039,6 +1040,547 @@ describe('createAccessContext', () => {
       ]);
       expect(results.get('proj-1')).toBe(true);
       expect(results.get('proj-2')).toBe(false);
+    });
+  });
+
+  // ==========================================================================
+  // Override resolution in can()
+  // ==========================================================================
+
+  describe('Feature: Override resolution in can()', () => {
+    function setupOverrideAccess() {
+      const accessDef = defineAccess({
+        entities: {
+          organization: { roles: ['owner', 'admin', 'member'] },
+          project: {
+            roles: ['manager', 'contributor', 'viewer'],
+            inherits: {
+              'organization:owner': 'manager',
+              'organization:admin': 'contributor',
+              'organization:member': 'viewer',
+            },
+          },
+        },
+        entitlements: {
+          'project:view': { roles: ['viewer', 'contributor', 'manager'] },
+          'project:edit': { roles: ['contributor', 'manager'] },
+          'project:export': { roles: ['manager'] },
+          'organization:create': { roles: ['admin', 'owner'] },
+        },
+        plans: {
+          free: {
+            title: 'Free',
+            group: 'main',
+            features: ['project:view', 'project:edit', 'organization:create'],
+            limits: {
+              prompts: { max: 100, gates: 'organization:create', per: 'month' },
+            },
+          },
+          pro: {
+            title: 'Pro',
+            group: 'main',
+            price: { amount: 29, interval: 'month' },
+            features: ['project:view', 'project:edit', 'project:export', 'organization:create'],
+            limits: {
+              prompts: { max: 100, gates: 'organization:create', per: 'month' },
+            },
+          },
+        },
+        defaultPlan: 'free',
+      });
+
+      const closureStore = new InMemoryClosureStore();
+      const roleStore = new InMemoryRoleAssignmentStore();
+      const planStore = new InMemoryPlanStore();
+      const walletStore = new InMemoryWalletStore();
+      const overrideStore = new InMemoryOverrideStore();
+      const orgResolver = async (_resource?: ResourceRef) => 'org-1';
+
+      return {
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        overrideStore,
+        orgResolver,
+      };
+    }
+
+    describe('Given tenant on free plan + override features: ["project:export"]', () => {
+      it('can("project:export") returns true', async () => {
+        const {
+          accessDef,
+          closureStore,
+          roleStore,
+          planStore,
+          walletStore,
+          overrideStore,
+          orgResolver,
+        } = setupOverrideAccess();
+        await closureStore.addResource('organization', 'org-1');
+        await closureStore.addResource('project', 'proj-1', {
+          parentType: 'organization',
+          parentId: 'org-1',
+        });
+        await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
+        await planStore.assignPlan('org-1', 'free');
+        await overrideStore.set('org-1', { features: ['project:export'] });
+
+        const ctx = createAccessContext({
+          userId: 'user-1',
+          accessDef,
+          closureStore,
+          roleStore,
+          planStore,
+          walletStore,
+          overrideStore,
+          orgResolver,
+        });
+
+        // free plan doesn't have project:export, but override grants it
+        const allowed = await ctx.can('project:export', {
+          type: 'project',
+          id: 'proj-1',
+        });
+        expect(allowed).toBe(true);
+      });
+    });
+
+    describe('Given tenant on free plan (100 prompts) + override add: 200', () => {
+      it('effective limit is 300 (100 base + 200 override)', async () => {
+        const {
+          accessDef,
+          closureStore,
+          roleStore,
+          planStore,
+          walletStore,
+          overrideStore,
+          orgResolver,
+        } = setupOverrideAccess();
+        await closureStore.addResource('organization', 'org-1');
+        await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+        const planStart = new Date('2026-01-01T00:00:00Z');
+        await planStore.assignPlan('org-1', 'free', planStart);
+        await overrideStore.set('org-1', { limits: { prompts: { add: 200 } } });
+
+        // Consume 250 (above base limit of 100, below effective of 300)
+        const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
+        await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 300, 250);
+
+        const ctx = createAccessContext({
+          userId: 'user-1',
+          accessDef,
+          closureStore,
+          roleStore,
+          planStore,
+          walletStore,
+          overrideStore,
+          orgResolver,
+        });
+
+        const allowed = await ctx.can('organization:create', {
+          type: 'organization',
+          id: 'org-1',
+        });
+        expect(allowed).toBe(true);
+      });
+    });
+
+    describe('Given tenant with override max: 1000', () => {
+      it('effective limit is 1000 regardless of plan + addons', async () => {
+        const {
+          accessDef,
+          closureStore,
+          roleStore,
+          planStore,
+          walletStore,
+          overrideStore,
+          orgResolver,
+        } = setupOverrideAccess();
+        await closureStore.addResource('organization', 'org-1');
+        await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+        const planStart = new Date('2026-01-01T00:00:00Z');
+        await planStore.assignPlan('org-1', 'free', planStart);
+        await overrideStore.set('org-1', { limits: { prompts: { max: 1000 } } });
+
+        // Consume 500 (above base limit of 100, below max override of 1000)
+        const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
+        await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 1000, 500);
+
+        const ctx = createAccessContext({
+          userId: 'user-1',
+          accessDef,
+          closureStore,
+          roleStore,
+          planStore,
+          walletStore,
+          overrideStore,
+          orgResolver,
+        });
+
+        const allowed = await ctx.can('organization:create', {
+          type: 'organization',
+          id: 'org-1',
+        });
+        expect(allowed).toBe(true);
+      });
+    });
+
+    describe('Given tenant with override max: 0 (throttle)', () => {
+      it('can() returns false with reason "limit_reached"', async () => {
+        const {
+          accessDef,
+          closureStore,
+          roleStore,
+          planStore,
+          walletStore,
+          overrideStore,
+          orgResolver,
+        } = setupOverrideAccess();
+        await closureStore.addResource('organization', 'org-1');
+        await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+        await planStore.assignPlan('org-1', 'free');
+        await overrideStore.set('org-1', { limits: { prompts: { max: 0 } } });
+
+        const ctx = createAccessContext({
+          userId: 'user-1',
+          accessDef,
+          closureStore,
+          roleStore,
+          planStore,
+          walletStore,
+          overrideStore,
+          orgResolver,
+        });
+
+        const allowed = await ctx.can('organization:create', {
+          type: 'organization',
+          id: 'org-1',
+        });
+        expect(allowed).toBe(false);
+      });
+    });
+
+    describe('Given tenant with override max: -1 (unlimited)', () => {
+      it('can() returns true (unlimited)', async () => {
+        const {
+          accessDef,
+          closureStore,
+          roleStore,
+          planStore,
+          walletStore,
+          overrideStore,
+          orgResolver,
+        } = setupOverrideAccess();
+        await closureStore.addResource('organization', 'org-1');
+        await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+        const planStart = new Date('2026-01-01T00:00:00Z');
+        await planStore.assignPlan('org-1', 'free', planStart);
+        await overrideStore.set('org-1', { limits: { prompts: { max: -1 } } });
+
+        // Consume 999999 — should still be allowed
+        const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
+        await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 999999, 999999);
+
+        const ctx = createAccessContext({
+          userId: 'user-1',
+          accessDef,
+          closureStore,
+          roleStore,
+          planStore,
+          walletStore,
+          overrideStore,
+          orgResolver,
+        });
+
+        const allowed = await ctx.can('organization:create', {
+          type: 'organization',
+          id: 'org-1',
+        });
+        expect(allowed).toBe(true);
+      });
+    });
+
+    describe('Given tenant with override add: -50 (reduction)', () => {
+      it('effective limit is reduced by 50', async () => {
+        const {
+          accessDef,
+          closureStore,
+          roleStore,
+          planStore,
+          walletStore,
+          overrideStore,
+          orgResolver,
+        } = setupOverrideAccess();
+        await closureStore.addResource('organization', 'org-1');
+        await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+        const planStart = new Date('2026-01-01T00:00:00Z');
+        await planStore.assignPlan('org-1', 'free', planStart);
+        await overrideStore.set('org-1', { limits: { prompts: { add: -50 } } });
+
+        // Effective limit = 100 - 50 = 50. Consume 50 → should be blocked
+        const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
+        await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 50, 50);
+
+        const ctx = createAccessContext({
+          userId: 'user-1',
+          accessDef,
+          closureStore,
+          roleStore,
+          planStore,
+          walletStore,
+          overrideStore,
+          orgResolver,
+        });
+
+        const allowed = await ctx.can('organization:create', {
+          type: 'organization',
+          id: 'org-1',
+        });
+        expect(allowed).toBe(false);
+      });
+    });
+
+    describe('Given tenant on pro plan + addon + override add: 200', () => {
+      it('effective limit includes base + addon + override', async () => {
+        const accessDef = defineAccess({
+          entities: {
+            organization: { roles: ['owner', 'admin'] },
+          },
+          entitlements: {
+            'organization:create': { roles: ['admin', 'owner'] },
+          },
+          plans: {
+            pro: {
+              title: 'Pro',
+              group: 'main',
+              features: ['organization:create'],
+              limits: {
+                prompts: { max: 100, gates: 'organization:create', per: 'month' },
+              },
+            },
+            extra_prompts: {
+              title: 'Extra Prompts',
+              addOn: true,
+              limits: {
+                prompts: { max: 50, gates: 'organization:create', per: 'month' },
+              },
+            },
+          },
+        });
+
+        const closureStore = new InMemoryClosureStore();
+        const roleStore = new InMemoryRoleAssignmentStore();
+        const planStore = new InMemoryPlanStore();
+        const walletStore = new InMemoryWalletStore();
+        const overrideStore = new InMemoryOverrideStore();
+
+        await closureStore.addResource('organization', 'org-1');
+        await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+        const planStart = new Date('2026-01-01T00:00:00Z');
+        await planStore.assignPlan('org-1', 'pro', planStart);
+        await planStore.attachAddOn?.('org-1', 'extra_prompts');
+        await overrideStore.set('org-1', { limits: { prompts: { add: 200 } } });
+
+        // Effective = 100 (base) + 50 (addon) + 200 (override add) = 350
+        // Consume 340 — should pass
+        const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
+        await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 350, 340);
+
+        const ctx = createAccessContext({
+          userId: 'user-1',
+          accessDef,
+          closureStore,
+          roleStore,
+          planStore,
+          walletStore,
+          overrideStore,
+          orgResolver: async () => 'org-1',
+        });
+
+        const allowed = await ctx.can('organization:create', {
+          type: 'organization',
+          id: 'org-1',
+        });
+        expect(allowed).toBe(true);
+      });
+    });
+  });
+
+  describe('Feature: Overage billing', () => {
+    describe('Given a plan with overage config on limit', () => {
+      it('can() returns true even when limit is exceeded', async () => {
+        const accessDef = defineAccess({
+          entities: {
+            organization: { roles: ['owner', 'admin'] },
+          },
+          entitlements: {
+            'organization:create': { roles: ['admin', 'owner'] },
+          },
+          plans: {
+            pro: {
+              title: 'Pro',
+              group: 'main',
+              features: ['organization:create'],
+              limits: {
+                prompts: {
+                  max: 100,
+                  gates: 'organization:create',
+                  per: 'month',
+                  overage: { amount: 0.01, per: 1 },
+                },
+              },
+            },
+          },
+        });
+
+        const closureStore = new InMemoryClosureStore();
+        const roleStore = new InMemoryRoleAssignmentStore();
+        const planStore = new InMemoryPlanStore();
+        const walletStore = new InMemoryWalletStore();
+
+        await closureStore.addResource('organization', 'org-1');
+        await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+        const planStart = new Date('2026-01-01T00:00:00Z');
+        await planStore.assignPlan('org-1', 'pro', planStart);
+
+        // Consume beyond the limit
+        const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
+        await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 200, 150);
+
+        const ctx = createAccessContext({
+          userId: 'user-1',
+          accessDef,
+          closureStore,
+          roleStore,
+          planStore,
+          walletStore,
+          orgResolver: async () => 'org-1',
+        });
+
+        const allowed = await ctx.can('organization:create', {
+          type: 'organization',
+          id: 'org-1',
+        });
+        expect(allowed).toBe(true);
+      });
+    });
+
+    describe('Given a plan with overage config and tenant in overage', () => {
+      it('check() includes meta.limit.overage: true', async () => {
+        const accessDef = defineAccess({
+          entities: {
+            organization: { roles: ['owner', 'admin'] },
+          },
+          entitlements: {
+            'organization:create': { roles: ['admin', 'owner'] },
+          },
+          plans: {
+            pro: {
+              title: 'Pro',
+              group: 'main',
+              features: ['organization:create'],
+              limits: {
+                prompts: {
+                  max: 100,
+                  gates: 'organization:create',
+                  per: 'month',
+                  overage: { amount: 0.01, per: 1 },
+                },
+              },
+            },
+          },
+        });
+
+        const closureStore = new InMemoryClosureStore();
+        const roleStore = new InMemoryRoleAssignmentStore();
+        const planStore = new InMemoryPlanStore();
+        const walletStore = new InMemoryWalletStore();
+
+        await closureStore.addResource('organization', 'org-1');
+        await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+        const planStart = new Date('2026-01-01T00:00:00Z');
+        await planStore.assignPlan('org-1', 'pro', planStart);
+
+        const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
+        await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 200, 150);
+
+        const ctx = createAccessContext({
+          userId: 'user-1',
+          accessDef,
+          closureStore,
+          roleStore,
+          planStore,
+          walletStore,
+          orgResolver: async () => 'org-1',
+        });
+
+        const result = await ctx.check('organization:create', {
+          type: 'organization',
+          id: 'org-1',
+        });
+        expect(result.allowed).toBe(true);
+        expect(result.meta?.limit?.overage).toBe(true);
+      });
+    });
+
+    describe('Given overage cap hit', () => {
+      it('can() returns false — hard block', async () => {
+        const accessDef = defineAccess({
+          entities: {
+            organization: { roles: ['owner', 'admin'] },
+          },
+          entitlements: {
+            'organization:create': { roles: ['admin', 'owner'] },
+          },
+          plans: {
+            pro: {
+              title: 'Pro',
+              group: 'main',
+              features: ['organization:create'],
+              limits: {
+                prompts: {
+                  max: 100,
+                  gates: 'organization:create',
+                  per: 'month',
+                  overage: { amount: 0.01, per: 1, cap: 5 },
+                },
+              },
+            },
+          },
+        });
+
+        const closureStore = new InMemoryClosureStore();
+        const roleStore = new InMemoryRoleAssignmentStore();
+        const planStore = new InMemoryPlanStore();
+        const walletStore = new InMemoryWalletStore();
+
+        await closureStore.addResource('organization', 'org-1');
+        await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+        const planStart = new Date('2026-01-01T00:00:00Z');
+        await planStore.assignPlan('org-1', 'pro', planStart);
+
+        // 100 base + 500 overage units (500 * 0.01 = $5.00 = cap) → hard block
+        const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
+        await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 1000, 600);
+
+        const ctx = createAccessContext({
+          userId: 'user-1',
+          accessDef,
+          closureStore,
+          roleStore,
+          planStore,
+          walletStore,
+          orgResolver: async () => 'org-1',
+        });
+
+        const allowed = await ctx.can('organization:create', {
+          type: 'organization',
+          id: 'org-1',
+        });
+        expect(allowed).toBe(false);
+      });
     });
   });
 });

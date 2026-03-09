@@ -19,15 +19,19 @@
 import { describe, expect, it } from 'bun:test';
 import {
   calculateBillingPeriod,
+  checkAddOnCompatibility,
   computeAccessSet,
   createAccessContext,
   decodeAccessSet,
   defineAccess,
   encodeAccessSet,
+  getIncompatibleAddOns,
   InMemoryClosureStore,
+  InMemoryOverrideStore,
   InMemoryPlanStore,
   InMemoryRoleAssignmentStore,
   InMemoryWalletStore,
+  validateOverrides,
 } from '@vertz/server';
 
 // ============================================================================
@@ -612,5 +616,225 @@ describe('Plans & Wallet — Billing Period', () => {
     // Day 3 starts at Jan 3 00:00, ends Jan 4 00:00
     expect(periodStart.toISOString()).toBe('2026-01-03T00:00:00.000Z');
     expect(periodEnd.toISOString()).toBe('2026-01-04T00:00:00.000Z');
+  });
+});
+
+// ============================================================================
+// Phase 3: Override store + overage + add-on compatibility integration tests
+// ============================================================================
+
+describe('Feature: Override store integration', () => {
+  it('override store grants feature to tenant on free plan', async () => {
+    // Free plan doesn't include create-project, but override grants it
+    const closureStore = new InMemoryClosureStore();
+    const roleStore = new InMemoryRoleAssignmentStore();
+    const planStore = new InMemoryPlanStore();
+    const walletStore = new InMemoryWalletStore();
+    const overrideStore = new InMemoryOverrideStore();
+
+    await closureStore.addResource('organization', 'org-1');
+    await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
+    await planStore.assignPlan('org-1', 'free');
+
+    // Free plan does not include 'organization:create-project'
+    // Override grants it
+    await overrideStore.set('org-1', {
+      features: ['organization:create-project'],
+    });
+
+    const ctx = createAccessContext({
+      userId: 'user-1',
+      accessDef,
+      closureStore,
+      roleStore,
+      planStore,
+      walletStore,
+      overrideStore,
+      orgResolver: async () => 'org-1',
+    });
+
+    const allowed = await ctx.can('organization:create-project', {
+      type: 'organization',
+      id: 'org-1',
+    });
+    expect(allowed).toBe(true);
+  });
+
+  it('override add mode increases effective limit', async () => {
+    const closureStore = new InMemoryClosureStore();
+    const roleStore = new InMemoryRoleAssignmentStore();
+    const planStore = new InMemoryPlanStore();
+    const walletStore = new InMemoryWalletStore();
+    const overrideStore = new InMemoryOverrideStore();
+
+    await closureStore.addResource('organization', 'org-1');
+    await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
+    const planStart = new Date('2026-01-01T00:00:00Z');
+    await planStore.assignPlan('org-1', 'pro', planStart);
+
+    // Pro has 10 projects/month. Override adds 5 more.
+    await overrideStore.set('org-1', { limits: { projects: { add: 5 } } });
+
+    // Consume 14 — should pass (10 + 5 = 15)
+    const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
+    await walletStore.consume('org-1', 'projects', periodStart, periodEnd, 15, 14);
+
+    const ctx = createAccessContext({
+      userId: 'user-1',
+      accessDef,
+      closureStore,
+      roleStore,
+      planStore,
+      walletStore,
+      overrideStore,
+      orgResolver: async () => 'org-1',
+    });
+
+    const allowed = await ctx.can('organization:create-project', {
+      type: 'organization',
+      id: 'org-1',
+    });
+    expect(allowed).toBe(true);
+  });
+
+  it('validateOverrides rejects invalid limit key', () => {
+    expect(() => validateOverrides(accessDef, { limits: { nonexistent: { add: 100 } } })).toThrow(
+      "Override limit key 'nonexistent' is not defined in any plan",
+    );
+  });
+});
+
+describe('Feature: Add-on compatibility integration', () => {
+  const accessDefWithRequires = defineAccess({
+    entities: {
+      organization: { roles: ['owner', 'admin', 'member'] },
+    },
+    entitlements: {
+      'organization:create': { roles: ['owner', 'admin'] },
+      'organization:export': { roles: ['owner', 'admin'] },
+    },
+    plans: {
+      free: {
+        group: 'main',
+        features: ['organization:create'],
+        limits: {
+          prompts: { max: 100, gates: 'organization:create', per: 'month' },
+        },
+      },
+      pro: {
+        group: 'main',
+        features: ['organization:create', 'organization:export'],
+        limits: {
+          prompts: { max: 1000, gates: 'organization:create', per: 'month' },
+        },
+      },
+      export_addon: {
+        addOn: true,
+        features: ['organization:export'],
+        requires: { group: 'main', plans: ['pro'] },
+      },
+    },
+  });
+
+  it('checkAddOnCompatibility returns true for compatible plan', () => {
+    expect(checkAddOnCompatibility(accessDefWithRequires, 'export_addon', 'pro')).toBe(true);
+  });
+
+  it('checkAddOnCompatibility returns false for incompatible plan', () => {
+    expect(checkAddOnCompatibility(accessDefWithRequires, 'export_addon', 'free')).toBe(false);
+  });
+
+  it('getIncompatibleAddOns flags add-ons when downgrading', () => {
+    const incompatible = getIncompatibleAddOns(accessDefWithRequires, ['export_addon'], 'free');
+    expect(incompatible).toEqual(['export_addon']);
+  });
+});
+
+describe('Feature: Overage billing integration', () => {
+  const overageAccessDef = defineAccess({
+    entities: {
+      organization: { roles: ['owner', 'admin'] },
+    },
+    entitlements: {
+      'organization:create': { roles: ['admin', 'owner'] },
+    },
+    plans: {
+      pro: {
+        title: 'Pro',
+        group: 'main',
+        features: ['organization:create'],
+        limits: {
+          prompts: {
+            max: 100,
+            gates: 'organization:create',
+            per: 'month',
+            overage: { amount: 0.01, per: 1 },
+          },
+        },
+      },
+    },
+  });
+
+  it('can() returns true beyond limit when overage is configured', async () => {
+    const closureStore = new InMemoryClosureStore();
+    const roleStore = new InMemoryRoleAssignmentStore();
+    const planStore = new InMemoryPlanStore();
+    const walletStore = new InMemoryWalletStore();
+
+    await closureStore.addResource('organization', 'org-1');
+    await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+    const planStart = new Date('2026-01-01T00:00:00Z');
+    await planStore.assignPlan('org-1', 'pro', planStart);
+
+    const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
+    await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 200, 150);
+
+    const ctx = createAccessContext({
+      userId: 'user-1',
+      accessDef: overageAccessDef,
+      closureStore,
+      roleStore,
+      planStore,
+      walletStore,
+      orgResolver: async () => 'org-1',
+    });
+
+    const allowed = await ctx.can('organization:create', {
+      type: 'organization',
+      id: 'org-1',
+    });
+    expect(allowed).toBe(true);
+  });
+
+  it('check() includes meta.limit.overage when in overage', async () => {
+    const closureStore = new InMemoryClosureStore();
+    const roleStore = new InMemoryRoleAssignmentStore();
+    const planStore = new InMemoryPlanStore();
+    const walletStore = new InMemoryWalletStore();
+
+    await closureStore.addResource('organization', 'org-1');
+    await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+    const planStart = new Date('2026-01-01T00:00:00Z');
+    await planStore.assignPlan('org-1', 'pro', planStart);
+
+    const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
+    await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 200, 150);
+
+    const ctx = createAccessContext({
+      userId: 'user-1',
+      accessDef: overageAccessDef,
+      closureStore,
+      roleStore,
+      planStore,
+      walletStore,
+      orgResolver: async () => 'org-1',
+    });
+
+    const result = await ctx.check('organization:create', {
+      type: 'organization',
+      id: 'org-1',
+    });
+    expect(result.allowed).toBe(true);
+    expect(result.meta?.limit?.overage).toBe(true);
   });
 });

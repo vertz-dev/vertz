@@ -2215,6 +2215,7 @@ export { DbUserStore } from './db-user-store';
 export type {
   AccessCheckResult,
   AccessDefinition,
+  AddOnRequires,
   BillingPeriod,
   DefineAccessInput,
   DenialMeta,
@@ -2223,6 +2224,7 @@ export type {
   EntitlementValue,
   EntityDef,
   LimitDef,
+  OverageConfig,
   PlanDef,
   PlanPrice,
   PriceInterval,
@@ -2237,10 +2239,18 @@ export { InMemoryFlagStore } from './flag-store';
 export { checkFva } from './fva';
 export { InMemoryMFAStore } from './mfa-store';
 export { InMemoryOAuthAccountStore } from './oauth-account-store';
+// Phase 9: Override Store
+export type { LimitOverrideDef, OverrideStore, TenantOverrides } from './override-store';
+export { InMemoryOverrideStore, validateOverrides } from './override-store';
 export { InMemoryPasswordResetStore } from './password-reset-store';
 // Phase 8: Plans & Wallet
 export type { LimitOverride, OrgPlan, PlanStore } from './plan-store';
-export { InMemoryPlanStore, resolveEffectivePlan } from './plan-store';
+export {
+  checkAddOnCompatibility,
+  getIncompatibleAddOns,
+  InMemoryPlanStore,
+  resolveEffectivePlan,
+} from './plan-store';
 // Re-export provider factories
 export { discord, github, google } from './providers';
 export { InMemoryRateLimitStore } from './rate-limit-store';

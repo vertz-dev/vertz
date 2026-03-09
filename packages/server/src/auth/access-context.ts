@@ -24,6 +24,7 @@ import type {
   DenialReason,
 } from './define-access';
 import type { FlagStore } from './flag-store';
+import type { OverrideStore, TenantOverrides } from './override-store';
 import { type OrgPlan, type PlanStore, resolveEffectivePlan } from './plan-store';
 import type { RoleAssignmentStore } from './role-assignment-store';
 import type { WalletStore } from './wallet-store';
@@ -50,6 +51,8 @@ export interface AccessContextConfig {
   planStore?: PlanStore;
   /** Wallet store — required for Layer 5 wallet checks and canAndConsume() */
   walletStore?: WalletStore;
+  /** Override store — per-tenant feature and limit overrides */
+  overrideStore?: OverrideStore;
   /** Resolves an org ID from a resource. Required for plan/wallet checks. */
   orgResolver?: (resource?: ResourceRef) => Promise<string | null>;
 }
@@ -84,6 +87,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     flagStore,
     planStore,
     walletStore,
+    overrideStore,
     orgResolver,
   } = config;
 
@@ -95,6 +99,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     entitlement: string,
     resource: ResourceRef | undefined,
     resolvedOrgId: string | null,
+    overrides?: TenantOverrides | null,
   ): Promise<boolean> {
     // Unauthenticated user — deny immediately
     if (!userId) return false;
@@ -139,13 +144,14 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
       const effectivePlanId = resolveEffectivePlan(orgPlan, accessDef.plans, accessDef.defaultPlan);
       if (!effectivePlanId) return false; // No plan — deny
 
-      // Check if entitlement is in effective features (base plan + add-ons)
+      // Check if entitlement is in effective features (base plan + add-ons + overrides)
       const hasFeature = await resolveEffectiveFeatures(
         resolvedOrgId,
         entitlement,
         effectivePlanId,
         accessDef,
         planStore,
+        overrides,
       );
       if (!hasFeature) return false;
     }
@@ -161,7 +167,11 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     // Resolve org once for all layers
     const resolvedOrgId = orgResolver ? await orgResolver(resource) : null;
 
-    if (!(await checkLayers1to3(entitlement, resource, resolvedOrgId))) return false;
+    // Fetch overrides once
+    const overrides =
+      resolvedOrgId && overrideStore ? await overrideStore.get(resolvedOrgId) : null;
+
+    if (!(await checkLayers1to3(entitlement, resource, resolvedOrgId, overrides))) return false;
 
     // Layer 4: Limit check (read-only — for UI display, not atomic)
     const limitKeys = accessDef._entitlementToLimitKeys[entitlement];
@@ -172,11 +182,23 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
         accessDef,
         planStore,
         walletStore,
+        overrides,
       );
       for (const ws of walletStates) {
         if (ws.max === 0) return false; // disabled
         if (ws.max === -1) continue; // unlimited
-        if (ws.consumed >= ws.max) return false;
+        if (ws.consumed >= ws.max) {
+          if (ws.hasOverage) {
+            // Check overage cap
+            if (ws.overageCap !== undefined) {
+              const overageUnits = ws.consumed - ws.max;
+              const overageCost = (overageUnits * (ws.overageAmount ?? 0)) / (ws.overagePer ?? 1);
+              if (overageCost >= ws.overageCap) return false; // Cap hit — hard block
+            }
+            continue; // Overage allowed
+          }
+          return false;
+        }
       }
     }
 
@@ -211,6 +233,10 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
 
     // Resolve org once for all layers
     const resolvedOrgId = orgResolver ? await orgResolver(resource) : null;
+
+    // Fetch overrides once
+    const overrides =
+      resolvedOrgId && overrideStore ? await overrideStore.get(resolvedOrgId) : null;
 
     // Layer 1: Feature flags
     if (entDef.flags?.length && flagStore && orgResolver) {
@@ -272,6 +298,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
             effectivePlanId,
             accessDef,
             planStore,
+            overrides,
           );
           if (!hasFeature) {
             planDenied = true;
@@ -303,9 +330,40 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
         accessDef,
         planStore,
         walletStore,
+        overrides,
       );
       for (const ws of walletStates) {
-        if (ws.max === 0 || (ws.max !== -1 && ws.consumed >= ws.max)) {
+        const exceeded = ws.max === 0 || (ws.max !== -1 && ws.consumed >= ws.max);
+        if (exceeded) {
+          if (ws.hasOverage && ws.max !== 0) {
+            // Check overage cap
+            let capHit = false;
+            if (ws.overageCap !== undefined) {
+              const overageUnits = ws.consumed - ws.max;
+              const overageCost = (overageUnits * (ws.overageAmount ?? 0)) / (ws.overagePer ?? 1);
+              if (overageCost >= ws.overageCap) capHit = true;
+            }
+            if (capHit) {
+              reasons.push('limit_reached');
+              meta.limit = {
+                key: ws.key,
+                max: ws.max,
+                consumed: ws.consumed,
+                remaining: 0,
+                overage: true,
+              };
+              break;
+            }
+            // Overage allowed — attach meta with overage flag
+            meta.limit = {
+              key: ws.key,
+              max: ws.max,
+              consumed: ws.consumed,
+              remaining: 0,
+              overage: true,
+            };
+            continue;
+          }
           reasons.push('limit_reached');
           meta.limit = {
             key: ws.key,
@@ -413,8 +471,12 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     // Resolve org once for all layers
     const resolvedOrgId = orgResolver ? await orgResolver(resource) : null;
 
+    // Fetch overrides once
+    const overrides =
+      resolvedOrgId && overrideStore ? await overrideStore.get(resolvedOrgId) : null;
+
     // Run Layers 1-3 (auth, flags, roles, plan features — skips limit layer)
-    if (!(await checkLayers1to3(entitlement, resource, resolvedOrgId))) return false;
+    if (!(await checkLayers1to3(entitlement, resource, resolvedOrgId, overrides))) return false;
 
     // If no wallet/plan infrastructure, just return true (no limit to enforce)
     if (!walletStore || !planStore || !orgResolver) return true;
@@ -439,6 +501,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
       planStore,
       walletStore,
       orgPlan,
+      overrides,
     );
 
     if (!limitsToConsume.length) return true; // No applicable limits
@@ -458,12 +521,34 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
         return false;
       }
 
+      // Determine max for wallet consumption — with overage, use a very high cap
+      let consumeMax = lc.effectiveMax;
+      if (lc.hasOverage) {
+        // Check overage cap first
+        if (lc.overageCap !== undefined) {
+          const currentConsumed = await walletStore.getConsumption(
+            resolvedOrgId,
+            lc.walletKey,
+            lc.periodStart,
+            lc.periodEnd,
+          );
+          const overageUnits = Math.max(0, currentConsumed + amount - lc.effectiveMax);
+          const overageCost = (overageUnits * (lc.overageAmount ?? 0)) / (lc.overagePer ?? 1);
+          if (overageCost > lc.overageCap) {
+            await rollbackConsumptions(resolvedOrgId, consumed, walletStore, amount);
+            return false; // Cap would be exceeded
+          }
+        }
+        // Allow overage by raising the effective max for wallet
+        consumeMax = Number.MAX_SAFE_INTEGER;
+      }
+
       const result = await walletStore.consume(
         resolvedOrgId,
         lc.walletKey,
         lc.periodStart,
         lc.periodEnd,
-        lc.effectiveMax,
+        consumeMax,
         amount,
       );
 
@@ -496,6 +581,9 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     const orgId = await orgResolver(resource);
     if (!orgId) return;
 
+    // Fetch overrides once
+    const overrides = overrideStore ? await overrideStore.get(orgId) : null;
+
     const orgPlan = await planStore.getPlan(orgId);
     if (!orgPlan) return;
     const effectivePlanId = resolveEffectivePlan(orgPlan, accessDef.plans, accessDef.defaultPlan);
@@ -510,6 +598,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
       planStore,
       walletStore,
       orgPlan,
+      overrides,
     );
 
     for (const lc of limitsToUnconsume) {
@@ -540,7 +629,7 @@ function orderDenialReasons(reasons: DenialReason[]): DenialReason[] {
 }
 
 /**
- * Check if the entitlement is in the effective features (base plan + add-ons).
+ * Check if the entitlement is in the effective features (base plan + add-ons + overrides).
  */
 async function resolveEffectiveFeatures(
   orgId: string,
@@ -548,6 +637,7 @@ async function resolveEffectiveFeatures(
   effectivePlanId: string,
   accessDef: AccessDefinition,
   planStore: PlanStore,
+  overrides?: TenantOverrides | null,
 ): Promise<boolean> {
   const planDef = accessDef.plans?.[effectivePlanId];
   if (planDef?.features?.includes(entitlement)) return true;
@@ -561,6 +651,9 @@ async function resolveEffectiveFeatures(
     }
   }
 
+  // Check overrides
+  if (overrides?.features?.includes(entitlement)) return true;
+
   return false;
 }
 
@@ -568,6 +661,13 @@ interface LimitState {
   key: string;
   max: number;
   consumed: number;
+  /** Whether this limit has overage billing configured */
+  hasOverage: boolean;
+  /** Overage cap — when reached, hard block */
+  overageCap?: number;
+  /** Overage config for billing computation */
+  overageAmount?: number;
+  overagePer?: number;
 }
 
 /**
@@ -580,6 +680,7 @@ async function resolveAllLimitStates(
   accessDef: AccessDefinition,
   planStore: PlanStore,
   walletStore: WalletStore,
+  overrides?: TenantOverrides | null,
 ): Promise<LimitState[]> {
   const orgPlan = await planStore.getPlan(orgId);
   const effectivePlanId = resolveEffectivePlan(orgPlan, accessDef.plans, accessDef.defaultPlan);
@@ -596,30 +697,22 @@ async function resolveAllLimitStates(
     const limitDef = planDef?.limits?.[limitKey];
     if (!limitDef) continue;
 
-    // Compute effective max (base + add-ons)
-    let effectiveMax = limitDef.max;
+    const effectiveMax = computeEffectiveLimit(
+      limitDef.max,
+      limitKey,
+      orgId,
+      orgPlan,
+      accessDef,
+      planStore,
+      overrides,
+    );
 
-    // Add add-on limits
-    const addOns = await planStore.getAddOns?.(orgId);
-    if (addOns) {
-      for (const addOnId of addOns) {
-        const addOnDef = accessDef.plans?.[addOnId];
-        const addOnLimit = addOnDef?.limits?.[limitKey];
-        if (addOnLimit) {
-          if (effectiveMax === -1) break; // Already unlimited
-          effectiveMax += addOnLimit.max;
-        }
-      }
-    }
+    const resolvedMax = await effectiveMax;
 
-    // Apply per-customer overrides
-    const override = orgPlan.overrides[limitKey];
-    if (override) {
-      effectiveMax = Math.max(effectiveMax, override.max);
-    }
+    const hasOverage = !!limitDef.overage;
 
-    if (effectiveMax === -1) {
-      states.push({ key: limitKey, max: -1, consumed: 0 });
+    if (resolvedMax === -1) {
+      states.push({ key: limitKey, max: -1, consumed: 0, hasOverage });
       continue;
     }
 
@@ -636,7 +729,19 @@ async function resolveAllLimitStates(
       period.periodEnd,
     );
 
-    states.push({ key: limitKey, max: effectiveMax, consumed });
+    states.push({
+      key: limitKey,
+      max: resolvedMax,
+      consumed,
+      hasOverage,
+      ...(limitDef.overage
+        ? {
+            overageCap: limitDef.overage.cap,
+            overageAmount: limitDef.overage.amount,
+            overagePer: limitDef.overage.per,
+          }
+        : {}),
+    });
   }
 
   return states;
@@ -647,6 +752,11 @@ interface LimitConsumption {
   periodStart: Date;
   periodEnd: Date;
   effectiveMax: number;
+  /** Whether this limit has overage billing configured */
+  hasOverage: boolean;
+  overageCap?: number;
+  overageAmount?: number;
+  overagePer?: number;
 }
 
 /**
@@ -660,6 +770,7 @@ async function resolveAllLimitConsumptions(
   planStore: PlanStore,
   _walletStore: WalletStore,
   orgPlan: OrgPlan,
+  overrides?: TenantOverrides | null,
 ): Promise<LimitConsumption[]> {
   const limitKeys = accessDef._entitlementToLimitKeys[entitlement];
   if (!limitKeys?.length) return [];
@@ -671,26 +782,15 @@ async function resolveAllLimitConsumptions(
     const limitDef = planDef?.limits?.[limitKey];
     if (!limitDef) continue;
 
-    // Compute effective max (base + add-ons)
-    let effectiveMax = limitDef.max;
-
-    const addOns = await planStore.getAddOns?.(orgId);
-    if (addOns) {
-      for (const addOnId of addOns) {
-        const addOnDef = accessDef.plans?.[addOnId];
-        const addOnLimit = addOnDef?.limits?.[limitKey];
-        if (addOnLimit) {
-          if (effectiveMax === -1) break;
-          effectiveMax += addOnLimit.max;
-        }
-      }
-    }
-
-    // Apply per-customer overrides
-    const override = orgPlan.overrides[limitKey];
-    if (override) {
-      effectiveMax = Math.max(effectiveMax, override.max);
-    }
+    const effectiveMax = await computeEffectiveLimit(
+      limitDef.max,
+      limitKey,
+      orgId,
+      orgPlan,
+      accessDef,
+      planStore,
+      overrides,
+    );
 
     const walletKey = limitKey;
     const period = limitDef.per
@@ -702,10 +802,73 @@ async function resolveAllLimitConsumptions(
       periodStart: period.periodStart,
       periodEnd: period.periodEnd,
       effectiveMax,
+      hasOverage: !!limitDef.overage,
+      ...(limitDef.overage
+        ? {
+            overageCap: limitDef.overage.cap,
+            overageAmount: limitDef.overage.amount,
+            overagePer: limitDef.overage.per,
+          }
+        : {}),
     });
   }
 
   return consumptions;
+}
+
+/**
+ * Compute effective max limit: base + add-ons + overrides.
+ *
+ * Override modes:
+ * - `add: N` — additive on top of base + add-ons
+ * - `max: N` — hard cap replacing computed total
+ * - Both set — `max` takes precedence
+ */
+async function computeEffectiveLimit(
+  basePlanMax: number,
+  limitKey: string,
+  orgId: string,
+  orgPlan: OrgPlan,
+  accessDef: AccessDefinition,
+  planStore: PlanStore,
+  overrides?: TenantOverrides | null,
+): Promise<number> {
+  let effectiveMax = basePlanMax;
+
+  // Add add-on limits
+  const addOns = await planStore.getAddOns?.(orgId);
+  if (addOns) {
+    for (const addOnId of addOns) {
+      const addOnDef = accessDef.plans?.[addOnId];
+      const addOnLimit = addOnDef?.limits?.[limitKey];
+      if (addOnLimit) {
+        if (effectiveMax === -1) break; // Already unlimited
+        effectiveMax += addOnLimit.max;
+      }
+    }
+  }
+
+  // Apply old-style per-customer overrides (from OrgPlan.overrides — Phase 2 compat)
+  const oldOverride = orgPlan.overrides[limitKey];
+  if (oldOverride) {
+    effectiveMax = Math.max(effectiveMax, oldOverride.max);
+  }
+
+  // Apply new-style overrides from OverrideStore
+  const limitOverride = overrides?.limits?.[limitKey];
+  if (limitOverride) {
+    if (limitOverride.max !== undefined) {
+      // max takes precedence — hard cap replacing computed total
+      effectiveMax = limitOverride.max;
+    } else if (limitOverride.add !== undefined) {
+      // add — additive on top of base + add-ons
+      if (effectiveMax !== -1) {
+        effectiveMax = Math.max(0, effectiveMax + limitOverride.add);
+      }
+    }
+  }
+
+  return effectiveMax;
 }
 
 /**

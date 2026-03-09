@@ -821,4 +821,86 @@ describe('Feature: Plan validation', () => {
       expect(config.plans!.free.limits!.prompts.max).toBe(0);
     });
   });
+
+  describe('Given an add-on with requires referencing valid group/plans', () => {
+    it('succeeds and stores the requires config', () => {
+      const config = defineAccess({
+        entities: {
+          workspace: { roles: ['admin'] },
+        },
+        entitlements: {
+          'workspace:create': { roles: ['admin'] },
+          'workspace:export': { roles: ['admin'] },
+        },
+        plans: {
+          free: {
+            group: 'main',
+            features: ['workspace:create'],
+          },
+          pro: {
+            group: 'main',
+            features: ['workspace:create', 'workspace:export'],
+          },
+          export_addon: {
+            addOn: true,
+            features: ['workspace:export'],
+            requires: { group: 'main', plans: ['pro'] },
+          },
+        },
+      });
+
+      expect(config.plans!.export_addon.requires).toEqual({
+        group: 'main',
+        plans: ['pro'],
+      });
+    });
+  });
+
+  describe('Given a base plan with requires', () => {
+    it('throws — requires is only valid on add-ons', () => {
+      expect(() =>
+        defineAccess({
+          entities: {
+            workspace: { roles: ['admin'] },
+          },
+          entitlements: {
+            'workspace:create': { roles: ['admin'] },
+          },
+          plans: {
+            free: {
+              group: 'main',
+              features: ['workspace:create'],
+              requires: { group: 'main', plans: ['pro'] },
+            } as never,
+          },
+        }),
+      ).toThrow("requires' is only valid on add-on plans");
+    });
+  });
+
+  describe('Given an add-on requires referencing nonexistent plan', () => {
+    it('throws validation error', () => {
+      expect(() =>
+        defineAccess({
+          entities: {
+            workspace: { roles: ['admin'] },
+          },
+          entitlements: {
+            'workspace:create': { roles: ['admin'] },
+          },
+          plans: {
+            free: {
+              group: 'main',
+              features: ['workspace:create'],
+            },
+            export_addon: {
+              addOn: true,
+              features: ['workspace:create'],
+              requires: { group: 'main', plans: ['nonexistent'] },
+            },
+          },
+        }),
+      ).toThrow("requires plan 'nonexistent' is not defined");
+    });
+  });
 });
