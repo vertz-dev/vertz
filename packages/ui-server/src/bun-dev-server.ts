@@ -608,6 +608,20 @@ export function buildScriptTag(
 }
 
 /**
+ * Clear the entire require.cache so SSR module re-import picks up all changes,
+ * including files outside src/ (e.g., generated files, shared libs).
+ *
+ * Returns the number of cache entries cleared.
+ */
+export function clearSSRRequireCache(): number {
+  const keys = Object.keys(require.cache);
+  for (const key of keys) {
+    delete require.cache[key];
+  }
+  return keys.length;
+}
+
+/**
  * Create a unified Bun dev server with SSR + HMR.
  *
  * SSR is always on. HMR always works. No mode toggle needed.
@@ -1494,14 +1508,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
           // synchronous context stack used by Provider/useContext. The wrapper
           // is a `.ts` file (no plugin needed) that re-exports from the real
           // entry, keeping the `.tsx` import path clean for the plugin.
-          const cacheKeys = Object.keys(require.cache);
-          let cacheCleared = 0;
-          for (const key of cacheKeys) {
-            if (key.startsWith(srcDir) || key.startsWith(entryPath)) {
-              delete require.cache[key];
-              cacheCleared++;
-            }
-          }
+          const cacheCleared = clearSSRRequireCache();
           logger.log('watcher', 'cache-cleared', { entries: cacheCleared });
           const ssrWrapperPath = resolve(devDir, 'ssr-reload-entry.ts');
           mkdirSync(devDir, { recursive: true });
@@ -1524,12 +1531,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
             if (stopped) return;
             await new Promise((r) => setTimeout(r, 500));
             if (stopped) return;
-            const retryKeys = Object.keys(require.cache);
-            for (const key of retryKeys) {
-              if (key.startsWith(srcDir) || key.startsWith(entryPath)) {
-                delete require.cache[key];
-              }
-            }
+            clearSSRRequireCache();
             mkdirSync(devDir, { recursive: true });
             writeFileSync(ssrWrapperPath, `export * from '${entryPath}';\n`);
             try {
