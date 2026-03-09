@@ -27,9 +27,30 @@ function App() {
 
 This automatically manages the `AccessContext.Provider`, fetches the access set after authentication, clears it on sign out, and hydrates from SSR.
 
-### Standalone (without AuthProvider)
+### Standalone with `createAccessProvider()`
 
-If you're not using `AuthProvider`, wrap your app with `AccessContext.Provider` manually:
+If you're not using `AuthProvider`, use `createAccessProvider()` to bootstrap the access context manually. This is useful when you have your own auth solution or a custom session management layer.
+
+```ts
+import { createAccessProvider } from '@vertz/ui/auth';
+```
+
+**Signature:**
+
+```ts
+function createAccessProvider(): AccessContextValue
+```
+
+**Returns** an `AccessContextValue` with two signal properties:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `accessSet` | `Signal<AccessSet \| null>` | The decoded access set, or `null` if not yet loaded |
+| `loading` | `Signal<boolean>` | `true` while the access set is being loaded |
+
+On initialization, `createAccessProvider()` checks for `window.__VERTZ_ACCESS_SET__`. If present (injected during SSR), the access set is immediately available and `loading` is `false` — no loading flicker. If not present, `loading` starts as `true` until you hydrate it by setting `accessValue.accessSet.value` directly.
+
+**Example — wrap your app manually:**
 
 ```tsx
 import { AccessContext, createAccessProvider } from '@vertz/ui/auth';
@@ -45,7 +66,29 @@ function App() {
 }
 ```
 
-`createAccessProvider()` reads `window.__VERTZ_ACCESS_SET__` on load. If present (from SSR), the access set is immediately available with no loading state. If not, `loading` starts as `true` until you hydrate it.
+**Example — hydrate from a custom auth API:**
+
+```tsx
+import { AccessContext, createAccessProvider } from '@vertz/ui/auth';
+
+function App() {
+  const accessValue = createAccessProvider();
+
+  // Fetch access set from your own endpoint
+  fetch('/api/my-auth/access-set')
+    .then((r) => r.json())
+    .then((data) => {
+      accessValue.accessSet.value = data.accessSet;
+      accessValue.loading.value = false;
+    });
+
+  return (
+    <AccessContext.Provider value={accessValue}>
+      <Router />
+    </AccessContext.Provider>
+  );
+}
+```
 
 ### Inject the access set during SSR
 
@@ -122,6 +165,48 @@ Reasons are ordered from most actionable (things the user can fix) to least:
 | `hierarchy_denied` | No access path through the resource hierarchy | Request access |
 | `step_up_required` | Needs recent MFA verification | Re-authenticate |
 | `not_authenticated` | No user session | Sign in |
+
+### `DenialMeta` structure
+
+When `can()` returns a denial, the `meta` property contains structured metadata about why. The `DenialMeta` type has four optional fields — each is populated only when relevant to the denial reason.
+
+```ts
+interface DenialMeta {
+  requiredPlans?: string[];
+  requiredRoles?: string[];
+  limit?: { max: number; consumed: number; remaining: number };
+  fvaMaxAge?: number;
+}
+```
+
+| Field | Present when | Description |
+|-------|-------------|-------------|
+| `requiredPlans` | `reason === 'plan_required'` | Plans that include this entitlement (e.g., `['pro', 'enterprise']`) |
+| `requiredRoles` | `reason === 'role_required'` | Roles that grant this entitlement (e.g., `['admin', 'editor']`) |
+| `limit` | `reason === 'limit_reached'` | Current usage state: `max` (quota), `consumed` (used), `remaining` (available) |
+| `fvaMaxAge` | `reason === 'step_up_required'` | Max seconds since last MFA verification |
+
+Use `meta` to build contextual UI messages:
+
+```tsx
+function FeatureButton() {
+  const check = can('ai:generate');
+
+  if (!check.allowed) {
+    if (check.reason === 'plan_required') {
+      return <p>Available on {check.meta?.requiredPlans?.join(', ')} plans.</p>;
+    }
+    if (check.reason === 'role_required') {
+      return <p>Requires {check.meta?.requiredRoles?.join(' or ')} role.</p>;
+    }
+    if (check.reason === 'limit_reached') {
+      return <p>Usage limit reached. Resets next billing period.</p>;
+    }
+  }
+
+  return <button onClick={generate}>Generate</button>;
+}
+```
 
 ### Usage limits in meta
 

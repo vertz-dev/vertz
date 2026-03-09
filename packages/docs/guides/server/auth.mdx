@@ -118,13 +118,137 @@ if (result.ok) {
 
 // Get session from request headers
 const session = await auth.api.getSession(request.headers);
-
-// List active sessions for the current user
-const sessions = await auth.api.listSessions(request.headers);
-
-// Revoke a specific session
-await auth.api.revokeSession(sessionId, request.headers);
 ```
+
+### Session management
+
+List, revoke, and manage active sessions from server code. Every method requires the caller's `Headers` to authenticate the request — the user can only manage their own sessions.
+
+```ts
+// List all active sessions for the current user
+const listResult = await auth.api.listSessions(request.headers);
+if (listResult.ok) {
+  for (const session of listResult.data) {
+    console.log(session.id);          // Session ID
+    console.log(session.deviceName);  // Parsed from user-agent (e.g., "Chrome on macOS")
+    console.log(session.ipAddress);   // Client IP
+    console.log(session.isCurrent);   // true if this is the caller's session
+    console.log(session.createdAt);   // When the session was created
+    console.log(session.lastActiveAt);// Last token refresh
+  }
+}
+
+// Revoke a specific session (must belong to the current user)
+const revokeResult = await auth.api.revokeSession(sessionId, request.headers);
+if (!revokeResult.ok) {
+  // revokeResult.error.code === 'SESSION_NOT_FOUND' if session doesn't exist or belongs to another user
+}
+
+// Revoke all sessions except the current one
+await auth.api.revokeAllSessions(request.headers);
+```
+
+These map to the HTTP endpoints:
+
+```
+GET    /api/auth/sessions      → List active sessions
+DELETE /api/auth/sessions/:id  → Revoke a specific session
+DELETE /api/auth/sessions      → Revoke all other sessions
+```
+
+## Email verification
+
+Enable email verification to require users to confirm their email address after sign-up. When enabled, new users are created with `emailVerified: false`, and a verification token is sent via your `onSend` callback.
+
+```ts
+const auth = createAuth({
+  session: { strategy: 'jwt', ttl: '60s' },
+  emailVerification: {
+    enabled: true,
+    tokenTtl: '24h',           // Default: '24h'
+    onSend: async (user, token) => {
+      await sendEmail({
+        to: user.email,
+        subject: 'Verify your email',
+        body: `Click here to verify: https://myapp.com/verify?token=${token}`,
+      });
+    },
+  },
+});
+```
+
+This generates two additional routes:
+
+```
+POST /api/auth/verify-email         → { token } — marks email as verified
+POST /api/auth/resend-verification  → (authenticated) — sends a new verification email
+```
+
+### EmailVerificationStore
+
+```ts
+interface EmailVerificationStore {
+  createVerification(data: {
+    userId: string;
+    tokenHash: string;
+    expiresAt: Date;
+  }): Promise<StoredEmailVerification>;
+  findByTokenHash(tokenHash: string): Promise<StoredEmailVerification | null>;
+  deleteByUserId(userId: string): Promise<void>;
+  deleteByTokenHash(tokenHash: string): Promise<void>;
+  dispose(): void;
+}
+```
+
+The default `InMemoryEmailVerificationStore` works for development. Provide your own store for production persistence.
+
+## Password reset
+
+Enable password reset to let users recover their account when they forget their password. Tokens are single-use and expire after the configured TTL.
+
+```ts
+const auth = createAuth({
+  session: { strategy: 'jwt', ttl: '60s' },
+  passwordReset: {
+    enabled: true,
+    tokenTtl: '1h',                 // Default: '1h'
+    revokeSessionsOnReset: true,     // Default: true — revokes all sessions after reset
+    onSend: async (user, token) => {
+      await sendEmail({
+        to: user.email,
+        subject: 'Reset your password',
+        body: `Reset your password: https://myapp.com/reset?token=${token}`,
+      });
+    },
+  },
+});
+```
+
+This generates two additional routes:
+
+```
+POST /api/auth/forgot-password  → { email } — sends reset email (always returns 200 to prevent enumeration)
+POST /api/auth/reset-password   → { token, password } — resets password and optionally revokes sessions
+```
+
+When `revokeSessionsOnReset` is `true` (the default), all active sessions for the user are revoked after the password is changed. This forces re-authentication on all devices.
+
+### PasswordResetStore
+
+```ts
+interface PasswordResetStore {
+  createReset(data: {
+    userId: string;
+    tokenHash: string;
+    expiresAt: Date;
+  }): Promise<StoredPasswordReset>;
+  findByTokenHash(tokenHash: string): Promise<StoredPasswordReset | null>;
+  deleteByUserId(userId: string): Promise<void>;
+  dispose(): void;
+}
+```
+
+The default `InMemoryPasswordResetStore` works for development. Provide your own store for production persistence.
 
 ## Middleware
 
@@ -144,6 +268,138 @@ const posts = entity('posts', {
   },
 });
 ```
+
+## Rules builder API
+
+The `rules` object provides declarative access rule builders for entity access definitions. Each builder returns a plain data structure (no evaluation logic) that the access context evaluates at runtime.
+
+```ts
+import { rules } from '@vertz/server';
+```
+
+### `rules.authenticated()`
+
+Requires the user to be authenticated. No specific role is needed.
+
+```ts
+const posts = entity('posts', {
+  model: postsModel,
+  access: {
+    list: rules.authenticated(),
+  },
+});
+```
+
+### `rules.role(...roles)`
+
+Requires the user to have at least one of the specified roles (OR logic).
+
+```ts
+access: {
+  create: rules.role('admin', 'editor'),
+  delete: rules.role('admin'),
+}
+```
+
+### `rules.entitlement(name)`
+
+Requires the user to have the specified entitlement. This resolves roles, plans, and feature flags from your `defineAccess()` configuration.
+
+```ts
+access: {
+  create: rules.entitlement('project:create'),
+  export: rules.entitlement('export:pdf'),
+}
+```
+
+### `rules.where(conditions)`
+
+Row-level access control. Adds conditions that are evaluated against the entity row. Use `rules.user.id` and `rules.user.tenantId` as dynamic placeholders that resolve to the current user's values at evaluation time.
+
+```ts
+access: {
+  update: rules.where({ ownerId: rules.user.id }),
+  list: rules.where({ tenantId: rules.user.tenantId }),
+}
+```
+
+### `rules.all(...rules)`
+
+Combines multiple rules with AND logic. All sub-rules must pass.
+
+```ts
+access: {
+  update: rules.all(
+    rules.role('editor'),
+    rules.where({ ownerId: rules.user.id }),
+  ),
+}
+```
+
+### `rules.any(...rules)`
+
+Combines multiple rules with OR logic. At least one sub-rule must pass.
+
+```ts
+access: {
+  update: rules.any(
+    rules.role('admin'),
+    rules.all(
+      rules.role('editor'),
+      rules.where({ ownerId: rules.user.id }),
+    ),
+  ),
+}
+```
+
+### `rules.fva(maxAge)`
+
+Requires the user to have completed MFA verification within the specified number of seconds. This is used for step-up authentication on sensitive operations.
+
+```ts
+access: {
+  delete: rules.all(
+    rules.role('admin'),
+    rules.fva(300), // MFA verified within the last 5 minutes
+  ),
+}
+```
+
+### `rules.user`
+
+Declarative user markers resolved at evaluation time. Available markers:
+
+| Marker | Resolves to |
+|--------|-------------|
+| `rules.user.id` | The current user's ID |
+| `rules.user.tenantId` | The current user's tenant ID |
+
+Used inside `rules.where()` for row-level access checks (see example above).
+
+## AuthorizationError
+
+`AuthorizationError` is thrown by `ctx.authorize()` (and `accessContext.authorize()`) when the user lacks the required entitlement. It extends `Error` with two additional properties.
+
+```ts
+import { AuthorizationError } from '@vertz/server';
+
+try {
+  await ctx.authorize('project:delete', { type: 'project', id: 'proj-1' });
+} catch (error) {
+  if (error instanceof AuthorizationError) {
+    console.log(error.entitlement); // 'project:delete'
+    console.log(error.userId);      // 'user-123' | undefined
+    console.log(error.message);     // 'Not authorized: project:delete'
+  }
+}
+```
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `entitlement` | `string` | The entitlement that was denied |
+| `userId` | `string \| undefined` | The user ID that was denied (undefined if unauthenticated) |
+| `message` | `string` | Human-readable error message |
+| `name` | `string` | Always `'AuthorizationError'` |
 
 ## Pluggable stores
 
@@ -196,12 +452,27 @@ Built-in protections — no configuration required:
 | Protection | How |
 |-----------|-----|
 | **CSRF** | Validates `Origin`/`Referer` headers + requires `X-VTZ-Request: 1` on mutations |
-| **Rate limiting** | Per-endpoint limits (3 sign-ups/hour, 5 sign-ins/15min, 10 refreshes/min) |
+| **Rate limiting** | Per-endpoint limits (see table below) |
 | **Timing-safe** | Constant-time hash comparison prevents timing attacks on passwords and tokens |
 | **User enumeration** | Dummy bcrypt comparison on unknown emails — response timing is identical |
 | **Session limits** | Max 50 sessions per user — oldest auto-revoked on overflow |
 | **Secure cookies** | HttpOnly, Secure, SameSite=Lax by default |
 | **Cache headers** | All auth responses include `Cache-Control: no-store` |
+
+### Rate limits per endpoint
+
+| Endpoint | Max attempts | Window | Key |
+|----------|-------------|--------|-----|
+| `POST /signup` | 3 | 1 hour | Per email |
+| `POST /signin` | 5 | 15 min | Per email |
+| `POST /refresh` | 10 | 1 min | Per IP |
+| `GET /oauth/:provider` | 10 | 5 min | Per IP |
+| `POST /mfa/challenge` | 5 | 15 min | Per IP |
+| `POST /mfa/step-up` | 5 | 15 min | Per IP |
+| `POST /resend-verification` | 3 | 1 hour | Per user ID |
+| `POST /forgot-password` | 3 | 1 hour | Per email |
+
+Sign-in and sign-up limits are configurable via `emailPassword.rateLimit`. All other limits are fixed defaults. When a rate limit is hit, the endpoint returns `429 Too Many Requests` (except `/forgot-password`, which always returns `200` to prevent email enumeration).
 
 ## Access control with `defineAccess()`
 
