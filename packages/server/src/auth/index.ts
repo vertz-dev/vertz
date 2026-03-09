@@ -2235,12 +2235,31 @@ export { computeEntityAccess } from './entity-access';
 export type { FlagStore } from './flag-store';
 export { InMemoryFlagStore } from './flag-store';
 export { checkFva } from './fva';
+export type { GrandfatheringState, GrandfatheringStore } from './grandfathering-store';
+export { InMemoryGrandfatheringStore } from './grandfathering-store';
 export { InMemoryMFAStore } from './mfa-store';
 export { InMemoryOAuthAccountStore } from './oauth-account-store';
 export { InMemoryPasswordResetStore } from './password-reset-store';
+// Phase 4: Plan Versioning & Grandfathering
+export type { PlanHashInput } from './plan-hash';
+export { computePlanHash } from './plan-hash';
+export type {
+  GraceDuration,
+  MigrateOpts,
+  PlanEvent,
+  PlanEventHandler,
+  PlanEventType,
+  PlanManager,
+  PlanManagerConfig,
+  ScheduleOpts,
+  TenantPlanState,
+} from './plan-manager';
+export { createPlanManager } from './plan-manager';
 // Phase 8: Plans & Wallet
 export type { LimitOverride, OrgPlan, PlanStore } from './plan-store';
 export { InMemoryPlanStore, resolveEffectivePlan } from './plan-store';
+export type { PlanSnapshot, PlanVersionInfo, PlanVersionStore } from './plan-version-store';
+export { InMemoryPlanVersionStore } from './plan-version-store';
 // Re-export provider factories
 export { discord, github, google } from './providers';
 export { InMemoryRateLimitStore } from './rate-limit-store';
