@@ -7,9 +7,8 @@
  * - Navigation after successful form submission
  */
 
-import { css } from '@vertz/ui';
+import { css, useRouter } from '@vertz/ui';
 import { TaskForm } from '../components/task-form';
-import { useAppRouter } from '../router';
 
 const pageStyles = css({
   page: ['max-w:lg', 'mx:auto'],
@@ -19,14 +18,15 @@ const pageStyles = css({
 /**
  * Render the create-task page.
  *
- * Navigation is accessed via useAppRouter() context.
+ * Navigation is accessed via useRouter() context.
  */
 export function CreateTaskPage() {
-  const { navigate } = useAppRouter();
+  const { navigate } = useRouter();
+
   return (
     <div class={pageStyles.page} data-testid="create-task-page">
       <h1 class={pageStyles.title}>Create New Task</h1>
-      <TaskForm onSuccess={() => navigate('/')} onCancel={() => navigate('/')} />
+      <TaskForm onSuccess={() => navigate({ to: '/' })} onCancel={() => navigate({ to: '/' })} />
     </div>
   );
 }

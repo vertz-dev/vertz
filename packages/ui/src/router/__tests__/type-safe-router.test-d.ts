@@ -87,18 +87,27 @@ void _e2eTyped;
 
 const _e2eRouter = createRouter(_e2eRoutes);
 
-// Typed navigate: valid paths compile
-_e2eRouter.navigate('/');
-_e2eRouter.navigate('/tasks/42');
-_e2eRouter.navigate('/users/1/posts/99');
-_e2eRouter.navigate('/settings');
-_e2eRouter.navigate('/files/docs/readme.md');
+// Typed navigate: valid route patterns compile
+_e2eRouter.navigate({ to: '/' });
+_e2eRouter.navigate({ to: '/tasks/:id', params: { id: '42' } });
+_e2eRouter.navigate({
+  to: '/users/:userId/posts/:postId',
+  params: { postId: '99', userId: '1' },
+});
+_e2eRouter.navigate({ to: '/settings' });
+_e2eRouter.navigate({ to: '/files/*', params: { '*': 'docs/readme.md' } });
 
-// @ts-expect-error - invalid path
-_e2eRouter.navigate('/nonexistent');
+// @ts-expect-error - invalid route pattern
+_e2eRouter.navigate({ to: '/nonexistent' });
 
-// @ts-expect-error - partial param path
-_e2eRouter.navigate('/tasks');
+// @ts-expect-error - partial param route is not defined
+_e2eRouter.navigate({ to: '/tasks' });
+
+// @ts-expect-error - params required for dynamic route patterns
+_e2eRouter.navigate({ to: '/tasks/:id' });
+
+// @ts-expect-error - wrong param keys
+_e2eRouter.navigate({ to: '/tasks/:id', params: { taskId: '42' } });
 
 // Router<T> assignable to Router (context boundary via bivariant method syntax)
 const _e2eAsRouter: Router = _e2eRouter;
@@ -111,7 +120,7 @@ void _e2eAsTypedRouter;
 
 // Plain Router backward compat — accepts any string
 declare const _e2ePlainRouter: Router;
-_e2ePlainRouter.navigate('/anything-goes');
+_e2ePlainRouter.navigate({ to: '/anything-goes' });
 
 // ─── Phase 4: useParams<TPath> + useRouter<T> + InferRouteMap ────────────────
 
@@ -127,22 +136,31 @@ void _e2eBadParam;
 // useRouter<InferRouteMap<typeof routes>> typed navigate
 const _e2eTypedRouter = useRouter<InferRouteMap<typeof _e2eRoutes>>();
 
-// Valid paths compile
-_e2eTypedRouter.navigate('/');
-_e2eTypedRouter.navigate('/tasks/42');
-_e2eTypedRouter.navigate('/users/1/posts/99');
-_e2eTypedRouter.navigate('/settings');
-_e2eTypedRouter.navigate('/files/docs/readme.md');
+// Valid route patterns compile
+_e2eTypedRouter.navigate({ to: '/' });
+_e2eTypedRouter.navigate({ to: '/tasks/:id', params: { id: '42' } });
+_e2eTypedRouter.navigate({
+  to: '/users/:userId/posts/:postId',
+  params: { postId: '99', userId: '1' },
+});
+_e2eTypedRouter.navigate({ to: '/settings' });
+_e2eTypedRouter.navigate({ to: '/files/*', params: { '*': 'docs/readme.md' } });
 
-// @ts-expect-error - invalid path
-_e2eTypedRouter.navigate('/nonexistent');
+// @ts-expect-error - invalid route pattern
+_e2eTypedRouter.navigate({ to: '/nonexistent' });
 
-// @ts-expect-error - partial param path
-_e2eTypedRouter.navigate('/tasks');
+// @ts-expect-error - partial param route is not defined
+_e2eTypedRouter.navigate({ to: '/tasks' });
+
+// @ts-expect-error - params required for dynamic route patterns
+_e2eTypedRouter.navigate({ to: '/users/:userId/posts/:postId' });
+
+// @ts-expect-error - params are not allowed for static routes
+_e2eTypedRouter.navigate({ to: '/settings', params: { userId: '1' } });
 
 // useRouter() (no param) backward compat — accepts any string
 const _e2eUntypedRouter = useRouter();
-_e2eUntypedRouter.navigate('/anything-goes');
+_e2eUntypedRouter.navigate({ to: '/anything-goes' });
 
 // InferRouteMap extracts route map correctly
 type E2EInferred = InferRouteMap<typeof _e2eRoutes>;

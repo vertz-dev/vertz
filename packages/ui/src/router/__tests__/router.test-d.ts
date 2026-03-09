@@ -259,16 +259,22 @@ const _p3Routes = defineRoutes({
 
 const _p3Router = createRouter(_p3Routes);
 
-// @ts-expect-error - '/nonexistent' is not a valid path for this route map
-_p3Router.navigate('/nonexistent');
+// @ts-expect-error - '/nonexistent' is not a valid route pattern for this route map
+_p3Router.navigate({ to: '/nonexistent' });
 
-// @ts-expect-error - '/tasks' without param is not valid
-_p3Router.navigate('/tasks');
+// @ts-expect-error - '/tasks' is not a defined route pattern
+_p3Router.navigate({ to: '/tasks' });
 
-// Phase 3 Cycle 2: valid paths compile
-_p3Router.navigate('/');
-_p3Router.navigate('/settings');
-_p3Router.navigate('/tasks/42');
+// @ts-expect-error - params are required for dynamic route patterns
+_p3Router.navigate({ to: '/tasks/:id' });
+
+// @ts-expect-error - params are not allowed for static route patterns
+_p3Router.navigate({ to: '/', params: { id: '42' } });
+
+// Phase 3 Cycle 2: valid route patterns compile
+_p3Router.navigate({ to: '/' });
+_p3Router.navigate({ to: '/settings' });
+_p3Router.navigate({ to: '/tasks/:id', params: { id: '42' } });
 
 // Phase 3 Cycle 3: TypedRouter<T> is assignable to Router (context boundary)
 const _p3AsRouter: Router = _p3Router;
@@ -281,7 +287,7 @@ void _p3Typed;
 
 // Phase 3 Cycle 4: Plain Router still accepts any string (backward compat)
 declare const _plainRouter: Router;
-_plainRouter.navigate('/anything-goes');
+_plainRouter.navigate({ to: '/anything-goes' });
 
 // ─── RouterContext + useRouter + RouterView type tests ──────────────────────
 
@@ -337,20 +343,26 @@ const _p4Routes = defineRoutes({
 
 const _p4TypedRouter = useRouter<InferRouteMap<typeof _p4Routes>>();
 
-// Valid paths compile
-_p4TypedRouter.navigate('/');
-_p4TypedRouter.navigate('/settings');
-_p4TypedRouter.navigate('/tasks/42');
+// Valid route patterns compile
+_p4TypedRouter.navigate({ to: '/' });
+_p4TypedRouter.navigate({ to: '/settings' });
+_p4TypedRouter.navigate({ to: '/tasks/:id', params: { id: '42' } });
 
-// @ts-expect-error - '/nonexistent' is not a valid path
-_p4TypedRouter.navigate('/nonexistent');
+// @ts-expect-error - '/nonexistent' is not a valid route pattern
+_p4TypedRouter.navigate({ to: '/nonexistent' });
 
-// @ts-expect-error - '/tasks' without param is not valid
-_p4TypedRouter.navigate('/tasks');
+// @ts-expect-error - '/tasks' is not a defined route pattern
+_p4TypedRouter.navigate({ to: '/tasks' });
+
+// @ts-expect-error - params are required for dynamic route patterns
+_p4TypedRouter.navigate({ to: '/tasks/:id' });
+
+// @ts-expect-error - params are not allowed for static route patterns
+_p4TypedRouter.navigate({ to: '/settings', params: { id: '42' } });
 
 // Phase 4 Cycle 4: useRouter() (no param) returns UnwrapSignals<Router> — backward compat
 const _p4UntypedRouter = useRouter();
-_p4UntypedRouter.navigate('/anything'); // OK — string accepted
+_p4UntypedRouter.navigate({ to: '/anything' }); // OK — string accepted
 void _p4UntypedRouter;
 
 // Phase 4 Cycle 5: InferRouteMap extracts route map from TypedRoutes<T>

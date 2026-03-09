@@ -93,7 +93,7 @@ describe('Navigation → Query E2E Integration', () => {
     const taskData = { items: [{ id: '1', title: 'Buy milk' }] };
 
     // Start navigation — mockFn runs synchronously, then navigate awaits firstEvent
-    const navPromise = router.navigate('/tasks');
+    const navPromise = router.navigate({ to: '/tasks' });
 
     // Data arrives before firstEvent resolves (fast SSE)
     pushNavData('task-list', taskData);
@@ -123,7 +123,7 @@ describe('Navigation → Query E2E Integration', () => {
     const taskData = { items: [{ id: '1', title: 'Buy milk' }] };
 
     // Start navigation — resolve firstEvent immediately (no data in buffer)
-    const navPromise = router.navigate('/tasks');
+    const navPromise = router.navigate({ to: '/tasks' });
     controls[0].resolveFirstEvent();
     await navPromise;
 
@@ -156,7 +156,7 @@ describe('Navigation → Query E2E Integration', () => {
     const clientData = { items: [{ id: '2', title: 'Client fetched' }] };
 
     // Start navigation — resolve firstEvent immediately (no data in buffer)
-    const navPromise = router.navigate('/tasks');
+    const navPromise = router.navigate({ to: '/tasks' });
     controls[0].resolveFirstEvent();
     await navPromise;
 
@@ -192,7 +192,7 @@ describe('Navigation → Query E2E Integration', () => {
     });
 
     // --- First visit to /tasks — data arrives via SSE ---
-    const navPromise1 = router.navigate('/tasks');
+    const navPromise1 = router.navigate({ to: '/tasks' });
     pushNavData('task-list', taskDataV1);
     controls[0].resolveFirstEvent();
     await navPromise1;
@@ -208,13 +208,13 @@ describe('Navigation → Query E2E Integration', () => {
     controls[0].resolveDone();
 
     // --- Navigate away ---
-    const navPromise2 = router.navigate('/');
+    const navPromise2 = router.navigate({ to: '/' });
     controls[1].resolveFirstEvent();
     controls[1].resolveDone();
     await navPromise2;
 
     // --- Revisit /tasks (cache hit → instant render) ---
-    const navPromise3 = router.navigate('/tasks');
+    const navPromise3 = router.navigate({ to: '/tasks' });
     // Router skips wait (visited URL), but SSE prefetch starts in background
     await navPromise3;
 
@@ -244,7 +244,7 @@ describe('Navigation → Query E2E Integration', () => {
     });
 
     // --- First visit to /tasks ---
-    const navPromise1 = router.navigate('/tasks');
+    const navPromise1 = router.navigate({ to: '/tasks' });
     pushNavData('task-list', taskData);
     controls[0].resolveFirstEvent();
     await navPromise1;
@@ -261,13 +261,13 @@ describe('Navigation → Query E2E Integration', () => {
 
     // --- Navigate away to / ---
     controls[0].resolveDone();
-    const navPromise2 = router.navigate('/');
+    const navPromise2 = router.navigate({ to: '/' });
     controls[1].resolveFirstEvent();
     controls[1].resolveDone();
     await navPromise2;
 
     // --- Revisit /tasks (no data pushed this time) ---
-    const navPromise3 = router.navigate('/tasks');
+    const navPromise3 = router.navigate({ to: '/tasks' });
     controls[2].resolveFirstEvent();
     await navPromise3;
 

@@ -55,6 +55,9 @@ export type PathWithParams<T extends string> = T extends `${infer Before}*`
       ? `${Before}${string}`
       : T;
 
+/** Union of route pattern keys from a route map. */
+export type RoutePattern<TRouteMap extends Record<string, unknown>> = keyof TRouteMap & string;
+
 // ─── RoutePaths ─────────────────────────────────────────────────────────────
 
 /**
@@ -67,5 +70,5 @@ export type PathWithParams<T extends string> = T extends `${infer Before}*`
  * ```
  */
 export type RoutePaths<TRouteMap extends Record<string, unknown>> = {
-  [K in keyof TRouteMap & string]: PathWithParams<K>;
-}[keyof TRouteMap & string];
+  [K in RoutePattern<TRouteMap>]: PathWithParams<K>;
+}[RoutePattern<TRouteMap>];

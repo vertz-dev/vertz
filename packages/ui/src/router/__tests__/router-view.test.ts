@@ -102,7 +102,7 @@ describe('RouterView', () => {
       view = RouterView({ router });
     });
     expect(view!.textContent).toBe('Home');
-    await router.navigate('/about');
+    await router.navigate({ to: '/about' });
     expect(view!.textContent).toBe('About');
     router.dispose();
   });
@@ -196,7 +196,7 @@ describe('RouterView', () => {
     RouterContext.Provider(router, () => {
       view = RouterView({ router });
     });
-    await router.navigate('/fast');
+    await router.navigate({ to: '/fast' });
     expect(view!.textContent).toBe('Fast Page');
     // Resolve the stale component — should NOT replace current content
     resolveFirst!({
@@ -247,7 +247,7 @@ describe('RouterView', () => {
     RouterContext.Provider(router, () => {
       RouterView({ router });
     });
-    await router.navigate('/about');
+    await router.navigate({ to: '/about' });
     // wrapSignalProps creates a new object, so check behaviour not identity
     expect(capturedOnAbout).toBeDefined();
     expect(capturedOnAbout!.navigate).toBe(router.navigate);
@@ -276,7 +276,7 @@ describe('RouterView', () => {
       RouterView({ router });
     });
     expect(cleanedUp).toBe(false);
-    await router.navigate('/other');
+    await router.navigate({ to: '/other' });
     expect(cleanedUp).toBe(true);
     router.dispose();
   });
@@ -404,7 +404,7 @@ describe('RouterView', () => {
     expect(view!.textContent).toContain('Settings');
 
     // Navigate to sibling
-    await router.navigate('/dashboard/profile');
+    await router.navigate({ to: '/dashboard/profile' });
 
     // Parent layout is the SAME DOM node (not re-mounted)
     expect(view!.querySelector('.dashboard-layout')).toBe(layoutEl);
@@ -444,7 +444,7 @@ describe('RouterView', () => {
     expect(parentCleanedUp).toBe(false);
 
     // Navigate to sibling — parent should NOT be cleaned up
-    await router.navigate('/dashboard/profile');
+    await router.navigate({ to: '/dashboard/profile' });
     expect(parentCleanedUp).toBe(false);
     router.dispose();
   });
@@ -482,7 +482,7 @@ describe('RouterView', () => {
     expect(childCleanedUp).toBe(false);
 
     // Navigate to sibling — old child's cleanup should run
-    await router.navigate('/dashboard/profile');
+    await router.navigate({ to: '/dashboard/profile' });
     expect(childCleanedUp).toBe(true);
     router.dispose();
   });
@@ -524,7 +524,7 @@ describe('RouterView', () => {
     expect(dashboardCleanedUp).toBe(false);
 
     // Navigate to a completely different route — full re-render
-    await router.navigate('/about');
+    await router.navigate({ to: '/about' });
     expect(dashboardCleanedUp).toBe(true);
     expect(view!.textContent).toContain('About');
     expect(view!.querySelector('.dashboard')).toBeNull();
@@ -639,7 +639,7 @@ describe('RouterView', () => {
     expect(view!.textContent).toContain('About');
 
     // Navigate from flat to nested
-    await router.navigate('/dashboard/settings');
+    await router.navigate({ to: '/dashboard/settings' });
     expect(view!.querySelector('.dashboard-layout')).not.toBeNull();
     expect(view!.textContent).toContain('Settings');
     expect(view!.textContent).not.toContain('About');
@@ -677,7 +677,7 @@ describe('RouterView', () => {
     expect(childRenderCount).toBe(1);
 
     // Navigate to the same route — should be a no-op
-    await router.navigate('/dashboard/settings');
+    await router.navigate({ to: '/dashboard/settings' });
     expect(parentRenderCount).toBe(1);
     expect(childRenderCount).toBe(1);
     router.dispose();
@@ -795,7 +795,7 @@ describe('RouterView', () => {
     endHydration();
 
     // After hydration, navigate to sibling — reactivity must work
-    await router.navigate('/dashboard/profile');
+    await router.navigate({ to: '/dashboard/profile' });
     expect(view!.textContent).toContain('Profile Page');
     router.dispose();
   });

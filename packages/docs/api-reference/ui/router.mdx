@@ -3,7 +3,7 @@ title: Router
 description: "API reference for defineRoutes(), createRouter(), RouterView, and Link"
 ---
 
-The Vertz router provides type-safe, file-system-free routing with loaders, nested layouts, and search param parsing. Route paths are inferred from your route map — typos in `navigate()` calls are caught at compile time.
+The Vertz router provides type-safe, file-system-free routing with loaders, nested layouts, and search param parsing. Route patterns are inferred from your route map, so typos in `navigate()` calls and missing params are caught at compile time.
 
 ## defineRoutes()
 
@@ -94,7 +94,7 @@ function createRouter<T extends Record<string, RouteConfigLike>>(
 | `loaderData` | `unknown[]` | Data from the matched route's loader (reactive) |
 | `loaderError` | `Error \| null` | Error from the loader, if any (reactive) |
 | `searchParams` | `Record<string, unknown>` | Parsed search params (reactive) |
-| `navigate(url, options?)` | `(url: RoutePaths<T>, options?) => Promise<void>` | Navigate to a route — type-safe path |
+| `navigate(input)` | `<TPath extends keyof T & string>(input: { to: TPath, ... }) => Promise<void>` | Navigate to a route pattern with typed params |
 | `revalidate()` | `() => Promise<void>` | Re-run the current route's loader |
 | `dispose()` | `() => void` | Clean up the router |
 
@@ -164,13 +164,12 @@ Access the router instance from any component in the tree. Must be called within
 
 ```tsx
 import { useRouter } from '@vertz/ui/router';
-import type { InferRouteMap } from '@vertz/ui';
 
 function TaskCard({ taskId }: { taskId: string }) {
-  const router = useRouter<InferRouteMap<typeof routes>>();
+  const router = useRouter();
 
   const handleClick = () => {
-    router.navigate(`/tasks/${taskId}`);
+    router.navigate({ to: '/tasks/:id', params: { id: taskId } });
   };
 
   return <div onClick={handleClick}>...</div>;
@@ -183,7 +182,9 @@ function TaskCard({ taskId }: { taskId: string }) {
 function useRouter<T extends Record<string, RouteConfigLike>>(): UnwrapSignals<Router<T>>
 ```
 
-The generic parameter gives you type-safe `navigate()` calls — only valid paths from your route map are accepted.
+In scaffolded apps, codegen writes `.vertz/generated/router.d.ts`, which augments
+`useRouter()` with your app's route map so `navigate()` is typed by default. You
+can still pass a generic manually in non-generated setups.
 
 ---
 
@@ -218,7 +219,9 @@ Create a Link component factory bound to a router's state. Used internally — m
 ```tsx
 import { createLink } from '@vertz/ui/router';
 
-const Link = createLink(router.current, (url) => router.navigate(url));
+const Link = createLink(router.current, (url) =>
+  router.navigate({ to: url as Parameters<typeof router.navigate>[0]['to'] }),
+);
 ```
 
 ### LinkProps
@@ -247,9 +250,16 @@ interface RouteMatch {
 
 interface NavigateOptions {
   replace?: boolean;
+  params?: Record<string, string>;
+  search?: string | URLSearchParams | Record<string, string | number | boolean>;
 }
 
-type RoutePaths<T extends Record<string, RouteConfigLike>> = keyof T & string;
+type NavigateInput<TPath extends string> = {
+  to: TPath;
+} & NavigateOptions;
+
+type RoutePattern<T extends Record<string, RouteConfigLike>> = keyof T & string;
+type RoutePaths<T extends Record<string, RouteConfigLike>> = /* concrete URL union */;
 type ExtractParams<TPath extends string> = /* extracted param object */;
 type InferRouteMap<T> = T extends TypedRoutes<infer R> ? R : T;
 type TypedRoutes<T> = CompiledRoute[] & { readonly __routes: T };

@@ -1,10 +1,5 @@
 import { useRouter } from '@vertz/ui';
-import {
-  categoryLabels,
-  categoryOrder,
-  componentRegistry,
-  groupByCategory,
-} from '../demos';
+import { categoryLabels, categoryOrder, componentRegistry, groupByCategory } from '../demos';
 import { homeStyles } from '../styles/catalog';
 
 export function HomePage() {
@@ -26,7 +21,9 @@ export function HomePage() {
               class={homeStyles.categoryCard}
               onClick={() => {
                 if (entries.length > 0) {
-                  router.navigate(`/${entries[0].slug}` as any);
+                  router.navigate({
+                    to: `/${entries[0].slug}` as Parameters<typeof router.navigate>[0]['to'],
+                  });
                 }
               }}
             >

@@ -140,7 +140,7 @@ const taskForm = form(api.tasks.create, {
 
   // Called with the API response on success
   onSuccess: (result) => {
-    navigate(`/tasks/${result.id}`);
+    navigate({ to: '/tasks/:id', params: { id: result.id } });
   },
 
   // Called with field error map on validation failure

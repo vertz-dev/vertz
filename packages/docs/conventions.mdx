@@ -231,7 +231,7 @@ Pages access the router via context — no prop threading.
 ```tsx
 // Preferred — page gets router from context
 export function TaskListPage() {
-  const { navigate } = useAppRouter();
+  const { navigate } = useRouter();
   // ...
 }
 

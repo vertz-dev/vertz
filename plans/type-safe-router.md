@@ -35,34 +35,29 @@ router.navigate('/tasks/42');         // OK — matches `/tasks/${string}`
 router.navigate('/nonexistent');      // Type error!
 ```
 
-### 1.3 `useRouter<T>()` — backward-compatible typed access
+### 1.3 `useRouter()` — auto-typed via generated module augmentation
 
 ```tsx
-// Untyped (backward compat — works everywhere):
+// Before codegen runs, this is still backward-compatible:
 const router = useRouter();
 router.navigate('/anything'); // string — no validation
 
-// Typed (opt-in via type parameter):
-const router = useRouter<typeof routes>();
+// After codegen writes .vertz/generated/router.d.ts:
+const router = useRouter();
 router.navigate('/tasks/42');     // OK
 router.navigate('/nonexistent');  // Type error!
 ```
 
-**Recommended pattern for apps:** Export a typed wrapper from the routes file:
+**How it works:** codegen detects the app route module and generates an ambient
+declaration that augments `useRouter()` for `@vertz/ui` and `@vertz/ui/router`.
+Scaffolded apps already include `.vertz/generated` in `tsconfig.json`, so the
+generated file is picked up automatically.
 
 ```tsx
-// router.ts
+// src/router.ts
 export const routes = defineRoutes({ ... });
 export const appRouter = createRouter(routes);
-
-// Re-export a typed useRouter for the app
-export type AppRoutes = typeof routes;
-export function useAppRouter() {
-  return useRouter<AppRoutes>();
-}
 ```
-
-This avoids `import type { routes }` in every component — pages import `useAppRouter()` instead. This pattern is documented in `ui-components.md` and shown in the task-manager example.
 
 ### 1.4 `useParams<TPath>()` — typed param accessor
 
@@ -99,9 +94,9 @@ Link({ href: '/nonexistent', children: 'Bad' });    // Type error!
 
 ### Alternatives considered and rejected
 
-**TanStack-style module augmentation (`declare module '@vertz/ui' { interface Register { router: typeof router } }`):** Eliminates the need to pass type parameters to `useRouter`, `createLink`, etc. — types flow globally after a one-time registration. Rejected because: (1) it relies on ambient module augmentation which is implicit magic, violating "explicit over implicit"; (2) it introduces global state at the type level which is harder for LLMs to reason about; (3) a missing `Register` declaration silently degrades to untyped, which is the exact failure mode we want to prevent.
+**Compiler-generated module augmentation:** Accepted. Manual ambient registration was too implicit, but generated augmentation is explicit enough because the file is visible in `.vertz/generated/router.d.ts`, produced by the same codegen step that already emits the SDK. This removes per-app `useAppRouter()` boilerplate without introducing a second user-managed configuration surface.
 
-**Codegen-based typing (Next.js / React Router v7 pattern):** Generate `.d.ts` files from route definitions. Provides automatic typing with zero manual annotation. Rejected because: (1) requires a build plugin / CLI step, adding toolchain complexity; (2) generated files can go stale if the generator isn't run; (3) vertz's "zero-config" philosophy means type safety should work with pure TypeScript, no codegen.
+**Pure TypeScript opt-in generics:** Shipped first, still supported as a fallback. `useRouter<T>()` remains useful in tests or projects where codegen has not run yet, but it is no longer the preferred application-level DX.
 
 **Automatic `useParams()` inference from route context:** RouterView could thread the matched pattern type into the component factory, making `useParams()` automatically infer the correct params without a type parameter. Rejected because: (1) requires the component factory signature to carry the route pattern as a generic (`component: <TPath>() => Node`), which is a much larger change to the route definition API; (2) breaks the current `() => Node` factory signature; (3) the explicit type parameter aligns with "explicit over implicit" and is simpler to implement correctly.
 
@@ -306,11 +301,11 @@ The dual overload solves the contravariance problem: `TypedRouter<T>` is assigna
 
 **`useParams<TPath>()` requires the developer to pass the correct path literal.** There's no automatic inference from "which route am I in." This matches React Router's pattern. The risk: if a route is renamed (e.g., `:id` to `:taskId`), `useParams<'/tasks/:id'>()` calls across the codebase become stale — TypeScript won't catch the drift because `TPath` is disconnected from the route map. **Mitigation:** use find-and-replace when renaming route patterns. A lint rule that validates `useParams<T>()` literals against the app's route definitions is a future enhancement.
 
-**Backward compatibility via default type parameters.** `Router` (no generic) keeps `navigate: (url: string) => Promise<void>`. `TypedRouter<T>` narrows `navigate` via overload. Existing code compiles without changes. Type safety is opt-in via `createRouter()` return type inference or `useRouter<T>()`.
+**Backward compatibility via generated overloads.** Before codegen runs, `useRouter()` stays wide and accepts `string`, matching the existing behavior. After codegen writes `.vertz/generated/router.d.ts`, the ambient overload narrows `useRouter()` to the app's route map. Existing code still compiles; generated projects get type safety by default.
 
 **`CompiledRoute[]` stays untyped at runtime.** The generic `T` on `TypedRouter<T>` is a phantom — it exists only at the type level. The actual `routes` parameter is still `CompiledRoute[]` at runtime. This is the same pattern as the backend's phantom types on `ColumnBuilder`.
 
-**Type erasure at context boundary is intentional.** `RouterContext` stores `Router` (wide type). `useRouter<T>()` casts back to `TypedRouter<T>`. The developer can pass a wrong `T` and TypeScript won't catch it — this is the same trade-off React Router makes. The recommended pattern (export `useAppRouter()` from the routes file) reduces this risk by centralizing the type parameter.
+**Type erasure at context boundary is intentional.** `RouterContext` stores `Router` (wide type). The generated `useRouter()` overload re-applies the app route map at the type level. Manual `useRouter<T>()` calls still rely on the developer providing the correct `T`, but that becomes a fallback path instead of the main application pattern.
 
 **Error messages for large route maps.** When TypeScript rejects a path like `navigate('/taks/42')`, the error shows the full union of valid paths. For apps with 40+ routes, this can be verbose. This is inherent to TypeScript's template literal union errors. We accept this trade-off — the error is always correct, just potentially long.
 
@@ -337,12 +332,12 @@ RR v7 generates `+types/*.d.ts` files for each route module. Typed params and lo
 | Typed navigate | Yes (global) | No | Yes (via `TypedRouter<T>`) |
 | Typed params | Yes (inferred) | Module-scoped only | Yes (explicit `useParams<T>`) |
 | Typed Link href | Yes | No | Yes |
-| Build step needed | Optional | Required | **No** |
+| Build step needed | Optional | Required | **Yes (existing codegen step)** |
 | Typed loader data | Yes | Yes | N/A — vertz uses `query()` |
 | Typed search params | Yes | No | Not in scope (follow-up) |
 | Nested route types | Yes | Partial | Not in scope (follow-up) |
 
-**Vertz's differentiator:** Zero-codegen type safety. Pure TypeScript generics and template literal types — no plugins, no generated files, no `Register` augmentation. Type safety flows from `defineRoutes()` with no additional config.
+**Vertz's differentiator:** No extra router-specific setup. Type safety still flows from `defineRoutes()`, but the final `useRouter()` DX is delivered through the existing codegen pipeline instead of a manual wrapper or hand-written registration.
 
 **Why typed loader data is N/A, not a gap:** In vertz, data fetching is handled by `query()` at the component level, not by router loaders. The loader mechanism exists for optional pre-fetching, but `query()` is the primary data access pattern (see task-manager example: `TaskListPage` uses `query(() => fetchTasks())`). Both TanStack and RR v7 treat loaders as the primary data fetching mechanism — different architectural choice. Typed loader data could be added later if the loader pattern becomes more prominent.
 
@@ -352,7 +347,7 @@ RR v7 generates `+types/*.d.ts` files for each route module. Typed params and lo
 
 When a route pattern changes (e.g., `/tasks/:id` to `/tasks/:taskId`), `useParams<'/tasks/:id'>()` calls across the codebase silently become stale. The `TPath` type parameter is disconnected from the route map — TypeScript cannot verify it matches an actual route.
 
-**Current mitigation:** Find-and-replace when renaming routes. The recommended `useAppRouter()` pattern centralizes the route type, but `useParams` still requires per-call-site literals.
+**Current mitigation:** Find-and-replace when renaming routes. Generated `useRouter()` centralizes navigation typing automatically, but `useParams` still requires per-call-site literals.
 
 **Future mitigation:** A lint rule that extracts `useParams<T>()` string literals and validates them against the app's `defineRoutes()` call. This is out of scope for this PR but tracked as a follow-up.
 
@@ -453,22 +448,15 @@ The 5-minute experience for a developer using type-safe routing:
    }
    ```
 
-4. **Optional: typed useRouter in components** — export a typed wrapper:
+4. **Typed `useRouter()` in components** — run codegen and import it directly:
    ```tsx
-   // router.ts (add this)
    import { useRouter } from '@vertz/ui';
-   export type AppRoutes = typeof routes;
-   export function useAppRouter() {
-     return useRouter<AppRoutes>();
-   }
-
-   // any-component.tsx
-   import { useAppRouter } from '../router';
-   const { navigate } = useAppRouter();
+   const { navigate } = useRouter();
    navigate('/tasks/42');     // Typed!
    ```
 
-No codegen. No plugins. No `Register` declarations. Type safety flows from `defineRoutes()`.
+No manual wrapper. No handwritten `Register` declarations. Type safety flows from
+`defineRoutes()` plus the existing codegen pipeline.
 
 ## 12. Files to Modify
 

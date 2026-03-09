@@ -26,10 +26,35 @@ describe('createRouter', () => {
     });
     const router = createRouter(routes, '/');
 
-    await router.navigate('/about');
+    await router.navigate({ to: '/about' });
 
     expect(router.current.value).not.toBeNull();
     expect(router.current.value?.route.pattern).toBe('/about');
+  });
+
+  test('navigate interpolates route params into the final URL', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/tasks/:id': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes, '/');
+
+    await router.navigate({ to: '/tasks/:id', params: { id: '42' } });
+
+    expect(window.location.pathname).toBe('/tasks/42');
+    expect(router.current.value?.route.pattern).toBe('/tasks/:id');
+    expect(router.current.value?.params).toEqual({ id: '42' });
+  });
+
+  test('navigate rejects missing params at runtime', async () => {
+    const routes = defineRoutes({
+      '/tasks/:id': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes, '/tasks/1');
+
+    await expect((router as any).navigate({ to: '/tasks/:id' })).rejects.toThrow(
+      'Missing route param "id" for path "/tasks/:id"',
+    );
   });
 
   test('navigate runs loader and stores data', async () => {
@@ -40,7 +65,7 @@ describe('createRouter', () => {
     });
     const router = createRouter(routes, '/');
 
-    await router.navigate('/data');
+    await router.navigate({ to: '/data' });
 
     expect(loader).toHaveBeenCalled();
     expect(router.loaderData.value).toEqual([{ items: [1, 2, 3] }]);
@@ -54,7 +79,7 @@ describe('createRouter', () => {
     });
     const router = createRouter(routes, '/');
 
-    await router.navigate('/fail');
+    await router.navigate({ to: '/fail' });
 
     expect(router.loaderError.value).toBeInstanceOf(TypeError);
     expect(router.loaderError.value?.message).toBe('Network error');
@@ -66,7 +91,7 @@ describe('createRouter', () => {
     });
     const router = createRouter(routes, '/');
 
-    await router.navigate('/nonexistent');
+    await router.navigate({ to: '/nonexistent' });
 
     expect(router.current.value).toBeNull();
   });
@@ -83,7 +108,7 @@ describe('createRouter', () => {
     const router = createRouter(routes, '/data');
 
     // Wait for initial load
-    await router.navigate('/data');
+    await router.navigate({ to: '/data' });
     expect(callCount).toBe(2); // initial + navigate
     const firstData = router.loaderData.value;
 
@@ -100,7 +125,7 @@ describe('createRouter', () => {
     const router = createRouter(routes, '/');
     const pushSpy = vi.spyOn(window.history, 'pushState');
 
-    await router.navigate('/about');
+    await router.navigate({ to: '/about' });
 
     expect(pushSpy).toHaveBeenCalledWith(null, '', '/about');
     pushSpy.mockRestore();
@@ -114,7 +139,7 @@ describe('createRouter', () => {
     const router = createRouter(routes, '/');
     const replaceSpy = vi.spyOn(window.history, 'replaceState');
 
-    await router.navigate('/about', { replace: true });
+    await router.navigate({ to: '/about', replace: true });
 
     expect(replaceSpy).toHaveBeenCalledWith(null, '', '/about');
     replaceSpy.mockRestore();
@@ -128,7 +153,7 @@ describe('createRouter', () => {
     const router = createRouter(routes, '/');
 
     // Navigate to /about (pushes to history)
-    await router.navigate('/about');
+    await router.navigate({ to: '/about' });
     expect(router.current.value?.route.pattern).toBe('/about');
 
     // Simulate browser back button: set location then fire popstate
@@ -150,7 +175,7 @@ describe('createRouter', () => {
     const router = createRouter(routes, '/');
 
     // Navigate to /data
-    await router.navigate('/data');
+    await router.navigate({ to: '/data' });
     loader.mockClear();
 
     // Simulate back to /, then forward to /data
@@ -169,7 +194,7 @@ describe('createRouter', () => {
     });
     const router = createRouter(routes, '/');
 
-    await router.navigate('/about');
+    await router.navigate({ to: '/about' });
 
     // Dispose the router
     router.dispose();
@@ -204,9 +229,9 @@ describe('createRouter', () => {
     await new Promise((r) => setTimeout(r, 10));
 
     // Start navigation to /slow (will be slow)
-    const nav1 = router.navigate('/slow');
+    const nav1 = router.navigate({ to: '/slow' });
     // Immediately navigate to /fast
-    const nav2 = router.navigate('/fast');
+    const nav2 = router.navigate({ to: '/fast' });
 
     // Now resolve the first slow loader (stale!)
     resolveFirst({ stale: true });
@@ -236,9 +261,9 @@ describe('createRouter', () => {
     await new Promise((r) => setTimeout(r, 10));
 
     // Navigate to /a again to trigger loader
-    const nav1 = router.navigate('/a');
+    const nav1 = router.navigate({ to: '/a' });
     // Immediately navigate away
-    await router.navigate('/b');
+    await router.navigate({ to: '/b' });
     await nav1;
 
     expect(capturedSignal).toBeDefined();
@@ -278,7 +303,7 @@ describe('createRouter serverNav', () => {
       _prefetchNavData: mockPrefetch,
     });
 
-    await router.navigate('/about');
+    await router.navigate({ to: '/about' });
 
     expect(mockPrefetch).toHaveBeenCalledWith('/about', {});
     router.dispose();
@@ -295,7 +320,7 @@ describe('createRouter serverNav', () => {
       _prefetchNavData: mockPrefetch,
     });
 
-    await router.navigate('/about');
+    await router.navigate({ to: '/about' });
 
     expect(mockPrefetch).not.toHaveBeenCalled();
     router.dispose();
@@ -314,8 +339,8 @@ describe('createRouter serverNav', () => {
       _prefetchNavData: mockPrefetch,
     });
 
-    await router.navigate('/a');
-    await router.navigate('/b');
+    await router.navigate({ to: '/a' });
+    await router.navigate({ to: '/b' });
 
     // First prefetch should have been aborted when second nav started
     expect(abortFn).toHaveBeenCalledTimes(1);
@@ -335,7 +360,7 @@ describe('createRouter serverNav', () => {
       _prefetchNavData: mockPrefetch,
     });
 
-    await router.navigate('/about');
+    await router.navigate({ to: '/about' });
     router.dispose();
 
     expect(abortFn).toHaveBeenCalled();
@@ -352,7 +377,7 @@ describe('createRouter serverNav', () => {
       _prefetchNavData: mockPrefetch,
     });
 
-    await router.navigate('/about');
+    await router.navigate({ to: '/about' });
 
     expect(mockPrefetch).toHaveBeenCalledWith('/about', { timeout: 3000 });
     router.dispose();
@@ -376,7 +401,7 @@ describe('createRouter serverNav', () => {
 
     // Start navigation — should wait for prefetch done
     let navigated = false;
-    const navPromise = router.navigate('/about').then(() => {
+    const navPromise = router.navigate({ to: '/about' }).then(() => {
       navigated = true;
     });
 
@@ -413,7 +438,7 @@ describe('createRouter serverNav', () => {
     });
 
     // Navigate — should proceed after threshold (~500ms) even though prefetch never completes
-    await router.navigate('/about');
+    await router.navigate({ to: '/about' });
 
     expect(router.current.value?.route.pattern).toBe('/about');
     router.dispose();
@@ -440,7 +465,7 @@ describe('createRouter serverNav', () => {
     });
 
     let navigated = false;
-    const navPromise = router.navigate('/about').then(() => {
+    const navPromise = router.navigate({ to: '/about' }).then(() => {
       navigated = true;
     });
 
@@ -484,9 +509,9 @@ describe('createRouter serverNav', () => {
     });
 
     // Start nav1 (slow) — will wait on awaitPrefetch
-    const nav1 = router.navigate('/a');
+    const nav1 = router.navigate({ to: '/a' });
     // Start nav2 (instant) — should supersede nav1
-    const nav2 = router.navigate('/b');
+    const nav2 = router.navigate({ to: '/b' });
 
     // Resolve nav1's prefetch after nav2 started
     resolveDone1();
@@ -530,9 +555,9 @@ describe('createRouter serverNav', () => {
       _prefetchNavData: mockPrefetch,
     });
 
-    const nav1 = router.navigate('/a');
-    const nav2 = router.navigate('/b');
-    const nav3 = router.navigate('/c');
+    const nav1 = router.navigate({ to: '/a' });
+    const nav2 = router.navigate({ to: '/b' });
+    const nav3 = router.navigate({ to: '/c' });
 
     resolveDone1();
     resolveDone2();
@@ -576,7 +601,7 @@ describe('createRouter serverNav', () => {
 
     // First visit to /tasks — should wait for firstEvent
     let firstNavDone = false;
-    const nav1 = router.navigate('/tasks').then(() => {
+    const nav1 = router.navigate({ to: '/tasks' }).then(() => {
       firstNavDone = true;
     });
     await new Promise((r) => setTimeout(r, 5));
@@ -587,11 +612,11 @@ describe('createRouter serverNav', () => {
     expect(router.current.value?.route.pattern).toBe('/tasks');
 
     // Navigate away
-    await router.navigate('/');
+    await router.navigate({ to: '/' });
 
     // Revisit /tasks — should NOT wait for prefetch (visited before)
     const start = Date.now();
-    await router.navigate('/tasks');
+    await router.navigate({ to: '/tasks' });
     const elapsed = Date.now() - start;
 
     expect(router.current.value?.route.pattern).toBe('/tasks');
@@ -625,7 +650,7 @@ describe('createRouter serverNav', () => {
 
     // First visit to /about — should wait for firstEvent
     let navigated = false;
-    const navPromise = router.navigate('/about').then(() => {
+    const navPromise = router.navigate({ to: '/about' }).then(() => {
       navigated = true;
     });
 
@@ -657,7 +682,7 @@ describe('createRouter serverNav', () => {
 
     // Navigate to same URL with different param order — should skip wait
     const start = Date.now();
-    await router.navigate('/tasks?a=1&b=2');
+    await router.navigate({ to: '/tasks', search: 'a=1&b=2' });
     const elapsed = Date.now() - start;
 
     expect(elapsed).toBeLessThan(50);
@@ -688,14 +713,14 @@ describe('createRouter serverNav', () => {
     });
 
     // Click 1: navigate to /tasks/2 (first visit, will wait for prefetch)
-    const nav1 = router.navigate('/tasks/2');
+    const nav1 = router.navigate({ to: '/tasks/2' });
 
     // Give a tick — should be waiting for prefetch
     await new Promise((r) => setTimeout(r, 5));
     expect(router.current.value?.route.pattern).toBe('/');
 
     // Click 2: same URL — should NOT restart the prefetch
-    const nav2 = router.navigate('/tasks/2');
+    const nav2 = router.navigate({ to: '/tasks/2' });
 
     // Prefetch should NOT have been aborted and re-created
     // (only 1 prefetch call, not 2)
@@ -737,12 +762,12 @@ describe('createRouter serverNav', () => {
     });
 
     // Click 1 at t=0
-    router.navigate('/detail');
+    router.navigate({ to: '/detail' });
 
     // Click 2 at t=100ms (user re-clicks, thinking nothing happened)
     await new Promise((r) => setTimeout(r, 100));
     const start = Date.now();
-    await router.navigate('/detail');
+    await router.navigate({ to: '/detail' });
     const elapsed = Date.now() - start;
 
     // Should complete within ~200ms (remaining time on original firstEvent),
@@ -770,15 +795,15 @@ describe('createRouter serverNav', () => {
     });
 
     // Step 1: list → detail 1
-    await router.navigate('/tasks/1');
+    await router.navigate({ to: '/tasks/1' });
     expect(router.current.value?.route.pattern).toBe('/tasks/1');
 
     // Step 2: detail 1 → list (cached — visited before)
-    await router.navigate('/');
+    await router.navigate({ to: '/' });
     expect(router.current.value?.route.pattern).toBe('/');
 
     // Step 3: list → detail 2 (first visit)
-    await router.navigate('/tasks/2');
+    await router.navigate({ to: '/tasks/2' });
     expect(router.current.value?.route.pattern).toBe('/tasks/2');
 
     router.dispose();
@@ -796,7 +821,7 @@ describe('createRouter serverNav', () => {
     });
 
     // Navigate to /about first
-    await router.navigate('/about');
+    await router.navigate({ to: '/about' });
     mockPrefetch.mockClear();
 
     // Simulate popstate (back button)
@@ -818,7 +843,7 @@ describe('createRouter SSR', () => {
   });
 
   test('returns lightweight router in SSR context', () => {
-    const ctx = enableTestSSR(createTestSSRContext('/about'));
+    const _ctx = enableTestSSR(createTestSSRContext('/about'));
     const routes = defineRoutes({
       '/': { component: () => document.createElement('div') },
       '/about': { component: () => document.createElement('div') },
@@ -885,7 +910,7 @@ describe('createRouter SSR', () => {
     const router = createRouter(routes);
 
     // Should not throw
-    await router.navigate('/');
+    await router.navigate({ to: '/' });
     await router.revalidate();
     router.dispose();
   });

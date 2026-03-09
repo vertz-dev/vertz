@@ -177,7 +177,7 @@ describe('Router Integration Tests', () => {
     expect(componentLoaded).toBe(false);
 
     // Navigate to lazy route
-    await router.navigate('/lazy');
+    await router.navigate({ to: '/lazy' });
 
     // Route matched
     expect(router.current.value).not.toBeNull();
@@ -215,7 +215,7 @@ describe('Router Integration Tests', () => {
 
     const router = createRouter(routes, '/');
 
-    await router.navigate('/broken');
+    await router.navigate({ to: '/broken' });
 
     // Route matched
     expect(router.current.value).not.toBeNull();

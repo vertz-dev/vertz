@@ -87,7 +87,7 @@ describe('router.searchParams signal', () => {
     });
     const router = createRouter(routes, '/');
 
-    await router.navigate('/items?page=3');
+    await router.navigate({ to: '/items', search: { page: 3 } });
 
     expect(router.searchParams.value).toEqual({ page: 3 });
   });
@@ -124,7 +124,7 @@ describe('router.searchParams signal', () => {
     const router = createRouter(routes, '/');
 
     parseSpy.mockClear();
-    await router.navigate('/items?page=2');
+    await router.navigate({ to: '/items', search: { page: 2 } });
 
     // matchRoute parses once; navigate should NOT parse again
     expect(parseSpy).toHaveBeenCalledTimes(1);

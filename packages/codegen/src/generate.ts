@@ -7,6 +7,7 @@ import { ClientGenerator } from './generators/client-generator';
 import { EntitySchemaGenerator } from './generators/entity-schema-generator';
 import { EntitySdkGenerator } from './generators/entity-sdk-generator';
 import { EntityTypesGenerator } from './generators/entity-types-generator';
+import { RouterAugmentationGenerator } from './generators/router-augmentation-generator';
 import type { IncrementalResult } from './incremental';
 import { writeIncremental } from './incremental';
 import { adaptIR } from './ir-adapter';
@@ -48,6 +49,9 @@ function runTypescriptGenerator(ir: CodegenIR, _config: ResolvedCodegenConfig): 
   // Client entry point (client.ts, package.json, README.md)
   const clientGen = new ClientGenerator();
   files.push(...clientGen.generate(ir, generatorConfig));
+
+  const routerAugmentationGen = new RouterAugmentationGenerator();
+  files.push(...routerAugmentationGen.generate(ir, generatorConfig));
 
   return files;
 }

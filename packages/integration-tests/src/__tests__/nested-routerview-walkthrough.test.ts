@@ -11,6 +11,7 @@
 // Uses only public package imports — never relative imports.
 // ===========================================================================
 
+import { describe, expect, it } from 'bun:test';
 import type { Router } from '@vertz/ui';
 import {
   createRouter,
@@ -20,7 +21,6 @@ import {
   RouterView,
   useRouter,
 } from '@vertz/ui';
-import { describe, expect, it } from 'bun:test';
 
 // ---------------------------------------------------------------------------
 // Helper: create a simple DOM element with text content
@@ -119,7 +119,7 @@ describe('Nested RouterView Walkthrough', () => {
     expect(view.textContent).toContain('Settings');
 
     // Navigate to sibling
-    await router.navigate('/dashboard/profile');
+    await router.navigate({ to: '/dashboard/profile' });
 
     // Parent layout is the SAME DOM node (not re-mounted)
     expect(view.querySelector('.dashboard-layout')).toBe(layoutEl);
@@ -163,7 +163,7 @@ describe('Nested RouterView Walkthrough', () => {
     expect(view.textContent).toContain('Settings');
 
     // Navigate to flat route
-    await router.navigate('/about');
+    await router.navigate({ to: '/about' });
 
     expect(view.textContent).toContain('About Page');
     expect(view.textContent).not.toContain('Dashboard');
@@ -203,8 +203,8 @@ describe('Nested RouterView Walkthrough', () => {
 
     expect(parentRouter).toBeDefined();
     expect(childRouter).toBeDefined();
-    expect(parentRouter!.navigate).toBe(router.navigate);
-    expect(childRouter!.navigate).toBe(router.navigate);
+    expect(parentRouter?.navigate).toBe(router.navigate);
+    expect(childRouter?.navigate).toBe(router.navigate);
     router.dispose();
   });
 
