@@ -5,7 +5,7 @@
  * into data URIs suitable for embedding in Satori elements.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 
 const MIME_TYPES: Record<string, string> = {
@@ -37,6 +37,11 @@ export async function loadImage(source: string): Promise<string> {
   // URL
   if (source.startsWith('http://') || source.startsWith('https://')) {
     const response = await fetch(source);
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image from ${source} (HTTP ${response.status})`);
+    }
+
     const contentType = response.headers.get('Content-Type') ?? 'application/octet-stream';
     const mime = contentType.split(';')[0]?.trim() ?? 'application/octet-stream';
     const buffer = await response.arrayBuffer();
@@ -45,12 +50,9 @@ export async function loadImage(source: string): Promise<string> {
   }
 
   // File path
-  if (!existsSync(source)) {
-    throw new Error(`Image file not found: ${source}`);
-  }
   const ext = extname(source).toLowerCase();
   const mime = MIME_TYPES[ext] ?? 'application/octet-stream';
-  const data = readFileSync(source);
+  const data = await readFile(source);
   const base64 = Buffer.from(data).toString('base64');
   return `data:${mime};base64,${base64}`;
 }

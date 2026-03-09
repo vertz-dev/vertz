@@ -19,7 +19,9 @@ export interface HeroProps {
 }
 
 export function Hero({ title, subtitle, gradientFrom, gradientTo }: HeroProps): SatoriElement {
-  const hasGradient = gradientFrom != null && gradientTo != null;
+  const hasGradient = gradientFrom != null || gradientTo != null;
+  const gFrom = gradientFrom ?? '#0a0a0b';
+  const gTo = gradientTo ?? '#1a1a2e';
 
   const children: SatoriChild[] = [
     {
@@ -68,7 +70,7 @@ export function Hero({ title, subtitle, gradientFrom, gradientTo }: HeroProps): 
         alignItems: 'center',
         padding: '80px',
         ...(hasGradient
-          ? { background: `linear-gradient(135deg, ${gradientFrom}, ${gradientTo})` }
+          ? { background: `linear-gradient(135deg, ${gFrom}, ${gTo})` }
           : { backgroundColor: '#0a0a0b' }),
       },
       children,

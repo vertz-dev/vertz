@@ -1,19 +1,9 @@
 import { describe, expect, it } from 'bun:test';
-import { OGResponse } from '../og-response';
+import { createOGResponse } from '../og-response';
 import type { SatoriElement } from '../types';
+import { getTestFont, testFonts } from './test-helpers';
 
-async function getTestFont(): Promise<ArrayBuffer> {
-  const res = await fetch(
-    'https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400&display=swap&subset=latin',
-    { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' } },
-  );
-  const css = await res.text();
-  const match = css.match(/src:\s*url\(([^)]+)\)/);
-  if (!match?.[1]) throw new Error('Could not load test font');
-  return fetch(match[1]).then((r) => r.arrayBuffer());
-}
-
-let testFont: ArrayBuffer;
+let font: ArrayBuffer;
 const element: SatoriElement = {
   type: 'div',
   props: {
@@ -22,12 +12,12 @@ const element: SatoriElement = {
   },
 };
 
-describe('OGResponse', () => {
+describe('createOGResponse', () => {
   it('returns a Response with Content-Type image/png', async () => {
-    if (!testFont) testFont = await getTestFont();
+    if (!font) font = await getTestFont();
 
-    const response = await OGResponse(element, {
-      fonts: [{ data: testFont, name: 'Noto Sans' }],
+    const response = await createOGResponse(element, {
+      fonts: testFonts(font),
       width: 400,
       height: 200,
     });
@@ -37,10 +27,10 @@ describe('OGResponse', () => {
   });
 
   it('returns a Response with default Cache-Control', async () => {
-    if (!testFont) testFont = await getTestFont();
+    if (!font) font = await getTestFont();
 
-    const response = await OGResponse(element, {
-      fonts: [{ data: testFont, name: 'Noto Sans' }],
+    const response = await createOGResponse(element, {
+      fonts: testFonts(font),
       width: 400,
       height: 200,
     });
@@ -49,10 +39,10 @@ describe('OGResponse', () => {
   });
 
   it('accepts custom cacheMaxAge', async () => {
-    if (!testFont) testFont = await getTestFont();
+    if (!font) font = await getTestFont();
 
-    const response = await OGResponse(element, {
-      fonts: [{ data: testFont, name: 'Noto Sans' }],
+    const response = await createOGResponse(element, {
+      fonts: testFonts(font),
       width: 400,
       height: 200,
       cacheMaxAge: 3600,
@@ -62,10 +52,10 @@ describe('OGResponse', () => {
   });
 
   it('produces a body with valid PNG data', async () => {
-    if (!testFont) testFont = await getTestFont();
+    if (!font) font = await getTestFont();
 
-    const response = await OGResponse(element, {
-      fonts: [{ data: testFont, name: 'Noto Sans' }],
+    const response = await createOGResponse(element, {
+      fonts: testFonts(font),
       width: 400,
       height: 200,
     });
@@ -73,21 +63,36 @@ describe('OGResponse', () => {
     const buffer = await response.arrayBuffer();
     const bytes = new Uint8Array(buffer);
     expect(bytes[0]).toBe(0x89);
-    expect(bytes[1]).toBe(0x50); // P
-    expect(bytes[2]).toBe(0x4e); // N
-    expect(bytes[3]).toBe(0x47); // G
+    expect(bytes[1]).toBe(0x50);
+    expect(bytes[2]).toBe(0x4e);
+    expect(bytes[3]).toBe(0x47);
   });
 
   it('accepts custom status code', async () => {
-    if (!testFont) testFont = await getTestFont();
+    if (!font) font = await getTestFont();
 
-    const response = await OGResponse(element, {
-      fonts: [{ data: testFont, name: 'Noto Sans' }],
+    const response = await createOGResponse(element, {
+      fonts: testFonts(font),
       width: 400,
       height: 200,
       status: 201,
     });
 
     expect(response.status).toBe(201);
+  });
+
+  it('applies custom headers', async () => {
+    if (!font) font = await getTestFont();
+
+    const response = await createOGResponse(element, {
+      fonts: testFonts(font),
+      width: 400,
+      height: 200,
+      headers: { 'X-Custom': 'test-value' },
+    });
+
+    expect(response.headers.get('X-Custom')).toBe('test-value');
+    // Built-in headers should still be present
+    expect(response.headers.get('Content-Type')).toBe('image/png');
   });
 });

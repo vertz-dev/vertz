@@ -65,4 +65,25 @@ describe('loadGoogleFont', () => {
     await loadGoogleFont('Inter');
     expect(decodeURIComponent(capturedUrl)).toContain('wght@400');
   });
+
+  it('throws on HTTP error from CSS fetch', async () => {
+    globalThis.fetch = mock(async () => {
+      return new Response('Not Found', { status: 404 });
+    }) as typeof fetch;
+
+    await expect(loadGoogleFont('NonExistent', 400)).rejects.toThrow('HTTP 404');
+  });
+
+  it('throws on HTTP error from font file fetch', async () => {
+    globalThis.fetch = mock(async (input: string | URL | Request) => {
+      const url =
+        typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      if (url.includes('fonts.googleapis.com')) {
+        return new Response('src: url(https://fonts.example.com/font.ttf) format("truetype");');
+      }
+      return new Response('Server Error', { status: 500 });
+    }) as typeof fetch;
+
+    await expect(loadGoogleFont('Inter', 400)).rejects.toThrow('HTTP 500');
+  });
 });

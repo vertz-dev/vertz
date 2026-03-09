@@ -9,15 +9,17 @@ import { Resvg } from '@resvg/resvg-js';
 import satori from 'satori';
 import type { OGImageOptions, SatoriElement } from './types';
 
-type SatoriInput = Parameters<typeof satori>[0];
-
-/** Satori accepts plain { type, props } objects at runtime despite typing as ReactNode. */
-function asSatoriInput(element: SatoriElement): SatoriInput {
-  return element as unknown as SatoriInput;
-}
-
 const DEFAULT_WIDTH = 1200;
 const DEFAULT_HEIGHT = 630;
+
+/**
+ * Satori types expect ReactNode but structurally accept { type, props } objects.
+ * We re-type the import to avoid a double-cast at every call site.
+ */
+const satoriRender = satori as (
+  element: { type: string; props: Record<string, unknown> },
+  options: Parameters<typeof satori>[1],
+) => Promise<string>;
 
 /**
  * Generate an OG image from a Satori-compatible element tree.
@@ -32,11 +34,18 @@ export async function generateOGImage(
 ): Promise<Uint8Array> {
   const width = options.width ?? DEFAULT_WIDTH;
   const height = options.height ?? DEFAULT_HEIGHT;
+  const fonts = options.fonts ?? [];
 
-  const svg = await satori(asSatoriInput(element), {
+  if (fonts.length === 0) {
+    throw new Error(
+      'generateOGImage requires at least one font. Use loadGoogleFont() to load fonts.',
+    );
+  }
+
+  const svg = await satoriRender(element, {
     width,
     height,
-    fonts: options.fonts ?? [],
+    fonts,
     debug: options.debug,
   });
 

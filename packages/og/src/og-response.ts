@@ -1,5 +1,5 @@
 /**
- * OGResponse — convenience function for returning OG images as HTTP responses.
+ * OG image HTTP response helper.
  *
  * Generates a PNG from a Satori element and wraps it in a Response
  * with appropriate headers (Content-Type, Cache-Control).
@@ -8,7 +8,7 @@
 import { generateOGImage } from './generate';
 import type { OGImageOptions, SatoriElement } from './types';
 
-/** Options for OGResponse, extending OGImageOptions with response-specific options. */
+/** Options for createOGResponse, extending OGImageOptions with response-specific options. */
 export interface OGResponseOptions extends OGImageOptions {
   /** HTTP status code. Defaults to 200. */
   status?: number;
@@ -25,7 +25,7 @@ export interface OGResponseOptions extends OGImageOptions {
  * @param options - Response and image generation options.
  * @returns A Response with the PNG image body and appropriate headers.
  */
-export async function OGResponse(
+export async function createOGResponse(
   element: SatoriElement,
   options: OGResponseOptions = {},
 ): Promise<Response> {
@@ -39,5 +39,5 @@ export async function OGResponse(
     ...extraHeaders,
   });
 
-  return new Response(png.buffer as ArrayBuffer, { status, headers });
+  return new Response(Buffer.from(png), { status, headers });
 }

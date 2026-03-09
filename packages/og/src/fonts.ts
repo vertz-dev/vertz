@@ -5,6 +5,8 @@
  * by using the Googlebot User-Agent header.
  */
 
+import type { FontWeight } from './types';
+
 /**
  * Load a Google Font by family name and weight.
  *
@@ -12,7 +14,10 @@
  * @param weight - The font weight (100-900). Defaults to 400.
  * @returns The font data as an ArrayBuffer.
  */
-export async function loadGoogleFont(family: string, weight = 400): Promise<ArrayBuffer> {
+export async function loadGoogleFont(
+  family: string,
+  weight: FontWeight = 400,
+): Promise<ArrayBuffer> {
   const params = new URLSearchParams({
     family: `${family}:wght@${weight}`,
     display: 'swap',
@@ -20,9 +25,17 @@ export async function loadGoogleFont(family: string, weight = 400): Promise<Arra
   const cssUrl = `https://fonts.googleapis.com/css2?${params}`;
 
   // Fetch CSS with a User-Agent that returns TTF (Satori supports woff/ttf/otf, not woff2)
-  const css = await fetch(cssUrl, {
+  const cssResponse = await fetch(cssUrl, {
     headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' },
-  }).then((r) => r.text());
+  });
+
+  if (!cssResponse.ok) {
+    throw new Error(
+      `Failed to fetch Google Font CSS for ${family}:${weight} (HTTP ${cssResponse.status})`,
+    );
+  }
+
+  const css = await cssResponse.text();
 
   // Extract the first font file URL from the CSS
   const match = css.match(/src:\s*url\(([^)]+)\)/);
@@ -30,5 +43,13 @@ export async function loadGoogleFont(family: string, weight = 400): Promise<Arra
     throw new Error(`Could not extract font URL for ${family}:${weight}`);
   }
 
-  return fetch(match[1]).then((r) => r.arrayBuffer());
+  const fontResponse = await fetch(match[1]);
+
+  if (!fontResponse.ok) {
+    throw new Error(
+      `Failed to fetch font file for ${family}:${weight} (HTTP ${fontResponse.status})`,
+    );
+  }
+
+  return fontResponse.arrayBuffer();
 }

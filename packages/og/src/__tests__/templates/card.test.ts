@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { Card } from '../../templates/card';
-import type { SatoriElement } from '../../types';
+import { findStyleInTree, findTextInTree } from '../test-helpers';
 
 describe('OGTemplate.Card', () => {
   it('returns a valid SatoriElement with the given title', () => {
@@ -40,44 +40,3 @@ describe('OGTemplate.Card', () => {
     expect(result.props.style?.backgroundColor).toBe('#1a1a2e');
   });
 });
-
-/** Recursively search for a text string in a Satori element tree. */
-function findTextInTree(
-  node: SatoriElement | string | number | boolean | null | undefined,
-  text: string,
-): boolean {
-  if (node == null || typeof node === 'boolean') return false;
-  if (typeof node === 'string') return node === text;
-  if (typeof node === 'number') return String(node) === text;
-
-  const children = node.props.children;
-  if (children == null) return false;
-  if (typeof children === 'string') return children === text;
-  if (typeof children === 'number') return String(children) === text;
-  if (typeof children === 'boolean') return false;
-  if (Array.isArray(children)) {
-    return children.some((child) => findTextInTree(child as SatoriElement, text));
-  }
-  return findTextInTree(children, text);
-}
-
-/** Recursively search for a style property value in a Satori element tree. */
-function findStyleInTree(
-  node: SatoriElement | string | number | boolean | null | undefined,
-  prop: string,
-  value: string,
-): boolean {
-  if (node == null || typeof node !== 'object') return false;
-
-  if (node.props.style && node.props.style[prop] === value) return true;
-
-  const children = node.props.children;
-  if (children == null) return false;
-  if (Array.isArray(children)) {
-    return children.some((child) => findStyleInTree(child as SatoriElement, prop, value));
-  }
-  if (typeof children === 'object') {
-    return findStyleInTree(children, prop, value);
-  }
-  return false;
-}

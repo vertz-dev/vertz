@@ -1,16 +1,16 @@
 /**
  * Edge entry point for @vertz/og.
  *
- * Re-exports all public APIs from the main package.
- * In a future iteration, this will swap the resvg backend
- * to @resvg/resvg-wasm for edge runtime compatibility.
+ * Exports only types, font loading, and templates — utilities that work
+ * in edge runtimes. generateOGImage and createOGResponse are NOT exported here
+ * because they depend on @resvg/resvg-js (Node-native addon).
+ *
+ * A future version will add edge-compatible generateOGImage using @resvg/resvg-wasm.
  */
 
 export { loadGoogleFont } from './fonts';
-export { generateOGImage } from './generate';
 export { loadImage } from './image';
 export type { OGResponseOptions } from './og-response';
-export { OGResponse } from './og-response';
 export type { CardProps, HeroProps, MinimalProps } from './templates';
 export { OGTemplate } from './templates';
 export type {

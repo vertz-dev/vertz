@@ -15,25 +15,16 @@ describe('loadImage', () => {
     expect(result).toContain(encodeURIComponent('<svg'));
   });
 
+  it('handles SVG string with leading whitespace', async () => {
+    const svg = '  \n  <svg viewBox="0 0 10 10"><rect fill="blue"/></svg>';
+    const result = await loadImage(svg);
+    expect(result).toStartWith('data:image/svg+xml,');
+  });
+
   it('loads a file path and returns a base64 data URI', async () => {
-    // Create a temp PNG file (minimal 1x1 PNG)
     const pngBytes = new Uint8Array([
-      0x89,
-      0x50,
-      0x4e,
-      0x47,
-      0x0d,
-      0x0a,
-      0x1a,
-      0x0a, // PNG signature
-      0x00,
-      0x00,
-      0x00,
-      0x0d,
-      0x49,
-      0x48,
-      0x44,
-      0x52, // IHDR chunk
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44,
+      0x52,
     ]);
     const tmpPath = `/tmp/test-og-image-${Date.now()}.png`;
     await Bun.write(tmpPath, pngBytes);
@@ -41,7 +32,6 @@ describe('loadImage', () => {
     const result = await loadImage(tmpPath);
     expect(result).toStartWith('data:image/png;base64,');
 
-    // Cleanup
     const { unlinkSync } = await import('node:fs');
     unlinkSync(tmpPath);
   });
@@ -58,6 +48,16 @@ describe('loadImage', () => {
     expect(result).toStartWith('data:image/png;base64,');
   });
 
+  it('falls back to application/octet-stream when URL has no Content-Type', async () => {
+    const fakeData = new Uint8Array([0x00, 0x01]);
+    globalThis.fetch = mock(async () => {
+      return new Response(fakeData);
+    }) as typeof fetch;
+
+    const result = await loadImage('https://example.com/file.bin');
+    expect(result).toStartWith('data:application/octet-stream;base64,');
+  });
+
   it('detects MIME type from file extension', async () => {
     const tmpPath = `/tmp/test-og-image-${Date.now()}.jpg`;
     await Bun.write(tmpPath, new Uint8Array([0xff, 0xd8, 0xff]));
@@ -67,5 +67,17 @@ describe('loadImage', () => {
 
     const { unlinkSync } = await import('node:fs');
     unlinkSync(tmpPath);
+  });
+
+  it('throws when file does not exist', async () => {
+    await expect(loadImage('/tmp/nonexistent-og-file-12345.png')).rejects.toThrow();
+  });
+
+  it('throws on HTTP error from URL fetch', async () => {
+    globalThis.fetch = mock(async () => {
+      return new Response('Not Found', { status: 404 });
+    }) as typeof fetch;
+
+    await expect(loadImage('https://example.com/missing.png')).rejects.toThrow('HTTP 404');
   });
 });
