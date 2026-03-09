@@ -19,10 +19,10 @@ function CreateTaskForm({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <form action={taskForm.action} method={taskForm.method} onSubmit={taskForm.onSubmit}>
-      <input name="title" />
+      <input name={taskForm.fields.title} />
       {taskForm.title.error && <span>{taskForm.title.error}</span>}
 
-      <textarea name="description" />
+      <textarea name={taskForm.fields.description} />
       {taskForm.description.error && <span>{taskForm.description.error}</span>}
 
       <button type="submit" disabled={taskForm.submitting}>Create</button>
