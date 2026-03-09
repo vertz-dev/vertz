@@ -1,5 +1,5 @@
 /**
- * Type flow verification — Resource Hierarchy [#1020]
+ * Type flow verification — Resource Hierarchy [#1072]
  *
  * Verifies type flows:
  * - defineAccess() returns AccessDefinition with correct structure
@@ -7,6 +7,7 @@
  * - DenialReason is a constrained union type
  * - rules.* builders return correct types
  * - createAccessContext returns AccessContext with can/check/authorize/canAll
+ * - EntityDef, DefineAccessInput, EntitlementValue types
  */
 import { describe, it } from 'bun:test';
 import type {
@@ -14,10 +15,14 @@ import type {
   AccessContext,
   AccessDefinition,
   ClosureStore,
+  DefineAccessInput,
   DenialMeta,
   DenialReason,
   EntitlementDef,
+  EntitlementValue,
+  EntityDef,
   RoleAssignmentStore,
+  RuleContext,
 } from '@vertz/server';
 import {
   createAccessContext,
@@ -30,9 +35,10 @@ import {
 describe('Type flow: defineAccess → AccessDefinition', () => {
   it('defineAccess returns AccessDefinition', () => {
     const config = defineAccess({
-      hierarchy: ['Org'],
-      roles: { Org: ['admin'] },
-      entitlements: { 'org:manage': { roles: ['admin'] } },
+      entities: {
+        organization: { roles: ['admin'] },
+      },
+      entitlements: { 'organization:manage': { roles: ['admin'] } },
     });
     // Positive: config is AccessDefinition
     const _def: AccessDefinition = config;
@@ -41,22 +47,42 @@ describe('Type flow: defineAccess → AccessDefinition', () => {
 
   it('AccessDefinition.hierarchy is readonly string[]', () => {
     const config = defineAccess({
-      hierarchy: ['Org'],
-      roles: { Org: ['admin'] },
+      entities: {
+        organization: { roles: ['admin'] },
+      },
       entitlements: {},
     });
     // @ts-expect-error — hierarchy is readonly, push not allowed
-    config.hierarchy.push('Team');
+    config.hierarchy.push('team');
   });
 
   it('AccessDefinition is frozen (no property assignment)', () => {
     const config = defineAccess({
-      hierarchy: ['Org'],
-      roles: { Org: ['admin'] },
+      entities: {
+        organization: { roles: ['admin'] },
+      },
       entitlements: {},
     });
     // @ts-expect-error — config is frozen, cannot assign
     config.hierarchy = [];
+  });
+
+  it('DefineAccessInput requires entities, not hierarchy', () => {
+    // @ts-expect-error — entities is required
+    const _bad: DefineAccessInput = { entitlements: {} };
+    void _bad;
+  });
+
+  it('EntityDef requires roles', () => {
+    // @ts-expect-error — roles is required
+    const _bad: EntityDef = {};
+    void _bad;
+  });
+
+  it('EntityDef.roles must be string array', () => {
+    // @ts-expect-error — roles must be string[], not number[]
+    const _bad: EntityDef = { roles: [123] };
+    void _bad;
   });
 });
 
@@ -113,6 +139,16 @@ describe('Type flow: EntitlementDef shape', () => {
     const _bad: EntitlementDef = { plans: ['pro'] };
     void _bad;
   });
+
+  it('EntitlementValue accepts object or callback', () => {
+    const _obj: EntitlementValue = { roles: ['admin'] };
+    const _cb: EntitlementValue = (r: RuleContext) => ({
+      roles: ['admin'],
+      rules: [r.where({ createdBy: r.user.id })],
+    });
+    void _obj;
+    void _cb;
+  });
 });
 
 describe('Type flow: rules builders return typed rule objects', () => {
@@ -164,9 +200,10 @@ describe('Type flow: createAccessContext → AccessContext', () => {
     const closureStore: ClosureStore = new InMemoryClosureStore();
     const roleStore: RoleAssignmentStore = new InMemoryRoleAssignmentStore();
     const config = defineAccess({
-      hierarchy: ['Org'],
-      roles: { Org: ['admin'] },
-      entitlements: { 'org:manage': { roles: ['admin'] } },
+      entities: {
+        organization: { roles: ['admin'] },
+      },
+      entitlements: { 'organization:manage': { roles: ['admin'] } },
     });
 
     const ctx: AccessContext = createAccessContext({
@@ -177,9 +214,9 @@ describe('Type flow: createAccessContext → AccessContext', () => {
     });
 
     // Positive: all methods exist with correct signatures
-    const _can: Promise<boolean> = ctx.can('org:manage');
-    const _check: Promise<AccessCheckResult> = ctx.check('org:manage');
-    const _authorize: Promise<void> = ctx.authorize('org:manage');
+    const _can: Promise<boolean> = ctx.can('organization:manage');
+    const _check: Promise<AccessCheckResult> = ctx.check('organization:manage');
+    const _authorize: Promise<void> = ctx.authorize('organization:manage');
     const _canAll: Promise<Map<string, boolean>> = ctx.canAll([]);
     void _can;
     void _check;

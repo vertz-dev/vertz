@@ -1,5 +1,5 @@
 /**
- * Type-level tests for defineAccess and access context types [#1020]
+ * Type-level tests for entity-centric defineAccess [#1072]
  */
 import { describe, it } from 'bun:test';
 import type { AccessContext } from '../access-context';
@@ -16,9 +16,8 @@ import type { ConsumeResult, WalletEntry, WalletStore } from '../wallet-store';
 describe('Type-level: defineAccess', () => {
   it('returns AccessDefinition type', () => {
     const def = defineAccess({
-      hierarchy: ['Org'],
-      roles: { Org: ['admin'] },
-      entitlements: { 'org:manage': { roles: ['admin'] } },
+      entities: { workspace: { roles: ['admin'] } },
+      entitlements: { 'workspace:manage': { roles: ['admin'] } },
     });
     const _val: AccessDefinition = def;
     void _val;
@@ -26,8 +25,7 @@ describe('Type-level: defineAccess', () => {
 
   it('hierarchy is readonly', () => {
     const def = defineAccess({
-      hierarchy: ['Org'],
-      roles: { Org: ['admin'] },
+      entities: { workspace: { roles: ['admin'] } },
       entitlements: {},
     });
     // @ts-expect-error — cannot push to readonly array
@@ -36,8 +34,7 @@ describe('Type-level: defineAccess', () => {
 
   it('config is frozen (readonly)', () => {
     const def = defineAccess({
-      hierarchy: ['Org'],
-      roles: { Org: ['admin'] },
+      entities: { workspace: { roles: ['admin'] } },
       entitlements: {},
     });
     // @ts-expect-error — cannot reassign readonly property
@@ -52,7 +49,7 @@ describe('Type-level: defineAccess', () => {
 
   it('EntitlementDef requires roles', () => {
     // @ts-expect-error — roles is required
-    const _bad: EntitlementDef = { plans: ['pro'] };
+    const _bad: EntitlementDef = { flags: ['beta'] };
     void _bad;
   });
 
@@ -68,7 +65,6 @@ describe('Type-level: defineAccess', () => {
   });
 
   it('AccessContext methods return correct types', () => {
-    // Just validate types compile — no runtime needed
     type CanReturn = ReturnType<AccessContext['can']>;
     type CheckReturn = ReturnType<AccessContext['check']>;
     type AuthorizeReturn = ReturnType<AccessContext['authorize']>;
@@ -94,18 +90,31 @@ describe('Type-level: defineAccess', () => {
     void _unconsume;
   });
 
-  // ─── canAndConsume return type must be Promise<boolean> ──────────────
   it('canAndConsume returns Promise<boolean>, not boolean', () => {
     // @ts-expect-error — canAndConsume returns Promise<boolean>, not boolean
     const _bad: boolean = null as unknown as ReturnType<AccessContext['canAndConsume']>;
     void _bad;
   });
 
-  // ─── unconsume return type must be Promise<void> ────────────────────
   it('unconsume returns Promise<void>, not void', () => {
     // @ts-expect-error — unconsume returns Promise<void>, not void
     const _bad: void = null as unknown as ReturnType<AccessContext['unconsume']>;
     void _bad;
+  });
+
+  it('entities is required in input', () => {
+    // @ts-expect-error — entities is required
+    defineAccess({ entitlements: {} });
+  });
+
+  it('roles must be string array', () => {
+    defineAccess({
+      entities: {
+        // @ts-expect-error — roles must be string array
+        workspace: { roles: [123] },
+      },
+      entitlements: {},
+    });
   });
 });
 
