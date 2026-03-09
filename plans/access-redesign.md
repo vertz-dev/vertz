@@ -66,6 +66,13 @@ const access = defineAccess({
         'project:viewer': 'viewer',
       },
     },
+    brand: {
+      roles: ['owner', 'editor'],
+      inherits: {
+        'organization:owner': 'owner',
+        'organization:admin': 'editor',
+      },
+    },
   },
 
   entitlements: {
@@ -1088,7 +1095,7 @@ Mapping:
 
 The sync is **idempotent** — running it twice produces the same result. It uses Stripe product metadata to track which Vertz plan ID and version it corresponds to. When a plan version changes, a new Stripe Price is created (old Price is archived, not deleted — preserves existing subscriptions).
 
-This is a **push** operation, not a webhook listener. The framework pushes config to Stripe, not the other way around. Stripe is the payment processor; Vertz is the source of truth for access.
+This is a **push** operation — the framework pushes plan definitions to Stripe. Stripe is the source of truth for *payment and subscription state*; Vertz is the source of truth for *access*. Subscription lifecycle events flow back via webhooks (see [Webhook Handling](#webhook-handling)).
 
 ## Overrides — per-tenant customizations
 
@@ -1379,9 +1386,95 @@ By offloading high-write and archival data to the cloud, the local SQLite databa
 
 This lets developers stay on SQLite longer, saving them operational cost and complexity.
 
+## Cloud Failure Modes
+
+When the cloud wallet API is unavailable, the limit check layer needs a defined behavior. The developer configures this per `defineAccess()`:
+
+```ts
+storage: {
+  local: db,
+  cloud: {
+    apiKey: process.env.VERTZ_API_KEY,
+    failMode: 'closed',  // default: deny on cloud failure
+  },
+},
+```
+
+| `failMode` | Behavior on cloud error | Use case |
+|------------|------------------------|----------|
+| `'closed'` (default) | Limit checks return `false` — deny access | Security-sensitive (billing, payments). No one gets free access during an outage. |
+| `'open'` | Limit checks return `true` — allow access | UX-sensitive (content viewing, low-value actions). Prefer availability over strict enforcement. |
+| `'cached'` | Use last-known wallet state (stale reads) | Balance between security and availability. Requires local wallet cache with TTL. |
+
+**Without cloud configured:** All stores are local (InMemory or local DB). No failure mode needed — everything is in-process.
+
+**Timeout:** Cloud wallet calls have a 2-second timeout. On timeout, the configured `failMode` applies. The `check()` result includes `meta.cloudError: true` so the application can log/alert.
+
+## Implementation Phases
+
+Rough phase outline — each phase delivers a usable vertical slice. Detailed acceptance criteria will be defined per-phase before implementation.
+
+```
+Phase 1: Entity restructuring + entitlements
+├── New defineAccess() input shape (entities, entitlements)
+├── Hierarchy inference from inherits
+├── Validation rules (1-11)
+├── createAccessContext + can/check/authorize
+├── Rewrite all existing tests to new shape
+└── Depends on: nothing
+
+Phase 2: Plans + limits + billing foundations
+├── Plan definitions (features, limits, gates, scope)
+├── Plan validation rules (12-19)
+├── Wallet store + canAndConsume()
+├── canBatch() (replaces canAll)
+├── Multi-limit resolution (ALL must pass)
+├── Add-ons (addOn: true, additive semantics)
+└── Depends on: Phase 1
+
+Phase 3: Overrides + advanced limits
+├── Override API (set, remove, get)
+├── Override resolution (add vs max)
+├── Override validation (edge cases)
+├── Overage billing config
+├── One-off add-on semantics
+├── Add-on compatibility (requires)
+└── Depends on: Phase 2
+
+Phase 4: Versioning + grandfathering
+├── Plan version hashing (SHA-256 canonical JSON)
+├── Version store + snapshot persistence
+├── Grandfathering policy (grace periods)
+├── Migration API (migrate, schedule, resolve)
+├── Grandfathering events
+├── Clock injection for testability
+└── Depends on: Phase 2
+
+Phase 5: Billing integration
+├── Stripe sync adapter (syncToStripe)
+├── Webhook handler (subscription lifecycle)
+├── Billing events (subscription:created, etc.)
+├── Payment processor abstraction
+└── Depends on: Phase 4
+
+Phase 6: Cloud storage + data residency
+├── Cloud wallet adapter
+├── Cloud failure modes (closed/open/cached)
+├── Local/cloud data split
+├── InMemory implementations for all cloud stores
+└── Depends on: Phase 2
+
+Phase 7: Client-side + UI components (optional, can parallel Phase 5-6)
+├── JWT access set with plans/limits
+├── Client-side reactive can()
+├── Billing portal components (PricingTable, UsageDashboard, etc.)
+└── Depends on: Phase 2
+```
+
+Phases 4-7 can proceed in parallel after Phase 2 is complete. Phase 3 can start immediately after Phase 2.
+
 ## Open — to define later
 
 - Rate limiting / abuse prevention at the access layer
 - Multi-region cloud edge caching for wallet queries
 - Self-hosted cloud alternative (run the wallet/billing service yourself)
-- Implementation phases — to be broken down before implementation begins
