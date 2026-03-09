@@ -923,5 +923,355 @@ describe('createAccessContext', () => {
       expect(result.reasons).toContain('flag_disabled');
       expect(result.meta?.disabledFlags).toEqual(['beta-feature', 'beta-ui']);
     });
+
+    it('can() denies global check (no resource) when roles are required', async () => {
+      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = setupWithFlags();
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        flagStore,
+        orgResolver,
+      });
+
+      // project:view requires roles but no resource provided → deny
+      const result = await ctx.can('project:view');
+      expect(result).toBe(false);
+    });
+
+    it('check() returns flag_disabled with all flags when orgId cannot be resolved', async () => {
+      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = setupWithFlags();
+      flagStore.setFlag('org-1', 'export-v2', true);
+
+      // orgResolver returns null for unknown resources
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        flagStore,
+        orgResolver,
+      });
+
+      // Use a resource that the orgResolver can't resolve to an org
+      const result = await ctx.check('project:export', {
+        type: 'Unknown',
+        id: 'unknown-1',
+      });
+      expect(result.allowed).toBe(false);
+      expect(result.reasons).toContain('flag_disabled');
+      expect(result.meta?.disabledFlags).toEqual(['export-v2']);
+    });
+
+    it('check() returns role_required for global check (no resource)', async () => {
+      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = setupWithFlags();
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        flagStore,
+        orgResolver,
+      });
+
+      const result = await ctx.check('project:view');
+      expect(result.allowed).toBe(false);
+      expect(result.reasons).toContain('role_required');
+      expect(result.meta?.requiredRoles).toEqual(['contributor', 'manager']);
+    });
+
+    it('check() returns role_required for unknown entitlement', async () => {
+      const { accessDef, closureStore, roleStore, flagStore, orgResolver } = setupWithFlags();
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        flagStore,
+        orgResolver,
+      });
+
+      const result = await ctx.check('nonexistent:action', {
+        type: 'Project',
+        id: 'proj-1',
+      });
+      expect(result.allowed).toBe(false);
+      expect(result.reasons).toContain('role_required');
+    });
+  });
+
+  describe('canAndConsume edge cases', () => {
+    function setupWithPlansAndFlags() {
+      const accessDef = defineAccess({
+        hierarchy: ['Organization', 'Project'],
+        roles: {
+          Organization: ['owner', 'admin', 'member'],
+          Project: ['manager', 'contributor', 'viewer'],
+        },
+        inheritance: {
+          Organization: { owner: 'manager', admin: 'contributor', member: 'viewer' },
+        },
+        entitlements: {
+          'project:create': { roles: ['admin', 'owner'], plans: ['free', 'pro'] },
+          'project:view': { roles: ['viewer', 'contributor', 'manager'] },
+          'project:export': { roles: ['manager'], plans: ['pro'] },
+        },
+        plans: {
+          free: {
+            entitlements: ['project:create', 'project:view'],
+            limits: { 'project:create': { per: 'month', max: 5 } },
+          },
+          pro: {
+            entitlements: ['project:create', 'project:view', 'project:export'],
+            limits: { 'project:create': { per: 'month', max: 100 } },
+          },
+        },
+      });
+
+      const closureStore = new InMemoryClosureStore();
+      const roleStore = new InMemoryRoleAssignmentStore();
+      const planStore = new InMemoryPlanStore();
+      const walletStore = new InMemoryWalletStore();
+
+      closureStore.addResource('Organization', 'org-1');
+      closureStore.addResource('Project', 'proj-1', {
+        parentType: 'Organization',
+        parentId: 'org-1',
+      });
+
+      const orgResolver = async (resource?: ResourceRef) => {
+        if (!resource) return null;
+        const ancestors = closureStore.getAncestors(resource.type, resource.id);
+        const org = ancestors.find((a) => a.type === 'Organization');
+        return org?.id ?? null;
+      };
+
+      return { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver };
+    }
+
+    it('canAndConsume returns true when no wallet/plan infrastructure', async () => {
+      const { accessDef, closureStore, roleStore } = setupWithPlansAndFlags();
+      roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        // No planStore, walletStore, orgResolver
+      });
+
+      const result = await ctx.canAndConsume('project:view', {
+        type: 'Project',
+        id: 'proj-1',
+      });
+      expect(result).toBe(true);
+    });
+
+    it('canAndConsume returns false when orgId cannot be resolved', async () => {
+      const { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
+        setupWithPlansAndFlags();
+      roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+      planStore.assignPlan('org-1', 'free');
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        orgResolver,
+      });
+
+      // Use a resource with no ancestors → orgResolver returns null
+      const result = await ctx.canAndConsume('project:create', {
+        type: 'Unknown',
+        id: 'unknown',
+      });
+      expect(result).toBe(false);
+    });
+
+    it('canAndConsume returns false when plan does not include entitlement', async () => {
+      const { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
+        setupWithPlansAndFlags();
+      // Assign manager directly on Project (satisfies role requirement for project:export)
+      roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+      planStore.assignPlan('org-1', 'free'); // free doesn't include project:export
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        orgResolver,
+      });
+
+      // Roles pass (manager), but plan check fails (free doesn't include project:export)
+      const result = await ctx.canAndConsume('project:export', {
+        type: 'Project',
+        id: 'proj-1',
+      });
+      expect(result).toBe(false);
+    });
+
+    it('can() returns false when plan does not include entitlement (Layer 4)', async () => {
+      const { accessDef, closureStore, roleStore, planStore, orgResolver } =
+        setupWithPlansAndFlags();
+      // Assign manager directly on Project (satisfies role requirement for project:export)
+      roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+      planStore.assignPlan('org-1', 'free'); // free doesn't include project:export
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        orgResolver,
+      });
+
+      // Roles pass, but plan denies (free plan doesn't include project:export)
+      const result = await ctx.can('project:export', {
+        type: 'Project',
+        id: 'proj-1',
+      });
+      expect(result).toBe(false);
+    });
+
+    it('unconsume is a no-op without wallet/plan infrastructure', async () => {
+      const { accessDef, closureStore, roleStore } = setupWithPlansAndFlags();
+      roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+      });
+
+      // Should not throw
+      await ctx.unconsume('project:view', { type: 'Project', id: 'proj-1' });
+    });
+
+    it('unconsume is a no-op when entitlement has no plans', async () => {
+      const { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
+        setupWithPlansAndFlags();
+      roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        orgResolver,
+      });
+
+      // project:view has no plans — unconsume should be no-op
+      await ctx.unconsume('project:view', { type: 'Project', id: 'proj-1' });
+    });
+
+    it('unconsume is a no-op when orgId cannot be resolved', async () => {
+      const { accessDef, closureStore, roleStore, planStore, walletStore, orgResolver } =
+        setupWithPlansAndFlags();
+      roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+      planStore.assignPlan('org-1', 'free');
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        walletStore,
+        orgResolver,
+      });
+
+      // Unknown resource → orgResolver returns null
+      await ctx.unconsume('project:create', { type: 'Unknown', id: 'unknown' });
+    });
+  });
+
+  describe('check() edge cases', () => {
+    it('check() plan_required when orgResolver returns null', async () => {
+      const accessDef = defineAccess({
+        hierarchy: ['Organization', 'Project'],
+        roles: {
+          Organization: ['owner'],
+          Project: ['manager'],
+        },
+        inheritance: {
+          Organization: { owner: 'manager' },
+        },
+        entitlements: {
+          'project:export': { roles: ['manager'], plans: ['pro'] },
+        },
+        plans: {
+          pro: { entitlements: ['project:export'] },
+        },
+      });
+
+      const closureStore = new InMemoryClosureStore();
+      const roleStore = new InMemoryRoleAssignmentStore();
+      const planStore = new InMemoryPlanStore();
+
+      closureStore.addResource('Organization', 'org-1');
+      closureStore.addResource('Project', 'proj-1', {
+        parentType: 'Organization',
+        parentId: 'org-1',
+      });
+      roleStore.assign('user-1', 'Project', 'proj-1', 'manager');
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        planStore,
+        orgResolver: async () => null, // Always returns null
+      });
+
+      const result = await ctx.check('project:export', {
+        type: 'Project',
+        id: 'proj-1',
+      });
+      expect(result.allowed).toBe(false);
+      expect(result.reasons).toContain('plan_required');
+    });
+
+    it('canAll uses entitlement as key when no resource provided', async () => {
+      const accessDef = defineAccess({
+        hierarchy: ['Organization'],
+        roles: { Organization: ['admin'] },
+        entitlements: {
+          'org:settings': { roles: ['admin'] },
+        },
+      });
+
+      const closureStore = new InMemoryClosureStore();
+      const roleStore = new InMemoryRoleAssignmentStore();
+      closureStore.addResource('Organization', 'org-1');
+      roleStore.assign('user-1', 'Organization', 'org-1', 'admin');
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+      });
+
+      // No resource — key should just be the entitlement name
+      const results = await ctx.canAll([{ entitlement: 'org:settings' }]);
+      // Global check with roles required but no resource → deny
+      expect(results.get('org:settings')).toBe(false);
+    });
   });
 });

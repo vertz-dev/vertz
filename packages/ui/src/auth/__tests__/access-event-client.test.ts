@@ -332,4 +332,134 @@ describe('createAccessEventClient', () => {
     // Should be cleaned up
     expect(timers.length).toBe(0);
   });
+
+  it('derives URL from window.location when no url option', () => {
+    // Set up window.location
+    const origWindow = globalThis.window;
+    // @ts-expect-error - setting minimal window for test
+    globalThis.window = {
+      location: {
+        protocol: 'https:',
+        host: 'example.com:3000',
+      },
+    };
+
+    const client = createAccessEventClient({
+      onEvent: () => {},
+      onReconnect: () => {},
+    });
+
+    client.connect();
+    expect(mockWebSockets.length).toBe(1);
+    expect(mockWebSockets[0].url).toBe('wss://example.com:3000/api/auth/access-events');
+
+    client.disconnect();
+
+    // @ts-expect-error - restoring window
+    globalThis.window = origWindow;
+  });
+
+  it('derives ws: URL from http: protocol', () => {
+    const origWindow = globalThis.window;
+    // @ts-expect-error - setting minimal window for test
+    globalThis.window = {
+      location: {
+        protocol: 'http:',
+        host: 'localhost:4000',
+      },
+    };
+
+    const client = createAccessEventClient({
+      onEvent: () => {},
+      onReconnect: () => {},
+    });
+
+    client.connect();
+    expect(mockWebSockets[0].url).toBe('ws://localhost:4000/api/auth/access-events');
+
+    client.disconnect();
+
+    // @ts-expect-error - restoring window
+    globalThis.window = origWindow;
+  });
+
+  it('disconnect clears pending reconnect timer', () => {
+    const client = createAccessEventClient({
+      url: 'ws://localhost/api/auth/access-events',
+      onEvent: () => {},
+      onReconnect: () => {},
+    });
+
+    client.connect();
+    const ws = mockWebSockets[0];
+
+    // Simulate disconnect — schedules a reconnect timer
+    ws.readyState = 3;
+    ws.onclose?.({});
+
+    expect(timers.length).toBe(1);
+
+    // Manual disconnect should clear the pending reconnect timer
+    client.disconnect();
+    expect(timers.length).toBe(0);
+  });
+
+  it('ignores invalid JSON in messages', () => {
+    const onEvent = mock(() => {});
+    const client = createAccessEventClient({
+      url: 'ws://localhost/api/auth/access-events',
+      onEvent,
+      onReconnect: () => {},
+    });
+
+    client.connect();
+    const ws = mockWebSockets[0];
+    ws.readyState = 1;
+    ws.onopen?.({});
+
+    // Send invalid JSON — should not throw or call onEvent
+    ws.onmessage?.({ data: 'not valid json{{{' });
+    expect(onEvent).toHaveBeenCalledTimes(0);
+  });
+
+  it('does not reconnect after dispose', () => {
+    const client = createAccessEventClient({
+      url: 'ws://localhost/api/auth/access-events',
+      onEvent: () => {},
+      onReconnect: () => {},
+    });
+
+    client.connect();
+    const ws = mockWebSockets[0];
+    ws.readyState = 1;
+    ws.onopen?.({});
+
+    client.dispose();
+
+    // Try to connect again — should not create a new WebSocket
+    client.connect();
+    // After dispose, no reconnect timer should be scheduled
+    expect(timers.length).toBe(0);
+  });
+
+  it('onerror does not prevent onclose from reconnecting', () => {
+    const client = createAccessEventClient({
+      url: 'ws://localhost/api/auth/access-events',
+      onEvent: () => {},
+      onReconnect: () => {},
+    });
+
+    client.connect();
+    const ws = mockWebSockets[0];
+    ws.readyState = 1;
+    ws.onopen?.({});
+
+    // Fire error then close (typical browser behavior)
+    ws.onerror?.({});
+    ws.readyState = 3;
+    ws.onclose?.({});
+
+    // Should still schedule reconnect
+    expect(timers.length).toBe(1);
+  });
 });

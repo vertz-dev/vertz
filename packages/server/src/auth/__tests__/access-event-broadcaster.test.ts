@@ -6,7 +6,7 @@ import { createAccessEventBroadcaster } from '../access-event-broadcaster';
 function createMockServer() {
   const upgraded: Array<{ data: AccessWsData }> = [];
   return {
-    upgrade(request: Request, options?: { data?: AccessWsData }) {
+    upgrade(_request: Request, options?: { data?: AccessWsData }) {
       if (options?.data) upgraded.push({ data: options.data });
       return true;
     },
@@ -229,5 +229,170 @@ describe('createAccessEventBroadcaster', () => {
     broadcaster.broadcastFlagToggle('org-1', 'test', true);
     expect(ws1.sentMessages.length).toBe(0);
     expect(ws2.sentMessages.length).toBe(1);
+  });
+
+  it('websocket.message ignores pong responses silently', () => {
+    const broadcaster = createAccessEventBroadcaster({
+      jwtSecret: TEST_SECRET,
+    });
+
+    const ws = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
+    broadcaster.websocket.open(ws);
+
+    // Sending 'pong' should not throw or produce side effects
+    broadcaster.websocket.message(ws, 'pong');
+    expect(ws.sentMessages.length).toBe(0);
+  });
+
+  it('websocket.message ignores non-pong messages', () => {
+    const broadcaster = createAccessEventBroadcaster({
+      jwtSecret: TEST_SECRET,
+    });
+
+    const ws = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
+    broadcaster.websocket.open(ws);
+
+    // Arbitrary messages should be ignored
+    broadcaster.websocket.message(ws, 'hello');
+    broadcaster.websocket.message(ws, Buffer.from('binary'));
+    expect(ws.sentMessages.length).toBe(0);
+  });
+
+  it('handleUpgrade returns false for invalid JWT', async () => {
+    const broadcaster = createAccessEventBroadcaster({
+      jwtSecret: TEST_SECRET,
+    });
+    const server = createMockServer();
+
+    const request = new Request('http://localhost/api/auth/access-events', {
+      headers: { cookie: 'vertz.sid=invalid-jwt-token' },
+    });
+
+    const result = await broadcaster.handleUpgrade(request, server);
+    expect(result).toBe(false);
+    expect(server.upgraded.length).toBe(0);
+  });
+
+  it('handleUpgrade extracts cookie from multiple cookies', async () => {
+    const broadcaster = createAccessEventBroadcaster({
+      jwtSecret: TEST_SECRET,
+    });
+    const server = createMockServer();
+
+    const jwt = await new jose.SignJWT({
+      sub: 'user-2',
+      email: 'test2@test.com',
+      role: 'user',
+      jti: 'token-2',
+      sid: 'session-2',
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime('1h')
+      .sign(new TextEncoder().encode(TEST_SECRET));
+
+    const request = new Request('http://localhost/api/auth/access-events', {
+      headers: { cookie: `other=value; vertz.sid=${jwt}; another=test` },
+    });
+
+    const result = await broadcaster.handleUpgrade(request, server);
+    expect(result).toBe(true);
+    expect(server.upgraded[0].data.userId).toBe('user-2');
+  });
+
+  it('handleUpgrade with custom path', async () => {
+    const broadcaster = createAccessEventBroadcaster({
+      jwtSecret: TEST_SECRET,
+      path: '/custom/ws',
+    });
+    const server = createMockServer();
+
+    // Request to default path should fail
+    const req1 = new Request('http://localhost/api/auth/access-events');
+    expect(await broadcaster.handleUpgrade(req1, server)).toBe(false);
+
+    // Request to custom path with valid JWT should succeed
+    const jwt = await new jose.SignJWT({
+      sub: 'user-1',
+      email: 'test@test.com',
+      role: 'user',
+      jti: 'token-1',
+      sid: 'session-1',
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime('1h')
+      .sign(new TextEncoder().encode(TEST_SECRET));
+
+    const req2 = new Request('http://localhost/custom/ws', {
+      headers: { cookie: `vertz.sid=${jwt}` },
+    });
+    expect(await broadcaster.handleUpgrade(req2, server)).toBe(true);
+  });
+
+  it('handleUpgrade with custom cookie name', async () => {
+    const broadcaster = createAccessEventBroadcaster({
+      jwtSecret: TEST_SECRET,
+      cookieName: 'my-session',
+    });
+    const server = createMockServer();
+
+    const jwt = await new jose.SignJWT({
+      sub: 'user-1',
+      email: 'test@test.com',
+      role: 'user',
+      jti: 'token-1',
+      sid: 'session-1',
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime('1h')
+      .sign(new TextEncoder().encode(TEST_SECRET));
+
+    // Wrong cookie name
+    const req1 = new Request('http://localhost/api/auth/access-events', {
+      headers: { cookie: `vertz.sid=${jwt}` },
+    });
+    expect(await broadcaster.handleUpgrade(req1, server)).toBe(false);
+
+    // Correct cookie name
+    const req2 = new Request('http://localhost/api/auth/access-events', {
+      headers: { cookie: `my-session=${jwt}` },
+    });
+    expect(await broadcaster.handleUpgrade(req2, server)).toBe(true);
+  });
+
+  it('broadcastToOrg is no-op when no connections for org', () => {
+    const broadcaster = createAccessEventBroadcaster({
+      jwtSecret: TEST_SECRET,
+    });
+
+    // No connections — should not throw
+    broadcaster.broadcastFlagToggle('nonexistent-org', 'flag', true);
+  });
+
+  it('broadcastToUser is no-op when no connections for user', () => {
+    const broadcaster = createAccessEventBroadcaster({
+      jwtSecret: TEST_SECRET,
+    });
+
+    // No connections — should not throw
+    broadcaster.broadcastRoleChange('nonexistent-user');
+  });
+
+  it('closing last connection for org removes org entry', () => {
+    const broadcaster = createAccessEventBroadcaster({
+      jwtSecret: TEST_SECRET,
+    });
+
+    const ws = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
+    broadcaster.websocket.open(ws);
+    broadcaster.websocket.close(ws);
+
+    // After close, broadcasting to org-1 should be no-op (no connections)
+    const ws2 = createMockWs({ data: { userId: 'user-2', orgId: 'org-2' } });
+    broadcaster.websocket.open(ws2);
+    broadcaster.broadcastFlagToggle('org-1', 'flag', true);
+    expect(ws2.sentMessages.length).toBe(0);
   });
 });
