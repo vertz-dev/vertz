@@ -44,6 +44,7 @@ export function entity<
     relations: config.relations ?? {},
     table: config.table ?? name,
     tenantScoped,
+    tenantChain: null,
   };
   return deepFreeze(def);
 }

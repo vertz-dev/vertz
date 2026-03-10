@@ -1314,4 +1314,306 @@ describe('Feature: CRUD pipeline', () => {
       });
     });
   });
+
+  // --- Indirect tenant scoping ---
+
+  describe('Given an indirectly scoped entity with tenantChain', () => {
+    const orgsTable = d.table('organizations', {
+      id: d.uuid().primary(),
+      name: d.text(),
+    });
+
+    const projectsTable = d.table('projects', {
+      id: d.uuid().primary(),
+      organizationId: d.uuid(),
+      name: d.text(),
+    });
+
+    const tasksTable = d.table('tasks', {
+      id: d.uuid().primary(),
+      projectId: d.uuid(),
+      title: d.text(),
+    });
+
+    const tasksModel = d.model(tasksTable, {
+      project: d.ref.one(() => projectsTable, 'projectId'),
+    });
+
+    const def = entity('tasks', {
+      model: tasksModel,
+      access: { list: (ctx) => ctx.authenticated(), get: (ctx) => ctx.authenticated() },
+    });
+
+    // Single-hop chain: tasks.projectId → projects.id, tenantColumn: organizationId
+    const tenantChain = {
+      hops: [{ tableName: 'projects', foreignKey: 'projectId', targetColumn: 'id' }],
+      tenantColumn: 'organizationId',
+    } as const;
+
+    // Seed data
+    const orgA = { id: 'org-a', name: 'Org A' };
+    const orgB = { id: 'org-b', name: 'Org B' };
+    const projectA = { id: 'proj-a', organizationId: 'org-a', name: 'Project A' };
+    const projectB = { id: 'proj-b', organizationId: 'org-b', name: 'Project B' };
+
+    function createTasksDb() {
+      const rows: Record<string, unknown>[] = [
+        { id: 'task-a1', projectId: 'proj-a', title: 'Task A1' },
+        { id: 'task-a2', projectId: 'proj-a', title: 'Task A2' },
+        { id: 'task-b1', projectId: 'proj-b', title: 'Task B1' },
+      ];
+
+      return {
+        get: mock(async (id: string) => rows.find((r) => r.id === id) ?? null),
+        list: mock(
+          async (options?: { where?: Record<string, unknown>; limit?: number; after?: string }) => {
+            let result = [...rows];
+            const where = options?.where;
+            if (where) {
+              result = result.filter((row) =>
+                Object.entries(where).every(([key, value]) => {
+                  if (typeof value === 'object' && value !== null && 'in' in value) {
+                    return (value as { in: unknown[] }).in.includes(row[key]);
+                  }
+                  return row[key] === value;
+                }),
+              );
+            }
+            return { data: result, total: result.length };
+          },
+        ),
+        create: mock(async (data: Record<string, unknown>) => ({ id: 'new-id', ...data })),
+        update: mock(async (id: string, data: Record<string, unknown>) => ({ id, ...data })),
+        delete: mock(async (id: string) => rows.find((r) => r.id === id) ?? null),
+      };
+    }
+
+    // queryParentIds resolves IDs from parent tables
+    const parentStores: Record<string, Record<string, unknown>[]> = {
+      organizations: [orgA, orgB],
+      projects: [projectA, projectB],
+    };
+
+    const queryParentIds = async (
+      tableName: string,
+      where: Record<string, unknown>,
+    ): Promise<string[]> => {
+      const store = parentStores[tableName] ?? [];
+      return store
+        .filter((row) =>
+          Object.entries(where).every(([key, value]) => {
+            if (typeof value === 'object' && value !== null && 'in' in value) {
+              return (value as { in: unknown[] }).in.includes(row[key]);
+            }
+            return row[key] === value;
+          }),
+        )
+        .map((row) => row.id as string);
+    };
+
+    describe('When org-A user lists tasks', () => {
+      it('Then returns only tasks whose project belongs to org-A', async () => {
+        const db = createTasksDb();
+        const handlers = createCrudHandlers(def, db, {
+          tenantChain,
+          queryParentIds,
+        });
+        const ctx = makeCtx({ tenantId: 'org-a' });
+
+        const result = unwrap(await handlers.list(ctx));
+
+        expect(result.body.items).toHaveLength(2);
+        expect(result.body.items.map((i) => i.id)).toEqual(['task-a1', 'task-a2']);
+      });
+    });
+
+    describe('When org-B user lists tasks', () => {
+      it('Then returns only tasks in org-B projects', async () => {
+        const db = createTasksDb();
+        const handlers = createCrudHandlers(def, db, {
+          tenantChain,
+          queryParentIds,
+        });
+        const ctx = makeCtx({ tenantId: 'org-b' });
+
+        const result = unwrap(await handlers.list(ctx));
+
+        expect(result.body.items).toHaveLength(1);
+        expect(result.body.items[0]).toHaveProperty('id', 'task-b1');
+      });
+    });
+
+    describe('When user has no tenantId', () => {
+      it('Then returns empty list (no tenant = no results for indirect scoping)', async () => {
+        const db = createTasksDb();
+        const handlers = createCrudHandlers(def, db, {
+          tenantChain,
+          queryParentIds,
+        });
+        const ctx = makeCtx({ tenantId: null });
+
+        const result = unwrap(await handlers.list(ctx));
+
+        expect(result.body.items).toHaveLength(0);
+      });
+    });
+
+    describe('When org-A user GETs a task from org-B project', () => {
+      it('Then returns 404 (indirect tenant check)', async () => {
+        const db = createTasksDb();
+        const handlers = createCrudHandlers(def, db, {
+          tenantChain,
+          queryParentIds,
+        });
+        const ctx = makeCtx({ tenantId: 'org-a' });
+
+        const result = await handlers.get(ctx, 'task-b1');
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityNotFoundError);
+        }
+      });
+    });
+
+    describe('When org-A user GETs a task from org-A project', () => {
+      it('Then returns the task', async () => {
+        const db = createTasksDb();
+        const handlers = createCrudHandlers(def, db, {
+          tenantChain,
+          queryParentIds,
+        });
+        const ctx = makeCtx({ tenantId: 'org-a' });
+
+        const result = unwrap(await handlers.get(ctx, 'task-a1'));
+
+        expect(result.status).toBe(200);
+        expect(result.body).toHaveProperty('id', 'task-a1');
+      });
+    });
+
+    describe('When org-A user UPDATEs a task from org-B project', () => {
+      it('Then returns 404', async () => {
+        const def2 = entity('tasks', {
+          model: tasksModel,
+          access: {
+            list: (ctx) => ctx.authenticated(),
+            get: (ctx) => ctx.authenticated(),
+            update: (ctx) => ctx.authenticated(),
+          },
+        });
+        const db = createTasksDb();
+        const handlers = createCrudHandlers(def2, db, {
+          tenantChain,
+          queryParentIds,
+        });
+        const ctx = makeCtx({ tenantId: 'org-a' });
+
+        const result = await handlers.update(ctx, 'task-b1', { title: 'Hacked' });
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityNotFoundError);
+        }
+      });
+    });
+
+    describe('When org-A user DELETEs a task from org-B project', () => {
+      it('Then returns 404', async () => {
+        const def2 = entity('tasks', {
+          model: tasksModel,
+          access: {
+            list: (ctx) => ctx.authenticated(),
+            get: (ctx) => ctx.authenticated(),
+            delete: (ctx) => ctx.authenticated(),
+          },
+        });
+        const db = createTasksDb();
+        const handlers = createCrudHandlers(def2, db, {
+          tenantChain,
+          queryParentIds,
+        });
+        const ctx = makeCtx({ tenantId: 'org-a' });
+
+        const result = await handlers.delete(ctx, 'task-b1');
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityNotFoundError);
+        }
+      });
+    });
+
+    describe('When org-A user creates a task on org-A project', () => {
+      it('Then succeeds', async () => {
+        const def2 = entity('tasks', {
+          model: tasksModel,
+          access: {
+            list: (ctx) => ctx.authenticated(),
+            create: (ctx) => ctx.authenticated(),
+          },
+        });
+        const db = createTasksDb();
+        const handlers = createCrudHandlers(def2, db, {
+          tenantChain,
+          queryParentIds,
+        });
+        const ctx = makeCtx({ tenantId: 'org-a' });
+
+        const result = unwrap(await handlers.create(ctx, { projectId: 'proj-a', title: 'New' }));
+
+        expect(result.status).toBe(201);
+      });
+    });
+
+    describe('When org-A user creates a task on org-B project', () => {
+      it('Then returns 403 (parent entity not in tenant)', async () => {
+        const def2 = entity('tasks', {
+          model: tasksModel,
+          access: {
+            list: (ctx) => ctx.authenticated(),
+            create: (ctx) => ctx.authenticated(),
+          },
+        });
+        const db = createTasksDb();
+        const handlers = createCrudHandlers(def2, db, {
+          tenantChain,
+          queryParentIds,
+        });
+        const ctx = makeCtx({ tenantId: 'org-a' });
+
+        const result = await handlers.create(ctx, { projectId: 'proj-b', title: 'Hacked' });
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityForbiddenError);
+        }
+      });
+    });
+
+    describe('When org-A user creates a task with non-existent projectId', () => {
+      it('Then returns 404 for the parent', async () => {
+        const def2 = entity('tasks', {
+          model: tasksModel,
+          access: {
+            list: (ctx) => ctx.authenticated(),
+            create: (ctx) => ctx.authenticated(),
+          },
+        });
+        const db = createTasksDb();
+        const handlers = createCrudHandlers(def2, db, {
+          tenantChain,
+          queryParentIds,
+        });
+        const ctx = makeCtx({ tenantId: 'org-a' });
+
+        const result = await handlers.create(ctx, { projectId: 'nonexistent', title: 'Ghost' });
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityNotFoundError);
+        }
+      });
+    });
+  });
 });
