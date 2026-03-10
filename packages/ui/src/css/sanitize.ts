@@ -11,7 +11,7 @@
  */
 export function sanitizeCssValue(value: string): string {
   return value
-    .replace(/[;{}]/g, '')
+    .replace(/[;{}<>']/g, '')
     .replace(/url\s*\(/gi, '')
     .replace(/expression\s*\(/gi, '')
     .replace(/@import/gi, '');
@@ -26,5 +26,6 @@ export function escapeHtmlAttr(value: string): string {
     .replace(/&/g, '&amp;')
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replace(/>/g, '&gt;')
+    .replace(/'/g, '&#39;');
 }

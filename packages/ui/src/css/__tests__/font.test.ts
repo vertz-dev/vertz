@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import type { FontDescriptor } from '../font';
 import { compileFonts, font } from '../font';
 
 describe('font()', () => {
@@ -252,11 +253,11 @@ describe('compileFonts()', () => {
 
   it('sanitizes font-style values in @font-face', () => {
     // Construct a descriptor that bypasses font() type constraints
-    const desc = {
-      __brand: 'FontDescriptor' as const,
+    const desc: FontDescriptor = {
+      __brand: 'FontDescriptor',
       family: 'Test',
       weight: '400',
-      style: 'normal; } * { display: none',
+      style: 'normal; } * { display: none' as 'normal',
       display: 'swap',
       src: '/fonts/test.woff2',
       fallback: [],
@@ -273,12 +274,12 @@ describe('compileFonts()', () => {
   });
 
   it('sanitizes font-display values in @font-face', () => {
-    const desc = {
-      __brand: 'FontDescriptor' as const,
+    const desc: FontDescriptor = {
+      __brand: 'FontDescriptor',
       family: 'Test',
       weight: '400',
       style: 'normal',
-      display: 'swap; } * { color: red',
+      display: 'swap; } * { color: red' as 'swap',
       src: '/fonts/test.woff2',
       fallback: [],
       subsets: ['latin'],
@@ -307,6 +308,30 @@ describe('compileFonts()', () => {
     expect(rangeMatch?.[1]).not.toContain(';');
     expect(rangeMatch?.[1]).not.toContain('}');
     expect(rangeMatch?.[1]).not.toContain('{');
+  });
+
+  it('strips </style> from family names to prevent style tag breakout', () => {
+    const evil = font('Evil</style><script>alert(1)</script>', {
+      weight: 400,
+      src: '/fonts/evil.woff2',
+    });
+    const result = compileFonts({ test: evil });
+
+    expect(result.fontFaceCss).not.toContain('</style>');
+    expect(result.fontFaceCss).not.toContain('<script>');
+    expect(result.cssVarsCss).not.toContain('</style>');
+  });
+
+  // ─── Key validation ─────────────────────────────────────────
+
+  it('throws for font keys with invalid CSS identifier characters', () => {
+    const f = font('Test', { weight: 400, src: '/fonts/test.woff2' });
+    expect(() => compileFonts({ 'bad key!': f })).toThrow('invalid CSS identifier');
+  });
+
+  it('accepts hyphenated font keys', () => {
+    const f = font('Test', { weight: 400, src: '/fonts/test.woff2' });
+    expect(() => compileFonts({ 'sans-serif': f })).not.toThrow();
   });
 
   // ─── woff2 validation ─────────────────────────────────────────

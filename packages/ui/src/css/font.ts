@@ -28,18 +28,21 @@ export interface FontOptions {
   src?: string | FontSrc[];
   /** Fallback font stack. */
   fallback?: string[];
-  /** Font subsets. @default ['latin'] */
+  /** Font subsets (metadata only — subsetting is deferred to a future phase). @default ['latin'] */
   subsets?: string[];
   /** Unicode range for subsetting. */
   unicodeRange?: string;
 }
 
+type FontStyle = 'normal' | 'italic';
+type FontDisplay = 'auto' | 'block' | 'swap' | 'fallback' | 'optional';
+
 export interface FontDescriptor {
   readonly __brand: 'FontDescriptor';
   readonly family: string;
   readonly weight: string;
-  readonly style: string;
-  readonly display: string;
+  readonly style: FontStyle;
+  readonly display: FontDisplay;
   readonly src?: string | FontSrc[];
   readonly fallback: string[];
   readonly subsets: string[];
@@ -138,6 +141,12 @@ export function compileFonts(fonts: Record<string, FontDescriptor>): CompiledFon
   const preloadPaths: string[] = [];
 
   for (const [key, descriptor] of Object.entries(fonts)) {
+    if (!/^[a-zA-Z0-9-]+$/.test(key)) {
+      throw new Error(
+        `Font key "${key}" contains invalid CSS identifier characters. Use only [a-zA-Z0-9-].`,
+      );
+    }
+
     const { family, weight, style, display, src, fallback, unicodeRange } = descriptor;
 
     // Build font family CSS var value: 'Family Name', fallback1, fallback2
