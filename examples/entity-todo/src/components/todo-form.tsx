@@ -18,10 +18,10 @@ const styles = css({
 });
 
 export interface TodoFormProps {
-  onSuccess: (todo: TodosResponse) => void;
+  onSuccess?: (todo: TodosResponse) => void;
 }
 
-export function TodoForm({ onSuccess }: TodoFormProps) {
+export function TodoForm({ onSuccess }: TodoFormProps = {}) {
   const todoForm = form(api.todos.create, {
     onSuccess,
     resetOnSuccess: true,

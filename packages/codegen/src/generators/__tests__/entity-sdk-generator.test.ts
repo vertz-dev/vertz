@@ -221,6 +221,10 @@ describe('EntitySdkGenerator', () => {
 
     expect(userFile?.content).toContain('client.get<ListResponse<unknown>>');
     expect(userFile?.content).toContain('(body: unknown)');
+    expect(userFile?.content).toContain('createMutationDescriptor');
+    expect(userFile?.content).toContain(
+      "import { type FetchClient, type ListResponse, type OptimisticHandler, createDescriptor, createMutationDescriptor } from '@vertz/fetch'",
+    );
   });
 
   it('generates index file re-exporting all entity SDKs', () => {
@@ -587,6 +591,33 @@ describe('EntitySdkGenerator', () => {
         'createTodoSdk(client: FetchClient, optimistic?: OptimisticHandler)',
       );
       expect(todoFile?.content).toContain('type OptimisticHandler');
+    });
+
+    it('uses createMutationDescriptor for create operations', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'todo',
+          operations: [
+            {
+              kind: 'create',
+              method: 'POST',
+              path: '/todo',
+              operationId: 'createTodo',
+              inputSchema: 'CreateTodoInput',
+              outputSchema: 'TodoResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const todoFile = files.find((f) => f.path === 'entities/todo.ts');
+
+      expect(todoFile?.content).toContain('createMutationDescriptor');
+      expect(todoFile?.content).toContain("entityType: 'todo'");
+      expect(todoFile?.content).toContain("kind: 'create'");
+      expect(todoFile?.content).toContain('optimistic');
     });
 
     it('SDK function does not accept optimistic handler when no mutations', () => {

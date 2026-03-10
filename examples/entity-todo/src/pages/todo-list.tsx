@@ -4,7 +4,7 @@
  * Demonstrates:
  * - query() with descriptor-based data fetching
  * - queryMatch() for exclusive-state pattern matching (loading/error/data)
- * - Automatic optimistic updates — no refetch callbacks needed for toggle/delete
+ * - Automatic optimistic updates — no refetch callbacks needed for any CRUD operation
  * - ListTransition for animated list item enter/exit
  */
 
@@ -46,14 +46,9 @@ const pageStyles = css({
 export function TodoListPage() {
   const todosQuery = query(api.todos.list());
 
-  // Create still needs a refetch since the new entity's ID isn't in the query index yet
-  const handleCreate = (_todo: TodosResponse) => {
-    todosQuery.refetch();
-  };
-
   return (
     <div class={pageStyles.container} data-testid="todo-list-page">
-      <TodoForm onSuccess={handleCreate} />
+      <TodoForm />
 
       <div class={pageStyles.listContainer} style={todosQuery.revalidating ? 'opacity: 0.6' : ''}>
         {queryMatch(todosQuery, {

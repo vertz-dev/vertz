@@ -197,6 +197,32 @@ describe('ClientGenerator', () => {
       expect(clientFile?.content).toContain(': undefined');
     });
 
+    it('passes optimistic handler for create-only entity', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'todo',
+          operations: [
+            {
+              kind: 'create',
+              method: 'POST',
+              path: '/todo',
+              operationId: 'createTodo',
+              inputSchema: 'CreateTodoInput',
+              outputSchema: 'TodoResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const clientFile = files.find((f) => f.path === 'client.ts');
+
+      expect(clientFile?.content).toContain('optimistic?: OptimisticHandler | false');
+      expect(clientFile?.content).toContain('createTodoSdk(client, optimistic)');
+      expect(clientFile?.content).toContain('createOptimisticHandler(getEntityStore())');
+    });
+
     it('does not pass optimistic handler when entity has no mutations', () => {
       const ir = createBasicIR([
         {
