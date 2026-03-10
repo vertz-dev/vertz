@@ -51,7 +51,8 @@ Three sign-offs required before implementation:
 - [ ] Design doc updated if deviations occurred
 - [ ] Changeset added
 - [ ] Retrospective written
-- [ ] Human approves PR to main
+- [ ] PR rebased on latest `main`, pushed, and GitHub CI is green
+- [ ] Human approves PR to main (the only human interaction point)
 
 ### Bug Fix
 - **Tier 1** (internal): issue exists → failing test → fix → quality gates → review → changeset

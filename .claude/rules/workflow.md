@@ -5,8 +5,9 @@
 When assigned a feature with an implementation plan:
 - Execute ALL phases sequentially without waiting for user input
 - Each phase: implement → CI → self-review → fix → CI → next phase
-- Only stop after ALL phases complete and PR is opened to main
-- If blocked (ambiguous requirement, design conflict), ask the user — otherwise keep going
+- After all phases: push → open PR → monitor CI → rebase → ensure green → THEN stop
+- **The human only sees the final PR, already reviewed and CI-green.** Do not ask for input between phases.
+- If blocked (ambiguous requirement, design conflict that agents cannot resolve), ask the user — otherwise keep going
 
 ### Phase Execution
 
@@ -26,12 +27,17 @@ For each phase:
 
 ### After All Phases
 
-1. Push feature branch to origin
-2. Open PR to main with:
+1. Rebase feature branch on latest `main` to ensure it's up-to-date
+2. Run full quality gates one final time after rebase (tests, typecheck, lint)
+3. Push feature branch to origin
+4. Open PR to main with:
    - Public API Changes summary (breaking / deferred / additions vs design doc)
    - Summary of all phases
    - E2E acceptance test status
-3. **STOP** — wait for human review and approval
+5. **Monitor GitHub CI** — check PR status using `gh pr checks` or `gh run list`
+6. If CI fails on GitHub: diagnose, fix locally, push, and monitor again. Repeat until green.
+7. If `main` has advanced since the PR was opened: rebase, re-run quality gates, force-push, monitor CI again.
+8. **STOP only when GitHub CI is green and the PR is ready for review** — notify the human that the PR is ready for their review and manual merge.
 
 ## Branch Naming
 
