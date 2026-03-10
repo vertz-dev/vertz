@@ -109,19 +109,29 @@ vertz/reviews/<feature-name>/
 
 When all phases are complete:
 
-1. Push the feature branch to GitHub
-2. Open a single PR: `feat/<feature-name>` → `main`
-3. PR description includes:
+1. Rebase the feature branch on latest `main` to ensure no conflicts
+2. Run full quality gates one final time after rebase (tests, typecheck, lint)
+3. Push the feature branch to GitHub
+4. Open a single PR: `feat/<feature-name>` → `main`
+5. PR description includes:
    - Public API Changes summary (mandatory per `pr-policies.md`)
    - Summary of all phases with links to local review files
    - E2E acceptance test status
-4. **Human (CTO) reviews and approves**
-5. Merge to main
+6. **Monitor GitHub CI** — use `gh pr checks` or `gh run list` to track CI status
+7. If CI fails: diagnose and fix locally, push again, monitor until green
+8. If `main` advances while the PR is open: rebase, re-run quality gates, force-push, monitor CI again
+9. **Only notify the human when CI is fully green and the PR is clean** — the human reviews and merges
 
 ```bash
+git fetch origin main && git rebase origin/main
+bun test && bun run typecheck && bun run lint
 git push -u origin feat/<feature-name>
 gh pr create --title "feat: <Feature Name>" --body "..."
+# Monitor CI
+gh pr checks <pr-number> --watch
 ```
+
+**The entire flow from Phase 1 through CI-green PR is autonomous.** Agents do not pause between phases or after opening the PR. The human's only interaction is reviewing and merging the final PR.
 
 ### 6. After Merge
 
