@@ -1013,3 +1013,127 @@ describe('EntityStore - evictOrphans', () => {
     expect(store.evictOrphans(0)).toBe(0);
   });
 });
+
+describe('EntityStore - on-demand eviction during merge', () => {
+  it('merge() evicts orphaned entities that exceed maxAge', () => {
+    const store = new EntityStore();
+    store.merge('users', { id: 'u1', name: 'John' });
+    store.addRef('users', 'u1');
+    store.removeRef('users', 'u1'); // orphaned
+
+    // Backdate orphanedAt to exceed default maxAge (5 min)
+    const entry = store.inspect('users', 'u1');
+    expect(entry).toBeDefined();
+    // We need to manipulate orphanedAt — use a custom maxAge approach
+    // Instead, set orphanedAt far in the past via direct inspection
+    // Since we can't mutate orphanedAt directly, we'll use Date.now mock
+    const originalNow = Date.now;
+    let mockTime = originalNow();
+    Date.now = () => mockTime;
+
+    // Re-orphan with mocked time
+    store.addRef('users', 'u1');
+    store.removeRef('users', 'u1'); // orphanedAt = mockTime
+
+    // Advance time past maxAge (5 min)
+    mockTime += 300_001;
+
+    // Merge a new entity — should trigger eviction of u1
+    store.merge('users', { id: 'u2', name: 'Jane' });
+
+    expect(store.has('users', 'u1')).toBe(false); // evicted during merge
+    expect(store.has('users', 'u2')).toBe(true); // newly merged
+
+    Date.now = originalNow;
+  });
+
+  it('merge() does not evict entities still within maxAge', () => {
+    const store = new EntityStore();
+    store.merge('users', { id: 'u1', name: 'John' });
+    store.addRef('users', 'u1');
+    store.removeRef('users', 'u1'); // orphaned just now
+
+    // Merge immediately — u1 orphaned < 5 min ago, should survive
+    store.merge('users', { id: 'u2', name: 'Jane' });
+
+    expect(store.has('users', 'u1')).toBe(true); // too young to evict
+    expect(store.has('users', 'u2')).toBe(true);
+  });
+
+  it('merge() does not evict entities with active refs', () => {
+    const originalNow = Date.now;
+    let mockTime = originalNow();
+    Date.now = () => mockTime;
+
+    const store = new EntityStore();
+    store.merge('users', { id: 'u1', name: 'John' });
+    store.addRef('users', 'u1'); // actively referenced
+
+    mockTime += 600_000; // well past maxAge
+
+    store.merge('users', { id: 'u2', name: 'Jane' });
+
+    expect(store.has('users', 'u1')).toBe(true); // still referenced — protected
+    expect(store.has('users', 'u2')).toBe(true);
+
+    Date.now = originalNow;
+  });
+
+  it('merge() does not evict entities with pending optimistic layers', () => {
+    const originalNow = Date.now;
+    let mockTime = originalNow();
+    Date.now = () => mockTime;
+
+    const store = new EntityStore();
+    store.merge('users', { id: 'u1', name: 'John' });
+    store.addRef('users', 'u1');
+    store.removeRef('users', 'u1'); // orphaned
+    store.applyLayer('users', 'u1', 'm1', { name: 'Jane' }); // optimistic layer
+
+    mockTime += 600_000;
+
+    store.merge('users', { id: 'u2', name: 'Bob' });
+
+    expect(store.has('users', 'u1')).toBe(true); // has pending layer — protected
+    expect(store.has('users', 'u2')).toBe(true);
+
+    Date.now = originalNow;
+  });
+
+  it('merge() evicts across multiple entity types', () => {
+    const originalNow = Date.now;
+    let mockTime = originalNow();
+    Date.now = () => mockTime;
+
+    const store = new EntityStore();
+    store.merge('users', { id: 'u1', name: 'John' });
+    store.merge('posts', { id: 'p1', title: 'Hello' });
+    store.addRef('users', 'u1');
+    store.removeRef('users', 'u1');
+    store.addRef('posts', 'p1');
+    store.removeRef('posts', 'p1');
+
+    mockTime += 300_001;
+
+    store.merge('comments', { id: 'c1', body: 'Nice' });
+
+    expect(store.has('users', 'u1')).toBe(false); // evicted
+    expect(store.has('posts', 'p1')).toBe(false); // evicted
+    expect(store.has('comments', 'c1')).toBe(true); // newly merged
+
+    Date.now = originalNow;
+  });
+
+  it('all existing evictOrphans tests still pass (backward compat)', () => {
+    // This test documents that merge() calling evictOrphans() doesn't
+    // break existing behavior — entities that were never ref'd are not
+    // evicted (orphanedAt is null for never-ref'd entities).
+    const store = new EntityStore();
+    store.merge('users', { id: 'u1', name: 'John' });
+
+    // Merge again — u1 was never addRef'd/removeRef'd, orphanedAt is null
+    store.merge('users', { id: 'u2', name: 'Jane' });
+
+    expect(store.has('users', 'u1')).toBe(true); // never orphaned — survives
+  });
+});

@@ -92,6 +92,9 @@ export class EntityStore {
       return; // no-op for empty array
     }
 
+    // On-demand eviction: clean up orphaned entities before adding new ones.
+    this.evictOrphans();
+
     batch(() => {
       for (const item of items) {
         const { normalized, extracted } = normalizeEntity(type, item as Record<string, unknown>);
