@@ -9,6 +9,7 @@ import type {
   OAuthTokens,
   OAuthUserInfo,
   RateLimitStore,
+  SignUpInput,
   SessionPayload,
   SessionStore,
   UserStore,
@@ -140,6 +141,15 @@ describe('Type-level tests', () => {
       },
       null,
     );
+  });
+
+  it('SignUpInput rejects framework-owned role field', () => {
+    // @ts-expect-error — public sign-up cannot self-assign framework roles
+    const _input: SignUpInput = {
+      email: 'user@example.com',
+      password: 'Password123!',
+      role: 'admin',
+    };
   });
 
   it('OAuthProvider without trustEmail is incomplete', () => {

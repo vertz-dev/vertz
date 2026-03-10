@@ -144,7 +144,7 @@ describe('Auth Module', () => {
         expect(result.data?.payload).toBeDefined();
       });
 
-      it('should sign up with custom role', { timeout: 15_000 }, async () => {
+      it('should ignore reserved role fields on sign up', { timeout: 15_000 }, async () => {
         const auth = createAuth(authConfig);
         const result = await auth.api.signUp({
           email: 'admin@example.com',
@@ -153,7 +153,7 @@ describe('Auth Module', () => {
         });
 
         expect(result.ok).toBe(true);
-        expect(result.data?.user.role).toBe('admin');
+        expect(result.data?.user.role).toBe('user');
       });
 
       it('should reject invalid email', async () => {

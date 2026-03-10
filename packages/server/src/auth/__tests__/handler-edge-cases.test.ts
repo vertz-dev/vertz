@@ -1,6 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { createAuth } from '../index';
-import type { AuthInstance } from '../types';
+import type {
+  AuthInstance,
+  CodeInput,
+  ForgotPasswordInput,
+  PasswordInput,
+  ResetPasswordInput,
+  SignInInput,
+  SignUpInput,
+  TokenInput,
+} from '../types';
 
 /**
  * Tests for HTTP handler edge cases — error paths, 404 routes, middleware,
@@ -42,7 +51,38 @@ function createTestAuthWithEmailVerification() {
   return { auth, sentEmails };
 }
 
-function makeRequest(method: string, path: string, body?: Record<string, unknown>, cookies = '') {
+type AuthJsonRequestBodyByPath = {
+  '/forgot-password': ForgotPasswordInput;
+  '/mfa/backup-codes': PasswordInput;
+  '/mfa/challenge': CodeInput;
+  '/mfa/disable': PasswordInput;
+  '/mfa/setup': Record<string, never>;
+  '/mfa/step-up': CodeInput;
+  '/mfa/verify-setup': CodeInput;
+  '/nonexistent': Record<string, never>;
+  '/refresh': Record<string, never>;
+  '/resend-verification': Record<string, never>;
+  '/reset-password': Partial<ResetPasswordInput> & Record<string, unknown>;
+  '/signin': SignInInput;
+  '/signout': Record<string, never>;
+  '/signup': SignUpInput;
+  '/verify-email': Partial<TokenInput> & Record<string, unknown>;
+};
+
+function makeRequest(method: 'GET', path: string, body?: undefined, cookies?: string): Request;
+function makeRequest(method: 'DELETE', path: string, body?: undefined, cookies?: string): Request;
+function makeRequest<TPath extends keyof AuthJsonRequestBodyByPath>(
+  method: 'POST',
+  path: TPath,
+  body: AuthJsonRequestBodyByPath[TPath],
+  cookies?: string,
+): Request;
+function makeRequest(
+  method: string,
+  path: string,
+  body?: Record<string, unknown>,
+  cookies = '',
+): Request {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     Origin: 'http://localhost',
@@ -136,6 +176,24 @@ describe('Handler Edge Cases', () => {
     expect(data.error.code).toBe('USER_EXISTS');
   });
 
+  it('signup strips reserved privilege fields from public input', async () => {
+    const res = await auth.handler(
+      makeRequest('POST', '/signup', {
+        email: 'reserved@example.com',
+        password: 'Password123!',
+        role: 'admin',
+        plan: 'enterprise',
+        emailVerified: true,
+      }),
+    );
+    expect(res.status).toBe(201);
+
+    const data = await res.json();
+    expect(data.user.role).toBe('user');
+    expect(data.user.plan).toBeUndefined();
+    expect(data.user.emailVerified).toBe(true);
+  });
+
   it('signup rate limits after repeated attempts', async () => {
     for (let i = 0; i < 3; i++) {
       await auth.handler(
@@ -152,6 +210,21 @@ describe('Handler Edge Cases', () => {
       }),
     );
     expect(res.status).toBe(429);
+  });
+
+  it('signup rejects oversized JSON bodies', async () => {
+    const oversizedPassword = 'P'.repeat(11 * 1024 * 1024);
+    const res = await auth.handler(
+      makeRequest('POST', '/signup', {
+        email: 'large@example.com',
+        password: oversizedPassword,
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error.code).toBe('AUTH_VALIDATION_ERROR');
+    expect(data.error.message).toBe('Request body too large');
   });
 
   // =========================================================================
@@ -250,6 +323,19 @@ describe('Handler Edge Cases', () => {
     expect(clearedSid).toContain('Max-Age=0');
   });
 
+  it('GET /session returns null immediately after signout', async () => {
+    const signupRes = await signUp(auth);
+    const cookies = getCookies(signupRes);
+
+    const signoutRes = await auth.handler(makeRequest('POST', '/signout', {}, cookies));
+    expect(signoutRes.status).toBe(200);
+
+    const sessionRes = await auth.handler(makeRequest('GET', '/session', undefined, cookies));
+    expect(sessionRes.status).toBe(200);
+    const data = await sessionRes.json();
+    expect(data.session).toBeNull();
+  });
+
   // =========================================================================
   // Refresh rate limiting
   // =========================================================================
@@ -325,6 +411,43 @@ describe('Email Verification Handler Edge Cases', () => {
     expect(res.status).toBe(400);
     const data = await res.json();
     expect(data.error.code).toBe('TOKEN_INVALID');
+  });
+
+  it('forgot-password does not wait for delivery callback before responding', async () => {
+    auth.dispose();
+
+    let releaseSend: (() => void) | null = null;
+    auth = createAuth({
+      session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
+      emailPassword: { enabled: true },
+      jwtSecret: 'test-secret-for-handler-edge-cases-testing-1234567890',
+      isProduction: false,
+      passwordReset: {
+        enabled: true,
+        tokenTtl: '1h',
+        onSend: async () =>
+          await new Promise<void>((resolve) => {
+            releaseSend = resolve;
+          }),
+      },
+    });
+
+    await signUp(auth, 'forgot@example.com');
+
+    const pendingResponse = auth.handler(
+      makeRequest('POST', '/forgot-password', { email: 'forgot@example.com' }),
+    );
+
+    const race = await Promise.race([
+      pendingResponse.then(() => 'resolved'),
+      new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 25)),
+    ]);
+
+    releaseSend?.();
+
+    expect(race).toBe('resolved');
+    const response = await pendingResponse;
+    expect(response.status).toBe(200);
   });
 });
 

@@ -260,6 +260,26 @@ describe('JWT acl claim', () => {
     expect(secondResponse.status).toBe(304);
   });
 
+  it('GET /api/auth/access-set is private and varies on cookies', async () => {
+    const { auth } = createTestAuth();
+
+    const signUpResult = await auth.api.signUp({
+      email: 'cache-headers@example.com',
+      password: 'Password123!',
+    });
+    expect(signUpResult.ok).toBe(true);
+    if (!signUpResult.ok) return;
+
+    const response = await auth.handler(
+      new Request('http://localhost/api/auth/access-set', {
+        headers: { Cookie: `vertz.sid=${signUpResult.data.tokens?.jwt}` },
+      }),
+    );
+
+    expect(response.headers.get('Cache-Control')).toBe('private, no-cache');
+    expect(response.headers.get('Vary')).toBe('Cookie');
+  });
+
   it('GET /api/auth/access-set returns 401 for unauthenticated request', async () => {
     const { auth } = createTestAuth();
 

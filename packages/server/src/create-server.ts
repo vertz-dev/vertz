@@ -165,7 +165,7 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
   // Auth model validation — when both db (DatabaseClient) and auth are provided
   // ---------------------------------------------------------------------------
   if (hasDbClient && config.auth) {
-    validateAuthModels(db as AuthDbClient);
+    validateAuthModels(db as unknown as AuthDbClient);
   }
 
   // Process entities first (so registry has all entities registered for DI)
@@ -235,7 +235,7 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
   // Wire auth with DB-backed stores when db + auth are provided
   // ---------------------------------------------------------------------------
   if (hasDbClient && config.auth) {
-    const dbClient = db as AuthDbClient;
+    const dbClient = db as unknown as AuthDbClient;
     const authConfig: AuthConfig = {
       ...config.auth,
       // Auto-wire DB-backed stores unless explicitly overridden

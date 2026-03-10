@@ -110,6 +110,14 @@ export class InMemorySessionStore implements SessionStore {
     return null;
   }
 
+  async findActiveSessionById(id: string): Promise<StoredSession | null> {
+    const session = this.sessions.get(id);
+    if (!session || session.revokedAt || session.expiresAt <= new Date()) {
+      return null;
+    }
+    return session;
+  }
+
   async findByPreviousRefreshHash(hash: string): Promise<StoredSession | null> {
     for (const session of this.sessions.values()) {
       if (

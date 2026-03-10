@@ -5,6 +5,13 @@
 
 import type { ModelEntry } from '@vertz/db';
 import type { AuthError, Result } from '@vertz/errors';
+import {
+  s,
+  type Infer,
+  type ObjectSchema,
+  type OptionalSchema,
+  type StringSchema,
+} from '@vertz/schema';
 
 // ============================================================================
 // Session Types
@@ -68,6 +75,7 @@ export interface SessionStore {
       currentTokens?: AuthTokens;
     },
   ): Promise<StoredSession>;
+  findActiveSessionById(id: string): Promise<StoredSession | null>;
   findByRefreshHash(hash: string): Promise<StoredSession | null>;
   findByPreviousRefreshHash(hash: string): Promise<StoredSession | null>;
   revokeSession(id: string): Promise<void>;
@@ -386,17 +394,81 @@ export interface SessionInfo {
 // Auth API Types
 // ============================================================================
 
-export interface SignUpInput {
-  email: string;
-  password: string;
-  role?: string; // Default role, defaults to 'user'
-  [key: string]: unknown; // Additional fields
-}
+type ReservedSignUpField =
+  | 'role'
+  | 'plan'
+  | 'emailVerified'
+  | 'id'
+  | 'createdAt'
+  | 'updatedAt';
 
-export interface SignInInput {
-  email: string;
-  password: string;
-}
+type ReservedSignUpFields = {
+  [K in ReservedSignUpField]?: never;
+};
+
+const authEmailFieldSchema: StringSchema = s.string().min(1).trim();
+const authPasswordFieldSchema: StringSchema = s.string().min(1);
+
+export const signUpInputSchema: ObjectSchema<{
+  email: StringSchema;
+  password: StringSchema;
+}> = s
+  .object({
+    email: authEmailFieldSchema,
+    password: authPasswordFieldSchema,
+  })
+  .passthrough();
+
+export const signInInputSchema: ObjectSchema<{
+  email: StringSchema;
+  password: StringSchema;
+}> = s.object({
+  email: authEmailFieldSchema,
+  password: authPasswordFieldSchema,
+});
+
+export const codeInputSchema: ObjectSchema<{
+  code: StringSchema;
+}> = s.object({
+  code: s.string().min(1),
+});
+
+export const passwordInputSchema: ObjectSchema<{
+  password: StringSchema;
+}> = s.object({
+  password: s.string().min(1),
+});
+
+export const tokenInputSchema: ObjectSchema<{
+  token: OptionalSchema<string, string>;
+}> = s.object({
+  token: s.string().min(1).optional(),
+});
+
+export const forgotPasswordInputSchema: ObjectSchema<{
+  email: StringSchema;
+}> = s.object({
+  email: s.string().min(1).trim(),
+});
+
+export const resetPasswordInputSchema: ObjectSchema<{
+  token: OptionalSchema<string, string>;
+  password: StringSchema;
+}> = s.object({
+  token: s.string().min(1).optional(),
+  password: s.string().min(1),
+});
+
+export type SignUpInput = Infer<typeof signUpInputSchema> &
+  ReservedSignUpFields &
+  Record<string, unknown>;
+
+export type SignInInput = Infer<typeof signInInputSchema>;
+export type CodeInput = Infer<typeof codeInputSchema>;
+export type PasswordInput = Infer<typeof passwordInputSchema>;
+export type TokenInput = Infer<typeof tokenInputSchema>;
+export type ForgotPasswordInput = Infer<typeof forgotPasswordInputSchema>;
+export type ResetPasswordInput = Infer<typeof resetPasswordInputSchema>;
 
 export interface AuthApi {
   signUp: (data: SignUpInput, ctx?: { headers: Headers }) => Promise<Result<Session, AuthError>>;

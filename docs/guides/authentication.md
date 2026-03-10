@@ -403,7 +403,8 @@ const signupForm = form(auth.signUp);
 </form>
 ```
 
-The `signUp` input accepts `{ email, password, ...extra }` — additional fields are passed through to the server.
+The `signUp` input accepts `{ email, password, ...extra }`, but reserved auth fields such as
+`role`, `plan`, `emailVerified`, `id`, and timestamps are ignored by the auth handler.
 
 ---
 
