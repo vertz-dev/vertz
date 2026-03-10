@@ -8,7 +8,8 @@ import {
 } from '@vertz/db';
 import { initializeAuthTables, validateAuthModels } from './auth/auth-tables';
 import { DbSessionStore } from './auth/db-session-store';
-import type { AuthDbClient } from './auth/db-types';
+import { isAuthDbClient } from './auth/db-types';
+import type { AuthReadyDatabaseClient } from './auth/db-types';
 import { DbUserStore } from './auth/db-user-store';
 import { createAuth } from './auth/index';
 import type { AuthConfig, AuthInstance } from './auth/types';
@@ -160,12 +161,19 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
   const apiPrefix = config.apiPrefix === undefined ? '/api' : config.apiPrefix;
   const { db } = config;
   const hasDbClient = db && isDatabaseClient(db);
+  let authDbClient: AuthReadyDatabaseClient | undefined;
 
   // ---------------------------------------------------------------------------
   // Auth model validation — when both db (DatabaseClient) and auth are provided
   // ---------------------------------------------------------------------------
   if (hasDbClient && config.auth) {
-    validateAuthModels(db as unknown as AuthDbClient);
+    validateAuthModels(db);
+    if (!isAuthDbClient(db)) {
+      throw new Error(
+        'Auth requires a DatabaseClient created with authModels so the auth_sessions delegate is available.',
+      );
+    }
+    authDbClient = db;
   }
 
   // Process entities first (so registry has all entities registered for DI)
@@ -234,13 +242,12 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
   // ---------------------------------------------------------------------------
   // Wire auth with DB-backed stores when db + auth are provided
   // ---------------------------------------------------------------------------
-  if (hasDbClient && config.auth) {
-    const dbClient = db as unknown as AuthDbClient;
+  if (authDbClient && config.auth) {
     const authConfig: AuthConfig = {
       ...config.auth,
       // Auto-wire DB-backed stores unless explicitly overridden
-      userStore: config.auth.userStore ?? new DbUserStore(dbClient),
-      sessionStore: config.auth.sessionStore ?? new DbSessionStore(dbClient),
+      userStore: config.auth.userStore ?? new DbUserStore(authDbClient),
+      sessionStore: config.auth.sessionStore ?? new DbSessionStore(authDbClient),
     };
 
     const auth = createAuth(authConfig);
@@ -252,7 +259,7 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
 
     serverInstance.auth = auth;
     serverInstance.initialize = async () => {
-      await initializeAuthTables(dbClient);
+      await initializeAuthTables(authDbClient);
       await auth.initialize();
     };
 

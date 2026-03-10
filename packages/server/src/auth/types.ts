@@ -406,18 +406,34 @@ type ReservedSignUpFields = {
   [K in ReservedSignUpField]?: never;
 };
 
+type PublicSignUpInput = {
+  email: string;
+  password: string;
+} & Record<string, unknown>;
+
+function stripReservedSignUpFields(input: PublicSignUpInput): PublicSignUpInput {
+  const {
+    id: _id,
+    createdAt: _createdAt,
+    updatedAt: _updatedAt,
+    role: _role,
+    plan: _plan,
+    emailVerified: _emailVerified,
+    ...safeFields
+  } = input;
+  return safeFields;
+}
+
 const authEmailFieldSchema: StringSchema = s.string().min(1).trim();
 const authPasswordFieldSchema: StringSchema = s.string().min(1);
 
-export const signUpInputSchema: ObjectSchema<{
-  email: StringSchema;
-  password: StringSchema;
-}> = s
+export const signUpInputSchema = s
   .object({
     email: authEmailFieldSchema,
     password: authPasswordFieldSchema,
   })
-  .passthrough();
+  .catchall(s.unknown())
+  .transform(stripReservedSignUpFields);
 
 export const signInInputSchema: ObjectSchema<{
   email: StringSchema;
@@ -459,9 +475,7 @@ export const resetPasswordInputSchema: ObjectSchema<{
   password: s.string().min(1),
 });
 
-export type SignUpInput = Infer<typeof signUpInputSchema> &
-  ReservedSignUpFields &
-  Record<string, unknown>;
+export type SignUpInput = Infer<typeof signUpInputSchema> & ReservedSignUpFields;
 
 export type SignInInput = Infer<typeof signInInputSchema>;
 export type CodeInput = Infer<typeof codeInputSchema>;

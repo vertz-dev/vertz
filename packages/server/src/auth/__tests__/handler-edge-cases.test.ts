@@ -131,6 +131,7 @@ describe('Handler Edge Cases', () => {
   it('returns 404 for unknown route', async () => {
     const res = await auth.handler(makeRequest('GET', '/nonexistent'));
     expect(res.status).toBe(404);
+    expect(res.headers.get('Cache-Control')).toBe('no-store, no-cache, must-revalidate');
     const data = await res.json();
     expect(data.error).toBe('Not found');
   });
@@ -440,7 +441,7 @@ describe('Email Verification Handler Edge Cases', () => {
 
     const race = await Promise.race([
       pendingResponse.then(() => 'resolved'),
-      new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 25)),
+      new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 200)),
     ]);
 
     releaseSend?.();

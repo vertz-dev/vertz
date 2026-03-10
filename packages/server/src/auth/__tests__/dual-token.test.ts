@@ -163,7 +163,7 @@ describe('Dual-Token Issuance', () => {
     }
   });
 
-  it('cookies include HttpOnly flag', async () => {
+  it('cookies include secure session attributes', async () => {
     const res = await auth.handler(
       new Request('http://localhost/api/auth/signup', {
         method: 'POST',
@@ -177,6 +177,10 @@ describe('Dual-Token Issuance', () => {
     const refCookie = setCookies.find((c) => c.startsWith('vertz.ref='));
     expect(sidCookie).toContain('HttpOnly');
     expect(refCookie).toContain('HttpOnly');
+    expect(sidCookie).toContain('Secure');
+    expect(refCookie).toContain('Secure');
+    expect(sidCookie).toContain('SameSite=lax');
+    expect(refCookie).toContain('SameSite=lax');
   });
 
   it('dispose cleans up stores', () => {

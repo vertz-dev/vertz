@@ -43,7 +43,7 @@ import {
 } from './crypto';
 import { parseDeviceName } from './device-name';
 import { InMemoryEmailVerificationStore } from './email-verification-store';
-import { createJWT, parseDuration, verifyJWT } from './jwt';
+import { createJWT, decodeJWT, parseDuration, verifyJWT } from './jwt';
 import { InMemoryMFAStore } from './mfa-store';
 import { InMemoryOAuthAccountStore } from './oauth-account-store';
 import { hashPassword, validatePassword, verifyPassword } from './password';
@@ -290,7 +290,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
   // Helper: Generate random hex token (32 bytes = 64 hex chars)
   // ==========================================================================
 
-  const FORGOT_PASSWORD_MIN_RESPONSE_MS = 15;
+  const FORGOT_PASSWORD_MIN_RESPONSE_MS = 75;
 
   function generateToken(): string {
     const bytes = crypto.getRandomValues(new Uint8Array(32));
@@ -568,6 +568,9 @@ export function createAuth(config: AuthConfig): AuthInstance {
       storedSession = await sessionStore.findByPreviousRefreshHash(refreshHash);
       if (storedSession && storedSession.lastActiveAt.getTime() + 10_000 > Date.now()) {
         isGracePeriod = true;
+      } else if (storedSession) {
+        await sessionStore.revokeSession(storedSession.id);
+        return err(createSessionExpiredError('Refresh token reuse detected'));
       } else {
         return err(createSessionExpiredError('Invalid refresh token'));
       }
@@ -586,21 +589,25 @@ export function createAuth(config: AuthConfig): AuthInstance {
       const currentTokens = await sessionStore.getCurrentTokens(storedSession.id);
       if (currentTokens) {
         // Decode (without verify) to get the payload for the response
-        const payload = await verifyJWT(currentTokens.jwt, jwtSecret, jwtAlgorithm);
+        const payload =
+          (await verifyJWT(currentTokens.jwt, jwtSecret, jwtAlgorithm)) ??
+          decodeJWT(currentTokens.jwt);
         // Even if JWT is expired, return the cached tokens — the client will get
         // a fresh JWT on the next refresh after the grace period ends
         return ok({
           user,
           expiresAt: payload ? new Date(payload.exp * 1000) : new Date(Date.now() + ttlMs),
-          payload: payload ?? {
-            sub: user.id,
-            email: user.email,
-            role: user.role,
-            iat: Math.floor(Date.now() / 1000),
-            exp: Math.floor((Date.now() + ttlMs) / 1000),
-            jti: '',
-            sid: storedSession.id,
-          },
+          payload:
+            payload ??
+            ({
+              sub: user.id,
+              email: user.email,
+              role: user.role,
+              iat: Math.floor(Date.now() / 1000),
+              exp: Math.floor((Date.now() + ttlMs) / 1000),
+              jti: storedSession.id,
+              sid: storedSession.id,
+            } satisfies SessionPayload),
           tokens: currentTokens,
         });
       }
@@ -2237,7 +2244,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
       return new Response(JSON.stringify({ error: 'Not found' }), {
         status: 404,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...securityHeaders() },
       });
     } catch (_error) {
       return new Response(JSON.stringify({ error: 'Internal server error' }), {

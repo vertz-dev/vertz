@@ -5,6 +5,7 @@
  * Dialect-aware: works on both SQLite and PostgreSQL.
  */
 
+import type { DatabaseClient, ModelEntry } from '@vertz/db';
 import { sql } from '@vertz/db/sql';
 import type { AuthDbClient } from './db-types';
 import { type DbDialectName, dialectDDL } from './dialect-ddl';
@@ -138,7 +139,7 @@ export const AUTH_TABLE_NAMES = [
  * Throws a prescriptive error when models are missing, telling the developer
  * exactly what to add to their createDb() call.
  */
-export function validateAuthModels(db: AuthDbClient): void {
+export function validateAuthModels(db: Pick<DatabaseClient<Record<string, ModelEntry>>, '_internals'>): void {
   const dbModels = db._internals.models;
   const missing = AUTH_TABLE_NAMES.filter((m) => !(m in dbModels));
   if (missing.length > 0) {

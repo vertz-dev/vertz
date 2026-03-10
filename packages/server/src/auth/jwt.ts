@@ -5,6 +5,31 @@
 import * as jose from 'jose';
 import type { AuthUser, SessionPayload } from './types';
 
+function readSessionPayload(payload: jose.JWTPayload): SessionPayload | null {
+  if (
+    typeof payload.sub !== 'string' ||
+    typeof payload.email !== 'string' ||
+    typeof payload.role !== 'string' ||
+    typeof payload.jti !== 'string' ||
+    typeof payload.sid !== 'string' ||
+    typeof payload.iat !== 'number' ||
+    typeof payload.exp !== 'number'
+  ) {
+    return null;
+  }
+
+  return {
+    ...payload,
+    sub: payload.sub,
+    email: payload.email,
+    role: payload.role,
+    jti: payload.jti,
+    sid: payload.sid,
+    iat: payload.iat,
+    exp: payload.exp,
+  };
+}
+
 export function parseDuration(duration: string | number): number {
   if (typeof duration === 'number') return duration;
 
@@ -52,17 +77,15 @@ export async function verifyJWT(
     const { payload } = await jose.jwtVerify(token, new TextEncoder().encode(secret), {
       algorithms: [algorithm],
     });
-    // Runtime validation: ensure required Phase 2 claims are present
-    if (
-      typeof payload.sub !== 'string' ||
-      typeof payload.email !== 'string' ||
-      typeof payload.role !== 'string' ||
-      typeof payload.jti !== 'string' ||
-      typeof payload.sid !== 'string'
-    ) {
-      return null;
-    }
-    return payload as unknown as SessionPayload;
+    return readSessionPayload(payload);
+  } catch {
+    return null;
+  }
+}
+
+export function decodeJWT(token: string): SessionPayload | null {
+  try {
+    return readSessionPayload(jose.decodeJwt(token));
   } catch {
     return null;
   }

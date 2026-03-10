@@ -13,7 +13,7 @@
  * SQLite serializes single-writer operations so this is safe for now.
  */
 
-import type { DatabaseClient, ReadError } from '@vertz/db';
+import type { DatabaseClient, ModelEntry, ReadError } from '@vertz/db';
 import type { Result } from '@vertz/errors';
 import type { authModels } from './auth-models';
 
@@ -30,6 +30,14 @@ export type AuthDbClient = Pick<
   DatabaseClient<AuthModels>,
   'auth_sessions' | 'query' | '_internals'
 >;
+
+export type AuthReadyDatabaseClient = DatabaseClient<Record<string, ModelEntry>> & AuthDbClient;
+
+export function isAuthDbClient(
+  db: DatabaseClient<Record<string, ModelEntry>>,
+): db is AuthReadyDatabaseClient {
+  return 'auth_sessions' in db && 'query' in db && '_internals' in db;
+}
 
 /**
  * Convert a boolean to a dialect-appropriate value.

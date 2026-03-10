@@ -83,6 +83,43 @@ describe('Token Refresh', () => {
     expect(refresh2.data.tokens?.refreshToken).toBe(refresh1.data.tokens?.refreshToken);
   });
 
+  it('reusing a rotated refresh token after the grace period revokes the session', async () => {
+    const signUpResult = await auth.api.signUp({
+      email: 'reuse-detected@test.com',
+      password: 'password123',
+    });
+    expect(signUpResult.ok).toBe(true);
+    if (!signUpResult.ok) return;
+
+    const refresh1 = await auth.api.refreshSession({
+      headers: new Headers({
+        cookie: `vertz.ref=${signUpResult.data.tokens?.refreshToken}`,
+      }),
+    });
+    expect(refresh1.ok).toBe(true);
+    if (!refresh1.ok) return;
+
+    const originalNow = Date.now;
+    Date.now = () => originalNow() + 11_000;
+    try {
+      const reusedOldToken = await auth.api.refreshSession({
+        headers: new Headers({
+          cookie: `vertz.ref=${signUpResult.data.tokens?.refreshToken}`,
+        }),
+      });
+      expect(reusedOldToken.ok).toBe(false);
+
+      const rotatedTokenAfterReuse = await auth.api.refreshSession({
+        headers: new Headers({
+          cookie: `vertz.ref=${refresh1.data.tokens?.refreshToken}`,
+        }),
+      });
+      expect(rotatedTokenAfterReuse.ok).toBe(false);
+    } finally {
+      Date.now = originalNow;
+    }
+  });
+
   it('revoked session returns 401 and clears both cookies', async () => {
     const signUpResult = await auth.api.signUp({
       email: 'revoked@test.com',

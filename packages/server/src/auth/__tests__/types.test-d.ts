@@ -3,12 +3,14 @@ import { InMemoryRateLimitStore } from '../rate-limit-store';
 import { InMemorySessionStore } from '../session-store';
 import type {
   AuthConfig,
+  ForgotPasswordInput,
   OAuthAccountStore,
   OAuthProvider,
   OAuthProviderConfig,
   OAuthTokens,
   OAuthUserInfo,
   RateLimitStore,
+  ResetPasswordInput,
   SignUpInput,
   SessionPayload,
   SessionStore,
@@ -149,6 +151,31 @@ describe('Type-level tests', () => {
       email: 'user@example.com',
       password: 'Password123!',
       role: 'admin',
+    };
+  });
+
+  it('ForgotPasswordInput requires an email field', () => {
+    const _input: ForgotPasswordInput = {
+      email: 'user@example.com',
+    };
+  });
+
+  it('ForgotPasswordInput rejects missing email', () => {
+    // @ts-expect-error — forgot-password requires email
+    const _input: ForgotPasswordInput = {};
+  });
+
+  it('ResetPasswordInput requires password even when token is optional', () => {
+    // @ts-expect-error — reset-password requires password
+    const _input: ResetPasswordInput = {
+      token: 'reset-token',
+    };
+  });
+
+  it('ResetPasswordInput accepts password with an optional token', () => {
+    const _input: ResetPasswordInput = {
+      token: 'reset-token',
+      password: 'Password123!',
     };
   });
 
