@@ -111,16 +111,17 @@ When all phases are complete:
 
 1. Rebase the feature branch on latest `main` to ensure no conflicts
 2. Run full quality gates one final time after rebase (tests, typecheck, lint)
-3. Push the feature branch to GitHub
-4. Open a single PR: `feat/<feature-name>` → `main`
-5. PR description includes:
+3. **Update docs** — if the feature touches public API, update `packages/docs/` (Mintlify): new APIs, changed behavior, gotchas
+4. Push the feature branch to GitHub
+5. Open a single PR: `feat/<feature-name>` → `main`
+6. PR description includes:
    - Public API Changes summary (mandatory per `pr-policies.md`)
    - Summary of all phases with links to local review files
    - E2E acceptance test status
-6. **Monitor GitHub CI** — use `gh pr checks` or `gh run list` to track CI status
-7. If CI fails: diagnose and fix locally, push again, monitor until green
-8. If `main` advances while the PR is open: rebase, re-run quality gates, force-push, monitor CI again
-9. **Only notify the human when CI is fully green and the PR is clean** — the human reviews and merges
+7. **Monitor GitHub CI** — use `gh pr checks` or `gh run list` to track CI status
+8. If CI fails: diagnose and fix locally, push again, monitor until green
+9. If `main` advances while the PR is open: rebase, re-run quality gates, force-push, monitor CI again
+10. **Only notify the human when CI is fully green and the PR is clean** — the human reviews and merges
 
 ```bash
 git fetch origin main && git rebase origin/main
