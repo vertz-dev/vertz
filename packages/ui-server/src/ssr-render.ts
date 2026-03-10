@@ -33,7 +33,8 @@ export function createRequestContext(url: string): SSRRenderContext {
     contextScope: null,
     entityStore: new EntityStore(),
     envelopeStore: new QueryEnvelopeStore(),
-    queryCache: new MemoryCache<unknown>(),
+    // Per-request cache — no eviction needed; context is discarded after render.
+    queryCache: new MemoryCache<unknown>({ maxSize: Infinity }),
     inflight: new Map(),
     queries: [],
     errors: [],

@@ -25,7 +25,7 @@ export function createTestSSRContext(url = '/'): SSRRenderContext {
     contextScope: null,
     entityStore: {} as SSRRenderContext['entityStore'],
     envelopeStore: {} as SSRRenderContext['envelopeStore'],
-    queryCache: new MemoryCache<unknown>(),
+    queryCache: new MemoryCache<unknown>({ maxSize: Infinity }),
     inflight: new Map(),
     queries: [],
     errors: [],
