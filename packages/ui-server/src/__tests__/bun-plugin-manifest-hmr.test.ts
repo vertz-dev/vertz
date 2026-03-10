@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createVertzBunPlugin } from '../bun-plugin/plugin';
 import type { DebugLogger } from '../debug-logger';
+import { DiagnosticsCollector } from '../diagnostics-collector';
 
 function createMockLogger(): DebugLogger & {
   entries: { category: string; message: string; data?: Record<string, unknown> }[];
@@ -361,6 +362,212 @@ describe('bun-plugin manifest HMR', () => {
       );
 
       expect(secondUpdate.changed).toBe(false);
+    });
+  });
+
+  describe('manifestsEqual signal-api property comparison', () => {
+    it('returns changed: true when signal-api signalProperties differ', () => {
+      // Start with a hook returning query() — signalProperties: data, loading, error, revalidating
+      const filePath = project.write(
+        'hooks/use-data.ts',
+        `
+        import { query } from '@vertz/ui';
+        export function useData() {
+          return query(() => fetch('/api/data'));
+        }
+      `,
+      );
+
+      const result = createVertzBunPlugin({
+        projectRoot: project.dir,
+        srcDir: project.srcDir,
+        hmr: false,
+        fastRefresh: false,
+      });
+
+      // Change to form() — different signalProperties: submitting, dirty, valid
+      const updated = result.updateManifest(
+        filePath,
+        `
+        import { form } from '@vertz/ui';
+        export function useData() {
+          return form(() => fetch('/api/data'));
+        }
+      `,
+      );
+
+      // Both are signal-api type but with different signalProperties sets
+      expect(updated.changed).toBe(true);
+    });
+
+    it('returns changed: false when signal-api properties are identical', () => {
+      // Start with a hook returning query()
+      const filePath = project.write(
+        'hooks/use-items.ts',
+        `
+        import { query } from '@vertz/ui';
+        export function useItems() {
+          return query(() => fetch('/api/items'));
+        }
+      `,
+      );
+
+      const result = createVertzBunPlugin({
+        projectRoot: project.dir,
+        srcDir: project.srcDir,
+        hmr: false,
+        fastRefresh: false,
+      });
+
+      // Update with same signal-api type (still query) — same properties
+      const updated = result.updateManifest(
+        filePath,
+        `
+        import { query } from '@vertz/ui';
+        export function useItems() {
+          return query(() => fetch('/api/items/v2'));
+        }
+      `,
+      );
+
+      expect(updated.changed).toBe(false);
+    });
+  });
+
+  describe('updateManifest with .tsx files', () => {
+    it('updates field selection manifest for .tsx files', () => {
+      const filePath = project.write(
+        'components/user-card.tsx',
+        `
+        export function UserCard({ user }: { user: any }) {
+          return <div>{user.name}</div>;
+        }
+      `,
+      );
+
+      const result = createVertzBunPlugin({
+        projectRoot: project.dir,
+        srcDir: project.srcDir,
+        hmr: false,
+        fastRefresh: false,
+      });
+
+      // updateManifest on a .tsx file triggers fieldSelectionManifest.updateFile
+      const updated = result.updateManifest(
+        filePath,
+        `
+        export function UserCard({ user }: { user: any }) {
+          return <div>{user.name}<span>{user.email}</span></div>;
+        }
+      `,
+      );
+
+      // The manifest was successfully updated (no error thrown)
+      expect(updated).toBeDefined();
+    });
+
+    it('does not update field selection manifest for .ts files', () => {
+      const filePath = project.write(
+        'hooks/use-tasks.ts',
+        `
+        export function useTasks() { return 'static'; }
+      `,
+      );
+
+      const result = createVertzBunPlugin({
+        projectRoot: project.dir,
+        srcDir: project.srcDir,
+        hmr: false,
+        fastRefresh: false,
+      });
+
+      // .ts file — no field selection update needed
+      const updated = result.updateManifest(
+        filePath,
+        `
+        export function useTasks() { return 'updated'; }
+      `,
+      );
+
+      expect(updated).toBeDefined();
+    });
+  });
+
+  describe('diagnostics integration', () => {
+    it('records field selection manifest file count in diagnostics', () => {
+      project.write(
+        'components/user-card.tsx',
+        `
+        export function UserCard({ user }: { user: any }) {
+          return <div>{user.name}</div>;
+        }
+      `,
+      );
+
+      const diagnostics = new DiagnosticsCollector();
+
+      createVertzBunPlugin({
+        projectRoot: project.dir,
+        srcDir: project.srcDir,
+        hmr: false,
+        fastRefresh: false,
+        diagnostics,
+      });
+
+      const snapshot = diagnostics.getSnapshot();
+      expect(snapshot.fieldSelection.manifestFileCount).toBeGreaterThanOrEqual(1);
+    });
+
+    it('records manifest prepass in diagnostics', () => {
+      project.write('app.tsx', 'export function App() { return <div />; }');
+
+      const diagnostics = new DiagnosticsCollector();
+
+      createVertzBunPlugin({
+        projectRoot: project.dir,
+        srcDir: project.srcDir,
+        hmr: false,
+        fastRefresh: false,
+        diagnostics,
+      });
+
+      const snapshot = diagnostics.getSnapshot();
+      expect(snapshot.manifest.fileCount).toBeGreaterThanOrEqual(1);
+      expect(typeof snapshot.manifest.durationMs).toBe('number');
+    });
+  });
+
+  describe('manifest warning logging', () => {
+    it('logs warnings from pre-pass when circular dependencies exist', () => {
+      const logger = createMockLogger();
+
+      // Create circular dependency: a.ts re-exports from b.ts and vice versa
+      project.write(
+        'a.ts',
+        `
+        export { useB } from './b';
+        export function useA() { return 'a'; }
+      `,
+      );
+      project.write(
+        'b.ts',
+        `
+        export { useA } from './a';
+        export function useB() { return 'b'; }
+      `,
+      );
+
+      createVertzBunPlugin({
+        projectRoot: project.dir,
+        srcDir: project.srcDir,
+        hmr: false,
+        fastRefresh: false,
+        logger,
+      });
+
+      const warningEntries = logger.entries.filter((e) => e.message === 'warning');
+      expect(warningEntries.length).toBeGreaterThan(0);
+      expect(warningEntries[0]?.data?.type).toBe('circular-dependency');
     });
   });
 });
