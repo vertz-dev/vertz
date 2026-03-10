@@ -217,6 +217,8 @@ export interface EntityIR extends SourceLocation {
   hooks: EntityHooksIR;
   actions: EntityActionIR[];
   relations: EntityRelationIR[];
+  tenantScoped?: boolean;
+  table?: string;
 }
 
 export interface EntityModelRef {
@@ -224,6 +226,8 @@ export interface EntityModelRef {
   importSource?: string;
   tableName?: string;
   schemaRefs: EntityModelSchemaRefs;
+  primaryKey?: string;
+  hiddenFields?: string[];
 }
 
 export interface EntityModelSchemaRefs {
