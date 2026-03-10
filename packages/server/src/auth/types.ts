@@ -5,7 +5,13 @@
 
 import type { ModelEntry } from '@vertz/db';
 import type { AuthError, Result } from '@vertz/errors';
-import { s, type Infer } from '@vertz/schema';
+import {
+  s,
+  type Infer,
+  type ObjectSchema,
+  type OptionalSchema,
+  type StringSchema,
+} from '@vertz/schema';
 
 // ============================================================================
 // Session Types
@@ -400,38 +406,55 @@ type ReservedSignUpFields = {
   [K in ReservedSignUpField]?: never;
 };
 
-const authEmailFieldSchema = s.string().min(1).trim();
-const authPasswordFieldSchema = s.string().min(1);
+const authEmailFieldSchema: StringSchema = s.string().min(1).trim();
+const authPasswordFieldSchema: StringSchema = s.string().min(1);
 
-export const signUpInputSchema = s
+export const signUpInputSchema: ObjectSchema<{
+  email: StringSchema;
+  password: StringSchema;
+}> = s
   .object({
     email: authEmailFieldSchema,
     password: authPasswordFieldSchema,
   })
   .passthrough();
 
-export const signInInputSchema = s.object({
+export const signInInputSchema: ObjectSchema<{
+  email: StringSchema;
+  password: StringSchema;
+}> = s.object({
   email: authEmailFieldSchema,
   password: authPasswordFieldSchema,
 });
 
-export const codeInputSchema = s.object({
+export const codeInputSchema: ObjectSchema<{
+  code: StringSchema;
+}> = s.object({
   code: s.string().min(1),
 });
 
-export const passwordInputSchema = s.object({
+export const passwordInputSchema: ObjectSchema<{
+  password: StringSchema;
+}> = s.object({
   password: s.string().min(1),
 });
 
-export const tokenInputSchema = s.object({
+export const tokenInputSchema: ObjectSchema<{
+  token: OptionalSchema<string, string>;
+}> = s.object({
   token: s.string().min(1).optional(),
 });
 
-export const forgotPasswordInputSchema = s.object({
+export const forgotPasswordInputSchema: ObjectSchema<{
+  email: StringSchema;
+}> = s.object({
   email: s.string().min(1).trim(),
 });
 
-export const resetPasswordInputSchema = s.object({
+export const resetPasswordInputSchema: ObjectSchema<{
+  token: OptionalSchema<string, string>;
+  password: StringSchema;
+}> = s.object({
   token: s.string().min(1).optional(),
   password: s.string().min(1),
 });
