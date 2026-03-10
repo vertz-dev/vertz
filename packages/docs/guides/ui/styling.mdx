@@ -268,23 +268,36 @@ globalCss({
 
 Global styles are injected once and aren't scoped -- use sparingly.
 
-## Custom fonts
+## Fonts
 
-There is no `css()` token for `font-family`. The recommended pattern is to define CSS custom properties in `globalCss()` and reference them with inline `style`:
+Declare font families with `font()` and compile them into `@font-face` CSS, custom properties (`--font-<key>`), and preload tags with `compileFonts()`. Only woff2 format is supported.
 
 ```tsx
-import { globalCss } from 'vertz/ui';
+import { font, compileFonts } from '@vertz/ui/css';
 
-// 1. Define font custom properties in globalCss()
-globalCss({
-  ':root': {
-    '--font-sans': "'Inter', system-ui, sans-serif",
-    '--font-mono': "'JetBrains Mono', monospace",
-    '--font-heading': "'Cal Sans', 'Inter', sans-serif",
-  },
+const sans = font('DM Sans', {
+  weight: '100..1000',
+  src: '/fonts/dm-sans.woff2',
+  fallback: ['system-ui', 'sans-serif'],
 });
 
-// 2. Reference in components via inline style
+const mono = font('JetBrains Mono', {
+  weight: '100..800',
+  src: '/fonts/jb-mono.woff2',
+  fallback: ['monospace'],
+});
+
+const compiled = compileFonts({ sans, mono });
+
+// compiled.fontFaceCss  — @font-face declarations
+// compiled.cssVarsCss   — :root { --font-sans: ...; --font-mono: ...; }
+// compiled.cssVarLines  — individual lines for merging into an existing :root
+// compiled.preloadTags  — <link rel="preload" ...> HTML tags
+```
+
+Reference the generated CSS vars in components:
+
+```tsx
 function CodeBlock({ code }: { code: string }) {
   return (
     <pre style="font-family: var(--font-mono)">
@@ -292,26 +305,30 @@ function CodeBlock({ code }: { code: string }) {
     </pre>
   );
 }
-
-function PageTitle({ children }: { children: string }) {
-  return (
-    <h1 class={styles.title} style="font-family: var(--font-heading)">
-      {children}
-    </h1>
-  );
-}
 ```
 
-You can also set the base font on `body` in `globalCss()`:
+### Multiple font files
+
+Pass an array of `src` entries for variants like normal + italic:
 
 ```tsx
-globalCss({
-  ':root': {
-    '--font-sans': "'Inter', system-ui, sans-serif",
-    '--font-mono': "'JetBrains Mono', monospace",
-  },
-  body: {
-    fontFamily: "var(--font-sans)",
-  },
+const sans = font('DM Sans', {
+  weight: '100..1000',
+  src: [
+    { path: '/fonts/dm-sans.woff2', weight: '100..1000', style: 'normal' },
+    { path: '/fonts/dm-sans-italic.woff2', weight: '100..1000', style: 'italic' },
+  ],
+  fallback: ['system-ui', 'sans-serif'],
 });
+```
+
+Each entry generates a separate `@font-face` block. Only the first file is preloaded.
+
+### System fonts (no `src`)
+
+Omit `src` to generate a CSS custom property without an `@font-face` block:
+
+```tsx
+const system = font('system-ui', { weight: '400' });
+// compileFonts({ system }) → --font-system: 'system-ui'; (no @font-face)
 ```
