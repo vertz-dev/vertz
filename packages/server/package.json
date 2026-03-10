@@ -34,6 +34,7 @@
     "@vertz/core": "workspace:^",
     "@vertz/db": "workspace:^",
     "@vertz/errors": "workspace:^",
+    "@vertz/schema": "workspace:^",
     "bcryptjs": "^3.0.3",
     "jose": "^6.0.11"
   },

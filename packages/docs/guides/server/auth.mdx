@@ -108,7 +108,6 @@ The `auth.api` object lets you call auth operations from server code — useful 
 const result = await auth.api.signUp({
   email: 'alice@example.com',
   password: 'hunter2',
-  role: 'editor',
 });
 
 if (result.ok) {
@@ -448,6 +447,10 @@ const session = await app.auth.api.signUp({
   password: 'hunter2',
 });
 ```
+
+Reserved auth fields such as `role`, `plan`, `emailVerified`, `id`, and timestamps are not
+assignable through `signUp()`. Set privilege-bearing fields through your own trusted admin or
+database flows instead.
 
 The `authModels` export provides table definitions for all auth stores: sessions, users, OAuth accounts, role assignments, closure table entries, plan assignments, flags, and more. These are registered in your `createDb()` call alongside your application models.
 

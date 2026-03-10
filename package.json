@@ -36,5 +36,10 @@
     "ts-morph": "^27.0.2",
     "turbo": "^2.8.11",
     "vitest": "^4.0.18"
+  },
+  "overrides": {
+    "@vitest/mocker": "^4.0.18",
+    "rollup": "^4.59.0",
+    "vite": "^7.3.1"
   }
 }

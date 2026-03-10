@@ -1,8 +1,9 @@
 /**
  * Shared types for DB-backed auth stores.
  *
- * Uses a minimal subset of DatabaseClient to avoid model delegate type variance issues.
- * Auth stores only need `query()` for raw SQL and `_internals.dialect` for DDL.
+ * Uses a focused subset of DatabaseClient instead of the full generic client.
+ * Most auth stores still rely on `query()` today, while session lookups can use
+ * the typed `auth_sessions` delegate when available.
  *
  * NOTE: DML queries use standard SQL syntax compatible with both SQLite (3.24+)
  * and PostgreSQL (e.g., INSERT ... ON CONFLICT DO NOTHING).
@@ -12,23 +13,23 @@
  * SQLite serializes single-writer operations so this is safe for now.
  */
 
-import type { QueryResult, ReadError } from '@vertz/db';
-import type { SqlFragment } from '@vertz/db/sql';
+import type { DatabaseClient, ReadError } from '@vertz/db';
 import type { Result } from '@vertz/errors';
+import type { authModels } from './auth-models';
+
+type AuthModels = typeof authModels;
 
 /**
  * Minimal database interface for auth stores.
- * Only requires raw query capability and dialect info.
+ *
+ * Keeps raw query support for legacy stores, but exposes the typed
+ * `auth_sessions` delegate so session lookups can go through the generated
+ * client instead of ad hoc SQL strings.
  */
-export interface AuthDbClient {
-  query<T = Record<string, unknown>>(
-    fragment: SqlFragment,
-  ): Promise<Result<QueryResult<T>, ReadError>>;
-  _internals: {
-    readonly models: Record<string, unknown>;
-    readonly dialect: { readonly name: 'postgres' | 'sqlite' };
-  };
-}
+export type AuthDbClient = Pick<
+  DatabaseClient<AuthModels>,
+  'auth_sessions' | 'query' | '_internals'
+>;
 
 /**
  * Convert a boolean to a dialect-appropriate value.
@@ -42,7 +43,7 @@ export function boolVal(db: AuthDbClient, value: boolean): boolean | number {
  * Assert a write query succeeded. Throws if the result is an error.
  */
 export function assertWrite(
-  result: Result<QueryResult<unknown>, ReadError>,
+  result: Result<unknown, ReadError>,
   context: string,
 ): void {
   if (!result.ok) {

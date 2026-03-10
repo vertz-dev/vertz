@@ -23,6 +23,8 @@ import {
   ok,
   type Result,
 } from '@vertz/errors';
+import { BadRequestException } from '@vertz/core';
+import { parseBody } from '@vertz/core/internals';
 import { computeAccessSet, type EncodedAccessSet, encodeAccessSet } from './access-set';
 import {
   buildMfaChallengeCookie,
@@ -56,18 +58,32 @@ import {
   verifyBackupCode,
   verifyTotpCode,
 } from './totp';
+import {
+  codeInputSchema,
+  forgotPasswordInputSchema,
+  passwordInputSchema,
+  resetPasswordInputSchema,
+  signInInputSchema,
+  signUpInputSchema,
+  tokenInputSchema,
+} from './types';
 import type {
   AuthApi,
   AuthConfig,
   AuthInstance,
   AuthUser,
+  CodeInput,
+  ForgotPasswordInput,
   OAuthProvider,
   OAuthStateData,
+  PasswordInput,
+  ResetPasswordInput,
   Session,
   SessionInfo,
   SessionPayload,
   SignInInput,
   SignUpInput,
+  TokenInput,
 } from './types';
 import { InMemoryUserStore } from './user-store';
 
@@ -274,11 +290,20 @@ export function createAuth(config: AuthConfig): AuthInstance {
   // Helper: Generate random hex token (32 bytes = 64 hex chars)
   // ==========================================================================
 
+  const FORGOT_PASSWORD_MIN_RESPONSE_MS = 15;
+
   function generateToken(): string {
     const bytes = crypto.getRandomValues(new Uint8Array(32));
     return Array.from(bytes)
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('');
+  }
+
+  async function waitForMinimumDuration(startedAt: number, minDurationMs: number): Promise<void> {
+    const remaining = minDurationMs - (Date.now() - startedAt);
+    if (remaining > 0) {
+      await new Promise((resolve) => setTimeout(resolve, remaining));
+    }
   }
 
   // ==========================================================================
@@ -289,7 +314,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
     data: SignUpInput,
     ctx?: { headers: Headers },
   ): Promise<Result<Session, AuthError>> {
-    const { email, password, role = 'user', ...additionalFields } = data;
+    const { email, password, ...additionalFields } = data;
 
     if (!email || !email.includes('@')) {
       return err(createAuthValidationError('Invalid email format', 'email', 'INVALID_FORMAT'));
@@ -323,13 +348,16 @@ export function createAuth(config: AuthConfig): AuthInstance {
       id: _id,
       createdAt: _c,
       updatedAt: _u,
+      role: _role,
+      plan: _plan,
+      emailVerified: _emailVerified,
       ...safeFields
     } = additionalFields as Record<string, unknown>;
     const user: AuthUser = {
       ...safeFields,
       id: crypto.randomUUID(),
       email: email.toLowerCase(),
-      role,
+      role: 'user',
       emailVerified: !emailVerificationEnabled,
       createdAt: now,
       updatedAt: now,
@@ -483,6 +511,11 @@ export function createAuth(config: AuthConfig): AuthInstance {
     // Phase 2: JWT-only verification — no session Map lookup
     const payload = await verifyJWT(token, jwtSecret, jwtAlgorithm);
     if (!payload) {
+      return ok(null);
+    }
+
+    const storedSession = await sessionStore.findActiveSessionById(payload.sid);
+    if (!storedSession || storedSession.userId !== payload.sub) {
       return ok(null);
     }
 
@@ -715,6 +748,42 @@ export function createAuth(config: AuthConfig): AuthInstance {
     };
   }
 
+  function authValidationResponse(message: string): Response {
+    return new Response(
+      JSON.stringify({
+        error: {
+          code: 'AUTH_VALIDATION_ERROR',
+          message,
+        },
+      }),
+      {
+        status: 400,
+        headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+      },
+    );
+  }
+
+  async function parseJsonAuthBody<T extends object>(
+    request: Request,
+    schema: { safeParse(value: unknown): Result<T, Error> },
+  ): Promise<{ ok: true; data: T } | { ok: false; response: Response }> {
+    try {
+      const body = await parseBody(request);
+      const result = schema.safeParse(body);
+      if (!result.ok) {
+        return { ok: false, response: authValidationResponse(result.error.message) };
+      }
+
+      return { ok: true, data: result.data };
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        return { ok: false, response: authValidationResponse(error.message) };
+      }
+
+      throw error;
+    }
+  }
+
   async function handleAuthRequest(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname.replace('/api/auth', '') || '/';
@@ -771,7 +840,12 @@ export function createAuth(config: AuthConfig): AuthInstance {
     try {
       // Route: POST /api/auth/signup
       if (method === 'POST' && path === '/signup') {
-        const body = (await request.json()) as SignUpInput;
+        const bodyResult = await parseJsonAuthBody<SignUpInput>(request, signUpInputSchema);
+        if (!bodyResult.ok) {
+          return bodyResult.response;
+        }
+
+        const body = bodyResult.data;
         const result = await signUp(body, { headers: request.headers });
 
         if (!result.ok) {
@@ -812,7 +886,12 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
       // Route: POST /api/auth/signin
       if (method === 'POST' && path === '/signin') {
-        const body = (await request.json()) as SignInInput;
+        const bodyResult = await parseJsonAuthBody<SignInInput>(request, signInInputSchema);
+        if (!bodyResult.ok) {
+          return bodyResult.response;
+        }
+
+        const body = bodyResult.data;
         const result = await signIn(body, { headers: request.headers });
 
         if (!result.ok) {
@@ -954,9 +1033,10 @@ export function createAuth(config: AuthConfig): AuthInstance {
             status: 304,
             headers: {
               ETag: quotedEtag,
+              Vary: 'Cookie',
               ...securityHeaders(),
-              // Override no-store: allow conditional requests with ETag
-              'Cache-Control': 'no-cache',
+              // Keep browser revalidation while forbidding shared-cache reuse.
+              'Cache-Control': 'private, no-cache',
             },
           });
         }
@@ -966,9 +1046,10 @@ export function createAuth(config: AuthConfig): AuthInstance {
           headers: {
             'Content-Type': 'application/json',
             ETag: quotedEtag,
+            Vary: 'Cookie',
             ...securityHeaders(),
-            // Override no-store: allow conditional requests with ETag
-            'Cache-Control': 'no-cache',
+            // Keep browser revalidation while forbidding shared-cache reuse.
+            'Cache-Control': 'private, no-cache',
           },
         });
       }
@@ -1419,7 +1500,12 @@ export function createAuth(config: AuthConfig): AuthInstance {
           );
         }
 
-        const body = (await request.json()) as { code: string };
+        const bodyResult = await parseJsonAuthBody<CodeInput>(request, codeInputSchema);
+        if (!bodyResult.ok) {
+          return bodyResult.response;
+        }
+
+        const body = bodyResult.data;
         const userId = challengeData.userId;
 
         // Get encrypted TOTP secret
@@ -1583,7 +1669,12 @@ export function createAuth(config: AuthConfig): AuthInstance {
           );
         }
 
-        const body = (await request.json()) as { code: string };
+        const bodyResult = await parseJsonAuthBody<CodeInput>(request, codeInputSchema);
+        if (!bodyResult.ok) {
+          return bodyResult.response;
+        }
+
+        const body = bodyResult.data;
         const valid = await verifyTotpCode(pendingEntry.secret, body.code);
         if (!valid) {
           return new Response(JSON.stringify({ error: createMfaInvalidCodeError() }), {
@@ -1629,7 +1720,12 @@ export function createAuth(config: AuthConfig): AuthInstance {
         }
 
         const userId = sessionResult.data.user.id;
-        const body = (await request.json()) as { password: string };
+        const bodyResult = await parseJsonAuthBody<PasswordInput>(request, passwordInputSchema);
+        if (!bodyResult.ok) {
+          return bodyResult.response;
+        }
+
+        const body = bodyResult.data;
 
         // Verify password
         const stored = await userStore.findByEmail(sessionResult.data.user.email);
@@ -1676,7 +1772,12 @@ export function createAuth(config: AuthConfig): AuthInstance {
           );
         }
 
-        const body = (await request.json()) as { password: string };
+        const bodyResult = await parseJsonAuthBody<PasswordInput>(request, passwordInputSchema);
+        if (!bodyResult.ok) {
+          return bodyResult.response;
+        }
+
+        const body = bodyResult.data;
 
         // Verify password
         const stored = await userStore.findByEmail(sessionResult.data.user.email);
@@ -1797,7 +1898,12 @@ export function createAuth(config: AuthConfig): AuthInstance {
           });
         }
 
-        const body = (await request.json()) as { code: string };
+        const bodyResult = await parseJsonAuthBody<CodeInput>(request, codeInputSchema);
+        if (!bodyResult.ok) {
+          return bodyResult.response;
+        }
+
+        const body = bodyResult.data;
         const valid = await verifyTotpCode(totpSecret, body.code);
         if (!valid) {
           return new Response(JSON.stringify({ error: createMfaInvalidCodeError() }), {
@@ -1864,7 +1970,12 @@ export function createAuth(config: AuthConfig): AuthInstance {
           );
         }
 
-        const body = (await request.json()) as { token: string };
+        const bodyResult = await parseJsonAuthBody<TokenInput>(request, tokenInputSchema);
+        if (!bodyResult.ok) {
+          return bodyResult.response;
+        }
+
+        const body = bodyResult.data;
         if (!body.token) {
           return new Response(
             JSON.stringify({ error: createTokenInvalidError('Token is required') }),
@@ -1994,7 +2105,16 @@ export function createAuth(config: AuthConfig): AuthInstance {
           );
         }
 
-        const body = (await request.json()) as { email: string };
+        const bodyResult = await parseJsonAuthBody<ForgotPasswordInput>(
+          request,
+          forgotPasswordInputSchema,
+        );
+        if (!bodyResult.ok) {
+          return bodyResult.response;
+        }
+
+        const body = bodyResult.data;
+        const startedAt = Date.now();
 
         // Rate limit: 3 per hour per email
         const forgotRateLimit = await rateLimitStore.check(
@@ -2003,6 +2123,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
           parseDuration('1h'),
         );
         if (!forgotRateLimit.allowed) {
+          await waitForMinimumDuration(startedAt, FORGOT_PASSWORD_MIN_RESPONSE_MS);
           // Still return 200 to prevent email enumeration
           return new Response(JSON.stringify({ ok: true }), {
             status: 200,
@@ -2011,17 +2132,21 @@ export function createAuth(config: AuthConfig): AuthInstance {
         }
 
         // Always return 200 regardless of whether user exists
+        const token = generateToken();
+        const tokenHash = await sha256Hex(token);
         const stored = await userStore.findByEmail((body.email ?? '').toLowerCase());
         if (stored) {
-          const token = generateToken();
-          const tokenHash = await sha256Hex(token);
           await passwordResetStore.createReset({
             userId: stored.user.id,
             tokenHash,
             expiresAt: new Date(Date.now() + passwordResetTtlMs),
           });
-          await passwordResetConfig.onSend(stored.user, token);
+          void passwordResetConfig
+            .onSend(stored.user, token)
+            .catch((error) => console.error('[Auth] Failed to send password reset email', error));
         }
+
+        await waitForMinimumDuration(startedAt, FORGOT_PASSWORD_MIN_RESPONSE_MS);
 
         return new Response(JSON.stringify({ ok: true }), {
           status: 200,
@@ -2043,7 +2168,15 @@ export function createAuth(config: AuthConfig): AuthInstance {
           );
         }
 
-        const body = (await request.json()) as { token: string; password: string };
+        const bodyResult = await parseJsonAuthBody<ResetPasswordInput>(
+          request,
+          resetPasswordInputSchema,
+        );
+        if (!bodyResult.ok) {
+          return bodyResult.response;
+        }
+
+        const body = bodyResult.data;
         if (!body.token) {
           return new Response(
             JSON.stringify({ error: createTokenInvalidError('Token is required') }),

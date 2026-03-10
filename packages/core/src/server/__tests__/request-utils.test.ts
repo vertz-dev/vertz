@@ -175,4 +175,25 @@ describe('parseBody', () => {
 
     await expect(parseBody(request)).rejects.toThrow(BadRequestException);
   });
+
+  it('throws BadRequestException when a streamed body exceeds maxBodySize without Content-Length', async () => {
+    const encoder = new TextEncoder();
+    const createRequest = () =>
+      new Request('http://localhost:3000/api', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: new ReadableStream({
+          start(controller) {
+            controller.enqueue(encoder.encode('{"data":"'));
+            controller.enqueue(encoder.encode('x'.repeat(128)));
+            controller.enqueue(encoder.encode('"}'));
+            controller.close();
+          },
+        }),
+        duplex: 'half',
+      });
+
+    await expect(parseBody(createRequest(), 64)).rejects.toThrow(BadRequestException);
+    await expect(parseBody(createRequest(), 64)).rejects.toThrow('Request body too large');
+  });
 });
