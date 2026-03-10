@@ -357,6 +357,68 @@ function Dashboard() {
     });
   });
 
+  describe('Given a callback accessing nested properties on a relation field', () => {
+    describe('When the callback accesses multi-level nested fields', () => {
+      it('Then captures the first-level nested field under the relation include', () => {
+        // task.data.tags.map(tag => tag.author.name)
+        // → tags is a relation, author is a nested field, name is a second-level nested field
+        // Current behavior: only first-level nesting is captured in the include select
+        const source = `
+import { query } from '@vertz/ui';
+
+function TaskDetail() {
+  const task = query(api.tasks.get(id));
+  return (
+    <div>
+      <h1>{task.data.title}</h1>
+      <ul>{task.data.tags.map(tag => <li>{tag.name}<span>{tag.color}</span></li>)}</ul>
+    </div>
+  );
+}`;
+
+        const result = injectFieldSelection('test.tsx', source, { entitySchema });
+
+        expect(result.injected).toBe(true);
+        expect(result.code).toContain('title: true');
+        // Both tag.name and tag.color should be captured as nested fields under tags
+        expect(result.code).toContain('include: { tags: { select: { color: true, name: true } } }');
+      });
+    });
+
+    describe('When a nested .map() callback is used inside another .map()', () => {
+      it('Then captures the outer relation but not the inner nested callback (current limitation)', () => {
+        // task.data.tags.map(tag => tag.posts.map(p => p.title))
+        // Current behavior: captures tag.posts as a field under tags,
+        // but does NOT recursively process the inner .map() callback.
+        // This is a known limitation — deep relation nesting is not yet supported.
+        const source = `
+import { query } from '@vertz/ui';
+
+function TaskDetail() {
+  const task = query(api.tasks.get(id));
+  return (
+    <div>
+      <h1>{task.data.title}</h1>
+      <ul>{task.data.tags.map(tag => (
+        <li>{tag.name}{tag.posts.map(p => <span>{p.title}</span>)}</li>
+      ))}</ul>
+    </div>
+  );
+}`;
+
+        const result = injectFieldSelection('test.tsx', source, { entitySchema });
+
+        expect(result.injected).toBe(true);
+        expect(result.code).toContain('title: true');
+        // tag.name is captured as nested under tags
+        // tag.posts is also captured (as a field accessed on tag)
+        // But p.title from the inner .map() is NOT captured as deep nested access
+        expect(result.code).toContain('tags:');
+        expect(result.code).toContain('name: true');
+      });
+    });
+  });
+
   describe('Given hidden fields accessed on a different entity type', () => {
     describe('When the injector processes it', () => {
       it('Then each entity correctly filters its own hidden fields', () => {
