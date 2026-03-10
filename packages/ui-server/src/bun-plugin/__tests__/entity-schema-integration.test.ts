@@ -101,9 +101,7 @@ function TaskDetail() {
       });
 
       expect(result.code).toContain('select: { id: true, status: true, title: true }');
-      expect(result.code).toContain(
-        'include: { assignee: { select: { email: true, name: true } } }',
-      );
+      expect(result.code).toContain('include: { assignee: { email: true, name: true } }');
       expect(result.injected).toBe(true);
     });
   });
@@ -457,7 +455,7 @@ function TaskDetail() {
       expect(result.code).toContain('title: true');
       // tags is a known relation with nested .name access via map callback
       // Should generate include for tags with nested select
-      expect(result.code).toContain('include: { tags: { select: { name: true } } }');
+      expect(result.code).toContain('include: { tags: { name: true } }');
     });
   });
 });

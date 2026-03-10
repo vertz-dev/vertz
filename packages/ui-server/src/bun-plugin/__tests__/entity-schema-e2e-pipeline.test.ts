@@ -148,9 +148,7 @@ function TaskDetail() {
 
         expect(result.injected).toBe(true);
         expect(result.code).toContain('select: { id: true, status: true, title: true }');
-        expect(result.code).toContain(
-          'include: { assignee: { select: { email: true, name: true } } }',
-        );
+        expect(result.code).toContain('include: { assignee: { email: true, name: true } }');
       });
     });
   });
@@ -229,7 +227,7 @@ function TaskDetail() {
 
         expect(result.injected).toBe(true);
         expect(result.code).toContain('title: true');
-        expect(result.code).toContain('include: { tags: { select: { name: true } } }');
+        expect(result.code).toContain('include: { tags: { name: true } }');
       });
     });
   });
@@ -323,8 +321,8 @@ function TaskDetail() {
 
         expect(result.injected).toBe(true);
         expect(result.code).toContain('title: true');
-        expect(result.code).toContain('assignee: { select: { name: true } }');
-        expect(result.code).toContain('tags: { select: { name: true } }');
+        expect(result.code).toContain('assignee: { name: true }');
+        expect(result.code).toContain('tags: { name: true }');
       });
     });
   });
@@ -381,7 +379,7 @@ function TaskDetail() {
         expect(result.injected).toBe(true);
         expect(result.code).toContain('title: true');
         // Both tag.name and tag.color should be captured as nested fields under tags
-        expect(result.code).toContain('include: { tags: { select: { color: true, name: true } } }');
+        expect(result.code).toContain('include: { tags: { color: true, name: true } }');
       });
     });
 

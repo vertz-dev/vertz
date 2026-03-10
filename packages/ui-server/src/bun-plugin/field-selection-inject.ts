@@ -245,7 +245,7 @@ function buildManifestAwareInjection(
       if (relFields.length > 0) {
         const sortedRelFields = relFields.sort();
         const relSelectEntries = sortedRelFields.map((f) => `${f}: true`).join(', ');
-        includeEntries.push(`${relName}: { select: { ${relSelectEntries} } }`);
+        includeEntries.push(`${relName}: { ${relSelectEntries} }`);
       }
     }
 
