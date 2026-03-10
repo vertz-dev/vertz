@@ -980,7 +980,13 @@ describe('Feature: CRUD pipeline', () => {
     const tasksModel = d.model(tasksTable);
     const def = entity('tasks', {
       model: tasksModel,
-      access: { list: () => true, get: () => true, create: () => true, update: () => true, delete: () => true },
+      access: {
+        list: () => true,
+        get: () => true,
+        create: () => true,
+        update: () => true,
+        delete: () => true,
+      },
     });
 
     function createTenantStubDb() {
@@ -1149,6 +1155,136 @@ describe('Feature: CRUD pipeline', () => {
 
         const result = unwrap(await handlers.list(ctx));
         expect(result.body.items).toHaveLength(2);
+      });
+    });
+  });
+
+  // --- rules.where() pushed to DB query ---
+
+  describe('Given an entity with access: { list: rules.where({ status: "published" }) }', () => {
+    const postsTable = d.table('posts', {
+      id: d.uuid().primary(),
+      title: d.text(),
+      status: d.text(),
+      createdAt: d.timestamp().default('now').readOnly(),
+    });
+    const postsModel = d.model(postsTable);
+
+    const def = entity('posts', {
+      model: postsModel,
+      access: { list: rules.where({ status: 'published' }) },
+    });
+
+    describe('When list is called', () => {
+      it('Then the static where conditions are merged into the DB query', async () => {
+        const db = {
+          get: mock(async () => null),
+          list: mock(async () => ({ data: [], total: 0 })),
+          create: mock(async (data: Record<string, unknown>) => data),
+          update: mock(async (_id: string, data: Record<string, unknown>) => data),
+          delete: mock(async () => null),
+        };
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        await handlers.list(ctx);
+
+        // Verify the where clause passed to db.list contains the static conditions
+        expect(db.list).toHaveBeenCalledTimes(1);
+        const callArgs = db.list.mock.calls[0][0] as { where?: Record<string, unknown> };
+        expect(callArgs.where).toEqual(expect.objectContaining({ status: 'published' }));
+      });
+    });
+  });
+
+  describe('Given an entity with access: { list: rules.where({ createdBy: rules.user.id }) }', () => {
+    const postsTable = d.table('posts', {
+      id: d.uuid().primary(),
+      title: d.text(),
+      createdBy: d.text(),
+      createdAt: d.timestamp().default('now').readOnly(),
+    });
+    const postsModel = d.model(postsTable);
+
+    const def = entity('posts', {
+      model: postsModel,
+      access: { list: rules.where({ createdBy: rules.user.id }) },
+    });
+
+    describe('When list is called by an authenticated user', () => {
+      it('Then user markers are resolved and merged into the DB query', async () => {
+        const db = {
+          get: mock(async () => null),
+          list: mock(async () => ({ data: [], total: 0 })),
+          create: mock(async (data: Record<string, unknown>) => data),
+          update: mock(async (_id: string, data: Record<string, unknown>) => data),
+          delete: mock(async () => null),
+        };
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx({ userId: 'user-42' });
+
+        await handlers.list(ctx);
+
+        expect(db.list).toHaveBeenCalledTimes(1);
+        const callArgs = db.list.mock.calls[0][0] as { where?: Record<string, unknown> };
+        expect(callArgs.where).toEqual(expect.objectContaining({ createdBy: 'user-42' }));
+      });
+    });
+  });
+
+  describe('Given an entity with access: { list: rules.all(rules.authenticated(), rules.where(...)) }', () => {
+    const postsTable = d.table('posts', {
+      id: d.uuid().primary(),
+      title: d.text(),
+      createdBy: d.text(),
+      createdAt: d.timestamp().default('now').readOnly(),
+    });
+    const postsModel = d.model(postsTable);
+
+    const def = entity('posts', {
+      model: postsModel,
+      access: {
+        list: rules.all(rules.authenticated(), rules.where({ createdBy: rules.user.id })),
+      },
+    });
+
+    describe('When an authenticated user calls list', () => {
+      it('Then where conditions are extracted from the all() composition', async () => {
+        const db = {
+          get: mock(async () => null),
+          list: mock(async () => ({ data: [], total: 0 })),
+          create: mock(async (data: Record<string, unknown>) => data),
+          update: mock(async (_id: string, data: Record<string, unknown>) => data),
+          delete: mock(async () => null),
+        };
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx({ userId: 'user-99' });
+
+        await handlers.list(ctx);
+
+        expect(db.list).toHaveBeenCalledTimes(1);
+        const callArgs = db.list.mock.calls[0][0] as { where?: Record<string, unknown> };
+        expect(callArgs.where).toEqual(expect.objectContaining({ createdBy: 'user-99' }));
+      });
+    });
+
+    describe('When an unauthenticated user calls list', () => {
+      it('Then access is denied (authenticated rule still enforced)', async () => {
+        const db = {
+          get: mock(async () => null),
+          list: mock(async () => ({ data: [], total: 0 })),
+          create: mock(async (data: Record<string, unknown>) => data),
+          update: mock(async (_id: string, data: Record<string, unknown>) => data),
+          delete: mock(async () => null),
+        };
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx({ userId: null });
+
+        const result = await handlers.list(ctx);
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityForbiddenError);
+        }
       });
     });
   });

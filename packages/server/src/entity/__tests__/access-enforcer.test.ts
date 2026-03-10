@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'bun:test';
 import { EntityForbiddenError } from '@vertz/errors';
 import { rules } from '../../auth/rules';
-import { type EnforceAccessOptions, enforceAccess } from '../access-enforcer';
+import {
+  type EnforceAccessOptions,
+  enforceAccess,
+  extractWhereConditions,
+} from '../access-enforcer';
 import type { BaseContext, EntityContext } from '../types';
 
 // ---------------------------------------------------------------------------
@@ -358,10 +362,7 @@ describe('Feature: enforceAccess', () => {
         const result = await enforceAccess(
           'update',
           {
-            update: rules.all(
-              rules.authenticated(),
-              rules.entitlement('task:update'),
-            ),
+            update: rules.all(rules.authenticated(), rules.entitlement('task:update')),
           },
           ctx,
           {},
@@ -380,10 +381,7 @@ describe('Feature: enforceAccess', () => {
         const result = await enforceAccess(
           'list',
           {
-            list: rules.any(
-              rules.authenticated(),
-              rules.public,
-            ),
+            list: rules.any(rules.authenticated(), rules.public),
           },
           ctx,
         );
@@ -402,10 +400,7 @@ describe('Feature: enforceAccess', () => {
         const result = await enforceAccess(
           'list',
           {
-            list: rules.any(
-              rules.authenticated(),
-              rules.role('admin'),
-            ),
+            list: rules.any(rules.authenticated(), rules.role('admin')),
           },
           ctx,
         );
@@ -472,11 +467,7 @@ describe('Feature: enforceAccess', () => {
       it('Then returns ok(undefined)', async () => {
         const ctx = stubCtx({ role: (...r: string[]) => r.includes('admin') });
 
-        const result = await enforceAccess(
-          'list',
-          { list: rules.role('admin', 'owner') },
-          ctx,
-        );
+        const result = await enforceAccess('list', { list: rules.role('admin', 'owner') }, ctx);
         expect(result.ok).toBe(true);
       });
     });
@@ -501,6 +492,122 @@ describe('Feature: enforceAccess', () => {
         if (!result.ok) {
           expect(result.error).toBeInstanceOf(EntityForbiddenError);
         }
+      });
+    });
+  });
+
+  describe('Given access rule is rules.where() with skipWhere option', () => {
+    describe('When enforceAccess is called with skipWhere: true', () => {
+      it('Then where rules are treated as ok (already enforced at DB level)', async () => {
+        const ctx = stubCtx({ userId: 'user-1' });
+
+        const result = await enforceAccess(
+          'list',
+          { list: rules.where({ createdBy: rules.user.id }) },
+          ctx,
+          {},
+          { skipWhere: true },
+        );
+        expect(result.ok).toBe(true);
+      });
+    });
+
+    describe('When enforceAccess has all() with where and authenticated, and user is unauthenticated', () => {
+      it('Then the authenticated rule is still enforced', async () => {
+        const ctx = stubCtx({ userId: null, authenticated: () => false });
+
+        const result = await enforceAccess(
+          'list',
+          { list: rules.all(rules.authenticated(), rules.where({ createdBy: rules.user.id })) },
+          ctx,
+          {},
+          { skipWhere: true },
+        );
+        expect(result.ok).toBe(false);
+      });
+    });
+  });
+});
+
+describe('Feature: extractWhereConditions', () => {
+  describe('Given access rule is rules.where() with static condition', () => {
+    describe('When extractWhereConditions is called', () => {
+      it('Then returns the static conditions', () => {
+        const ctx = stubCtx();
+        const result = extractWhereConditions(
+          'list',
+          { list: rules.where({ status: 'published' }) },
+          ctx,
+        );
+        expect(result).toEqual({ status: 'published' });
+      });
+    });
+  });
+
+  describe('Given access rule is rules.where() with user markers', () => {
+    describe('When extractWhereConditions is called', () => {
+      it('Then resolves markers to context values', () => {
+        const ctx = stubCtx({ userId: 'user-42', tenantId: 'tenant-x' });
+        const result = extractWhereConditions(
+          'list',
+          { list: rules.where({ createdBy: rules.user.id, tenantId: rules.user.tenantId }) },
+          ctx,
+        );
+        expect(result).toEqual({ createdBy: 'user-42', tenantId: 'tenant-x' });
+      });
+    });
+  });
+
+  describe('Given access rule is rules.all() containing a where rule', () => {
+    describe('When extractWhereConditions is called', () => {
+      it('Then extracts where conditions from the all() composition', () => {
+        const ctx = stubCtx({ userId: 'user-1' });
+        const result = extractWhereConditions(
+          'list',
+          { list: rules.all(rules.authenticated(), rules.where({ createdBy: rules.user.id })) },
+          ctx,
+        );
+        expect(result).toEqual({ createdBy: 'user-1' });
+      });
+    });
+  });
+
+  describe('Given access rule is rules.authenticated() (no where)', () => {
+    describe('When extractWhereConditions is called', () => {
+      it('Then returns null', () => {
+        const ctx = stubCtx();
+        const result = extractWhereConditions('list', { list: rules.authenticated() }, ctx);
+        expect(result).toBeNull();
+      });
+    });
+  });
+
+  describe('Given access rule is a function', () => {
+    describe('When extractWhereConditions is called', () => {
+      it('Then returns null (opaque function)', () => {
+        const ctx = stubCtx();
+        const result = extractWhereConditions('list', { list: () => true }, ctx);
+        expect(result).toBeNull();
+      });
+    });
+  });
+
+  describe('Given no access rule for the operation', () => {
+    describe('When extractWhereConditions is called', () => {
+      it('Then returns null', () => {
+        const ctx = stubCtx();
+        const result = extractWhereConditions('list', {}, ctx);
+        expect(result).toBeNull();
+      });
+    });
+  });
+
+  describe('Given access rule is false (disabled)', () => {
+    describe('When extractWhereConditions is called', () => {
+      it('Then returns null', () => {
+        const ctx = stubCtx();
+        const result = extractWhereConditions('list', { list: false }, ctx);
+        expect(result).toBeNull();
       });
     });
   });

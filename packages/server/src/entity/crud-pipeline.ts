@@ -6,7 +6,7 @@ import type {
   TableDef,
 } from '@vertz/db';
 import { type EntityError, EntityNotFoundError, err, ok, type Result } from '@vertz/errors';
-import { enforceAccess } from './access-enforcer';
+import { enforceAccess, extractWhereConditions } from './access-enforcer';
 import { narrowRelationFields, stripHiddenFields, stripReadOnlyFields } from './field-filter';
 import type { EntityContext, EntityDefinition } from './types';
 
@@ -106,14 +106,19 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
 
   return {
     async list(ctx, options) {
-      const accessResult = await enforceAccess('list', def.access, ctx);
+      // Extract where conditions from access rules and push to DB query
+      const accessWhere = extractWhereConditions('list', def.access, ctx);
+      const accessResult = await enforceAccess('list', def.access, ctx, undefined, {
+        skipWhere: accessWhere !== null,
+      });
       if (!accessResult.ok) return err(accessResult.error);
 
       // Strip hidden fields from where filter to prevent enumeration attacks
       const rawWhere = options?.where;
       const safeWhere = rawWhere ? stripHiddenFields(table, rawWhere) : undefined;
       const cleanWhere = safeWhere && Object.keys(safeWhere).length > 0 ? safeWhere : undefined;
-      const where = withTenantFilter(ctx, cleanWhere);
+      // Merge: tenant filter + access where conditions + user-provided where
+      const where = withTenantFilter(ctx, { ...accessWhere, ...cleanWhere });
 
       const limit = Math.max(0, options?.limit ?? 20);
       const after = options?.after && options.after.length <= 512 ? options.after : undefined;

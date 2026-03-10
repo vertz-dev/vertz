@@ -111,6 +111,113 @@ async function evaluateDescriptor(
 }
 
 // ---------------------------------------------------------------------------
+// skipWhere variants — where rules treated as ok() when pushed to DB
+// ---------------------------------------------------------------------------
+
+async function evaluateRuleSkipWhere(
+  rule: AuthAccessRule,
+  operation: string,
+  ctx: BaseContext,
+  row: Record<string, unknown>,
+  options: EnforceAccessOptions,
+): Promise<Result<void, EntityForbiddenError>> {
+  if (rule.type === 'where') {
+    return ok(undefined); // Already enforced at DB level
+  }
+  if (rule.type === 'all') {
+    for (const sub of rule.rules) {
+      const result = await evaluateDescriptorSkipWhere(sub, operation, ctx, row, options);
+      if (!result.ok) return result;
+    }
+    return ok(undefined);
+  }
+  if (rule.type === 'any') {
+    for (const sub of rule.rules) {
+      const result = await evaluateDescriptorSkipWhere(sub, operation, ctx, row, options);
+      if (result.ok) return result;
+    }
+    return deny(operation);
+  }
+  return evaluateRule(rule, operation, ctx, row, options);
+}
+
+async function evaluateDescriptorSkipWhere(
+  rule: Exclude<AccessRule, false>,
+  operation: string,
+  ctx: BaseContext,
+  row: Record<string, unknown>,
+  options: EnforceAccessOptions,
+): Promise<Result<void, EntityForbiddenError>> {
+  if (typeof rule === 'function') {
+    const allowed = await rule(ctx, row);
+    return allowed ? ok(undefined) : deny(operation);
+  }
+  return evaluateRuleSkipWhere(rule, operation, ctx, row, options);
+}
+
+// ---------------------------------------------------------------------------
+// Where condition extraction — pushes rules.where() to DB queries
+// ---------------------------------------------------------------------------
+
+/**
+ * Extracts resolved WHERE conditions from a descriptor rule tree.
+ * Recursively walks `all` rules to collect `where` conditions.
+ * Resolves UserMarker values using the provided context.
+ *
+ * Returns null if the rule contains no extractable where conditions.
+ */
+function extractFromDescriptor(
+  rule: Exclude<AccessRule, false>,
+  ctx: BaseContext,
+): Record<string, unknown> | null {
+  // Function rules are opaque — can't extract static conditions
+  if (typeof rule === 'function') return null;
+
+  switch (rule.type) {
+    case 'where': {
+      const resolved: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(rule.conditions)) {
+        resolved[key] = isUserMarker(value) ? resolveMarker(value, ctx) : value;
+      }
+      return resolved;
+    }
+
+    case 'all': {
+      // Collect where conditions from all sub-rules (AND composition)
+      let merged: Record<string, unknown> | null = null;
+      for (const sub of rule.rules) {
+        const extracted = extractFromDescriptor(sub, ctx);
+        if (extracted) {
+          merged = { ...(merged ?? {}), ...extracted };
+        }
+      }
+      return merged;
+    }
+
+    default:
+      // Other rule types (public, authenticated, role, entitlement, any, fva)
+      // don't produce WHERE conditions
+      return null;
+  }
+}
+
+/**
+ * Extracts DB-level WHERE conditions from an access rule for a given operation.
+ * Used by the CRUD pipeline to push rules.where() conditions into DB queries.
+ *
+ * Returns null if the rule has no extractable where conditions.
+ */
+export function extractWhereConditions(
+  operation: string,
+  accessRules: Partial<Record<string, AccessRule>>,
+  ctx: BaseContext,
+): Record<string, unknown> | null {
+  const rule = accessRules[operation];
+  if (rule === undefined || rule === false) return null;
+  return extractFromDescriptor(rule, ctx);
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -124,13 +231,16 @@ async function evaluateDescriptor(
  * - Rule is false → operation is disabled
  * - Descriptor rule → dispatch by type
  * - Function rule → evaluate and deny if returns false
+ *
+ * When `skipWhere` is true, `where` rules are treated as ok() — used
+ * when where conditions have already been pushed to the DB query.
  */
 export async function enforceAccess(
   operation: string,
   accessRules: Partial<Record<string, AccessRule>>,
   ctx: BaseContext,
   row?: Record<string, unknown>,
-  options?: EnforceAccessOptions,
+  options?: EnforceAccessOptions & { skipWhere?: boolean },
 ): Promise<Result<void, EntityForbiddenError>> {
   const rule = accessRules[operation];
 
@@ -146,5 +256,8 @@ export async function enforceAccess(
     return err(new EntityForbiddenError(`Operation "${operation}" is disabled`));
   }
 
+  if (options?.skipWhere) {
+    return evaluateDescriptorSkipWhere(rule, operation, ctx, row ?? {}, options);
+  }
   return evaluateDescriptor(rule, operation, ctx, row ?? {}, options ?? {});
 }
