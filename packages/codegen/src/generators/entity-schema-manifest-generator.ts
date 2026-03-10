@@ -28,7 +28,7 @@ function buildManifestEntry(entity: CodegenEntityModule): EntitySchemaManifestEn
 
   return {
     ...(entity.table !== undefined ? { table: entity.table } : {}),
-    primaryKey: entity.primaryKey,
+    ...(entity.primaryKey !== undefined ? { primaryKey: entity.primaryKey } : {}),
     tenantScoped: entity.tenantScoped ?? false,
     hiddenFields: entity.hiddenFields ?? [],
     fields,

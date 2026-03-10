@@ -276,7 +276,7 @@ function TaskList() {
   });
 
   describe('Multiple queries with different entity types', () => {
-    it('handles mixed queries in one file', () => {
+    it('infers entity type per-query from descriptor call chain', () => {
       const source = `
 import { query } from '@vertz/ui';
 
@@ -291,16 +291,173 @@ function Dashboard() {
   );
 }`;
 
-      // Note: entityType applies to all queries in the file (limitation)
+      // entityType not needed — inferred from api.tasks.list() / api.users.list()
       const result = injectFieldSelection('test.tsx', source, {
         entitySchema,
-        entityType: 'tasks',
       });
 
       expect(result.injected).toBe(true);
       expect(result.diagnostics).toHaveLength(2);
       expect(result.diagnostics[0].queryVar).toBe('tasks');
       expect(result.diagnostics[1].queryVar).toBe('users');
+    });
+  });
+
+  describe('User-provided select does not affect adjacent queries (B1)', () => {
+    it('injects into second query even when first has user-provided select', () => {
+      const source = `
+import { query } from '@vertz/ui';
+
+function Dashboard() {
+  const tasks = query(api.tasks.list({ select: { id: true, title: true } }));
+  const users = query(api.users.list());
+  return (
+    <div>
+      {tasks.data.items.map(t => <span>{t.title}</span>)}
+      {users.data.items.map(u => <span>{u.name}</span>)}
+    </div>
+  );
+}`;
+
+      const result = injectFieldSelection('test.tsx', source, {
+        entitySchema,
+      });
+
+      expect(result.injected).toBe(true);
+      // First query has user-provided select → not injected
+      expect(result.diagnostics[0].queryVar).toBe('tasks');
+      expect(result.diagnostics[0].injected).toBe(false);
+      // Second query should still get injection
+      expect(result.diagnostics[1].queryVar).toBe('users');
+      expect(result.diagnostics[1].injected).toBe(true);
+    });
+  });
+
+  describe('Hidden fields are excluded from select (S1)', () => {
+    it('filters out hidden fields even when accessed in source', () => {
+      const source = `
+import { query } from '@vertz/ui';
+
+function UserDetail() {
+  const user = query(api.users.get(id));
+  return (
+    <div>
+      <h1>{user.data.name}</h1>
+      <span>{user.data.passwordHash}</span>
+    </div>
+  );
+}`;
+
+      const result = injectFieldSelection('test.tsx', source, {
+        entitySchema,
+      });
+
+      expect(result.injected).toBe(true);
+      expect(result.code).toContain('name: true');
+      // passwordHash is in hiddenFields — should not appear in the select clause
+      expect(result.code).not.toContain('passwordHash: true');
+    });
+  });
+
+  describe('Custom primary key (S3)', () => {
+    it('uses schema primaryKey instead of hardcoded id', () => {
+      const customSchema: EntitySchemaManifest = {
+        documents: {
+          primaryKey: 'uuid',
+          tenantScoped: true,
+          hiddenFields: [],
+          fields: ['uuid', 'title', 'content'],
+          relations: {},
+        },
+      };
+
+      const source = `
+import { query } from '@vertz/ui';
+
+function DocList() {
+  const docs = query(api.documents.list());
+  return <div>{docs.data.items.map(d => <span>{d.title}</span>)}</div>;
+}`;
+
+      const result = injectFieldSelection('test.tsx', source, {
+        entitySchema: customSchema,
+      });
+
+      expect(result.injected).toBe(true);
+      // Verify the exact select clause uses uuid, not id
+      expect(result.code).toContain('select: { title: true, uuid: true }');
+      // Verify no standalone 'id: true' (uuid: true contains 'id' as substring, so check select clause)
+      expect(result.code).not.toMatch(/\bid: true\b/);
+    });
+  });
+
+  describe('Complete relation field filtering (S5)', () => {
+    it('omits include entry when all nested fields are outside allowed selection', () => {
+      const narrowSchema: EntitySchemaManifest = {
+        tasks: {
+          primaryKey: 'id',
+          tenantScoped: true,
+          hiddenFields: [],
+          fields: ['id', 'title'],
+          relations: {
+            assignee: {
+              type: 'one',
+              entity: 'users',
+              selection: ['name'],
+            },
+          },
+        },
+      };
+
+      const source = `
+import { query } from '@vertz/ui';
+
+function TaskDetail() {
+  const task = query(api.tasks.get(id));
+  return (
+    <div>
+      <h1>{task.data.title}</h1>
+      <span>{task.data.assignee.avatar}</span>
+    </div>
+  );
+}`;
+
+      const result = injectFieldSelection('test.tsx', source, {
+        entitySchema: narrowSchema,
+      });
+
+      expect(result.injected).toBe(true);
+      // avatar is not in allowed selection ['name'], so include should be omitted entirely
+      expect(result.code).not.toContain('include:');
+      expect(result.code).toContain('select: { id: true, title: true }');
+    });
+  });
+
+  describe('Many-relation nested access via map (N3 — strong assertions)', () => {
+    it('generates include with nested select for relation accessed via .map', () => {
+      const source = `
+import { query } from '@vertz/ui';
+
+function TaskDetail() {
+  const task = query(api.tasks.get(id));
+  return (
+    <div>
+      <h1>{task.data.title}</h1>
+      <ul>{task.data.tags.map(tag => <li>{tag.name}</li>)}</ul>
+    </div>
+  );
+}`;
+
+      const result = injectFieldSelection('test.tsx', source, {
+        entitySchema,
+        entityType: 'tasks',
+      });
+
+      expect(result.injected).toBe(true);
+      expect(result.code).toContain('title: true');
+      // tags is a known relation with nested .name access via map callback
+      // Should generate include for tags with nested select
+      expect(result.code).toContain('include: { tags: { select: { name: true } } }');
     });
   });
 });

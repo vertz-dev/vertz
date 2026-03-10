@@ -14,6 +14,8 @@ import { analyzeFieldSelection } from '@vertz/ui-compiler';
 import MagicString from 'magic-string';
 import type { FieldSelectionManifest } from './field-selection-manifest';
 
+// These types mirror EntitySchemaManifestEntry in @vertz/codegen — keep in sync.
+// TODO: Extract to shared types package when dependency graph allows.
 export interface EntitySchemaRelation {
   type: 'one' | 'many';
   entity: string;
@@ -92,12 +94,10 @@ export function injectFieldSelection(
   let injected = false;
   const diagnostics: QueryDiagnosticInfo[] = [];
 
-  // Resolve entity schema if available
-  const schema = options?.entityType ? options.entitySchema?.[options.entityType] : undefined;
-
   for (const selection of selections) {
     // Check if user already provided `select` in the descriptor call
-    if (hasUserSelect(source, selection.injectionPos)) {
+    // Scoped to the descriptor call's argument range to avoid false positives
+    if (hasUserSelect(source, selection.descriptorCallStart, selection.descriptorCallEnd)) {
       diagnostics.push({
         queryVar: selection.queryVar,
         singleFileFields: [...selection.fields],
@@ -109,6 +109,10 @@ export function injectFieldSelection(
       continue;
     }
 
+    // Resolve entity schema per-query: prefer inferred entity name, fall back to option
+    const entityName = selection.inferredEntityName ?? options?.entityType;
+    const schema = entityName ? options?.entitySchema?.[entityName] : undefined;
+
     // Merge cross-file fields from child component prop flows
     const crossFileResult = resolveCrossFileFields(filePath, selection.propFlows, options);
 
@@ -119,7 +123,7 @@ export function injectFieldSelection(
 
     if (!combinedOpaque && combinedFields.length > 0) {
       const injectionStr = schema
-        ? buildManifestAwareInjection(combinedFields, selection.nestedAccess ?? [], schema)
+        ? buildManifestAwareInjection(combinedFields, selection.nestedAccess, schema)
         : buildSimpleSelectInjection(combinedFields);
 
       if (injectionStr) {
@@ -182,7 +186,9 @@ function buildManifestAwareInjection(
   schema: EntitySchemaEntry,
 ): string {
   const relationNames = new Set(Object.keys(schema.relations));
-  const scalarFields = new Set<string>(['id']); // Always include primary key
+  const hiddenFieldSet = new Set(schema.hiddenFields);
+  const primaryKey = schema.primaryKey ?? 'id';
+  const scalarFields = new Set<string>([primaryKey]);
   const relationIncludes = new Map<string, Set<string>>();
 
   // Classify fields
@@ -206,6 +212,11 @@ function buildManifestAwareInjection(
     } else {
       scalarFields.add(field);
     }
+  }
+
+  // Filter out hidden fields from scalar selection
+  for (const hidden of hiddenFieldSet) {
+    scalarFields.delete(hidden);
   }
 
   // Build select string
@@ -247,13 +258,11 @@ function buildManifestAwareInjection(
 
 /**
  * Check if the user already provided `select` in the descriptor call arguments.
- * Looks backward from the injection position to find the object literal and check for `select:`.
+ * Scoped to the descriptor call's argument range to avoid false positives
+ * from other queries or variables in the same file.
  */
-function hasUserSelect(source: string, injectionPos: number): boolean {
-  // Look at the region around the injection point for an existing 'select:' or 'select :' pattern
-  // The injection position is inside the descriptor call — scan the call's arg text
-  const searchStart = Math.max(0, injectionPos - 500);
-  const region = source.slice(searchStart, injectionPos);
+function hasUserSelect(source: string, callStart: number, callEnd: number): boolean {
+  const region = source.slice(callStart, callEnd);
   return /\bselect\s*:/.test(region);
 }
 

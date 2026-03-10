@@ -766,8 +766,8 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
       if (hiddenFields.length > 0 || columnsType.getProperties().length > 0) {
         modelRef.hiddenFields = hiddenFields;
       }
-    } catch {
-      // Type resolution failed — leave fields undefined
+    } catch (e) {
+      this.debug(`extractModelTableMetadata failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
