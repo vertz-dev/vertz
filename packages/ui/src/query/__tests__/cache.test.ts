@@ -135,4 +135,24 @@ describe('MemoryCache', () => {
     expect(cache.get('key-0')).toBe('val-0');
     expect(cache.get('key-999')).toBe('val-999');
   });
+
+  test('maxSize: 0 immediately evicts every entry', () => {
+    const cache = new MemoryCache<string>({ maxSize: 0 });
+    cache.set('a', '1');
+    expect(cache.get('a')).toBeUndefined();
+  });
+
+  test('maxSize: 1 keeps only the most recent entry', () => {
+    const cache = new MemoryCache<string>({ maxSize: 1 });
+    cache.set('a', '1');
+    cache.set('b', '2');
+    expect(cache.get('a')).toBeUndefined();
+    expect(cache.get('b')).toBe('2');
+  });
+
+  test('negative maxSize is clamped to 0 (no infinite loop)', () => {
+    const cache = new MemoryCache<string>({ maxSize: -5 });
+    cache.set('a', '1');
+    expect(cache.get('a')).toBeUndefined();
+  });
 });
