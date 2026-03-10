@@ -32,6 +32,10 @@ export interface DiagnosticsSnapshot {
     fileCount: number;
     durationMs: number;
     warnings: { type: string; message: string }[];
+    hmrUpdateCount: number;
+    lastHmrUpdate: string | null;
+    lastHmrFile: string | null;
+    lastHmrChanged: boolean | null;
   };
   errors: {
     current: ErrorCategory | null;
@@ -74,6 +78,10 @@ export class DiagnosticsCollector {
   private manifestFileCount = 0;
   private manifestDurationMs = 0;
   private manifestWarnings: { type: string; message: string }[] = [];
+  private manifestHmrUpdateCount = 0;
+  private manifestLastHmrUpdate: string | null = null;
+  private manifestLastHmrFile: string | null = null;
+  private manifestLastHmrChanged: boolean | null = null;
 
   // Error state
   private errorCurrent: ErrorCategory | null = null;
@@ -124,6 +132,13 @@ export class DiagnosticsCollector {
     this.manifestFileCount = fileCount;
     this.manifestDurationMs = durationMs;
     this.manifestWarnings = warnings;
+  }
+
+  recordManifestUpdate(file: string, changed: boolean, _durationMs: number): void {
+    this.manifestHmrUpdateCount++;
+    this.manifestLastHmrUpdate = new Date().toISOString();
+    this.manifestLastHmrFile = file;
+    this.manifestLastHmrChanged = changed;
   }
 
   recordHMRAssets(bundledScriptUrl: string | null, bootstrapDiscovered: boolean): void {
@@ -194,6 +209,10 @@ export class DiagnosticsCollector {
         fileCount: this.manifestFileCount,
         durationMs: this.manifestDurationMs,
         warnings: [...this.manifestWarnings],
+        hmrUpdateCount: this.manifestHmrUpdateCount,
+        lastHmrUpdate: this.manifestLastHmrUpdate,
+        lastHmrFile: this.manifestLastHmrFile,
+        lastHmrChanged: this.manifestLastHmrChanged,
       },
       errors: {
         current: this.errorCurrent,

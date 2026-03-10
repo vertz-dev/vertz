@@ -194,6 +194,10 @@ describe('DiagnosticsCollector', () => {
     expect(snapshot.manifest.fileCount).toBe(0);
     expect(snapshot.manifest.durationMs).toBe(0);
     expect(snapshot.manifest.warnings).toEqual([]);
+    expect(snapshot.manifest.hmrUpdateCount).toBe(0);
+    expect(snapshot.manifest.lastHmrUpdate).toBeNull();
+    expect(snapshot.manifest.lastHmrFile).toBeNull();
+    expect(snapshot.manifest.lastHmrChanged).toBeNull();
   });
 
   it('recordManifestPrepass() tracks manifest generation', () => {
@@ -208,5 +212,29 @@ describe('DiagnosticsCollector', () => {
     expect(snapshot.manifest.durationMs).toBe(78);
     expect(snapshot.manifest.warnings).toHaveLength(1);
     expect(snapshot.manifest.warnings[0].type).toBe('circular-dependency');
+  });
+
+  it('recordManifestUpdate() tracks HMR manifest updates', () => {
+    const collector = new DiagnosticsCollector();
+
+    collector.recordManifestUpdate('src/hooks/use-tasks.ts', true, 2);
+
+    const snapshot = collector.getSnapshot();
+    expect(snapshot.manifest.hmrUpdateCount).toBe(1);
+    expect(snapshot.manifest.lastHmrUpdate).toBeDefined();
+    expect(snapshot.manifest.lastHmrFile).toBe('src/hooks/use-tasks.ts');
+    expect(snapshot.manifest.lastHmrChanged).toBe(true);
+  });
+
+  it('recordManifestUpdate() accumulates update count', () => {
+    const collector = new DiagnosticsCollector();
+
+    collector.recordManifestUpdate('src/hooks/a.ts', false, 1);
+    collector.recordManifestUpdate('src/hooks/b.ts', true, 3);
+
+    const snapshot = collector.getSnapshot();
+    expect(snapshot.manifest.hmrUpdateCount).toBe(2);
+    expect(snapshot.manifest.lastHmrFile).toBe('src/hooks/b.ts');
+    expect(snapshot.manifest.lastHmrChanged).toBe(true);
   });
 });
