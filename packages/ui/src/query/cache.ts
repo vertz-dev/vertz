@@ -20,7 +20,8 @@ export class MemoryCache<T = unknown> implements CacheStore<T> {
   private _maxSize: number;
 
   constructor(options?: { maxSize?: number }) {
-    this._maxSize = Math.max(0, options?.maxSize ?? 1000);
+    const raw = options?.maxSize ?? 1000;
+    this._maxSize = Number.isNaN(raw) ? 1000 : Math.max(0, raw);
   }
 
   get(key: string): T | undefined {

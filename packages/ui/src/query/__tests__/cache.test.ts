@@ -155,4 +155,33 @@ describe('MemoryCache', () => {
     cache.set('a', '1');
     expect(cache.get('a')).toBeUndefined();
   });
+
+  test('NaN maxSize falls back to default (no unbounded growth)', () => {
+    const cache = new MemoryCache<string>({ maxSize: NaN });
+    for (let i = 0; i < 1002; i++) {
+      cache.set(`key-${i}`, `val-${i}`);
+    }
+    expect(cache.get('key-0')).toBeUndefined();
+    expect(cache.get('key-1')).toBeUndefined();
+    expect(cache.get('key-1001')).toBe('val-1001');
+  });
+
+  test('empty-string key is evictable and retrievable', () => {
+    const cache = new MemoryCache<string>({ maxSize: 2 });
+    cache.set('', 'empty-key-value');
+    cache.set('b', '2');
+    cache.set('c', '3'); // evicts ''
+    expect(cache.get('')).toBeUndefined();
+    expect(cache.get('b')).toBe('2');
+    expect(cache.get('c')).toBe('3');
+  });
+
+  test('default maxSize evicts at 1001st entry', () => {
+    const cache = new MemoryCache<string>();
+    for (let i = 0; i < 1001; i++) {
+      cache.set(`key-${i}`, `val-${i}`);
+    }
+    expect(cache.get('key-0')).toBeUndefined();
+    expect(cache.get('key-1000')).toBe('val-1000');
+  });
 });
