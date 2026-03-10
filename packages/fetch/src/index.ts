@@ -38,3 +38,5 @@ export type {
   StreamingFormat,
   StreamingRequestOptions,
 } from './types';
+export type { VertzQLParams } from './vertzql';
+export { encodeVertzQL, resolveVertzQL } from './vertzql';

@@ -50,6 +50,20 @@ export interface DiagnosticsSnapshot {
     lastChangeTime: string | null;
   };
   runtimeErrors: RuntimeErrorEntry[];
+  fieldSelection: {
+    manifestFileCount: number;
+    entries: Record<string, FieldSelectionDiagEntry>;
+  };
+}
+
+export interface FieldSelectionDiagEntry {
+  queries: {
+    queryVar: string;
+    fields: string[];
+    hasOpaqueAccess: boolean;
+    crossFileFields: string[];
+    injected: boolean;
+  }[];
 }
 
 export class DiagnosticsCollector {
@@ -98,6 +112,10 @@ export class DiagnosticsCollector {
   // Runtime errors ring buffer
   private static readonly MAX_RUNTIME_ERRORS = 10;
   private runtimeErrorsBuffer: RuntimeErrorEntry[] = [];
+
+  // Field selection state
+  private fieldSelectionManifestFileCount = 0;
+  private fieldSelectionEntries = new Map<string, FieldSelectionDiagEntry>();
 
   recordPluginConfig(filter: string, hmr: boolean, fastRefresh: boolean): void {
     this.pluginFilter = filter;
@@ -182,6 +200,14 @@ export class DiagnosticsCollector {
     this.runtimeErrorsBuffer = [];
   }
 
+  recordFieldSelectionManifest(fileCount: number): void {
+    this.fieldSelectionManifestFileCount = fileCount;
+  }
+
+  recordFieldSelection(file: string, entry: FieldSelectionDiagEntry): void {
+    this.fieldSelectionEntries.set(file, entry);
+  }
+
   getSnapshot(): DiagnosticsSnapshot {
     return {
       status: 'ok',
@@ -227,6 +253,10 @@ export class DiagnosticsCollector {
         lastChangeTime: this.watcherLastChangeTime,
       },
       runtimeErrors: [...this.runtimeErrorsBuffer],
+      fieldSelection: {
+        manifestFileCount: this.fieldSelectionManifestFileCount,
+        entries: Object.fromEntries(this.fieldSelectionEntries),
+      },
     };
   }
 }

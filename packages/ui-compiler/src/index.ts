@@ -2,8 +2,16 @@
 
 // Analyzers
 export { ComponentAnalyzer } from './analyzers/component-analyzer';
+export type {
+  ComponentPropFields,
+  PropFieldAccess,
+  PropForward,
+} from './analyzers/component-prop-field-analyzer';
+export { analyzeComponentPropFields } from './analyzers/component-prop-field-analyzer';
 export type { CSSCallInfo, CSSCallKind } from './analyzers/css-analyzer';
 export { CSSAnalyzer } from './analyzers/css-analyzer';
+export type { PropFlow, QueryFieldSelection } from './analyzers/field-selection-analyzer';
+export { analyzeFieldSelection } from './analyzers/field-selection-analyzer';
 export { JsxAnalyzer } from './analyzers/jsx-analyzer';
 export { MutationAnalyzer } from './analyzers/mutation-analyzer';
 export { ReactivityAnalyzer } from './analyzers/reactivity-analyzer';
@@ -25,9 +33,13 @@ export { SSRSafetyDiagnostics } from './diagnostics/ssr-safety-diagnostics';
 export type { VertzLibraryPluginOptions } from './library-plugin';
 // Library compilation plugin
 export { createVertzLibraryPlugin } from './library-plugin';
-// Manifest generation (cross-file reactivity analysis)
-export { generateAllManifests, regenerateFileManifest } from './manifest-resolver';
 export type { GenerateManifestsOptions, ManifestMap, ManifestWarning } from './manifest-resolver';
+// Manifest generation (cross-file reactivity analysis)
+export {
+  generateAllManifests,
+  regenerateFileManifest,
+  resolveModuleSpecifier,
+} from './manifest-resolver';
 // Reactivity manifest
 export { loadFrameworkManifest, loadManifestFromJson } from './reactivity-manifest';
 export { ComputedTransformer } from './transformers/computed-transformer';

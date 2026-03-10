@@ -75,6 +75,7 @@ export class EntitySdkGenerator implements Generator {
       );
     }
 
+    const hasReadOp = entity.operations.some((op) => op.kind === 'list' || op.kind === 'get');
     const needsFetchImport = hasTypes || hasMutationOp || hasListOp;
     if (needsFetchImport) {
       const fetchImportParts: string[] = ['type FetchClient'];
@@ -82,6 +83,7 @@ export class EntitySdkGenerator implements Generator {
       if (hasMutationOp) fetchImportParts.push('type OptimisticHandler');
       fetchImportParts.push('createDescriptor');
       if (hasMutationOp) fetchImportParts.push('createMutationDescriptor');
+      if (hasReadOp) fetchImportParts.push('resolveVertzQL');
       lines.push(`import { ${fetchImportParts.join(', ')} } from '@vertz/fetch';`);
       lines.push('');
     }
@@ -102,22 +104,31 @@ export class EntitySdkGenerator implements Generator {
       const listOutput = op.kind === 'list' ? `ListResponse<${outputType}>` : outputType;
 
       switch (op.kind) {
-        case 'list':
+        case 'list': {
           lines.push(`    list: Object.assign(`);
+          lines.push(`      (query?: Record<string, unknown>) => {`);
+          lines.push(`        const resolvedQuery = resolveVertzQL(query);`);
           lines.push(
-            `      (query?: Record<string, unknown>) => createDescriptor('GET', '${op.path}', () => client.get<${listOutput}>('${op.path}', { query }), query, { entityType: '${entity.entityName}', kind: 'list' as const }),`,
+            `        return createDescriptor('GET', '${op.path}', () => client.get<${listOutput}>('${op.path}', { query: resolvedQuery }), resolvedQuery, { entityType: '${entity.entityName}', kind: 'list' as const });`,
           );
+          lines.push(`      },`);
           lines.push(`      { url: '${op.path}', method: 'GET' as const },`);
           lines.push(`    ),`);
           break;
-        case 'get':
+        }
+        case 'get': {
+          const getPathExpr = `\`${op.path.replace(':id', '${id}')}\``;
           lines.push(`    get: Object.assign(`);
+          lines.push(`      (id: string, options?: { select?: Record<string, true> }) => {`);
+          lines.push(`        const resolvedQuery = resolveVertzQL(options);`);
           lines.push(
-            `      (id: string) => createDescriptor('GET', \`${op.path.replace(':id', '${id}')}\`, () => client.get<${outputType}>(\`${op.path.replace(':id', '${id}')}\`), undefined, { entityType: '${entity.entityName}', kind: 'get' as const, id }),`,
+            `        return createDescriptor('GET', ${getPathExpr}, () => client.get<${outputType}>(${getPathExpr}, { query: resolvedQuery }), resolvedQuery, { entityType: '${entity.entityName}', kind: 'get' as const, id });`,
           );
+          lines.push(`      },`);
           lines.push(`      { url: '${op.path}', method: 'GET' as const },`);
           lines.push(`    ),`);
           break;
+        }
         case 'create':
           if (op.resolvedFields && op.resolvedFields.length > 0) {
             // Use Object.assign pattern with .meta for SdkMethodWithMeta
