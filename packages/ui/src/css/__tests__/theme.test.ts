@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { font } from '../font';
 import { compileTheme, defineTheme } from '../theme';
 
 describe('defineTheme()', () => {
@@ -289,5 +290,59 @@ describe('compileTheme()', () => {
     expect(tokens).toContain('primary.500');
     expect(tokens).toContain('primary.600');
     expect(tokens).toContain('background');
+  });
+
+  it('includes font @font-face and --font-* vars when fonts are provided', () => {
+    const sans = font('DM Sans', {
+      weight: '100..1000',
+      src: '/fonts/dm-sans.woff2',
+      fallback: ['system-ui', 'sans-serif'],
+    });
+    const theme = defineTheme({
+      colors: { primary: { 500: '#3b82f6' } },
+      fonts: { sans },
+    });
+    const result = compileTheme(theme);
+
+    // CSS should contain @font-face
+    expect(result.css).toContain("font-family: 'DM Sans'");
+    expect(result.css).toContain("url(/fonts/dm-sans.woff2) format('woff2')");
+    // CSS should contain --font-sans var
+    expect(result.css).toContain("--font-sans: 'DM Sans', system-ui, sans-serif;");
+    // Color vars should still be present
+    expect(result.css).toContain('--color-primary-500: #3b82f6');
+    // preloadTags should be populated
+    expect(result.preloadTags).toContain('dm-sans.woff2');
+  });
+
+  it('merges font CSS vars into a single :root block with color/spacing vars', () => {
+    const sans = font('DM Sans', {
+      weight: '100..1000',
+      src: '/fonts/dm-sans.woff2',
+      fallback: ['system-ui', 'sans-serif'],
+    });
+    const theme = defineTheme({
+      colors: { primary: { 500: '#3b82f6' } },
+      fonts: { sans },
+    });
+    const result = compileTheme(theme);
+
+    // Should have exactly ONE :root block (not two)
+    const rootCount = (result.css.match(/:root\s*\{/g) ?? []).length;
+    expect(rootCount).toBe(1);
+
+    // The single :root should contain both font and color vars
+    const rootMatch = result.css.match(/:root\s*\{([^}]+)\}/);
+    expect(rootMatch).not.toBeNull();
+    expect(rootMatch?.[1]).toContain('--font-sans');
+    expect(rootMatch?.[1]).toContain('--color-primary-500');
+  });
+
+  it('returns empty preloadTags when no fonts are provided', () => {
+    const theme = defineTheme({
+      colors: { primary: { 500: '#3b82f6' } },
+    });
+    const result = compileTheme(theme);
+    expect(result.preloadTags).toBe('');
   });
 });

@@ -51,6 +51,7 @@ function injectIntoTemplate(
   appCss: string,
   ssrData: Array<{ key: string; data: unknown }>,
   nonce?: string,
+  headTags?: string,
 ): string {
   // Inject app HTML: try <!--ssr-outlet--> first, then <div id="app">
   let html: string;
@@ -58,6 +59,11 @@ function injectIntoTemplate(
     html = template.replace('<!--ssr-outlet-->', appHtml);
   } else {
     html = template.replace(/(<div[^>]*id="app"[^>]*>)([\s\S]*?)(<\/div>)/, `$1${appHtml}$3`);
+  }
+
+  // Inject head tags (e.g., font preloads) before CSS
+  if (headTags) {
+    html = html.replace('</head>', `${headTags}\n</head>`);
   }
 
   // Inject CSS before </head>
@@ -158,7 +164,14 @@ async function handleHTMLRequest(
 ): Promise<Response> {
   try {
     const result = await ssrRenderToString(module, url, { ssrTimeout });
-    const html = injectIntoTemplate(template, result.html, result.css, result.ssrData, nonce);
+    const html = injectIntoTemplate(
+      template,
+      result.html,
+      result.css,
+      result.ssrData,
+      nonce,
+      result.headTags,
+    );
 
     return new Response(html, {
       status: 200,

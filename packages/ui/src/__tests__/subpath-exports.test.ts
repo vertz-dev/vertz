@@ -127,9 +127,11 @@ describe('Subpath Exports — @vertz/ui/query', () => {
 describe('Subpath Exports — @vertz/ui/css', () => {
   const expectedExports = [
     'ThemeProvider',
+    'compileFonts',
     'compileTheme',
     'css',
     'defineTheme',
+    'font',
     'globalCss',
     's',
     'variants',
@@ -163,9 +165,11 @@ describe('Subpath Exports — @vertz/ui/css', () => {
   test('same references as main barrel', async () => {
     const main = await import('../index');
     const subpath = await import('../css/public');
+    expect(subpath.compileFonts).toBe(main.compileFonts);
     expect(subpath.compileTheme).toBe(main.compileTheme);
     expect(subpath.css).toBe(main.css);
     expect(subpath.defineTheme).toBe(main.defineTheme);
+    expect(subpath.font).toBe(main.font);
     expect(subpath.globalCss).toBe(main.globalCss);
     expect(subpath.s).toBe(main.s);
     expect(subpath.ThemeProvider).toBe(main.ThemeProvider);
@@ -234,12 +238,14 @@ describe('Subpath Exports — main barrel backward compat', () => {
 
   test('main barrel re-exports all css symbols', async () => {
     const main = await import('../index');
+    expect(main.compileFonts).toBeTypeOf('function');
     expect(main.compileTheme).toBeTypeOf('function');
     expect(main.css).toBeTypeOf('function');
-    expect(main.variants).toBeTypeOf('function');
     expect(main.defineTheme).toBeTypeOf('function');
-    expect(main.ThemeProvider).toBeTypeOf('function');
+    expect(main.font).toBeTypeOf('function');
     expect(main.globalCss).toBeTypeOf('function');
     expect(main.s).toBeTypeOf('function');
+    expect(main.ThemeProvider).toBeTypeOf('function');
+    expect(main.variants).toBeTypeOf('function');
   });
 });

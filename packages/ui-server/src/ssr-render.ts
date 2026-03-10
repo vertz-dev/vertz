@@ -80,6 +80,8 @@ export interface SSRRenderResult {
   html: string;
   css: string;
   ssrData: Array<{ key: string; data: unknown }>;
+  /** Font preload link tags for injection into <head>. */
+  headTags: string;
 }
 
 export interface SSRDiscoverResult {
@@ -162,9 +164,12 @@ export async function ssrRenderToString(
 
       // Compile theme CSS if the module exports a theme
       let themeCss = '';
+      let themePreloadTags = '';
       if (module.theme) {
         try {
-          themeCss = compileTheme(module.theme).css;
+          const compiled = compileTheme(module.theme);
+          themeCss = compiled.css;
+          themePreloadTags = compiled.preloadTags;
         } catch (e) {
           console.error(
             '[vertz] Failed to compile theme export. Ensure your theme is created with defineTheme().',
@@ -213,7 +218,7 @@ export async function ssrRenderToString(
             }))
           : [];
 
-      return { html, css, ssrData };
+      return { html, css, ssrData, headTags: themePreloadTags };
     } finally {
       clearGlobalSSRTimeout();
     }

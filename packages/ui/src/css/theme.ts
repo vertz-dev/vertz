@@ -14,6 +14,8 @@
  *   → `[data-theme="dark"] { --color-background: #111827; }`
  */
 
+import { compileFonts, type FontDescriptor } from './font';
+import { sanitizeCssValue } from './sanitize';
 import { COLOR_NAMESPACES } from './token-tables';
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -33,6 +35,8 @@ export interface ThemeInput {
   colors: ColorTokens;
   /** Spacing scale tokens. */
   spacing?: SpacingTokens;
+  /** Font descriptors keyed by token name (e.g., sans, mono, display). */
+  fonts?: Record<string, FontDescriptor>;
 }
 
 /** The structured theme object returned by defineTheme(). */
@@ -41,6 +45,8 @@ export interface Theme {
   colors: ColorTokens;
   /** Spacing scale tokens. */
   spacing?: SpacingTokens;
+  /** Font descriptors keyed by token name. */
+  fonts?: Record<string, FontDescriptor>;
 }
 
 /** Output of compileTheme(). */
@@ -49,20 +55,8 @@ export interface CompiledTheme {
   css: string;
   /** Flat list of token dot-paths (e.g., 'primary.500', 'background'). */
   tokens: string[];
-}
-
-// ─── Sanitization ──────────────────────────────────────────────
-
-/**
- * Sanitize a CSS value to prevent injection attacks.
- * Strips characters and patterns that could break out of a CSS property value.
- */
-function sanitizeCssValue(value: string): string {
-  return value
-    .replace(/[;{}]/g, '')
-    .replace(/url\s*\(/gi, '')
-    .replace(/expression\s*\(/gi, '')
-    .replace(/@import/gi, '');
+  /** Font preload link tags for injection into <head>. */
+  preloadTags: string;
 }
 
 // ─── defineTheme ────────────────────────────────────────────────
@@ -77,6 +71,7 @@ export function defineTheme(input: ThemeInput): Theme {
   return {
     colors: input.colors,
     spacing: input.spacing,
+    fonts: input.fonts,
   };
 }
 
@@ -153,8 +148,24 @@ export function compileTheme(theme: Theme): CompiledTheme {
     }
   }
 
+  // Compile fonts if provided
+  let fontFaceCss = '';
+  let preloadTags = '';
+  if (theme.fonts) {
+    const compiled = compileFonts(theme.fonts);
+    fontFaceCss = compiled.fontFaceCss;
+    preloadTags = compiled.preloadTags;
+    // Merge font CSS vars into the main :root block (avoid duplicate :root)
+    rootVars.push(...compiled.cssVarLines);
+  }
+
   // Build CSS blocks
   const blocks: string[] = [];
+
+  // @font-face declarations go before :root
+  if (fontFaceCss) {
+    blocks.push(fontFaceCss);
+  }
 
   if (rootVars.length > 0) {
     blocks.push(`:root {\n${rootVars.join('\n')}\n}`);
@@ -167,5 +178,6 @@ export function compileTheme(theme: Theme): CompiledTheme {
   return {
     css: blocks.join('\n'),
     tokens: tokenPaths,
+    preloadTags,
   };
 }
