@@ -1,7 +1,7 @@
 import { appendFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-export type DebugCategory = 'manifest' | 'plugin' | 'ssr' | 'watcher' | 'ws';
+export type DebugCategory = 'fields' | 'manifest' | 'plugin' | 'ssr' | 'watcher' | 'ws';
 
 export interface DebugLogger {
   log(category: DebugCategory, message: string, data?: Record<string, unknown>): void;

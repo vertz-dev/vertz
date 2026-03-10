@@ -18,11 +18,22 @@ export interface FieldSelectionOptions {
   resolveImport?: (specifier: string, fromFile: string) => string | undefined;
 }
 
+export interface QueryDiagnosticInfo {
+  queryVar: string;
+  singleFileFields: string[];
+  crossFileFields: string[];
+  combinedFields: string[];
+  hasOpaqueAccess: boolean;
+  injected: boolean;
+}
+
 export interface FieldSelectionResult {
   /** Transformed source code */
   code: string;
   /** Whether any select was injected */
   injected: boolean;
+  /** Diagnostic info for each query (for debug logging) */
+  diagnostics: QueryDiagnosticInfo[];
 }
 
 /**
@@ -48,11 +59,12 @@ export function injectFieldSelection(
   const selections = analyzeFieldSelection(filePath, source);
 
   if (selections.length === 0) {
-    return { code: source, injected: false };
+    return { code: source, injected: false, diagnostics: [] };
   }
 
   const s = new MagicString(source);
   let injected = false;
+  const diagnostics: QueryDiagnosticInfo[] = [];
 
   for (const selection of selections) {
     // Merge cross-file fields from child component prop flows
@@ -61,39 +73,45 @@ export function injectFieldSelection(
     const combinedFields = [...selection.fields, ...crossFileResult.fields];
     const combinedOpaque = selection.hasOpaqueAccess || crossFileResult.hasOpaqueAccess;
 
-    // Skip if opaque access detected (single-file or cross-file)
-    if (combinedOpaque) continue;
+    let queryInjected = false;
 
-    // Skip if no fields were tracked
-    if (combinedFields.length === 0) continue;
+    if (!combinedOpaque && combinedFields.length > 0) {
+      // Build select object: always include 'id', then sorted accessed fields
+      const allFields = new Set(['id', ...combinedFields]);
+      const sortedFields = [...allFields].sort();
+      const selectEntries = sortedFields.map((f) => `${f}: true`).join(', ');
+      const selectObj = `{ ${selectEntries} }`;
 
-    // Build select object: always include 'id', then sorted accessed fields
-    const allFields = new Set(['id', ...combinedFields]);
-    const sortedFields = [...allFields].sort();
-    const selectEntries = sortedFields.map((f) => `${f}: true`).join(', ');
-    const selectObj = `{ ${selectEntries} }`;
+      switch (selection.injectionKind) {
+        case 'insert-arg':
+          s.appendLeft(selection.injectionPos, `{ select: ${selectObj} }`);
+          break;
+        case 'merge-into-object':
+          s.appendLeft(selection.injectionPos, `, select: ${selectObj} `);
+          break;
+        case 'append-arg':
+          s.appendLeft(selection.injectionPos, `, { select: ${selectObj} }`);
+          break;
+      }
 
-    switch (selection.injectionKind) {
-      case 'insert-arg':
-        // api.users.list() → api.users.list({ select: {...} })
-        s.appendLeft(selection.injectionPos, `{ select: ${selectObj} }`);
-        break;
-      case 'merge-into-object':
-        // api.users.list({ status }) → api.users.list({ status, select: {...} })
-        s.appendLeft(selection.injectionPos, `, select: ${selectObj} `);
-        break;
-      case 'append-arg':
-        // api.users.get(id) → api.users.get(id, { select: {...} })
-        s.appendLeft(selection.injectionPos, `, { select: ${selectObj} }`);
-        break;
+      queryInjected = true;
+      injected = true;
     }
 
-    injected = true;
+    diagnostics.push({
+      queryVar: selection.queryVar,
+      singleFileFields: [...selection.fields],
+      crossFileFields: [...crossFileResult.fields],
+      combinedFields: [...new Set(combinedFields)],
+      hasOpaqueAccess: combinedOpaque,
+      injected: queryInjected,
+    });
   }
 
   return {
     code: s.toString(),
     injected,
+    diagnostics,
   };
 }
 

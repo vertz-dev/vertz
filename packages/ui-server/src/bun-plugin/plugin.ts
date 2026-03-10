@@ -174,16 +174,19 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
   fieldSelectionManifest.setImportResolver(fieldSelectionResolveImport);
 
   // Scan all .tsx files for component prop field access
+  let fieldSelectionFileCount = 0;
   for (const [filePath] of manifests) {
     if (filePath.endsWith('.tsx')) {
       try {
         const sourceText = readFileSync(filePath, 'utf-8');
         fieldSelectionManifest.registerFile(filePath, sourceText);
+        fieldSelectionFileCount++;
       } catch {
         // Skip unreadable files
       }
     }
   }
+  diagnostics?.recordFieldSelectionManifest(fieldSelectionFileCount);
 
   // Ensure CSS output directory exists
   mkdirSync(cssOutDir, { recursive: true });
@@ -232,6 +235,33 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
             resolveImport: fieldSelectionResolveImport,
           });
           const codeForCompile = fieldSelectionResult.code;
+
+          // Log field selection results
+          if (logger?.isEnabled('fields') && fieldSelectionResult.diagnostics.length > 0) {
+            for (const diag of fieldSelectionResult.diagnostics) {
+              logger.log('fields', 'query', {
+                file: relPath,
+                queryVar: diag.queryVar,
+                fields: diag.combinedFields,
+                opaque: diag.hasOpaqueAccess,
+                injected: diag.injected,
+                crossFile: diag.crossFileFields.length,
+              });
+            }
+          }
+
+          // Record in diagnostics
+          if (diagnostics && fieldSelectionResult.diagnostics.length > 0) {
+            diagnostics.recordFieldSelection(relPath, {
+              queries: fieldSelectionResult.diagnostics.map((d) => ({
+                queryVar: d.queryVar,
+                fields: d.combinedFields,
+                hasOpaqueAccess: d.hasOpaqueAccess,
+                crossFileFields: d.crossFileFields,
+                injected: d.injected,
+              })),
+            });
+          }
 
           // ── 3. Compile (reactive + JSX transforms) ─────────────
           const compileResult = compile(codeForCompile, {

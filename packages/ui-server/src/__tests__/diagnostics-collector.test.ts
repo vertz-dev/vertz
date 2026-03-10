@@ -237,4 +237,36 @@ describe('DiagnosticsCollector', () => {
     expect(snapshot.manifest.lastHmrFile).toBe('src/hooks/b.ts');
     expect(snapshot.manifest.lastHmrChanged).toBe(true);
   });
+
+  it('recordFieldSelection() tracks per-file field selection state', () => {
+    const collector = new DiagnosticsCollector();
+
+    collector.recordFieldSelectionManifest(5);
+    collector.recordFieldSelection('src/user-list.tsx', {
+      queries: [
+        {
+          queryVar: 'users',
+          fields: ['name', 'email'],
+          hasOpaqueAccess: false,
+          crossFileFields: ['name', 'email'],
+          injected: true,
+        },
+      ],
+    });
+
+    const snapshot = collector.getSnapshot();
+    expect(snapshot.fieldSelection.manifestFileCount).toBe(5);
+    expect(snapshot.fieldSelection.entries['src/user-list.tsx']).toBeDefined();
+    expect(snapshot.fieldSelection.entries['src/user-list.tsx'].queries).toHaveLength(1);
+    expect(snapshot.fieldSelection.entries['src/user-list.tsx'].queries[0].queryVar).toBe('users');
+    expect(snapshot.fieldSelection.entries['src/user-list.tsx'].queries[0].injected).toBe(true);
+  });
+
+  it('starts with empty field selection state', () => {
+    const collector = new DiagnosticsCollector();
+    const snapshot = collector.getSnapshot();
+
+    expect(snapshot.fieldSelection.manifestFileCount).toBe(0);
+    expect(snapshot.fieldSelection.entries).toEqual({});
+  });
 });

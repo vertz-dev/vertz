@@ -259,6 +259,31 @@ function UserList() {
     });
   });
 
+  describe('Given queries with mixed opaque and non-opaque access', () => {
+    it('Then diagnostics report per-query injection status', () => {
+      const source = `
+import { query } from '@vertz/ui';
+
+function Dashboard() {
+  const users = query(api.users.list());
+  const tasks = query(api.tasks.list());
+  const items = users.data.items.map(u => ({ ...u }));
+  return <div>{tasks.data.items.map(t => <span>{t.title}</span>)}</div>;
+}`;
+
+      const result = injectFieldSelection('test.tsx', source);
+
+      expect(result.diagnostics).toHaveLength(2);
+      const usersDiag = result.diagnostics.find((d) => d.queryVar === 'users');
+      const tasksDiag = result.diagnostics.find((d) => d.queryVar === 'tasks');
+      expect(usersDiag?.hasOpaqueAccess).toBe(true);
+      expect(usersDiag?.injected).toBe(false);
+      expect(tasksDiag?.hasOpaqueAccess).toBe(false);
+      expect(tasksDiag?.injected).toBe(true);
+      expect(tasksDiag?.singleFileFields).toContain('title');
+    });
+  });
+
   describe('Given no manifest provided (Phase 1 backward compat)', () => {
     it('Then only uses single-file fields', () => {
       const source = `
