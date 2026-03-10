@@ -16,6 +16,7 @@ import type { EntityOperations } from './entity/entity-operations';
 import { EntityRegistry } from './entity/entity-registry';
 import { stripHiddenFields } from './entity/field-filter';
 import { generateEntityRoutes } from './entity/route-generator';
+import { resolveTenantChain } from './entity/tenant-chain';
 import type { EntityDefinition } from './entity/types';
 import { generateServiceRoutes } from './service/route-generator';
 import type { ServiceDefinition } from './service/types';
@@ -64,6 +65,10 @@ export interface ServerConfig extends Omit<AppConfig, '_entityDbFactory' | 'enti
   db?: DatabaseClient<Record<string, ModelEntry>> | EntityDbAdapter;
   /** @internal Factory to create a DB adapter for each entity. Prefer `db` instead. */
   _entityDbFactory?: (entityDef: EntityDefinition) => EntityDbAdapter;
+  /** @internal Resolves parent IDs for indirect tenant chain traversal. For testing only. */
+  _queryParentIds?: import('./entity/crud-pipeline').QueryParentIdsFn;
+  /** @internal Tenant chains for indirect scoping. For testing without DatabaseClient. */
+  _tenantChains?: Map<string, import('./entity/tenant-chain').TenantChain>;
   /** Auth configuration — when combined with db, auto-wires DB-backed stores */
   auth?: AuthConfig;
 }
@@ -171,12 +176,12 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
   // Process entities first (so registry has all entities registered for DI)
   if (config.entities && config.entities.length > 0) {
     let dbFactory: (entityDef: EntityDefinition) => EntityDbAdapter;
+    // Use def.table for DB lookup (admin entities may share tables via table override)
+    const tableOf = (e: EntityDefinition) => e.table ?? e.name;
 
     if (hasDbClient) {
       // Validate all entity models are registered in the DatabaseClient
       const dbModels = (db as DatabaseClient<Record<string, ModelEntry>>)._internals.models;
-      // Use def.table for DB lookup (admin entities may share tables via table override)
-      const tableOf = (e: EntityDefinition) => e.table ?? e.name;
       const missing = config.entities
         .filter((e) => !(tableOf(e as EntityDefinition) in dbModels))
         .map((e) => `"${tableOf(e as EntityDefinition)}"`);
@@ -205,6 +210,49 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
       dbFactory = config._entityDbFactory ?? createNoopDbAdapter;
     }
 
+    // Resolve tenant chains for indirectly scoped entities (when using DatabaseClient)
+    const tenantChains = new Map<string, import('./entity/tenant-chain').TenantChain>();
+    let queryParentIds: import('./entity/crud-pipeline').QueryParentIdsFn | undefined;
+    if (hasDbClient) {
+      const dbClient = db as DatabaseClient<Record<string, ModelEntry>>;
+      const tenantGraph = dbClient._internals.tenantGraph;
+      // Models are actually ModelDef (which has _tenant), but typed as ModelEntry
+      const dbModelsMap = dbClient._internals.models as Record<
+        string,
+        ModelEntry & { readonly _tenant?: string | null }
+      >;
+      for (const entityDef of config.entities) {
+        const eDef = entityDef as EntityDefinition;
+        // Skip entities that explicitly opt out
+        if (eDef.tenantScoped === false) continue;
+        const modelKey = tableOf(eDef);
+        const chain = resolveTenantChain(modelKey, tenantGraph, dbModelsMap);
+        if (chain) {
+          tenantChains.set(eDef.name, chain);
+        }
+      }
+
+      // Create queryParentIds from the DatabaseClient for indirect tenant chain traversal
+      if (tenantChains.size > 0) {
+        queryParentIds = async (tableName: string, where: Record<string, unknown>) => {
+          const delegate = (dbClient as Record<string, unknown>)[tableName] as
+            | { list: (opts: never) => Promise<{ ok: boolean; data?: unknown[] }> }
+            | undefined;
+          if (!delegate) return [];
+          const result = await delegate.list({ where } as never);
+          if (!result.ok || !result.data) return [];
+          return (result.data as Record<string, unknown>[]).map((row) => row.id as string);
+        };
+      }
+    }
+
+    // Merge pre-computed tenant chains (for testing without DatabaseClient)
+    if (config._tenantChains) {
+      for (const [name, chain] of config._tenantChains) {
+        tenantChains.set(name, chain);
+      }
+    }
+
     // Register entity operations into the registry first (for cross-entity DI)
     for (const entityDef of config.entities) {
       const entityDb = dbFactory(entityDef as EntityDefinition);
@@ -215,8 +263,11 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
     // Generate routes for each entity
     for (const entityDef of config.entities) {
       const entityDb = dbFactory(entityDef as EntityDefinition);
+      const tenantChain = tenantChains.get(entityDef.name) ?? null;
       const routes = generateEntityRoutes(entityDef as EntityDefinition, registry, entityDb, {
         apiPrefix,
+        tenantChain,
+        queryParentIds: tenantChain ? (queryParentIds ?? config._queryParentIds) : undefined,
       });
       allRoutes.push(...routes);
     }

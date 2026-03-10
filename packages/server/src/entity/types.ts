@@ -1,6 +1,7 @@
 import type { ModelDef, RelationDef, SchemaLike, TableDef } from '@vertz/db';
 import type { AccessRule as AuthAccessRule } from '../auth/rules';
 import type { EntityOperations } from './entity-operations';
+import type { TenantChain } from './tenant-chain';
 
 // ---------------------------------------------------------------------------
 // Inject map — maps local names to EntityDefinitions for typed cross-entity access
@@ -250,4 +251,6 @@ export interface EntityDefinition<TModel extends ModelDef = ModelDef> {
   readonly table: string;
   /** Whether CRUD auto-filters by tenantId. */
   readonly tenantScoped: boolean;
+  /** Relation chain for indirect tenant scoping. Null for direct or unscoped. */
+  readonly tenantChain: TenantChain | null;
 }

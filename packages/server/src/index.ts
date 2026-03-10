@@ -240,6 +240,8 @@ export type {
   ListOptions,
   ListResult,
   RequestInfo,
+  TenantChain,
+  TenantChainHop,
 } from './entity';
 export {
   createCrudHandlers,
@@ -249,6 +251,7 @@ export {
   entity,
   entityErrorHandler,
   generateEntityRoutes,
+  resolveTenantChain,
   stripHiddenFields,
   stripReadOnlyFields,
 } from './entity';

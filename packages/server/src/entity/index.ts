@@ -27,6 +27,8 @@ export {
 } from './field-filter';
 export type { EntityRouteOptions } from './route-generator';
 export { generateEntityRoutes } from './route-generator';
+export type { TenantChain, TenantChainHop } from './tenant-chain';
+export { resolveTenantChain } from './tenant-chain';
 export type {
   AccessRule,
   BaseContext,

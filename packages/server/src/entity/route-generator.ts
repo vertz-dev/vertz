@@ -6,6 +6,7 @@ import type { EntityOperations } from './entity-operations';
 import type { EntityRegistry } from './entity-registry';
 import { entityErrorHandler } from './error-handler';
 import { applySelect } from './field-filter';
+import type { TenantChain } from './tenant-chain';
 import type { EntityDefinition } from './types';
 import { parseVertzQL, validateVertzQL } from './vertzql-parser';
 
@@ -15,6 +16,10 @@ import { parseVertzQL, validateVertzQL } from './vertzql-parser';
 
 export interface EntityRouteOptions {
   apiPrefix?: string;
+  /** Tenant chain for indirectly scoped entities. */
+  tenantChain?: TenantChain | null;
+  /** Resolves parent IDs for indirect tenant chain traversal. */
+  queryParentIds?: import('./crud-pipeline').QueryParentIdsFn;
 }
 
 // ---------------------------------------------------------------------------
@@ -71,8 +76,12 @@ export function generateEntityRoutes(
 ): EntityRouteEntry[] {
   const prefix = options?.apiPrefix ?? '/api';
   const basePath = `${prefix}/${def.name}`;
+  const tenantChain = options?.tenantChain ?? null;
 
-  const crudHandlers = createCrudHandlers(def, db);
+  const crudHandlers = createCrudHandlers(def, db, {
+    tenantChain,
+    queryParentIds: options?.queryParentIds,
+  });
   const inject = def.inject ?? {};
   const registryProxy =
     Object.keys(inject).length > 0
