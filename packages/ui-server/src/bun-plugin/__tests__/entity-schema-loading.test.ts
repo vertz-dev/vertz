@@ -83,4 +83,52 @@ describe('loadEntitySchema', () => {
       expect(result).toBeUndefined();
     });
   });
+
+  describe('Given an empty JSON object', () => {
+    it('Then returns the empty object', () => {
+      setup();
+      try {
+        const schemaPath = resolve(TEST_DIR, 'entity-schema.json');
+        writeFileSync(schemaPath, '{}');
+
+        const result = loadEntitySchema(schemaPath);
+
+        expect(result).toEqual({});
+      } finally {
+        cleanup();
+      }
+    });
+  });
+
+  describe('Given a JSON array instead of object', () => {
+    it('Then returns undefined', () => {
+      setup();
+      try {
+        const schemaPath = resolve(TEST_DIR, 'entity-schema.json');
+        writeFileSync(schemaPath, '[]');
+
+        const result = loadEntitySchema(schemaPath);
+
+        expect(result).toBeUndefined();
+      } finally {
+        cleanup();
+      }
+    });
+  });
+
+  describe('Given an empty file', () => {
+    it('Then returns undefined', () => {
+      setup();
+      try {
+        const schemaPath = resolve(TEST_DIR, 'entity-schema.json');
+        writeFileSync(schemaPath, '');
+
+        const result = loadEntitySchema(schemaPath);
+
+        expect(result).toBeUndefined();
+      } finally {
+        cleanup();
+      }
+    });
+  });
 });

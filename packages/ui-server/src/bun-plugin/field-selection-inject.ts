@@ -23,6 +23,7 @@ export interface EntitySchemaRelation {
 }
 
 export interface EntitySchemaEntry {
+  table?: string;
   primaryKey?: string;
   tenantScoped: boolean;
   hiddenFields: string[];

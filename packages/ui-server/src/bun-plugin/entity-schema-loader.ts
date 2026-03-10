@@ -6,7 +6,7 @@
  * the bun plugin, it enables relation-aware field selection injection.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import type { EntitySchemaManifest } from './field-selection-inject';
 
 /**
@@ -17,9 +17,10 @@ export function loadEntitySchema(schemaPath: string | undefined): EntitySchemaMa
   if (!schemaPath) return undefined;
 
   try {
-    if (!existsSync(schemaPath)) return undefined;
     const content = readFileSync(schemaPath, 'utf-8');
-    return JSON.parse(content) as EntitySchemaManifest;
+    const parsed: unknown = JSON.parse(content);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined;
+    return parsed as EntitySchemaManifest;
   } catch {
     return undefined;
   }
