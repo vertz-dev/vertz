@@ -255,6 +255,53 @@ const compiled = compileTheme(theme);
 ThemeProvider({ theme: 'dark', children: [<App />] });
 ```
 
+### Fonts
+
+Declare font families with `font()` and compile them into `@font-face` CSS, custom properties, and preload tags with `compileFonts()`. Only woff2 format is supported.
+
+```tsx
+import { font, compileFonts } from '@vertz/ui/css';
+
+const sans = font('DM Sans', {
+  weight: '100..1000',
+  src: '/fonts/dm-sans.woff2',
+  fallback: ['system-ui', 'sans-serif'],
+});
+
+const mono = font('JetBrains Mono', {
+  weight: '100..800',
+  src: '/fonts/jb-mono.woff2',
+  fallback: ['monospace'],
+});
+
+const compiled = compileFonts({ sans, mono });
+
+// compiled.fontFaceCss  — @font-face declarations
+// compiled.cssVarsCss   — :root { --font-sans: ...; --font-mono: ...; }
+// compiled.cssVarLines  — individual lines for merging into an existing :root
+// compiled.preloadTags  — <link rel="preload" ...> HTML tags
+```
+
+**Multiple font files** (e.g., normal + italic):
+
+```tsx
+const sans = font('DM Sans', {
+  weight: '100..1000',
+  src: [
+    { path: '/fonts/dm-sans.woff2', weight: '100..1000', style: 'normal' },
+    { path: '/fonts/dm-sans-italic.woff2', weight: '100..1000', style: 'italic' },
+  ],
+  fallback: ['system-ui', 'sans-serif'],
+});
+```
+
+**Font without `src`** (system font with CSS var only):
+
+```tsx
+const system = font('system-ui', { weight: '400' });
+// compileFonts({ system }) generates --font-system: 'system-ui'; but no @font-face
+```
+
 ---
 
 ## Forms
@@ -624,6 +671,8 @@ onMount(() => {
 | `compileTheme` | Compile a theme to CSS |
 | `ThemeProvider` | Provide a theme to descendants |
 | `globalCss` | Inject global CSS |
+| `font` | Declare a font family descriptor |
+| `compileFonts` | Compile font descriptors into CSS, vars, and preload tags |
 
 ### Forms
 
