@@ -188,7 +188,7 @@ describe('EntitySdkGenerator', () => {
     expect(userFile?.content).toContain('client.get<ListResponse<UserResponse>>');
     expect(userFile?.content).not.toContain('client.get<UserResponse[]>');
     expect(userFile?.content).toContain(
-      "import { type FetchClient, type ListResponse, createDescriptor } from '@vertz/fetch'",
+      "import { type FetchClient, type ListResponse, createDescriptor, resolveVertzQL } from '@vertz/fetch'",
     );
   });
 
@@ -223,7 +223,7 @@ describe('EntitySdkGenerator', () => {
     expect(userFile?.content).toContain('(body: unknown)');
     expect(userFile?.content).toContain('createMutationDescriptor');
     expect(userFile?.content).toContain(
-      "import { type FetchClient, type ListResponse, type OptimisticHandler, createDescriptor, createMutationDescriptor } from '@vertz/fetch'",
+      "import { type FetchClient, type ListResponse, type OptimisticHandler, createDescriptor, createMutationDescriptor, resolveVertzQL } from '@vertz/fetch'",
     );
   });
 
@@ -666,7 +666,7 @@ describe('EntitySdkGenerator', () => {
     const userFile = files.find((f) => f.path === 'entities/user.ts');
 
     expect(userFile?.content).toContain(
-      "import { type FetchClient, createDescriptor } from '@vertz/fetch'",
+      "import { type FetchClient, createDescriptor, resolveVertzQL } from '@vertz/fetch'",
     );
   });
 
@@ -730,5 +730,83 @@ describe('EntitySdkGenerator', () => {
     expect(taskFile?.content).toContain("url: '/tasks/:id', method: 'PATCH' as const");
     // delete
     expect(taskFile?.content).toContain("url: '/tasks/:id', method: 'DELETE' as const");
+  });
+
+  describe('VertzQL field selection', () => {
+    it('list() uses resolveVertzQL to encode select into q= param', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'user',
+          operations: [
+            {
+              kind: 'list',
+              method: 'GET',
+              path: '/user',
+              operationId: 'listUser',
+              outputSchema: 'UserResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const userFile = files.find((f) => f.path === 'entities/user.ts');
+
+      expect(userFile?.content).toContain('resolveVertzQL');
+      expect(userFile?.content).toContain(
+        "import { type FetchClient, type ListResponse, createDescriptor, resolveVertzQL } from '@vertz/fetch'",
+      );
+    });
+
+    it('get() accepts optional options parameter with select', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'user',
+          operations: [
+            {
+              kind: 'get',
+              method: 'GET',
+              path: '/user/:id',
+              operationId: 'getUser',
+              outputSchema: 'UserResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const userFile = files.find((f) => f.path === 'entities/user.ts');
+
+      expect(userFile?.content).toContain(
+        '(id: string, options?: { select?: Record<string, true> })',
+      );
+      expect(userFile?.content).toContain('resolveVertzQL');
+    });
+
+    it('get() passes resolved query to createDescriptor for cache key', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'user',
+          operations: [
+            {
+              kind: 'get',
+              method: 'GET',
+              path: '/user/:id',
+              operationId: 'getUser',
+              outputSchema: 'UserResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const userFile = files.find((f) => f.path === 'entities/user.ts');
+
+      // The resolved query should be passed to createDescriptor for cache key generation
+      expect(userFile?.content).toContain('resolvedQuery');
+    });
   });
 });
