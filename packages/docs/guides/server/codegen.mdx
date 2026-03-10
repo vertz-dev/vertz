@@ -3,12 +3,12 @@ title: Code Generation
 description: "Type-safe entitlements and RLS policy generation from your defineAccess() configuration"
 ---
 
-Vertz's code generator reads your `defineAccess()` configuration at build time and produces two artifacts:
+Vertz's code generator reads your `defineAccess()` configuration at build time and produces:
 
 1. **`access.d.ts`** — TypeScript declarations that make `ctx.can('typo')` a compile error
-2. **`rls-policies.sql`** — PostgreSQL Row-Level Security policies from `rules.where()` conditions
+2. **`rls-policies.sql`** (opt-in) — PostgreSQL Row-Level Security policies from `rules.where()` conditions
 
-Both are generated into `.vertz/generated/` alongside your other codegen output.
+The type declarations are generated automatically. RLS policies require explicit opt-in via config.
 
 ## Type-safe entitlements
 
@@ -151,9 +151,27 @@ export type Role<T extends ResourceType> =
 
 These types are available from `.vertz/generated/access.d.ts` for use in your application code.
 
-## RLS policy generation
+## RLS policy generation (opt-in)
 
-If your entitlements use `rules.where()` conditions, the code generator can produce PostgreSQL Row-Level Security (RLS) policies automatically.
+If your entitlements use `rules.where()` conditions, the code generator can produce PostgreSQL Row-Level Security (RLS) policy SQL from them. This is **opt-in** — you must enable it in your codegen config.
+
+<Note>
+  RLS generation produces a SQL file as a **starting point**. Vertz does not automatically apply or enforce these policies — access control is enforced at the application layer via `enforceAccess()`. The generated SQL is for teams that want to add database-level row filtering as an additional security layer on PostgreSQL.
+</Note>
+
+### Enabling RLS generation
+
+Add `typescript.rls: true` to your codegen config:
+
+```ts
+// vertz.config.ts
+export const codegen = {
+  generators: ['typescript'],
+  typescript: {
+    rls: true,
+  },
+};
+```
 
 ### How it works
 
@@ -209,9 +227,9 @@ The generator applies these transformations:
 - **Column names**: Property names converted from camelCase to snake_case (e.g., `createdBy` → `created_by`, `tenantId` → `tenant_id`)
 - **Policy names**: Derived from entitlement name (e.g., `task:edit` → `task_edit`)
 
-### Using the generated policies
+### Applying the generated policies
 
-The generated `rls-policies.sql` is a starting point. Apply it to your database as part of your migration workflow:
+The generated `rls-policies.sql` is a reference. You are responsible for applying it to your database and setting up the required session variables. Here's a typical workflow:
 
 <Steps>
   <Step title="Enable RLS on your tables">
@@ -220,13 +238,18 @@ The generated `rls-policies.sql` is a starting point. Apply it to your database 
     ALTER TABLE tasks FORCE ROW LEVEL SECURITY;
     ```
   </Step>
-  <Step title="Set session variables">
-    Your application must set `app.user_id` and `app.tenant_id` on each database connection before running queries:
+  <Step title="Set session variables per request">
+    Your application must set `app.user_id` and `app.tenant_id` on each database connection within a transaction before running queries:
 
     ```ts
+    await db.execute('BEGIN');
     await db.execute(`SET LOCAL app.user_id = '${userId}'`);
     await db.execute(`SET LOCAL app.tenant_id = '${tenantId}'`);
+    // ... run queries ...
+    await db.execute('COMMIT');
     ```
+
+    `SET LOCAL` scopes the setting to the current transaction — it's automatically cleared on `COMMIT` or `ROLLBACK`.
   </Step>
   <Step title="Apply the generated policies">
     Include the generated SQL in your migration or apply it directly:

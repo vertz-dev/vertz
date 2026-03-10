@@ -59,9 +59,11 @@ function runTypescriptGenerator(ir: CodegenIR, _config: ResolvedCodegenConfig): 
   const accessTypesGen = new AccessTypesGenerator();
   files.push(...accessTypesGen.generate(ir, generatorConfig));
 
-  // RLS policies (rls-policies.sql)
-  const rlsPolicyGen = new RlsPolicyGenerator();
-  files.push(...rlsPolicyGen.generate(ir, generatorConfig));
+  // RLS policies (rls-policies.sql) — opt-in via typescript.rls
+  if (_config.typescript?.rls) {
+    const rlsPolicyGen = new RlsPolicyGenerator();
+    files.push(...rlsPolicyGen.generate(ir, generatorConfig));
+  }
 
   return files;
 }
