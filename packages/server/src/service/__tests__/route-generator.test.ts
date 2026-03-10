@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { d } from '@vertz/db';
+import { content } from '../../content';
 import { entity } from '../../entity/entity';
 import { EntityRegistry } from '../../entity/entity-registry';
 import { generateServiceRoutes } from '../route-generator';
@@ -243,6 +244,251 @@ describe('Feature: generateServiceRoutes', () => {
         });
 
         expect(response.status).toBe(403);
+      });
+    });
+  });
+
+  describe('Given a GET action with no body', () => {
+    describe('When the route handler is called', () => {
+      it('Then handler receives undefined as input and does not crash', async () => {
+        const healthService = service('health', {
+          access: { check: () => true },
+          actions: {
+            check: {
+              method: 'GET',
+              response: content.text(),
+              handler: async () => 'OK',
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(healthService, registry);
+
+        expect(routes).toHaveLength(1);
+        expect(routes[0]?.method).toBe('GET');
+
+        const response = await routes[0]?.handler({});
+        expect(response.status).toBe(200);
+      });
+    });
+  });
+
+  describe('Given an action with response: content.xml()', () => {
+    describe('When the handler returns a string', () => {
+      it('Then response has content-type application/xml', async () => {
+        const xmlService = service('xml', {
+          access: { metadata: () => true },
+          actions: {
+            metadata: {
+              method: 'GET',
+              response: content.xml(),
+              handler: async () => '<EntityDescriptor/>',
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(xmlService, registry);
+        const response = await routes[0]?.handler({});
+
+        expect(response.status).toBe(200);
+        expect(response.headers.get('content-type')).toBe('application/xml');
+        expect(await response.text()).toBe('<EntityDescriptor/>');
+      });
+    });
+  });
+
+  describe('Given an action with response: content.html()', () => {
+    describe('When the handler returns a string', () => {
+      it('Then response has content-type text/html', async () => {
+        const htmlService = service('html', {
+          access: { page: () => true },
+          actions: {
+            page: {
+              method: 'GET',
+              response: content.html(),
+              handler: async () => '<html><body>Hello</body></html>',
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(htmlService, registry);
+        const response = await routes[0]?.handler({});
+
+        expect(response.status).toBe(200);
+        expect(response.headers.get('content-type')).toBe('text/html');
+        expect(await response.text()).toBe('<html><body>Hello</body></html>');
+      });
+    });
+  });
+
+  describe('Given an action with body: content.xml() and response: s.object()', () => {
+    describe('When called with XML body', () => {
+      it('Then handler receives string input and response is JSON', async () => {
+        const mixedService = service('mixed', {
+          access: { process: () => true },
+          actions: {
+            process: {
+              method: 'POST',
+              body: content.xml(),
+              response: responseSchema,
+              handler: async (input) => ({ token: `parsed-${(input as string).length}` }),
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(mixedService, registry);
+        const response = await routes[0]?.handler({
+          body: '<data>hello</data>',
+        });
+
+        expect(response.status).toBe(200);
+        expect(response.headers.get('content-type')).toBe('application/json');
+        const body = await response.json();
+        expect(body.token).toBe('parsed-18');
+      });
+    });
+  });
+
+  describe('Given a service action handler', () => {
+    describe('When the handler accesses ctx.request', () => {
+      it('Then ctx.request has url, method, headers, and body', async () => {
+        let capturedRequest: unknown;
+
+        const svc = service('test', {
+          access: { action: () => true },
+          actions: {
+            action: {
+              method: 'POST',
+              body: bodySchema,
+              response: responseSchema,
+              handler: async (input, ctx) => {
+                capturedRequest = ctx.request;
+                return { token: 'tok' };
+              },
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(svc, registry);
+
+        await routes[0]?.handler({
+          body: { email: 'test@example.com' },
+          raw: {
+            url: 'http://localhost:3000/api/test/action',
+            method: 'POST',
+            headers: new Headers({ 'content-type': 'application/json' }),
+          },
+        });
+
+        expect(capturedRequest).toBeDefined();
+        const req = capturedRequest as {
+          url: string;
+          method: string;
+          headers: Headers;
+          body: unknown;
+        };
+        expect(req.url).toBe('http://localhost:3000/api/test/action');
+        expect(req.method).toBe('POST');
+        expect(req.headers).toBeInstanceOf(Headers);
+        expect(req.body).toEqual({ email: 'test@example.com' });
+      });
+    });
+  });
+
+  describe('Given an action with body: content.xml()', () => {
+    describe('When called with application/json content-type', () => {
+      it('Then returns 415 Unsupported Media Type', async () => {
+        const xmlService = service('xml', {
+          access: { process: () => true },
+          actions: {
+            process: {
+              method: 'POST',
+              body: content.xml(),
+              response: content.xml(),
+              handler: async (input) => `<echo>${input}</echo>`,
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(xmlService, registry);
+        const response = await routes[0]?.handler({
+          body: { some: 'json' },
+          headers: { 'content-type': 'application/json' },
+          raw: {
+            url: 'http://localhost:3000/api/xml/process',
+            method: 'POST',
+            headers: new Headers({ 'content-type': 'application/json' }),
+          },
+        });
+
+        expect(response.status).toBe(415);
+        const body = await response.json();
+        expect(body.error.code).toBe('UnsupportedMediaType');
+      });
+    });
+
+    describe('When called with text/xml content-type', () => {
+      it('Then accepts (both XML MIME types)', async () => {
+        const xmlService = service('xml', {
+          access: { process: () => true },
+          actions: {
+            process: {
+              method: 'POST',
+              body: content.xml(),
+              response: content.xml(),
+              handler: async (input) => `<echo>${input}</echo>`,
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(xmlService, registry);
+        const response = await routes[0]?.handler({
+          body: '<data/>',
+          headers: { 'content-type': 'text/xml' },
+          raw: {
+            url: 'http://localhost:3000/api/xml/process',
+            method: 'POST',
+            headers: new Headers({ 'content-type': 'text/xml' }),
+          },
+        });
+
+        expect(response.status).toBe(200);
+        expect(await response.text()).toBe('<echo><data/></echo>');
+      });
+    });
+  });
+
+  describe('Given an action with JSON body and response (unchanged)', () => {
+    describe('When called with valid JSON', () => {
+      it('Then behavior is unchanged', async () => {
+        const authService = service('auth', {
+          access: { login: () => true },
+          actions: {
+            login: {
+              body: bodySchema,
+              response: responseSchema,
+              handler: async (input) => ({ token: `tok-${input.email}` }),
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(authService, registry);
+        const response = await routes[0]?.handler({
+          body: { email: 'alice@example.com' },
+        });
+
+        expect(response.status).toBe(200);
+        expect(response.headers.get('content-type')).toBe('application/json');
+        const body = await response.json();
+        expect(body.token).toBe('tok-alice@example.com');
       });
     });
   });

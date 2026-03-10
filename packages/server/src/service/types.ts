@@ -22,12 +22,22 @@ type InjectToOperations<TInject extends Record<string, EntityDefinition> = {}> =
 // ServiceContext — runtime context for service handlers
 // ---------------------------------------------------------------------------
 
+/** Raw request metadata exposed to service handlers */
+export interface ServiceRequestInfo {
+  readonly url: string;
+  readonly method: string;
+  readonly headers: Headers;
+  readonly body: unknown;
+}
+
 export interface ServiceContext<
   // biome-ignore lint/complexity/noBannedTypes: {} represents no injected entities — the correct default
   TInject extends Record<string, EntityDefinition> = {},
 > extends BaseContext {
   /** Typed access to injected entities only */
   readonly entities: InjectToOperations<TInject>;
+  /** Raw request metadata — URL, method, headers, pre-parsed body */
+  readonly request: ServiceRequestInfo;
 }
 
 // ---------------------------------------------------------------------------
@@ -41,7 +51,7 @@ export interface ServiceActionDef<
 > {
   readonly method?: string;
   readonly path?: string;
-  readonly body: SchemaLike<TInput>;
+  readonly body?: SchemaLike<TInput>;
   readonly response: SchemaLike<TOutput>;
   readonly handler: (input: TInput, ctx: TCtx) => Promise<TOutput>;
 }

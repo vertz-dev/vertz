@@ -205,4 +205,28 @@ describe('parseBody', () => {
 
     await expect(parseBody(request)).resolves.toBe('');
   });
+
+  it('parses application/xml body as string', async () => {
+    const xml = '<root><item>value</item></root>';
+    const request = new Request('http://localhost:3000/api', {
+      method: 'POST',
+      headers: { 'content-type': 'application/xml' },
+      body: xml,
+    });
+
+    const body = await parseBody(request);
+    expect(body).toBe(xml);
+  });
+
+  it('parses application/xml with charset as string', async () => {
+    const xml = '<data/>';
+    const request = new Request('http://localhost:3000/api', {
+      method: 'POST',
+      headers: { 'content-type': 'application/xml; charset=utf-8' },
+      body: xml,
+    });
+
+    const body = await parseBody(request);
+    expect(body).toBe(xml);
+  });
 });

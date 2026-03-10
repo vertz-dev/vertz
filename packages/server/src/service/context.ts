@@ -1,6 +1,6 @@
 import type { RequestInfo } from '../entity/context';
 import type { EntityOperations } from '../entity/entity-operations';
-import type { ServiceContext } from './types';
+import type { ServiceContext, ServiceRequestInfo } from './types';
 
 /**
  * Creates a ServiceContext from request info and registry proxy.
@@ -9,6 +9,7 @@ import type { ServiceContext } from './types';
 export function createServiceContext(
   request: RequestInfo,
   registryProxy: Record<string, EntityOperations>,
+  rawRequest?: ServiceRequestInfo,
 ): ServiceContext {
   const userId = request.userId ?? null;
   const roles = request.roles ?? [];
@@ -27,5 +28,6 @@ export function createServiceContext(
       return rolesToCheck.some((r) => roles.includes(r));
     },
     entities: registryProxy,
+    request: rawRequest ?? { url: '', method: '', headers: new Headers(), body: undefined },
   };
 }
