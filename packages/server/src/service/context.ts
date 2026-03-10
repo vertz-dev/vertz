@@ -16,6 +16,7 @@ export function createServiceContext(
 
   return {
     userId,
+    tenantId,
     authenticated() {
       return userId !== null;
     },

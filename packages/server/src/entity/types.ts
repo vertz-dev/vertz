@@ -1,5 +1,5 @@
 import type { ModelDef, RelationDef, SchemaLike, TableDef } from '@vertz/db';
-import type { PublicRule } from '../auth/rules';
+import type { AccessRule as AuthAccessRule } from '../auth/rules';
 import type { EntityOperations } from './entity-operations';
 
 // ---------------------------------------------------------------------------
@@ -24,6 +24,7 @@ type InjectToOperations<TInject extends Record<string, EntityDefinition> = {}> =
 
 export interface BaseContext {
   readonly userId: string | null;
+  readonly tenantId: string | null;
   authenticated(): boolean;
   tenant(): boolean;
   role(...roles: string[]): boolean;
@@ -56,7 +57,7 @@ export interface EntityContext<
 // allows actions to share the same AccessRule type.
 export type AccessRule =
   | false
-  | PublicRule
+  | AuthAccessRule
   | ((ctx: BaseContext, row: Record<string, unknown>) => boolean | Promise<boolean>);
 
 // ---------------------------------------------------------------------------

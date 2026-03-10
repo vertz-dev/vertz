@@ -25,6 +25,7 @@ export function createEntityContext<TModel extends ModelDef = ModelDef>(
 
   return {
     userId,
+    tenantId,
     authenticated() {
       return userId !== null;
     },
