@@ -37,6 +37,12 @@ export type FileExtractionsMap = Map<string, CSSExtractionResult>;
 /** Map of source file path to CSS sidecar file path (for debugging). */
 export type CSSSidecarMap = Map<string, string>;
 
+/** Result of updating a single file's manifest during HMR. */
+export interface ManifestUpdateResult {
+  /** Whether the manifest's reactivity shape changed compared to the previous version. */
+  changed: boolean;
+}
+
 export interface VertzBunPluginResult {
   /** The Bun plugin to pass to Bun.build or bunfig.toml. */
   plugin: import('bun').BunPlugin;
@@ -44,4 +50,14 @@ export interface VertzBunPluginResult {
   fileExtractions: FileExtractionsMap;
   /** Map of source file to CSS sidecar file path (for debugging). */
   cssSidecarMap: CSSSidecarMap;
+  /**
+   * Regenerate a single file's manifest during HMR.
+   * Returns whether the manifest shape changed (triggering cache invalidation).
+   */
+  updateManifest(filePath: string, sourceText: string): ManifestUpdateResult;
+  /**
+   * Remove a file's manifest when the file is deleted.
+   * Returns whether the file had a manifest entry.
+   */
+  deleteManifest(filePath: string): boolean;
 }

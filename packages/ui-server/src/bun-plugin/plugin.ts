@@ -16,14 +16,15 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import type { EncodedSourceMap } from '@ampproject/remapping';
 import remapping from '@ampproject/remapping';
+import type { LoadedReactivityManifest } from '@vertz/ui-compiler';
 import {
   ComponentAnalyzer,
   CSSExtractor,
   compile,
   generateAllManifests,
   HydrationTransformer,
+  regenerateFileManifest,
 } from '@vertz/ui-compiler';
-import type { LoadedReactivityManifest } from '@vertz/ui-compiler';
 import type { BunPlugin } from 'bun';
 import MagicString from 'magic-string';
 import { Project, ts } from 'ts-morph';
@@ -34,9 +35,55 @@ import { filePathHash } from './file-path-hash';
 import type {
   CSSSidecarMap,
   FileExtractionsMap,
+  ManifestUpdateResult,
   VertzBunPluginOptions,
   VertzBunPluginResult,
 } from './types';
+
+/**
+ * Compare two loaded manifests for export shape equality.
+ * Returns true if both have the same exports with the same reactivity types.
+ */
+function manifestsEqual(
+  a: LoadedReactivityManifest | undefined,
+  b: LoadedReactivityManifest,
+): boolean {
+  if (!a) return false;
+
+  const aKeys = Object.keys(a.exports);
+  const bKeys = Object.keys(b.exports);
+
+  if (aKeys.length !== bKeys.length) return false;
+
+  for (const key of aKeys) {
+    const aExport = a.exports[key];
+    const bExport = b.exports[key];
+
+    if (!aExport || !bExport) return false;
+    if (aExport.kind !== bExport.kind) return false;
+    if (aExport.reactivity.type !== bExport.reactivity.type) return false;
+
+    // For signal-api, compare property sets
+    if (aExport.reactivity.type === 'signal-api' && bExport.reactivity.type === 'signal-api') {
+      if (!setsEqual(aExport.reactivity.signalProperties, bExport.reactivity.signalProperties)) {
+        return false;
+      }
+      if (!setsEqual(aExport.reactivity.plainProperties, bExport.reactivity.plainProperties)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+function setsEqual(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) return false;
+  for (const item of a) {
+    if (!b.has(item)) return false;
+  }
+  return true;
+}
 
 /**
  * Create a Vertz Bun plugin with CSS sidecar support and optional Fast Refresh.
@@ -274,5 +321,54 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
     },
   };
 
-  return { plugin, fileExtractions, cssSidecarMap };
+  // ── Manifest HMR update API ──────────────────────────────────────
+  function updateManifest(filePath: string, sourceText: string): ManifestUpdateResult {
+    const oldManifest = manifests.get(filePath);
+
+    const { manifest: newManifest, warnings } = regenerateFileManifest(
+      filePath,
+      sourceText,
+      manifests,
+      { srcDir },
+    );
+
+    const changed = !manifestsEqual(oldManifest, newManifest);
+
+    if (changed) {
+      manifestsRecord = null; // Invalidate cached Record view
+    }
+
+    if (logger?.isEnabled('manifest')) {
+      const exportShapes: Record<string, string> = {};
+      for (const [name, info] of Object.entries(newManifest.exports)) {
+        exportShapes[name] = info.reactivity.type;
+      }
+      logger.log('manifest', 'hmr-update', {
+        file: relative(projectRoot, filePath),
+        changed,
+        exports: exportShapes,
+      });
+      for (const warning of warnings) {
+        logger.log('manifest', 'warning', { type: warning.type, message: warning.message });
+      }
+    }
+
+    return { changed };
+  }
+
+  function deleteManifest(filePath: string): boolean {
+    const existed = manifests.delete(filePath);
+    if (existed) {
+      manifestsRecord = null; // Invalidate cached Record view
+
+      if (logger?.isEnabled('manifest')) {
+        logger.log('manifest', 'hmr-delete', {
+          file: relative(projectRoot, filePath),
+        });
+      }
+    }
+    return existed;
+  }
+
+  return { plugin, fileExtractions, cssSidecarMap, updateManifest, deleteManifest };
 }

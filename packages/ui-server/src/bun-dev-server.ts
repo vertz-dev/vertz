@@ -957,7 +957,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     });
 
     // Register the Vertz compiler plugin for SSR transforms (no HMR on server side)
-    const { plugin: serverPlugin } = createVertzBunPlugin({
+    const { plugin: serverPlugin, updateManifest: updateServerManifest } = createVertzBunPlugin({
       hmr: false,
       fastRefresh: false,
       logger,
@@ -1494,6 +1494,25 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
           } catch {
             // Bun.build() itself failed — ignore, the fetch-validate loader
             // will catch this on next page load
+          }
+
+          // Regenerate manifest for the changed file before SSR re-import.
+          // This ensures the compiler's manifest view is current when Bun
+          // re-evaluates modules through the plugin's onLoad hook.
+          if (stopped) return;
+          if (filename.endsWith('.ts') || filename.endsWith('.tsx')) {
+            const changedFilePath = resolve(srcDir, filename);
+            try {
+              const manifestStartMs = performance.now();
+              const source = await Bun.file(changedFilePath).text();
+              const { changed } = updateServerManifest(changedFilePath, source);
+              const manifestDurationMs = Math.round(performance.now() - manifestStartMs);
+              diagnostics.recordManifestUpdate(lastChangedFile, changed, manifestDurationMs);
+            } catch {
+              // File may have been deleted between watcher event and read.
+              // This is not an error — the manifest will be stale until
+              // the next full page refresh (acceptable per design doc).
+            }
           }
 
           // Re-import SSR module — clear require cache for all project source
