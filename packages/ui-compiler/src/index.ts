@@ -10,7 +10,11 @@ export type {
 export { analyzeComponentPropFields } from './analyzers/component-prop-field-analyzer';
 export type { CSSCallInfo, CSSCallKind } from './analyzers/css-analyzer';
 export { CSSAnalyzer } from './analyzers/css-analyzer';
-export type { PropFlow, QueryFieldSelection } from './analyzers/field-selection-analyzer';
+export type {
+  NestedFieldAccess,
+  PropFlow,
+  QueryFieldSelection,
+} from './analyzers/field-selection-analyzer';
 export { analyzeFieldSelection } from './analyzers/field-selection-analyzer';
 export { JsxAnalyzer } from './analyzers/jsx-analyzer';
 export { MutationAnalyzer } from './analyzers/mutation-analyzer';

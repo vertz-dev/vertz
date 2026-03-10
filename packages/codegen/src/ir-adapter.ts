@@ -141,11 +141,35 @@ export function adaptIR(appIR: AppIR): CodegenIR {
       )
       .map((r) => ({ name: r.name, type: r.type, entity: r.entity }));
 
+    // Build relation selections map from EntityRelationIR
+    const relationSelections: Record<string, 'all' | string[]> = {};
+    for (const rel of entity.relations) {
+      relationSelections[rel.name] = rel.selection;
+    }
+
+    // Extract top-level response fields for the manifest
+    let entityResponseFields: CodegenResolvedField[] | undefined;
+    const respRef = entity.modelRef.schemaRefs.response;
+    if (respRef?.kind === 'inline') {
+      entityResponseFields = (respRef as InlineSchemaRef).resolvedFields?.map((f) => ({
+        name: f.name,
+        tsType: f.tsType,
+        optional: f.optional,
+      }));
+    }
+
     return {
       entityName: entity.name,
       operations,
       actions,
       relations: resolvedRelations.length > 0 ? resolvedRelations : undefined,
+      tenantScoped: entity.tenantScoped,
+      table: entity.table,
+      primaryKey: entity.modelRef.primaryKey,
+      hiddenFields: entity.modelRef.hiddenFields,
+      responseFields: entityResponseFields,
+      relationSelections:
+        Object.keys(relationSelections).length > 0 ? relationSelections : undefined,
     };
   });
 

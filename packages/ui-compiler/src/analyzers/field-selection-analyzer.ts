@@ -27,6 +27,13 @@ export interface PropFlow {
   propName: string;
 }
 
+export interface NestedFieldAccess {
+  /** Top-level entity field name (e.g., 'assignee') */
+  field: string;
+  /** Nested path below the field (e.g., ['name'] for assignee.name) */
+  nestedPath: string[];
+}
+
 export interface QueryFieldSelection {
   /** Variable name assigned from query() call (e.g., 'users') */
   queryVar: string;
@@ -40,6 +47,14 @@ export interface QueryFieldSelection {
   hasOpaqueAccess: boolean;
   /** Components receiving data from this query via JSX props */
   propFlows: PropFlow[];
+  /** Nested field access paths for relation fields (e.g., assignee.name) */
+  nestedAccess: NestedFieldAccess[];
+  /** Start position of the descriptor call arguments (for scoping user-select checks) */
+  descriptorCallStart: number;
+  /** End position of the descriptor call arguments */
+  descriptorCallEnd: number;
+  /** Entity name inferred from the descriptor call chain (e.g., 'tasks' from api.tasks.list()) */
+  inferredEntityName: string | null;
 }
 
 /**
@@ -58,11 +73,24 @@ export function analyzeFieldSelection(filePath: string, sourceText: string): Que
 
   // Step 2: For each query variable, track field access throughout the file
   for (const qv of queryVars) {
-    const { fields, hasOpaqueAccess, propFlows } = trackFieldAccess(
+    const { fields, hasOpaqueAccess, propFlows, nestedAccess } = trackFieldAccess(
       sourceFile,
       qv.varName,
       imports,
     );
+
+    // Deduplicate nested access entries
+    const nestedKey = (n: NestedFieldAccess) => `${n.field}:${n.nestedPath.join('.')}`;
+    const seenNested = new Set<string>();
+    const dedupedNested: NestedFieldAccess[] = [];
+    for (const n of nestedAccess) {
+      const key = nestedKey(n);
+      if (!seenNested.has(key)) {
+        seenNested.add(key);
+        dedupedNested.push(n);
+      }
+    }
+
     results.push({
       queryVar: qv.varName,
       injectionPos: qv.injectionPos,
@@ -70,6 +98,10 @@ export function analyzeFieldSelection(filePath: string, sourceText: string): Que
       fields: [...new Set(fields)],
       hasOpaqueAccess,
       propFlows,
+      nestedAccess: dedupedNested,
+      descriptorCallStart: qv.descriptorCallStart,
+      descriptorCallEnd: qv.descriptorCallEnd,
+      inferredEntityName: qv.inferredEntityName,
     });
   }
 
@@ -80,6 +112,9 @@ interface QueryVarInfo {
   varName: string;
   injectionPos: number;
   injectionKind: InjectionKind;
+  descriptorCallStart: number;
+  descriptorCallEnd: number;
+  inferredEntityName: string | null;
 }
 
 /**
@@ -110,10 +145,14 @@ function findQueryVariables(sourceFile: ts.SourceFile): QueryVarInfo[] {
         if (innerArg && ts.isCallExpression(innerArg)) {
           const varName = node.name.getText(sourceFile);
           const { injectionPos, injectionKind } = computeInjectionPoint(innerArg, sourceFile);
+          const inferredEntityName = inferEntityNameFromCall(innerArg, sourceFile);
           results.push({
             varName,
             injectionPos,
             injectionKind,
+            descriptorCallStart: innerArg.pos,
+            descriptorCallEnd: innerArg.end,
+            inferredEntityName,
           });
         }
       }
@@ -140,9 +179,15 @@ function trackFieldAccess(
   sourceFile: ts.SourceFile,
   varName: string,
   imports: Map<string, string>,
-): { fields: string[]; hasOpaqueAccess: boolean; propFlows: PropFlow[] } {
+): {
+  fields: string[];
+  hasOpaqueAccess: boolean;
+  propFlows: PropFlow[];
+  nestedAccess: NestedFieldAccess[];
+} {
   const fields: string[] = [];
   const propFlows: PropFlow[] = [];
+  const nestedAccess: NestedFieldAccess[] = [];
   let hasOpaqueAccess = false;
 
   // Track which callback params map to this query variable's data items
@@ -153,9 +198,12 @@ function trackFieldAccess(
     if (ts.isPropertyAccessExpression(node)) {
       const chain = buildPropertyChain(node, sourceFile);
       if (chain && chain[0] === varName) {
-        const fieldPath = extractFieldFromChain(chain);
-        if (fieldPath) {
-          fields.push(fieldPath);
+        const result = extractFieldFromChain(chain);
+        if (result) {
+          fields.push(result.field);
+          if (result.nestedPath.length > 0) {
+            nestedAccess.push({ field: result.field, nestedPath: result.nestedPath });
+          }
         }
       }
     }
@@ -178,15 +226,38 @@ function trackFieldAccess(
               const paramName = getCallbackParamName(callback, sourceFile);
               if (paramName) {
                 callbackParamsFromQuery.add(paramName);
-                const callbackFields = trackCallbackFieldAccess(
+                const callbackResult = trackCallbackFieldAccess(
                   callback,
                   paramName,
                   sourceFile,
                   imports,
                   propFlows,
                 );
-                fields.push(...callbackFields.fields);
-                if (callbackFields.hasOpaqueAccess) hasOpaqueAccess = true;
+
+                // Determine if this .map() is on a relation field (not on .items)
+                // e.g., task.data.tags.map(tag => ...) → parentField = 'tags'
+                const parentResult = extractFieldFromChain(chain);
+                const parentField =
+                  parentResult && parentResult.nestedPath.length === 0 ? parentResult.field : null;
+
+                if (parentField) {
+                  // Callback fields become nested access under the parent relation field
+                  fields.push(parentField);
+                  for (const f of callbackResult.fields) {
+                    nestedAccess.push({ field: parentField, nestedPath: [f] });
+                  }
+                  for (const n of callbackResult.nestedAccess) {
+                    nestedAccess.push({
+                      field: parentField,
+                      nestedPath: [n.field, ...n.nestedPath],
+                    });
+                  }
+                } else {
+                  // Standard .items.map() — callback fields are top-level
+                  fields.push(...callbackResult.fields);
+                  nestedAccess.push(...callbackResult.nestedAccess);
+                }
+                if (callbackResult.hasOpaqueAccess) hasOpaqueAccess = true;
               }
             }
           }
@@ -238,7 +309,7 @@ function trackFieldAccess(
   }
 
   visit(sourceFile);
-  return { fields, hasOpaqueAccess, propFlows };
+  return { fields, hasOpaqueAccess, propFlows, nestedAccess };
 }
 
 /**
@@ -272,25 +343,25 @@ function buildPropertyChain(node: ts.Expression, _sourceFile: ts.SourceFile): st
 }
 
 /**
- * Extract the entity field name from a property chain.
+ * Extract the entity field name and nested path from a property chain.
  *
- * For list queries: ['users', 'data', 'items', X, 'fieldName'] → 'fieldName'
- * For get queries:  ['users', 'data', 'fieldName'] → 'fieldName'
+ * For list queries: ['users', 'data', 'items', X, 'fieldName'] → { field: 'fieldName', nestedPath: [] }
+ * For get queries:  ['users', 'data', 'fieldName'] → { field: 'fieldName', nestedPath: [] }
+ * For nested:       ['task', 'data', 'assignee', 'name'] → { field: 'assignee', nestedPath: ['name'] }
  *
  * Skips 'data' and 'items' as they're structural, not entity fields.
  */
-function extractFieldFromChain(chain: string[]): string | null {
+function extractFieldFromChain(chain: string[]): { field: string; nestedPath: string[] } | null {
   // Skip the variable name
   const path = chain.slice(1);
 
-  // Strip structural properties: data, items
+  // Strip structural prefix properties: data, items (only from leading positions)
   const structural = new Set(['data', 'items']);
-  const fieldParts: string[] = [];
-  for (const part of path) {
-    if (!structural.has(part)) {
-      fieldParts.push(part);
-    }
+  let prefixEnd = 0;
+  while (prefixEnd < path.length && path[prefixEnd] && structural.has(path[prefixEnd])) {
+    prefixEnd++;
   }
+  const fieldParts = path.slice(prefixEnd);
 
   // Skip known non-entity properties
   const nonEntityProps = new Set([
@@ -320,7 +391,15 @@ function extractFieldFromChain(chain: string[]): string | null {
     return null;
   }
 
-  return fieldParts.length > 0 ? (fieldParts[0] ?? null) : null;
+  if (fieldParts.length === 0 || !fieldParts[0]) return null;
+
+  // Filter non-entity props (array methods, signal props) from nested path
+  const nestedPath = fieldParts.slice(1).filter((p) => !nonEntityProps.has(p));
+
+  return {
+    field: fieldParts[0],
+    nestedPath,
+  };
 }
 
 /**
@@ -357,6 +436,29 @@ function computeInjectionPoint(
     injectionPos: lastArg.end,
     injectionKind: 'append-arg',
   };
+}
+
+/**
+ * Infer the entity name from a descriptor call chain.
+ * e.g., api.tasks.list() → 'tasks', api.users.get(id) → 'users'
+ *
+ * Looks for the pattern: <root>.<entityName>.<method>(...)
+ */
+function inferEntityNameFromCall(
+  callExpr: ts.CallExpression,
+  _sourceFile: ts.SourceFile,
+): string | null {
+  const callee = callExpr.expression;
+  // Pattern: api.tasks.list() → callee is api.tasks.list (PropertyAccessExpression)
+  if (ts.isPropertyAccessExpression(callee)) {
+    // callee.expression is api.tasks (PropertyAccessExpression)
+    const obj = callee.expression;
+    if (ts.isPropertyAccessExpression(obj)) {
+      // obj.name is 'tasks'
+      return obj.name.text;
+    }
+  }
+  return null;
 }
 
 /**
@@ -406,14 +508,23 @@ function trackCallbackFieldAccess(
   sourceFile: ts.SourceFile,
   imports: Map<string, string>,
   propFlows: PropFlow[],
-): { fields: string[]; hasOpaqueAccess: boolean } {
+): { fields: string[]; hasOpaqueAccess: boolean; nestedAccess: NestedFieldAccess[] } {
   const fields: string[] = [];
+  const nestedAccess: NestedFieldAccess[] = [];
   let hasOpaqueAccess = false;
 
   function visit(node: ts.Node): void {
     if (ts.isPropertyAccessExpression(node)) {
-      if (ts.isIdentifier(node.expression) && node.expression.text === paramName) {
-        fields.push(node.name.text);
+      // Build full chain from this property access
+      const chain = buildPropertyChain(node, sourceFile);
+      if (chain && chain[0] === paramName && chain.length >= 2) {
+        const field = chain[1];
+        if (field) {
+          fields.push(field);
+          if (chain.length > 2) {
+            nestedAccess.push({ field, nestedPath: chain.slice(2) });
+          }
+        }
       }
     }
 
@@ -462,7 +573,7 @@ function trackCallbackFieldAccess(
     visit(callback.body);
   }
 
-  return { fields, hasOpaqueAccess };
+  return { fields, hasOpaqueAccess, nestedAccess };
 }
 
 /**

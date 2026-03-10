@@ -222,6 +222,18 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
     const modelExpr = getPropertyValue(configObj, 'model');
     const relations = this.extractRelations(configObj, modelExpr ?? undefined);
 
+    // 4.5. Extract entity-level config: tenantScoped, table
+    const tenantScopedExpr = getPropertyValue(configObj, 'tenantScoped');
+    const tenantScoped = tenantScopedExpr ? getBooleanValue(tenantScopedExpr) : undefined;
+
+    const tableExpr = getPropertyValue(configObj, 'table');
+    const table = tableExpr ? getStringValue(tableExpr) : undefined;
+
+    // 4.6. Extract model-level metadata: primaryKey, hiddenFields
+    if (modelExpr) {
+      this.extractModelTableMetadata(modelExpr, modelRef);
+    }
+
     // 5. Validate action names don't collide with CRUD ops
     for (const action of actions) {
       if ((CRUD_OPS as readonly string[]).includes(action.name)) {
@@ -247,7 +259,17 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
     }
 
     return {
-      entity: { name, modelRef, access, hooks, actions, relations, ...loc },
+      entity: {
+        name,
+        modelRef,
+        access,
+        hooks,
+        actions,
+        relations,
+        ...(tenantScoped !== undefined && tenantScoped !== null ? { tenantScoped } : {}),
+        ...(table !== undefined && table !== null ? { table } : {}),
+        ...loc,
+      },
       modelExpr: modelExpr ?? undefined,
     };
   }
@@ -688,6 +710,65 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
           selection,
         };
       });
+  }
+
+  /**
+   * Extract primaryKey and hiddenFields from the model's table type.
+   * Navigates ModelDef.table._columns to inspect column metadata.
+   */
+  private extractModelTableMetadata(modelExpr: Expression, modelRef: EntityModelRef): void {
+    try {
+      const modelType = modelExpr.getType();
+      const tableProp = modelType.getProperty('table');
+      if (!tableProp) return;
+
+      const tableType = tableProp.getTypeAtLocation(modelExpr);
+      const columnsProp = tableType.getProperty('_columns');
+      if (!columnsProp) return;
+
+      const columnsType = columnsProp.getTypeAtLocation(modelExpr);
+      const hiddenFields: string[] = [];
+
+      for (const colProp of columnsType.getProperties()) {
+        const colName = colProp.getName();
+        const colType = colProp.getTypeAtLocation(modelExpr);
+
+        // Check for primary key: _meta.primary === true
+        const metaProp = colType.getProperty('_meta');
+        if (!metaProp) continue;
+
+        const metaType = metaProp.getTypeAtLocation(modelExpr);
+
+        // Check primary
+        const primaryProp = metaType.getProperty('primary');
+        if (primaryProp) {
+          const primaryType = primaryProp.getTypeAtLocation(modelExpr);
+          if (primaryType.getText() === 'true') {
+            modelRef.primaryKey = colName;
+          }
+        }
+
+        // Check hidden: _meta._annotations.hidden === true
+        const annotationsProp = metaType.getProperty('_annotations');
+        if (annotationsProp) {
+          const annotationsType = annotationsProp.getTypeAtLocation(modelExpr);
+          const hiddenProp = annotationsType.getProperty('hidden');
+          if (hiddenProp) {
+            const hiddenType = hiddenProp.getTypeAtLocation(modelExpr);
+            // Boolean literals: getText() returns 'true' or 'false'
+            if (hiddenType.getText() === 'true') {
+              hiddenFields.push(colName);
+            }
+          }
+        }
+      }
+
+      if (hiddenFields.length > 0 || columnsType.getProperties().length > 0) {
+        modelRef.hiddenFields = hiddenFields;
+      }
+    } catch (e) {
+      this.debug(`extractModelTableMetadata failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   /**

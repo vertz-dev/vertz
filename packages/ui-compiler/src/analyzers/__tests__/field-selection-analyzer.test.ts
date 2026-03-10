@@ -323,6 +323,121 @@ describe('analyzeFieldSelection', () => {
     });
   });
 
+  describe('Nested field access tracking', () => {
+    it('tracks single-level nested access (relation.field)', () => {
+      const source = `
+        import { query } from '@vertz/ui';
+
+        function TaskDetail() {
+          const task = query(api.tasks.get(id));
+          return (
+            <div>
+              <h1>{task.data.title}</h1>
+              <span>{task.data.assignee.name}</span>
+            </div>
+          );
+        }
+      `;
+
+      const result = analyzeFieldSelection('test.tsx', source);
+
+      expect(result[0].fields).toContain('title');
+      expect(result[0].fields).toContain('assignee');
+      expect(result[0].nestedAccess).toBeDefined();
+      expect(result[0].nestedAccess).toContainEqual({
+        field: 'assignee',
+        nestedPath: ['name'],
+      });
+    });
+
+    it('tracks multi-level nested access (relation.subfield.deeper)', () => {
+      const source = `
+        import { query } from '@vertz/ui';
+
+        function TaskDetail() {
+          const task = query(api.tasks.get(id));
+          return <span>{task.data.project.owner.email}</span>;
+        }
+      `;
+
+      const result = analyzeFieldSelection('test.tsx', source);
+
+      expect(result[0].fields).toContain('project');
+      expect(result[0].nestedAccess).toContainEqual({
+        field: 'project',
+        nestedPath: ['owner', 'email'],
+      });
+    });
+
+    it('tracks nested access inside map callbacks', () => {
+      const source = `
+        import { query } from '@vertz/ui';
+
+        function TaskList() {
+          const tasks = query(api.tasks.list());
+          return <div>{tasks.data.items.map(t => (
+            <div>
+              <span>{t.title}</span>
+              <span>{t.assignee.name}</span>
+              <span>{t.assignee.email}</span>
+            </div>
+          ))}</div>;
+        }
+      `;
+
+      const result = analyzeFieldSelection('test.tsx', source);
+
+      expect(result[0].fields).toContain('title');
+      expect(result[0].fields).toContain('assignee');
+      expect(result[0].nestedAccess).toContainEqual({
+        field: 'assignee',
+        nestedPath: ['name'],
+      });
+      expect(result[0].nestedAccess).toContainEqual({
+        field: 'assignee',
+        nestedPath: ['email'],
+      });
+    });
+
+    it('returns empty nestedAccess for flat-only access', () => {
+      const source = `
+        import { query } from '@vertz/ui';
+
+        function UserDetail() {
+          const user = query(api.users.get(id));
+          return <div>{user.data.name}{user.data.email}</div>;
+        }
+      `;
+
+      const result = analyzeFieldSelection('test.tsx', source);
+
+      expect(result[0].nestedAccess).toEqual([]);
+    });
+
+    it('deduplicates nested access entries', () => {
+      const source = `
+        import { query } from '@vertz/ui';
+
+        function TaskDetail() {
+          const task = query(api.tasks.get(id));
+          return (
+            <div>
+              <h1>{task.data.assignee.name}</h1>
+              <h2>{task.data.assignee.name}</h2>
+            </div>
+          );
+        }
+      `;
+
+      const result = analyzeFieldSelection('test.tsx', source);
+
+      const assigneeAccess = result[0].nestedAccess.filter(
+        (n) => n.field === 'assignee' && n.nestedPath[0] === 'name',
+      );
+      expect(assigneeAccess).toHaveLength(1);
+    });
+  });
+
   describe('Given no query data passed to child components', () => {
     it('Then propFlows is empty', () => {
       const source = `

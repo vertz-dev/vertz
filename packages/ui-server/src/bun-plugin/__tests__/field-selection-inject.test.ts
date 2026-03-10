@@ -284,6 +284,178 @@ function Dashboard() {
     });
   });
 
+  describe('Manifest-aware injection with entity schema', () => {
+    const entitySchema = {
+      tasks: {
+        primaryKey: 'id',
+        tenantScoped: true,
+        hiddenFields: [],
+        fields: ['id', 'title', 'status', 'description'],
+        relations: {
+          assignee: { type: 'one' as const, entity: 'users', selection: 'all' as const },
+          tags: { type: 'many' as const, entity: 'tags', selection: 'all' as const },
+        },
+      },
+      users: {
+        primaryKey: 'id',
+        tenantScoped: true,
+        hiddenFields: ['passwordHash'],
+        fields: ['id', 'name', 'email'],
+        relations: {},
+      },
+    };
+
+    it('generates include for relation fields with nested access', () => {
+      const source = `
+import { query } from '@vertz/ui';
+
+function TaskDetail() {
+  const task = query(api.tasks.get(id));
+  return (
+    <div>
+      <h1>{task.data.title}</h1>
+      <span>{task.data.assignee.name}</span>
+    </div>
+  );
+}`;
+
+      const result = injectFieldSelection('test.tsx', source, {
+        entitySchema,
+        entityType: 'tasks',
+      });
+
+      expect(result.code).toContain('select:');
+      expect(result.code).toContain('title: true');
+      expect(result.code).toContain('include:');
+      expect(result.code).toContain('assignee: { select: { name: true } }');
+      expect(result.injected).toBe(true);
+    });
+
+    it('generates include for multiple nested relation fields', () => {
+      const source = `
+import { query } from '@vertz/ui';
+
+function TaskList() {
+  const tasks = query(api.tasks.list());
+  return <div>{tasks.data.items.map(t => (
+    <div>
+      <span>{t.title}</span>
+      <span>{t.assignee.name}</span>
+      <span>{t.assignee.email}</span>
+    </div>
+  ))}</div>;
+}`;
+
+      const result = injectFieldSelection('test.tsx', source, {
+        entitySchema,
+        entityType: 'tasks',
+      });
+
+      expect(result.code).toContain('select:');
+      expect(result.code).toContain('title: true');
+      expect(result.code).toContain('include:');
+      expect(result.code).toContain('assignee: { select: { email: true, name: true } }');
+      expect(result.injected).toBe(true);
+    });
+
+    it('does not generate include when no nested access on relation fields', () => {
+      const source = `
+import { query } from '@vertz/ui';
+
+function TaskList() {
+  const tasks = query(api.tasks.list());
+  return <div>{tasks.data.items.map(t => <span>{t.title}</span>)}</div>;
+}`;
+
+      const result = injectFieldSelection('test.tsx', source, {
+        entitySchema,
+        entityType: 'tasks',
+      });
+
+      expect(result.code).toContain('select:');
+      expect(result.code).toContain('title: true');
+      expect(result.code).not.toContain('include:');
+      expect(result.injected).toBe(true);
+    });
+
+    it('skips injection if user already provided select', () => {
+      const source = `
+import { query } from '@vertz/ui';
+
+function TaskList() {
+  const tasks = query(api.tasks.list({ select: { id: true, title: true } }));
+  return <div>{tasks.data.items.map(t => <span>{t.title}</span>)}</div>;
+}`;
+
+      const result = injectFieldSelection('test.tsx', source, {
+        entitySchema,
+        entityType: 'tasks',
+      });
+
+      // User provided select → skip injection
+      expect(result.injected).toBe(false);
+    });
+
+    it('works without entitySchema (backward compat)', () => {
+      const source = `
+import { query } from '@vertz/ui';
+
+function TaskList() {
+  const tasks = query(api.tasks.list());
+  return <div>{tasks.data.items.map(t => <span>{t.title}</span>)}</div>;
+}`;
+
+      const result = injectFieldSelection('test.tsx', source);
+
+      expect(result.code).toContain('select:');
+      expect(result.code).toContain('title: true');
+      expect(result.injected).toBe(true);
+    });
+
+    it('respects relation selection narrowing from entity config', () => {
+      const narrowSchema = {
+        tasks: {
+          primaryKey: 'id',
+          tenantScoped: true,
+          hiddenFields: [],
+          fields: ['id', 'title'],
+          relations: {
+            assignee: {
+              type: 'one' as const,
+              entity: 'users',
+              selection: ['name', 'email'] as string[],
+            },
+          },
+        },
+      };
+
+      const source = `
+import { query } from '@vertz/ui';
+
+function TaskDetail() {
+  const task = query(api.tasks.get(id));
+  return (
+    <div>
+      <h1>{task.data.title}</h1>
+      <span>{task.data.assignee.name}</span>
+      <span>{task.data.assignee.avatar}</span>
+    </div>
+  );
+}`;
+
+      const result = injectFieldSelection('test.tsx', source, {
+        entitySchema: narrowSchema,
+        entityType: 'tasks',
+      });
+
+      // avatar is not in the allowed selection, so it should be filtered out
+      expect(result.code).toContain('assignee:');
+      expect(result.code).toContain('name: true');
+      expect(result.code).not.toContain('avatar: true');
+      expect(result.injected).toBe(true);
+    });
+  });
+
   describe('Given no manifest provided (Phase 1 backward compat)', () => {
     it('Then only uses single-file fields', () => {
       const source = `

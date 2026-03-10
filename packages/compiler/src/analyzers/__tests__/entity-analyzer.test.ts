@@ -1160,6 +1160,237 @@ describe('EntityAnalyzer', () => {
     });
   });
 
+  describe('Entity Schema Metadata', () => {
+    it('extracts tenantScoped: true from entity config', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { userModel } from './models';
+
+        export const userEntity = entity('user', {
+          model: userModel,
+          tenantScoped: true,
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.entities[0]?.tenantScoped).toBe(true);
+    });
+
+    it('extracts tenantScoped: false from entity config', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { userModel } from './models';
+
+        export const userEntity = entity('user', {
+          model: userModel,
+          tenantScoped: false,
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.entities[0]?.tenantScoped).toBe(false);
+    });
+
+    it('defaults tenantScoped to undefined when not specified', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { userModel } from './models';
+
+        export const userEntity = entity('user', {
+          model: userModel,
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.entities[0]?.tenantScoped).toBeUndefined();
+    });
+
+    it('extracts table name override from entity config', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { userModel } from './models';
+
+        export const userEntity = entity('user', {
+          model: userModel,
+          table: 'app_users',
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.entities[0]?.table).toBe('app_users');
+    });
+
+    it('defaults table to undefined when not specified', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { userModel } from './models';
+
+        export const userEntity = entity('user', {
+          model: userModel,
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.entities[0]?.table).toBeUndefined();
+    });
+
+    it('extracts primaryKey from model type', async () => {
+      createFile(
+        '/models.ts',
+        `
+        export interface ColumnMeta {
+          primary?: boolean;
+        }
+        export interface ColumnBuilder<T, M extends ColumnMeta = ColumnMeta> {
+          _meta: M;
+        }
+        export interface TableDef {
+          _columns: {
+            id: ColumnBuilder<string, { primary: true }>;
+            name: ColumnBuilder<string, {}>;
+          };
+        }
+        export interface UserModel {
+          table: TableDef;
+          schemas: {};
+        }
+        export const userModel: UserModel = {} as UserModel;
+      `,
+      );
+
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { userModel } from './models';
+
+        export const userEntity = entity('user', {
+          model: userModel,
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.entities[0]?.modelRef.primaryKey).toBe('id');
+    });
+
+    it('extracts hiddenFields from model type', async () => {
+      createFile(
+        '/models.ts',
+        `
+        export interface Annotations {
+          hidden?: boolean;
+        }
+        export interface ColumnMeta {
+          _annotations: Annotations;
+        }
+        export interface ColumnBuilder<T, M extends ColumnMeta = ColumnMeta> {
+          _meta: M;
+        }
+        export interface TableDef {
+          _columns: {
+            id: ColumnBuilder<string, { _annotations: { hidden: false } }>;
+            name: ColumnBuilder<string, { _annotations: {} }>;
+            passwordHash: ColumnBuilder<string, { _annotations: { hidden: true } }>;
+            secretKey: ColumnBuilder<string, { _annotations: { hidden: true } }>;
+          };
+        }
+        export interface UserModel {
+          table: TableDef;
+          schemas: {};
+        }
+        export const userModel: UserModel = {} as UserModel;
+      `,
+      );
+
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { userModel } from './models';
+
+        export const userEntity = entity('user', {
+          model: userModel,
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.entities[0]?.modelRef.hiddenFields).toEqual(['passwordHash', 'secretKey']);
+    });
+
+    it('returns empty hiddenFields when no columns are hidden', async () => {
+      createFile(
+        '/models.ts',
+        `
+        export interface ColumnMeta {
+          _annotations: {};
+        }
+        export interface ColumnBuilder<T, M extends ColumnMeta = ColumnMeta> {
+          _meta: M;
+        }
+        export interface TableDef {
+          _columns: {
+            id: ColumnBuilder<string, { _annotations: {} }>;
+            name: ColumnBuilder<string, { _annotations: {} }>;
+          };
+        }
+        export interface UserModel {
+          table: TableDef;
+          schemas: {};
+        }
+        export const userModel: UserModel = {} as UserModel;
+      `,
+      );
+
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { userModel } from './models';
+
+        export const userEntity = entity('user', {
+          model: userModel,
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.entities[0]?.modelRef.hiddenFields).toEqual([]);
+    });
+
+    it('returns undefined primaryKey/hiddenFields when model type is unresolvable', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { unknownModel } from './unknown';
+
+        export const userEntity = entity('user', { model: unknownModel });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.entities[0]?.modelRef.primaryKey).toBeUndefined();
+      expect(result.entities[0]?.modelRef.hiddenFields).toBeUndefined();
+    });
+  });
+
   describe('Config Edge Cases', () => {
     it('emits ENTITY_CONFIG_NOT_OBJECT when config is a variable reference', async () => {
       createFile(
