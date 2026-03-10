@@ -68,6 +68,13 @@ function stubDependencies(calls: string[]): CompilerDependencies {
         },
         getDiagnostics: () => [],
       },
+      access: {
+        analyze: async () => {
+          calls.push('analyze:access');
+          return { access: undefined };
+        },
+        getDiagnostics: () => [],
+      },
       dependencyGraph: {
         analyze: async () => {
           calls.push('analyze:dependencyGraph');

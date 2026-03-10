@@ -186,4 +186,33 @@ describe('adaptIR', () => {
       expect(names).toEqual(['CreateUserBody', 'UpdateUserBody']);
     });
   });
+
+  describe('Access data', () => {
+    it('passes access data through when present', () => {
+      const appIR = makeAppIR({
+        access: {
+          entities: [
+            { name: 'workspace', roles: ['admin', 'member'] },
+            { name: 'project', roles: ['manager'] },
+          ],
+          entitlements: ['workspace:invite', 'project:view'],
+          ...loc,
+        },
+      });
+
+      const result = adaptIR(appIR);
+      expect(result.access).toBeDefined();
+      expect(result.access?.entitlements).toEqual(['workspace:invite', 'project:view']);
+      expect(result.access?.entities).toEqual([
+        { name: 'workspace', roles: ['admin', 'member'] },
+        { name: 'project', roles: ['manager'] },
+      ]);
+    });
+
+    it('sets access to undefined when not present', () => {
+      const appIR = makeAppIR({});
+      const result = adaptIR(appIR);
+      expect(result.access).toBeUndefined();
+    });
+  });
 });

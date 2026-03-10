@@ -18,8 +18,21 @@ export interface AppIR {
   schemas: SchemaIR[];
   entities: EntityIR[];
   databases: DatabaseIR[];
+  access?: AccessIR;
   dependencyGraph: DependencyGraphIR;
   diagnostics: Diagnostic[];
+}
+
+// ── Access ────────────────────────────────────────────────────────
+
+export interface AccessIR extends SourceLocation {
+  entities: AccessEntityIR[];
+  entitlements: string[];
+}
+
+export interface AccessEntityIR {
+  name: string;
+  roles: string[];
 }
 
 // ── App ────────────────────────────────────────────────────────────

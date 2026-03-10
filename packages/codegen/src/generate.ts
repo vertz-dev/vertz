@@ -3,6 +3,7 @@ import { dirname, join, resolve } from 'node:path';
 import type { AppIR } from '@vertz/compiler';
 import type { ResolvedCodegenConfig } from './config';
 import { formatWithBiome } from './format';
+import { AccessTypesGenerator } from './generators/access-types-generator';
 import { ClientGenerator } from './generators/client-generator';
 import { EntitySchemaGenerator } from './generators/entity-schema-generator';
 import { EntitySdkGenerator } from './generators/entity-sdk-generator';
@@ -52,6 +53,10 @@ function runTypescriptGenerator(ir: CodegenIR, _config: ResolvedCodegenConfig): 
 
   const routerAugmentationGen = new RouterAugmentationGenerator();
   files.push(...routerAugmentationGen.generate(ir, generatorConfig));
+
+  // Access types augmentation (access.d.ts)
+  const accessTypesGen = new AccessTypesGenerator();
+  files.push(...accessTypesGen.generate(ir, generatorConfig));
 
   return files;
 }

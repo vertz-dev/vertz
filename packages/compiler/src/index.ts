@@ -1,5 +1,8 @@
 // IR types
 
+// Access analyzer
+export type { AccessAnalyzerResult } from './analyzers/access-analyzer';
+export { AccessAnalyzer } from './analyzers/access-analyzer';
 // App analyzer
 export type { AppAnalyzerResult } from './analyzers/app-analyzer';
 export { AppAnalyzer } from './analyzers/app-analyzer';
@@ -154,6 +157,8 @@ export { detectRouteCollisions, injectEntityRoutes } from './ir/entity-route-inj
 // IR merge
 export { mergeIR } from './ir/merge';
 export type {
+  AccessEntityIR,
+  AccessIR,
   AppDefinition,
   AppIR,
   DatabaseIR,

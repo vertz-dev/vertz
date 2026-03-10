@@ -1,6 +1,8 @@
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Project } from 'ts-morph';
+import type { AccessAnalyzerResult } from './analyzers/access-analyzer';
+import { AccessAnalyzer } from './analyzers/access-analyzer';
 import type { AppAnalyzerResult } from './analyzers/app-analyzer';
 import { AppAnalyzer } from './analyzers/app-analyzer';
 import type { Analyzer } from './analyzers/base-analyzer';
@@ -55,6 +57,7 @@ export interface CompilerDependencies {
     app: Analyzer<AppAnalyzerResult>;
     entity: Analyzer<EntityAnalyzerResult>;
     database: Analyzer<DatabaseAnalyzerResult>;
+    access: Analyzer<AccessAnalyzerResult>;
     dependencyGraph: Analyzer<DependencyGraphResult>;
   };
   validators: Validator[];
@@ -85,6 +88,7 @@ export class Compiler {
     const appResult = await analyzers.app.analyze();
     const entityResult = await analyzers.entity.analyze();
     const databaseResult = await analyzers.database.analyze();
+    const accessResult = await analyzers.access.analyze();
     const depGraphResult = await analyzers.dependencyGraph.analyze();
 
     ir.env = envResult.env;
@@ -94,6 +98,7 @@ export class Compiler {
     ir.app = appResult.app;
     ir.entities = entityResult.entities;
     ir.databases = databaseResult.databases;
+    ir.access = accessResult.access;
     ir.dependencyGraph = depGraphResult.graph;
 
     // Collect diagnostics from all analyzers
@@ -105,6 +110,7 @@ export class Compiler {
       ...analyzers.app.getDiagnostics(),
       ...analyzers.entity.getDiagnostics(),
       ...analyzers.database.getDiagnostics(),
+      ...analyzers.access.getDiagnostics(),
       ...analyzers.dependencyGraph.getDiagnostics(),
     );
 
@@ -163,6 +169,7 @@ export function createCompiler(config?: VertzConfig): Compiler {
       app: new AppAnalyzer(project, resolved),
       entity: new EntityAnalyzer(project, resolved),
       database: new DatabaseAnalyzer(project, resolved),
+      access: new AccessAnalyzer(project, resolved),
       dependencyGraph: new DependencyGraphAnalyzer(project, resolved),
     },
     validators: [

@@ -11,6 +11,19 @@ export interface CodegenIR {
   schemas: CodegenSchema[];
   entities: CodegenEntityModule[];
   auth: CodegenAuth;
+  access?: CodegenAccess;
+}
+
+// ── Access ────────────────────────────────────────────────────────
+
+export interface CodegenAccess {
+  entities: CodegenAccessEntity[];
+  entitlements: string[];
+}
+
+export interface CodegenAccessEntity {
+  name: string;
+  roles: string[];
 }
 
 export interface CodegenModule {
