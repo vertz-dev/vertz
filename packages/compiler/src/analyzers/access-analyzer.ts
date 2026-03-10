@@ -1,6 +1,11 @@
-import type { CallExpression, SourceFile } from 'ts-morph';
+import type { CallExpression, Expression, ObjectLiteralExpression, SourceFile } from 'ts-morph';
 import { SyntaxKind } from 'ts-morph';
-import type { AccessEntityIR, AccessIR } from '../ir/types';
+import type {
+  AccessEntityIR,
+  AccessIR,
+  AccessWhereClauseIR,
+  AccessWhereCondition,
+} from '../ir/types';
 import {
   extractObjectLiteral,
   getArrayElements,
@@ -174,12 +179,118 @@ export class AccessAnalyzer extends BaseAnalyzer<AccessAnalyzerResult> {
       }
     }
 
+    // Extract where clauses from entitlement callbacks
+    const whereClauses = this.extractWhereClauses(configObj);
+
     return {
       entities,
       entitlements,
+      whereClauses,
       sourceFile: loc.sourceFile,
       sourceLine: loc.sourceLine,
       sourceColumn: loc.sourceColumn,
     };
+  }
+
+  private extractWhereClauses(configObj: ObjectLiteralExpression): AccessWhereClauseIR[] {
+    const clauses: AccessWhereClauseIR[] = [];
+    const entitlementsExpr = getPropertyValue(configObj, 'entitlements');
+    if (!entitlementsExpr?.isKind(SyntaxKind.ObjectLiteralExpression)) return clauses;
+
+    for (const prop of entitlementsExpr.getProperties()) {
+      if (!prop.isKind(SyntaxKind.PropertyAssignment)) continue;
+      const entName = prop.getName().replace(/^['"]|['"]$/g, '');
+      const value = prop.getInitializer();
+      if (!value) continue;
+
+      // Find where() calls within this entitlement's value
+      const whereCalls = this.findWhereCalls(value);
+      for (const whereCall of whereCalls) {
+        const conditions = this.extractWhereConditions(whereCall);
+        if (conditions.length > 0) {
+          clauses.push({ entitlement: entName, conditions });
+        }
+      }
+    }
+
+    return clauses;
+  }
+
+  /** Find all .where() calls within an expression — handles both r.where() and rules.where() */
+  private findWhereCalls(expr: Expression): CallExpression[] {
+    const calls: CallExpression[] = [];
+    for (const call of expr.getDescendantsOfKind(SyntaxKind.CallExpression)) {
+      const callExpr = call.getExpression();
+      if (callExpr.isKind(SyntaxKind.PropertyAccessExpression) && callExpr.getName() === 'where') {
+        calls.push(call);
+      }
+    }
+    return calls;
+  }
+
+  /** Extract conditions from a where({ column: value }) call argument */
+  private extractWhereConditions(call: CallExpression): AccessWhereCondition[] {
+    const conditions: AccessWhereCondition[] = [];
+    const arg = call.getArguments()[0];
+    if (!arg?.isKind(SyntaxKind.ObjectLiteralExpression)) return conditions;
+
+    for (const prop of arg.getProperties()) {
+      if (!prop.isKind(SyntaxKind.PropertyAssignment)) continue;
+      const column = prop.getName().replace(/^['"]|['"]$/g, '');
+      const init = prop.getInitializer();
+      if (!init) continue;
+
+      const condition = this.extractConditionValue(column, init);
+      if (condition) {
+        conditions.push(condition);
+      } else {
+        this.addDiagnostic({
+          code: 'ACCESS_WHERE_NOT_TRANSLATABLE',
+          severity: 'warning',
+          message: `Where condition for column "${column}" cannot be statically analyzed — no RLS policy will be generated`,
+          ...getSourceLocation(init),
+        });
+      }
+    }
+
+    return conditions;
+  }
+
+  /** Resolve a condition value to a marker or literal */
+  private extractConditionValue(
+    column: string,
+    expr: Expression,
+  ): AccessWhereCondition | undefined {
+    // Check for r.user.id or r.user.tenantId (PropertyAccessExpression chain)
+    if (expr.isKind(SyntaxKind.PropertyAccessExpression)) {
+      const text = expr.getText();
+      // Match patterns like r.user.id, r.user.tenantId, rules.user.id, rules.user.tenantId
+      const markerMatch = text.match(/\.\buser\.(id|tenantId)$/);
+      if (markerMatch) {
+        const marker = `user.${markerMatch[1]}` as 'user.id' | 'user.tenantId';
+        return { kind: 'marker', column, marker };
+      }
+    }
+
+    // String literal
+    const strVal = getStringValue(expr);
+    if (strVal !== null) {
+      return { kind: 'literal', column, value: strVal };
+    }
+
+    // Boolean literal
+    if (expr.isKind(SyntaxKind.TrueKeyword)) {
+      return { kind: 'literal', column, value: true };
+    }
+    if (expr.isKind(SyntaxKind.FalseKeyword)) {
+      return { kind: 'literal', column, value: false };
+    }
+
+    // Numeric literal
+    if (expr.isKind(SyntaxKind.NumericLiteral)) {
+      return { kind: 'literal', column, value: Number(expr.getText()) };
+    }
+
+    return undefined;
   }
 }

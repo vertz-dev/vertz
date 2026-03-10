@@ -300,6 +300,184 @@ describe('AccessAnalyzer', () => {
     });
   });
 
+  describe('Where-clause extraction', () => {
+    it('returns empty whereClauses when no where() calls exist', async () => {
+      createFile(
+        '/access.ts',
+        `
+        import { defineAccess } from '@vertz/server';
+        export const access = defineAccess({
+          entities: {},
+          entitlements: {
+            'post:view': { roles: ['viewer'] },
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.access?.whereClauses).toEqual([]);
+    });
+
+    it('extracts r.where({ createdBy: r.user.id }) from callback entitlement', async () => {
+      createFile(
+        '/access.ts',
+        `
+        import { defineAccess } from '@vertz/server';
+        export const access = defineAccess({
+          entities: {
+            task: { roles: ['assignee'] },
+          },
+          entitlements: {
+            'task:delete': (r) => ({
+              roles: ['assignee'],
+              rules: [r.where({ createdBy: r.user.id })],
+            }),
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.access?.whereClauses).toEqual([
+        {
+          entitlement: 'task:delete',
+          conditions: [{ kind: 'marker', column: 'createdBy', marker: 'user.id' }],
+        },
+      ]);
+    });
+
+    it('extracts r.user.tenantId marker', async () => {
+      createFile(
+        '/access.ts',
+        `
+        import { defineAccess } from '@vertz/server';
+        export const access = defineAccess({
+          entities: {},
+          entitlements: {
+            'org:view': (r) => ({
+              roles: ['member'],
+              rules: [r.where({ orgId: r.user.tenantId })],
+            }),
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.access?.whereClauses).toEqual([
+        {
+          entitlement: 'org:view',
+          conditions: [{ kind: 'marker', column: 'orgId', marker: 'user.tenantId' }],
+        },
+      ]);
+    });
+
+    it('extracts literal boolean and string conditions', async () => {
+      createFile(
+        '/access.ts',
+        `
+        import { defineAccess } from '@vertz/server';
+        export const access = defineAccess({
+          entities: {},
+          entitlements: {
+            'task:view': (r) => ({
+              roles: ['viewer'],
+              rules: [r.where({ archived: false, status: 'active' })],
+            }),
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.access?.whereClauses).toEqual([
+        {
+          entitlement: 'task:view',
+          conditions: [
+            { kind: 'literal', column: 'archived', value: false },
+            { kind: 'literal', column: 'status', value: 'active' },
+          ],
+        },
+      ]);
+    });
+
+    it('extracts where() from object-form entitlement with rules array', async () => {
+      createFile(
+        '/access.ts',
+        `
+        import { defineAccess, rules } from '@vertz/server';
+        export const access = defineAccess({
+          entities: {},
+          entitlements: {
+            'task:edit': {
+              roles: ['assignee'],
+              rules: [rules.where({ createdBy: rules.user.id })],
+            },
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.access?.whereClauses).toEqual([
+        {
+          entitlement: 'task:edit',
+          conditions: [{ kind: 'marker', column: 'createdBy', marker: 'user.id' }],
+        },
+      ]);
+    });
+
+    it('emits warning for non-translatable where conditions', async () => {
+      createFile(
+        '/access.ts',
+        `
+        import { defineAccess } from '@vertz/server';
+        const dynamicVal = 'something';
+        export const access = defineAccess({
+          entities: {},
+          entitlements: {
+            'task:delete': (r) => ({
+              roles: ['admin'],
+              rules: [r.where({ status: dynamicVal })],
+            }),
+          },
+        });
+      `,
+      );
+
+      const diagnostics = await getDiagnostics();
+      expect(diagnostics.some((d) => d.code === 'ACCESS_WHERE_NOT_TRANSLATABLE')).toBe(true);
+    });
+
+    it('extracts multiple where clauses from different entitlements', async () => {
+      createFile(
+        '/access.ts',
+        `
+        import { defineAccess } from '@vertz/server';
+        export const access = defineAccess({
+          entities: {},
+          entitlements: {
+            'task:edit': (r) => ({
+              roles: ['assignee'],
+              rules: [r.where({ createdBy: r.user.id })],
+            }),
+            'task:view': (r) => ({
+              roles: ['viewer'],
+              rules: [r.where({ archived: false })],
+            }),
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.access?.whereClauses).toHaveLength(2);
+      expect(result.access?.whereClauses[0].entitlement).toBe('task:edit');
+      expect(result.access?.whereClauses[1].entitlement).toBe('task:view');
+    });
+  });
+
   describe('No access definition', () => {
     it('returns undefined access when no defineAccess() exists', async () => {
       createFile(

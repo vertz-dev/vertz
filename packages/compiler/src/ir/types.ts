@@ -28,12 +28,22 @@ export interface AppIR {
 export interface AccessIR extends SourceLocation {
   entities: AccessEntityIR[];
   entitlements: string[];
+  whereClauses: AccessWhereClauseIR[];
 }
 
 export interface AccessEntityIR {
   name: string;
   roles: string[];
 }
+
+export interface AccessWhereClauseIR {
+  entitlement: string;
+  conditions: AccessWhereCondition[];
+}
+
+export type AccessWhereCondition =
+  | { kind: 'marker'; column: string; marker: 'user.id' | 'user.tenantId' }
+  | { kind: 'literal'; column: string; value: string | number | boolean };
 
 // ── App ────────────────────────────────────────────────────────────
 

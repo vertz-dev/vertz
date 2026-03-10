@@ -8,6 +8,7 @@ import { ClientGenerator } from './generators/client-generator';
 import { EntitySchemaGenerator } from './generators/entity-schema-generator';
 import { EntitySdkGenerator } from './generators/entity-sdk-generator';
 import { EntityTypesGenerator } from './generators/entity-types-generator';
+import { RlsPolicyGenerator } from './generators/rls-policy-generator';
 import { RouterAugmentationGenerator } from './generators/router-augmentation-generator';
 import type { IncrementalResult } from './incremental';
 import { writeIncremental } from './incremental';
@@ -57,6 +58,10 @@ function runTypescriptGenerator(ir: CodegenIR, _config: ResolvedCodegenConfig): 
   // Access types augmentation (access.d.ts)
   const accessTypesGen = new AccessTypesGenerator();
   files.push(...accessTypesGen.generate(ir, generatorConfig));
+
+  // RLS policies (rls-policies.sql)
+  const rlsPolicyGen = new RlsPolicyGenerator();
+  files.push(...rlsPolicyGen.generate(ir, generatorConfig));
 
   return files;
 }

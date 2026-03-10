@@ -66,7 +66,8 @@ export type DiagnosticCode =
   | 'ACCESS_MULTIPLE_DEFINITIONS'
   | 'ACCESS_NON_LITERAL_KEY'
   | 'ACCESS_NON_LITERAL_ROLE'
-  | 'ACCESS_DUPLICATE_ENTITLEMENT';
+  | 'ACCESS_DUPLICATE_ENTITLEMENT'
+  | 'ACCESS_WHERE_NOT_TRANSLATABLE';
 
 export interface SourceContext {
   lines: { number: number; text: string }[];

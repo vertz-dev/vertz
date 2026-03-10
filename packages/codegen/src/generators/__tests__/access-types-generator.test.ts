@@ -30,7 +30,7 @@ describe('AccessTypesGenerator', () => {
   it('returns no files when access has no entitlements', () => {
     const ir: CodegenIR = {
       ...createEmptyIR(),
-      access: { entities: [], entitlements: [] },
+      access: { entities: [], entitlements: [], whereClauses: [] },
     };
     const files = generator.generate(ir, { outputDir: '.vertz/generated', options: {} });
     expect(files).toEqual([]);
@@ -42,6 +42,7 @@ describe('AccessTypesGenerator', () => {
       access: {
         entities: [{ name: 'workspace', roles: ['admin', 'member'] }],
         entitlements: ['workspace:invite', 'workspace:manage'],
+        whereClauses: [],
       },
     };
     const files = generator.generate(ir, { outputDir: '.vertz/generated', options: {} });
@@ -60,6 +61,7 @@ describe('AccessTypesGenerator', () => {
       access: {
         entities: [],
         entitlements: ['post:view'],
+        whereClauses: [],
       },
     };
     const content = getContent(generator, ir);
@@ -78,6 +80,7 @@ describe('AccessTypesGenerator', () => {
           { name: 'project', roles: ['manager'] },
         ],
         entitlements: ['workspace:invite'],
+        whereClauses: [],
       },
     };
     const content = getContent(generator, ir);
@@ -93,6 +96,7 @@ describe('AccessTypesGenerator', () => {
           { name: 'project', roles: ['manager', 'contributor', 'viewer'] },
         ],
         entitlements: ['workspace:invite'],
+        whereClauses: [],
       },
     };
     const content = getContent(generator, ir);
@@ -107,6 +111,7 @@ describe('AccessTypesGenerator', () => {
       access: {
         entities: [],
         entitlements: ['post:view'],
+        whereClauses: [],
       },
     };
     const content = getContent(generator, ir);
@@ -119,6 +124,7 @@ describe('AccessTypesGenerator', () => {
       access: {
         entities: [],
         entitlements: ['global:admin'],
+        whereClauses: [],
       },
     };
     const content = getContent(generator, ir);
@@ -132,6 +138,7 @@ describe('AccessTypesGenerator', () => {
       access: {
         entities: [],
         entitlements: ["it's:allowed"],
+        whereClauses: [],
       },
     };
     const content = getContent(generator, ir);
@@ -144,6 +151,7 @@ describe('AccessTypesGenerator', () => {
       access: {
         entities: [{ name: 'ns\\entity', roles: ['role\\1'] }],
         entitlements: ['some:ent'],
+        whereClauses: [],
       },
     };
     const content = getContent(generator, ir);
@@ -160,6 +168,7 @@ describe('AccessTypesGenerator', () => {
           { name: 'project', roles: [] },
         ],
         entitlements: ['workspace:invite'],
+        whereClauses: [],
       },
     };
     const content = getContent(generator, ir);

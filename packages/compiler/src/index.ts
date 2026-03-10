@@ -159,6 +159,8 @@ export { mergeIR } from './ir/merge';
 export type {
   AccessEntityIR,
   AccessIR,
+  AccessWhereClauseIR,
+  AccessWhereCondition,
   AppDefinition,
   AppIR,
   DatabaseIR,

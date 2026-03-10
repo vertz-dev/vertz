@@ -196,6 +196,7 @@ describe('adaptIR', () => {
             { name: 'project', roles: ['manager'] },
           ],
           entitlements: ['workspace:invite', 'project:view'],
+          whereClauses: [],
           ...loc,
         },
       });

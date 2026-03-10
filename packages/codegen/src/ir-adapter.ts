@@ -153,6 +153,10 @@ export function adaptIR(appIR: AppIR): CodegenIR {
     ? {
         entities: appIR.access.entities.map((e) => ({ name: e.name, roles: e.roles })),
         entitlements: appIR.access.entitlements,
+        whereClauses: (appIR.access.whereClauses ?? []).map((wc) => ({
+          entitlement: wc.entitlement,
+          conditions: wc.conditions.map((c) => ({ ...c })),
+        })),
       }
     : undefined;
 
