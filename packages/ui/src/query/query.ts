@@ -568,6 +568,9 @@ export function query<T, E = unknown>(
    */
   function refetch(): void {
     const key = getCacheKey();
+    // Reset retained key so retainKey() re-establishes the ref count
+    // after cache.delete() wipes _refs.
+    currentRetainedKey = null;
     cache.delete(key);
     getInflight().delete(key);
     // Bump the trigger to cause the effect to re-run.

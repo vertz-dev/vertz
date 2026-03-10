@@ -352,6 +352,28 @@ describe('MemoryCache orphan-aware eviction', () => {
     expect(cache.get('c')).toBe('3');
   });
 
+  test('re-retain after release transitions orphan back to active', () => {
+    const cache = new MemoryCache<string>({ maxSize: 3 });
+    cache.set('a', '1');
+    cache.set('b', '2');
+    cache.set('c', '3');
+
+    // Retain then release 'a' — it becomes orphaned
+    cache.retain('a');
+    cache.release('a');
+
+    // Re-retain 'a' — it should no longer be orphaned
+    cache.retain('a');
+
+    // Insert 'd' — should evict 'b' (unclaimed), NOT 'a' (re-retained)
+    cache.set('d', '4');
+
+    expect(cache.get('a')).toBe('1'); // re-retained — protected
+    expect(cache.get('b')).toBeUndefined(); // unclaimed — evicted
+    expect(cache.get('c')).toBe('3');
+    expect(cache.get('d')).toBe('4');
+  });
+
   test('without retain/release, eviction behaves as pure LRU', () => {
     const cache = new MemoryCache<string>({ maxSize: 3 });
     cache.set('a', '1');

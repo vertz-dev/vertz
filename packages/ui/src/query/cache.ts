@@ -45,8 +45,14 @@ export class MemoryCache<T = unknown> implements CacheStore<T> {
     while (this._store.size > this._maxSize) {
       // 1. Orphaned entries (longest-orphaned first)
       const orphan = this._orphans.keys().next();
-      if (!orphan.done && this._store.has(orphan.value)) {
-        this._store.delete(orphan.value);
+      if (!orphan.done) {
+        if (this._store.has(orphan.value)) {
+          this._store.delete(orphan.value);
+          this._orphans.delete(orphan.value);
+          this._refs.delete(orphan.value);
+          continue;
+        }
+        // Stale orphan — clean up metadata and re-check tier 1
         this._orphans.delete(orphan.value);
         this._refs.delete(orphan.value);
         continue;
