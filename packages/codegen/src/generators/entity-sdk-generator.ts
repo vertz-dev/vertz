@@ -58,7 +58,7 @@ export class EntitySdkGenerator implements Generator {
     const hasTypes = entity.operations.some((op) => op.outputSchema || op.inputSchema);
     const hasListOp = entity.operations.some((op) => op.kind === 'list');
     const hasMutationOp = entity.operations.some(
-      (op) => op.kind === 'update' || op.kind === 'delete',
+      (op) => op.kind === 'create' || op.kind === 'update' || op.kind === 'delete',
     );
     if (hasTypes) {
       const typeImports = new Set<string>();
@@ -73,6 +73,10 @@ export class EntitySdkGenerator implements Generator {
       lines.push(
         `import type { ${[...typeImports].join(', ')} } from '../types/${entity.entityName}';`,
       );
+    }
+
+    const needsFetchImport = hasTypes || hasMutationOp || hasListOp;
+    if (needsFetchImport) {
       const fetchImportParts: string[] = ['type FetchClient'];
       if (hasListOp) fetchImportParts.push('type ListResponse');
       if (hasMutationOp) fetchImportParts.push('type OptimisticHandler');
@@ -120,7 +124,7 @@ export class EntitySdkGenerator implements Generator {
             const schemaVarName = `${(op.inputSchema ?? 'createInput').charAt(0).toLowerCase()}${(op.inputSchema ?? 'createInput').slice(1)}Schema`;
             lines.push(`    create: Object.assign(`);
             lines.push(
-              `      (body: ${inputType}) => createDescriptor('POST', '${op.path}', () => client.post<${outputType}>('${op.path}', body)),`,
+              `      (body: ${inputType}) => createMutationDescriptor('POST', '${op.path}', () => client.post<${outputType}>('${op.path}', body), { entityType: '${entity.entityName}', kind: 'create' as const, body }, optimistic),`,
             );
             lines.push(`      {`);
             lines.push(`        url: '${op.path}',`);
@@ -131,7 +135,7 @@ export class EntitySdkGenerator implements Generator {
           } else {
             lines.push(`    create: Object.assign(`);
             lines.push(
-              `      (body: ${inputType}) => createDescriptor('POST', '${op.path}', () => client.post<${outputType}>('${op.path}', body)),`,
+              `      (body: ${inputType}) => createMutationDescriptor('POST', '${op.path}', () => client.post<${outputType}>('${op.path}', body), { entityType: '${entity.entityName}', kind: 'create' as const, body }, optimistic),`,
             );
             lines.push(`      { url: '${op.path}', method: 'POST' as const },`);
             lines.push(`    ),`);

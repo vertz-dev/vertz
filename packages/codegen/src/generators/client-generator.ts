@@ -25,7 +25,9 @@ export class ClientGenerator implements Generator {
   private generateClient(ir: CodegenIR): GeneratedFile {
     const entities = ir.entities ?? [];
     const hasMutations = entities.some((e) =>
-      e.operations.some((op) => op.kind === 'update' || op.kind === 'delete'),
+      e.operations.some(
+        (op) => op.kind === 'create' || op.kind === 'update' || op.kind === 'delete',
+      ),
     );
     const manifest = generateRelationManifest(entities);
     const hasRelations = manifest.some((entry) => Object.keys(entry.schema).length > 0);
@@ -98,7 +100,7 @@ export class ClientGenerator implements Generator {
         const pascal = toPascalCase(entity.entityName);
         const camel = toCamelCase(entity.entityName);
         const entityHasMutations = entity.operations.some(
-          (op) => op.kind === 'update' || op.kind === 'delete',
+          (op) => op.kind === 'create' || op.kind === 'update' || op.kind === 'delete',
         );
         if (entityHasMutations) {
           lines.push(`    ${camel}: create${pascal}Sdk(client, optimistic),`);
