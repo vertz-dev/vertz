@@ -196,4 +196,13 @@ describe('parseBody', () => {
     await expect(parseBody(createRequest(), 64)).rejects.toThrow(BadRequestException);
     await expect(parseBody(createRequest(), 64)).rejects.toThrow('Request body too large');
   });
+
+  it('treats text requests with no body as an empty string', async () => {
+    const request = new Request('http://localhost:3000/api', {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain' },
+    });
+
+    await expect(parseBody(request)).resolves.toBe('');
+  });
 });
