@@ -450,6 +450,55 @@ describe('AccessAnalyzer', () => {
       expect(diagnostics.some((d) => d.code === 'ACCESS_WHERE_NOT_TRANSLATABLE')).toBe(true);
     });
 
+    it('extracts numeric literal conditions', async () => {
+      createFile(
+        '/access.ts',
+        `
+        import { defineAccess } from '@vertz/server';
+        export const access = defineAccess({
+          entities: {},
+          entitlements: {
+            'task:view': (r) => ({
+              roles: ['viewer'],
+              rules: [r.where({ priority: 1 })],
+            }),
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.access?.whereClauses).toEqual([
+        {
+          entitlement: 'task:view',
+          conditions: [{ kind: 'literal', column: 'priority', value: 1 }],
+        },
+      ]);
+    });
+
+    it('merges conditions from multiple where() calls in same entitlement', async () => {
+      createFile(
+        '/access.ts',
+        `
+        import { defineAccess } from '@vertz/server';
+        export const access = defineAccess({
+          entities: {},
+          entitlements: {
+            'task:edit': (r) => ({
+              roles: ['assignee'],
+              rules: [r.where({ createdBy: r.user.id }), r.where({ archived: false })],
+            }),
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.access?.whereClauses).toHaveLength(1);
+      expect(result.access?.whereClauses[0].entitlement).toBe('task:edit');
+      expect(result.access?.whereClauses[0].conditions).toHaveLength(2);
+    });
+
     it('extracts multiple where clauses from different entitlements', async () => {
       createFile(
         '/access.ts',

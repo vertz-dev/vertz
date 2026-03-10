@@ -1,4 +1,4 @@
-import type { CallExpression, Expression, ObjectLiteralExpression, SourceFile } from 'ts-morph';
+import type { CallExpression, Expression, Node, ObjectLiteralExpression, SourceFile } from 'ts-morph';
 import { SyntaxKind } from 'ts-morph';
 import type {
   AccessEntityIR,
@@ -198,26 +198,31 @@ export class AccessAnalyzer extends BaseAnalyzer<AccessAnalyzerResult> {
     if (!entitlementsExpr?.isKind(SyntaxKind.ObjectLiteralExpression)) return clauses;
 
     for (const prop of entitlementsExpr.getProperties()) {
-      if (!prop.isKind(SyntaxKind.PropertyAssignment)) continue;
+      if (
+        !prop.isKind(SyntaxKind.PropertyAssignment) &&
+        !prop.isKind(SyntaxKind.MethodDeclaration)
+      ) {
+        continue;
+      }
       const entName = prop.getName().replace(/^['"]|['"]$/g, '');
-      const value = prop.getInitializer();
-      if (!value) continue;
 
       // Find where() calls within this entitlement's value
-      const whereCalls = this.findWhereCalls(value);
+      const whereCalls = this.findWhereCalls(prop);
+      const allConditions: AccessWhereCondition[] = [];
       for (const whereCall of whereCalls) {
         const conditions = this.extractWhereConditions(whereCall);
-        if (conditions.length > 0) {
-          clauses.push({ entitlement: entName, conditions });
-        }
+        allConditions.push(...conditions);
+      }
+      if (allConditions.length > 0) {
+        clauses.push({ entitlement: entName, conditions: allConditions });
       }
     }
 
     return clauses;
   }
 
-  /** Find all .where() calls within an expression — handles both r.where() and rules.where() */
-  private findWhereCalls(expr: Expression): CallExpression[] {
+  /** Find all .where() calls within a node — handles both r.where() and rules.where() */
+  private findWhereCalls(expr: Node): CallExpression[] {
     const calls: CallExpression[] = [];
     for (const call of expr.getDescendantsOfKind(SyntaxKind.CallExpression)) {
       const callExpr = call.getExpression();
