@@ -97,7 +97,9 @@ export class MemoryCache<T = unknown> implements CacheStore<T> {
 
   /** Release a cache key when a query instance disposes or changes key. */
   release(key: string): void {
-    const count = (this._refs.get(key) ?? 0) - 1;
+    const current = this._refs.get(key);
+    if (current === undefined) return; // never retained — true no-op
+    const count = current - 1;
     if (count <= 0) {
       this._refs.delete(key);
       if (this._store.has(key)) {
