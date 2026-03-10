@@ -4,6 +4,7 @@
  * Pipeline:
  * 1. Hydration transform (adds hydration IDs)
  * 2. Context stable IDs (if fastRefresh — injects __stableId for HMR)
+ * 2.5. Field selection injection (analyzes field access, injects select into queries)
  * 3. Compile (reactive signals + JSX transforms)
  * 4. Source map chaining (hydration → compile)
  * 5. CSS extraction → sidecar file (if CSS found)
@@ -31,6 +32,7 @@ import { Project, ts } from 'ts-morph';
 
 import { injectContextStableIds } from './context-stable-ids';
 import { generateRefreshCode } from './fast-refresh-codegen';
+import { injectFieldSelection } from './field-selection-inject';
 import { filePathHash } from './file-path-hash';
 import type {
   CSSSidecarMap,
@@ -201,8 +203,13 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
             includeContent: true,
           });
 
+          // ── 2.5. Field selection injection ───────────────────
+          // Analyze field access and inject select into query descriptors
+          const fieldSelectionResult = injectFieldSelection(args.path, hydratedCode);
+          const codeForCompile = fieldSelectionResult.code;
+
           // ── 3. Compile (reactive + JSX transforms) ─────────────
-          const compileResult = compile(hydratedCode, {
+          const compileResult = compile(codeForCompile, {
             filename: args.path,
             target: options?.target,
             manifests: getManifestsRecord(),
