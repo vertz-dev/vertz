@@ -24,6 +24,7 @@
 
 | Doc | Status | Description |
 |-----|--------|-------------|
+| [VertzQL Auto Field Selection](plans/vertzql-auto-field-selection.md) | 📋 Draft (Rev 2) | Compiler-driven query narrowing: automatic `select` injection based on field access analysis. Spans compiler, Bun plugin, SDK, and server. |
 | [Entity Store Design](plans/entity-store-design.md) | ✅ Approved | Normalized entity cache, signal-per-entity, compiler-inferred field selection, SSR data bridge. |
 | [Entity Store Impl Spec](plans/entity-store-impl-spec.md) | ✅ Done | Implementation spec. PR #466 merged. |
 | [Cross-Component Tracing Spec](plans/cross-component-tracing-spec.md) | ✅ Done | Compiler extension for entity data flow across components. PR #467 merged. |
@@ -111,6 +112,8 @@
 
 | Doc | Status | Description |
 |-----|--------|-------------|
+| [Access Redesign — Entity-Centric `defineAccess()`](plans/access-redesign.md) | 🔄 ~95% Impl | Entity-centric config, entitlements, plans, limits, grandfathering. Layers 1-5 done. Layer 6 (attribute rule eval) and Layer 7 (FVA) deferred. |
+| [Tenant Isolation & Entity Access Descriptors](plans/tenant-isolation-and-entity-access.md) | 📋 Draft | Bridge entity access to `rules.*` descriptors, automatic tenant scoping, admin entities, session revalidation. |
 | [Auth Module Spec](plans/auth-module-spec.md) | ⏸️ Blocked | Deprioritized to v0.2 |
 | [Auth Phase 2 Spec](plans/auth-phase2-spec.md) | ⏸️ Blocked | Blocked on auth module |
 | [Access System](plans/access-system.md) | 📋 Draft | Access control |
