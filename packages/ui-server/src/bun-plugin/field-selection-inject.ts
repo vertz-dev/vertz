@@ -195,9 +195,9 @@ function buildManifestAwareInjection(
           relationIncludes.set(field, new Set());
         }
         for (const nested of nestedForField) {
-          if (nested.nestedPath.length > 0) {
-            // Use the first nested path element as the selected field
-            relationIncludes.get(field)!.add(nested.nestedPath[0]);
+          const firstSegment = nested.nestedPath[0];
+          if (firstSegment !== undefined) {
+            relationIncludes.get(field)?.add(firstSegment);
           }
         }
       } else {
@@ -220,7 +220,9 @@ function buildManifestAwareInjection(
 
     for (const relName of sortedRelations) {
       const relSchema = schema.relations[relName];
-      let relFields = [...relationIncludes.get(relName)!];
+      const relFieldSet = relationIncludes.get(relName);
+      if (!relFieldSet) continue;
+      let relFields = [...relFieldSet];
 
       // Filter by allowed selection if narrowed
       if (relSchema && Array.isArray(relSchema.selection)) {
