@@ -19,63 +19,53 @@ export class AccessTypesGenerator implements Generator {
   }
 }
 
+function escapeStringLiteral(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
 function renderAccessTypes(access: CodegenAccess): string {
   const lines: string[] = [FILE_HEADER];
 
-  // Entitlement union
-  const entitlementUnion = access.entitlements.map((e) => `'${e}'`).join(' | ');
-  lines.push(`type Entitlement = ${entitlementUnion};`);
+  // Registry entries for entitlements
+  const registryEntries = access.entitlements
+    .map((e) => `    '${escapeStringLiteral(e)}': true;`)
+    .join('\n');
+
+  // Module augmentation: @vertz/server — populate EntitlementRegistry
+  lines.push("declare module '@vertz/server' {");
+  lines.push('  interface EntitlementRegistry {');
+  lines.push(registryEntries);
+  lines.push('  }');
+  lines.push('}');
+  lines.push('');
+
+  // Module augmentation: @vertz/ui/auth — populate EntitlementRegistry
+  lines.push("declare module '@vertz/ui/auth' {");
+  lines.push('  interface EntitlementRegistry {');
+  lines.push(registryEntries);
+  lines.push('  }');
+  lines.push('}');
   lines.push('');
 
   // ResourceType and Role<T> — only if entities with roles exist
   const entitiesWithRoles = access.entities.filter((e) => e.roles.length > 0);
   if (entitiesWithRoles.length > 0) {
-    const resourceUnion = entitiesWithRoles.map((e) => `'${e.name}'`).join(' | ');
+    const resourceUnion = entitiesWithRoles
+      .map((e) => `'${escapeStringLiteral(e.name)}'`)
+      .join(' | ');
     lines.push(`type ResourceType = ${resourceUnion};`);
     lines.push('');
 
     // Role<T> conditional type
     lines.push('type Role<T extends ResourceType> =');
     entitiesWithRoles.forEach((entity, i) => {
-      const rolesUnion = entity.roles.map((r) => `'${r}'`).join(' | ');
+      const rolesUnion = entity.roles.map((r) => `'${escapeStringLiteral(r)}'`).join(' | ');
       const prefix = i === 0 ? '  ' : '  : ';
-      lines.push(`${prefix}T extends '${entity.name}' ? ${rolesUnion}`);
+      lines.push(`${prefix}T extends '${escapeStringLiteral(entity.name)}' ? ${rolesUnion}`);
     });
     lines.push('  : never;');
     lines.push('');
   }
-
-  // Module augmentation: @vertz/server
-  lines.push("declare module '@vertz/server' {");
-  lines.push('  interface AccessContext {');
-  lines.push('    can(entitlement: Entitlement, resource?: ResourceRef): Promise<boolean>;');
-  lines.push(
-    '    check(entitlement: Entitlement, resource?: ResourceRef): Promise<AccessCheckResult>;',
-  );
-  lines.push('    authorize(entitlement: Entitlement, resource?: ResourceRef): Promise<void>;');
-  lines.push('  }');
-  lines.push('}');
-  lines.push('');
-
-  // Module augmentation: @vertz/ui
-  lines.push("declare module '@vertz/ui' {");
-  lines.push('  export function can(');
-  lines.push('    entitlement: Entitlement,');
-  lines.push("    entity?: { __access?: Record<string, import('@vertz/ui').AccessCheckData> },");
-  lines.push("  ): import('@vertz/ui').AccessCheck;");
-  lines.push('}');
-  lines.push('');
-
-  // Module augmentation: @vertz/ui/auth
-  lines.push("declare module '@vertz/ui/auth' {");
-  lines.push('  export function can(');
-  lines.push('    entitlement: Entitlement,');
-  lines.push(
-    "    entity?: { __access?: Record<string, import('@vertz/ui/auth').AccessCheckData> },",
-  );
-  lines.push("  ): import('@vertz/ui/auth').AccessCheck;");
-  lines.push('}');
-  lines.push('');
 
   return lines.join('\n');
 }

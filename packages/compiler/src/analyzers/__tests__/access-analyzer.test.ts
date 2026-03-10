@@ -29,9 +29,9 @@ describe('AccessAnalyzer', () => {
     return analyzer.analyze();
   }
 
-  function getDiagnostics() {
+  async function getDiagnostics() {
     const analyzer = new AccessAnalyzer(project, config);
-    analyzer.analyze();
+    await analyzer.analyze();
     return analyzer.getDiagnostics();
   }
 
@@ -55,7 +55,7 @@ describe('AccessAnalyzer', () => {
 
       const result = await analyze();
       expect(result.access).toBeDefined();
-      expect(result.access!.entitlements).toEqual(['workspace:invite']);
+      expect(result.access?.entitlements).toEqual(['workspace:invite']);
     });
 
     it('ignores defineAccess() from other packages', async () => {
@@ -94,7 +94,7 @@ describe('AccessAnalyzer', () => {
 
       const result = await analyze();
       expect(result.access).toBeDefined();
-      expect(result.access!.entitlements).toEqual(['project:view']);
+      expect(result.access?.entitlements).toEqual(['project:view']);
     });
 
     it('detects with namespace import', async () => {
@@ -116,7 +116,7 @@ describe('AccessAnalyzer', () => {
 
       const result = await analyze();
       expect(result.access).toBeDefined();
-      expect(result.access!.entitlements).toEqual(['project:view']);
+      expect(result.access?.entitlements).toEqual(['project:view']);
     });
   });
 
@@ -142,7 +142,7 @@ describe('AccessAnalyzer', () => {
       );
 
       const result = await analyze();
-      expect(result.access!.entitlements).toEqual([
+      expect(result.access?.entitlements).toEqual([
         'project:view',
         'project:edit',
         'workspace:invite',
@@ -168,7 +168,7 @@ describe('AccessAnalyzer', () => {
       );
 
       const result = await analyze();
-      expect(result.access!.entities).toEqual([
+      expect(result.access?.entities).toEqual([
         { name: 'workspace', roles: ['admin', 'member'] },
         { name: 'project', roles: ['manager', 'contributor', 'viewer'] },
       ]);
@@ -212,9 +212,91 @@ describe('AccessAnalyzer', () => {
       const result = await analyze();
       const diagnostics = await getDiagnostics();
       // Should still extract the literal key
-      expect(result.access!.entitlements).toEqual(['c:d']);
+      expect(result.access?.entitlements).toEqual(['c:d']);
       // Should warn about the spread
       expect(diagnostics.some((d) => d.code === 'ACCESS_NON_LITERAL_KEY')).toBe(true);
+    });
+  });
+
+  describe('Entitlement edge cases', () => {
+    it('emits warning for duplicate entitlement keys', async () => {
+      createFile(
+        '/access.ts',
+        `
+        import { defineAccess } from '@vertz/server';
+        export const access = defineAccess({
+          entities: {},
+          entitlements: {
+            'workspace:invite': { roles: ['admin'] },
+            'workspace:invite': { roles: ['member'] },
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      const diagnostics = await getDiagnostics();
+      // Only first occurrence kept
+      expect(result.access?.entitlements).toEqual(['workspace:invite']);
+      expect(diagnostics.some((d) => d.code === 'ACCESS_DUPLICATE_ENTITLEMENT')).toBe(true);
+    });
+
+    it('handles method-declaration-style entitlement keys', async () => {
+      createFile(
+        '/access.ts',
+        `
+        import { defineAccess } from '@vertz/server';
+        export const access = defineAccess({
+          entities: {},
+          entitlements: {
+            'workspace:view'(ctx: any) { return ctx.role === 'admin'; },
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.access?.entitlements).toEqual(['workspace:view']);
+    });
+
+    it('handles callback-form entitlement values', async () => {
+      createFile(
+        '/access.ts',
+        `
+        import { defineAccess } from '@vertz/server';
+        export const access = defineAccess({
+          entities: {},
+          entitlements: {
+            'workspace:invite': (ctx: any) => ctx.role === 'admin',
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.access?.entitlements).toEqual(['workspace:invite']);
+    });
+  });
+
+  describe('Entity edge cases', () => {
+    it('handles entity with no roles property', async () => {
+      createFile(
+        '/access.ts',
+        `
+        import { defineAccess } from '@vertz/server';
+        export const access = defineAccess({
+          entities: {
+            workspace: { parent: null },
+          },
+          entitlements: {
+            'workspace:view': { roles: ['admin'] },
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.access?.entities).toEqual([{ name: 'workspace', roles: [] }]);
     });
   });
 

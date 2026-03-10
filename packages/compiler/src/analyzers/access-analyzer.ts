@@ -140,14 +140,28 @@ export class AccessAnalyzer extends BaseAnalyzer<AccessAnalyzerResult> {
 
     // Extract entitlements
     const entitlements: string[] = [];
+    const seenEntitlements = new Set<string>();
     const entitlementsExpr = getPropertyValue(configObj, 'entitlements');
     if (entitlementsExpr?.isKind(SyntaxKind.ObjectLiteralExpression)) {
       for (const prop of entitlementsExpr.getProperties()) {
-        if (prop.isKind(SyntaxKind.PropertyAssignment)) {
+        if (
+          prop.isKind(SyntaxKind.PropertyAssignment) ||
+          prop.isKind(SyntaxKind.MethodDeclaration)
+        ) {
           const name = prop.getName();
           // Strip quotes from property name (getName returns the raw name)
           const cleanName = name.replace(/^['"]|['"]$/g, '');
-          entitlements.push(cleanName);
+          if (seenEntitlements.has(cleanName)) {
+            this.addDiagnostic({
+              code: 'ACCESS_DUPLICATE_ENTITLEMENT',
+              severity: 'warning',
+              message: `Duplicate entitlement "${cleanName}" — only the first occurrence is used`,
+              ...getSourceLocation(prop),
+            });
+          } else {
+            seenEntitlements.add(cleanName);
+            entitlements.push(cleanName);
+          }
         } else if (prop.isKind(SyntaxKind.SpreadAssignment)) {
           this.addDiagnostic({
             code: 'ACCESS_NON_LITERAL_KEY',

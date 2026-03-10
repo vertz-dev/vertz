@@ -2307,13 +2307,18 @@ export function createAuth(config: AuthConfig): AuthInstance {
 export type {
   AccessConfig,
   AccessInstance,
-  Entitlement,
   EntitlementDefinition,
   Resource,
 } from './access';
 // Re-export access control from auth/access.ts
 export { AuthorizationError, createAccess, defaultAccess } from './access';
-export type { AccessContext, AccessContextConfig, ResourceRef } from './access-context';
+export type {
+  AccessContext,
+  AccessContextConfig,
+  Entitlement,
+  EntitlementRegistry,
+  ResourceRef,
+} from './access-context';
 // Phase 6: Resource Hierarchy & defineAccess
 export { createAccessContext } from './access-context';
 export type {
