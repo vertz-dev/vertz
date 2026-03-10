@@ -5,6 +5,8 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { BadRequestException } from '@vertz/core';
+import { parseBody } from '@vertz/core/internals';
 import {
   type AuthError,
   createAuthRateLimitedError,
@@ -23,8 +25,6 @@ import {
   ok,
   type Result,
 } from '@vertz/errors';
-import { BadRequestException } from '@vertz/core';
-import { parseBody } from '@vertz/core/internals';
 import { computeAccessSet, type EncodedAccessSet, encodeAccessSet } from './access-set';
 import {
   buildMfaChallengeCookie,
@@ -58,15 +58,6 @@ import {
   verifyBackupCode,
   verifyTotpCode,
 } from './totp';
-import {
-  codeInputSchema,
-  forgotPasswordInputSchema,
-  passwordInputSchema,
-  resetPasswordInputSchema,
-  signInInputSchema,
-  signUpInputSchema,
-  tokenInputSchema,
-} from './types';
 import type {
   AuthApi,
   AuthConfig,
@@ -83,7 +74,18 @@ import type {
   SessionPayload,
   SignInInput,
   SignUpInput,
+  SwitchTenantInput,
   TokenInput,
+} from './types';
+import {
+  codeInputSchema,
+  forgotPasswordInputSchema,
+  passwordInputSchema,
+  resetPasswordInputSchema,
+  signInInputSchema,
+  signUpInputSchema,
+  switchTenantInputSchema,
+  tokenInputSchema,
 } from './types';
 import { InMemoryUserStore } from './user-store';
 
@@ -206,6 +208,9 @@ export function createAuth(config: AuthConfig): AuthInstance {
     config.passwordResetStore ??
     (passwordResetEnabled ? new InMemoryPasswordResetStore() : undefined);
 
+  // Tenant switching
+  const tenantConfig = config.tenant;
+
   // Rate limiting
   const rateLimitStore = config.rateLimitStore ?? new InMemoryRateLimitStore();
   const signInWindowMs = parseDuration(emailPassword?.rateLimit?.window || '15m');
@@ -219,13 +224,14 @@ export function createAuth(config: AuthConfig): AuthInstance {
   async function createSessionTokens(
     user: AuthUser,
     sessionId: string,
-    options?: { fva?: number },
+    options?: { fva?: number; tenantId?: string },
   ): Promise<{ jwt: string; refreshToken: string; payload: SessionPayload; expiresAt: Date }> {
     const jti = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + ttlMs);
 
     const userClaims = claims ? claims(user) : {};
     const fvaClaim = options?.fva !== undefined ? { fva: options.fva } : {};
+    const tenantClaim = options?.tenantId ? { tenantId: options.tenantId } : {};
 
     // Compute ACL claim if access config is present
     let aclClaim: { acl: { set?: EncodedAccessSet; hash: string; overflow: boolean } } | object =
@@ -260,6 +266,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
     const jwt = await createJWT(user, jwtSecret, ttlMs, jwtAlgorithm, () => ({
       ...userClaims,
       ...fvaClaim,
+      ...tenantClaim,
       ...aclClaim,
       jti,
       sid: sessionId,
@@ -280,6 +287,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
       sid: sessionId,
       claims: userClaims || undefined,
       ...(options?.fva !== undefined ? { fva: options.fva } : {}),
+      ...(options?.tenantId ? { tenantId: options.tenantId } : {}),
       ...aclClaim,
     };
 
@@ -2233,6 +2241,91 @@ export function createAuth(config: AuthConfig): AuthInstance {
           status: 200,
           headers: { 'Content-Type': 'application/json', ...securityHeaders() },
         });
+      }
+
+      // Route: POST /api/auth/switch-tenant
+      if (method === 'POST' && path === '/switch-tenant') {
+        if (!tenantConfig) {
+          return new Response(JSON.stringify({ error: 'Not found' }), {
+            status: 404,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        const sessionResult = await getSession(request.headers);
+        if (!sessionResult.ok || !sessionResult.data) {
+          return new Response(
+            JSON.stringify({ error: { code: 'SESSION_EXPIRED', message: 'Not authenticated' } }),
+            {
+              status: 401,
+              headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+            },
+          );
+        }
+
+        const bodyResult = await parseJsonAuthBody<SwitchTenantInput>(
+          request,
+          switchTenantInputSchema,
+        );
+        if (!bodyResult.ok) {
+          return bodyResult.response;
+        }
+
+        const { tenantId } = bodyResult.data;
+        const userId = sessionResult.data.user.id;
+
+        const hasMembership = await tenantConfig.verifyMembership(userId, tenantId);
+        if (!hasMembership) {
+          return new Response(
+            JSON.stringify({
+              error: { code: 'AUTH_FORBIDDEN', message: 'Not a member of this tenant' },
+            }),
+            {
+              status: 403,
+              headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+            },
+          );
+        }
+
+        // Issue new JWT scoped to the target tenant
+        const currentPayload = sessionResult.data.payload;
+        const tokens = await createSessionTokens(sessionResult.data.user, currentPayload.sid, {
+          fva: currentPayload.fva,
+          tenantId,
+        });
+
+        // Update session store with new tokens
+        const refreshTokenHash = await sha256Hex(tokens.refreshToken);
+        const previousRefreshHash =
+          (await sessionStore.findActiveSessionById(currentPayload.sid))?.refreshTokenHash ?? '';
+        await sessionStore.updateSession(currentPayload.sid, {
+          refreshTokenHash,
+          previousRefreshHash,
+          lastActiveAt: new Date(),
+          currentTokens: { jwt: tokens.jwt, refreshToken: tokens.refreshToken },
+        });
+
+        const headers = new Headers({
+          'Content-Type': 'application/json',
+          ...securityHeaders(),
+        });
+        headers.append('Set-Cookie', buildSessionCookie(tokens.jwt, cookieConfig));
+        headers.append(
+          'Set-Cookie',
+          buildRefreshCookie(tokens.refreshToken, cookieConfig, refreshName, refreshMaxAge),
+        );
+
+        return new Response(
+          JSON.stringify({
+            tenantId,
+            user: sessionResult.data.user,
+            expiresAt: tokens.expiresAt.getTime(),
+          }),
+          {
+            status: 200,
+            headers,
+          },
+        );
       }
 
       return new Response(JSON.stringify({ error: 'Not found' }), {

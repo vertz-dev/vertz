@@ -1,5 +1,5 @@
 import type { ModelDef, RelationDef, SchemaLike, TableDef } from '@vertz/db';
-import type { PublicRule } from '../auth/rules';
+import type { AccessRule as AuthAccessRule } from '../auth/rules';
 import type { EntityOperations } from './entity-operations';
 
 // ---------------------------------------------------------------------------
@@ -24,6 +24,7 @@ type InjectToOperations<TInject extends Record<string, EntityDefinition> = {}> =
 
 export interface BaseContext {
   readonly userId: string | null;
+  readonly tenantId: string | null;
   authenticated(): boolean;
   tenant(): boolean;
   role(...roles: string[]): boolean;
@@ -56,7 +57,7 @@ export interface EntityContext<
 // allows actions to share the same AccessRule type.
 export type AccessRule =
   | false
-  | PublicRule
+  | AuthAccessRule
   | ((ctx: BaseContext, row: Record<string, unknown>) => boolean | Promise<boolean>);
 
 // ---------------------------------------------------------------------------
@@ -192,6 +193,10 @@ export interface EntityConfig<
 > {
   readonly model: TModel;
   readonly inject?: TInject;
+  /** Override the DB table name (defaults to entity name). For admin entities over shared tables. */
+  readonly table?: string;
+  /** Whether CRUD auto-filters by tenantId. Defaults to true when model has tenantId column. */
+  readonly tenantScoped?: boolean;
   readonly access?: Partial<
     Record<
       'list' | 'get' | 'create' | 'update' | 'delete' | Extract<keyof NoInfer<TActions>, string>,
@@ -241,4 +246,8 @@ export interface EntityDefinition<TModel extends ModelDef = ModelDef> {
   readonly after: EntityAfterHooks;
   readonly actions: Record<string, EntityActionDef>;
   readonly relations: EntityRelationsConfig<TModel['relations']>;
+  /** DB table name (defaults to entity name). */
+  readonly table: string;
+  /** Whether CRUD auto-filters by tenantId. */
+  readonly tenantScoped: boolean;
 }

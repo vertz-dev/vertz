@@ -6,11 +6,11 @@
 import type { ModelEntry } from '@vertz/db';
 import type { AuthError, Result } from '@vertz/errors';
 import {
-  s,
   type Infer,
   type ObjectSchema,
   type OptionalSchema,
   type StringSchema,
+  s,
 } from '@vertz/schema';
 
 // ============================================================================
@@ -317,6 +317,14 @@ export interface AuthConfig {
   passwordResetStore?: PasswordResetStore;
   /** Access control configuration — enables ACL claim in JWT */
   access?: AuthAccessConfig;
+  /** Tenant switching configuration — enables POST /auth/switch-tenant */
+  tenant?: TenantConfig;
+}
+
+/** Configuration for multi-tenant session switching. */
+export interface TenantConfig {
+  /** Verify that user has membership in the target tenant. Return false to deny. */
+  verifyMembership: (userId: string, tenantId: string) => Promise<boolean>;
 }
 
 /** Access control configuration for JWT acl claim computation. */
@@ -351,6 +359,7 @@ export interface SessionPayload {
   exp: number;
   jti: string; // JWT ID — unique token identifier
   sid: string; // Session ID — links JWT to session record
+  tenantId?: string; // Current tenant scope — set via switch-tenant
   claims?: Record<string, unknown>;
   fva?: number; // Factor verification age — timestamp of last MFA verification
   acl?: AclClaim; // Access set claim — computed entitlements
@@ -394,13 +403,7 @@ export interface SessionInfo {
 // Auth API Types
 // ============================================================================
 
-type ReservedSignUpField =
-  | 'role'
-  | 'plan'
-  | 'emailVerified'
-  | 'id'
-  | 'createdAt'
-  | 'updatedAt';
+type ReservedSignUpField = 'role' | 'plan' | 'emailVerified' | 'id' | 'createdAt' | 'updatedAt';
 
 type ReservedSignUpFields = {
   [K in ReservedSignUpField]?: never;
@@ -458,6 +461,14 @@ export const resetPasswordInputSchema: ObjectSchema<{
   token: s.string().min(1).optional(),
   password: s.string().min(1),
 });
+
+export const switchTenantInputSchema: ObjectSchema<{
+  tenantId: StringSchema;
+}> = s.object({
+  tenantId: s.string().min(1),
+});
+
+export type SwitchTenantInput = Infer<typeof switchTenantInputSchema>;
 
 export type SignUpInput = Infer<typeof signUpInputSchema> &
   ReservedSignUpFields &

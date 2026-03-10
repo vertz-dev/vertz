@@ -1,4 +1,8 @@
-export { enforceAccess } from './access-enforcer';
+export {
+  type EnforceAccessOptions,
+  enforceAccess,
+  extractWhereConditions,
+} from './access-enforcer';
 export { createActionHandler } from './action-pipeline';
 export type { RequestInfo } from './context';
 export { createEntityContext } from './context';

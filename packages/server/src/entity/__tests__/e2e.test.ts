@@ -1028,4 +1028,56 @@ describe('EDA v0.1.0 E2E', () => {
       expect(listed.items[0].name).toBe('Alicia');
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Admin entity with table override (Phase 3)
+  // -------------------------------------------------------------------------
+
+  describe('Admin entity with table: "users" (shares underlying table)', () => {
+    const adminUsersEntity = entity('admin-users', {
+      model: usersModel,
+      table: 'users',
+      tenantScoped: false,
+      access: {
+        list: () => true,
+        get: () => true,
+      },
+    });
+
+    const regularUsersEntity = entity('users', {
+      model: usersModel,
+      access: {
+        list: () => true,
+        get: () => true,
+        create: () => true,
+      },
+    });
+
+    it('Both entities use the same underlying DB adapter', async () => {
+      const sharedDb = createInMemoryDb();
+
+      const app = createServer({
+        entities: [regularUsersEntity, adminUsersEntity],
+        _entityDbFactory: (def) => {
+          // Both should resolve to the same db via def.table
+          if (def.table === 'users') return sharedDb;
+          return createInMemoryDb();
+        },
+      });
+
+      // Create via regular entity
+      const createRes = await request(app, 'POST', '/api/users', {
+        email: 'admin-test@b.com',
+        name: 'AdminTest',
+      });
+      expect(createRes.status).toBe(201);
+
+      // List via admin entity sees the same data
+      const adminListRes = await request(app, 'GET', '/api/admin-users');
+      expect(adminListRes.status).toBe(200);
+      const adminBody = await adminListRes.json();
+      expect(adminBody.items).toHaveLength(1);
+      expect(adminBody.items[0].name).toBe('AdminTest');
+    });
+  });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it, mock } from 'bun:test';
 import { d } from '@vertz/db';
 import { EntityForbiddenError, EntityNotFoundError, unwrap } from '@vertz/errors';
+import { rules } from '../../auth/rules';
 import { createEntityContext } from '../context';
 import { createCrudHandlers } from '../crud-pipeline';
 import { entity } from '../entity';
@@ -86,10 +87,16 @@ function createStubDb() {
   };
 }
 
-function makeCtx(overrides: { userId?: string | null; roles?: string[] } = {}) {
+function makeCtx(
+  overrides: { userId?: string | null; tenantId?: string | null; roles?: string[] } = {},
+) {
   const registry = new EntityRegistry();
   return createEntityContext(
-    { userId: 'userId' in overrides ? overrides.userId : 'user-1', roles: overrides.roles ?? [] },
+    {
+      userId: 'userId' in overrides ? overrides.userId : 'user-1',
+      tenantId: overrides.tenantId ?? null,
+      roles: overrides.roles ?? [],
+    },
     {
       get: async () => ({}),
       list: async () => [],
@@ -958,6 +965,326 @@ describe('Feature: CRUD pipeline', () => {
 
         expect(result.body).toHaveProperty('title', 'Review PR');
         expect(result.body).not.toHaveProperty('project');
+      });
+    });
+  });
+
+  // --- Tenant scoping ---
+
+  describe('Given a tenant-scoped entity (tenantId column in model)', () => {
+    const tasksTable = d.table('tasks', {
+      id: d.uuid().primary(),
+      title: d.text(),
+      tenantId: d.uuid(),
+    });
+    const tasksModel = d.model(tasksTable);
+    const def = entity('tasks', {
+      model: tasksModel,
+      access: {
+        list: () => true,
+        get: () => true,
+        create: () => true,
+        update: () => true,
+        delete: () => true,
+      },
+    });
+
+    function createTenantStubDb() {
+      const rows: Record<string, Record<string, unknown>> = {
+        'task-1': { id: 'task-1', title: 'Task A', tenantId: 'tenant-a' },
+        'task-2': { id: 'task-2', title: 'Task B', tenantId: 'tenant-b' },
+        'task-3': { id: 'task-3', title: 'Task C', tenantId: 'tenant-a' },
+      };
+      return {
+        get: mock(async (id: string) => rows[id] ?? null),
+        list: mock(
+          async (options?: { where?: Record<string, unknown>; limit?: number; after?: string }) => {
+            let result = Object.values(rows);
+            const where = options?.where;
+            if (where) {
+              result = result.filter((row) =>
+                Object.entries(where).every(([key, value]) => row[key] === value),
+              );
+            }
+            const total = result.length;
+            if (options?.limit !== undefined) {
+              result = result.slice(0, options.limit);
+            }
+            return { data: result, total };
+          },
+        ),
+        create: mock(async (data: Record<string, unknown>) => ({
+          id: 'new-id',
+          ...data,
+        })),
+        update: mock(async (id: string, data: Record<string, unknown>) => ({
+          ...rows[id],
+          ...data,
+        })),
+        delete: mock(async (id: string) => rows[id] ?? null),
+      };
+    }
+
+    describe('When tenant-a user calls list()', () => {
+      it('Then only returns tasks for tenant-a', async () => {
+        const db = createTenantStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx({ tenantId: 'tenant-a' });
+
+        const result = unwrap(await handlers.list(ctx));
+
+        expect(result.body.items).toHaveLength(2);
+        for (const item of result.body.items) {
+          expect(item.tenantId).toBe('tenant-a');
+        }
+      });
+    });
+
+    describe('When tenant-a user calls get() for tenant-b task', () => {
+      it('Then returns 404 (not 403)', async () => {
+        const db = createTenantStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx({ tenantId: 'tenant-a' });
+
+        const result = await handlers.get(ctx, 'task-2');
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityNotFoundError);
+        }
+      });
+    });
+
+    describe('When tenant-a user calls get() for tenant-a task', () => {
+      it('Then returns the task', async () => {
+        const db = createTenantStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx({ tenantId: 'tenant-a' });
+
+        const result = unwrap(await handlers.get(ctx, 'task-1'));
+        expect(result.body.tenantId).toBe('tenant-a');
+      });
+    });
+
+    describe('When tenant-a user calls create()', () => {
+      it('Then auto-sets tenantId from context', async () => {
+        const db = createTenantStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx({ tenantId: 'tenant-a' });
+
+        unwrap(await handlers.create(ctx, { title: 'New Task' }));
+
+        const createCall = db.create.mock.calls[0]![0];
+        expect(createCall).toHaveProperty('tenantId', 'tenant-a');
+      });
+    });
+
+    describe('When tenant-a user calls update() on tenant-b task', () => {
+      it('Then returns 404 (not 403)', async () => {
+        const db = createTenantStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx({ tenantId: 'tenant-a' });
+
+        const result = await handlers.update(ctx, 'task-2', { title: 'Hacked' });
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityNotFoundError);
+        }
+      });
+    });
+
+    describe('When tenant-a user calls delete() on tenant-b task', () => {
+      it('Then returns 404 (not 403)', async () => {
+        const db = createTenantStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx({ tenantId: 'tenant-a' });
+
+        const result = await handlers.delete(ctx, 'task-2');
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityNotFoundError);
+        }
+      });
+    });
+  });
+
+  describe('Given a non-tenant-scoped entity (no tenantId column)', () => {
+    describe('When calling list() without tenantId in context', () => {
+      it('Then returns all rows (no tenant filter)', async () => {
+        const def = entity('users', {
+          model: usersModel,
+          access: { list: () => true },
+        });
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = unwrap(await handlers.list(ctx));
+        expect(result.body.items).toHaveLength(2);
+      });
+    });
+  });
+
+  describe('Given an entity with tenantScoped: false override', () => {
+    const tasksTable = d.table('admin-tasks', {
+      id: d.uuid().primary(),
+      title: d.text(),
+      tenantId: d.uuid(),
+    });
+    const tasksModel = d.model(tasksTable);
+    const def = entity('admin-tasks', {
+      model: tasksModel,
+      tenantScoped: false,
+      access: { list: () => true },
+    });
+
+    describe('When calling list() with tenantId in context', () => {
+      it('Then returns all rows (no tenant filter)', async () => {
+        const rows: Record<string, Record<string, unknown>> = {
+          'task-1': { id: 'task-1', title: 'Task A', tenantId: 'tenant-a' },
+          'task-2': { id: 'task-2', title: 'Task B', tenantId: 'tenant-b' },
+        };
+        const db = {
+          get: mock(async (id: string) => rows[id] ?? null),
+          list: mock(async () => ({ data: Object.values(rows), total: 2 })),
+          create: mock(async (data: Record<string, unknown>) => data),
+          update: mock(async (_id: string, data: Record<string, unknown>) => data),
+          delete: mock(async () => null),
+        };
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx({ tenantId: 'tenant-a' });
+
+        const result = unwrap(await handlers.list(ctx));
+        expect(result.body.items).toHaveLength(2);
+      });
+    });
+  });
+
+  // --- rules.where() pushed to DB query ---
+
+  describe('Given an entity with access: { list: rules.where({ status: "published" }) }', () => {
+    const postsTable = d.table('posts', {
+      id: d.uuid().primary(),
+      title: d.text(),
+      status: d.text(),
+      createdAt: d.timestamp().default('now').readOnly(),
+    });
+    const postsModel = d.model(postsTable);
+
+    const def = entity('posts', {
+      model: postsModel,
+      access: { list: rules.where({ status: 'published' }) },
+    });
+
+    describe('When list is called', () => {
+      it('Then the static where conditions are merged into the DB query', async () => {
+        const db = {
+          get: mock(async () => null),
+          list: mock(async () => ({ data: [], total: 0 })),
+          create: mock(async (data: Record<string, unknown>) => data),
+          update: mock(async (_id: string, data: Record<string, unknown>) => data),
+          delete: mock(async () => null),
+        };
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        await handlers.list(ctx);
+
+        // Verify the where clause passed to db.list contains the static conditions
+        expect(db.list).toHaveBeenCalledTimes(1);
+        const callArgs = db.list.mock.calls[0][0] as { where?: Record<string, unknown> };
+        expect(callArgs.where).toEqual(expect.objectContaining({ status: 'published' }));
+      });
+    });
+  });
+
+  describe('Given an entity with access: { list: rules.where({ createdBy: rules.user.id }) }', () => {
+    const postsTable = d.table('posts', {
+      id: d.uuid().primary(),
+      title: d.text(),
+      createdBy: d.text(),
+      createdAt: d.timestamp().default('now').readOnly(),
+    });
+    const postsModel = d.model(postsTable);
+
+    const def = entity('posts', {
+      model: postsModel,
+      access: { list: rules.where({ createdBy: rules.user.id }) },
+    });
+
+    describe('When list is called by an authenticated user', () => {
+      it('Then user markers are resolved and merged into the DB query', async () => {
+        const db = {
+          get: mock(async () => null),
+          list: mock(async () => ({ data: [], total: 0 })),
+          create: mock(async (data: Record<string, unknown>) => data),
+          update: mock(async (_id: string, data: Record<string, unknown>) => data),
+          delete: mock(async () => null),
+        };
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx({ userId: 'user-42' });
+
+        await handlers.list(ctx);
+
+        expect(db.list).toHaveBeenCalledTimes(1);
+        const callArgs = db.list.mock.calls[0][0] as { where?: Record<string, unknown> };
+        expect(callArgs.where).toEqual(expect.objectContaining({ createdBy: 'user-42' }));
+      });
+    });
+  });
+
+  describe('Given an entity with access: { list: rules.all(rules.authenticated(), rules.where(...)) }', () => {
+    const postsTable = d.table('posts', {
+      id: d.uuid().primary(),
+      title: d.text(),
+      createdBy: d.text(),
+      createdAt: d.timestamp().default('now').readOnly(),
+    });
+    const postsModel = d.model(postsTable);
+
+    const def = entity('posts', {
+      model: postsModel,
+      access: {
+        list: rules.all(rules.authenticated(), rules.where({ createdBy: rules.user.id })),
+      },
+    });
+
+    describe('When an authenticated user calls list', () => {
+      it('Then where conditions are extracted from the all() composition', async () => {
+        const db = {
+          get: mock(async () => null),
+          list: mock(async () => ({ data: [], total: 0 })),
+          create: mock(async (data: Record<string, unknown>) => data),
+          update: mock(async (_id: string, data: Record<string, unknown>) => data),
+          delete: mock(async () => null),
+        };
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx({ userId: 'user-99' });
+
+        await handlers.list(ctx);
+
+        expect(db.list).toHaveBeenCalledTimes(1);
+        const callArgs = db.list.mock.calls[0][0] as { where?: Record<string, unknown> };
+        expect(callArgs.where).toEqual(expect.objectContaining({ createdBy: 'user-99' }));
+      });
+    });
+
+    describe('When an unauthenticated user calls list', () => {
+      it('Then access is denied (authenticated rule still enforced)', async () => {
+        const db = {
+          get: mock(async () => null),
+          list: mock(async () => ({ data: [], total: 0 })),
+          create: mock(async (data: Record<string, unknown>) => data),
+          update: mock(async (_id: string, data: Record<string, unknown>) => data),
+          delete: mock(async () => null),
+        };
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx({ userId: null });
+
+        const result = await handlers.list(ctx);
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityForbiddenError);
+        }
       });
     });
   });

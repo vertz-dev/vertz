@@ -175,16 +175,20 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
     if (hasDbClient) {
       // Validate all entity models are registered in the DatabaseClient
       const dbModels = (db as DatabaseClient<Record<string, ModelEntry>>)._internals.models;
+      // Use def.table for DB lookup (admin entities may share tables via table override)
+      const tableOf = (e: EntityDefinition) => e.table ?? e.name;
       const missing = config.entities
-        .filter((e) => !(e.name in dbModels))
-        .map((e) => `"${e.name}"`);
-      if (missing.length > 0) {
+        .filter((e) => !(tableOf(e as EntityDefinition) in dbModels))
+        .map((e) => `"${tableOf(e as EntityDefinition)}"`);
+      // Deduplicate (multiple entities can share a table)
+      const uniqueMissing = [...new Set(missing)];
+      if (uniqueMissing.length > 0) {
         const registered = Object.keys(dbModels)
           .map((k) => `"${k}"`)
           .join(', ');
-        const plural = missing.length > 1;
+        const plural = uniqueMissing.length > 1;
         throw new Error(
-          `${plural ? 'Entities' : 'Entity'} ${missing.join(', ')} ${plural ? 'are' : 'is'} not registered in createDb(). ` +
+          `${plural ? 'Entities' : 'Entity'} ${uniqueMissing.join(', ')} ${plural ? 'are' : 'is'} not registered in createDb(). ` +
             `Add the missing model${plural ? 's' : ''} to the models object in your createDb() call. ` +
             `Registered models: ${registered || '(none)'}`,
         );
@@ -193,7 +197,7 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
       dbFactory = (entityDef) =>
         createDatabaseBridgeAdapter(
           db as DatabaseClient<Record<string, ModelEntry>>,
-          entityDef.name,
+          tableOf(entityDef),
         );
     } else if (db) {
       dbFactory = () => db as EntityDbAdapter;

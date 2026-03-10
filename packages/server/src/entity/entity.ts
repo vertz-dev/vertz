@@ -25,6 +25,10 @@ export function entity<
     throw new Error('entity() requires a model in the config.');
   }
 
+  // Detect tenantId column in the model to infer tenantScoped default
+  const hasTenantIdColumn = 'tenantId' in config.model.table._columns;
+  const tenantScoped = config.tenantScoped ?? hasTenantIdColumn;
+
   // Type erasure: EntityConfig<TModel> validates hooks at the call site.
   // EntityDefinition stores hooks as EntityBeforeHooks/EntityAfterHooks (unknown)
   // so that definitions with different models can coexist in a single array.
@@ -38,6 +42,8 @@ export function entity<
     after: (config.after ?? {}) as EntityDefinition<TModel>['after'],
     actions: (config.actions ?? {}) as Record<string, EntityActionDef>,
     relations: config.relations ?? {},
+    table: config.table ?? name,
+    tenantScoped,
   };
   return deepFreeze(def);
 }
