@@ -256,4 +256,87 @@ describe('analyzeFieldSelection', () => {
       expect(result[0].hasOpaqueAccess).toBe(true);
     });
   });
+
+  describe('Given a query variable passed to a child component in map callback', () => {
+    it('Then detects the prop flow with import source', () => {
+      const source = `
+        import { query } from '@vertz/ui';
+        import { UserCard } from './user-card';
+
+        function UserList() {
+          const users = query(api.users.list());
+          return <div>{users.data.items.map(u => <UserCard user={u} />)}</div>;
+        }
+      `;
+
+      const result = analyzeFieldSelection('test.tsx', source);
+
+      expect(result[0].propFlows).toHaveLength(1);
+      expect(result[0].propFlows[0].componentName).toBe('UserCard');
+      expect(result[0].propFlows[0].importSource).toBe('./user-card');
+      expect(result[0].propFlows[0].propName).toBe('user');
+    });
+  });
+
+  describe('Given a get query with data passed directly to child component', () => {
+    it('Then detects the prop flow', () => {
+      const source = `
+        import { query } from '@vertz/ui';
+        import { UserDetail } from './user-detail';
+
+        function UserPage() {
+          const user = query(api.users.get(id));
+          return <UserDetail user={user.data} />;
+        }
+      `;
+
+      const result = analyzeFieldSelection('test.tsx', source);
+
+      expect(result[0].propFlows).toHaveLength(1);
+      expect(result[0].propFlows[0].componentName).toBe('UserDetail');
+      expect(result[0].propFlows[0].propName).toBe('user');
+    });
+  });
+
+  describe('Given two queries passed to the same child component', () => {
+    it('Then attributes each prop flow to the correct query', () => {
+      const source = `
+        import { query } from '@vertz/ui';
+        import { TaskCard } from './task-card';
+
+        function TaskPage() {
+          const task = query(api.tasks.get(taskId));
+          const user = query(api.users.get(userId));
+          return <TaskCard task={task.data} assignee={user.data} />;
+        }
+      `;
+
+      const result = analyzeFieldSelection('test.tsx', source);
+
+      const taskQuery = result.find((r) => r.queryVar === 'task');
+      const userQuery = result.find((r) => r.queryVar === 'user');
+
+      expect(taskQuery?.propFlows).toHaveLength(1);
+      expect(taskQuery?.propFlows[0].propName).toBe('task');
+      expect(userQuery?.propFlows).toHaveLength(1);
+      expect(userQuery?.propFlows[0].propName).toBe('assignee');
+    });
+  });
+
+  describe('Given no query data passed to child components', () => {
+    it('Then propFlows is empty', () => {
+      const source = `
+        import { query } from '@vertz/ui';
+
+        function UserList() {
+          const users = query(api.users.list());
+          return <div>{users.data.items.map(u => <span>{u.name}</span>)}</div>;
+        }
+      `;
+
+      const result = analyzeFieldSelection('test.tsx', source);
+
+      expect(result[0].propFlows).toHaveLength(0);
+    });
+  });
 });

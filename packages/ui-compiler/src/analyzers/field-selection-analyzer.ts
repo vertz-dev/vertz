@@ -18,6 +18,15 @@ export type InjectionKind =
   /** First arg is not an object: api.users.get(id) → insert `, { select: {...} }` */
   | 'append-arg';
 
+export interface PropFlow {
+  /** Component name as written in JSX (PascalCase) */
+  componentName: string;
+  /** Import specifier (e.g., './user-card') or null if not imported */
+  importSource: string | null;
+  /** Prop name on the component receiving the data */
+  propName: string;
+}
+
 export interface QueryFieldSelection {
   /** Variable name assigned from query() call (e.g., 'users') */
   queryVar: string;
@@ -29,6 +38,8 @@ export interface QueryFieldSelection {
   fields: string[];
   /** True if any opaque access detected (spread, dynamic key, pass to function) */
   hasOpaqueAccess: boolean;
+  /** Components receiving data from this query via JSX props */
+  propFlows: PropFlow[];
 }
 
 /**
@@ -39,18 +50,26 @@ export function analyzeFieldSelection(filePath: string, sourceText: string): Que
   const sourceFile = ts.createSourceFile(filePath, sourceText, ts.ScriptTarget.Latest, true);
   const results: QueryFieldSelection[] = [];
 
+  // Step 0: Collect imports for resolving component sources
+  const imports = collectImports(sourceFile);
+
   // Step 1: Find query() variable declarations
   const queryVars = findQueryVariables(sourceFile);
 
   // Step 2: For each query variable, track field access throughout the file
   for (const qv of queryVars) {
-    const { fields, hasOpaqueAccess } = trackFieldAccess(sourceFile, qv.varName);
+    const { fields, hasOpaqueAccess, propFlows } = trackFieldAccess(
+      sourceFile,
+      qv.varName,
+      imports,
+    );
     results.push({
       queryVar: qv.varName,
       injectionPos: qv.injectionPos,
       injectionKind: qv.injectionKind,
       fields: [...new Set(fields)],
       hasOpaqueAccess,
+      propFlows,
     });
   }
 
@@ -120,9 +139,14 @@ function findQueryVariables(sourceFile: ts.SourceFile): QueryVarInfo[] {
 function trackFieldAccess(
   sourceFile: ts.SourceFile,
   varName: string,
-): { fields: string[]; hasOpaqueAccess: boolean } {
+  imports: Map<string, string>,
+): { fields: string[]; hasOpaqueAccess: boolean; propFlows: PropFlow[] } {
   const fields: string[] = [];
+  const propFlows: PropFlow[] = [];
   let hasOpaqueAccess = false;
+
+  // Track which callback params map to this query variable's data items
+  const callbackParamsFromQuery = new Set<string>();
 
   function visit(node: ts.Node): void {
     // Track property access chains on the variable
@@ -153,9 +177,42 @@ function trackFieldAccess(
             if (callback) {
               const paramName = getCallbackParamName(callback, sourceFile);
               if (paramName) {
-                const callbackFields = trackCallbackFieldAccess(callback, paramName, sourceFile);
+                callbackParamsFromQuery.add(paramName);
+                const callbackFields = trackCallbackFieldAccess(
+                  callback,
+                  paramName,
+                  sourceFile,
+                  imports,
+                  propFlows,
+                );
                 fields.push(...callbackFields.fields);
                 if (callbackFields.hasOpaqueAccess) hasOpaqueAccess = true;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Track JSX prop passing: <Component propName={varName.data} />
+    if (ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node)) {
+      const tagName = node.tagName.getText(sourceFile);
+      if (/^[A-Z]/.test(tagName)) {
+        for (const attr of node.attributes.properties) {
+          if (ts.isJsxAttribute(attr) && attr.initializer && ts.isJsxExpression(attr.initializer)) {
+            const valueExpr = attr.initializer.expression;
+            if (valueExpr) {
+              // Check if value traces to query variable's data path
+              if (ts.isPropertyAccessExpression(valueExpr)) {
+                const chain = buildPropertyChain(valueExpr, sourceFile);
+                if (chain && chain[0] === varName && chain.includes('data')) {
+                  const attrName = attr.name.getText(sourceFile);
+                  propFlows.push({
+                    componentName: tagName,
+                    importSource: imports.get(tagName) ?? null,
+                    propName: attrName,
+                  });
+                }
               }
             }
           }
@@ -181,7 +238,7 @@ function trackFieldAccess(
   }
 
   visit(sourceFile);
-  return { fields, hasOpaqueAccess };
+  return { fields, hasOpaqueAccess, propFlows };
 }
 
 /**
@@ -346,7 +403,9 @@ function getCallbackParamName(node: ts.Expression, _sourceFile: ts.SourceFile): 
 function trackCallbackFieldAccess(
   callback: ts.Expression,
   paramName: string,
-  _sourceFile: ts.SourceFile,
+  sourceFile: ts.SourceFile,
+  imports: Map<string, string>,
+  propFlows: PropFlow[],
 ): { fields: string[]; hasOpaqueAccess: boolean } {
   const fields: string[] = [];
   let hasOpaqueAccess = false;
@@ -376,6 +435,26 @@ function trackCallbackFieldAccess(
       }
     }
 
+    // JSX prop passing in callback: <Component propName={paramName} />
+    if (ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node)) {
+      const tagName = node.tagName.getText(sourceFile);
+      if (/^[A-Z]/.test(tagName)) {
+        for (const attr of node.attributes.properties) {
+          if (ts.isJsxAttribute(attr) && attr.initializer && ts.isJsxExpression(attr.initializer)) {
+            const valueExpr = attr.initializer.expression;
+            if (valueExpr && ts.isIdentifier(valueExpr) && valueExpr.text === paramName) {
+              const attrName = attr.name.getText(sourceFile);
+              propFlows.push({
+                componentName: tagName,
+                importSource: imports.get(tagName) ?? null,
+                propName: attrName,
+              });
+            }
+          }
+        }
+      }
+    }
+
     ts.forEachChild(node, visit);
   }
 
@@ -384,4 +463,27 @@ function trackCallbackFieldAccess(
   }
 
   return { fields, hasOpaqueAccess };
+}
+
+/**
+ * Collect import specifiers for named imports.
+ * Returns map of localName → moduleSpecifier.
+ */
+function collectImports(sourceFile: ts.SourceFile): Map<string, string> {
+  const imports = new Map<string, string>();
+  for (const stmt of sourceFile.statements) {
+    if (ts.isImportDeclaration(stmt)) {
+      const moduleSpecifier = stmt.moduleSpecifier.getText(sourceFile).replace(/^['"]|['"]$/g, '');
+      const clause = stmt.importClause;
+      if (clause?.namedBindings && ts.isNamedImports(clause.namedBindings)) {
+        for (const el of clause.namedBindings.elements) {
+          imports.set(el.name.getText(sourceFile), moduleSpecifier);
+        }
+      }
+      if (clause?.name) {
+        imports.set(clause.name.getText(sourceFile), moduleSpecifier);
+      }
+    }
+  }
+  return imports;
 }

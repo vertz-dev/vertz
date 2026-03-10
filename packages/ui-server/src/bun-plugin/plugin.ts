@@ -13,7 +13,7 @@
  * 8. Assemble final output with inline source map
  */
 
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import type { EncodedSourceMap } from '@ampproject/remapping';
 import remapping from '@ampproject/remapping';
@@ -25,6 +25,7 @@ import {
   generateAllManifests,
   HydrationTransformer,
   regenerateFileManifest,
+  resolveModuleSpecifier,
 } from '@vertz/ui-compiler';
 import type { BunPlugin } from 'bun';
 import MagicString from 'magic-string';
@@ -33,6 +34,7 @@ import { Project, ts } from 'ts-morph';
 import { injectContextStableIds } from './context-stable-ids';
 import { generateRefreshCode } from './fast-refresh-codegen';
 import { injectFieldSelection } from './field-selection-inject';
+import { FieldSelectionManifest } from './field-selection-manifest';
 import { filePathHash } from './file-path-hash';
 import type {
   CSSSidecarMap,
@@ -164,6 +166,25 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
     manifestResult.warnings.map((w) => ({ type: w.type, message: w.message })),
   );
 
+  // ── 0.5. Field selection manifest pre-pass (cross-component fields) ──
+  const fieldSelectionManifest = new FieldSelectionManifest();
+  const fieldSelectionResolveImport = (specifier: string, fromFile: string): string | undefined => {
+    return resolveModuleSpecifier(specifier, fromFile, {}, srcDir);
+  };
+  fieldSelectionManifest.setImportResolver(fieldSelectionResolveImport);
+
+  // Scan all .tsx files for component prop field access
+  for (const [filePath] of manifests) {
+    if (filePath.endsWith('.tsx')) {
+      try {
+        const sourceText = readFileSync(filePath, 'utf-8');
+        fieldSelectionManifest.registerFile(filePath, sourceText);
+      } catch {
+        // Skip unreadable files
+      }
+    }
+  }
+
   // Ensure CSS output directory exists
   mkdirSync(cssOutDir, { recursive: true });
 
@@ -205,7 +226,11 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
 
           // ── 2.5. Field selection injection ───────────────────
           // Analyze field access and inject select into query descriptors
-          const fieldSelectionResult = injectFieldSelection(args.path, hydratedCode);
+          // Uses cross-file manifest to merge child component fields
+          const fieldSelectionResult = injectFieldSelection(args.path, hydratedCode, {
+            manifest: fieldSelectionManifest,
+            resolveImport: fieldSelectionResolveImport,
+          });
           const codeForCompile = fieldSelectionResult.code;
 
           // ── 3. Compile (reactive + JSX transforms) ─────────────
@@ -345,6 +370,11 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
       manifestsRecord = null; // Invalidate cached Record view
     }
 
+    // Update field selection manifest incrementally
+    if (filePath.endsWith('.tsx')) {
+      fieldSelectionManifest.updateFile(filePath, sourceText);
+    }
+
     if (logger?.isEnabled('manifest')) {
       const exportShapes: Record<string, string> = {};
       for (const [name, info] of Object.entries(newManifest.exports)) {
@@ -374,6 +404,10 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
         });
       }
     }
+
+    // Clean up field selection manifest
+    fieldSelectionManifest.deleteFile(filePath);
+
     return existed;
   }
 
