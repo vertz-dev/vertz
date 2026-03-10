@@ -9,10 +9,10 @@
 
 | Doc | Status | Description |
 |-----|--------|-------------|
-| [Entity-Driven Architecture (EDA)](plans/entity-driven-architecture.md) | 🔄 In Progress | Foundational design: entity(), action(), service(), domain(). DDD alignment, REST/HATEOAS, VertzQL. PR #455. |
-| [Entity Analyzer Design](plans/entity-analyzer-design.md) | ✅ Approved | Compiler analyzer for entity() calls — static extraction, IR emission, schema resolution, SDK codegen. |
-| [Entity Analyzer Impl Spec](plans/entity-analyzer-impl-spec.md) | 🔄 In Progress | Implementation spec — 66 tests, 6 parts. Issue #471. |
-| [Entity-Aware API](plans/entity-aware-api.md) | 📋 Draft | Entity-aware API layer design |
+| [Entity-Driven Architecture (EDA)](plans/entity-driven-architecture.md) | ✅ Implemented | Foundational design: entity(), action(), service(), domain(). DDD alignment, REST/HATEOAS, VertzQL. PR #455. |
+| [Entity Analyzer Design](plans/entity-analyzer-design.md) | ✅ Implemented | Compiler analyzer for entity() calls — static extraction, IR emission, schema resolution, SDK codegen. |
+| [Entity Analyzer Impl Spec](plans/entity-analyzer-impl-spec.md) | ✅ Implemented | Implementation spec — 66 tests, 6 parts. Issue #471. |
+| [Entity-Aware API](plans/entity-aware-api.md) | ✅ Implemented | Entity-aware API layer design |
 | [Entity-Aware API Review: REST](plans/entity-aware-api-review-rest.md) | ✅ Done | REST perspective review |
 | [Entity-Aware API Review: GraphQL](plans/entity-aware-api-review-graphql.md) | ✅ Done | GraphQL perspective review |
 | [Entity API Expert Debate](plans/entity-api-expert-debate.md) | ✅ Done | Expert debate on entity API design |
@@ -24,9 +24,10 @@
 
 | Doc | Status | Description |
 |-----|--------|-------------|
-| [Entity Store Design](plans/entity-store-design.md) | ✅ Approved | Normalized entity cache, signal-per-entity, compiler-inferred field selection, SSR data bridge. |
-| [Entity Store Impl Spec](plans/entity-store-impl-spec.md) | ✅ Done | Implementation spec. PR #466 merged. |
-| [Cross-Component Tracing Spec](plans/cross-component-tracing-spec.md) | ✅ Done | Compiler extension for entity data flow across components. PR #467 merged. |
+| [VertzQL Auto Field Selection](plans/vertzql-auto-field-selection.md) | 📋 Draft (Rev 2) | Compiler-driven query narrowing: automatic `select` injection based on field access analysis. Spans compiler, Bun plugin, SDK, and server. |
+| [Entity Store Design](plans/entity-store-design.md) | ✅ Implemented | Normalized entity cache, signal-per-entity, compiler-inferred field selection, SSR data bridge. |
+| [Entity Store Impl Spec](plans/entity-store-impl-spec.md) | ✅ Implemented | Implementation spec. PR #466 merged. |
+| [Cross-Component Tracing Spec](plans/cross-component-tracing-spec.md) | ✅ Implemented | Compiler extension for entity data flow across components. PR #467 merged. |
 
 ### Entity Store Reviews
 
@@ -54,9 +55,9 @@
 
 | Doc | Status | Description |
 |-----|--------|-------------|
-| [Errors-as-Values Unification](plans/errors-as-values-unification.md) | ✅ Approved | Consolidate Result type, error classes, matchError() utility across fetch/server/entities/codegen. Tickets #532-537. |
-| [Result Boundaries v3](plans/result-boundaries.md) | ✅ Approved | Where Result stops and throwing begins. |
-| [Errors as Values](plans/errors-as-values.md) | 📋 Draft | Error-as-values philosophy |
+| [Errors-as-Values Unification](plans/errors-as-values-unification.md) | ✅ Implemented | Consolidate Result type, error classes, matchError() utility across fetch/server/entities/codegen. Tickets #532-537. |
+| [Result Boundaries v3](plans/result-boundaries.md) | ✅ Implemented | Where Result stops and throwing begins. |
+| [Errors as Values](plans/errors-as-values.md) | ✅ Implemented | Error-as-values philosophy |
 | [Result Types Audit](plans/reviews/result-types-audit.md) | ✅ Done | Result type usage audit |
 
 ---
@@ -99,11 +100,11 @@
 
 | Doc | Status | Description |
 |-----|--------|-------------|
-| [Schema Design](plans/vertz-schema-design.md) | 📋 Draft | Schema system |
-| [Schema Implementation](plans/vertz-schema-implementation.md) | 📋 Draft | Schema impl |
-| [Database Design](plans/db-design.md) | 📋 Draft | Database layer |
-| [Database Implementation](plans/db-implementation.md) | 📋 Draft | DB impl |
-| [DB Integration Design](plans/db-integration-design.md) | 📋 Draft | DB integration |
+| [Schema Design](plans/vertz-schema-design.md) | ✅ Implemented | Schema system — core schema, effects, refinements, introspection, JSON Schema + OpenAPI. |
+| [Schema Implementation](plans/vertz-schema-implementation.md) | ✅ Implemented | Schema impl |
+| [Database Design](plans/db-design.md) | ✅ Implemented | Database layer — SQLite, PostgreSQL, D1 adapters, migrations, CLI. |
+| [Database Implementation](plans/db-implementation.md) | ✅ Implemented | DB impl |
+| [DB Integration Design](plans/db-integration-design.md) | ✅ Implemented | DB integration |
 
 ---
 
@@ -111,6 +112,8 @@
 
 | Doc | Status | Description |
 |-----|--------|-------------|
+| [Access Redesign — Entity-Centric `defineAccess()`](plans/access-redesign.md) | ✅ ~95% Impl | Entity-centric config, entitlements, plans, limits, grandfathering. Layers 1-5 done. **Remaining:** Layer 6 (attribute rule eval) → covered by tenant-isolation plan Phase 1. Layer 7 (FVA) partially stubbed. |
+| [Tenant Isolation & Entity Access Descriptors](plans/tenant-isolation-and-entity-access.md) | 📋 Draft | Bridge entity access to `rules.*` descriptors, automatic tenant scoping, admin entities, session revalidation. |
 | [Auth Module Spec](plans/auth-module-spec.md) | ⏸️ Blocked | Deprioritized to v0.2 |
 | [Auth Phase 2 Spec](plans/auth-phase2-spec.md) | ⏸️ Blocked | Blocked on auth module |
 | [Access System](plans/access-system.md) | 📋 Draft | Access control |
@@ -138,7 +141,7 @@
 
 | Doc | Status | Description |
 |-----|--------|-------------|
-| [Codegen Design](plans/codegen-design.md) | 📋 Draft | Code generation system |
+| [Codegen Design](plans/codegen-design.md) | ✅ Implemented | Code generation system — entity SDK, types, schema, client generators. |
 | [Codegen & Services Audit](plans/audits/codegen-and-services-audit.md) | ✅ Done | Codegen audit |
 | [API Cheat Sheet](plans/api-cheat-sheet-current.md) | ✅ Done | Current API surface |
 
@@ -148,8 +151,8 @@
 
 | Doc | Status | Description |
 |-----|--------|-------------|
-| [Testing Design](plans/vertz-testing-design.md) | 📋 Draft | Testing framework |
-| [Testing Implementation](plans/vertz-testing-implementation.md) | 📋 Draft | Testing impl |
+| [Testing Design](plans/vertz-testing-design.md) | 🔄 Partial | Testing framework — `TestApp` utility exists, minimal. |
+| [Testing Implementation](plans/vertz-testing-implementation.md) | 🔄 Partial | Testing impl — basic utilities, needs expansion. |
 | [Integration Tests](plans/integration-tests.md) | 📋 Draft | Integration strategy |
 
 ### E2E Testing DX Debates
