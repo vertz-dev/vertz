@@ -78,7 +78,7 @@ function TaskDetail() {
         expect(result.injected).toBe(true);
         expect(result.code).toContain('title: true');
         expect(result.code).not.toContain('internalNote: true');
-        expect(result.code).toContain('include: { assignee: { name: true } }');
+        expect(result.code).toContain('include: { assignee: { select: { name: true } } }');
       });
     });
 

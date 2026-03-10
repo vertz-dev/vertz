@@ -178,7 +178,7 @@ function buildSimpleSelectInjection(fields: string[]): string {
  *
  * Uses the entity schema to classify fields:
  * - Scalar fields → `select: { field: true, ... }`
- * - Relation fields with nested access → `include: { rel: { select: { ... } } }`
+ * - Relation fields with nested access → `include: { rel: { select: { field: true } } }`
  * - Relation fields without nested access → included in `select` as before
  */
 function buildManifestAwareInjection(
@@ -245,7 +245,7 @@ function buildManifestAwareInjection(
       if (relFields.length > 0) {
         const sortedRelFields = relFields.sort();
         const relSelectEntries = sortedRelFields.map((f) => `${f}: true`).join(', ');
-        includeEntries.push(`${relName}: { ${relSelectEntries} }`);
+        includeEntries.push(`${relName}: { select: { ${relSelectEntries} } }`);
       }
     }
 

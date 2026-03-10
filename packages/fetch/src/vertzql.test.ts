@@ -31,12 +31,12 @@ describe('encodeVertzQL', () => {
   it('encodes both select and include together', () => {
     const result = encodeVertzQL({
       select: { id: true, name: true },
-      include: { posts: { title: true } },
+      include: { posts: { select: { title: true } } },
     });
 
     expect(decodeBase64url(result)).toEqual({
       select: { id: true, name: true },
-      include: { posts: { title: true } },
+      include: { posts: { select: { title: true } } },
     });
   });
 });
@@ -132,10 +132,10 @@ describe('encodeVertzQL round-trip with server decode logic', () => {
   });
 
   it('round-trips include with nested fields', () => {
-    const encoded = encodeVertzQL({ include: { posts: { title: true } } });
+    const encoded = encodeVertzQL({ include: { posts: { select: { title: true } } } });
     const decoded = serverDecode(encoded);
 
-    expect(decoded.include).toEqual({ posts: { title: true } });
+    expect(decoded.include).toEqual({ posts: { select: { title: true } } });
   });
 
   it('round-trips combined select + include', () => {

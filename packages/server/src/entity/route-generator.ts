@@ -177,7 +177,9 @@ export function generateEntityRoutes(
             limit: typeof body.limit === 'number' ? body.limit : undefined,
             after: typeof body.after === 'string' ? body.after : undefined,
             select: body.select as Record<string, true> | undefined,
-            include: body.include as Record<string, true | Record<string, true>> | undefined,
+            include: body.include as
+              | Record<string, true | { select: Record<string, true> }>
+              | undefined,
           };
 
           const relationsConfig = def.relations;

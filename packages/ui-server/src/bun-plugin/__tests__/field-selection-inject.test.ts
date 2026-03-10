@@ -327,7 +327,7 @@ function TaskDetail() {
       expect(result.code).toContain('select:');
       expect(result.code).toContain('title: true');
       expect(result.code).toContain('include:');
-      expect(result.code).toContain('assignee: { name: true }');
+      expect(result.code).toContain('assignee: { select: { name: true } }');
       expect(result.injected).toBe(true);
     });
 
@@ -354,7 +354,7 @@ function TaskList() {
       expect(result.code).toContain('select:');
       expect(result.code).toContain('title: true');
       expect(result.code).toContain('include:');
-      expect(result.code).toContain('assignee: { email: true, name: true }');
+      expect(result.code).toContain('assignee: { select: { email: true, name: true } }');
       expect(result.injected).toBe(true);
     });
 
