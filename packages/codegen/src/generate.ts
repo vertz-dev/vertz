@@ -6,6 +6,7 @@ import { formatWithBiome } from './format';
 import { AccessTypesGenerator } from './generators/access-types-generator';
 import { ClientGenerator } from './generators/client-generator';
 import { EntitySchemaGenerator } from './generators/entity-schema-generator';
+import { EntitySchemaManifestGenerator } from './generators/entity-schema-manifest-generator';
 import { EntitySdkGenerator } from './generators/entity-sdk-generator';
 import { EntityTypesGenerator } from './generators/entity-types-generator';
 import { RlsPolicyGenerator } from './generators/rls-policy-generator';
@@ -58,6 +59,10 @@ function runTypescriptGenerator(ir: CodegenIR, _config: ResolvedCodegenConfig): 
   // Access types augmentation (access.d.ts)
   const accessTypesGen = new AccessTypesGenerator();
   files.push(...accessTypesGen.generate(ir, generatorConfig));
+
+  // Entity schema manifest (entity-schema.json) — always generated
+  const entitySchemaManifestGen = new EntitySchemaManifestGenerator();
+  files.push(...entitySchemaManifestGen.generate(ir, generatorConfig));
 
   // RLS policies (rls-policies.sql) — opt-in via typescript.rls
   if (_config.typescript?.rls) {

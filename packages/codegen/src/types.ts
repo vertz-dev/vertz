@@ -144,6 +144,12 @@ export interface CodegenEntityModule {
   operations: CodegenEntityOperation[];
   actions: CodegenEntityAction[];
   relations?: CodegenRelation[];
+  tenantScoped?: boolean;
+  table?: string;
+  primaryKey?: string;
+  hiddenFields?: string[];
+  responseFields?: CodegenResolvedField[];
+  relationSelections?: Record<string, 'all' | string[]>;
 }
 
 export interface CodegenEntityOperation {
