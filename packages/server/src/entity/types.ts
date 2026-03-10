@@ -193,6 +193,10 @@ export interface EntityConfig<
 > {
   readonly model: TModel;
   readonly inject?: TInject;
+  /** Override the DB table name (defaults to entity name). For admin entities over shared tables. */
+  readonly table?: string;
+  /** Whether CRUD auto-filters by tenantId. Defaults to true when model has tenantId column. */
+  readonly tenantScoped?: boolean;
   readonly access?: Partial<
     Record<
       'list' | 'get' | 'create' | 'update' | 'delete' | Extract<keyof NoInfer<TActions>, string>,
@@ -242,4 +246,8 @@ export interface EntityDefinition<TModel extends ModelDef = ModelDef> {
   readonly after: EntityAfterHooks;
   readonly actions: Record<string, EntityActionDef>;
   readonly relations: EntityRelationsConfig<TModel['relations']>;
+  /** DB table name (defaults to entity name). */
+  readonly table: string;
+  /** Whether CRUD auto-filters by tenantId. */
+  readonly tenantScoped: boolean;
 }

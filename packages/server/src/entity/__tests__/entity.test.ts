@@ -217,6 +217,54 @@ describe('Feature: entity() definition', () => {
     });
   });
 
+  describe('Given a model with tenantId column', () => {
+    const tenantTable = d.table('tasks', {
+      id: d.uuid().primary(),
+      title: d.text(),
+      tenantId: d.uuid(),
+    });
+    const tenantModel = d.model(tenantTable);
+
+    describe('When calling entity() without explicit tenantScoped', () => {
+      it('Then tenantScoped defaults to true', () => {
+        const def = entity('tasks', { model: tenantModel });
+        expect(def.tenantScoped).toBe(true);
+      });
+    });
+
+    describe('When calling entity() with tenantScoped: false', () => {
+      it('Then tenantScoped is false', () => {
+        const def = entity('tasks', { model: tenantModel, tenantScoped: false });
+        expect(def.tenantScoped).toBe(false);
+      });
+    });
+  });
+
+  describe('Given a model without tenantId column', () => {
+    describe('When calling entity() without explicit tenantScoped', () => {
+      it('Then tenantScoped defaults to false', () => {
+        const def = entity('users', { model: usersModel });
+        expect(def.tenantScoped).toBe(false);
+      });
+    });
+  });
+
+  describe('Given an entity with table override', () => {
+    describe('When calling entity() with table property', () => {
+      it('Then .table contains the override value', () => {
+        const def = entity('admin-users', { model: usersModel, table: 'users' });
+        expect(def.table).toBe('users');
+      });
+    });
+
+    describe('When calling entity() without table property', () => {
+      it('Then .table defaults to entity name', () => {
+        const def = entity('users', { model: usersModel });
+        expect(def.table).toBe('users');
+      });
+    });
+  });
+
   describe('Given an entity config with custom actions', () => {
     describe('When calling entity() with actions', () => {
       it('Then .actions contains the passed actions', () => {

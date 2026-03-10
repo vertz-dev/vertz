@@ -82,6 +82,27 @@ export interface CrudHandlers {
 
 export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): CrudHandlers {
   const table = def.model.table;
+  const isTenantScoped = def.tenantScoped;
+
+  /** Returns 404 error for the entity */
+  function notFound(id: string) {
+    return err(new EntityNotFoundError(`${def.name} with id "${id}" not found`));
+  }
+
+  /** Checks if a row belongs to the current tenant. Returns false if cross-tenant. */
+  function isSameTenant(ctx: EntityContext, row: Record<string, unknown>): boolean {
+    if (!isTenantScoped) return true;
+    return row.tenantId === ctx.tenantId;
+  }
+
+  /** Merges tenant filter into a where clause for list queries. */
+  function withTenantFilter(
+    ctx: EntityContext,
+    where: Record<string, unknown> | undefined,
+  ): Record<string, unknown> | undefined {
+    if (!isTenantScoped) return where;
+    return { ...where, tenantId: ctx.tenantId };
+  }
 
   return {
     async list(ctx, options) {
@@ -91,7 +112,8 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
       // Strip hidden fields from where filter to prevent enumeration attacks
       const rawWhere = options?.where;
       const safeWhere = rawWhere ? stripHiddenFields(table, rawWhere) : undefined;
-      const where = safeWhere && Object.keys(safeWhere).length > 0 ? safeWhere : undefined;
+      const cleanWhere = safeWhere && Object.keys(safeWhere).length > 0 ? safeWhere : undefined;
+      const where = withTenantFilter(ctx, cleanWhere);
 
       const limit = Math.max(0, options?.limit ?? 20);
       const after = options?.after && options.after.length <= 512 ? options.after : undefined;
@@ -116,9 +138,10 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
 
     async get(ctx, id) {
       const row = await db.get(id);
-      if (!row) {
-        return err(new EntityNotFoundError(`${def.name} with id "${id}" not found`));
-      }
+      if (!row) return notFound(id);
+
+      // Tenant check before access check — return 404 for cross-tenant (no information leakage)
+      if (!isSameTenant(ctx, row)) return notFound(id);
 
       const accessResult = await enforceAccess('get', def.access, ctx, row);
       if (!accessResult.ok) return err(accessResult.error);
@@ -134,6 +157,11 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
       if (!accessResult.ok) return err(accessResult.error);
 
       let input = stripReadOnlyFields(table, data);
+
+      // Auto-set tenantId from context for tenant-scoped entities
+      if (isTenantScoped && ctx.tenantId) {
+        input = { ...input, tenantId: ctx.tenantId };
+      }
 
       // Apply before.create hook
       if (def.before.create) {
@@ -158,9 +186,10 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
 
     async update(ctx, id, data) {
       const existing = await db.get(id);
-      if (!existing) {
-        return err(new EntityNotFoundError(`${def.name} with id "${id}" not found`));
-      }
+      if (!existing) return notFound(id);
+
+      // Tenant check before access check — return 404 for cross-tenant
+      if (!isSameTenant(ctx, existing)) return notFound(id);
 
       const accessResult = await enforceAccess('update', def.access, ctx, existing);
       if (!accessResult.ok) return err(accessResult.error);
@@ -194,9 +223,10 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
 
     async delete(ctx, id) {
       const existing = await db.get(id);
-      if (!existing) {
-        return err(new EntityNotFoundError(`${def.name} with id "${id}" not found`));
-      }
+      if (!existing) return notFound(id);
+
+      // Tenant check before access check — return 404 for cross-tenant
+      if (!isSameTenant(ctx, existing)) return notFound(id);
 
       const accessResult = await enforceAccess('delete', def.access, ctx, existing);
       if (!accessResult.ok) return err(accessResult.error);
