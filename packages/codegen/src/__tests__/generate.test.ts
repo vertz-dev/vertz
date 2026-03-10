@@ -140,6 +140,62 @@ describe('generate', () => {
     expect(result.fileCount).toBe(result.files.length);
   });
 
+  // ── RLS opt-in tests ───────────────────────────────────────────
+
+  it('does not generate rls-policies.sql by default', async () => {
+    const appIR = makeAppIR();
+    appIR.access = {
+      entities: [{ name: 'task', roles: ['owner'] }],
+      entitlements: ['task:edit'],
+      whereClauses: [
+        {
+          entitlement: 'task:edit',
+          conditions: [{ kind: 'marker', column: 'createdBy', marker: 'user.id' }],
+        },
+      ],
+      sourceFile: 'access.ts',
+      sourceLine: 1,
+      sourceColumn: 1,
+    };
+    const config: ResolvedCodegenConfig = resolveCodegenConfig({
+      outputDir,
+      generators: ['typescript'],
+      format: false,
+    });
+
+    const result = await generate(appIR, config);
+    const rlsFile = result.files.find((f) => f.path === 'rls-policies.sql');
+    expect(rlsFile).toBeUndefined();
+  });
+
+  it('generates rls-policies.sql when typescript.rls is true', async () => {
+    const appIR = makeAppIR();
+    appIR.access = {
+      entities: [{ name: 'task', roles: ['owner'] }],
+      entitlements: ['task:edit'],
+      whereClauses: [
+        {
+          entitlement: 'task:edit',
+          conditions: [{ kind: 'marker', column: 'createdBy', marker: 'user.id' }],
+        },
+      ],
+      sourceFile: 'access.ts',
+      sourceLine: 1,
+      sourceColumn: 1,
+    };
+    const config: ResolvedCodegenConfig = resolveCodegenConfig({
+      outputDir,
+      generators: ['typescript'],
+      format: false,
+      typescript: { rls: true },
+    });
+
+    const result = await generate(appIR, config);
+    const rlsFile = result.files.find((f) => f.path === 'rls-policies.sql');
+    expect(rlsFile).toBeDefined();
+    expect(rlsFile?.content).toContain('CREATE POLICY');
+  });
+
   // ── Incremental mode tests ──────────────────────────────────────
 
   describe('incremental mode', () => {

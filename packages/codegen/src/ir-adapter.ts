@@ -149,6 +149,17 @@ export function adaptIR(appIR: AppIR): CodegenIR {
     };
   });
 
+  const access = appIR.access
+    ? {
+        entities: appIR.access.entities.map((e) => ({ name: e.name, roles: e.roles })),
+        entitlements: appIR.access.entitlements,
+        whereClauses: (appIR.access.whereClauses ?? []).map((wc) => ({
+          entitlement: wc.entitlement,
+          conditions: wc.conditions.map((c) => ({ ...c })),
+        })),
+      }
+    : undefined;
+
   return {
     basePath: appIR.app.basePath,
     version: appIR.app.version,
@@ -156,5 +167,6 @@ export function adaptIR(appIR: AppIR): CodegenIR {
     schemas: allSchemas,
     entities,
     auth: { schemes: [] },
+    access,
   };
 }

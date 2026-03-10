@@ -39,6 +39,22 @@ export function useAccessContext(): UnwrapSignals<AccessContextValue> {
 }
 
 // ============================================================================
+// Entitlement registry (augmented by @vertz/codegen)
+// ============================================================================
+
+/**
+ * Entitlement registry — augmented by @vertz/codegen to narrow entitlement strings.
+ * When empty (no codegen), Entitlement falls back to `string`.
+ */
+// biome-ignore lint/suspicious/noEmptyInterface: augmented by codegen
+export interface EntitlementRegistry {}
+
+/** Entitlement type — narrows to literal union when codegen populates EntitlementRegistry. */
+export type Entitlement = keyof EntitlementRegistry extends never
+  ? string
+  : Extract<keyof EntitlementRegistry, string>;
+
+// ============================================================================
 // can()
 // ============================================================================
 
@@ -74,7 +90,7 @@ const __DEV__ = typeof process !== 'undefined' && process.env.NODE_ENV !== 'prod
  * @param entity - Optional entity with pre-computed `__access` metadata
  */
 export function can(
-  entitlement: string,
+  entitlement: Entitlement,
   entity?: { __access?: Record<string, AccessCheckData> },
 ): AccessCheck {
   // Use useContext directly (not useAccessContext) because can() needs

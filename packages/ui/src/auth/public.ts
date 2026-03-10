@@ -7,7 +7,7 @@
  */
 
 // --- Access control (existing) ---
-export type { AccessContextValue } from './access-context';
+export type { AccessContextValue, Entitlement, EntitlementRegistry } from './access-context';
 export { AccessContext, can, useAccessContext } from './access-context';
 export type {
   AccessEventClient,

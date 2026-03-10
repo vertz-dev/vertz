@@ -3,10 +3,12 @@ import { dirname, join, resolve } from 'node:path';
 import type { AppIR } from '@vertz/compiler';
 import type { ResolvedCodegenConfig } from './config';
 import { formatWithBiome } from './format';
+import { AccessTypesGenerator } from './generators/access-types-generator';
 import { ClientGenerator } from './generators/client-generator';
 import { EntitySchemaGenerator } from './generators/entity-schema-generator';
 import { EntitySdkGenerator } from './generators/entity-sdk-generator';
 import { EntityTypesGenerator } from './generators/entity-types-generator';
+import { RlsPolicyGenerator } from './generators/rls-policy-generator';
 import { RouterAugmentationGenerator } from './generators/router-augmentation-generator';
 import type { IncrementalResult } from './incremental';
 import { writeIncremental } from './incremental';
@@ -52,6 +54,16 @@ function runTypescriptGenerator(ir: CodegenIR, _config: ResolvedCodegenConfig): 
 
   const routerAugmentationGen = new RouterAugmentationGenerator();
   files.push(...routerAugmentationGen.generate(ir, generatorConfig));
+
+  // Access types augmentation (access.d.ts)
+  const accessTypesGen = new AccessTypesGenerator();
+  files.push(...accessTypesGen.generate(ir, generatorConfig));
+
+  // RLS policies (rls-policies.sql) — opt-in via typescript.rls
+  if (_config.typescript?.rls) {
+    const rlsPolicyGen = new RlsPolicyGenerator();
+    files.push(...rlsPolicyGen.generate(ir, generatorConfig));
+  }
 
   return files;
 }

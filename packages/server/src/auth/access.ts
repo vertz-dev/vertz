@@ -9,10 +9,8 @@ import type { AuthUser } from './types';
 // Types
 // ============================================================================
 
-export type Entitlement = string; // e.g., 'user:read', 'post:delete'
-
 export interface RoleDefinition {
-  entitlements: Entitlement[];
+  entitlements: string[];
 }
 
 export interface EntitlementDefinition {
@@ -28,28 +26,24 @@ export interface AccessConfig {
 
 export interface AccessInstance {
   /** Check if user has a specific entitlement */
-  can(entitlement: Entitlement, user: AuthUser | null): Promise<boolean>;
+  can(entitlement: string, user: AuthUser | null): Promise<boolean>;
   /** Check with resource context */
-  canWithResource(
-    entitlement: Entitlement,
-    resource: Resource,
-    user: AuthUser | null,
-  ): Promise<boolean>;
+  canWithResource(entitlement: string, resource: Resource, user: AuthUser | null): Promise<boolean>;
   /** Throws if not authorized */
-  authorize(entitlement: Entitlement, user: AuthUser | null): Promise<void>;
+  authorize(entitlement: string, user: AuthUser | null): Promise<void>;
   /** Authorize with resource context */
   authorizeWithResource(
-    entitlement: Entitlement,
+    entitlement: string,
     resource: Resource,
     user: AuthUser | null,
   ): Promise<void>;
   /** Check multiple entitlements at once */
   canAll(
-    checks: Array<{ entitlement: Entitlement; resource?: Resource }>,
+    checks: Array<{ entitlement: string; resource?: Resource }>,
     user: AuthUser | null,
   ): Promise<Map<string, boolean>>;
   /** Get all entitlements for a role */
-  getEntitlementsForRole(role: string): Entitlement[];
+  getEntitlementsForRole(role: string): string[];
   /** Middleware that adds ctx.can() and ctx.authorize() to context */
   middleware: () => any;
 }
@@ -68,7 +62,7 @@ export interface Resource {
 export class AuthorizationError extends Error {
   constructor(
     message: string,
-    public readonly entitlement: Entitlement,
+    public readonly entitlement: string,
     public readonly userId?: string,
   ) {
     super(message);
@@ -84,14 +78,14 @@ export function createAccess(config: AccessConfig): AccessInstance {
   const { roles, entitlements } = config;
 
   // Build role -> entitlements lookup
-  const roleEntitlements = new Map<string, Set<Entitlement>>();
+  const roleEntitlements = new Map<string, Set<string>>();
 
   for (const [roleName, roleDef] of Object.entries(roles)) {
     roleEntitlements.set(roleName, new Set(roleDef.entitlements));
   }
 
   // Build entitlement -> roles lookup
-  const entitlementRoles = new Map<Entitlement, Set<string>>();
+  const entitlementRoles = new Map<string, Set<string>>();
 
   for (const [entName, entDef] of Object.entries(entitlements)) {
     entitlementRoles.set(entName, new Set(entDef.roles));
@@ -101,7 +95,7 @@ export function createAccess(config: AccessConfig): AccessInstance {
   // Check if a role has a specific entitlement
   // ==========================================================================
 
-  function roleHasEntitlement(role: string, entitlement: Entitlement): boolean {
+  function roleHasEntitlement(role: string, entitlement: string): boolean {
     const roleEnts = roleEntitlements.get(role);
     if (!roleEnts) return false;
 
@@ -122,10 +116,7 @@ export function createAccess(config: AccessConfig): AccessInstance {
   // Check if a user has a specific entitlement (via their role)
   // ==========================================================================
 
-  async function checkEntitlement(
-    entitlement: Entitlement,
-    user: AuthUser | null,
-  ): Promise<boolean> {
+  async function checkEntitlement(entitlement: string, user: AuthUser | null): Promise<boolean> {
     if (!user) return false;
 
     // Phase 1: Check role -> entitlement mapping
@@ -142,7 +133,7 @@ export function createAccess(config: AccessConfig): AccessInstance {
   // can() - Check if user can perform action
   // ==========================================================================
 
-  async function can(entitlement: Entitlement, user: AuthUser | null): Promise<boolean> {
+  async function can(entitlement: string, user: AuthUser | null): Promise<boolean> {
     return checkEntitlement(entitlement, user);
   }
 
@@ -151,7 +142,7 @@ export function createAccess(config: AccessConfig): AccessInstance {
   // ==========================================================================
 
   async function canWithResource(
-    entitlement: Entitlement,
+    entitlement: string,
     resource: Resource,
     user: AuthUser | null,
   ): Promise<boolean> {
@@ -172,7 +163,7 @@ export function createAccess(config: AccessConfig): AccessInstance {
   // authorize() - Throws if not authorized
   // ==========================================================================
 
-  async function authorize(entitlement: Entitlement, user: AuthUser | null): Promise<void> {
+  async function authorize(entitlement: string, user: AuthUser | null): Promise<void> {
     const allowed = await can(entitlement, user);
 
     if (!allowed) {
@@ -189,7 +180,7 @@ export function createAccess(config: AccessConfig): AccessInstance {
   // ==========================================================================
 
   async function authorizeWithResource(
-    entitlement: Entitlement,
+    entitlement: string,
     resource: Resource,
     user: AuthUser | null,
   ): Promise<void> {
@@ -209,7 +200,7 @@ export function createAccess(config: AccessConfig): AccessInstance {
   // ==========================================================================
 
   async function canAll(
-    checks: Array<{ entitlement: Entitlement; resource?: Resource }>,
+    checks: Array<{ entitlement: string; resource?: Resource }>,
     user: AuthUser | null,
   ): Promise<Map<string, boolean>> {
     const results = new Map<string, boolean>();
@@ -229,7 +220,7 @@ export function createAccess(config: AccessConfig): AccessInstance {
   // getEntitlementsForRole() - Get all entitlements for a role
   // ==========================================================================
 
-  function getEntitlementsForRole(role: string): Entitlement[] {
+  function getEntitlementsForRole(role: string): string[] {
     const roleEnts = roleEntitlements.get(role);
     return roleEnts ? Array.from(roleEnts) : [];
   }
@@ -241,14 +232,14 @@ export function createAccess(config: AccessConfig): AccessInstance {
   function createMiddleware() {
     return async (ctx: any, next: () => Promise<void>) => {
       // Attach can and authorize to context
-      ctx.can = async (entitlement: Entitlement, resource?: Resource) => {
+      ctx.can = async (entitlement: string, resource?: Resource) => {
         if (resource) {
           return canWithResource(entitlement, resource, ctx.user ?? null);
         }
         return can(entitlement, ctx.user ?? null);
       };
 
-      ctx.authorize = async (entitlement: Entitlement, resource?: Resource) => {
+      ctx.authorize = async (entitlement: string, resource?: Resource) => {
         if (resource) {
           return authorizeWithResource(entitlement, resource, ctx.user ?? null);
         }

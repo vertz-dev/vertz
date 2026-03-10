@@ -22,6 +22,8 @@ export interface CodegenTypescriptConfig {
   publishable?: CodegenPublishableConfig;
   /** Augmentable types for customer-specific type narrowing */
   augmentableTypes?: string[];
+  /** Generate PostgreSQL RLS policies from rules.where() conditions. Default: false */
+  rls?: boolean;
 }
 
 export interface CodegenConfig {

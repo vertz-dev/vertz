@@ -92,6 +92,7 @@ export type {
   Entitlement,
   EntitlementDef,
   EntitlementDefinition,
+  EntitlementRegistry,
   EntitlementValue,
   EntityDef,
   // Phase 9: Feature Flag types

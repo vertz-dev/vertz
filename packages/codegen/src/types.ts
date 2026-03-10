@@ -11,7 +11,30 @@ export interface CodegenIR {
   schemas: CodegenSchema[];
   entities: CodegenEntityModule[];
   auth: CodegenAuth;
+  access?: CodegenAccess;
 }
+
+// ── Access ────────────────────────────────────────────────────────
+
+export interface CodegenAccess {
+  entities: CodegenAccessEntity[];
+  entitlements: string[];
+  whereClauses: CodegenWhereClause[];
+}
+
+export interface CodegenAccessEntity {
+  name: string;
+  roles: string[];
+}
+
+export interface CodegenWhereClause {
+  entitlement: string;
+  conditions: CodegenWhereCondition[];
+}
+
+export type CodegenWhereCondition =
+  | { kind: 'marker'; column: string; marker: 'user.id' | 'user.tenantId' }
+  | { kind: 'literal'; column: string; value: string | number | boolean };
 
 export interface CodegenModule {
   name: string;

@@ -62,19 +62,36 @@ export interface AccessContextConfig {
   planVersionStore?: PlanVersionStore;
 }
 
+/**
+ * Entitlement registry — augmented by @vertz/codegen to narrow entitlement strings.
+ * When empty (no codegen), Entitlement falls back to `string`.
+ * When codegen runs, it populates this with `{ 'entity:action': true }` entries.
+ */
+// biome-ignore lint/suspicious/noEmptyInterface: augmented by codegen
+export interface EntitlementRegistry {}
+
+/** Entitlement type — narrows to literal union when codegen populates EntitlementRegistry. */
+export type Entitlement = keyof EntitlementRegistry extends never
+  ? string
+  : Extract<keyof EntitlementRegistry, string>;
+
 export interface AccessContext {
-  can(entitlement: string, resource?: ResourceRef): Promise<boolean>;
-  check(entitlement: string, resource?: ResourceRef): Promise<AccessCheckResult>;
-  authorize(entitlement: string, resource?: ResourceRef): Promise<void>;
+  can(entitlement: Entitlement, resource?: ResourceRef): Promise<boolean>;
+  check(entitlement: Entitlement, resource?: ResourceRef): Promise<AccessCheckResult>;
+  authorize(entitlement: Entitlement, resource?: ResourceRef): Promise<void>;
   canAll(
-    checks: Array<{ entitlement: string; resource?: ResourceRef }>,
+    checks: Array<{ entitlement: Entitlement; resource?: ResourceRef }>,
   ): Promise<Map<string, boolean>>;
   /** Batch check: single entitlement across multiple entities. Returns Map<entityId, boolean>. */
-  canBatch(entitlement: string, resources: ResourceRef[]): Promise<Map<string, boolean>>;
+  canBatch(entitlement: Entitlement, resources: ResourceRef[]): Promise<Map<string, boolean>>;
   /** Atomic check + consume. Runs full can() then increments wallet if all layers pass. */
-  canAndConsume(entitlement: string, resource?: ResourceRef, amount?: number): Promise<boolean>;
+  canAndConsume(
+    entitlement: Entitlement,
+    resource?: ResourceRef,
+    amount?: number,
+  ): Promise<boolean>;
   /** Rollback a previous canAndConsume(). Use when the operation fails after consumption. */
-  unconsume(entitlement: string, resource?: ResourceRef, amount?: number): Promise<void>;
+  unconsume(entitlement: Entitlement, resource?: ResourceRef, amount?: number): Promise<void>;
 }
 
 const MAX_BULK_CHECKS = 100;
