@@ -185,3 +185,206 @@ describe('MemoryCache', () => {
     expect(cache.get('key-1000')).toBe('val-1000');
   });
 });
+
+describe('MemoryCache orphan-aware eviction', () => {
+  test('evicts unclaimed entries before retained entries', () => {
+    const cache = new MemoryCache<string>({ maxSize: 3 });
+    cache.set('a', '1');
+    cache.set('b', '2');
+    cache.set('c', '3');
+
+    // Retain 'a' — it's actively used by a query
+    cache.retain('a');
+
+    // Insert 'd' — should evict 'b' (oldest unclaimed), NOT 'a' (retained)
+    cache.set('d', '4');
+
+    expect(cache.get('a')).toBe('1'); // retained — protected
+    expect(cache.get('b')).toBeUndefined(); // unclaimed — evicted
+    expect(cache.get('c')).toBe('3');
+    expect(cache.get('d')).toBe('4');
+  });
+
+  test('evicts orphaned entries before unclaimed entries', () => {
+    const cache = new MemoryCache<string>({ maxSize: 3 });
+    cache.set('a', '1');
+    cache.set('b', '2');
+    cache.set('c', '3');
+
+    // Retain then release 'c' — it becomes orphaned
+    cache.retain('c');
+    cache.release('c');
+
+    // Insert 'd' — should evict 'c' (orphaned) before 'a' or 'b' (unclaimed)
+    cache.set('d', '4');
+
+    expect(cache.get('a')).toBe('1');
+    expect(cache.get('b')).toBe('2');
+    expect(cache.get('c')).toBeUndefined(); // orphaned — evicted first
+    expect(cache.get('d')).toBe('4');
+  });
+
+  test('longest-orphaned evicted first among multiple orphans', () => {
+    const cache = new MemoryCache<string>({ maxSize: 4 });
+    cache.set('a', '1');
+    cache.set('b', '2');
+    cache.set('c', '3');
+    cache.set('d', '4');
+
+    // Retain all, then release in order: b first, then d
+    cache.retain('a');
+    cache.retain('b');
+    cache.retain('c');
+    cache.retain('d');
+
+    cache.release('b'); // orphaned first
+    cache.release('d'); // orphaned second
+
+    // Insert 'e' — should evict 'b' (longest-orphaned)
+    cache.set('e', '5');
+
+    expect(cache.get('a')).toBe('1'); // retained
+    expect(cache.get('b')).toBeUndefined(); // orphaned first — evicted
+    expect(cache.get('c')).toBe('3'); // retained
+    expect(cache.get('d')).toBe('4'); // orphaned second — not yet evicted
+    expect(cache.get('e')).toBe('5');
+  });
+
+  test('multiple queries retaining the same key — only orphaned when all release', () => {
+    const cache = new MemoryCache<string>({ maxSize: 2 });
+    cache.set('a', '1');
+    cache.set('b', '2');
+
+    // Two queries retain 'a'
+    cache.retain('a');
+    cache.retain('a');
+
+    // First query releases — ref count drops to 1, NOT orphaned
+    cache.release('a');
+
+    cache.set('c', '3'); // should evict 'b' (unclaimed)
+
+    expect(cache.get('a')).toBe('1'); // still retained (ref count 1)
+    expect(cache.get('b')).toBeUndefined(); // unclaimed — evicted
+
+    // Second query releases — ref count drops to 0, now orphaned
+    cache.release('a');
+
+    cache.set('d', '4'); // should evict 'a' (orphaned)
+
+    // 'c' was promoted by get() above, 'a' is orphaned
+    expect(cache.get('a')).toBeUndefined(); // orphaned — evicted
+    expect(cache.get('d')).toBe('4');
+  });
+
+  test('release on non-retained key is a no-op', () => {
+    const cache = new MemoryCache<string>({ maxSize: 3 });
+    cache.set('a', '1');
+
+    // Should not throw or break eviction
+    cache.release('a');
+    cache.release('nonexistent');
+
+    expect(cache.get('a')).toBe('1');
+  });
+
+  test('retain on non-existent key does not break eviction', () => {
+    const cache = new MemoryCache<string>({ maxSize: 2 });
+
+    // Retain a key that doesn't exist in the store
+    cache.retain('phantom');
+
+    cache.set('a', '1');
+    cache.set('b', '2');
+    cache.set('c', '3'); // should evict 'a' (unclaimed, oldest)
+
+    expect(cache.get('a')).toBeUndefined();
+    expect(cache.get('b')).toBe('2');
+    expect(cache.get('c')).toBe('3');
+  });
+
+  test('delete cleans up retain/orphan tracking', () => {
+    const cache = new MemoryCache<string>({ maxSize: 2 });
+    cache.set('a', '1');
+    cache.set('b', '2');
+
+    cache.retain('a');
+    cache.delete('a');
+
+    // 'a' is gone — release should be a no-op, not crash
+    cache.release('a');
+
+    // After delete('a'), store has {b}, size 1. Fill to trigger eviction.
+    cache.set('c', '3'); // size 2, no eviction
+    cache.set('d', '4'); // size 3 > maxSize 2, evicts 'b' (oldest unclaimed)
+    expect(cache.get('b')).toBeUndefined();
+    expect(cache.get('c')).toBe('3');
+    expect(cache.get('d')).toBe('4');
+  });
+
+  test('clear resets retain/orphan tracking', () => {
+    const cache = new MemoryCache<string>({ maxSize: 3 });
+    cache.set('a', '1');
+    cache.retain('a');
+    cache.clear();
+
+    // After clear, 'a' should not be tracked as retained
+    cache.set('b', '2');
+    cache.set('c', '3');
+    cache.set('d', '4');
+    cache.set('e', '5'); // should evict 'b' (oldest, no retained entries)
+
+    expect(cache.get('b')).toBeUndefined();
+    expect(cache.get('c')).toBe('3');
+  });
+
+  test('all entries retained — evicts oldest retained as last resort', () => {
+    const cache = new MemoryCache<string>({ maxSize: 2 });
+    cache.set('a', '1');
+    cache.set('b', '2');
+    cache.retain('a');
+    cache.retain('b');
+
+    cache.set('c', '3'); // no orphans, no unclaimed — evicts 'a' (oldest retained)
+
+    expect(cache.get('a')).toBeUndefined(); // evicted as last resort
+    expect(cache.get('b')).toBe('2');
+    expect(cache.get('c')).toBe('3');
+  });
+
+  test('re-retain after release transitions orphan back to active', () => {
+    const cache = new MemoryCache<string>({ maxSize: 3 });
+    cache.set('a', '1');
+    cache.set('b', '2');
+    cache.set('c', '3');
+
+    // Retain then release 'a' — it becomes orphaned
+    cache.retain('a');
+    cache.release('a');
+
+    // Re-retain 'a' — it should no longer be orphaned
+    cache.retain('a');
+
+    // Insert 'd' — should evict 'b' (unclaimed), NOT 'a' (re-retained)
+    cache.set('d', '4');
+
+    expect(cache.get('a')).toBe('1'); // re-retained — protected
+    expect(cache.get('b')).toBeUndefined(); // unclaimed — evicted
+    expect(cache.get('c')).toBe('3');
+    expect(cache.get('d')).toBe('4');
+  });
+
+  test('without retain/release, eviction behaves as pure LRU', () => {
+    const cache = new MemoryCache<string>({ maxSize: 3 });
+    cache.set('a', '1');
+    cache.set('b', '2');
+    cache.set('c', '3');
+    cache.get('a'); // promote 'a'
+    cache.set('d', '4'); // should evict 'b' (LRU)
+
+    expect(cache.get('a')).toBe('1');
+    expect(cache.get('b')).toBeUndefined();
+    expect(cache.get('c')).toBe('3');
+    expect(cache.get('d')).toBe('4');
+  });
+});

@@ -184,6 +184,28 @@ export function query<T, E = unknown>(
     return cacheKeyComputed.value;
   }
 
+  // -- Orphan-aware cache eviction --
+  // Track the cache key currently retained by this query instance.
+  // When the key changes (dep change) or the query disposes, release the old key.
+  let currentRetainedKey: string | null = null;
+  const retainable = 'retain' in cache && 'release' in cache;
+
+  function retainKey(key: string): void {
+    if (!retainable) return;
+    if (currentRetainedKey === key) return;
+    if (currentRetainedKey !== null) {
+      (cache as MemoryCache<T>).release(currentRetainedKey);
+    }
+    (cache as MemoryCache<T>).retain(key);
+    currentRetainedKey = key;
+  }
+
+  function releaseCurrentKey(): void {
+    if (!retainable || currentRetainedKey === null) return;
+    (cache as MemoryCache<T>).release(currentRetainedKey);
+    currentRetainedKey = null;
+  }
+
   /**
    * Call the thunk while capturing the values of all signals it reads.
    * Returns the thunk's promise and updates `depHashSignal` with a
@@ -307,7 +329,9 @@ export function query<T, E = unknown>(
 
   // If initialData was provided, seed the cache.
   if (initialData !== undefined) {
-    cache.set(getCacheKey(), initialData);
+    const initKey = getCacheKey();
+    cache.set(initKey, initialData);
+    retainKey(initKey);
   }
 
   // -- SSR data loading --
@@ -388,6 +412,7 @@ export function query<T, E = unknown>(
       if (customKey) {
         const cached = cache.get(customKey);
         if (cached !== undefined) {
+          retainKey(customKey);
           normalizeToEntityStore(cached);
           rawData.value = cached;
           loading.value = false;
@@ -488,6 +513,7 @@ export function query<T, E = unknown>(
         inflightKeys.delete(key);
         if (id !== fetchId) return; // stale
         cache.set(key, result);
+        retainKey(key);
         normalizeToEntityStore(result);
         rawData.value = result;
         loading.value = false;
@@ -542,6 +568,9 @@ export function query<T, E = unknown>(
    */
   function refetch(): void {
     const key = getCacheKey();
+    // Reset retained key so retainKey() re-establishes the ref count
+    // after cache.delete() wipes _refs.
+    currentRetainedKey = null;
     cache.delete(key);
     getInflight().delete(key);
     // Bump the trigger to cause the effect to re-run.
@@ -579,6 +608,7 @@ export function query<T, E = unknown>(
         if (customKey) {
           const cached = untrack(() => cache.get(customKey));
           if (cached !== undefined) {
+            retainKey(customKey);
             untrack(() => {
               rawData.value = cached;
               loading.value = false;
@@ -593,6 +623,7 @@ export function query<T, E = unknown>(
           const derivedKey = untrack(() => getCacheKey());
           const cached = untrack(() => cache.get(derivedKey));
           if (cached !== undefined) {
+            retainKey(derivedKey);
             untrack(() => {
               rawData.value = cached;
               loading.value = false;
@@ -675,6 +706,7 @@ export function query<T, E = unknown>(
       if (shouldCheckCache) {
         const cached = untrack(() => cache.get(key));
         if (cached !== undefined) {
+          retainKey(key);
           promise.catch(() => {});
           untrack(() => {
             rawData.value = cached;
@@ -732,6 +764,8 @@ export function query<T, E = unknown>(
       }
       referencedKeys.clear();
     }
+    // Release cache key so it becomes orphaned for eviction priority.
+    releaseCurrentKey();
     // Dispose the reactive effect to stop re-running on dep changes.
     disposeFn?.();
     // Unsubscribe from mutation event bus.

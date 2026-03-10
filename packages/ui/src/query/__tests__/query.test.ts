@@ -14,7 +14,7 @@ import {
 } from '../../store/mutation-event-bus-singleton';
 import { createOptimisticHandler } from '../../store/optimistic-handler';
 import { MemoryCache } from '../cache';
-import { __inflightSize, query } from '../query';
+import { __inflightSize, query, resetDefaultQueryCache } from '../query';
 
 describe('query()', () => {
   beforeEach(() => {
@@ -1986,6 +1986,51 @@ describe('query()', () => {
       await Promise.resolve();
 
       result.dispose();
+    });
+  });
+
+  describe('orphan-aware cache eviction', () => {
+    afterEach(() => {
+      resetDefaultQueryCache();
+    });
+
+    test('orphaned entry evicted even when more recently used than active entry', async () => {
+      const cache = new MemoryCache<number>({ maxSize: 2 });
+
+      // Query A (oldest in LRU)
+      const qA = query(() => Promise.resolve(1), { key: 'qA', cache });
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      expect(qA.data.value).toBe(1);
+
+      // Query B (newest in LRU)
+      const qB = query(() => Promise.resolve(2), { key: 'qB', cache });
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      expect(qB.data.value).toBe(2);
+
+      // Promote qA in LRU so it's the most-recently-used
+      cache.get('qA');
+      // LRU order is now: qB (oldest), qA (newest)
+
+      // Dispose qA — its cache entry becomes orphaned
+      // Without orphan-aware wiring: pure LRU would evict qB (oldest)
+      // With orphan-aware wiring: qA is orphaned and should be evicted first
+      qA.dispose();
+
+      // Query C triggers eviction
+      const qC = query(() => Promise.resolve(3), { key: 'qC', cache });
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      expect(qC.data.value).toBe(3);
+
+      // qA should be evicted (orphaned) even though it was most-recently-used
+      expect(cache.get('qA')).toBeUndefined();
+      // qB should still be cached (active/retained)
+      expect(cache.get('qB')).toBe(2);
+
+      qB.dispose();
+      qC.dispose();
     });
   });
 });
