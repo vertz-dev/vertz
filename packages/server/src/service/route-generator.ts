@@ -1,4 +1,5 @@
 import type { EntityRouteEntry } from '@vertz/core';
+import { isContentDescriptor } from '../content';
 import { enforceAccess } from '../entity/access-enforcer';
 import type { RequestInfo } from '../entity/context';
 import type { EntityOperations } from '../entity/entity-operations';
@@ -98,7 +99,17 @@ export function generateServiceRoutes(
       handler: async (ctx) => {
         try {
           const requestInfo = extractRequestInfo(ctx);
-          const serviceCtx = createServiceContext(requestInfo, registryProxy);
+          const raw = ctx.raw as { url?: string; method?: string; headers?: Headers } | undefined;
+          // Construct a fresh Headers to avoid immutable-proxy issues
+          // (ctx.raw.headers may be a Proxy that breaks Headers.get())
+          const ctxHeaders = ctx.headers as Record<string, string> | undefined;
+          const rawRequest = {
+            url: raw?.url ?? '',
+            method: raw?.method ?? '',
+            headers: new Headers(ctxHeaders ?? {}),
+            body: ctx.body,
+          };
+          const serviceCtx = createServiceContext(requestInfo, registryProxy, rawRequest);
 
           // Enforce access rule
           const accessResult = await enforceAccess(handlerName, def.access, serviceCtx);
@@ -109,17 +120,42 @@ export function generateServiceRoutes(
             );
           }
 
-          // Parse and validate body
-          const rawBody = ctx.body ?? {};
-          const parsed = handlerDef.body.parse(rawBody);
-          if (!parsed.ok) {
-            const message =
-              parsed.error instanceof Error ? parsed.error.message : 'Invalid request body';
-            return jsonResponse({ error: { code: 'BadRequest', message } }, 400);
+          // Content-type mismatch check — 415 when body is a content descriptor
+          if (handlerDef.body && isContentDescriptor(handlerDef.body)) {
+            const reqContentType = rawRequest.headers.get('content-type')?.toLowerCase() ?? '';
+            const expected = handlerDef.body._contentType;
+            const isXml = expected === 'application/xml';
+            const matches = isXml
+              ? reqContentType.includes('application/xml') || reqContentType.includes('text/xml')
+              : reqContentType.includes(expected);
+            if (reqContentType && !matches) {
+              return jsonResponse(
+                {
+                  error: {
+                    code: 'UnsupportedMediaType',
+                    message: `Expected content-type ${expected}, got ${reqContentType}`,
+                  },
+                },
+                415,
+              );
+            }
+          }
+
+          // Parse and validate body (skip when no body schema — e.g. GET actions)
+          let input: unknown;
+          if (handlerDef.body) {
+            const rawBody = ctx.body ?? {};
+            const parsed = handlerDef.body.parse(rawBody);
+            if (!parsed.ok) {
+              const message =
+                parsed.error instanceof Error ? parsed.error.message : 'Invalid request body';
+              return jsonResponse({ error: { code: 'BadRequest', message } }, 400);
+            }
+            input = parsed.data;
           }
 
           // Execute handler
-          const result = await handlerDef.handler(parsed.data, serviceCtx);
+          const result = await handlerDef.handler(input, serviceCtx);
 
           // Validate response
           const responseParsed = handlerDef.response.parse(result);
@@ -129,6 +165,16 @@ export function generateServiceRoutes(
                 ? responseParsed.error.message
                 : 'Response validation failed';
             console.warn(`[vertz] Service response validation warning: ${message}`);
+          }
+
+          // Content descriptor → wrap with the descriptor's content-type
+          if (isContentDescriptor(handlerDef.response)) {
+            const body =
+              result instanceof Uint8Array ? (result as unknown as BlobPart) : String(result);
+            return new Response(body, {
+              status: 200,
+              headers: { 'content-type': handlerDef.response._contentType },
+            });
           }
 
           return jsonResponse(result, 200);

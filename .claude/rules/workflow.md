@@ -62,6 +62,7 @@ For each phase:
 - E2E acceptance test passing
 - Cross-package typecheck: `bun run typecheck --filter @vertz/integration-tests`
 - All issues marked done
+- **Docs updated** — if the PR introduces new APIs, changes existing behavior, or adds features, update `packages/docs/` (Mintlify). New APIs get new pages or sections; changed behavior gets existing pages updated; gotchas get noted.
 - Changeset added
 - Retrospective in `plans/post-implementation-reviews/`
 - Human approval required

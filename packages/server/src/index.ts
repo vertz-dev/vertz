@@ -256,5 +256,14 @@ export {
   stripReadOnlyFields,
 } from './entity';
 // Service API
-export type { ServiceActionDef, ServiceConfig, ServiceContext, ServiceDefinition } from './service';
+export type {
+  ServiceActionDef,
+  ServiceConfig,
+  ServiceContext,
+  ServiceDefinition,
+  ServiceRequestInfo,
+} from './service';
 export { service } from './service';
+// Content descriptors
+export type { ContentDescriptor } from './content';
+export { content, isContentDescriptor } from './content';

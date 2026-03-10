@@ -104,6 +104,113 @@ access: {
 }
 ```
 
+## Content descriptors
+
+By default, service actions are JSON-in/JSON-out using `s.*` schemas. For non-JSON content types (XML, HTML, plain text, binary), use `content.*` descriptors:
+
+```ts
+import { content, service } from 'vertz/server';
+
+const saml = service('saml', {
+  actions: {
+    // XML GET — no body, returns XML
+    metadata: {
+      method: 'GET',
+      response: content.xml(),
+      handler: async () => '<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata"/>',
+    },
+
+    // HTML response
+    sso: {
+      method: 'GET',
+      response: content.html(),
+      handler: async (_input, ctx) => {
+        return `<html><body onload="document.forms[0].submit()">
+          <form method="POST" action="${acsUrl}">
+            <input type="hidden" name="SAMLResponse" value="${response}" />
+          </form>
+        </body></html>`;
+      },
+    },
+  },
+
+  access: {
+    metadata: () => true,
+    sso: () => true,
+  },
+});
+```
+
+### Available descriptors
+
+| Descriptor | Content-Type | TypeScript type |
+|---|---|---|
+| `content.xml()` | `application/xml` | `string` |
+| `content.html()` | `text/html` | `string` |
+| `content.text()` | `text/plain` | `string` |
+| `content.binary()` | `application/octet-stream` | `Uint8Array` |
+
+### How it works
+
+Content descriptors implement `SchemaLike`, so they work in the same `body` and `response` properties as `s.*` schemas. The framework handles everything:
+
+- **Response wrapping** — the framework sets the correct `Content-Type` header based on the descriptor
+- **Type inference** — `content.xml()` makes handler input/output typed as `string`, `content.binary()` as `Uint8Array`
+- **Content-type validation** — if a request's `Content-Type` doesn't match the descriptor, the framework returns `415 Unsupported Media Type`
+- **XML MIME flexibility** — `content.xml()` accepts both `application/xml` and `text/xml`
+
+### Mixing content types
+
+You can mix `content.*` and `s.*` in the same action — for example, XML input with JSON output:
+
+```ts
+const importer = service('import', {
+  actions: {
+    spreadsheet: {
+      method: 'POST',
+      body: content.xml(),
+      response: s.object({ imported: s.number() }),
+      handler: async (input) => {
+        const rows = parseSpreadsheetXml(input); // input: string
+        return { imported: rows.length };
+      },
+    },
+  },
+  access: { spreadsheet: () => true },
+});
+```
+
+### Optional body
+
+`body` is optional for actions that don't receive a request body (GET, DELETE). When omitted, the handler's `input` parameter is `unknown`:
+
+```ts
+actions: {
+  healthCheck: {
+    method: 'GET',
+    response: content.text(),
+    handler: async () => 'OK',
+  },
+}
+```
+
+<Note>
+JSON endpoints **must** always use `s.*` schemas for `body` and `response`. Content descriptors are for non-JSON content types only. This ensures all JSON endpoints are fully validated and typed.
+</Note>
+
+## Request metadata
+
+Service handlers can access raw request metadata via `ctx.request`:
+
+```ts
+handler: async (_input, ctx) => {
+  const authHeader = ctx.request.headers.get('authorization');
+  const requestUrl = ctx.request.url;
+  const httpMethod = ctx.request.method;
+  // ctx.request.body contains the pre-parsed body
+}
+```
+
 ## Server setup
 
 Pass services alongside entities:

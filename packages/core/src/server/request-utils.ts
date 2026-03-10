@@ -22,10 +22,7 @@ export function parseRequest(request: Request): ParsedRequest {
 
 const DEFAULT_MAX_BODY_SIZE = 10 * 1024 * 1024; // 10MB
 
-async function readBodyBytes(
-  request: Request,
-  maxBodySize: number,
-): Promise<Uint8Array | null> {
+async function readBodyBytes(request: Request, maxBodySize: number): Promise<Uint8Array | null> {
   const contentLengthHeader = request.headers.get('content-length');
   const contentLength = contentLengthHeader ? Number.parseInt(contentLengthHeader, 10) : 0;
 
@@ -79,6 +76,12 @@ export async function parseBody(
     } catch {
       throw new BadRequestException('Invalid JSON body');
     }
+  }
+
+  if (contentType.includes('application/xml')) {
+    const rawBody = await readBodyBytes(request, maxBodySize);
+    const decodedBody = rawBody ? new TextDecoder().decode(rawBody) : '';
+    return decodedBody;
   }
 
   if (contentType.startsWith('text/')) {

@@ -1,2 +1,8 @@
 export { service } from './service';
-export type { ServiceActionDef, ServiceConfig, ServiceContext, ServiceDefinition } from './types';
+export type {
+  ServiceActionDef,
+  ServiceConfig,
+  ServiceContext,
+  ServiceDefinition,
+  ServiceRequestInfo,
+} from './types';

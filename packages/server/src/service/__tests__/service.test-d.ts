@@ -1,5 +1,6 @@
-import { describe, it } from 'bun:test';
+import { describe, expectTypeOf, it } from 'bun:test';
 import { d } from '@vertz/db';
+import { content } from '../../content';
 import { entity } from '../../entity/entity';
 import type { BaseContext } from '../../entity/types';
 import { service } from '../service';
@@ -129,5 +130,69 @@ describe('service() definition type flow', () => {
 
     const _check: Record<string, unknown> = def.inject;
     void _check;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Content descriptor type flow
+// ---------------------------------------------------------------------------
+
+describe('Content descriptor type flow', () => {
+  it('handler input is string when body is content.xml()', () => {
+    service('test', {
+      actions: {
+        xmlAction: {
+          method: 'POST',
+          body: content.xml(),
+          response: content.xml(),
+          handler: async (input) => {
+            expectTypeOf(input).toEqualTypeOf<string>();
+            return input.toUpperCase();
+          },
+        },
+      },
+    });
+  });
+
+  it('handler output is string when response is content.html()', () => {
+    service('test', {
+      actions: {
+        htmlAction: {
+          method: 'GET',
+          response: content.html(),
+          handler: async (_input) => {
+            return '<html></html>';
+          },
+        },
+      },
+    });
+  });
+
+  it('handler compiles with no body (GET request)', () => {
+    service('test', {
+      actions: {
+        getAction: {
+          method: 'GET',
+          response: content.text(),
+          handler: async () => 'OK',
+        },
+      },
+    });
+  });
+
+  it('existing JSON actions are unchanged', () => {
+    service('test', {
+      actions: {
+        jsonAction: {
+          method: 'POST',
+          body: bodySchema,
+          response: responseSchema,
+          handler: async (input) => {
+            expectTypeOf(input).toEqualTypeOf<{ email: string }>();
+            return { token: 'tok' };
+          },
+        },
+      },
+    });
   });
 });
