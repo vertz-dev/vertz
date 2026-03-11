@@ -258,6 +258,95 @@ describe('createSSRHandler', () => {
     expect(body).toContain('data: {}');
   });
 
+  it('sets Link response header with font preload hints when theme has fonts', async () => {
+    const { font } = await import('@vertz/ui');
+    const sans = font('DM Sans', {
+      weight: '100..1000',
+      src: '/fonts/dm-sans.woff2',
+      fallback: ['system-ui', 'sans-serif'],
+    });
+    const theme = defineTheme({
+      colors: { primary: { 500: '#3b82f6' } },
+      fonts: { sans },
+    });
+
+    const moduleWithFonts: SSRModule = {
+      default: () => {
+        const el = document.createElement('div');
+        el.textContent = 'Fonts';
+        return el;
+      },
+      theme,
+    };
+
+    const handler = createSSRHandler({ module: moduleWithFonts, template });
+    const response = await handler(new Request('http://localhost/'));
+
+    const linkHeader = response.headers.get('Link');
+    expect(linkHeader).toContain('</fonts/dm-sans.woff2>');
+    expect(linkHeader).toContain('rel=preload');
+    expect(linkHeader).toContain('as=font');
+    expect(linkHeader).toContain('type=font/woff2');
+    expect(linkHeader).toContain('crossorigin');
+  });
+
+  it('injects modulepreload link tags into HTML head', async () => {
+    const handler = createSSRHandler({
+      module: simpleModule,
+      template,
+      modulepreload: ['/assets/entry-abc123.js', '/assets/chunk-def456.js'],
+    });
+
+    const response = await handler(new Request('http://localhost/'));
+    const html = await response.text();
+
+    expect(html).toContain('<link rel="modulepreload" href="/assets/entry-abc123.js">');
+    expect(html).toContain('<link rel="modulepreload" href="/assets/chunk-def456.js">');
+
+    // modulepreload tags should be in <head>
+    const preloadIdx = html.indexOf('modulepreload');
+    const headCloseIdx = html.indexOf('</head>');
+    expect(preloadIdx).toBeLessThan(headCloseIdx);
+  });
+
+  it('does not set Cache-Control by default', async () => {
+    const handler = createSSRHandler({ module: simpleModule, template });
+    const response = await handler(new Request('http://localhost/'));
+
+    expect(response.headers.has('Cache-Control')).toBe(false);
+  });
+
+  it('sets Cache-Control when cacheControl option is provided', async () => {
+    const handler = createSSRHandler({
+      module: simpleModule,
+      template,
+      cacheControl: 'public, s-maxage=3600, stale-while-revalidate=86400',
+    });
+
+    const response = await handler(new Request('http://localhost/'));
+    expect(response.headers.get('Cache-Control')).toBe(
+      'public, s-maxage=3600, stale-while-revalidate=86400',
+    );
+  });
+
+  it('does not set Cache-Control on error responses', async () => {
+    const brokenModule: SSRModule = {
+      default: () => {
+        throw new Error('crash');
+      },
+    };
+
+    const handler = createSSRHandler({
+      module: brokenModule,
+      template,
+      cacheControl: 'public, s-maxage=3600',
+    });
+
+    const response = await handler(new Request('http://localhost/'));
+    expect(response.status).toBe(500);
+    expect(response.headers.has('Cache-Control')).toBe(false);
+  });
+
   describe('XSS escaping', () => {
     it('escapes </ in inlined CSS to prevent style tag breakout', async () => {
       const templateWithLink = `<!DOCTYPE html>

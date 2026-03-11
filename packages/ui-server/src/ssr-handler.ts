@@ -8,7 +8,8 @@
  * Does NOT serve static files — that's the adapter/platform's job.
  */
 
-import type { FontFallbackMetrics } from '@vertz/ui';
+import { compileTheme, type FontFallbackMetrics, type PreloadItem } from '@vertz/ui';
+import { escapeAttr } from './html-serializer';
 import type { SSRModule } from './ssr-render';
 import { ssrRenderToString, ssrStreamNavQueries } from './ssr-render';
 import { safeSerialize } from './ssr-streaming-runtime';
@@ -40,6 +41,10 @@ export interface SSRHandlerOptions {
   nonce?: string;
   /** Pre-computed font fallback metrics (computed at server startup). */
   fallbackMetrics?: Record<string, FontFallbackMetrics>;
+  /** Paths to inject as `<link rel="modulepreload">` in `<head>`. */
+  modulepreload?: string[];
+  /** Cache-Control header for HTML responses. Omit or undefined = no header (safe default). */
+  cacheControl?: string;
 }
 
 /**
@@ -93,10 +98,28 @@ function injectIntoTemplate(
  *
  * Does NOT serve static files — that's the adapter/platform's job.
  */
+/** Build an HTTP Link header value from structured preload items. */
+function buildLinkHeader(items: PreloadItem[]): string {
+  return items
+    .map((item) => {
+      const parts = [`<${item.href}>`, 'rel=preload', `as=${item.as}`];
+      if (item.type) parts.push(`type=${item.type}`);
+      if (item.crossorigin) parts.push('crossorigin');
+      return parts.join('; ');
+    })
+    .join(', ');
+}
+
+/** Build modulepreload `<link>` tags for injection into `<head>`. */
+function buildModulepreloadTags(paths: string[]): string {
+  return paths.map((p) => `<link rel="modulepreload" href="${escapeAttr(p)}">`).join('\n');
+}
+
 export function createSSRHandler(
   options: SSRHandlerOptions,
 ): (request: Request) => Promise<Response> {
-  const { module, ssrTimeout, inlineCSS, nonce, fallbackMetrics } = options;
+  const { module, ssrTimeout, inlineCSS, nonce, fallbackMetrics, modulepreload, cacheControl } =
+    options;
 
   // Pre-process template: inline CSS assets to eliminate extra requests
   let template = options.template;
@@ -109,6 +132,20 @@ export function createSSRHandler(
     }
   }
 
+  // Pre-compute Link header from theme's preload items (computed once, not per-request)
+  let linkHeader: string | undefined;
+  if (module.theme) {
+    const compiled = compileTheme(module.theme, { fallbackMetrics });
+    if (compiled.preloadItems.length > 0) {
+      linkHeader = buildLinkHeader(compiled.preloadItems);
+    }
+  }
+
+  // Pre-compute modulepreload tags (static, computed once)
+  const modulepreloadTags = modulepreload?.length
+    ? buildModulepreloadTags(modulepreload)
+    : undefined;
+
   return async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
     const pathname = url.pathname;
@@ -119,7 +156,17 @@ export function createSSRHandler(
     }
 
     // Normal HTML request: SSR render
-    return handleHTMLRequest(module, template, pathname, ssrTimeout, nonce, fallbackMetrics);
+    return handleHTMLRequest(
+      module,
+      template,
+      pathname,
+      ssrTimeout,
+      nonce,
+      fallbackMetrics,
+      linkHeader,
+      modulepreloadTags,
+      cacheControl,
+    );
   };
 }
 
@@ -165,22 +212,30 @@ async function handleHTMLRequest(
   ssrTimeout?: number,
   nonce?: string,
   fallbackMetrics?: Record<string, FontFallbackMetrics>,
+  linkHeader?: string,
+  modulepreloadTags?: string,
+  cacheControl?: string,
 ): Promise<Response> {
   try {
     const result = await ssrRenderToString(module, url, { ssrTimeout, fallbackMetrics });
+
+    // Combine head tags: font preloads + modulepreload links
+    const allHeadTags = [result.headTags, modulepreloadTags].filter(Boolean).join('\n');
+
     const html = injectIntoTemplate(
       template,
       result.html,
       result.css,
       result.ssrData,
       nonce,
-      result.headTags,
+      allHeadTags || undefined,
     );
 
-    return new Response(html, {
-      status: 200,
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
-    });
+    const headers: Record<string, string> = { 'Content-Type': 'text/html; charset=utf-8' };
+    if (linkHeader) headers.Link = linkHeader;
+    if (cacheControl) headers['Cache-Control'] = cacheControl;
+
+    return new Response(html, { status: 200, headers });
   } catch {
     return new Response('Internal Server Error', {
       status: 500,
