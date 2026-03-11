@@ -88,11 +88,10 @@ async function twoPassRender<AppFn extends () => VNode>(
     ? compileTheme(options.theme, { fallbackMetrics: options.fallbackMetrics }).css
     : '';
 
-  // Combine: theme + explicit styles + collected component CSS
+  // Combine all CSS into a single string, then wrap in one <style> tag.
+  // This minimizes HTML size and reduces CSSOM construction overhead.
   const allStyles = [themeCss, ...(options.styles ?? []), ...collectedCSS].filter(Boolean);
-
-  // Build head entries for styles
-  const styleTags = allStyles.map((css) => `<style>${css}</style>`).join('\n');
+  const styleTags = allStyles.length > 0 ? `<style>${allStyles.join('\n')}</style>` : '';
 
   // Build meta tags
   const metaHtml =
