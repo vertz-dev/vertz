@@ -227,7 +227,7 @@ export function createCrudHandlers(
 
       // Compute nextCursor: if we got a full page, there may be more rows
       const pkColumn = resolvePrimaryKeyColumn(table);
-      const lastRow = rows[rows.length - 1];
+      const lastRow = rows[rows.length - 1] as Record<string, unknown> | undefined;
       const nextCursor =
         limit > 0 && rows.length === limit && lastRow
           ? String(lastRow[pkColumn] as string | number)
