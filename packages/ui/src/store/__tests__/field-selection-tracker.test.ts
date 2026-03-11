@@ -207,6 +207,89 @@ describe('FieldSelectionTracker', () => {
     });
   });
 
+  describe('Given a tracker with an onMiss callback', () => {
+    describe('When a non-selected field is accessed on the dev proxy', () => {
+      it('Then onMiss is called with (type, id, field, querySource)', () => {
+        const onMiss = mock(() => {});
+        const tracker = new FieldSelectionTracker({ onMiss });
+        tracker.registerSelect('users', 'u1', ['id', 'name'], 'GET:/users');
+
+        const entity = { id: 'u1', name: 'Alice' };
+        const proxy = tracker.createDevProxy(entity, 'users', 'u1');
+
+        withWarnSpy(() => {
+          const _bio = (proxy as any).bio;
+        });
+
+        expect(onMiss).toHaveBeenCalledTimes(1);
+        expect(onMiss).toHaveBeenCalledWith('users', 'u1', 'bio', 'GET:/users');
+      });
+
+      it('Then onMiss fires alongside console.warn (does not replace it)', () => {
+        const onMiss = mock(() => {});
+        const tracker = new FieldSelectionTracker({ onMiss });
+        tracker.registerSelect('users', 'u1', ['id', 'name'], 'GET:/users');
+
+        const entity = { id: 'u1', name: 'Alice' };
+        const proxy = tracker.createDevProxy(entity, 'users', 'u1');
+
+        withWarnSpy((warnSpy) => {
+          const _bio = (proxy as any).bio;
+          expect(warnSpy).toHaveBeenCalledTimes(1);
+        });
+        expect(onMiss).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe('When a selected field is accessed', () => {
+      it('Then onMiss is not called', () => {
+        const onMiss = mock(() => {});
+        const tracker = new FieldSelectionTracker({ onMiss });
+        tracker.registerSelect('users', 'u1', ['id', 'name'], 'GET:/users');
+
+        const entity = { id: 'u1', name: 'Alice' };
+        const proxy = tracker.createDevProxy(entity, 'users', 'u1');
+
+        withWarnSpy(() => {
+          const _name = proxy.name;
+        });
+        expect(onMiss).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('When the same non-selected field is accessed multiple times', () => {
+      it('Then onMiss fires only once per unique (type, id, field) — same dedup as console.warn', () => {
+        const onMiss = mock(() => {});
+        const tracker = new FieldSelectionTracker({ onMiss });
+        tracker.registerSelect('users', 'u1', ['id', 'name'], 'GET:/users');
+
+        const entity = { id: 'u1', name: 'Alice' };
+        const proxy = tracker.createDevProxy(entity, 'users', 'u1');
+
+        withWarnSpy(() => {
+          const _bio1 = (proxy as any).bio;
+          const _bio2 = (proxy as any).bio;
+        });
+        expect(onMiss).toHaveBeenCalledTimes(1);
+      });
+    });
+  });
+
+  describe('Given a tracker without an onMiss callback', () => {
+    it('Then it works exactly as before (no error thrown)', () => {
+      const tracker = new FieldSelectionTracker();
+      tracker.registerSelect('users', 'u1', ['id', 'name'], 'GET:/users');
+
+      const entity = { id: 'u1', name: 'Alice' };
+      const proxy = tracker.createDevProxy(entity, 'users', 'u1');
+
+      withWarnSpy((warnSpy) => {
+        const _bio = (proxy as any).bio;
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+      });
+    });
+  });
+
   describe('shouldWarn()', () => {
     it('returns true for non-selected fields', () => {
       const tracker = new FieldSelectionTracker();
