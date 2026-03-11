@@ -176,23 +176,26 @@ describe('prerenderRoutes', () => {
     expect(results[1]!.path).toBe('/about');
   });
 
-  it('does not inject inline CSS (avoids duplication with linked CSS)', async () => {
+  it('injects global CSS as inline styles alongside linked CSS', async () => {
     const module = {
       default: () => {
         const el = document.createElement('div');
-        el.textContent = 'No inline CSS';
+        el.textContent = 'Styled page';
         return el;
       },
+      styles: ['html, body { margin: 0; background: #0a0a0b; }'],
     };
 
     const results = await prerenderRoutes(module, template, {
       routes: ['/'],
     });
 
-    // Should NOT have <style data-vertz-css> tags (CSS is linked, not inlined)
-    expect(results[0]!.html).not.toContain('<style data-vertz-css>');
-    // Should still have the original CSS link
-    expect(results[0]!.html).toContain('<link rel="stylesheet" href="/assets/vertz.css">');
+    const html = results[0]!.html;
+    // Global styles should be inlined — they are NOT in vertz.css
+    expect(html).toContain('<style data-vertz-css>');
+    expect(html).toContain('background: #0a0a0b');
+    // Linked CSS should still be present
+    expect(html).toContain('<link rel="stylesheet" href="/assets/vertz.css">');
   });
 
   it('throws PrerenderError when SSR render fails for a route', async () => {
