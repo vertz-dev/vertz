@@ -15,6 +15,14 @@ export interface ListOptions {
   limit?: number;
   /** Cursor-based pagination: fetch records after this ID. */
   after?: string;
+  /** Relation include specification for relation loading. */
+  include?: Record<string, unknown>;
+}
+
+/** Options for get-by-id operations. */
+export interface GetOptions {
+  /** Relation include specification for relation loading. */
+  include?: Record<string, unknown>;
 }
 
 // ---------------------------------------------------------------------------
@@ -22,7 +30,7 @@ export interface ListOptions {
 // ---------------------------------------------------------------------------
 
 export interface EntityDbAdapter {
-  get(id: string): Promise<Record<string, unknown> | null>;
+  get(id: string, options?: GetOptions): Promise<Record<string, unknown> | null>;
   list(options?: ListOptions): Promise<{ data: Record<string, unknown>[]; total: number }>;
   create(data: Record<string, unknown>): Promise<Record<string, unknown>>;
   update(id: string, data: Record<string, unknown>): Promise<Record<string, unknown>>;

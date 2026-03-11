@@ -948,3 +948,142 @@ describe('generateEntityRoutes', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 3: Include pass-through (#1130)
+// ---------------------------------------------------------------------------
+
+describe('Feature: Include pass-through in route handlers (#1130)', () => {
+  describe('Given a GET /api/users request with q= containing include', () => {
+    describe('When the request is processed', () => {
+      it('Then the db.list receives include in its options', async () => {
+        const listSpy = mock(async (options?: Record<string, unknown>) => ({
+          data: [{ id: 'u1', name: 'Alice', email: 'a@b.com', role: 'user' }],
+          total: 1,
+        }));
+        const db: EntityDbAdapter = {
+          ...createMockDb(),
+          list: listSpy,
+        };
+        const def = buildEntityDef({
+          relations: { posts: true },
+        });
+        const registry = new EntityRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+        const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
+
+        const structural = { include: { posts: true } };
+        const q = btoa(JSON.stringify(structural));
+
+        await listRoute!.handler({
+          userId: 'u1',
+          tenantId: null,
+          roles: [],
+          params: {},
+          body: {},
+          query: { q },
+          headers: {},
+        });
+
+        expect(listSpy).toHaveBeenCalledTimes(1);
+        const callArgs = listSpy.mock.calls[0]![0] as Record<string, unknown>;
+        expect(callArgs.include).toEqual({ posts: true });
+      });
+    });
+  });
+
+  describe('Given a POST /api/users/query with include in body', () => {
+    describe('When the request is processed', () => {
+      it('Then the db.list receives include in its options', async () => {
+        const listSpy = mock(async (options?: Record<string, unknown>) => ({
+          data: [{ id: 'u1', name: 'Alice', email: 'a@b.com', role: 'user' }],
+          total: 1,
+        }));
+        const db: EntityDbAdapter = {
+          ...createMockDb(),
+          list: listSpy,
+        };
+        const def = buildEntityDef({
+          relations: {
+            posts: {
+              select: { title: true, status: true },
+              allowWhere: ['status'],
+              allowOrderBy: ['createdAt'],
+            },
+          },
+        });
+        const registry = new EntityRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+        const queryRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users/query');
+
+        await queryRoute!.handler({
+          userId: 'u1',
+          tenantId: null,
+          roles: [],
+          params: {},
+          body: {
+            include: {
+              posts: {
+                where: { status: 'published' },
+                orderBy: { createdAt: 'desc' },
+                limit: 10,
+              },
+            },
+          },
+          query: {},
+          headers: {},
+        });
+
+        expect(listSpy).toHaveBeenCalledTimes(1);
+        const callArgs = listSpy.mock.calls[0]![0] as Record<string, unknown>;
+        expect(callArgs.include).toEqual({
+          posts: {
+            where: { status: 'published' },
+            orderBy: { createdAt: 'desc' },
+            limit: 10,
+          },
+        });
+      });
+    });
+  });
+
+  describe('Given a GET /api/users/:id with q= containing include', () => {
+    describe('When the request is processed', () => {
+      it('Then the db.get receives include in its options', async () => {
+        const getSpy = mock(async (_id: string, _options?: Record<string, unknown>) => ({
+          id: 'u1',
+          name: 'Alice',
+          email: 'a@b.com',
+          role: 'user',
+        }));
+        const db: EntityDbAdapter = {
+          ...createMockDb(),
+          get: getSpy,
+        };
+        const def = buildEntityDef({
+          relations: { posts: true },
+        });
+        const registry = new EntityRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+        const getRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users/:id');
+
+        const structural = { include: { posts: true } };
+        const q = btoa(JSON.stringify(structural));
+
+        await getRoute!.handler({
+          userId: 'u1',
+          tenantId: null,
+          roles: [],
+          params: { id: 'u1' },
+          body: {},
+          query: { q },
+          headers: {},
+        });
+
+        expect(getSpy).toHaveBeenCalledTimes(1);
+        // get should receive (id, options) where options includes include
+        expect(getSpy.mock.calls[0]![1]).toEqual({ include: { posts: true } });
+      });
+    });
+  });
+});
