@@ -57,6 +57,7 @@
   "dependencies": {
     "@ampproject/remapping": "^2.3.0",
     "@jridgewell/trace-mapping": "^0.3.31",
+    "@vertz/codegen": "workspace:^",
     "@vertz/core": "workspace:^",
     "@vertz/ui": "workspace:^",
     "@vertz/ui-compiler": "workspace:^",

@@ -15,6 +15,11 @@ export type { GenerateResult } from './generate';
 export { generate, mergeImportsToPackageJson } from './generate';
 export { ClientGenerator } from './generators/client-generator';
 export { EntitySchemaGenerator } from './generators/entity-schema-generator';
+export type {
+  EntitySchemaManifest,
+  EntitySchemaManifestEntry,
+  EntitySchemaRelation,
+} from './generators/entity-schema-manifest-generator';
 export { EntitySdkGenerator } from './generators/entity-sdk-generator';
 export { EntityTypesGenerator } from './generators/entity-types-generator';
 export type { RelationManifestEntry } from './generators/relation-manifest-generator';

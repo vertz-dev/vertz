@@ -9,29 +9,17 @@
  * with nested `select`.
  */
 
+import type {
+  EntitySchemaManifest,
+  EntitySchemaManifestEntry,
+  EntitySchemaRelation,
+} from '@vertz/codegen';
 import type { NestedFieldAccess, PropFlow } from '@vertz/ui-compiler';
 import { analyzeFieldSelection } from '@vertz/ui-compiler';
 import MagicString from 'magic-string';
 import type { FieldSelectionManifest } from './field-selection-manifest';
 
-// These types mirror EntitySchemaManifestEntry in @vertz/codegen — keep in sync.
-// TODO: Extract to shared types package when dependency graph allows.
-export interface EntitySchemaRelation {
-  type: 'one' | 'many';
-  entity: string;
-  selection: 'all' | string[];
-}
-
-export interface EntitySchemaEntry {
-  table?: string;
-  primaryKey?: string;
-  tenantScoped: boolean;
-  hiddenFields: string[];
-  fields: string[];
-  relations: Record<string, EntitySchemaRelation>;
-}
-
-export type EntitySchemaManifest = Record<string, EntitySchemaEntry>;
+export type { EntitySchemaManifest, EntitySchemaManifestEntry, EntitySchemaRelation };
 
 export interface FieldSelectionOptions {
   /** Cross-file manifest for resolving child component fields */
@@ -184,7 +172,7 @@ function buildSimpleSelectInjection(fields: string[]): string {
 function buildManifestAwareInjection(
   fields: string[],
   nestedAccess: NestedFieldAccess[],
-  schema: EntitySchemaEntry,
+  schema: EntitySchemaManifestEntry,
 ): string {
   const relationNames = new Set(Object.keys(schema.relations));
   const hiddenFieldSet = new Set(schema.hiddenFields);
