@@ -65,6 +65,19 @@ vi.mock('@vertz/codegen', () => ({
   }),
 }));
 
+const mockCreateVertzBunPlugin = vi.fn(() => ({
+  plugin: { name: 'vertz-bun-plugin', setup: vi.fn() },
+  fileExtractions: new Map(),
+  cssSidecarMap: new Map(),
+  updateManifest: vi.fn(() => ({ changed: false })),
+  deleteManifest: vi.fn(() => false),
+  reloadEntitySchema: vi.fn(() => false),
+}));
+
+vi.mock('@vertz/ui-server/bun-plugin', () => ({
+  createVertzBunPlugin: mockCreateVertzBunPlugin,
+}));
+
 const mockRun = vi.fn().mockResolvedValue(undefined);
 const mockClose = vi.fn().mockResolvedValue(undefined);
 
@@ -79,6 +92,7 @@ describe('PipelineOrchestrator', () => {
       autoSyncDb: false,
       port: 3000,
       host: 'localhost',
+      _uiCompilerValidator: async () => ({ fileCount: 5 }),
     });
   });
 
@@ -104,16 +118,17 @@ describe('PipelineOrchestrator', () => {
   });
 
   describe('runFull', () => {
-    it('should run the full pipeline including db-sync', async () => {
+    it('should run the full pipeline including db-sync and build-ui', async () => {
       const result = await orchestrator.runFull();
 
       expect(result.success).toBe(true);
-      expect(result.stages).toHaveLength(4); // analyze + db-sync + codegen + openapi
+      expect(result.stages).toHaveLength(5); // analyze + db-sync + codegen + openapi + build-ui
       const stageNames = result.stages.map((s) => s.stage);
       expect(stageNames).toContain('analyze');
       expect(stageNames).toContain('db-sync');
       expect(stageNames).toContain('codegen');
       expect(stageNames).toContain('openapi');
+      expect(stageNames).toContain('build-ui');
       // db-sync must run before codegen
       expect(stageNames.indexOf('db-sync')).toBeLessThan(stageNames.indexOf('codegen'));
     });
@@ -152,11 +167,90 @@ describe('PipelineOrchestrator', () => {
       expect(result.stages).toHaveLength(2);
     });
 
-    it('should run build-ui stage', async () => {
+    it('should run build-ui stage with real compiler validation', async () => {
+      const result = await orchestrator.runStages(['build-ui']);
+
+      expect(result.stages[0]?.stage).toBe('build-ui');
+      // Must NOT return the old placeholder output
+      expect(result.stages[0]?.output).not.toBe('UI build delegated to Vite');
+    });
+  });
+
+  describe('build-ui stage', () => {
+    it('should report success with file count when using injected validator', async () => {
       const result = await orchestrator.runStages(['build-ui']);
 
       expect(result.success).toBe(true);
       expect(result.stages[0]?.stage).toBe('build-ui');
+      expect(result.stages[0]?.output).toBe('UI compiler validated (5 source files)');
+    });
+
+    it('should report failure when injected validator throws', async () => {
+      const failingOrchestrator = new PipelineOrchestrator({
+        sourceDir: 'src',
+        outputDir: '.vertz/generated',
+        typecheck: false,
+        autoSyncDb: false,
+        port: 3000,
+        host: 'localhost',
+        _uiCompilerValidator: async () => {
+          throw new Error('Framework manifest not found');
+        },
+      });
+
+      const result = await failingOrchestrator.runStages(['build-ui']);
+
+      expect(result.success).toBe(false);
+      expect(result.stages[0]?.stage).toBe('build-ui');
+      expect(result.stages[0]?.error?.message).toBe('Framework manifest not found');
+
+      await failingOrchestrator.dispose();
+    });
+
+    it('should call createVertzBunPlugin when no injected validator is provided', async () => {
+      mockCreateVertzBunPlugin.mockClear();
+
+      const noValidatorOrchestrator = new PipelineOrchestrator({
+        sourceDir: 'src',
+        outputDir: '.vertz/generated',
+        typecheck: false,
+        autoSyncDb: false,
+        port: 3000,
+        host: 'localhost',
+      });
+
+      const result = await noValidatorOrchestrator.runStages(['build-ui']);
+
+      expect(result.success).toBe(true);
+      expect(result.stages[0]?.output).toBe('UI compiler validated');
+      expect(mockCreateVertzBunPlugin).toHaveBeenCalledWith({
+        hmr: false,
+        fastRefresh: false,
+      });
+
+      await noValidatorOrchestrator.dispose();
+    });
+
+    it('should report failure when createVertzBunPlugin throws', async () => {
+      mockCreateVertzBunPlugin.mockImplementationOnce(() => {
+        throw new Error('Cannot find module @vertz/ui/reactivity.json');
+      });
+
+      const noValidatorOrchestrator = new PipelineOrchestrator({
+        sourceDir: 'src',
+        outputDir: '.vertz/generated',
+        typecheck: false,
+        autoSyncDb: false,
+        port: 3000,
+        host: 'localhost',
+      });
+
+      const result = await noValidatorOrchestrator.runStages(['build-ui']);
+
+      expect(result.success).toBe(false);
+      expect(result.stages[0]?.error?.message).toBe('Cannot find module @vertz/ui/reactivity.json');
+
+      await noValidatorOrchestrator.dispose();
     });
   });
 

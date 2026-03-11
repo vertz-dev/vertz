@@ -4,22 +4,16 @@
  * Unified `vertz dev` command that orchestrates:
  * 1. Analyze - runs @vertz/compiler to produce AppIR
  * 2. Generate - runs @vertz/codegen to emit types, route map, DB client
- * 3. Build UI - UI compilation (Vite/esbuild for now)
+ * 3. Build UI - UI compiler validation via @vertz/ui-server/bun-plugin
  * 4. Serve - dev server with HMR
  */
 
-import type { CodegenConfig, GenerateResult, ResolvedCodegenConfig } from '@vertz/codegen';
+import type { CodegenConfig, GenerateResult } from '@vertz/codegen';
 import { createCodegenPipeline, generate } from '@vertz/codegen';
 import type { AppIR } from '@vertz/compiler';
-import {
-  type CompileResult,
-  type Compiler,
-  type CompilerDependencies,
-  createCompiler,
-  type Diagnostic,
-  OpenAPIGenerator,
-} from '@vertz/compiler';
-import type { FileCategory, PipelineStage } from './types';
+import { type Compiler, createCompiler, OpenAPIGenerator } from '@vertz/compiler';
+import type { VertzBunPluginOptions } from '@vertz/ui-server/bun-plugin';
+import type { PipelineStage } from './types';
 
 /**
  * Configuration for the pipeline orchestrator
@@ -39,6 +33,8 @@ export interface PipelineConfig {
   port: number;
   /** @internal — override for testing */
   _dbSyncRunner?: () => Promise<{ run: () => Promise<void>; close: () => Promise<void> }>;
+  /** @internal — override UI compiler validation for testing */
+  _uiCompilerValidator?: () => Promise<{ fileCount: number }>;
   /** Host for dev server */
   host: string;
 }
@@ -169,8 +165,14 @@ export class PipelineOrchestrator {
         }
       }
 
-      // Stage 4: Build UI (could run in parallel with other stages)
-      // For now, we'll defer to the dev server to handle this
+      // Stage 5: Validate UI compiler contract
+      if (success) {
+        const buildUIResult = await this.runBuildUI();
+        stages.push(buildUIResult);
+        if (!buildUIResult.success) {
+          success = false;
+        }
+      }
     } catch (error) {
       success = false;
       stages.push({
@@ -349,21 +351,52 @@ export class PipelineOrchestrator {
   }
 
   /**
-   * Run the UI build stage
-   * Note: This currently delegates to Vite. In the future, this will use @vertz/ui-compiler directly.
+   * Run the UI build stage.
+   *
+   * In dev mode this validates that the UI compiler contract
+   * (`createVertzBunPlugin` from `@vertz/ui-server/bun-plugin`) is available
+   * and can initialize (manifest generation, framework manifest loading).
+   * The actual per-file compilation happens on-demand in the dev server's
+   * bun plugin `onLoad` hook.
    */
   private async runBuildUI(): Promise<StageResult> {
     const startTime = performance.now();
 
-    // TODO: Integrate @vertz/ui-compiler for component-level builds
-    // For now, we just acknowledge the stage
+    try {
+      if (this.config._uiCompilerValidator) {
+        const result = await this.config._uiCompilerValidator();
+        return {
+          stage: 'build-ui',
+          success: true,
+          durationMs: performance.now() - startTime,
+          output: `UI compiler validated (${result.fileCount} source files)`,
+        };
+      }
 
-    return {
-      stage: 'build-ui',
-      success: true,
-      durationMs: performance.now() - startTime,
-      output: 'UI build delegated to Vite',
-    };
+      // Validate that the UI compiler contract is importable and can initialize.
+      // The plugin instance is not shared with the dev server — the cost of a
+      // duplicate `generateAllManifests()` pass is acceptable at startup.
+      const { createVertzBunPlugin } = await import('@vertz/ui-server/bun-plugin');
+      const pluginOptions: VertzBunPluginOptions = {
+        hmr: false,
+        fastRefresh: false,
+      };
+      createVertzBunPlugin(pluginOptions);
+
+      return {
+        stage: 'build-ui',
+        success: true,
+        durationMs: performance.now() - startTime,
+        output: 'UI compiler validated',
+      };
+    } catch (error) {
+      return {
+        stage: 'build-ui',
+        success: false,
+        durationMs: performance.now() - startTime,
+        error: error instanceof Error ? error : new Error(String(error)),
+      };
+    }
   }
 
   /**

@@ -210,7 +210,7 @@ Phase 1: Release correctness foundation
 
 - make `@vertz/ui-primitives` metadata match its emitted shared-chunk build
 - add tree-shaking regression coverage for the package metadata choice
-- replace the CLI `build-ui` placeholder with a real `@vertz/ui-compiler` integration path
+- replace the CLI `build-ui` placeholder with real `@vertz/ui-server/bun-plugin` contract (see [POC results](./poc-cli-ui-compiler-contract.md))
 
 ### Files
 
@@ -220,7 +220,6 @@ Phase 1: Release correctness foundation
 - `tests/tree-shaking/tree-shaking.test.ts`
 - `packages/cli/src/pipeline/orchestrator.ts`
 - `packages/cli/src/pipeline/__tests__/*`
-- `packages/ui-compiler/src/*`
 
 ### TDD cycles
 
@@ -231,7 +230,7 @@ Phase 1: Release correctness foundation
    **GREEN:** preserve the existing bundle-size thresholds while removing unsafe warnings
 
 3. **RED:** CLI `build-ui` stage reports success without invoking compiler work
-   **GREEN:** wire the thinnest real `ui-compiler` contract into the stage
+   **GREEN:** wire the `createVertzBunPlugin` contract from `@vertz/ui-server/bun-plugin` into the stage
 
 4. **RED:** CLI pipeline tests still accept placeholder behavior
    **GREEN:** update pipeline assertions to require real compiler interaction
@@ -240,7 +239,7 @@ Phase 1: Release correctness foundation
 
 - Tree-shaking test: `@vertz/ui-primitives` single-import bundle passes without ignored-bare-import warnings
 - CLI integration test: `build-ui` fails when compiler work fails and succeeds when compiler output is produced
-- Cross-package test: CLI uses `@vertz/ui-compiler` through a stable contract
+- Cross-package test: CLI uses `@vertz/ui-server/bun-plugin` through a stable contract
 
 ### Phase gate
 
@@ -248,8 +247,7 @@ Phase 1: Release correctness foundation
 - `bun test packages/cli/src/pipeline`
 - `bun run --filter @vertz/cli typecheck`
 - `bun run --filter @vertz/ui-primitives typecheck`
-- `bun run --filter @vertz/ui-compiler typecheck`
-- `bunx biome check packages/cli/src/pipeline packages/ui-primitives packages/ui-compiler`
+- `bunx biome check packages/cli/src/pipeline packages/ui-primitives`
 
 ### Review artifact
 
