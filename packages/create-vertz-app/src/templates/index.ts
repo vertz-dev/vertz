@@ -13,6 +13,7 @@ A full-stack TypeScript application built with [Vertz](https://vertz.dev).
 - Runtime: Bun
 - Framework: Vertz (full-stack TypeScript)
 - Language: TypeScript (strict mode)
+- Docs: https://docs.vertz.dev
 
 ## Development
 
@@ -22,31 +23,14 @@ bun run dev          # Start dev server with HMR
 bun run build        # Production build
 \`\`\`
 
-## Project Structure
-
-\`\`\`
-src/
-├── api/                  # Backend
-│   ├── server.ts         # Server entry — createServer config
-│   ├── db.ts             # Database adapter
-│   ├── schema.ts         # Table + model definitions
-│   ├── env.ts            # Validated environment variables
-│   └── entities/         # Entity definitions (one per file)
-│       └── *.entity.ts
-├── pages/                # UI pages (one per route)
-├── styles/               # Theme and global styles
-├── client.ts             # Generated API client re-export
-├── app.tsx               # Root component (SSR entry)
-└── entry-client.ts       # Client-side mount + HMR
-\`\`\`
+The dev server automatically runs codegen and migrations when files change.
 
 ## Conventions
 
-- See \`.claude/rules/\` for detailed API and UI conventions
-- API entities go in \`src/api/entities/\` with \`.entity.ts\` suffix
-- Pages go in \`src/pages/\` as \`.tsx\` files
-- Schemas and models go in \`src/api/schema.ts\`
-- The dev server automatically runs codegen and migrations when files change
+- See \`.claude/rules/\` for API and UI development conventions
+- Refer to https://docs.vertz.dev for full framework documentation
+- Entity files use the \`.entity.ts\` suffix
+- The Vertz compiler handles all reactivity — never use \`.value\`, \`signal()\`, or \`computed()\` manually
 `;
 }
 

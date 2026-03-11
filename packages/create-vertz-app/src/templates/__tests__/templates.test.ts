@@ -291,14 +291,12 @@ describe('templates', () => {
       expect(result).toContain('bun run build');
     });
 
-    it('includes project structure overview', () => {
+    it('points to docs.vertz.dev', () => {
       const result = claudeMdTemplate('test-app');
-      expect(result).toContain('src/api/');
-      expect(result).toContain('entities/');
-      expect(result).toContain('.entity.ts');
+      expect(result).toContain('docs.vertz.dev');
     });
 
-    it('points to .claude/rules/ for detailed conventions', () => {
+    it('points to .claude/rules/ for conventions', () => {
       const result = claudeMdTemplate('test-app');
       expect(result).toContain('.claude/rules/');
     });
