@@ -470,6 +470,20 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
   // Listen for popstate (back/forward browser buttons)
   const onPopState = () => {
     const popUrl = window.location.pathname + window.location.search;
+
+    // Route access check for popstate navigation
+    if (options?.accessAuth) {
+      const match = matchRoute(routes, popUrl);
+      if (match) {
+        const ctx = options.accessAuth();
+        const result = evaluateRouteAccess(match.matched, ctx);
+        if (!result.allowed) {
+          options.onAccessDenied?.(result.reason);
+          return;
+        }
+      }
+    }
+
     startPrefetch(popUrl);
     applyNavigation(popUrl).catch(() => {
       // Error is stored in loaderError signal

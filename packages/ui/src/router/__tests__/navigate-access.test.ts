@@ -150,6 +150,46 @@ describe('client-side route access', () => {
     expect(onAccessDenied).toHaveBeenCalledWith('role_denied');
   });
 
+  it('checks access on popstate (back/forward) navigation', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/dashboard': {
+        component: () => document.createElement('div'),
+        access: rules.authenticated(),
+      },
+    });
+    const onAccessDenied = vi.fn();
+    // Start authenticated
+    const isAuthenticated = { value: true };
+    const router = createRouter(routes, '/', {
+      accessAuth: () => ({
+        authenticated: () => isAuthenticated.value,
+        role: () => false,
+        can: () => false,
+        fvaAge: undefined,
+      }),
+      onAccessDenied,
+    });
+
+    // Navigate to dashboard (allowed)
+    await router.navigate({ to: '/dashboard' });
+    expect(router.current.value?.route.pattern).toBe('/dashboard');
+
+    // Navigate elsewhere
+    await router.navigate({ to: '/' });
+
+    // Simulate losing auth
+    isAuthenticated.value = false;
+
+    // Simulate back button to /dashboard — should trigger access check
+    window.history.pushState(null, '', '/dashboard');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+
+    // Wait for async processing
+    await new Promise((r) => setTimeout(r, 50));
+    expect(onAccessDenied).toHaveBeenCalledWith('not_authenticated');
+  });
+
   it('works without accessAuth (no access checking)', async () => {
     const routes = defineRoutes({
       '/': { component: () => document.createElement('div') },
