@@ -1,31 +1,51 @@
 # Reduce Unused JS in Client Bundles
 
 **Issue:** [#1143](https://github.com/vertz-dev/vertz/issues/1143)
-**Status:** Draft
+**Status:** In Progress
 
 ## Problem
 
-Lighthouse reports **30.5 KiB unused JavaScript** in the landing page client entry bundle (43% of 70.6 KiB transfer). The framework's client exports aren't being tree-shaken effectively.
+Lighthouse reports **32.5 KiB unused JavaScript** in the landing page client entry bundle (43.7% of 74.4 KiB transfer). The framework's client exports aren't being tree-shaken effectively.
 
 ### Root Cause Analysis
 
-**1. `@vertz/ui-primitives` single-file bundle (primary cause)**
+**1. `@vertz/theme-shadcn` monolithic `configureTheme()` (primary cause)**
 
-The package builds to a single `dist/index.js` (119 KB raw). It contains 30+ headless components (Accordion, Dialog, Select, Tooltip, etc.), but the landing page only imports `Tooltip`. Bun's bundler cannot reliably tree-shake individual component functions from a pre-bundled single file — initialization code, floating-ui setup, and JSX factory calls create implicit side effects that prevent elimination.
+The landing page calls `configureTheme()` but only uses `{ theme, globals }` — the returned `styles` (38 component style factories) and `components` (30+ component wrapper factories) are completely unused. However, `configureTheme()` eagerly imports and instantiates ALL style and component factories. The built `dist/index.js` is 161 KB raw. Since all imports are static at the module level, tree-shaking cannot eliminate unused factories — the function body references everything.
 
-Import chain: `entry-client.ts` → `app.tsx` → `HomePage` → `SchemaFlow`/`GlueCode` → `TokenLines` → `Tooltip` from `@vertz/ui-primitives`.
+Import chain: `entry-client.ts` → `app.tsx` → `theme.ts` → `configureTheme()` from `@vertz/theme-shadcn`.
 
-**2. Eager route imports (secondary cause — deferred)**
+**2. `@vertz/ui-primitives` single-file bundle (resolved — Phase 1)**
+
+Previously the package built to a single `dist/index.js` (119 KB raw). Fixed in PR #1153 by switching to multi-entry build. Single-import ratio dropped from ~100% to 16.1%.
+
+**3. Eager route imports (deferred)**
 
 `app.tsx` imports `ManifestoPage` at the top level. On the `/` route, the ManifestoPage module is loaded but never executed. The router supports lazy loading via `Promise<{ default: () => Node }>`, but **lazy routes do not SSR** — `RouterView` handles promises via `.then()` which doesn't execute before SSR serializes the DOM tree. Since ManifestoPage is content-heavy and benefits from SSR for SEO, converting it to a lazy route would be a regression. This is deferred until SSR Suspense supports async route resolution.
 
-**3. Missing `sideEffects` in some packages (not applicable)**
+**4. Missing `sideEffects` in some packages (not applicable)**
 
 13 of 28 packages lack a `sideEffects` field. However, all 13 are server-side, build-time, or CLI packages — none appear in client bundles. The client-facing packages (`@vertz/ui`, `@vertz/ui-primitives`, `@vertz/core`, `@vertz/schema`, `@vertz/fetch`, `@vertz/icons`, `@vertz/theme-shadcn`) already have correct `sideEffects` declarations.
 
 ## API Surface
 
-### `@vertz/ui-primitives` — no consumer-facing changes
+### `@vertz/theme-shadcn` — new `./base` subpath export
+
+Consumers that only need the theme definition and global CSS (no component styles/factories) import from the lightweight base entry:
+
+```ts
+// Before — pulls in all 38 style factories + 30 component factories (161 KB)
+import { configureTheme } from '@vertz/theme-shadcn';
+const { theme, globals } = configureTheme({ palette: 'zinc', radius: 'md' });
+
+// After — only palette tokens + defineTheme + globalCss (~5 KB)
+import { configureThemeBase } from '@vertz/theme-shadcn/base';
+const { theme, globals } = configureThemeBase({ palette: 'zinc', radius: 'md' });
+```
+
+The full `configureTheme()` from `@vertz/theme-shadcn` remains unchanged — apps that need `styles` and `components` keep using it. Internally, `configureTheme()` calls `configureThemeBase()` to avoid duplication.
+
+### `@vertz/ui-primitives` — no consumer-facing changes (Phase 1, done)
 
 Consumer code stays the same:
 
@@ -47,6 +67,9 @@ The multi-entry build ensures the barrel re-exports resolve to separate chunk fi
 
 ### Rejected Alternatives
 
+- **Lazy property resolution in `configureTheme()`** — Using Proxy or lazy getters for `styles`/`components` properties. Doesn't help because the bundler includes code for getter bodies regardless — tree-shaking operates at the import level, not property access level.
+- **Making `configureTheme()` accept a component list** — `configureTheme({ components: [button, tooltip] })`. Would work but changes the API for all consumers. The `./base` subpath is simpler and non-breaking.
+- **Multi-entry build for theme-shadcn** — Like ui-primitives Phase 1. Wouldn't help because `configureTheme()` imports everything in one function body. Multi-entry only helps when consumers import individual exports from a barrel.
 - **Subpath exports (`@vertz/ui-primitives/tooltip`)** — Would guarantee tree-shaking but forces import path changes on all consumers. Falls back to this if the multi-entry + barrel approach doesn't tree-shake.
 - **Manual chunk splitting in landing build script** — Would only fix the landing page, not all consumers of `@vertz/ui-primitives`.
 - **Dynamic `import()` for Tooltip** — Tooltip is used on the home page (via `TokenLines`), so lazy-loading it would cause layout shift.
@@ -62,11 +85,9 @@ The multi-entry build ensures the barrel re-exports resolve to separate chunk fi
 
 ## Unknowns
 
-1. **Does Bun's bundler tree-shake re-exports from multi-entry barrel files?** — Needs POC verification. If Bun follows the `sideEffects: false` hint and eliminates unused re-exports from `dist/index.js` → `dist/shared/chunk-*.js`, the approach works.
+1. ~~**Does Bun's bundler tree-shake re-exports from multi-entry barrel files?**~~ — **Resolved.** Phase 1 verified that esbuild tree-shakes multi-entry barrels effectively (16.1% ratio). Bun's production bundler was already tree-shaking adequately for ui-primitives.
 
-### Resolution Plan
-- Phase 1 starts with a POC: build `@vertz/ui-primitives` with multi-entry, then build the landing page and measure bundle size.
-- **Fallback:** If Bun doesn't tree-shake barrel re-exports, Phase 1 pivots to subpath exports (`@vertz/ui-primitives/tooltip`, etc.). This is a breaking change to import paths but guarantees tree-shaking. All consumers would need to update imports.
+2. **None remaining for Phase 2.** The `./base` subpath approach is a straightforward module split with no bundler-behavior unknowns.
 
 ## Type Flow Map
 
@@ -76,11 +97,22 @@ No generic type parameters introduced. The changes are purely build-configuratio
 
 ```ts
 describe('Feature: Reduced unused JS in client bundles', () => {
-  describe('Given @vertz/ui-primitives built with multi-entry', () => {
+  describe('Given @vertz/theme-shadcn/base used instead of full configureTheme', () => {
     describe('When building the landing page production bundle', () => {
-      it('Then the entry bundle size is smaller than the single-entry build', () => {
-        // Build landing page with multi-entry ui-primitives
-        // Compare total bundle size vs baseline (70.6 KiB)
+      it('Then the entry bundle is significantly smaller than with full configureTheme', () => {
+        // Build landing page with configureThemeBase
+        // Compare total bundle size vs baseline (74.4 KiB transfer)
+        // Expect substantial reduction (theme-shadcn was 56% of bundle)
+      });
+    });
+  });
+
+  describe('Given a consumer imports from @vertz/theme-shadcn (full)', () => {
+    describe('When using configureTheme()', () => {
+      it('Then styles and components are still available (no regression)', () => {
+        // configureTheme() returns { theme, globals, styles, components }
+        // All 38 style definitions present
+        // All component factories work
       });
     });
   });
@@ -109,30 +141,57 @@ describe('Feature: Reduced unused JS in client bundles', () => {
 
 ## Implementation Plan
 
-### Phase 1: `@vertz/ui-primitives` multi-entry build
+### Phase 1: `@vertz/ui-primitives` multi-entry build (DONE — PR #1153)
 
-Split the single-entry bunup config into per-component entries so the barrel file re-exports from separate chunks. This mirrors the approach already used by `@vertz/ui` (which has 9 entry points producing shared chunks).
+Split the single-entry bunup config into per-component entries so the barrel file re-exports from separate chunks. Single-import ratio dropped from ~100% to 16.1%. Merged and deployed.
+
+### Phase 2: `@vertz/theme-shadcn` base subpath export
+
+Extract the lightweight theme base logic (palette resolution, `defineTheme()`, `globalCss()`) into a separate module so consumers that only need `{ theme, globals }` don't pull in all 38 style factories and 30+ component factories.
+
+**Expected Impact:**
+- Current: 74.4 KiB transfer, 43.7% unused (32.5 KiB wasted)
+- Theme-shadcn contribution: ~41.7 KiB (56% of bundle, 161 KB raw)
+- Base-only estimate: ~5 KiB (palette tokens + defineTheme + globalCss)
+- Expected new bundle: ~37.7 KiB transfer
+- Expected unused JS: well under 25%
 
 **Changes:**
-- `packages/ui-primitives/bunup.config.ts` — Add all component source files as entries alongside the barrel `src/index.ts`
-- Verify `package.json` `exports` map still works (`.` → `dist/index.js` barrel with re-exports to chunks)
-- Build and verify the dist produces separate chunk files per component
-- Build the landing page and measure bundle size reduction
+- `packages/theme-shadcn/src/base.ts` — New module containing `configureThemeBase()`, `ThemeConfig`, `ThemeStyle`, `ResolvedThemeBase`, and `RADIUS_VALUES`. These types/values **move out of** `configure.ts` into `base.ts` to avoid pulling style factory imports. `ResolvedThemeBase` is `{ theme: Theme; globals: GlobalCSSOutput }`. `ResolvedTheme` in `configure.ts` extends `ResolvedThemeBase`.
+- `packages/theme-shadcn/src/configure.ts` — Refactor `configureTheme()` to import and call `configureThemeBase()` from `./base`. Remove duplicated palette/globals logic. Import `ThemeConfig` from `./base`. `ResolvedTheme extends ResolvedThemeBase`.
+- `packages/theme-shadcn/src/index.ts` — Re-export `ThemeConfig` via `configure.ts` (which re-exports from `./base`). No change needed if `configure.ts` re-exports the type.
+- `packages/theme-shadcn/bunup.config.ts` — Add `src/base.ts` as third entry point.
+- `packages/theme-shadcn/package.json` — Add `./base` subpath export: `{ "import": "./dist/base.js", "types": "./dist/base.d.ts" }`.
+- `sites/landing/src/styles/theme.ts` — Change import from `@vertz/theme-shadcn` to `@vertz/theme-shadcn/base`.
+- `packages/create-vertz-app/src/templates/index.ts` — Update scaffolded theme template to import from `@vertz/theme-shadcn/base` (new apps should use the lightweight import by default).
+- `tests/tree-shaking/tree-shaking.test.ts` — Add `@vertz/theme-shadcn` to packages list with alias for `@vertz/theme-shadcn/base` subpath.
 
 **Acceptance Criteria:**
 ```ts
-describe('Given @vertz/ui-primitives built with multi-entry', () => {
-  describe('When a consumer imports only Tooltip', () => {
-    it('Then the bundled output excludes Accordion, Dialog, Select, etc.', () => {
-      // Build a minimal test bundle that imports only Tooltip
-      // Verify bundle size is significantly smaller than 119 KB
+describe('Given @vertz/theme-shadcn/base subpath export', () => {
+  describe('When a consumer imports configureThemeBase from @vertz/theme-shadcn/base', () => {
+    it('Then the bundled output excludes all style factories and component factories', () => {
+      // Build a minimal test bundle that imports only configureThemeBase
+      // Verify bundle is <10% of the full configureTheme bundle
     });
   });
 
-  describe('When a consumer imports from the barrel', () => {
-    it('Then all components are still available', () => {
-      // Import { Tooltip, Dialog, Select } from '@vertz/ui-primitives'
-      // All resolve correctly
+  describe('When a consumer imports configureTheme from @vertz/theme-shadcn', () => {
+    it('Then styles and components are still available (no regression)', () => {
+      // configureTheme() returns { theme, globals, styles, components }
+      // All 38 style definitions present
+    });
+  });
+
+  describe('When building the landing page', () => {
+    it('Then the entry bundle is significantly smaller', () => {
+      // Build landing page with configureThemeBase
+      // Compare vs baseline (74.4 KiB transfer, 43.7% unused)
+    });
+
+    it('Then unused JavaScript is below 25% of total transfer', () => {
+      // Run Lighthouse or coverage analysis on built landing page
+      // Verify unused JS ratio < 25%
     });
   });
 
@@ -144,26 +203,39 @@ describe('Given @vertz/ui-primitives built with multi-entry', () => {
 });
 ```
 
-**POC gate:** After building with multi-entry, build the landing page and compare bundle size. If no meaningful reduction, pivot to subpath exports (see Fallback in Unknowns).
-
 ## Review Sign-offs
 
-### DX Review
+### Phase 1 Reviews (DONE)
+
+#### DX Review
 - **Verdict:** APPROVED
 - Barrel import preserved — zero consumer-facing changes
-- Lazy route pattern matches industry standard but correctly deferred due to SSR gap
-- Phase 3 scope inconsistency resolved (removed)
 
-### Product/Scope Review
-- **Verdict:** APPROVED (after changes)
-- Phase 2 (lazy routes) dropped due to SSR regression risk
-- Phase 3 (sideEffects) dropped — targeted packages don't appear in client bundles
-- Fallback plan added for Bun tree-shaking unknown
-- Quantitative measurement included in Phase 1 POC gate
+#### Product/Scope Review
+- **Verdict:** APPROVED
 
-### Technical Review
-- **Verdict:** APPROVED (after changes)
-- SSR + lazy routes issue resolved by deferring lazy routes entirely
-- `sideEffects` Phase 3 removed — wrong targets
+#### Technical Review
+- **Verdict:** APPROVED
 - Multi-entry build feasible (proven by `@vertz/ui`)
-- POC approach sufficient for Bun tree-shaking unknown
+
+### Phase 2 Reviews
+
+#### DX Review
+- **Verdict:** APPROVED WITH CHANGES (changes addressed)
+- `configureThemeBase` naming is adequate — JSDoc should cross-reference full `configureTheme()`
+- Must update `create-vertz-app` template to use `@vertz/theme-shadcn/base` (added to changes list)
+- No conflict with existing `./configs` subpath
+
+#### Product/Scope Review
+- **Verdict:** APPROVED WITH CHANGES (changes addressed)
+- Added explicit <25% unused JS acceptance criterion
+- Added expected impact estimate (74.4 KiB → ~37.7 KiB)
+- Scope correctly bounded, non-goals correct
+
+#### Technical Review
+- **Verdict:** APPROVED WITH CHANGES (changes addressed)
+- `ThemeConfig`, `ThemeStyle`, `RADIUS_VALUES` must be defined in `base.ts`, not imported from `configure.ts` (addressed in changes list)
+- `ResolvedTheme` should extend `ResolvedThemeBase` for proper type hierarchy (addressed)
+- No circular dependency risk confirmed
+- `sideEffects: false` works correctly with this split confirmed
+- 3 bunup entry points supported confirmed

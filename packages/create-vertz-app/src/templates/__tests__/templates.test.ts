@@ -251,10 +251,10 @@ describe('templates', () => {
   });
 
   describe('themeTemplate', () => {
-    it('uses configureTheme from @vertz/theme-shadcn', () => {
+    it('uses configureThemeBase from @vertz/theme-shadcn/base', () => {
       const result = themeTemplate();
-      expect(result).toContain('configureTheme');
-      expect(result).toContain("from '@vertz/theme-shadcn'");
+      expect(result).toContain('configureThemeBase');
+      expect(result).toContain("from '@vertz/theme-shadcn/base'");
     });
   });
 

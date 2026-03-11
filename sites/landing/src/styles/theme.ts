@@ -1,7 +1,7 @@
-import { configureTheme } from '@vertz/theme-shadcn';
+import { configureThemeBase } from '@vertz/theme-shadcn/base';
 import { font, type Theme } from '@vertz/ui';
 
-const { theme, globals } = configureTheme({
+const { theme, globals } = configureThemeBase({
   palette: 'zinc',
   radius: 'md',
 });

@@ -83,6 +83,11 @@ const PACKAGES: { name: string; singleImport: string; distEntry: string }[] = [
     singleImport: `import { MoonIcon } from '@vertz/icons'; console.log(MoonIcon);`,
     distEntry: 'packages/icons/dist/index.js',
   },
+  {
+    name: '@vertz/theme-shadcn',
+    singleImport: `import { configureThemeBase } from '@vertz/theme-shadcn/base'; console.log(configureThemeBase);`,
+    distEntry: 'packages/theme-shadcn/dist/index.js',
+  },
 ];
 
 /**
@@ -96,6 +101,7 @@ const SUBPATH_ALIASES: Record<string, string> = {
   '@vertz/ui/internals': 'packages/ui/dist/src/internals.js',
   '@vertz/core/internals': 'packages/core/dist/internals.js',
   '@vertz/db/sql': 'packages/db/dist/sql/index.js',
+  '@vertz/theme-shadcn/base': 'packages/theme-shadcn/dist/base.js',
 };
 
 const aliases: Record<string, string> = {

@@ -284,12 +284,12 @@ describe('scaffold', () => {
       expect(content).toContain('import.meta.hot.accept()');
     });
 
-    it('generates src/styles/theme.ts with configureTheme', async () => {
+    it('generates src/styles/theme.ts with configureThemeBase', async () => {
       await scaffold(tempDir, defaultOptions);
 
       const content = await fs.readFile(projectPath('src', 'styles', 'theme.ts'), 'utf-8');
-      expect(content).toContain('configureTheme');
-      expect(content).toContain("from '@vertz/theme-shadcn'");
+      expect(content).toContain('configureThemeBase');
+      expect(content).toContain("from '@vertz/theme-shadcn/base'");
     });
 
     it('generates src/pages/home.tsx with query + form', async () => {

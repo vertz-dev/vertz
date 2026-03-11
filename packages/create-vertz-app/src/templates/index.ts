@@ -751,12 +751,12 @@ mount(App, {
 }
 
 /**
- * src/styles/theme.ts — configureTheme from @vertz/theme-shadcn
+ * src/styles/theme.ts — configureThemeBase from @vertz/theme-shadcn/base
  */
 export function themeTemplate(): string {
-  return `import { configureTheme } from '@vertz/theme-shadcn';
+  return `import { configureThemeBase } from '@vertz/theme-shadcn/base';
 
-const { theme, globals } = configureTheme({
+const { theme, globals } = configureThemeBase({
   palette: 'zinc',
   radius: 'md',
 });

@@ -20,6 +20,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./base": {
+      "types": "./dist/base.d.ts",
+      "import": "./dist/base.js"
+    },
     "./configs": {
       "types": "./dist/configs.d.ts",
       "import": "./dist/configs.js"
