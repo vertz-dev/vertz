@@ -35,6 +35,13 @@ export function injectIntoTemplate(
 
   // Inject CSS before </head>
   if (appCss) {
+    // When inline CSS is injected, linked stylesheets become redundant for
+    // first paint. Convert them to async loading to avoid render-blocking.
+    html = html.replace(
+      /<link\s+rel="stylesheet"\s+href="([^"]+)"[^>]*>/g,
+      (match, href) =>
+        `<link rel="stylesheet" href="${href}" media="print" onload="this.media='all'">\n    <noscript>${match}</noscript>`,
+    );
     html = html.replace('</head>', `${appCss}\n</head>`);
   }
 

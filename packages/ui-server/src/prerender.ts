@@ -65,8 +65,9 @@ export function filterPrerenderableRoutes(
  * Routes are rendered sequentially (not in parallel) because the DOM shim
  * uses process-global `document`/`window`. Concurrent renders would interleave.
  *
- * CSS is deliberately NOT injected as inline `<style>` tags — the template
- * already has `<link>` tags pointing to the CSS files. This avoids duplication.
+ * CSS from SSR (theme variables, font-face, global styles) is injected as
+ * inline `<style>` tags. The template's `<link>` tags only cover component
+ * CSS extracted by the bundler — theme and globals are computed at render time.
  *
  * @throws Error if any route fails to render (with hint about `prerender: false`)
  */
@@ -90,12 +91,10 @@ export async function prerenderRoutes(
       );
     }
 
-    // Inject HTML into template, passing empty CSS to avoid duplication
-    // (template already has <link> to CSS files)
     const html = injectIntoTemplate(
       template,
       renderResult.html,
-      /* css: */ '',
+      renderResult.css,
       renderResult.ssrData,
       options.nonce,
       renderResult.headTags || undefined,
