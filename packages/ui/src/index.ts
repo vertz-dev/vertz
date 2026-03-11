@@ -14,6 +14,9 @@ export type { Ref } from './component/refs';
 export { ref } from './component/refs';
 export type { SuspenseProps } from './component/suspense';
 export { Suspense } from './component/suspense';
+// Image
+export type { ImageProps } from './image/types';
+export { Image } from './image/image';
 // CSS & Theming
 export type {
   ColorPalette,

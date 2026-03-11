@@ -22,6 +22,7 @@ import { execSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, watch, writeFileSync } from 'node:fs';
 import { dirname, normalize, resolve } from 'node:path';
 import type { FontFallbackMetrics } from '@vertz/ui';
+import { imageContentType, isValidImageName } from './bun-plugin/image-paths';
 import { createDebugLogger } from './debug-logger';
 import { DiagnosticsCollector } from './diagnostics-collector';
 import { installFetchProxy, runWithScopedFetch } from './fetch-scope';
@@ -1123,6 +1124,30 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
         // Diagnostics endpoint — JSON snapshot of server state
         if (pathname === '/__vertz_diagnostics') {
           return Response.json(diagnostics.getSnapshot());
+        }
+
+        // Optimized image serving — serve processed images from .vertz/images/
+        if (pathname.startsWith('/__vertz_img/')) {
+          const imgName = pathname.slice('/__vertz_img/'.length);
+          if (!isValidImageName(imgName)) {
+            return new Response('Forbidden', { status: 403 });
+          }
+          const imagesDir = resolve(projectRoot, '.vertz', 'images');
+          const imgPath = resolve(imagesDir, imgName);
+          if (!imgPath.startsWith(imagesDir)) {
+            return new Response('Forbidden', { status: 403 });
+          }
+          const file = Bun.file(imgPath);
+          if (await file.exists()) {
+            const ext = imgName.split('.').pop();
+            return new Response(file, {
+              headers: {
+                'Content-Type': imageContentType(ext),
+                'Cache-Control': 'public, max-age=31536000, immutable',
+              },
+            });
+          }
+          return new Response('Not Found', { status: 404 });
         }
 
         // OpenAPI spec (fallback for non-route match)

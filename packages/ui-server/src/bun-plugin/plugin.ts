@@ -5,8 +5,9 @@
  * 1. Hydration transform (adds hydration IDs)
  * 2. Context stable IDs (if fastRefresh — injects __stableId for HMR)
  * 2.5. Field selection injection (analyzes field access, injects select into queries)
+ * 2.7. Image transform (detects <Image>, processes images, replaces with <picture>)
  * 3. Compile (reactive signals + JSX transforms)
- * 4. Source map chaining (hydration → compile)
+ * 4. Source map chaining — remapping([compile, image, hydration]) (output→source order)
  * 5. CSS extraction → sidecar file (if CSS found)
  * 6. Fast Refresh wrappers (if fastRefresh — component tracking + registration)
  * 7. import.meta.hot.accept() (if hmr — self-accept HMR updates)
@@ -38,6 +39,9 @@ import type { EntitySchemaManifest } from './field-selection-inject';
 import { injectFieldSelection } from './field-selection-inject';
 import { FieldSelectionManifest } from './field-selection-manifest';
 import { filePathHash } from './file-path-hash';
+import { computeImageOutputPaths, resolveImageSrc } from './image-paths';
+import { processImage } from './image-processor';
+import { transformImages } from './image-transform';
 import type {
   CSSSidecarMap,
   FileExtractionsMap,
@@ -278,18 +282,70 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
             });
           }
 
+          // ── 2.7. Image transform ────────────────────────────────
+          const imageOutputDir = resolve(projectRoot, '.vertz', 'images');
+          const imageQueue: Array<{
+            sourcePath: string;
+            width: number;
+            height: number;
+            quality: number;
+            fit: string;
+            outputDir: string;
+          }> = [];
+
+          const imageResult = transformImages(codeForCompile, args.path, {
+            projectRoot,
+            resolveImagePath: (src) => resolveImageSrc(src, args.path, projectRoot),
+            getImageOutputPaths: (sourcePath, w, h, q, f) => {
+              const paths = computeImageOutputPaths(sourcePath, w, h, q, f);
+              if (!paths) {
+                return {
+                  webp1x: sourcePath,
+                  webp2x: sourcePath,
+                  fallback: sourcePath,
+                  fallbackType: 'image/jpeg',
+                };
+              }
+
+              imageQueue.push({
+                sourcePath,
+                width: w,
+                height: h,
+                quality: q,
+                fit: f,
+                outputDir: imageOutputDir,
+              });
+
+              return paths;
+            },
+          });
+
+          const codeAfterImageTransform = imageResult.code;
+
+          // Process queued images in parallel
+          if (imageQueue.length > 0) {
+            await Promise.all(
+              imageQueue.map((opts) =>
+                processImage({ ...opts, fit: opts.fit as 'cover' | 'contain' | 'fill' }),
+              ),
+            );
+          }
+
           // ── 3. Compile (reactive + JSX transforms) ─────────────
-          const compileResult = compile(codeForCompile, {
+          const compileResult = compile(codeAfterImageTransform, {
             filename: args.path,
             target: options?.target,
             manifests: getManifestsRecord(),
           });
 
           // ── 4. Source map chaining ──────────────────────────────
-          const remapped = remapping(
-            [compileResult.map as EncodedSourceMap, hydrationMap as EncodedSourceMap],
-            () => null,
-          );
+          // Chain maps in output→source order: compile → image → hydration
+          const mapsToChain: EncodedSourceMap[] = [compileResult.map as EncodedSourceMap];
+          if (imageResult.map) {
+            mapsToChain.push(imageResult.map as unknown as EncodedSourceMap);
+          }
+          mapsToChain.push(hydrationMap as EncodedSourceMap);
+          const remapped = remapping(mapsToChain, () => null);
 
           // ── 5. CSS extraction → sidecar file ───────────────────
           const extraction = cssExtractor.extract(source, args.path);
