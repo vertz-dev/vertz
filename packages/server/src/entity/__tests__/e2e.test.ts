@@ -930,7 +930,7 @@ describe('EDA v0.1.0 E2E', () => {
       const entityWithRelations = entity('users', {
         model: usersModel,
         access: { list: () => true },
-        relations: { creator: { id: true, name: true } as Record<string, true> },
+        relations: { creator: { select: { id: true, name: true } } },
       });
 
       const db = createInMemoryDb([

@@ -5,6 +5,7 @@ import type {
   Database,
   FilterType,
   FindResult,
+  IncludeOption,
   IncludeResolve,
   InsertInput,
   ModelEntry,
@@ -481,6 +482,80 @@ describe('Database', () => {
 
     type UsersEntry = MyDB['_models']['users'];
     type _t1 = Expect<Equal<UsersEntry['table'], typeof users>>;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// IncludeOption — typed select/where/orderBy constrained to target table (#1130)
+// ---------------------------------------------------------------------------
+
+describe('IncludeOption constrains fields to target table columns', () => {
+  it('accepts valid column names in select', () => {
+    type PostInclude = IncludeOption<typeof postRelations>;
+    const _inc: PostInclude = {
+      author: { select: { id: true, name: true } },
+    };
+    void _inc;
+  });
+
+  it('rejects invalid column names in select', () => {
+    type PostInclude = IncludeOption<typeof postRelations>;
+    const _inc: PostInclude = {
+      // @ts-expect-error — 'nonExistent' is not a column on users table
+      author: { select: { nonExistent: true } },
+    };
+    void _inc;
+  });
+
+  it('accepts valid where filter on target table columns', () => {
+    type PostInclude = IncludeOption<typeof postRelations>;
+    const _inc: PostInclude = {
+      author: { where: { name: 'Alice' } },
+    };
+    void _inc;
+  });
+
+  it('rejects invalid column in where', () => {
+    type PostInclude = IncludeOption<typeof postRelations>;
+    const _inc: PostInclude = {
+      // @ts-expect-error — 'nonExistent' is not a column on users table
+      author: { where: { nonExistent: 'value' } },
+    };
+    void _inc;
+  });
+
+  it('accepts valid orderBy on target table columns', () => {
+    type PostInclude = IncludeOption<typeof postRelations>;
+    const _inc: PostInclude = {
+      comments: { orderBy: { text: 'asc' } },
+    };
+    void _inc;
+  });
+
+  it('rejects invalid column in orderBy', () => {
+    type PostInclude = IncludeOption<typeof postRelations>;
+    const _inc: PostInclude = {
+      // @ts-expect-error — 'nonExistent' is not a column on comments table
+      comments: { orderBy: { nonExistent: 'asc' } },
+    };
+    void _inc;
+  });
+
+  it('accepts limit as number', () => {
+    type PostInclude = IncludeOption<typeof postRelations>;
+    const _inc: PostInclude = {
+      comments: { limit: 10 },
+    };
+    void _inc;
+  });
+
+  it('accepts true for simple include', () => {
+    type PostInclude = IncludeOption<typeof postRelations>;
+    const _inc: PostInclude = {
+      author: true,
+      comments: true,
+    };
+    void _inc;
   });
 });
 

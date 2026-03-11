@@ -2,6 +2,7 @@ import type {
   ColumnBuilder,
   ColumnMetadata,
   EntityDbAdapter,
+  GetOptions,
   ListOptions,
   TableDef,
 } from '@vertz/db';
@@ -19,7 +20,7 @@ import type { TenantChain } from './tenant-chain';
 import type { EntityContext, EntityDefinition } from './types';
 
 // Re-export types from @vertz/db for backward compatibility
-export type { EntityDbAdapter, ListOptions } from '@vertz/db';
+export type { EntityDbAdapter, GetOptions, ListOptions } from '@vertz/db';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -71,6 +72,7 @@ export interface CrudHandlers {
   get(
     ctx: EntityContext,
     id: string,
+    options?: GetOptions,
   ): Promise<Result<CrudResult<Record<string, unknown>>, EntityError>>;
   create(
     ctx: EntityContext,
@@ -217,7 +219,8 @@ export function createCrudHandlers(
       const after = options?.after && options.after.length <= 512 ? options.after : undefined;
 
       const orderBy = options?.orderBy;
-      const { data: rows, total } = await db.list({ where, orderBy, limit, after });
+      const include = options?.include;
+      const { data: rows, total } = await db.list({ where, orderBy, limit, after, include });
       const data = rows.map((row) =>
         narrowRelationFields(def.relations, stripHiddenFields(table, row)),
       );
@@ -234,8 +237,11 @@ export function createCrudHandlers(
       return ok({ status: 200, body: { items: data, total, limit, nextCursor, hasNextPage } });
     },
 
-    async get(ctx, id) {
-      const row = await db.get(id);
+    async get(ctx, id, options) {
+      const getOptions: GetOptions | undefined = options?.include
+        ? { include: options.include }
+        : undefined;
+      const row = await db.get(id, getOptions);
       if (!row) return notFound(id);
 
       // Tenant check before access check — return 404 for cross-tenant (no information leakage)

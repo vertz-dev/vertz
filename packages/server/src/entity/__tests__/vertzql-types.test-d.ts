@@ -1,5 +1,5 @@
-import { d } from '@vertz/db';
 import { describe, it } from 'bun:test';
+import { d } from '@vertz/db';
 import { entity } from '../entity';
 import type {
   TypedIncludeOption,
@@ -49,12 +49,12 @@ const postsModel = d.model(postsTable, {
 // ---------------------------------------------------------------------------
 
 describe('EntityRelationsConfig field narrowing', () => {
-  it('accepts field names that exist on the target relation table', () => {
+  it('accepts field names that exist on the target relation table (with select wrapper)', () => {
     // posts target is postsTable, which has id, title, body, authorId, createdAt
     entity('users', {
       model: usersModel,
       relations: {
-        posts: { id: true, title: true },
+        posts: { select: { id: true, title: true } },
       },
     });
   });
@@ -64,7 +64,7 @@ describe('EntityRelationsConfig field narrowing', () => {
       model: usersModel,
       relations: {
         // @ts-expect-error — 'nonExistentField' is not a column on postsTable
-        posts: { id: true, nonExistentField: true },
+        posts: { select: { id: true, nonExistentField: true } },
       },
     });
   });
@@ -89,8 +89,8 @@ describe('EntityRelationsConfig with multiple relations', () => {
     entity('posts', {
       model: postsModel,
       relations: {
-        author: { id: true, name: true },
-        tags: { id: true, label: true },
+        author: { select: { id: true, name: true } },
+        tags: { select: { id: true, label: true } },
       },
     });
   });
@@ -100,7 +100,7 @@ describe('EntityRelationsConfig with multiple relations', () => {
       model: postsModel,
       relations: {
         // @ts-expect-error — 'label' is a column on tagsTable, not usersTable
-        author: { id: true, label: true },
+        author: { select: { id: true, label: true } },
       },
     });
   });

@@ -157,10 +157,21 @@ type RelationsRecord = Record<string, RelationDef>;
  * The shape of include options for a given relations record.
  * Each relation can be:
  * - `true` — include with default fields
- * - An object with optional `select` clause for narrowing
+ * - An object with `select`, `where`, `orderBy`, `limit` constrained to target table columns
  */
 export type IncludeOption<TRelations extends RelationsRecord> = {
-  [K in keyof TRelations]?: true | { select?: Record<string, true> };
+  [K in keyof TRelations]?:
+    | true
+    | (RelationTarget<TRelations[K]> extends TableDef<infer TCols>
+        ? {
+            select?: { [C in keyof TCols]?: true };
+            where?: FilterType<TCols>;
+            orderBy?: OrderByType<TCols>;
+            limit?: number;
+            /** Nested includes — untyped until full model registry is threaded through. */
+            include?: Record<string, unknown>;
+          }
+        : never);
 };
 
 /** Extract the target table from a RelationDef. */

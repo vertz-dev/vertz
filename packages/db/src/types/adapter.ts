@@ -6,6 +6,22 @@
  */
 
 // ---------------------------------------------------------------------------
+// Include entry — structural type for relation include values
+// ---------------------------------------------------------------------------
+
+/** A single include entry with optional query constraints. */
+export interface AdapterIncludeEntry {
+  select?: Record<string, true>;
+  where?: Record<string, unknown>;
+  orderBy?: Record<string, 'asc' | 'desc'>;
+  limit?: number;
+  include?: Record<string, true | AdapterIncludeEntry>;
+}
+
+/** Include specification: maps relation names to `true` or structured entries. */
+export type AdapterIncludeSpec = Record<string, true | AdapterIncludeEntry>;
+
+// ---------------------------------------------------------------------------
 // List Options - pagination & filtering
 // ---------------------------------------------------------------------------
 
@@ -15,6 +31,14 @@ export interface ListOptions {
   limit?: number;
   /** Cursor-based pagination: fetch records after this ID. */
   after?: string;
+  /** Relation include specification for relation loading. */
+  include?: AdapterIncludeSpec;
+}
+
+/** Options for get-by-id operations. */
+export interface GetOptions {
+  /** Relation include specification for relation loading. */
+  include?: AdapterIncludeSpec;
 }
 
 // ---------------------------------------------------------------------------
@@ -22,7 +46,7 @@ export interface ListOptions {
 // ---------------------------------------------------------------------------
 
 export interface EntityDbAdapter {
-  get(id: string): Promise<Record<string, unknown> | null>;
+  get(id: string, options?: GetOptions): Promise<Record<string, unknown> | null>;
   list(options?: ListOptions): Promise<{ data: Record<string, unknown>[]; total: number }>;
   create(data: Record<string, unknown>): Promise<Record<string, unknown>>;
   update(id: string, data: Record<string, unknown>): Promise<Record<string, unknown>>;

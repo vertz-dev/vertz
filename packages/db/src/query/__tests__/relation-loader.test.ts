@@ -4,6 +4,7 @@ import { unwrap } from '@vertz/schema';
 import { createDb } from '../../client/database';
 import { d } from '../../d';
 import type { ModelEntry } from '../../schema/inference';
+import { loadRelations } from '../relation-loader';
 
 /**
  * Relation loading integration tests — DB-011 acceptance criteria.
@@ -745,5 +746,494 @@ describe('Relation loading with non-standard PK', () => {
     expect(cities).toHaveLength(2);
     const cityNames = cities.map((c) => c.name).sort();
     expect(cityNames).toEqual(['Los Angeles', 'New York']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Relation include with filtering, sorting, pagination (#1130)
+// ---------------------------------------------------------------------------
+
+describe('Relation include with where/orderBy/limit (#1130)', () => {
+  let pg: PGlite;
+
+  const usersTable = d.table('users', {
+    id: d.uuid().primary().default('gen_random_uuid()'),
+    name: d.text(),
+    email: d.text().unique(),
+    active: d.boolean().default('true'),
+  });
+
+  const postsTable = d.table('posts', {
+    id: d.uuid().primary().default('gen_random_uuid()'),
+    title: d.text(),
+    authorId: d.uuid(),
+    status: d.text().default("'draft'"),
+  });
+
+  const commentsTable = d.table('comments', {
+    id: d.uuid().primary().default('gen_random_uuid()'),
+    text: d.text(),
+    postId: d.uuid(),
+    authorId: d.uuid(),
+    status: d.text().default("'pending'"),
+    createdAt: d.timestamp().default('now()'),
+  });
+
+  const models = {
+    users: {
+      table: usersTable,
+      relations: {
+        posts: d.ref.many(() => postsTable, 'authorId'),
+      },
+    },
+    posts: {
+      table: postsTable,
+      relations: {
+        author: d.ref.one(() => usersTable, 'authorId'),
+        comments: d.ref.many(() => commentsTable, 'postId'),
+      },
+    },
+    comments: {
+      table: commentsTable,
+      relations: {
+        post: d.ref.one(() => postsTable, 'postId'),
+        author: d.ref.one(() => usersTable, 'authorId'),
+      },
+    },
+  } satisfies Record<string, ModelEntry>;
+
+  type Db = ReturnType<typeof createDb<typeof models>>;
+  let db: Db;
+
+  beforeAll(async () => {
+    pg = new PGlite();
+    await pg.exec(`
+      CREATE TABLE users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        active BOOLEAN NOT NULL DEFAULT true
+      );
+
+      CREATE TABLE posts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        title TEXT NOT NULL,
+        author_id UUID NOT NULL REFERENCES users(id),
+        status TEXT NOT NULL DEFAULT 'draft'
+      );
+
+      CREATE TABLE comments (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        text TEXT NOT NULL,
+        post_id UUID NOT NULL REFERENCES posts(id),
+        author_id UUID NOT NULL REFERENCES users(id),
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+    `);
+
+    db = createDb({
+      url: 'pglite://memory',
+      models,
+      _queryFn: async <T>(sql: string, params: readonly unknown[]) => {
+        const result = await pg.query<T>(sql, params as unknown[]);
+        return { rows: result.rows as readonly T[], rowCount: result.affectedRows ?? 0 };
+      },
+    });
+  });
+
+  afterAll(async () => {
+    await pg.close();
+  });
+
+  beforeEach(async () => {
+    await pg.exec('DELETE FROM comments');
+    await pg.exec('DELETE FROM posts');
+    await pg.exec('DELETE FROM users');
+  });
+
+  // -------------------------------------------------------------------------
+  // where on many relation
+  // -------------------------------------------------------------------------
+
+  describe('where on many relation', () => {
+    it('only returns comments matching the where clause', async () => {
+      const user = unwrap(
+        await db.users.create({ data: { name: 'Alice', email: 'alice@test.com' } }),
+      ) as Record<string, unknown>;
+
+      const post = unwrap(
+        await db.posts.create({ data: { title: 'Post 1', authorId: user.id } }),
+      ) as Record<string, unknown>;
+
+      unwrap(
+        await db.comments.create({
+          data: {
+            text: 'Published comment',
+            postId: post.id,
+            authorId: user.id,
+            status: 'published',
+          },
+        }),
+      );
+      unwrap(
+        await db.comments.create({
+          data: { text: 'Pending comment', postId: post.id, authorId: user.id, status: 'pending' },
+        }),
+      );
+      unwrap(
+        await db.comments.create({
+          data: {
+            text: 'Another published',
+            postId: post.id,
+            authorId: user.id,
+            status: 'published',
+          },
+        }),
+      );
+
+      const result = unwrap(
+        await db.posts.get({
+          where: { title: 'Post 1' },
+          include: { comments: { where: { status: 'published' } } },
+        }),
+      ) as Record<string, unknown>;
+
+      expect(result).not.toBeNull();
+      const comments = result.comments as Record<string, unknown>[];
+      expect(comments).toHaveLength(2);
+      for (const c of comments) {
+        expect(c.status).toBe('published');
+      }
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // orderBy on many relation
+  // -------------------------------------------------------------------------
+
+  describe('orderBy on many relation', () => {
+    it('returns comments sorted by the specified field', async () => {
+      const user = unwrap(
+        await db.users.create({ data: { name: 'Alice', email: 'alice@test.com' } }),
+      ) as Record<string, unknown>;
+
+      const post = unwrap(
+        await db.posts.create({ data: { title: 'Post 1', authorId: user.id } }),
+      ) as Record<string, unknown>;
+
+      // Insert comments with explicit timestamps to control order
+      await pg.exec(`
+        INSERT INTO comments (text, post_id, author_id, status, created_at) VALUES
+          ('First', '${post.id}', '${user.id}', 'published', '2026-01-01T00:00:00Z'),
+          ('Third', '${post.id}', '${user.id}', 'published', '2026-03-01T00:00:00Z'),
+          ('Second', '${post.id}', '${user.id}', 'published', '2026-02-01T00:00:00Z')
+      `);
+
+      const result = unwrap(
+        await db.posts.get({
+          where: { title: 'Post 1' },
+          include: { comments: { orderBy: { createdAt: 'desc' } } },
+        }),
+      ) as Record<string, unknown>;
+
+      const comments = result.comments as Record<string, unknown>[];
+      expect(comments).toHaveLength(3);
+      expect(comments[0]?.text).toBe('Third');
+      expect(comments[1]?.text).toBe('Second');
+      expect(comments[2]?.text).toBe('First');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Per-parent limit on many relation
+  // -------------------------------------------------------------------------
+
+  describe('per-parent limit on many relation', () => {
+    it('returns at most N comments PER PARENT row', async () => {
+      const alice = unwrap(
+        await db.users.create({ data: { name: 'Alice', email: 'alice@test.com' } }),
+      ) as Record<string, unknown>;
+
+      const post1 = unwrap(
+        await db.posts.create({ data: { title: 'Post 1', authorId: alice.id } }),
+      ) as Record<string, unknown>;
+      const post2 = unwrap(
+        await db.posts.create({ data: { title: 'Post 2', authorId: alice.id } }),
+      ) as Record<string, unknown>;
+
+      // Post 1 has 4 comments
+      for (let i = 0; i < 4; i++) {
+        unwrap(
+          await db.comments.create({
+            data: { text: `P1 Comment ${i}`, postId: post1.id, authorId: alice.id },
+          }),
+        );
+      }
+
+      // Post 2 has 3 comments
+      for (let i = 0; i < 3; i++) {
+        unwrap(
+          await db.comments.create({
+            data: { text: `P2 Comment ${i}`, postId: post2.id, authorId: alice.id },
+          }),
+        );
+      }
+
+      const posts = unwrap(
+        await db.posts.list({
+          orderBy: { title: 'asc' },
+          include: { comments: { limit: 2 } },
+        }),
+      ) as Record<string, unknown>[];
+
+      expect(posts).toHaveLength(2);
+
+      const p1Comments = (posts[0] as Record<string, unknown>).comments as unknown[];
+      expect(p1Comments).toHaveLength(2); // limited to 2, not 4
+
+      const p2Comments = (posts[1] as Record<string, unknown>).comments as unknown[];
+      expect(p2Comments).toHaveLength(2); // limited to 2, not 3
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Combined where + orderBy + limit
+  // -------------------------------------------------------------------------
+
+  describe('combined where + orderBy + limit', () => {
+    it('applies all three: filter, sort, then per-parent limit', async () => {
+      const user = unwrap(
+        await db.users.create({ data: { name: 'Alice', email: 'alice@test.com' } }),
+      ) as Record<string, unknown>;
+
+      const post = unwrap(
+        await db.posts.create({ data: { title: 'Post 1', authorId: user.id } }),
+      ) as Record<string, unknown>;
+
+      // 3 published + 2 pending comments with different timestamps
+      await pg.exec(`
+        INSERT INTO comments (text, post_id, author_id, status, created_at) VALUES
+          ('Pub 1', '${post.id}', '${user.id}', 'published', '2026-01-01T00:00:00Z'),
+          ('Pend 1', '${post.id}', '${user.id}', 'pending', '2026-02-01T00:00:00Z'),
+          ('Pub 2', '${post.id}', '${user.id}', 'published', '2026-03-01T00:00:00Z'),
+          ('Pub 3', '${post.id}', '${user.id}', 'published', '2026-04-01T00:00:00Z'),
+          ('Pend 2', '${post.id}', '${user.id}', 'pending', '2026-05-01T00:00:00Z')
+      `);
+
+      const result = unwrap(
+        await db.posts.get({
+          where: { title: 'Post 1' },
+          include: {
+            comments: {
+              where: { status: 'published' },
+              orderBy: { createdAt: 'desc' },
+              limit: 2,
+            },
+          },
+        }),
+      ) as Record<string, unknown>;
+
+      const comments = result.comments as Record<string, unknown>[];
+      // 3 published, sorted desc, limited to 2
+      expect(comments).toHaveLength(2);
+      expect(comments[0]?.text).toBe('Pub 3');
+      expect(comments[1]?.text).toBe('Pub 2');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // where on one relation (conditional load)
+  // -------------------------------------------------------------------------
+
+  describe('where on one relation', () => {
+    it('returns null when the related row does not match the where clause', async () => {
+      const user = unwrap(
+        await db.users.create({
+          data: { name: 'Alice', email: 'alice@test.com', active: false },
+        }),
+      ) as Record<string, unknown>;
+
+      unwrap(await db.posts.create({ data: { title: 'Post 1', authorId: user.id } }));
+
+      const result = unwrap(
+        await db.posts.get({
+          where: { title: 'Post 1' },
+          include: { author: { where: { active: true } } },
+        }),
+      ) as Record<string, unknown>;
+
+      // Post is still returned, but author is null (conditional load)
+      expect(result).not.toBeNull();
+      expect(result.title).toBe('Post 1');
+      expect(result.author).toBeNull();
+    });
+
+    it('returns the related row when it matches the where clause', async () => {
+      const user = unwrap(
+        await db.users.create({
+          data: { name: 'Alice', email: 'alice@test.com', active: true },
+        }),
+      ) as Record<string, unknown>;
+
+      unwrap(await db.posts.create({ data: { title: 'Post 1', authorId: user.id } }));
+
+      const result = unwrap(
+        await db.posts.get({
+          where: { title: 'Post 1' },
+          include: { author: { where: { active: true } } },
+        }),
+      ) as Record<string, unknown>;
+
+      expect(result).not.toBeNull();
+      expect(result.author).not.toBeNull();
+      expect((result.author as Record<string, unknown>).name).toBe('Alice');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Depth increase from 2 to 3
+  // -------------------------------------------------------------------------
+
+  describe('depth increase to 3', () => {
+    it('resolves 4 include levels (depth 0-3)', async () => {
+      const user = unwrap(
+        await db.users.create({ data: { name: 'Alice', email: 'alice@test.com' } }),
+      ) as Record<string, unknown>;
+
+      const post = unwrap(
+        await db.posts.create({ data: { title: 'Post 1', authorId: user.id } }),
+      ) as Record<string, unknown>;
+
+      unwrap(
+        await db.comments.create({
+          data: { text: 'Comment 1', postId: post.id, authorId: user.id },
+        }),
+      );
+
+      // 4 include levels: users -> posts(d0) -> comments(d1) -> author(d2) -> posts(d3)
+      const result = unwrap(
+        await db.users.get({
+          where: { name: 'Alice' },
+          include: {
+            posts: {
+              include: {
+                comments: {
+                  include: {
+                    author: {
+                      include: { posts: true },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        }),
+      ) as Record<string, unknown>;
+
+      expect(result).not.toBeNull();
+      const posts = result.posts as Record<string, unknown>[];
+      expect(posts).toHaveLength(1);
+      const comments = posts[0]?.comments as Record<string, unknown>[];
+      expect(comments).toHaveLength(1);
+      const author = comments[0]?.author as Record<string, unknown>;
+      expect(author).not.toBeNull();
+      expect(author.name).toBe('Alice');
+      // 4th include level (depth 3) IS loaded
+      const authorPosts = author.posts as Record<string, unknown>[];
+      expect(authorPosts).toHaveLength(1);
+      expect(authorPosts[0]?.title).toBe('Post 1');
+    });
+
+    it('stops at depth 4 and does not load the 5th include level', async () => {
+      const user = unwrap(
+        await db.users.create({ data: { name: 'Alice', email: 'alice@test.com' } }),
+      ) as Record<string, unknown>;
+
+      const post = unwrap(
+        await db.posts.create({ data: { title: 'Post 1', authorId: user.id } }),
+      ) as Record<string, unknown>;
+
+      unwrap(
+        await db.comments.create({
+          data: { text: 'Comment 1', postId: post.id, authorId: user.id },
+        }),
+      );
+
+      // 5th include level: users -> posts(d0) -> comments(d1) -> author(d2) -> posts(d3) -> comments(d4)
+      const result = unwrap(
+        await db.users.get({
+          where: { name: 'Alice' },
+          include: {
+            posts: {
+              include: {
+                comments: {
+                  include: {
+                    author: {
+                      include: {
+                        posts: {
+                          include: { comments: true },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        }),
+      ) as Record<string, unknown>;
+
+      const posts = result.posts as Record<string, unknown>[];
+      const comments = posts[0]?.comments as Record<string, unknown>[];
+      const author = comments[0]?.author as Record<string, unknown>;
+      expect(author).not.toBeNull();
+      // 4th include level (depth 3) IS loaded
+      const authorPosts = author.posts as Record<string, unknown>[];
+      expect(authorPosts).toHaveLength(1);
+      // 5th include level (depth 4) is NOT loaded
+      expect(authorPosts[0]?.comments).toBeUndefined();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Query budget counter
+  // -------------------------------------------------------------------------
+
+  describe('query budget counter', () => {
+    it('throws when the query budget is exhausted', async () => {
+      const user = unwrap(
+        await db.users.create({ data: { name: 'Alice', email: 'alice@test.com' } }),
+      ) as Record<string, unknown>;
+
+      unwrap(await db.posts.create({ data: { title: 'Post 1', authorId: user.id } }));
+
+      const rows = [{ ...user }];
+      const queryFn = async <T>(sql: string, params: readonly unknown[]) => {
+        const result = await pg.query<T>(sql, params as unknown[]);
+        return { rows: result.rows as readonly T[], rowCount: result.affectedRows ?? 0 };
+      };
+
+      const tablesRegistry = {
+        users: { table: usersTable, relations: models.users.relations },
+        posts: { table: postsTable, relations: models.posts.relations },
+        comments: { table: commentsTable, relations: models.comments.relations },
+      };
+
+      // Use loadRelations directly with a budget of 1
+      // posts relation requires 1 query, comments requires 1 more → should exceed
+      await expect(
+        loadRelations(
+          queryFn,
+          rows,
+          models.users.relations,
+          { posts: { include: { comments: true, author: true } } },
+          0,
+          tablesRegistry,
+          usersTable,
+          { remaining: 1 },
+        ),
+      ).rejects.toThrow('Relation query budget exceeded');
+    });
   });
 });

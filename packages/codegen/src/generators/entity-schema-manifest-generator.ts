@@ -10,6 +10,9 @@ export interface EntitySchemaRelation {
   type: 'one' | 'many';
   entity: string;
   selection: 'all' | string[];
+  allowWhere: string[];
+  allowOrderBy: string[];
+  maxLimit?: number;
 }
 
 export interface EntitySchemaManifestEntry {
@@ -29,7 +32,15 @@ function buildManifestEntry(entity: CodegenEntityModule): EntitySchemaManifestEn
   const relations: EntitySchemaManifestEntry['relations'] = {};
   for (const rel of entity.relations ?? []) {
     const selection = entity.relationSelections?.[rel.name] ?? 'all';
-    relations[rel.name] = { type: rel.type, entity: rel.entity, selection };
+    const qc = entity.relationQueryConfig?.[rel.name];
+    relations[rel.name] = {
+      type: rel.type,
+      entity: rel.entity,
+      selection,
+      allowWhere: qc?.allowWhere ?? [],
+      allowOrderBy: qc?.allowOrderBy ?? [],
+      ...(qc?.maxLimit !== undefined ? { maxLimit: qc.maxLimit } : {}),
+    };
   }
 
   return {

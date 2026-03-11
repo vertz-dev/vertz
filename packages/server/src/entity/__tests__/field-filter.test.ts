@@ -26,8 +26,8 @@ const usersTable = d.table('users', {
 // ---------------------------------------------------------------------------
 
 describe('Feature: relation field narrowing', () => {
-  describe('Given a relations config with per-field narrowing: { creator: { id: true, name: true } }', () => {
-    const relationsConfig = { creator: { id: true, name: true } as Record<string, true> };
+  describe('Given a relations config with per-field narrowing: { creator: { select: { id: true, name: true } } }', () => {
+    const relationsConfig = { creator: { select: { id: true, name: true } } };
 
     describe('When narrowRelationFields is called on data with a creator object', () => {
       it('Then only id and name are kept on the creator relation', () => {
@@ -85,7 +85,7 @@ describe('Feature: relation field narrowing', () => {
   });
 
   describe('Given a relations config with per-field narrowing on a many relation (array)', () => {
-    const relationsConfig = { tags: { id: true, label: true } as Record<string, true> };
+    const relationsConfig = { tags: { select: { id: true, label: true } } };
 
     describe('When narrowRelationFields is called on data with an array of tags', () => {
       it('Then each tag is narrowed to only id and label', () => {

@@ -1,5 +1,5 @@
 import type { ColumnBuilder, ColumnMetadata, TableDef } from '@vertz/db';
-import type { EntityRelationsConfig } from './types';
+import type { EntityRelationsConfig, RelationConfigObject } from './types';
 
 // ---------------------------------------------------------------------------
 // VertzQL query param parser
@@ -26,13 +26,22 @@ export const MAX_Q_BASE64_LENGTH = 10_240;
 /** Keys allowed in the decoded `q` parameter JSON object. */
 const ALLOWED_Q_KEYS = new Set(['select', 'include', 'where', 'orderBy', 'limit', 'offset']);
 
+/** Shape of a single include entry with optional filtering/sorting/pagination. */
+export interface VertzQLIncludeEntry {
+  select?: Record<string, true>;
+  where?: Record<string, unknown>;
+  orderBy?: Record<string, 'asc' | 'desc'>;
+  limit?: number;
+  include?: Record<string, true | VertzQLIncludeEntry>;
+}
+
 export interface VertzQLOptions {
   where?: Record<string, unknown>;
   orderBy?: Record<string, 'asc' | 'desc'>;
   limit?: number;
   after?: string;
   select?: Record<string, true>;
-  include?: Record<string, true | { select: Record<string, true> }>;
+  include?: Record<string, true | VertzQLIncludeEntry>;
   /** @internal Parse error for the q= param, if any. */
   _qError?: string;
 }
@@ -127,10 +136,7 @@ export function parseVertzQL(query: Record<string, string>): VertzQLOptions {
           result.select = decoded.select as Record<string, true>;
         }
         if (decoded.include && typeof decoded.include === 'object') {
-          result.include = decoded.include as Record<
-            string,
-            true | { select: Record<string, true> }
-          >;
+          result.include = decoded.include as Record<string, true | VertzQLIncludeEntry>;
         }
       } catch {
         result._qError = 'Invalid q= parameter: not valid base64 or JSON';
@@ -221,33 +227,137 @@ export function validateVertzQL(
 
   // Validate include against entity relations config
   if (options.include && relationsConfig) {
-    for (const [relation, requested] of Object.entries(options.include)) {
-      const entityConfig = relationsConfig[relation];
+    const includeResult = validateInclude(options.include, relationsConfig, '');
+    if (!includeResult.ok) return includeResult;
+  }
 
-      // Relation not in config or explicitly false → rejected
-      if (entityConfig === undefined || entityConfig === false) {
-        return { ok: false, error: `Relation "${relation}" is not exposed` };
+  return { ok: true };
+}
+
+/**
+ * Recursively validates include entries against entity relations config.
+ * Checks allowWhere, allowOrderBy, maxLimit, and select field restrictions.
+ */
+function validateInclude(
+  include: Record<string, true | VertzQLIncludeEntry>,
+  relationsConfig: EntityRelationsConfig,
+  pathPrefix: string,
+): ValidationResult {
+  for (const [relation, requested] of Object.entries(include)) {
+    const entityConfig = relationsConfig[relation];
+    const relationPath = pathPrefix ? `${pathPrefix}.${relation}` : relation;
+
+    // Relation not in config or explicitly false → rejected
+    if (entityConfig === undefined || entityConfig === false) {
+      return { ok: false, error: `Relation "${relationPath}" is not exposed` };
+    }
+
+    // If requested is just `true`, no further validation needed
+    if (requested === true) continue;
+
+    const configObj: RelationConfigObject | undefined =
+      typeof entityConfig === 'object' ? entityConfig : undefined;
+
+    // Validate where fields against allowWhere
+    if (requested.where) {
+      if (!configObj || !configObj.allowWhere || configObj.allowWhere.length === 0) {
+        return {
+          ok: false,
+          error:
+            `Filtering is not enabled on relation '${relationPath}'. ` +
+            "Add 'allowWhere' to the entity relations config.",
+        };
       }
-
-      // If entity config narrows to specific fields, validate the request is within bounds
-      if (typeof entityConfig === 'object' && typeof requested === 'object') {
-        // Prisma-style: extract fields from { select: { field: true } }
-        const requestedFields =
-          'select' in requested &&
-          typeof (requested as Record<string, unknown>).select === 'object' &&
-          (requested as Record<string, unknown>).select !== null
-            ? Object.keys((requested as Record<string, unknown>).select as Record<string, unknown>)
-            : Object.keys(requested);
-
-        for (const field of requestedFields) {
-          if (!(field in entityConfig)) {
-            return {
-              ok: false,
-              error: `Field "${field}" is not exposed on relation "${relation}"`,
-            };
-          }
+      const allowedSet = new Set(configObj.allowWhere);
+      for (const field of Object.keys(requested.where)) {
+        if (!allowedSet.has(field)) {
+          return {
+            ok: false,
+            error:
+              `Field '${field}' is not filterable on relation '${relationPath}'. ` +
+              `Allowed: ${configObj.allowWhere.join(', ')}`,
+          };
         }
       }
+    }
+
+    // Validate orderBy fields against allowOrderBy
+    if (requested.orderBy) {
+      if (!configObj || !configObj.allowOrderBy || configObj.allowOrderBy.length === 0) {
+        return {
+          ok: false,
+          error:
+            `Sorting is not enabled on relation '${relationPath}'. ` +
+            "Add 'allowOrderBy' to the entity relations config.",
+        };
+      }
+      const allowedSet = new Set(configObj.allowOrderBy);
+      for (const [field, dir] of Object.entries(requested.orderBy)) {
+        if (!allowedSet.has(field)) {
+          return {
+            ok: false,
+            error:
+              `Field '${field}' is not sortable on relation '${relationPath}'. ` +
+              `Allowed: ${configObj.allowOrderBy.join(', ')}`,
+          };
+        }
+        if (dir !== 'asc' && dir !== 'desc') {
+          return {
+            ok: false,
+            error: `Invalid orderBy direction '${String(dir)}' for field '${field}' on relation '${relationPath}'. Must be 'asc' or 'desc'.`,
+          };
+        }
+      }
+    }
+
+    // Validate and clamp limit
+    if (requested.limit !== undefined) {
+      if (typeof requested.limit !== 'number' || !Number.isFinite(requested.limit)) {
+        return {
+          ok: false,
+          error: `Invalid limit on relation '${relationPath}': must be a finite number`,
+        };
+      }
+      if (requested.limit < 0) {
+        requested.limit = 0;
+      }
+      if (configObj?.maxLimit !== undefined && requested.limit > configObj.maxLimit) {
+        requested.limit = configObj.maxLimit;
+      }
+    }
+
+    // Validate select fields against config select
+    if (requested.select && configObj?.select) {
+      for (const field of Object.keys(requested.select)) {
+        if (!(field in configObj.select)) {
+          return {
+            ok: false,
+            error: `Field "${field}" is not exposed on relation "${relationPath}"`,
+          };
+        }
+      }
+    }
+
+    // Recurse into nested includes
+    if (requested.include) {
+      // For nested includes, we need the nested relation's config.
+      // If parent config is `true` or doesn't have nested relation info,
+      // we can't validate nested includes — reject them.
+      // The nested config would come from the target entity's relations config,
+      // which we don't have here. For now, nested includes on `true` configs
+      // are rejected since we can't validate them.
+      if (entityConfig === true) {
+        return {
+          ok: false,
+          error:
+            `Nested includes are not supported on relation '${relationPath}' ` +
+            'without a structured relations config.',
+        };
+      }
+      // Nested includes require the target entity's relations config,
+      // which is not available in the current validation context.
+      // This will be fully wired in Phase 3 when the route handler
+      // passes the full entity registry. For now, pass through.
     }
   }
 

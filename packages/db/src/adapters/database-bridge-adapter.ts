@@ -8,7 +8,7 @@
 
 import type { DatabaseClient } from '../client/database';
 import type { ModelEntry } from '../schema/inference';
-import type { EntityDbAdapter, ListOptions } from '../types/adapter';
+import type { EntityDbAdapter, GetOptions, ListOptions } from '../types/adapter';
 
 /**
  * Creates an EntityDbAdapter backed by a DatabaseClient for a specific table.
@@ -24,8 +24,12 @@ export function createDatabaseBridgeAdapter<
   const delegate = db[tableName];
 
   return {
-    async get(id: string) {
-      const result = await delegate.get({ where: { id } } as never);
+    async get(id: string, options?: GetOptions) {
+      const getOptions: Record<string, unknown> = { where: { id } };
+      if (options?.include) {
+        getOptions.include = options.include;
+      }
+      const result = await delegate.get(getOptions as never);
       if (!result.ok) {
         return null;
       }
@@ -42,6 +46,9 @@ export function createDatabaseBridgeAdapter<
       }
       if (options?.limit !== undefined) {
         dbOptions.limit = options.limit;
+      }
+      if (options?.include) {
+        dbOptions.include = options.include;
       }
       const result = await delegate.listAndCount(dbOptions as never);
       if (!result.ok) {

@@ -122,9 +122,10 @@ export function buildSelect(
 
   // ORDER BY — explicit orderBy takes precedence; cursor columns used as fallback
   if (options.orderBy) {
-    const orderClauses = Object.entries(options.orderBy).map(
-      ([col, dir]) => `"${camelToSnake(col, casingOverrides)}" ${dir.toUpperCase()}`,
-    );
+    const orderClauses = Object.entries(options.orderBy).map(([col, dir]) => {
+      const safeDir = dir.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+      return `"${camelToSnake(col, casingOverrides)}" ${safeDir}`;
+    });
     if (orderClauses.length > 0) {
       parts.push(`ORDER BY ${orderClauses.join(', ')}`);
     }

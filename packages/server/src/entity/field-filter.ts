@@ -52,11 +52,18 @@ export function narrowRelationFields(
     } else if (config === false) {
     } else if (typeof config === 'object' && value !== null && typeof value === 'object') {
       // Per-field narrowing — keep only specified fields
+      // Config object has { select: { field: true }, allowWhere, ... } shape
+      const selectMap = config.select;
+      if (!selectMap) {
+        // No select restriction — pass through all fields
+        result[key] = value;
+        continue;
+      }
       if (Array.isArray(value)) {
         // Many relation — narrow each element
         result[key] = value.map((item) => {
           const narrowed: Record<string, unknown> = {};
-          for (const field of Object.keys(config)) {
+          for (const field of Object.keys(selectMap)) {
             if (field in (item as Record<string, unknown>)) {
               narrowed[field] = (item as Record<string, unknown>)[field];
             }
@@ -66,7 +73,7 @@ export function narrowRelationFields(
       } else {
         // One relation — narrow the single object
         const narrowed: Record<string, unknown> = {};
-        for (const field of Object.keys(config)) {
+        for (const field of Object.keys(selectMap)) {
           if (field in (value as Record<string, unknown>)) {
             narrowed[field] = (value as Record<string, unknown>)[field];
           }

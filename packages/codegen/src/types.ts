@@ -150,6 +150,10 @@ export interface CodegenEntityModule {
   hiddenFields?: string[];
   responseFields?: CodegenResolvedField[];
   relationSelections?: Record<string, 'all' | string[]>;
+  relationQueryConfig?: Record<
+    string,
+    { allowWhere?: string[]; allowOrderBy?: string[]; maxLimit?: number }
+  >;
 }
 
 export interface CodegenEntityOperation {

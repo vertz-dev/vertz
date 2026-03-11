@@ -269,6 +269,9 @@ export interface EntityRelationIR {
   type?: 'one' | 'many';
   entity?: string;
   selection: 'all' | string[];
+  allowWhere?: string[];
+  allowOrderBy?: string[];
+  maxLimit?: number;
 }
 
 // ── Shared context types ──────────────────────────────────────────

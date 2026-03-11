@@ -23,7 +23,9 @@ import type {
 } from '../ir/types';
 import {
   extractObjectLiteral,
+  getArrayElements,
   getBooleanValue,
+  getNumberValue,
   getProperties,
   getPropertyValue,
   getSourceLocation,
@@ -694,20 +696,44 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
       })
       .map(({ name, value }) => {
         const boolVal = getBooleanValue(value);
-        const selection: 'all' | string[] =
-          boolVal === true
-            ? 'all'
-            : value.isKind(SyntaxKind.ObjectLiteralExpression)
-              ? getProperties(value).map((p) => p.name)
-              : 'all';
-
         const relType = modelRelTypes.get(name);
+
+        // true → all fields, no query config
+        if (boolVal === true || !value.isKind(SyntaxKind.ObjectLiteralExpression)) {
+          return { name, type: relType?.type, entity: relType?.entity, selection: 'all' as const };
+        }
+
+        // Object config: { select?: {...}, allowWhere?: [...], allowOrderBy?: [...], maxLimit?: N }
+        const selectExpr = getPropertyValue(value, 'select');
+        const selection: 'all' | string[] = selectExpr?.isKind(SyntaxKind.ObjectLiteralExpression)
+          ? getProperties(selectExpr).map((p) => p.name)
+          : 'all';
+
+        const allowWhereExpr = getPropertyValue(value, 'allowWhere');
+        const allowWhere = allowWhereExpr
+          ? getArrayElements(allowWhereExpr)
+              .map((el) => getStringValue(el))
+              .filter((s): s is string => s !== null)
+          : undefined;
+
+        const allowOrderByExpr = getPropertyValue(value, 'allowOrderBy');
+        const allowOrderBy = allowOrderByExpr
+          ? getArrayElements(allowOrderByExpr)
+              .map((el) => getStringValue(el))
+              .filter((s): s is string => s !== null)
+          : undefined;
+
+        const maxLimitExpr = getPropertyValue(value, 'maxLimit');
+        const maxLimit = maxLimitExpr ? (getNumberValue(maxLimitExpr) ?? undefined) : undefined;
 
         return {
           name,
           type: relType?.type,
           entity: relType?.entity,
           selection,
+          ...(allowWhere ? { allowWhere } : {}),
+          ...(allowOrderBy ? { allowOrderBy } : {}),
+          ...(maxLimit !== undefined ? { maxLimit } : {}),
         };
       });
   }

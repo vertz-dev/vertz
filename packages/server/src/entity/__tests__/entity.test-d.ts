@@ -1,5 +1,5 @@
-import { d } from '@vertz/db';
 import { describe, it } from 'bun:test';
+import { d } from '@vertz/db';
 import { entity } from '../index';
 
 // ---------------------------------------------------------------------------
@@ -236,10 +236,10 @@ describe('entity() relations config types', () => {
     });
   });
 
-  it('accepts field narrowing on a relation', () => {
+  it('accepts field narrowing on a relation (with select wrapper)', () => {
     entity('users', {
       model: usersModel,
-      relations: { posts: { id: true, title: true } },
+      relations: { posts: { select: { id: true, title: true } } },
     });
   });
 

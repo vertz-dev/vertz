@@ -854,7 +854,7 @@ describe('Feature: CRUD pipeline', () => {
     const def = entity('tasks', {
       model: tasksModel,
       access: { list: () => true, get: () => true },
-      relations: { creator: { id: true, name: true } },
+      relations: { creator: { select: { id: true, name: true } } },
     });
 
     function createTaskDbWithRelations() {

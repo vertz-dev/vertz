@@ -776,7 +776,7 @@ describe('EntityAnalyzer', () => {
       expect(relations?.[0]?.selection).toBe('all');
     });
 
-    it('extracts object with field keys as selection: string[]', async () => {
+    it('extracts object with select sub-object as selection: string[]', async () => {
       createFile(
         '/entities.ts',
         `
@@ -787,8 +787,7 @@ describe('EntityAnalyzer', () => {
           model: userModel,
           relations: {
             posts: {
-              title: true,
-              content: true,
+              select: { title: true, content: true },
             },
           },
         });
@@ -798,6 +797,34 @@ describe('EntityAnalyzer', () => {
       const result = await analyze();
       const relations = result.entities[0]?.relations;
       expect(relations?.[0]?.selection).toEqual(['title', 'content']);
+    });
+
+    it('extracts allowWhere, allowOrderBy, maxLimit from relation config (#1130)', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { userModel } from './models';
+
+        export const userEntity = entity('user', {
+          model: userModel,
+          relations: {
+            posts: {
+              select: { title: true },
+              allowWhere: ['status', 'createdAt'],
+              allowOrderBy: ['createdAt'],
+              maxLimit: 50,
+            },
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      const rel = result.entities[0]?.relations[0];
+      expect(rel?.allowWhere).toEqual(['status', 'createdAt']);
+      expect(rel?.allowOrderBy).toEqual(['createdAt']);
+      expect(rel?.maxLimit).toBe(50);
     });
 
     it('excludes false relations', async () => {

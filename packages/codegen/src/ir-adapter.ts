@@ -143,8 +143,19 @@ export function adaptIR(appIR: AppIR): CodegenIR {
 
     // Build relation selections map from EntityRelationIR
     const relationSelections: Record<string, 'all' | string[]> = {};
+    const relationQueryConfig: Record<
+      string,
+      { allowWhere?: string[]; allowOrderBy?: string[]; maxLimit?: number }
+    > = {};
     for (const rel of entity.relations) {
       relationSelections[rel.name] = rel.selection;
+      if (rel.allowWhere || rel.allowOrderBy || rel.maxLimit !== undefined) {
+        relationQueryConfig[rel.name] = {
+          ...(rel.allowWhere ? { allowWhere: rel.allowWhere } : {}),
+          ...(rel.allowOrderBy ? { allowOrderBy: rel.allowOrderBy } : {}),
+          ...(rel.maxLimit !== undefined ? { maxLimit: rel.maxLimit } : {}),
+        };
+      }
     }
 
     // Extract top-level response fields for the manifest
@@ -170,6 +181,8 @@ export function adaptIR(appIR: AppIR): CodegenIR {
       responseFields: entityResponseFields,
       relationSelections:
         Object.keys(relationSelections).length > 0 ? relationSelections : undefined,
+      relationQueryConfig:
+        Object.keys(relationQueryConfig).length > 0 ? relationQueryConfig : undefined,
     };
   });
 

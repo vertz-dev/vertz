@@ -59,7 +59,13 @@ describe('EntitySchemaManifestGenerator', () => {
     expect(manifest.tasks.hiddenFields).toEqual([]);
     expect(manifest.tasks.fields).toEqual(['id', 'title', 'status']);
     expect(manifest.tasks.relations).toEqual({
-      assignee: { type: 'one', entity: 'users', selection: 'all' },
+      assignee: {
+        type: 'one',
+        entity: 'users',
+        selection: 'all',
+        allowWhere: [],
+        allowOrderBy: [],
+      },
     });
   });
 
@@ -181,6 +187,50 @@ describe('EntitySchemaManifestGenerator', () => {
     expect(manifest.logs.relations).toEqual({});
     expect(manifest.logs.hiddenFields).toEqual([]);
     expect(manifest.logs.tenantScoped).toBe(false);
+  });
+
+  it('includes allowWhere, allowOrderBy, maxLimit in relation metadata (#1130)', () => {
+    const ir = makeIR([
+      {
+        entityName: 'posts',
+        operations: [],
+        actions: [],
+        relations: [
+          { name: 'comments', type: 'many', entity: 'comments' },
+          { name: 'author', type: 'one', entity: 'users' },
+        ],
+        tenantScoped: false,
+        primaryKey: 'id',
+        hiddenFields: [],
+        responseFields: [
+          { name: 'id', tsType: 'string', optional: false },
+          { name: 'title', tsType: 'string', optional: false },
+        ],
+        relationSelections: {
+          comments: ['text', 'status', 'createdAt'],
+          author: ['name', 'email'],
+        },
+        relationQueryConfig: {
+          comments: {
+            allowWhere: ['status', 'createdAt'],
+            allowOrderBy: ['createdAt'],
+            maxLimit: 50,
+          },
+        },
+      },
+    ]);
+
+    const gen = new EntitySchemaManifestGenerator();
+    const files = gen.generate(ir, generatorConfig);
+    const manifest = JSON.parse(files[0].content);
+
+    expect(manifest.posts.relations.comments.allowWhere).toEqual(['status', 'createdAt']);
+    expect(manifest.posts.relations.comments.allowOrderBy).toEqual(['createdAt']);
+    expect(manifest.posts.relations.comments.maxLimit).toBe(50);
+    // author has no query config — defaults to empty arrays and no maxLimit
+    expect(manifest.posts.relations.author.allowWhere).toEqual([]);
+    expect(manifest.posts.relations.author.allowOrderBy).toEqual([]);
+    expect(manifest.posts.relations.author.maxLimit).toBeUndefined();
   });
 
   it('returns empty manifest when no entities exist', () => {

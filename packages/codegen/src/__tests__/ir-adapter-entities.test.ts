@@ -215,6 +215,47 @@ describe('IR Adapter - Entities', () => {
     expect(result.entities[0]?.relations).toBeUndefined();
   });
 
+  it('maps allowWhere, allowOrderBy, maxLimit to relationQueryConfig (#1130)', () => {
+    const appIR = createEmptyAppIR();
+    const entity = createBasicEntity('posts');
+    entity.relations = [
+      {
+        name: 'comments',
+        type: 'many',
+        entity: 'comments',
+        selection: ['text', 'status'],
+        allowWhere: ['status', 'createdAt'],
+        allowOrderBy: ['createdAt'],
+        maxLimit: 50,
+      },
+      { name: 'author', type: 'one', entity: 'users', selection: ['name', 'email'] },
+    ];
+    appIR.entities = [entity];
+
+    const result = adaptIR(appIR);
+
+    expect(result.entities[0]?.relationQueryConfig).toEqual({
+      comments: {
+        allowWhere: ['status', 'createdAt'],
+        allowOrderBy: ['createdAt'],
+        maxLimit: 50,
+      },
+    });
+    // author has no query config fields — should not appear
+    expect(result.entities[0]?.relationQueryConfig?.author).toBeUndefined();
+  });
+
+  it('omits relationQueryConfig when no relations have query config (#1130)', () => {
+    const appIR = createEmptyAppIR();
+    const entity = createBasicEntity('posts');
+    entity.relations = [{ name: 'author', type: 'one', entity: 'users', selection: 'all' }];
+    appIR.entities = [entity];
+
+    const result = adaptIR(appIR);
+
+    expect(result.entities[0]?.relationQueryConfig).toBeUndefined();
+  });
+
   it('handles empty entities array', () => {
     const appIR = createEmptyAppIR();
     appIR.entities = [];
