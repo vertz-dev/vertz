@@ -177,6 +177,8 @@
 
 | Doc | Status | Description |
 |-----|--------|-------------|
+| [Package Distribution & Runtime Hardening](plans/package-runtime-hardening.md) | 📋 Draft | Cross-package hardening for package exports, runtime coverage, CI/task inputs, auth integrity, and CLI/compiler integration. |
+| [Package Distribution & Runtime Hardening Implementation](plans/package-runtime-hardening-implementation.md) | 📋 Draft | Vertical-slice implementation plan for package/runtime hardening. |
 | [Design Inventory](plans/DESIGN-INVENTORY.md) | ✅ Done | 91 documents catalogued |
 | [Release Automation](plans/release-automation.md) | 📋 Draft | Release workflow |
 | [Turborepo Migration](plans/turborepo-migration.md) | 📋 Draft | Build migration |
