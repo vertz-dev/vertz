@@ -175,7 +175,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build packages
-        run: bunx turbo run build --filter='!@vertz-examples/*' --filter='!entity-todo-example'
+        run: bunx turbo run build --filter='!@vertz-examples/*' --filter='!entity-todo-example' --filter='!@vertz/landing-nextjs' --filter='!@vertz/landing-nextjs-vercel'
 
       - name: Run tests with coverage
         env:
