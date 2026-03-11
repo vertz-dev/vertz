@@ -329,6 +329,44 @@ describe('createSSRHandler', () => {
     );
   });
 
+  it('sanitizes Link header hrefs to prevent injection', async () => {
+    const { font } = await import('@vertz/ui');
+    // Craft a malicious href that tries to inject extra Link directives
+    const evil = font('Evil', {
+      weight: 400,
+      src: '/fonts/evil>; rel=preload; as=script, <https://attacker.com/track.woff2',
+      fallback: ['sans-serif'],
+    });
+    const theme = defineTheme({
+      colors: { primary: { 500: '#3b82f6' } },
+      fonts: { evil },
+    });
+
+    const moduleWithFonts: SSRModule = {
+      default: () => {
+        const el = document.createElement('div');
+        el.textContent = 'Test';
+        return el;
+      },
+      theme,
+    };
+
+    const handler = createSSRHandler({ module: moduleWithFonts, template });
+    const response = await handler(new Request('http://localhost/'));
+
+    const linkHeader = response.headers.get('Link')!;
+    // The injected syntax characters (>, ;, <, comma, space) must be percent-encoded.
+    // This traps the injection inside the URL brackets — browser sees one garbage URL,
+    // not a separate preload directive.
+    expect(linkHeader).not.toContain('>; rel=preload; as=script');
+    expect(linkHeader).not.toContain(', <https://attacker.com');
+    // The encoded version should be present (injection neutralized)
+    expect(linkHeader).toContain('%3E%3B');
+    expect(linkHeader).toContain('%2C');
+    // Only one top-level Link entry (angle brackets not split by injection)
+    expect(linkHeader.match(/^<[^>]+>/g)).toHaveLength(1);
+  });
+
   it('does not set Cache-Control on error responses', async () => {
     const brokenModule: SSRModule = {
       default: () => {

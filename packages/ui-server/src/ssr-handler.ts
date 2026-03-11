@@ -90,6 +90,36 @@ function injectIntoTemplate(
 }
 
 /**
+ * Sanitize a URL for use in an HTTP Link header href.
+ * Encodes characters that are meaningful in Link header syntax (<, >, ;, ,)
+ * to prevent header injection attacks.
+ */
+function sanitizeLinkHref(href: string): string {
+  return href.replace(/[<>,;\s"']/g, (ch) => `%${ch.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
+/** Sanitize a parameter value for Link header (alphanumeric + / only). */
+function sanitizeLinkParam(value: string): string {
+  return value.replace(/[^a-zA-Z0-9/_.-]/g, '');
+}
+
+/** Build an HTTP Link header value from structured preload items. */
+function buildLinkHeader(items: PreloadItem[]): string {
+  return items
+    .map((item) => {
+      const parts = [
+        `<${sanitizeLinkHref(item.href)}>`,
+        'rel=preload',
+        `as=${sanitizeLinkParam(item.as)}`,
+      ];
+      if (item.type) parts.push(`type=${sanitizeLinkParam(item.type)}`);
+      if (item.crossorigin) parts.push('crossorigin');
+      return parts.join('; ');
+    })
+    .join(', ');
+}
+
+/**
  * Create a web-standard SSR request handler.
  *
  * Handles two types of requests:
@@ -98,17 +128,6 @@ function injectIntoTemplate(
  *
  * Does NOT serve static files — that's the adapter/platform's job.
  */
-/** Build an HTTP Link header value from structured preload items. */
-function buildLinkHeader(items: PreloadItem[]): string {
-  return items
-    .map((item) => {
-      const parts = [`<${item.href}>`, 'rel=preload', `as=${item.as}`];
-      if (item.type) parts.push(`type=${item.type}`);
-      if (item.crossorigin) parts.push('crossorigin');
-      return parts.join('; ');
-    })
-    .join(', ');
-}
 
 /** Build modulepreload `<link>` tags for injection into `<head>`. */
 function buildModulepreloadTags(paths: string[]): string {
