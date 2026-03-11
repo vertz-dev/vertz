@@ -194,8 +194,8 @@ describe('prerenderRoutes', () => {
     // Global styles should be inlined — they are NOT in vertz.css
     expect(html).toContain('<style data-vertz-css>');
     expect(html).toContain('background: #0a0a0b');
-    // Linked CSS should still be present
-    expect(html).toContain('<link rel="stylesheet" href="/assets/vertz.css">');
+    // Linked CSS should be present but async (non-render-blocking)
+    expect(html).toContain('href="/assets/vertz.css" media="print"');
   });
 
   it('throws PrerenderError when SSR render fails for a route', async () => {
