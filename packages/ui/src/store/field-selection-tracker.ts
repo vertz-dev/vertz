@@ -15,6 +15,17 @@ interface SelectInfo {
   fullFetch: boolean;
 }
 
+export type FieldMissCallback = (
+  type: string,
+  id: string,
+  field: string,
+  querySource: string,
+) => void;
+
+export interface FieldSelectionTrackerOptions {
+  onMiss?: FieldMissCallback;
+}
+
 /**
  * Tracks field selection metadata per entity for dev-mode access warnings.
  */
@@ -22,6 +33,11 @@ export class FieldSelectionTracker {
   private _selectInfo = new Map<string, SelectInfo>();
   /** Dedup: tracks which field warnings have already been emitted */
   private _warned = new Set<string>();
+  private _onMiss: FieldMissCallback | undefined;
+
+  constructor(options?: FieldSelectionTrackerOptions) {
+    this._onMiss = options?.onMiss;
+  }
 
   /**
    * Register that a query with field selection fetched this entity.
@@ -117,6 +133,7 @@ export class FieldSelectionTracker {
                 `        Fix: use {entity.${prop}} in JSX, ` +
                 'or add // @vertz-select-all above the query.',
             );
+            tracker._onMiss?.(type, id, prop, sources);
           }
         }
         return Reflect.get(target, prop, receiver);

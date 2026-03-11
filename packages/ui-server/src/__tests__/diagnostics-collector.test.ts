@@ -269,4 +269,41 @@ describe('DiagnosticsCollector', () => {
     expect(snapshot.fieldSelection.manifestFileCount).toBe(0);
     expect(snapshot.fieldSelection.entries).toEqual({});
   });
+
+  describe('recordFieldMiss()', () => {
+    it('records a field access miss', () => {
+      const collector = new DiagnosticsCollector();
+
+      collector.recordFieldMiss('users', 'u1', 'bio', 'GET:/users');
+
+      const snapshot = collector.getSnapshot();
+      expect(snapshot.fieldSelection.misses).toHaveLength(1);
+      expect(snapshot.fieldSelection.misses[0]).toEqual({
+        type: 'users',
+        id: 'u1',
+        field: 'bio',
+        querySource: 'GET:/users',
+        timestamp: expect.any(String),
+      });
+    });
+
+    it('caps at 50 entries', () => {
+      const collector = new DiagnosticsCollector();
+
+      for (let i = 0; i < 60; i++) {
+        collector.recordFieldMiss('users', `u${i}`, 'bio', 'GET:/users');
+      }
+
+      const snapshot = collector.getSnapshot();
+      expect(snapshot.fieldSelection.misses).toHaveLength(50);
+      expect(snapshot.fieldSelection.misses[0].id).toBe('u10');
+    });
+
+    it('starts with empty misses', () => {
+      const collector = new DiagnosticsCollector();
+      const snapshot = collector.getSnapshot();
+
+      expect(snapshot.fieldSelection.misses).toEqual([]);
+    });
+  });
 });

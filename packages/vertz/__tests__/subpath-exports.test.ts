@@ -80,9 +80,41 @@ describe('vertz meta-package subpath exports', () => {
   });
 });
 
+describe('exports point to built artifacts', () => {
+  it('all subpath imports resolve to dist/*.js, not src/*.ts', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const pkgPath = path.resolve(import.meta.dirname, '..', 'package.json');
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+
+    for (const [, entry] of Object.entries(pkg.exports)) {
+      const { import: importPath } = entry as { import: string };
+      expect(importPath).toStartWith('./dist/');
+      expect(importPath).toEndWith('.js');
+      // The built file must actually exist
+      const fullPath = path.resolve(import.meta.dirname, '..', importPath);
+      expect(fs.existsSync(fullPath)).toBe(true);
+    }
+  });
+
+  it('all subpath types resolve to dist/*.d.ts', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const pkgPath = path.resolve(import.meta.dirname, '..', 'package.json');
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+
+    for (const [, entry] of Object.entries(pkg.exports)) {
+      const { types: typesPath } = entry as { types: string };
+      expect(typesPath).toStartWith('./dist/');
+      expect(typesPath).toEndWith('.d.ts');
+      const fullPath = path.resolve(import.meta.dirname, '..', typesPath);
+      expect(fs.existsSync(fullPath)).toBe(true);
+    }
+  });
+});
+
 describe('tree-shaking: subpaths are independent modules', () => {
-  it('each subpath points to a separate source file', async () => {
-    // Verify the package.json exports field has separate entry points
+  it('each subpath points to a separate entry file', async () => {
     const fs = await import('node:fs');
     const path = await import('node:path');
     const pkgPath = path.resolve(import.meta.dirname, '..', 'package.json');

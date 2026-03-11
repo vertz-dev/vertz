@@ -53,7 +53,16 @@ export interface DiagnosticsSnapshot {
   fieldSelection: {
     manifestFileCount: number;
     entries: Record<string, FieldSelectionDiagEntry>;
+    misses: FieldMissEntry[];
   };
+}
+
+export interface FieldMissEntry {
+  type: string;
+  id: string;
+  field: string;
+  querySource: string;
+  timestamp: string;
 }
 
 export interface FieldSelectionDiagEntry {
@@ -116,6 +125,8 @@ export class DiagnosticsCollector {
   // Field selection state
   private fieldSelectionManifestFileCount = 0;
   private fieldSelectionEntries = new Map<string, FieldSelectionDiagEntry>();
+  private static readonly MAX_FIELD_MISSES = 50;
+  private fieldMissesBuffer: FieldMissEntry[] = [];
 
   recordPluginConfig(filter: string, hmr: boolean, fastRefresh: boolean): void {
     this.pluginFilter = filter;
@@ -208,6 +219,21 @@ export class DiagnosticsCollector {
     this.fieldSelectionEntries.set(file, entry);
   }
 
+  recordFieldMiss(type: string, id: string, field: string, querySource: string): void {
+    this.fieldMissesBuffer.push({
+      type,
+      id,
+      field,
+      querySource,
+      timestamp: new Date().toISOString(),
+    });
+    if (this.fieldMissesBuffer.length > DiagnosticsCollector.MAX_FIELD_MISSES) {
+      this.fieldMissesBuffer = this.fieldMissesBuffer.slice(
+        this.fieldMissesBuffer.length - DiagnosticsCollector.MAX_FIELD_MISSES,
+      );
+    }
+  }
+
   getSnapshot(): DiagnosticsSnapshot {
     return {
       status: 'ok',
@@ -256,6 +282,7 @@ export class DiagnosticsCollector {
       fieldSelection: {
         manifestFileCount: this.fieldSelectionManifestFileCount,
         entries: Object.fromEntries(this.fieldSelectionEntries),
+        misses: [...this.fieldMissesBuffer],
       },
     };
   }
