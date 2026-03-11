@@ -139,7 +139,7 @@ export function generateEntityRoutes(
               orderBy: parsed.orderBy,
               limit: parsed.limit,
               after: parsed.after,
-              include: parsed.include as Record<string, unknown> | undefined,
+              include: parsed.include,
             };
             const result = await crudHandlers.list(entityCtx, options);
             if (!result.ok) {
@@ -256,9 +256,7 @@ export function generateEntityRoutes(
               );
             }
 
-            const getOptions = parsed.include
-              ? { include: parsed.include as Record<string, unknown> }
-              : undefined;
+            const getOptions = parsed.include ? { include: parsed.include } : undefined;
             const result = await crudHandlers.get(entityCtx, id, getOptions);
             if (!result.ok) {
               const { status, body } = entityErrorHandler(result.error);

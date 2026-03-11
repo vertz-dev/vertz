@@ -159,7 +159,13 @@ export type { ModelSchemas, SchemaLike } from './schema/model-schemas';
 export { createRegistry } from './schema/registry';
 export type { RelationDef } from './schema/relation';
 export type { IndexDef, IndexOptions, IndexType, TableDef } from './schema/table';
-export type { EntityDbAdapter, GetOptions, ListOptions } from './types/adapter';
+export type {
+  AdapterIncludeEntry,
+  AdapterIncludeSpec,
+  EntityDbAdapter,
+  GetOptions,
+  ListOptions,
+} from './types/adapter';
 // Branded error types
 export type {
   InvalidColumn,

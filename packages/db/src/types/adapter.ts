@@ -6,6 +6,22 @@
  */
 
 // ---------------------------------------------------------------------------
+// Include entry — structural type for relation include values
+// ---------------------------------------------------------------------------
+
+/** A single include entry with optional query constraints. */
+export interface AdapterIncludeEntry {
+  select?: Record<string, true>;
+  where?: Record<string, unknown>;
+  orderBy?: Record<string, 'asc' | 'desc'>;
+  limit?: number;
+  include?: Record<string, true | AdapterIncludeEntry>;
+}
+
+/** Include specification: maps relation names to `true` or structured entries. */
+export type AdapterIncludeSpec = Record<string, true | AdapterIncludeEntry>;
+
+// ---------------------------------------------------------------------------
 // List Options - pagination & filtering
 // ---------------------------------------------------------------------------
 
@@ -16,13 +32,13 @@ export interface ListOptions {
   /** Cursor-based pagination: fetch records after this ID. */
   after?: string;
   /** Relation include specification for relation loading. */
-  include?: Record<string, unknown>;
+  include?: AdapterIncludeSpec;
 }
 
 /** Options for get-by-id operations. */
 export interface GetOptions {
   /** Relation include specification for relation loading. */
-  include?: Record<string, unknown>;
+  include?: AdapterIncludeSpec;
 }
 
 // ---------------------------------------------------------------------------
