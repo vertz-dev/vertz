@@ -128,12 +128,21 @@ After this change:
 
 ## 5. POC Results
 
-No POCs completed yet.
+### 5.1 CLI `ui-compiler` stage integration POC — Complete
+
+**Question:** What is the thinnest viable compiler contract the CLI should invoke?
+
+**What was tried:** Audited the existing dev pipeline placeholder (`runBuildUI()` no-op), the production build path (`ui-build-pipeline.ts`), the bun plugin's 8-stage transform pipeline, and the raw `compile()` API surface.
+
+**What was learned:** The correct contract is `createVertzBunPlugin()` from `@vertz/ui-server/bun-plugin` — the same one the production build already uses. Calling `compile()` directly is wrong because it skips most of the transform pipeline (hydration, field selection, CSS extraction, etc.). The seam is already closed in production; only the dev pipeline orchestrator has a placeholder. The implementation is a small, well-scoped change: validate plugin construction in dev mode and update pipeline tests.
+
+**Full report:** [plans/poc-cli-ui-compiler-contract.md](./poc-cli-ui-compiler-contract.md)
+
+### 5.2 Cloudflare runtime adapter harness POC — Pending
 
 Required POCs before implementation:
 
 - Cloudflare runtime adapter harness POC
-- CLI `ui-compiler` stage integration POC
 
 ## 6. Type Flow Map
 
