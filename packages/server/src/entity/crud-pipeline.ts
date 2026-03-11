@@ -4,6 +4,7 @@ import type {
   EntityDbAdapter,
   GetOptions,
   ListOptions,
+  ModelDef,
   TableDef,
 } from '@vertz/db';
 import {
@@ -64,26 +65,26 @@ export interface CrudResult<T = unknown> {
   body: T;
 }
 
-export interface CrudHandlers {
+export interface CrudHandlers<TModel extends ModelDef = ModelDef> {
   list(
-    ctx: EntityContext,
+    ctx: EntityContext<TModel>,
     options?: ListOptions,
-  ): Promise<Result<CrudResult<ListResult>, EntityError>>;
+  ): Promise<Result<CrudResult<ListResult<TModel['table']['$response']>>, EntityError>>;
   get(
-    ctx: EntityContext,
+    ctx: EntityContext<TModel>,
     id: string,
     options?: GetOptions,
-  ): Promise<Result<CrudResult<Record<string, unknown>>, EntityError>>;
+  ): Promise<Result<CrudResult<TModel['table']['$response']>, EntityError>>;
   create(
-    ctx: EntityContext,
+    ctx: EntityContext<TModel>,
     data: Record<string, unknown>,
-  ): Promise<Result<CrudResult<Record<string, unknown>>, EntityError>>;
+  ): Promise<Result<CrudResult<TModel['table']['$response']>, EntityError>>;
   update(
-    ctx: EntityContext,
+    ctx: EntityContext<TModel>,
     id: string,
     data: Record<string, unknown>,
-  ): Promise<Result<CrudResult<Record<string, unknown>>, EntityError>>;
-  delete(ctx: EntityContext, id: string): Promise<Result<CrudResult<null>, EntityError>>;
+  ): Promise<Result<CrudResult<TModel['table']['$response']>, EntityError>>;
+  delete(ctx: EntityContext<TModel>, id: string): Promise<Result<CrudResult<null>, EntityError>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -104,11 +105,11 @@ export interface CrudPipelineOptions {
   queryParentIds?: QueryParentIdsFn;
 }
 
-export function createCrudHandlers(
-  def: EntityDefinition,
+export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
+  def: EntityDefinition<TModel>,
   db: EntityDbAdapter,
   options?: CrudPipelineOptions,
-): CrudHandlers {
+): CrudHandlers<TModel> {
   const table = def.model.table;
   const isTenantScoped = def.tenantScoped;
   const tenantChain = options?.tenantChain ?? def.tenantChain ?? null;
@@ -223,7 +224,7 @@ export function createCrudHandlers(
       const { data: rows, total } = await db.list({ where, orderBy, limit, after, include });
       const data = rows.map((row) =>
         narrowRelationFields(def.relations, stripHiddenFields(table, row)),
-      );
+      ) as TModel['table']['$response'][];
 
       // Compute nextCursor: if we got a full page, there may be more rows
       const pkColumn = resolvePrimaryKeyColumn(table);
@@ -256,7 +257,10 @@ export function createCrudHandlers(
 
       return ok({
         status: 200,
-        body: narrowRelationFields(def.relations, stripHiddenFields(table, row)),
+        body: narrowRelationFields(
+          def.relations,
+          stripHiddenFields(table, row),
+        ) as TModel['table']['$response'],
       });
     },
 
@@ -325,7 +329,10 @@ export function createCrudHandlers(
         }
       }
 
-      return ok({ status: 201, body: narrowRelationFields(def.relations, strippedResult) });
+      return ok({
+        status: 201,
+        body: narrowRelationFields(def.relations, strippedResult) as TModel['table']['$response'],
+      });
     },
 
     async update(ctx, id, data) {
@@ -364,7 +371,7 @@ export function createCrudHandlers(
 
       return ok({
         status: 200,
-        body: narrowRelationFields(def.relations, strippedResult),
+        body: narrowRelationFields(def.relations, strippedResult) as TModel['table']['$response'],
       });
     },
 
