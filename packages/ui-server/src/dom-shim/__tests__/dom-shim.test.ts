@@ -33,6 +33,40 @@ function testCtx(url: string): SSRRenderContext {
 }
 
 describe('DOM Shim', () => {
+  beforeEach(() => {
+    // Ensure clean state — other test files may leave the shim installed,
+    // which poisons the savedGlobals snapshot in installDomShim().
+    // Force-clean all shim globals so the next installDomShim() starts fresh.
+    removeDomShim();
+    for (const g of [
+      'document',
+      'window',
+      'Node',
+      'HTMLElement',
+      'HTMLAnchorElement',
+      'HTMLDivElement',
+      'HTMLInputElement',
+      'HTMLButtonElement',
+      'HTMLSelectElement',
+      'HTMLTextAreaElement',
+      'DocumentFragment',
+      'MouseEvent',
+      'Event',
+      'localStorage',
+      'sessionStorage',
+      'IntersectionObserver',
+      'ResizeObserver',
+      'MutationObserver',
+      'requestAnimationFrame',
+      'cancelAnimationFrame',
+      'requestIdleCallback',
+      'cancelIdleCallback',
+      'CustomEvent',
+    ] as const) {
+      delete (globalThis as Record<string, unknown>)[g];
+    }
+  });
+
   afterEach(() => {
     removeDomShim();
   });
