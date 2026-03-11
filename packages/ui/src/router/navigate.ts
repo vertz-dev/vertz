@@ -8,7 +8,13 @@
 import { signal } from '../runtime/signal';
 import type { Signal } from '../runtime/signal-types';
 import { getSSRContext } from '../ssr/ssr-render-context';
-import type { RouteConfigLike, RouteDefinitionMap, RouteMatch, TypedRoutes } from './define-routes';
+import type {
+  CompiledRoute,
+  RouteConfigLike,
+  RouteDefinitionMap,
+  RouteMatch,
+  TypedRoutes,
+} from './define-routes';
 import { matchRoute } from './define-routes';
 import { executeLoaders } from './loader';
 import type { ExtractParams, RoutePattern } from './params';
@@ -190,19 +196,38 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
   // The current/searchParams use SSR-aware getters so that module-level
   // routers (created once at import time) return per-request route matches
   // when accessed inside ssrStorage.run() during SSR rendering.
+  //
+  // Route discovery is deferred to getter access (not module-level) because
+  // createRouter() may run at import time, outside any SSR context. The
+  // getters run during rendering, inside ssrStorage.run(), where the context
+  // is available.
   if (isSSR || typeof window === 'undefined') {
     const ssrUrl = initialUrl ?? ssrCtx?.url ?? '/';
     const fallbackMatch = matchRoute(routes, ssrUrl);
+
+    /** Register route patterns with SSR context for build-time discovery. */
+    function registerRoutesForDiscovery(ctx: NonNullable<typeof ssrCtx>): void {
+      if (!ctx.discoveredRoutes) {
+        ctx.discoveredRoutes = collectRoutePatterns(routes);
+      }
+    }
+
     return {
       current: {
         get value(): RouteMatch | null {
           const ctx = getSSRContext();
-          if (ctx) return matchRoute(routes, ctx.url);
+          if (ctx) {
+            registerRoutesForDiscovery(ctx);
+            return matchRoute(routes, ctx.url);
+          }
           return fallbackMatch;
         },
         peek(): RouteMatch | null {
           const ctx = getSSRContext();
-          if (ctx) return matchRoute(routes, ctx.url);
+          if (ctx) {
+            registerRoutesForDiscovery(ctx);
+            return matchRoute(routes, ctx.url);
+          }
           return fallbackMatch;
         },
         notify() {},
@@ -267,7 +292,12 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
   const current = {
     get value(): RouteMatch | null {
       const ctx = getSSRContext();
-      if (ctx) return matchRoute(routes, ctx.url);
+      if (ctx) {
+        if (!ctx.discoveredRoutes) {
+          ctx.discoveredRoutes = collectRoutePatterns(routes);
+        }
+        return matchRoute(routes, ctx.url);
+      }
       return _current.value;
     },
     set value(v: RouteMatch | null) {
@@ -275,7 +305,12 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     },
     peek(): RouteMatch | null {
       const ctx = getSSRContext();
-      if (ctx) return matchRoute(routes, ctx.url);
+      if (ctx) {
+        if (!ctx.discoveredRoutes) {
+          ctx.discoveredRoutes = collectRoutePatterns(routes);
+        }
+        return matchRoute(routes, ctx.url);
+      }
       return _current.peek();
     },
     notify() {
@@ -481,4 +516,24 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     revalidate,
     searchParams,
   } as Router<T>;
+}
+
+/** Recursively collect all route patterns, concatenating parent + child paths. */
+function collectRoutePatterns(routes: CompiledRoute[], prefix = ''): string[] {
+  const patterns: string[] = [];
+  for (const route of routes) {
+    const fullPattern = joinPatterns(prefix, route.pattern);
+    patterns.push(fullPattern);
+    if (route.children) {
+      patterns.push(...collectRoutePatterns(route.children, fullPattern));
+    }
+  }
+  return patterns;
+}
+
+/** Join parent and child route patterns, handling trailing/leading slashes. */
+function joinPatterns(parent: string, child: string): string {
+  if (!parent || parent === '/') return child;
+  if (child === '/') return parent;
+  return `${parent.replace(/\/$/, '')}/${child.replace(/^\//, '')}`;
 }

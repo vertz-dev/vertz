@@ -61,9 +61,11 @@ export function validateBuildOutputs(projectRoot: string, appType: AppType): Res
   }
 
   if (appType === 'ui-only' || appType === 'full-stack') {
+    // Check for _shell.html (new) or index.html (legacy) as SSR template
+    const shellHtml = join(projectRoot, 'dist', 'client', '_shell.html');
     const clientHtml = join(projectRoot, 'dist', 'client', 'index.html');
-    if (!existsSync(clientHtml)) {
-      missing.push('dist/client/index.html');
+    if (!existsSync(shellHtml) && !existsSync(clientHtml)) {
+      missing.push('dist/client/_shell.html');
     }
 
     const ssrModule = discoverSSRModule(projectRoot);
@@ -184,7 +186,10 @@ async function startUIOnly(
   if (!ssrModulePath) {
     return err(new Error('No SSR module found in dist/server/. Run "vertz build" first.'));
   }
-  const templatePath = resolve(projectRoot, 'dist', 'client', 'index.html');
+  // Prefer _shell.html (new), fall back to index.html (legacy)
+  const shellPath = resolve(projectRoot, 'dist', 'client', '_shell.html');
+  const legacyPath = resolve(projectRoot, 'dist', 'client', 'index.html');
+  const templatePath = existsSync(shellPath) ? shellPath : legacyPath;
   const template = readFileSync(templatePath, 'utf-8');
 
   let ssrModule: import('@vertz/ui-server/ssr').SSRModule;
@@ -217,11 +222,20 @@ async function startUIOnly(
       const url = new URL(req.url);
       const pathname = url.pathname;
 
-      // Serve static files from dist/client/
+      // Nav pre-fetch always goes through SSR (for query discovery)
+      if (req.headers.get('x-vertz-nav') === '1') {
+        return ssrHandler(req);
+      }
+
+      // Serve static assets (JS, CSS, images)
       const staticResponse = serveStaticFile(clientDir, pathname);
       if (staticResponse) return staticResponse;
 
-      // Everything else → SSR
+      // Check for pre-rendered HTML
+      const prerenderResponse = servePrerenderHTML(clientDir, pathname);
+      if (prerenderResponse) return prerenderResponse;
+
+      // Fallback: runtime SSR
       return ssrHandler(req);
     },
   });
@@ -266,7 +280,10 @@ async function startFullStack(
   if (!ssrModulePath) {
     return err(new Error('No SSR module found in dist/server/. Run "vertz build" first.'));
   }
-  const templatePath = resolve(projectRoot, 'dist', 'client', 'index.html');
+  // Prefer _shell.html (new), fall back to index.html (legacy)
+  const shellPath = resolve(projectRoot, 'dist', 'client', '_shell.html');
+  const legacyPath = resolve(projectRoot, 'dist', 'client', 'index.html');
+  const templatePath = existsSync(shellPath) ? shellPath : legacyPath;
   const template = readFileSync(templatePath, 'utf-8');
 
   let ssrModule: import('@vertz/ui-server/ssr').SSRModule;
@@ -303,11 +320,20 @@ async function startFullStack(
         return apiHandler(req);
       }
 
-      // Static files
+      // Nav pre-fetch always goes through SSR (for query discovery)
+      if (req.headers.get('x-vertz-nav') === '1') {
+        return ssrHandler(req);
+      }
+
+      // Static assets
       const staticResponse = serveStaticFile(clientDir, pathname);
       if (staticResponse) return staticResponse;
 
-      // SSR fallback
+      // Pre-rendered HTML
+      const prerenderResponse = servePrerenderHTML(clientDir, pathname);
+      if (prerenderResponse) return prerenderResponse;
+
+      // Runtime SSR fallback
       return ssrHandler(req);
     },
   });
@@ -336,6 +362,34 @@ export function discoverInlineCSS(projectRoot: string): Record<string, string> |
     result[`/assets/${file}`] = content;
   }
   return result;
+}
+
+/**
+ * Serve pre-rendered HTML for a route.
+ * Checks for dist/client/<pathname>/index.html or dist/client/index.html for /.
+ * Returns null if no pre-rendered file exists.
+ */
+export function servePrerenderHTML(clientDir: string, pathname: string): Response | null {
+  const htmlPath =
+    pathname === '/'
+      ? resolve(clientDir, 'index.html')
+      : resolve(clientDir, `${pathname.replace(/^\//, '')}/index.html`);
+
+  // Path traversal guard
+  if (!htmlPath.startsWith(clientDir)) return null;
+
+  // Skip _shell.html — that's the SSR template, not a pre-rendered page
+  if (htmlPath.endsWith('/_shell.html')) return null;
+
+  const file = Bun.file(htmlPath);
+  if (!file.size) return null;
+
+  return new Response(file, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'public, max-age=0, must-revalidate',
+    },
+  });
 }
 
 /**

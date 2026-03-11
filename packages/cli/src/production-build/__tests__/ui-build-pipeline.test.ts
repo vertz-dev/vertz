@@ -27,6 +27,19 @@ vi.mock('@vertz/ui-server/bun-plugin', () => {
   };
 });
 
+// Mock @vertz/ui-server/ssr to prevent the real SSR module from installing a DOM shim.
+// The real `discoverRoutes` calls `ssrRenderToString` → `installDomShim()` which sets a
+// fake `window` on globalThis. If `resolveAppFactory` throws (because the test's mock
+// Bun.build writes a non-module file), the DOM shim remains installed and pollutes
+// subsequent test files (e.g., pglite tests that check `window.encodeURIComponent`).
+vi.mock('@vertz/ui-server/ssr', () => {
+  return {
+    discoverRoutes: async () => [],
+    filterPrerenderableRoutes: (patterns: string[]) => patterns,
+    prerenderRoutes: async () => [],
+  };
+});
+
 // We need to mock Bun.build since we can't run the real bundler in tests
 const mockBunBuild = vi.fn();
 
@@ -113,7 +126,7 @@ describe('buildUI', () => {
     expect(result.durationMs).toBeGreaterThan(0);
 
     // Verify output structure
-    expect(existsSync(join(tmpDir, 'dist', 'client', 'index.html'))).toBe(true);
+    expect(existsSync(join(tmpDir, 'dist', 'client', '_shell.html'))).toBe(true);
     expect(existsSync(join(tmpDir, 'dist', 'client', 'assets'))).toBe(true);
     expect(existsSync(join(tmpDir, 'dist', 'server'))).toBe(true);
   });
@@ -137,7 +150,7 @@ describe('buildUI', () => {
   it('should generate HTML with hashed JS script tag', async () => {
     await buildUI(config);
 
-    const html = readFileSync(join(tmpDir, 'dist', 'client', 'index.html'), 'utf-8');
+    const html = readFileSync(join(tmpDir, 'dist', 'client', '_shell.html'), 'utf-8');
     expect(html).toContain('crossorigin');
     expect(html).toContain('.js"></script>');
     expect(html).not.toContain('entry-client.ts');
@@ -146,28 +159,28 @@ describe('buildUI', () => {
   it('should generate HTML with CSS link tags', async () => {
     await buildUI(config);
 
-    const html = readFileSync(join(tmpDir, 'dist', 'client', 'index.html'), 'utf-8');
+    const html = readFileSync(join(tmpDir, 'dist', 'client', '_shell.html'), 'utf-8');
     expect(html).toContain('<link rel="stylesheet" href="/assets/vertz.css">');
   });
 
   it('should generate HTML with default title', async () => {
     await buildUI(config);
 
-    const html = readFileSync(join(tmpDir, 'dist', 'client', 'index.html'), 'utf-8');
+    const html = readFileSync(join(tmpDir, 'dist', 'client', '_shell.html'), 'utf-8');
     expect(html).toContain('<title>Vertz App</title>');
   });
 
   it('should generate HTML with custom title', async () => {
     await buildUI({ ...config, title: 'My Todo App' });
 
-    const html = readFileSync(join(tmpDir, 'dist', 'client', 'index.html'), 'utf-8');
+    const html = readFileSync(join(tmpDir, 'dist', 'client', '_shell.html'), 'utf-8');
     expect(html).toContain('<title>My Todo App</title>');
   });
 
   it('should generate valid HTML structure', async () => {
     await buildUI(config);
 
-    const html = readFileSync(join(tmpDir, 'dist', 'client', 'index.html'), 'utf-8');
+    const html = readFileSync(join(tmpDir, 'dist', 'client', '_shell.html'), 'utf-8');
     expect(html).toContain('<!doctype html>');
     expect(html).toContain('<div id="app"></div>');
     expect(html).toContain('<meta charset="UTF-8"');
@@ -177,7 +190,7 @@ describe('buildUI', () => {
   it('should not contain any dev-only artifacts in HTML', async () => {
     await buildUI(config);
 
-    const html = readFileSync(join(tmpDir, 'dist', 'client', 'index.html'), 'utf-8');
+    const html = readFileSync(join(tmpDir, 'dist', 'client', '_shell.html'), 'utf-8');
     expect(html).not.toContain('fast-refresh-runtime');
     expect(html).not.toContain('Fast Refresh runtime');
     expect(html).not.toContain('./public/');

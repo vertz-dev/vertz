@@ -12,7 +12,7 @@ import { compileTheme, type FontFallbackMetrics, type PreloadItem } from '@vertz
 import { escapeAttr } from './html-serializer';
 import type { SSRModule } from './ssr-render';
 import { ssrRenderToString, ssrStreamNavQueries } from './ssr-render';
-import { safeSerialize } from './ssr-streaming-runtime';
+import { injectIntoTemplate } from './template-inject';
 
 export interface SSRHandlerOptions {
   /** The loaded SSR module (import('./dist/server/index.js')) */
@@ -45,48 +45,6 @@ export interface SSRHandlerOptions {
   modulepreload?: string[];
   /** Cache-Control header for HTML responses. Omit or undefined = no header (safe default). */
   cacheControl?: string;
-}
-
-/**
- * Inject SSR output into the HTML template.
- *
- * Replaces <!--ssr-outlet--> or <div id="app"> content with rendered HTML,
- * injects CSS before </head>, and ssrData before </body>.
- */
-function injectIntoTemplate(
-  template: string,
-  appHtml: string,
-  appCss: string,
-  ssrData: Array<{ key: string; data: unknown }>,
-  nonce?: string,
-  headTags?: string,
-): string {
-  // Inject app HTML: try <!--ssr-outlet--> first, then <div id="app">
-  let html: string;
-  if (template.includes('<!--ssr-outlet-->')) {
-    html = template.replace('<!--ssr-outlet-->', appHtml);
-  } else {
-    html = template.replace(/(<div[^>]*id="app"[^>]*>)([\s\S]*?)(<\/div>)/, `$1${appHtml}$3`);
-  }
-
-  // Inject head tags (e.g., font preloads) before CSS
-  if (headTags) {
-    html = html.replace('</head>', `${headTags}\n</head>`);
-  }
-
-  // Inject CSS before </head>
-  if (appCss) {
-    html = html.replace('</head>', `${appCss}\n</head>`);
-  }
-
-  // Inject SSR data for client-side hydration before </body>
-  if (ssrData.length > 0) {
-    const nonceAttr = nonce != null ? ` nonce="${nonce}"` : '';
-    const ssrDataScript = `<script${nonceAttr}>window.__VERTZ_SSR_DATA__=${safeSerialize(ssrData)};</script>`;
-    html = html.replace('</body>', `${ssrDataScript}\n</body>`);
-  }
-
-  return html;
 }
 
 /**

@@ -972,4 +972,56 @@ describe('createRouter SSR', () => {
     router.current.notify();
     router.searchParams.notify();
   });
+
+  test('SSR router writes discoveredRoutes lazily on first getter access', () => {
+    const ctx = enableTestSSR(createTestSSRContext('/'));
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': { component: () => document.createElement('div') },
+      '/users/:id': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes);
+
+    // Not set at createRouter() time — deferred to getter access
+    expect(ctx.discoveredRoutes).toBeUndefined();
+
+    // Trigger lazy discovery
+    router.current.value;
+
+    expect(ctx.discoveredRoutes).toBeDefined();
+    expect(ctx.discoveredRoutes).toContain('/');
+    expect(ctx.discoveredRoutes).toContain('/about');
+    expect(ctx.discoveredRoutes).toContain('/users/:id');
+  });
+
+  test('SSR router discovers nested children as full paths', () => {
+    const ctx = enableTestSSR(createTestSSRContext('/'));
+    const routes = defineRoutes({
+      '/docs': {
+        component: () => document.createElement('div'),
+        children: {
+          '/': { component: () => document.createElement('div') },
+          '/:slug': { component: () => document.createElement('div') },
+        },
+      },
+    });
+    const router = createRouter(routes);
+
+    // Trigger lazy discovery
+    router.current.value;
+
+    expect(ctx.discoveredRoutes).toContain('/docs');
+    expect(ctx.discoveredRoutes).toContain('/docs/:slug');
+  });
+
+  test('SSR router does not write discoveredRoutes without SSR context', () => {
+    disableTestSSR();
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+    });
+    // In browser environment (no SSR context), no discoveredRoutes
+    const router = createRouter(routes, '/');
+    // Just verify it doesn't crash — no context to inspect
+    expect(router.current.value).not.toBeNull();
+  });
 });
