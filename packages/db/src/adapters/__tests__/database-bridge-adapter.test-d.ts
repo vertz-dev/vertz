@@ -1,0 +1,88 @@
+/**
+ * Type-level tests for createDatabaseBridgeAdapter.
+ *
+ * Verifies that the bridge adapter correctly threads generic types from
+ * DatabaseClient through to EntityDbAdapter — typed inputs, typed outputs.
+ */
+import { describe, it } from 'bun:test';
+import type { Equal, Expect, Extends } from '../../__tests__/_type-helpers';
+import type { DatabaseClient } from '../../client/database';
+import { d } from '../../d';
+import type { EntityDbAdapter } from '../../types/adapter';
+import { createDatabaseBridgeAdapter } from '../database-bridge-adapter';
+
+// ---------------------------------------------------------------------------
+// Test fixtures
+// ---------------------------------------------------------------------------
+
+const usersTable = d.table('users', {
+  id: d.uuid().primary(),
+  name: d.text(),
+  email: d.text(),
+  createdAt: d.timestamp().readOnly().default('now'),
+});
+
+const models = { users: d.model(usersTable) };
+
+type UserEntry = (typeof models)['users'];
+type UserResponse = (typeof usersTable)['$response'];
+type UserCreateInput = (typeof usersTable)['$create_input'];
+type UserUpdateInput = (typeof usersTable)['$update_input'];
+
+declare const db: DatabaseClient<typeof models>;
+
+// ---------------------------------------------------------------------------
+// Bridge adapter returns correctly typed EntityDbAdapter
+// ---------------------------------------------------------------------------
+
+describe('createDatabaseBridgeAdapter type threading', () => {
+  it('returns EntityDbAdapter parameterized with the correct model entry', () => {
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    type _t1 = Expect<Extends<typeof adapter, EntityDbAdapter<UserEntry>>>;
+  });
+
+  it('get() returns typed response or null', () => {
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    type Result = Awaited<ReturnType<typeof adapter.get>>;
+    type _t1 = Expect<Equal<Result, UserResponse | null>>;
+  });
+
+  it('list() returns typed array with total', () => {
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    type Result = Awaited<ReturnType<typeof adapter.list>>;
+    type _t1 = Expect<Equal<Result, { data: UserResponse[]; total: number }>>;
+  });
+
+  it('create() accepts typed create input and returns typed response', () => {
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    type Input = Parameters<typeof adapter.create>[0];
+    type Result = Awaited<ReturnType<typeof adapter.create>>;
+    type _t1 = Expect<Equal<Input, UserCreateInput>>;
+    type _t2 = Expect<Equal<Result, UserResponse>>;
+  });
+
+  it('update() accepts typed update input and returns typed response', () => {
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    type Input = Parameters<typeof adapter.update>[1];
+    type Result = Awaited<ReturnType<typeof adapter.update>>;
+    type _t1 = Expect<Equal<Input, UserUpdateInput>>;
+    type _t2 = Expect<Equal<Result, UserResponse>>;
+  });
+
+  it('delete() returns typed response or null', () => {
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    type Result = Awaited<ReturnType<typeof adapter.delete>>;
+    type _t1 = Expect<Equal<Result, UserResponse | null>>;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Negative tests — invalid usage rejected
+// ---------------------------------------------------------------------------
+
+describe('createDatabaseBridgeAdapter rejects invalid usage', () => {
+  it('rejects a table name not in the models registry', () => {
+    // @ts-expect-error — 'posts' is not a registered model
+    createDatabaseBridgeAdapter(db, 'posts');
+  });
+});

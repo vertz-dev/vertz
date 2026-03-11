@@ -26,7 +26,6 @@ function createMockDelegate(
   return {
     get: async () => ok(null),
     getOrThrow: async () => ok(null as never),
-    getOrThrow: async () => ok(null as never),
     list: async () => ok([]),
     listAndCount: async () => ok({ data: [], total: 0 }),
     create: async () => ok({} as never),

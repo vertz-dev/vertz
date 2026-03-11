@@ -6,9 +6,47 @@
  * Part of the entity-query-builder unification (Phase 1).
  */
 
+import type { Result } from '@vertz/schema';
 import type { DatabaseClient } from '../client/database';
+import type { ReadError, WriteError } from '../errors';
 import type { ModelEntry } from '../schema/inference';
 import type { EntityDbAdapter } from '../types/adapter';
+
+// ---------------------------------------------------------------------------
+// BridgeDelegate — narrowed view of ModelDelegate for bridge adapter use.
+//
+// Widens input types to accept the structural shapes the bridge constructs.
+// ModelDelegate methods use bounded generics with deferred conditional types
+// (e.g., FilterType<EntryColumns<TEntry>>) that TypeScript can't evaluate for
+// generic TEntry. This interface uses Record<string, unknown> for those fields,
+// which is safe because the runtime delegate accepts Record<string, unknown>.
+// ---------------------------------------------------------------------------
+
+/** @internal */
+interface BridgeDelegate {
+  get(options?: {
+    readonly where?: Record<string, unknown>;
+    readonly include?: Record<string, unknown>;
+  }): Promise<Result<unknown, ReadError>>;
+
+  listAndCount(options?: {
+    readonly where?: Record<string, unknown>;
+    readonly orderBy?: Record<string, unknown>;
+    readonly limit?: number;
+    readonly include?: Record<string, unknown>;
+  }): Promise<Result<unknown, ReadError>>;
+
+  create(options: { readonly data: unknown }): Promise<Result<unknown, WriteError>>;
+
+  update(options: {
+    readonly where: Record<string, unknown>;
+    readonly data: unknown;
+  }): Promise<Result<unknown, WriteError>>;
+
+  delete(options: {
+    readonly where: Record<string, unknown>;
+  }): Promise<Result<unknown, WriteError>>;
+}
 
 /**
  * Creates an EntityDbAdapter backed by a DatabaseClient for a specific table.
@@ -21,18 +59,16 @@ export function createDatabaseBridgeAdapter<
   TModels extends Record<string, ModelEntry>,
   TName extends keyof TModels & string,
 >(db: DatabaseClient<TModels>, tableName: TName): EntityDbAdapter<TModels[TName]> {
-  type TEntry = TModels[TName];
-  type TResponse = TEntry['table']['$response'];
+  type TResponse = TModels[TName]['table']['$response'];
 
-  const delegate = db[tableName];
+  const delegate = db[tableName] as BridgeDelegate;
 
   return {
     async get(id, options?) {
-      const getOptions: Record<string, unknown> = { where: { id } };
-      if (options?.include) {
-        getOptions.include = options.include;
-      }
-      const result = await delegate.get(getOptions as never);
+      const result = await delegate.get({
+        where: { id },
+        ...(options?.include && { include: options.include }),
+      });
       if (!result.ok) {
         return null;
       }
@@ -40,20 +76,12 @@ export function createDatabaseBridgeAdapter<
     },
 
     async list(options?) {
-      const dbOptions: Record<string, unknown> = {};
-      if (options?.where) {
-        dbOptions.where = options.where;
-      }
-      if (options?.orderBy) {
-        dbOptions.orderBy = options.orderBy;
-      }
-      if (options?.limit !== undefined) {
-        dbOptions.limit = options.limit;
-      }
-      if (options?.include) {
-        dbOptions.include = options.include;
-      }
-      const result = await delegate.listAndCount(dbOptions as never);
+      const result = await delegate.listAndCount({
+        ...(options?.where && { where: options.where }),
+        ...(options?.orderBy && { orderBy: options.orderBy }),
+        ...(options?.limit !== undefined && { limit: options.limit }),
+        ...(options?.include && { include: options.include }),
+      });
       if (!result.ok) {
         throw result.error;
       }
@@ -61,7 +89,7 @@ export function createDatabaseBridgeAdapter<
     },
 
     async create(data) {
-      const result = await delegate.create({ data } as never);
+      const result = await delegate.create({ data });
       if (!result.ok) {
         throw result.error;
       }
@@ -69,7 +97,7 @@ export function createDatabaseBridgeAdapter<
     },
 
     async update(id, data) {
-      const result = await delegate.update({ where: { id }, data } as never);
+      const result = await delegate.update({ where: { id }, data });
       if (!result.ok) {
         throw result.error;
       }
@@ -77,7 +105,7 @@ export function createDatabaseBridgeAdapter<
     },
 
     async delete(id) {
-      const result = await delegate.delete({ where: { id } } as never);
+      const result = await delegate.delete({ where: { id } });
       if (!result.ok) {
         return null;
       }
