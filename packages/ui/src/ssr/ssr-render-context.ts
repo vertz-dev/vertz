@@ -26,6 +26,16 @@ export interface SSRRenderContext {
   errors: unknown[];
   /** Global per-query timeout override (ms). */
   globalSSRTimeout?: number;
+  /**
+   * Lazy route component Promises registered by RouterView during Pass 1.
+   * Keyed by CompiledRoute object identity to avoid pattern string collisions.
+   */
+  pendingRouteComponents?: Map<object, Promise<{ default: () => Node }>>;
+  /**
+   * Resolved sync factories, populated between Pass 1 and Pass 2.
+   * Keyed by CompiledRoute object identity.
+   */
+  resolvedComponents?: Map<object, () => Node>;
 }
 
 type SSRContextResolver = () => SSRRenderContext | undefined;

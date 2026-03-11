@@ -4,6 +4,7 @@ import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disp
 import { domEffect, signal } from '../runtime/signal';
 import type { DisposeFn, Signal } from '../runtime/signal-types';
 import { untrack } from '../runtime/tracking';
+import { getSSRContext } from '../ssr/ssr-render-context';
 import type { CompiledRoute, MatchedRoute } from './define-routes';
 import type { Router } from './navigate';
 import { OutletContext } from './outlet';
@@ -167,6 +168,11 @@ function buildLevels(matched: MatchedRoute[]): LevelState[] {
 /**
  * Build the inside-out component factory chain starting from `startAt` index.
  * Returns the factory for the component at `startAt` (which wraps all descendants).
+ *
+ * During SSR Pass 1, lazy (async) leaf components are called and their Promises
+ * registered into `ctx.pendingRouteComponents` for resolution between passes.
+ * During SSR Pass 2, pre-resolved sync factories from `ctx.resolvedComponents`
+ * are used instead of calling `route.component` again.
  */
 function buildInsideOutFactory(
   matched: MatchedRoute[],
@@ -174,9 +180,28 @@ function buildInsideOutFactory(
   startAt: number,
   router: Router,
 ): () => Node | Promise<{ default: () => Node }> {
-  // Start from the leaf and build upward to startAt
-  let factory: () => Node | Promise<{ default: () => Node }> =
-    matched[matched.length - 1]!.route.component;
+  const ssrCtx = getSSRContext();
+
+  // Resolve the leaf factory — may be swapped with a pre-resolved sync factory during SSR Pass 2
+  const leafRoute = matched[matched.length - 1]!.route;
+  let factory: () => Node | Promise<{ default: () => Node }> = leafRoute.component;
+
+  if (ssrCtx) {
+    // SSR Pass 2: use pre-resolved sync factory if available
+    const resolved = ssrCtx.resolvedComponents?.get(leafRoute);
+    if (resolved) {
+      factory = resolved;
+    } else {
+      // SSR Pass 1: call component to discover if it's async, register the Promise
+      const result = leafRoute.component();
+      if (result instanceof Promise) {
+        if (!ssrCtx.pendingRouteComponents) {
+          ssrCtx.pendingRouteComponents = new Map();
+        }
+        ssrCtx.pendingRouteComponents.set(leafRoute, result as Promise<{ default: () => Node }>);
+      }
+    }
+  }
 
   for (let i = matched.length - 2; i >= startAt; i--) {
     const level = levels[i]!;

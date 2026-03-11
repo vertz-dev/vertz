@@ -340,6 +340,121 @@ describe('ssrStreamNavQueries abort safety', () => {
   });
 });
 
+describe('SSR lazy route resolution', () => {
+  it('resolves lazy route components and includes content in SSR HTML', async () => {
+    const routes = defineRoutes({
+      '/': {
+        component: () => {
+          const el = document.createElement('div');
+          el.setAttribute('data-testid', 'home');
+          el.textContent = 'Home Page';
+          return el;
+        },
+      },
+      '/about': {
+        component: async () => ({
+          default: () => {
+            const el = document.createElement('div');
+            el.setAttribute('data-testid', 'about');
+            el.textContent = 'About Page Content';
+            return el;
+          },
+        }),
+      },
+    });
+
+    const module = {
+      default: () => {
+        const router = createRouter(routes);
+        const container = document.createElement('div');
+        RouterContext.Provider(router, () => {
+          container.appendChild(RouterView({ router }));
+        });
+        return container;
+      },
+    };
+
+    // SSR render for /about — lazy component should be resolved
+    const result = await ssrRenderToString(module, '/about');
+    expect(result.html).toContain('About Page Content');
+    expect(result.html).toContain('data-testid="about"');
+  });
+
+  it('sync routes still work unchanged alongside lazy routes', async () => {
+    const routes = defineRoutes({
+      '/': {
+        component: () => {
+          const el = document.createElement('div');
+          el.textContent = 'Home';
+          return el;
+        },
+      },
+      '/lazy': {
+        component: async () => ({
+          default: () => {
+            const el = document.createElement('div');
+            el.textContent = 'Lazy';
+            return el;
+          },
+        }),
+      },
+    });
+
+    const module = {
+      default: () => {
+        const router = createRouter(routes);
+        const container = document.createElement('div');
+        RouterContext.Provider(router, () => {
+          container.appendChild(RouterView({ router }));
+        });
+        return container;
+      },
+    };
+
+    // Sync route should work as before
+    const result = await ssrRenderToString(module, '/');
+    expect(result.html).toContain('Home');
+  });
+
+  it('timed-out lazy components fall back to empty container', async () => {
+    const routes = defineRoutes({
+      '/slow': {
+        component: () =>
+          new Promise<{ default: () => Node }>((resolve) =>
+            setTimeout(
+              () =>
+                resolve({
+                  default: () => {
+                    const el = document.createElement('div');
+                    el.textContent = 'Slow Content';
+                    return el;
+                  },
+                }),
+              10000,
+            ),
+          ),
+      },
+    });
+
+    const module = {
+      default: () => {
+        const router = createRouter(routes);
+        const container = document.createElement('div');
+        RouterContext.Provider(router, () => {
+          container.appendChild(RouterView({ router }));
+        });
+        return container;
+      },
+    };
+
+    // With a very short timeout, the lazy component should time out
+    const result = await ssrRenderToString(module, '/slow', { ssrTimeout: 10 });
+    // Should still produce valid HTML, just without the lazy content
+    expect(result.html).toBeDefined();
+    expect(result.html).not.toContain('Slow Content');
+  });
+});
+
 describe('per-request isolation', () => {
   it('concurrent ssrRenderToString calls do not interfere', async () => {
     const makeModule = (label: string) => ({
