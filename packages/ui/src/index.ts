@@ -158,6 +158,7 @@ export { untrack } from './runtime/tracking';
 // Entity store
 export type {
   EntityStoreOptions,
+  MergeSelectOptions,
   QueryEnvelope,
   RelationFieldDef,
   RelationSchema,
@@ -167,6 +168,7 @@ export {
   createOptimisticHandler,
   createTestStore,
   EntityStore,
+  FieldSelectionTracker,
   getEntityStore,
   getQueryEnvelopeStore,
   getRelationSchema,

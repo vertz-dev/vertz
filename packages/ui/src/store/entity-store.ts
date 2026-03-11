@@ -2,10 +2,11 @@ import { batch } from '../runtime/scheduler';
 import { computed, signal } from '../runtime/signal';
 import type { ReadonlySignal, Signal } from '../runtime/signal-types';
 import { untrack } from '../runtime/tracking';
+import { FieldSelectionTracker } from './field-selection-tracker';
 import { shallowEqual, shallowMerge } from './merge';
 import { normalizeEntity } from './normalize';
 import { QueryResultIndex } from './query-result-index';
-import type { EntityStoreOptions, SerializedStore } from './types';
+import type { EntityStoreOptions, MergeSelectOptions, SerializedStore } from './types';
 
 /**
  * Internal entry for each entity in the store.
@@ -22,6 +23,8 @@ interface EntityEntry {
   refCount: number;
   /** Timestamp when refCount dropped to 0, or null if still referenced. */
   orphanedAt: number | null;
+  /** Last plain (unwrapped) visible value — for shallowEqual dedup without Proxy interference. */
+  lastPlainVisible: Record<string, unknown> | null;
 }
 
 /**
@@ -34,6 +37,7 @@ export class EntityStore {
   private _entities = new Map<string, Map<string, EntityEntry>>();
   private _typeListeners = new Map<string, Set<() => void>>();
   private _queryIndices = new QueryResultIndex();
+  private _fieldTracker: FieldSelectionTracker | null = null;
 
   /** Public accessor for query indices — used by optimistic handlers and tests. */
   get queryIndices(): QueryResultIndex {
@@ -41,6 +45,9 @@ export class EntityStore {
   }
 
   constructor(options?: EntityStoreOptions) {
+    if (options?.devMode) {
+      this._fieldTracker = new FieldSelectionTracker();
+    }
     if (options?.initialData) {
       this.hydrate(options.initialData);
     }
@@ -66,6 +73,7 @@ export class EntityStore {
       layers: new Map(),
       refCount: 0,
       orphanedAt: null,
+      lastPlainVisible: null,
     };
     this._getOrCreateTypeMap(type).set(id, newEntry);
     return sig as ReadonlySignal<T | undefined>;
@@ -114,6 +122,31 @@ export class EntityStore {
   }
 
   /**
+   * Merge entities with field selection metadata.
+   * Registers the select set for dev-mode access warnings.
+   * In production (devMode: false), behaves identically to merge().
+   */
+  mergeWithSelect<T extends { id: string }>(
+    type: string,
+    data: T | T[],
+    selectOptions: MergeSelectOptions,
+  ): void {
+    if (this._fieldTracker) {
+      const items = Array.isArray(data) ? data : [data];
+      for (const item of items) {
+        this._fieldTracker.registerSelect(
+          type,
+          item.id,
+          selectOptions.fields,
+          selectOptions.querySource,
+        );
+      }
+    }
+
+    this.merge(type, data);
+  }
+
+  /**
    * Remove an entity from the store.
    * Triggers type change listeners and removes from query indices.
    */
@@ -134,6 +167,9 @@ export class EntityStore {
 
     // Clean up query indices
     this._queryIndices.removeEntity(id);
+
+    // Clean up field selection tracking
+    this._fieldTracker?.removeEntity(type, id);
 
     // Notify type change listeners
     this._notifyTypeChange(type);
@@ -249,7 +285,7 @@ export class EntityStore {
     if (!entry) return;
 
     entry.layers.set(mutationId, patch);
-    this._recomputeVisible(entry);
+    this._recomputeVisible(entry, type, id);
   }
 
   /**
@@ -289,7 +325,7 @@ export class EntityStore {
     const now = Date.now();
     let count = 0;
 
-    for (const [_type, typeMap] of this._entities) {
+    for (const [type, typeMap] of this._entities) {
       for (const [id, entry] of typeMap) {
         if (
           entry.refCount === 0 &&
@@ -300,6 +336,7 @@ export class EntityStore {
           entry.signal.value = undefined;
           typeMap.delete(id);
           this._queryIndices.removeEntity(id);
+          this._fieldTracker?.removeEntity(type, id);
           count++;
         }
       }
@@ -345,7 +382,7 @@ export class EntityStore {
     if (!entry) return;
 
     entry.layers.delete(mutationId);
-    this._recomputeVisible(entry);
+    this._recomputeVisible(entry, type, id);
   }
 
   /**
@@ -400,7 +437,7 @@ export class EntityStore {
 
     entry.base = normalized;
     entry.layers.delete(mutationId);
-    this._recomputeVisible(entry);
+    this._recomputeVisible(entry, type, id);
   }
 
   // --- Private helpers ---
@@ -417,16 +454,18 @@ export class EntityStore {
       const mergedBase = shallowMerge(entry.base, item);
       if (!shallowEqual(entry.base, mergedBase)) {
         entry.base = mergedBase;
-        this._recomputeVisible(entry);
+        this._recomputeVisible(entry, type, id);
       }
     } else {
-      const newSignal = signal(item);
+      const value = this._wrapWithFieldProxy(item, type, id);
+      const newSignal = signal(value);
       const newEntry: EntityEntry = {
         signal: newSignal,
         base: item,
         layers: new Map(),
         refCount: 0,
         orphanedAt: null,
+        lastPlainVisible: item,
       };
       this._getOrCreateTypeMap(type).set(id, newEntry);
       this._notifyTypeChange(type);
@@ -435,19 +474,37 @@ export class EntityStore {
 
   /**
    * Recompute the visible signal value from base + all layers.
+   * Uses lastPlainVisible for equality check to avoid triggering
+   * field selection Proxy warnings during internal store operations.
    */
-  private _recomputeVisible(entry: EntityEntry): void {
+  private _recomputeVisible(entry: EntityEntry, type?: string, id?: string): void {
     let visible = { ...entry.base };
     for (const patch of entry.layers.values()) {
       visible = shallowMerge(visible, patch);
     }
 
-    const current = entry.signal.peek();
-    if (current == null || !shallowEqual(current, visible)) {
+    // Compare against stored plain (unwrapped) visible to avoid Proxy interference.
+    const lastPlain = entry.lastPlainVisible;
+    if (lastPlain == null || !shallowEqual(lastPlain, visible)) {
+      entry.lastPlainVisible = visible;
+      const wrapped = type && id ? this._wrapWithFieldProxy(visible, type, id) : visible;
       untrack(() => {
-        entry.signal.value = visible;
+        entry.signal.value = wrapped;
       });
     }
+  }
+
+  /**
+   * Wrap entity in dev-mode Proxy for field selection warnings.
+   * No-op when devMode is off or no tracking exists.
+   */
+  private _wrapWithFieldProxy(
+    entity: Record<string, unknown>,
+    type: string,
+    id: string,
+  ): Record<string, unknown> {
+    if (!this._fieldTracker) return entity;
+    return this._fieldTracker.createDevProxy(entity, type, id);
   }
 
   private _getOrCreateTypeMap(type: string): Map<string, EntityEntry> {

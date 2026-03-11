@@ -7,6 +7,7 @@
 
 export { EntityStore } from './entity-store';
 export { getEntityStore, getQueryEnvelopeStore } from './entity-store-singleton';
+export { FieldSelectionTracker } from './field-selection-tracker';
 export { shallowEqual, shallowMerge } from './merge';
 export type { MutationEventBus } from './mutation-event-bus';
 export { createMutationEventBus } from './mutation-event-bus';
@@ -23,4 +24,4 @@ export {
   resetRelationSchemas_TEST_ONLY,
 } from './relation-registry';
 export { createTestStore } from './test-utils';
-export type { EntityStoreOptions, SerializedStore } from './types';
+export type { EntityStoreOptions, MergeSelectOptions, SerializedStore } from './types';

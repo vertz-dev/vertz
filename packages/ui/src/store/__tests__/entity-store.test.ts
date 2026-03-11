@@ -1135,3 +1135,158 @@ describe('EntityStore - on-demand eviction during merge', () => {
     expect(store.has('users', 'u1')).toBe(true); // never orphaned — survives
   });
 });
+
+describe('EntityStore - field selection tracking', () => {
+  it('mergeWithSelect registers select fields and wraps entities in dev proxies', () => {
+    const store = new EntityStore({ devMode: true });
+    store.mergeWithSelect(
+      'users',
+      [{ id: 'u1', name: 'Alice', email: 'a@test.com' }],
+      { fields: ['id', 'name', 'email'], querySource: 'GET:/users' },
+    );
+
+    const sig = store.get<{ id: string; name: string; bio?: string }>('users', 'u1');
+    const entity = sig.value!;
+
+    // Access selected field — no warning
+    const warnSpy = vi.fn();
+    const originalWarn = console.warn;
+    console.warn = warnSpy;
+
+    try {
+      expect(entity.name).toBe('Alice');
+      expect(warnSpy).not.toHaveBeenCalled();
+
+      // Access non-selected field — warning
+      const _bio = entity.bio;
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0][0]).toContain('bio');
+    } finally {
+      console.warn = originalWarn;
+    }
+  });
+
+  it('does not wrap entities in dev proxies when devMode is false', () => {
+    const store = new EntityStore({ devMode: false });
+    store.mergeWithSelect(
+      'users',
+      [{ id: 'u1', name: 'Alice' }],
+      { fields: ['id', 'name'], querySource: 'GET:/users' },
+    );
+
+    const sig = store.get<{ id: string; name: string; bio?: string }>('users', 'u1');
+    const entity = sig.value!;
+
+    const warnSpy = vi.fn();
+    const originalWarn = console.warn;
+    console.warn = warnSpy;
+
+    try {
+      const _bio = entity.bio;
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      console.warn = originalWarn;
+    }
+  });
+
+  it('regular merge does not trigger field selection warnings', () => {
+    const store = new EntityStore({ devMode: true });
+    store.merge('users', { id: 'u1', name: 'Alice' });
+
+    const sig = store.get<{ id: string; name: string; bio?: string }>('users', 'u1');
+    const entity = sig.value!;
+
+    const warnSpy = vi.fn();
+    const originalWarn = console.warn;
+    console.warn = warnSpy;
+
+    try {
+      const _bio = entity.bio;
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      console.warn = originalWarn;
+    }
+  });
+
+  it('merging unchanged data with select tracking does NOT produce spurious warnings', () => {
+    const store = new EntityStore({ devMode: true });
+    store.mergeWithSelect(
+      'users',
+      [{ id: 'u1', name: 'Alice' }],
+      { fields: ['id', 'name'], querySource: 'GET:/users' },
+    );
+
+    const warnSpy = vi.fn();
+    const originalWarn = console.warn;
+    console.warn = warnSpy;
+
+    try {
+      // Merge the same data again — should not produce any warnings
+      store.mergeWithSelect(
+        'users',
+        [{ id: 'u1', name: 'Alice' }],
+        { fields: ['id', 'name'], querySource: 'GET:/users' },
+      );
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      console.warn = originalWarn;
+    }
+  });
+
+  it('Proxy works correctly after applyLayer + rollbackLayer', () => {
+    const store = new EntityStore({ devMode: true });
+    store.mergeWithSelect(
+      'users',
+      [{ id: 'u1', name: 'Alice', email: 'a@test.com' }],
+      { fields: ['id', 'name', 'email'], querySource: 'GET:/users' },
+    );
+
+    // Apply optimistic layer
+    store.applyLayer('users', 'u1', 'mut-1', { name: 'Bob' });
+
+    const sig = store.get<{ id: string; name: string; bio?: string }>('users', 'u1');
+    expect(sig.value!.name).toBe('Bob');
+
+    const warnSpy = vi.fn();
+    const originalWarn = console.warn;
+    console.warn = warnSpy;
+
+    try {
+      // Access non-selected field on optimistic entity
+      const _bio = sig.value!.bio;
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      console.warn = originalWarn;
+    }
+
+    // Rollback — entity reverts
+    store.rollbackLayer('users', 'u1', 'mut-1');
+    expect(sig.value!.name).toBe('Alice');
+  });
+
+  it('Proxy works correctly after commitLayer with server data', () => {
+    const store = new EntityStore({ devMode: true });
+    store.mergeWithSelect(
+      'users',
+      [{ id: 'u1', name: 'Alice' }],
+      { fields: ['id', 'name'], querySource: 'GET:/users' },
+    );
+
+    store.applyLayer('users', 'u1', 'mut-1', { name: 'Bob' });
+    store.commitLayer('users', 'u1', 'mut-1', { id: 'u1', name: 'Bob' });
+
+    const sig = store.get<{ id: string; name: string; bio?: string }>('users', 'u1');
+    expect(sig.value!.name).toBe('Bob');
+
+    const warnSpy = vi.fn();
+    const originalWarn = console.warn;
+    console.warn = warnSpy;
+
+    try {
+      const _bio = sig.value!.bio;
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      console.warn = originalWarn;
+    }
+  });
+});
