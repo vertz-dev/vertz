@@ -109,6 +109,7 @@ export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
     // Collect output filenames for HTML injection
     let clientJsPath = '';
     const clientCssPaths: string[] = [];
+    const chunkPaths: string[] = [];
 
     for (const output of clientResult.outputs) {
       const name = output.path.replace(distClient, '');
@@ -116,10 +117,15 @@ export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
         clientJsPath = name;
       } else if (output.path.endsWith('.css')) {
         clientCssPaths.push(name);
+      } else if (output.kind === 'chunk' && output.path.endsWith('.js')) {
+        chunkPaths.push(name);
       }
     }
 
     console.log(`  JS entry: ${clientJsPath}`);
+    for (const chunk of chunkPaths) {
+      console.log(`  JS chunk: ${chunk}`);
+    }
     for (const css of clientCssPaths) {
       console.log(`  CSS: ${css}`);
     }
@@ -146,6 +152,10 @@ export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
       .map((path) => `    <link rel="stylesheet" href="${path}">`)
       .join('\n');
 
+    const modulepreloadLinks = chunkPaths
+      .map((path) => `    <link rel="modulepreload" href="${path}">`)
+      .join('\n');
+
     const html = `<!doctype html>
 <html lang="en">
   <head>
@@ -153,6 +163,7 @@ export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${title}</title>
 ${cssLinks}
+${modulepreloadLinks}
   </head>
   <body>
     <div id="app"></div>

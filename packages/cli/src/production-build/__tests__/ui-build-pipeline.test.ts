@@ -264,4 +264,39 @@ describe('buildUI', () => {
     const pluginNames = serverCall.plugins.map((p: { name: string }) => p.name);
     expect(pluginNames).toContain('vertz-ssr-jsx-swap');
   });
+
+  it('should inject modulepreload links for JS chunks in HTML shell', async () => {
+    // Mock client build to return entry + chunks
+    mockBunBuild
+      .mockImplementationOnce(async (opts: { outdir: string }) => {
+        mkdirSync(opts.outdir, { recursive: true });
+        const entryFile = join(opts.outdir, 'entry-client-abc123.js');
+        const chunk1 = join(opts.outdir, 'chunk-def456.js');
+        const chunk2 = join(opts.outdir, 'chunk-ghi789.js');
+        writeFileSync(entryFile, '// entry');
+        writeFileSync(chunk1, '// chunk 1');
+        writeFileSync(chunk2, '// chunk 2');
+        return {
+          success: true,
+          logs: [],
+          outputs: [
+            { path: entryFile, kind: 'entry-point' },
+            { path: chunk1, kind: 'chunk' },
+            { path: chunk2, kind: 'chunk' },
+          ],
+        };
+      })
+      .mockImplementationOnce(async (opts: { outdir: string; entrypoints: string[] }) => {
+        mkdirSync(opts.outdir, { recursive: true });
+        const jsFile = join(opts.outdir, 'app.js');
+        writeFileSync(jsFile, '// server');
+        return { success: true, logs: [], outputs: [{ path: jsFile, kind: 'entry-point' }] };
+      });
+
+    await buildUI(config);
+
+    const html = readFileSync(join(tmpDir, 'dist', 'client', '_shell.html'), 'utf-8');
+    expect(html).toContain('<link rel="modulepreload" href="/assets/chunk-def456.js">');
+    expect(html).toContain('<link rel="modulepreload" href="/assets/chunk-ghi789.js">');
+  });
 });
