@@ -42,3 +42,6 @@ export type {
   User,
 } from './auth-types';
 export { createAccessProvider } from './create-access-provider';
+// --- Route access rules ---
+export type { RouteAccessRule } from './route-rules';
+export { rules } from './route-rules';

@@ -17,8 +17,14 @@ export { createLink } from './link';
 export { executeLoaders } from './loader';
 export type { MatchResult } from './matcher';
 export { matchPath } from './matcher';
-export type { NavigateInput, NavigateOptions, Router, TypedRouter } from './navigate';
+export type { NavigateInput, NavigateOptions, Router, RouterOptions, TypedRouter } from './navigate';
 export { createRouter } from './navigate';
+export type {
+  RouteAccessContext,
+  RouteAccessDenialReason,
+  RouteAccessResult,
+} from './route-access';
+export { evaluateRouteAccess } from './route-access';
 export type { OutletContextValue } from './outlet';
 export { Outlet, OutletContext } from './outlet';
 export type { ExtractParams, PathWithParams, RoutePaths, RoutePattern } from './params';
