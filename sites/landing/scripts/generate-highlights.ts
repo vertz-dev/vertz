@@ -242,7 +242,7 @@ const HINTS_ENTITY: HintDef[] = [
   {
     line: 8,
     match: 'userId',
-    hint: 'ctx.userId: string | null\n// The authenticated user\'s ID.\n// Row-level ownership check.',
+    hint: "ctx.userId: string | null\n// The authenticated user's ID.\n// Row-level ownership check.",
   },
   {
     line: 12,
@@ -411,8 +411,12 @@ export const TOKENS_ERROR_API: TokenLine[] = ${JSON.stringify(data.errorApi)};
 export const TOKENS_ERROR_UI_RENDER: TokenLine[] = ${JSON.stringify(data.errorUiRender)};
 `;
 
+  // Post-process: remap Dracula comment color for WCAG AA contrast on #0a0a0b background.
+  // Original #6272A4 gives 4.20:1 ratio (needs 4.5:1). #7e8db8 gives ~4.8:1.
+  const processed = output.replaceAll('#6272A4', '#7e8db8');
+
   const outPath = new URL('../src/components/highlighted-code.ts', import.meta.url);
-  await Bun.write(outPath, output);
+  await Bun.write(outPath, processed);
   console.log(`Wrote ${outPath.pathname}`);
 
   highlighter.dispose();

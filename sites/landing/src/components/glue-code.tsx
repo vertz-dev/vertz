@@ -11,7 +11,7 @@ const s = css({
   codeBlock: ['border:1', 'rounded:lg', 'p:6', 'font:sm', 'leading:relaxed', 'bg:gray.950'],
   commentColor: ['text:gray.500'],
   fileColor: ['text:gray.400'],
-  descColor: ['text:gray.600'],
+  descColor: ['text:gray.400'],
   caption: ['font:sm', 'mt:4', 'text:center'],
 });
 
@@ -38,14 +38,14 @@ export function GlueCode() {
             </p>
             <div class={s.codeBlock} style="border-color: #1e1e22">
               {OLD_STACK.map((item) => (
-                <div key={item.file} style="font-family: var(--font-mono); color: #52525b">
+                <div key={item.file} style="font-family: var(--font-mono); color: #8b8b94">
                   <span class={s.commentColor}>{'// '}</span>
                   <span class={s.fileColor}>{item.file}</span>
                   <span class={s.descColor}> — {item.desc}</span>
                 </div>
               ))}
             </div>
-            <p class={s.caption} style="font-family: var(--font-mono); color: #52525b">
+            <p class={s.caption} style="font-family: var(--font-mono); color: #8b8b94">
               5 files. Same shape. Pray they stay in sync.
             </p>
           </div>
