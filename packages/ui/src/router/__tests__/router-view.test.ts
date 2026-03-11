@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test } from 'bun:test';
 import { onMount } from '../../component/lifecycle';
 import { __element, __enterChildren, __exitChildren } from '../../dom/element';
 import { endHydration, startHydration } from '../../hydrate/hydration-context';
+import { popScope, pushScope, runCleanups } from '../../runtime/disposal';
 import { createTestSSRContext, disableTestSSR, enableTestSSR } from '../../ssr/test-ssr-helpers';
 import { defineRoutes } from '../define-routes';
 import { createRouter } from '../navigate';
@@ -862,5 +863,158 @@ describe('RouterView', () => {
     } finally {
       disableTestSSR();
     }
+  });
+
+  test('SSR Pass 1: lazy parent registers pending components and probes lazy children', () => {
+    const ctx = createTestSSRContext('/app/settings');
+    enableTestSSR(ctx);
+    try {
+      const routes = defineRoutes({
+        '/app': {
+          component: () =>
+            Promise.resolve({
+              default: () => {
+                const layout = document.createElement('div');
+                layout.appendChild(Outlet());
+                return layout;
+              },
+            }),
+          children: {
+            '/settings': {
+              component: () =>
+                Promise.resolve({
+                  default: () => {
+                    const page = document.createElement('div');
+                    page.textContent = 'Settings';
+                    return page;
+                  },
+                }),
+            },
+          },
+        },
+      });
+      const router = createRouter(routes, '/app/settings');
+      RouterContext.Provider(router, () => {
+        RouterView({ router });
+      });
+      // Pass 1 should have registered both lazy parent and lazy child
+      expect(ctx.pendingRouteComponents).toBeDefined();
+      expect(ctx.pendingRouteComponents!.size).toBe(2);
+      router.dispose();
+    } finally {
+      disableTestSSR();
+    }
+  });
+
+  test('SSR Pass 1: lazy parent probes sync children without registering them', () => {
+    const ctx = createTestSSRContext('/app/settings');
+    enableTestSSR(ctx);
+    try {
+      const routes = defineRoutes({
+        '/app': {
+          component: () =>
+            Promise.resolve({
+              default: () => {
+                const layout = document.createElement('div');
+                layout.appendChild(Outlet());
+                return layout;
+              },
+            }),
+          children: {
+            '/settings': {
+              component: () => {
+                const page = document.createElement('div');
+                page.textContent = 'Settings';
+                return page;
+              },
+            },
+          },
+        },
+      });
+      const router = createRouter(routes, '/app/settings');
+      RouterContext.Provider(router, () => {
+        RouterView({ router });
+      });
+      // Only the lazy parent should be registered, not the sync child
+      expect(ctx.pendingRouteComponents).toBeDefined();
+      expect(ctx.pendingRouteComponents!.size).toBe(1);
+      router.dispose();
+    } finally {
+      disableTestSSR();
+    }
+  });
+
+  test('SSR Pass 2: uses pre-resolved component from resolvedComponents map', () => {
+    let rawComponentCalled = false;
+    const routes = defineRoutes({
+      '/about': {
+        component: () => {
+          rawComponentCalled = true;
+          return Promise.resolve({
+            default: () => {
+              const el = document.createElement('div');
+              el.textContent = 'Lazy About';
+              return el;
+            },
+          });
+        },
+      },
+    });
+    const router = createRouter(routes, '/about');
+    const compiledRoute = router.current.value!.matched[0]!.route;
+
+    const ctx = createTestSSRContext('/about');
+    ctx.resolvedComponents = new Map();
+    ctx.resolvedComponents.set(compiledRoute, () => {
+      const el = document.createElement('div');
+      el.textContent = 'Pre-resolved About';
+      return el;
+    });
+    enableTestSSR(ctx);
+    try {
+      let view: HTMLElement;
+      RouterContext.Provider(router, () => {
+        view = RouterView({ router });
+      });
+      // Pass 2 should use the pre-resolved component, not call the raw lazy one
+      expect(rawComponentCalled).toBe(false);
+      expect(view!.textContent).toBe('Pre-resolved About');
+      router.dispose();
+    } finally {
+      disableTestSSR();
+    }
+  });
+
+  test('RouterView cleanup runs on parent scope disposal', () => {
+    let pageCleanedUp = false;
+    const routes = defineRoutes({
+      '/': {
+        component: () => {
+          onMount(() => {
+            return () => {
+              pageCleanedUp = true;
+            };
+          });
+          return document.createElement('div');
+        },
+      },
+    });
+    const router = createRouter(routes, '/');
+
+    // Create a parent scope so _tryOnCleanup registers the cleanup
+    const scope = pushScope();
+    let view: HTMLElement;
+    RouterContext.Provider(router, () => {
+      view = RouterView({ router });
+    });
+    popScope();
+
+    expect(view!.textContent).toBeDefined();
+    expect(pageCleanedUp).toBe(false);
+
+    // Run parent scope cleanups — triggers _tryOnCleanup which disposes RouterView
+    runCleanups(scope);
+    expect(pageCleanedUp).toBe(true);
+    router.dispose();
   });
 });

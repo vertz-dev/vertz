@@ -185,8 +185,44 @@ export async function ssrRenderToString(
         }
       }
 
-      // Pass 1: Discovery — triggers query() registrations
+      // Pass 1: Discovery — triggers query() registrations and lazy route component discovery
       createApp();
+
+      // Resolve lazy route components discovered during Pass 1.
+      // Always set resolvedComponents (even if empty) so Pass 2's
+      // buildInsideOutFactory knows it's Pass 2 and skips the pre-scan.
+      const store = ssrStorage.getStore();
+      if (store) {
+        if (store.pendingRouteComponents?.size) {
+          const entries = Array.from(store.pendingRouteComponents.entries());
+          const results = await Promise.allSettled(
+            entries.map(([route, promise]) =>
+              Promise.race([
+                promise.then((mod) => ({ route, factory: mod.default })),
+                new Promise((_, reject) =>
+                  setTimeout(() => reject(new Error('lazy route timeout')), ssrTimeout),
+                ),
+              ]),
+            ),
+          );
+          store.resolvedComponents = new Map();
+          for (const result of results) {
+            if (result.status === 'fulfilled') {
+              const { route, factory } = result.value as {
+                route: object;
+                factory: () => Node;
+              };
+              store.resolvedComponents.set(route, factory);
+            }
+          }
+          // Clear pending so Pass 2 doesn't re-register
+          store.pendingRouteComponents = undefined;
+        }
+        // Always mark resolvedComponents so Pass 2 skips discovery pre-scan
+        if (!store.resolvedComponents) {
+          store.resolvedComponents = new Map();
+        }
+      }
 
       // Await registered SSR queries with per-query timeouts
       const queries = getSSRQueries();
@@ -205,7 +241,6 @@ export async function ssrRenderToString(
           ),
         );
         // Clear queries before Pass 2 to avoid double-registration
-        const store = ssrStorage.getStore();
         if (store) store.queries = [];
       }
 
