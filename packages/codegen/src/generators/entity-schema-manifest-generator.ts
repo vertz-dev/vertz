@@ -6,13 +6,19 @@ import type {
   GeneratorConfig,
 } from '../types';
 
+export interface EntitySchemaRelation {
+  type: 'one' | 'many';
+  entity: string;
+  selection: 'all' | string[];
+}
+
 export interface EntitySchemaManifestEntry {
   table?: string;
   primaryKey?: string;
   tenantScoped: boolean;
   hiddenFields: string[];
   fields: string[];
-  relations: Record<string, { type: 'one' | 'many'; entity: string; selection: 'all' | string[] }>;
+  relations: Record<string, EntitySchemaRelation>;
 }
 
 export type EntitySchemaManifest = Record<string, EntitySchemaManifestEntry>;
