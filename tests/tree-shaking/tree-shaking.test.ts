@@ -109,7 +109,12 @@ const aliases: Record<string, string> = {
   ...Object.fromEntries(Object.entries(SUBPATH_ALIASES).map(([k, v]) => [k, path.join(ROOT, v)])),
 };
 
-async function bundleSize(code: string, name: string): Promise<number> {
+interface BundleResult {
+  size: number;
+  warnings: esbuild.Message[];
+}
+
+async function bundleWithWarnings(code: string, name: string): Promise<BundleResult> {
   const entry = path.join(TMP, `${name}.ts`);
   fs.writeFileSync(entry, code);
   const result = await esbuild.build({
@@ -124,7 +129,12 @@ async function bundleSize(code: string, name: string): Promise<number> {
     alias: aliases,
     minify: false,
   });
-  return result.outputFiles[0].contents.byteLength;
+  return { size: result.outputFiles[0].contents.byteLength, warnings: result.warnings };
+}
+
+async function bundleSize(code: string, name: string): Promise<number> {
+  const { size } = await bundleWithWarnings(code, name);
+  return size;
 }
 
 beforeAll(() => {
@@ -164,4 +174,20 @@ describe('tree-shaking', () => {
       ).toBeLessThan(MAX_RATIO);
     });
   }
+});
+
+describe('tree-shaking warnings', () => {
+  it('@vertz/ui-primitives — single import builds without ignored-bare-import warnings', async () => {
+    const pkg = PACKAGES.find((p) => p.name === '@vertz/ui-primitives');
+    if (!pkg) throw new Error('missing @vertz/ui-primitives in PACKAGES');
+    const safeName = pkg.name.replace(/[/@]/g, '_');
+    const { warnings } = await bundleWithWarnings(pkg.singleImport, `warn-${safeName}`);
+
+    const bareImportWarnings = warnings.filter((w) => w.id === 'ignored-bare-import');
+
+    expect(
+      bareImportWarnings,
+      `Expected no ignored-bare-import warnings but got ${bareImportWarnings.length}`,
+    ).toHaveLength(0);
+  });
 });
