@@ -19,7 +19,7 @@ const s = css({
   closing: ['font:lg', 'text:center', 'text:gray.400'],
 });
 
-export function ManifestoPage() {
+export default function ManifestoPage() {
   return (
     <div class={s.page}>
       <Nav />
