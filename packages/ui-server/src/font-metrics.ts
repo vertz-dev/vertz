@@ -8,7 +8,7 @@
  * Uses @capsizecss/unpack for font file parsing (pure JS, works in Bun + Node).
  */
 
-import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fromBuffer } from '@capsizecss/unpack';
 import type { FallbackFontName, FontDescriptor, FontFallbackMetrics } from '@vertz/ui';
@@ -73,7 +73,7 @@ export function detectFallbackFont(fallback: readonly string[]): FallbackFontNam
 // ─── Metric calculation ──────────────────────────────────────────
 
 function formatPercent(value: number): string {
-  return `${Math.abs(value * 100).toFixed(2)}%`;
+  return `${(value * 100).toFixed(2)}%`;
 }
 
 function computeFallbackMetrics(
@@ -86,7 +86,7 @@ function computeFallbackMetrics(
   },
   fallbackFont: FallbackFontName,
 ): FontFallbackMetrics {
-  const systemMetrics = SYSTEM_FONT_METRICS[fallbackFont as keyof typeof SYSTEM_FONT_METRICS];
+  const systemMetrics = SYSTEM_FONT_METRICS[fallbackFont];
 
   // size-adjust = fontAvgWidth / fallbackAvgWidth (normalized by UPM)
   const fontNormalizedWidth = fontMetrics.xWidthAvg / fontMetrics.unitsPerEm;
@@ -154,7 +154,7 @@ export async function extractFontMetrics(
 
     try {
       const filePath = resolveFilePath(srcPath, rootDir);
-      const buffer = readFileSync(filePath);
+      const buffer = await readFile(filePath);
       const metrics = await fromBuffer(buffer);
 
       // Determine fallback font

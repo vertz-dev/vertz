@@ -1552,6 +1552,13 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
           try {
             const freshMod: SSRModule = await import(`${ssrWrapperPath}?t=${Date.now()}`);
             ssrMod = freshMod;
+            if (freshMod.theme?.fonts) {
+              try {
+                fontFallbackMetrics = await extractFontMetrics(freshMod.theme.fonts, projectRoot);
+              } catch {
+                /* keep previous metrics on failure */
+              }
+            }
             const durationMs = Math.round(performance.now() - ssrReloadStart);
             diagnostics.recordSSRReload(true, durationMs);
             logger.log('watcher', 'ssr-reload', { status: 'ok', durationMs });
@@ -1572,6 +1579,13 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
             try {
               const freshMod: SSRModule = await import(`${ssrWrapperPath}?t=${Date.now()}`);
               ssrMod = freshMod;
+              if (freshMod.theme?.fonts) {
+                try {
+                  fontFallbackMetrics = await extractFontMetrics(freshMod.theme.fonts, projectRoot);
+                } catch {
+                  /* keep previous metrics on failure */
+                }
+              }
               const durationMs = Math.round(performance.now() - ssrReloadStart);
               diagnostics.recordSSRReload(true, durationMs);
               logger.log('watcher', 'ssr-reload', { status: 'ok', durationMs, retry: true });

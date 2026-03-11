@@ -148,20 +148,27 @@ function buildFontFace(
   return lines.join('\n');
 }
 
+const PERCENT_RE = /^\d+\.\d+%$/;
+
+/** Validate a metric override string matches the expected percentage format. */
+function sanitizeMetricValue(value: string): string {
+  if (!PERCENT_RE.test(value)) {
+    throw new Error(`Invalid font metric override value: "${value}"`);
+  }
+  return value;
+}
+
 /** Generate a fallback @font-face block with metric overrides for zero-CLS font loading. */
-function buildFallbackFontFace(
-  family: string,
-  metrics: FontFallbackMetrics,
-): string {
+function buildFallbackFontFace(family: string, metrics: FontFallbackMetrics): string {
   const safeFamily = sanitizeCssValue(family);
   const lines = [
     '@font-face {',
     `  font-family: '${safeFamily} Fallback';`,
-    `  src: local(${metrics.fallbackFont});`,
-    `  ascent-override: ${metrics.ascentOverride};`,
-    `  descent-override: ${metrics.descentOverride};`,
-    `  line-gap-override: ${metrics.lineGapOverride};`,
-    `  size-adjust: ${metrics.sizeAdjust};`,
+    `  src: local('${metrics.fallbackFont}');`,
+    `  ascent-override: ${sanitizeMetricValue(metrics.ascentOverride)};`,
+    `  descent-override: ${sanitizeMetricValue(metrics.descentOverride)};`,
+    `  line-gap-override: ${sanitizeMetricValue(metrics.lineGapOverride)};`,
+    `  size-adjust: ${sanitizeMetricValue(metrics.sizeAdjust)};`,
     '}',
   ];
   return lines.join('\n');
@@ -207,15 +214,12 @@ export function compileFonts(
 
     // Check if this font should get a fallback @font-face
     const metrics = fallbackMetrics?.[key];
-    const shouldGenerateFallback =
-      metrics && src && adjustFontFallback !== false;
+    const shouldGenerateFallback = metrics && src && adjustFontFallback !== false;
 
     // Build font family CSS var value: 'Family Name', ['Family Fallback',] fallback1, fallback2
     const safeFamily = sanitizeCssValue(family);
     const safeFallbacks = fallback.map(sanitizeCssValue);
-    const fallbackFontName = shouldGenerateFallback
-      ? `'${safeFamily} Fallback'`
-      : undefined;
+    const fallbackFontName = shouldGenerateFallback ? `'${safeFamily} Fallback'` : undefined;
     const familyParts = [
       `'${safeFamily}'`,
       ...(fallbackFontName ? [fallbackFontName] : []),

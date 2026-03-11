@@ -1,4 +1,5 @@
-import { describe, expect, it, spyOn } from 'bun:test';
+import { afterAll, describe, expect, it, spyOn } from 'bun:test';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { font } from '@vertz/ui';
 import { detectFallbackFont, extractFontMetrics } from '../font-metrics';
@@ -174,6 +175,28 @@ describe('extractFontMetrics()', () => {
     });
 
     const result = await extractFontMetrics({ sans }, FIXTURES_ROOT);
+    expect(result.sans).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[vertz]'), expect.any(String));
+
+    warnSpy.mockRestore();
+  });
+
+  it('logs a warning and skips when font file is corrupted', async () => {
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+
+    // Create a temporary corrupt font file
+    const tmpDir = join(import.meta.dir, '__tmp_corrupt__');
+    mkdirSync(tmpDir, { recursive: true });
+    writeFileSync(join(tmpDir, 'corrupt.woff2'), Buffer.from([0, 1, 2, 3, 4, 5]));
+    afterAll(() => rmSync(tmpDir, { recursive: true, force: true }));
+
+    const sans = font('DM Sans', {
+      weight: '100..1000',
+      src: '/corrupt.woff2',
+      fallback: ['sans-serif'],
+    });
+
+    const result = await extractFontMetrics({ sans }, tmpDir);
     expect(result.sans).toBeUndefined();
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[vertz]'), expect.any(String));
 

@@ -399,7 +399,7 @@ describe('compileFonts() with fallbackMetrics', () => {
     const result = compileFonts({ sans }, { fallbackMetrics: metrics });
 
     expect(result.fontFaceCss).toContain("font-family: 'DM Sans Fallback'");
-    expect(result.fontFaceCss).toContain('src: local(Arial)');
+    expect(result.fontFaceCss).toContain("src: local('Arial')");
     expect(result.fontFaceCss).toContain('ascent-override: 94.52%');
     expect(result.fontFaceCss).toContain('descent-override: 24.60%');
     expect(result.fontFaceCss).toContain('line-gap-override: 0.00%');
@@ -414,9 +414,7 @@ describe('compileFonts() with fallbackMetrics', () => {
     });
     const result = compileFonts({ sans }, { fallbackMetrics: metrics });
 
-    expect(result.cssVarLines[0]).toContain(
-      "'DM Sans', 'DM Sans Fallback', system-ui, sans-serif",
-    );
+    expect(result.cssVarLines[0]).toContain("'DM Sans', 'DM Sans Fallback', system-ui, sans-serif");
   });
 
   it('names the fallback font "<Family> Fallback"', () => {
@@ -436,7 +434,7 @@ describe('compileFonts() with fallbackMetrics', () => {
     const result = compileFonts({ display }, { fallbackMetrics: displayMetrics });
 
     expect(result.fontFaceCss).toContain("font-family: 'DM Serif Display Fallback'");
-    expect(result.fontFaceCss).toContain('src: local(Times New Roman)');
+    expect(result.fontFaceCss).toContain("src: local('Times New Roman')");
   });
 
   it('skips fallback @font-face when adjustFontFallback is false', () => {
