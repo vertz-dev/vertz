@@ -469,11 +469,12 @@ describe('SSR lazy route resolution', () => {
   });
 
   it('timed-out lazy components fall back to empty container', async () => {
+    let timerId: ReturnType<typeof setTimeout>;
     const routes = defineRoutes({
       '/slow': {
         component: () =>
-          new Promise<{ default: () => Node }>((resolve) =>
-            setTimeout(
+          new Promise<{ default: () => Node }>((resolve) => {
+            timerId = setTimeout(
               () =>
                 resolve({
                   default: () => {
@@ -483,8 +484,8 @@ describe('SSR lazy route resolution', () => {
                   },
                 }),
               10000,
-            ),
-          ),
+            );
+          }),
       },
     });
 
@@ -504,6 +505,8 @@ describe('SSR lazy route resolution', () => {
     // Should still produce valid HTML, just without the lazy content
     expect(result.html).toBeDefined();
     expect(result.html).not.toContain('Slow Content');
+    // Clean up leaked timer to prevent "document is not defined" between test files
+    clearTimeout(timerId!);
   });
 });
 
