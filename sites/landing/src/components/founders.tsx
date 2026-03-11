@@ -1,5 +1,5 @@
 import { TwitterIcon } from '@vertz/icons';
-import { css } from '@vertz/ui';
+import { css, Image } from '@vertz/ui';
 
 const s = css({
   section: ['py:24', 'px:6'],
@@ -54,6 +54,33 @@ const FOUNDERS: Founder[] = [
   },
 ];
 
+function FounderPhoto({ name }: { name: string }) {
+  if (name === 'Vinicius Dacal') {
+    return (
+      <Image
+        src="/public/viniciusdacal.jpg"
+        alt="Vinicius Dacal"
+        width={80}
+        height={80}
+        class={s.img}
+        style="object-fit: cover; outline: 2px solid #27272a; outline-offset: 2px"
+        fit="cover"
+      />
+    );
+  }
+  return (
+    <Image
+      src="/public/matheuspoleza.jpg"
+      alt="Matheus Poleza"
+      width={80}
+      height={80}
+      class={s.img}
+      style="object-fit: cover; outline: 2px solid #27272a; outline-offset: 2px"
+      fit="cover"
+    />
+  );
+}
+
 export function Founders() {
   return (
     <section
@@ -70,15 +97,7 @@ export function Founders() {
         <div class={s.grid}>
           {FOUNDERS.map((f) => (
             <div key={f.name} class={s.card}>
-              <img
-                src={f.photo}
-                alt={f.name}
-                width={80}
-                height={80}
-                class={s.img}
-                loading="lazy"
-                style="object-fit: cover; outline: 2px solid #27272a; outline-offset: 2px"
-              />
+              <FounderPhoto name={f.name} />
               <p class={s.name}>{f.name}</p>
               <p class={s.role} style="font-family: var(--font-mono)">
                 Co-founder

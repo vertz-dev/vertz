@@ -494,6 +494,7 @@
         "@vertz/ui": "workspace:^",
         "@vertz/ui-compiler": "workspace:^",
         "magic-string": "^0.30.0",
+        "sharp": "^0.34.5",
         "ts-morph": "^27.0.2",
       },
       "devDependencies": {

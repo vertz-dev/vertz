@@ -5,8 +5,9 @@
  * 1. Hydration transform (adds hydration IDs)
  * 2. Context stable IDs (if fastRefresh — injects __stableId for HMR)
  * 2.5. Field selection injection (analyzes field access, injects select into queries)
+ * 2.7. Image transform (detects <Image>, processes images, replaces with <picture>)
  * 3. Compile (reactive signals + JSX transforms)
- * 4. Source map chaining (hydration → compile)
+ * 4. Source map chaining — remapping([compile, image, hydration]) (output→source order)
  * 5. CSS extraction → sidecar file (if CSS found)
  * 6. Fast Refresh wrappers (if fastRefresh — component tracking + registration)
  * 7. import.meta.hot.accept() (if hmr — self-accept HMR updates)
@@ -38,6 +39,8 @@ import type { EntitySchemaManifest } from './field-selection-inject';
 import { injectFieldSelection } from './field-selection-inject';
 import { FieldSelectionManifest } from './field-selection-manifest';
 import { filePathHash } from './file-path-hash';
+import { processImage } from './image-processor';
+import { transformImages } from './image-transform';
 import type {
   CSSSidecarMap,
   FileExtractionsMap,
@@ -278,18 +281,104 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
             });
           }
 
+          // ── 2.7. Image transform ────────────────────────────────
+          const imageOutputDir = resolve(projectRoot, '.vertz', 'images');
+          const imageQueue: Array<{
+            sourcePath: string;
+            width: number;
+            height: number;
+            quality: number;
+            fit: string;
+            outputDir: string;
+          }> = [];
+
+          const imageResult = transformImages(codeForCompile, args.path, {
+            projectRoot,
+            resolveImagePath: (src) => {
+              if (src.startsWith('/')) return resolve(projectRoot, src.slice(1));
+              return resolve(dirname(args.path), src);
+            },
+            getImageOutputPaths: (sourcePath, w, h, q, f) => {
+              const { createHash } = require('node:crypto') as typeof import('node:crypto');
+              const pathMod = require('node:path') as typeof import('node:path');
+              const fsMod = require('node:fs') as typeof import('node:fs');
+              let sourceBuffer: Buffer;
+              try {
+                sourceBuffer = fsMod.readFileSync(sourcePath);
+              } catch {
+                return {
+                  webp1x: sourcePath,
+                  webp2x: sourcePath,
+                  fallback: sourcePath,
+                  fallbackType: 'image/jpeg',
+                };
+              }
+              const hash = createHash('sha256')
+                .update(sourceBuffer)
+                .update(`${w}x${h}q${q}f${f}`)
+                .digest('hex')
+                .slice(0, 12);
+              const name = pathMod.basename(sourcePath, pathMod.extname(sourcePath));
+              const ext = pathMod.extname(sourcePath).slice(1);
+              const extMap: Record<string, string> = {
+                jpeg: '.jpg',
+                jpg: '.jpg',
+                png: '.png',
+                webp: '.webp',
+                gif: '.gif',
+              };
+              const mimeMap: Record<string, string> = {
+                jpeg: 'image/jpeg',
+                jpg: 'image/jpeg',
+                png: 'image/png',
+                webp: 'image/webp',
+                gif: 'image/gif',
+              };
+
+              imageQueue.push({
+                sourcePath,
+                width: w,
+                height: h,
+                quality: q,
+                fit: f,
+                outputDir: imageOutputDir,
+              });
+
+              return {
+                webp1x: `/__vertz_img/${name}-${hash}-${w}w.webp`,
+                webp2x: `/__vertz_img/${name}-${hash}-${w * 2}w.webp`,
+                fallback: `/__vertz_img/${name}-${hash}-${w * 2}w${extMap[ext] ?? '.jpg'}`,
+                fallbackType: mimeMap[ext] ?? 'image/jpeg',
+              };
+            },
+          });
+
+          const codeAfterImageTransform = imageResult.code;
+
+          // Process queued images in parallel
+          if (imageQueue.length > 0) {
+            await Promise.all(
+              imageQueue.map((opts) =>
+                processImage({ ...opts, fit: opts.fit as 'cover' | 'contain' | 'fill' }),
+              ),
+            );
+          }
+
           // ── 3. Compile (reactive + JSX transforms) ─────────────
-          const compileResult = compile(codeForCompile, {
+          const compileResult = compile(codeAfterImageTransform, {
             filename: args.path,
             target: options?.target,
             manifests: getManifestsRecord(),
           });
 
           // ── 4. Source map chaining ──────────────────────────────
-          const remapped = remapping(
-            [compileResult.map as EncodedSourceMap, hydrationMap as EncodedSourceMap],
-            () => null,
-          );
+          // Chain maps in output→source order: compile → image → hydration
+          const mapsToChain: EncodedSourceMap[] = [compileResult.map as EncodedSourceMap];
+          if (imageResult.map) {
+            mapsToChain.push(imageResult.map as unknown as EncodedSourceMap);
+          }
+          mapsToChain.push(hydrationMap as EncodedSourceMap);
+          const remapped = remapping(mapsToChain, () => null);
 
           // ── 5. CSS extraction → sidecar file ───────────────────
           const extraction = cssExtractor.extract(source, args.path);
