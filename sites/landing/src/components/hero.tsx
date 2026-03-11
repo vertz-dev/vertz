@@ -20,7 +20,14 @@ const s = css({
   h1LineFaded: ['block', 'text:gray.400'],
   description: ['mt:8', 'font:xl', 'max-w:2xl', 'leading:relaxed', 'text:gray.400'],
   descriptionHighlight: ['weight:medium', 'text:gray.200'],
-  ctas: ['mt:12', 'flex', 'flex-row', 'items:center', 'gap:4'],
+  ctas: [
+    'mt:12',
+    'flex',
+    'flex-col',
+    'items:center',
+    'gap:4',
+    { '@media (min-width: 640px)': [{ property: 'flex-direction', value: 'row' }] },
+  ],
   githubLink: [
     'inline-flex',
     'items:center',
