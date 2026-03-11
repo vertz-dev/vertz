@@ -1,5 +1,5 @@
-import type { AppBuilder } from '@vertz/core';
 import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
+import type { AppBuilder } from '@vertz/core';
 import { createHandler, generateHTMLTemplate, generateNonce } from '../src/handler.js';
 
 function mockApp(handler?: (...args: unknown[]) => Promise<Response>): AppBuilder {
@@ -245,7 +245,7 @@ describe('createHandler (config object)', () => {
 
   it('adds security headers when securityHeaders is true', async () => {
     const worker = createHandler({
-      app: () => mockApp(mock().mockResolvedValue(new Response('OK'))),
+      app: () => mockApp(mock().mockImplementation(() => new Response('OK'))),
       basePath: '/api',
       securityHeaders: true,
     });
@@ -536,7 +536,7 @@ describe('nonce-based CSP headers', () => {
 
   it('CSP header contains nonce (not unsafe-inline) for script-src', async () => {
     const worker = createHandler({
-      app: () => mockApp(mock().mockResolvedValue(new Response('OK'))),
+      app: () => mockApp(mock().mockImplementation(() => new Response('OK'))),
       basePath: '/api',
       securityHeaders: true,
     });
@@ -559,7 +559,7 @@ describe('nonce-based CSP headers', () => {
 
   it('CSP header keeps unsafe-inline for style-src', async () => {
     const worker = createHandler({
-      app: () => mockApp(mock().mockResolvedValue(new Response('OK'))),
+      app: () => mockApp(mock().mockImplementation(() => new Response('OK'))),
       basePath: '/api',
       securityHeaders: true,
     });
@@ -576,7 +576,7 @@ describe('nonce-based CSP headers', () => {
 
   it('each request gets a different nonce in the CSP header', async () => {
     const worker = createHandler({
-      app: () => mockApp(mock().mockResolvedValue(new Response('OK'))),
+      app: () => mockApp(mock().mockImplementation(() => new Response('OK'))),
       basePath: '/api',
       securityHeaders: true,
     });
@@ -659,7 +659,9 @@ describe('generateHTMLTemplate with nonce', () => {
   it('adds nonce attribute to script tag when nonce is provided', () => {
     const html = generateHTMLTemplate('/assets/client.js', 'My App', 'abc123');
 
-    expect(html).toContain('<script type="module" src="/assets/client.js" nonce="abc123"></script>');
+    expect(html).toContain(
+      '<script type="module" src="/assets/client.js" nonce="abc123"></script>',
+    );
   });
 
   it('omits nonce attribute when nonce is not provided', () => {
