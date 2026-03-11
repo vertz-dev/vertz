@@ -17,6 +17,26 @@ export interface FontSrc {
   style?: 'normal' | 'italic';
 }
 
+export type FallbackFontName = 'Arial' | 'Times New Roman' | 'Courier New';
+
+export interface FontFallbackMetrics {
+  /** CSS ascent-override value, e.g., '94.52%' */
+  ascentOverride: string;
+  /** CSS descent-override value, e.g., '24.60%' */
+  descentOverride: string;
+  /** CSS line-gap-override value, e.g., '0.00%' */
+  lineGapOverride: string;
+  /** CSS size-adjust value, e.g., '104.88%' */
+  sizeAdjust: string;
+  /** System font used as fallback base. */
+  fallbackFont: FallbackFontName;
+}
+
+export interface CompileFontsOptions {
+  /** Pre-computed fallback metrics per font key. Provided by @vertz/ui-server at build/SSR time. */
+  fallbackMetrics?: Record<string, FontFallbackMetrics>;
+}
+
 export interface FontOptions {
   /** Font weight: '100..1000' (variable) or 400 (fixed). */
   weight: string | number;
@@ -32,6 +52,14 @@ export interface FontOptions {
   subsets?: string[];
   /** Unicode range for subsetting. */
   unicodeRange?: string;
+  /**
+   * Control automatic fallback font metric adjustment for zero-CLS font loading.
+   * - true: auto-detect fallback base from `fallback` array (default)
+   * - false: disable
+   * - 'Arial' | 'Times New Roman' | 'Courier New': explicit base
+   * @default true
+   */
+  adjustFontFallback?: boolean | FallbackFontName;
 }
 
 type FontStyle = 'normal' | 'italic';
@@ -47,6 +75,7 @@ export interface FontDescriptor {
   readonly fallback: string[];
   readonly subsets: string[];
   readonly unicodeRange?: string;
+  readonly adjustFontFallback: boolean | FallbackFontName;
 }
 
 export interface CompiledFonts {
@@ -80,6 +109,7 @@ export function font(family: string, options: FontOptions): FontDescriptor {
     fallback: options.fallback ?? [],
     subsets: options.subsets ?? ['latin'],
     unicodeRange: options.unicodeRange,
+    adjustFontFallback: options.adjustFontFallback ?? true,
   };
 }
 
@@ -118,6 +148,32 @@ function buildFontFace(
   return lines.join('\n');
 }
 
+const PERCENT_RE = /^\d+\.\d+%$/;
+
+/** Validate a metric override string matches the expected percentage format. */
+function sanitizeMetricValue(value: string): string {
+  if (!PERCENT_RE.test(value)) {
+    throw new Error(`Invalid font metric override value: "${value}"`);
+  }
+  return value;
+}
+
+/** Generate a fallback @font-face block with metric overrides for zero-CLS font loading. */
+function buildFallbackFontFace(family: string, metrics: FontFallbackMetrics): string {
+  const safeFamily = sanitizeCssValue(family);
+  const lines = [
+    '@font-face {',
+    `  font-family: '${safeFamily} Fallback';`,
+    `  src: local('${metrics.fallbackFont}');`,
+    `  ascent-override: ${sanitizeMetricValue(metrics.ascentOverride)};`,
+    `  descent-override: ${sanitizeMetricValue(metrics.descentOverride)};`,
+    `  line-gap-override: ${sanitizeMetricValue(metrics.lineGapOverride)};`,
+    `  size-adjust: ${sanitizeMetricValue(metrics.sizeAdjust)};`,
+    '}',
+  ];
+  return lines.join('\n');
+}
+
 // ─── compileFonts() ─────────────────────────────────────────────
 
 /** Validate that a font src path ends with .woff2. */
@@ -133,12 +189,17 @@ function validateWoff2Src(path: string): void {
  * Compile font descriptors into CSS and preload tags.
  *
  * @param fonts - A map of token key → FontDescriptor.
+ * @param options - Optional compilation settings (e.g., pre-computed fallback metrics).
  * @returns Compiled @font-face CSS, CSS var lines, and preload link tags.
  */
-export function compileFonts(fonts: Record<string, FontDescriptor>): CompiledFonts {
+export function compileFonts(
+  fonts: Record<string, FontDescriptor>,
+  options?: CompileFontsOptions,
+): CompiledFonts {
   const fontFaces: string[] = [];
   const cssVars: string[] = [];
   const preloadPaths: string[] = [];
+  const fallbackMetrics = options?.fallbackMetrics;
 
   for (const [key, descriptor] of Object.entries(fonts)) {
     if (!/^[a-zA-Z0-9-]+$/.test(key)) {
@@ -148,11 +209,23 @@ export function compileFonts(fonts: Record<string, FontDescriptor>): CompiledFon
     }
 
     const { family, weight, style, display, src, fallback, unicodeRange } = descriptor;
+    // Default adjustFontFallback to true for descriptors that lack the field
+    const adjustFontFallback = descriptor.adjustFontFallback ?? true;
 
-    // Build font family CSS var value: 'Family Name', fallback1, fallback2
+    // Check if this font should get a fallback @font-face
+    const metrics = fallbackMetrics?.[key];
+    const shouldGenerateFallback = metrics && src && adjustFontFallback !== false;
+
+    // Build font family CSS var value: 'Family Name', ['Family Fallback',] fallback1, fallback2
     const safeFamily = sanitizeCssValue(family);
     const safeFallbacks = fallback.map(sanitizeCssValue);
-    const familyValue = [`'${safeFamily}'`, ...safeFallbacks].join(', ');
+    const fallbackFontName = shouldGenerateFallback ? `'${safeFamily} Fallback'` : undefined;
+    const familyParts = [
+      `'${safeFamily}'`,
+      ...(fallbackFontName ? [fallbackFontName] : []),
+      ...safeFallbacks,
+    ];
+    const familyValue = familyParts.join(', ');
     cssVars.push(`  --font-${sanitizeCssValue(key)}: ${familyValue};`);
 
     if (!src) continue;
@@ -175,6 +248,11 @@ export function compileFonts(fonts: Record<string, FontDescriptor>): CompiledFon
       if (first) {
         preloadPaths.push(first.path);
       }
+    }
+
+    // Generate adjusted fallback @font-face if metrics are provided
+    if (shouldGenerateFallback) {
+      fontFaces.push(buildFallbackFontFace(family, metrics));
     }
   }
 

@@ -4,9 +4,9 @@
  * Checked by `tsc --noEmit` (typecheck), not by vitest at runtime.
  */
 
-import type { FontDescriptor, FontSrc } from '../font';
+import type { FontDescriptor, FontFallbackMetrics, FontSrc } from '../font';
 import { compileFonts, font } from '../font';
-import type { Theme } from '../theme';
+import type { CompileThemeOptions, Theme } from '../theme';
 import { compileTheme, defineTheme } from '../theme';
 
 // ─── font() returns FontDescriptor ──────────────────────────────
@@ -135,3 +135,56 @@ void _srcFull;
 // @ts-expect-error - FontSrc.style rejects invalid values
 const _badSrc: FontSrc = { path: '/fonts/test.woff2', style: 'bold' };
 void _badSrc;
+
+// ─── adjustFontFallback type constraints ─────────────────────────
+
+// Positive: valid adjustFontFallback values
+font('Test', { weight: 400, adjustFontFallback: true });
+font('Test', { weight: 400, adjustFontFallback: false });
+font('Test', { weight: 400, adjustFontFallback: 'Arial' });
+font('Test', { weight: 400, adjustFontFallback: 'Times New Roman' });
+font('Test', { weight: 400, adjustFontFallback: 'Courier New' });
+
+// @ts-expect-error - 'Helvetica' is not a valid FallbackFontName
+font('Test', { weight: 400, adjustFontFallback: 'Helvetica' });
+
+// @ts-expect-error - number is not valid for adjustFontFallback
+font('Test', { weight: 400, adjustFontFallback: 42 });
+
+// Positive: FontDescriptor has adjustFontFallback
+const _afb: boolean | 'Arial' | 'Times New Roman' | 'Courier New' = sans.adjustFontFallback;
+void _afb;
+
+// ─── FontFallbackMetrics type ────────────────────────────────────
+
+const _metrics: FontFallbackMetrics = {
+  ascentOverride: '94.52%',
+  descentOverride: '24.60%',
+  lineGapOverride: '0.00%',
+  sizeAdjust: '104.88%',
+  fallbackFont: 'Arial',
+};
+void _metrics;
+
+// @ts-expect-error - 'Helvetica' is not a valid fallbackFont
+const _badFallbackFont: FontFallbackMetrics['fallbackFont'] = 'Helvetica';
+void _badFallbackFont;
+
+// ─── compileFonts accepts options ────────────────────────────────
+
+// Positive: compileFonts with fallbackMetrics
+compileFonts({ sans }, { fallbackMetrics: { sans: _metrics } });
+
+// Positive: compileFonts without options (backward compatible)
+compileFonts({ sans });
+
+// ─── compileTheme accepts options ────────────────────────────────
+
+const _themeOpts: CompileThemeOptions = { fallbackMetrics: { sans: _metrics } };
+void _themeOpts;
+
+// Positive: compileTheme with options
+compileTheme(defineTheme({ colors: {} }), { fallbackMetrics: { sans: _metrics } });
+
+// Positive: compileTheme without options (backward compatible)
+compileTheme(defineTheme({ colors: {} }));
