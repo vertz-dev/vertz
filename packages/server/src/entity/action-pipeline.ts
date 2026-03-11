@@ -1,3 +1,4 @@
+import type { ModelDef } from '@vertz/db';
 import {
   BadRequestError,
   type EntityError,
@@ -17,23 +18,23 @@ import type { EntityActionDef, EntityContext, EntityDefinition } from './types';
  * Record-level (hasId: true): fetch row → enforce access → validate input → run handler → fire after hook
  * Collection-level (hasId: false): enforce access with null row → validate input → run handler with null row
  */
-export function createActionHandler(
-  def: EntityDefinition,
+export function createActionHandler<TModel extends ModelDef = ModelDef>(
+  def: EntityDefinition<TModel>,
   actionName: string,
   actionDef: EntityActionDef,
   db: EntityDbAdapter,
   hasId: boolean,
 ): (
-  ctx: EntityContext,
+  ctx: EntityContext<TModel>,
   id: string | null,
   rawInput: unknown,
 ) => Promise<Result<CrudResult, EntityError>> {
   return async (ctx, id, rawInput) => {
-    let row: Record<string, unknown> | null = null;
+    let row: TModel['table']['$response'] | null = null;
 
     if (hasId) {
       // Record-level: fetch the row
-      row = await db.get(id as string);
+      row = (await db.get(id as string)) as TModel['table']['$response'] | null;
       if (!row) {
         return err(new EntityNotFoundError(`${def.name} with id "${id}" not found`));
       }
