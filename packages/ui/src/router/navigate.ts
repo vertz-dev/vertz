@@ -12,6 +12,8 @@ import type { RouteConfigLike, RouteDefinitionMap, RouteMatch, TypedRoutes } fro
 import { matchRoute } from './define-routes';
 import { executeLoaders } from './loader';
 import type { ExtractParams, RoutePattern } from './params';
+import type { RouteAccessContext, RouteAccessDenialReason } from './route-access';
+import { evaluateRouteAccess } from './route-access';
 import { prefetchNavData as realPrefetchNavData } from './server-nav';
 
 export type NavigateSearchValue = string | number | boolean | null | undefined;
@@ -65,6 +67,10 @@ export interface RouterOptions {
   serverNav?: boolean | { timeout?: number };
   /** @internal — injected for testing. Production uses the real module. */
   _prefetchNavData?: (url: string, options?: { timeout?: number }) => PrefetchHandle;
+  /** Auth state provider for client-side route access evaluation. */
+  accessAuth?: () => RouteAccessContext;
+  /** Called when route access is denied during navigation. */
+  onAccessDenied?: (reason: RouteAccessDenialReason) => void;
 }
 
 /**
@@ -406,6 +412,19 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
 
   async function navigate(input: NavigateInput): Promise<void> {
     const navUrl = buildNavigationUrl(input.to, input);
+
+    // Route access check (if accessAuth is configured)
+    if (options?.accessAuth) {
+      const match = matchRoute(routes, navUrl);
+      if (match) {
+        const ctx = options.accessAuth();
+        const result = evaluateRouteAccess(match.matched, ctx);
+        if (!result.allowed) {
+          options.onAccessDenied?.(result.reason);
+          return;
+        }
+      }
+    }
 
     // Capture generation at start — if a newer navigate() starts while we
     // await prefetch, this navigate should skip applyNavigation.
