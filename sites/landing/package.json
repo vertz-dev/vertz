@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun run src/dev-server.ts",
-    "build": "vertz build",
+    "build": "bun node_modules/@vertz/cli/dist/vertz.js build",
     "build:og": "bun run scripts/og-images.ts",
     "deploy": "bun run build && bunx wrangler deploy",
     "typecheck": "tsc --noEmit"
