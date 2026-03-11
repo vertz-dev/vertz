@@ -14,9 +14,6 @@ export type { Ref } from './component/refs';
 export { ref } from './component/refs';
 export type { SuspenseProps } from './component/suspense';
 export { Suspense } from './component/suspense';
-// Image
-export type { ImageProps } from './image/types';
-export { Image } from './image/image';
 // CSS & Theming
 export type {
   ColorPalette,
@@ -107,6 +104,9 @@ export { validate } from './form/validation';
 // Hydration (public API only)
 export type { ComponentFunction, ComponentLoader, ComponentRegistry } from './hydrate';
 export { hydrate } from './hydrate';
+export { Image } from './image/image';
+// Image
+export type { ImageProps } from './image/types';
 export type { MountHandle, MountOptions } from './mount';
 // Mount API
 export { mount } from './mount';
@@ -134,7 +134,7 @@ export type {
 } from './router/define-routes';
 export { defineRoutes } from './router/define-routes';
 export type { LinkFactoryOptions, LinkProps } from './router/link';
-export { createLink } from './router/link';
+export { createLink, Link } from './router/link';
 export type {
   NavigateInput,
   NavigateOptions,

@@ -12,6 +12,7 @@ import { resolve } from 'node:path';
 
 describe('Subpath Exports — @vertz/ui/router', () => {
   const expectedExports = [
+    'Link',
     'Outlet',
     'OutletContext',
     'RouterContext',
@@ -58,6 +59,7 @@ describe('Subpath Exports — @vertz/ui/router', () => {
     expect(subpath.defineRoutes).toBe(main.defineRoutes);
     expect(subpath.createRouter).toBe(main.createRouter);
     expect(subpath.createLink).toBe(main.createLink);
+    expect(subpath.Link).toBe(main.Link);
     expect(subpath.Outlet).toBe(main.Outlet);
     expect(subpath.OutletContext).toBe(main.OutletContext);
     expect(subpath.parseSearchParams).toBe(main.parseSearchParams);
@@ -212,6 +214,7 @@ describe('Subpath Exports — main barrel backward compat', () => {
     expect(main.defineRoutes).toBeTypeOf('function');
     expect(main.createRouter).toBeTypeOf('function');
     expect(main.createLink).toBeTypeOf('function');
+    expect(main.Link).toBeTypeOf('function');
     expect(main.Outlet).toBeTypeOf('function');
     expect(main.OutletContext).toBeTypeOf('object');
     expect(main.RouterContext).toBeTypeOf('object');

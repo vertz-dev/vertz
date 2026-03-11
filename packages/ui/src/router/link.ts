@@ -9,12 +9,14 @@
  * of creating new elements.
  */
 
+import { useContext } from '../component/context';
 import { __classList } from '../dom/attributes';
 import { __append, __element, __enterChildren, __exitChildren, __staticText } from '../dom/element';
 import { __on } from '../dom/events';
 import type { ReadonlySignal } from '../runtime/signal-types';
 import type { RouteConfigLike, RouteDefinitionMap } from './define-routes';
 import type { RoutePaths } from './params';
+import { RouterContext } from './router-context';
 
 /** Dangerous URL schemes that must never appear in href attributes. */
 const DANGEROUS_SCHEMES = ['javascript:', 'data:', 'vbscript:'];
@@ -42,8 +44,8 @@ function isSafeUrl(url: string): boolean {
 export interface LinkProps<T extends Record<string, RouteConfigLike> = RouteDefinitionMap> {
   /** The target URL path. */
   href: RoutePaths<T>;
-  /** Text or content for the link. Thunk may return string or Text node. */
-  children: string | (() => string | Node);
+  /** Text or content for the link. Accepts string, Node, or a thunk returning either. */
+  children: string | Node | (() => string | Node);
   /** Class applied when the link's href matches the current path. */
   activeClass?: string;
   /** Static class name for the anchor element. */
@@ -106,11 +108,12 @@ export function createLink(
       if (typeof result === 'string') {
         __append(el, __staticText(result));
       } else {
-        // Result is already a Text node from __staticText() — use directly
         __append(el, result as Node);
       }
-    } else {
+    } else if (typeof children === 'string') {
       __append(el, __staticText(children));
+    } else {
+      __append(el, children);
     }
     __exitChildren();
 
@@ -135,4 +138,63 @@ export function createLink(
 
     return el;
   };
+}
+
+/**
+ * Context-based Link component for client-side navigation.
+ *
+ * Reads the router from `RouterContext` automatically — no manual wiring needed.
+ * Just use `<Link href="/about">About</Link>` inside a router-provided tree.
+ */
+export function Link({ href, children, activeClass, className }: LinkProps): HTMLAnchorElement {
+  const router = useContext(RouterContext);
+  if (!router) {
+    throw new Error('Link must be used within a RouterContext.Provider (via createRouter)');
+  }
+
+  const safeHref = isSafeUrl(href) ? href : '#';
+
+  const handleClick = (event: Event) => {
+    const mouseEvent = event as MouseEvent;
+    if (mouseEvent.ctrlKey || mouseEvent.metaKey || mouseEvent.shiftKey || mouseEvent.altKey) {
+      return;
+    }
+    mouseEvent.preventDefault();
+    router.navigate({ to: safeHref });
+  };
+
+  const props: Record<string, string> = { href: safeHref };
+  if (className) {
+    props.class = className;
+  }
+
+  const el = __element('a', props) as HTMLAnchorElement;
+  __on(el, 'click', handleClick as EventListener);
+
+  __enterChildren(el);
+  if (typeof children === 'function') {
+    const result = children();
+    if (typeof result === 'string') {
+      __append(el, __staticText(result));
+    } else {
+      __append(el, result as Node);
+    }
+  } else if (typeof children === 'string') {
+    __append(el, __staticText(children));
+  } else {
+    __append(el, children);
+  }
+  __exitChildren();
+
+  if (activeClass) {
+    __classList(el, {
+      [activeClass]: () => {
+        // Reading router.current triggers reactive tracking (auto-unwrapped by wrapSignalProps)
+        void router.current;
+        return typeof window !== 'undefined' ? window.location.pathname === safeHref : false;
+      },
+    });
+  }
+
+  return el;
 }

@@ -13,7 +13,7 @@ export type {
 } from './define-routes';
 export { defineRoutes, matchRoute } from './define-routes';
 export type { LinkProps } from './link';
-export { createLink } from './link';
+export { createLink, Link } from './link';
 export { executeLoaders } from './loader';
 export type { MatchResult } from './matcher';
 export { matchPath } from './matcher';
