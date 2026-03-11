@@ -1,3 +1,420 @@
+// ── LLM rules templates ───────────────────────────────────
+
+/**
+ * CLAUDE.md — project-level instructions for LLMs
+ */
+export function claudeMdTemplate(projectName: string): string {
+  return `# ${projectName}
+
+A full-stack TypeScript application built with [Vertz](https://vertz.dev).
+
+## Stack
+
+- Runtime: Bun
+- Framework: Vertz (full-stack TypeScript)
+- Language: TypeScript (strict mode)
+- Docs: https://docs.vertz.dev
+
+## Development
+
+\`\`\`bash
+bun install          # Install dependencies
+bun run dev          # Start dev server with HMR
+bun run build        # Production build
+\`\`\`
+
+The dev server automatically runs codegen and migrations when files change.
+
+## Conventions
+
+- See \`.claude/rules/\` for API and UI development conventions
+- Refer to https://docs.vertz.dev for full framework documentation
+- Entity files use the \`.entity.ts\` suffix
+- The Vertz compiler handles all reactivity — never use \`.value\`, \`signal()\`, or \`computed()\` manually
+`;
+}
+
+/**
+ * .claude/rules/api-development.md — API conventions for LLMs
+ */
+export function apiDevelopmentRuleTemplate(): string {
+  return `# API Development
+
+## Imports
+
+All Vertz packages are available through the \`vertz\` meta-package:
+
+\`\`\`ts
+import { createServer, entity, createEnv } from 'vertz/server';
+import { s } from 'vertz/schema';
+import { d } from 'vertz/db';
+\`\`\`
+
+## Defining Tables and Models
+
+Use \`d.table()\` to define database tables and \`d.model()\` to create a typed model:
+
+\`\`\`ts
+import { d } from 'vertz/db';
+
+export const postsTable = d.table('posts', {
+  id: d.uuid().primary(),
+  title: d.text(),
+  body: d.text(),
+  published: d.boolean().default(false),
+  authorId: d.uuid(),
+  createdAt: d.timestamp().default('now').readOnly(),
+  updatedAt: d.timestamp().autoUpdate().readOnly(),
+});
+
+export const postsModel = d.model(postsTable);
+\`\`\`
+
+### Field Types
+
+- \`d.uuid()\` — UUID field
+- \`d.text()\` — Text/string field
+- \`d.boolean()\` — Boolean field
+- \`d.integer()\` — Integer field
+- \`d.timestamp()\` — Timestamp field
+
+### Field Modifiers
+
+- \`.primary()\` — Primary key
+- \`.default(value)\` — Default value (\`'now'\` for timestamps)
+- \`.readOnly()\` — Not writable via API
+- \`.autoUpdate()\` — Auto-set on update (timestamps)
+- \`.unique()\` — Unique constraint
+
+## Defining Entities
+
+Entities define your API resources. Each entity gets automatic CRUD endpoints.
+Entity files go in \`src/api/entities/\` with the \`.entity.ts\` suffix.
+
+\`\`\`ts
+import { entity } from 'vertz/server';
+import { postsModel } from '../schema';
+
+export const posts = entity('posts', {
+  model: postsModel,
+  access: {
+    list: () => true,
+    get: () => true,
+    create: () => true,
+    update: () => true,
+    delete: () => true,
+  },
+});
+\`\`\`
+
+### Entity Operations
+
+Each entity automatically provides these operations:
+
+| Operation | HTTP                    | Description                    |
+| --------- | ----------------------- | ------------------------------ |
+| \`list\`    | GET /api/<entity>       | List with filtering/pagination |
+| \`get\`     | GET /api/<entity>/:id   | Get by ID                      |
+| \`create\`  | POST /api/<entity>      | Create new record              |
+| \`update\`  | PATCH /api/<entity>/:id | Update existing record         |
+| \`delete\`  | DELETE /api/<entity>/:id| Delete record                  |
+
+## Server Configuration
+
+Register all entities with \`createServer\`:
+
+\`\`\`ts
+import { createServer } from 'vertz/server';
+import { db } from './db';
+import { env } from './env';
+import { posts } from './entities/posts.entity';
+
+const app = createServer({
+  basePath: '/api',
+  entities: [posts],
+  db,
+});
+
+export default app;
+
+if (import.meta.main) {
+  app.listen(env.PORT).then((handle) => {
+    console.log(\\\`Server running at http://localhost:\\\${handle.port}/api\\\`);
+  });
+}
+\`\`\`
+
+## Environment Variables
+
+Use \`createEnv\` for validated, typed environment variables:
+
+\`\`\`ts
+import { createEnv } from 'vertz/server';
+import { s } from 'vertz/schema';
+
+export const env = createEnv({
+  schema: s.object({
+    PORT: s.coerce.number().default(3000),
+    DATABASE_URL: s.string().default('local.db'),
+  }),
+});
+\`\`\`
+
+## Schemas for Custom Actions
+
+Standard CRUD operations (list, get, create, update, delete) derive their schemas automatically
+from the model — you don't need to define schemas for them.
+
+Use \`s.*\` builders only when defining **custom actions** on entities:
+
+\`\`\`ts
+import { s } from 'vertz/schema';
+
+const CompleteTaskInput = s.object({
+  note: s.string().optional(),
+  completedAt: s.date(),
+});
+
+type CompleteTaskInput = s.infer<typeof CompleteTaskInput>;
+\`\`\`
+
+### Common Schema Types
+
+- \`s.string()\` — String with \`.min()\`, \`.max()\`, \`.email()\`, \`.uuid()\`, \`.url()\`
+- \`s.number()\` — Number with \`.int()\`, \`.min()\`, \`.max()\`, \`.positive()\`
+- \`s.boolean()\` — Boolean
+- \`s.date()\` — Date
+- \`s.enum([...])\` — Enum from literal values
+- \`s.array(schema)\` — Array of schema type
+- \`s.object({...})\` — Object with typed fields
+- \`.optional()\` — Makes any field optional
+- \`.default(value)\` — Provides a default value
+`;
+}
+
+/**
+ * .claude/rules/ui-development.md — UI conventions for LLMs
+ */
+export function uiDevelopmentRuleTemplate(): string {
+  return `# UI Development
+
+Vertz uses a custom JSX runtime with a compiler that transforms reactive code.
+You write plain-looking code and the compiler makes it reactive automatically.
+
+## Imports
+
+\`\`\`ts
+import { css, query, queryMatch, globalCss, ThemeProvider, variants } from 'vertz/ui';
+import { api } from '../client';
+\`\`\`
+
+## Components
+
+### Destructure props in parameters
+
+Don't annotate return types — the JSX factory handles typing:
+
+\`\`\`tsx
+// RIGHT
+export function TaskCard({ task, onClick }: TaskCardProps) {
+  return <div onClick={onClick}>{task.title}</div>;
+}
+
+// WRONG — don't annotate return type
+export function TaskCard({ task }: TaskCardProps): HTMLElement { ... }
+\`\`\`
+
+### Props Naming
+
+- Interface: \`ComponentNameProps\`
+- Callbacks: \`on\` prefix (\`onClick\`, \`onSubmit\`, \`onSuccess\`)
+
+## Reactivity
+
+The Vertz compiler transforms your code to be reactive. You don't call signal/computed APIs manually.
+
+### \`let\` for local state (compiled to signals)
+
+\`\`\`tsx
+export function Counter() {
+  let count = 0;
+
+  return (
+    <button onClick={() => { count++; }}>
+      Count: {count}
+    </button>
+  );
+}
+\`\`\`
+
+### \`const\` for derived values (compiled to computed)
+
+\`\`\`tsx
+export function TaskList() {
+  let filter = 'all';
+  const tasks = query(api.tasks.list());
+  const filtered = filter === 'all'
+    ? tasks.data.items
+    : tasks.data.items.filter((t) => t.status === filter);
+
+  return <div>{filtered.map((t) => <TaskItem task={t} />)}</div>;
+}
+\`\`\`
+
+## JSX
+
+### Fully declarative — no imperative DOM manipulation
+
+Never use \`appendChild\`, \`innerHTML\`, \`textContent\`, \`document.createElement\`.
+
+\`\`\`tsx
+// RIGHT
+return <div class={styles.panel}>{title}</div>;
+
+// WRONG — no imperative DOM
+const el = document.createElement('div');
+el.textContent = title;
+\`\`\`
+
+### Use JSX for custom components, not function calls
+
+\`\`\`tsx
+// RIGHT
+<TaskCard task={task} onClick={handleClick} />
+
+// WRONG
+TaskCard({ task, onClick: handleClick });
+\`\`\`
+
+### Conditionals and Lists
+
+\`\`\`tsx
+{isLoading && <div>Loading...</div>}
+
+{error ? <div class={styles.error}>{error.message}</div> : <div>{content}</div>}
+
+{tasks.map((task) => (
+  <TaskItem key={task.id} task={task} />
+))}
+\`\`\`
+
+## Data Fetching
+
+### \`query()\` — Reactive data fetching
+
+\`\`\`tsx
+const tasks = query(api.tasks.list());
+\`\`\`
+
+The query result has reactive properties (\`.data\`, \`.error\`, \`.loading\`) that the compiler
+auto-unwraps everywhere — just access them directly, the compiler handles the rest.
+
+### \`queryMatch()\` — Pattern matching for query states
+
+\`\`\`tsx
+{queryMatch(tasksQuery, {
+  loading: () => <div>Loading...</div>,
+  error: (err) => <div>Error: {err.message}</div>,
+  data: (response) => (
+    <div>
+      {response.items.map((item) => (
+        <div key={item.id}>{item.title}</div>
+      ))}
+    </div>
+  ),
+})}
+\`\`\`
+
+### Automatic Cache Invalidation
+
+After mutations (\`create\`, \`update\`, \`delete\`), related queries are automatically
+refetched in the background. No manual \`refetch()\` calls needed — the framework
+handles cache invalidation via optimistic updates.
+
+## Styling
+
+### \`css()\` for scoped styles
+
+\`\`\`tsx
+const styles = css({
+  container: ['flex', 'flex-col', 'gap:4', 'p:6'],
+  title: ['font:xl', 'font:bold', 'text:foreground'],
+  card: ['rounded:md', 'border:1', 'border:border', 'bg:card', 'p:4'],
+});
+
+return <div class={styles.container}>...</div>;
+\`\`\`
+
+### \`variants()\` for parameterized styles
+
+\`\`\`tsx
+const button = variants({
+  base: ['inline-flex', 'items:center', 'rounded:md', 'font:medium'],
+  variants: {
+    intent: {
+      primary: ['bg:primary.600', 'text:white'],
+      secondary: ['bg:secondary', 'text:secondary-foreground'],
+      danger: ['bg:destructive', 'text:white'],
+    },
+    size: {
+      sm: ['text:xs', 'px:3', 'py:1'],
+      md: ['text:sm', 'px:4', 'py:2'],
+    },
+  },
+  defaultVariants: { intent: 'primary', size: 'md' },
+});
+
+<button class={button({ intent: 'danger', size: 'sm' })}>Delete</button>
+\`\`\`
+
+### Style Tokens
+
+Styles use a token system (similar to Tailwind but with Vertz syntax):
+
+- **Layout:** \`flex\`, \`grid\`, \`block\`, \`inline-flex\`
+- **Spacing:** \`p:4\`, \`px:6\`, \`py:2\`, \`m:4\`, \`mx:auto\`, \`gap:2\`
+- **Typography:** \`font:lg\`, \`font:bold\`, \`font:medium\`, \`text:foreground\`, \`text:sm\`
+- **Colors:** \`bg:background\`, \`bg:primary.600\`, \`text:white\`, \`border:border\`
+- **Sizing:** \`w:full\`, \`h:screen\`, \`max-w:2xl\`, \`min-h:screen\`
+- **Borders:** \`rounded:md\`, \`rounded:lg\`, \`border:1\`, \`border:border\`
+- **Flexbox:** \`items:center\`, \`justify:between\`, \`flex-1\`, \`flex-col\`
+
+## Context
+
+\`\`\`tsx
+import { createContext, useContext } from 'vertz/ui';
+
+export const SettingsContext = createContext<SettingsValue>();
+
+export function useSettings() {
+  const ctx = useContext(SettingsContext);
+  if (!ctx) throw new Error('useSettings must be called within SettingsContext.Provider');
+  return ctx;
+}
+\`\`\`
+
+## Router
+
+### Navigation
+
+Pages access the router via hooks — no prop threading:
+
+\`\`\`tsx
+import { useRouter, useParams } from 'vertz/ui';
+
+export function TaskListPage() {
+  const { navigate } = useRouter();
+  return <button onClick={() => navigate({ to: '/tasks/new' })}>New Task</button>;
+}
+
+export function TaskDetailPage() {
+  const { id } = useParams<'/tasks/:id'>();
+  // id is typed as string
+}
+\`\`\`
+`;
+}
+
 // ── Config file templates ──────────────────────────────────
 
 /**

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'bun:test';
 import {
+  apiDevelopmentRuleTemplate,
   appComponentTemplate,
   bunfigTemplate,
   bunPluginShimTemplate,
+  claudeMdTemplate,
   clientTemplate,
   dbTemplate,
   entryClientTemplate,
@@ -17,6 +19,7 @@ import {
   tasksEntityTemplate,
   themeTemplate,
   tsconfigTemplate,
+  uiDevelopmentRuleTemplate,
   vertzConfigTemplate,
 } from '../index.js';
 
@@ -271,10 +274,143 @@ describe('templates', () => {
     });
   });
 
+  describe('claudeMdTemplate', () => {
+    it('includes the project name', () => {
+      const result = claudeMdTemplate('my-app');
+      expect(result).toContain('# my-app');
+    });
+
+    it('includes Vertz as the framework', () => {
+      const result = claudeMdTemplate('test-app');
+      expect(result).toContain('Vertz');
+    });
+
+    it('includes dev commands', () => {
+      const result = claudeMdTemplate('test-app');
+      expect(result).toContain('bun run dev');
+      expect(result).toContain('bun run build');
+    });
+
+    it('points to docs.vertz.dev', () => {
+      const result = claudeMdTemplate('test-app');
+      expect(result).toContain('docs.vertz.dev');
+    });
+
+    it('points to .claude/rules/ for conventions', () => {
+      const result = claudeMdTemplate('test-app');
+      expect(result).toContain('.claude/rules/');
+    });
+  });
+
+  describe('apiDevelopmentRuleTemplate', () => {
+    it('documents entity definition pattern', () => {
+      const result = apiDevelopmentRuleTemplate();
+      expect(result).toContain('entity(');
+      expect(result).toContain('model:');
+      expect(result).toContain('access:');
+    });
+
+    it('documents table and model definition', () => {
+      const result = apiDevelopmentRuleTemplate();
+      expect(result).toContain('d.table(');
+      expect(result).toContain('d.model(');
+    });
+
+    it('documents schema validation with s.*', () => {
+      const result = apiDevelopmentRuleTemplate();
+      expect(result).toContain('s.object(');
+      expect(result).toContain('s.string()');
+    });
+
+    it('documents import paths from vertz meta-package', () => {
+      const result = apiDevelopmentRuleTemplate();
+      expect(result).toContain("from 'vertz/server'");
+      expect(result).toContain("from 'vertz/schema'");
+      expect(result).toContain("from 'vertz/db'");
+    });
+
+    it('documents createServer pattern', () => {
+      const result = apiDevelopmentRuleTemplate();
+      expect(result).toContain('createServer');
+      expect(result).toContain('entities:');
+    });
+
+    it('documents createEnv for environment variables', () => {
+      const result = apiDevelopmentRuleTemplate();
+      expect(result).toContain('createEnv');
+    });
+
+    it('documents schemas are for custom actions only', () => {
+      const result = apiDevelopmentRuleTemplate();
+      expect(result).toContain('Custom Actions');
+      expect(result).toContain('automatically');
+    });
+  });
+
+  describe('uiDevelopmentRuleTemplate', () => {
+    it('documents component signature conventions', () => {
+      const result = uiDevelopmentRuleTemplate();
+      expect(result).toContain('Destructure props');
+    });
+
+    it('documents reactivity model with let and const', () => {
+      const result = uiDevelopmentRuleTemplate();
+      expect(result).toContain('`let`');
+      expect(result).toContain('`const`');
+      expect(result).toContain('signal');
+      expect(result).toContain('computed');
+    });
+
+    it('documents automatic cache invalidation', () => {
+      const result = uiDevelopmentRuleTemplate();
+      expect(result).toContain('Automatic Cache Invalidation');
+    });
+
+    it('does not reference .value', () => {
+      const result = uiDevelopmentRuleTemplate();
+      expect(result).not.toContain('.value');
+    });
+
+    it('does not reference watch()', () => {
+      const result = uiDevelopmentRuleTemplate();
+      expect(result).not.toContain('watch(');
+      expect(result).not.toContain('watch()');
+    });
+
+    it('documents query() for data fetching', () => {
+      const result = uiDevelopmentRuleTemplate();
+      expect(result).toContain('query(');
+      expect(result).toContain('queryMatch(');
+    });
+
+    it('documents css() for styling', () => {
+      const result = uiDevelopmentRuleTemplate();
+      expect(result).toContain('css(');
+      expect(result).toContain('variants(');
+    });
+
+    it('documents JSX conventions', () => {
+      const result = uiDevelopmentRuleTemplate();
+      expect(result).toContain('JSX');
+      expect(result).toContain('declarative');
+    });
+
+    it('documents imports from vertz/ui', () => {
+      const result = uiDevelopmentRuleTemplate();
+      expect(result).toContain("from 'vertz/ui'");
+    });
+
+    it('documents useRouter for navigation', () => {
+      const result = uiDevelopmentRuleTemplate();
+      expect(result).toContain('useRouter');
+    });
+  });
+
   describe('all templates return non-empty strings', () => {
     it('every template function returns a non-empty string', () => {
       const templates = [
         () => packageJsonTemplate('test'),
+        () => claudeMdTemplate('test'),
         tsconfigTemplate,
         vertzConfigTemplate,
         envTemplate,
@@ -292,6 +428,8 @@ describe('templates', () => {
         entryClientTemplate,
         themeTemplate,
         homePageTemplate,
+        apiDevelopmentRuleTemplate,
+        uiDevelopmentRuleTemplate,
       ];
 
       for (const template of templates) {
