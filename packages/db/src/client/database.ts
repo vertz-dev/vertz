@@ -374,6 +374,28 @@ export interface DatabaseInternals<TModels extends Record<string, ModelEntry>> {
 }
 
 // ---------------------------------------------------------------------------
+// TransactionClient — scoped client for use within a transaction callback.
+// Same model delegates and raw query as DatabaseClient, but all operations
+// execute within a single atomic transaction.
+// ---------------------------------------------------------------------------
+
+/**
+ * Scoped client for use within a transaction callback.
+ * Provides the same model delegates and raw query as DatabaseClient —
+ * all operations execute within a single atomic transaction.
+ *
+ * Auto-commits on success, auto-rolls-back on error.
+ */
+export type TransactionClient<TModels extends Record<string, ModelEntry>> = {
+  readonly [K in keyof TModels]: ModelDelegate<TModels[K]>;
+} & {
+  /** Execute a raw SQL query within the transaction. */
+  query<T = Record<string, unknown>>(
+    fragment: SqlFragment,
+  ): Promise<Result<QueryResult<T>, ReadError>>;
+};
+
+// ---------------------------------------------------------------------------
 // DatabaseClient — Prisma-style API: db.users.create(), db.posts.list(), etc.
 // Model delegates are mapped from the models registry keys.
 // ---------------------------------------------------------------------------
@@ -385,6 +407,13 @@ export type DatabaseClient<TModels extends Record<string, ModelEntry>> = {
   query<T = Record<string, unknown>>(
     fragment: SqlFragment,
   ): Promise<Result<QueryResult<T>, ReadError>>;
+
+  /**
+   * Execute a callback within a database transaction.
+   * All operations on the `tx` client are atomic — auto-commits on success,
+   * auto-rolls-back if the callback throws.
+   */
+  transaction<T>(fn: (tx: TransactionClient<TModels>) => Promise<T>): Promise<T>;
 
   /** Close all pool connections. */
   close(): Promise<void>;
@@ -415,7 +444,356 @@ function resolveModel<TModels extends Record<string, ModelEntry>>(
 // Reserved model names — collide with top-level DatabaseClient methods
 // ---------------------------------------------------------------------------
 
-const RESERVED_MODEL_NAMES = new Set(['query', 'close', 'isHealthy', '_internals']);
+const RESERVED_MODEL_NAMES = new Set(['query', 'transaction', 'close', 'isHealthy', '_internals']);
+
+// ---------------------------------------------------------------------------
+// buildDelegates — creates model delegates for a given queryFn
+// ---------------------------------------------------------------------------
+
+// biome-ignore lint/suspicious/noExplicitAny: Internal — delegates are typed externally via DatabaseClient/TransactionClient
+type AnyResult = any;
+
+/**
+ * Build model delegates (get, list, create, update, delete, etc.) for each
+ * model in the registry, using the provided queryFn for all SQL execution.
+ *
+ * This is called once for the top-level DatabaseClient (with the main queryFn)
+ * and again inside transaction() with a transaction-scoped queryFn.
+ */
+function buildDelegates<TModels extends Record<string, ModelEntry>>(
+  qfn: QueryFn,
+  models: TModels,
+  dialectObj: Dialect,
+  modelsRegistry: Record<string, TableRegistryEntry>,
+): Record<string, ModelDelegate<ModelEntry>> {
+  function implGet(name: string, opts?: Record<string, unknown>): Promise<AnyResult> {
+    return (async () => {
+      try {
+        const entry = resolveModel(models, name);
+        const result = await crud.get(qfn, entry.table, opts as crud.GetArgs, dialectObj);
+        if (result !== null && opts?.include) {
+          const rows = await loadRelations(
+            qfn,
+            [result as Record<string, unknown>],
+            entry.relations as Record<string, RelationDef>,
+            opts.include as IncludeSpec,
+            0,
+            modelsRegistry,
+            entry.table,
+          );
+          return ok(rows[0] ?? null);
+        }
+        return ok(result);
+      } catch (e) {
+        return err(toReadError(e));
+      }
+    })();
+  }
+
+  function implGetRequired(name: string, opts?: Record<string, unknown>): Promise<AnyResult> {
+    return (async () => {
+      try {
+        const entry = resolveModel(models, name);
+        const result = await crud.get(qfn, entry.table, opts as crud.GetArgs, dialectObj);
+        if (result === null) {
+          return err({
+            code: 'NotFound' as const,
+            message: `Record not found in table ${name}`,
+            table: name,
+          });
+        }
+        if (opts?.include) {
+          const rows = await loadRelations(
+            qfn,
+            [result as Record<string, unknown>],
+            entry.relations as Record<string, RelationDef>,
+            opts.include as IncludeSpec,
+            0,
+            modelsRegistry,
+            entry.table,
+          );
+          return ok(rows[0] as Record<string, unknown>);
+        }
+        return ok(result);
+      } catch (e) {
+        return err(toReadError(e));
+      }
+    })();
+  }
+
+  function implList(name: string, opts?: Record<string, unknown>): Promise<AnyResult> {
+    return (async () => {
+      try {
+        const entry = resolveModel(models, name);
+        const results = await crud.list(qfn, entry.table, opts as crud.ListArgs, dialectObj);
+        if (opts?.include && results.length > 0) {
+          const withRelations = await loadRelations(
+            qfn,
+            results as Record<string, unknown>[],
+            entry.relations as Record<string, RelationDef>,
+            opts.include as IncludeSpec,
+            0,
+            modelsRegistry,
+            entry.table,
+          );
+          return ok(withRelations);
+        }
+        return ok(results);
+      } catch (e) {
+        return err(toReadError(e));
+      }
+    })();
+  }
+
+  function implListAndCount(name: string, opts?: Record<string, unknown>): Promise<AnyResult> {
+    return (async () => {
+      try {
+        const entry = resolveModel(models, name);
+        const { data, total } = await crud.listAndCount(
+          qfn,
+          entry.table,
+          opts as crud.ListArgs,
+          dialectObj,
+        );
+        if (opts?.include && data.length > 0) {
+          const withRelations = await loadRelations(
+            qfn,
+            data as Record<string, unknown>[],
+            entry.relations as Record<string, RelationDef>,
+            opts.include as IncludeSpec,
+            0,
+            modelsRegistry,
+            entry.table,
+          );
+          return ok({ data: withRelations, total });
+        }
+        return ok({ data, total });
+      } catch (e) {
+        return err(toReadError(e));
+      }
+    })();
+  }
+
+  function implCreate(name: string, opts: Record<string, unknown>): Promise<AnyResult> {
+    return (async () => {
+      try {
+        const entry = resolveModel(models, name);
+        const result = await crud.create(
+          qfn,
+          entry.table,
+          opts as unknown as crud.CreateArgs,
+          dialectObj,
+        );
+        return ok(result);
+      } catch (e) {
+        return err(toWriteError(e));
+      }
+    })();
+  }
+
+  function implCreateMany(name: string, opts: Record<string, unknown>): Promise<AnyResult> {
+    return (async () => {
+      try {
+        const entry = resolveModel(models, name);
+        const result = await crud.createMany(
+          qfn,
+          entry.table,
+          opts as unknown as crud.CreateManyArgs,
+          dialectObj,
+        );
+        return ok(result);
+      } catch (e) {
+        return err(toWriteError(e));
+      }
+    })();
+  }
+
+  function implCreateManyAndReturn(
+    name: string,
+    opts: Record<string, unknown>,
+  ): Promise<AnyResult> {
+    return (async () => {
+      try {
+        const entry = resolveModel(models, name);
+        const result = await crud.createManyAndReturn(
+          qfn,
+          entry.table,
+          opts as unknown as crud.CreateManyAndReturnArgs,
+          dialectObj,
+        );
+        return ok(result);
+      } catch (e) {
+        return err(toWriteError(e));
+      }
+    })();
+  }
+
+  function implUpdate(name: string, opts: Record<string, unknown>): Promise<AnyResult> {
+    return (async () => {
+      try {
+        const entry = resolveModel(models, name);
+        const result = await crud.update(
+          qfn,
+          entry.table,
+          opts as unknown as crud.UpdateArgs,
+          dialectObj,
+        );
+        return ok(result);
+      } catch (e) {
+        return err(toWriteError(e));
+      }
+    })();
+  }
+
+  function implUpdateMany(name: string, opts: Record<string, unknown>): Promise<AnyResult> {
+    return (async () => {
+      try {
+        const entry = resolveModel(models, name);
+        const result = await crud.updateMany(
+          qfn,
+          entry.table,
+          opts as unknown as crud.UpdateManyArgs,
+          dialectObj,
+        );
+        return ok(result);
+      } catch (e) {
+        return err(toWriteError(e));
+      }
+    })();
+  }
+
+  function implUpsert(name: string, opts: Record<string, unknown>): Promise<AnyResult> {
+    return (async () => {
+      try {
+        const entry = resolveModel(models, name);
+        const result = await crud.upsert(
+          qfn,
+          entry.table,
+          opts as unknown as crud.UpsertArgs,
+          dialectObj,
+        );
+        return ok(result);
+      } catch (e) {
+        return err(toWriteError(e));
+      }
+    })();
+  }
+
+  function implDelete(name: string, opts: Record<string, unknown>): Promise<AnyResult> {
+    return (async () => {
+      try {
+        const entry = resolveModel(models, name);
+        const result = await crud.deleteOne(
+          qfn,
+          entry.table,
+          opts as unknown as crud.DeleteArgs,
+          dialectObj,
+        );
+        return ok(result);
+      } catch (e) {
+        return err(toWriteError(e));
+      }
+    })();
+  }
+
+  function implDeleteMany(name: string, opts: Record<string, unknown>): Promise<AnyResult> {
+    return (async () => {
+      try {
+        const entry = resolveModel(models, name);
+        const result = await crud.deleteMany(
+          qfn,
+          entry.table,
+          opts as unknown as crud.DeleteManyArgs,
+          dialectObj,
+        );
+        return ok(result);
+      } catch (e) {
+        return err(toWriteError(e));
+      }
+    })();
+  }
+
+  function implCount(name: string, opts?: Record<string, unknown>): Promise<AnyResult> {
+    return (async () => {
+      try {
+        const entry = resolveModel(models, name);
+        const result = await agg.count(
+          qfn,
+          entry.table,
+          opts as { where?: Record<string, unknown> },
+        );
+        return ok(result);
+      } catch (e) {
+        return err(toReadError(e));
+      }
+    })();
+  }
+
+  function implAggregate(name: string, opts: agg.AggregateArgs): Promise<AnyResult> {
+    return (async () => {
+      try {
+        const entry = resolveModel(models, name);
+        const result = await agg.aggregate(qfn, entry.table, opts);
+        return ok(result);
+      } catch (e) {
+        return err(toReadError(e));
+      }
+    })();
+  }
+
+  function implGroupBy(name: string, opts: agg.GroupByArgs): Promise<AnyResult> {
+    return (async () => {
+      try {
+        const entry = resolveModel(models, name);
+        const result = await agg.groupBy(qfn, entry.table, opts);
+        return ok(result);
+      } catch (e) {
+        return err(toReadError(e));
+      }
+    })();
+  }
+
+  // biome-ignore lint/suspicious/noExplicitAny: Delegates are typed externally via DatabaseClient<TModels>
+  const delegates: Record<string, any> = {};
+
+  for (const name of Object.keys(models)) {
+    delegates[name] = {
+      get: (opts?: Record<string, unknown>) => implGet(name, opts),
+      getOrThrow: (opts?: Record<string, unknown>) => implGetRequired(name, opts),
+      list: (opts?: Record<string, unknown>) => implList(name, opts),
+      listAndCount: (opts?: Record<string, unknown>) => implListAndCount(name, opts),
+      create: (opts: Record<string, unknown>) => implCreate(name, opts),
+      createMany: (opts: Record<string, unknown>) => implCreateMany(name, opts),
+      createManyAndReturn: (opts: Record<string, unknown>) => implCreateManyAndReturn(name, opts),
+      update: (opts: Record<string, unknown>) => implUpdate(name, opts),
+      updateMany: (opts: Record<string, unknown>) => implUpdateMany(name, opts),
+      upsert: (opts: Record<string, unknown>) => implUpsert(name, opts),
+      delete: (opts: Record<string, unknown>) => implDelete(name, opts),
+      deleteMany: (opts: Record<string, unknown>) => implDeleteMany(name, opts),
+      count: (opts?: Record<string, unknown>) => implCount(name, opts),
+      aggregate: (opts: agg.AggregateArgs) => implAggregate(name, opts),
+      groupBy: (opts: agg.GroupByArgs) => implGroupBy(name, opts),
+    };
+  }
+
+  return delegates as Record<string, ModelDelegate<ModelEntry>>;
+}
+
+/**
+ * Build a query method that wraps a QueryFn with Result error handling.
+ */
+function buildQueryMethod(qfn: QueryFn) {
+  return async <T = Record<string, unknown>>(
+    fragment: SqlFragment,
+  ): Promise<Result<QueryResult<T>, ReadError>> => {
+    try {
+      const result = await executeQuery<T>(qfn, fragment.sql, fragment.params);
+      return ok(result);
+    } catch (e) {
+      return err(toReadError(e, fragment.sql));
+    }
+  };
+}
 
 // ---------------------------------------------------------------------------
 // createDb — factory function
@@ -505,6 +883,8 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
   let sqliteDriver: SqliteDriver | null = null;
   let replicaDrivers: PostgresDriver[] = [];
   let replicaIndex = 0;
+  // Lazy postgres initialization — hoisted so transaction() can call it
+  let initPostgres: (() => Promise<void>) | null = null;
 
   const queryFn: QueryFn = (() => {
     // If _queryFn is explicitly provided (e.g., PGlite for testing), use it
@@ -537,7 +917,7 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
     if (options.url) {
       let initialized = false;
 
-      const initPostgres = async () => {
+      initPostgres = async () => {
         if (initialized) return;
         const { createPostgresDriver } = await import('./postgres-driver');
         driver = createPostgresDriver(options.url!, options.pool);
@@ -554,7 +934,7 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
 
       // Return a routing-aware query function
       return async <T>(sqlStr: string, params: readonly unknown[]) => {
-        await initPostgres();
+        await initPostgres?.();
 
         // If no replicas configured, always use primary
         if (replicaDrivers.length === 0) {
@@ -597,338 +977,61 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
   })();
 
   // -----------------------------------------------------------------------
-  // Internal CRUD implementations — curried by table name for delegates
+  // Build model delegates and top-level query method
   // -----------------------------------------------------------------------
 
-  // biome-ignore lint/suspicious/noExplicitAny: Internal implementation bridges typed interface to untyped CRUD layer
-  type AnyResult = any;
-
-  function implGet(name: string, opts?: Record<string, unknown>): Promise<AnyResult> {
-    return (async () => {
-      try {
-        const entry = resolveModel(models, name);
-        const result = await crud.get(queryFn, entry.table, opts as crud.GetArgs, dialectObj);
-        if (result !== null && opts?.include) {
-          const rows = await loadRelations(
-            queryFn,
-            [result as Record<string, unknown>],
-            entry.relations as Record<string, RelationDef>,
-            opts.include as IncludeSpec,
-            0,
-            modelsRegistry,
-            entry.table,
-          );
-          return ok(rows[0] ?? null);
-        }
-        return ok(result);
-      } catch (e) {
-        return err(toReadError(e));
-      }
-    })();
-  }
-
-  function implGetRequired(name: string, opts?: Record<string, unknown>): Promise<AnyResult> {
-    return (async () => {
-      try {
-        const entry = resolveModel(models, name);
-        const result = await crud.get(queryFn, entry.table, opts as crud.GetArgs, dialectObj);
-        if (result === null) {
-          return err({
-            code: 'NotFound' as const,
-            message: `Record not found in table ${name}`,
-            table: name,
-          });
-        }
-        if (opts?.include) {
-          const rows = await loadRelations(
-            queryFn,
-            [result as Record<string, unknown>],
-            entry.relations as Record<string, RelationDef>,
-            opts.include as IncludeSpec,
-            0,
-            modelsRegistry,
-            entry.table,
-          );
-          return ok(rows[0] as Record<string, unknown>);
-        }
-        return ok(result);
-      } catch (e) {
-        return err(toReadError(e));
-      }
-    })();
-  }
-
-  function implList(name: string, opts?: Record<string, unknown>): Promise<AnyResult> {
-    return (async () => {
-      try {
-        const entry = resolveModel(models, name);
-        const results = await crud.list(queryFn, entry.table, opts as crud.ListArgs, dialectObj);
-        if (opts?.include && results.length > 0) {
-          const withRelations = await loadRelations(
-            queryFn,
-            results as Record<string, unknown>[],
-            entry.relations as Record<string, RelationDef>,
-            opts.include as IncludeSpec,
-            0,
-            modelsRegistry,
-            entry.table,
-          );
-          return ok(withRelations);
-        }
-        return ok(results);
-      } catch (e) {
-        return err(toReadError(e));
-      }
-    })();
-  }
-
-  function implListAndCount(name: string, opts?: Record<string, unknown>): Promise<AnyResult> {
-    return (async () => {
-      try {
-        const entry = resolveModel(models, name);
-        const { data, total } = await crud.listAndCount(
-          queryFn,
-          entry.table,
-          opts as crud.ListArgs,
-          dialectObj,
-        );
-        if (opts?.include && data.length > 0) {
-          const withRelations = await loadRelations(
-            queryFn,
-            data as Record<string, unknown>[],
-            entry.relations as Record<string, RelationDef>,
-            opts.include as IncludeSpec,
-            0,
-            modelsRegistry,
-            entry.table,
-          );
-          return ok({ data: withRelations, total });
-        }
-        return ok({ data, total });
-      } catch (e) {
-        return err(toReadError(e));
-      }
-    })();
-  }
-
-  function implCreate(name: string, opts: Record<string, unknown>): Promise<AnyResult> {
-    return (async () => {
-      try {
-        const entry = resolveModel(models, name);
-        const result = await crud.create(
-          queryFn,
-          entry.table,
-          opts as unknown as crud.CreateArgs,
-          dialectObj,
-        );
-        return ok(result);
-      } catch (e) {
-        return err(toWriteError(e));
-      }
-    })();
-  }
-
-  function implCreateMany(name: string, opts: Record<string, unknown>): Promise<AnyResult> {
-    return (async () => {
-      try {
-        const entry = resolveModel(models, name);
-        const result = await crud.createMany(
-          queryFn,
-          entry.table,
-          opts as unknown as crud.CreateManyArgs,
-          dialectObj,
-        );
-        return ok(result);
-      } catch (e) {
-        return err(toWriteError(e));
-      }
-    })();
-  }
-
-  function implCreateManyAndReturn(
-    name: string,
-    opts: Record<string, unknown>,
-  ): Promise<AnyResult> {
-    return (async () => {
-      try {
-        const entry = resolveModel(models, name);
-        const result = await crud.createManyAndReturn(
-          queryFn,
-          entry.table,
-          opts as unknown as crud.CreateManyAndReturnArgs,
-          dialectObj,
-        );
-        return ok(result);
-      } catch (e) {
-        return err(toWriteError(e));
-      }
-    })();
-  }
-
-  function implUpdate(name: string, opts: Record<string, unknown>): Promise<AnyResult> {
-    return (async () => {
-      try {
-        const entry = resolveModel(models, name);
-        const result = await crud.update(
-          queryFn,
-          entry.table,
-          opts as unknown as crud.UpdateArgs,
-          dialectObj,
-        );
-        return ok(result);
-      } catch (e) {
-        return err(toWriteError(e));
-      }
-    })();
-  }
-
-  function implUpdateMany(name: string, opts: Record<string, unknown>): Promise<AnyResult> {
-    return (async () => {
-      try {
-        const entry = resolveModel(models, name);
-        const result = await crud.updateMany(
-          queryFn,
-          entry.table,
-          opts as unknown as crud.UpdateManyArgs,
-          dialectObj,
-        );
-        return ok(result);
-      } catch (e) {
-        return err(toWriteError(e));
-      }
-    })();
-  }
-
-  function implUpsert(name: string, opts: Record<string, unknown>): Promise<AnyResult> {
-    return (async () => {
-      try {
-        const entry = resolveModel(models, name);
-        const result = await crud.upsert(
-          queryFn,
-          entry.table,
-          opts as unknown as crud.UpsertArgs,
-          dialectObj,
-        );
-        return ok(result);
-      } catch (e) {
-        return err(toWriteError(e));
-      }
-    })();
-  }
-
-  function implDelete(name: string, opts: Record<string, unknown>): Promise<AnyResult> {
-    return (async () => {
-      try {
-        const entry = resolveModel(models, name);
-        const result = await crud.deleteOne(
-          queryFn,
-          entry.table,
-          opts as unknown as crud.DeleteArgs,
-          dialectObj,
-        );
-        return ok(result);
-      } catch (e) {
-        return err(toWriteError(e));
-      }
-    })();
-  }
-
-  function implDeleteMany(name: string, opts: Record<string, unknown>): Promise<AnyResult> {
-    return (async () => {
-      try {
-        const entry = resolveModel(models, name);
-        const result = await crud.deleteMany(
-          queryFn,
-          entry.table,
-          opts as unknown as crud.DeleteManyArgs,
-          dialectObj,
-        );
-        return ok(result);
-      } catch (e) {
-        return err(toWriteError(e));
-      }
-    })();
-  }
-
-  function implCount(name: string, opts?: Record<string, unknown>): Promise<AnyResult> {
-    return (async () => {
-      try {
-        const entry = resolveModel(models, name);
-        const result = await agg.count(
-          queryFn,
-          entry.table,
-          opts as { where?: Record<string, unknown> },
-        );
-        return ok(result);
-      } catch (e) {
-        return err(toReadError(e));
-      }
-    })();
-  }
-
-  function implAggregate(name: string, opts: agg.AggregateArgs): Promise<AnyResult> {
-    return (async () => {
-      try {
-        const entry = resolveModel(models, name);
-        const result = await agg.aggregate(queryFn, entry.table, opts);
-        return ok(result);
-      } catch (e) {
-        return err(toReadError(e));
-      }
-    })();
-  }
-
-  function implGroupBy(name: string, opts: agg.GroupByArgs): Promise<AnyResult> {
-    return (async () => {
-      try {
-        const entry = resolveModel(models, name);
-        const result = await agg.groupBy(queryFn, entry.table, opts);
-        return ok(result);
-      } catch (e) {
-        return err(toReadError(e));
-      }
-    })();
-  }
-
-  // -----------------------------------------------------------------------
-  // Build model delegates eagerly — one per registered model
-  // -----------------------------------------------------------------------
+  const delegates = buildDelegates(queryFn, models, dialectObj, modelsRegistry);
 
   // biome-ignore lint/suspicious/noExplicitAny: Delegates are typed externally via DatabaseClient<TModels>
-  const client: Record<string, any> = {};
-
-  for (const name of Object.keys(models)) {
-    client[name] = {
-      get: (opts?: Record<string, unknown>) => implGet(name, opts),
-      getOrThrow: (opts?: Record<string, unknown>) => implGetRequired(name, opts),
-      list: (opts?: Record<string, unknown>) => implList(name, opts),
-      listAndCount: (opts?: Record<string, unknown>) => implListAndCount(name, opts),
-      create: (opts: Record<string, unknown>) => implCreate(name, opts),
-      createMany: (opts: Record<string, unknown>) => implCreateMany(name, opts),
-      createManyAndReturn: (opts: Record<string, unknown>) => implCreateManyAndReturn(name, opts),
-      update: (opts: Record<string, unknown>) => implUpdate(name, opts),
-      updateMany: (opts: Record<string, unknown>) => implUpdateMany(name, opts),
-      upsert: (opts: Record<string, unknown>) => implUpsert(name, opts),
-      delete: (opts: Record<string, unknown>) => implDelete(name, opts),
-      deleteMany: (opts: Record<string, unknown>) => implDeleteMany(name, opts),
-      count: (opts?: Record<string, unknown>) => implCount(name, opts),
-      aggregate: (opts: agg.AggregateArgs) => implAggregate(name, opts),
-      groupBy: (opts: agg.GroupByArgs) => implGroupBy(name, opts),
-    };
-  }
+  const client: Record<string, any> = { ...delegates };
 
   // -----------------------------------------------------------------------
   // Add top-level methods and _internals
   // -----------------------------------------------------------------------
 
-  client.query = async <T = Record<string, unknown>>(
-    fragment: SqlFragment,
-  ): Promise<Result<QueryResult<T>, ReadError>> => {
+  client.query = buildQueryMethod(queryFn);
+
+  // -----------------------------------------------------------------------
+  // Transaction support
+  // -----------------------------------------------------------------------
+
+  client.transaction = async <T>(
+    fn: (tx: TransactionClient<TModels>) => Promise<T>,
+  ): Promise<T> => {
+    // Ensure driver is initialized for PostgreSQL (lazy init may not have run yet)
+    if (initPostgres) {
+      await initPostgres();
+    }
+
+    // PostgreSQL: use driver.beginTransaction() which calls sql.begin()
+    if (driver?.beginTransaction) {
+      return await driver.beginTransaction(async (txQueryFn: QueryFn) => {
+        const txDelegates = buildDelegates(txQueryFn, models, dialectObj, modelsRegistry);
+        const tx = {
+          ...txDelegates,
+          query: buildQueryMethod(txQueryFn),
+        } as unknown as TransactionClient<TModels>;
+        return fn(tx);
+      });
+    }
+    // SQLite / testing fallback: BEGIN/COMMIT/ROLLBACK via queryFn
+    // Safe for single-connection backends (SQLite, in-memory test stubs)
+    await queryFn('BEGIN', []);
     try {
-      const result = await executeQuery<T>(queryFn, fragment.sql, fragment.params);
-      return ok(result);
+      const tx = {
+        ...delegates,
+        query: client.query,
+      } as unknown as TransactionClient<TModels>;
+      const result = await fn(tx);
+      await queryFn('COMMIT', []);
+      return result;
     } catch (e) {
-      return err(toReadError(e, fragment.sql));
+      try {
+        await queryFn('ROLLBACK', []);
+      } catch {
+        // Swallow ROLLBACK failure — preserve the original error
+      }
+      throw e;
     }
   };
 

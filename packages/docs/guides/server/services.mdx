@@ -211,6 +211,62 @@ handler: async (_input, ctx) => {
 }
 ```
 
+## Atomic request handling
+
+When a service handler performs multiple database writes that must succeed or fail together, wrap them in `db.transaction()`:
+
+```ts
+import { service } from 'vertz/server';
+
+const transfers = service('transfers', {
+  actions: {
+    transfer: {
+      body: s.object({
+        fromId: s.string().uuid(),
+        toId: s.string().uuid(),
+        amount: s.number().positive(),
+      }),
+      response: s.object({ success: s.boolean() }),
+      handler: async (input, ctx) => {
+        return db.transaction(async (tx) => {
+          await tx.accounts.update({
+            where: { id: input.fromId },
+            data: { balance: { decrement: input.amount } },
+          });
+          await tx.accounts.update({
+            where: { id: input.toId },
+            data: { balance: { increment: input.amount } },
+          });
+          return { success: true };
+        });
+      },
+    },
+  },
+  access: { transfer: () => true },
+});
+```
+
+If you have many handlers that need transactions, extract a reusable helper:
+
+```ts
+import type { TransactionClient } from 'vertz/db';
+
+function withTransaction<T>(
+  fn: (tx: TransactionClient<typeof models>) => Promise<T>,
+): Promise<T> {
+  return db.transaction(fn);
+}
+
+// Then in any handler:
+handler: async (input) => withTransaction(async (tx) => {
+  await tx.orders.create({ data: { ... } });
+  await tx.inventory.update({ ... });
+  return { orderId: '...' };
+}),
+```
+
+Use transactions for multi-table writes and financial operations. Read-heavy handlers that only perform a single write typically don't need them.
+
 ## Server setup
 
 Pass services alongside entities:

@@ -5,6 +5,7 @@ export type {
   ModelDelegate,
   PoolConfig,
   QueryResult,
+  TransactionClient,
 } from './database';
 export { createDb, isReadQuery } from './database';
 export type { DbDriver } from './driver';

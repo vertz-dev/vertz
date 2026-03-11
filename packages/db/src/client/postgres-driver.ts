@@ -155,6 +155,33 @@ export function createPostgresDriver(url: string, pool?: PoolConfig): PostgresDr
       return { rowsAffected: result.rowCount };
     },
 
+    async beginTransaction<T>(fn: (txQueryFn: QueryFn) => Promise<T>): Promise<T> {
+      // postgres.js begin() types return UnwrapPromiseArray<T> — at runtime T is already
+      // unwrapped since fn returns Promise<T> and begin() awaits it, so the cast is safe.
+      return sql.begin(async (txSql) => {
+        const txQueryFn: QueryFn = async <R>(sqlStr: string, params: readonly unknown[]) => {
+          try {
+            // biome-ignore lint/suspicious/noExplicitAny: postgres.js unsafe() expects any[] for dynamic params
+            const result = await txSql.unsafe<Record<string, unknown>[]>(sqlStr, params as any[]);
+            const rows = result.map((row) => {
+              const mapped: Record<string, unknown> = {};
+              for (const [key, value] of Object.entries(row)) {
+                mapped[key] = coerceValue(value);
+              }
+              return mapped;
+            }) as readonly R[];
+            return {
+              rows,
+              rowCount: result.count ?? rows.length,
+            } as ExecutorResult<R>;
+          } catch (error: unknown) {
+            adaptPostgresError(error);
+          }
+        };
+        return fn(txQueryFn);
+      }) as Promise<T>;
+    },
+
     async close(): Promise<void> {
       await sql.end();
     },

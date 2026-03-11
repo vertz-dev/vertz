@@ -191,6 +191,49 @@ await db.users.deleteMany({
 });
 ```
 
+## Transactions
+
+Wrap multiple operations in `db.transaction()` to make them atomic — either all succeed or all roll back:
+
+```ts
+const result = await db.transaction(async (tx) => {
+  const user = await tx.users.create({
+    data: { email: 'alice@example.com', name: 'Alice' },
+  });
+  if (!user.ok) throw new Error('Failed to create user');
+
+  await tx.tasks.create({
+    data: { title: 'Onboarding', assigneeId: user.data.id },
+  });
+
+  return user.data;
+});
+```
+
+The transaction client (`tx`) has the same model delegates as `db` — `tx.users.create()`, `tx.tasks.list()`, and `tx.query()` all work identically. The difference is that all operations share a single database transaction.
+
+### How it works
+
+- **Auto-commit:** If the callback returns normally, the transaction commits.
+- **Auto-rollback:** If the callback throws, the transaction rolls back and the error propagates to the caller.
+- **Return values:** The callback's return value is returned from `db.transaction()`.
+
+### Raw SQL in transactions
+
+You can mix model delegates with raw SQL in the same transaction:
+
+```ts
+await db.transaction(async (tx) => {
+  await tx.users.create({ data: { email: 'bob@example.com', name: 'Bob' } });
+  await tx.query(sql`UPDATE counters SET value = value + 1 WHERE name = ${'user_count'}`);
+});
+```
+
+### Limitations
+
+- **No nesting:** Calling `db.transaction()` inside a transaction callback throws `"Nested transactions are not supported."`.
+- **No D1 support:** Cloudflare D1 does not support interactive transactions. Use `D1Database.batch()` for atomic operations on D1.
+
 ## Error handling
 
 All operations return `Result<T, Error>` — they never throw. Error types map to specific database conditions:

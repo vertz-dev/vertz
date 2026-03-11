@@ -36,7 +36,14 @@ export async function createTestDb(): Promise<TestDb> {
   const queryFn = async <T>(sqlStr: string, params: readonly unknown[]) => {
     const sqliteSql = sqlStr.replace(/\$\d+/g, '?');
 
-    const trimmed = sqliteSql.trim();
+    const trimmed = sqliteSql.trim().toUpperCase();
+
+    // Handle transaction control statements
+    if (/^(BEGIN|COMMIT|ROLLBACK)\b/.test(trimmed)) {
+      rawDb.run(sqliteSql);
+      return { rows: [] as T[], rowCount: 0 };
+    }
+
     const isSelect = /^\s*SELECT/i.test(trimmed);
     const hasReturning = /RETURNING/i.test(trimmed);
 

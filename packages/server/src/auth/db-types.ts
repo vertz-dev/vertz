@@ -7,10 +7,6 @@
  *
  * NOTE: DML queries use standard SQL syntax compatible with both SQLite (3.24+)
  * and PostgreSQL (e.g., INSERT ... ON CONFLICT DO NOTHING).
- *
- * TODO: Add transaction support to AuthDbClient for PostgreSQL — multi-statement
- * operations (e.g., DbPlanStore.assignPlan deletes then inserts) need atomicity.
- * SQLite serializes single-writer operations so this is safe for now.
  */
 
 import type { DatabaseClient, ReadError } from '@vertz/db';
@@ -24,11 +20,12 @@ type AuthModels = typeof authModels;
  *
  * Keeps raw query support for legacy stores, but exposes the typed
  * `auth_sessions` delegate so session lookups can go through the generated
- * client instead of ad hoc SQL strings.
+ * client instead of ad hoc SQL strings. Includes `transaction` for atomic
+ * multi-statement writes in plan and closure stores.
  */
 export type AuthDbClient = Pick<
   DatabaseClient<AuthModels>,
-  'auth_sessions' | 'query' | '_internals'
+  'auth_sessions' | 'query' | '_internals' | 'transaction'
 >;
 
 /**
@@ -42,10 +39,7 @@ export function boolVal(db: AuthDbClient, value: boolean): boolean | number {
 /**
  * Assert a write query succeeded. Throws if the result is an error.
  */
-export function assertWrite(
-  result: Result<unknown, ReadError>,
-  context: string,
-): void {
+export function assertWrite(result: Result<unknown, ReadError>, context: string): void {
   if (!result.ok) {
     throw new Error(`Auth DB write failed (${context}): ${result.error.message}`);
   }
