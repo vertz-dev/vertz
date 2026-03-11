@@ -21,9 +21,11 @@
 import { execSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, watch, writeFileSync } from 'node:fs';
 import { dirname, normalize, resolve } from 'node:path';
+import type { FontFallbackMetrics } from '@vertz/ui';
 import { createDebugLogger } from './debug-logger';
 import { DiagnosticsCollector } from './diagnostics-collector';
 import { installFetchProxy, runWithScopedFetch } from './fetch-scope';
+import { extractFontMetrics } from './font-metrics';
 import { createSourceMapResolver, readLineText } from './source-map-resolver';
 import type { SSRModule } from './ssr-render';
 import { ssrRenderToString, ssrStreamNavQueries } from './ssr-render';
@@ -977,6 +979,16 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
       process.exit(1);
     }
 
+    // Extract font fallback metrics once at startup (zero-CLS font loading)
+    let fontFallbackMetrics: Record<string, FontFallbackMetrics> | undefined;
+    if (ssrMod.theme?.fonts) {
+      try {
+        fontFallbackMetrics = await extractFontMetrics(ssrMod.theme.fonts, projectRoot);
+      } catch (e) {
+        console.warn('[Server] Failed to extract font metrics:', e);
+      }
+    }
+
     // Generate HMR shell HTML at .vertz/dev/hmr-shell.html
     // This page initializes Bun's HMR system by importing the client entry
     mkdirSync(devDir, { recursive: true });
@@ -1197,7 +1209,10 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
           const doRender = async () => {
             logger.log('ssr', 'render-start', { url: pathname });
             const ssrStart = performance.now();
-            const result = await ssrRenderToString(ssrMod, pathname, { ssrTimeout: 300 });
+            const result = await ssrRenderToString(ssrMod, pathname, {
+              ssrTimeout: 300,
+              fallbackMetrics: fontFallbackMetrics,
+            });
             logger.log('ssr', 'render-done', {
               url: pathname,
               durationMs: Math.round(performance.now() - ssrStart),

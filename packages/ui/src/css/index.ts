@@ -21,7 +21,15 @@ export {
 export { generateClassName } from './class-generator';
 export type { CSSInput, CSSOutput, RawDeclaration, StyleEntry, StyleValue } from './css';
 export { css, getInjectedCSS, injectCSS, resetInjectedStyles } from './css';
-export type { CompiledFonts, FontDescriptor, FontOptions, FontSrc } from './font';
+export type {
+  CompiledFonts,
+  CompileFontsOptions,
+  FallbackFontName,
+  FontDescriptor,
+  FontFallbackMetrics,
+  FontOptions,
+  FontSrc,
+} from './font';
 export { compileFonts, font } from './font';
 export type { GlobalCSSInput, GlobalCSSOutput } from './global-css';
 export { globalCss } from './global-css';
@@ -33,6 +41,7 @@ export { parseShorthand, ShorthandParseError } from './shorthand-parser';
 export type {
   ColorTokens,
   CompiledTheme,
+  CompileThemeOptions,
   SpacingTokens,
   Theme,
   ThemeInput,

@@ -5,7 +5,7 @@
  * real TypeScript functions that can be imported directly.
  */
 
-import { compileTheme, type Theme } from '@vertz/ui';
+import { compileTheme, type FontFallbackMetrics, type Theme } from '@vertz/ui';
 import type { SSRRenderContext } from '@vertz/ui/internals';
 import { EntityStore, MemoryCache, QueryEnvelopeStore } from '@vertz/ui/internals';
 import { installDomShim, toVNode } from './dom-shim';
@@ -146,7 +146,11 @@ function collectCSS(themeCss: string, module: SSRModule): string {
 export async function ssrRenderToString(
   module: SSRModule,
   url: string,
-  options?: { ssrTimeout?: number },
+  options?: {
+    ssrTimeout?: number;
+    /** Pre-computed font fallback metrics (computed at server startup). */
+    fallbackMetrics?: Record<string, FontFallbackMetrics>;
+  },
 ): Promise<SSRRenderResult> {
   const normalizedUrl = url.endsWith('/index.html')
     ? url.slice(0, -'/index.html'.length) || '/'
@@ -168,7 +172,9 @@ export async function ssrRenderToString(
       let themePreloadTags = '';
       if (module.theme) {
         try {
-          const compiled = compileTheme(module.theme);
+          const compiled = compileTheme(module.theme, {
+            fallbackMetrics: options?.fallbackMetrics,
+          });
           themeCss = compiled.css;
           themePreloadTags = compiled.preloadTags;
         } catch (e) {

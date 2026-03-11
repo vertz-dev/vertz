@@ -8,6 +8,7 @@
  * Does NOT serve static files — that's the adapter/platform's job.
  */
 
+import type { FontFallbackMetrics } from '@vertz/ui';
 import type { SSRModule } from './ssr-render';
 import { ssrRenderToString, ssrStreamNavQueries } from './ssr-render';
 import { safeSerialize } from './ssr-streaming-runtime';
@@ -37,6 +38,8 @@ export interface SSRHandlerOptions {
    * so that strict Content-Security-Policy headers do not block it.
    */
   nonce?: string;
+  /** Pre-computed font fallback metrics (computed at server startup). */
+  fallbackMetrics?: Record<string, FontFallbackMetrics>;
 }
 
 /**
@@ -93,7 +96,7 @@ function injectIntoTemplate(
 export function createSSRHandler(
   options: SSRHandlerOptions,
 ): (request: Request) => Promise<Response> {
-  const { module, ssrTimeout, inlineCSS, nonce } = options;
+  const { module, ssrTimeout, inlineCSS, nonce, fallbackMetrics } = options;
 
   // Pre-process template: inline CSS assets to eliminate extra requests
   let template = options.template;
@@ -116,7 +119,7 @@ export function createSSRHandler(
     }
 
     // Normal HTML request: SSR render
-    return handleHTMLRequest(module, template, pathname, ssrTimeout, nonce);
+    return handleHTMLRequest(module, template, pathname, ssrTimeout, nonce, fallbackMetrics);
   };
 }
 
@@ -161,9 +164,10 @@ async function handleHTMLRequest(
   url: string,
   ssrTimeout?: number,
   nonce?: string,
+  fallbackMetrics?: Record<string, FontFallbackMetrics>,
 ): Promise<Response> {
   try {
-    const result = await ssrRenderToString(module, url, { ssrTimeout });
+    const result = await ssrRenderToString(module, url, { ssrTimeout, fallbackMetrics });
     const html = injectIntoTemplate(
       template,
       result.html,

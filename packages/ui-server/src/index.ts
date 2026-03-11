@@ -1,5 +1,6 @@
 export { renderAssetTags } from './asset-pipeline';
 export { inlineCriticalCss } from './critical-css';
+export { detectFallbackFont, extractFontMetrics } from './font-metrics';
 export { HeadCollector, renderHeadToHtml } from './head';
 export { serializeToHtml } from './html-serializer';
 export { wrapWithHydrationMarkers } from './hydration-markers';

@@ -1,4 +1,4 @@
-import { compileTheme, getInjectedCSS, type Theme } from '@vertz/ui';
+import { compileTheme, type FontFallbackMetrics, getInjectedCSS, type Theme } from '@vertz/ui';
 import { renderPage } from './render-page';
 import {
   clearGlobalSSRTimeout,
@@ -29,6 +29,8 @@ export interface RenderToHTMLOptions<AppFn extends () => VNode> {
   };
   /** Container selector (default '#app') */
   container?: string;
+  /** Pre-computed font fallback metrics (computed at server startup). */
+  fallbackMetrics?: Record<string, FontFallbackMetrics>;
 }
 
 export interface RenderToHTMLStreamOptions<AppFn extends () => VNode>
@@ -82,7 +84,9 @@ async function twoPassRender<AppFn extends () => VNode>(
   const collectedCSS = getInjectedCSS();
 
   // Compile theme CSS
-  const themeCss = options.theme ? compileTheme(options.theme).css : '';
+  const themeCss = options.theme
+    ? compileTheme(options.theme, { fallbackMetrics: options.fallbackMetrics }).css
+    : '';
 
   // Combine: theme + explicit styles + collected component CSS
   const allStyles = [themeCss, ...(options.styles ?? []), ...collectedCSS].filter(Boolean);
