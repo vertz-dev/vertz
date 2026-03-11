@@ -345,4 +345,31 @@ describe('compileTheme()', () => {
     const result = compileTheme(theme);
     expect(result.preloadTags).toBe('');
   });
+
+  it('returns preloadItems from compiled fonts', () => {
+    const theme = defineTheme({
+      colors: { primary: { 500: '#3b82f6' } },
+      fonts: {
+        sans: font('DM Sans', {
+          weight: '100..1000',
+          src: '/fonts/dm-sans.woff2',
+          fallback: ['sans-serif'],
+        }),
+      },
+    });
+
+    const result = compileTheme(theme);
+
+    expect(result.preloadItems).toEqual([
+      { href: '/fonts/dm-sans.woff2', as: 'font', type: 'font/woff2', crossorigin: true },
+    ]);
+  });
+
+  it('returns empty preloadItems when no fonts are provided', () => {
+    const theme = defineTheme({
+      colors: { primary: { 500: '#3b82f6' } },
+    });
+    const result = compileTheme(theme);
+    expect(result.preloadItems).toEqual([]);
+  });
 });

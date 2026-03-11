@@ -29,6 +29,7 @@ export type {
   FontFallbackMetrics,
   FontOptions,
   FontSrc,
+  PreloadItem,
 } from './font';
 export { compileFonts, font } from './font';
 export type { GlobalCSSInput, GlobalCSSOutput } from './global-css';

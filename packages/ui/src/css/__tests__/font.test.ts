@@ -503,3 +503,55 @@ describe('compileFonts() with fallbackMetrics', () => {
     expect(result.fontFaceCss).toContain("font-family: 'Test Fallback'");
   });
 });
+
+describe('compileFonts() preloadItems', () => {
+  it('returns preloadItems array with structured data for each font', () => {
+    const sans = font('DM Sans', {
+      weight: '100..1000',
+      src: '/fonts/dm-sans.woff2',
+    });
+
+    const result = compileFonts({ sans });
+
+    expect(result.preloadItems).toEqual([
+      { href: '/fonts/dm-sans.woff2', as: 'font', type: 'font/woff2', crossorigin: true },
+    ]);
+  });
+
+  it('returns one preloadItem per font descriptor (first file for array src)', () => {
+    const sans = font('DM Sans', {
+      weight: '100..1000',
+      src: [
+        { path: '/fonts/dm-sans.woff2', weight: '100..1000', style: 'normal' },
+        { path: '/fonts/dm-sans-italic.woff2', weight: '100..1000', style: 'italic' },
+      ],
+    });
+    const mono = font('JetBrains Mono', {
+      weight: '100..800',
+      src: '/fonts/jb-mono.woff2',
+      fallback: ['monospace'],
+    });
+
+    const result = compileFonts({ sans, mono });
+
+    expect(result.preloadItems).toHaveLength(2);
+    expect(result.preloadItems[0]).toEqual({
+      href: '/fonts/dm-sans.woff2',
+      as: 'font',
+      type: 'font/woff2',
+      crossorigin: true,
+    });
+    expect(result.preloadItems[1]).toEqual({
+      href: '/fonts/jb-mono.woff2',
+      as: 'font',
+      type: 'font/woff2',
+      crossorigin: true,
+    });
+  });
+
+  it('returns empty preloadItems when no fonts have src', () => {
+    const sans = font('System Sans', { weight: 400, fallback: ['sans-serif'] });
+    const result = compileFonts({ sans });
+    expect(result.preloadItems).toEqual([]);
+  });
+});
