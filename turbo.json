@@ -6,25 +6,32 @@
       "inputs": ["src/**", "package.json", "tsconfig.json", "bunup.config.ts"],
       "outputs": ["dist/**"]
     },
-    "typecheck": {
-      "dependsOn": ["^build"],
-      "inputs": ["src/**", "package.json", "tsconfig.json"],
+    "lint": {
+      "inputs": ["src/**", "package.json"],
       "outputs": []
     },
     "test": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "package.json", "tsconfig.json", "vitest.config.ts"],
-      "outputs": [],
-      "env": ["DATABASE_TEST_URL"]
+      "env": ["DATABASE_TEST_URL"],
+      "inputs": [
+        "src/**",
+        "__tests__/**",
+        "tests/**",
+        "package.json",
+        "tsconfig.json",
+        "vitest.config.ts"
+      ],
+      "outputs": []
     },
     "test:tree-shaking": {
+      "cache": false,
       "dependsOn": ["build"],
       "inputs": ["tests/tree-shaking/**", "packages/*/dist/**"],
-      "outputs": [],
-      "cache": false
+      "outputs": []
     },
-    "lint": {
-      "inputs": ["src/**", "package.json"],
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "package.json", "tsconfig.json"],
       "outputs": []
     }
   }

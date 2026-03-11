@@ -14,67 +14,69 @@
     "provenance": true
   },
   "sideEffects": false,
+  "files": ["dist"],
   "exports": {
     "./server": {
-      "import": "./src/server.ts",
-      "types": "./src/server.ts"
+      "import": "./dist/server.js",
+      "types": "./dist/server.d.ts"
     },
     "./schema": {
-      "import": "./src/schema.ts",
-      "types": "./src/schema.ts"
+      "import": "./dist/schema.js",
+      "types": "./dist/schema.d.ts"
     },
     "./db": {
-      "import": "./src/db.ts",
-      "types": "./src/db.ts"
+      "import": "./dist/db.js",
+      "types": "./dist/db.d.ts"
     },
     "./db/sqlite": {
-      "import": "./src/db-sqlite.ts",
-      "types": "./src/db-sqlite.ts"
+      "import": "./dist/db-sqlite.js",
+      "types": "./dist/db-sqlite.d.ts"
     },
     "./testing": {
-      "import": "./src/testing.ts",
-      "types": "./src/testing.ts"
+      "import": "./dist/testing.js",
+      "types": "./dist/testing.d.ts"
     },
     "./ui": {
-      "import": "./src/ui.ts",
-      "types": "./src/ui.ts"
+      "import": "./dist/ui.js",
+      "types": "./dist/ui.d.ts"
     },
     "./ui-compiler": {
-      "import": "./src/ui-compiler.ts",
-      "types": "./src/ui-compiler.ts"
+      "import": "./dist/ui-compiler.js",
+      "types": "./dist/ui-compiler.d.ts"
     },
     "./fetch": {
-      "import": "./src/fetch.ts",
-      "types": "./src/fetch.ts"
+      "import": "./dist/fetch.js",
+      "types": "./dist/fetch.d.ts"
     },
     "./errors": {
-      "import": "./src/errors.ts",
-      "types": "./src/errors.ts"
+      "import": "./dist/errors.js",
+      "types": "./dist/errors.d.ts"
     },
     "./cloudflare": {
-      "import": "./src/cloudflare.ts",
-      "types": "./src/cloudflare.ts"
+      "import": "./dist/cloudflare.js",
+      "types": "./dist/cloudflare.d.ts"
     },
     "./tui": {
-      "import": "./src/tui.ts",
-      "types": "./src/tui.ts"
+      "import": "./dist/tui.js",
+      "types": "./dist/tui.d.ts"
     },
     "./ui-primitives": {
-      "import": "./src/ui-primitives.ts",
-      "types": "./src/ui-primitives.ts"
+      "import": "./dist/ui-primitives.js",
+      "types": "./dist/ui-primitives.d.ts"
     },
     "./ui-server": {
-      "import": "./src/ui-server.ts",
-      "types": "./src/ui-server.ts"
+      "import": "./dist/ui-server.js",
+      "types": "./dist/ui-server.d.ts"
     },
     "./ui-server/bun-plugin": {
-      "import": "./src/ui-server-bun-plugin.ts",
-      "types": "./src/ui-server-bun-plugin.ts"
+      "import": "./dist/ui-server-bun-plugin.js",
+      "types": "./dist/ui-server-bun-plugin.d.ts"
     }
   },
   "scripts": {
-    "test": "bun test",
-    "build": "echo 'meta-package: no build needed'"
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {
     "@vertz/server": "workspace:^",

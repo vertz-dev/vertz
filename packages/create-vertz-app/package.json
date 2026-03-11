@@ -29,7 +29,9 @@
     "bin"
   ],
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {
     "commander": "^14.0.0"
