@@ -22,7 +22,7 @@ export interface FontOptions {
   weight: string | number;
   /** Font style. @default 'normal' */
   style?: 'normal' | 'italic';
-  /** Font-display strategy. @default 'optional' */
+  /** Font-display strategy. @default 'swap' */
   display?: 'auto' | 'block' | 'swap' | 'fallback' | 'optional';
   /** URL path(s) for local/self-hosted fonts. */
   src?: string | FontSrc[];
@@ -75,7 +75,7 @@ export function font(family: string, options: FontOptions): FontDescriptor {
     family,
     weight: String(options.weight),
     style: options.style ?? 'normal',
-    display: options.display ?? 'optional',
+    display: options.display ?? 'swap',
     src: options.src,
     fallback: options.fallback ?? [],
     subsets: options.subsets ?? ['latin'],

@@ -13,7 +13,7 @@ describe('font()', () => {
     expect(result.family).toBe('DM Sans');
     expect(result.weight).toBe('100..1000');
     expect(result.style).toBe('normal');
-    expect(result.display).toBe('optional');
+    expect(result.display).toBe('swap');
     expect(result.src).toBe('/fonts/dm-sans.woff2');
     expect(result.fallback).toEqual([]);
     expect(result.subsets).toEqual(['latin']);
@@ -64,7 +64,7 @@ describe('compileFonts()', () => {
     expect(result.fontFaceCss).toContain("font-family: 'DM Sans'");
     expect(result.fontFaceCss).toContain('font-weight: 100 1000');
     expect(result.fontFaceCss).toContain('font-style: normal');
-    expect(result.fontFaceCss).toContain('font-display: optional');
+    expect(result.fontFaceCss).toContain('font-display: swap');
     expect(result.fontFaceCss).toContain("url(/fonts/dm-sans.woff2) format('woff2')");
   });
 
