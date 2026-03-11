@@ -12,9 +12,10 @@
  * Usage: bun run scripts/build.ts
  */
 
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createVertzBunPlugin } from '@vertz/ui-server/bun-plugin';
+import { buildCssInjection, type CssSource } from './build-css-injection';
 
 const ROOT = resolve(import.meta.dir, '..');
 const DIST = resolve(ROOT, 'dist');
@@ -51,9 +52,10 @@ if (!clientResult.success) {
   process.exit(1);
 }
 
-// Collect built asset paths (relative to dist/)
+// Collect built assets
 let clientJsPath = '';
-const clientCssPaths: string[] = [];
+const cssSources: CssSource[] = [];
+const bunCssFilePaths: string[] = [];
 
 for (const output of clientResult.outputs) {
   const rel = output.path.replace(DIST, '');
@@ -61,7 +63,8 @@ for (const output of clientResult.outputs) {
     clientJsPath = rel;
     console.log(`  JS entry: ${rel}`);
   } else if (output.path.endsWith('.css')) {
-    clientCssPaths.push(rel);
+    cssSources.push({ content: await output.text(), href: rel });
+    bunCssFilePaths.push(output.path);
     console.log(`  CSS: ${rel}`);
   }
 }
@@ -74,10 +77,31 @@ for (const [, extraction] of fileExtractions) {
   }
 }
 if (extractedCss) {
-  const cssPath = resolve(DIST_ASSETS, 'vertz.css');
-  writeFileSync(cssPath, extractedCss);
-  clientCssPaths.push('/assets/vertz.css');
+  cssSources.push({ content: extractedCss, href: '/assets/vertz.css' });
   console.log('  CSS (extracted): /assets/vertz.css');
+}
+
+// Decide inline vs link for each CSS source
+const cssInjection = buildCssInjection(cssSources);
+
+// Write only the CSS files that exceeded the inline threshold
+for (const file of cssInjection.filesToWrite) {
+  const absPath = resolve(DIST, file.path.replace(/^\//, ''));
+  writeFileSync(absPath, file.content);
+}
+
+// Remove orphaned Bun CSS files that were inlined
+const linkedPaths = new Set(
+  cssInjection.filesToWrite.map((f) => resolve(DIST, f.path.replace(/^\//, ''))),
+);
+for (const bunCssPath of bunCssFilePaths) {
+  if (!linkedPaths.has(bunCssPath)) {
+    try {
+      unlinkSync(bunCssPath);
+    } catch {
+      // File may not exist if Bun didn't write it
+    }
+  }
 }
 
 // ── Step 2: Copy public/ → dist/ ───────────────────────────
@@ -171,10 +195,6 @@ for (const ref of [
 // ── Step 6: Inject production head + client bundle ─────────
 console.log('[build] Injecting production head + client bundle...');
 
-const cssLinks = clientCssPaths
-  .map((path) => `  <link rel="stylesheet" href="${path}" />`)
-  .join('\n');
-
 const PRODUCTION_HEAD = `
   <meta name="description" content="One command. Database, API, and UI — running locally. Define your schema once. Everything else is derived. Zero config." />
 
@@ -201,7 +221,7 @@ const PRODUCTION_HEAD = `
   <link rel="canonical" href="https://vertz.dev" />
 
   <!-- Production CSS -->
-${cssLinks}`;
+${cssInjection.html}`;
 
 // Inject meta tags after <title>
 clean = clean.replace(/(<title>[^<]*<\/title>)/, `$1\n${PRODUCTION_HEAD}`);
