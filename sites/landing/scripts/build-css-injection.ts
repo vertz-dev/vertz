@@ -1,5 +1,5 @@
-/** 10 KiB raw (uncompressed) — CSS below this threshold is inlined as <style> tags. */
-export const CSS_INLINE_THRESHOLD = 10 * 1024;
+/** 15 KiB raw (uncompressed) — CSS below this threshold is inlined as <style> tags. */
+export const CSS_INLINE_THRESHOLD = 15 * 1024;
 
 export interface CssSource {
   /** Raw CSS content */

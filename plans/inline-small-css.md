@@ -16,7 +16,7 @@ The build script gains a size-threshold check:
 
 ```ts
 // In build.ts, after extracting CSS:
-const CSS_INLINE_THRESHOLD = 10 * 1024; // 10 KiB raw (uncompressed)
+const CSS_INLINE_THRESHOLD = 10 * 1024; // 15 KiB raw (uncompressed)
 
 if (extractedCss.length <= CSS_INLINE_THRESHOLD) {
   // Inline as <style> in the production head
@@ -76,7 +76,7 @@ N/A — no generics involved. This is a build script change with no type-level A
 
 ```ts
 describe('Feature: CSS inlining in production build', () => {
-  describe('Given extracted CSS is under 10 KiB', () => {
+  describe('Given extracted CSS is under 15 KiB', () => {
     describe('When the production build runs', () => {
       it('Then the output HTML contains inline <style data-vertz-css> tags', () => {
         // Verify: output index.html includes <style data-vertz-css>...</style>
@@ -90,7 +90,7 @@ describe('Feature: CSS inlining in production build', () => {
     });
   });
 
-  describe('Given extracted CSS exceeds 10 KiB', () => {
+  describe('Given extracted CSS exceeds 15 KiB', () => {
     describe('When the production build runs', () => {
       it('Then the output HTML uses <link> tags for the CSS', () => {
         // Verify: output includes <link rel="stylesheet" href="...">
@@ -144,7 +144,7 @@ The function is a pure function: given CSS sources, it decides which to inline a
 
 **Changes:**
 
-1. Add a `CSS_INLINE_THRESHOLD` constant (10 KiB raw/uncompressed)
+1. Add a `CSS_INLINE_THRESHOLD` constant (15 KiB raw/uncompressed)
 2. Extract a `buildCssInjection()` pure function (signature above) into `sites/landing/scripts/build-css-injection.ts`
 3. For extracted component CSS (`extractedCss`): use `await output.text()` on `BuildArtifact` (not filesystem read) to get Bun CSS chunk contents
 4. Collect all CSS as `CssSource[]` and pass to `buildCssInjection()`
