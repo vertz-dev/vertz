@@ -292,7 +292,7 @@ function validateInclude(
         };
       }
       const allowedSet = new Set(configObj.allowOrderBy);
-      for (const field of Object.keys(requested.orderBy)) {
+      for (const [field, dir] of Object.entries(requested.orderBy)) {
         if (!allowedSet.has(field)) {
           return {
             ok: false,
@@ -301,12 +301,27 @@ function validateInclude(
               `Allowed: ${configObj.allowOrderBy.join(', ')}`,
           };
         }
+        if (dir !== 'asc' && dir !== 'desc') {
+          return {
+            ok: false,
+            error: `Invalid orderBy direction '${String(dir)}' for field '${field}' on relation '${relationPath}'. Must be 'asc' or 'desc'.`,
+          };
+        }
       }
     }
 
-    // Clamp limit to maxLimit if specified
-    if (requested.limit !== undefined && configObj?.maxLimit !== undefined) {
-      if (requested.limit > configObj.maxLimit) {
+    // Validate and clamp limit
+    if (requested.limit !== undefined) {
+      if (typeof requested.limit !== 'number' || !Number.isFinite(requested.limit)) {
+        return {
+          ok: false,
+          error: `Invalid limit on relation '${relationPath}': must be a finite number`,
+        };
+      }
+      if (requested.limit < 0) {
+        requested.limit = 0;
+      }
+      if (configObj?.maxLimit !== undefined && requested.limit > configObj.maxLimit) {
         requested.limit = configObj.maxLimit;
       }
     }

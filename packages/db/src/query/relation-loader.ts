@@ -90,6 +90,38 @@ interface QueryBudget {
   remaining: number;
 }
 
+/**
+ * Safely merge a user-provided where clause with a batch IN clause.
+ * The batch clause (FK/PK IN (...)) ALWAYS takes precedence — user cannot
+ * override the batch key, which would break parent scoping and enable data leaks.
+ */
+function safeMergeWhere(
+  batchWhere: Record<string, unknown>,
+  userWhere: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  if (!userWhere) return batchWhere;
+  const merged = { ...batchWhere };
+  for (const [key, value] of Object.entries(userWhere)) {
+    if (!(key in batchWhere)) {
+      merged[key] = value;
+    }
+    // Silently drop keys that collide with batch clause — they are FK/PK columns
+  }
+  return merged;
+}
+
+/**
+ * Resolve the effective per-parent limit for a relation include.
+ * Applies DEFAULT_RELATION_LIMIT when no explicit limit or maxLimit is set.
+ */
+function resolveEffectiveLimit(includeValue: IncludeValue): number {
+  const userLimit = typeof includeValue === 'object' ? includeValue.limit : undefined;
+  if (typeof userLimit === 'number' && userLimit > 0) {
+    return userLimit;
+  }
+  return DEFAULT_RELATION_LIMIT;
+}
+
 // ---------------------------------------------------------------------------
 // Core loader
 // ---------------------------------------------------------------------------
@@ -267,11 +299,9 @@ async function loadOneRelation<T extends Record<string, unknown>>(
   }
 
   // Merge user where with the batch IN clause for conditional load
+  // Batch clause takes precedence — user cannot override the PK IN clause
   const userWhere = typeof includeValue === 'object' ? includeValue.where : undefined;
-  const batchWhere: Record<string, unknown> = { [targetPk]: { in: [...fkValues] } };
-  if (userWhere) {
-    Object.assign(batchWhere, userWhere);
-  }
+  const batchWhere = safeMergeWhere({ [targetPk]: { in: [...fkValues] } }, userWhere);
 
   // Build and execute the batch query
   const query = buildSelect({
@@ -364,11 +394,9 @@ async function loadManyRelation<T extends Record<string, unknown>>(
   }
 
   // Merge user where with the batch IN clause
+  // Batch clause takes precedence — user cannot override the FK IN clause
   const userWhere = typeof includeValue === 'object' ? includeValue.where : undefined;
-  const batchWhere: Record<string, unknown> = { [fk]: { in: [...pkValues] } };
-  if (userWhere) {
-    Object.assign(batchWhere, userWhere);
-  }
+  const batchWhere = safeMergeWhere({ [fk]: { in: [...pkValues] } }, userWhere);
 
   // Resolve orderBy from the include option
   const userOrderBy = typeof includeValue === 'object' ? includeValue.orderBy : undefined;
@@ -381,12 +409,13 @@ async function loadManyRelation<T extends Record<string, unknown>>(
     );
   }
 
-  // Build and execute the batch query
+  // Build and execute the batch query with global row cap
   const query = buildSelect({
     table: target._name,
     columns,
     where: batchWhere,
     orderBy: userOrderBy,
+    limit: GLOBAL_RELATION_ROW_LIMIT,
   });
 
   if (queryBudget) queryBudget.remaining--;
@@ -406,12 +435,11 @@ async function loadManyRelation<T extends Record<string, unknown>>(
   }
 
   // Apply per-parent limit (post-fetch grouping)
-  const userLimit = typeof includeValue === 'object' ? includeValue.limit : undefined;
-  if (userLimit !== undefined && userLimit > 0) {
-    for (const [parentId, rows] of lookup) {
-      if (rows.length > userLimit) {
-        lookup.set(parentId, rows.slice(0, userLimit));
-      }
+  // Always applies — uses DEFAULT_RELATION_LIMIT when no explicit limit is set
+  const effectiveLimit = resolveEffectiveLimit(includeValue);
+  for (const [parentId, rows] of lookup) {
+    if (rows.length > effectiveLimit) {
+      lookup.set(parentId, rows.slice(0, effectiveLimit));
     }
   }
 
@@ -553,11 +581,9 @@ async function loadManyToManyRelation<T extends Record<string, unknown>>(
   }
 
   // Merge user where with the target ID IN clause
+  // Batch clause takes precedence — user cannot override the PK IN clause
   const userWhere = typeof includeValue === 'object' ? includeValue.where : undefined;
-  const targetWhere: Record<string, unknown> = { [targetPk]: { in: [...allTargetIds] } };
-  if (userWhere) {
-    Object.assign(targetWhere, userWhere);
-  }
+  const targetWhere = safeMergeWhere({ [targetPk]: { in: [...allTargetIds] } }, userWhere);
 
   // Resolve orderBy from the include option
   const userOrderBy = typeof includeValue === 'object' ? includeValue.orderBy : undefined;
@@ -575,6 +601,7 @@ async function loadManyToManyRelation<T extends Record<string, unknown>>(
     columns,
     where: targetWhere,
     orderBy: userOrderBy,
+    limit: GLOBAL_RELATION_ROW_LIMIT,
   });
 
   if (queryBudget) queryBudget.remaining--;

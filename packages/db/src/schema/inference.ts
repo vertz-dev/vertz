@@ -168,6 +168,8 @@ export type IncludeOption<TRelations extends RelationsRecord> = {
             where?: FilterType<TCols>;
             orderBy?: OrderByType<TCols>;
             limit?: number;
+            /** Nested includes — untyped until full model registry is threaded through. */
+            include?: Record<string, unknown>;
           }
         : never);
 };

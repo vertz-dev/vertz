@@ -924,6 +924,73 @@ describe('Feature: Entity relations config with allowWhere/allowOrderBy (#1130)'
     });
   });
 
+  // --- orderBy direction validation (#1130 S1) ---
+
+  describe('Given a relation include with invalid orderBy direction', () => {
+    describe('When direction is not asc or desc', () => {
+      it('Then returns an error', () => {
+        const options = {
+          include: {
+            comments: {
+              orderBy: { createdAt: 'ascending' as 'asc' },
+            },
+          },
+        };
+        const relationsConfig: EntityRelationsConfig = {
+          comments: { allowOrderBy: ['createdAt'] },
+        };
+
+        const result = validateVertzQL(options, usersTable, relationsConfig);
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toContain('Invalid orderBy direction');
+        }
+      });
+    });
+  });
+
+  // --- limit numeric validation (#1130 S5) ---
+
+  describe('Given a relation include with non-finite limit', () => {
+    describe('When limit is NaN', () => {
+      it('Then returns an error', () => {
+        const options = {
+          include: {
+            comments: { limit: Number.NaN },
+          },
+        };
+        const relationsConfig: EntityRelationsConfig = {
+          comments: { maxLimit: 50 },
+        };
+
+        const result = validateVertzQL(options, usersTable, relationsConfig);
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toContain('must be a finite number');
+        }
+      });
+    });
+
+    describe('When limit is Infinity', () => {
+      it('Then returns an error', () => {
+        const options = {
+          include: {
+            comments: { limit: Number.POSITIVE_INFINITY },
+          },
+        };
+        const relationsConfig: EntityRelationsConfig = {
+          comments: { maxLimit: 50 },
+        };
+
+        const result = validateVertzQL(options, usersTable, relationsConfig);
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toContain('must be a finite number');
+        }
+      });
+    });
+  });
+
   // --- Boolean include with object config still works ---
 
   describe('Given a relation config with select/allowWhere', () => {
