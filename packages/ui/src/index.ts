@@ -111,6 +111,15 @@ export type {
   QueryResult,
 } from './query';
 export { invalidate, isQueryDescriptor, query, queryMatch } from './query';
+// Route access rules
+export type { RouteAccessRule } from './auth/route-rules';
+export { rules } from './auth/route-rules';
+export type {
+  RouteAccessContext,
+  RouteAccessDenialReason,
+  RouteAccessResult,
+} from './router/route-access';
+export { evaluateRouteAccess } from './router/route-access';
 // Router
 export type {
   CompiledRoute,
@@ -124,7 +133,7 @@ export type {
   SearchParamSchema,
   TypedRoutes,
 } from './router/define-routes';
-export { defineRoutes } from './router/define-routes';
+export { defineRoutes, matchRoute } from './router/define-routes';
 export type { LinkFactoryOptions, LinkProps } from './router/link';
 export { createLink } from './router/link';
 export type {

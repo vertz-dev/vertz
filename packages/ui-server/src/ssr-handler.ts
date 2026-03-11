@@ -8,6 +8,8 @@
  * Does NOT serve static files — that's the adapter/platform's job.
  */
 
+import type { CompiledRoute, RouteAccessContext, RouteAccessDenialReason } from '@vertz/ui';
+import { evaluateRouteAccess, matchRoute } from '@vertz/ui';
 import type { SSRModule } from './ssr-render';
 import { ssrRenderToString, ssrStreamNavQueries } from './ssr-render';
 import { safeSerialize } from './ssr-streaming-runtime';
@@ -37,6 +39,22 @@ export interface SSRHandlerOptions {
    * so that strict Content-Security-Policy headers do not block it.
    */
   nonce?: string;
+  /**
+   * Compiled routes for access rule evaluation.
+   * When provided with `auth`, the handler evaluates route access rules
+   * before rendering and redirects on denial.
+   */
+  routes?: CompiledRoute[];
+  /**
+   * Auth configuration for route access evaluation.
+   * Required when `routes` have access rules.
+   */
+  auth?: {
+    /** Extract auth context from the incoming request (e.g., parse JWT cookie) */
+    fromRequest: (request: Request) => RouteAccessContext;
+    /** Returns redirect URL when access is denied */
+    onDenied: (reason: RouteAccessDenialReason) => string;
+  };
 }
 
 /**
@@ -93,7 +111,7 @@ function injectIntoTemplate(
 export function createSSRHandler(
   options: SSRHandlerOptions,
 ): (request: Request) => Promise<Response> {
-  const { module, ssrTimeout, inlineCSS, nonce } = options;
+  const { module, ssrTimeout, inlineCSS, nonce, routes, auth } = options;
 
   // Pre-process template: inline CSS assets to eliminate extra requests
   let template = options.template;
@@ -110,6 +128,12 @@ export function createSSRHandler(
     const url = new URL(request.url);
     const pathname = url.pathname;
 
+    // Route access check (if routes and auth are configured)
+    if (routes && auth) {
+      const accessRedirect = checkRouteAccess(routes, pathname, request, auth);
+      if (accessRedirect) return accessRedirect;
+    }
+
     // Nav pre-fetch: SSE response
     if (request.headers.get('x-vertz-nav') === '1') {
       return handleNavRequest(module, pathname, ssrTimeout);
@@ -118,6 +142,36 @@ export function createSSRHandler(
     // Normal HTML request: SSR render
     return handleHTMLRequest(module, template, pathname, ssrTimeout, nonce);
   };
+}
+
+/**
+ * Check route access rules and return a redirect response if denied.
+ * Returns null if access is allowed or if the URL doesn't match any route.
+ */
+function checkRouteAccess(
+  routes: CompiledRoute[],
+  pathname: string,
+  request: Request,
+  auth: {
+    fromRequest: (request: Request) => RouteAccessContext;
+    onDenied: (reason: RouteAccessDenialReason) => string;
+  },
+): Response | null {
+  const match = matchRoute(routes, pathname);
+  if (!match) return null; // URL doesn't match any route — skip access check
+
+  const ctx = auth.fromRequest(request);
+  const result = evaluateRouteAccess(match.matched, ctx);
+
+  if (!result.allowed) {
+    const redirectUrl = auth.onDenied(result.reason);
+    return new Response(null, {
+      status: 302,
+      headers: { Location: redirectUrl },
+    });
+  }
+
+  return null;
 }
 
 /**
