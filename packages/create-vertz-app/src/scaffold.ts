@@ -1,9 +1,11 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import {
+  apiDevelopmentRuleTemplate,
   appComponentTemplate,
   bunfigTemplate,
   bunPluginShimTemplate,
+  claudeMdTemplate,
   clientTemplate,
   dbTemplate,
   entryClientTemplate,
@@ -18,6 +20,7 @@ import {
   tasksEntityTemplate,
   themeTemplate,
   tsconfigTemplate,
+  uiDevelopmentRuleTemplate,
   vertzConfigTemplate,
 } from './templates/index.js';
 import type { ScaffoldOptions } from './types.js';
@@ -58,11 +61,13 @@ export async function scaffold(parentDir: string, options: ScaffoldOptions): Pro
   const entitiesDir = path.join(apiDir, 'entities');
   const pagesDir = path.join(srcDir, 'pages');
   const stylesDir = path.join(srcDir, 'styles');
+  const claudeRulesDir = path.join(projectDir, '.claude', 'rules');
 
   await Promise.all([
     fs.mkdir(entitiesDir, { recursive: true }),
     fs.mkdir(pagesDir, { recursive: true }),
     fs.mkdir(stylesDir, { recursive: true }),
+    fs.mkdir(claudeRulesDir, { recursive: true }),
   ]);
 
   // Write all files in parallel
@@ -90,6 +95,11 @@ export async function scaffold(parentDir: string, options: ScaffoldOptions): Pro
     writeFile(srcDir, 'entry-client.ts', entryClientTemplate()),
     writeFile(pagesDir, 'home.tsx', homePageTemplate()),
     writeFile(stylesDir, 'theme.ts', themeTemplate()),
+
+    // LLM rules
+    writeFile(projectDir, 'CLAUDE.md', claudeMdTemplate(projectName)),
+    writeFile(claudeRulesDir, 'api-development.md', apiDevelopmentRuleTemplate()),
+    writeFile(claudeRulesDir, 'ui-development.md', uiDevelopmentRuleTemplate()),
   ]);
 }
 

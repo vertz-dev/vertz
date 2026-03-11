@@ -64,6 +64,13 @@ describe('scaffold', () => {
       expect(stat.isDirectory()).toBe(true);
     });
 
+    it('creates .claude/rules/ subdirectory', async () => {
+      await scaffold(tempDir, defaultOptions);
+
+      const stat = await fs.stat(projectPath('.claude', 'rules'));
+      expect(stat.isDirectory()).toBe(true);
+    });
+
     it('does NOT create src/modules/ (removed)', async () => {
       await scaffold(tempDir, defaultOptions);
 
@@ -293,6 +300,41 @@ describe('scaffold', () => {
       expect(content).toContain('queryMatch');
       expect(content).toContain('api.tasks');
       expect(content).toContain('export function HomePage()');
+    });
+  });
+
+  // ── LLM rules files ─────────────────────────────────────
+
+  describe('LLM rules files', () => {
+    it('generates CLAUDE.md with project name', async () => {
+      await scaffold(tempDir, { projectName: 'my-cool-app' });
+
+      const content = await fs.readFile(path.join(tempDir, 'my-cool-app', 'CLAUDE.md'), 'utf-8');
+      expect(content).toContain('# my-cool-app');
+      expect(content).toContain('Vertz');
+    });
+
+    it('generates .claude/rules/api-development.md', async () => {
+      await scaffold(tempDir, defaultOptions);
+
+      const content = await fs.readFile(
+        projectPath('.claude', 'rules', 'api-development.md'),
+        'utf-8',
+      );
+      expect(content).toContain('entity(');
+      expect(content).toContain("from 'vertz/server'");
+    });
+
+    it('generates .claude/rules/ui-development.md', async () => {
+      await scaffold(tempDir, defaultOptions);
+
+      const content = await fs.readFile(
+        projectPath('.claude', 'rules', 'ui-development.md'),
+        'utf-8',
+      );
+      expect(content).toContain('query(');
+      expect(content).toContain("from 'vertz/ui'");
+      expect(content).toContain('css(');
     });
   });
 });
