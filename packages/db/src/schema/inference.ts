@@ -160,7 +160,14 @@ type RelationsRecord = Record<string, RelationDef>;
  * - An object with optional `select` clause for narrowing
  */
 export type IncludeOption<TRelations extends RelationsRecord> = {
-  [K in keyof TRelations]?: true | { select?: Record<string, true> };
+  [K in keyof TRelations]?:
+    | true
+    | {
+        select?: Record<string, true>;
+        where?: Record<string, unknown>;
+        orderBy?: Record<string, 'asc' | 'desc'>;
+        limit?: number;
+      };
 };
 
 /** Extract the target table from a RelationDef. */
