@@ -8,18 +8,37 @@
  * If the single-import bundle is >50% of the full bundle, tree-shaking
  * is broken for that package.
  */
-import * as esbuild from 'esbuild';
+
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
+import * as esbuild from 'esbuild';
 
 const ROOT = path.resolve(__dirname, '../..');
 const TMP = path.join(ROOT, 'tests/tree-shaking/.tmp');
 
 const EXTERNAL = [
-  'node:*', 'fs', 'path', 'crypto', 'http', 'https', 'net', 'url',
-  'stream', 'zlib', 'util', 'os', 'child_process', 'events', 'buffer',
-  'querystring', 'tty', 'assert', 'pg', 'postgres', 'better-sqlite3',
+  'node:*',
+  'fs',
+  'path',
+  'crypto',
+  'http',
+  'https',
+  'net',
+  'url',
+  'stream',
+  'zlib',
+  'util',
+  'os',
+  'child_process',
+  'events',
+  'buffer',
+  'querystring',
+  'tty',
+  'assert',
+  'pg',
+  'postgres',
+  'better-sqlite3',
 ];
 
 /** Packages to test: [name, singleImport, symbol] */
@@ -47,7 +66,7 @@ const PACKAGES: { name: string; singleImport: string; distEntry: string }[] = [
   {
     name: '@vertz/ui-primitives',
     singleImport: `import { Button } from '@vertz/ui-primitives'; console.log(Button);`,
-    distEntry: 'packages/ui-primitives/dist/index.js',
+    distEntry: 'packages/ui-primitives/dist/src/index.js',
   },
   {
     name: '@vertz/fetch',
@@ -57,7 +76,7 @@ const PACKAGES: { name: string; singleImport: string; distEntry: string }[] = [
   {
     name: '@vertz/ui',
     singleImport: `import { ref } from '@vertz/ui'; console.log(ref);`,
-    distEntry: 'packages/ui/dist/index.js',
+    distEntry: 'packages/ui/dist/src/index.js',
   },
   {
     name: '@vertz/icons',
@@ -70,11 +89,19 @@ const PACKAGES: { name: string; singleImport: string; distEntry: string }[] = [
  * Maximum ratio of (single-import bundle) / (full re-export bundle).
  * Importing one small symbol should not pull in >50% of the package.
  */
-const MAX_RATIO = 0.50;
+const MAX_RATIO = 0.5;
 
-const aliases = Object.fromEntries(
-  PACKAGES.map((p) => [p.name, path.join(ROOT, p.distEntry)]),
-);
+/** Subpath aliases for packages that use conditional exports (e.g. @vertz/ui/internals). */
+const SUBPATH_ALIASES: Record<string, string> = {
+  '@vertz/ui/internals': 'packages/ui/dist/src/internals.js',
+  '@vertz/core/internals': 'packages/core/dist/internals.js',
+  '@vertz/db/sql': 'packages/db/dist/sql/index.js',
+};
+
+const aliases: Record<string, string> = {
+  ...Object.fromEntries(PACKAGES.map((p) => [p.name, path.join(ROOT, p.distEntry)])),
+  ...Object.fromEntries(Object.entries(SUBPATH_ALIASES).map(([k, v]) => [k, path.join(ROOT, v)])),
+};
 
 async function bundleSize(code: string, name: string): Promise<number> {
   const entry = path.join(TMP, `${name}.ts`);
@@ -125,8 +152,10 @@ describe('tree-shaking', () => {
         return;
       }
 
-      expect(ratio, `${pkg.name}: single-import bundle is ${(ratio * 100).toFixed(1)}% of full — tree-shaking may be broken`)
-        .toBeLessThan(MAX_RATIO);
+      expect(
+        ratio,
+        `${pkg.name}: single-import bundle is ${(ratio * 100).toFixed(1)}% of full — tree-shaking may be broken`,
+      ).toBeLessThan(MAX_RATIO);
     });
   }
 });
