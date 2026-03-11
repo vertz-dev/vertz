@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { rules } from '../../auth/route-rules';
 import type { ParamSchema } from '../define-routes';
 import { defineRoutes, matchRoute } from '../define-routes';
 
@@ -22,6 +23,43 @@ describe('defineRoutes', () => {
     expect(routes[0]?.pattern).toBe('/');
     expect(routes[1]?.pattern).toBe('/users');
     expect(routes[2]?.pattern).toBe('/posts');
+  });
+
+  test('carries access rule on compiled route', () => {
+    const routes = defineRoutes({
+      '/dashboard': {
+        component: () => document.createElement('div'),
+        access: rules.authenticated(),
+      },
+    });
+    expect(routes[0]?.access).toEqual({ type: 'authenticated' });
+  });
+
+  test('compiled route has no access when not provided', () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+    });
+    expect(routes[0]?.access).toBeUndefined();
+  });
+
+  test('carries access rule on nested child routes', () => {
+    const routes = defineRoutes({
+      '/admin': {
+        component: () => document.createElement('div'),
+        access: rules.role('admin'),
+        children: {
+          '/billing': {
+            component: () => document.createElement('span'),
+            access: rules.entitlement('admin:billing'),
+          },
+        },
+      },
+    });
+    expect(routes[0]?.access).toEqual({ type: 'role', roles: ['admin'] });
+    expect(routes[0]?.children?.[0]?.access).toEqual({
+      type: 'entitlement',
+      entitlement: 'admin:billing',
+    });
   });
 
   test('flattens nested children with full path', () => {

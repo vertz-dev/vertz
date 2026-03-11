@@ -2,6 +2,7 @@
  * Route definition and matching API.
  */
 
+import type { RouteAccessRule } from '../auth/route-rules';
 import { matchPath } from './matcher';
 import type { ExtractParams } from './params';
 
@@ -33,6 +34,8 @@ export interface RouteConfig<
   params?: ParamSchema<TParams>;
   /** Optional search params schema for validation/coercion. */
   searchParams?: SearchParamSchema<TSearch>;
+  /** Access rule — determines who can reach this route. */
+  access?: RouteAccessRule;
   /** Nested child routes. */
   children?: RouteDefinitionMap;
 }
@@ -60,6 +63,7 @@ export interface RouteConfigLike {
   errorComponent?: (error: Error) => Node;
   params?: ParamSchema<unknown>;
   searchParams?: SearchParamSchema<unknown>;
+  access?: RouteAccessRule;
   children?: Record<string, RouteConfigLike>;
 }
 
@@ -94,6 +98,8 @@ export interface CompiledRoute {
   /** Optional path params schema for validation/parsing. */
   params?: ParamSchema<unknown>;
   searchParams?: RouteConfig['searchParams'];
+  /** Access rule for this route. */
+  access?: RouteAccessRule;
   /** Compiled children. */
   children?: CompiledRoute[];
 }
@@ -140,6 +146,7 @@ export function defineRoutes<const T extends Record<string, RouteConfigLike>>(
 
   for (const [pattern, config] of Object.entries(map)) {
     const compiled: CompiledRoute = {
+      access: config.access,
       component: config.component,
       errorComponent: config.errorComponent,
       loader: config.loader as CompiledRoute['loader'],
