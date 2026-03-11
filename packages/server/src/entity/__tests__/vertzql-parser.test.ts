@@ -531,7 +531,7 @@ describe('Feature: VertzQL validation', () => {
           include: { creator: { select: { id: true, name: true, email: true } } },
         };
         const relationsConfig: EntityRelationsConfig = {
-          creator: { id: true, name: true } as Record<string, true>,
+          creator: { select: { id: true, name: true } },
         };
 
         const result = validateVertzQL(options, usersTable, relationsConfig);
@@ -577,7 +577,366 @@ describe('Feature: VertzQL validation', () => {
       it('Then returns ok', () => {
         const options = { include: { creator: { select: { id: true, name: true } } } };
         const relationsConfig: EntityRelationsConfig = {
-          creator: { id: true, name: true } as Record<string, true>,
+          creator: { select: { id: true, name: true } },
+        };
+
+        const result = validateVertzQL(options, usersTable, relationsConfig);
+
+        expect(result.ok).toBe(true);
+      });
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 2: Relation include with where/orderBy/limit validation (#1130)
+// ---------------------------------------------------------------------------
+
+describe('Feature: VertzQL include with where/orderBy/limit (#1130)', () => {
+  // --- parseVertzQL: nested include options in q= param ---
+
+  describe('Given a q= param with include containing where/orderBy/limit', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then preserves where, orderBy, limit in the include entry', () => {
+        const structural = {
+          include: {
+            comments: {
+              where: { status: 'published' },
+              orderBy: { createdAt: 'desc' },
+              limit: 10,
+            },
+          },
+        };
+        const q = btoa(JSON.stringify(structural));
+
+        const result = parseVertzQL({ q });
+
+        expect(result.include).toEqual({
+          comments: {
+            where: { status: 'published' },
+            orderBy: { createdAt: 'desc' },
+            limit: 10,
+          },
+        });
+      });
+    });
+  });
+
+  describe('Given a q= param with nested include (depth 2)', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then preserves nested include structure', () => {
+        const structural = {
+          include: {
+            author: {
+              select: { name: true },
+              include: {
+                organization: { select: { name: true } },
+              },
+            },
+          },
+        };
+        const q = btoa(JSON.stringify(structural));
+
+        const result = parseVertzQL({ q });
+
+        expect(result.include).toEqual({
+          author: {
+            select: { name: true },
+            include: {
+              organization: { select: { name: true } },
+            },
+          },
+        });
+      });
+    });
+  });
+});
+
+describe('Feature: Entity relations config with allowWhere/allowOrderBy (#1130)', () => {
+  // --- allowWhere validation ---
+
+  describe('Given a relation with allowWhere: ["status", "createdAt"]', () => {
+    describe('When where includes a non-allowed field', () => {
+      it('Then returns error: Field "X" is not filterable on relation "Y"', () => {
+        const options = {
+          include: {
+            comments: {
+              where: { internalScore: 5 },
+            },
+          },
+        };
+        const relationsConfig: EntityRelationsConfig = {
+          comments: {
+            select: { text: true, status: true, createdAt: true },
+            allowWhere: ['status', 'createdAt'],
+          },
+        };
+
+        const result = validateVertzQL(options, usersTable, relationsConfig);
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toContain('internalScore');
+          expect(result.error).toContain('not filterable');
+          expect(result.error).toContain('comments');
+        }
+      });
+    });
+
+    describe('When where includes only allowed fields', () => {
+      it('Then validation passes', () => {
+        const options = {
+          include: {
+            comments: {
+              where: { status: 'published' },
+            },
+          },
+        };
+        const relationsConfig: EntityRelationsConfig = {
+          comments: {
+            select: { text: true, status: true },
+            allowWhere: ['status', 'createdAt'],
+          },
+        };
+
+        const result = validateVertzQL(options, usersTable, relationsConfig);
+
+        expect(result.ok).toBe(true);
+      });
+    });
+  });
+
+  describe('Given a relation with no allowWhere config (omitted)', () => {
+    describe('When a where clause is provided', () => {
+      it('Then returns error: Filtering is not enabled on relation', () => {
+        const options = {
+          include: {
+            comments: {
+              where: { status: 'published' },
+            },
+          },
+        };
+        const relationsConfig: EntityRelationsConfig = {
+          comments: {
+            select: { text: true },
+          },
+        };
+
+        const result = validateVertzQL(options, usersTable, relationsConfig);
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toContain('not enabled');
+          expect(result.error).toContain('comments');
+        }
+      });
+    });
+  });
+
+  describe('Given a relation set to true (no config object)', () => {
+    describe('When a where clause is provided', () => {
+      it('Then returns error: Filtering is not enabled on relation', () => {
+        const options = {
+          include: {
+            comments: {
+              where: { status: 'published' },
+            },
+          },
+        };
+        const relationsConfig: EntityRelationsConfig = {
+          comments: true,
+        };
+
+        const result = validateVertzQL(options, usersTable, relationsConfig);
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toContain('not enabled');
+          expect(result.error).toContain('comments');
+        }
+      });
+    });
+  });
+
+  // --- allowOrderBy validation ---
+
+  describe('Given a relation with allowOrderBy: ["createdAt"]', () => {
+    describe('When orderBy includes a non-allowed field', () => {
+      it('Then returns error: Field "X" is not sortable on relation "Y"', () => {
+        const options = {
+          include: {
+            comments: {
+              orderBy: { internalScore: 'desc' as const },
+            },
+          },
+        };
+        const relationsConfig: EntityRelationsConfig = {
+          comments: {
+            select: { text: true },
+            allowOrderBy: ['createdAt'],
+          },
+        };
+
+        const result = validateVertzQL(options, usersTable, relationsConfig);
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toContain('internalScore');
+          expect(result.error).toContain('not sortable');
+          expect(result.error).toContain('comments');
+        }
+      });
+    });
+
+    describe('When orderBy includes only allowed fields', () => {
+      it('Then validation passes', () => {
+        const options = {
+          include: {
+            comments: {
+              orderBy: { createdAt: 'desc' as const },
+            },
+          },
+        };
+        const relationsConfig: EntityRelationsConfig = {
+          comments: {
+            select: { text: true },
+            allowOrderBy: ['createdAt'],
+          },
+        };
+
+        const result = validateVertzQL(options, usersTable, relationsConfig);
+
+        expect(result.ok).toBe(true);
+      });
+    });
+  });
+
+  describe('Given a relation with no allowOrderBy config', () => {
+    describe('When an orderBy clause is provided', () => {
+      it('Then returns error: Sorting is not enabled on relation', () => {
+        const options = {
+          include: {
+            comments: {
+              orderBy: { createdAt: 'desc' as const },
+            },
+          },
+        };
+        const relationsConfig: EntityRelationsConfig = {
+          comments: {
+            select: { text: true },
+          },
+        };
+
+        const result = validateVertzQL(options, usersTable, relationsConfig);
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toContain('not enabled');
+          expect(result.error).toContain('comments');
+        }
+      });
+    });
+  });
+
+  // --- maxLimit clamping ---
+
+  describe('Given a relation with maxLimit: 50', () => {
+    describe('When limit exceeds maxLimit', () => {
+      it('Then clamps limit to maxLimit (validation passes)', () => {
+        const options = {
+          include: {
+            comments: {
+              limit: 200,
+            },
+          },
+        };
+        const relationsConfig: EntityRelationsConfig = {
+          comments: {
+            select: { text: true },
+            maxLimit: 50,
+          },
+        };
+
+        const result = validateVertzQL(options, usersTable, relationsConfig);
+
+        // Validation passes — limit is clamped silently
+        expect(result.ok).toBe(true);
+        // The include entry should have its limit clamped
+        expect((options.include!.comments as Record<string, unknown>).limit).toBe(50);
+      });
+    });
+  });
+
+  // --- Nested validation (depth 2+) ---
+
+  describe('Given nested include validation at depth 2+', () => {
+    describe('When a deeply nested where references a non-allowed field', () => {
+      it('Then error includes the relation path: "author.organization"', () => {
+        const options = {
+          include: {
+            author: {
+              include: {
+                organization: {
+                  where: { internalRating: 5 },
+                },
+              },
+            },
+          },
+        };
+        // author is allowed (true), organization nested under author needs its own config
+        const relationsConfig: EntityRelationsConfig = {
+          author: true,
+        };
+
+        const result = validateVertzQL(options, usersTable, relationsConfig);
+
+        // Nested validation should catch the issue
+        expect(result.ok).toBe(false);
+      });
+    });
+  });
+
+  // --- select field validation with new config shape ---
+
+  describe('Given a relation with select config', () => {
+    describe('When include requests a field not in select config', () => {
+      it('Then returns an error for the unauthorized field', () => {
+        const options = {
+          include: {
+            comments: {
+              select: { text: true, secretField: true },
+            },
+          },
+        };
+        const relationsConfig: EntityRelationsConfig = {
+          comments: {
+            select: { text: true, status: true },
+          },
+        };
+
+        const result = validateVertzQL(options, usersTable, relationsConfig);
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toContain('secretField');
+        }
+      });
+    });
+  });
+
+  // --- Boolean include with object config still works ---
+
+  describe('Given a relation config with select/allowWhere', () => {
+    describe('When include is just true', () => {
+      it('Then validation passes', () => {
+        const options = {
+          include: { comments: true },
+        };
+        const relationsConfig: EntityRelationsConfig = {
+          comments: {
+            select: { text: true },
+            allowWhere: ['status'],
+          },
         };
 
         const result = validateVertzQL(options, usersTable, relationsConfig);

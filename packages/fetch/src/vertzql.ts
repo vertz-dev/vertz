@@ -1,6 +1,15 @@
+/** Shape of a single include entry for VertzQL client params. */
+export interface VertzQLIncludeEntry {
+  select?: Record<string, true>;
+  where?: Record<string, unknown>;
+  orderBy?: Record<string, 'asc' | 'desc'>;
+  limit?: number;
+  include?: Record<string, true | VertzQLIncludeEntry>;
+}
+
 export interface VertzQLParams {
   select?: Record<string, true>;
-  include?: Record<string, true | { select: Record<string, true> }>;
+  include?: Record<string, true | VertzQLIncludeEntry>;
 }
 
 /**
@@ -32,9 +41,7 @@ export function resolveVertzQL(
 
   const q = encodeVertzQL({
     ...(select ? { select: select as Record<string, true> } : {}),
-    ...(include
-      ? { include: include as Record<string, true | { select: Record<string, true> }> }
-      : {}),
+    ...(include ? { include: include as Record<string, true | VertzQLIncludeEntry> } : {}),
   });
 
   return { ...rest, q };

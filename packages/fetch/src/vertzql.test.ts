@@ -116,6 +116,103 @@ describe('resolveVertzQL', () => {
   });
 });
 
+describe('encodeVertzQL with where/orderBy/limit in include (#1130)', () => {
+  it('encodes include with where, orderBy, and limit', () => {
+    const result = encodeVertzQL({
+      include: {
+        comments: {
+          where: { status: 'published' },
+          orderBy: { createdAt: 'desc' },
+          limit: 10,
+        },
+      },
+    });
+
+    expect(decodeBase64url(result)).toEqual({
+      include: {
+        comments: {
+          where: { status: 'published' },
+          orderBy: { createdAt: 'desc' },
+          limit: 10,
+        },
+      },
+    });
+  });
+
+  it('encodes nested include (depth 2)', () => {
+    const result = encodeVertzQL({
+      include: {
+        author: {
+          select: { name: true },
+          include: {
+            organization: { select: { name: true } },
+          },
+        },
+      },
+    });
+
+    expect(decodeBase64url(result)).toEqual({
+      include: {
+        author: {
+          select: { name: true },
+          include: {
+            organization: { select: { name: true } },
+          },
+        },
+      },
+    });
+  });
+
+  it('encodes mixed boolean and object includes', () => {
+    const result = encodeVertzQL({
+      include: {
+        tags: true,
+        comments: {
+          where: { status: 'published' },
+          limit: 5,
+        },
+      },
+    });
+
+    expect(decodeBase64url(result)).toEqual({
+      include: {
+        tags: true,
+        comments: {
+          where: { status: 'published' },
+          limit: 5,
+        },
+      },
+    });
+  });
+});
+
+describe('resolveVertzQL with nested include options (#1130)', () => {
+  it('extracts include with where/orderBy/limit into q= param', () => {
+    const query = {
+      include: {
+        comments: {
+          where: { status: 'published' },
+          orderBy: { createdAt: 'desc' },
+          limit: 10,
+        },
+      },
+    };
+    const result = resolveVertzQL(query);
+
+    expect(result?.include).toBeUndefined();
+    expect(result?.q).toBeDefined();
+    expect(decodeBase64url(result?.q as string)).toEqual({
+      include: {
+        comments: {
+          where: { status: 'published' },
+          orderBy: { createdAt: 'desc' },
+          limit: 10,
+        },
+      },
+    });
+  });
+});
+
 describe('encodeVertzQL round-trip with server decode logic', () => {
   // Mirrors the server's parseVertzQL base64url decode logic
   function serverDecode(encoded: string): Record<string, unknown> {

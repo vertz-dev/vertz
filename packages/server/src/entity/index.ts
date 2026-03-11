@@ -38,10 +38,11 @@ export type {
   EntityDefinition,
   EntityRelationsConfig,
   PublicColumnKeys,
+  RelationConfigObject,
   TypedIncludeOption,
   TypedQueryOptions,
   TypedSelectOption,
   TypedWhereOption,
 } from './types';
-export type { ValidationResult, VertzQLOptions } from './vertzql-parser';
+export type { ValidationResult, VertzQLIncludeEntry, VertzQLOptions } from './vertzql-parser';
 export { MAX_LIMIT, parseVertzQL, validateVertzQL } from './vertzql-parser';

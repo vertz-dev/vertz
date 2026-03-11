@@ -115,10 +115,22 @@ type RelationColumnKeys<R> =
       : string
     : string;
 
+/** Structured relation config with select, allowWhere, allowOrderBy, maxLimit. */
+export interface RelationConfigObject<TColumnKeys extends string = string> {
+  /** Which fields can be selected. Record<field, true>. */
+  readonly select?: { readonly [F in TColumnKeys]?: true };
+  /** Which fields can be filtered via `where`. */
+  readonly allowWhere?: readonly string[];
+  /** Which fields can be sorted via `orderBy`. */
+  readonly allowOrderBy?: readonly string[];
+  /** Max items per parent row. Defaults to DEFAULT_RELATION_LIMIT (100). */
+  readonly maxLimit?: number;
+}
+
 export type EntityRelationsConfig<
   TRelations extends Record<string, RelationDef> = Record<string, RelationDef>,
 > = {
-  [K in keyof TRelations]?: true | false | { [F in RelationColumnKeys<TRelations[K]>]?: true };
+  [K in keyof TRelations]?: true | false | RelationConfigObject<RelationColumnKeys<TRelations[K]>>;
 };
 
 // ---------------------------------------------------------------------------
@@ -153,14 +165,22 @@ export type TypedWhereOption<TTable extends TableDef> = {
 /**
  * Typed `include` option — constrained by entity relations config.
  *
- * If the entity config narrows a relation to specific fields, the include
- * can request `true` (all allowed fields) or a subset of those fields.
+ * If the entity config has a structured config with `select`, the include
+ * can request `true` (all allowed fields) or an object with `select`,
+ * `where`, `orderBy`, `limit`, and nested `include`.
  */
 export type TypedIncludeOption<TRelationsConfig extends EntityRelationsConfig> = {
   [K in keyof TRelationsConfig as TRelationsConfig[K] extends false
     ? never
-    : K]?: TRelationsConfig[K] extends Record<string, true>
-    ? true | Partial<TRelationsConfig[K]>
+    : K]?: TRelationsConfig[K] extends RelationConfigObject
+    ?
+        | true
+        | {
+            select?: TRelationsConfig[K] extends { select: infer S } ? Partial<S> : undefined;
+            where?: Record<string, unknown>;
+            orderBy?: Record<string, 'asc' | 'desc'>;
+            limit?: number;
+          }
     : true;
 };
 
