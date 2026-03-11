@@ -1,6 +1,10 @@
-import { d } from '@vertz/db';
 import { describe, it } from 'bun:test';
+import { d } from '@vertz/db';
 import { entity } from '../entity';
+
+// Type helpers for type-level assertions
+type Expect<T extends true> = T;
+type Extends<A, B> = [A] extends [B] ? true : false;
 
 // ===========================================================================
 // E2E Type Tests — EDA v0.1.0
@@ -185,5 +189,62 @@ describe('E2E type safety: model schemas', () => {
     result.data.email satisfies string;
     // @ts-expect-error — createdAt is readOnly, not in $create_input
     void result.data.createdAt;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// EntityOperations typed list — generic threading through pipeline
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Fixture for typed list tests — model with relations
+// ---------------------------------------------------------------------------
+
+const postsTable = d.table('posts', {
+  id: d.uuid().primary(),
+  title: d.text(),
+  authorId: d.uuid(),
+});
+
+const usersModelWithRelations = d.model(usersTable, {
+  posts: d.ref.many(() => postsTable, 'authorId'),
+});
+
+describe('E2E type safety: EntityOperations list() accepts typed options', () => {
+  type Ops = import('../entity-operations').EntityOperations<typeof usersModelWithRelations>;
+  type ListOpts = Parameters<Ops['list']>[0];
+  type WhereType = NonNullable<NonNullable<ListOpts>['where']>;
+  type OrderByT = NonNullable<NonNullable<ListOpts>['orderBy']>;
+  type IncludeT = NonNullable<NonNullable<ListOpts>['include']>;
+
+  it('list() where clause validates column names', () => {
+    // 'email' is a valid column
+    type _t1 = { email: 'test@example.com' } extends WhereType ? true : false;
+    void ({} as _t1 satisfies true);
+  });
+
+  it('list() where clause rejects invalid column names', () => {
+    // @ts-expect-error — 'bogus' is not a column
+    type _t1 = Expect<Extends<{ bogus: 'nope' }, WhereType>>;
+  });
+
+  it('list() orderBy validates column names', () => {
+    type _t1 = { createdAt: 'desc' } extends OrderByT ? true : false;
+    void ({} as _t1 satisfies true);
+  });
+
+  it('list() orderBy rejects invalid column names', () => {
+    // @ts-expect-error — 'bogus' is not a column
+    type _t1 = Expect<Extends<{ bogus: 'asc' }, OrderByT>>;
+  });
+
+  it('list() include validates relation names', () => {
+    type _t1 = { posts: true } extends IncludeT ? true : false;
+    void ({} as _t1 satisfies true);
+  });
+
+  it('list() include rejects invalid relation names', () => {
+    // @ts-expect-error — 'bogus' is not a relation
+    type _t1 = Expect<Extends<{ bogus: true }, IncludeT>>;
   });
 });

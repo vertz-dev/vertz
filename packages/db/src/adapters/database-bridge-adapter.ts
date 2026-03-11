@@ -8,7 +8,7 @@
 
 import type { DatabaseClient } from '../client/database';
 import type { ModelEntry } from '../schema/inference';
-import type { EntityDbAdapter, GetOptions, ListOptions } from '../types/adapter';
+import type { EntityDbAdapter } from '../types/adapter';
 
 /**
  * Creates an EntityDbAdapter backed by a DatabaseClient for a specific table.
@@ -20,11 +20,14 @@ import type { EntityDbAdapter, GetOptions, ListOptions } from '../types/adapter'
 export function createDatabaseBridgeAdapter<
   TModels extends Record<string, ModelEntry>,
   TName extends keyof TModels & string,
->(db: DatabaseClient<TModels>, tableName: TName): EntityDbAdapter {
+>(db: DatabaseClient<TModels>, tableName: TName): EntityDbAdapter<TModels[TName]> {
+  type TEntry = TModels[TName];
+  type TResponse = TEntry['table']['$response'];
+
   const delegate = db[tableName];
 
   return {
-    async get(id: string, options?: GetOptions) {
+    async get(id, options?) {
       const getOptions: Record<string, unknown> = { where: { id } };
       if (options?.include) {
         getOptions.include = options.include;
@@ -33,10 +36,10 @@ export function createDatabaseBridgeAdapter<
       if (!result.ok) {
         return null;
       }
-      return result.data as Record<string, unknown> | null;
+      return result.data as TResponse | null;
     },
 
-    async list(options?: ListOptions) {
+    async list(options?) {
       const dbOptions: Record<string, unknown> = {};
       if (options?.where) {
         dbOptions.where = options.where;
@@ -54,31 +57,31 @@ export function createDatabaseBridgeAdapter<
       if (!result.ok) {
         throw result.error;
       }
-      return result.data as { data: Record<string, unknown>[]; total: number };
+      return result.data as { data: TResponse[]; total: number };
     },
 
-    async create(data: Record<string, unknown>) {
+    async create(data) {
       const result = await delegate.create({ data } as never);
       if (!result.ok) {
         throw result.error;
       }
-      return result.data as Record<string, unknown>;
+      return result.data as TResponse;
     },
 
-    async update(id: string, data: Record<string, unknown>) {
+    async update(id, data) {
       const result = await delegate.update({ where: { id }, data } as never);
       if (!result.ok) {
         throw result.error;
       }
-      return result.data as Record<string, unknown>;
+      return result.data as TResponse;
     },
 
-    async delete(id: string) {
+    async delete(id) {
       const result = await delegate.delete({ where: { id } } as never);
       if (!result.ok) {
         return null;
       }
-      return result.data as Record<string, unknown>;
+      return result.data as TResponse | null;
     },
   };
 }
