@@ -14,7 +14,12 @@
  *   → `[data-theme="dark"] { --color-background: #111827; }`
  */
 
-import { compileFonts, type CompileFontsOptions, type FontDescriptor } from './font';
+import {
+  type CompileFontsOptions,
+  compileFonts,
+  type FontDescriptor,
+  type PreloadItem,
+} from './font';
 import { sanitizeCssValue } from './sanitize';
 import { COLOR_NAMESPACES } from './token-tables';
 
@@ -57,6 +62,8 @@ export interface CompiledTheme {
   tokens: string[];
   /** Font preload link tags for injection into <head>. */
   preloadTags: string;
+  /** Structured preload data for generating HTTP Link headers. */
+  preloadItems: PreloadItem[];
 }
 
 /** Options for compileTheme(). */
@@ -157,12 +164,14 @@ export function compileTheme(theme: Theme, options?: CompileThemeOptions): Compi
   // Compile fonts if provided
   let fontFaceCss = '';
   let preloadTags = '';
+  let preloadItems: PreloadItem[] = [];
   if (theme.fonts) {
     const compiled = compileFonts(theme.fonts, {
       fallbackMetrics: options?.fallbackMetrics,
     });
     fontFaceCss = compiled.fontFaceCss;
     preloadTags = compiled.preloadTags;
+    preloadItems = compiled.preloadItems;
     // Merge font CSS vars into the main :root block (avoid duplicate :root)
     rootVars.push(...compiled.cssVarLines);
   }
@@ -187,5 +196,6 @@ export function compileTheme(theme: Theme, options?: CompileThemeOptions): Compi
     css: blocks.join('\n'),
     tokens: tokenPaths,
     preloadTags,
+    preloadItems,
   };
 }

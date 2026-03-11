@@ -78,6 +78,14 @@ export interface FontDescriptor {
   readonly adjustFontFallback: boolean | FallbackFontName;
 }
 
+/** Structured description of a resource to preload. */
+export interface PreloadItem {
+  href: string;
+  as: 'font' | 'image' | 'style' | 'script';
+  type?: string;
+  crossorigin?: boolean;
+}
+
 export interface CompiledFonts {
   /** @font-face declarations. */
   fontFaceCss: string;
@@ -87,6 +95,8 @@ export interface CompiledFonts {
   cssVarLines: string[];
   /** <link rel="preload"> HTML tags for font files. */
   preloadTags: string;
+  /** Structured preload data for generating HTTP Link headers. */
+  preloadItems: PreloadItem[];
 }
 
 // ─── font() ─────────────────────────────────────────────────────
@@ -265,6 +275,12 @@ export function compileFonts(
         `<link rel="preload" href="${escapeHtmlAttr(p)}" as="font" type="font/woff2" crossorigin>`,
     )
     .join('\n');
+  const preloadItems: PreloadItem[] = preloadPaths.map((href) => ({
+    href,
+    as: 'font' as const,
+    type: 'font/woff2',
+    crossorigin: true,
+  }));
 
-  return { fontFaceCss, cssVarsCss, cssVarLines, preloadTags };
+  return { fontFaceCss, cssVarsCss, cssVarLines, preloadTags, preloadItems };
 }

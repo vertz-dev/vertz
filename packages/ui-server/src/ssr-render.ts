@@ -115,11 +115,6 @@ function resolveAppFactory(module: SSRModule): () => unknown {
  * @vertz/ui, giving us access to the bundled instance's tracked CSS.
  */
 function collectCSS(themeCss: string, module: SSRModule): string {
-  const themeTag = themeCss ? `<style data-vertz-css>${themeCss}</style>` : '';
-  const globalTags = module.styles
-    ? module.styles.map((s) => `<style data-vertz-css>${s}</style>`).join('\n')
-    : '';
-
   // Build a set of CSS strings already included via theme and module.styles
   // to avoid duplicating them in the component CSS section.
   const alreadyIncluded = new Set<string>();
@@ -132,8 +127,17 @@ function collectCSS(themeCss: string, module: SSRModule): string {
     ? module.getInjectedCSS().filter((s) => !alreadyIncluded.has(s))
     : [];
 
-  const componentStyles = componentCss.map((s) => `<style data-vertz-css>${s}</style>`).join('\n');
-  return [themeTag, globalTags, componentStyles].filter(Boolean).join('\n');
+  // Consolidate each category into a single <style> tag to minimize HTML size.
+  // Categories are kept separate (theme, globals, components) to preserve
+  // cascade order: theme vars first, then global resets, then component styles.
+  const themeTag = themeCss ? `<style data-vertz-css>${themeCss}</style>` : '';
+  const globalTag =
+    module.styles && module.styles.length > 0
+      ? `<style data-vertz-css>${module.styles.join('\n')}</style>`
+      : '';
+  const componentTag =
+    componentCss.length > 0 ? `<style data-vertz-css>${componentCss.join('\n')}</style>` : '';
+  return [themeTag, globalTag, componentTag].filter(Boolean).join('\n');
 }
 
 /**

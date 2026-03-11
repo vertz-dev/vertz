@@ -98,6 +98,27 @@ describe('renderToHTML', () => {
     expect(html).toContain('<link rel="icon" href="/favicon.ico">');
   });
 
+  it('consolidates all styles into a single style tag', async () => {
+    const theme = defineTheme({
+      colors: { primary: { DEFAULT: '#3b82f6' } },
+    });
+
+    const html = await renderToHTML(createApp, {
+      url: '/',
+      theme,
+      styles: ['body { margin: 0; }', 'h1 { color: red; }'],
+    });
+
+    // All content present
+    expect(html).toContain('--color-primary');
+    expect(html).toContain('body { margin: 0; }');
+    expect(html).toContain('h1 { color: red; }');
+
+    // All styles should be consolidated into a single <style> tag
+    const styleTags = html.match(/<style>/g);
+    expect(styleTags).toHaveLength(1);
+  });
+
   it('collects component CSS via getInjectedCSS during render', async () => {
     // Simulate injectCSS() by calling it during the render.
     // In SSR, injectCSS tracks CSS in the injectedCSS Set (available via getInjectedCSS).

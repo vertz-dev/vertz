@@ -469,11 +469,12 @@ describe('SSR lazy route resolution', () => {
   });
 
   it('timed-out lazy components fall back to empty container', async () => {
+    let timerId: ReturnType<typeof setTimeout>;
     const routes = defineRoutes({
       '/slow': {
         component: () =>
-          new Promise<{ default: () => Node }>((resolve) =>
-            setTimeout(
+          new Promise<{ default: () => Node }>((resolve) => {
+            timerId = setTimeout(
               () =>
                 resolve({
                   default: () => {
@@ -483,8 +484,8 @@ describe('SSR lazy route resolution', () => {
                   },
                 }),
               10000,
-            ),
-          ),
+            );
+          }),
       },
     });
 
@@ -504,6 +505,8 @@ describe('SSR lazy route resolution', () => {
     // Should still produce valid HTML, just without the lazy content
     expect(result.html).toBeDefined();
     expect(result.html).not.toContain('Slow Content');
+    // Clean up leaked timer to prevent "document is not defined" between test files
+    clearTimeout(timerId!);
   });
 });
 
@@ -587,6 +590,83 @@ describe('per-request isolation', () => {
     // CSS collected via module.getInjectedCSS should be in output
     expect(result.css).toContain('.my-component { color: red; }');
     expect(result.css).toContain('data-vertz-css');
+  });
+
+  it('consolidates multiple component CSS strings into a single style tag', async () => {
+    const trackedCSS = [
+      '.panel { background: white; }',
+      '.button { color: blue; }',
+      '.card { border: 1px solid; }',
+    ];
+    const module = {
+      default: () => {
+        const el = document.createElement('div');
+        el.textContent = 'Multi CSS';
+        return el;
+      },
+      getInjectedCSS: () => trackedCSS,
+    };
+
+    const result = await ssrRenderToString(module, '/');
+
+    // All CSS content should be present
+    expect(result.css).toContain('.panel { background: white; }');
+    expect(result.css).toContain('.button { color: blue; }');
+    expect(result.css).toContain('.card { border: 1px solid; }');
+
+    // Component CSS should be in a SINGLE style tag, not 3 separate ones
+    const componentStyleTags = result.css.match(/<style data-vertz-css>/g);
+    expect(componentStyleTags).toHaveLength(1);
+  });
+
+  it('consolidates globals into a single style tag', async () => {
+    const module = {
+      default: () => {
+        const el = document.createElement('div');
+        el.textContent = 'App';
+        return el;
+      },
+      styles: ['*, *::before { box-sizing: border-box; }', 'body { font-family: system-ui; }'],
+    };
+
+    const result = await ssrRenderToString(module, '/');
+
+    expect(result.css).toContain('box-sizing: border-box');
+    expect(result.css).toContain('font-family: system-ui');
+
+    // Global styles should be in a SINGLE style tag
+    const styleTags = result.css.match(/<style data-vertz-css>/g);
+    expect(styleTags).toHaveLength(1);
+  });
+
+  it('produces at most 3 style tags (theme + globals + components)', async () => {
+    const theme = defineTheme({
+      colors: { primary: { DEFAULT: '#3b82f6' } },
+    });
+
+    const trackedCSS = ['.a { color: red; }', '.b { color: blue; }'];
+    const module = {
+      default: () => {
+        const el = document.createElement('div');
+        el.textContent = 'Full';
+        return el;
+      },
+      theme,
+      styles: ['body { margin: 0; }', 'h1 { font-size: 2rem; }'],
+      getInjectedCSS: () => trackedCSS,
+    };
+
+    const result = await ssrRenderToString(module, '/');
+
+    // Theme CSS, globals, and component CSS should each be at most 1 tag
+    const styleTags = result.css.match(/<style data-vertz-css>/g);
+    expect(styleTags!.length).toBeLessThanOrEqual(3);
+    // But all content is present
+    expect(result.css).toContain('--color-primary');
+    expect(result.css).toContain('margin: 0');
+    expect(result.css).toContain('font-size: 2rem');
+    expect(result.css).toContain('.a { color: red; }');
+    expect(result.css).toContain('.b { color: blue; }');
   });
 
   it('renders correct page for each URL when router is created per-render', async () => {

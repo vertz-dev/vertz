@@ -33,6 +33,7 @@ export type {
   FontSrc,
   GlobalCSSInput,
   GlobalCSSOutput,
+  PreloadItem,
   RawDeclaration,
   StyleEntry,
   StyleValue,
