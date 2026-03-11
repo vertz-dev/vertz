@@ -14,7 +14,7 @@
  *   → `[data-theme="dark"] { --color-background: #111827; }`
  */
 
-import { compileFonts, type FontDescriptor } from './font';
+import { compileFonts, type CompileFontsOptions, type FontDescriptor } from './font';
 import { sanitizeCssValue } from './sanitize';
 import { COLOR_NAMESPACES } from './token-tables';
 
@@ -59,6 +59,12 @@ export interface CompiledTheme {
   preloadTags: string;
 }
 
+/** Options for compileTheme(). */
+export interface CompileThemeOptions {
+  /** Pre-computed font fallback metrics for zero-CLS font loading. */
+  fallbackMetrics?: CompileFontsOptions['fallbackMetrics'];
+}
+
 // ─── defineTheme ────────────────────────────────────────────────
 
 /**
@@ -87,7 +93,7 @@ export function defineTheme(input: ThemeInput): Theme {
  * @param theme - A theme object from defineTheme().
  * @returns Compiled CSS and token list.
  */
-export function compileTheme(theme: Theme): CompiledTheme {
+export function compileTheme(theme: Theme, options?: CompileThemeOptions): CompiledTheme {
   const rootVars: string[] = [];
   const darkVars: string[] = [];
   const tokenPaths: string[] = [];
@@ -152,7 +158,9 @@ export function compileTheme(theme: Theme): CompiledTheme {
   let fontFaceCss = '';
   let preloadTags = '';
   if (theme.fonts) {
-    const compiled = compileFonts(theme.fonts);
+    const compiled = compileFonts(theme.fonts, {
+      fallbackMetrics: options?.fallbackMetrics,
+    });
     fontFaceCss = compiled.fontFaceCss;
     preloadTags = compiled.preloadTags;
     // Merge font CSS vars into the main :root block (avoid duplicate :root)

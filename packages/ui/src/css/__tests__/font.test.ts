@@ -354,3 +354,154 @@ describe('compileFonts()', () => {
     expect(() => compileFonts({ test: f })).not.toThrow();
   });
 });
+
+// ─── adjustFontFallback ─────────────────────────────────────────
+
+describe('font() adjustFontFallback', () => {
+  it('defaults adjustFontFallback to true', () => {
+    const result = font('DM Sans', { weight: '100..1000' });
+    expect(result.adjustFontFallback).toBe(true);
+  });
+
+  it('stores adjustFontFallback: false', () => {
+    const result = font('DM Sans', { weight: '100..1000', adjustFontFallback: false });
+    expect(result.adjustFontFallback).toBe(false);
+  });
+
+  it('stores explicit fallback font name', () => {
+    const result = font('DM Sans', {
+      weight: '100..1000',
+      adjustFontFallback: 'Times New Roman',
+    });
+    expect(result.adjustFontFallback).toBe('Times New Roman');
+  });
+});
+
+// ─── Fallback @font-face generation ─────────────────────────────
+
+describe('compileFonts() with fallbackMetrics', () => {
+  const metrics = {
+    sans: {
+      ascentOverride: '94.52%',
+      descentOverride: '24.60%',
+      lineGapOverride: '0.00%',
+      sizeAdjust: '104.88%',
+      fallbackFont: 'Arial' as const,
+    },
+  };
+
+  it('generates a fallback @font-face with metric overrides', () => {
+    const sans = font('DM Sans', {
+      weight: '100..1000',
+      src: '/fonts/dm-sans.woff2',
+      fallback: ['system-ui', 'sans-serif'],
+    });
+    const result = compileFonts({ sans }, { fallbackMetrics: metrics });
+
+    expect(result.fontFaceCss).toContain("font-family: 'DM Sans Fallback'");
+    expect(result.fontFaceCss).toContain('src: local(Arial)');
+    expect(result.fontFaceCss).toContain('ascent-override: 94.52%');
+    expect(result.fontFaceCss).toContain('descent-override: 24.60%');
+    expect(result.fontFaceCss).toContain('line-gap-override: 0.00%');
+    expect(result.fontFaceCss).toContain('size-adjust: 104.88%');
+  });
+
+  it('inserts fallback font name into CSS var between real font and user fallbacks', () => {
+    const sans = font('DM Sans', {
+      weight: '100..1000',
+      src: '/fonts/dm-sans.woff2',
+      fallback: ['system-ui', 'sans-serif'],
+    });
+    const result = compileFonts({ sans }, { fallbackMetrics: metrics });
+
+    expect(result.cssVarLines[0]).toContain(
+      "'DM Sans', 'DM Sans Fallback', system-ui, sans-serif",
+    );
+  });
+
+  it('names the fallback font "<Family> Fallback"', () => {
+    const display = font('DM Serif Display', {
+      weight: 400,
+      src: '/fonts/dm-serif.woff2',
+    });
+    const displayMetrics = {
+      display: {
+        ascentOverride: '90.00%',
+        descentOverride: '22.00%',
+        lineGapOverride: '0.00%',
+        sizeAdjust: '110.00%',
+        fallbackFont: 'Times New Roman' as const,
+      },
+    };
+    const result = compileFonts({ display }, { fallbackMetrics: displayMetrics });
+
+    expect(result.fontFaceCss).toContain("font-family: 'DM Serif Display Fallback'");
+    expect(result.fontFaceCss).toContain('src: local(Times New Roman)');
+  });
+
+  it('skips fallback @font-face when adjustFontFallback is false', () => {
+    const sans = font('DM Sans', {
+      weight: '100..1000',
+      src: '/fonts/dm-sans.woff2',
+      fallback: ['system-ui', 'sans-serif'],
+      adjustFontFallback: false,
+    });
+    const result = compileFonts({ sans }, { fallbackMetrics: metrics });
+
+    expect(result.fontFaceCss).not.toContain('DM Sans Fallback');
+    expect(result.cssVarLines[0]).not.toContain('DM Sans Fallback');
+  });
+
+  it('skips fallback generation for fonts with no src', () => {
+    const sans = font('DM Sans', {
+      weight: '100..1000',
+      fallback: ['system-ui', 'sans-serif'],
+    });
+    const result = compileFonts({ sans }, { fallbackMetrics: metrics });
+
+    expect(result.fontFaceCss).toBe('');
+    expect(result.cssVarLines[0]).not.toContain('Fallback');
+  });
+
+  it('produces identical output when no fallbackMetrics provided (backward compat)', () => {
+    const sans = font('DM Sans', {
+      weight: '100..1000',
+      src: '/fonts/dm-sans.woff2',
+      fallback: ['system-ui', 'sans-serif'],
+    });
+    const withoutMetrics = compileFonts({ sans });
+    const withEmptyMetrics = compileFonts({ sans }, {});
+    const withUndefinedMetrics = compileFonts({ sans }, { fallbackMetrics: undefined });
+
+    expect(withoutMetrics.fontFaceCss).toBe(withEmptyMetrics.fontFaceCss);
+    expect(withoutMetrics.fontFaceCss).toBe(withUndefinedMetrics.fontFaceCss);
+    expect(withoutMetrics.cssVarLines).toEqual(withEmptyMetrics.cssVarLines);
+    expect(withoutMetrics.fontFaceCss).not.toContain('Fallback');
+  });
+
+  it('defaults adjustFontFallback to true for descriptors missing the field', () => {
+    // Simulate a manually constructed descriptor without the new field
+    const desc = {
+      __brand: 'FontDescriptor' as const,
+      family: 'Test',
+      weight: '400',
+      style: 'normal' as const,
+      display: 'swap' as const,
+      src: '/fonts/test.woff2',
+      fallback: ['sans-serif'],
+      subsets: ['latin'],
+    };
+    const testMetrics = {
+      test: {
+        ascentOverride: '90.00%',
+        descentOverride: '20.00%',
+        lineGapOverride: '0.00%',
+        sizeAdjust: '100.00%',
+        fallbackFont: 'Arial' as const,
+      },
+    };
+    // Should still generate fallback even though adjustFontFallback is missing
+    const result = compileFonts({ test: desc as any }, { fallbackMetrics: testMetrics });
+    expect(result.fontFaceCss).toContain("font-family: 'Test Fallback'");
+  });
+});
