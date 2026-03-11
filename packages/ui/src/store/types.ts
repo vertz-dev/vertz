@@ -27,4 +27,6 @@ export interface EntityStoreOptions {
   initialData?: SerializedStore;
   /** Enable dev-mode field selection tracking (zero overhead when false). */
   devMode?: boolean;
+  /** Optional callback fired when a non-selected field is accessed (dev-mode only). */
+  onFieldMiss?: (type: string, id: string, field: string, querySource: string) => void;
 }

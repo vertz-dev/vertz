@@ -1289,4 +1289,27 @@ describe('EntityStore - field selection tracking', () => {
       console.warn = originalWarn;
     }
   });
+
+  it('onFieldMiss callback fires when a non-selected field is accessed', () => {
+    const onFieldMiss = vi.fn();
+    const store = new EntityStore({ devMode: true, onFieldMiss });
+    store.mergeWithSelect(
+      'users',
+      [{ id: 'u1', name: 'Alice' }],
+      { fields: ['id', 'name'], querySource: 'GET:/users' },
+    );
+
+    const sig = store.get<{ id: string; name: string; bio?: string }>('users', 'u1');
+
+    const originalWarn = console.warn;
+    console.warn = vi.fn();
+    try {
+      const _bio = sig.value!.bio;
+    } finally {
+      console.warn = originalWarn;
+    }
+
+    expect(onFieldMiss).toHaveBeenCalledTimes(1);
+    expect(onFieldMiss).toHaveBeenCalledWith('users', 'u1', 'bio', 'GET:/users');
+  });
 });

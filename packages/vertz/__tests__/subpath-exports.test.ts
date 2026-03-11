@@ -113,6 +113,61 @@ describe('exports point to built artifacts', () => {
   });
 });
 
+describe('subpath type coverage', () => {
+  it('vertz/server types match @vertz/server types', async () => {
+    const vertzMod = await import('vertz/server');
+    const directMod = await import('@vertz/server');
+
+    // Both should expose the same set of exports
+    const vertzKeys = Object.keys(vertzMod).sort();
+    const directKeys = Object.keys(directMod).sort();
+    expect(vertzKeys).toEqual(directKeys);
+  });
+
+  it('vertz/schema types match @vertz/schema types', async () => {
+    const vertzMod = await import('vertz/schema');
+    const directMod = await import('@vertz/schema');
+
+    const vertzKeys = Object.keys(vertzMod).sort();
+    const directKeys = Object.keys(directMod).sort();
+    expect(vertzKeys).toEqual(directKeys);
+  });
+
+  it('vertz/cloudflare types match @vertz/cloudflare types', async () => {
+    const vertzMod = await import('vertz/cloudflare');
+    const directMod = await import('@vertz/cloudflare');
+
+    const vertzKeys = Object.keys(vertzMod).sort();
+    const directKeys = Object.keys(directMod).sort();
+    expect(vertzKeys).toEqual(directKeys);
+  });
+});
+
+describe('Node-compatible built artifacts', () => {
+  it('dist/*.js files contain valid ESM re-exports', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const distDir = path.resolve(import.meta.dirname, '..', 'dist');
+
+    const serverJs = fs.readFileSync(path.join(distDir, 'server.js'), 'utf-8');
+    expect(serverJs).toContain('export');
+    expect(serverJs).toContain('@vertz/server');
+    // Must not contain TypeScript syntax
+    expect(serverJs).not.toContain(': string');
+    expect(serverJs).not.toContain('import type');
+  });
+
+  it('dist/*.d.ts files contain type declarations', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const distDir = path.resolve(import.meta.dirname, '..', 'dist');
+
+    const serverDts = fs.readFileSync(path.join(distDir, 'server.d.ts'), 'utf-8');
+    expect(serverDts).toContain('export');
+    expect(serverDts).toContain('@vertz/server');
+  });
+});
+
 describe('tree-shaking: subpaths are independent modules', () => {
   it('each subpath points to a separate entry file', async () => {
     const fs = await import('node:fs');

@@ -46,7 +46,9 @@ export class EntityStore {
 
   constructor(options?: EntityStoreOptions) {
     if (options?.devMode) {
-      this._fieldTracker = new FieldSelectionTracker();
+      this._fieldTracker = new FieldSelectionTracker({
+        onMiss: options.onFieldMiss,
+      });
     }
     if (options?.initialData) {
       this.hydrate(options.initialData);
