@@ -64,6 +64,7 @@ export type {
   PoolConfig,
   QueryResult,
   TenantGraph,
+  TransactionClient,
 } from './client';
 export { computeTenantGraph, createDb } from './client';
 export type { createPostgresDriver, PostgresDriver } from './client/postgres-driver';
