@@ -1,12 +1,11 @@
 name = "vertz-landing"
 compatibility_date = "2025-01-01"
 workers_dev = true
-main = "src/worker.ts"
 
 [assets]
 directory = "./dist/client"
-binding = "ASSETS"
-run_worker_first = true
+not_found_handling = "single-page-application"
+html_handling = "auto-trailing-slash"
 
 [[routes]]
 pattern = "vertz.dev"
