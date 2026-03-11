@@ -47,7 +47,7 @@ function DiffCodeBlock() {
                   >
                     {diff === 'removed' ? '-' : '+'}
                   </span>
-                  <span style={diff === 'removed' ? 'opacity: 0.5' : undefined}>
+                  <span style={diff === 'removed' ? 'opacity: 0.65' : undefined}>
                     {line.map((token) => (
                       <span key={token[1]} style={token[0]}>
                         {token[1]}

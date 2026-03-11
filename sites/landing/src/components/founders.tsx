@@ -73,7 +73,10 @@ export function Founders() {
               <img
                 src={f.photo}
                 alt={f.name}
+                width={80}
+                height={80}
                 class={s.img}
+                loading="lazy"
                 style="object-fit: cover; outline: 2px solid #27272a; outline-offset: 2px"
               />
               <p class={s.name}>{f.name}</p>
