@@ -196,12 +196,26 @@ describe('E2E type safety: model schemas', () => {
 // EntityOperations typed list — generic threading through pipeline
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Fixture for typed list tests — model with relations
+// ---------------------------------------------------------------------------
+
+const postsTable = d.table('posts', {
+  id: d.uuid().primary(),
+  title: d.text(),
+  authorId: d.uuid(),
+});
+
+const usersModelWithRelations = d.model(usersTable, {
+  posts: d.ref.many(() => postsTable, 'authorId'),
+});
+
 describe('E2E type safety: EntityOperations list() accepts typed options', () => {
-  type Ops = import('../entity-operations').EntityOperations<typeof usersModel>;
+  type Ops = import('../entity-operations').EntityOperations<typeof usersModelWithRelations>;
   type ListOpts = Parameters<Ops['list']>[0];
   type WhereType = NonNullable<NonNullable<ListOpts>['where']>;
-  type OrderByType = NonNullable<NonNullable<ListOpts>['orderBy']>;
-  type IncludeType = NonNullable<NonNullable<ListOpts>['include']>;
+  type OrderByT = NonNullable<NonNullable<ListOpts>['orderBy']>;
+  type IncludeT = NonNullable<NonNullable<ListOpts>['include']>;
 
   it('list() where clause validates column names', () => {
     // 'email' is a valid column
@@ -215,22 +229,22 @@ describe('E2E type safety: EntityOperations list() accepts typed options', () =>
   });
 
   it('list() orderBy validates column names', () => {
-    type _t1 = { createdAt: 'desc' } extends OrderByType ? true : false;
+    type _t1 = { createdAt: 'desc' } extends OrderByT ? true : false;
     void ({} as _t1 satisfies true);
   });
 
   it('list() orderBy rejects invalid column names', () => {
     // @ts-expect-error — 'bogus' is not a column
-    type _t1 = Expect<Extends<{ bogus: 'asc' }, OrderByType>>;
+    type _t1 = Expect<Extends<{ bogus: 'asc' }, OrderByT>>;
   });
 
   it('list() include validates relation names', () => {
-    type _t1 = { posts: true } extends IncludeType ? true : false;
+    type _t1 = { posts: true } extends IncludeT ? true : false;
     void ({} as _t1 satisfies true);
   });
 
   it('list() include rejects invalid relation names', () => {
     // @ts-expect-error — 'bogus' is not a relation
-    type _t1 = Expect<Extends<{ bogus: true }, IncludeType>>;
+    type _t1 = Expect<Extends<{ bogus: true }, IncludeT>>;
   });
 });

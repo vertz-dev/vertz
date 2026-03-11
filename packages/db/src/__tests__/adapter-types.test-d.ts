@@ -199,4 +199,8 @@ describe('EntityDbAdapter backward compatibility', () => {
     type WhereType = NonNullable<ListOptions['where']>;
     type _t1 = Expect<Extends<{ anything: 'goes' }, WhereType>>;
   });
+
+  it('parameterized EntityDbAdapter is assignable to unparameterized EntityDbAdapter', () => {
+    type _t1 = Expect<Extends<EntityDbAdapter<TaskEntry>, EntityDbAdapter>>;
+  });
 });
