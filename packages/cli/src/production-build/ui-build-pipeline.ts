@@ -14,7 +14,7 @@
  */
 
 import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 
 // Minimal ambient declaration for Bun APIs used by this module.
 // The CLI runs under Bun at runtime; these declarations let tsc validate
@@ -56,7 +56,15 @@ export interface UIBuildResult {
 export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
   const startTime = performance.now();
 
-  const { projectRoot, clientEntry, serverEntry, outputDir, minify, sourcemap, title = 'Vertz App' } = config;
+  const {
+    projectRoot,
+    clientEntry,
+    serverEntry,
+    outputDir,
+    minify,
+    sourcemap,
+    title = 'Vertz App',
+  } = config;
   const distDir = resolve(projectRoot, outputDir);
   const distClient = resolve(distDir, 'client');
   const distServer = resolve(distDir, 'server');
@@ -152,7 +160,7 @@ ${cssLinks}
   </body>
 </html>`;
 
-    writeFileSync(resolve(distClient, 'index.html'), html);
+    writeFileSync(resolve(distClient, '_shell.html'), html);
 
     // ── 4. Copy public/ → dist/client/ ────────────────────────────
     const publicDir = resolve(projectRoot, 'public');
@@ -207,6 +215,69 @@ ${cssLinks}
     }
 
     console.log('  Server entry: dist/server/app.js');
+
+    // ── 6. Static pre-rendering ──────────────────────────────────
+    console.log('📄 Pre-rendering routes...');
+
+    const { discoverRoutes, filterPrerenderableRoutes, prerenderRoutes } = await import(
+      '@vertz/ui-server/ssr'
+    );
+
+    // Discover SSR module entry
+    const ssrEntryPath = resolve(distServer, 'app.js');
+    let ssrModule: import('@vertz/ui-server/ssr').SSRModule;
+    try {
+      ssrModule = await import(ssrEntryPath);
+    } catch (error) {
+      console.log('  ⚠ Could not import SSR module for pre-rendering, skipping.');
+      console.log(`    ${error instanceof Error ? error.message : String(error)}`);
+      const durationMs = performance.now() - startTime;
+      console.log('\n✅ UI build complete (without pre-rendering)!');
+      console.log(`  Client: ${distClient}/`);
+      console.log(`  Server: ${distServer}/`);
+      return { success: true, durationMs };
+    }
+
+    // Discover routes
+    let allPatterns: string[];
+    try {
+      allPatterns = await discoverRoutes(ssrModule);
+    } catch (error) {
+      console.log('  ⚠ Route discovery failed, skipping pre-rendering.');
+      console.log(`    ${error instanceof Error ? error.message : String(error)}`);
+      const durationMs = performance.now() - startTime;
+      console.log('\n✅ UI build complete (without pre-rendering)!');
+      console.log(`  Client: ${distClient}/`);
+      console.log(`  Server: ${distServer}/`);
+      return { success: true, durationMs };
+    }
+    if (allPatterns.length === 0) {
+      console.log('  No routes discovered (app may not use createRouter).');
+    } else {
+      console.log(`  Discovered ${allPatterns.length} route(s): ${allPatterns.join(', ')}`);
+
+      // Filter to pre-renderable routes
+      const prerenderableRoutes = filterPrerenderableRoutes(allPatterns);
+      console.log(`  Pre-rendering ${prerenderableRoutes.length} static route(s)...`);
+
+      if (prerenderableRoutes.length > 0) {
+        // Pre-render each route
+        const results = await prerenderRoutes(ssrModule, html, {
+          routes: prerenderableRoutes,
+        });
+
+        // Write pre-rendered HTML files
+        for (const result of results) {
+          const outPath =
+            result.path === '/'
+              ? resolve(distClient, 'index.html')
+              : resolve(distClient, `${result.path.replace(/^\//, '')}/index.html`);
+          mkdirSync(dirname(outPath), { recursive: true });
+          writeFileSync(outPath, result.html);
+          console.log(`  ✓ ${result.path} → ${outPath.replace(distClient, 'dist/client')}`);
+        }
+      }
+    }
 
     // ── Done ──────────────────────────────────────────────────────
     const durationMs = performance.now() - startTime;

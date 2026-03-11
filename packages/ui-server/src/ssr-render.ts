@@ -83,6 +83,8 @@ export interface SSRRenderResult {
   ssrData: Array<{ key: string; data: unknown }>;
   /** Font preload link tags for injection into <head>. */
   headTags: string;
+  /** Route patterns discovered by createRouter() during SSR (for build-time pre-rendering). */
+  discoveredRoutes?: string[];
 }
 
 export interface SSRDiscoverResult {
@@ -264,7 +266,13 @@ export async function ssrRenderToString(
             }))
           : [];
 
-      return { html, css, ssrData, headTags: themePreloadTags };
+      return {
+        html,
+        css,
+        ssrData,
+        headTags: themePreloadTags,
+        discoveredRoutes: ctx.discoveredRoutes,
+      };
     } finally {
       clearGlobalSSRTimeout();
     }

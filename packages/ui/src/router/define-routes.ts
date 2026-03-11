@@ -35,6 +35,8 @@ export interface RouteConfig<
   searchParams?: SearchParamSchema<TSearch>;
   /** Nested child routes. */
   children?: RouteDefinitionMap;
+  /** Whether to pre-render this route at build time (default: true for static routes). */
+  prerender?: boolean;
 }
 
 /** A map of path patterns to route configs (user input format). */
@@ -61,6 +63,7 @@ export interface RouteConfigLike {
   params?: ParamSchema<unknown>;
   searchParams?: SearchParamSchema<unknown>;
   children?: Record<string, RouteConfigLike>;
+  prerender?: boolean;
 }
 
 /**
@@ -96,6 +99,8 @@ export interface CompiledRoute {
   searchParams?: RouteConfig['searchParams'];
   /** Compiled children. */
   children?: CompiledRoute[];
+  /** Whether to pre-render this route at build time (default: true for static routes). */
+  prerender?: boolean;
 }
 
 /** A single matched route entry in the matched chain. */
@@ -145,6 +150,7 @@ export function defineRoutes<const T extends Record<string, RouteConfigLike>>(
       loader: config.loader as CompiledRoute['loader'],
       params: config.params,
       pattern,
+      prerender: config.prerender,
       searchParams: config.searchParams,
     };
 

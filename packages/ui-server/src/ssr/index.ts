@@ -6,7 +6,10 @@
  * bundling vite, rollup, esbuild, lightningcss, and fsevents.
  */
 
+export type { PrerenderOptions, PrerenderResult } from '../prerender';
+export { discoverRoutes, filterPrerenderableRoutes, prerenderRoutes } from '../prerender';
 export type { SSRHandlerOptions } from '../ssr-handler';
 export { createSSRHandler } from '../ssr-handler';
 export type { SSRDiscoverResult, SSRModule, SSRRenderResult } from '../ssr-render';
 export { ssrDiscoverQueries, ssrRenderToString } from '../ssr-render';
+export { injectIntoTemplate } from '../template-inject';

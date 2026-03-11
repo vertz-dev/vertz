@@ -753,3 +753,72 @@ describe('per-request isolation', () => {
     expect(result2.css).toContain('font-family: system-ui');
   });
 });
+
+describe('ssrRenderToString discoveredRoutes', () => {
+  it('includes discoveredRoutes when app creates a router', async () => {
+    const module = {
+      default: () => {
+        const routes = defineRoutes({
+          '/': { component: () => document.createElement('div') },
+          '/about': { component: () => document.createElement('div') },
+          '/users/:id': { component: () => document.createElement('div') },
+        });
+        const router = createRouter(routes);
+        // Access current.value to trigger lazy route discovery (as RouterView would)
+        router.current.value;
+        const el = document.createElement('div');
+        el.textContent = 'App';
+        return el;
+      },
+    };
+
+    const result = await ssrRenderToString(module, '/');
+
+    expect(result.discoveredRoutes).toBeDefined();
+    expect(result.discoveredRoutes).toContain('/');
+    expect(result.discoveredRoutes).toContain('/about');
+    expect(result.discoveredRoutes).toContain('/users/:id');
+  });
+
+  it('returns empty discoveredRoutes when app has no router', async () => {
+    const module = {
+      default: () => {
+        const el = document.createElement('div');
+        el.textContent = 'No router';
+        return el;
+      },
+    };
+
+    const result = await ssrRenderToString(module, '/');
+
+    // discoveredRoutes should be undefined or empty when no router is created
+    expect(result.discoveredRoutes ?? []).toEqual([]);
+  });
+
+  it('discovers nested route patterns as full paths', async () => {
+    const module = {
+      default: () => {
+        const routes = defineRoutes({
+          '/docs': {
+            component: () => document.createElement('div'),
+            children: {
+              '/': { component: () => document.createElement('div') },
+              '/:slug': { component: () => document.createElement('div') },
+            },
+          },
+        });
+        const router = createRouter(routes);
+        // Access current.value to trigger lazy route discovery (as RouterView would)
+        router.current.value;
+        const el = document.createElement('div');
+        el.textContent = 'Docs';
+        return el;
+      },
+    };
+
+    const result = await ssrRenderToString(module, '/');
+
+    expect(result.discoveredRoutes).toContain('/docs');
+    expect(result.discoveredRoutes).toContain('/docs/:slug');
+  });
+});

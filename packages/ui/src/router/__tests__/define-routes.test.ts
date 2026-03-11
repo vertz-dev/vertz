@@ -180,6 +180,38 @@ describe('defineRoutes with params schema', () => {
   });
 });
 
+describe('defineRoutes with prerender', () => {
+  test('propagates prerender: false to CompiledRoute', () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/dashboard': { component: () => document.createElement('div'), prerender: false },
+    });
+    expect(routes[0]?.prerender).toBeUndefined();
+    expect(routes[1]?.prerender).toBe(false);
+  });
+
+  test('propagates prerender: true to CompiledRoute', () => {
+    const routes = defineRoutes({
+      '/about': { component: () => document.createElement('div'), prerender: true },
+    });
+    expect(routes[0]?.prerender).toBe(true);
+  });
+
+  test('propagates prerender to nested children', () => {
+    const routes = defineRoutes({
+      '/docs': {
+        component: () => document.createElement('div'),
+        children: {
+          '/': { component: () => document.createElement('div') },
+          '/api': { component: () => document.createElement('div'), prerender: false },
+        },
+      },
+    });
+    expect(routes[0]?.children?.[0]?.prerender).toBeUndefined();
+    expect(routes[0]?.children?.[1]?.prerender).toBe(false);
+  });
+});
+
 describe('matchRoute with params schema', () => {
   const uuidSchema: ParamSchema<{ id: string }> = {
     parse(raw) {

@@ -36,6 +36,11 @@ export interface SSRRenderContext {
    * Keyed by CompiledRoute object identity.
    */
   resolvedComponents?: Map<object, () => Node>;
+  /**
+   * Route patterns discovered by createRouter() during SSR.
+   * Used by the build pipeline to discover which routes to pre-render.
+   */
+  discoveredRoutes?: string[];
 }
 
 type SSRContextResolver = () => SSRRenderContext | undefined;

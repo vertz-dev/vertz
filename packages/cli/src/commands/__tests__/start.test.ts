@@ -82,7 +82,7 @@ describe('validateBuildOutputs', () => {
     const result = validateBuildOutputs(projectRoot, 'ui-only');
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error.message).toContain('dist/client/index.html');
+      expect(result.error.message).toContain('dist/client/_shell.html');
     }
   });
 
