@@ -303,6 +303,130 @@ function Page() {
     });
   });
 
+  describe('Given Image imported from a different package (not @vertz/ui)', () => {
+    describe('When the transform runs', () => {
+      it('Then returns the code unchanged', () => {
+        const source = `
+import { Image } from 'some-other-lib';
+
+function Page() {
+  return <Image src="/public/photo.jpg" width={80} height={80} alt="Photo" />;
+}`;
+        const result = transform(source);
+
+        expect(result.code).toContain('<Image');
+        expect(result.transformed).toBe(false);
+      });
+    });
+  });
+
+  describe('Given @vertz/ui Image import but no <Image> JSX usage', () => {
+    describe('When the transform runs', () => {
+      it('Then returns the code unchanged', () => {
+        const source = `
+import { Image } from '@vertz/ui';
+
+const ImageRef = Image;
+function Page() {
+  return <div>No Image usage</div>;
+}`;
+        const result = transform(source);
+
+        expect(result.transformed).toBe(false);
+      });
+    });
+  });
+
+  describe('Given <Image> with pass-through data-testid attribute', () => {
+    describe('When the transform runs', () => {
+      it('Then includes the pass-through attribute on the <img>', () => {
+        const source = `
+import { Image } from '@vertz/ui';
+
+function Page() {
+  return <Image src="/public/photo.jpg" width={80} height={80} alt="Photo" data-testid="hero-img" />;
+}`;
+        const result = transform(source);
+
+        expect(result.code).toMatch(/<img[^>]*data-testid="hero-img"/);
+        expect(result.transformed).toBe(true);
+      });
+    });
+  });
+
+  describe('Given <Image> with explicit loading, decoding, quality, and fit', () => {
+    describe('When the transform runs', () => {
+      it('Then uses the explicit loading and decoding values', () => {
+        const source = `
+import { Image } from '@vertz/ui';
+
+function Page() {
+  return <Image src="/public/photo.jpg" width={80} height={80} alt="Photo" loading="eager" decoding="sync" fetchpriority="high" quality={60} fit="contain" />;
+}`;
+        const result = transform(source);
+
+        expect(result.code).toContain('loading="eager"');
+        expect(result.code).toContain('decoding="sync"');
+        expect(result.code).toContain('fetchpriority="high"');
+        expect(result.transformed).toBe(true);
+      });
+    });
+  });
+
+  describe('Given <Image> with priority={true} (explicit boolean)', () => {
+    describe('When the transform runs', () => {
+      it('Then sets eager loading and high fetchpriority', () => {
+        const source = `
+import { Image } from '@vertz/ui';
+
+function Page() {
+  return <Image src="/public/photo.jpg" width={80} height={80} alt="Photo" priority={true} />;
+}`;
+        const result = transform(source);
+
+        expect(result.code).toContain('loading="eager"');
+        expect(result.code).toContain('fetchpriority="high"');
+        expect(result.transformed).toBe(true);
+      });
+    });
+  });
+
+  describe('Given <Image> with priority={false}', () => {
+    describe('When the transform runs', () => {
+      it('Then uses default lazy loading', () => {
+        const source = `
+import { Image } from '@vertz/ui';
+
+function Page() {
+  return <Image src="/public/photo.jpg" width={80} height={80} alt="Photo" priority={false} />;
+}`;
+        const result = transform(source);
+
+        expect(result.code).toContain('loading="lazy"');
+        expect(result.code).toContain('decoding="async"');
+        expect(result.code).not.toContain('fetchpriority');
+        expect(result.transformed).toBe(true);
+      });
+    });
+  });
+
+  describe('Given <Image> with missing alt prop', () => {
+    describe('When the transform runs', () => {
+      it('Then leaves it unchanged (missing required prop)', () => {
+        const source = `
+import { Image } from '@vertz/ui';
+
+function Page() {
+  return <Image src="/public/photo.jpg" width={80} height={80} />;
+}`;
+        const result = transform(source);
+
+        expect(result.code).toContain('<Image');
+        expect(result.transformed).toBe(false);
+      });
+    });
+  });
+
   describe('Given a file with no <Image> import from @vertz/ui', () => {
     describe('When the transform runs', () => {
       it('Then returns the code unchanged (fast path)', () => {

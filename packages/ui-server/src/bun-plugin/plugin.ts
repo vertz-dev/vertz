@@ -39,6 +39,7 @@ import type { EntitySchemaManifest } from './field-selection-inject';
 import { injectFieldSelection } from './field-selection-inject';
 import { FieldSelectionManifest } from './field-selection-manifest';
 import { filePathHash } from './file-path-hash';
+import { computeImageOutputPaths, resolveImageSrc } from './image-paths';
 import { processImage } from './image-processor';
 import { transformImages } from './image-transform';
 import type {
@@ -294,18 +295,10 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
 
           const imageResult = transformImages(codeForCompile, args.path, {
             projectRoot,
-            resolveImagePath: (src) => {
-              if (src.startsWith('/')) return resolve(projectRoot, src.slice(1));
-              return resolve(dirname(args.path), src);
-            },
+            resolveImagePath: (src) => resolveImageSrc(src, args.path, projectRoot),
             getImageOutputPaths: (sourcePath, w, h, q, f) => {
-              const { createHash } = require('node:crypto') as typeof import('node:crypto');
-              const pathMod = require('node:path') as typeof import('node:path');
-              const fsMod = require('node:fs') as typeof import('node:fs');
-              let sourceBuffer: Buffer;
-              try {
-                sourceBuffer = fsMod.readFileSync(sourcePath);
-              } catch {
+              const paths = computeImageOutputPaths(sourcePath, w, h, q, f);
+              if (!paths) {
                 return {
                   webp1x: sourcePath,
                   webp2x: sourcePath,
@@ -313,27 +306,6 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
                   fallbackType: 'image/jpeg',
                 };
               }
-              const hash = createHash('sha256')
-                .update(sourceBuffer)
-                .update(`${w}x${h}q${q}f${f}`)
-                .digest('hex')
-                .slice(0, 12);
-              const name = pathMod.basename(sourcePath, pathMod.extname(sourcePath));
-              const ext = pathMod.extname(sourcePath).slice(1);
-              const extMap: Record<string, string> = {
-                jpeg: '.jpg',
-                jpg: '.jpg',
-                png: '.png',
-                webp: '.webp',
-                gif: '.gif',
-              };
-              const mimeMap: Record<string, string> = {
-                jpeg: 'image/jpeg',
-                jpg: 'image/jpeg',
-                png: 'image/png',
-                webp: 'image/webp',
-                gif: 'image/gif',
-              };
 
               imageQueue.push({
                 sourcePath,
@@ -344,12 +316,7 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
                 outputDir: imageOutputDir,
               });
 
-              return {
-                webp1x: `/__vertz_img/${name}-${hash}-${w}w.webp`,
-                webp2x: `/__vertz_img/${name}-${hash}-${w * 2}w.webp`,
-                fallback: `/__vertz_img/${name}-${hash}-${w * 2}w${extMap[ext] ?? '.jpg'}`,
-                fallbackType: mimeMap[ext] ?? 'image/jpeg',
-              };
+              return paths;
             },
           });
 

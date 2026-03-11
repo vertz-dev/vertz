@@ -22,6 +22,7 @@ import { execSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, watch, writeFileSync } from 'node:fs';
 import { dirname, normalize, resolve } from 'node:path';
 import type { FontFallbackMetrics } from '@vertz/ui';
+import { imageContentType, isValidImageName } from './bun-plugin/image-paths';
 import { createDebugLogger } from './debug-logger';
 import { DiagnosticsCollector } from './diagnostics-collector';
 import { installFetchProxy, runWithScopedFetch } from './fetch-scope';
@@ -1128,8 +1129,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
         // Optimized image serving — serve processed images from .vertz/images/
         if (pathname.startsWith('/__vertz_img/')) {
           const imgName = pathname.slice('/__vertz_img/'.length);
-          // Path traversal guard — reject any path that escapes the images directory
-          if (imgName.includes('..') || imgName.includes('\0')) {
+          if (!isValidImageName(imgName)) {
             return new Response('Forbidden', { status: 403 });
           }
           const imagesDir = resolve(projectRoot, '.vertz', 'images');
@@ -1140,18 +1140,9 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
           const file = Bun.file(imgPath);
           if (await file.exists()) {
             const ext = imgName.split('.').pop();
-            const IMG_CONTENT_TYPES: Record<string, string> = {
-              webp: 'image/webp',
-              png: 'image/png',
-              jpg: 'image/jpeg',
-              jpeg: 'image/jpeg',
-              gif: 'image/gif',
-              avif: 'image/avif',
-            };
-            const contentType = (ext && IMG_CONTENT_TYPES[ext]) || 'application/octet-stream';
             return new Response(file, {
               headers: {
-                'Content-Type': contentType,
+                'Content-Type': imageContentType(ext),
                 'Cache-Control': 'public, max-age=31536000, immutable',
               },
             });
