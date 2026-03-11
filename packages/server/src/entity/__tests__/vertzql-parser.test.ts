@@ -239,7 +239,7 @@ describe('Feature: VertzQL query param parsing', () => {
       it('Then returns both select and include', () => {
         const structural = {
           select: { title: true, status: true },
-          include: { creator: { id: true, name: true } },
+          include: { creator: { select: { id: true, name: true } } },
         };
         const q = btoa(JSON.stringify(structural));
         const query = { q };
@@ -247,7 +247,7 @@ describe('Feature: VertzQL query param parsing', () => {
         const result = parseVertzQL(query);
 
         expect(result.select).toEqual({ title: true, status: true });
-        expect(result.include).toEqual({ creator: { id: true, name: true } });
+        expect(result.include).toEqual({ creator: { select: { id: true, name: true } } });
       });
     });
   });
@@ -528,7 +528,7 @@ describe('Feature: VertzQL validation', () => {
     describe('When validateVertzQL is called', () => {
       it('Then returns an error for the unauthorized field', () => {
         const options = {
-          include: { creator: { id: true, name: true, email: true } },
+          include: { creator: { select: { id: true, name: true, email: true } } },
         };
         const relationsConfig: EntityRelationsConfig = {
           creator: { id: true, name: true } as Record<string, true>,
@@ -575,7 +575,7 @@ describe('Feature: VertzQL validation', () => {
   describe('Given a valid include with field narrowing within entity config', () => {
     describe('When validateVertzQL is called', () => {
       it('Then returns ok', () => {
-        const options = { include: { creator: { id: true, name: true } } };
+        const options = { include: { creator: { select: { id: true, name: true } } } };
         const relationsConfig: EntityRelationsConfig = {
           creator: { id: true, name: true } as Record<string, true>,
         };
@@ -636,14 +636,14 @@ describe('Feature: VertzQL q= parameter security hardening', () => {
       it('Then parses successfully without stripping', () => {
         const structural = {
           select: { title: true, status: true },
-          include: { creator: { id: true, name: true } },
+          include: { creator: { select: { id: true, name: true } } },
         };
         const q = btoa(JSON.stringify(structural));
 
         const result = parseVertzQL({ q });
 
         expect(result.select).toEqual({ title: true, status: true });
-        expect(result.include).toEqual({ creator: { id: true, name: true } });
+        expect(result.include).toEqual({ creator: { select: { id: true, name: true } } });
         expect(result._qError).toBeUndefined();
       });
     });

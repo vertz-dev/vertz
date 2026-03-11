@@ -101,9 +101,7 @@ function TaskDetail() {
       });
 
       expect(result.code).toContain('select: { id: true, status: true, title: true }');
-      expect(result.code).toContain(
-        'include: { assignee: { select: { email: true, name: true } } }',
-      );
+      expect(result.code).toContain('include: { assignee: { select: { email: true, name: true } } }');
       expect(result.injected).toBe(true);
     });
   });

@@ -24,14 +24,7 @@ export const MAX_LIMIT = 1000;
 export const MAX_Q_BASE64_LENGTH = 10_240;
 
 /** Keys allowed in the decoded `q` parameter JSON object. */
-const ALLOWED_Q_KEYS = new Set([
-  'select',
-  'include',
-  'where',
-  'orderBy',
-  'limit',
-  'offset',
-]);
+const ALLOWED_Q_KEYS = new Set(['select', 'include', 'where', 'orderBy', 'limit', 'offset']);
 
 export interface VertzQLOptions {
   where?: Record<string, unknown>;
@@ -39,7 +32,7 @@ export interface VertzQLOptions {
   limit?: number;
   after?: string;
   select?: Record<string, true>;
-  include?: Record<string, true | Record<string, true>>;
+  include?: Record<string, true | { select: Record<string, true> }>;
   /** @internal Parse error for the q= param, if any. */
   _qError?: string;
 }
@@ -134,7 +127,10 @@ export function parseVertzQL(query: Record<string, string>): VertzQLOptions {
           result.select = decoded.select as Record<string, true>;
         }
         if (decoded.include && typeof decoded.include === 'object') {
-          result.include = decoded.include as Record<string, true | Record<string, true>>;
+          result.include = decoded.include as Record<
+            string,
+            true | { select: Record<string, true> }
+          >;
         }
       } catch {
         result._qError = 'Invalid q= parameter: not valid base64 or JSON';
@@ -235,7 +231,15 @@ export function validateVertzQL(
 
       // If entity config narrows to specific fields, validate the request is within bounds
       if (typeof entityConfig === 'object' && typeof requested === 'object') {
-        for (const field of Object.keys(requested)) {
+        // Prisma-style: extract fields from { select: { field: true } }
+        const requestedFields =
+          'select' in requested &&
+          typeof (requested as Record<string, unknown>).select === 'object' &&
+          (requested as Record<string, unknown>).select !== null
+            ? Object.keys((requested as Record<string, unknown>).select as Record<string, unknown>)
+            : Object.keys(requested);
+
+        for (const field of requestedFields) {
           if (!(field in entityConfig)) {
             return {
               ok: false,

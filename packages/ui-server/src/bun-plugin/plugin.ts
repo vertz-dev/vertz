@@ -32,7 +32,9 @@ import MagicString from 'magic-string';
 import { Project, ts } from 'ts-morph';
 
 import { injectContextStableIds } from './context-stable-ids';
+import { loadEntitySchema } from './entity-schema-loader';
 import { generateRefreshCode } from './fast-refresh-codegen';
+import type { EntitySchemaManifest } from './field-selection-inject';
 import { injectFieldSelection } from './field-selection-inject';
 import { FieldSelectionManifest } from './field-selection-manifest';
 import { filePathHash } from './file-path-hash';
@@ -188,6 +190,18 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
   }
   diagnostics?.recordFieldSelectionManifest(fieldSelectionFileCount);
 
+  // ── 0.6. Entity schema manifest (relation-aware field selection) ──
+  const entitySchemaPath =
+    options?.entitySchemaPath ?? resolve(projectRoot, '.vertz', 'generated', 'entity-schema.json');
+  let entitySchema: EntitySchemaManifest | undefined = loadEntitySchema(entitySchemaPath);
+
+  if (logger?.isEnabled('fields') && entitySchema) {
+    logger.log('fields', 'entity-schema-loaded', {
+      path: entitySchemaPath,
+      entities: Object.keys(entitySchema).length,
+    });
+  }
+
   // Ensure CSS output directory exists
   mkdirSync(cssOutDir, { recursive: true });
 
@@ -233,6 +247,7 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
           const fieldSelectionResult = injectFieldSelection(args.path, hydratedCode, {
             manifest: fieldSelectionManifest,
             resolveImport: fieldSelectionResolveImport,
+            entitySchema,
           });
           const codeForCompile = fieldSelectionResult.code;
 
@@ -441,5 +456,28 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
     return existed;
   }
 
-  return { plugin, fileExtractions, cssSidecarMap, updateManifest, deleteManifest };
+  function reloadEntitySchema(): boolean {
+    const newSchema = loadEntitySchema(entitySchemaPath);
+    const changed = JSON.stringify(newSchema) !== JSON.stringify(entitySchema);
+    entitySchema = newSchema;
+
+    if (logger?.isEnabled('fields')) {
+      logger.log('fields', 'entity-schema-reload', {
+        path: entitySchemaPath,
+        entities: newSchema ? Object.keys(newSchema).length : 0,
+        changed,
+      });
+    }
+
+    return changed;
+  }
+
+  return {
+    plugin,
+    fileExtractions,
+    cssSidecarMap,
+    updateManifest,
+    deleteManifest,
+    reloadEntitySchema,
+  };
 }

@@ -29,6 +29,13 @@ export interface VertzBunPluginOptions {
   logger?: DebugLogger;
   /** Diagnostics collector for the health check endpoint. */
   diagnostics?: DiagnosticsCollector;
+  /**
+   * Path to entity-schema.json from codegen.
+   * When provided, enables relation-aware field selection injection
+   * (include for relations, hidden field filtering, custom primary keys).
+   * Defaults to `<projectRoot>/.vertz/generated/entity-schema.json`.
+   */
+  entitySchemaPath?: string;
 }
 
 /** CSS extractions tracked across all transformed files (for dead CSS elimination). */
@@ -60,4 +67,10 @@ export interface VertzBunPluginResult {
    * Returns whether the file had a manifest entry.
    */
   deleteManifest(filePath: string): boolean;
+  /**
+   * Reload the entity schema manifest from disk.
+   * Call this when entity-schema.json changes (e.g., after codegen re-runs).
+   * Returns whether the schema changed.
+   */
+  reloadEntitySchema(): boolean;
 }

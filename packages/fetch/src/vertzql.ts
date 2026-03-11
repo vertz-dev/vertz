@@ -1,6 +1,6 @@
 export interface VertzQLParams {
   select?: Record<string, true>;
-  include?: Record<string, true | Record<string, true>>;
+  include?: Record<string, true | { select: Record<string, true> }>;
 }
 
 /**
@@ -32,7 +32,9 @@ export function resolveVertzQL(
 
   const q = encodeVertzQL({
     ...(select ? { select: select as Record<string, true> } : {}),
-    ...(include ? { include: include as Record<string, true | Record<string, true>> } : {}),
+    ...(include
+      ? { include: include as Record<string, true | { select: Record<string, true> }> }
+      : {}),
   });
 
   return { ...rest, q };

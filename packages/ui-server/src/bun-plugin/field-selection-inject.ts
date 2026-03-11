@@ -23,6 +23,7 @@ export interface EntitySchemaRelation {
 }
 
 export interface EntitySchemaEntry {
+  table?: string;
   primaryKey?: string;
   tenantScoped: boolean;
   hiddenFields: string[];
@@ -177,7 +178,7 @@ function buildSimpleSelectInjection(fields: string[]): string {
  *
  * Uses the entity schema to classify fields:
  * - Scalar fields → `select: { field: true, ... }`
- * - Relation fields with nested access → `include: { rel: { select: { ... } } }`
+ * - Relation fields with nested access → `include: { rel: { select: { field: true } } }`
  * - Relation fields without nested access → included in `select` as before
  */
 function buildManifestAwareInjection(

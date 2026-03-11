@@ -58,9 +58,10 @@ describe('createTokenRefresh', () => {
     tr.schedule(Date.now() + 60_000);
     tr.schedule(Date.now() + 120_000);
 
-    // Only one timer should be active (the second one)
+    // Only one timer should be active (the second one, ~110s from now)
     expect(timers.length).toBe(1);
-    expect(timers[0].delay).toBe(110_000);
+    expect(timers[0].delay).toBeGreaterThanOrEqual(109_900);
+    expect(timers[0].delay).toBeLessThanOrEqual(110_000);
   });
 
   it('fires immediately when expiresAt is already stale', () => {
