@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'bun:test';
-import { createRouter, defineRoutes, defineTheme, RouterContext, RouterView } from '@vertz/ui';
+import {
+  createRouter,
+  defineRoutes,
+  defineTheme,
+  Outlet,
+  RouterContext,
+  RouterView,
+} from '@vertz/ui';
 import { installDomShim } from '../dom-shim';
 import { registerSSRQuery } from '../ssr-context';
 import { ssrDiscoverQueries, ssrRenderToString, ssrStreamNavQueries } from '../ssr-render';
@@ -414,6 +421,51 @@ describe('SSR lazy route resolution', () => {
     // Sync route should work as before
     const result = await ssrRenderToString(module, '/');
     expect(result.html).toContain('Home');
+  });
+
+  it('resolves nested lazy routes (lazy layout + lazy child)', async () => {
+    const routes = defineRoutes({
+      '/docs': {
+        component: async () => ({
+          default: () => {
+            const wrapper = document.createElement('div');
+            wrapper.setAttribute('data-testid', 'docs-layout');
+            wrapper.textContent = 'Docs Layout';
+            wrapper.appendChild(Outlet() as HTMLElement);
+            return wrapper;
+          },
+        }),
+        children: {
+          '/': {
+            component: async () => ({
+              default: () => {
+                const el = document.createElement('div');
+                el.setAttribute('data-testid', 'docs-index');
+                el.textContent = 'Docs Index Content';
+                return el;
+              },
+            }),
+          },
+        },
+      },
+    });
+
+    const module = {
+      default: () => {
+        const router = createRouter(routes);
+        const container = document.createElement('div');
+        RouterContext.Provider(router, () => {
+          container.appendChild(RouterView({ router }));
+        });
+        return container;
+      },
+    };
+
+    const result = await ssrRenderToString(module, '/docs/');
+    expect(result.html).toContain('Docs Layout');
+    expect(result.html).toContain('Docs Index Content');
+    expect(result.html).toContain('data-testid="docs-layout"');
+    expect(result.html).toContain('data-testid="docs-index"');
   });
 
   it('timed-out lazy components fall back to empty container', async () => {

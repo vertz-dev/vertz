@@ -169,10 +169,12 @@ function buildLevels(matched: MatchedRoute[]): LevelState[] {
  * Build the inside-out component factory chain starting from `startAt` index.
  * Returns the factory for the component at `startAt` (which wraps all descendants).
  *
- * During SSR Pass 1, lazy (async) leaf components are called and their Promises
- * registered into `ctx.pendingRouteComponents` for resolution between passes.
- * During SSR Pass 2, pre-resolved sync factories from `ctx.resolvedComponents`
- * are used instead of calling `route.component` again.
+ * During SSR:
+ * - Pass 1: each route's factory is wrapped to register lazy Promises on invocation.
+ *   When a lazy parent is detected, all its children in the matched chain are
+ *   probed directly (they won't be reached via Outlet during Pass 1).
+ * - Pass 2: pre-resolved sync factories from `ctx.resolvedComponents` are used.
+ *   `ctx.resolvedComponents` is always set between passes (even if empty).
  */
 function buildInsideOutFactory(
   matched: MatchedRoute[],
@@ -182,37 +184,65 @@ function buildInsideOutFactory(
 ): () => Node | Promise<{ default: () => Node }> {
   const ssrCtx = getSSRContext();
 
-  // Resolve the leaf factory — may be swapped with a pre-resolved sync factory during SSR Pass 2
-  const leafRoute = matched[matched.length - 1]!.route;
-  let factory: () => Node | Promise<{ default: () => Node }> = leafRoute.component;
+  /**
+   * Wrap a route's component for SSR lazy resolution.
+   * @param routeIndex - index in the matched chain, used to probe children
+   *   when this route turns out to be lazy.
+   */
+  const wrapForSSR = (
+    route: CompiledRoute,
+    routeIndex: number,
+  ): (() => Node | Promise<{ default: () => Node }>) => {
+    if (!ssrCtx) return route.component;
 
-  if (ssrCtx) {
-    // SSR Pass 2: use pre-resolved sync factory if available
-    const resolved = ssrCtx.resolvedComponents?.get(leafRoute);
-    if (resolved) {
-      factory = resolved;
-    } else {
-      // SSR Pass 1: call component to discover if it's async, register the Promise
-      const result = leafRoute.component();
+    // Pass 2: use pre-resolved sync factory
+    const resolved = ssrCtx.resolvedComponents?.get(route);
+    if (resolved) return resolved;
+
+    // Pass 1: wrap to register lazy import on invocation.
+    // If this route is lazy, also probe all children in the matched chain
+    // (they won't be reached via Outlet since this parent returns a Promise).
+    return () => {
+      const result = route.component();
       if (result instanceof Promise) {
         if (!ssrCtx.pendingRouteComponents) {
           ssrCtx.pendingRouteComponents = new Map();
         }
-        ssrCtx.pendingRouteComponents.set(leafRoute, result as Promise<{ default: () => Node }>);
+        ssrCtx.pendingRouteComponents.set(route, result as Promise<{ default: () => Node }>);
+        // Probe children behind this lazy parent
+        for (let j = routeIndex + 1; j < matched.length; j++) {
+          const childRoute = matched[j]!.route;
+          if (!ssrCtx.pendingRouteComponents.has(childRoute)) {
+            const childResult = childRoute.component();
+            if (childResult instanceof Promise) {
+              ssrCtx.pendingRouteComponents.set(
+                childRoute,
+                childResult as Promise<{ default: () => Node }>,
+              );
+            }
+          }
+        }
       }
-    }
-  }
+      return result;
+    };
+  };
+
+  // Start from the leaf and build upward to startAt
+  let factory: () => Node | Promise<{ default: () => Node }> = wrapForSSR(
+    matched[matched.length - 1]!.route,
+    matched.length - 1,
+  );
 
   for (let i = matched.length - 2; i >= startAt; i--) {
     const level = levels[i]!;
     const childFactory = factory;
     level.childSignal!.value = childFactory;
-    const parentRoute = level.route;
+    const parentComponent = wrapForSSR(level.route, i);
     const cs = level.childSignal!;
     factory = () => {
       let result!: Node;
       OutletContext.Provider({ childComponent: cs, router }, () => {
-        result = parentRoute.component() as Node;
+        result = parentComponent() as Node;
       });
       return result;
     };
