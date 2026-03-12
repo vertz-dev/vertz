@@ -23,20 +23,6 @@ interface SessionRow {
   revoked_at: string | null;
 }
 
-interface SessionRecord {
-  id: string;
-  userId: string;
-  refreshTokenHash: string;
-  previousRefreshHash: string | null;
-  currentTokens: string | null;
-  ipAddress: string;
-  userAgent: string;
-  createdAt: string;
-  lastActiveAt: string;
-  expiresAt: string;
-  revokedAt: string | null;
-}
-
 export class DbSessionStore implements SessionStore {
   constructor(private db: AuthDbClient) {}
 
@@ -197,21 +183,6 @@ export class DbSessionStore implements SessionStore {
       lastActiveAt: new Date(row.last_active_at),
       expiresAt: new Date(row.expires_at),
       revokedAt: row.revoked_at ? new Date(row.revoked_at) : null,
-    };
-  }
-
-  private recordToSession(row: SessionRecord): StoredSession {
-    return {
-      id: row.id,
-      userId: row.userId,
-      refreshTokenHash: row.refreshTokenHash,
-      previousRefreshHash: row.previousRefreshHash,
-      ipAddress: row.ipAddress,
-      userAgent: row.userAgent,
-      createdAt: new Date(row.createdAt),
-      lastActiveAt: new Date(row.lastActiveAt),
-      expiresAt: new Date(row.expiresAt),
-      revokedAt: row.revokedAt ? new Date(row.revokedAt) : null,
     };
   }
 }
