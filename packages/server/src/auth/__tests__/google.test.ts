@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import type { GoogleProfile } from '../providers/google';
 import { google } from '../providers/google';
 
 describe('google provider', () => {
@@ -109,8 +108,8 @@ describe('google provider', () => {
       expect(userInfo.providerId).toBe('google-user-123');
       expect(userInfo.email).toBe('user@gmail.com');
       expect(userInfo.emailVerified).toBe(true);
-      expect(userInfo.name).toBe('Test User');
-      expect(userInfo.avatarUrl).toBe('https://example.com/avatar.jpg');
+      expect(userInfo.raw.name).toBe('Test User');
+      expect(userInfo.raw.picture).toBe('https://example.com/avatar.jpg');
     });
 
     it('includes raw with OIDC claims from the ID token', async () => {
@@ -175,44 +174,6 @@ describe('google provider', () => {
       expect(provider.getUserInfo('access-token', mockIdToken, 'wrong-nonce')).rejects.toThrow(
         'ID token nonce mismatch',
       );
-    });
-  });
-
-  describe('mapProfile', () => {
-    it('has a default mapProfile that returns name and avatarUrl', () => {
-      const provider = google(config);
-      const result = provider.mapProfile({
-        name: 'Test User',
-        picture: 'https://example.com/photo.jpg',
-      });
-      expect(result).toEqual({
-        name: 'Test User',
-        avatarUrl: 'https://example.com/photo.jpg',
-      });
-    });
-
-    it('uses custom mapProfile when provided', () => {
-      const provider = google({
-        ...config,
-        mapProfile: (profile: GoogleProfile) => ({
-          name: profile.name,
-          avatarUrl: profile.picture,
-          locale: profile.locale,
-          givenName: profile.given_name,
-        }),
-      });
-      const result = provider.mapProfile({
-        name: 'Test User',
-        picture: 'https://example.com/photo.jpg',
-        locale: 'en',
-        given_name: 'Test',
-      });
-      expect(result).toEqual({
-        name: 'Test User',
-        avatarUrl: 'https://example.com/photo.jpg',
-        locale: 'en',
-        givenName: 'Test',
-      });
     });
   });
 });

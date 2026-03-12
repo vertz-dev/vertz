@@ -60,6 +60,7 @@ import {
 } from './totp';
 import type {
   AuthApi,
+  AuthCallbackContext,
   AuthConfig,
   AuthInstance,
   AuthUser,
@@ -67,6 +68,7 @@ import type {
   ForgotPasswordInput,
   OAuthProvider,
   OAuthStateData,
+  OnUserCreatedPayload,
   PasswordInput,
   ResetPasswordInput,
   Session,
@@ -211,6 +213,10 @@ export function createAuth(config: AuthConfig): AuthInstance {
   // Tenant switching
   const tenantConfig = config.tenant;
 
+  // Auth-entity bridge callback
+  const onUserCreated = config.onUserCreated;
+  const entityProxy = config._entityProxy ?? {};
+
   // Rate limiting
   const rateLimitStore = config.rateLimitStore ?? new InMemoryRateLimitStore();
   const signInWindowMs = parseDuration(emailPassword?.rateLimit?.window || '15m');
@@ -351,7 +357,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
     const passwordHash = await hashPassword(password);
 
     const now = new Date();
-    // Spread additionalFields first so core fields cannot be overridden
+    // Extract safe fields for onUserCreated signUpData (strip reserved fields)
     const {
       id: _id,
       createdAt: _c,
@@ -362,7 +368,6 @@ export function createAuth(config: AuthConfig): AuthInstance {
       ...safeFields
     } = additionalFields as Record<string, unknown>;
     const user: AuthUser = {
-      ...safeFields,
       id: crypto.randomUUID(),
       email: email.toLowerCase(),
       role: 'user',
@@ -372,6 +377,27 @@ export function createAuth(config: AuthConfig): AuthInstance {
     };
 
     await userStore.createUser(user, passwordHash);
+
+    // Fire onUserCreated callback for email/password sign-ups
+    if (onUserCreated) {
+      const callbackCtx: AuthCallbackContext = { entities: entityProxy };
+      const payload: OnUserCreatedPayload = {
+        user,
+        provider: null,
+        signUpData: { ...safeFields },
+      };
+      try {
+        await onUserCreated(payload, callbackCtx);
+      } catch (callbackErr) {
+        // Rollback: delete auth user
+        try {
+          await userStore.deleteUser(user.id);
+        } catch (rollbackErr) {
+          console.error('[Auth] Failed to rollback user after onUserCreated failure:', rollbackErr);
+        }
+        return err(createAuthValidationError('User setup failed', 'general', 'CALLBACK_FAILED'));
+      }
+    }
 
     // Send verification email if enabled
     if (emailVerificationEnabled && emailVerificationStore && emailVerificationConfig?.onSend) {
@@ -1355,23 +1381,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
                 return new Response(null, { status: 302, headers });
               }
               const now = new Date();
-              let mappedFields: Record<string, unknown>;
-              try {
-                const result = provider.mapProfile(userInfo.raw);
-                mappedFields =
-                  result !== null && typeof result === 'object' && !Array.isArray(result)
-                    ? result
-                    : {};
-              } catch {
-                const headers = new Headers({
-                  Location: `${errorRedirect}?error=profile_mapping_failed`,
-                  ...securityHeaders(),
-                });
-                headers.append('Set-Cookie', buildOAuthStateCookie('', cookieConfig, true));
-                return new Response(null, { status: 302, headers });
-              }
               const newUser: AuthUser = {
-                ...mappedFields,
                 id: crypto.randomUUID(),
                 email: userInfo.email.toLowerCase(),
                 emailVerified: userInfo.emailVerified,
@@ -1387,6 +1397,40 @@ export function createAuth(config: AuthConfig): AuthInstance {
                 userInfo.providerId,
                 userInfo.email,
               );
+
+              // Fire onUserCreated callback for new OAuth users
+              if (onUserCreated) {
+                const callbackCtx: AuthCallbackContext = { entities: entityProxy };
+                const payload: OnUserCreatedPayload = {
+                  user: newUser,
+                  provider: { id: provider.id, name: provider.name },
+                  profile: userInfo.raw,
+                };
+                try {
+                  await onUserCreated(payload, callbackCtx);
+                } catch {
+                  // Rollback: unlink OAuth account + delete auth user
+                  try {
+                    await oauthAccountStore.unlinkAccount(userId, provider.id);
+                  } catch (rollbackErr) {
+                    console.error(
+                      '[Auth] Failed to unlink OAuth account during rollback:',
+                      rollbackErr,
+                    );
+                  }
+                  try {
+                    await userStore.deleteUser(userId);
+                  } catch (rollbackErr) {
+                    console.error('[Auth] Failed to delete user during rollback:', rollbackErr);
+                  }
+                  const headers = new Headers({
+                    Location: `${errorRedirect}?error=user_setup_failed`,
+                    ...securityHeaders(),
+                  });
+                  headers.append('Set-Cookie', buildOAuthStateCookie('', cookieConfig, true));
+                  return new Response(null, { status: 302, headers });
+                }
+              }
             }
           }
 
@@ -2564,8 +2608,10 @@ export type {
   AclClaim,
   AuthAccessConfig,
   AuthApi,
+  AuthCallbackContext,
   AuthConfig,
   AuthContext,
+  AuthEntityProxy,
   AuthInstance,
   AuthTokens,
   AuthUser,
@@ -2582,6 +2628,7 @@ export type {
   OAuthProviderConfig,
   OAuthTokens,
   OAuthUserInfo,
+  OnUserCreatedPayload,
   PasswordRequirements,
   PasswordResetConfig,
   PasswordResetStore,

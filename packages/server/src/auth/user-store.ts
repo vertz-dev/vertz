@@ -39,4 +39,12 @@ export class InMemoryUserStore implements UserStore {
       user.emailVerified = verified;
     }
   }
+
+  async deleteUser(id: string): Promise<void> {
+    const user = this.byId.get(id);
+    if (user) {
+      this.byEmail.delete(user.email.toLowerCase());
+      this.byId.delete(id);
+    }
+  }
 }

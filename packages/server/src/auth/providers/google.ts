@@ -28,12 +28,7 @@ const AUTHORIZATION_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const DEFAULT_SCOPES = ['openid', 'email', 'profile'];
 
-const defaultMapProfile = (profile: GoogleProfile): Record<string, unknown> => ({
-  name: profile.name,
-  avatarUrl: profile.picture,
-});
-
-export function google(config: OAuthProviderConfig<GoogleProfile>): OAuthProvider {
+export function google(config: OAuthProviderConfig): OAuthProvider {
   const scopes = config.scopes ?? DEFAULT_SCOPES;
 
   return {
@@ -41,9 +36,6 @@ export function google(config: OAuthProviderConfig<GoogleProfile>): OAuthProvide
     name: 'Google',
     scopes,
     trustEmail: true,
-    mapProfile: (config.mapProfile ?? defaultMapProfile) as (
-      raw: Record<string, unknown>,
-    ) => Record<string, unknown>,
 
     getAuthorizationUrl(state: string, codeChallenge?: string, nonce?: string): string {
       const params = new URLSearchParams({
@@ -125,8 +117,6 @@ export function google(config: OAuthProviderConfig<GoogleProfile>): OAuthProvide
         providerId: payload.sub as string,
         email: payload.email as string,
         emailVerified: payload.email_verified as boolean,
-        name: payload.name as string | undefined,
-        avatarUrl: payload.picture as string | undefined,
         raw: payload,
       };
     },

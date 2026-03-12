@@ -121,5 +121,23 @@ export function userStoreTests(
       const found = await store.findById(user.id);
       expect(found!.plan).toBe('pro');
     });
+
+    it('deletes a user by id', async () => {
+      const user = makeUser({ email: 'delete-me@example.com' });
+      await store.createUser(user, 'hash');
+
+      await store.deleteUser(user.id);
+
+      const byId = await store.findById(user.id);
+      expect(byId).toBeNull();
+
+      const byEmail = await store.findByEmail('delete-me@example.com');
+      expect(byEmail).toBeNull();
+    });
+
+    it('deleteUser is a no-op for non-existent id', async () => {
+      // Should not throw
+      await store.deleteUser('nonexistent-id');
+    });
   });
 }
