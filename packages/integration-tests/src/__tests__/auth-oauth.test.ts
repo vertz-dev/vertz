@@ -33,7 +33,7 @@ function createMockProvider(overrides?: Partial<OAuthProvider>): OAuthProvider {
       providerId: 'mock-provider-id-123',
       email: 'oauth@example.com',
       emailVerified: true,
-      name: 'OAuth User',
+      raw: { id: 'mock-provider-id-123', name: 'OAuth User' },
     }),
     ...overrides,
   };
