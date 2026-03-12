@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, spyOn, test } from 'bun:test';
 import { configureImageOptimizer, resetImageOptimizer_TEST_ONLY } from '../config';
 import { Image } from '../image';
 
@@ -232,6 +232,24 @@ describe('Feature: Image component runtime rendering', () => {
         });
 
         expect(el.getAttribute('src')).toBe('/public/logo.png');
+      });
+
+      test('Then logs an info message about non-HTTP src in dev mode', () => {
+        const infoSpy = spyOn(console, 'info').mockImplementation(() => {});
+        configureImageOptimizer('/_vertz/image');
+
+        Image({
+          src: '/public/logo.png',
+          width: 120,
+          height: 40,
+          alt: 'Logo',
+        });
+
+        expect(infoSpy).toHaveBeenCalledTimes(1);
+        expect(infoSpy.mock.calls[0]?.[0]).toContain('/public/logo.png');
+        expect(infoSpy.mock.calls[0]?.[0]).toContain('not optimized');
+
+        infoSpy.mockRestore();
       });
     });
 

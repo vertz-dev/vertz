@@ -4,8 +4,9 @@ export function configureImageOptimizer(baseUrl: string): void {
   optimizerBaseUrl = baseUrl;
 }
 
-export function getOptimizerBaseUrl(): string | null {
-  return optimizerBaseUrl;
+/** @internal */
+export function isOptimizerConfigured(): boolean {
+  return optimizerBaseUrl !== null;
 }
 
 /** @internal — test-only. Resets optimizer state. */

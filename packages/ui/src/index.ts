@@ -104,11 +104,7 @@ export { validate } from './form/validation';
 // Hydration (public API only)
 export type { ComponentFunction, ComponentLoader, ComponentRegistry } from './hydrate';
 export { hydrate } from './hydrate';
-export {
-  buildOptimizedUrl,
-  configureImageOptimizer,
-  resetImageOptimizer_TEST_ONLY,
-} from './image/config';
+export { buildOptimizedUrl, configureImageOptimizer } from './image/config';
 export { Image } from './image/image';
 // Image
 export type { ImageProps } from './image/types';

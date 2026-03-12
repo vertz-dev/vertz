@@ -1,4 +1,4 @@
-import { buildOptimizedUrl } from './config';
+import { buildOptimizedUrl, isOptimizerConfigured } from './config';
 import type { ImageProps } from './types';
 
 /** Build-time-only props that should not be rendered as HTML attributes. */
@@ -40,6 +40,13 @@ export function Image({
   const resolvedFetchpriority = priority ? 'high' : fetchpriority;
 
   const optimizedSrc = buildOptimizedUrl(src, width, height, quality, fit);
+
+  if (process.env.NODE_ENV !== 'production' && isOptimizerConfigured() && optimizedSrc === null) {
+    console.info(
+      `[vertz] <Image src="${src}"> was not optimized — only absolute HTTP(S) URLs are rewritten. ` +
+        'Relative paths and data URIs are served as-is.',
+    );
+  }
 
   const el = document.createElement('img');
   el.setAttribute('src', optimizedSrc ?? src);
