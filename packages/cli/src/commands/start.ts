@@ -20,7 +20,7 @@ declare const Bun: {
   file(path: string): Blob & { size: number; type: string };
 };
 
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { err, ok, type Result } from '@vertz/errors';
 import type { AppType } from '../dev-server/app-detector';
@@ -404,6 +404,10 @@ export function serveStaticFile(clientDir: string, pathname: string): Response |
 
   // Path traversal guard
   if (!filePath.startsWith(clientDir)) return null;
+
+  // Guard: skip directories (Bun.file on a directory causes "MacOS does not
+  // support sending non-regular files" when used as a Response body).
+  if (!existsSync(filePath) || !statSync(filePath).isFile()) return null;
 
   const file = Bun.file(filePath);
   if (!file.size) return null;

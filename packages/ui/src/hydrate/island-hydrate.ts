@@ -76,7 +76,24 @@ export function hydrateIslands(registry: IslandRegistry): void {
       hydrationQueue.push(async () => {
         try {
           const mod = await loader();
-          mod.default(props, el as HTMLElement);
+          const result = mod.default(props, el as HTMLElement);
+
+          // If the component returns a DOM node (standard Vertz components),
+          // replace the SSR content with the interactive version.
+          if (result instanceof Node) {
+            const children = Array.from(el.childNodes);
+            for (const child of children) {
+              if (
+                child instanceof Element &&
+                child.hasAttribute('data-v-island-props')
+              ) {
+                continue;
+              }
+              el.removeChild(child);
+            }
+            el.appendChild(result);
+          }
+
           el.setAttribute('data-v-hydrated', '');
         } catch (error: unknown) {
           console.error(`[vertz] Failed to hydrate island "${islandId}":`, error);

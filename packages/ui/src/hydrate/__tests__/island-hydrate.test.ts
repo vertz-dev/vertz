@@ -154,6 +154,34 @@ describe('Feature: Island hydration', () => {
     });
   });
 
+  describe('Given a component that returns a DOM node', () => {
+    describe('When hydrateIslands is called', () => {
+      it('Then the returned node replaces the SSR content', async () => {
+        document.body.innerHTML = `
+          <div data-v-island="CopyBtn">
+            <script data-v-island-props type="application/json">{}</script>
+            <button>SSR content</button>
+          </div>
+        `;
+
+        const interactiveBtn = document.createElement('button');
+        interactiveBtn.textContent = 'Interactive';
+        const componentFn = mock(() => interactiveBtn);
+
+        hydrateIslands({
+          CopyBtn: () => Promise.resolve({ default: componentFn }),
+        } as IslandRegistry);
+
+        await waitFor(() => {
+          const el = document.querySelector('[data-v-island="CopyBtn"]')!;
+          expect(el.querySelector('button')!.textContent).toBe('Interactive');
+          // Props script tag is preserved
+          expect(el.querySelector('script[data-v-island-props]')).not.toBeNull();
+        });
+      });
+    });
+  });
+
   describe('Given a hydrated island', () => {
     describe('When hydration completes', () => {
       it('Then the element gets data-v-hydrated attribute', async () => {
