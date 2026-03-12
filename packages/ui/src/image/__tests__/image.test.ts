@@ -1,4 +1,5 @@
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, spyOn, test } from 'bun:test';
+import { configureImageOptimizer, resetImageOptimizer_TEST_ONLY } from '../config';
 import { Image } from '../image';
 
 describe('Feature: Image component runtime rendering', () => {
@@ -193,6 +194,127 @@ describe('Feature: Image component runtime rendering', () => {
         // Should be a plain <img>, not wrapped in <picture>
         expect(el.tagName).toBe('IMG');
         expect(el.getAttribute('pictureClass')).toBeNull();
+      });
+    });
+  });
+
+  describe('Given configureImageOptimizer("/_vertz/image") has been called', () => {
+    afterEach(() => {
+      resetImageOptimizer_TEST_ONLY();
+    });
+
+    describe('When <Image> renders with src="https://cdn.example.com/photo.jpg"', () => {
+      test('Then the <img> src is rewritten to the optimization URL', () => {
+        configureImageOptimizer('/_vertz/image');
+
+        const el = Image({
+          src: 'https://cdn.example.com/photo.jpg',
+          width: 80,
+          height: 80,
+          alt: 'Photo',
+        });
+
+        expect(el.getAttribute('src')).toBe(
+          '/_vertz/image?url=https%3A%2F%2Fcdn.example.com%2Fphoto.jpg&w=80&h=80&q=80&fit=cover',
+        );
+      });
+    });
+
+    describe('When <Image> renders with src="/public/logo.png" (relative path)', () => {
+      test('Then the <img> src is the original path (not rewritten)', () => {
+        configureImageOptimizer('/_vertz/image');
+
+        const el = Image({
+          src: '/public/logo.png',
+          width: 120,
+          height: 40,
+          alt: 'Logo',
+        });
+
+        expect(el.getAttribute('src')).toBe('/public/logo.png');
+      });
+
+      test('Then logs an info message about non-HTTP src in dev mode', () => {
+        const infoSpy = spyOn(console, 'info').mockImplementation(() => {});
+        configureImageOptimizer('/_vertz/image');
+
+        Image({
+          src: '/public/logo.png',
+          width: 120,
+          height: 40,
+          alt: 'Logo',
+        });
+
+        expect(infoSpy).toHaveBeenCalledTimes(1);
+        expect(infoSpy.mock.calls[0]?.[0]).toContain('/public/logo.png');
+        expect(infoSpy.mock.calls[0]?.[0]).toContain('not optimized');
+
+        infoSpy.mockRestore();
+      });
+    });
+
+    describe('When <Image> renders with quality={60} and fit="contain"', () => {
+      test('Then the optimization URL includes q=60 and fit=contain', () => {
+        configureImageOptimizer('/_vertz/image');
+
+        const el = Image({
+          src: 'https://cdn.example.com/photo.jpg',
+          width: 400,
+          height: 300,
+          alt: 'Photo',
+          quality: 60,
+          fit: 'contain',
+        });
+
+        const src = el.getAttribute('src') ?? '';
+        const params = new URLSearchParams(src.split('?')[1]);
+        expect(params.get('q')).toBe('60');
+        expect(params.get('fit')).toBe('contain');
+      });
+    });
+
+    describe('When <Image> renders with src="data:image/png;base64,..."', () => {
+      test('Then the <img> src is the data URI (not rewritten)', () => {
+        configureImageOptimizer('/_vertz/image');
+
+        const el = Image({
+          src: 'data:image/png;base64,abc',
+          width: 16,
+          height: 16,
+          alt: 'Icon',
+        });
+
+        expect(el.getAttribute('src')).toBe('data:image/png;base64,abc');
+      });
+    });
+
+    describe('When <Image> renders with src="//cdn.example.com/photo.jpg" (protocol-relative)', () => {
+      test('Then the <img> src is the original URL (not rewritten)', () => {
+        configureImageOptimizer('/_vertz/image');
+
+        const el = Image({
+          src: '//cdn.example.com/photo.jpg',
+          width: 80,
+          height: 80,
+          alt: 'Photo',
+        });
+
+        expect(el.getAttribute('src')).toBe('//cdn.example.com/photo.jpg');
+      });
+    });
+  });
+
+  describe('Given configureImageOptimizer has NOT been called', () => {
+    describe('When <Image> renders with src="https://cdn.example.com/photo.jpg"', () => {
+      test('Then the <img> src is the original URL (no rewriting)', () => {
+        const el = Image({
+          src: 'https://cdn.example.com/photo.jpg',
+          width: 80,
+          height: 80,
+          alt: 'Photo',
+        });
+
+        expect(el.getAttribute('src')).toBe('https://cdn.example.com/photo.jpg');
       });
     });
   });

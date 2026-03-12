@@ -671,3 +671,154 @@ describe('generateHTMLTemplate with nonce', () => {
     expect(html).not.toContain('nonce');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Image optimizer integration
+// ---------------------------------------------------------------------------
+
+describe('createHandler (image optimizer integration)', () => {
+  const mockEnv = { DB: {} };
+  const mockCtx = {} as ExecutionContext;
+
+  function fakeImageOptimizerHandler(): (request: Request) => Promise<Response> {
+    return async () => {
+      return new Response('optimized-image-bytes', {
+        status: 200,
+        headers: {
+          'Content-Type': 'image/webp',
+          'Cache-Control': 'public, max-age=31536000, immutable',
+          'X-Vertz-Image-Optimized': 'cf',
+        },
+      });
+    };
+  }
+
+  it('routes /_vertz/image requests to the image optimizer handler', async () => {
+    const apiHandler = mock().mockResolvedValue(new Response('API'));
+    const optimizerHandler = mock(fakeImageOptimizerHandler());
+
+    const worker = createHandler({
+      app: () => mockApp(apiHandler),
+      basePath: '/api',
+      imageOptimizer: optimizerHandler,
+    });
+
+    const response = await worker.fetch(
+      new Request(
+        'https://example.com/_vertz/image?url=https%3A%2F%2Fcdn.example.com%2Fphoto.jpg&w=800&h=600',
+      ),
+      mockEnv,
+      mockCtx,
+    );
+
+    expect(optimizerHandler).toHaveBeenCalled();
+    expect(apiHandler).not.toHaveBeenCalled();
+    expect(response.headers.get('Content-Type')).toBe('image/webp');
+  });
+
+  it('applies security headers to optimizer responses', async () => {
+    const worker = createHandler({
+      app: () => mockApp(),
+      basePath: '/api',
+      imageOptimizer: fakeImageOptimizerHandler(),
+      securityHeaders: true,
+    });
+
+    const response = await worker.fetch(
+      new Request(
+        'https://example.com/_vertz/image?url=https%3A%2F%2Fcdn.example.com%2Fphoto.jpg&w=800&h=600',
+      ),
+      mockEnv,
+      mockCtx,
+    );
+
+    expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
+    expect(response.headers.get('X-Frame-Options')).toBe('DENY');
+  });
+
+  it('routes API requests to app handler (not optimizer)', async () => {
+    const apiHandler = mock().mockResolvedValue(
+      new Response('{"items":[]}', {
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    const optimizerHandler = mock(fakeImageOptimizerHandler());
+
+    const worker = createHandler({
+      app: () => mockApp(apiHandler),
+      basePath: '/api',
+      imageOptimizer: optimizerHandler,
+    });
+
+    const response = await worker.fetch(
+      new Request('https://example.com/api/todos'),
+      mockEnv,
+      mockCtx,
+    );
+
+    expect(apiHandler).toHaveBeenCalled();
+    expect(optimizerHandler).not.toHaveBeenCalled();
+    expect(await response.text()).toBe('{"items":[]}');
+  });
+
+  it('routes non-image non-API requests to SSR handler', async () => {
+    const ssrHandler = mock().mockResolvedValue(
+      new Response('<html>SSR</html>', {
+        headers: { 'Content-Type': 'text/html' },
+      }),
+    );
+    const optimizerHandler = mock(fakeImageOptimizerHandler());
+
+    const worker = createHandler({
+      app: () => mockApp(),
+      basePath: '/api',
+      ssr: ssrHandler,
+      imageOptimizer: optimizerHandler,
+    });
+
+    const response = await worker.fetch(new Request('https://example.com/'), mockEnv, mockCtx);
+
+    expect(ssrHandler).toHaveBeenCalled();
+    expect(optimizerHandler).not.toHaveBeenCalled();
+    expect(await response.text()).toBe('<html>SSR</html>');
+  });
+
+  it('falls through to SSR or 404 when no imageOptimizer configured', async () => {
+    const worker = createHandler({
+      app: () => mockApp(),
+      basePath: '/api',
+    });
+
+    const response = await worker.fetch(
+      new Request('https://example.com/_vertz/image?url=https%3A%2F%2Fcdn.example.com%2Fx.jpg'),
+      mockEnv,
+      mockCtx,
+    );
+
+    // No optimizer → falls through to 404 (no SSR configured either)
+    expect(response.status).toBe(404);
+  });
+
+  it('image optimizer route takes priority over basePath when both could match', async () => {
+    const apiHandler = mock().mockResolvedValue(new Response('API'));
+    const optimizerHandler = mock(fakeImageOptimizerHandler());
+
+    // Edge case: basePath is /_vertz — optimizer route should still win
+    const worker = createHandler({
+      app: () => mockApp(apiHandler),
+      basePath: '/_vertz',
+      imageOptimizer: optimizerHandler,
+    });
+
+    await worker.fetch(
+      new Request(
+        'https://example.com/_vertz/image?url=https%3A%2F%2Fcdn.example.com%2Fphoto.jpg&w=800&h=600',
+      ),
+      mockEnv,
+      mockCtx,
+    );
+
+    expect(optimizerHandler).toHaveBeenCalled();
+    expect(apiHandler).not.toHaveBeenCalled();
+  });
+});
