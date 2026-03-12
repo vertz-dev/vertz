@@ -73,7 +73,7 @@ export function Hero() {
       </p>
 
       <div class={s.ctas}>
-        <Island id="CopyButton" component={CopyButton} props={{}} />
+        <Island component={CopyButton} />
         <a
           href="https://github.com/vertz-dev/vertz"
           target="_blank"

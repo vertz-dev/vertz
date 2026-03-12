@@ -4,6 +4,7 @@
  * Pipeline:
  * 1. Hydration transform (adds hydration IDs)
  * 2. Context stable IDs (if fastRefresh — injects __stableId for HMR)
+ * 2.1. Island ID injection (auto-generates id prop for <Island> elements)
  * 2.5. Field selection injection (analyzes field access, injects select into queries)
  * 2.7. Image transform (detects <Image>, processes images, replaces with <picture>)
  * 3. Compile (reactive signals + JSX transforms)
@@ -33,6 +34,7 @@ import type { BunPlugin } from 'bun';
 import MagicString from 'magic-string';
 import { Project, ts } from 'ts-morph';
 import { injectContextStableIds } from './context-stable-ids';
+import { injectIslandIds } from './island-id-inject';
 import { loadEntitySchema } from './entity-schema-loader';
 import { generateRefreshCode } from './fast-refresh-codegen';
 import type { EntitySchemaManifest } from './field-selection-inject';
@@ -269,6 +271,12 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
           if (fastRefresh) {
             const relFilePath = relative(projectRoot, args.path);
             injectContextStableIds(hydrationS, hydrationSourceFile, relFilePath);
+          }
+
+          // ── 2.1. Island ID injection ────────────────────────────
+          {
+            const relFilePath = relative(projectRoot, args.path);
+            injectIslandIds(hydrationS, hydrationSourceFile, relFilePath);
           }
 
           const hydratedCode = hydrationS.toString();
