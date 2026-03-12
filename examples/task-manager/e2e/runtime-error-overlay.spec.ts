@@ -2,9 +2,10 @@
  * Diagnostic E2E test: captures every WS message and overlay state
  * to understand the exact sequence during a runtime error.
  */
-import { expect, test } from '@playwright/test';
+
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { expect, test } from '@playwright/test';
 
 const TASK_CARD_PATH = join(import.meta.dirname, '../src/components/task-card.tsx');
 
@@ -15,8 +16,10 @@ test.describe('Runtime Error Overlay Diagnostic', () => {
     originalContent = readFileSync(TASK_CARD_PATH, 'utf-8');
   });
 
-  test.afterAll(() => {
+  test.afterAll(async () => {
     writeFileSync(TASK_CARD_PATH, originalContent);
+    // Allow dev server to process the restored file before other test files run
+    await new Promise((resolve) => setTimeout(resolve, 3000));
   });
 
   test.afterEach(() => {

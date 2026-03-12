@@ -207,6 +207,14 @@ ${modulepreloadLinks}
       console.log('  Copied public/ assets');
     }
 
+    // ── 4b. Copy optimized images .vertz/images/ → dist/client/__vertz_img/
+    const imagesDir = resolve(projectRoot, '.vertz', 'images');
+    if (existsSync(imagesDir)) {
+      const imgDest = resolve(distClient, '__vertz_img');
+      cpSync(imagesDir, imgDest, { recursive: true });
+      console.log('  Copied optimized images');
+    }
+
     // ── 5. Server build ───────────────────────────────────────────
     console.log('📦 Building server...');
 
@@ -257,9 +265,12 @@ ${modulepreloadLinks}
     // ── 6. Static pre-rendering ──────────────────────────────────
     console.log('📄 Pre-rendering routes...');
 
-    const { discoverRoutes, filterPrerenderableRoutes, prerenderRoutes } = await import(
-      '@vertz/ui-server/ssr'
-    );
+    const {
+      discoverRoutes,
+      filterPrerenderableRoutes,
+      prerenderRoutes,
+      stripScriptsFromStaticHTML,
+    } = await import('@vertz/ui-server/ssr');
 
     // Discover SSR module entry
     const ssrEntryPath = resolve(distServer, 'app.js');
@@ -304,6 +315,11 @@ ${modulepreloadLinks}
           routes: prerenderableRoutes,
         });
 
+        // Only strip JS from static pages when the app uses islands mode.
+        // Detect islands mode: at least one pre-rendered page has a data-v-island marker.
+        // Without this check, mount()-based apps would incorrectly have JS stripped.
+        const isIslandsMode = results.some((r) => r.html.includes('data-v-island'));
+
         // Write pre-rendered HTML files
         for (const result of results) {
           const outPath =
@@ -311,8 +327,13 @@ ${modulepreloadLinks}
               ? resolve(distClient, 'index.html')
               : resolve(distClient, `${result.path.replace(/^\//, '')}/index.html`);
           mkdirSync(dirname(outPath), { recursive: true });
-          writeFileSync(outPath, result.html);
-          console.log(`  ✓ ${result.path} → ${outPath.replace(distClient, 'dist/client')}`);
+          const finalHtml = isIslandsMode ? stripScriptsFromStaticHTML(result.html) : result.html;
+          const stripped = finalHtml !== result.html;
+          writeFileSync(outPath, finalHtml);
+          const suffix = stripped ? ' (static — JS stripped)' : '';
+          console.log(
+            `  ✓ ${result.path} → ${outPath.replace(distClient, 'dist/client')}${suffix}`,
+          );
         }
       }
     }

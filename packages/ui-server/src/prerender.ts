@@ -106,6 +106,25 @@ export async function prerenderRoutes(
   return results;
 }
 
+/**
+ * Strip `<script>` tags and `<link rel="modulepreload">` from pre-rendered HTML
+ * that has no interactive components (no `data-v-island` or `data-v-id` markers).
+ *
+ * Pages with islands or hydrated components need the client JS; purely static
+ * pages (like /manifesto) ship zero JavaScript.
+ */
+export function stripScriptsFromStaticHTML(html: string): string {
+  if (html.includes('data-v-island') || html.includes('data-v-id')) {
+    return html;
+  }
+  // Strip <script ...>...</script> and self-closing <script ... />
+  let result = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+  result = result.replace(/<script\b[^>]*\/>/gi, '');
+  // Strip <link rel="modulepreload" ...> (self-closing or not)
+  result = result.replace(/<link\b[^>]*\brel=["']modulepreload["'][^>]*\/?>/gi, '');
+  return result;
+}
+
 /** Find a compiled route by pattern (recursive through children). */
 function findCompiledRoute(
   routes: CompiledRoute[],

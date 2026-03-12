@@ -21,5 +21,17 @@ export default defineConfig({
     timeout: 15_000,
   },
 
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+      testIgnore: /runtime-error-overlay/,
+    },
+    {
+      name: 'error-overlay',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: /runtime-error-overlay/,
+      dependencies: ['chromium'],
+    },
+  ],
 });

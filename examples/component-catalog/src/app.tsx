@@ -15,7 +15,7 @@ const appGlobals = globalCss({
 // Collect all component CSS from theme styles
 const componentCss = Object.values(themeStyles)
   .map((s: { css?: string }) => s.css)
-  .filter(Boolean);
+  .filter((css): css is string => Boolean(css));
 
 export { getInjectedCSS };
 export const theme = catalogTheme;
@@ -194,9 +194,10 @@ export function App() {
 
   // Listen for route changes
   const originalNavigate = appRouter.navigate.bind(appRouter);
-  appRouter.navigate = ((url: string) => {
-    originalNavigate(url);
-    renderRoute(url);
+  appRouter.navigate = ((input: Parameters<typeof appRouter.navigate>[0]) => {
+    const result = originalNavigate(input);
+    renderRoute(input.to);
+    return result;
   }) as typeof appRouter.navigate;
 
   // Also handle popstate (back/forward)

@@ -7,7 +7,12 @@
  */
 
 export type { PrerenderOptions, PrerenderResult } from '../prerender';
-export { discoverRoutes, filterPrerenderableRoutes, prerenderRoutes } from '../prerender';
+export {
+  discoverRoutes,
+  filterPrerenderableRoutes,
+  prerenderRoutes,
+  stripScriptsFromStaticHTML,
+} from '../prerender';
 export type { SSRHandlerOptions } from '../ssr-handler';
 export { createSSRHandler } from '../ssr-handler';
 export type { SSRDiscoverResult, SSRModule, SSRRenderResult } from '../ssr-render';
