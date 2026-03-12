@@ -259,7 +259,10 @@ function buildFilterClauses(
 
     const columnRef = resolveColumnRef(key, overrides, dialect);
 
-    if (isOperatorObject(value)) {
+    if (value === null) {
+      // null direct value -> IS NULL (not = $N, which is always NULL in SQL)
+      clauses.push(`${columnRef} IS NULL`);
+    } else if (isOperatorObject(value)) {
       const result = buildOperatorCondition(columnRef, value, idx, dialect);
       clauses.push(...result.clauses);
       allParams.push(...result.params);

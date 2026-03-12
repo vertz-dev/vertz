@@ -108,6 +108,20 @@ describe('buildWhere', () => {
     });
   });
 
+  describe('null direct value', () => {
+    it('null generates IS NULL (not = $N)', () => {
+      const result = buildWhere({ deletedAt: null });
+      expect(result.sql).toBe('"deleted_at" IS NULL');
+      expect(result.params).toEqual([]);
+    });
+
+    it('null combined with comparison operator', () => {
+      const result = buildWhere({ revokedAt: null, expiresAt: { gt: '2026-01-01' } });
+      expect(result.sql).toBe('"revoked_at" IS NULL AND "expires_at" > $1');
+      expect(result.params).toEqual(['2026-01-01']);
+    });
+  });
+
   describe('casing conversion', () => {
     it('converts camelCase keys to snake_case column names', () => {
       const result = buildWhere({ firstName: 'alice' });
