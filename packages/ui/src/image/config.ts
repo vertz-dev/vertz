@@ -19,7 +19,7 @@ export function buildOptimizedUrl(
   width: number,
   height: number,
   quality: number,
-  fit: string,
+  fit: 'cover' | 'contain' | 'fill',
 ): string | null {
   if (!optimizerBaseUrl) return null;
   // Only rewrite absolute HTTP(S) URLs — positive check
