@@ -1503,7 +1503,8 @@ export function createAuth(config: AuthConfig): AuthInstance {
           );
 
           return new Response(null, { status: 302, headers: responseHeaders });
-        } catch {
+        } catch (oauthErr) {
+          console.error('[Auth] OAuth callback error:', oauthErr);
           const headers = new Headers({
             Location: errorUrl('token_exchange_failed'),
             ...securityHeaders(),

@@ -993,4 +993,43 @@ describe('OAuth Routes', () => {
       expect(found).not.toBeNull();
     });
   });
+
+  describe('error redirect URL construction', () => {
+    it('appends error param with & when oauthErrorRedirect already has query params', async () => {
+      const auth = createTestAuth({
+        providers: [createMockProvider()],
+        oauthAccountStore: new InMemoryOAuthAccountStore(),
+        oauthErrorRedirect: '/login?error=oauth',
+      });
+
+      // Missing cookie → triggers error redirect
+      const res = await auth.handler(
+        new Request(
+          'http://localhost:3000/api/auth/oauth/mock/callback?code=auth-code&state=some-state',
+        ),
+      );
+
+      expect(res.status).toBe(302);
+      const location = res.headers.get('Location') ?? '';
+      expect(location).toBe('/login?error=oauth&error=invalid_state');
+    });
+
+    it('appends error param with ? when oauthErrorRedirect has no query params', async () => {
+      const auth = createTestAuth({
+        providers: [createMockProvider()],
+        oauthAccountStore: new InMemoryOAuthAccountStore(),
+        oauthErrorRedirect: '/login',
+      });
+
+      const res = await auth.handler(
+        new Request(
+          'http://localhost:3000/api/auth/oauth/mock/callback?code=auth-code&state=some-state',
+        ),
+      );
+
+      expect(res.status).toBe(302);
+      const location = res.headers.get('Location') ?? '';
+      expect(location).toBe('/login?error=invalid_state');
+    });
+  });
 });

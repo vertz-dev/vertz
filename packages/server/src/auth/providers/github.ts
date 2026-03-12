@@ -85,13 +85,14 @@ export function github(config: OAuthProviderConfig): OAuthProvider {
         }),
       });
 
-      const data = (await response.json()) as {
-        access_token: string;
-        token_type: string;
-      };
+      const data = (await response.json()) as Record<string, unknown>;
+
+      if (data.error) {
+        throw new Error(`GitHub token exchange failed: ${data.error} — ${data.error_description}`);
+      }
 
       return {
-        accessToken: data.access_token,
+        accessToken: data.access_token as string,
       };
     },
 
