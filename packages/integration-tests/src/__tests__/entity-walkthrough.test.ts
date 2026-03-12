@@ -11,10 +11,10 @@
 // proves the public API surface is complete.
 // ===========================================================================
 
+import { describe, expect, it, mock } from 'bun:test';
 import { d } from '@vertz/db';
 import type { EntityDbAdapter } from '@vertz/server';
 import { createServer, entity } from '@vertz/server';
-import { describe, expect, it, mock } from 'bun:test';
 
 // ---------------------------------------------------------------------------
 // 1. Schema definition — using only public @vertz/db API

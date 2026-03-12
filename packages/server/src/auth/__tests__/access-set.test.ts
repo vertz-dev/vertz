@@ -4,8 +4,8 @@ import { calculateBillingPeriod } from '../billing-period';
 import { InMemoryClosureStore } from '../closure-store';
 import { defineAccess } from '../define-access';
 import { InMemoryFlagStore } from '../flag-store';
-import { InMemoryPlanStore } from '../plan-store';
 import { InMemoryRoleAssignmentStore } from '../role-assignment-store';
+import { InMemorySubscriptionStore } from '../subscription-store';
 import { InMemoryWalletStore } from '../wallet-store';
 
 const accessDef = defineAccess({
@@ -142,7 +142,7 @@ describe('computeAccessSet', () => {
     expect(result.entitlements['organization:use'].reasons).toEqual([]);
   });
 
-  it('stubs flags as empty and uses config.plan', async () => {
+  it('stubs flags as empty and plan is null without subscription store', async () => {
     const { roleStore, closureStore } = createStores();
 
     const result = await computeAccessSet({
@@ -150,11 +150,10 @@ describe('computeAccessSet', () => {
       accessDef,
       roleStore,
       closureStore,
-      plan: 'pro',
     });
 
     expect(result.flags).toEqual({});
-    expect(result.plan).toBe('pro');
+    expect(result.plan).toBeNull();
     expect(result.computedAt).toBeTruthy();
   });
 
@@ -360,15 +359,15 @@ describe('computeAccessSet — plan/wallet enrichment', () => {
     },
   });
 
-  it('includes limit info when planStore and walletStore are provided', async () => {
+  it('includes limit info when subscriptionStore and walletStore are provided', async () => {
     const { roleStore, closureStore } = createStores();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
     const walletStore = new InMemoryWalletStore();
 
     await closureStore.addResource('organization', 'org-1');
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStartedAt = new Date('2026-01-01T00:00:00Z');
-    await planStore.assignPlan('org-1', 'pro', planStartedAt);
+    await subscriptionStore.assign('org-1', 'pro', planStartedAt);
 
     const { periodStart, periodEnd } = calculateBillingPeriod(planStartedAt, 'month');
     await walletStore.consume('org-1', 'projects', periodStart, periodEnd, 10, 3);
@@ -378,9 +377,9 @@ describe('computeAccessSet — plan/wallet enrichment', () => {
       accessDef: planAccessDef,
       roleStore,
       closureStore,
-      planStore,
+      subscriptionStore,
       walletStore,
-      orgId: 'org-1',
+      tenantId: 'org-1',
     });
 
     expect(result.entitlements['organization:create-project'].allowed).toBe(true);
@@ -392,21 +391,21 @@ describe('computeAccessSet — plan/wallet enrichment', () => {
 
   it('allows role-based entitlements even when plan store is present', async () => {
     const { roleStore, closureStore } = createStores();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
     const walletStore = new InMemoryWalletStore();
 
     await closureStore.addResource('organization', 'org-1');
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-    await planStore.assignPlan('org-1', 'free');
+    await subscriptionStore.assign('org-1', 'free');
 
     const result = await computeAccessSet({
       userId: 'user-1',
       accessDef: planAccessDef,
       roleStore,
       closureStore,
-      planStore,
+      subscriptionStore,
       walletStore,
-      orgId: 'org-1',
+      tenantId: 'org-1',
     });
 
     // organization:create-project is plan-gated (in pro's features, not free's)
@@ -419,13 +418,13 @@ describe('computeAccessSet — plan/wallet enrichment', () => {
 
   it('denies when limit is reached', async () => {
     const { roleStore, closureStore } = createStores();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
     const walletStore = new InMemoryWalletStore();
 
     await closureStore.addResource('organization', 'org-1');
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStartedAt = new Date('2026-01-01T00:00:00Z');
-    await planStore.assignPlan('org-1', 'pro', planStartedAt);
+    await subscriptionStore.assign('org-1', 'pro', planStartedAt);
 
     const { periodStart, periodEnd } = calculateBillingPeriod(planStartedAt, 'month');
     await walletStore.consume('org-1', 'projects', periodStart, periodEnd, 10, 10);
@@ -435,9 +434,9 @@ describe('computeAccessSet — plan/wallet enrichment', () => {
       accessDef: planAccessDef,
       roleStore,
       closureStore,
-      planStore,
+      subscriptionStore,
       walletStore,
-      orgId: 'org-1',
+      tenantId: 'org-1',
     });
 
     expect(result.entitlements['organization:create-project'].allowed).toBe(false);
@@ -465,7 +464,6 @@ describe('encode/decode round-trip', () => {
       accessDef,
       roleStore,
       closureStore,
-      plan: 'pro',
     });
 
     const encoded = encodeAccessSet(original);
@@ -515,7 +513,7 @@ describe('encode/decode round-trip', () => {
       roleStore,
       closureStore,
       flagStore,
-      orgId: 'org-1',
+      tenantId: 'org-1',
     });
 
     expect(result.flags).toEqual({
@@ -558,7 +556,7 @@ describe('encode/decode round-trip', () => {
       roleStore,
       closureStore,
       flagStore,
-      orgId: 'org-1',
+      tenantId: 'org-1',
     });
 
     expect(result.entitlements['project:export'].allowed).toBe(false);
@@ -602,7 +600,7 @@ describe('JWT access set with plan features', () => {
   it('encoded access set contains plan-gated entitlements with plan_required reason', async () => {
     const roleStore = new InMemoryRoleAssignmentStore();
     const closureStore = new InMemoryClosureStore();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
 
     await closureStore.addResource('organization', 'org-1');
     await closureStore.addResource('project', 'proj-1', {
@@ -610,15 +608,15 @@ describe('JWT access set with plan features', () => {
       parentId: 'org-1',
     });
     await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
-    await planStore.assignPlan('org-1', 'free');
+    await subscriptionStore.assign('org-1', 'free');
 
     const accessSet = await computeAccessSet({
       userId: 'user-1',
       accessDef: planAccessDef,
       roleStore,
       closureStore,
-      planStore,
-      orgId: 'org-1',
+      subscriptionStore,
+      tenantId: 'org-1',
     });
 
     const encoded = encodeAccessSet(accessSet);
@@ -635,7 +633,7 @@ describe('JWT access set with plan features', () => {
   it('decode restores plan feature entitlements from JWT', async () => {
     const roleStore = new InMemoryRoleAssignmentStore();
     const closureStore = new InMemoryClosureStore();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
 
     await closureStore.addResource('organization', 'org-1');
     await closureStore.addResource('project', 'proj-1', {
@@ -643,15 +641,15 @@ describe('JWT access set with plan features', () => {
       parentId: 'org-1',
     });
     await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
-    await planStore.assignPlan('org-1', 'pro');
+    await subscriptionStore.assign('org-1', 'pro');
 
     const accessSet = await computeAccessSet({
       userId: 'user-1',
       accessDef: planAccessDef,
       roleStore,
       closureStore,
-      planStore,
-      orgId: 'org-1',
+      subscriptionStore,
+      tenantId: 'org-1',
     });
 
     const encoded = encodeAccessSet(accessSet);
@@ -669,7 +667,7 @@ describe('JWT access set with plan features', () => {
   it('plan change updates access set hash (detected via encoded set difference)', async () => {
     const roleStore = new InMemoryRoleAssignmentStore();
     const closureStore = new InMemoryClosureStore();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
 
     await closureStore.addResource('organization', 'org-1');
     await closureStore.addResource('project', 'proj-1', {
@@ -677,7 +675,7 @@ describe('JWT access set with plan features', () => {
       parentId: 'org-1',
     });
     await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
-    await planStore.assignPlan('org-1', 'free');
+    await subscriptionStore.assign('org-1', 'free');
 
     // Compute with free plan
     const freeSet = await computeAccessSet({
@@ -685,13 +683,13 @@ describe('JWT access set with plan features', () => {
       accessDef: planAccessDef,
       roleStore,
       closureStore,
-      planStore,
-      orgId: 'org-1',
+      subscriptionStore,
+      tenantId: 'org-1',
     });
     const freeEncoded = encodeAccessSet(freeSet);
 
     // Change to pro plan
-    await planStore.assignPlan('org-1', 'pro');
+    await subscriptionStore.assign('org-1', 'pro');
 
     // Compute with pro plan
     const proSet = await computeAccessSet({
@@ -699,8 +697,8 @@ describe('JWT access set with plan features', () => {
       accessDef: planAccessDef,
       roleStore,
       closureStore,
-      planStore,
-      orgId: 'org-1',
+      subscriptionStore,
+      tenantId: 'org-1',
     });
     const proEncoded = encodeAccessSet(proSet);
 

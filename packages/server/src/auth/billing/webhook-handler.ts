@@ -5,7 +5,7 @@
  * on any HTTP framework route.
  */
 
-import type { PlanStore } from '../plan-store';
+import type { SubscriptionStore } from '../subscription-store';
 import type { BillingEventEmitter } from './event-emitter';
 
 // ============================================================================
@@ -13,7 +13,7 @@ import type { BillingEventEmitter } from './event-emitter';
 // ============================================================================
 
 export interface WebhookHandlerConfig {
-  planStore: PlanStore;
+  subscriptionStore: SubscriptionStore;
   emitter: BillingEventEmitter;
   defaultPlan: string;
   webhookSecret: string;
@@ -69,7 +69,7 @@ function extractPlanId(obj: Record<string, unknown>): string | null {
 export function createWebhookHandler(
   config: WebhookHandlerConfig,
 ): (request: Request) => Promise<Response> {
-  const { planStore, emitter, defaultPlan, webhookSecret } = config;
+  const { subscriptionStore, emitter, defaultPlan, webhookSecret } = config;
 
   return async (request: Request): Promise<Response> => {
     // Validate signature (simplified — in production, use stripe.webhooks.constructEvent)
@@ -100,7 +100,7 @@ export function createWebhookHandler(
           const tenantId = extractTenantId(obj);
           const planId = extractPlanId(obj);
           if (tenantId && planId) {
-            await planStore.assignPlan(tenantId, planId);
+            await subscriptionStore.assign(tenantId, planId);
             emitter.emit('subscription:created', { tenantId, planId });
           }
           break;
@@ -110,7 +110,7 @@ export function createWebhookHandler(
           const tenantId = extractTenantId(obj);
           const planId = extractPlanId(obj);
           if (tenantId && planId) {
-            await planStore.assignPlan(tenantId, planId);
+            await subscriptionStore.assign(tenantId, planId);
           }
           break;
         }
@@ -119,7 +119,7 @@ export function createWebhookHandler(
           const tenantId = extractTenantId(obj);
           const planId = extractPlanId(obj);
           if (tenantId) {
-            await planStore.assignPlan(tenantId, defaultPlan);
+            await subscriptionStore.assign(tenantId, defaultPlan);
             emitter.emit('subscription:canceled', {
               tenantId,
               planId: planId ?? defaultPlan,
@@ -149,10 +149,10 @@ export function createWebhookHandler(
           const isAddOn = meta?.isAddOn === 'true';
 
           if (tenantId && planId) {
-            if (isAddOn && planStore.attachAddOn) {
-              await planStore.attachAddOn(tenantId, planId);
+            if (isAddOn && subscriptionStore.attachAddOn) {
+              await subscriptionStore.attachAddOn(tenantId, planId);
             } else {
-              await planStore.assignPlan(tenantId, planId);
+              await subscriptionStore.assign(tenantId, planId);
             }
           }
           break;

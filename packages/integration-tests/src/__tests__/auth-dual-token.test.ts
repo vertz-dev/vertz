@@ -7,8 +7,8 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { createAuth } from '@vertz/server';
 import type { AuthConfig, AuthInstance, SessionInfo } from '@vertz/server';
+import { createAuth } from '@vertz/server';
 
 function createTestAuth(overrides?: Partial<AuthConfig>): AuthInstance {
   return createAuth({

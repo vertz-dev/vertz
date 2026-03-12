@@ -7,10 +7,10 @@
  * Uses only public package imports — never relative imports.
  */
 
+import { describe, expect, it, mock } from 'bun:test';
 import { ok } from '@vertz/fetch';
 import { s } from '@vertz/schema';
 import { form } from '@vertz/ui/form';
-import { describe, expect, it, mock } from 'bun:test';
 
 describe('SDK Schema Integration', () => {
   // Mock SDK method with .meta.bodySchema (simulates generated SDK)

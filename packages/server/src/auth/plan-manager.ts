@@ -8,8 +8,8 @@
 import type { PlanDef } from './define-access';
 import type { GrandfatheringState, GrandfatheringStore } from './grandfathering-store';
 import { computePlanHash } from './plan-hash';
-import type { PlanStore } from './plan-store';
 import type { PlanSnapshot, PlanVersionStore } from './plan-version-store';
+import type { SubscriptionStore } from './subscription-store';
 
 // ============================================================================
 // Types
@@ -55,7 +55,7 @@ export interface PlanManagerConfig {
   plans: Record<string, PlanDef>;
   versionStore: PlanVersionStore;
   grandfatheringStore: GrandfatheringStore;
-  planStore: PlanStore;
+  subscriptionStore: SubscriptionStore;
   clock?: () => Date;
 }
 
@@ -112,7 +112,7 @@ function resolveGraceEnd(planDef: PlanDef, now: Date): Date | null {
 // ============================================================================
 
 export function createPlanManager(config: PlanManagerConfig): PlanManager {
-  const { plans, versionStore, grandfatheringStore, planStore } = config;
+  const { plans, versionStore, grandfatheringStore, subscriptionStore } = config;
   const clock = config.clock ?? (() => new Date());
   const handlers: PlanEventHandler[] = [];
 
@@ -171,8 +171,8 @@ export function createPlanManager(config: PlanManagerConfig): PlanManager {
   }
 
   async function listTenantsOnPlan(planId: string): Promise<string[]> {
-    if (planStore.listByPlan) {
-      return planStore.listByPlan(planId);
+    if (subscriptionStore.listByPlan) {
+      return subscriptionStore.listByPlan(planId);
     }
     return [];
   }
@@ -247,10 +247,10 @@ export function createPlanManager(config: PlanManagerConfig): PlanManager {
 
   async function resolve(tenantId: string): Promise<TenantPlanState | null> {
     // Get tenant's assigned plan
-    const orgPlan = await planStore.getPlan(tenantId);
-    if (!orgPlan) return null;
+    const subscription = await subscriptionStore.get(tenantId);
+    if (!subscription) return null;
 
-    const planId = orgPlan.planId;
+    const planId = subscription.planId;
     const currentVersion = await versionStore.getCurrentVersion(planId);
     if (currentVersion === null) return null;
 

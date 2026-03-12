@@ -23,7 +23,6 @@ export function generateAuthDDL(dialect: DbDialectName): string[] {
   email ${t.text()} NOT NULL UNIQUE,
   password_hash ${t.text()},
   role ${t.text()} NOT NULL DEFAULT 'user',
-  plan ${t.text()},
   email_verified ${t.boolean(false)},
   created_at ${t.timestamp()},
   updated_at ${t.timestamp()}

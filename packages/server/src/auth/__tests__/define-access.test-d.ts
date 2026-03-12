@@ -15,7 +15,7 @@ import type {
   PriceInterval,
 } from '../define-access';
 import { defineAccess } from '../define-access';
-import type { LimitOverride, OrgPlan, PlanStore } from '../plan-store';
+import type { LimitOverride, Subscription, SubscriptionStore } from '../subscription-store';
 import type { ConsumeResult, WalletEntry, WalletStore } from '../wallet-store';
 
 describe('Type-level: defineAccess', () => {
@@ -126,14 +126,14 @@ describe('Type-level: defineAccess', () => {
   });
 });
 
-describe('Type-level: PlanStore', () => {
-  it('PlanStore has required methods', () => {
-    const store: PlanStore = {} as PlanStore;
-    const _assign: (orgId: string, planId: string) => void = store.assignPlan;
-    const _get: (orgId: string) => OrgPlan | null = store.getPlan;
-    const _update: (orgId: string, overrides: Record<string, LimitOverride>) => void =
+describe('Type-level: SubscriptionStore', () => {
+  it('SubscriptionStore has required methods', () => {
+    const store: SubscriptionStore = {} as SubscriptionStore;
+    const _assign: (tenantId: string, planId: string) => void = store.assign;
+    const _get: (tenantId: string) => Subscription | null = store.get;
+    const _update: (tenantId: string, overrides: Record<string, LimitOverride>) => void =
       store.updateOverrides;
-    const _remove: (orgId: string) => void = store.removePlan;
+    const _remove: (tenantId: string) => void = store.remove;
     const _dispose: () => void = store.dispose;
     void _assign;
     void _get;
@@ -142,20 +142,20 @@ describe('Type-level: PlanStore', () => {
     void _dispose;
   });
 
-  it('OrgPlan has correct shape', () => {
-    const plan: OrgPlan = {
-      orgId: 'org-1',
+  it('Subscription has correct shape', () => {
+    const plan: Subscription = {
+      tenantId: 'org-1',
       planId: 'free',
       startedAt: new Date(),
       expiresAt: null,
       overrides: {},
     };
-    const _orgId: string = plan.orgId;
+    const _tenantId: string = plan.tenantId;
     const _planId: string = plan.planId;
     const _startedAt: Date = plan.startedAt;
     const _expiresAt: Date | null = plan.expiresAt;
     const _overrides: Record<string, LimitOverride> = plan.overrides;
-    void _orgId;
+    void _tenantId;
     void _planId;
     void _startedAt;
     void _expiresAt;
@@ -209,18 +209,18 @@ describe('Type-level: WalletStore', () => {
 
   it('WalletEntry has correct shape', () => {
     const entry: WalletEntry = {
-      orgId: 'org-1',
+      tenantId: 'org-1',
       entitlement: 'project:create',
       periodStart: new Date(),
       periodEnd: new Date(),
       consumed: 5,
     };
-    const _orgId: string = entry.orgId;
+    const _tenantId: string = entry.tenantId;
     const _ent: string = entry.entitlement;
     const _start: Date = entry.periodStart;
     const _end: Date = entry.periodEnd;
     const _consumed: number = entry.consumed;
-    void _orgId;
+    void _tenantId;
     void _ent;
     void _start;
     void _end;

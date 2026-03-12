@@ -83,7 +83,6 @@ const auth = createAuth({
 
   // Optional — custom JWT claims
   claims: (user) => ({
-    plan: user.plan,
     orgId: user.orgId,
   }),
 
@@ -448,7 +447,7 @@ const session = await app.auth.api.signUp({
 });
 ```
 
-Reserved auth fields such as `role`, `plan`, `emailVerified`, `id`, and timestamps are not
+Reserved auth fields such as `role`, `emailVerified`, `id`, and timestamps are not
 assignable through `signUp()`. Set privilege-bearing fields through your own trusted admin or
 database flows instead.
 
@@ -465,7 +464,7 @@ import {
   DbRoleAssignmentStore,
   DbClosureStore,
   DbFlagStore,
-  DbPlanStore,
+  DbSubscriptionStore,
   DbOAuthAccountStore,
 } from '@vertz/server';
 ```
@@ -620,7 +619,7 @@ const ctx = createAccessContext({
   accessDef: access,
   closureStore,     // closure table for hierarchy lookups
   roleStore,        // user-to-role assignments
-  planStore,        // org-to-plan assignments (optional)
+  subscriptionStore, // tenant-to-plan assignments (optional)
   walletStore,      // usage counters (optional)
   orgResolver: async (resource) => {
     // resolve which org a resource belongs to
@@ -664,9 +663,9 @@ const accessSet = await computeAccessSet({
   accessDef: access,
   roleStore,
   closureStore,
-  planStore,
+  subscriptionStore,
   walletStore,
-  orgId: user.orgId,
+  tenantId: session.tenantId,
 });
 
 // Encode for JWT — sparse format (only includes allowed + denied-with-meta)
@@ -749,35 +748,35 @@ plans: {
 
 Add-on limits are **additive** — if the base plan has 1000 and the add-on adds 5000, the effective limit is 6000.
 
-### PlanStore
+### SubscriptionStore
 
-Assign plans to organizations:
+Assign plans to tenants:
 
 ```ts
-import { InMemoryPlanStore } from '@vertz/server';
+import { InMemorySubscriptionStore } from '@vertz/server';
 
-const planStore = new InMemoryPlanStore();
+const subscriptionStore = new InMemorySubscriptionStore();
 
 // Assign a plan (startedAt defaults to now)
-await planStore.assignPlan('org-1', 'pro');
+await subscriptionStore.assign('tenant-1', 'pro');
 
 // With explicit dates
-await planStore.assignPlan('org-1', 'pro', new Date('2026-01-01'), new Date('2027-01-01'));
+await subscriptionStore.assign('tenant-1', 'pro', new Date('2026-01-01'), new Date('2027-01-01'));
 
-// Per-customer limit overrides (can only increase, never decrease)
-await planStore.updateOverrides('org-1', {
+// Per-tenant limit overrides (can only increase, never decrease)
+await subscriptionStore.updateOverrides('tenant-1', {
   'ai:generate': { max: 5000 }, // 5x the plan default
 });
 
-// Remove a plan
-await planStore.removePlan('org-1');
+// Remove a subscription
+await subscriptionStore.remove('tenant-1');
 ```
 
 When a plan expires, the system falls back to `defaultPlan` (or `'free'` if not configured). If the fallback plan doesn't exist in the definition, all plan-gated entitlements are denied.
 
 ### WalletStore
 
-Track per-org usage within billing periods:
+Track per-tenant usage within billing periods:
 
 ```ts
 import { InMemoryWalletStore } from '@vertz/server';

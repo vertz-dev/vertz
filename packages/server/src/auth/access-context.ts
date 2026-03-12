@@ -7,8 +7,8 @@
  * Layers (cheapest-first for can(), all-layers for check()):
  * 1. Auth (not_authenticated)
  * 2. Feature flags (requires flagStore + orgResolver)
- * 3. Plan features (requires planStore + orgResolver — plan-gated entitlements)
- * 4. Limits / wallet (requires walletStore + planStore — multi-limit, add-ons)
+ * 3. Plan features (requires subscriptionStore + orgResolver — plan-gated entitlements)
+ * 4. Limits / wallet (requires walletStore + subscriptionStore — multi-limit, add-ons)
  * 5. RBAC (effective role check via closure table)
  * 6. Attribute rules (not yet implemented)
  * 7. Step-up / FVA (not yet implemented)
@@ -27,9 +27,13 @@ import type {
 } from './define-access';
 import type { FlagStore } from './flag-store';
 import type { OverrideStore, TenantOverrides } from './override-store';
-import { type OrgPlan, type PlanStore, resolveEffectivePlan } from './plan-store';
 import type { PlanVersionStore } from './plan-version-store';
 import type { RoleAssignmentStore } from './role-assignment-store';
+import {
+  resolveEffectivePlan,
+  type Subscription,
+  type SubscriptionStore,
+} from './subscription-store';
 import type { WalletStore } from './wallet-store';
 
 // ============================================================================
@@ -50,8 +54,8 @@ export interface AccessContextConfig {
   fva?: number;
   /** Flag store — required for Layer 1 feature flag checks */
   flagStore?: FlagStore;
-  /** Plan store — required for Layer 4 plan checks */
-  planStore?: PlanStore;
+  /** Subscription store — required for Layer 4 plan checks */
+  subscriptionStore?: SubscriptionStore;
   /** Wallet store — required for Layer 5 wallet checks and canAndConsume() */
   walletStore?: WalletStore;
   /** Override store — per-tenant feature and limit overrides */
@@ -107,7 +111,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     closureStore,
     roleStore,
     flagStore,
-    planStore,
+    subscriptionStore,
     walletStore,
     overrideStore,
     orgResolver,
@@ -160,11 +164,15 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     // Layer 3: Hierarchy check (implicit — already handled via closure table in getEffectiveRole)
 
     // Layer 3: Plan features check (new in Phase 2)
-    if (accessDef._planGatedEntitlements.has(entitlement) && planStore && orgResolver) {
+    if (accessDef._planGatedEntitlements.has(entitlement) && subscriptionStore && orgResolver) {
       if (!resolvedOrgId) return false; // Cannot resolve org — deny
 
-      const orgPlan = await planStore.getPlan(resolvedOrgId);
-      const effectivePlanId = resolveEffectivePlan(orgPlan, accessDef.plans, accessDef.defaultPlan);
+      const subscription = await subscriptionStore.get(resolvedOrgId);
+      const effectivePlanId = resolveEffectivePlan(
+        subscription,
+        accessDef.plans,
+        accessDef.defaultPlan,
+      );
       if (!effectivePlanId) return false; // No plan — deny
 
       // Check if entitlement is in effective features (base plan + add-ons + overrides)
@@ -173,7 +181,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
         entitlement,
         effectivePlanId,
         accessDef,
-        planStore,
+        subscriptionStore,
         planVersionStore,
         overrides,
       );
@@ -199,12 +207,12 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
 
     // Layer 4: Limit check (read-only — for UI display, not atomic)
     const limitKeys = accessDef._entitlementToLimitKeys[entitlement];
-    if (limitKeys?.length && walletStore && planStore && resolvedOrgId) {
+    if (limitKeys?.length && walletStore && subscriptionStore && resolvedOrgId) {
       const walletStates = await resolveAllLimitStates(
         entitlement,
         resolvedOrgId,
         accessDef,
-        planStore,
+        subscriptionStore,
         walletStore,
         planVersionStore,
         overrides,
@@ -302,15 +310,15 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     }
 
     // Layer 3: Plan features check
-    if (accessDef._planGatedEntitlements.has(entitlement) && planStore && orgResolver) {
+    if (accessDef._planGatedEntitlements.has(entitlement) && subscriptionStore && orgResolver) {
       let planDenied = false;
 
       if (!resolvedOrgId) {
         planDenied = true;
       } else {
-        const orgPlan = await planStore.getPlan(resolvedOrgId);
+        const subscription = await subscriptionStore.get(resolvedOrgId);
         const effectivePlanId = resolveEffectivePlan(
-          orgPlan,
+          subscription,
           accessDef.plans,
           accessDef.defaultPlan,
         );
@@ -322,7 +330,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
             entitlement,
             effectivePlanId,
             accessDef,
-            planStore,
+            subscriptionStore,
             planVersionStore,
             overrides,
           );
@@ -349,12 +357,12 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
 
     // Layer 4: Limit check
     const checkLimitKeys = accessDef._entitlementToLimitKeys[entitlement];
-    if (checkLimitKeys?.length && walletStore && planStore && resolvedOrgId) {
+    if (checkLimitKeys?.length && walletStore && subscriptionStore && resolvedOrgId) {
       const walletStates = await resolveAllLimitStates(
         entitlement,
         resolvedOrgId,
         accessDef,
-        planStore,
+        subscriptionStore,
         walletStore,
         planVersionStore,
         overrides,
@@ -506,7 +514,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     if (!(await checkLayers1to3(entitlement, resource, resolvedOrgId, overrides))) return false;
 
     // If no wallet/plan infrastructure, just return true (no limit to enforce)
-    if (!walletStore || !planStore || !orgResolver) return true;
+    if (!walletStore || !subscriptionStore || !orgResolver) return true;
 
     // Check if this entitlement has limits
     const limitKeys = accessDef._entitlementToLimitKeys[entitlement];
@@ -514,9 +522,13 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
 
     if (!resolvedOrgId) return false;
 
-    const orgPlan = await planStore.getPlan(resolvedOrgId);
-    if (!orgPlan) return false;
-    const effectivePlanId = resolveEffectivePlan(orgPlan, accessDef.plans, accessDef.defaultPlan);
+    const subscription = await subscriptionStore.get(resolvedOrgId);
+    if (!subscription) return false;
+    const effectivePlanId = resolveEffectivePlan(
+      subscription,
+      accessDef.plans,
+      accessDef.defaultPlan,
+    );
     if (!effectivePlanId) return false;
 
     // Resolve all limits and consume atomically
@@ -525,9 +537,9 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
       entitlement,
       effectivePlanId,
       accessDef,
-      planStore,
+      subscriptionStore,
       walletStore,
-      orgPlan,
+      subscription,
       planVersionStore,
       overrides,
     );
@@ -601,7 +613,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
   // ==========================================================================
 
   async function unconsume(entitlement: string, resource?: ResourceRef, amount = 1): Promise<void> {
-    if (!walletStore || !planStore || !orgResolver) return;
+    if (!walletStore || !subscriptionStore || !orgResolver) return;
 
     const limitKeys = accessDef._entitlementToLimitKeys[entitlement];
     if (!limitKeys?.length) return;
@@ -612,9 +624,13 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     // Fetch overrides once
     const overrides = overrideStore ? await overrideStore.get(orgId) : null;
 
-    const orgPlan = await planStore.getPlan(orgId);
-    if (!orgPlan) return;
-    const effectivePlanId = resolveEffectivePlan(orgPlan, accessDef.plans, accessDef.defaultPlan);
+    const subscription = await subscriptionStore.get(orgId);
+    if (!subscription) return;
+    const effectivePlanId = resolveEffectivePlan(
+      subscription,
+      accessDef.plans,
+      accessDef.defaultPlan,
+    );
     if (!effectivePlanId) return;
 
     // Unconsume from all limits that gate this entitlement
@@ -623,9 +639,9 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
       entitlement,
       effectivePlanId,
       accessDef,
-      planStore,
+      subscriptionStore,
       walletStore,
-      orgPlan,
+      subscription,
       planVersionStore,
       overrides,
     );
@@ -667,7 +683,7 @@ async function resolveEffectiveFeatures(
   entitlement: string,
   effectivePlanId: string,
   accessDef: AccessDefinition,
-  planStore: PlanStore,
+  subscriptionStore: SubscriptionStore,
   planVersionStore?: PlanVersionStore,
   overrides?: TenantOverrides | null,
 ): Promise<boolean> {
@@ -682,7 +698,7 @@ async function resolveEffectiveFeatures(
         if (snapshotFeatures.includes(entitlement)) return true;
 
         // Check add-ons (add-ons are not versioned — they use current config)
-        const addOns = await planStore.getAddOns?.(orgId);
+        const addOns = await subscriptionStore.getAddOns?.(orgId);
         if (addOns) {
           for (const addOnId of addOns) {
             const addOnDef = accessDef.plans?.[addOnId];
@@ -703,7 +719,7 @@ async function resolveEffectiveFeatures(
   if (planDef?.features?.includes(entitlement)) return true;
 
   // Check add-ons
-  const addOns = await planStore.getAddOns?.(orgId);
+  const addOns = await subscriptionStore.getAddOns?.(orgId);
   if (addOns) {
     for (const addOnId of addOns) {
       const addOnDef = accessDef.plans?.[addOnId];
@@ -740,14 +756,18 @@ async function resolveAllLimitStates(
   entitlement: string,
   orgId: string,
   accessDef: AccessDefinition,
-  planStore: PlanStore,
+  subscriptionStore: SubscriptionStore,
   walletStore: WalletStore,
   planVersionStore?: PlanVersionStore,
   overrides?: TenantOverrides | null,
 ): Promise<LimitState[]> {
-  const orgPlan = await planStore.getPlan(orgId);
-  const effectivePlanId = resolveEffectivePlan(orgPlan, accessDef.plans, accessDef.defaultPlan);
-  if (!effectivePlanId || !orgPlan) return [];
+  const subscription = await subscriptionStore.get(orgId);
+  const effectivePlanId = resolveEffectivePlan(
+    subscription,
+    accessDef.plans,
+    accessDef.defaultPlan,
+  );
+  if (!effectivePlanId || !subscription) return [];
 
   const limitKeys = accessDef._entitlementToLimitKeys[entitlement];
   if (!limitKeys?.length) return [];
@@ -785,9 +805,9 @@ async function resolveAllLimitStates(
       limitDef.max,
       limitKey,
       orgId,
-      orgPlan,
+      subscription,
       accessDef,
-      planStore,
+      subscriptionStore,
       overrides,
     );
 
@@ -803,8 +823,8 @@ async function resolveAllLimitStates(
     // Resolve wallet key and billing period
     const walletKey = limitKey;
     const period = limitDef.per
-      ? calculateBillingPeriod(orgPlan.startedAt, limitDef.per)
-      : { periodStart: orgPlan.startedAt, periodEnd: new Date('9999-12-31T23:59:59Z') };
+      ? calculateBillingPeriod(subscription.startedAt, limitDef.per)
+      : { periodStart: subscription.startedAt, periodEnd: new Date('9999-12-31T23:59:59Z') };
 
     const consumed = await walletStore.getConsumption(
       orgId,
@@ -853,9 +873,9 @@ async function resolveAllLimitConsumptions(
   entitlement: string,
   effectivePlanId: string,
   accessDef: AccessDefinition,
-  planStore: PlanStore,
+  subscriptionStore: SubscriptionStore,
   _walletStore: WalletStore,
-  orgPlan: OrgPlan,
+  subscription: Subscription,
   planVersionStore?: PlanVersionStore,
   overrides?: TenantOverrides | null,
 ): Promise<LimitConsumption[]> {
@@ -895,16 +915,16 @@ async function resolveAllLimitConsumptions(
       limitDef.max,
       limitKey,
       orgId,
-      orgPlan,
+      subscription,
       accessDef,
-      planStore,
+      subscriptionStore,
       overrides,
     );
 
     const walletKey = limitKey;
     const period = limitDef.per
-      ? calculateBillingPeriod(orgPlan.startedAt, limitDef.per)
-      : { periodStart: orgPlan.startedAt, periodEnd: new Date('9999-12-31T23:59:59Z') };
+      ? calculateBillingPeriod(subscription.startedAt, limitDef.per)
+      : { periodStart: subscription.startedAt, periodEnd: new Date('9999-12-31T23:59:59Z') };
 
     consumptions.push({
       walletKey,
@@ -937,15 +957,15 @@ async function computeEffectiveLimit(
   basePlanMax: number,
   limitKey: string,
   orgId: string,
-  orgPlan: OrgPlan,
+  subscription: Subscription,
   accessDef: AccessDefinition,
-  planStore: PlanStore,
+  subscriptionStore: SubscriptionStore,
   overrides?: TenantOverrides | null,
 ): Promise<number> {
   let effectiveMax = basePlanMax;
 
   // Add add-on limits
-  const addOns = await planStore.getAddOns?.(orgId);
+  const addOns = await subscriptionStore.getAddOns?.(orgId);
   if (addOns) {
     for (const addOnId of addOns) {
       const addOnDef = accessDef.plans?.[addOnId];
@@ -957,8 +977,8 @@ async function computeEffectiveLimit(
     }
   }
 
-  // Apply old-style per-customer overrides (from OrgPlan.overrides — Phase 2 compat)
-  const oldOverride = orgPlan.overrides[limitKey];
+  // Apply old-style per-customer overrides (from Subscription.overrides — Phase 2 compat)
+  const oldOverride = subscription.overrides[limitKey];
   if (oldOverride) {
     effectiveMax = Math.max(effectiveMax, oldOverride.max);
   }

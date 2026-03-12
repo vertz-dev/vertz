@@ -11,10 +11,10 @@
 // Uses only public package imports — never relative imports.
 // ===========================================================================
 
-import { configureTheme } from '@vertz/theme-shadcn';
-import { buttonConfig, badgeConfig } from '@vertz/theme-shadcn/configs';
-import { compileTheme, variants } from '@vertz/ui';
 import { describe, expect, it } from 'bun:test';
+import { configureTheme } from '@vertz/theme-shadcn';
+import { badgeConfig, buttonConfig } from '@vertz/theme-shadcn/configs';
+import { compileTheme, variants } from '@vertz/ui';
 
 describe('Theme Shadcn Walkthrough', () => {
   // ── configureTheme() returns valid result ────────────────────

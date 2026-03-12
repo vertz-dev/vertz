@@ -182,7 +182,6 @@ describe('Handler Edge Cases', () => {
         email: 'reserved@example.com',
         password: 'Password123!',
         role: 'admin',
-        plan: 'enterprise',
         emailVerified: true,
       }),
     );
@@ -190,7 +189,6 @@ describe('Handler Edge Cases', () => {
 
     const data = await res.json();
     expect(data.user.role).toBe('user');
-    expect(data.user.plan).toBeUndefined();
     expect(data.user.emailVerified).toBe(true);
   });
 

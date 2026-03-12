@@ -249,7 +249,8 @@ export function createAuth(config: AuthConfig): AuthInstance {
         roleStore: config.access.roleStore,
         closureStore: config.access.closureStore,
         flagStore: config.access.flagStore,
-        plan: user.plan ?? null,
+        subscriptionStore: config.access?.subscriptionStore,
+        tenantId: null,
       });
       const encoded = encodeAccessSet(accessSet);
       const canonicalJson = JSON.stringify(encoded);
@@ -363,7 +364,6 @@ export function createAuth(config: AuthConfig): AuthInstance {
       createdAt: _c,
       updatedAt: _u,
       role: _role,
-      plan: _plan,
       emailVerified: _emailVerified,
       ...safeFields
     } = additionalFields as Record<string, unknown>;
@@ -1047,7 +1047,8 @@ export function createAuth(config: AuthConfig): AuthInstance {
           roleStore: config.access.roleStore,
           closureStore: config.access.closureStore,
           flagStore: config.access.flagStore,
-          plan: sessionResult.data.user.plan ?? null,
+          subscriptionStore: config.access?.subscriptionStore,
+          tenantId: sessionResult.data.payload?.tenantId ?? null,
         });
 
         const encoded = encodeAccessSet(accessSet);
@@ -2519,9 +2520,9 @@ export { InMemoryClosureStore } from './closure-store';
 export { DbClosureStore } from './db-closure-store';
 export { DbFlagStore } from './db-flag-store';
 export { DbOAuthAccountStore } from './db-oauth-account-store';
-export { DbPlanStore } from './db-plan-store';
 export { DbRoleAssignmentStore } from './db-role-assignment-store';
 export { DbSessionStore } from './db-session-store';
+export { DbSubscriptionStore } from './db-subscription-store';
 export type { AuthDbClient } from './db-types';
 export { DbUserStore } from './db-user-store';
 export type {
@@ -2573,14 +2574,6 @@ export type {
   TenantPlanState,
 } from './plan-manager';
 export { createPlanManager } from './plan-manager';
-// Phase 8: Plans & Wallet
-export type { LimitOverride, OrgPlan, PlanStore } from './plan-store';
-export {
-  checkAddOnCompatibility,
-  getIncompatibleAddOns,
-  InMemoryPlanStore,
-  resolveEffectivePlan,
-} from './plan-store';
 export type { PlanSnapshot, PlanVersionInfo, PlanVersionStore } from './plan-version-store';
 export { InMemoryPlanVersionStore } from './plan-version-store';
 // Re-export provider factories
@@ -2603,6 +2596,14 @@ export type {
 export { rules } from './rules';
 // Re-export store implementations
 export { InMemorySessionStore } from './session-store';
+// Phase 8: Plans & Wallet
+export type { LimitOverride, Subscription, SubscriptionStore } from './subscription-store';
+export {
+  checkAddOnCompatibility,
+  getIncompatibleAddOns,
+  InMemorySubscriptionStore,
+  resolveEffectivePlan,
+} from './subscription-store';
 // Re-export types from types.ts
 export type {
   AclClaim,

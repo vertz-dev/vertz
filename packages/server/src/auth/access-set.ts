@@ -12,9 +12,9 @@ import { calculateBillingPeriod } from './billing-period';
 import type { ClosureStore } from './closure-store';
 import type { AccessDefinition, DenialMeta, DenialReason } from './define-access';
 import type { FlagStore } from './flag-store';
-import { type PlanStore, resolveEffectivePlan } from './plan-store';
 import { resolveInheritedRole } from './resolve-inherited-role';
 import type { RoleAssignmentStore } from './role-assignment-store';
+import { resolveEffectivePlan, type SubscriptionStore } from './subscription-store';
 import type { WalletStore } from './wallet-store';
 
 // ============================================================================
@@ -40,17 +40,16 @@ export interface ComputeAccessSetConfig {
   accessDef: AccessDefinition;
   roleStore: RoleAssignmentStore;
   closureStore: ClosureStore;
-  plan?: string | null;
   /** Flag store — for feature flag state in access set */
   flagStore?: FlagStore;
-  /** Plan store — for limit info in access set */
-  planStore?: PlanStore;
+  /** Subscription store — for limit info in access set */
+  subscriptionStore?: SubscriptionStore;
   /** Wallet store — for consumption info in access set */
   walletStore?: WalletStore;
   /** Org resolver — for plan/wallet lookups */
   orgResolver?: (resource?: ResourceRef) => Promise<string | null>;
-  /** Org ID — direct org ID for global access set (bypass orgResolver) */
-  orgId?: string | null;
+  /** Tenant ID — direct tenant ID for global access set (bypass orgResolver) */
+  tenantId?: string | null;
 }
 
 // ============================================================================
@@ -63,14 +62,13 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
     accessDef,
     roleStore,
     closureStore,
-    plan,
     flagStore,
-    planStore,
+    subscriptionStore,
     walletStore,
-    orgId,
+    tenantId,
   } = config;
   const entitlements: Record<string, AccessCheckData> = {};
-  let resolvedPlan = plan ?? null;
+  let resolvedPlan: string | null = null;
 
   // Unauthenticated user — all entitlements denied
   if (!userId) {
@@ -84,7 +82,7 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
     return {
       entitlements,
       flags: {},
-      plan: plan ?? null,
+      plan: null,
       computedAt: new Date().toISOString(),
     };
   }
@@ -152,8 +150,8 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
 
   // Populate flags and check flag-gated entitlements
   const resolvedFlags: Record<string, boolean> = {};
-  if (flagStore && orgId) {
-    const orgFlags = flagStore.getFlags(orgId);
+  if (flagStore && tenantId) {
+    const orgFlags = flagStore.getFlags(tenantId);
     Object.assign(resolvedFlags, orgFlags);
 
     // Check each entitlement for flag requirements
@@ -161,7 +159,7 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
       if (entDef.flags?.length) {
         const disabledFlags: string[] = [];
         for (const flag of entDef.flags) {
-          if (!flagStore.getFlag(orgId, flag)) {
+          if (!flagStore.getFlag(tenantId, flag)) {
             disabledFlags.push(flag);
           }
         }
@@ -182,17 +180,21 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
   }
 
   // Enrich with plan/wallet info if stores are available
-  if (planStore && orgId) {
-    const orgPlan = await planStore.getPlan(orgId);
-    if (orgPlan) {
-      const effectivePlanId = resolveEffectivePlan(orgPlan, accessDef.plans, accessDef.defaultPlan);
+  if (subscriptionStore && tenantId) {
+    const subscription = await subscriptionStore.get(tenantId);
+    if (subscription) {
+      const effectivePlanId = resolveEffectivePlan(
+        subscription,
+        accessDef.plans,
+        accessDef.defaultPlan,
+      );
       resolvedPlan = effectivePlanId;
       if (effectivePlanId) {
         const planDef = accessDef.plans?.[effectivePlanId];
         if (planDef) {
           // Compute effective features (base plan + add-ons)
           const effectiveFeatures = new Set<string>(planDef.features ?? []);
-          const addOns = await planStore.getAddOns?.(orgId);
+          const addOns = await subscriptionStore.getAddOns?.(tenantId);
           if (addOns) {
             for (const addOnId of addOns) {
               const addOnDef = accessDef.plans?.[addOnId];
@@ -242,7 +244,7 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
                     }
                   }
                 }
-                const override = orgPlan.overrides[limitKey];
+                const override = subscription.overrides[limitKey];
                 if (override) effectiveMax = Math.max(effectiveMax, override.max);
 
                 if (effectiveMax === -1) {
@@ -257,13 +259,13 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
                   };
                 } else {
                   const period = limitDef.per
-                    ? calculateBillingPeriod(orgPlan.startedAt, limitDef.per)
+                    ? calculateBillingPeriod(subscription.startedAt, limitDef.per)
                     : {
-                        periodStart: orgPlan.startedAt,
+                        periodStart: subscription.startedAt,
                         periodEnd: new Date('9999-12-31T23:59:59Z'),
                       };
                   const consumed = await walletStore.getConsumption(
-                    orgId,
+                    tenantId,
                     limitKey,
                     period.periodStart,
                     period.periodEnd,

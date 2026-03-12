@@ -24,6 +24,7 @@ import {
   encodeAccessSet,
   InMemoryClosureStore,
   InMemoryRoleAssignmentStore,
+  InMemorySubscriptionStore,
 } from '@vertz/server';
 // Client-side imports
 import { signal } from '@vertz/ui';
@@ -60,6 +61,9 @@ const accessDef = defineAccess({
     'project:edit': { roles: ['contributor', 'manager'] },
     'project:delete': { roles: ['manager'] },
     'organization:use': { roles: [] },
+  },
+  plans: {
+    pro: { group: 'main', features: [] },
   },
 });
 
@@ -177,12 +181,16 @@ describe('Access Set — Server Integration', () => {
     await closureStore.addResource('organization', 'org-1');
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
 
+    const subscriptionStore = new InMemorySubscriptionStore();
+    await subscriptionStore.assign('org-1', 'pro');
+
     const accessSet = await computeAccessSet({
       userId: 'user-1',
       accessDef,
       roleStore,
       closureStore,
-      plan: 'pro',
+      subscriptionStore,
+      tenantId: 'org-1',
     });
 
     // Encode on server

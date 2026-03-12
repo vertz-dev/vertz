@@ -3,7 +3,7 @@
  *
  * Validates the full plan/wallet lifecycle end-to-end:
  * - defineAccess() with new plan shape (features, group, limits with gates)
- * - PlanStore / WalletStore with InMemory implementations
+ * - SubscriptionStore / WalletStore with InMemory implementations
  * - Plan check (Layer 3) in can() and check()
  * - Wallet check (Layer 4) with limit visibility
  * - canAndConsume() / unconsume() atomic operations
@@ -28,8 +28,8 @@ import {
   getIncompatibleAddOns,
   InMemoryClosureStore,
   InMemoryOverrideStore,
-  InMemoryPlanStore,
   InMemoryRoleAssignmentStore,
+  InMemorySubscriptionStore,
   InMemoryWalletStore,
   validateOverrides,
 } from '@vertz/server';
@@ -104,9 +104,9 @@ const accessDef = defineAccess({
 function createTestStores() {
   const roleStore = new InMemoryRoleAssignmentStore();
   const closureStore = new InMemoryClosureStore();
-  const planStore = new InMemoryPlanStore();
+  const subscriptionStore = new InMemorySubscriptionStore();
   const walletStore = new InMemoryWalletStore();
-  return { roleStore, closureStore, planStore, walletStore };
+  return { roleStore, closureStore, subscriptionStore, walletStore };
 }
 
 async function setupHierarchy(closureStore: InstanceType<typeof InMemoryClosureStore>) {
@@ -127,17 +127,17 @@ async function setupHierarchy(closureStore: InstanceType<typeof InMemoryClosureS
 
 describe('Plans & Wallet — Plan Layer (L3)', () => {
   it('can() denies entitlement when plan does not include it in features', async () => {
-    const { roleStore, closureStore, planStore, walletStore } = createTestStores();
+    const { roleStore, closureStore, subscriptionStore, walletStore } = createTestStores();
     await setupHierarchy(closureStore);
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-    await planStore.assignPlan('org-1', 'free');
+    await subscriptionStore.assign('org-1', 'free');
 
     const ctx = createAccessContext({
       userId: 'user-1',
       accessDef,
       closureStore,
       roleStore,
-      planStore,
+      subscriptionStore,
       walletStore,
       orgResolver: async () => 'org-1',
     });
@@ -151,17 +151,17 @@ describe('Plans & Wallet — Plan Layer (L3)', () => {
   });
 
   it('can() allows entitlement when plan features include it', async () => {
-    const { roleStore, closureStore, planStore, walletStore } = createTestStores();
+    const { roleStore, closureStore, subscriptionStore, walletStore } = createTestStores();
     await setupHierarchy(closureStore);
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-    await planStore.assignPlan('org-1', 'pro');
+    await subscriptionStore.assign('org-1', 'pro');
 
     const ctx = createAccessContext({
       userId: 'user-1',
       accessDef,
       closureStore,
       roleStore,
-      planStore,
+      subscriptionStore,
       walletStore,
       orgResolver: async () => 'org-1',
     });
@@ -172,17 +172,17 @@ describe('Plans & Wallet — Plan Layer (L3)', () => {
   });
 
   it('check() returns plan_required reason with requiredPlans meta', async () => {
-    const { roleStore, closureStore, planStore, walletStore } = createTestStores();
+    const { roleStore, closureStore, subscriptionStore, walletStore } = createTestStores();
     await setupHierarchy(closureStore);
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-    await planStore.assignPlan('org-1', 'free');
+    await subscriptionStore.assign('org-1', 'free');
 
     const ctx = createAccessContext({
       userId: 'user-1',
       accessDef,
       closureStore,
       roleStore,
-      planStore,
+      subscriptionStore,
       walletStore,
       orgResolver: async () => 'org-1',
     });
@@ -198,21 +198,21 @@ describe('Plans & Wallet — Plan Layer (L3)', () => {
   });
 
   it('expired plan falls back to free', async () => {
-    const { roleStore, closureStore, planStore, walletStore } = createTestStores();
+    const { roleStore, closureStore, subscriptionStore, walletStore } = createTestStores();
     await setupHierarchy(closureStore);
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
 
     // Assign pro plan that expired yesterday
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    await planStore.assignPlan('org-1', 'pro', new Date('2025-01-01'), yesterday);
+    await subscriptionStore.assign('org-1', 'pro', new Date('2025-01-01'), yesterday);
 
     const ctx = createAccessContext({
       userId: 'user-1',
       accessDef,
       closureStore,
       roleStore,
-      planStore,
+      subscriptionStore,
       walletStore,
       orgResolver: async () => 'org-1',
     });
@@ -232,11 +232,11 @@ describe('Plans & Wallet — Plan Layer (L3)', () => {
 
 describe('Plans & Wallet — Wallet Layer (L4)', () => {
   it('can() denies when limit is reached', async () => {
-    const { roleStore, closureStore, planStore, walletStore } = createTestStores();
+    const { roleStore, closureStore, subscriptionStore, walletStore } = createTestStores();
     await setupHierarchy(closureStore);
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    await planStore.assignPlan('org-1', 'pro', planStart);
+    await subscriptionStore.assign('org-1', 'pro', planStart);
 
     // Consume all 10 units using the limit key 'projects'
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
@@ -247,7 +247,7 @@ describe('Plans & Wallet — Wallet Layer (L4)', () => {
       accessDef,
       closureStore,
       roleStore,
-      planStore,
+      subscriptionStore,
       walletStore,
       orgResolver: async () => 'org-1',
     });
@@ -260,11 +260,11 @@ describe('Plans & Wallet — Wallet Layer (L4)', () => {
   });
 
   it('check() returns limit_reached with limit meta', async () => {
-    const { roleStore, closureStore, planStore, walletStore } = createTestStores();
+    const { roleStore, closureStore, subscriptionStore, walletStore } = createTestStores();
     await setupHierarchy(closureStore);
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    await planStore.assignPlan('org-1', 'pro', planStart);
+    await subscriptionStore.assign('org-1', 'pro', planStart);
 
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
     await walletStore.consume('org-1', 'projects', periodStart, periodEnd, 10, 10);
@@ -274,7 +274,7 @@ describe('Plans & Wallet — Wallet Layer (L4)', () => {
       accessDef,
       closureStore,
       roleStore,
-      planStore,
+      subscriptionStore,
       walletStore,
       orgResolver: async () => 'org-1',
     });
@@ -297,18 +297,18 @@ describe('Plans & Wallet — Wallet Layer (L4)', () => {
 
 describe('Plans & Wallet — canAndConsume / unconsume', () => {
   it('canAndConsume() atomically checks + increments wallet', async () => {
-    const { roleStore, closureStore, planStore, walletStore } = createTestStores();
+    const { roleStore, closureStore, subscriptionStore, walletStore } = createTestStores();
     await setupHierarchy(closureStore);
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    await planStore.assignPlan('org-1', 'pro', planStart);
+    await subscriptionStore.assign('org-1', 'pro', planStart);
 
     const ctx = createAccessContext({
       userId: 'user-1',
       accessDef,
       closureStore,
       roleStore,
-      planStore,
+      subscriptionStore,
       walletStore,
       orgResolver: async () => 'org-1',
     });
@@ -327,11 +327,11 @@ describe('Plans & Wallet — canAndConsume / unconsume', () => {
   });
 
   it('canAndConsume() fails when limit reached', async () => {
-    const { roleStore, closureStore, planStore, walletStore } = createTestStores();
+    const { roleStore, closureStore, subscriptionStore, walletStore } = createTestStores();
     await setupHierarchy(closureStore);
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    await planStore.assignPlan('org-1', 'pro', planStart);
+    await subscriptionStore.assign('org-1', 'pro', planStart);
 
     // Pre-consume 10 (the limit)
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
@@ -342,7 +342,7 @@ describe('Plans & Wallet — canAndConsume / unconsume', () => {
       accessDef,
       closureStore,
       roleStore,
-      planStore,
+      subscriptionStore,
       walletStore,
       orgResolver: async () => 'org-1',
     });
@@ -359,18 +359,18 @@ describe('Plans & Wallet — canAndConsume / unconsume', () => {
   });
 
   it('unconsume() rolls back wallet consumption', async () => {
-    const { roleStore, closureStore, planStore, walletStore } = createTestStores();
+    const { roleStore, closureStore, subscriptionStore, walletStore } = createTestStores();
     await setupHierarchy(closureStore);
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    await planStore.assignPlan('org-1', 'pro', planStart);
+    await subscriptionStore.assign('org-1', 'pro', planStart);
 
     const ctx = createAccessContext({
       userId: 'user-1',
       accessDef,
       closureStore,
       roleStore,
-      planStore,
+      subscriptionStore,
       walletStore,
       orgResolver: async () => 'org-1',
     });
@@ -398,13 +398,13 @@ describe('Plans & Wallet — canAndConsume / unconsume', () => {
 
 describe('Plans & Wallet — Per-customer overrides', () => {
   it('override increases the effective limit', async () => {
-    const { roleStore, closureStore, planStore, walletStore } = createTestStores();
+    const { roleStore, closureStore, subscriptionStore, walletStore } = createTestStores();
     await setupHierarchy(closureStore);
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    await planStore.assignPlan('org-1', 'pro', planStart);
+    await subscriptionStore.assign('org-1', 'pro', planStart);
     // Override: max 20 instead of plan's 10 (keyed by limit key, not entitlement)
-    await planStore.updateOverrides('org-1', {
+    await subscriptionStore.updateOverrides('org-1', {
       projects: { max: 20 },
     });
 
@@ -417,7 +417,7 @@ describe('Plans & Wallet — Per-customer overrides', () => {
       accessDef,
       closureStore,
       roleStore,
-      planStore,
+      subscriptionStore,
       walletStore,
       orgResolver: async () => 'org-1',
     });
@@ -437,11 +437,11 @@ describe('Plans & Wallet — Per-customer overrides', () => {
 
 describe('Plans & Wallet — AccessSet with limits', () => {
   it('computeAccessSet() includes limit info for plan-limited entitlements', async () => {
-    const { roleStore, closureStore, planStore, walletStore } = createTestStores();
+    const { roleStore, closureStore, subscriptionStore, walletStore } = createTestStores();
     await setupHierarchy(closureStore);
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    await planStore.assignPlan('org-1', 'pro', planStart);
+    await subscriptionStore.assign('org-1', 'pro', planStart);
 
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
     await walletStore.consume('org-1', 'projects', periodStart, periodEnd, 10, 3);
@@ -451,25 +451,25 @@ describe('Plans & Wallet — AccessSet with limits', () => {
       accessDef,
       roleStore,
       closureStore,
-      planStore,
+      subscriptionStore,
       walletStore,
-      orgId: 'org-1',
+      tenantId: 'org-1',
     });
 
     expect(result.entitlements['organization:create-project'].allowed).toBe(true);
     expect(result.entitlements['organization:create-project'].meta?.limit?.max).toBe(10);
     expect(result.entitlements['organization:create-project'].meta?.limit?.consumed).toBe(3);
     expect(result.entitlements['organization:create-project'].meta?.limit?.remaining).toBe(7);
-    // plan field should be populated from planStore (not null)
+    // plan field should be populated from subscriptionStore (not null)
     expect(result.plan).toBe('pro');
   });
 
   it('encode/decode round-trip preserves limit data', async () => {
-    const { roleStore, closureStore, planStore, walletStore } = createTestStores();
+    const { roleStore, closureStore, subscriptionStore, walletStore } = createTestStores();
     await setupHierarchy(closureStore);
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    await planStore.assignPlan('org-1', 'pro', planStart);
+    await subscriptionStore.assign('org-1', 'pro', planStart);
 
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
     await walletStore.consume('org-1', 'projects', periodStart, periodEnd, 10, 5);
@@ -479,9 +479,9 @@ describe('Plans & Wallet — AccessSet with limits', () => {
       accessDef,
       roleStore,
       closureStore,
-      planStore,
+      subscriptionStore,
       walletStore,
-      orgId: 'org-1',
+      tenantId: 'org-1',
     });
 
     // Encode for JWT
@@ -544,21 +544,21 @@ describe('Plans & Wallet — E2E Acceptance: free -> exhaust -> upgrade -> succe
 
     const roleStore = new InMemoryRoleAssignmentStore();
     const closureStore = new InMemoryClosureStore();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
     const walletStore = new InMemoryWalletStore();
 
     await closureStore.addResource('organization', 'org-1');
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
 
     // Step 1: Assign org to free plan with limit 5 projects/month
-    await planStore.assignPlan('org-1', 'free');
+    await subscriptionStore.assign('org-1', 'free');
 
     const ctx = createAccessContext({
       userId: 'user-1',
       accessDef: e2eAccessDef,
       closureStore,
       roleStore,
-      planStore,
+      subscriptionStore,
       walletStore,
       orgResolver: async () => 'org-1',
     });
@@ -580,7 +580,7 @@ describe('Plans & Wallet — E2E Acceptance: free -> exhaust -> upgrade -> succe
     expect(sixthDenied).toBe(false);
 
     // Step 4: Upgrade to pro (limit 100)
-    await planStore.assignPlan('org-1', 'pro');
+    await subscriptionStore.assign('org-1', 'pro');
 
     // Step 5: 6th project now succeeds (pro limit is 100, only 5 consumed)
     const sixthAllowed = await ctx.canAndConsume('organization:create-project', {
@@ -628,13 +628,13 @@ describe('Feature: Override store integration', () => {
     // Free plan doesn't include create-project, but override grants it
     const closureStore = new InMemoryClosureStore();
     const roleStore = new InMemoryRoleAssignmentStore();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
     const walletStore = new InMemoryWalletStore();
     const overrideStore = new InMemoryOverrideStore();
 
     await closureStore.addResource('organization', 'org-1');
     await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
-    await planStore.assignPlan('org-1', 'free');
+    await subscriptionStore.assign('org-1', 'free');
 
     // Free plan does not include 'organization:create-project'
     // Override grants it
@@ -647,7 +647,7 @@ describe('Feature: Override store integration', () => {
       accessDef,
       closureStore,
       roleStore,
-      planStore,
+      subscriptionStore,
       walletStore,
       overrideStore,
       orgResolver: async () => 'org-1',
@@ -663,14 +663,14 @@ describe('Feature: Override store integration', () => {
   it('override add mode increases effective limit', async () => {
     const closureStore = new InMemoryClosureStore();
     const roleStore = new InMemoryRoleAssignmentStore();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
     const walletStore = new InMemoryWalletStore();
     const overrideStore = new InMemoryOverrideStore();
 
     await closureStore.addResource('organization', 'org-1');
     await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    await planStore.assignPlan('org-1', 'pro', planStart);
+    await subscriptionStore.assign('org-1', 'pro', planStart);
 
     // Pro has 10 projects/month. Override adds 5 more.
     await overrideStore.set('org-1', { limits: { projects: { add: 5 } } });
@@ -684,7 +684,7 @@ describe('Feature: Override store integration', () => {
       accessDef,
       closureStore,
       roleStore,
-      planStore,
+      subscriptionStore,
       walletStore,
       overrideStore,
       orgResolver: async () => 'org-1',
@@ -778,13 +778,13 @@ describe('Feature: Overage billing integration', () => {
   it('can() returns true beyond limit when overage is configured', async () => {
     const closureStore = new InMemoryClosureStore();
     const roleStore = new InMemoryRoleAssignmentStore();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
     const walletStore = new InMemoryWalletStore();
 
     await closureStore.addResource('organization', 'org-1');
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    await planStore.assignPlan('org-1', 'pro', planStart);
+    await subscriptionStore.assign('org-1', 'pro', planStart);
 
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
     await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 200, 150);
@@ -794,7 +794,7 @@ describe('Feature: Overage billing integration', () => {
       accessDef: overageAccessDef,
       closureStore,
       roleStore,
-      planStore,
+      subscriptionStore,
       walletStore,
       orgResolver: async () => 'org-1',
     });
@@ -809,13 +809,13 @@ describe('Feature: Overage billing integration', () => {
   it('check() includes meta.limit.overage when in overage', async () => {
     const closureStore = new InMemoryClosureStore();
     const roleStore = new InMemoryRoleAssignmentStore();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
     const walletStore = new InMemoryWalletStore();
 
     await closureStore.addResource('organization', 'org-1');
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    await planStore.assignPlan('org-1', 'pro', planStart);
+    await subscriptionStore.assign('org-1', 'pro', planStart);
 
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
     await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 200, 150);
@@ -825,7 +825,7 @@ describe('Feature: Overage billing integration', () => {
       accessDef: overageAccessDef,
       closureStore,
       roleStore,
-      planStore,
+      subscriptionStore,
       walletStore,
       orgResolver: async () => 'org-1',
     });

@@ -1,5 +1,5 @@
-import { createServer, type ServerHandle } from '@vertz/core';
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
+import { createServer, type ServerHandle } from '@vertz/core';
 import { createRoutes } from '../app/create-app';
 import { authMiddleware } from '../app/middleware/auth';
 

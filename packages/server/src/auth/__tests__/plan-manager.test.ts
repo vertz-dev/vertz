@@ -2,23 +2,23 @@ import { describe, expect, it } from 'bun:test';
 import type { PlanDef } from '../define-access';
 import { InMemoryGrandfatheringStore } from '../grandfathering-store';
 import { createPlanManager, type PlanEvent } from '../plan-manager';
-import { InMemoryPlanStore } from '../plan-store';
 import { InMemoryPlanVersionStore } from '../plan-version-store';
+import { InMemorySubscriptionStore } from '../subscription-store';
 
 function makeManager(plans: Record<string, PlanDef>, opts?: { clock?: () => Date }) {
   const versionStore = new InMemoryPlanVersionStore();
   const grandfatheringStore = new InMemoryGrandfatheringStore();
-  const planStore = new InMemoryPlanStore();
+  const subscriptionStore = new InMemorySubscriptionStore();
   const events: PlanEvent[] = [];
   const manager = createPlanManager({
     plans,
     versionStore,
     grandfatheringStore,
-    planStore,
+    subscriptionStore,
     clock: opts?.clock,
   });
   manager.on((event) => events.push(event));
-  return { manager, versionStore, grandfatheringStore, planStore, events };
+  return { manager, versionStore, grandfatheringStore, subscriptionStore, events };
 }
 
 describe('Feature: Plan version detection on initialize()', () => {
@@ -100,7 +100,7 @@ describe('Feature: Plan version detection on initialize()', () => {
     it('creates new version', async () => {
       const versionStore = new InMemoryPlanVersionStore();
       const grandfatheringStore = new InMemoryGrandfatheringStore();
-      const planStore = new InMemoryPlanStore();
+      const subscriptionStore = new InMemorySubscriptionStore();
 
       // Deploy 1
       const manager1 = createPlanManager({
@@ -115,7 +115,7 @@ describe('Feature: Plan version detection on initialize()', () => {
         },
         versionStore,
         grandfatheringStore,
-        planStore,
+        subscriptionStore,
       });
       await manager1.initialize();
 
@@ -132,7 +132,7 @@ describe('Feature: Plan version detection on initialize()', () => {
         },
         versionStore,
         grandfatheringStore,
-        planStore,
+        subscriptionStore,
       });
       await manager2.initialize();
 
@@ -142,7 +142,7 @@ describe('Feature: Plan version detection on initialize()', () => {
     it('existing tenants keep old version (grandfathered)', async () => {
       const versionStore = new InMemoryPlanVersionStore();
       const grandfatheringStore = new InMemoryGrandfatheringStore();
-      const planStore = new InMemoryPlanStore();
+      const subscriptionStore = new InMemorySubscriptionStore();
 
       // Deploy 1 — tenant assigned to plan
       const manager1 = createPlanManager({
@@ -157,10 +157,10 @@ describe('Feature: Plan version detection on initialize()', () => {
         },
         versionStore,
         grandfatheringStore,
-        planStore,
+        subscriptionStore,
       });
       await manager1.initialize();
-      await planStore.assignPlan('org-1', 'pro');
+      await subscriptionStore.assign('org-1', 'pro');
       await versionStore.setTenantVersion('org-1', 'pro', 1);
 
       // Deploy 2 — changed limits
@@ -176,7 +176,7 @@ describe('Feature: Plan version detection on initialize()', () => {
         },
         versionStore,
         grandfatheringStore,
-        planStore,
+        subscriptionStore,
       });
       await manager2.initialize();
 
@@ -190,7 +190,7 @@ describe('Feature: Plan version detection on initialize()', () => {
     it('new tenants get new version', async () => {
       const versionStore = new InMemoryPlanVersionStore();
       const grandfatheringStore = new InMemoryGrandfatheringStore();
-      const planStore = new InMemoryPlanStore();
+      const subscriptionStore = new InMemorySubscriptionStore();
 
       // Deploy 1
       const manager1 = createPlanManager({
@@ -205,7 +205,7 @@ describe('Feature: Plan version detection on initialize()', () => {
         },
         versionStore,
         grandfatheringStore,
-        planStore,
+        subscriptionStore,
       });
       await manager1.initialize();
 
@@ -222,12 +222,12 @@ describe('Feature: Plan version detection on initialize()', () => {
         },
         versionStore,
         grandfatheringStore,
-        planStore,
+        subscriptionStore,
       });
       await manager2.initialize();
 
       // New tenant assigned after v2
-      await planStore.assignPlan('org-new', 'pro');
+      await subscriptionStore.assign('org-new', 'pro');
       // Not setting tenant version => resolve defaults to current
       const state = await manager2.resolve('org-new');
       expect(state).not.toBeNull();
@@ -243,7 +243,7 @@ describe('Feature: Plan migration', () => {
       it('migrates tenant to current version', async () => {
         const versionStore = new InMemoryPlanVersionStore();
         const grandfatheringStore = new InMemoryGrandfatheringStore();
-        const planStore = new InMemoryPlanStore();
+        const subscriptionStore = new InMemorySubscriptionStore();
 
         // Set up: tenant on v1, grandfathered with expired grace
         await versionStore.createVersion('pro', 'hash-1', {
@@ -257,7 +257,7 @@ describe('Feature: Plan migration', () => {
           price: null,
         });
         await versionStore.setTenantVersion('org-1', 'pro', 1);
-        await planStore.assignPlan('org-1', 'pro');
+        await subscriptionStore.assign('org-1', 'pro');
         // Grace ended yesterday
         await grandfatheringStore.setGrandfathered(
           'org-1',
@@ -271,7 +271,7 @@ describe('Feature: Plan migration', () => {
           plans: { pro: { group: 'main', features: ['a', 'b'] } },
           versionStore,
           grandfatheringStore,
-          planStore,
+          subscriptionStore,
           clock,
         });
 
@@ -284,7 +284,7 @@ describe('Feature: Plan migration', () => {
       it('emits plan:migrated event with previousVersion', async () => {
         const versionStore = new InMemoryPlanVersionStore();
         const grandfatheringStore = new InMemoryGrandfatheringStore();
-        const planStore = new InMemoryPlanStore();
+        const subscriptionStore = new InMemorySubscriptionStore();
         const events: PlanEvent[] = [];
 
         await versionStore.createVersion('pro', 'hash-1', {
@@ -298,7 +298,7 @@ describe('Feature: Plan migration', () => {
           price: null,
         });
         await versionStore.setTenantVersion('org-1', 'pro', 1);
-        await planStore.assignPlan('org-1', 'pro');
+        await subscriptionStore.assign('org-1', 'pro');
         await grandfatheringStore.setGrandfathered(
           'org-1',
           'pro',
@@ -311,7 +311,7 @@ describe('Feature: Plan migration', () => {
           plans: { pro: { group: 'main', features: ['a', 'b'] } },
           versionStore,
           grandfatheringStore,
-          planStore,
+          subscriptionStore,
           clock,
         });
         manager.on((e) => events.push(e));
@@ -328,7 +328,7 @@ describe('Feature: Plan migration', () => {
       it('clears grandfathering state', async () => {
         const versionStore = new InMemoryPlanVersionStore();
         const grandfatheringStore = new InMemoryGrandfatheringStore();
-        const planStore = new InMemoryPlanStore();
+        const subscriptionStore = new InMemorySubscriptionStore();
 
         await versionStore.createVersion('pro', 'hash-1', {
           features: ['a'],
@@ -341,7 +341,7 @@ describe('Feature: Plan migration', () => {
           price: null,
         });
         await versionStore.setTenantVersion('org-1', 'pro', 1);
-        await planStore.assignPlan('org-1', 'pro');
+        await subscriptionStore.assign('org-1', 'pro');
         await grandfatheringStore.setGrandfathered(
           'org-1',
           'pro',
@@ -354,7 +354,7 @@ describe('Feature: Plan migration', () => {
           plans: { pro: { group: 'main', features: ['a', 'b'] } },
           versionStore,
           grandfatheringStore,
-          planStore,
+          subscriptionStore,
           clock,
         });
 
@@ -371,7 +371,7 @@ describe('Feature: Plan migration', () => {
       it('does NOT migrate — grace still active', async () => {
         const versionStore = new InMemoryPlanVersionStore();
         const grandfatheringStore = new InMemoryGrandfatheringStore();
-        const planStore = new InMemoryPlanStore();
+        const subscriptionStore = new InMemorySubscriptionStore();
 
         await versionStore.createVersion('pro', 'hash-1', {
           features: ['a'],
@@ -384,7 +384,7 @@ describe('Feature: Plan migration', () => {
           price: null,
         });
         await versionStore.setTenantVersion('org-1', 'pro', 1);
-        await planStore.assignPlan('org-1', 'pro');
+        await subscriptionStore.assign('org-1', 'pro');
         // Grace ends in the future
         await grandfatheringStore.setGrandfathered(
           'org-1',
@@ -398,7 +398,7 @@ describe('Feature: Plan migration', () => {
           plans: { pro: { group: 'main', features: ['a', 'b'] } },
           versionStore,
           grandfatheringStore,
-          planStore,
+          subscriptionStore,
           clock,
         });
 
@@ -414,7 +414,7 @@ describe('Feature: Plan migration', () => {
     it('migrates immediately regardless of grace', async () => {
       const versionStore = new InMemoryPlanVersionStore();
       const grandfatheringStore = new InMemoryGrandfatheringStore();
-      const planStore = new InMemoryPlanStore();
+      const subscriptionStore = new InMemorySubscriptionStore();
 
       await versionStore.createVersion('pro', 'hash-1', {
         features: ['a'],
@@ -427,7 +427,7 @@ describe('Feature: Plan migration', () => {
         price: null,
       });
       await versionStore.setTenantVersion('org-1', 'pro', 1);
-      await planStore.assignPlan('org-1', 'pro');
+      await subscriptionStore.assign('org-1', 'pro');
       // Grace ends far in the future
       await grandfatheringStore.setGrandfathered(
         'org-1',
@@ -441,7 +441,7 @@ describe('Feature: Plan migration', () => {
         plans: { pro: { group: 'main', features: ['a', 'b'] } },
         versionStore,
         grandfatheringStore,
-        planStore,
+        subscriptionStore,
         clock,
       });
 
@@ -457,7 +457,7 @@ describe('Feature: Clock injection', () => {
   it('migrate uses injected clock for grace period comparison', async () => {
     const versionStore = new InMemoryPlanVersionStore();
     const grandfatheringStore = new InMemoryGrandfatheringStore();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
 
     await versionStore.createVersion('pro', 'hash-1', {
       features: ['a'],
@@ -470,7 +470,7 @@ describe('Feature: Clock injection', () => {
       price: null,
     });
     await versionStore.setTenantVersion('org-1', 'pro', 1);
-    await planStore.assignPlan('org-1', 'pro');
+    await subscriptionStore.assign('org-1', 'pro');
     await grandfatheringStore.setGrandfathered('org-1', 'pro', 1, new Date('2026-06-15T00:00:00Z'));
 
     // Clock before grace end — should NOT migrate
@@ -479,7 +479,7 @@ describe('Feature: Clock injection', () => {
       plans: { pro: { group: 'main', features: ['a', 'b'] } },
       versionStore,
       grandfatheringStore,
-      planStore,
+      subscriptionStore,
       clock: clockBefore,
     });
     await manager1.migrate('pro');
@@ -491,7 +491,7 @@ describe('Feature: Clock injection', () => {
       plans: { pro: { group: 'main', features: ['a', 'b'] } },
       versionStore,
       grandfatheringStore,
-      planStore,
+      subscriptionStore,
       clock: clockAfter,
     });
     await manager2.migrate('pro');
@@ -503,18 +503,18 @@ describe('Feature: Plan resolution', () => {
   it('resolve returns tenant plan state with snapshot', async () => {
     const versionStore = new InMemoryPlanVersionStore();
     const grandfatheringStore = new InMemoryGrandfatheringStore();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
 
     const snap = { features: ['a', 'b'], limits: {}, price: null };
     await versionStore.createVersion('pro', 'hash-1', snap);
     await versionStore.setTenantVersion('org-1', 'pro', 1);
-    await planStore.assignPlan('org-1', 'pro');
+    await subscriptionStore.assign('org-1', 'pro');
 
     const manager = createPlanManager({
       plans: { pro: { group: 'main', features: ['a', 'b'] } },
       versionStore,
       grandfatheringStore,
-      planStore,
+      subscriptionStore,
     });
 
     const state = await manager.resolve('org-1');
@@ -540,7 +540,7 @@ describe('Feature: Plan resolution', () => {
   it('resolve shows grandfathered state', async () => {
     const versionStore = new InMemoryPlanVersionStore();
     const grandfatheringStore = new InMemoryGrandfatheringStore();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
 
     await versionStore.createVersion('pro', 'hash-1', {
       features: ['a'],
@@ -553,7 +553,7 @@ describe('Feature: Plan resolution', () => {
       price: null,
     });
     await versionStore.setTenantVersion('org-1', 'pro', 1);
-    await planStore.assignPlan('org-1', 'pro');
+    await subscriptionStore.assign('org-1', 'pro');
     const graceEnds = new Date('2027-01-15T00:00:00Z');
     await grandfatheringStore.setGrandfathered('org-1', 'pro', 1, graceEnds);
 
@@ -561,7 +561,7 @@ describe('Feature: Plan resolution', () => {
       plans: { pro: { group: 'main', features: ['a', 'b'] } },
       versionStore,
       grandfatheringStore,
-      planStore,
+      subscriptionStore,
     });
 
     const state = await manager.resolve('org-1');
@@ -578,7 +578,7 @@ describe('Feature: Schedule migration', () => {
   it('schedule sets grace end date for all grandfathered tenants', async () => {
     const versionStore = new InMemoryPlanVersionStore();
     const grandfatheringStore = new InMemoryGrandfatheringStore();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
 
     await versionStore.createVersion('pro', 'hash-1', {
       features: ['a'],
@@ -598,7 +598,7 @@ describe('Feature: Schedule migration', () => {
       plans: { pro: { group: 'main', features: ['a', 'b'] } },
       versionStore,
       grandfatheringStore,
-      planStore,
+      subscriptionStore,
     });
 
     await manager.schedule('pro', { at: '2026-06-01' });
@@ -614,7 +614,7 @@ describe('Feature: Grandfathered listing', () => {
   it('grandfathered returns all grandfathered tenants for a plan', async () => {
     const versionStore = new InMemoryPlanVersionStore();
     const grandfatheringStore = new InMemoryGrandfatheringStore();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
 
     await grandfatheringStore.setGrandfathered('org-1', 'pro', 1, new Date('2027-01-01'));
     await grandfatheringStore.setGrandfathered('org-2', 'pro', 1, new Date('2027-01-01'));
@@ -623,7 +623,7 @@ describe('Feature: Grandfathered listing', () => {
       plans: { pro: { group: 'main', features: ['a'] } },
       versionStore,
       grandfatheringStore,
-      planStore,
+      subscriptionStore,
     });
 
     const list = await manager.grandfathered('pro');
@@ -636,7 +636,7 @@ describe('Feature: Grandfathering policy', () => {
   it('monthly plan defaults to 1 month grace', async () => {
     const versionStore = new InMemoryPlanVersionStore();
     const grandfatheringStore = new InMemoryGrandfatheringStore();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
     const fixedNow = new Date('2026-03-01T00:00:00Z');
 
     // Deploy 1
@@ -650,11 +650,11 @@ describe('Feature: Grandfathering policy', () => {
       },
       versionStore,
       grandfatheringStore,
-      planStore,
+      subscriptionStore,
       clock: () => fixedNow,
     });
     await manager1.initialize();
-    await planStore.assignPlan('org-1', 'pro');
+    await subscriptionStore.assign('org-1', 'pro');
     await versionStore.setTenantVersion('org-1', 'pro', 1);
 
     // Deploy 2 — changed features
@@ -668,7 +668,7 @@ describe('Feature: Grandfathering policy', () => {
       },
       versionStore,
       grandfatheringStore,
-      planStore,
+      subscriptionStore,
       clock: () => fixedNow,
     });
     await manager2.initialize();
@@ -683,7 +683,7 @@ describe('Feature: Grandfathering policy', () => {
   it('yearly plan defaults to 3 month grace', async () => {
     const versionStore = new InMemoryPlanVersionStore();
     const grandfatheringStore = new InMemoryGrandfatheringStore();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
     const fixedNow = new Date('2026-03-01T00:00:00Z');
 
     const manager1 = createPlanManager({
@@ -696,11 +696,11 @@ describe('Feature: Grandfathering policy', () => {
       },
       versionStore,
       grandfatheringStore,
-      planStore,
+      subscriptionStore,
       clock: () => fixedNow,
     });
     await manager1.initialize();
-    await planStore.assignPlan('org-1', 'pro');
+    await subscriptionStore.assign('org-1', 'pro');
     await versionStore.setTenantVersion('org-1', 'pro', 1);
 
     const manager2 = createPlanManager({
@@ -713,7 +713,7 @@ describe('Feature: Grandfathering policy', () => {
       },
       versionStore,
       grandfatheringStore,
-      planStore,
+      subscriptionStore,
       clock: () => fixedNow,
     });
     await manager2.initialize();
@@ -728,7 +728,7 @@ describe('Feature: Grandfathering policy', () => {
   it('explicit grace: "12m" on plan config', async () => {
     const versionStore = new InMemoryPlanVersionStore();
     const grandfatheringStore = new InMemoryGrandfatheringStore();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
     const fixedNow = new Date('2026-03-01T00:00:00Z');
 
     const planConfig = {
@@ -742,18 +742,18 @@ describe('Feature: Grandfathering policy', () => {
       plans: { pro: planConfig },
       versionStore,
       grandfatheringStore,
-      planStore,
+      subscriptionStore,
       clock: () => fixedNow,
     });
     await manager1.initialize();
-    await planStore.assignPlan('org-1', 'pro');
+    await subscriptionStore.assign('org-1', 'pro');
     await versionStore.setTenantVersion('org-1', 'pro', 1);
 
     const manager2 = createPlanManager({
       plans: { pro: { ...planConfig, features: ['a', 'b'] } },
       versionStore,
       grandfatheringStore,
-      planStore,
+      subscriptionStore,
       clock: () => fixedNow,
     });
     await manager2.initialize();
@@ -768,7 +768,7 @@ describe('Feature: Grandfathering policy', () => {
   it('explicit grace: "indefinite" results in null graceEnds', async () => {
     const versionStore = new InMemoryPlanVersionStore();
     const grandfatheringStore = new InMemoryGrandfatheringStore();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
 
     const planConfig = {
       group: 'main',
@@ -780,17 +780,17 @@ describe('Feature: Grandfathering policy', () => {
       plans: { pro: planConfig },
       versionStore,
       grandfatheringStore,
-      planStore,
+      subscriptionStore,
     });
     await manager1.initialize();
-    await planStore.assignPlan('org-1', 'pro');
+    await subscriptionStore.assign('org-1', 'pro');
     await versionStore.setTenantVersion('org-1', 'pro', 1);
 
     const manager2 = createPlanManager({
       plans: { pro: { ...planConfig, features: ['a', 'b'] } },
       versionStore,
       grandfatheringStore,
-      planStore,
+      subscriptionStore,
     });
     await manager2.initialize();
 
@@ -804,7 +804,7 @@ describe('Feature: Grace period events', () => {
   it('emits plan:grace_approaching when 30 days before grace end', async () => {
     const versionStore = new InMemoryPlanVersionStore();
     const grandfatheringStore = new InMemoryGrandfatheringStore();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
     const events: PlanEvent[] = [];
 
     // Grace ends April 1, clock is March 10 (22 days before => within 30 day window, > 7 days)
@@ -815,7 +815,7 @@ describe('Feature: Grace period events', () => {
       plans: { pro: { group: 'main', features: ['a'] } },
       versionStore,
       grandfatheringStore,
-      planStore,
+      subscriptionStore,
       clock,
     });
     manager.on((e) => events.push(e));
@@ -830,7 +830,7 @@ describe('Feature: Grace period events', () => {
   it('emits plan:grace_expiring when 7 days before grace end', async () => {
     const versionStore = new InMemoryPlanVersionStore();
     const grandfatheringStore = new InMemoryGrandfatheringStore();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
     const events: PlanEvent[] = [];
 
     // Grace ends April 1, clock is March 28 (4 days before => within 7 day window)
@@ -841,7 +841,7 @@ describe('Feature: Grace period events', () => {
       plans: { pro: { group: 'main', features: ['a'] } },
       versionStore,
       grandfatheringStore,
-      planStore,
+      subscriptionStore,
       clock,
     });
     manager.on((e) => events.push(e));
@@ -856,7 +856,7 @@ describe('Feature: Grace period events', () => {
   it('no event when grace end is far in the future', async () => {
     const versionStore = new InMemoryPlanVersionStore();
     const grandfatheringStore = new InMemoryGrandfatheringStore();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
     const events: PlanEvent[] = [];
 
     await grandfatheringStore.setGrandfathered('org-1', 'pro', 1, new Date('2027-01-01T00:00:00Z'));
@@ -866,7 +866,7 @@ describe('Feature: Grace period events', () => {
       plans: { pro: { group: 'main', features: ['a'] } },
       versionStore,
       grandfatheringStore,
-      planStore,
+      subscriptionStore,
       clock,
     });
     manager.on((e) => events.push(e));
@@ -879,7 +879,7 @@ describe('Feature: Grace period events', () => {
   it('no event for indefinitely grandfathered tenant', async () => {
     const versionStore = new InMemoryPlanVersionStore();
     const grandfatheringStore = new InMemoryGrandfatheringStore();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
     const events: PlanEvent[] = [];
 
     await grandfatheringStore.setGrandfathered('org-1', 'pro', 1, null);
@@ -889,7 +889,7 @@ describe('Feature: Grace period events', () => {
       plans: { pro: { group: 'main', features: ['a'] } },
       versionStore,
       grandfatheringStore,
-      planStore,
+      subscriptionStore,
       clock,
     });
     manager.on((e) => events.push(e));
@@ -904,7 +904,7 @@ describe('Feature: Indefinite grandfathering', () => {
   it('migrate skips indefinitely grandfathered tenants', async () => {
     const versionStore = new InMemoryPlanVersionStore();
     const grandfatheringStore = new InMemoryGrandfatheringStore();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
 
     await versionStore.createVersion('pro', 'hash-1', {
       features: ['a'],
@@ -917,7 +917,7 @@ describe('Feature: Indefinite grandfathering', () => {
       price: null,
     });
     await versionStore.setTenantVersion('org-1', 'pro', 1);
-    await planStore.assignPlan('org-1', 'pro');
+    await subscriptionStore.assign('org-1', 'pro');
     // null graceEnds = indefinite
     await grandfatheringStore.setGrandfathered('org-1', 'pro', 1, null);
 
@@ -926,7 +926,7 @@ describe('Feature: Indefinite grandfathering', () => {
       plans: { pro: { group: 'main', features: ['a', 'b'] } },
       versionStore,
       grandfatheringStore,
-      planStore,
+      subscriptionStore,
       clock,
     });
 

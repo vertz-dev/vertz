@@ -2,11 +2,11 @@ import { describe, expect, it } from 'bun:test';
 import type { BillingEvent } from '../../billing/event-emitter';
 import { createBillingEventEmitter } from '../../billing/event-emitter';
 import { createWebhookHandler, type WebhookHandlerConfig } from '../../billing/webhook-handler';
-import { InMemoryPlanStore } from '../../plan-store';
+import { InMemorySubscriptionStore } from '../../subscription-store';
 
 function makeConfig(overrides?: Partial<WebhookHandlerConfig>): WebhookHandlerConfig {
   return {
-    planStore: new InMemoryPlanStore(),
+    subscriptionStore: new InMemorySubscriptionStore(),
     emitter: createBillingEventEmitter(),
     defaultPlan: 'free',
     webhookSecret: 'whsec_test',
@@ -36,9 +36,9 @@ async function makeRequest(body: string, secret = 'whsec_test'): Promise<Request
 
 describe('Feature: Stripe webhook handler', () => {
   describe('Given subscription.created event', () => {
-    it('assigns plan to tenant via PlanStore', async () => {
-      const planStore = new InMemoryPlanStore();
-      const config = makeConfig({ planStore });
+    it('assigns plan to tenant via SubscriptionStore', async () => {
+      const subscriptionStore = new InMemorySubscriptionStore();
+      const config = makeConfig({ subscriptionStore });
       const handler = createWebhookHandler(config);
 
       const body = makeStripeEvent('customer.subscription.created', {
@@ -50,7 +50,7 @@ describe('Feature: Stripe webhook handler', () => {
       const response = await handler(await makeRequest(body));
 
       expect(response.status).toBe(200);
-      const plan = await planStore.getPlan('org-1');
+      const plan = await subscriptionStore.get('org-1');
       expect(plan).not.toBeNull();
       expect(plan?.planId).toBe('pro_monthly');
     });
@@ -58,10 +58,10 @@ describe('Feature: Stripe webhook handler', () => {
 
   describe('Given subscription.updated event (upgrade)', () => {
     it('updates tenant plan assignment', async () => {
-      const planStore = new InMemoryPlanStore();
-      await planStore.assignPlan('org-1', 'pro_monthly');
+      const subscriptionStore = new InMemorySubscriptionStore();
+      await subscriptionStore.assign('org-1', 'pro_monthly');
 
-      const config = makeConfig({ planStore });
+      const config = makeConfig({ subscriptionStore });
       const handler = createWebhookHandler(config);
 
       const body = makeStripeEvent('customer.subscription.updated', {
@@ -73,17 +73,17 @@ describe('Feature: Stripe webhook handler', () => {
       const response = await handler(await makeRequest(body));
 
       expect(response.status).toBe(200);
-      const plan = await planStore.getPlan('org-1');
+      const plan = await subscriptionStore.get('org-1');
       expect(plan?.planId).toBe('enterprise');
     });
   });
 
   describe('Given subscription.deleted event', () => {
     it('reverts tenant to defaultPlan', async () => {
-      const planStore = new InMemoryPlanStore();
-      await planStore.assignPlan('org-1', 'pro_monthly');
+      const subscriptionStore = new InMemorySubscriptionStore();
+      await subscriptionStore.assign('org-1', 'pro_monthly');
 
-      const config = makeConfig({ planStore, defaultPlan: 'free' });
+      const config = makeConfig({ subscriptionStore, defaultPlan: 'free' });
       const handler = createWebhookHandler(config);
 
       const body = makeStripeEvent('customer.subscription.deleted', {
@@ -95,7 +95,7 @@ describe('Feature: Stripe webhook handler', () => {
       const response = await handler(await makeRequest(body));
 
       expect(response.status).toBe(200);
-      const plan = await planStore.getPlan('org-1');
+      const plan = await subscriptionStore.get('org-1');
       expect(plan?.planId).toBe('free');
     });
   });
@@ -127,10 +127,10 @@ describe('Feature: Stripe webhook handler', () => {
 
   describe('Given checkout.session.completed for add-on', () => {
     it('attaches add-on to tenant', async () => {
-      const planStore = new InMemoryPlanStore();
-      await planStore.assignPlan('org-1', 'pro_monthly');
+      const subscriptionStore = new InMemorySubscriptionStore();
+      await subscriptionStore.assign('org-1', 'pro_monthly');
 
-      const config = makeConfig({ planStore });
+      const config = makeConfig({ subscriptionStore });
       const handler = createWebhookHandler(config);
 
       const body = makeStripeEvent('checkout.session.completed', {
@@ -140,7 +140,7 @@ describe('Feature: Stripe webhook handler', () => {
       const response = await handler(await makeRequest(body));
 
       expect(response.status).toBe(200);
-      const addOns = await planStore.getAddOns?.('org-1');
+      const addOns = await subscriptionStore.getAddOns?.('org-1');
       expect(addOns).toContain('export_addon');
     });
   });
@@ -163,15 +163,15 @@ describe('Feature: Stripe webhook handler', () => {
     });
   });
 
-  describe('Given PlanStore throws during processing', () => {
+  describe('Given SubscriptionStore throws during processing', () => {
     it('returns 500 response', async () => {
-      const planStore = new InMemoryPlanStore();
-      // Override assignPlan to throw
-      planStore.assignPlan = async () => {
+      const subscriptionStore = new InMemorySubscriptionStore();
+      // Override assign to throw
+      subscriptionStore.assign = async () => {
         throw new Error('Store error');
       };
 
-      const config = makeConfig({ planStore });
+      const config = makeConfig({ subscriptionStore });
       const handler = createWebhookHandler(config);
 
       const body = makeStripeEvent('customer.subscription.created', {
