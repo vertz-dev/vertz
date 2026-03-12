@@ -102,12 +102,20 @@ export { formDataToObject } from './form/form-data';
 export type { FormSchema, ValidationResult } from './form/validation';
 export { validate } from './form/validation';
 // Hydration (public API only)
-export type { ComponentFunction, ComponentLoader, ComponentRegistry } from './hydrate';
-export { hydrate } from './hydrate';
+export type {
+  ComponentFunction,
+  ComponentLoader,
+  ComponentRegistry,
+  IslandRegistry,
+} from './hydrate';
+export { hydrate, hydrateIslands } from './hydrate';
 export { buildOptimizedUrl, configureImageOptimizer } from './image/config';
 export { Image } from './image/image';
 // Image
 export type { ImageProps } from './image/types';
+// Island component
+export type { IslandProps } from './island/island';
+export { Island } from './island/island';
 export type { MountHandle, MountOptions } from './mount';
 // Mount API
 export { mount } from './mount';
