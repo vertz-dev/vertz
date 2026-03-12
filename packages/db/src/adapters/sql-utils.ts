@@ -175,10 +175,14 @@ export function buildWhereClause<T extends ColumnRecord>(
   const params: unknown[] = [];
 
   for (const [key, value] of Object.entries(where)) {
-    clauses.push(`${key} = ?`);
-    const colMeta = columns[key]?._meta as ColumnMetadata | undefined;
-    const convertedValue = convertValueForSql(value, colMeta?.sqlType);
-    params.push(convertedValue);
+    if (value === null) {
+      clauses.push(`${key} IS NULL`);
+    } else {
+      clauses.push(`${key} = ?`);
+      const colMeta = columns[key]?._meta as ColumnMetadata | undefined;
+      const convertedValue = convertValueForSql(value, colMeta?.sqlType);
+      params.push(convertedValue);
+    }
   }
 
   return { clauses, params };
