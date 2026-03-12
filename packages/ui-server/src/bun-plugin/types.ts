@@ -36,6 +36,13 @@ export interface VertzBunPluginOptions {
    * Defaults to `<projectRoot>/.vertz/generated/entity-schema.json`.
    */
   entitySchemaPath?: string;
+  /**
+   * Auto-split route component factories into lazy imports for code splitting.
+   * When true, `defineRoutes()` component factories referencing static imports
+   * are rewritten to `import()` calls at build time.
+   * Defaults to false (enabled explicitly for production client builds).
+   */
+  routeSplitting?: boolean;
 }
 
 /** CSS extractions tracked across all transformed files (for dead CSS elimination). */

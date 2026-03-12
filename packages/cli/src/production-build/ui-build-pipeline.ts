@@ -13,7 +13,15 @@
  * TypeScript without requiring bun-types in the CLI package.
  */
 
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { brotliCompressSync, constants as zlibConstants } from 'node:zlib';
 
@@ -88,6 +96,7 @@ export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
     const { plugin: clientPlugin, fileExtractions } = createVertzBunPlugin({
       hmr: false,
       fastRefresh: false,
+      routeSplitting: true,
     });
 
     const clientResult = await Bun.build({
@@ -169,7 +178,9 @@ export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
     const hasFavicon = existsSync(resolve(publicDir, 'favicon.svg'));
     const hasManifest = existsSync(resolve(publicDir, 'site.webmanifest'));
 
-    const faviconTag = hasFavicon ? '\n    <link rel="icon" type="image/svg+xml" href="/favicon.svg">' : '';
+    const faviconTag = hasFavicon
+      ? '\n    <link rel="icon" type="image/svg+xml" href="/favicon.svg">'
+      : '';
     const manifestTag = hasManifest ? '\n    <link rel="manifest" href="/site.webmanifest">' : '';
     const themeColorTag = '\n    <meta name="theme-color" content="#0a0a0b">';
 

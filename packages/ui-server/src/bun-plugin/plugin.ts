@@ -27,11 +27,11 @@ import {
   HydrationTransformer,
   regenerateFileManifest,
   resolveModuleSpecifier,
+  transformRouteSplitting,
 } from '@vertz/ui-compiler';
 import type { BunPlugin } from 'bun';
 import MagicString from 'magic-string';
 import { Project, ts } from 'ts-morph';
-
 import { injectContextStableIds } from './context-stable-ids';
 import { loadEntitySchema } from './entity-schema-loader';
 import { generateRefreshCode } from './fast-refresh-codegen';
@@ -105,6 +105,7 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
   const filter = options?.filter ?? /\.tsx$/;
   const hmr = options?.hmr ?? true;
   const fastRefresh = options?.fastRefresh ?? hmr;
+  const routeSplitting = options?.routeSplitting ?? false;
   const projectRoot = options?.projectRoot ?? process.cwd();
   const cssOutDir = options?.cssOutDir ?? resolve(projectRoot, '.vertz', 'css');
   const cssExtractor = new CSSExtractor();
@@ -220,8 +221,36 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
 
           logger?.log('plugin', 'onLoad', { file: relPath, bytes: source.length });
 
+          // ── 0. Route splitting (production only) ────────────────
+          let sourceAfterRouteSplit = source;
+          let routeSplitMap: EncodedSourceMap | null = null;
+          if (routeSplitting) {
+            const splitResult = transformRouteSplitting(source, args.path);
+            if (splitResult.transformed) {
+              sourceAfterRouteSplit = splitResult.code;
+              routeSplitMap = splitResult.map as unknown as EncodedSourceMap;
+              if (logger?.isEnabled('plugin')) {
+                for (const d of splitResult.diagnostics) {
+                  logger.log('plugin', 'route-split', {
+                    file: relPath,
+                    route: d.routePath,
+                    import: d.importSource,
+                    symbol: d.symbolName,
+                  });
+                }
+                for (const s of splitResult.skipped) {
+                  logger.log('plugin', 'route-split-skip', {
+                    file: relPath,
+                    route: s.routePath,
+                    reason: s.reason,
+                  });
+                }
+              }
+            }
+          }
+
           // ── 1. Hydration transform ─────────────────────────────
-          const hydrationS = new MagicString(source);
+          const hydrationS = new MagicString(sourceAfterRouteSplit);
           const hydrationProject = new Project({
             useInMemoryFileSystem: true,
             compilerOptions: {
@@ -229,7 +258,10 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
               strict: true,
             },
           });
-          const hydrationSourceFile = hydrationProject.createSourceFile(args.path, source);
+          const hydrationSourceFile = hydrationProject.createSourceFile(
+            args.path,
+            sourceAfterRouteSplit,
+          );
           const hydrationTransformer = new HydrationTransformer();
           hydrationTransformer.transform(hydrationS, hydrationSourceFile);
 
@@ -345,6 +377,9 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
             mapsToChain.push(imageResult.map as unknown as EncodedSourceMap);
           }
           mapsToChain.push(hydrationMap as EncodedSourceMap);
+          if (routeSplitMap) {
+            mapsToChain.push(routeSplitMap);
+          }
           const remapped = remapping(mapsToChain, () => null);
 
           // ── 5. CSS extraction → sidecar file ───────────────────
@@ -429,6 +464,7 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
           if (logger?.isEnabled('plugin')) {
             const durationMs = Math.round(performance.now() - startMs);
             const stages = [
+              routeSplitting && sourceAfterRouteSplit !== source ? 'routeSplit' : null,
               'hydration',
               fastRefresh ? 'stableIds' : null,
               'compile',
@@ -451,6 +487,48 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
           throw err;
         }
       });
+
+      // ── .ts route file handler (production route splitting only) ──
+      if (routeSplitting) {
+        build.onLoad({ filter: /\.ts$/ }, async (args) => {
+          const source = await Bun.file(args.path).text();
+
+          // Fast bail-out: must contain both defineRoutes( and a vertz import
+          if (!source.includes('defineRoutes(') || !source.includes('@vertz/ui')) {
+            return { contents: source, loader: 'ts' };
+          }
+
+          const splitResult = transformRouteSplitting(source, args.path);
+
+          if (splitResult.transformed && logger?.isEnabled('plugin')) {
+            const relPath = relative(projectRoot, args.path);
+            for (const d of splitResult.diagnostics) {
+              logger.log('plugin', 'route-split', {
+                file: relPath,
+                route: d.routePath,
+                import: d.importSource,
+                symbol: d.symbolName,
+              });
+            }
+            for (const s of splitResult.skipped) {
+              logger.log('plugin', 'route-split-skip', {
+                file: relPath,
+                route: s.routePath,
+                reason: s.reason,
+              });
+            }
+          }
+
+          // Append inline source map if the transform changed the code
+          let contents = splitResult.code;
+          if (splitResult.transformed && splitResult.map) {
+            const mapBase64 = Buffer.from(splitResult.map.toString()).toString('base64');
+            contents += `\n//# sourceMappingURL=data:application/json;base64,${mapBase64}`;
+          }
+
+          return { contents, loader: 'ts' };
+        });
+      }
     },
   };
 
