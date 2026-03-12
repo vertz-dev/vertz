@@ -48,7 +48,12 @@ const USER_URL = 'https://api.github.com/user';
 const EMAILS_URL = 'https://api.github.com/user/emails';
 const DEFAULT_SCOPES = ['read:user', 'user:email'];
 
-export function github(config: OAuthProviderConfig): OAuthProvider {
+const defaultMapProfile = (profile: GithubProfile): Record<string, unknown> => ({
+  name: profile.name ?? profile.login,
+  avatarUrl: profile.avatar_url,
+});
+
+export function github(config: OAuthProviderConfig<GithubProfile>): OAuthProvider {
   const scopes = config.scopes ?? DEFAULT_SCOPES;
 
   return {
@@ -56,6 +61,9 @@ export function github(config: OAuthProviderConfig): OAuthProvider {
     name: 'GitHub',
     scopes,
     trustEmail: false,
+    mapProfile: (config.mapProfile ?? defaultMapProfile) as (
+      raw: Record<string, unknown>,
+    ) => Record<string, unknown>,
 
     getAuthorizationUrl(state: string): string {
       const params = new URLSearchParams({
@@ -127,6 +135,8 @@ export function github(config: OAuthProviderConfig): OAuthProvider {
         providerId: String(userData.id),
         email: email?.email ?? '',
         emailVerified: email?.verified ?? false,
+        name: userData.name as string | undefined,
+        avatarUrl: userData.avatar_url as string | undefined,
         raw: userData,
       };
     },

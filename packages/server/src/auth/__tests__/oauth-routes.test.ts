@@ -29,6 +29,7 @@ function createMockProvider(overrides?: Partial<OAuthProvider>): OAuthProvider {
       providerId: 'mock-provider-id-123',
       email: 'oauth@example.com',
       emailVerified: true,
+      name: 'OAuth User',
       raw: {
         id: 'mock-provider-id-123',
         login: 'mockuser',
@@ -36,6 +37,10 @@ function createMockProvider(overrides?: Partial<OAuthProvider>): OAuthProvider {
         avatar_url: 'https://example.com/avatar.png',
         bio: 'Test bio',
       },
+    }),
+    mapProfile: (raw) => ({
+      name: (raw.name as string) ?? (raw.login as string),
+      avatarUrl: raw.avatar_url as string,
     }),
     ...overrides,
   };
@@ -515,6 +520,7 @@ describe('OAuth Routes', () => {
               providerId: 'mock-provider-id-456',
               email: '',
               emailVerified: false,
+              name: 'No Email User',
               raw: { id: 'mock-provider-id-456', name: 'No Email User' },
             }),
           }),
@@ -618,7 +624,7 @@ describe('OAuth Routes', () => {
       return { state: stateParam, cookie: cookieValue };
     }
 
-    it('OAuth sign-up creates user with only framework fields', async () => {
+    it('default mapProfile passes name and avatarUrl to created user', async () => {
       const oauthAccountStore = new InMemoryOAuthAccountStore();
       const userStore = new InMemoryUserStore();
 
@@ -639,12 +645,236 @@ describe('OAuth Routes', () => {
 
       const found = await userStore.findByEmail('oauth@example.com');
       expect(found).not.toBeNull();
-      // AuthUser only has framework fields — no name, no avatarUrl
-      expect(found?.user.email).toBe('oauth@example.com');
+      expect(found?.user.name).toBe('OAuth User');
+      expect(found?.user.avatarUrl).toBe('https://example.com/avatar.png');
+    });
+
+    it('custom mapProfile fields are on the created user', async () => {
+      const oauthAccountStore = new InMemoryOAuthAccountStore();
+      const userStore = new InMemoryUserStore();
+
+      const auth = createTestAuth({
+        providers: [
+          createMockProvider({
+            mapProfile: (raw) => ({
+              name: raw.name as string,
+              avatarUrl: raw.avatar_url as string,
+              githubUsername: raw.login as string,
+              bio: raw.bio as string,
+            }),
+          }),
+        ],
+        oauthAccountStore,
+        userStore,
+      });
+
+      const { state, cookie } = await initiateAndGetState(auth);
+
+      await auth.handler(
+        new Request(
+          `http://localhost:3000/api/auth/oauth/mock/callback?code=auth-code&state=${state}`,
+          { headers: { cookie } },
+        ),
+      );
+
+      const found = await userStore.findByEmail('oauth@example.com');
+      expect(found).not.toBeNull();
+      expect(found?.user.name).toBe('OAuth User');
+      expect(found?.user.githubUsername).toBe('mockuser');
+      expect(found?.user.bio).toBe('Test bio');
+    });
+
+    it('mapProfile returning { role: "admin" } does NOT override user role', async () => {
+      const oauthAccountStore = new InMemoryOAuthAccountStore();
+      const userStore = new InMemoryUserStore();
+
+      const auth = createTestAuth({
+        providers: [
+          createMockProvider({
+            mapProfile: () => ({
+              role: 'admin',
+              name: 'Hacker',
+            }),
+          }),
+        ],
+        oauthAccountStore,
+        userStore,
+      });
+
+      const { state, cookie } = await initiateAndGetState(auth);
+
+      await auth.handler(
+        new Request(
+          `http://localhost:3000/api/auth/oauth/mock/callback?code=auth-code&state=${state}`,
+          { headers: { cookie } },
+        ),
+      );
+
+      const found = await userStore.findByEmail('oauth@example.com');
+      expect(found).not.toBeNull();
       expect(found?.user.role).toBe('user');
+    });
+
+    it('mapProfile returning { id: "evil" } does NOT override user id', async () => {
+      const oauthAccountStore = new InMemoryOAuthAccountStore();
+      const userStore = new InMemoryUserStore();
+
+      const auth = createTestAuth({
+        providers: [
+          createMockProvider({
+            mapProfile: () => ({
+              id: 'evil-id',
+              name: 'Hacker',
+            }),
+          }),
+        ],
+        oauthAccountStore,
+        userStore,
+      });
+
+      const { state, cookie } = await initiateAndGetState(auth);
+
+      await auth.handler(
+        new Request(
+          `http://localhost:3000/api/auth/oauth/mock/callback?code=auth-code&state=${state}`,
+          { headers: { cookie } },
+        ),
+      );
+
+      const found = await userStore.findByEmail('oauth@example.com');
+      expect(found).not.toBeNull();
+      expect(found?.user.id).not.toBe('evil-id');
+      // UUID format check
       expect(found?.user.id).toMatch(
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
       );
+    });
+
+    it('mapProfile returning { email: "evil@hacker.com" } does NOT override email', async () => {
+      const oauthAccountStore = new InMemoryOAuthAccountStore();
+      const userStore = new InMemoryUserStore();
+
+      const auth = createTestAuth({
+        providers: [
+          createMockProvider({
+            mapProfile: () => ({
+              email: 'evil@hacker.com',
+              name: 'Hacker',
+            }),
+          }),
+        ],
+        oauthAccountStore,
+        userStore,
+      });
+
+      const { state, cookie } = await initiateAndGetState(auth);
+
+      await auth.handler(
+        new Request(
+          `http://localhost:3000/api/auth/oauth/mock/callback?code=auth-code&state=${state}`,
+          { headers: { cookie } },
+        ),
+      );
+
+      const found = await userStore.findByEmail('oauth@example.com');
+      expect(found).not.toBeNull();
+      expect(found?.user.email).toBe('oauth@example.com');
+    });
+
+    it('mapProfile returning { emailVerified: true } does NOT override emailVerified', async () => {
+      const oauthAccountStore = new InMemoryOAuthAccountStore();
+      const userStore = new InMemoryUserStore();
+
+      const auth = createTestAuth({
+        providers: [
+          createMockProvider({
+            getUserInfo: async () => ({
+              providerId: 'mock-provider-id-123',
+              email: 'oauth@example.com',
+              emailVerified: false,
+              name: 'OAuth User',
+              raw: { id: 'mock-provider-id-123' },
+            }),
+            mapProfile: () => ({
+              emailVerified: true,
+              name: 'Hacker',
+            }),
+          }),
+        ],
+        oauthAccountStore,
+        userStore,
+      });
+
+      const { state, cookie } = await initiateAndGetState(auth);
+
+      await auth.handler(
+        new Request(
+          `http://localhost:3000/api/auth/oauth/mock/callback?code=auth-code&state=${state}`,
+          { headers: { cookie } },
+        ),
+      );
+
+      const found = await userStore.findByEmail('oauth@example.com');
+      expect(found).not.toBeNull();
+      expect(found?.user.emailVerified).toBe(false);
+    });
+
+    it('mapProfile throwing redirects with profile_mapping_failed error', async () => {
+      const oauthAccountStore = new InMemoryOAuthAccountStore();
+      const userStore = new InMemoryUserStore();
+
+      const auth = createTestAuth({
+        providers: [
+          createMockProvider({
+            mapProfile: () => {
+              throw new Error('Unexpected profile shape');
+            },
+          }),
+        ],
+        oauthAccountStore,
+        userStore,
+      });
+
+      const { state, cookie } = await initiateAndGetState(auth);
+
+      const res = await auth.handler(
+        new Request(
+          `http://localhost:3000/api/auth/oauth/mock/callback?code=auth-code&state=${state}`,
+          { headers: { cookie } },
+        ),
+      );
+
+      expect(res.status).toBe(302);
+      const location = res.headers.get('Location') ?? '';
+      expect(location).toContain('error=profile_mapping_failed');
+    });
+
+    it('mapProfile returning non-object is treated as empty', async () => {
+      const oauthAccountStore = new InMemoryOAuthAccountStore();
+      const userStore = new InMemoryUserStore();
+
+      const auth = createTestAuth({
+        providers: [
+          createMockProvider({
+            mapProfile: () => 'not an object' as unknown as Record<string, unknown>,
+          }),
+        ],
+        oauthAccountStore,
+        userStore,
+      });
+
+      const { state, cookie } = await initiateAndGetState(auth);
+
+      await auth.handler(
+        new Request(
+          `http://localhost:3000/api/auth/oauth/mock/callback?code=auth-code&state=${state}`,
+          { headers: { cookie } },
+        ),
+      );
+
+      const found = await userStore.findByEmail('oauth@example.com');
+      expect(found).not.toBeNull();
+      expect(found?.user.role).toBe('user');
     });
   });
 

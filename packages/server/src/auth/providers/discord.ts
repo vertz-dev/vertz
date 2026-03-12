@@ -31,7 +31,17 @@ const TOKEN_URL = 'https://discord.com/api/oauth2/token';
 const USER_URL = 'https://discord.com/api/users/@me';
 const DEFAULT_SCOPES = ['identify', 'email'];
 
-export function discord(config: OAuthProviderConfig): OAuthProvider {
+const defaultMapProfile = (profile: DiscordProfile): Record<string, unknown> => {
+  const avatar = profile.avatar;
+  return {
+    name: profile.global_name ?? profile.username,
+    avatarUrl: avatar
+      ? `https://cdn.discordapp.com/avatars/${profile.id}/${avatar}.png`
+      : undefined,
+  };
+};
+
+export function discord(config: OAuthProviderConfig<DiscordProfile>): OAuthProvider {
   const scopes = config.scopes ?? DEFAULT_SCOPES;
 
   return {
@@ -39,6 +49,9 @@ export function discord(config: OAuthProviderConfig): OAuthProvider {
     name: 'Discord',
     scopes,
     trustEmail: false,
+    mapProfile: (config.mapProfile ?? defaultMapProfile) as (
+      raw: Record<string, unknown>,
+    ) => Record<string, unknown>,
 
     getAuthorizationUrl(state: string, codeChallenge?: string): string {
       const params = new URLSearchParams({
@@ -96,10 +109,15 @@ export function discord(config: OAuthProviderConfig): OAuthProvider {
 
       const data = (await response.json()) as Record<string, unknown>;
 
+      const id = data.id as string;
+      const avatar = data.avatar as string | undefined;
+
       return {
-        providerId: data.id as string,
+        providerId: id,
         email: (data.email as string | undefined) ?? '',
         emailVerified: (data.verified as boolean | undefined) ?? false,
+        name: (data.global_name as string | undefined) ?? (data.username as string),
+        avatarUrl: avatar ? `https://cdn.discordapp.com/avatars/${id}/${avatar}.png` : undefined,
         raw: data,
       };
     },
