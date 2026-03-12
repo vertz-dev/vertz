@@ -24,6 +24,7 @@ import { dirname, normalize, resolve } from 'node:path';
 import type { FontFallbackMetrics } from '@vertz/ui';
 import { imageContentType, isValidImageName } from './bun-plugin/image-paths';
 import { createDebugLogger } from './debug-logger';
+import { handleDevImageProxy } from './dev-image-proxy';
 import { DiagnosticsCollector } from './diagnostics-collector';
 import { installFetchProxy, runWithScopedFetch } from './fetch-scope';
 import { extractFontMetrics } from './font-metrics';
@@ -1124,6 +1125,11 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
         // Diagnostics endpoint — JSON snapshot of server state
         if (pathname === '/__vertz_diagnostics') {
           return Response.json(diagnostics.getSnapshot());
+        }
+
+        // Dev-mode image proxy — passthrough for runtime image optimization URLs
+        if (pathname === '/_vertz/image') {
+          return handleDevImageProxy(request);
         }
 
         // Optimized image serving — serve processed images from .vertz/images/
