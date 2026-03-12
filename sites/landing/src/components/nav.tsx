@@ -1,4 +1,5 @@
 import { css } from '@vertz/ui';
+import { Link } from '@vertz/ui/router';
 import { VertzLogo } from './vertz-logo';
 
 const s = css({
@@ -21,13 +22,13 @@ export function Nav() {
       class={s.nav}
       style="top: 0; left: 0; right: 0; background: rgba(10,10,11,0.8); backdrop-filter: blur(12px); border-bottom: 2px solid rgba(255,255,255,0.04)"
     >
-      <a href="/" class={s.logoWrapper}>
+      <Link href="/" className={s.logoWrapper}>
         <VertzLogo />
-      </a>
+      </Link>
       <div class={s.links}>
-        <a href="/manifesto" class={s.link}>
+        <Link href="/manifesto" className={s.link}>
           Manifesto
-        </a>
+        </Link>
         <a
           href="https://github.com/vertz-dev/vertz"
           target="_blank"
