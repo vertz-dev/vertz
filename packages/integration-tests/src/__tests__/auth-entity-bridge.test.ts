@@ -263,6 +263,10 @@ describe('Feature: Auth-entity bridge via onUserCreated', () => {
         expect(emailPayload.signUpData).not.toHaveProperty('password');
         expect(emailPayload.signUpData).not.toHaveProperty('role');
         expect(emailPayload.signUpData).not.toHaveProperty('id');
+        expect(emailPayload.signUpData).not.toHaveProperty('createdAt');
+        expect(emailPayload.signUpData).not.toHaveProperty('updatedAt');
+        expect(emailPayload.signUpData).not.toHaveProperty('plan');
+        expect(emailPayload.signUpData).not.toHaveProperty('emailVerified');
       });
 
       it('Then the developer can populate their users entity via ctx.entities', async () => {
@@ -384,6 +388,7 @@ describe('Feature: Auth-entity bridge via onUserCreated', () => {
           }),
         );
 
+        expect(res.status).toBe(400);
         const body = await res.json();
         expect(body.error).toBeDefined();
         expect(body.error.code).toBe('AUTH_VALIDATION_ERROR');
@@ -418,6 +423,43 @@ describe('Feature: Auth-entity bridge via onUserCreated', () => {
         // User exists in auth store
         const found = await userStore.findByEmail('normal@example.com');
         expect(found).not.toBeNull();
+      });
+    });
+
+    describe('When an existing OAuth user signs in again', () => {
+      it('Then onUserCreated does NOT fire (only fires for new users)', async () => {
+        const userStore = new InMemoryUserStore();
+        const oauthAccountStore = new InMemoryOAuthAccountStore();
+        let callbackCount = 0;
+
+        const auth = createTestAuth({
+          providers: [createMockProvider()],
+          userStore,
+          oauthAccountStore,
+          onUserCreated: async () => {
+            callbackCount++;
+          },
+        });
+
+        // First sign-up — callback should fire
+        const { state: state1, cookie: cookie1 } = await initiateOAuthFlow(auth);
+        await auth.handler(
+          new Request(
+            `http://localhost:3000/api/auth/oauth/github/callback?code=auth-code&state=${state1}`,
+            { headers: { cookie: cookie1 } },
+          ),
+        );
+        expect(callbackCount).toBe(1);
+
+        // Second sign-in with same provider account — callback should NOT fire
+        const { state: state2, cookie: cookie2 } = await initiateOAuthFlow(auth);
+        await auth.handler(
+          new Request(
+            `http://localhost:3000/api/auth/oauth/github/callback?code=auth-code&state=${state2}`,
+            { headers: { cookie: cookie2 } },
+          ),
+        );
+        expect(callbackCount).toBe(1); // Still 1 — not fired again
       });
     });
 
