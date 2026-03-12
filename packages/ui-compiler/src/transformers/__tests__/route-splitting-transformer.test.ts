@@ -441,7 +441,7 @@ describe('Feature: Route splitting bail-outs', () => {
       it('Then returns a valid source map', () => {
         const result = transformRouteSplitting(input, '/app/src/router.ts');
         expect(result.map).not.toBeNull();
-        expect(result.map!.sources).toContain('/app/src/router.ts');
+        expect(result.map?.sources).toContain('/app/src/router.ts');
       });
     });
   });

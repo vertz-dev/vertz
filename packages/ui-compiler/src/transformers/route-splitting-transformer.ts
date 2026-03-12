@@ -232,7 +232,7 @@ function processRouteObject(
 
     // Process `component` property
     const componentProp = routeConfig.getProperty('component');
-    if (componentProp && componentProp.isKind(SyntaxKind.PropertyAssignment)) {
+    if (componentProp?.isKind(SyntaxKind.PropertyAssignment)) {
       const factory = componentProp.getInitializer();
       processComponentFactory(
         factory,
@@ -248,9 +248,9 @@ function processRouteObject(
 
     // Recurse into `children`
     const childrenProp = routeConfig.getProperty('children');
-    if (childrenProp && childrenProp.isKind(SyntaxKind.PropertyAssignment)) {
+    if (childrenProp?.isKind(SyntaxKind.PropertyAssignment)) {
       const childrenInit = childrenProp.getInitializer();
-      if (childrenInit && childrenInit.isKind(SyntaxKind.ObjectLiteralExpression)) {
+      if (childrenInit?.isKind(SyntaxKind.ObjectLiteralExpression)) {
         processRouteObject(
           childrenInit as ObjectLiteralExpression,
           s,
