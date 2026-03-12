@@ -68,7 +68,7 @@ describe('Feature: Automatic route code splitting', () => {
     });
   });
 
-  describe('Given a route file with JSX component factories', () => {
+  describe('Given a route file with JSX component factories (no props)', () => {
     const input = [
       "import { defineRoutes } from '@vertz/ui';",
       "import { HomePage } from './pages/home';",
@@ -84,6 +84,48 @@ describe('Feature: Automatic route code splitting', () => {
         expect(result.transformed).toBe(true);
         expect(result.code).toContain("import('./pages/home')");
         expect(result.code).toContain('.then(m => ({ default: () => m.HomePage() }))');
+      });
+    });
+  });
+
+  describe('Given a route file with JSX component factories (with props)', () => {
+    const input = [
+      "import { defineRoutes } from '@vertz/ui';",
+      "import { Page } from './pages/page';",
+      '',
+      'export const routes = defineRoutes({',
+      '  \'/\': { component: () => <Page title="Hello" count={42} /> },',
+      '});',
+    ].join('\n');
+
+    describe('When transformRouteSplitting is called', () => {
+      it('Then preserves JSX props as function arguments', () => {
+        const result = transformRouteSplitting(input, '/app/src/router.tsx');
+        expect(result.transformed).toBe(true);
+        expect(result.code).toContain(
+          '.then(m => ({ default: () => m.Page({ title: "Hello", count: 42 }) }))',
+        );
+      });
+    });
+  });
+
+  describe('Given an aliased import', () => {
+    const input = [
+      "import { defineRoutes } from '@vertz/ui';",
+      "import { SomePage as Page } from './pages/some-page';",
+      '',
+      'export const routes = defineRoutes({',
+      "  '/': { component: () => Page() },",
+      '});',
+    ].join('\n');
+
+    describe('When transformRouteSplitting is called', () => {
+      it('Then uses the original exported name in the lazy import', () => {
+        const result = transformRouteSplitting(input, '/app/src/router.ts');
+        expect(result.transformed).toBe(true);
+        // Must use m.SomePage (the exported name), not m.Page (the local alias)
+        expect(result.code).toContain('.then(m => ({ default: () => m.SomePage() }))');
+        expect(result.code).not.toContain('m.Page()');
       });
     });
   });

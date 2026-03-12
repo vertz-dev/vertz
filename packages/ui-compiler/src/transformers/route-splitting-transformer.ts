@@ -53,6 +53,8 @@ export interface RouteSplittingResult {
 interface ImportInfo {
   source: string;
   localName: string;
+  /** The original exported name (differs from localName when aliased: `import { X as Y }`). */
+  exportedName: string;
   isDefault: boolean;
   importDecl: ImportDeclaration;
 }
@@ -164,6 +166,7 @@ function buildImportMap(sf: SourceFile): Map<string, ImportInfo> {
       map.set(defaultImport.getText(), {
         source,
         localName: defaultImport.getText(),
+        exportedName: 'default',
         isDefault: true,
         importDecl: imp,
       });
@@ -172,9 +175,11 @@ function buildImportMap(sf: SourceFile): Map<string, ImportInfo> {
     // Named imports
     for (const named of imp.getNamedImports()) {
       const localName = named.getAliasNode()?.getText() ?? named.getName();
+      const exportedName = named.getName(); // Original export name (before alias)
       map.set(localName, {
         source,
         localName,
+        exportedName,
         isDefault: false,
         importDecl: imp,
       });
@@ -318,10 +323,14 @@ function processComponentFactory(
     // () => <X /> or () => <X prop={val} />
     const tagName = body.getTagNameNode();
     symbolName = tagName.getText();
+    const attrs = body.getAttributes();
+    if (attrs.length > 0) {
+      argsText = jsxAttrsToObjectLiteral(attrs);
+    }
   } else if (body.isKind(SyntaxKind.JsxElement)) {
-    // () => <X>...</X>
-    const tagName = body.getOpeningElement().getTagNameNode();
-    symbolName = tagName.getText();
+    // () => <X>...</X> — bail out for elements with children (complex case)
+    skipped.push({ routePath, reason: 'block-body' });
+    return;
   }
 
   if (!symbolName) {
@@ -342,8 +351,8 @@ function processComponentFactory(
     return;
   }
 
-  // Generate the lazy import replacement
-  const memberAccess = importInfo.isDefault ? 'm.default' : `m.${symbolName}`;
+  // Generate the lazy import replacement — use exportedName (not local alias)
+  const memberAccess = importInfo.isDefault ? 'm.default' : `m.${importInfo.exportedName}`;
   const callArgs = argsText ? `(${argsText})` : '()';
   const lazyCode = `() => import('${importInfo.source}').then(m => ({ default: () => ${memberAccess}${callArgs} }))`;
 
@@ -356,6 +365,32 @@ function processComponentFactory(
     importSource: importInfo.source,
     symbolName,
   });
+}
+
+/** Convert JSX attributes to an object literal string for function call arguments. */
+function jsxAttrsToObjectLiteral(attrs: Node[]): string {
+  const props: string[] = [];
+  for (const attr of attrs) {
+    if (attr.isKind(SyntaxKind.JsxAttribute)) {
+      const name = attr.getNameNode().getText();
+      const initializer = attr.getInitializer();
+      if (!initializer) {
+        // Boolean attribute: <X disabled /> → { disabled: true }
+        props.push(`${name}: true`);
+      } else if (initializer.isKind(SyntaxKind.StringLiteral)) {
+        props.push(`${name}: ${initializer.getText()}`);
+      } else if (initializer.isKind(SyntaxKind.JsxExpression)) {
+        const expr = initializer.getExpression();
+        if (expr) {
+          props.push(`${name}: ${expr.getText()}`);
+        }
+      }
+    } else if (attr.isKind(SyntaxKind.JsxSpreadAttribute)) {
+      const expr = attr.getExpression();
+      props.push(`...${expr.getText()}`);
+    }
+  }
+  return `{ ${props.join(', ')} }`;
 }
 
 /** Check if a symbol is used in the file outside of defineRoutes component factories. */

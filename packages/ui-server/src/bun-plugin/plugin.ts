@@ -223,10 +223,12 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
 
           // ── 0. Route splitting (production only) ────────────────
           let sourceAfterRouteSplit = source;
+          let routeSplitMap: EncodedSourceMap | null = null;
           if (routeSplitting) {
             const splitResult = transformRouteSplitting(source, args.path);
             if (splitResult.transformed) {
               sourceAfterRouteSplit = splitResult.code;
+              routeSplitMap = splitResult.map as unknown as EncodedSourceMap;
               if (logger?.isEnabled('plugin')) {
                 for (const d of splitResult.diagnostics) {
                   logger.log('plugin', 'route-split', {
@@ -256,7 +258,10 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
               strict: true,
             },
           });
-          const hydrationSourceFile = hydrationProject.createSourceFile(args.path, source);
+          const hydrationSourceFile = hydrationProject.createSourceFile(
+            args.path,
+            sourceAfterRouteSplit,
+          );
           const hydrationTransformer = new HydrationTransformer();
           hydrationTransformer.transform(hydrationS, hydrationSourceFile);
 
@@ -372,6 +377,9 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
             mapsToChain.push(imageResult.map as unknown as EncodedSourceMap);
           }
           mapsToChain.push(hydrationMap as EncodedSourceMap);
+          if (routeSplitMap) {
+            mapsToChain.push(routeSplitMap);
+          }
           const remapped = remapping(mapsToChain, () => null);
 
           // ── 5. CSS extraction → sidecar file ───────────────────
