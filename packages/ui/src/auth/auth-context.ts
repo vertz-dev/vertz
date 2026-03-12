@@ -121,6 +121,9 @@ export function AuthProvider({
     }, 0);
   }
 
+  // Timer for deferred refresh — canceled if signIn/signUp is called before it fires
+  let deferredRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+
   const isAuthenticated = computed(() => statusSignal.value === 'authenticated');
   const isLoading = computed(() => statusSignal.value === 'loading');
 
@@ -194,6 +197,10 @@ export function AuthProvider({
 
   const signIn = Object.assign(
     async (body: SignInInput): Promise<Result<AuthResponse, Error>> => {
+      if (deferredRefreshTimer) {
+        clearTimeout(deferredRefreshTimer);
+        deferredRefreshTimer = null;
+      }
       statusSignal.value = 'loading';
       errorSignal.value = null;
       const result = await signInMethod(body);
@@ -219,6 +226,10 @@ export function AuthProvider({
 
   const signUp = Object.assign(
     async (body: SignUpInput): Promise<Result<AuthResponse, Error>> => {
+      if (deferredRefreshTimer) {
+        clearTimeout(deferredRefreshTimer);
+        deferredRefreshTimer = null;
+      }
       statusSignal.value = 'loading';
       errorSignal.value = null;
       const result = await signUpMethod(body);
@@ -432,7 +443,10 @@ export function AuthProvider({
       // SSR flushes microtasks (queueMicrotask won't work), but not macrotasks.
       // This keeps status at 'idle' during SSR → AuthGuard renders "Loading...".
       // On the client, setTimeout(0) fires after hydration → refresh() runs.
-      setTimeout(() => void refresh(), 0);
+      deferredRefreshTimer = setTimeout(() => {
+        deferredRefreshTimer = null;
+        void refresh();
+      }, 0);
     }
   }
 

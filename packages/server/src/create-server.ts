@@ -299,9 +299,15 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
       // Auto-wire DB-backed stores unless explicitly overridden
       userStore: config.auth.userStore ?? new DbUserStore(dbClient),
       sessionStore: config.auth.sessionStore ?? new DbSessionStore(dbClient),
-      oauthAccountStore: config.auth.oauthAccountStore ?? new DbOAuthAccountStore(dbClient),
-      // Wire entity registry into auth for onUserCreated callback
-      _entityProxy: config.auth._entityProxy ?? registry.createProxy(),
+      // Only auto-wire OAuth account store when providers are configured
+      oauthAccountStore:
+        config.auth.oauthAccountStore ??
+        (config.auth.providers?.length ? new DbOAuthAccountStore(dbClient) : undefined),
+      // Only create entity proxy when onUserCreated callback exists
+      _entityProxy:
+        config.auth.onUserCreated
+          ? (config.auth._entityProxy ?? registry.createProxy())
+          : undefined,
     };
 
     const auth = createAuth(authConfig);
