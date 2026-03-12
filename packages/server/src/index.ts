@@ -114,6 +114,7 @@ export type {
   OAuthTokens,
   OAuthUserInfo,
   OnUserCreatedPayload,
+  OrgPlan,
   OverageConfig,
   OverageInput,
   OverrideStore,

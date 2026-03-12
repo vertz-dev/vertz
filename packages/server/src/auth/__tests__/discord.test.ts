@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import type { DiscordProfile } from '../providers/discord';
 import { discord } from '../providers/discord';
 
 describe('discord provider', () => {
@@ -126,95 +125,6 @@ describe('discord provider', () => {
       expect(userInfo.raw.locale).toBe('en-US');
       expect(userInfo.raw.mfa_enabled).toBe(true);
       expect(userInfo.raw.premium_type).toBe(2);
-    });
-
-    it('includes raw with the full Discord API response', async () => {
-      const discordUserData = {
-        id: '123456789',
-        username: 'discorduser',
-        discriminator: '1234',
-        global_name: 'Discord User',
-        avatar: 'abc123',
-        banner: 'def456',
-        accent_color: 0x1abc9c,
-        email: 'user@discord.com',
-        verified: true,
-        locale: 'en-US',
-        mfa_enabled: true,
-        premium_type: 2,
-        public_flags: 131072,
-      };
-      globalThis.fetch = async () => new Response(JSON.stringify(discordUserData));
-
-      const provider = discord(config);
-      const userInfo = await provider.getUserInfo('discord-token');
-
-      expect(userInfo.raw).toBeDefined();
-      expect(userInfo.raw.username).toBe('discorduser');
-      expect(userInfo.raw.discriminator).toBe('1234');
-      expect(userInfo.raw.locale).toBe('en-US');
-      expect(userInfo.raw.mfa_enabled).toBe(true);
-      expect(userInfo.raw.premium_type).toBe(2);
-    });
-  });
-
-  describe('mapProfile', () => {
-    it('has a default mapProfile that returns name and avatarUrl', () => {
-      const provider = discord(config);
-      const result = provider.mapProfile({
-        id: '123456789',
-        global_name: 'Discord User',
-        username: 'discorduser',
-        avatar: 'abc123',
-      });
-      expect(result).toEqual({
-        name: 'Discord User',
-        avatarUrl: 'https://cdn.discordapp.com/avatars/123456789/abc123.png',
-      });
-    });
-
-    it('default mapProfile falls back to username when global_name is null', () => {
-      const provider = discord(config);
-      const result = provider.mapProfile({
-        id: '123456789',
-        global_name: null,
-        username: 'discorduser',
-        avatar: 'abc123',
-      });
-      expect(result.name).toBe('discorduser');
-    });
-
-    it('default mapProfile returns undefined avatarUrl when avatar is null', () => {
-      const provider = discord(config);
-      const result = provider.mapProfile({
-        id: '123456789',
-        global_name: 'Discord User',
-        username: 'discorduser',
-        avatar: null,
-      });
-      expect(result.avatarUrl).toBeUndefined();
-    });
-
-    it('uses custom mapProfile when provided', () => {
-      const provider = discord({
-        ...config,
-        mapProfile: (profile: DiscordProfile) => ({
-          name: profile.global_name ?? profile.username,
-          locale: profile.locale,
-          discriminator: profile.discriminator,
-        }),
-      });
-      const result = provider.mapProfile({
-        global_name: 'Discord User',
-        username: 'discorduser',
-        locale: 'en-US',
-        discriminator: '1234',
-      });
-      expect(result).toEqual({
-        name: 'Discord User',
-        locale: 'en-US',
-        discriminator: '1234',
-      });
     });
   });
 });

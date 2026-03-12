@@ -158,12 +158,11 @@ export interface MfaChallengeData {
 // OAuth Types
 // ============================================================================
 
-export interface OAuthProviderConfig<TProfile = Record<string, unknown>> {
+export interface OAuthProviderConfig {
   clientId: string;
   clientSecret: string;
   redirectUrl?: string;
   scopes?: string[];
-  mapProfile?: (profile: TProfile) => Record<string, unknown>;
 }
 
 export interface OAuthTokens {
@@ -177,8 +176,6 @@ export interface OAuthUserInfo {
   providerId: string;
   email: string;
   emailVerified: boolean;
-  name?: string;
-  avatarUrl?: string;
   raw: Record<string, unknown>;
 }
 
@@ -190,7 +187,6 @@ export interface OAuthProvider {
   getAuthorizationUrl: (state: string, codeChallenge?: string, nonce?: string) => string;
   exchangeCode: (code: string, codeVerifier?: string) => Promise<OAuthTokens>;
   getUserInfo: (accessToken: string, idToken?: string, nonce?: string) => Promise<OAuthUserInfo>;
-  mapProfile: (raw: Record<string, unknown>) => Record<string, unknown>;
 }
 
 export interface OAuthAccountStore {
