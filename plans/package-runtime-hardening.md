@@ -138,11 +138,15 @@ After this change:
 
 **Full report:** [plans/poc-cli-ui-compiler-contract.md](./poc-cli-ui-compiler-contract.md)
 
-### 5.2 Cloudflare runtime adapter harness POC — Pending
+### 5.2 Cloudflare runtime adapter harness POC — Complete
 
-Required POCs before implementation:
+**Question:** What is the smallest reliable local runtime for Cloudflare adapter tests?
 
-- Cloudflare runtime adapter harness POC
+**What was tried:** Evaluated three approaches: (1) contract-level simulation wrapping `createHandler()` from `@vertz/cloudflare` and serving via `Bun.serve` with mock `ExecutionContext`, (2) Miniflare/workerd-based execution in a real Worker process, (3) workerd as a subprocess. Built and ran a validation spike for approach 1.
+
+**What was learned:** Contract-level simulation is the right approach. The `RuntimeAdapter` interface passes function closures, which cannot cross process boundaries — making Miniflare/workerd fundamentally incompatible without rewriting the test architecture. The simulation wraps the handler through `createHandler()`, exercises the full Cloudflare handler pipeline, and requires zero new dependencies. The `RuntimeAdapter` contract needs no changes. Phase 2 can proceed immediately.
+
+**Full report:** [plans/poc-cloudflare-runtime-harness.md](./poc-cloudflare-runtime-harness.md)
 
 ## 6. Type Flow Map
 
