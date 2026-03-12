@@ -140,7 +140,14 @@ export function createAuth(config: AuthConfig): AuthInstance {
     throw new Error(`Session strategy "${session.strategy}" is not yet supported. Use "jwt".`);
   }
 
-  const cookieConfig = { ...DEFAULT_COOKIE_CONFIG, ...session.cookie };
+  const ttlSeconds = Math.floor(parseDuration(session.ttl) / 1000);
+  const cookieConfig = {
+    ...DEFAULT_COOKIE_CONFIG,
+    // Cookie maxAge should match JWT TTL by default so the browser keeps
+    // the cookie alive for the lifetime of the JWT.
+    maxAge: ttlSeconds,
+    ...session.cookie,
+  };
   const refreshName = session.refreshName ?? 'vertz.ref';
   const refreshTtlMs = parseDuration(session.refreshTtl ?? '7d');
   const refreshMaxAge = Math.floor(refreshTtlMs / 1000);
@@ -160,7 +167,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
     );
   }
 
-  const ttlMs = parseDuration(session.ttl);
+  const ttlMs = ttlSeconds * 1000;
 
   // Pre-computed dummy hash for timing-safe user enumeration protection.
   // When a sign-in attempt uses an unknown email, we bcrypt.compare against this

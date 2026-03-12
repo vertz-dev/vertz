@@ -428,8 +428,11 @@ export function AuthProvider({
         tokenRefresh.schedule(session.expiresAt);
       }
     } else {
-      // No session found — resolve to unauthenticated immediately
-      statusSignal.value = 'unauthenticated';
+      // No SSR-hydrated session — schedule refresh via setTimeout(0).
+      // SSR flushes microtasks (queueMicrotask won't work), but not macrotasks.
+      // This keeps status at 'idle' during SSR → AuthGuard renders "Loading...".
+      // On the client, setTimeout(0) fires after hydration → refresh() runs.
+      setTimeout(() => void refresh(), 0);
     }
   }
 

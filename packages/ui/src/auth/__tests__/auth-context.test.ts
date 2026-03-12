@@ -94,9 +94,8 @@ describe('AuthProvider', () => {
   it('initializes with no user and not authenticated', () => {
     const auth = captureAuth();
 
-    // Status is 'idle' (no window) or 'unauthenticated' (window exists, no session)
-    const expectedStatus = typeof window !== 'undefined' ? 'unauthenticated' : 'idle';
-    expect(auth.status).toBe(expectedStatus);
+    // Status is always 'idle' initially — refresh is deferred via setTimeout(0)
+    expect(auth.status).toBe('idle');
     expect(auth.user).toBeNull();
     expect(auth.isAuthenticated).toBe(false);
     expect(auth.isLoading).toBe(false);
@@ -744,12 +743,14 @@ describe('AuthProvider', () => {
       restoreWindow();
     });
 
-    it('transitions to unauthenticated when no session in window', () => {
+    it('stays idle when no session in window (refresh is deferred)', () => {
       setWindow(createFakeWindow());
 
       const auth = captureAuth();
 
-      expect(auth.status).toBe('unauthenticated');
+      // With no SSR session, refresh is scheduled via setTimeout(0),
+      // so status stays 'idle' synchronously — SSR renders loading state.
+      expect(auth.status).toBe('idle');
       expect(auth.user).toBeNull();
 
       restoreWindow();
@@ -926,8 +927,11 @@ describe('AuthProvider', () => {
         if (urlStr.includes('/access-set')) {
           return new Response(JSON.stringify(accessSetData), { status: 200 });
         }
-        // providers or other
-        return new Response('[]', { status: 200 });
+        if (urlStr.includes('/providers')) {
+          return new Response('[]', { status: 200 });
+        }
+        // Deferred refresh from setTimeout(0) — return 401 (no session)
+        return new Response('', { status: 401 });
       });
 
       let auth: ReturnType<typeof useAuth> | undefined;
@@ -945,12 +949,13 @@ describe('AuthProvider', () => {
       // Wait for the access set fetch to complete
       await new Promise((r) => setTimeout(r, 50));
 
-      // Verify access set was fetched
-      const accessSetCalls = fetchSpy.mock.calls.filter(
-        (c) => typeof c[0] === 'string' && (c[0] as string).includes('/access-set'),
-      );
-      expect(accessSetCalls.length).toBe(1);
-      const [accessUrl, accessInit] = accessSetCalls[0] as [string, RequestInit];
+      // Verify access set was fetched — find the access-set call among all calls
+      const accessSetCall = fetchSpy.mock.calls.find((call) => {
+        const u = typeof call[0] === 'string' ? call[0] : (call[0] as Request).url;
+        return u.includes('/access-set');
+      });
+      expect(accessSetCall).toBeDefined();
+      const [accessUrl, accessInit] = accessSetCall as [string, RequestInit];
       expect(accessUrl).toBe('/api/auth/access-set');
       expect(accessInit.credentials).toBe('include');
 

@@ -93,19 +93,15 @@ export class DbSessionStore implements SessionStore {
 
   async findActiveSessionById(id: string): Promise<StoredSession | null> {
     const nowStr = new Date().toISOString();
-    const result = await this.db.auth_sessions.get({
-      where: {
-        id,
-        revokedAt: null,
-        expiresAt: { gt: nowStr },
-      },
-    });
+    const result = await this.db.query<SessionRow>(
+      sql`SELECT * FROM auth_sessions WHERE id = ${id} AND revoked_at IS NULL AND expires_at > ${nowStr} LIMIT 1`,
+    );
 
     if (!result.ok) return null;
-    const row = result.data;
+    const row = result.data.rows[0];
     if (!row) return null;
 
-    return this.recordToSession(row as SessionRecord);
+    return this.rowToSession(row);
   }
 
   async findByPreviousRefreshHash(hash: string): Promise<StoredSession | null> {

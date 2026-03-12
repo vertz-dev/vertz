@@ -32,25 +32,6 @@ export const SIGNAL_API_REGISTRY: Record<string, SignalApiConfig> = {
     signalProperties: new Set(['allowed', 'reasons', 'reason', 'meta', 'loading']),
     plainProperties: new Set([]),
   },
-  useAuth: {
-    signalProperties: new Set([
-      'user',
-      'status',
-      'isAuthenticated',
-      'isLoading',
-      'error',
-      'providers',
-    ]),
-    plainProperties: new Set([
-      'signIn',
-      'signUp',
-      'signOut',
-      'refresh',
-      'mfaChallenge',
-      'forgotPassword',
-      'resetPassword',
-    ]),
-  },
 };
 
 /**
@@ -59,7 +40,7 @@ export const SIGNAL_API_REGISTRY: Record<string, SignalApiConfig> = {
  * reactive source APIs return objects where ALL property accesses
  * should be treated as reactive (e.g., useContext returns getter-wrapped objects).
  */
-export const REACTIVE_SOURCE_APIS = new Set(['useContext']);
+export const REACTIVE_SOURCE_APIS = new Set(['useContext', 'useAuth']);
 
 /**
  * Check if a function name is a registered signal API.
