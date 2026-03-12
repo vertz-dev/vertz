@@ -646,7 +646,7 @@ export function ProductsLayout({ children }: { children: any }) {
       <div class={sectionStyles.header}>
         <span class={sectionStyles.headerTitle}>Products</span>
         {' — '}
-        <Link href="/products" className={sectionStyles.headerLink}>All</Link>
+        <Link href="/products" class={sectionStyles.headerLink}>All</Link>
       </div>
       {children}
     </div>
@@ -665,7 +665,7 @@ export function BlogLayout({ children }: { children: any }) {
       <div class={sectionStyles.header}>
         <span class={sectionStyles.headerTitle}>Blog</span>
         {' — '}
-        <Link href="/blog" className={sectionStyles.headerLink}>All Posts</Link>
+        <Link href="/blog" class={sectionStyles.headerLink}>All Posts</Link>
       </div>
       <Search placeholder="Search posts..." />
       {children}
@@ -695,10 +695,10 @@ export function DashboardLayout({ children }: { children: any }) {
       <aside class={styles.sidebar} style="width: 200px; flex-shrink: 0">
         <h3 class={styles.sidebarTitle}>Dashboard</h3>
         <nav class={styles.nav}>
-          <Link href="/dashboard" className={styles.navLink}>Overview</Link>
-          <Link href="/dashboard/analytics" className={styles.navLink}>Analytics</Link>
-          <Link href="/dashboard/users" className={styles.navLink}>Users</Link>
-          <Link href="/dashboard/settings" className={styles.navLink}>Settings</Link>
+          <Link href="/dashboard" class={styles.navLink}>Overview</Link>
+          <Link href="/dashboard/analytics" class={styles.navLink}>Analytics</Link>
+          <Link href="/dashboard/users" class={styles.navLink}>Users</Link>
+          <Link href="/dashboard/settings" class={styles.navLink}>Settings</Link>
         </nav>
         <div class={styles.timerWrap}><Timer /></div>
       </aside>
@@ -727,10 +727,10 @@ export function SettingsLayout({ children }: { children: any }) {
       <aside class={styles.sidebar} style="width: 200px; flex-shrink: 0">
         <h3 class={styles.sidebarTitle}>Settings</h3>
         <nav class={styles.nav}>
-          <Link href="/settings" className={styles.navLink}>General</Link>
-          <Link href="/settings/profile" className={styles.navLink}>Profile</Link>
-          <Link href="/settings/notifications" className={styles.navLink}>Notifications</Link>
-          <Link href="/settings/billing" className={styles.navLink}>Billing</Link>
+          <Link href="/settings" class={styles.navLink}>General</Link>
+          <Link href="/settings/profile" class={styles.navLink}>Profile</Link>
+          <Link href="/settings/notifications" class={styles.navLink}>Notifications</Link>
+          <Link href="/settings/billing" class={styles.navLink}>Billing</Link>
         </nav>
       </aside>
       <div class={styles.content}>{children}</div>
@@ -1165,7 +1165,7 @@ const currentPath = computed(() => {
 });
 
 export const Link = createLink(currentPath, (url: string) => {
-  appRouter.navigate(url as Parameters<typeof appRouter.navigate>[0]);
+  appRouter.navigate({ to: url });
 });
   `);
 
