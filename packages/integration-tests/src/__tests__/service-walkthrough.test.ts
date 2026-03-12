@@ -10,10 +10,10 @@
 // Written as RED in Phase 1 — will fail until Phase 2 wires route generation.
 // ===========================================================================
 
+import { describe, expect, it } from 'bun:test';
 import { d } from '@vertz/db';
 import type { EntityDbAdapter } from '@vertz/server';
 import { createServer, entity, service } from '@vertz/server';
-import { describe, expect, it } from 'bun:test';
 
 // ---------------------------------------------------------------------------
 // 1. Schema + entity definition — same as entity walkthrough

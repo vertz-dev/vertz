@@ -14,9 +14,10 @@
  * The fix is `dts: { inferTypes: true }`, which uses TypeScript's inference to
  * preserve the original generic signatures.
  */
+
+import { beforeAll, describe, expect, it } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { beforeAll, describe, expect, it } from 'bun:test';
 
 const packagesDir = resolve(__dirname, '../../../');
 

@@ -211,7 +211,7 @@ describe('Feature Flag Store + Layer 1 (public imports)', () => {
       roleStore,
       closureStore,
       flagStore,
-      orgId: 'org-1',
+      tenantId: 'org-1',
     });
 
     expect(set.flags['export-v2']).toBe(true);
@@ -236,7 +236,7 @@ describe('Feature Flag Store + Layer 1 (public imports)', () => {
       roleStore,
       closureStore,
       flagStore,
-      orgId: 'org-1',
+      tenantId: 'org-1',
     });
 
     const encoded = encodeAccessSet(original);

@@ -14,8 +14,8 @@ export class DbUserStore implements UserStore {
 
   async createUser(user: AuthUser, passwordHash: string | null): Promise<void> {
     const result = await this.db.query(
-      sql`INSERT INTO auth_users (id, email, password_hash, role, plan, email_verified, created_at, updated_at)
-          VALUES (${user.id}, ${user.email.toLowerCase()}, ${passwordHash}, ${user.role}, ${user.plan ?? null}, ${boolVal(this.db, user.emailVerified ?? false)}, ${user.createdAt.toISOString()}, ${user.updatedAt.toISOString()})`,
+      sql`INSERT INTO auth_users (id, email, password_hash, role, email_verified, created_at, updated_at)
+          VALUES (${user.id}, ${user.email.toLowerCase()}, ${passwordHash}, ${user.role}, ${boolVal(this.db, user.emailVerified ?? false)}, ${user.createdAt.toISOString()}, ${user.updatedAt.toISOString()})`,
     );
     assertWrite(result, 'createUser');
   }
@@ -28,7 +28,6 @@ export class DbUserStore implements UserStore {
       email: string;
       password_hash: string | null;
       role: string;
-      plan: string | null;
       email_verified: number | boolean;
       created_at: string;
       updated_at: string;
@@ -50,7 +49,6 @@ export class DbUserStore implements UserStore {
       email: string;
       password_hash: string | null;
       role: string;
-      plan: string | null;
       email_verified: number | boolean;
       created_at: string;
       updated_at: string;
@@ -87,7 +85,6 @@ export class DbUserStore implements UserStore {
     id: string;
     email: string;
     role: string;
-    plan: string | null;
     email_verified: number | boolean;
     created_at: string;
     updated_at: string;
@@ -96,7 +93,6 @@ export class DbUserStore implements UserStore {
       id: row.id,
       email: row.email,
       role: row.role,
-      plan: row.plan ?? undefined,
       emailVerified: row.email_verified === 1 || row.email_verified === true,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),

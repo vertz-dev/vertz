@@ -10,9 +10,9 @@
 // ============================================================================
 
 export interface FlagStore {
-  setFlag(orgId: string, flag: string, enabled: boolean): void;
-  getFlag(orgId: string, flag: string): boolean;
-  getFlags(orgId: string): Record<string, boolean>;
+  setFlag(tenantId: string, flag: string, enabled: boolean): void;
+  getFlag(tenantId: string, flag: string): boolean;
+  getFlags(tenantId: string): Record<string, boolean>;
 }
 
 // ============================================================================
@@ -22,24 +22,24 @@ export interface FlagStore {
 export class InMemoryFlagStore implements FlagStore {
   private flags = new Map<string, Map<string, boolean>>();
 
-  setFlag(orgId: string, flag: string, enabled: boolean): void {
-    let orgFlags = this.flags.get(orgId);
-    if (!orgFlags) {
-      orgFlags = new Map();
-      this.flags.set(orgId, orgFlags);
+  setFlag(tenantId: string, flag: string, enabled: boolean): void {
+    let tenantFlags = this.flags.get(tenantId);
+    if (!tenantFlags) {
+      tenantFlags = new Map();
+      this.flags.set(tenantId, tenantFlags);
     }
-    orgFlags.set(flag, enabled);
+    tenantFlags.set(flag, enabled);
   }
 
-  getFlag(orgId: string, flag: string): boolean {
-    return this.flags.get(orgId)?.get(flag) ?? false;
+  getFlag(tenantId: string, flag: string): boolean {
+    return this.flags.get(tenantId)?.get(flag) ?? false;
   }
 
-  getFlags(orgId: string): Record<string, boolean> {
-    const orgFlags = this.flags.get(orgId);
-    if (!orgFlags) return {};
+  getFlags(tenantId: string): Record<string, boolean> {
+    const tenantFlags = this.flags.get(tenantId);
+    if (!tenantFlags) return {};
     const result: Record<string, boolean> = {};
-    for (const [key, value] of orgFlags) {
+    for (const [key, value] of tenantFlags) {
       result[key] = value;
     }
     return result;

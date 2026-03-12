@@ -1,7 +1,7 @@
 /**
  * WalletStore — consumption tracking for plan-limited entitlements.
  *
- * Tracks per-org usage within billing periods with atomic
+ * Tracks per-tenant usage within billing periods with atomic
  * check-and-increment operations.
  */
 
@@ -10,7 +10,7 @@
 // ============================================================================
 
 export interface WalletEntry {
-  orgId: string;
+  tenantId: string;
   entitlement: string;
   periodStart: Date;
   periodEnd: Date;
@@ -26,7 +26,7 @@ export interface ConsumeResult {
 
 export interface WalletStore {
   consume(
-    orgId: string,
+    tenantId: string,
     entitlement: string,
     periodStart: Date,
     periodEnd: Date,
@@ -34,14 +34,14 @@ export interface WalletStore {
     amount?: number,
   ): Promise<ConsumeResult>;
   unconsume(
-    orgId: string,
+    tenantId: string,
     entitlement: string,
     periodStart: Date,
     periodEnd: Date,
     amount?: number,
   ): Promise<void>;
   getConsumption(
-    orgId: string,
+    tenantId: string,
     entitlement: string,
     periodStart: Date,
     periodEnd: Date,
@@ -56,23 +56,23 @@ export interface WalletStore {
 export class InMemoryWalletStore implements WalletStore {
   private entries = new Map<string, WalletEntry>();
 
-  private key(orgId: string, entitlement: string, periodStart: Date): string {
-    return `${orgId}:${entitlement}:${periodStart.getTime()}`;
+  private key(tenantId: string, entitlement: string, periodStart: Date): string {
+    return `${tenantId}:${entitlement}:${periodStart.getTime()}`;
   }
 
   async consume(
-    orgId: string,
+    tenantId: string,
     entitlement: string,
     periodStart: Date,
     periodEnd: Date,
     limit: number,
     amount = 1,
   ): Promise<ConsumeResult> {
-    const k = this.key(orgId, entitlement, periodStart);
+    const k = this.key(tenantId, entitlement, periodStart);
 
     // Lazy init
     if (!this.entries.has(k)) {
-      this.entries.set(k, { orgId, entitlement, periodStart, periodEnd, consumed: 0 });
+      this.entries.set(k, { tenantId, entitlement, periodStart, periodEnd, consumed: 0 });
     }
 
     const entry = this.entries.get(k)!;
@@ -99,13 +99,13 @@ export class InMemoryWalletStore implements WalletStore {
   }
 
   async unconsume(
-    orgId: string,
+    tenantId: string,
     entitlement: string,
     periodStart: Date,
     _periodEnd: Date,
     amount = 1,
   ): Promise<void> {
-    const k = this.key(orgId, entitlement, periodStart);
+    const k = this.key(tenantId, entitlement, periodStart);
     const entry = this.entries.get(k);
     if (!entry) return;
 
@@ -113,12 +113,12 @@ export class InMemoryWalletStore implements WalletStore {
   }
 
   async getConsumption(
-    orgId: string,
+    tenantId: string,
     entitlement: string,
     periodStart: Date,
     _periodEnd: Date,
   ): Promise<number> {
-    const k = this.key(orgId, entitlement, periodStart);
+    const k = this.key(tenantId, entitlement, periodStart);
     const entry = this.entries.get(k);
     return entry?.consumed ?? 0;
   }

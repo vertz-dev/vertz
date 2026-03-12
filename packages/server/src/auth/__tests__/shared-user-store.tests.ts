@@ -114,14 +114,6 @@ export function userStoreTests(
       expect(found!.role).toBe('admin');
     });
 
-    it('preserves user plan', async () => {
-      const user = makeUser({ plan: 'pro' });
-      await store.createUser(user, 'hash');
-
-      const found = await store.findById(user.id);
-      expect(found!.plan).toBe('pro');
-    });
-
     it('deletes a user by id', async () => {
       const user = makeUser({ email: 'delete-me@example.com' });
       await store.createUser(user, 'hash');

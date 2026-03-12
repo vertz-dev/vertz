@@ -1,8 +1,8 @@
 /**
- * PlanStore — org-level plan assignments with overrides.
+ * SubscriptionStore — tenant-level plan assignments with overrides.
  *
- * Stores which plan an organization is on, when it started,
- * optional expiration, and per-customer limit overrides.
+ * Stores which plan a tenant is on, when it started,
+ * optional expiration, and per-tenant limit overrides.
  */
 
 import type { AccessDefinition } from './define-access';
@@ -11,40 +11,40 @@ import type { AccessDefinition } from './define-access';
 // Types
 // ============================================================================
 
-/** Per-customer limit override. Only affects the cap, not the billing period. */
+/** Per-tenant limit override. Only affects the cap, not the billing period. */
 export interface LimitOverride {
   max: number;
 }
 
-export interface OrgPlan {
-  orgId: string;
+export interface Subscription {
+  tenantId: string;
   planId: string;
   startedAt: Date;
   expiresAt: Date | null;
   overrides: Record<string, LimitOverride>;
 }
 
-export interface PlanStore {
+export interface SubscriptionStore {
   /**
-   * Assign a plan to an org. Resets per-customer overrides (overrides are plan-specific).
-   * To preserve overrides across plan changes, re-apply them after calling assignPlan().
+   * Assign a plan to a tenant. Resets per-tenant overrides (overrides are plan-specific).
+   * To preserve overrides across plan changes, re-apply them after calling assign().
    */
-  assignPlan(
-    orgId: string,
+  assign(
+    tenantId: string,
     planId: string,
     startedAt?: Date,
     expiresAt?: Date | null,
   ): Promise<void>;
-  getPlan(orgId: string): Promise<OrgPlan | null>;
-  updateOverrides(orgId: string, overrides: Record<string, LimitOverride>): Promise<void>;
-  removePlan(orgId: string): Promise<void>;
-  /** Attach an add-on to an org. */
-  attachAddOn?(orgId: string, addOnId: string): Promise<void>;
-  /** Detach an add-on from an org. */
-  detachAddOn?(orgId: string, addOnId: string): Promise<void>;
-  /** Get all active add-on IDs for an org. */
-  getAddOns?(orgId: string): Promise<string[]>;
-  /** List all org IDs assigned to a specific plan. */
+  get(tenantId: string): Promise<Subscription | null>;
+  updateOverrides(tenantId: string, overrides: Record<string, LimitOverride>): Promise<void>;
+  remove(tenantId: string): Promise<void>;
+  /** Attach an add-on to a tenant. */
+  attachAddOn?(tenantId: string, addOnId: string): Promise<void>;
+  /** Detach an add-on from a tenant. */
+  detachAddOn?(tenantId: string, addOnId: string): Promise<void>;
+  /** Get all active add-on IDs for a tenant. */
+  getAddOns?(tenantId: string): Promise<string[]>;
+  /** List all tenant IDs assigned to a specific plan. */
   listByPlan?(planId: string): Promise<string[]>;
   dispose(): void;
 }
@@ -54,54 +54,54 @@ export interface PlanStore {
 // ============================================================================
 
 /**
- * Resolve the effective plan for an org.
+ * Resolve the effective plan for a tenant.
  * If the plan is expired, falls back to the configured defaultPlan
  * (or 'free' if not configured) if it exists in the plans definition.
  * Returns null if no valid plan can be resolved.
  *
- * @param orgPlan - The org's plan assignment
+ * @param subscription - The tenant's plan assignment
  * @param plans - The plans definition from defineAccess()
  * @param defaultPlan - Fallback plan name on expiration (defaults to 'free')
  * @param now - Optional timestamp for deterministic testing (defaults to Date.now())
  */
 export function resolveEffectivePlan(
-  orgPlan: OrgPlan | null,
+  subscription: Subscription | null,
   plans: Readonly<Record<string, unknown>> | undefined,
   defaultPlan = 'free',
   now?: number,
 ): string | null {
-  if (!orgPlan) return null;
+  if (!subscription) return null;
 
   // Check expiration
   // NOTE: Grace period (`planGracePeriod`) and `plan_expiring` flag are
   // explicitly deferred to Phase 9. See issue #1022 Non-Goals.
-  if (orgPlan.expiresAt && orgPlan.expiresAt.getTime() < (now ?? Date.now())) {
+  if (subscription.expiresAt && subscription.expiresAt.getTime() < (now ?? Date.now())) {
     // Expired — fall back to defaultPlan (or 'free') if it exists
     return plans?.[defaultPlan] ? defaultPlan : null;
   }
 
   // Verify the plan exists in the definition
-  if (!plans?.[orgPlan.planId]) return null;
+  if (!plans?.[subscription.planId]) return null;
 
-  return orgPlan.planId;
+  return subscription.planId;
 }
 
 // ============================================================================
-// InMemoryPlanStore
+// InMemorySubscriptionStore
 // ============================================================================
 
-export class InMemoryPlanStore implements PlanStore {
-  private plans = new Map<string, OrgPlan>();
+export class InMemorySubscriptionStore implements SubscriptionStore {
+  private subscriptions = new Map<string, Subscription>();
   private addOns = new Map<string, Set<string>>();
 
-  async assignPlan(
-    orgId: string,
+  async assign(
+    tenantId: string,
     planId: string,
     startedAt: Date = new Date(),
     expiresAt: Date | null = null,
   ): Promise<void> {
-    this.plans.set(orgId, {
-      orgId,
+    this.subscriptions.set(tenantId, {
+      tenantId,
       planId,
       startedAt,
       expiresAt,
@@ -109,47 +109,47 @@ export class InMemoryPlanStore implements PlanStore {
     });
   }
 
-  async getPlan(orgId: string): Promise<OrgPlan | null> {
-    return this.plans.get(orgId) ?? null;
+  async get(tenantId: string): Promise<Subscription | null> {
+    return this.subscriptions.get(tenantId) ?? null;
   }
 
-  async updateOverrides(orgId: string, overrides: Record<string, LimitOverride>): Promise<void> {
-    const plan = this.plans.get(orgId);
-    if (!plan) return;
-    plan.overrides = { ...plan.overrides, ...overrides };
+  async updateOverrides(tenantId: string, overrides: Record<string, LimitOverride>): Promise<void> {
+    const sub = this.subscriptions.get(tenantId);
+    if (!sub) return;
+    sub.overrides = { ...sub.overrides, ...overrides };
   }
 
-  async removePlan(orgId: string): Promise<void> {
-    this.plans.delete(orgId);
+  async remove(tenantId: string): Promise<void> {
+    this.subscriptions.delete(tenantId);
   }
 
-  async attachAddOn(orgId: string, addOnId: string): Promise<void> {
-    if (!this.addOns.has(orgId)) {
-      this.addOns.set(orgId, new Set());
+  async attachAddOn(tenantId: string, addOnId: string): Promise<void> {
+    if (!this.addOns.has(tenantId)) {
+      this.addOns.set(tenantId, new Set());
     }
-    this.addOns.get(orgId)!.add(addOnId);
+    this.addOns.get(tenantId)!.add(addOnId);
   }
 
-  async detachAddOn(orgId: string, addOnId: string): Promise<void> {
-    this.addOns.get(orgId)?.delete(addOnId);
+  async detachAddOn(tenantId: string, addOnId: string): Promise<void> {
+    this.addOns.get(tenantId)?.delete(addOnId);
   }
 
-  async getAddOns(orgId: string): Promise<string[]> {
-    return [...(this.addOns.get(orgId) ?? [])];
+  async getAddOns(tenantId: string): Promise<string[]> {
+    return [...(this.addOns.get(tenantId) ?? [])];
   }
 
   async listByPlan(planId: string): Promise<string[]> {
     const result: string[] = [];
-    for (const [orgId, plan] of this.plans.entries()) {
-      if (plan.planId === planId) {
-        result.push(orgId);
+    for (const [tenantId, sub] of this.subscriptions.entries()) {
+      if (sub.planId === planId) {
+        result.push(tenantId);
       }
     }
     return result;
   }
 
   dispose(): void {
-    this.plans.clear();
+    this.subscriptions.clear();
     this.addOns.clear();
   }
 }

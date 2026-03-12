@@ -8,7 +8,7 @@
  * - DbRoleAssignmentStore: role assignments persist with effective role resolution
  * - DbClosureStore: closure table hierarchy queries work
  * - DbFlagStore: flags persist with in-memory cache + write-through
- * - DbPlanStore: plan assignments + overrides persist via auth_plans + auth_overrides
+ * - DbSubscriptionStore: plan assignments + overrides persist via auth_plans + auth_overrides
  * - DbOAuthAccountStore: OAuth links persist with UNIQUE constraint dedup
  *
  * Uses public package imports only (@vertz/server, @vertz/db).
@@ -21,9 +21,9 @@ import {
   DbClosureStore,
   DbFlagStore,
   DbOAuthAccountStore,
-  DbPlanStore,
   DbRoleAssignmentStore,
   DbSessionStore,
+  DbSubscriptionStore,
   DbUserStore,
   defineAccess,
   InMemoryClosureStore,
@@ -266,36 +266,36 @@ describe('DB-Backed Auth Stores Integration', () => {
     expect(flagStore2.getFlag('org-1', 'new_ui')).toBe(false);
   });
 
-  it('DbPlanStore persists plans and overrides across tables', async () => {
-    const planStore = new DbPlanStore(db);
+  it('DbSubscriptionStore persists plans and overrides across tables', async () => {
+    const subscriptionStore = new DbSubscriptionStore(db);
 
     // Assign plan
     const startedAt = new Date('2026-01-01T00:00:00Z');
-    await planStore.assignPlan('org-1', 'pro', startedAt);
+    await subscriptionStore.assign('org-1', 'pro', startedAt);
 
-    const plan = await planStore.getPlan('org-1');
+    const plan = await subscriptionStore.get('org-1');
     expect(plan).not.toBeNull();
     expect(plan?.planId).toBe('pro');
     expect(plan?.startedAt.getTime()).toBe(startedAt.getTime());
     expect(plan?.overrides).toEqual({});
 
     // Add overrides
-    await planStore.updateOverrides('org-1', {
+    await subscriptionStore.updateOverrides('org-1', {
       'project:create': { max: 500 },
     });
 
-    const planWithOverrides = await planStore.getPlan('org-1');
+    const planWithOverrides = await subscriptionStore.get('org-1');
     expect(planWithOverrides?.overrides).toEqual({
       'project:create': { max: 500 },
     });
 
     // Reassign plan — overrides reset
-    await planStore.assignPlan('org-1', 'enterprise');
-    const newPlan = await planStore.getPlan('org-1');
+    await subscriptionStore.assign('org-1', 'enterprise');
+    const newPlan = await subscriptionStore.get('org-1');
     expect(newPlan?.planId).toBe('enterprise');
     expect(newPlan?.overrides).toEqual({});
 
-    planStore.dispose();
+    subscriptionStore.dispose();
   });
 
   it('DbOAuthAccountStore persists OAuth links with dedup', async () => {
@@ -364,7 +364,7 @@ describe('DB-Backed Auth Stores Integration', () => {
     const roleStore = new DbRoleAssignmentStore(db);
     const closureStore = new DbClosureStore(db);
     const flagStore = new DbFlagStore(db);
-    const planStore = new DbPlanStore(db);
+    const subscriptionStore = new DbSubscriptionStore(db);
     const oauthStore = new DbOAuthAccountStore(db);
 
     // 1. Set up org hierarchy
@@ -378,7 +378,7 @@ describe('DB-Backed Auth Stores Integration', () => {
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
 
     // 3. Assign plan
-    await planStore.assignPlan('org-1', 'pro');
+    await subscriptionStore.assign('org-1', 'pro');
 
     // 4. Set feature flags
     flagStore.setFlag('org-1', 'advanced_analytics', true);
@@ -396,7 +396,7 @@ describe('DB-Backed Auth Stores Integration', () => {
     );
     expect(effectiveRole).toBe('contributor');
 
-    const plan = await planStore.getPlan('org-1');
+    const plan = await subscriptionStore.get('org-1');
     expect(plan?.planId).toBe('pro');
 
     expect(flagStore.getFlag('org-1', 'advanced_analytics')).toBe(true);
@@ -408,7 +408,7 @@ describe('DB-Backed Auth Stores Integration', () => {
     // Cleanup
     roleStore.dispose();
     closureStore.dispose();
-    planStore.dispose();
+    subscriptionStore.dispose();
     oauthStore.dispose();
   });
 });

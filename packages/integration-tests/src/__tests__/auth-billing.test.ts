@@ -16,7 +16,7 @@ import {
   createBillingEventEmitter,
   createStripeBillingAdapter,
   createWebhookHandler,
-  InMemoryPlanStore,
+  InMemorySubscriptionStore,
 } from '@vertz/server';
 
 // ============================================================================
@@ -98,7 +98,7 @@ function createMockStripe() {
 describe('Feature: Billing E2E lifecycle', () => {
   it('sync plans → webhook subscription → event emitted → overage computed', async () => {
     const stripe = createMockStripe();
-    const planStore = new InMemoryPlanStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
     const emitter = createBillingEventEmitter();
     const receivedEvents: BillingEvent[] = [];
 
@@ -126,7 +126,7 @@ describe('Feature: Billing E2E lifecycle', () => {
 
     // ── Step 2: Webhook — new subscription created ──
     const webhookHandler = createWebhookHandler({
-      planStore,
+      subscriptionStore,
       emitter,
       defaultPlan: 'free',
       webhookSecret: 'whsec_test',
@@ -160,7 +160,7 @@ describe('Feature: Billing E2E lifecycle', () => {
     expect(response.status).toBe(200);
 
     // Verify plan assignment
-    const plan = await planStore.getPlan('org-acme');
+    const plan = await subscriptionStore.get('org-acme');
     expect(plan).not.toBeNull();
     expect(plan?.planId).toBe('pro_monthly');
 
@@ -196,7 +196,7 @@ describe('Feature: Billing E2E lifecycle', () => {
     );
 
     // Verify reverted to free plan
-    const afterDelete = await planStore.getPlan('org-acme');
+    const afterDelete = await subscriptionStore.get('org-acme');
     expect(afterDelete?.planId).toBe('free');
 
     // Verify cancelation event
@@ -213,7 +213,7 @@ describe('Feature: Billing E2E lifecycle', () => {
 
   it('rejects webhook with invalid signature', async () => {
     const webhookHandler = createWebhookHandler({
-      planStore: new InMemoryPlanStore(),
+      subscriptionStore: new InMemorySubscriptionStore(),
       emitter: createBillingEventEmitter(),
       defaultPlan: 'free',
       webhookSecret: 'whsec_real',

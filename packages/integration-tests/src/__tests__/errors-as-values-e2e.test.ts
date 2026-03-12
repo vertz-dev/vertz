@@ -8,33 +8,33 @@
  * 4. matchError exhaustive handling
  */
 
-import { describe, expect, it, beforeAll, afterAll, mock } from 'bun:test';
-import { createIntegrationApp, type TestServer } from '../app/create-app';
+import { afterAll, beforeAll, describe, expect, it, mock } from 'bun:test';
 import {
-  isErr,
-  match,
-  matchError,
-  FetchNotFoundError,
-  FetchUnauthorizedError,
-  FetchNetworkError,
-  FetchTimeoutError,
-  FetchValidationError,
-  FetchBadRequestError,
-  FetchInternalServerError,
-  ParseError,
-  EntityErrorType,
-  FetchErrorType,
   BadRequestError,
-  EntityUnauthorizedError,
+  EntityConflictError,
+  type EntityErrorType,
   EntityForbiddenError,
   EntityNotFoundError,
-  MethodNotAllowedError,
-  EntityConflictError,
+  EntityUnauthorizedError,
   EntityValidationError,
+  type FetchBadRequestError,
+  type FetchErrorType,
+  type FetchInternalServerError,
+  FetchNetworkError,
+  FetchNotFoundError,
+  FetchTimeoutError,
+  FetchUnauthorizedError,
+  FetchValidationError,
   InternalError,
+  isErr,
+  MethodNotAllowedError,
+  match,
+  matchError,
+  ParseError,
   ServiceUnavailableError,
 } from '@vertz/errors';
 import { FetchClient } from '@vertz/fetch';
+import { createIntegrationApp, type TestServer } from '../app/create-app';
 
 // Test server setup
 let server: TestServer;
@@ -159,7 +159,8 @@ describe('Fetch client → Result flow', () => {
       // Client parses error.code into serverCode on HttpError
       const mockFetch = mock().mockResolvedValue(
         new Response(JSON.stringify({ error: { code: 'NotFound', message: 'Not found' } }), {
-          status: 404, statusText: 'Not Found',
+          status: 404,
+          statusText: 'Not Found',
           headers: { 'Content-Type': 'application/json' },
         }),
       );
@@ -185,7 +186,8 @@ describe('Fetch client → Result flow', () => {
       // Server returns { error: { code: 'Unauthorized', message: '...' } }
       const mockFetch = mock().mockResolvedValue(
         new Response(JSON.stringify({ error: { code: 'Unauthorized', message: 'Unauthorized' } }), {
-          status: 401, statusText: 'Unauthorized',
+          status: 401,
+          statusText: 'Unauthorized',
           headers: { 'Content-Type': 'application/json' },
         }),
       );
@@ -227,7 +229,11 @@ describe('Fetch client → Result flow', () => {
     it('produces err Result with FetchTimeoutError', async () => {
       // Mock a timeout using AbortSignal
       const mockFetch = mock().mockImplementation(() => {
-        const cause = new Error("Timeout"); cause.name = "TimeoutError"; const e = new DOMException("The operation was aborted", "AbortError"); Object.defineProperty(e, "cause", { value: cause }); return Promise.reject(e);
+        const cause = new Error('Timeout');
+        cause.name = 'TimeoutError';
+        const e = new DOMException('The operation was aborted', 'AbortError');
+        Object.defineProperty(e, 'cause', { value: cause });
+        return Promise.reject(e);
       });
 
       const testClient = new FetchClient({
@@ -259,7 +265,8 @@ describe('Fetch client → Result flow', () => {
             },
           }),
           {
-            status: 422, statusText: 'Unprocessable Entity',
+            status: 422,
+            statusText: 'Unprocessable Entity',
             headers: { 'Content-Type': 'application/json' },
           },
         ),
@@ -310,7 +317,8 @@ describe('Fetch client → Result flow', () => {
       // Server returns { error: { code: 'NotFound', message: '...' } }
       const mockFetch = mock().mockResolvedValue(
         new Response(JSON.stringify({ error: { code: 'NotFound', message: 'Not found' } }), {
-          status: 404, statusText: 'Not Found',
+          status: 404,
+          statusText: 'Not Found',
           headers: { 'Content-Type': 'application/json' },
         }),
       );
@@ -474,8 +482,6 @@ describe('matchError exhaustive handling', () => {
     });
 
     it('requires all EntityError variants to be handled', () => {
-      
-
       function assertEntityExhaustive(error: EntityErrorType): string {
         return matchError(error, {
           BadRequest: (e) => e.message,

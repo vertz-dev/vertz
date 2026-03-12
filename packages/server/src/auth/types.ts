@@ -387,6 +387,8 @@ export interface AuthAccessConfig {
   roleStore: import('./role-assignment-store').RoleAssignmentStore;
   closureStore: import('./closure-store').ClosureStore;
   flagStore?: import('./flag-store').FlagStore;
+  subscriptionStore?: import('./subscription-store').SubscriptionStore;
+  walletStore?: import('./wallet-store').WalletStore;
 }
 
 // ============================================================================
@@ -397,7 +399,6 @@ export interface AuthUser {
   id: string;
   email: string;
   role: string;
-  plan?: string;
   emailVerified?: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -455,7 +456,7 @@ export interface SessionInfo {
 // Auth API Types
 // ============================================================================
 
-type ReservedSignUpField = 'role' | 'plan' | 'emailVerified' | 'id' | 'createdAt' | 'updatedAt';
+type ReservedSignUpField = 'role' | 'emailVerified' | 'id' | 'createdAt' | 'updatedAt';
 
 type ReservedSignUpFields = {
   [K in ReservedSignUpField]?: never;
@@ -599,7 +600,6 @@ export interface UserTableEntry extends ModelEntry<any, any> {
     email: { type: string };
     passwordHash: { type: string };
     role: { type: string };
-    plan?: { type: string };
     createdAt: { type: Date };
     updatedAt: { type: Date };
   };
