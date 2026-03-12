@@ -95,7 +95,36 @@ describe('discord provider', () => {
       expect(userInfo.providerId).toBe('123456789');
       expect(userInfo.email).toBe('user@discord.com');
       expect(userInfo.emailVerified).toBe(true);
-      expect(userInfo.name).toBe('Discord User');
+      expect(userInfo.raw.global_name).toBe('Discord User');
+    });
+
+    it('includes raw with the full Discord API response', async () => {
+      const discordUserData = {
+        id: '123456789',
+        username: 'discorduser',
+        discriminator: '1234',
+        global_name: 'Discord User',
+        avatar: 'abc123',
+        banner: 'def456',
+        accent_color: 0x1abc9c,
+        email: 'user@discord.com',
+        verified: true,
+        locale: 'en-US',
+        mfa_enabled: true,
+        premium_type: 2,
+        public_flags: 131072,
+      };
+      globalThis.fetch = async () => new Response(JSON.stringify(discordUserData));
+
+      const provider = discord(config);
+      const userInfo = await provider.getUserInfo('discord-token');
+
+      expect(userInfo.raw).toBeDefined();
+      expect(userInfo.raw.username).toBe('discorduser');
+      expect(userInfo.raw.discriminator).toBe('1234');
+      expect(userInfo.raw.locale).toBe('en-US');
+      expect(userInfo.raw.mfa_enabled).toBe(true);
+      expect(userInfo.raw.premium_type).toBe(2);
     });
   });
 });

@@ -9,9 +9,9 @@ import type {
   OAuthTokens,
   OAuthUserInfo,
   RateLimitStore,
-  SignUpInput,
   SessionPayload,
   SessionStore,
+  SignUpInput,
   UserStore,
 } from '../types';
 import { InMemoryUserStore } from '../user-store';
@@ -87,6 +87,7 @@ describe('Type-level tests', () => {
         providerId: '123',
         email: 'user@example.com',
         emailVerified: true,
+        raw: { sub: '123' },
       }),
     };
   });
@@ -99,7 +100,7 @@ describe('Type-level tests', () => {
       trustEmail: true,
       getAuthorizationUrl: () => 'https://example.com',
       exchangeCode: async () => ({ accessToken: 'tok' }),
-      getUserInfo: async () => ({ providerId: '1', email: 'a@b.c', emailVerified: true }),
+      getUserInfo: async () => ({ providerId: '1', email: 'a@b.c', emailVerified: true, raw: {} }),
     };
     const _config: AuthConfig = {
       session: { strategy: 'jwt', ttl: '60s' },
@@ -160,7 +161,7 @@ describe('Type-level tests', () => {
       scopes: ['openid'],
       getAuthorizationUrl: () => 'https://example.com',
       exchangeCode: async () => ({ accessToken: 'tok' }),
-      getUserInfo: async () => ({ providerId: '1', email: 'a@b.c', emailVerified: true }),
+      getUserInfo: async () => ({ providerId: '1', email: 'a@b.c', emailVerified: true, raw: {} }),
     };
   });
 
@@ -176,18 +177,21 @@ describe('Type-level tests', () => {
     };
   });
 
-  it('OAuthUserInfo interface is correct', () => {
+  it('OAuthUserInfo interface requires raw field', () => {
     const _info: OAuthUserInfo = {
       providerId: '123',
       email: 'user@example.com',
       emailVerified: true,
+      raw: { id: 123 },
     };
-    const _infoWithOptional: OAuthUserInfo = {
+  });
+
+  it('OAuthUserInfo without raw is incomplete', () => {
+    // @ts-expect-error — raw is required on OAuthUserInfo
+    const _info: OAuthUserInfo = {
       providerId: '123',
       email: 'user@example.com',
       emailVerified: true,
-      name: 'User',
-      avatarUrl: 'https://example.com/avatar.png',
     };
   });
 
@@ -201,6 +205,23 @@ describe('Type-level tests', () => {
       clientSecret: 'secret',
       redirectUrl: 'https://example.com/callback',
       scopes: ['openid'],
+    };
+  });
+
+  it('OAuthProvider is structurally correct with all required fields', () => {
+    const _provider: OAuthProvider = {
+      id: 'test',
+      name: 'Test',
+      scopes: ['openid'],
+      trustEmail: true,
+      getAuthorizationUrl: () => 'https://example.com',
+      exchangeCode: async () => ({ accessToken: 'tok' }),
+      getUserInfo: async () => ({
+        providerId: '1',
+        email: 'a@b.c',
+        emailVerified: true,
+        raw: {},
+      }),
     };
   });
 });

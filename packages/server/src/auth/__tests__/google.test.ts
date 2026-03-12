@@ -108,8 +108,38 @@ describe('google provider', () => {
       expect(userInfo.providerId).toBe('google-user-123');
       expect(userInfo.email).toBe('user@gmail.com');
       expect(userInfo.emailVerified).toBe(true);
-      expect(userInfo.name).toBe('Test User');
-      expect(userInfo.avatarUrl).toBe('https://example.com/avatar.jpg');
+      expect(userInfo.raw.name).toBe('Test User');
+      expect(userInfo.raw.picture).toBe('https://example.com/avatar.jpg');
+    });
+
+    it('includes raw with OIDC claims from the ID token', async () => {
+      const payload = {
+        sub: 'google-user-456',
+        email: 'user@gmail.com',
+        email_verified: true,
+        name: 'Google User',
+        picture: 'https://example.com/photo.jpg',
+        given_name: 'Google',
+        family_name: 'User',
+        locale: 'en',
+        hd: 'example.com',
+        iat: 1700000000,
+        exp: 1700003600,
+        aud: 'client-id',
+        iss: 'https://accounts.google.com',
+      };
+      const header = btoa(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+      const body = btoa(JSON.stringify(payload));
+      const mockIdToken = `${header}.${body}.fake-signature`;
+
+      const provider = google(config);
+      const userInfo = await provider.getUserInfo('access-token', mockIdToken);
+
+      expect(userInfo.raw).toBeDefined();
+      expect(userInfo.raw.given_name).toBe('Google');
+      expect(userInfo.raw.family_name).toBe('User');
+      expect(userInfo.raw.locale).toBe('en');
+      expect(userInfo.raw.hd).toBe('example.com');
     });
 
     it('validates nonce when provided', async () => {

@@ -179,7 +179,7 @@ export function isRateLimitedError(error: { readonly code: string }): error is R
 export interface AuthValidationError {
   readonly code: 'AUTH_VALIDATION_ERROR';
   readonly message: string;
-  readonly field: 'email' | 'password';
+  readonly field: 'email' | 'password' | 'general';
   readonly constraint?: string;
 }
 
@@ -188,7 +188,7 @@ export interface AuthValidationError {
  */
 export function createAuthValidationError(
   message: string,
-  field: 'email' | 'password',
+  field: 'email' | 'password' | 'general',
   constraint?: string,
 ): AuthValidationError {
   return {

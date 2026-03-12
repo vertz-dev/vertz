@@ -61,9 +61,11 @@ export type {
   AclClaim,
   AddOnRequires,
   AuthApi,
+  AuthCallbackContext,
   AuthConfig,
   AuthContext,
   AuthDbClient,
+  AuthEntityProxy,
   AuthInstance,
   AuthTokens,
   AuthUser,
@@ -111,6 +113,7 @@ export type {
   OAuthProviderConfig,
   OAuthTokens,
   OAuthUserInfo,
+  OnUserCreatedPayload,
   OrgPlan,
   OverageConfig,
   OverageInput,
@@ -219,6 +222,9 @@ export {
   validatePassword,
   verifyPassword,
 } from './auth';
+// Content descriptors
+export type { ContentDescriptor } from './content';
+export { content, isContentDescriptor } from './content';
 // Server — wraps core's createServer with entity route generation
 export type { ServerConfig, ServerInstance } from './create-server';
 export { createServer } from './create-server';
@@ -264,6 +270,3 @@ export type {
   ServiceRequestInfo,
 } from './service';
 export { service } from './service';
-// Content descriptors
-export type { ContentDescriptor } from './content';
-export { content, isContentDescriptor } from './content';

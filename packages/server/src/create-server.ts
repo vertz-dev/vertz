@@ -296,6 +296,8 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
       // Auto-wire DB-backed stores unless explicitly overridden
       userStore: config.auth.userStore ?? new DbUserStore(dbClient),
       sessionStore: config.auth.sessionStore ?? new DbSessionStore(dbClient),
+      // Wire entity registry into auth for onUserCreated callback
+      _entityProxy: config.auth._entityProxy ?? registry.createProxy(),
     };
 
     const auth = createAuth(authConfig);

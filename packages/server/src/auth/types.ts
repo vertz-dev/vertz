@@ -118,6 +118,8 @@ export interface UserStore {
   findById(id: string): Promise<AuthUser | null>;
   updatePasswordHash(userId: string, passwordHash: string): Promise<void>;
   updateEmailVerified(userId: string, verified: boolean): Promise<void>;
+  /** Delete a user by id. Used for rollback when onUserCreated fails. */
+  deleteUser(id: string): Promise<void>;
 }
 
 // ============================================================================
@@ -174,8 +176,7 @@ export interface OAuthUserInfo {
   providerId: string;
   email: string;
   emailVerified: boolean;
-  name?: string;
-  avatarUrl?: string;
+  raw: Record<string, unknown>;
 }
 
 export interface OAuthProvider {
@@ -203,6 +204,51 @@ export interface OAuthStateData {
   nonce?: string;
   expiresAt: number;
 }
+
+// ============================================================================
+// Auth-Entity Bridge Types
+// ============================================================================
+
+/** Context provided to auth lifecycle callbacks. */
+export interface AuthCallbackContext {
+  /**
+   * System-level entity access — bypasses access rules.
+   * During sign-up, the user isn't authenticated yet,
+   * so access rules like rules.authenticated() would block the callback.
+   */
+  entities: Record<string, AuthEntityProxy>;
+}
+
+/** Minimal CRUD interface for entity access within auth callbacks. */
+export interface AuthEntityProxy {
+  get(id: string): Promise<unknown>;
+  list(options?: unknown): Promise<unknown>;
+  create(data: Record<string, unknown>): Promise<unknown>;
+  update(id: string, data: Record<string, unknown>): Promise<unknown>;
+  delete(id: string): Promise<void>;
+}
+
+/**
+ * Discriminated union for onUserCreated callback payload.
+ * OAuth and email/password sign-ups provide different data shapes.
+ */
+export type OnUserCreatedPayload =
+  | {
+      /** The auth user that was just created. */
+      user: AuthUser;
+      /** The OAuth provider that created this user. */
+      provider: { id: string; name: string };
+      /** Full provider API response (cast to GithubProfile, GoogleProfile, etc.). */
+      profile: Record<string, unknown>;
+    }
+  | {
+      /** The auth user that was just created. */
+      user: AuthUser;
+      /** null for email/password sign-up. */
+      provider: null;
+      /** Extra fields from the sign-up form (via schema passthrough). */
+      signUpData: Record<string, unknown>;
+    };
 
 // ============================================================================
 // Email Verification Types
@@ -319,6 +365,14 @@ export interface AuthConfig {
   access?: AuthAccessConfig;
   /** Tenant switching configuration — enables POST /auth/switch-tenant */
   tenant?: TenantConfig;
+  /**
+   * Called after a new user is created in the auth system.
+   * Fires before the session is created.
+   * If this throws, the auth user is rolled back (deleted).
+   */
+  onUserCreated?: (payload: OnUserCreatedPayload, ctx: AuthCallbackContext) => Promise<void>;
+  /** @internal Entity proxy for onUserCreated callback. Set by createServer(). */
+  _entityProxy?: Record<string, AuthEntityProxy>;
 }
 
 /** Configuration for multi-tenant session switching. */
@@ -347,8 +401,6 @@ export interface AuthUser {
   emailVerified?: boolean;
   createdAt: Date;
   updatedAt: Date;
-  // Additional fields from user's table
-  [key: string]: unknown;
 }
 
 export interface SessionPayload {

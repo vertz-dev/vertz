@@ -68,4 +68,21 @@ describe('InMemoryUserStore', () => {
     const found = await store.findByEmail('oauth2@example.com');
     expect(found?.passwordHash).toBeNull();
   });
+
+  it('deletes a user by id', async () => {
+    const store = new InMemoryUserStore();
+    const user = makeUser({ email: 'delete@example.com' });
+    await store.createUser(user, 'hash');
+
+    await store.deleteUser(user.id);
+
+    expect(await store.findById(user.id)).toBeNull();
+    expect(await store.findByEmail('delete@example.com')).toBeNull();
+  });
+
+  it('deleteUser is a no-op for non-existent id', async () => {
+    const store = new InMemoryUserStore();
+    await store.deleteUser('nonexistent');
+    // No error thrown
+  });
 });

@@ -78,6 +78,11 @@ export class DbUserStore implements UserStore {
     assertWrite(result, 'updateEmailVerified');
   }
 
+  async deleteUser(id: string): Promise<void> {
+    const result = await this.db.query(sql`DELETE FROM auth_users WHERE id = ${id}`);
+    assertWrite(result, 'deleteUser');
+  }
+
   private rowToUser(row: {
     id: string;
     email: string;

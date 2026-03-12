@@ -5,6 +5,25 @@
 
 import type { OAuthProvider, OAuthProviderConfig, OAuthTokens, OAuthUserInfo } from '../types';
 
+/** OIDC ID token claims from Google. */
+export interface GoogleProfile {
+  sub: string;
+  email: string;
+  email_verified: boolean;
+  name?: string;
+  picture?: string;
+  given_name?: string;
+  family_name?: string;
+  locale?: string;
+  hd?: string;
+  iat: number;
+  exp: number;
+  aud: string;
+  iss: string;
+  nonce?: string;
+  [key: string]: unknown;
+}
+
 const AUTHORIZATION_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const DEFAULT_SCOPES = ['openid', 'email', 'profile'];
@@ -87,14 +106,7 @@ export function google(config: OAuthProviderConfig): OAuthProvider {
       // Decode OIDC ID token (JWT payload) without verification
       // The token was received directly from Google's token endpoint over HTTPS
       const parts = idToken.split('.');
-      const payload = JSON.parse(atob(parts[1])) as {
-        sub: string;
-        email: string;
-        email_verified: boolean;
-        name?: string;
-        picture?: string;
-        nonce?: string;
-      };
+      const payload = JSON.parse(atob(parts[1])) as Record<string, unknown>;
 
       // Validate nonce to prevent ID token replay attacks
       if (nonce && payload.nonce !== nonce) {
@@ -102,11 +114,10 @@ export function google(config: OAuthProviderConfig): OAuthProvider {
       }
 
       return {
-        providerId: payload.sub,
-        email: payload.email,
-        emailVerified: payload.email_verified,
-        name: payload.name,
-        avatarUrl: payload.picture,
+        providerId: payload.sub as string,
+        email: payload.email as string,
+        emailVerified: payload.email_verified as boolean,
+        raw: payload,
       };
     },
   };

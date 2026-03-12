@@ -5,6 +5,27 @@
 
 import type { OAuthProvider, OAuthProviderConfig, OAuthTokens, OAuthUserInfo } from '../types';
 
+/** Fields returned by Discord's GET /users/@me API. */
+export interface DiscordProfile {
+  id: string;
+  username: string;
+  discriminator: string;
+  global_name: string | null;
+  avatar: string | null;
+  bot?: boolean;
+  system?: boolean;
+  mfa_enabled: boolean;
+  banner: string | null;
+  accent_color: number | null;
+  locale: string;
+  verified: boolean;
+  email: string | null;
+  flags?: number;
+  premium_type?: number;
+  public_flags?: number;
+  [key: string]: unknown;
+}
+
 const AUTHORIZATION_URL = 'https://discord.com/api/oauth2/authorize';
 const TOKEN_URL = 'https://discord.com/api/oauth2/token';
 const USER_URL = 'https://discord.com/api/users/@me';
@@ -73,23 +94,13 @@ export function discord(config: OAuthProviderConfig): OAuthProvider {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
 
-      const data = (await response.json()) as {
-        id: string;
-        username: string;
-        email?: string;
-        verified?: boolean;
-        avatar?: string;
-        global_name?: string;
-      };
+      const data = (await response.json()) as Record<string, unknown>;
 
       return {
-        providerId: data.id,
-        email: data.email ?? '',
-        emailVerified: data.verified ?? false,
-        name: data.global_name ?? data.username,
-        avatarUrl: data.avatar
-          ? `https://cdn.discordapp.com/avatars/${data.id}/${data.avatar}.png`
-          : undefined,
+        providerId: data.id as string,
+        email: (data.email as string | undefined) ?? '',
+        emailVerified: (data.verified as boolean | undefined) ?? false,
+        raw: data,
       };
     },
   };
