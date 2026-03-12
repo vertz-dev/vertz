@@ -8,6 +8,7 @@
     "test:bun": "RUNTIME=bun bun test",
     "test:node": "RUNTIME=node bun test",
     "test:deno": "RUNTIME=deno bun test",
+    "test:cloudflare": "RUNTIME=cloudflare bun test",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
@@ -16,12 +17,14 @@
     "@vertz/codegen": "workspace:^",
     "@vertz/core": "workspace:^",
     "@vertz/errors": "workspace:^",
+    "@vertz/cloudflare": "workspace:^",
     "@vertz/fetch": "workspace:^",
     "@vertz/server": "workspace:^",
     "@vertz/db": "workspace:^",
     "@vertz/schema": "workspace:^",
     "@vertz/theme-shadcn": "workspace:^",
     "@vertz/ui": "workspace:^",
+    "vertz": "workspace:^",
     "@happy-dom/global-registrator": "^20.7.0",
     "bun-types": "^1.3.10",
     "happy-dom": "^20.7.0",

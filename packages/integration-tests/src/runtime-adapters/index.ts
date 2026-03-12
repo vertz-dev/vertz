@@ -6,6 +6,7 @@ const adapters: Record<string, () => Promise<{ adapter: RuntimeAdapter }>> = {
   node: () => import('./node'),
   bun: () => import('./bun'),
   deno: () => import('./deno'),
+  cloudflare: () => import('./cloudflare'),
 };
 
 const load = adapters[runtime];
