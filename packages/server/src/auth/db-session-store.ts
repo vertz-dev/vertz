@@ -79,6 +79,7 @@ export class DbSessionStore implements SessionStore {
 
   async findActiveSessionById(id: string): Promise<StoredSession | null> {
     const nowStr = new Date().toISOString();
+    // Raw SQL workaround: db.auth_sessions.get() ignores { gt: value } operators (#1209)
     const result = await this.db.query<SessionRow>(
       sql`SELECT * FROM auth_sessions WHERE id = ${id} AND revoked_at IS NULL AND expires_at > ${nowStr} LIMIT 1`,
     );
