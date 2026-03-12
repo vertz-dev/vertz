@@ -192,6 +192,7 @@ function addHeaders(response: Response, cacheControl: string, includeEarlyHints:
 /** Determine the cache control header based on the request path. */
 function getCacheControl(pathname: string): string {
   if (pathname.startsWith('/assets/')) return IMMUTABLE_CACHE;
+  if (pathname.startsWith('/__vertz_img/')) return IMMUTABLE_CACHE;
   if (pathname.startsWith('/fonts/') || pathname.endsWith('.woff2')) return FONT_CACHE;
   if (/\.\w{2,4}$/.test(pathname) && !pathname.endsWith('.html')) return STATIC_CACHE;
   return HTML_CACHE;

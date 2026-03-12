@@ -207,6 +207,14 @@ ${modulepreloadLinks}
       console.log('  Copied public/ assets');
     }
 
+    // ── 4b. Copy optimized images .vertz/images/ → dist/client/__vertz_img/
+    const imagesDir = resolve(projectRoot, '.vertz', 'images');
+    if (existsSync(imagesDir)) {
+      const imgDest = resolve(distClient, '__vertz_img');
+      cpSync(imagesDir, imgDest, { recursive: true });
+      console.log('  Copied optimized images');
+    }
+
     // ── 5. Server build ───────────────────────────────────────────
     console.log('📦 Building server...');
 

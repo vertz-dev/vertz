@@ -21,7 +21,7 @@ const s = css({
     { '@media (min-width: 640px)': [{ property: 'grid-template-columns', value: '1fr 1fr' }] },
   ],
   card: ['text:center'],
-  img: ['w:20', 'h:20', 'mx:auto', 'mb:4', 'rounded:full'],
+  imgWrap: ['mx:auto', 'mb:4', 'w:20', 'h:20'],
   name: ['weight:semibold', 'font:lg'],
   role: ['font:xs', 'uppercase', 'tracking:wider', 'mt:1', 'text:gray.500'],
   bio: ['font:xs', 'mt:2', 'leading:relaxed', 'max-w:80', 'mx:auto', 'text:gray.400'],
@@ -63,27 +63,29 @@ const FOUNDERS: Founder[] = [
 function FounderPhoto({ name }: { name: string }) {
   if (name === 'Vinicius Dacal') {
     return (
-      <Image
-        src="/viniciusdacal.jpg"
-        alt="Vinicius Dacal"
-        width={80}
-        height={80}
-        class={s.img}
-        style="object-fit: cover; outline: 2px solid #27272a; outline-offset: 2px"
-        fit="cover"
-      />
+      <div class={s.imgWrap}>
+        <Image
+          src="/public/viniciusdacal.jpg"
+          alt="Vinicius Dacal"
+          width={80}
+          height={80}
+          style="object-fit: cover; border-radius: 9999px; outline: 2px solid #27272a; outline-offset: 2px"
+          fit="cover"
+        />
+      </div>
     );
   }
   return (
-    <Image
-      src="/matheuspoleza.jpg"
-      alt="Matheus Poleza"
-      width={80}
-      height={80}
-      class={s.img}
-      style="object-fit: cover; outline: 2px solid #27272a; outline-offset: 2px"
-      fit="cover"
-    />
+    <div class={s.imgWrap}>
+      <Image
+        src="/public/matheuspoleza.jpg"
+        alt="Matheus Poleza"
+        width={80}
+        height={80}
+        style="object-fit: cover; border-radius: 9999px; outline: 2px solid #27272a; outline-offset: 2px"
+        fit="cover"
+      />
+    </div>
   );
 }
 

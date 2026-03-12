@@ -5,10 +5,8 @@ import { Footer } from '@/components/footer';
 import './globals.css';
 
 const dmSans = localFont({
-  src: [
-    { path: '../../public/fonts/dm-sans-latin.woff2', style: 'normal', weight: '100 1000' },
-    { path: '../../public/fonts/dm-sans-italic-latin.woff2', style: 'italic', weight: '100 1000' },
-  ],
+  src: '../../public/fonts/dm-sans-latin.woff2',
+  weight: '100 1000',
   variable: '--font-sans-family',
   display: 'swap',
 });

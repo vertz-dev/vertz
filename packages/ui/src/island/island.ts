@@ -4,12 +4,20 @@
  * On the server: renders the component inside a wrapper div with
  * `data-v-island` marker and serialized props for client-side hydration.
  *
- * On the client (full-hydration mode): renders the component normally.
- * The `data-v-island` marker is inert — hydration happens via `data-v-id`.
+ * On the client (full-hydration mode via mount()): claims the existing SSR
+ * wrapper and enters its children so the component can hydrate in-place,
+ * attaching event handlers to the existing DOM nodes.
  *
  * On the client (island mode): not called directly. `hydrateIslands()` handles
  * hydration from the SSR-rendered DOM using the island markers.
  */
+
+import {
+  claimElement,
+  enterChildren,
+  exitChildren,
+  getIsHydrating,
+} from '../hydrate/hydration-context';
 
 export interface IslandProps {
   /** Unique identifier matching the client-side registry key */
@@ -44,7 +52,26 @@ function validateSerializable(props: Record<string, unknown>, islandId: string):
 export function Island({ id, component: Component, props = {} }: IslandProps): HTMLDivElement {
   validateSerializable(props, id);
 
-  // Create wrapper with island marker
+  // ── Hydration path: claim existing SSR DOM ──────────────────────
+  if (getIsHydrating()) {
+    const claimed = claimElement('div');
+    if (claimed) {
+      enterChildren(claimed);
+
+      // Skip the <script data-v-island-props> node — it's not component content
+      claimElement('script');
+
+      // Render the component inside the claimed wrapper. The compiled JSX
+      // will use claimElement/claimText to attach handlers to existing nodes.
+      Component(props);
+
+      exitChildren();
+      return claimed as HTMLDivElement;
+    }
+    // No matching SSR node found — fall through to CSR path
+  }
+
+  // ── CSR path: create fresh DOM ──────────────────────────────────
   const wrapper = document.createElement('div');
   wrapper.setAttribute('data-v-island', id);
 
