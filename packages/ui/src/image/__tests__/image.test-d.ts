@@ -3,7 +3,19 @@
  * Checked by `tsc --noEmit`, not by runtime tests.
  */
 
+import { configureImageOptimizer } from '../config';
 import { Image } from '../image';
+
+// ─── configureImageOptimizer type tests ─────────────────────
+
+// Valid: string argument
+configureImageOptimizer('/_vertz/image');
+
+// @ts-expect-error — configureImageOptimizer requires string, not number
+configureImageOptimizer(123);
+
+// @ts-expect-error — configureImageOptimizer requires an argument
+configureImageOptimizer();
 
 // ─── Valid usage ─────────────────────────────────────────────
 

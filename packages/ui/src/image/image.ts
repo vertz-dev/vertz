@@ -1,3 +1,4 @@
+import { buildOptimizedUrl } from './config';
 import type { ImageProps } from './types';
 
 /** Build-time-only props that should not be rendered as HTML attributes. */
@@ -29,8 +30,8 @@ export function Image({
   decoding = 'async',
   fetchpriority,
   priority,
-  quality: _quality,
-  fit: _fit,
+  quality = 80,
+  fit = 'cover',
   pictureClass: _pictureClass,
   ...rest
 }: ImageProps) {
@@ -38,8 +39,10 @@ export function Image({
   const resolvedDecoding = priority ? 'sync' : decoding;
   const resolvedFetchpriority = priority ? 'high' : fetchpriority;
 
+  const optimizedSrc = buildOptimizedUrl(src, width, height, quality, fit);
+
   const el = document.createElement('img');
-  el.setAttribute('src', src);
+  el.setAttribute('src', optimizedSrc ?? src);
   el.setAttribute('width', String(width));
   el.setAttribute('height', String(height));
   el.setAttribute('alt', alt);
