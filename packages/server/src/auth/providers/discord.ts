@@ -5,12 +5,43 @@
 
 import type { OAuthProvider, OAuthProviderConfig, OAuthTokens, OAuthUserInfo } from '../types';
 
+/** Fields returned by Discord's GET /users/@me API. */
+export interface DiscordProfile {
+  id: string;
+  username: string;
+  discriminator: string;
+  global_name: string | null;
+  avatar: string | null;
+  bot?: boolean;
+  system?: boolean;
+  mfa_enabled: boolean;
+  banner: string | null;
+  accent_color: number | null;
+  locale: string;
+  verified: boolean;
+  email: string | null;
+  flags?: number;
+  premium_type?: number;
+  public_flags?: number;
+  [key: string]: unknown;
+}
+
 const AUTHORIZATION_URL = 'https://discord.com/api/oauth2/authorize';
 const TOKEN_URL = 'https://discord.com/api/oauth2/token';
 const USER_URL = 'https://discord.com/api/users/@me';
 const DEFAULT_SCOPES = ['identify', 'email'];
 
-export function discord(config: OAuthProviderConfig): OAuthProvider {
+const defaultMapProfile = (profile: DiscordProfile): Record<string, unknown> => {
+  const avatar = profile.avatar;
+  return {
+    name: profile.global_name ?? profile.username,
+    avatarUrl: avatar
+      ? `https://cdn.discordapp.com/avatars/${profile.id}/${avatar}.png`
+      : undefined,
+  };
+};
+
+export function discord(config: OAuthProviderConfig<DiscordProfile>): OAuthProvider {
   const scopes = config.scopes ?? DEFAULT_SCOPES;
 
   return {
@@ -18,6 +49,9 @@ export function discord(config: OAuthProviderConfig): OAuthProvider {
     name: 'Discord',
     scopes,
     trustEmail: false,
+    mapProfile: (config.mapProfile ?? defaultMapProfile) as (
+      raw: Record<string, unknown>,
+    ) => Record<string, unknown>,
 
     getAuthorizationUrl(state: string, codeChallenge?: string): string {
       const params = new URLSearchParams({
@@ -73,23 +107,18 @@ export function discord(config: OAuthProviderConfig): OAuthProvider {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
 
-      const data = (await response.json()) as {
-        id: string;
-        username: string;
-        email?: string;
-        verified?: boolean;
-        avatar?: string;
-        global_name?: string;
-      };
+      const data = (await response.json()) as Record<string, unknown>;
+
+      const id = data.id as string;
+      const avatar = data.avatar as string | undefined;
 
       return {
-        providerId: data.id,
-        email: data.email ?? '',
-        emailVerified: data.verified ?? false,
-        name: data.global_name ?? data.username,
-        avatarUrl: data.avatar
-          ? `https://cdn.discordapp.com/avatars/${data.id}/${data.avatar}.png`
-          : undefined,
+        providerId: id,
+        email: (data.email as string | undefined) ?? '',
+        emailVerified: (data.verified as boolean | undefined) ?? false,
+        name: (data.global_name as string | undefined) ?? (data.username as string),
+        avatarUrl: avatar ? `https://cdn.discordapp.com/avatars/${id}/${avatar}.png` : undefined,
+        raw: data,
       };
     },
   };

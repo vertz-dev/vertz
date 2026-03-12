@@ -1355,9 +1355,26 @@ export function createAuth(config: AuthConfig): AuthInstance {
                 return new Response(null, { status: 302, headers });
               }
               const now = new Date();
+              let mappedFields: Record<string, unknown>;
+              try {
+                const result = provider.mapProfile(userInfo.raw);
+                mappedFields =
+                  result !== null && typeof result === 'object' && !Array.isArray(result)
+                    ? result
+                    : {};
+              } catch {
+                const headers = new Headers({
+                  Location: `${errorRedirect}?error=profile_mapping_failed`,
+                  ...securityHeaders(),
+                });
+                headers.append('Set-Cookie', buildOAuthStateCookie('', cookieConfig, true));
+                return new Response(null, { status: 302, headers });
+              }
               const newUser: AuthUser = {
+                ...mappedFields,
                 id: crypto.randomUUID(),
                 email: userInfo.email.toLowerCase(),
+                emailVerified: userInfo.emailVerified,
                 role: 'user',
                 createdAt: now,
                 updatedAt: now,

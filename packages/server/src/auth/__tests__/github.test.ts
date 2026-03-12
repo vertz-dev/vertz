@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import type { GithubProfile } from '../providers/github';
 import { github } from '../providers/github';
 
 describe('github provider', () => {
@@ -106,6 +107,46 @@ describe('github provider', () => {
       expect(userInfo.name).toBe('Octocat');
     });
 
+    it('includes raw with the full GitHub API response', async () => {
+      const githubUserData = {
+        id: 12345,
+        login: 'octocat',
+        node_id: 'MDQ6VXNlcjEyMzQ1',
+        avatar_url: 'https://github.com/avatar.jpg',
+        name: 'Octocat',
+        company: '@github',
+        blog: 'https://github.com/blog',
+        location: 'San Francisco',
+        email: null,
+        bio: 'Open source enthusiast',
+        twitter_username: 'octocat',
+        public_repos: 42,
+        public_gists: 10,
+        followers: 1000,
+        following: 50,
+        created_at: '2012-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+      };
+      globalThis.fetch = async (input) => {
+        const url = typeof input === 'string' ? input : (input as Request).url;
+        if (url.includes('/user/emails')) {
+          return new Response(
+            JSON.stringify([{ email: 'octo@github.com', primary: true, verified: true }]),
+          );
+        }
+        return new Response(JSON.stringify(githubUserData));
+      };
+
+      const provider = github(config);
+      const userInfo = await provider.getUserInfo('github-token');
+
+      expect(userInfo.raw).toBeDefined();
+      expect(userInfo.raw.login).toBe('octocat');
+      expect(userInfo.raw.bio).toBe('Open source enthusiast');
+      expect(userInfo.raw.company).toBe('@github');
+      expect(userInfo.raw.public_repos).toBe(42);
+    });
+
     it('uses primary verified email', async () => {
       globalThis.fetch = async (input) => {
         const url = typeof input === 'string' ? input : (input as Request).url;
@@ -124,6 +165,55 @@ describe('github provider', () => {
       const userInfo = await provider.getUserInfo('token');
       expect(userInfo.email).toBe('primary@github.com');
       expect(userInfo.emailVerified).toBe(true);
+    });
+  });
+
+  describe('mapProfile', () => {
+    it('has a default mapProfile that returns name and avatarUrl', () => {
+      const provider = github(config);
+      const result = provider.mapProfile({
+        name: 'Octocat',
+        login: 'octocat',
+        avatar_url: 'https://github.com/avatar.jpg',
+      });
+      expect(result).toEqual({
+        name: 'Octocat',
+        avatarUrl: 'https://github.com/avatar.jpg',
+      });
+    });
+
+    it('default mapProfile falls back to login when name is null', () => {
+      const provider = github(config);
+      const result = provider.mapProfile({
+        name: null,
+        login: 'octocat',
+        avatar_url: 'https://github.com/avatar.jpg',
+      });
+      expect(result.name).toBe('octocat');
+    });
+
+    it('uses custom mapProfile when provided', () => {
+      const provider = github({
+        ...config,
+        mapProfile: (profile: GithubProfile) => ({
+          name: profile.name ?? profile.login,
+          avatarUrl: profile.avatar_url,
+          githubUsername: profile.login,
+          bio: profile.bio,
+        }),
+      });
+      const result = provider.mapProfile({
+        name: 'Octocat',
+        login: 'octocat',
+        avatar_url: 'https://github.com/avatar.jpg',
+        bio: 'Open source enthusiast',
+      });
+      expect(result).toEqual({
+        name: 'Octocat',
+        avatarUrl: 'https://github.com/avatar.jpg',
+        githubUsername: 'octocat',
+        bio: 'Open source enthusiast',
+      });
     });
   });
 });

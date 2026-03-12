@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import type { GoogleProfile } from '../providers/google';
 import { google } from '../providers/google';
 
 describe('google provider', () => {
@@ -112,6 +113,36 @@ describe('google provider', () => {
       expect(userInfo.avatarUrl).toBe('https://example.com/avatar.jpg');
     });
 
+    it('includes raw with OIDC claims from the ID token', async () => {
+      const payload = {
+        sub: 'google-user-456',
+        email: 'user@gmail.com',
+        email_verified: true,
+        name: 'Google User',
+        picture: 'https://example.com/photo.jpg',
+        given_name: 'Google',
+        family_name: 'User',
+        locale: 'en',
+        hd: 'example.com',
+        iat: 1700000000,
+        exp: 1700003600,
+        aud: 'client-id',
+        iss: 'https://accounts.google.com',
+      };
+      const header = btoa(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+      const body = btoa(JSON.stringify(payload));
+      const mockIdToken = `${header}.${body}.fake-signature`;
+
+      const provider = google(config);
+      const userInfo = await provider.getUserInfo('access-token', mockIdToken);
+
+      expect(userInfo.raw).toBeDefined();
+      expect(userInfo.raw.given_name).toBe('Google');
+      expect(userInfo.raw.family_name).toBe('User');
+      expect(userInfo.raw.locale).toBe('en');
+      expect(userInfo.raw.hd).toBe('example.com');
+    });
+
     it('validates nonce when provided', async () => {
       const payload = {
         sub: 'google-user-123',
@@ -144,6 +175,44 @@ describe('google provider', () => {
       expect(provider.getUserInfo('access-token', mockIdToken, 'wrong-nonce')).rejects.toThrow(
         'ID token nonce mismatch',
       );
+    });
+  });
+
+  describe('mapProfile', () => {
+    it('has a default mapProfile that returns name and avatarUrl', () => {
+      const provider = google(config);
+      const result = provider.mapProfile({
+        name: 'Test User',
+        picture: 'https://example.com/photo.jpg',
+      });
+      expect(result).toEqual({
+        name: 'Test User',
+        avatarUrl: 'https://example.com/photo.jpg',
+      });
+    });
+
+    it('uses custom mapProfile when provided', () => {
+      const provider = google({
+        ...config,
+        mapProfile: (profile: GoogleProfile) => ({
+          name: profile.name,
+          avatarUrl: profile.picture,
+          locale: profile.locale,
+          givenName: profile.given_name,
+        }),
+      });
+      const result = provider.mapProfile({
+        name: 'Test User',
+        picture: 'https://example.com/photo.jpg',
+        locale: 'en',
+        given_name: 'Test',
+      });
+      expect(result).toEqual({
+        name: 'Test User',
+        avatarUrl: 'https://example.com/photo.jpg',
+        locale: 'en',
+        givenName: 'Test',
+      });
     });
   });
 });
