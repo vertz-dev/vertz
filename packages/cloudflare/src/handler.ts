@@ -54,6 +54,13 @@ export interface CloudflareHandlerConfig {
 
   /** When true, adds standard security headers to all responses. */
   securityHeaders?: boolean;
+
+  /**
+   * Image optimizer handler for runtime image optimization at the edge.
+   * Created via `imageOptimizer()` from `@vertz/cloudflare/image`.
+   * Routes `/_vertz/image` requests to the optimizer.
+   */
+  imageOptimizer?: (request: Request) => Promise<Response>;
 }
 
 // ---------------------------------------------------------------------------
@@ -206,7 +213,7 @@ function isSSRModuleConfig(
 }
 
 function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWorkerModule {
-  const { basePath, ssr, securityHeaders } = config;
+  const { basePath, ssr, securityHeaders, imageOptimizer: imageOptimizerHandler } = config;
   // Install per-request fetch proxy once (idempotent)
   installFetchProxy();
   let cachedApp: AppBuilder | null = null;
@@ -261,6 +268,12 @@ function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWork
       await resolveSSR();
       const url = new URL(request.url);
       const nonce = generateNonce();
+
+      // Image optimizer route — highest priority, before API and SSR
+      if (url.pathname === '/_vertz/image' && imageOptimizerHandler) {
+        const response = await imageOptimizerHandler(request);
+        return applyHeaders(response, nonce);
+      }
 
       // Route splitting: basePath/* → API handler (no URL rewriting — the
       // app's own basePath/apiPrefix handles prefix matching internally)
