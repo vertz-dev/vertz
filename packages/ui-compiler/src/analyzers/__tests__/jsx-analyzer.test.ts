@@ -162,6 +162,52 @@ describe('JsxAnalyzer', () => {
     expect(result?.[0]?.reactive).toBe(true);
   });
 
+  it('classifies 4-level field signal chain as reactive', () => {
+    const code = `
+      function UserForm() {
+        const taskForm = form({});
+        return <div>{taskForm.address.street.error}</div>;
+      }
+    `;
+    const variables: VariableInfo[] = [
+      {
+        name: 'taskForm',
+        kind: 'static',
+        start: 0,
+        end: 0,
+        signalProperties: new Set(['submitting', 'dirty', 'valid']),
+        plainProperties: new Set(['action', 'method']),
+        fieldSignalProperties: new Set(['error', 'dirty', 'touched', 'value']),
+      },
+    ];
+    const [result] = analyze(code, variables);
+    expect(result?.[0]?.reactive).toBe(true);
+  });
+
+  it('classifies ElementAccessExpression field chain as reactive', () => {
+    const code = `
+      function DynForm() {
+        const taskForm = form({});
+        const field = 'title';
+        return <div>{taskForm[field].error}</div>;
+      }
+    `;
+    const variables: VariableInfo[] = [
+      {
+        name: 'taskForm',
+        kind: 'static',
+        start: 0,
+        end: 0,
+        signalProperties: new Set(['submitting']),
+        plainProperties: new Set(['action']),
+        fieldSignalProperties: new Set(['error', 'dirty', 'touched', 'value']),
+      },
+    ];
+    const [result] = analyze(code, variables);
+    const reactiveExprs = result?.filter((e) => e.reactive);
+    expect(reactiveExprs?.length).toBeGreaterThanOrEqual(1);
+  });
+
   it('classifies bare reactive source identifier as reactive', () => {
     const code = `
       function App() {

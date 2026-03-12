@@ -200,6 +200,85 @@ userForm.error;
 // @ts-expect-error - handleSubmit() no longer exists on FormInstance
 userForm.handleSubmit;
 
+// ─── 19. Nested field access types ───────────────────────────────────
+
+type NestedBody = { name: string; address: { street: string; city: string } };
+declare const nestedForm: FormInstance<NestedBody, void>;
+
+// Flat field on nested form still works
+const _nestedNameError: Signal<string | undefined> = nestedForm.name.error;
+void _nestedNameError;
+
+// Nested field access: address.street.error
+const _streetError: Signal<string | undefined> = nestedForm.address.street.error;
+void _streetError;
+
+const _cityValue: Signal<string> = nestedForm.address.city.value;
+void _cityValue;
+
+// Group-level field state
+const _addressError: Signal<string | undefined> = nestedForm.address.error;
+void _addressError;
+
+// @ts-expect-error - 'nonexistent' is not a key of address
+nestedForm.address.nonexistent;
+
+// ─── 20. DeepPartial initial values ─────────────────────────────────
+
+const _nestedOpts: FormOptions<NestedBody, void> = {
+  initial: { address: { city: 'Springfield' } }, // partial nested — no name, no street
+};
+void _nestedOpts;
+
+// ─── 21. FieldPath — setFieldError accepts dot-path strings ─────────
+
+nestedForm.setFieldError('name', 'Required');
+nestedForm.setFieldError('address', 'Invalid address');
+nestedForm.setFieldError('address.street', 'Street required');
+nestedForm.setFieldError('address.city', 'City required');
+
+// @ts-expect-error - 'address.nonexistent' is not a valid FieldPath
+nestedForm.setFieldError('address.nonexistent', 'Bad');
+
+// @ts-expect-error - 'foo' is not a valid FieldPath
+nestedForm.setFieldError('foo', 'Bad');
+
+// ─── 22. Array field access types ────────────────────────────────────
+
+type OrderBody = { items: Array<{ product: string; quantity: number }> };
+declare const orderForm: FormInstance<OrderBody, void>;
+
+const _orderItem = orderForm.items[0];
+// biome-ignore lint/style/noNonNullAssertion: type test needs definite access
+const _itemProductError: Signal<string | undefined> = _orderItem!.product.error;
+void _itemProductError;
+
+// biome-ignore lint/style/noNonNullAssertion: type test needs definite access
+const _itemQuantityValue: Signal<number> = _orderItem!.quantity.value;
+void _itemQuantityValue;
+
+// ─── 23. BuiltInObjects are leaf FieldState (no recursion) ───────────
+
+type WithDate = { name: string; createdAt: Date };
+declare const dateForm: FormInstance<WithDate, void>;
+
+const _dateValue: Signal<Date> = dateForm.createdAt.value;
+void _dateValue;
+
+// Date is a leaf — should NOT recurse into Date prototype methods
+const _dateError: Signal<string | undefined> = dateForm.createdAt.error;
+void _dateError;
+
+// ─── 24. Reserved field name collision in nested object ──────────────
+
+type BadNested = { meta: { error: string; name: string } };
+type BadForm = FormInstance<BadNested, void>;
+
+// 'error' in meta conflicts with FieldState.error — type should produce __error
+// @ts-expect-error - meta has __error, accessing .error should fail
+const _badError: Signal<string | undefined> = ({} as BadForm).meta.error;
+void _badError;
+
 // ─── SdkMethod basics (unchanged) ─────────────────────────────────
 
 declare const createUser: SdkMethod<UserBody, UserResult>;

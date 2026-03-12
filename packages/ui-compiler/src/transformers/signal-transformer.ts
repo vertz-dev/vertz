@@ -147,11 +147,12 @@ function transformReferences(
  * Transform property accesses on signal API variables to auto-unwrap.
  *
  * Handles two patterns:
+ * - N-level field chains (>= 3 segments): `taskForm.title.error` → `.value`,
+ *   `taskForm.address.street.error` → `.value` (root + intermediates + fieldSignalProp leaf)
  * - 2-level: `tasks.data` → `tasks.data.value` (root.signalProp)
- * - 3-level: `taskForm.title.error` → `taskForm.title.error.value` (root.field.fieldSignalProp)
  *
- * 3-level chains are processed first to avoid the inner PropertyAccessExpression
- * being matched as a 2-level check.
+ * N-level chains are processed first (Pass 1) to avoid inner PropertyAccessExpressions
+ * being matched as 2-level chains in Pass 2.
  */
 function transformSignalApiProperties(
   source: MagicString,
@@ -160,61 +161,104 @@ function transformSignalApiProperties(
   plainPropVars: Map<string, Set<string>>,
   fieldSignalPropVars: Map<string, Set<string>>,
 ): void {
-  // Pass 1: Find and transform 3-level chains, track their ranges
-  const threeLevelRanges: Array<{ start: number; end: number }> = [];
+  // Pass 1: Find and transform N-level field signal chains (chain length >= 3), track their ranges
+  const fieldChainRanges: Array<{ start: number; end: number }> = [];
 
   bodyNode.forEachDescendant((node) => {
     if (!node.isKind(SyntaxKind.PropertyAccessExpression)) return;
 
     const outerExpr = node.asKindOrThrow(SyntaxKind.PropertyAccessExpression);
-    const middleExpr = outerExpr.getExpression();
     const leafProp = outerExpr.getName();
 
-    // 3-level: outerExpr = middleExpr.leafProp, middleExpr = rootIdent.middleProp
-    if (!middleExpr.isKind(SyntaxKind.PropertyAccessExpression)) return;
+    // Quick check: leaf must be a potential fieldSignalProperty for some variable
+    let anyHasLeaf = false;
+    for (const props of fieldSignalPropVars.values()) {
+      if (props.has(leafProp)) {
+        anyHasLeaf = true;
+        break;
+      }
+    }
+    if (!anyHasLeaf) return;
 
-    const innerExpr = middleExpr.asKindOrThrow(SyntaxKind.PropertyAccessExpression);
-    const rootExpr = innerExpr.getExpression();
-    const middleProp = innerExpr.getName();
+    // Walk up the chain to find the root identifier, collecting intermediates
+    let current: Node = outerExpr.getExpression();
+    const intermediateNames: string[] = [];
+    let chainLength = 2; // root + leaf
 
-    if (!rootExpr.isKind(SyntaxKind.Identifier)) return;
-    const rootName = rootExpr.getText();
+    while (true) {
+      if (current.isKind(SyntaxKind.PropertyAccessExpression)) {
+        const pa = current.asKindOrThrow(SyntaxKind.PropertyAccessExpression);
+        intermediateNames.unshift(pa.getName());
+        current = pa.getExpression();
+        chainLength++;
+      } else if (current.isKind(SyntaxKind.ElementAccessExpression)) {
+        // ElementAccessExpression — opaque intermediate (bracket notation)
+        const ea = current.asKindOrThrow(SyntaxKind.ElementAccessExpression);
+        current = ea.getExpression();
+        chainLength++;
+        // No named property to validate — skip intermediate name check
+      } else {
+        break;
+      }
+    }
 
-    // Root must be a signal API var with fieldSignalProperties
+    // Root must be an identifier
+    if (!current.isKind(SyntaxKind.Identifier)) return;
+    const rootName = current.getText();
+
+    // Root must have fieldSignalProperties
     const fieldSignalProps = fieldSignalPropVars.get(rootName);
     if (!fieldSignalProps) return;
 
-    // Middle must NOT be a signal property or plain property (it's a field name)
-    const signalProps = signalApiVars.get(rootName);
-    const plainProps = plainPropVars.get(rootName);
-    if (signalProps?.has(middleProp) || plainProps?.has(middleProp)) return;
+    // Chain must have >= 3 segments (root + at least one intermediate + leaf)
+    if (chainLength < 3) return;
 
     // Leaf must be a field signal property
     if (!fieldSignalProps.has(leafProp)) return;
+
+    // No intermediate PropertyAccess name can be a signalProperty or plainProperty
+    const signalProps = signalApiVars.get(rootName);
+    const plainProps = plainPropVars.get(rootName);
+    for (const name of intermediateNames) {
+      if (signalProps?.has(name) || plainProps?.has(name)) return;
+    }
 
     // Guard: Check if .value is already present (migration case)
     const parent = outerExpr.getParent();
     if (parent?.isKind(SyntaxKind.PropertyAccessExpression)) {
       const parentProp = parent.asKindOrThrow(SyntaxKind.PropertyAccessExpression);
       if (parentProp.getExpression() === outerExpr && parentProp.getName() === 'value') {
-        threeLevelRanges.push({ start: outerExpr.getStart(), end: outerExpr.getEnd() });
-        return; // Already has .value, skip transformation
+        fieldChainRanges.push({ start: outerExpr.getStart(), end: outerExpr.getEnd() });
+        return;
+      }
+    }
+
+    // Guard: If the leaf is 'value' and the sub-chain (without leaf) already ends
+    // with a fieldSignalProperty, the user manually wrote .value — don't double-append.
+    if (leafProp === 'value') {
+      const subExpr = outerExpr.getExpression();
+      if (subExpr.isKind(SyntaxKind.PropertyAccessExpression)) {
+        const subLeaf = subExpr.asKindOrThrow(SyntaxKind.PropertyAccessExpression).getName();
+        if (fieldSignalProps.has(subLeaf)) {
+          fieldChainRanges.push({ start: outerExpr.getStart(), end: outerExpr.getEnd() });
+          return;
+        }
       }
     }
 
     source.appendLeft(outerExpr.getEnd(), '.value');
-    threeLevelRanges.push({ start: outerExpr.getStart(), end: outerExpr.getEnd() });
+    fieldChainRanges.push({ start: outerExpr.getStart(), end: outerExpr.getEnd() });
   });
 
-  // Pass 2: Transform 2-level chains, skipping nodes inside 3-level ranges
+  // Pass 2: Transform 2-level chains, skipping nodes inside N-level chain ranges
   bodyNode.forEachDescendant((node) => {
     if (!node.isKind(SyntaxKind.PropertyAccessExpression)) return;
 
     const expr = node.asKindOrThrow(SyntaxKind.PropertyAccessExpression);
 
-    // Skip if this node is inside a 3-level chain range
+    // Skip if this node is inside a field chain range
     const nodeStart = expr.getStart();
-    if (threeLevelRanges.some((r) => nodeStart >= r.start && nodeStart < r.end)) return;
+    if (fieldChainRanges.some((r) => nodeStart >= r.start && nodeStart < r.end)) return;
 
     const objExpr = expr.getExpression();
     const propName = expr.getName();
@@ -231,7 +275,7 @@ function transformSignalApiProperties(
     if (parent?.isKind(SyntaxKind.PropertyAccessExpression)) {
       const parentProp = parent.asKindOrThrow(SyntaxKind.PropertyAccessExpression);
       if (parentProp.getExpression() === expr && parentProp.getName() === 'value') {
-        return; // Already has .value, skip transformation
+        return;
       }
     }
 

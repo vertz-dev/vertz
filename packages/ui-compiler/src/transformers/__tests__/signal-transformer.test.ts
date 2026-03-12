@@ -1,6 +1,6 @@
+import { describe, expect, it } from 'bun:test';
 import MagicString from 'magic-string';
 import { Project, ts } from 'ts-morph';
-import { describe, expect, it } from 'bun:test';
 import { ComponentAnalyzer } from '../../analyzers/component-analyzer';
 import type { VariableInfo } from '../../types';
 import { SignalTransformer } from '../signal-transformer';
@@ -149,5 +149,86 @@ describe('SignalTransformer', () => {
       [formVar],
     );
     expect(result).toContain('taskForm.dirty.value');
+  });
+
+  it('dirty ambiguity: 2-level taskForm.dirty uses Pass 2, 3-level uses Pass 1', () => {
+    // dirty is in BOTH signalProperties and fieldSignalProperties.
+    // 2-level: taskForm.dirty → signalProperty via Pass 2 → .value
+    // 3-level: taskForm.title.dirty → fieldSignalProperty via Pass 1 → .value
+    const result = transform(
+      `function TaskForm() {\n  const taskForm = form({ title: '' });\n  const d = taskForm.dirty;\n  const fd = taskForm.title.dirty;\n  return <div>{d}{fd}</div>;\n}`,
+      [formVar],
+    );
+    expect(result).toContain('taskForm.dirty.value');
+    expect(result).toContain('taskForm.title.dirty.value');
+    // Neither should be double-transformed
+    expect(result).not.toContain('taskForm.dirty.value.value');
+    expect(result).not.toContain('taskForm.title.dirty.value.value');
+  });
+
+  it('auto-unwraps 4-level chain (root.group.field.signal)', () => {
+    const result = transform(
+      `function UserForm() {\n  const taskForm = form({});\n  const err = taskForm.address.street.error;\n  return <div>{err}</div>;\n}`,
+      [formVar],
+    );
+    expect(result).toContain('taskForm.address.street.error.value');
+  });
+
+  it('auto-unwraps 5-level chain (root.a.b.c.signal)', () => {
+    const result = transform(
+      `function UserForm() {\n  const taskForm = form({});\n  const v = taskForm.deep.nested.field.value;\n  return <div>{v}</div>;\n}`,
+      [formVar],
+    );
+    expect(result).toContain('taskForm.deep.nested.field.value.value');
+  });
+
+  it('does NOT double-transform 4-level chain when .value already present', () => {
+    const result = transform(
+      `function UserForm() {\n  const taskForm = form({});\n  const err = taskForm.address.street.error.value;\n  return <div>{err}</div>;\n}`,
+      [formVar],
+    );
+    expect(result).toContain('taskForm.address.street.error.value');
+    expect(result).not.toContain('taskForm.address.street.error.value.value');
+  });
+
+  it('does NOT transform when leaf is NOT a fieldSignalProperty', () => {
+    const result = transform(
+      `function UserForm() {\n  const taskForm = form({});\n  const x = taskForm.address.street.something;\n  return <div>{x}</div>;\n}`,
+      [formVar],
+    );
+    expect(result).not.toContain('.something.value');
+  });
+
+  it('does NOT transform when intermediate is a signalProperty', () => {
+    const result = transform(
+      `function UserForm() {\n  const taskForm = form({});\n  const x = taskForm.submitting.error;\n  return <div>{x}</div>;\n}`,
+      [formVar],
+    );
+    // submitting is a signalProperty, so this is NOT a field chain
+    expect(result).not.toContain('taskForm.submitting.error.value');
+  });
+
+  it('transforms ElementAccessExpression: form[dynamicField].error', () => {
+    const result = transform(
+      `function DynForm() {\n  const taskForm = form({});\n  const field = 'title';\n  const err = taskForm[field].error;\n  return <div>{err}</div>;\n}`,
+      [formVar],
+    );
+    expect(result).toContain('taskForm[field].error.value');
+  });
+
+  it('transforms mixed chain: form.items[0].name.error', () => {
+    const result = transform(
+      `function ArrayForm() {\n  const taskForm = form({});\n  const err = taskForm.items[0].name.error;\n  return <div>{err}</div>;\n}`,
+      [formVar],
+    );
+    expect(result).toContain('taskForm.items[0].name.error.value');
+  });
+
+  it('transforms multiple bracket notations: form[a][b].error', () => {
+    const result = transform(
+      `function DynForm() {\n  const taskForm = form({});\n  const a = 'x';\n  const b = 'y';\n  const err = taskForm[a][b].error;\n  return <div>{err}</div>;\n}`,
+      [formVar],
+    );
+    expect(result).toContain('taskForm[a][b].error.value');
   });
 });

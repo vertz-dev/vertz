@@ -86,7 +86,8 @@ export class JsxAnalyzer {
  *
  * Handles two patterns:
  * - 2-level: `tasks.loading` (root.signalProp)
- * - 3-level: `taskForm.title.error` (root.field.fieldSignalProp)
+ * - N-level (>= 3): `taskForm.title.error`, `taskForm.address.street.error`,
+ *   `taskForm[field].error` (root + intermediates + fieldSignalProp leaf)
  */
 function containsSignalApiPropertyAccess(
   node: Node,
@@ -110,28 +111,57 @@ function containsSignalApiPropertyAccess(
       }
     }
 
-    // 3-level: root.field.fieldSignalProp
-    if (obj.isKind(SyntaxKind.PropertyAccessExpression)) {
-      const innerExpr = obj.asKindOrThrow(SyntaxKind.PropertyAccessExpression);
-      const rootExpr = innerExpr.getExpression();
-      const middleProp = innerExpr.getName();
-
-      if (rootExpr.isKind(SyntaxKind.Identifier)) {
-        const rootName = rootExpr.getText();
-        const fieldSignalProps = fieldSignalPropVars.get(rootName);
-        if (!fieldSignalProps) continue;
-
-        // Middle must NOT be a signal property or plain property (it's a field name)
-        const signalProps = signalApiVars.get(rootName);
-        const plainProps = plainPropVars.get(rootName);
-        if (signalProps?.has(middleProp) || plainProps?.has(middleProp)) continue;
-
-        // Leaf must be a field signal property
-        if (fieldSignalProps.has(propName)) {
-          return true;
-        }
+    // N-level (>= 3): Walk up the chain to find the root identifier
+    // Quick check: leaf must be a potential fieldSignalProperty
+    let anyHasLeaf = false;
+    for (const props of fieldSignalPropVars.values()) {
+      if (props.has(propName)) {
+        anyHasLeaf = true;
+        break;
       }
     }
+    if (!anyHasLeaf) continue;
+
+    let current: Node = obj;
+    const intermediateNames: string[] = [];
+    let chainLength = 2; // root + leaf
+
+    while (true) {
+      if (current.isKind(SyntaxKind.PropertyAccessExpression)) {
+        const innerPa = current.asKindOrThrow(SyntaxKind.PropertyAccessExpression);
+        intermediateNames.unshift(innerPa.getName());
+        current = innerPa.getExpression();
+        chainLength++;
+      } else if (current.isKind(SyntaxKind.ElementAccessExpression)) {
+        const ea = current.asKindOrThrow(SyntaxKind.ElementAccessExpression);
+        current = ea.getExpression();
+        chainLength++;
+      } else {
+        break;
+      }
+    }
+
+    if (!current.isKind(SyntaxKind.Identifier)) continue;
+    const rootName = current.getText();
+
+    const fieldSignalProps = fieldSignalPropVars.get(rootName);
+    if (!fieldSignalProps) continue;
+    if (chainLength < 3) continue;
+    if (!fieldSignalProps.has(propName)) continue;
+
+    // No intermediate can be a signalProperty or plainProperty
+    const signalProps = signalApiVars.get(rootName);
+    const plainProps = plainPropVars.get(rootName);
+    let intermediateBlocked = false;
+    for (const name of intermediateNames) {
+      if (signalProps?.has(name) || plainProps?.has(name)) {
+        intermediateBlocked = true;
+        break;
+      }
+    }
+    if (intermediateBlocked) continue;
+
+    return true;
   }
   return false;
 }

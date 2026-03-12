@@ -6,6 +6,9 @@ import { formDataToObject } from './form-data';
 import type { FormSchema } from './validation';
 import { validate } from './validation';
 
+const FIELD_STATE_SIGNALS = new Set(['error', 'dirty', 'touched', 'value']);
+const FIELD_STATE_METHODS = new Set(['setValue', 'reset']);
+
 /**
  * An SDK method with endpoint metadata attached.
  * Generated SDK methods expose `.url` and `.method` for progressive enhancement.
@@ -41,8 +44,59 @@ export type ReservedFormNames =
 
 export type { FieldState };
 
-/** Mapped type providing FieldState for each field in TBody. */
+/** Mapped type providing FieldState for each field in TBody (flat — no nested access). */
 export type FieldAccessors<TBody> = { [K in keyof TBody]: FieldState<TBody[K]> };
+
+/** Built-in object types that should NOT recurse into NestedFieldAccessors. */
+type BuiltInObjects = Date | RegExp | File | Blob | Map<unknown, unknown> | Set<unknown>;
+
+/** FieldState signal/method property names that conflict with nested field names. */
+type FieldSignalReservedNames = 'error' | 'dirty' | 'touched' | 'value' | 'setValue' | 'reset';
+
+/** Check if any key of T collides with FieldState property names. */
+type HasReservedFieldName<T> = keyof T & FieldSignalReservedNames extends never ? false : true;
+
+/** Recursive field accessors for nested schemas. */
+export type NestedFieldAccessors<T> = {
+  [K in keyof T]: T[K] extends BuiltInObjects
+    ? FieldState<T[K]>
+    : T[K] extends Array<infer U>
+      ? FieldState<T[K]> & ArrayFieldAccessors<U>
+      : T[K] extends Record<string, unknown>
+        ? HasReservedFieldName<T[K]> extends true
+          ? {
+              __error: `Nested field name conflicts with FieldState property: ${keyof T[K] & FieldSignalReservedNames & string}`;
+            }
+          : FieldState<T[K]> & NestedFieldAccessors<T[K]>
+        : FieldState<T[K]>;
+};
+
+/** Array field accessors — numeric index access to element-level fields. */
+export type ArrayFieldAccessors<U> = {
+  [index: number]: U extends BuiltInObjects
+    ? FieldState<U>
+    : U extends Record<string, unknown>
+      ? FieldState<U> & NestedFieldAccessors<U>
+      : FieldState<U>;
+};
+
+/** Deep partial utility for initial values. */
+export type DeepPartial<T> = {
+  [K in keyof T]?: T[K] extends Array<infer U>
+    ? Array<DeepPartial<U>>
+    : T[K] extends Record<string, unknown>
+      ? DeepPartial<T[K]>
+      : T[K];
+};
+
+/** Union of all valid dot-paths through a nested type. */
+export type FieldPath<T, Prefix extends string = ''> =
+  | `${Prefix}${keyof T & string}`
+  | {
+      [K in keyof T & string]: T[K] extends Record<string, unknown>
+        ? FieldPath<T[K], `${Prefix}${K}.`>
+        : never;
+    }[keyof T & string];
 
 /** Mapped type providing typed field name strings for compile-time input validation. */
 export type FieldNames<TBody> = { readonly [K in keyof TBody & string]: K };
@@ -53,7 +107,7 @@ export interface FormBaseProperties<TBody> {
   method: string;
   onSubmit: (e: Event) => Promise<void>;
   reset: () => void;
-  setFieldError: (field: keyof TBody & string, message: string) => void;
+  setFieldError: (field: FieldPath<TBody>, message: string) => void;
   submit: (formData?: FormData) => Promise<void>;
   submitting: Signal<boolean>;
   dirty: ReadonlySignal<boolean>;
@@ -69,7 +123,7 @@ export interface FormBaseProperties<TBody> {
  * TResult is used by form() overloads for return type inference.
  */
 export type FormInstance<TBody, _TResult> = keyof TBody & ReservedFormNames extends never
-  ? FormBaseProperties<TBody> & FieldAccessors<TBody>
+  ? FormBaseProperties<TBody> & NestedFieldAccessors<TBody>
   : {
       __error: `Field name conflicts with reserved form property: ${keyof TBody & ReservedFormNames & string}`;
     };
@@ -78,8 +132,8 @@ export type FormInstance<TBody, _TResult> = keyof TBody & ReservedFormNames exte
 export interface FormOptions<TBody, TResult> {
   /** Explicit schema for client-side validation before submission. */
   schema?: FormSchema<TBody>;
-  /** Initial values for form fields. */
-  initial?: Partial<TBody> | (() => Partial<TBody>);
+  /** Initial values for form fields. Supports nested partial values. */
+  initial?: DeepPartial<TBody> | (() => DeepPartial<TBody>);
   /** Callback invoked after a successful submission. */
   onSuccess?: (result: TResult) => void;
   /** Callback invoked when validation or submission fails. */
@@ -110,6 +164,7 @@ export function form<TBody, TResult>(
   options?: FormOptions<TBody, TResult>,
 ): FormInstance<TBody, TResult> {
   const fieldCache = new Map<string, FieldState>();
+  const chainProxyCache = new Map<string, object>();
   const submitting = signal(false);
   // Generation counter — incremented when new fields are added to the cache.
   // Computed signals read this to re-evaluate when the field set changes.
@@ -131,12 +186,29 @@ export function form<TBody, TResult>(
     return true;
   });
 
+  function resolveNestedInitial(dotPath: string): unknown {
+    const initialObj =
+      typeof options?.initial === 'function' ? options.initial() : options?.initial;
+    if (!initialObj) return undefined;
+    const segments = dotPath.split('.');
+    let current: unknown = initialObj;
+    for (const segment of segments) {
+      if (current == null || typeof current !== 'object') return undefined;
+      current = (current as Record<string, unknown>)[segment];
+    }
+    return current;
+  }
+
   function getOrCreateField(name: string): FieldState {
     let field = fieldCache.get(name);
     if (!field) {
-      const initialObj =
-        typeof options?.initial === 'function' ? options.initial() : options?.initial;
-      const initialValue = (initialObj as Record<string, unknown> | undefined)?.[name];
+      const initialValue = name.includes('.')
+        ? resolveNestedInitial(name)
+        : (() => {
+            const initialObj =
+              typeof options?.initial === 'function' ? options.initial() : options?.initial;
+            return (initialObj as Record<string, unknown> | undefined)?.[name];
+          })();
       field = createFieldState(name, initialValue);
       fieldCache.set(name, field);
       fieldGeneration.value++;
@@ -144,10 +216,34 @@ export function form<TBody, TResult>(
     return field;
   }
 
+  function getOrCreateChainProxy(dotPath: string): object {
+    let proxy = chainProxyCache.get(dotPath);
+    if (proxy) return proxy;
+
+    proxy = new Proxy(Object.create(null) as Record<string | symbol, unknown>, {
+      get(_target, prop) {
+        if (typeof prop === 'string') {
+          if (FIELD_STATE_SIGNALS.has(prop)) {
+            return getOrCreateField(dotPath)[prop as keyof FieldState];
+          }
+          if (FIELD_STATE_METHODS.has(prop)) {
+            return getOrCreateField(dotPath)[prop as keyof FieldState];
+          }
+          const childPath = `${dotPath}.${prop}`;
+          return getOrCreateChainProxy(childPath);
+        }
+        return undefined;
+      },
+    });
+
+    chainProxyCache.set(dotPath, proxy);
+    return proxy;
+  }
+
   const resolvedSchema = options?.schema ?? sdkMethod.meta?.bodySchema;
 
   async function submitPipeline(formData: FormData): Promise<void> {
-    const data = formDataToObject(formData);
+    const data = formDataToObject(formData, { nested: true });
 
     if (resolvedSchema) {
       const result = validate(resolvedSchema, data);
@@ -274,7 +370,7 @@ export function form<TBody, TResult>(
         if (knownProperties.has(prop)) {
           return target[prop];
         }
-        return getOrCreateField(prop);
+        return getOrCreateChainProxy(prop);
       }
       return Reflect.get(target, prop, receiver);
     },
