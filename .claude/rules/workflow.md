@@ -17,13 +17,20 @@ For each phase:
    - `bun test` (changed packages)
    - `bun run typecheck` (changed packages)
    - `bunx biome check --write <changed-files>`
-3. **Adversarial review** — spawn review agents in parallel:
-   - Each relevant agent (see `.claude/agents/`) reviews from their perspective
-   - Reviews written to `reviews/<feature>/phase-NN-<slug>.md`
-   - Check: delivers what ticket asks, TDD compliance, no type gaps, no security issues, API matches design doc
+3. **Commit** — stage and commit all changes for the phase
+4. **Adversarial review** — spawn 4 review agents in parallel (ben, nora, ava, mike):
+   - Each agent reviews from their perspective (see `.claude/agents/` for personas)
+   - Reviews check: delivers what ticket asks, TDD compliance, no type gaps, no security issues, API matches design doc
    - Reviews must be adversarial — actively look for mistakes, don't rubber-stamp
-4. **Address findings** — fix issues from all reviews, rerun quality gates
-5. **Move to next phase** — no pause, no user prompt needed
+5. **Fix-review loop** — repeat until all blockers and should-fix items are resolved:
+   a. Fix ALL blocker and should-fix findings from the reviews
+   b. Re-run quality gates (test + typecheck + lint)
+   c. Commit the fixes
+   d. If any reviewer had blockers, re-run that reviewer's review on the new code
+   e. If re-review finds new blockers, go back to (a)
+   f. Loop exits when all 4 reviewers approve (no remaining blockers)
+6. **Push** — push the branch to origin
+7. **Move to next phase** — no pause, no user prompt needed
 
 ### After All Phases
 
@@ -33,6 +40,7 @@ For each phase:
 4. Open PR to main with:
    - Public API Changes summary (breaking / deferred / additions vs design doc)
    - Summary of all phases
+   - Consolidated review findings and resolutions
    - E2E acceptance test status
 5. **Monitor GitHub CI** — check PR status using `gh pr checks` or `gh run list`
 6. If CI fails on GitHub: diagnose, fix locally, push, and monitor again. Repeat until green.

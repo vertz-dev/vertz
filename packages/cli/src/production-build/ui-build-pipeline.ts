@@ -307,14 +307,19 @@ ${modulepreloadLinks}
           routes: prerenderableRoutes,
         });
 
-        // Write pre-rendered HTML files, stripping JS from purely static pages
+        // Only strip JS from static pages when the app uses islands mode.
+        // Detect islands mode: at least one pre-rendered page has a data-v-island marker.
+        // Without this check, mount()-based apps would incorrectly have JS stripped.
+        const isIslandsMode = results.some((r) => r.html.includes('data-v-island'));
+
+        // Write pre-rendered HTML files
         for (const result of results) {
           const outPath =
             result.path === '/'
               ? resolve(distClient, 'index.html')
               : resolve(distClient, `${result.path.replace(/^\//, '')}/index.html`);
           mkdirSync(dirname(outPath), { recursive: true });
-          const finalHtml = stripScriptsFromStaticHTML(result.html);
+          const finalHtml = isIslandsMode ? stripScriptsFromStaticHTML(result.html) : result.html;
           const stripped = finalHtml !== result.html;
           writeFileSync(outPath, finalHtml);
           const suffix = stripped ? ' (static — JS stripped)' : '';
