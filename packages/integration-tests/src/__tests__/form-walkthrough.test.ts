@@ -11,11 +11,11 @@
 // Uses only public package imports — never relative imports.
 // ===========================================================================
 
+import { describe, expect, it, mock } from 'bun:test';
 import { err, ok } from '@vertz/fetch';
 import { s } from '@vertz/schema';
 import type { FormOptions, SdkMethod, SdkMethodWithMeta } from '@vertz/ui/form';
 import { form, formDataToObject } from '@vertz/ui/form';
-import { describe, expect, it, mock } from 'bun:test';
 
 // ---------------------------------------------------------------------------
 // 1. Mock SDK method — simulates generated SDK output
@@ -34,10 +34,11 @@ interface User {
 
 /** Mock SDK method with url/method metadata (no .meta). */
 function mockSdk(): SdkMethod<CreateUserBody, User> {
-  const fn = async (body: CreateUserBody) => ok<User>({
-    id: 'u-1',
-    ...body,
-  });
+  const fn = async (body: CreateUserBody) =>
+    ok<User>({
+      id: 'u-1',
+      ...body,
+    });
   return Object.assign(fn, { url: '/api/users', method: 'POST' });
 }
 
@@ -47,10 +48,11 @@ function mockSdkWithMeta(): SdkMethodWithMeta<CreateUserBody, User> {
     name: s.string().min(1),
     email: s.string().min(1),
   });
-  const fn = async (body: CreateUserBody) => ok<User>({
-    id: 'u-1',
-    ...body,
-  });
+  const fn = async (body: CreateUserBody) =>
+    ok<User>({
+      id: 'u-1',
+      ...body,
+    });
   return Object.assign(fn, {
     url: '/api/users',
     method: 'POST',
@@ -416,6 +418,112 @@ describe('Form API Developer Walkthrough', () => {
       fd.append('email', 'alice@test.com');
       const obj = formDataToObject(fd);
       expect(obj).toEqual({ name: 'Alice', email: 'alice@test.com' });
+    });
+
+    it('parses dot-paths into nested objects when nested: true', () => {
+      const fd = new FormData();
+      fd.set('name', 'Alice');
+      fd.set('address.street', '123 Main');
+      fd.set('address.city', 'Springfield');
+      const obj = formDataToObject(fd, { nested: true });
+      expect(obj).toEqual({
+        name: 'Alice',
+        address: { street: '123 Main', city: 'Springfield' },
+      });
+    });
+
+    it('preserves flat keys without nested option (backward compat)', () => {
+      const fd = new FormData();
+      fd.set('address.street', '123 Main');
+      const obj = formDataToObject(fd);
+      expect(obj).toEqual({ 'address.street': '123 Main' });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 3k. Nested field access — chain proxy
+  // -------------------------------------------------------------------------
+
+  describe('Nested field access', () => {
+    const nestedSchema = s.object({
+      name: s.string().min(1),
+      address: s.object({
+        street: s.string().min(1),
+        city: s.string().min(1),
+      }),
+    });
+
+    interface NestedBody {
+      name: string;
+      address: { street: string; city: string };
+    }
+
+    function nestedSdk(): SdkMethod<NestedBody, { id: string }> {
+      const fn = async (_body: NestedBody) => ok<{ id: string }>({ id: 'u-1' });
+      return Object.assign(fn, { url: '/api/users', method: 'POST' });
+    }
+
+    it('supports nested field error access via chain proxy', () => {
+      const f = form(nestedSdk(), { schema: nestedSchema });
+      expect(f.address.street.error.peek()).toBeUndefined();
+      f.address.street.error.value = 'Street is required';
+      expect(f.address.street.error.peek()).toBe('Street is required');
+    });
+
+    it('chain proxy identity is stable (cached)', () => {
+      const f = form(nestedSdk(), { schema: nestedSchema });
+      expect(f.address).toBe(f.address);
+      expect(f.address.street).toBe(f.address.street);
+    });
+
+    it('group-level field state works', () => {
+      const f = form(nestedSdk(), { schema: nestedSchema });
+      f.address.error.value = 'Invalid address';
+      expect(f.address.error.peek()).toBe('Invalid address');
+      // Group-level is independent of leaf-level
+      expect(f.address.street.error.peek()).toBeUndefined();
+    });
+
+    it('setFieldError accepts dot-path strings', () => {
+      const f = form(nestedSdk(), { schema: nestedSchema });
+      f.setFieldError('address.street', 'Street required');
+      expect(f.address.street.error.peek()).toBe('Street required');
+      f.setFieldError('address', 'Invalid address');
+      expect(f.address.error.peek()).toBe('Invalid address');
+    });
+
+    it('validation populates nested field errors via dot-path keys', async () => {
+      const onError = mock();
+      const f = form(nestedSdk(), { schema: nestedSchema, onError });
+      const fd = new FormData();
+      fd.set('name', '');
+      fd.set('address.street', '');
+      fd.set('address.city', '');
+      await f.submit(fd);
+      expect(onError).toHaveBeenCalled();
+      expect(f.name.error.peek()).toBeDefined();
+      expect(f.address.street.error.peek()).toBeDefined();
+      expect(f.address.city.error.peek()).toBeDefined();
+    });
+
+    it('nested initial values are resolved from DeepPartial', () => {
+      const f = form(nestedSdk(), {
+        schema: nestedSchema,
+        initial: { address: { city: 'Springfield' } },
+      });
+      expect(f.address.city.value.peek()).toBe('Springfield');
+      expect(f.address.street.value.peek()).toBeUndefined();
+      expect(f.name.value.peek()).toBeUndefined();
+    });
+
+    it('form-level signals still work with nested fields', () => {
+      const f = form(nestedSdk(), { schema: nestedSchema });
+      expect(f.submitting.peek()).toBe(false);
+      expect(f.dirty.peek()).toBe(false);
+      expect(f.valid.peek()).toBe(true);
+
+      f.setFieldError('address.street', 'Required');
+      expect(f.valid.peek()).toBe(false);
     });
   });
 

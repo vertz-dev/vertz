@@ -8,9 +8,14 @@
 export type { FieldState } from './field-state';
 export { createFieldState } from './field-state';
 export type {
+  ArrayFieldAccessors,
+  DeepPartial,
+  FieldAccessors,
   FieldNames,
+  FieldPath,
   FormInstance,
   FormOptions,
+  NestedFieldAccessors,
   SdkMethod,
   SdkMethodWithMeta,
 } from './form';

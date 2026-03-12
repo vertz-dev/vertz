@@ -636,6 +636,121 @@ describe('form', () => {
     });
   });
 
+  describe('nested field access', () => {
+    it('nested path returns field accessor with error signal', () => {
+      const sdk = mockSdkMethod({
+        url: '/api/users',
+        method: 'POST',
+        handler: async () => ({ id: 1 }),
+      });
+
+      const f = form(sdk, { schema: passingSchema() });
+      expect(f.address.street.error.peek()).toBeUndefined();
+      f.address.street.error.value = 'Street is required';
+      expect(f.address.street.error.peek()).toBe('Street is required');
+    });
+
+    it('nested chain proxy is cached (same identity)', () => {
+      const sdk = mockSdkMethod({
+        url: '/api/users',
+        method: 'POST',
+        handler: async () => ({ id: 1 }),
+      });
+
+      const f = form(sdk, { schema: passingSchema() });
+      const street1 = f.address.street;
+      const street2 = f.address.street;
+      expect(street1).toBe(street2);
+    });
+
+    it('group-level field state works', () => {
+      const sdk = mockSdkMethod({
+        url: '/api/users',
+        method: 'POST',
+        handler: async () => ({ id: 1 }),
+      });
+
+      const f = form(sdk, { schema: passingSchema() });
+      f.address.error.value = 'Invalid address';
+      expect(f.address.error.peek()).toBe('Invalid address');
+    });
+
+    it('form-level signals still work with chain proxy', () => {
+      const sdk = mockSdkMethod({
+        url: '/api/users',
+        method: 'POST',
+        handler: async () => ({ id: 1 }),
+      });
+
+      const f = form(sdk, { schema: passingSchema() });
+      expect(f.action).toBe('/api/users');
+      expect(f.method).toBe('POST');
+      expect(f.submitting.peek()).toBe(false);
+    });
+
+    it('flat field access still works', () => {
+      const sdk = mockSdkMethod({
+        url: '/api/users',
+        method: 'POST',
+        handler: async () => ({ id: 1 }),
+      });
+
+      const f = form(sdk, { schema: passingSchema() });
+      f.name.error.value = 'Required';
+      expect(f.name.error.peek()).toBe('Required');
+    });
+
+    it('nested initial values are resolved via path traversal', () => {
+      const sdk = mockSdkMethod({
+        url: '/api/users',
+        method: 'POST',
+        handler: async () => ({ id: 1 }),
+      });
+
+      const f = form(sdk, {
+        schema: passingSchema(),
+        initial: { address: { city: 'Springfield' } },
+      });
+
+      expect(f.address.city.value.peek()).toBe('Springfield');
+      expect(f.address.street.value.peek()).toBeUndefined();
+    });
+
+    it('setFieldError works with dot-path strings', () => {
+      const sdk = mockSdkMethod({
+        url: '/api/users',
+        method: 'POST',
+        handler: async () => ({ id: 1 }),
+      });
+
+      const f = form(sdk, { schema: passingSchema() });
+      f.setFieldError('address.street', 'Street is required');
+      expect(f.address.street.error.peek()).toBe('Street is required');
+    });
+
+    it('validation errors populate nested field states via dot-path keys', async () => {
+      const handler = vi.fn().mockResolvedValue({ id: 1 });
+      const sdk = mockSdkMethod({ url: '/api/users', method: 'POST', handler });
+      const schema: FormSchema<{ name: string; address: { street: string } }> = {
+        parse(_data: unknown) {
+          const error = new Error('Validation failed');
+          (error as Error & { fieldErrors: Record<string, string> }).fieldErrors = {
+            'address.street': 'Required',
+          };
+          return { ok: false as const, error };
+        },
+      };
+
+      const f = form(sdk, { schema });
+      const fd = new FormData();
+      fd.append('name', 'Alice');
+      fd.append('address.street', '');
+      await f.submit(fd);
+
+      expect(f.address.street.error.peek()).toBe('Required');
+    });
+  });
+
   describe('computed dirty and valid', () => {
     it('dirty starts as false', () => {
       const sdk = mockSdkMethod({
