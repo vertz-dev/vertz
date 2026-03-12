@@ -257,9 +257,12 @@ ${modulepreloadLinks}
     // ── 6. Static pre-rendering ──────────────────────────────────
     console.log('📄 Pre-rendering routes...');
 
-    const { discoverRoutes, filterPrerenderableRoutes, prerenderRoutes } = await import(
-      '@vertz/ui-server/ssr'
-    );
+    const {
+      discoverRoutes,
+      filterPrerenderableRoutes,
+      prerenderRoutes,
+      stripScriptsFromStaticHTML,
+    } = await import('@vertz/ui-server/ssr');
 
     // Discover SSR module entry
     const ssrEntryPath = resolve(distServer, 'app.js');
@@ -304,15 +307,20 @@ ${modulepreloadLinks}
           routes: prerenderableRoutes,
         });
 
-        // Write pre-rendered HTML files
+        // Write pre-rendered HTML files, stripping JS from purely static pages
         for (const result of results) {
           const outPath =
             result.path === '/'
               ? resolve(distClient, 'index.html')
               : resolve(distClient, `${result.path.replace(/^\//, '')}/index.html`);
           mkdirSync(dirname(outPath), { recursive: true });
-          writeFileSync(outPath, result.html);
-          console.log(`  ✓ ${result.path} → ${outPath.replace(distClient, 'dist/client')}`);
+          const finalHtml = stripScriptsFromStaticHTML(result.html);
+          const stripped = finalHtml !== result.html;
+          writeFileSync(outPath, finalHtml);
+          const suffix = stripped ? ' (static — JS stripped)' : '';
+          console.log(
+            `  ✓ ${result.path} → ${outPath.replace(distClient, 'dist/client')}${suffix}`,
+          );
         }
       }
     }
