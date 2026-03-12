@@ -2,7 +2,14 @@ import { css } from '@vertz/ui';
 
 const s = css({
   section: ['py:24', 'px:6'],
-  container: ['max-w:4xl', 'mx:auto', 'grid', 'grid-cols:2', 'gap:12', 'items:center'],
+  container: [
+    'max-w:4xl',
+    'mx:auto',
+    'grid',
+    'gap:12',
+    'items:center',
+    { '@media (min-width: 768px)': [{ property: 'grid-template-columns', value: '1fr 1fr' }] },
+  ],
   heading: ['font:4xl', 'mb:6'],
   desc: ['font:lg', 'mb:4', 'text:gray.400'],
   terminal: ['p:6', 'rounded:lg', 'font:sm', 'border:1', 'bg:gray.950'],

@@ -4,7 +4,11 @@ const s = css({
   section: ['py:24', 'px:6'],
   container: ['max-w:5xl', 'mx:auto'],
   label: ['font:xs', 'tracking:widest', 'uppercase', 'mb:12', 'text:center', 'text:gray.500'],
-  grid: ['grid', 'grid-cols:3', 'gap:6'],
+  grid: [
+    'grid',
+    'gap:6',
+    { '@media (min-width: 768px)': [{ property: 'grid-template-columns', value: 'repeat(3, 1fr)' }] },
+  ],
   card: ['p:8', 'border:1', 'rounded:lg', 'transition:colors'],
   title: ['font:2xl', 'mb:4', 'text:gray.200'],
   desc: ['leading:relaxed', 'text:gray.400'],

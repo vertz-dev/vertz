@@ -7,6 +7,8 @@
  * - Full-stack (both):        API build + UI build
  */
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { err, ok, type Result } from '@vertz/errors';
 import { type DetectedApp, detectAppType } from '../dev-server/app-detector';
 import { type BuildConfig, BuildOrchestrator, buildUI } from '../production-build';
@@ -195,6 +197,18 @@ async function buildUIOnly(
     console.log('');
   }
 
+  // Read title and description from package.json for SEO
+  let title: string | undefined;
+  let description: string | undefined;
+  try {
+    const pkgPath = resolve(detected.projectRoot, 'package.json');
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+    title = pkg.vertz?.title ?? pkg.title;
+    description = pkg.vertz?.description ?? pkg.description;
+  } catch {
+    // Ignore — defaults will be used
+  }
+
   const result = await buildUI({
     projectRoot: detected.projectRoot,
     clientEntry: detected.clientEntry,
@@ -202,6 +216,8 @@ async function buildUIOnly(
     outputDir: 'dist',
     minify: !noMinify,
     sourcemap,
+    title,
+    description,
   });
 
   if (!result.success) {

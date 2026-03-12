@@ -2,11 +2,15 @@
   "name": "@vertz/landing",
   "private": true,
   "type": "module",
+  "vertz": {
+    "title": "Vertz — The LLM-First Web Framework",
+    "description": "Vertz is a full-stack TypeScript framework designed for AI-assisted development. Build reactive UIs with zero boilerplate using signals, computed values, and a compiler that does the work for you."
+  },
   "scripts": {
     "dev": "bun run src/dev-server.ts",
     "build": "bun node_modules/@vertz/cli/dist/vertz.js build",
     "build:og": "bun run scripts/og-images.ts",
-    "deploy": "bun run build && bunx wrangler deploy",
+    "deploy": "bun run build && bunx wrangler deploy --define DEPLOY_VERSION:\"'$(date +%s)'\" && bun run scripts/pre-warm.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

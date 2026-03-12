@@ -13,8 +13,9 @@
  * TypeScript without requiring bun-types in the CLI package.
  */
 
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { brotliCompressSync, constants as zlibConstants } from 'node:zlib';
 
 // Minimal ambient declaration for Bun APIs used by this module.
 // The CLI runs under Bun at runtime; these declarations let tsc validate
@@ -42,6 +43,8 @@ export interface UIBuildConfig {
   sourcemap: boolean;
   /** HTML page title (default 'Vertz App') */
   title?: string;
+  /** Meta description for SEO */
+  description?: string;
 }
 
 export interface UIBuildResult {
@@ -64,6 +67,7 @@ export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
     minify,
     sourcemap,
     title = 'Vertz App',
+    description,
   } = config;
   const distDir = resolve(projectRoot, outputDir);
   const distClient = resolve(distDir, 'client');
@@ -156,12 +160,25 @@ export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
       .map((path) => `    <link rel="modulepreload" href="${path}">`)
       .join('\n');
 
+    const descriptionTag = description
+      ? `\n    <meta name="description" content="${description.replace(/"/g, '&quot;')}" />`
+      : '';
+
+    // Detect optional public assets for meta tags
+    const publicDir = resolve(projectRoot, 'public');
+    const hasFavicon = existsSync(resolve(publicDir, 'favicon.svg'));
+    const hasManifest = existsSync(resolve(publicDir, 'site.webmanifest'));
+
+    const faviconTag = hasFavicon ? '\n    <link rel="icon" type="image/svg+xml" href="/favicon.svg">' : '';
+    const manifestTag = hasManifest ? '\n    <link rel="manifest" href="/site.webmanifest">' : '';
+    const themeColorTag = '\n    <meta name="theme-color" content="#0a0a0b">';
+
     const html = `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${title}</title>
+    <title>${title}</title>${descriptionTag}${themeColorTag}${faviconTag}${manifestTag}
 ${cssLinks}
 ${modulepreloadLinks}
   </head>
@@ -174,7 +191,6 @@ ${modulepreloadLinks}
     writeFileSync(resolve(distClient, '_shell.html'), html);
 
     // ── 4. Copy public/ → dist/client/ ────────────────────────────
-    const publicDir = resolve(projectRoot, 'public');
     if (existsSync(publicDir)) {
       cpSync(publicDir, distClient, { recursive: true });
       console.log('  Copied public/ assets');
@@ -290,6 +306,13 @@ ${modulepreloadLinks}
       }
     }
 
+    // ── 7. Brotli pre-compression ─────────────────────────────────
+    console.log('🗜️  Pre-compressing assets with Brotli...');
+    const compressedCount = brotliCompressDir(distClient);
+    if (compressedCount > 0) {
+      console.log(`  Compressed ${compressedCount} file(s)`);
+    }
+
     // ── Done ──────────────────────────────────────────────────────
     const durationMs = performance.now() - startTime;
 
@@ -305,4 +328,54 @@ ${modulepreloadLinks}
       durationMs: performance.now() - startTime,
     };
   }
+}
+
+// ── Brotli pre-compression ───────────────────────────────────────
+
+/** File extensions worth pre-compressing. */
+const COMPRESSIBLE_EXTENSIONS = new Set(['.html', '.js', '.css', '.svg', '.xml', '.txt', '.json']);
+
+/** Minimum file size to bother compressing (bytes). */
+const MIN_COMPRESS_SIZE = 256;
+
+/**
+ * Recursively compress all compressible files in a directory with Brotli.
+ * Creates `.br` sidecar files alongside the originals.
+ * Uses maximum compression (quality 11) since this runs at build time.
+ */
+function brotliCompressDir(dir: string): number {
+  let count = 0;
+
+  function walk(currentDir: string) {
+    for (const entry of readdirSync(currentDir, { withFileTypes: true })) {
+      const fullPath = join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        walk(fullPath);
+        continue;
+      }
+      // Skip files that are already compressed
+      if (entry.name.endsWith('.br')) continue;
+
+      const ext = entry.name.substring(entry.name.lastIndexOf('.'));
+      if (!COMPRESSIBLE_EXTENSIONS.has(ext)) continue;
+
+      const content = readFileSync(fullPath);
+      if (content.length < MIN_COMPRESS_SIZE) continue;
+
+      const compressed = brotliCompressSync(content, {
+        params: {
+          [zlibConstants.BROTLI_PARAM_QUALITY]: zlibConstants.BROTLI_MAX_QUALITY,
+        },
+      });
+
+      // Only write if compression actually saves space
+      if (compressed.length < content.length) {
+        writeFileSync(`${fullPath}.br`, compressed);
+        count++;
+      }
+    }
+  }
+
+  walk(dir);
+  return count;
 }

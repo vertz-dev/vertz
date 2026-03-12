@@ -1,0 +1,21 @@
+{
+  "name": "Vertz — The LLM-First Web Framework",
+  "short_name": "Vertz",
+  "description": "Full-stack TypeScript framework designed for AI-assisted development.",
+  "start_url": "/",
+  "display": "browser",
+  "background_color": "#0a0a0b",
+  "theme_color": "#0a0a0b",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/logo-legacy.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

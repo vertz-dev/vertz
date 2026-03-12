@@ -1,6 +1,7 @@
 import { getInjectedCSS, ThemeProvider } from '@vertz/ui';
 import { createRouter, defineRoutes, RouterView } from '@vertz/ui/router';
 import { HomePage } from './pages/home';
+import ManifestoPage from './pages/manifesto';
 import { appGlobals } from './styles/globals';
 import { landingTheme, themeGlobals } from './styles/theme';
 
@@ -12,7 +13,7 @@ export const styles = [themeGlobals.css, appGlobals.css];
 // ── Routes ─────────────────────────────────────────────────
 const routes = defineRoutes({
   '/': { component: () => <HomePage /> },
-  '/manifesto': { component: () => import('./pages/manifesto') },
+  '/manifesto': { component: () => <ManifestoPage /> },
 });
 
 const router = createRouter(routes);

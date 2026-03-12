@@ -1,6 +1,9 @@
 import { describe, expect, test, vi } from 'bun:test';
 import { signal } from '../../runtime/signal';
-import { createLink } from '../link';
+import { defineRoutes } from '../define-routes';
+import { createLink, Link } from '../link';
+import { createRouter } from '../navigate';
+import { RouterContext } from '../router-context';
 
 describe('Link component', () => {
   test('creates an anchor element with href', () => {
@@ -284,5 +287,80 @@ describe('Link hover prefetch', () => {
     el.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
 
     expect(onPrefetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ─── Context-based Link ─────────────────────────────────────
+
+describe('Link (context-based)', () => {
+  function renderInRouter<T>(path: string, fn: () => T): T {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': { component: () => document.createElement('div') },
+      '/manifesto': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes, path);
+    let result: T;
+    RouterContext.Provider(router, () => {
+      result = fn();
+    });
+    router.dispose();
+    // biome-ignore lint/style/noNonNullAssertion: result is assigned synchronously in Provider callback
+    return result!;
+  }
+
+  test('throws when used outside RouterContext.Provider', () => {
+    expect(() => Link({ children: 'Home', href: '/' })).toThrow();
+  });
+
+  test('creates an anchor element with href', () => {
+    const el = renderInRouter('/', () => Link({ children: 'Home', href: '/' }));
+    expect(el.tagName).toBe('A');
+    expect(el.getAttribute('href')).toBe('/');
+    expect(el.textContent).toBe('Home');
+  });
+
+  test('clicking link navigates without full page reload', () => {
+    const el = renderInRouter('/', () => Link({ children: 'About', href: '/about' }));
+
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+    const preventSpy = vi.spyOn(event, 'preventDefault');
+    el.dispatchEvent(event);
+
+    expect(preventSpy).toHaveBeenCalled();
+  });
+
+  test('modifier-key clicks are not intercepted', () => {
+    const el = renderInRouter('/', () => Link({ children: 'About', href: '/about' }));
+
+    const ctrlClick = new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true });
+    const preventSpy = vi.spyOn(ctrlClick, 'preventDefault');
+    el.dispatchEvent(ctrlClick);
+    expect(preventSpy).not.toHaveBeenCalled();
+
+    const metaClick = new MouseEvent('click', { bubbles: true, cancelable: true, metaKey: true });
+    const preventSpy2 = vi.spyOn(metaClick, 'preventDefault');
+    el.dispatchEvent(metaClick);
+    expect(preventSpy2).not.toHaveBeenCalled();
+  });
+
+  test('applies className to the anchor', () => {
+    const el = renderInRouter('/', () =>
+      Link({ children: 'Home', className: 'nav-link', href: '/' }),
+    );
+    expect(el.classList.contains('nav-link')).toBe(true);
+  });
+
+  test('accepts thunked children', () => {
+    const el = renderInRouter('/', () => Link({ children: () => 'About', href: '/about' }));
+    expect(el.textContent).toBe('About');
+  });
+
+  test('blocks dangerous href schemes', () => {
+    const el = renderInRouter('/', () =>
+      // biome-ignore lint/suspicious/noExplicitAny: testing runtime safety against untyped input
+      Link({ children: 'XSS', href: 'javascript:alert(1)' as any }),
+    );
+    expect(el.getAttribute('href')).toBe('#');
   });
 });

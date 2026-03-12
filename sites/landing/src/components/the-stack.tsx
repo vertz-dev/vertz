@@ -7,10 +7,21 @@ const s = css({
   heading: ['font:4xl', 'mb:4', 'text:center'],
   subtitle: ['text:center', 'mb:12', 'max-w:xl', 'mx:auto', 'text:gray.400'],
   list: ['flex', 'flex-col'],
-  row: ['grid', 'gap:4', 'items:center', 'px:6', 'py:4'],
+  row: [
+    'gap:4',
+    'items:center',
+    'px:6',
+    'py:4',
+    { '@media (max-width: 639px)': [{ property: 'display', value: 'flex' }, { property: 'flex-wrap', value: 'wrap' }] },
+    { '@media (min-width: 640px)': [{ property: 'display', value: 'grid' }, { property: 'grid-template-columns', value: '1fr 1.5fr 1fr' }] },
+  ],
   pkg: ['font:sm'],
   what: ['font:sm', 'text:gray.300'],
-  replaces: ['font:xs', 'text:right', 'text:gray.600'],
+  replaces: [
+    'font:xs',
+    'text:gray.600',
+    { '@media (min-width: 640px)': [{ property: 'text-align', value: 'right' }] },
+  ],
 });
 
 const LAYERS = [
@@ -99,7 +110,7 @@ export function TheStack() {
             <div
               key={layer.pkg}
               class={s.row}
-              style={`grid-template-columns: 1fr 1.5fr 1fr; border-bottom: 1px solid #1e1e22`}
+              style="border-bottom: 1px solid #1e1e22"
             >
               <div class={s.pkg} style={`font-family: var(--font-mono); color: ${layer.color}`}>
                 {layer.pkg}

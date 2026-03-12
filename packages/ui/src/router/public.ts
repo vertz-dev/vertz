@@ -20,7 +20,7 @@ export type {
 } from './define-routes';
 export { defineRoutes } from './define-routes';
 export type { LinkProps } from './link';
-export { createLink } from './link';
+export { createLink, Link } from './link';
 export type { NavigateInput, NavigateOptions, Router, TypedRouter } from './navigate';
 export { createRouter } from './navigate';
 export type { OutletContextValue } from './outlet';
