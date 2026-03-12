@@ -48,13 +48,13 @@ interface Founder {
 const FOUNDERS: Founder[] = [
   {
     name: 'Vinicius Dacal',
-    photo: '/public/viniciusdacal.jpg',
+    photo: '/viniciusdacal.jpg',
     bio: '15+ years building at scale. Senior Engineer at Scrunch. Previously Staff Engineer at Voiceflow. Led Angular-to-React migrations, built GraphQL servers, shipped NestJS backends \u2014 and got tired of fighting the frameworks.',
     x: { handle: '@vinicius_dacal', url: 'https://x.com/vinicius_dacal' },
   },
   {
     name: 'Matheus Poleza',
-    photo: '/public/matheuspoleza.jpg',
+    photo: '/matheuspoleza.jpg',
     bio: '10+ years full-stack. Seed to Series C startups. Microservices, AI integration, performance at scale \u2014 now channeling it all into one stack that does it right.',
     x: { handle: '@matheeuspoleza', url: 'https://x.com/matheeuspoleza' },
   },
@@ -64,7 +64,7 @@ function FounderPhoto({ name }: { name: string }) {
   if (name === 'Vinicius Dacal') {
     return (
       <Image
-        src="/public/viniciusdacal.jpg"
+        src="/viniciusdacal.jpg"
         alt="Vinicius Dacal"
         width={80}
         height={80}
@@ -76,7 +76,7 @@ function FounderPhoto({ name }: { name: string }) {
   }
   return (
     <Image
-      src="/public/matheuspoleza.jpg"
+      src="/matheuspoleza.jpg"
       alt="Matheus Poleza"
       width={80}
       height={80}
