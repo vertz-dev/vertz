@@ -53,6 +53,12 @@ export { HydrationTransformer } from './transformers/hydration-transformer';
 export { JsxTransformer } from './transformers/jsx-transformer';
 export { MutationTransformer } from './transformers/mutation-transformer';
 export { PropTransformer } from './transformers/prop-transformer';
+export type {
+  RouteSplittingDiagnostic,
+  RouteSplittingResult,
+  RouteSplittingSkipped,
+} from './transformers/route-splitting-transformer';
+export { transformRouteSplitting } from './transformers/route-splitting-transformer';
 // Transformers
 export { SignalTransformer } from './transformers/signal-transformer';
 // Type Generation
