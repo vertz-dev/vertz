@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { GlobalRegistrator } from '@happy-dom/global-registrator';
 
 beforeAll(() => {
@@ -534,6 +534,8 @@ describe('Fast Refresh Runtime', () => {
     });
 
     it('handles factory errors gracefully — keeps old instance', () => {
+      const errorSpy = spyOn(console, 'error').mockImplementation(() => {});
+
       const factory1 = createFactory('v1');
       __$refreshReg('mod1', 'App', factory1);
 
@@ -553,6 +555,12 @@ describe('Fast Refresh Runtime', () => {
       // Old element should still be in the DOM
       expect(el.isConnected).toBe(true);
       expect(el.textContent).toBe('v1');
+
+      // Verify the error was logged (not swallowed)
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy.mock.calls[0][0]).toBe('[vertz-hmr] Error re-mounting App:');
+
+      errorSpy.mockRestore();
     });
 
     it('clears dirty flag after perform', () => {
