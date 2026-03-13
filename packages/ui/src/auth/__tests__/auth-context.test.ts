@@ -1,5 +1,7 @@
 import { describe, expect, it, spyOn } from 'bun:test';
 import { createContext, useContext } from '../../component/context';
+import type { Router } from '../../router/navigate';
+import { RouterContext } from '../../router/router-context';
 import { AccessContext } from '../access-context';
 import * as accessEventClientModule from '../access-event-client';
 import type { AccessSet } from '../access-set-types';
@@ -21,6 +23,24 @@ function createFakeWindow(session?: {
   return win;
 }
 
+/** Create a mock router for testing signOut redirect. */
+function createMockRouter(): Router & { navigateCalls: Array<{ to: string; replace?: boolean }> } {
+  const navigateCalls: Array<{ to: string; replace?: boolean }> = [];
+  return {
+    current: { value: null, peek: () => null, notify() {} },
+    loaderData: { value: [], peek: () => [], notify() {} },
+    loaderError: { value: null, peek: () => null, notify() {} },
+    searchParams: { value: {}, peek: () => ({}), notify() {} },
+    navigate(input: { to: string; replace?: boolean }) {
+      navigateCalls.push({ to: input.to, replace: input.replace });
+      return Promise.resolve();
+    },
+    revalidate: () => Promise.resolve(),
+    dispose: () => {},
+    navigateCalls,
+  } as Router & { navigateCalls: Array<{ to: string; replace?: boolean }> };
+}
+
 /** Capture useAuth() result inside AuthProvider. */
 function captureAuth(options?: { basePath?: string; accessControl?: boolean }) {
   let auth: ReturnType<typeof useAuth> | undefined;
@@ -32,6 +52,24 @@ function captureAuth(options?: { basePath?: string; accessControl?: boolean }) {
   });
   // biome-ignore lint/style/noNonNullAssertion: test helper always assigns
   return auth!;
+}
+
+/** Capture useAuth() result inside AuthProvider wrapped with RouterContext. */
+function captureAuthWithRouter(options?: { basePath?: string; accessControl?: boolean }) {
+  const mockRouter = createMockRouter();
+  let auth: ReturnType<typeof useAuth> | undefined;
+  RouterContext.Provider({
+    value: mockRouter,
+    children: () =>
+      AuthProvider({
+        ...options,
+        children: () => {
+          auth = useAuth();
+        },
+      }),
+  });
+  // biome-ignore lint/style/noNonNullAssertion: test helper always assigns
+  return { auth: auth!, mockRouter };
 }
 
 describe('AuthContext', () => {
@@ -261,6 +299,144 @@ describe('AuthProvider', () => {
       expect(init.method).toBe('POST');
       expect(init.credentials).toBe('include');
       expect((init.headers as Record<string, string>)['X-VTZ-Request']).toBe('1');
+
+      fetchSpy.mockRestore();
+    });
+
+    it('navigates to redirectTo path after clearing state', async () => {
+      const fetchSpy = spyOn(globalThis, 'fetch')
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              user: { id: '1', email: 'a@b.com', role: 'user' },
+              expiresAt: Date.now() + 60_000,
+            }),
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(new Response(null, { status: 200 }));
+
+      const { auth, mockRouter } = captureAuthWithRouter();
+      await auth.signIn({ email: 'a@b.com', password: 'pass' });
+      await auth.signOut({ redirectTo: '/login' });
+
+      expect(auth.status).toBe('unauthenticated');
+      expect(auth.user).toBeNull();
+      expect(mockRouter.navigateCalls).toHaveLength(1);
+      expect(mockRouter.navigateCalls[0]).toEqual({ to: '/login', replace: true });
+
+      fetchSpy.mockRestore();
+    });
+
+    it('does not navigate when signOut called without options', async () => {
+      const fetchSpy = spyOn(globalThis, 'fetch')
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              user: { id: '1', email: 'a@b.com', role: 'user' },
+              expiresAt: Date.now() + 60_000,
+            }),
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(new Response(null, { status: 200 }));
+
+      const { auth, mockRouter } = captureAuthWithRouter();
+      await auth.signIn({ email: 'a@b.com', password: 'pass' });
+      await auth.signOut();
+
+      expect(auth.status).toBe('unauthenticated');
+      expect(mockRouter.navigateCalls).toHaveLength(0);
+
+      fetchSpy.mockRestore();
+    });
+
+    it('skips navigation and warns when no router in tree', async () => {
+      const fetchSpy = spyOn(globalThis, 'fetch')
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              user: { id: '1', email: 'a@b.com', role: 'user' },
+              expiresAt: Date.now() + 60_000,
+            }),
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(new Response(null, { status: 200 }));
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+
+      const auth = captureAuth(); // no router wrapper
+      await auth.signIn({ email: 'a@b.com', password: 'pass' });
+      await auth.signOut({ redirectTo: '/login' });
+
+      expect(auth.status).toBe('unauthenticated');
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[vertz] signOut({ redirectTo }) was called but no RouterContext is available. Navigation was skipped.',
+      );
+
+      warnSpy.mockRestore();
+      fetchSpy.mockRestore();
+    });
+
+    it('still navigates when network call fails', async () => {
+      const fetchSpy = spyOn(globalThis, 'fetch')
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              user: { id: '1', email: 'a@b.com', role: 'user' },
+              expiresAt: Date.now() + 60_000,
+            }),
+            { status: 200 },
+          ),
+        )
+        .mockRejectedValueOnce(new Error('Network error'));
+
+      const { auth, mockRouter } = captureAuthWithRouter();
+      await auth.signIn({ email: 'a@b.com', password: 'pass' });
+      await auth.signOut({ redirectTo: '/login' });
+
+      expect(auth.status).toBe('unauthenticated');
+      expect(mockRouter.navigateCalls).toHaveLength(1);
+      expect(mockRouter.navigateCalls[0]).toEqual({ to: '/login', replace: true });
+
+      fetchSpy.mockRestore();
+    });
+
+    it('does not reject when navigation throws', async () => {
+      const fetchSpy = spyOn(globalThis, 'fetch')
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              user: { id: '1', email: 'a@b.com', role: 'user' },
+              expiresAt: Date.now() + 60_000,
+            }),
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(new Response(null, { status: 200 }));
+
+      const mockRouter = createMockRouter();
+      mockRouter.navigate = () => Promise.reject(new Error('Navigation failed'));
+
+      let auth: ReturnType<typeof useAuth> | undefined;
+      RouterContext.Provider({
+        value: mockRouter,
+        children: () =>
+          AuthProvider({
+            children: () => {
+              auth = useAuth();
+            },
+          }),
+      });
+
+      // biome-ignore lint/style/noNonNullAssertion: test helper always assigns
+      await auth!.signIn({ email: 'a@b.com', password: 'pass' });
+      // Should not throw
+      // biome-ignore lint/style/noNonNullAssertion: test helper always assigns
+      await auth!.signOut({ redirectTo: '/login' });
+
+      // biome-ignore lint/style/noNonNullAssertion: test helper always assigns
+      expect(auth!.status).toBe('unauthenticated');
 
       fetchSpy.mockRestore();
     });

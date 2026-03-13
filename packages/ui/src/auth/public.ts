@@ -38,6 +38,7 @@ export type {
   MfaInput,
   ResetInput,
   SignInInput,
+  SignOutOptions,
   SignUpInput,
   User,
 } from './auth-types';

@@ -67,6 +67,13 @@ export interface ResetInput {
   password: string;
 }
 
+// --- SignOut options ---
+
+export interface SignOutOptions {
+  /** Path to navigate to after sign-out completes. Uses SPA navigation (replace). */
+  redirectTo?: string;
+}
+
 // --- Response types ---
 
 export interface AuthResponse {
