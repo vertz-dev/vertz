@@ -1,3 +1,5 @@
+import { isBrowser } from '../env/is-browser';
+
 export interface TokenRefreshOptions {
   onRefresh: () => Promise<void>;
 }
@@ -58,7 +60,7 @@ export function createTokenRefresh({ onRefresh }: TokenRefreshOptions): TokenRef
 
   // Tab visibility handling
   let visibilityHandler: (() => void) | undefined;
-  if (typeof document !== 'undefined') {
+  if (isBrowser()) {
     visibilityHandler = () => {
       if (document.visibilityState === 'hidden') {
         clearTimer();
@@ -71,7 +73,7 @@ export function createTokenRefresh({ onRefresh }: TokenRefreshOptions): TokenRef
 
   // Online/offline handling
   let onlineHandler: (() => void) | undefined;
-  if (typeof window !== 'undefined') {
+  if (isBrowser()) {
     onlineHandler = () => {
       if (pendingOfflineRefresh) {
         pendingOfflineRefresh = false;
@@ -83,10 +85,10 @@ export function createTokenRefresh({ onRefresh }: TokenRefreshOptions): TokenRef
 
   function dispose(): void {
     cancel();
-    if (visibilityHandler && typeof document !== 'undefined') {
+    if (visibilityHandler && isBrowser()) {
       document.removeEventListener('visibilitychange', visibilityHandler);
     }
-    if (onlineHandler && typeof window !== 'undefined') {
+    if (onlineHandler && isBrowser()) {
       window.removeEventListener('online', onlineHandler);
     }
   }

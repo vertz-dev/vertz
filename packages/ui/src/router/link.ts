@@ -13,6 +13,7 @@ import { useContext } from '../component/context';
 import { __classList } from '../dom/attributes';
 import { __append, __element, __enterChildren, __exitChildren, __staticText } from '../dom/element';
 import { __on } from '../dom/events';
+import { isBrowser } from '../env/is-browser';
 import type { ReadonlySignal } from '../runtime/signal-types';
 import type { RouteConfigLike, RouteDefinitionMap } from './define-routes';
 import type { RoutePaths } from './params';
@@ -191,7 +192,7 @@ export function Link({ href, children, activeClass, className }: LinkProps): HTM
       [activeClass]: () => {
         // Reading router.current triggers reactive tracking (auto-unwrapped by wrapSignalProps)
         void router.current;
-        return typeof window !== 'undefined' ? window.location.pathname === safeHref : false;
+        return isBrowser() ? window.location.pathname === safeHref : false;
       },
     });
   }

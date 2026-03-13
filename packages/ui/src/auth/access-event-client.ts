@@ -5,6 +5,8 @@
  * with exponential backoff, and delivers parsed events to the caller.
  */
 
+import { isBrowser } from '../env/is-browser';
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -65,7 +67,7 @@ export function createAccessEventClient(options: AccessEventClientOptions): Acce
 
   function getUrl(): string {
     if (options.url) return options.url;
-    if (typeof window !== 'undefined') {
+    if (isBrowser()) {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       return `${protocol}//${window.location.host}/api/auth/access-events`;
     }

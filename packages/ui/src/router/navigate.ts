@@ -5,6 +5,7 @@
  * navigation, and revalidation.
  */
 
+import { isBrowser } from '../env/is-browser';
 import { signal } from '../runtime/signal';
 import type { Signal } from '../runtime/signal-types';
 import { getSSRContext } from '../ssr/ssr-render-context';
@@ -197,8 +198,6 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
   const options = typeof initialUrlOrOptions === 'object' ? initialUrlOrOptions : maybeOptions;
   // Auto-detect SSR context
   const ssrCtx = getSSRContext();
-  const isSSR = ssrCtx !== undefined;
-
   // In SSR or non-browser environments, return a lightweight read-only router.
   // This avoids shared signal corruption across concurrent SSR renders,
   // and prevents crashes when createRouter() is called in Bun tests
@@ -212,7 +211,7 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
   // createRouter() may run at import time, outside any SSR context. The
   // getters run during rendering, inside ssrStorage.run(), where the context
   // is available.
-  if (isSSR || typeof window === 'undefined') {
+  if (!isBrowser()) {
     const ssrUrl = initialUrl ?? ssrCtx?.url ?? '/';
     const fallbackMatch = matchRoute(routes, ssrUrl);
 

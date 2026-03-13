@@ -4,6 +4,7 @@ import {
   type QueryDescriptor,
   type Result,
 } from '@vertz/fetch';
+import { isBrowser } from '../env/is-browser';
 import { isNavPrefetchActive } from '../router/server-nav';
 import { _tryOnCleanup } from '../runtime/disposal';
 import { computed, lifecycleEffect, signal } from '../runtime/signal';
@@ -487,7 +488,7 @@ export function query<T, E = unknown>(
 
   // Visibility-based pause/resume for polling
   let visibilityHandler: (() => void) | undefined;
-  if (hasInterval && enabled && !isSSR() && typeof document !== 'undefined') {
+  if (hasInterval && enabled && isBrowser()) {
     visibilityHandler = () => {
       if (document.visibilityState === 'hidden') {
         intervalPaused = true;
@@ -778,7 +779,7 @@ export function query<T, E = unknown>(
     clearTimeout(debounceTimer);
     clearTimeout(intervalTimer);
     // Remove visibility listener.
-    if (visibilityHandler && typeof document !== 'undefined') {
+    if (visibilityHandler && isBrowser()) {
       document.removeEventListener('visibilitychange', visibilityHandler);
     }
     // Invalidate any pending fetch responses by bumping fetchId.

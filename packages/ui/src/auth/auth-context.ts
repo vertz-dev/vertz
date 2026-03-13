@@ -1,5 +1,6 @@
 import type { Result } from '@vertz/fetch';
 import { type Context, createContext, type UnwrapSignals, useContext } from '../component/context';
+import { isBrowser } from '../env/is-browser';
 import type { SdkMethodWithMeta } from '../form/form';
 import { RouterContext } from '../router/router-context';
 import { _tryOnCleanup } from '../runtime/disposal';
@@ -107,7 +108,7 @@ export function AuthProvider({
   // Fetch providers once on mount (fire-and-forget, silent failure)
   // Only in browser — SSR doesn't need provider metadata.
   // Deferred with setTimeout to avoid synchronous fetch during construction.
-  if (typeof window !== 'undefined') {
+  if (isBrowser()) {
     setTimeout(() => {
       void fetch(`${basePath}/providers`)
         .then((res) => (res.ok ? (res.json() as Promise<OAuthProviderInfo[]>) : []))
@@ -314,7 +315,7 @@ export function AuthProvider({
     statusSignal.value = 'unauthenticated';
     errorSignal.value = null;
     clearAccessSet();
-    if (typeof window !== 'undefined') {
+    if (isBrowser()) {
       delete window.__VERTZ_SESSION__;
     }
     if (options?.redirectTo) {
@@ -417,7 +418,7 @@ export function AuthProvider({
   };
 
   // SSR hydration
-  if (typeof window !== 'undefined') {
+  if (isBrowser()) {
     if (window.__VERTZ_SESSION__?.user) {
       const session = window.__VERTZ_SESSION__;
       userSignal.value = session.user;
@@ -436,7 +437,7 @@ export function AuthProvider({
   if (accessControl && accessSetSignal && accessLoadingSignal) {
     // Hydrate from SSR-injected global
     if (
-      typeof window !== 'undefined' &&
+      isBrowser() &&
       window.__VERTZ_ACCESS_SET__ &&
       typeof window.__VERTZ_ACCESS_SET__.entitlements === 'object' &&
       window.__VERTZ_ACCESS_SET__.entitlements !== null

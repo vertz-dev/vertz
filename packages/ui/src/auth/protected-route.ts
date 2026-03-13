@@ -8,6 +8,7 @@
  */
 
 import { useContext } from '../component/context';
+import { isBrowser } from '../env/is-browser';
 import { RouterContext } from '../router/router-context';
 import { computed, domEffect } from '../runtime/signal';
 import type { ReadonlySignal } from '../runtime/signal-types';
@@ -78,7 +79,7 @@ export function ProtectedRoute({
     domEffect(() => {
       if (shouldRedirect.value) {
         const search =
-          returnTo && typeof window !== 'undefined'
+          returnTo && isBrowser()
             ? `?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`
             : '';
         router.navigate({ to: `${loginPath}${search}`, replace: true });
