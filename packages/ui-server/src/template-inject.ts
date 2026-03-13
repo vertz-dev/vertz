@@ -6,20 +6,26 @@
 
 import { safeSerialize } from './ssr-streaming-runtime';
 
+export interface InjectIntoTemplateOptions {
+  template: string;
+  appHtml: string;
+  appCss: string;
+  ssrData: Array<{ key: string; data: unknown }>;
+  nonce?: string;
+  headTags?: string;
+  /** Pre-built session + access set script tags for SSR injection. */
+  sessionScript?: string;
+}
+
 /**
  * Inject SSR output into the HTML template.
  *
  * Replaces <!--ssr-outlet--> or <div id="app"> content with rendered HTML,
  * injects CSS before </head>, and ssrData before </body>.
  */
-export function injectIntoTemplate(
-  template: string,
-  appHtml: string,
-  appCss: string,
-  ssrData: Array<{ key: string; data: unknown }>,
-  nonce?: string,
-  headTags?: string,
-): string {
+export function injectIntoTemplate(options: InjectIntoTemplateOptions): string {
+  const { template, appHtml, appCss, ssrData, nonce, headTags, sessionScript } = options;
+
   // Inject app HTML: try <!--ssr-outlet--> first, then <div id="app">
   let html: string;
   if (template.includes('<!--ssr-outlet-->')) {
@@ -43,6 +49,11 @@ export function injectIntoTemplate(
         `<link rel="stylesheet" href="${href}" media="print" onload="this.media='all'">\n    <noscript>${match}</noscript>`,
     );
     html = html.replace('</head>', `${appCss}\n</head>`);
+  }
+
+  // Inject session script before </body> (before ssrData, before app bundle)
+  if (sessionScript) {
+    html = html.replace('</body>', `${sessionScript}\n</body>`);
   }
 
   // Inject SSR data for client-side hydration before </body>

@@ -91,14 +91,14 @@ export async function prerenderRoutes(
       );
     }
 
-    const html = injectIntoTemplate(
+    const html = injectIntoTemplate({
       template,
-      renderResult.html,
-      renderResult.css,
-      renderResult.ssrData,
-      options.nonce,
-      renderResult.headTags || undefined,
-    );
+      appHtml: renderResult.html,
+      appCss: renderResult.css,
+      ssrData: renderResult.ssrData,
+      nonce: options.nonce,
+      headTags: renderResult.headTags || undefined,
+    });
 
     results.push({ path: routePath, html });
   }
