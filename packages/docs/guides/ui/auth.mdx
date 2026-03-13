@@ -162,6 +162,64 @@ import { AuthGate } from 'vertz/ui/auth';
 </AuthGate>
 ```
 
+### ProtectedRoute
+
+Route guard that handles loading, authentication, entitlements, and redirect — all in one component. Wraps `useAuth()`, the router, and `can()` so you don't have to.
+
+```tsx
+import { ProtectedRoute } from 'vertz/ui/auth';
+
+// In route definitions:
+'/dashboard': {
+  component: () => (
+    <ProtectedRoute loginPath="/login" fallback={() => <LoadingSpinner />}>
+      <Dashboard />
+    </ProtectedRoute>
+  ),
+}
+```
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `loginPath` | `string` | `'/login'` | Where to redirect unauthenticated users |
+| `fallback` | `() => unknown` | `null` | Rendered while auth is resolving |
+| `children` | `unknown` | — | Rendered when authenticated |
+| `requires` | `string[]` | — | Entitlements the user must have (checked via `can()`) |
+| `forbidden` | `() => unknown` | `null` | Rendered when authenticated but lacking entitlements |
+| `returnTo` | `boolean` | `true` | Append `?returnTo=<currentPath>` to the login redirect |
+
+**Behavior:**
+
+| Auth state | Result |
+|------------|--------|
+| `idle` / `loading` | Renders `fallback` |
+| `authenticated` (entitlements met) | Renders `children` |
+| `authenticated` (entitlements denied) | Renders `forbidden` (no redirect) |
+| `unauthenticated` / `error` / `mfa_required` | Navigates to `loginPath` |
+
+<Note>
+  `ProtectedRoute` does NOT redirect when entitlements fail — it renders `forbidden` instead. This avoids redirect loops where a logged-in user is sent to login but still lacks permissions after signing in.
+</Note>
+
+**With entitlement checks:**
+
+```tsx
+'/admin': {
+  component: () => (
+    <ProtectedRoute
+      requires={['admin:manage']}
+      forbidden={() => <p>You don't have access to this page.</p>}
+    >
+      <AdminPanel />
+    </ProtectedRoute>
+  ),
+}
+```
+
+**Without a provider (fail-open):** If there's no `AuthProvider` in the tree, `ProtectedRoute` renders children and logs a dev-mode warning. This matches `AuthGate`'s fail-open behavior.
+
+**SSR:** During server rendering, `ProtectedRoute` renders the fallback. The redirect fires client-side after hydration.
+
 ---
 
 ## Auth methods as SdkMethods
