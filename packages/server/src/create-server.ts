@@ -304,7 +304,17 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
 
     const auth = createAuth(authConfig);
 
+    // Guard: requestHandler only works with default /api prefix because
+    // the auth handler hardcodes url.pathname.replace('/api/auth', '') internally.
+    if (apiPrefix !== '/api') {
+      throw new Error(
+        `requestHandler requires apiPrefix to be '/api' (got '${apiPrefix}'). ` +
+          'Custom API prefixes are not yet supported with auth.',
+      );
+    }
+
     const authPrefix = `${apiPrefix}/auth`;
+    const authPrefixSlash = `${authPrefix}/`;
 
     const serverInstance = app as AppBuilder & {
       auth: AuthInstance;
@@ -318,17 +328,21 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
       await auth.initialize();
     };
 
+    let cachedRequestHandler: ((request: Request) => Promise<Response>) | null = null;
     Object.defineProperty(serverInstance, 'requestHandler', {
       get() {
-        const entityHandler = this.handler;
-        const authHandler = this.auth.handler;
-        return (request: Request) => {
-          const pathname = new URL(request.url).pathname;
-          if (pathname === authPrefix || pathname.startsWith(`${authPrefix}/`)) {
-            return authHandler(request);
-          }
-          return entityHandler(request);
-        };
+        if (!cachedRequestHandler) {
+          const entityHandler = this.handler;
+          const authHandler = this.auth.handler;
+          cachedRequestHandler = (request: Request) => {
+            const pathname = new URL(request.url).pathname;
+            if (pathname === authPrefix || pathname.startsWith(authPrefixSlash)) {
+              return authHandler(request);
+            }
+            return entityHandler(request);
+          };
+        }
+        return cachedRequestHandler;
       },
       enumerable: true,
       configurable: false,

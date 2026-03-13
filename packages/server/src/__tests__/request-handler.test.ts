@@ -167,6 +167,24 @@ describe('Feature: Unified request handler (requestHandler)', () => {
         expect(response.status).toBe(404);
       });
     });
+
+    describe('When calling requestHandler with /api/auth/ (trailing slash)', () => {
+      it('Then routes to auth.handler', async () => {
+        const app = createTestServer();
+        const response = await app.requestHandler(new Request('http://localhost/api/auth/'));
+        // Auth handler handles this (strips prefix, gets "/" — returns 404 for unknown route)
+        expect(response.status).toBe(404);
+      });
+    });
+
+    describe('When accessing requestHandler multiple times', () => {
+      it('Then returns the same cached function (stable identity)', () => {
+        const app = createTestServer();
+        const handler1 = app.requestHandler;
+        const handler2 = app.requestHandler;
+        expect(handler1).toBe(handler2);
+      });
+    });
   });
 
   describe('Given a createServer call without auth (plain AppBuilder)', () => {
@@ -177,6 +195,35 @@ describe('Feature: Unified request handler (requestHandler)', () => {
       });
       // @ts-expect-error — requestHandler does not exist on AppBuilder
       expect(app.requestHandler).toBeUndefined();
+    });
+  });
+
+  describe('Given a custom apiPrefix with auth', () => {
+    it('Then throws an error because auth handler hardcodes /api/auth', () => {
+      const db = createMockDatabaseClient();
+      expect(() =>
+        createServer({
+          basePath: '/',
+          apiPrefix: '/v1',
+          db,
+          auth: authConfig,
+          entities: [
+            {
+              kind: 'entity',
+              name: 'users',
+              model: usersModel,
+              inject: {},
+              access: {
+                list: () => true,
+              },
+              before: {},
+              after: {},
+              actions: {},
+              relations: {},
+            },
+          ] as never[],
+        }),
+      ).toThrow(/requestHandler requires apiPrefix to be '\/api'/);
     });
   });
 });
