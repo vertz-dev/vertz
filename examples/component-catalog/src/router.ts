@@ -19,16 +19,11 @@ function buildRoutes() {
 
 export const routes = buildRoutes();
 
-const initialPath =
-  typeof window !== 'undefined' && window.location
-    ? window.location.pathname
-    : ((globalThis as Record<string, unknown>).__SSR_URL__ as string) || '/';
-
-export const appRouter = createRouter(routes, initialPath);
+export const appRouter = createRouter(routes);
 
 const currentPath = computed(() => {
   const match = appRouter.current.value;
-  return match ? window.location.pathname : initialPath;
+  return match ? window.location.pathname : '/';
 });
 
 export const Link = createLink(currentPath, (url: string) => {

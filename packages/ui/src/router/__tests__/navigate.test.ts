@@ -271,6 +271,89 @@ describe('createRouter', () => {
   });
 });
 
+// ─── Overloaded Signature ──────────────────────────────────
+
+describe('createRouter overloaded signature', () => {
+  beforeEach(() => {
+    window.history.replaceState(null, '', '/');
+  });
+
+  test('accepts options as second argument (auto-detects URL)', () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+    });
+    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const router = createRouter(routes, {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+    expect(router.current.value).not.toBeNull();
+    router.dispose();
+  });
+
+  test('auto-detects URL from window.location when no initialUrl provided', () => {
+    window.history.replaceState(null, '', '/about');
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes);
+    expect(router.current.value?.route.pattern).toBe('/about');
+    router.dispose();
+  });
+
+  test('auto-detects URL including search params from window.location', () => {
+    window.history.replaceState(null, '', '/tasks?status=done');
+    const routes = defineRoutes({
+      '/tasks': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes);
+    expect(router.current.value?.route.pattern).toBe('/tasks');
+    router.dispose();
+  });
+
+  test('explicit initialUrl string still works (backward compat)', () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/tasks': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes, '/tasks');
+    expect(router.current.value?.route.pattern).toBe('/tasks');
+    router.dispose();
+  });
+
+  test('explicit initialUrl with options as third arg still works', () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/tasks': { component: () => document.createElement('div') },
+    });
+    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const router = createRouter(routes, '/tasks', {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+    expect(router.current.value?.route.pattern).toBe('/tasks');
+    router.dispose();
+  });
+
+  test('options as second arg are applied (serverNav fires prefetch)', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': { component: () => document.createElement('div') },
+    });
+    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const router = createRouter(routes, {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    await router.navigate({ to: '/about' });
+
+    expect(mockPrefetch).toHaveBeenCalledWith('/about', {});
+    router.dispose();
+  });
+});
+
 // ─── Server Nav Integration ──────────────────────────────────
 
 describe('createRouter serverNav', () => {
@@ -849,6 +932,18 @@ describe('createRouter SSR', () => {
       '/about': { component: () => document.createElement('div') },
     });
     const router = createRouter(routes);
+
+    expect(router.current.value).not.toBeNull();
+    expect(router.current.value?.route.pattern).toBe('/about');
+  });
+
+  test('accepts options as second argument in SSR context', () => {
+    const _ctx = enableTestSSR(createTestSSRContext('/about'));
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes, { serverNav: true });
 
     expect(router.current.value).not.toBeNull();
     expect(router.current.value?.route.pattern).toBe('/about');

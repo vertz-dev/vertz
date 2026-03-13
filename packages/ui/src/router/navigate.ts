@@ -181,9 +181,20 @@ function buildNavigationUrl(to: string, options?: NavigateOptions): string {
  */
 export function createRouter<T extends Record<string, RouteConfigLike> = RouteDefinitionMap>(
   routes: TypedRoutes<T>,
-  initialUrl?: string,
+  initialUrl: string,
   options?: RouterOptions,
+): Router<T>;
+export function createRouter<T extends Record<string, RouteConfigLike> = RouteDefinitionMap>(
+  routes: TypedRoutes<T>,
+  options?: RouterOptions,
+): Router<T>;
+export function createRouter<T extends Record<string, RouteConfigLike> = RouteDefinitionMap>(
+  routes: TypedRoutes<T>,
+  initialUrlOrOptions?: string | RouterOptions,
+  maybeOptions?: RouterOptions,
 ): Router<T> {
+  const initialUrl = typeof initialUrlOrOptions === 'string' ? initialUrlOrOptions : undefined;
+  const options = typeof initialUrlOrOptions === 'object' ? initialUrlOrOptions : maybeOptions;
   // Auto-detect SSR context
   const ssrCtx = getSSRContext();
   const isSSR = ssrCtx !== undefined;
