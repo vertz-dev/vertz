@@ -5,6 +5,7 @@
  * from the SSR-injected global when available.
  */
 
+import { isBrowser } from '../env/is-browser';
 import { signal } from '../runtime/signal';
 import type { AccessContextValue } from './access-context';
 import type { AccessSet } from './access-set-types';
@@ -33,7 +34,7 @@ export function createAccessProvider(): AccessContextValue {
 
   // Client: hydrate from SSR-injected global (with minimal shape validation)
   if (
-    typeof window !== 'undefined' &&
+    isBrowser() &&
     window.__VERTZ_ACCESS_SET__ &&
     typeof window.__VERTZ_ACCESS_SET__.entitlements === 'object' &&
     window.__VERTZ_ACCESS_SET__.entitlements !== null

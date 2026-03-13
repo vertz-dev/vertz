@@ -122,8 +122,6 @@ export function installDomShim(): void {
     // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
     (globalThis as any).window = {
       location: { pathname: ssrStorage.getStore()?.url || '/', search: '', hash: '' },
-      addEventListener: () => {},
-      removeEventListener: () => {},
       history: {
         pushState: () => {},
         replaceState: () => {},

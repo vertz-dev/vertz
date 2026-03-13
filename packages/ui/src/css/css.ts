@@ -27,6 +27,7 @@
  * ```
  */
 
+import { isBrowser } from '../env/is-browser';
 import { getSSRContext } from '../ssr/ssr-render-context';
 import { generateClassName } from './class-generator';
 import { parseShorthand } from './shorthand-parser';
@@ -111,7 +112,7 @@ export function injectCSS(cssText: string): void {
 /** Reset injected styles tracking. Used in tests. */
 export function resetInjectedStyles(): void {
   injectedCSS.clear();
-  if (typeof document !== 'undefined' && document.adoptedStyleSheets !== undefined) {
+  if (isBrowser() && document.adoptedStyleSheets !== undefined) {
     document.adoptedStyleSheets = document.adoptedStyleSheets.filter((s) => !vertzSheets.has(s));
   }
   vertzSheets.clear();
