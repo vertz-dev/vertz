@@ -277,6 +277,39 @@ const button = css({ root: ['m:2'] });`;
     );
     expect(result.css).toContain(':hover');
   });
+
+  it('wraps @media at-rules around the class selector', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ grid: ['gap:4', { '@media (min-width: 768px)': ['grid-cols:2'] }] });`;
+    const result = extractor.extract(source, 'Grid.tsx');
+
+    expect(result.css).toContain('@media (min-width: 768px)');
+    expect(result.css).toContain('grid-template-columns:');
+    // The class selector must appear INSIDE the @media block
+    expect(result.css).toMatch(/@media \(min-width: 768px\) \{\n\s+\._[a-f0-9]+ \{/);
+  });
+
+  it('wraps @container at-rules around the class selector', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ card: ['p:4', { '@container (min-width: 400px)': ['p:8'] }] });`;
+    const result = extractor.extract(source, 'Card.tsx');
+
+    expect(result.css).toContain('@container (min-width: 400px)');
+    expect(result.css).toContain('padding: 2rem');
+    // Class selector must be inside the @container block
+    expect(result.css).toMatch(/@container \(min-width: 400px\) \{\n\s+\._[a-f0-9]+ \{/);
+  });
+
+  it('does not treat @-prefixed selectors as & selectors', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ layout: ['flex', { '@media (min-width: 1024px)': ['flex-col'] }] });`;
+    const result = extractor.extract(source, 'Layout.tsx');
+
+    // Should NOT have the at-rule as a bare selector without a nested class
+    expect(result.css).not.toMatch(/@media[^{]+\{\n\s+flex-direction/);
+    // Should have proper nesting: @media { .class { declarations } }
+    expect(result.css).toMatch(/@media[^{]+\{\n\s+\._[a-f0-9]+ \{\n\s+flex-direction/);
+  });
 });
 
 // ─── Dead CSS Elimination Tests ────────────────────────────────
