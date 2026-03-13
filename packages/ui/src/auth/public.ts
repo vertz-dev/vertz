@@ -42,3 +42,5 @@ export type {
   User,
 } from './auth-types';
 export { createAccessProvider } from './create-access-provider';
+export type { ProtectedRouteProps } from './protected-route';
+export { ProtectedRoute } from './protected-route';
