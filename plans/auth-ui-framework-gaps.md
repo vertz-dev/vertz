@@ -6,7 +6,7 @@
 
 ---
 
-## 1. Protected Route Guard (`AuthGuard`)
+## 1. Protected Route Guard (`AuthGuard`) — ✅ DONE (#1214)
 
 ### The Problem
 
@@ -94,7 +94,7 @@ interface ProtectedRouteProps {
 
 ---
 
-## 2. OAuth Login Button / Login Page Primitives
+## 2. OAuth Login Button / Login Page Primitives — ✅ DONE (#1215)
 
 ### The Problem
 
@@ -221,7 +221,7 @@ const devServer = createBunDevServer({
 
 ---
 
-## 4. SSR Session Injection
+## 4. SSR Session Injection — ✅ DONE (#1216)
 
 ### The Problem
 
@@ -344,11 +344,11 @@ export const appRouter = createRouter(routes, { serverNav: true });
 
 | # | Gap | Priority | Effort | Impact |
 |---|-----|----------|--------|--------|
-| 4 | SSR session injection | High | Medium | Eliminates loading flash for authed users |
+| 4 | ~~SSR session injection~~ | ✅ Done | — | PR #1216 |
 | 3 | Dev server handler auto-composition | High | Low | Removes boilerplate from every app |
-| 1 | ProtectedRoute component | High | Low | Replaces hand-written auth guard |
+| 1 | ~~ProtectedRoute component~~ | ✅ Done | — | PR #1214 |
 | 7 | Router initialPath auto-detect | Medium | Low | Removes boilerplate |
-| 2 | OAuth button / provider metadata | Medium | Medium | Removes hardcoded URLs and icons |
+| 2 | ~~OAuth button / provider metadata~~ | ✅ Done | — | PR #1215 |
 | 5 | ~~Sign-out with redirect~~ | ✅ Done | — | PR #1213 |
 | 6 | User profile display helpers | Low | Low | Nice-to-have, could be docs |
 

@@ -1,39 +1,12 @@
 /**
- * AuthGuard — gates child routes on authentication.
+ * WorkspaceShell — sidebar layout for authenticated pages.
  *
- * Uses useAuth() reactive state to show loading, redirect to login,
- * or render the workspace shell. The ternary in JSX children creates
- * a reactive __child() that re-evaluates when auth state changes.
+ * Route protection is handled by ProtectedRoute in router.tsx.
+ * This component only handles the authenticated layout.
  */
 
-import { css, Outlet, onMount, useRouter } from '@vertz/ui';
+import { css, Outlet } from '@vertz/ui';
 import { useAuth } from '@vertz/ui/auth';
-
-function RedirectToLogin() {
-  const { navigate } = useRouter();
-
-  onMount(() => {
-    navigate({ to: '/login' });
-  });
-
-  return <div />;
-}
-
-export function AuthGuard() {
-  const auth = useAuth();
-
-  return (
-    <div style="display:contents">
-      {auth.status === 'idle' || auth.status === 'loading' ? (
-        <div>Loading...</div>
-      ) : auth.isAuthenticated ? (
-        <WorkspaceShell />
-      ) : (
-        <RedirectToLogin />
-      )}
-    </div>
-  );
-}
 
 /**
  * WorkspaceShell — sidebar layout for authenticated pages.
@@ -59,7 +32,7 @@ const sidebarStyles = css({
   ],
 });
 
-function WorkspaceShell() {
+export function WorkspaceShell() {
   const auth = useAuth();
 
   const handleSignOut = async () => {
