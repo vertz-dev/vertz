@@ -46,25 +46,24 @@ function Sidebar() {
           <Link href="/" className={navStyles.navItem} activeClass={navStyles.navItemActive}>
             Overview
           </Link>
-          {categoryOrder
-            .filter((cat) => (grouped.get(cat) ?? []).length > 0)
-            .map((cat) => {
-              const entries = grouped.get(cat) ?? [];
-              return (
-                <div>
-                  <div class={navStyles.categoryTitle}>{categoryLabels[cat]}</div>
-                  {entries.map((entry) => (
-                    <Link
-                      href={`/${entry.slug}`}
-                      className={navStyles.navItem}
-                      activeClass={navStyles.navItemActive}
-                    >
-                      {entry.name}
-                    </Link>
-                  ))}
-                </div>
-              );
-            })}
+          {categoryOrder.flatMap((cat) => {
+            const entries = grouped.get(cat) ?? [];
+            if (entries.length === 0) return [];
+            return [
+              <div>
+                <div class={navStyles.categoryTitle}>{categoryLabels[cat]}</div>
+                {entries.map((entry) => (
+                  <Link
+                    href={`/${entry.slug}`}
+                    className={navStyles.navItem}
+                    activeClass={navStyles.navItemActive}
+                  >
+                    {entry.name}
+                  </Link>
+                ))}
+              </div>,
+            ];
+          })}
         </div>
       </div>
       <button type="button" class={navStyles.themeToggle} onClick={toggleTheme}>
