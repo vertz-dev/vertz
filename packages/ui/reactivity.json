@@ -43,15 +43,22 @@
       "kind": "function",
       "reactivity": {
         "plainProperties": [
-          "signIn",
-          "signUp",
-          "signOut",
-          "refresh",
-          "mfaChallenge",
           "forgotPassword",
-          "resetPassword"
+          "mfaChallenge",
+          "refresh",
+          "resetPassword",
+          "signIn",
+          "signOut",
+          "signUp"
         ],
-        "signalProperties": ["user", "status", "isAuthenticated", "isLoading", "error"],
+        "signalProperties": [
+          "error",
+          "isAuthenticated",
+          "isLoading",
+          "providers",
+          "status",
+          "user"
+        ],
         "type": "signal-api"
       }
     },

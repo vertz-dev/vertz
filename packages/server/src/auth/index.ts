@@ -1193,6 +1193,24 @@ export function createAuth(config: AuthConfig): AuthInstance {
       }
 
       // =================================================================
+      // Provider Metadata
+      // =================================================================
+
+      // Route: GET /api/auth/providers
+      if (method === 'GET' && path === '/providers') {
+        const providerList = Array.from(providers.values()).map((p) => ({
+          id: p.id,
+          name: p.name,
+          authUrl: `/api/auth/oauth/${p.id}`,
+        }));
+
+        return new Response(JSON.stringify(providerList), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+        });
+      }
+
+      // =================================================================
       // OAuth Routes
       // =================================================================
 

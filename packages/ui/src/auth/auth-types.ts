@@ -74,6 +74,14 @@ export interface SignOutOptions {
   redirectTo?: string;
 }
 
+// --- OAuth provider info (from GET /api/auth/providers) ---
+
+export interface OAuthProviderInfo {
+  id: string;
+  name: string;
+  authUrl: string;
+}
+
 // --- Response types ---
 
 export interface AuthResponse {

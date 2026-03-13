@@ -812,6 +812,89 @@ describe('AuthProvider', () => {
     });
   });
 
+  describe('providers', () => {
+    let origWindow: typeof globalThis.window;
+
+    function setWindow(win: typeof globalThis.window) {
+      origWindow = globalThis.window;
+      (globalThis as Record<string, unknown>).window = win;
+    }
+
+    function restoreWindow() {
+      if (origWindow === undefined) {
+        delete (globalThis as Record<string, unknown>).window;
+      } else {
+        (globalThis as Record<string, unknown>).window = origWindow;
+      }
+    }
+
+    it('exposes providers as empty array initially', () => {
+      const auth = captureAuth();
+      expect(auth.providers).toEqual([]);
+    });
+
+    it('fetches providers from /api/auth/providers on mount', async () => {
+      const providerData = [
+        { id: 'github', name: 'GitHub', authUrl: '/api/auth/oauth/github' },
+        { id: 'google', name: 'Google', authUrl: '/api/auth/oauth/google' },
+      ];
+
+      setWindow(createFakeWindow());
+
+      const fetchSpy = spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+        new Response(JSON.stringify(providerData), { status: 200 }),
+      );
+
+      const auth = captureAuth();
+
+      // Wait for the fetch to complete
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(auth.providers).toEqual(providerData);
+      expect(fetchSpy.mock.calls.length).toBe(1);
+      const [url] = fetchSpy.mock.calls[0] as [string];
+      expect(url).toBe('/api/auth/providers');
+
+      fetchSpy.mockRestore();
+      restoreWindow();
+    });
+
+    it('stays empty on fetch failure (silent failure)', async () => {
+      setWindow(createFakeWindow());
+
+      const fetchSpy = spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('Network error'));
+
+      const auth = captureAuth();
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(auth.providers).toEqual([]);
+
+      fetchSpy.mockRestore();
+      restoreWindow();
+    });
+
+    it('uses custom basePath for providers endpoint', async () => {
+      const providerData = [{ id: 'github', name: 'GitHub', authUrl: '/custom/auth/oauth/github' }];
+
+      setWindow(createFakeWindow());
+
+      const fetchSpy = spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+        new Response(JSON.stringify(providerData), { status: 200 }),
+      );
+
+      captureAuth({ basePath: '/custom/auth' });
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      const [url] = fetchSpy.mock.calls[0] as [string];
+      expect(url).toBe('/custom/auth/providers');
+
+      fetchSpy.mockRestore();
+      restoreWindow();
+    });
+  });
+
   describe('accessControl integration', () => {
     it('provides AccessContext when accessControl is true', () => {
       let accessCtx: unknown;

@@ -458,6 +458,50 @@ describe('OAuth Routes', () => {
     });
   });
 
+  describe('GET /providers (provider metadata)', () => {
+    it('returns configured providers with id, name, and authUrl', async () => {
+      const auth = createTestAuth({
+        providers: [
+          createMockProvider({ id: 'github', name: 'GitHub' }),
+          createMockProvider({ id: 'google', name: 'Google' }),
+        ],
+        oauthAccountStore: new InMemoryOAuthAccountStore(),
+      });
+
+      const response = await auth.handler(new Request('http://localhost:3000/api/auth/providers'));
+
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body).toEqual([
+        { id: 'github', name: 'GitHub', authUrl: '/api/auth/oauth/github' },
+        { id: 'google', name: 'Google', authUrl: '/api/auth/oauth/google' },
+      ]);
+    });
+
+    it('returns empty array when no providers configured', async () => {
+      const auth = createTestAuth();
+
+      const response = await auth.handler(new Request('http://localhost:3000/api/auth/providers'));
+
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body).toEqual([]);
+    });
+
+    it('does not include clientSecret, scopes, or internal config', async () => {
+      const auth = createTestAuth({
+        providers: [createMockProvider({ id: 'github', name: 'GitHub' })],
+        oauthAccountStore: new InMemoryOAuthAccountStore(),
+      });
+
+      const response = await auth.handler(new Request('http://localhost:3000/api/auth/providers'));
+
+      const body = await response.json();
+      const provider = (body as Record<string, unknown>[])[0];
+      expect(Object.keys(provider)).toEqual(['id', 'name', 'authUrl']);
+    });
+  });
+
   describe('OAuth rate limiting', () => {
     it('returns 429 after 10 initiations', async () => {
       const auth = createTestAuth({

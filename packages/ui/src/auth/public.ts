@@ -36,6 +36,7 @@ export type {
   AuthStatus,
   ForgotInput,
   MfaInput,
+  OAuthProviderInfo,
   ResetInput,
   SignInInput,
   SignOutOptions,
