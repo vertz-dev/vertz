@@ -6,30 +6,49 @@
  */
 
 import { afterEach, describe, expect, test } from 'bun:test';
-import { renderToStream, streamToString } from '@vertz/ui-server';
+import {
+  EntityStore,
+  MemoryCache,
+  QueryEnvelopeStore,
+  type SSRRenderContext,
+} from '@vertz/ui/internals';
+import { createSSRAdapter, renderToStream, ssrStorage, streamToString } from '@vertz/ui-server';
 import { installDomShim, removeDomShim, toVNode } from '@vertz/ui-server/dom-shim';
 
+function createMinimalSSRContext(url: string): SSRRenderContext {
+  return {
+    url,
+    adapter: createSSRAdapter(),
+    subscriber: null,
+    readValueCb: null,
+    cleanupStack: [],
+    batchDepth: 0,
+    pendingEffects: new Map(),
+    contextScope: null,
+    entityStore: new EntityStore(),
+    envelopeStore: new QueryEnvelopeStore(),
+    queryCache: new MemoryCache<unknown>({ maxSize: Infinity }),
+    inflight: new Map(),
+    queries: [],
+    errors: [],
+  };
+}
+
 async function renderApp(url: string): Promise<string> {
-  (globalThis as any).__SSR_URL__ = url;
   installDomShim();
 
-  const { appRouter, routes } = await import('../router');
-  const { matchRoute } = await import('@vertz/ui/internals');
-
-  const match = matchRoute(routes, url);
-  appRouter.current.value = match;
-
-  const { App } = await import('../app');
-  const appResult = App();
-  const vnode = toVNode(appResult);
-  const stream = renderToStream(vnode);
-  return streamToString(stream);
+  return ssrStorage.run(createMinimalSSRContext(url), async () => {
+    const { App } = await import('../app');
+    const appResult = App();
+    const vnode = toVNode(appResult);
+    const stream = renderToStream(vnode);
+    return streamToString(stream);
+  });
 }
 
 describe('SSR routing', () => {
   afterEach(() => {
     removeDomShim();
-    delete (globalThis as any).__SSR_URL__;
   });
 
   test('/ route should match TaskListPage, not 404', async () => {

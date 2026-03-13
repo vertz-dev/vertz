@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'bun:test';
-import { createContext, getContextScope, setContextScope, useContext } from '../component/context';
+import { afterEach, describe, expect, it } from 'bun:test';
+import { createContext, getContextScope, setContextScope } from '../component/context';
 import { getAdapter } from '../dom/adapter';
 import { popScope, pushScope } from '../runtime/disposal';
 import { batch } from '../runtime/scheduler';
@@ -11,6 +11,9 @@ import {
 } from '../ssr/ssr-render-context';
 
 describe('SSRRenderContext', () => {
+  afterEach(() => {
+    registerSSRResolver(null);
+  });
   it('returns undefined when no resolver is registered', () => {
     expect(getSSRContext()).toBeUndefined();
   });
