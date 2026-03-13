@@ -7,8 +7,8 @@
  */
 
 import type { AccessCheckData, AccessSet } from './access-set';
-import type { DenialReason } from './define-access';
 import { verifyJWT } from './jwt';
+import type { AclClaim } from './types';
 
 export interface ResolveSessionForSSRConfig {
   jwtSecret: string;
@@ -31,21 +31,6 @@ export interface SSRSessionResult {
   accessSet?: AccessSet | null;
 }
 
-/** The `acl` claim shape embedded in the JWT payload. */
-interface AclClaim {
-  set?: {
-    entitlements: Record<
-      string,
-      { allowed: boolean; reasons?: string[]; reason?: string; meta?: Record<string, unknown> }
-    >;
-    flags: Record<string, boolean>;
-    plan: string | null;
-    computedAt: string;
-  };
-  hash: string;
-  overflow: boolean;
-}
-
 /**
  * Extract an AccessSet from a decoded JWT acl claim.
  * Inlined from @vertz/ui-server to avoid cross-package dependency.
@@ -59,8 +44,8 @@ function extractAccessSet(acl: AclClaim): AccessSet | null {
       Object.entries(acl.set.entitlements).map(([name, check]) => {
         const data: AccessCheckData = {
           allowed: check.allowed,
-          reasons: (check.reasons ?? []) as DenialReason[],
-          ...(check.reason ? { reason: check.reason as DenialReason } : {}),
+          reasons: check.reasons ?? [],
+          ...(check.reason ? { reason: check.reason } : {}),
           ...(check.meta ? { meta: check.meta } : {}),
         };
         return [name, data];

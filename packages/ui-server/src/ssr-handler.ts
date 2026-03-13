@@ -156,9 +156,9 @@ export function createSSRHandler(
         const sessionResult = await sessionResolver(request);
         if (sessionResult) {
           const scripts: string[] = [];
-          scripts.push(createSessionScript(sessionResult.session));
+          scripts.push(createSessionScript(sessionResult.session, nonce));
           if (sessionResult.accessSet != null) {
-            scripts.push(createAccessSetScript(sessionResult.accessSet));
+            scripts.push(createAccessSetScript(sessionResult.accessSet, nonce));
           }
           sessionScript = scripts.join('\n');
         }
