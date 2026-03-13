@@ -21,28 +21,26 @@ sessionStoreTests('SQLite', async () => {
 });
 
 describe('DbSessionStore.findActiveSessionById', () => {
-  it('returns an active session via raw SQL query', async () => {
+  it('returns an active session via ORM get()', async () => {
     const db = {
-      query: async () => ({
-        ok: true,
-        data: {
-          rows: [
-            {
-              id: 'session-active',
-              user_id: 'user-1',
-              refresh_token_hash: 'refresh-hash',
-              previous_refresh_hash: null,
-              current_tokens: null,
-              ip_address: '127.0.0.1',
-              user_agent: 'bun:test',
-              created_at: '2026-03-10T00:00:00.000Z',
-              last_active_at: '2026-03-10T00:00:01.000Z',
-              expires_at: '2026-03-10T00:01:00.000Z',
-              revoked_at: null,
-            },
-          ],
-        },
-      }),
+      auth_sessions: {
+        get: async () => ({
+          ok: true,
+          data: {
+            id: 'session-active',
+            userId: 'user-1',
+            refreshTokenHash: 'refresh-hash',
+            previousRefreshHash: null,
+            currentTokens: null,
+            ipAddress: '127.0.0.1',
+            userAgent: 'bun:test',
+            createdAt: '2026-03-10T00:00:00.000Z',
+            lastActiveAt: '2026-03-10T00:00:01.000Z',
+            expiresAt: '2026-03-10T00:01:00.000Z',
+            revokedAt: null,
+          },
+        }),
+      },
     } as unknown as AuthDbClient;
 
     const store = new DbSessionStore(db);
@@ -59,9 +57,11 @@ describe('DbSessionStore.findActiveSessionById', () => {
     expect(session?.revokedAt).toBeNull();
   });
 
-  it('returns null when raw SQL query finds no rows', async () => {
+  it('returns null when ORM get() finds no record', async () => {
     const db = {
-      query: async () => ({ ok: true, data: { rows: [] } }),
+      auth_sessions: {
+        get: async () => ({ ok: true, data: null }),
+      },
     } as unknown as AuthDbClient;
 
     const store = new DbSessionStore(db);
@@ -69,12 +69,14 @@ describe('DbSessionStore.findActiveSessionById', () => {
     await expect(store.findActiveSessionById('missing-session')).resolves.toBeNull();
   });
 
-  it('returns null when raw SQL query errors', async () => {
+  it('returns null when ORM get() errors', async () => {
     const db = {
-      query: async () => ({
-        ok: false,
-        error: { message: 'query failed' },
-      }),
+      auth_sessions: {
+        get: async () => ({
+          ok: false,
+          error: { message: 'query failed' },
+        }),
+      },
     } as unknown as AuthDbClient;
 
     const store = new DbSessionStore(db);

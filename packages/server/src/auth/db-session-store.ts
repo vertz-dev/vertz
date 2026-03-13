@@ -23,6 +23,21 @@ interface SessionRow {
   revoked_at: string | null;
 }
 
+/** ORM record shape — camelCase fields, string dates. */
+interface SessionRecord {
+  id: string;
+  userId: string;
+  refreshTokenHash: string;
+  previousRefreshHash: string | null;
+  currentTokens: string | null;
+  ipAddress: string;
+  userAgent: string;
+  createdAt: string;
+  lastActiveAt: string;
+  expiresAt: string;
+  revokedAt: string | null;
+}
+
 export class DbSessionStore implements SessionStore {
   constructor(private db: AuthDbClient) {}
 
@@ -79,16 +94,19 @@ export class DbSessionStore implements SessionStore {
 
   async findActiveSessionById(id: string): Promise<StoredSession | null> {
     const nowStr = new Date().toISOString();
-    // Raw SQL workaround: db.auth_sessions.get() ignores { gt: value } operators (#1209)
-    const result = await this.db.query<SessionRow>(
-      sql`SELECT * FROM auth_sessions WHERE id = ${id} AND revoked_at IS NULL AND expires_at > ${nowStr} LIMIT 1`,
-    );
+    const result = await this.db.auth_sessions.get({
+      where: {
+        id,
+        revokedAt: null,
+        expiresAt: { gt: nowStr },
+      },
+    });
 
     if (!result.ok) return null;
-    const row = result.data.rows[0];
+    const row = result.data;
     if (!row) return null;
 
-    return this.rowToSession(row);
+    return this.recordToSession(row as SessionRecord);
   }
 
   async findByPreviousRefreshHash(hash: string): Promise<StoredSession | null> {
@@ -172,6 +190,7 @@ export class DbSessionStore implements SessionStore {
     // No cleanup needed — DB handles it
   }
 
+  /** Map a raw SQL row (snake_case) to StoredSession. */
   private rowToSession(row: SessionRow): StoredSession {
     return {
       id: row.id,
@@ -184,6 +203,22 @@ export class DbSessionStore implements SessionStore {
       lastActiveAt: new Date(row.last_active_at),
       expiresAt: new Date(row.expires_at),
       revokedAt: row.revoked_at ? new Date(row.revoked_at) : null,
+    };
+  }
+
+  /** Map an ORM record (camelCase) to StoredSession. */
+  private recordToSession(rec: SessionRecord): StoredSession {
+    return {
+      id: rec.id,
+      userId: rec.userId,
+      refreshTokenHash: rec.refreshTokenHash,
+      previousRefreshHash: rec.previousRefreshHash,
+      ipAddress: rec.ipAddress,
+      userAgent: rec.userAgent,
+      createdAt: new Date(rec.createdAt),
+      lastActiveAt: new Date(rec.lastActiveAt),
+      expiresAt: new Date(rec.expiresAt),
+      revokedAt: rec.revokedAt ? new Date(rec.revokedAt) : null,
     };
   }
 }
