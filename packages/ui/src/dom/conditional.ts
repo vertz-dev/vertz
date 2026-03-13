@@ -1,4 +1,10 @@
-import { claimComment, claimText, getIsHydrating } from '../hydrate/hydration-context';
+import {
+  claimComment,
+  claimText,
+  getIsHydrating,
+  pauseHydration,
+  resumeHydration,
+} from '../hydrate/hydration-context';
 import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
 import { domEffect } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
@@ -84,8 +90,7 @@ function hydrateConditional(
       popScope();
       branchCleanups = scope;
 
-      // During hydration, the branch content is already in the DOM.
-      // Just track the current node for future branch switches.
+      // Determine the current node for this branch.
       if (branchResult == null || typeof branchResult === 'boolean') {
         currentNode = getAdapter().createComment('empty') as unknown as Node;
       } else if (isRenderNode(branchResult)) {
@@ -97,6 +102,29 @@ function hydrateConditional(
         const claimed = claimText();
         currentNode =
           claimed ?? (getAdapter().createTextNode(String(branchResult)) as unknown as Node);
+      }
+
+      // SSR/client condition mismatch: branch content was created fresh
+      // (not claimed from SSR DOM). Re-run in CSR mode so DOM helpers
+      // (__append, __insert) actually perform insertions.
+      if (currentNode && !currentNode.parentNode && anchor.parentNode) {
+        runCleanups(branchCleanups);
+
+        pauseHydration();
+        const csrScope = pushScope();
+        const csrResult = show ? trueFn() : falseFn();
+        popScope();
+        branchCleanups = csrScope;
+        resumeHydration();
+
+        currentNode = normalizeNode(csrResult);
+
+        const ssrBranchNode = anchor.nextSibling;
+        if (ssrBranchNode) {
+          anchor.parentNode.replaceChild(currentNode, ssrBranchNode);
+        } else {
+          anchor.parentNode.appendChild(currentNode);
+        }
       }
       return;
     }

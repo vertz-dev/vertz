@@ -11,25 +11,49 @@ import { SSRTextNode } from './ssr-text-node';
 function createStyleProxy(element: SSRElement): { display: string; [key: string]: any } {
   const styles: Record<string, string> = {};
 
+  function syncStyleAttr(): void {
+    const pairs = Object.entries(styles).map(([k, v]) => {
+      const key = k.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
+      return `${key}: ${v}`;
+    });
+    element.attrs.style = pairs.join('; ');
+  }
+
   // The Proxy's get handler returns '' for any missing property, so `display`
   // always exists at runtime. The cast is safe — it just tells TS about the
   // Proxy's dynamic behavior.
   return new Proxy(styles, {
     set(_target, prop, value) {
       if (typeof prop === 'string') {
+        // cssText replaces all styles (matches real CSSStyleDeclaration behavior)
+        if (prop === 'cssText') {
+          for (const key of Object.keys(styles)) {
+            delete styles[key];
+          }
+          for (const pair of String(value).split(';')) {
+            const colonIdx = pair.indexOf(':');
+            if (colonIdx === -1) continue;
+            const cssProp = pair.slice(0, colonIdx).trim();
+            const cssVal = pair.slice(colonIdx + 1).trim();
+            if (!cssProp) continue;
+            // Convert kebab-case to camelCase for internal storage
+            const camelProp = cssProp.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+            styles[camelProp] = cssVal;
+          }
+          syncStyleAttr();
+          return true;
+        }
         // Store the value
         styles[prop] = value;
-        // Update the style attribute on the element (convert camelCase to kebab-case)
-        const pairs = Object.entries(styles).map(([k, v]) => {
-          const key = k.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
-          return `${key}: ${v}`;
-        });
-        element.attrs.style = pairs.join('; ');
+        syncStyleAttr();
       }
       return true;
     },
     get(_target, prop) {
       if (typeof prop === 'string') {
+        if (prop === 'cssText') {
+          return element.attrs.style ?? '';
+        }
         return styles[prop] ?? '';
       }
       return undefined;
@@ -236,6 +260,29 @@ export class SSRElement extends SSRNode {
 
   get innerHTML(): string {
     return this._innerHTML ?? '';
+  }
+
+  /**
+   * Basic querySelector supporting `[attr="value"]` selectors.
+   * Searches children (not deep descendants) for a matching element.
+   */
+  querySelector(selector: string): SSRElement | null {
+    // Parse simple attribute selector: [attr="value"] or [attr]
+    const attrMatch = selector.match(/^\[([^=\]]+)(?:="([^"]*)")?\]$/);
+    if (!attrMatch) return null;
+
+    const attrName = attrMatch[1];
+    const attrValue = attrMatch[2];
+    if (!attrName) return null;
+    for (const child of this.childNodes) {
+      if (child instanceof SSRElement) {
+        const val = child.attrs[attrName];
+        if (attrValue !== undefined ? val === attrValue : val !== undefined) {
+          return child;
+        }
+      }
+    }
+    return null;
   }
 
   // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing

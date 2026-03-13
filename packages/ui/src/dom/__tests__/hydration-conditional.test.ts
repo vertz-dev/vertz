@@ -122,6 +122,97 @@ describe('__conditional — hydration', () => {
     expect(root.textContent).toContain('no');
   });
 
+  it('handles SSR/client condition mismatch (SSR=false, client=true)', () => {
+    // SSR rendered the false branch: <!--conditional--><!--empty-->
+    const root = document.createElement('div');
+    root.appendChild(document.createComment('conditional'));
+    root.appendChild(document.createComment('empty'));
+    startHydration(root);
+
+    const show = signal(true);
+    __conditional(
+      () => show.value,
+      () => {
+        const el = __element('span');
+        __enterChildren(el);
+        __append(el, __staticText('demo-content'));
+        __exitChildren();
+        return el;
+      },
+      () => null,
+    );
+
+    // The true branch content must be inserted into the DOM
+    // despite SSR having rendered the false branch
+    expect(root.textContent).toContain('demo-content');
+  });
+
+  it('handles SSR/client condition mismatch (SSR=true, client=false)', () => {
+    // SSR rendered the true branch: <!--conditional--><span>content</span>
+    const root = document.createElement('div');
+    root.appendChild(document.createComment('conditional'));
+    const span = document.createElement('span');
+    span.textContent = 'ssr-content';
+    root.appendChild(span);
+    startHydration(root);
+
+    const show = signal(false);
+    __conditional(
+      () => show.value,
+      () => {
+        const el = __element('span');
+        __enterChildren(el);
+        __append(el, __staticText('ssr-content'));
+        __exitChildren();
+        return el;
+      },
+      () => null,
+    );
+
+    // The SSR content should be replaced with the empty comment
+    expect(root.textContent).not.toContain('ssr-content');
+  });
+
+  it('branch switch works after SSR/client mismatch recovery', () => {
+    // SSR rendered the false branch: <!--conditional--><!--empty-->
+    const root = document.createElement('div');
+    root.appendChild(document.createComment('conditional'));
+    root.appendChild(document.createComment('empty'));
+    startHydration(root);
+
+    const show = signal(true);
+    __conditional(
+      () => show.value,
+      () => {
+        const el = __element('span');
+        __enterChildren(el);
+        __append(el, __staticText('true-content'));
+        __exitChildren();
+        return el;
+      },
+      () => {
+        const el = __element('p');
+        __enterChildren(el);
+        __append(el, __staticText('false-content'));
+        __exitChildren();
+        return el;
+      },
+    );
+
+    endHydration();
+
+    // Mismatch was recovered — true branch is visible
+    expect(root.textContent).toContain('true-content');
+
+    // Subsequent branch switches should work normally
+    show.value = false;
+    expect(root.textContent).toContain('false-content');
+    expect(root.textContent).not.toContain('true-content');
+
+    show.value = true;
+    expect(root.textContent).toContain('true-content');
+  });
+
   it('branch switch after hydration creates new nodes normally', () => {
     const root = document.createElement('div');
     root.appendChild(document.createComment('conditional'));
