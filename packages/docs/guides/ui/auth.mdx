@@ -184,7 +184,7 @@ import { ProtectedRoute } from 'vertz/ui/auth';
 | `loginPath` | `string` | `'/login'` | Where to redirect unauthenticated users |
 | `fallback` | `() => unknown` | `null` | Rendered while auth is resolving |
 | `children` | `unknown` | — | Rendered when authenticated |
-| `requires` | `string[]` | — | Entitlements the user must have (checked via `can()`) |
+| `requires` | `Entitlement[]` | — | Entitlements the user must have (checked via `can()`). Type-safe when codegen is active. |
 | `forbidden` | `() => unknown` | `null` | Rendered when authenticated but lacking entitlements |
 | `returnTo` | `boolean` | `true` | Append `?returnTo=<currentPath>` to the login redirect |
 
