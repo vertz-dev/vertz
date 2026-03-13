@@ -11,7 +11,6 @@ describe('Feature: isBrowser()', () => {
 
   afterEach(() => {
     if (savedWindow === undefined) {
-      // biome-ignore lint/performance/noDelete: test requires removing window global
       delete (globalThis as any).window;
     } else {
       (globalThis as any).window = savedWindow;
@@ -19,34 +18,41 @@ describe('Feature: isBrowser()', () => {
     registerSSRResolver(null);
   });
 
-  describe('Given no SSR context is active and window is defined', () => {
-    it('Then returns true', () => {
+  describe('Given no SSR resolver registered and window is defined', () => {
+    it('Then returns true (real browser)', () => {
       (globalThis as any).window = { location: { pathname: '/' } };
       registerSSRResolver(null);
       expect(isBrowser()).toBe(true);
     });
   });
 
-  describe('Given an SSR context is active (inside SSR render)', () => {
-    it('Then returns false even though window is defined', () => {
+  describe('Given an SSR resolver is registered (server environment)', () => {
+    it('Then returns false even when resolver returns a context', () => {
       (globalThis as any).window = { location: { pathname: '/' } };
       const fakeCtx = { url: '/' } as any;
       registerSSRResolver(() => fakeCtx);
       expect(typeof window).toBe('object');
       expect(isBrowser()).toBe(false);
     });
+
+    it('Then returns false even when resolver returns undefined (outside ssrStorage.run)', () => {
+      // This is the HMR re-import scenario: createRouter() re-evaluates
+      // at module scope on the server, outside any SSR render context.
+      (globalThis as any).window = { location: { pathname: '/' } };
+      registerSSRResolver(() => undefined);
+      expect(isBrowser()).toBe(false);
+    });
   });
 
   describe('Given window is undefined (no DOM shim, no browser)', () => {
     it('Then returns false', () => {
-      // biome-ignore lint/performance/noDelete: test requires removing window global
       delete (globalThis as any).window;
       expect(isBrowser()).toBe(false);
     });
   });
 
-  describe('Given DOM shim is installed but no SSR context is active', () => {
-    it('Then returns true (gap between installDomShim and ssrStorage.run)', () => {
+  describe('Given window exists but no SSR resolver registered', () => {
+    it('Then returns true (DOM shim gap is acceptable without resolver)', () => {
       (globalThis as any).window = { location: { pathname: '/' } };
       registerSSRResolver(null);
       expect(isBrowser()).toBe(true);

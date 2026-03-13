@@ -54,3 +54,15 @@ export function registerSSRResolver(resolver: SSRContextResolver | null): void {
 export function getSSRContext(): SSRRenderContext | undefined {
   return _ssrResolver?.();
 }
+
+/**
+ * Returns true when an SSR resolver has been registered.
+ *
+ * This indicates we are running on the server — regardless of whether
+ * an SSR render is currently active. The resolver is registered once
+ * at import time by `@vertz/ui-server` and never cleared during the
+ * server's lifetime.
+ */
+export function hasSSRResolver(): boolean {
+  return _ssrResolver !== null;
+}
