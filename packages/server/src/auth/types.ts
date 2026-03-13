@@ -567,6 +567,7 @@ export interface AuthInstance {
    */
   resolveSessionForSSR: (request: Request) => Promise<{
     session: { user: Record<string, unknown>; expiresAt: number };
+    /** AccessSet | null at runtime; typed as unknown to avoid cross-package dependency on @vertz/ui */
     accessSet?: unknown;
   } | null>;
 }

@@ -225,6 +225,20 @@ describe('resolveSessionForSSR', () => {
     });
   });
 
+  describe('Given a cookie header with multiple cookies', () => {
+    it('extracts the correct cookie even when values contain = characters', async () => {
+      const jwt = await createValidJWT();
+      // JWT tokens are base64url (no padding `=`), but test that the parser
+      // handles a cookie header where other cookies have `=` in their values
+      const request = createRequest(`other=abc=def; ${COOKIE_NAME}=${jwt}; trailing=x=y=z`);
+      const resolver = createResolver();
+
+      const result = await resolver(request);
+      expect(result).not.toBeNull();
+      expect(result!.session.user.id).toBe('user-123');
+    });
+  });
+
   describe('Given a custom cookie name', () => {
     it('reads from the correct cookie', async () => {
       const jwt = await createValidJWT();

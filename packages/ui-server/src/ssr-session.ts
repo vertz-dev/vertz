@@ -10,6 +10,8 @@
  * when inline scripts are allowed by CSP.
  */
 
+import type { AccessSet } from '@vertz/ui/auth';
+
 export interface SessionData {
   user: { id: string; email: string; role: string; [key: string]: unknown };
   /** Unix timestamp in milliseconds (JWT exp * 1000). */
@@ -25,7 +27,7 @@ export interface SSRSessionInfo {
    * - null: access control is configured but the set overflowed the JWT
    * - undefined: access control is not configured
    */
-  accessSet?: import('@vertz/ui/auth').AccessSet | null;
+  accessSet?: AccessSet | null;
 }
 
 /**

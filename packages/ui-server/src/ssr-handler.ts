@@ -254,7 +254,8 @@ async function handleHTMLRequest(
     if (cacheControl) headers['Cache-Control'] = cacheControl;
 
     return new Response(html, { status: 200, headers });
-  } catch {
+  } catch (err) {
+    console.error('[SSR] Render failed:', err instanceof Error ? err.message : err);
     return new Response('Internal Server Error', {
       status: 500,
       headers: { 'Content-Type': 'text/plain' },

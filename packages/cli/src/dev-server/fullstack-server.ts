@@ -182,6 +182,10 @@ export async function startDevServer(options: StartDevServerOptions): Promise<vo
     port,
     host,
     apiHandler,
+    // Cast is safe: sessionResolver is created by createAuth().resolveSessionForSSR
+    // which returns SSRSessionResult | null — structurally compatible with SessionResolver.
+    // The duck-type check above only verifies it's a function; the runtime shape is
+    // guaranteed by @vertz/server's createAuth() implementation.
     sessionResolver: sessionResolver as SessionResolver | undefined,
     openapi,
     ssrModule: mode.ssrModule,

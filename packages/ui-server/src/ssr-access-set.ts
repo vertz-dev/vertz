@@ -16,7 +16,13 @@ import type { AccessSet } from '@vertz/ui/auth';
 // getAccessSetForSSR()
 // ============================================================================
 
-/** The `acl` claim shape embedded in the JWT payload. */
+/**
+ * The `acl` claim shape embedded in the JWT payload.
+ *
+ * Canonical type lives in `@vertz/server/auth/types.ts` (AclClaim).
+ * Duplicated here because `@vertz/ui-server` cannot depend on `@vertz/server`.
+ * If you change this interface, update the counterpart in `types.ts` too.
+ */
 interface AclClaim {
   set?: {
     entitlements: Record<

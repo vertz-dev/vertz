@@ -33,7 +33,10 @@ export interface SSRSessionResult {
 
 /**
  * Extract an AccessSet from a decoded JWT acl claim.
- * Inlined from @vertz/ui-server to avoid cross-package dependency.
+ *
+ * Mirrors the logic in `@vertz/ui-server/ssr-access-set.ts` (`getAccessSetForSSR`).
+ * Duplicated here because `@vertz/server` cannot depend on `@vertz/ui-server`.
+ * If you change this function, update the counterpart in `ssr-access-set.ts` too.
  */
 function extractAccessSet(acl: AclClaim): AccessSet | null {
   if (acl.overflow) return null;
