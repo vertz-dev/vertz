@@ -172,7 +172,7 @@ buttons are nice-to-have.
 
 ---
 
-## 3. Dev Server Handler Auto-Composition
+## 3. Dev Server Handler Auto-Composition — ✅ DONE (#1221)
 
 ### The Problem
 
@@ -345,7 +345,7 @@ export const appRouter = createRouter(routes, { serverNav: true });
 | # | Gap | Priority | Effort | Impact |
 |---|-----|----------|--------|--------|
 | 4 | ~~SSR session injection~~ | ✅ Done | — | PR #1216 |
-| 3 | Dev server handler auto-composition | High | Low | Removes boilerplate from every app |
+| 3 | ~~Dev server handler auto-composition~~ | ✅ Done | — | PR #1221 |
 | 1 | ~~ProtectedRoute component~~ | ✅ Done | — | PR #1214 |
 | 7 | ~~Router initialPath auto-detect~~ | ✅ Done | — | PR #1219 |
 | 2 | ~~OAuth button / provider metadata~~ | ✅ Done | — | PR #1215 |

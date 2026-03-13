@@ -2,7 +2,6 @@
  * Linear Clone — Development Server
  *
  * Uses createBunDevServer for SSR + HMR.
- * API routes compose auth + entity handlers.
  * Auth tables are initialized on startup.
  */
 
@@ -21,17 +20,7 @@ const devServer = createBunDevServer({
   ssrModule: true,
   title: 'Linear Clone',
   sessionResolver: app.auth.resolveSessionForSSR,
-  apiHandler: async (req: Request) => {
-    const url = new URL(req.url);
-
-    // Auth routes: /api/auth/*
-    if (url.pathname.startsWith('/api/auth')) {
-      return app.auth.handler(req);
-    }
-
-    // Entity routes: /api/*
-    return app.handler(req);
-  },
+  apiHandler: app.requestHandler,
 });
 
 console.log(`
