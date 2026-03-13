@@ -385,6 +385,121 @@ describe('createSSRHandler', () => {
     expect(response.headers.has('Cache-Control')).toBe(false);
   });
 
+  describe('session injection', () => {
+    it('injects __VERTZ_SESSION__ when sessionResolver returns session data', async () => {
+      const sessionResolver = async () => ({
+        session: {
+          user: { id: 'u1', email: 'a@b.c', role: 'user' },
+          expiresAt: 1700000000000,
+        },
+      });
+
+      const handler = createSSRHandler({ module: simpleModule, template, sessionResolver });
+      const response = await handler(new Request('http://localhost/'));
+      const html = await response.text();
+
+      expect(html).toContain('__VERTZ_SESSION__');
+      expect(html).toContain('"u1"');
+    });
+
+    it('does not inject session script when sessionResolver returns null', async () => {
+      const sessionResolver = async () => null;
+
+      const handler = createSSRHandler({ module: simpleModule, template, sessionResolver });
+      const response = await handler(new Request('http://localhost/'));
+      const html = await response.text();
+
+      expect(html).not.toContain('__VERTZ_SESSION__');
+    });
+
+    it('does not call sessionResolver for nav pre-fetch requests', async () => {
+      let called = false;
+      const sessionResolver = async () => {
+        called = true;
+        return {
+          session: {
+            user: { id: 'u1', email: 'a@b.c', role: 'user' },
+            expiresAt: 1700000000000,
+          },
+        };
+      };
+
+      const handler = createSSRHandler({ module: simpleModule, template, sessionResolver });
+      await handler(new Request('http://localhost/', { headers: { 'X-Vertz-Nav': '1' } }));
+
+      expect(called).toBe(false);
+    });
+
+    it('degrades gracefully when sessionResolver throws', async () => {
+      const sessionResolver = async () => {
+        throw new Error('Redis timeout');
+      };
+
+      const handler = createSSRHandler({ module: simpleModule, template, sessionResolver });
+      const response = await handler(new Request('http://localhost/'));
+
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).not.toContain('__VERTZ_SESSION__');
+      expect(html).toContain('Hello World');
+    });
+
+    it('injects __VERTZ_ACCESS_SET__ when accessSet is present', async () => {
+      const sessionResolver = async () => ({
+        session: {
+          user: { id: 'u1', email: 'a@b.c', role: 'user' },
+          expiresAt: 1700000000000,
+        },
+        accessSet: {
+          entitlements: { 'task:read': { allowed: true, reasons: [] } },
+          flags: {},
+          plan: 'pro',
+          computedAt: '2025-01-01T00:00:00Z',
+        },
+      });
+
+      const handler = createSSRHandler({ module: simpleModule, template, sessionResolver });
+      const response = await handler(new Request('http://localhost/'));
+      const html = await response.text();
+
+      expect(html).toContain('__VERTZ_ACCESS_SET__');
+      expect(html).toContain('task:read');
+    });
+
+    it('passes nonce to session and access set scripts', async () => {
+      const sessionResolver = async () => ({
+        session: {
+          user: { id: 'u1', email: 'a@b.c', role: 'user' },
+          expiresAt: 1700000000000,
+        },
+        accessSet: {
+          entitlements: {},
+          flags: {},
+          plan: null,
+          computedAt: '2025-01-01T00:00:00Z',
+        },
+      });
+
+      const handler = createSSRHandler({
+        module: simpleModule,
+        template,
+        sessionResolver,
+        nonce: 'abc123',
+      });
+      const response = await handler(new Request('http://localhost/'));
+      const html = await response.text();
+
+      // Both session and access set scripts should have the nonce
+      const sessionMatch = html.match(/<script[^>]*>window\.__VERTZ_SESSION__/);
+      expect(sessionMatch).not.toBeNull();
+      expect(sessionMatch![0]).toContain('nonce="abc123"');
+
+      const accessMatch = html.match(/<script[^>]*>window\.__VERTZ_ACCESS_SET__/);
+      expect(accessMatch).not.toBeNull();
+      expect(accessMatch![0]).toContain('nonce="abc123"');
+    });
+  });
+
   describe('XSS escaping', () => {
     it('escapes </ in inlined CSS to prevent style tag breakout', async () => {
       const templateWithLink = `<!DOCTYPE html>

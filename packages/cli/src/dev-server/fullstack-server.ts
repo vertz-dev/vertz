@@ -1,11 +1,13 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import type { SessionResolver } from '@vertz/ui-server';
 import type { DetectedApp } from './app-detector';
 import { createProcessManager } from './process-manager';
 
 interface ServerModule {
   handler: (request: Request) => Promise<Response>;
+  sessionResolver?: (request: Request) => Promise<unknown>;
 }
 
 export type DevMode =
@@ -102,7 +104,18 @@ export async function importServerModule(serverEntry: string): Promise<ServerMod
     );
   }
 
-  return mod as ServerModule;
+  // Auto-wire session resolver if auth is configured (duck-type check)
+  let sessionResolver: ((req: Request) => Promise<unknown>) | undefined;
+  if (
+    'auth' in mod &&
+    mod.auth &&
+    typeof (mod.auth as Record<string, unknown>).resolveSessionForSSR === 'function'
+  ) {
+    sessionResolver = (mod.auth as { resolveSessionForSSR: (req: Request) => Promise<unknown> })
+      .resolveSessionForSSR;
+  }
+
+  return { ...(mod as ServerModule), sessionResolver };
 }
 
 /**
@@ -150,9 +163,11 @@ export async function startDevServer(options: StartDevServerOptions): Promise<vo
   const { createBunDevServer } = await import('@vertz/ui-server/bun-dev-server');
 
   let apiHandler: ((req: Request) => Promise<Response>) | undefined;
+  let sessionResolver: ((req: Request) => Promise<unknown>) | undefined;
   if (mode.kind === 'full-stack') {
     const serverMod = await importServerModule(mode.serverEntry);
     apiHandler = serverMod.handler;
+    sessionResolver = serverMod.sessionResolver;
   }
 
   const uiEntry = `./${relative(detected.projectRoot, mode.uiEntry)}`;
@@ -167,6 +182,11 @@ export async function startDevServer(options: StartDevServerOptions): Promise<vo
     port,
     host,
     apiHandler,
+    // Cast is safe: sessionResolver is created by createAuth().resolveSessionForSSR
+    // which returns SSRSessionResult | null — structurally compatible with SessionResolver.
+    // The duck-type check above only verifies it's a function; the runtime shape is
+    // guaranteed by @vertz/server's createAuth() implementation.
+    sessionResolver: sessionResolver as SessionResolver | undefined,
     openapi,
     ssrModule: mode.ssrModule,
     clientEntry,

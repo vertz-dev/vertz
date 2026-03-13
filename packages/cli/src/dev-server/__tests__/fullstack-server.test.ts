@@ -138,6 +138,30 @@ describe('importServerModule', () => {
     expect(typeof mod.handler).toBe('function');
   });
 
+  it('throws helpful error when module calls .listen() directly (EADDRINUSE)', async () => {
+    const serverPath = join(tmpDir, 'server-listen.ts');
+    writeFileSync(
+      serverPath,
+      `
+      throw Object.assign(new Error('listen EADDRINUSE: address already in use'), { code: 'EADDRINUSE' });
+    `,
+    );
+
+    expect(importServerModule(serverPath)).rejects.toThrow('.listen()');
+  });
+
+  it('re-throws non-EADDRINUSE import errors', async () => {
+    const serverPath = join(tmpDir, 'server-broken.ts');
+    writeFileSync(
+      serverPath,
+      `
+      throw new Error('SyntaxError: unexpected token');
+    `,
+    );
+
+    expect(importServerModule(serverPath)).rejects.toThrow('SyntaxError');
+  });
+
   it('throws when default export has no .handler', async () => {
     const serverPath = join(tmpDir, 'no-handler.ts');
     writeFileSync(
@@ -160,6 +184,71 @@ describe('importServerModule', () => {
     );
 
     expect(importServerModule(serverPath)).rejects.toThrow('default export');
+  });
+
+  it('throws when default export is a primitive (e.g. a string)', async () => {
+    const serverPath = join(tmpDir, 'string-export.ts');
+    writeFileSync(
+      serverPath,
+      `
+      export default 'not-an-object';
+    `,
+    );
+
+    expect(importServerModule(serverPath)).rejects.toThrow('default export');
+  });
+
+  it('extracts sessionResolver when auth.resolveSessionForSSR exists', async () => {
+    const serverPath = join(tmpDir, 'server-with-auth.ts');
+    writeFileSync(
+      serverPath,
+      `
+      const resolver = async (req: Request) => ({ session: { user: { id: '1', email: 'a@b.c', role: 'user' }, expiresAt: 0 } });
+      const app = {
+        handler: async (req: Request) => new Response('ok'),
+        auth: { resolveSessionForSSR: resolver },
+      };
+      export default app;
+    `,
+    );
+
+    const mod = await importServerModule(serverPath);
+
+    expect(mod.sessionResolver).toBeDefined();
+    expect(typeof mod.sessionResolver).toBe('function');
+  });
+
+  it('returns undefined sessionResolver when auth.resolveSessionForSSR is not a function', async () => {
+    const serverPath = join(tmpDir, 'server-auth-no-fn.ts');
+    writeFileSync(
+      serverPath,
+      `
+      const app = {
+        handler: async (req: Request) => new Response('ok'),
+        auth: { resolveSessionForSSR: 'not-a-function' },
+      };
+      export default app;
+    `,
+    );
+
+    const mod = await importServerModule(serverPath);
+
+    expect(mod.sessionResolver).toBeUndefined();
+  });
+
+  it('returns undefined sessionResolver when auth is not configured', async () => {
+    const serverPath = join(tmpDir, 'server-no-auth.ts');
+    writeFileSync(
+      serverPath,
+      `
+      const app = { handler: async (req: Request) => new Response('ok') };
+      export default app;
+    `,
+    );
+
+    const mod = await importServerModule(serverPath);
+
+    expect(mod.sessionResolver).toBeUndefined();
   });
 });
 

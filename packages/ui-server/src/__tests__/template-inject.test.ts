@@ -15,26 +15,62 @@ const template = `<!doctype html>
 
 describe('injectIntoTemplate', () => {
   it('injects app HTML into <div id="app">', () => {
-    const result = injectIntoTemplate(template, '<p>Hello</p>', '', []);
+    const result = injectIntoTemplate({
+      template,
+      appHtml: '<p>Hello</p>',
+      appCss: '',
+      ssrData: [],
+    });
     expect(result).toContain('<div id="app"><p>Hello</p></div>');
+  });
+
+  it('injects app HTML into <!--ssr-outlet--> when present', () => {
+    const outletTemplate = `<!doctype html>
+<html>
+  <head><title>Test</title></head>
+  <body>
+    <div id="app"><!--ssr-outlet--></div>
+  </body>
+</html>`;
+    const result = injectIntoTemplate({
+      template: outletTemplate,
+      appHtml: '<p>SSR Content</p>',
+      appCss: '',
+      ssrData: [],
+    });
+    expect(result).toContain('<p>SSR Content</p>');
+    expect(result).not.toContain('<!--ssr-outlet-->');
   });
 
   it('injects CSS before </head>', () => {
     const css = '<style data-vertz-css>body { margin: 0; }</style>';
-    const result = injectIntoTemplate(template, '<p>Hello</p>', css, []);
+    const result = injectIntoTemplate({
+      template,
+      appHtml: '<p>Hello</p>',
+      appCss: css,
+      ssrData: [],
+    });
     expect(result).toContain(css);
   });
 
   it('injects SSR data before </body>', () => {
-    const result = injectIntoTemplate(template, '<p>Hello</p>', '', [
-      { key: 'test', data: { id: 1 } },
-    ]);
+    const result = injectIntoTemplate({
+      template,
+      appHtml: '<p>Hello</p>',
+      appCss: '',
+      ssrData: [{ key: 'test', data: { id: 1 } }],
+    });
     expect(result).toContain('window.__VERTZ_SSR_DATA__=');
   });
 
   it('converts linked stylesheets to async when inline CSS is injected', () => {
     const css = '<style data-vertz-css>body { margin: 0; }</style>';
-    const result = injectIntoTemplate(template, '<p>Hello</p>', css, []);
+    const result = injectIntoTemplate({
+      template,
+      appHtml: '<p>Hello</p>',
+      appCss: css,
+      ssrData: [],
+    });
 
     // The linked stylesheet should use the async loading pattern
     expect(result).toContain(
@@ -50,10 +86,61 @@ describe('injectIntoTemplate', () => {
   });
 
   it('keeps linked stylesheets render-blocking when no inline CSS is injected', () => {
-    const result = injectIntoTemplate(template, '<p>Hello</p>', '', []);
+    const result = injectIntoTemplate({
+      template,
+      appHtml: '<p>Hello</p>',
+      appCss: '',
+      ssrData: [],
+    });
 
     // No inline CSS → linked CSS must stay render-blocking
     expect(result).toContain('<link rel="stylesheet" href="/assets/vertz.css">');
     expect(result).not.toContain('media="print"');
+  });
+
+  it('injects sessionScript before </body> when provided', () => {
+    const sessionScript =
+      '<script>window.__VERTZ_SESSION__={"user":{"id":"u1"},"expiresAt":999}</script>';
+    const result = injectIntoTemplate({
+      template,
+      appHtml: '<p>Hello</p>',
+      appCss: '',
+      ssrData: [{ key: 'test', data: { id: 1 } }],
+      sessionScript,
+    });
+
+    expect(result).toContain('__VERTZ_SESSION__');
+    // Session script should come before ssrData
+    const sessionIdx = result.indexOf('__VERTZ_SESSION__');
+    const ssrDataIdx = result.indexOf('__VERTZ_SSR_DATA__');
+    expect(sessionIdx).toBeLessThan(ssrDataIdx);
+  });
+
+  it('omits sessionScript when not provided', () => {
+    const result = injectIntoTemplate({
+      template,
+      appHtml: '<p>Hello</p>',
+      appCss: '',
+      ssrData: [],
+    });
+
+    expect(result).not.toContain('__VERTZ_SESSION__');
+  });
+
+  it('includes both sessionScript and ssrData when both provided', () => {
+    const sessionScript =
+      '<script>window.__VERTZ_SESSION__={"user":{"id":"u1"},"expiresAt":999}</script>' +
+      '\n<script>window.__VERTZ_ACCESS_SET__={"entitlements":{},"flags":{},"plan":null,"computedAt":"now"}</script>';
+    const result = injectIntoTemplate({
+      template,
+      appHtml: '',
+      appCss: '',
+      ssrData: [{ key: 'q', data: {} }],
+      sessionScript,
+    });
+
+    expect(result).toContain('__VERTZ_SESSION__');
+    expect(result).toContain('__VERTZ_ACCESS_SET__');
+    expect(result).toContain('__VERTZ_SSR_DATA__');
   });
 });

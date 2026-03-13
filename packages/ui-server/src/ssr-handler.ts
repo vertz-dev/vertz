@@ -10,8 +10,11 @@
 
 import { compileTheme, type FontFallbackMetrics, type PreloadItem } from '@vertz/ui';
 import { escapeAttr } from './html-serializer';
+import { createAccessSetScript } from './ssr-access-set';
 import type { SSRModule } from './ssr-render';
 import { ssrRenderToString, ssrStreamNavQueries } from './ssr-render';
+import type { SessionResolver } from './ssr-session';
+import { createSessionScript } from './ssr-session';
 import { injectIntoTemplate } from './template-inject';
 
 export interface SSRHandlerOptions {
@@ -45,6 +48,12 @@ export interface SSRHandlerOptions {
   modulepreload?: string[];
   /** Cache-Control header for HTML responses. Omit or undefined = no header (safe default). */
   cacheControl?: string;
+  /**
+   * Resolves session data from request cookies for SSR injection.
+   * When provided, SSR HTML includes `window.__VERTZ_SESSION__` and
+   * optionally `window.__VERTZ_ACCESS_SET__` for instant auth hydration.
+   */
+  sessionResolver?: SessionResolver;
 }
 
 /**
@@ -95,8 +104,16 @@ function buildModulepreloadTags(paths: string[]): string {
 export function createSSRHandler(
   options: SSRHandlerOptions,
 ): (request: Request) => Promise<Response> {
-  const { module, ssrTimeout, inlineCSS, nonce, fallbackMetrics, modulepreload, cacheControl } =
-    options;
+  const {
+    module,
+    ssrTimeout,
+    inlineCSS,
+    nonce,
+    fallbackMetrics,
+    modulepreload,
+    cacheControl,
+    sessionResolver,
+  } = options;
 
   // Pre-process template: inline CSS assets to eliminate extra requests
   let template = options.template;
@@ -127,9 +144,30 @@ export function createSSRHandler(
     const url = new URL(request.url);
     const pathname = url.pathname;
 
-    // Nav pre-fetch: SSE response
+    // Nav pre-fetch: SSE response — session resolver NOT called
     if (request.headers.get('x-vertz-nav') === '1') {
       return handleNavRequest(module, pathname, ssrTimeout);
+    }
+
+    // Resolve session in isolated try/catch (graceful degradation)
+    let sessionScript = '';
+    if (sessionResolver) {
+      try {
+        const sessionResult = await sessionResolver(request);
+        if (sessionResult) {
+          const scripts: string[] = [];
+          scripts.push(createSessionScript(sessionResult.session, nonce));
+          if (sessionResult.accessSet != null) {
+            scripts.push(createAccessSetScript(sessionResult.accessSet, nonce));
+          }
+          sessionScript = scripts.join('\n');
+        }
+      } catch (resolverErr) {
+        console.warn(
+          '[Server] Session resolver failed:',
+          resolverErr instanceof Error ? resolverErr.message : resolverErr,
+        );
+      }
     }
 
     // Normal HTML request: SSR render
@@ -143,6 +181,7 @@ export function createSSRHandler(
       linkHeader,
       modulepreloadTags,
       cacheControl,
+      sessionScript,
     );
   };
 }
@@ -192,6 +231,7 @@ async function handleHTMLRequest(
   linkHeader?: string,
   modulepreloadTags?: string,
   cacheControl?: string,
+  sessionScript?: string,
 ): Promise<Response> {
   try {
     const result = await ssrRenderToString(module, url, { ssrTimeout, fallbackMetrics });
@@ -199,21 +239,23 @@ async function handleHTMLRequest(
     // Combine head tags: font preloads + modulepreload links
     const allHeadTags = [result.headTags, modulepreloadTags].filter(Boolean).join('\n');
 
-    const html = injectIntoTemplate(
+    const html = injectIntoTemplate({
       template,
-      result.html,
-      result.css,
-      result.ssrData,
+      appHtml: result.html,
+      appCss: result.css,
+      ssrData: result.ssrData,
       nonce,
-      allHeadTags || undefined,
-    );
+      headTags: allHeadTags || undefined,
+      sessionScript,
+    });
 
     const headers: Record<string, string> = { 'Content-Type': 'text/html; charset=utf-8' };
     if (linkHeader) headers.Link = linkHeader;
     if (cacheControl) headers['Cache-Control'] = cacheControl;
 
     return new Response(html, { status: 200, headers });
-  } catch {
+  } catch (err) {
+    console.error('[SSR] Render failed:', err instanceof Error ? err.message : err);
     return new Response('Internal Server Error', {
       status: 500,
       headers: { 'Content-Type': 'text/plain' },

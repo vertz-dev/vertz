@@ -29,8 +29,10 @@ import { DiagnosticsCollector } from './diagnostics-collector';
 import { installFetchProxy, runWithScopedFetch } from './fetch-scope';
 import { extractFontMetrics } from './font-metrics';
 import { createSourceMapResolver, readLineText } from './source-map-resolver';
+import { createAccessSetScript } from './ssr-access-set';
 import type { SSRModule } from './ssr-render';
 import { ssrRenderToString, ssrStreamNavQueries } from './ssr-render';
+import { createSessionScript } from './ssr-session';
 import { safeSerialize } from './ssr-streaming-runtime';
 
 export interface BunDevServerOptions {
@@ -64,6 +66,12 @@ export interface BunDevServerOptions {
   editor?: string;
   /** Extra HTML tags to inject into the <head> (e.g., font preloads, meta tags). */
   headTags?: string;
+  /**
+   * Resolves session data from request cookies for SSR injection.
+   * When provided, SSR HTML includes `window.__VERTZ_SESSION__` and
+   * optionally `window.__VERTZ_ACCESS_SET__` for instant auth hydration.
+   */
+  sessionResolver?: import('./ssr-session').SessionResolver;
 }
 
 export interface ErrorDetail {
@@ -217,6 +225,8 @@ export interface SSRPageHtmlOptions {
   scriptTag: string;
   editor?: string;
   headTags?: string;
+  /** Pre-built session + access set script tags for SSR injection. */
+  sessionScript?: string;
 }
 
 /**
@@ -475,6 +485,7 @@ export function generateSSRPageHtml({
   scriptTag,
   editor = 'vscode',
   headTags = '',
+  sessionScript = '',
 }: SSRPageHtmlOptions): string {
   const ssrDataScript =
     ssrData.length > 0
@@ -494,6 +505,7 @@ export function generateSSRPageHtml({
   </head>
   <body>
     <div id="app">${bodyHtml}</div>
+    ${sessionScript}
     ${ssrDataScript}
     ${scriptTag}
   </body>
@@ -644,6 +656,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     logRequests = true,
     editor: editorOption,
     headTags = '',
+    sessionResolver,
   } = options;
 
   const editor = detectEditor(editorOption);
@@ -1237,6 +1250,27 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
               })
             : null;
 
+          // Resolve session in isolated try/catch (graceful degradation)
+          let sessionScript = '';
+          if (sessionResolver) {
+            try {
+              const sessionResult = await sessionResolver(request);
+              if (sessionResult) {
+                const scripts: string[] = [];
+                scripts.push(createSessionScript(sessionResult.session));
+                if (sessionResult.accessSet != null) {
+                  scripts.push(createAccessSetScript(sessionResult.accessSet));
+                }
+                sessionScript = scripts.join('\n');
+              }
+            } catch (resolverErr) {
+              console.warn(
+                '[Server] Session resolver failed:',
+                resolverErr instanceof Error ? resolverErr.message : resolverErr,
+              );
+            }
+          }
+
           const doRender = async () => {
             logger.log('ssr', 'render-start', { url: pathname });
             const ssrStart = performance.now();
@@ -1259,6 +1293,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
               scriptTag,
               editor,
               headTags: combinedHeadTags,
+              sessionScript,
             });
 
             return new Response(html, {
