@@ -16,6 +16,12 @@ function mockAuthContext(status: AuthStatus) {
   const userSignal = signal(null);
   const errorSignal = signal<AuthClientError | null>(null);
 
+  const noop = Object.assign(() => Promise.resolve({ ok: true as const, data: undefined }), {
+    url: '/api/auth/noop',
+    method: 'POST',
+    meta: { bodySchema: { parse: (d: unknown) => ({ ok: true as const, data: d }) } },
+  });
+
   const ctx: AuthContextValue = {
     user: userSignal,
     status: statusSignal,
@@ -48,7 +54,10 @@ function mockAuthContext(status: AuthStatus) {
     ),
     signOut: () => Promise.resolve(),
     refresh: () => Promise.resolve(),
-  };
+    mfaChallenge: noop,
+    forgotPassword: noop,
+    resetPassword: noop,
+  } as unknown as AuthContextValue;
 
   return { ctx, statusSignal };
 }
@@ -67,6 +76,16 @@ function mockRouter() {
   } as unknown as Router;
 
   return { router, navigateFn };
+}
+
+/** Create a complete AccessSet mock with required fields. */
+function mockAccessSet(entitlements: AccessSet['entitlements']): AccessSet {
+  return {
+    entitlements,
+    flags: {},
+    plan: null,
+    computedAt: new Date().toISOString(),
+  };
 }
 
 describe('ProtectedRoute', () => {
@@ -165,7 +184,6 @@ describe('ProtectedRoute', () => {
               children: () => 'main-content',
               returnTo: false,
             });
-            // Trigger computed evaluation
             (result as ReadonlySignal<unknown>).value;
           },
         }),
@@ -336,11 +354,9 @@ describe('ProtectedRoute', () => {
 
   it('renders children when requires entitlements are met', () => {
     const { ctx } = mockAuthContext('authenticated');
-    const accessSet: AccessSet = {
-      entitlements: {
-        'task:read': { allowed: true, reasons: [] },
-      },
-    };
+    const accessSet = mockAccessSet({
+      'task:read': { allowed: true, reasons: [] },
+    });
     let rendered: unknown;
 
     AccessContext.Provider({
@@ -363,15 +379,13 @@ describe('ProtectedRoute', () => {
 
   it('renders forbidden when authenticated but missing required entitlement', () => {
     const { ctx } = mockAuthContext('authenticated');
-    const accessSet: AccessSet = {
-      entitlements: {
-        'task:read': {
-          allowed: false,
-          reasons: ['insufficient_role'],
-          reason: 'insufficient_role',
-        },
+    const accessSet = mockAccessSet({
+      'task:read': {
+        allowed: false,
+        reasons: ['role_required'],
+        reason: 'role_required',
       },
-    };
+    });
     let rendered: unknown;
 
     AccessContext.Provider({
@@ -395,15 +409,13 @@ describe('ProtectedRoute', () => {
 
   it('renders null when missing required entitlement and no forbidden prop', () => {
     const { ctx } = mockAuthContext('authenticated');
-    const accessSet: AccessSet = {
-      entitlements: {
-        'task:read': {
-          allowed: false,
-          reasons: ['insufficient_role'],
-          reason: 'insufficient_role',
-        },
+    const accessSet = mockAccessSet({
+      'task:read': {
+        allowed: false,
+        reasons: ['role_required'],
+        reason: 'role_required',
       },
-    };
+    });
     let rendered: unknown;
 
     AccessContext.Provider({
@@ -427,15 +439,13 @@ describe('ProtectedRoute', () => {
   it('does not redirect when authenticated but missing entitlement', () => {
     const { ctx } = mockAuthContext('authenticated');
     const { router, navigateFn } = mockRouter();
-    const accessSet: AccessSet = {
-      entitlements: {
-        'task:read': {
-          allowed: false,
-          reasons: ['insufficient_role'],
-          reason: 'insufficient_role',
-        },
+    const accessSet = mockAccessSet({
+      'task:read': {
+        allowed: false,
+        reasons: ['role_required'],
+        reason: 'role_required',
       },
-    };
+    });
 
     RouterContext.Provider({
       value: router,
@@ -458,5 +468,23 @@ describe('ProtectedRoute', () => {
     });
 
     expect(navigateFn).not.toHaveBeenCalled();
+  });
+
+  it('renders children with empty requires array (no entitlement check)', () => {
+    const { ctx } = mockAuthContext('authenticated');
+    let rendered: unknown;
+
+    AuthContext.Provider({
+      value: ctx,
+      children: () => {
+        const result = ProtectedRoute({
+          requires: [],
+          children: () => 'main-content',
+        });
+        rendered = (result as ReadonlySignal<unknown>).value;
+      },
+    });
+
+    expect(rendered).toBe('main-content');
   });
 });

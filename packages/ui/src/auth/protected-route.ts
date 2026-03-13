@@ -9,7 +9,7 @@
 
 import { useContext } from '../component/context';
 import { RouterContext } from '../router/router-context';
-import { computed } from '../runtime/signal';
+import { computed, domEffect } from '../runtime/signal';
 import type { ReadonlySignal } from '../runtime/signal-types';
 import { can } from './access-context';
 import { AuthContext } from './auth-context';
@@ -66,30 +66,34 @@ export function ProtectedRoute({
     return status !== 'idle' && status !== 'loading';
   });
 
-  // Track whether we've already fired a redirect to avoid duplicate navigate calls
-  let redirectFired = false;
+  const shouldRedirect = computed(() => {
+    if (!isResolved.value) return false;
+    return !(ctx.isAuthenticated as boolean);
+  });
 
+  // Side effect: navigate on redirect-worthy states.
+  // domEffect tracks dependencies reactively and re-runs when shouldRedirect changes.
+  // During SSR, domEffect runs once synchronously — but SSR router's navigate is a no-op.
+  if (router) {
+    domEffect(() => {
+      if (shouldRedirect.value) {
+        const search =
+          returnTo && typeof window !== 'undefined'
+            ? `?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`
+            : '';
+        router.navigate({ to: `${loginPath}${search}`, replace: true });
+      }
+    });
+  }
+
+  // Pure derivation: what to render
   return computed(() => {
     if (!isResolved.value) {
       return fallback ? fallback() : null;
     }
-
-    if (!(ctx.isAuthenticated as boolean)) {
-      // Fire redirect as a fire-and-forget side effect.
-      // Safe in computed because: (1) navigate is idempotent for same URL,
-      // (2) SSR router's navigate is a no-op, (3) guarded by redirectFired flag.
-      if (router && !redirectFired) {
-        redirectFired = true;
-        const search =
-          returnTo && typeof window !== 'undefined'
-            ? `?returnTo=${encodeURIComponent(window.location.pathname)}`
-            : '';
-        router.navigate({ to: `${loginPath}${search}`, replace: true });
-      }
+    if (shouldRedirect.value) {
       return fallback ? fallback() : null;
     }
-
-    redirectFired = false;
     if (!allAllowed.value) {
       return forbidden ? forbidden() : null;
     }
