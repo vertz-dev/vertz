@@ -1,3 +1,5 @@
+// Environment detection
+
 // Component model
 export type { ChildrenAccessor, ChildValue } from './component/children';
 export { children, resolveChildren } from './component/children';
@@ -87,6 +89,7 @@ export { getAdapter, isRenderNode, RENDER_NODE_BRAND, setAdapter } from './dom/a
 export { createDOMAdapter } from './dom/dom-adapter';
 // DOM primitives (compiler output targets, also used by app shells for hydration)
 export { __append, __element, __enterChildren, __exitChildren, __staticText } from './dom/element';
+export { isBrowser } from './env/is-browser';
 // Forms
 export type { FieldState } from './form/field-state';
 export { createFieldState } from './form/field-state';

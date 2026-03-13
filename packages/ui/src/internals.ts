@@ -53,6 +53,8 @@ export {
 export { __on } from './dom/events';
 export { clearChildren, insertBefore, removeNode } from './dom/insert';
 export { __list } from './dom/list';
+// Environment detection (used by internal packages for SSR/browser checks)
+export { isBrowser } from './env/is-browser';
 // Hydration internals (used by generated hydration bootstrap)
 export { deserializeProps, resolveComponent } from './hydrate';
 // Query internals
