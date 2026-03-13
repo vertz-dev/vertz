@@ -1,4 +1,4 @@
-import { computed, createLink, createRouter, defineRoutes } from '@vertz/ui';
+import { createRouter, defineRoutes } from '@vertz/ui';
 import { componentRegistry } from './demos';
 import { DemoPage } from './pages/demo';
 import { HomePage } from './pages/home';
@@ -20,12 +20,3 @@ function buildRoutes() {
 export const routes = buildRoutes();
 
 export const appRouter = createRouter(routes);
-
-const currentPath = computed(() => {
-  const match = appRouter.current.value;
-  return match ? window.location.pathname : '/';
-});
-
-export const Link = createLink(currentPath, (url: string) => {
-  appRouter.navigate({ to: url as Parameters<typeof appRouter.navigate>[0]['to'] });
-});
