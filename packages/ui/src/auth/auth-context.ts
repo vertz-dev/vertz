@@ -16,6 +16,7 @@ import type {
   AuthStatus,
   ForgotInput,
   MfaInput,
+  OAuthProviderInfo,
   ResetInput,
   SignInInput,
   SignOutOptions,
@@ -52,6 +53,7 @@ export interface AuthContextValue {
   mfaChallenge: SdkMethodWithMeta<MfaInput, AuthResponse>;
   forgotPassword: SdkMethodWithMeta<ForgotInput, void>;
   resetPassword: SdkMethodWithMeta<ResetInput, void>;
+  providers: Signal<OAuthProviderInfo[]>;
 }
 
 // --- Context with HMR-stable ID ---
@@ -100,6 +102,23 @@ export function AuthProvider({
   const userSignal = signal<User | null>(null);
   const statusSignal = signal<AuthStatus>('idle');
   const errorSignal = signal<AuthClientError | null>(null);
+  const providersSignal = signal<OAuthProviderInfo[]>([]);
+
+  // Fetch providers once on mount (fire-and-forget, silent failure)
+  // Only in browser — SSR doesn't need provider metadata.
+  // Deferred with setTimeout to avoid synchronous fetch during construction.
+  if (typeof window !== 'undefined') {
+    setTimeout(() => {
+      void fetch(`${basePath}/providers`)
+        .then((res) => (res.ok ? (res.json() as Promise<OAuthProviderInfo[]>) : []))
+        .then((data) => {
+          providersSignal.value = data;
+        })
+        .catch(() => {
+          // Silent failure — providers stays empty
+        });
+    }, 0);
+  }
 
   const isAuthenticated = computed(() => statusSignal.value === 'authenticated');
   const isLoading = computed(() => statusSignal.value === 'loading');
@@ -394,6 +413,7 @@ export function AuthProvider({
     mfaChallenge,
     forgotPassword,
     resetPassword,
+    providers: providersSignal,
   };
 
   // SSR hydration

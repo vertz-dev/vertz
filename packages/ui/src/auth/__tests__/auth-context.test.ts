@@ -812,6 +812,77 @@ describe('AuthProvider', () => {
     });
   });
 
+  describe('providers', () => {
+    it('exposes providers as empty array initially', () => {
+      const auth = captureAuth();
+      expect(auth.providers).toEqual([]);
+    });
+
+    it('fetches providers from /api/auth/providers on mount', async () => {
+      const providerData = [
+        { id: 'github', name: 'GitHub', authUrl: '/api/auth/oauth/github' },
+        { id: 'google', name: 'Google', authUrl: '/api/auth/oauth/google' },
+      ];
+
+      const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(async () => {
+        return new Response(JSON.stringify(providerData), { status: 200 });
+      });
+
+      const auth = captureAuth();
+
+      // Wait for deferred fetch (setTimeout(0) + promise resolution)
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(auth.providers).toEqual(providerData);
+      // Verify at least one call targeted the providers endpoint
+      const providerCalls = fetchSpy.mock.calls.filter(
+        (c) => typeof c[0] === 'string' && (c[0] as string).includes('/providers'),
+      );
+      expect(providerCalls.length).toBeGreaterThanOrEqual(1);
+      const [url] = providerCalls[0] as [string];
+      expect(url).toBe('/api/auth/providers');
+
+      fetchSpy.mockRestore();
+    });
+
+    it('stays empty on fetch failure (silent failure)', async () => {
+      const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(async () => {
+        throw new Error('Network error');
+      });
+
+      const auth = captureAuth();
+
+      // Wait for deferred fetch
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(auth.providers).toEqual([]);
+
+      fetchSpy.mockRestore();
+    });
+
+    it('uses custom basePath for providers endpoint', async () => {
+      const providerData = [{ id: 'github', name: 'GitHub', authUrl: '/custom/auth/oauth/github' }];
+
+      const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(async () => {
+        return new Response(JSON.stringify(providerData), { status: 200 });
+      });
+
+      captureAuth({ basePath: '/custom/auth' });
+
+      // Wait for deferred fetch
+      await new Promise((r) => setTimeout(r, 50));
+
+      const providerCalls = fetchSpy.mock.calls.filter(
+        (c) => typeof c[0] === 'string' && (c[0] as string).includes('/providers'),
+      );
+      expect(providerCalls.length).toBe(1);
+      const [url] = providerCalls[0] as [string];
+      expect(url).toBe('/custom/auth/providers');
+
+      fetchSpy.mockRestore();
+    });
+  });
+
   describe('accessControl integration', () => {
     it('provides AccessContext when accessControl is true', () => {
       let accessCtx: unknown;
@@ -847,11 +918,17 @@ describe('AuthProvider', () => {
         entitlements: { 'task:read': { allowed: true, reasons: [] } },
       };
 
-      const fetchSpy = spyOn(globalThis, 'fetch')
-        // signIn response
-        .mockResolvedValueOnce(new Response(JSON.stringify(authResponse), { status: 200 }))
-        // access set response
-        .mockResolvedValueOnce(new Response(JSON.stringify(accessSetData), { status: 200 }));
+      const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+        const urlStr = typeof url === 'string' ? url : (url as Request).url;
+        if (urlStr.includes('/signin')) {
+          return new Response(JSON.stringify(authResponse), { status: 200 });
+        }
+        if (urlStr.includes('/access-set')) {
+          return new Response(JSON.stringify(accessSetData), { status: 200 });
+        }
+        // providers or other
+        return new Response('[]', { status: 200 });
+      });
 
       let auth: ReturnType<typeof useAuth> | undefined;
 
@@ -866,11 +943,14 @@ describe('AuthProvider', () => {
       await auth!.signIn({ email: 'a@b.com', password: 'pass123' });
 
       // Wait for the access set fetch to complete
-      await new Promise((r) => setTimeout(r, 10));
+      await new Promise((r) => setTimeout(r, 50));
 
       // Verify access set was fetched
-      expect(fetchSpy.mock.calls.length).toBe(2);
-      const [accessUrl, accessInit] = fetchSpy.mock.calls[1] as [string, RequestInit];
+      const accessSetCalls = fetchSpy.mock.calls.filter(
+        (c) => typeof c[0] === 'string' && (c[0] as string).includes('/access-set'),
+      );
+      expect(accessSetCalls.length).toBe(1);
+      const [accessUrl, accessInit] = accessSetCalls[0] as [string, RequestInit];
       expect(accessUrl).toBe('/api/auth/access-set');
       expect(accessInit.credentials).toBe('include');
 

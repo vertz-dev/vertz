@@ -33,7 +33,14 @@ export const SIGNAL_API_REGISTRY: Record<string, SignalApiConfig> = {
     plainProperties: new Set([]),
   },
   useAuth: {
-    signalProperties: new Set(['user', 'status', 'isAuthenticated', 'isLoading', 'error']),
+    signalProperties: new Set([
+      'user',
+      'status',
+      'isAuthenticated',
+      'isLoading',
+      'error',
+      'providers',
+    ]),
     plainProperties: new Set([
       'signIn',
       'signUp',

@@ -36,6 +36,7 @@ export type {
   AuthStatus,
   ForgotInput,
   MfaInput,
+  OAuthProviderInfo,
   ResetInput,
   SignInInput,
   SignOutOptions,
@@ -43,5 +44,11 @@ export type {
   User,
 } from './auth-types';
 export { createAccessProvider } from './create-access-provider';
+// --- OAuth components ---
+export type { OAuthButtonProps } from './oauth-button';
+export { OAuthButton } from './oauth-button';
+export type { OAuthButtonsProps } from './oauth-buttons';
+export { OAuthButtons } from './oauth-buttons';
+export { getProviderIcon } from './provider-icons';
 export type { ProtectedRouteProps } from './protected-route';
 export { ProtectedRoute } from './protected-route';
