@@ -1273,13 +1273,18 @@ export function createAuth(config: AuthConfig): AuthInstance {
         const providerId = path.replace('/oauth/', '').replace('/callback', '');
         const provider = providers.get(providerId);
 
-        const errorRedirect = oauthErrorRedirect;
+        const isAbsoluteUrl = /^https?:\/\//.test(oauthErrorRedirect);
+        const errorUrl = (error: string) => {
+          const url = new URL(oauthErrorRedirect, 'http://localhost');
+          url.searchParams.set('error', error);
+          return isAbsoluteUrl ? url.toString() : url.pathname + url.search + url.hash;
+        };
 
         if (!provider || !oauthEncryptionKey || !oauthAccountStore) {
           return new Response(null, {
             status: 302,
             headers: {
-              Location: `${errorRedirect}?error=provider_not_configured`,
+              Location: errorUrl('provider_not_configured'),
               ...securityHeaders(),
             },
           });
@@ -1298,7 +1303,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
           return new Response(null, {
             status: 302,
             headers: {
-              Location: `${errorRedirect}?error=invalid_state`,
+              Location: errorUrl('invalid_state'),
               ...securityHeaders(),
             },
           });
@@ -1309,7 +1314,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
           return new Response(null, {
             status: 302,
             headers: {
-              Location: `${errorRedirect}?error=invalid_state`,
+              Location: errorUrl('invalid_state'),
               ...securityHeaders(),
             },
           });
@@ -1323,7 +1328,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
         const providerError = url.searchParams.get('error');
         if (providerError) {
           const headers = new Headers({
-            Location: `${errorRedirect}?error=${encodeURIComponent(providerError)}`,
+            Location: errorUrl(providerError),
             ...securityHeaders(),
           });
           headers.append('Set-Cookie', buildOAuthStateCookie('', cookieConfig, true));
@@ -1333,7 +1338,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
         // Validate state
         if (stateData.state !== queryState || stateData.provider !== providerId) {
           const headers = new Headers({
-            Location: `${errorRedirect}?error=invalid_state`,
+            Location: errorUrl('invalid_state'),
             ...securityHeaders(),
           });
           headers.append('Set-Cookie', buildOAuthStateCookie('', cookieConfig, true));
@@ -1343,7 +1348,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
         // Validate expiration
         if (stateData.expiresAt < Date.now()) {
           const headers = new Headers({
-            Location: `${errorRedirect}?error=invalid_state`,
+            Location: errorUrl('invalid_state'),
             ...securityHeaders(),
           });
           headers.append('Set-Cookie', buildOAuthStateCookie('', cookieConfig, true));
@@ -1394,7 +1399,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
               // Validate email before creating user
               if (!userInfo.email || !userInfo.email.includes('@')) {
                 const headers = new Headers({
-                  Location: `${errorRedirect}?error=email_required`,
+                  Location: errorUrl('email_required'),
                   ...securityHeaders(),
                 });
                 headers.append('Set-Cookie', buildOAuthStateCookie('', cookieConfig, true));
@@ -1444,7 +1449,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
                     console.error('[Auth] Failed to delete user during rollback:', rollbackErr);
                   }
                   const headers = new Headers({
-                    Location: `${errorRedirect}?error=user_setup_failed`,
+                    Location: errorUrl('user_setup_failed'),
                     ...securityHeaders(),
                   });
                   headers.append('Set-Cookie', buildOAuthStateCookie('', cookieConfig, true));
@@ -1460,7 +1465,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
             return new Response(null, {
               status: 302,
               headers: {
-                Location: `${errorRedirect}?error=user_info_failed`,
+                Location: errorUrl('user_info_failed'),
                 ...securityHeaders(),
               },
             });
@@ -1500,7 +1505,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
           return new Response(null, { status: 302, headers: responseHeaders });
         } catch {
           const headers = new Headers({
-            Location: `${errorRedirect}?error=token_exchange_failed`,
+            Location: errorUrl('token_exchange_failed'),
             ...securityHeaders(),
           });
           headers.append('Set-Cookie', buildOAuthStateCookie('', cookieConfig, true));

@@ -428,6 +428,85 @@ describe('OAuth Routes', () => {
       expect(location).toContain('error=access_denied');
     });
 
+    it('preserves URL fragment and places error param before it', async () => {
+      const auth = createTestAuth({
+        providers: [createMockProvider()],
+        oauthAccountStore: new InMemoryOAuthAccountStore(),
+        oauthErrorRedirect: '/login#section',
+      });
+
+      const callbackResponse = await auth.handler(
+        new Request(
+          'http://localhost:3000/api/auth/oauth/mock/callback?code=auth-code&state=some-state',
+        ),
+      );
+
+      expect(callbackResponse.status).toBe(302);
+      const location = callbackResponse.headers.get('Location') ?? '';
+      // Error param must come before the fragment
+      expect(location).toBe('/login?error=invalid_state#section');
+    });
+
+    it('appends error param correctly when redirect URL has existing query params', async () => {
+      const auth = createTestAuth({
+        providers: [createMockProvider()],
+        oauthAccountStore: new InMemoryOAuthAccountStore(),
+        oauthErrorRedirect: '/login?returnTo=%2Fdashboard',
+      });
+
+      const callbackResponse = await auth.handler(
+        new Request(
+          'http://localhost:3000/api/auth/oauth/mock/callback?code=auth-code&state=some-state',
+        ),
+      );
+
+      expect(callbackResponse.status).toBe(302);
+      const location = callbackResponse.headers.get('Location') ?? '';
+      expect(location).toContain('returnTo=%2Fdashboard');
+      expect(location).toContain('error=invalid_state');
+      // Should use & not ? for the second param
+      expect(location).not.toMatch(/\?.*\?/);
+    });
+
+    it('overwrites existing error param instead of duplicating', async () => {
+      const auth = createTestAuth({
+        providers: [createMockProvider()],
+        oauthAccountStore: new InMemoryOAuthAccountStore(),
+        oauthErrorRedirect: '/login?error=old_error',
+      });
+
+      const callbackResponse = await auth.handler(
+        new Request(
+          'http://localhost:3000/api/auth/oauth/mock/callback?code=auth-code&state=some-state',
+        ),
+      );
+
+      expect(callbackResponse.status).toBe(302);
+      const location = callbackResponse.headers.get('Location') ?? '';
+      // Should have exactly one error param, not two
+      const errorMatches = location.match(/error=/g);
+      expect(errorMatches?.length).toBe(1);
+      expect(location).toContain('error=invalid_state');
+    });
+
+    it('preserves absolute URLs in error redirects', async () => {
+      const auth = createTestAuth({
+        providers: [createMockProvider()],
+        oauthAccountStore: new InMemoryOAuthAccountStore(),
+        oauthErrorRedirect: 'https://myapp.com/login',
+      });
+
+      const callbackResponse = await auth.handler(
+        new Request(
+          'http://localhost:3000/api/auth/oauth/mock/callback?code=auth-code&state=some-state',
+        ),
+      );
+
+      expect(callbackResponse.status).toBe(302);
+      const location = callbackResponse.headers.get('Location') ?? '';
+      expect(location).toBe('https://myapp.com/login?error=invalid_state');
+    });
+
     it('with empty email from provider redirects to error', async () => {
       const auth = createTestAuth({
         providers: [
