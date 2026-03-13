@@ -105,16 +105,19 @@ export function AuthProvider({
   const providersSignal = signal<OAuthProviderInfo[]>([]);
 
   // Fetch providers once on mount (fire-and-forget, silent failure)
-  // Only in browser — SSR doesn't need provider metadata
+  // Only in browser — SSR doesn't need provider metadata.
+  // Deferred with setTimeout to avoid synchronous fetch during construction.
   if (typeof window !== 'undefined') {
-    void fetch(`${basePath}/providers`)
-      .then((res) => (res.ok ? (res.json() as Promise<OAuthProviderInfo[]>) : []))
-      .then((data) => {
-        providersSignal.value = data;
-      })
-      .catch(() => {
-        // Silent failure — providers stays empty
-      });
+    setTimeout(() => {
+      void fetch(`${basePath}/providers`)
+        .then((res) => (res.ok ? (res.json() as Promise<OAuthProviderInfo[]>) : []))
+        .then((data) => {
+          providersSignal.value = data;
+        })
+        .catch(() => {
+          // Silent failure — providers stays empty
+        });
+    }, 0);
   }
 
   const isAuthenticated = computed(() => statusSignal.value === 'authenticated');
