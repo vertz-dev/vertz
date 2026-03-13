@@ -108,6 +108,63 @@ describe('CRUD queries (DB-010)', () => {
     });
   });
 
+  describe('get with comparison operators (#1209)', () => {
+    it('get() with { gt: value } returns matching rows', async () => {
+      await db.users.create({ data: { name: 'Young', email: 'young@test.com', age: 15 } });
+      await db.users.create({ data: { name: 'Adult', email: 'adult@test.com', age: 25 } });
+
+      const result = await db.users.get({ where: { age: { gt: 18 } } });
+      expect(result.data).not.toBeNull();
+      expect((result.data as Record<string, unknown>).name).toBe('Adult');
+    });
+
+    it('get() with { lt: value } returns matching rows', async () => {
+      await db.users.create({ data: { name: 'Young', email: 'young@test.com', age: 15 } });
+      await db.users.create({ data: { name: 'Adult', email: 'adult@test.com', age: 25 } });
+
+      const result = await db.users.get({ where: { age: { lt: 20 } } });
+      expect(result.data).not.toBeNull();
+      expect((result.data as Record<string, unknown>).name).toBe('Young');
+    });
+
+    it('get() with { gte: value } includes boundary', async () => {
+      await db.users.create({ data: { name: 'Exact', email: 'exact@test.com', age: 18 } });
+
+      const result = await db.users.get({ where: { age: { gte: 18 } } });
+      expect(result.data).not.toBeNull();
+      expect((result.data as Record<string, unknown>).name).toBe('Exact');
+    });
+
+    it('get() with { lte: value } includes boundary', async () => {
+      await db.users.create({ data: { name: 'Exact', email: 'exact@test.com', age: 18 } });
+
+      const result = await db.users.get({ where: { age: { lte: 18 } } });
+      expect(result.data).not.toBeNull();
+      expect((result.data as Record<string, unknown>).name).toBe('Exact');
+    });
+
+    it('get() with null direct value generates IS NULL', async () => {
+      await db.users.create({ data: { name: 'NoAge', email: 'noage@test.com', age: null } });
+      await db.users.create({ data: { name: 'HasAge', email: 'hasage@test.com', age: 30 } });
+
+      const result = await db.users.get({ where: { age: null } });
+      expect(result.data).not.toBeNull();
+      expect((result.data as Record<string, unknown>).name).toBe('NoAge');
+    });
+
+    it('get() with null combined with comparison operator', async () => {
+      await db.users.create({ data: { name: 'NoAge', email: 'noage@test.com', age: null } });
+      await db.users.create({ data: { name: 'Adult', email: 'adult@test.com', age: 25 } });
+
+      // This was the bug: null + gt combo returned no results
+      const result = await db.users.get({
+        where: { name: 'Adult', age: { gt: 18 } },
+      });
+      expect(result.data).not.toBeNull();
+      expect((result.data as Record<string, unknown>).name).toBe('Adult');
+    });
+  });
+
   describe('getOrThrow', () => {
     it('returns error Result when no match', async () => {
       const result = await db.users.getOrThrow({ where: { name: 'Nobody' } });

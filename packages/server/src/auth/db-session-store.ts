@@ -76,15 +76,19 @@ export class DbSessionStore implements SessionStore {
 
   async findByRefreshHash(hash: string): Promise<StoredSession | null> {
     const nowStr = new Date().toISOString();
-    const result = await this.db.query<SessionRow>(
-      sql`SELECT * FROM auth_sessions WHERE refresh_token_hash = ${hash} AND revoked_at IS NULL AND expires_at > ${nowStr} LIMIT 1`,
-    );
+    const result = await this.db.auth_sessions.get({
+      where: {
+        refreshTokenHash: hash,
+        revokedAt: null,
+        expiresAt: { gt: nowStr },
+      },
+    });
 
     if (!result.ok) return null;
-    const row = result.data.rows[0];
+    const row = result.data;
     if (!row) return null;
 
-    return this.rowToSession(row);
+    return this.recordToSession(row as SessionRecord);
   }
 
   async findActiveSessionById(id: string): Promise<StoredSession | null> {
@@ -106,15 +110,19 @@ export class DbSessionStore implements SessionStore {
 
   async findByPreviousRefreshHash(hash: string): Promise<StoredSession | null> {
     const nowStr = new Date().toISOString();
-    const result = await this.db.query<SessionRow>(
-      sql`SELECT * FROM auth_sessions WHERE previous_refresh_hash = ${hash} AND revoked_at IS NULL AND expires_at > ${nowStr} LIMIT 1`,
-    );
+    const result = await this.db.auth_sessions.get({
+      where: {
+        previousRefreshHash: hash,
+        revokedAt: null,
+        expiresAt: { gt: nowStr },
+      },
+    });
 
     if (!result.ok) return null;
-    const row = result.data.rows[0];
+    const row = result.data;
     if (!row) return null;
 
-    return this.rowToSession(row);
+    return this.recordToSession(row as SessionRecord);
   }
 
   async revokeSession(id: string): Promise<void> {

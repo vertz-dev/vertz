@@ -156,6 +156,16 @@ describe('buildWhereClause', () => {
     expect(clauses).toEqual(['unknownCol = ?']);
     expect(params).toEqual(['value']); // no conversion for unknown column
   });
+
+  it('generates IS NULL for null values (#1209)', () => {
+    const tableWithNullable = d.table('test', {
+      id: d.uuid().primary(),
+      deletedAt: d.timestamp().nullable(),
+    });
+    const { clauses, params } = buildWhereClause({ deletedAt: null }, tableWithNullable._columns);
+    expect(clauses).toEqual(['deletedAt IS NULL']);
+    expect(params).toEqual([]);
+  });
 });
 
 // ---------------------------------------------------------------------------
