@@ -937,6 +937,18 @@ describe('createRouter SSR', () => {
     expect(router.current.value?.route.pattern).toBe('/about');
   });
 
+  test('accepts options as second argument in SSR context', () => {
+    const _ctx = enableTestSSR(createTestSSRContext('/about'));
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes, { serverNav: true });
+
+    expect(router.current.value).not.toBeNull();
+    expect(router.current.value?.route.pattern).toBe('/about');
+  });
+
   test('SSR router current.value uses per-request URL from context', () => {
     const ctx = createTestSSRContext('/tasks');
     enableTestSSR(ctx);

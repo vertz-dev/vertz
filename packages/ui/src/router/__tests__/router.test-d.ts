@@ -271,6 +271,18 @@ _p3Router.navigate({ to: '/tasks/:id' });
 // @ts-expect-error - params are not allowed for static route patterns
 _p3Router.navigate({ to: '/', params: { id: '42' } });
 
+// createRouter overloaded signature — valid call forms
+createRouter(_p3Routes, '/');
+createRouter(_p3Routes, '/', { serverNav: true });
+createRouter(_p3Routes, { serverNav: true });
+createRouter(_p3Routes);
+
+// @ts-expect-error — number is not a valid second arg
+createRouter(_p3Routes, 42);
+
+// @ts-expect-error — boolean is not a valid second arg
+createRouter(_p3Routes, true);
+
 // Phase 3 Cycle 2: valid route patterns compile
 _p3Router.navigate({ to: '/' });
 _p3Router.navigate({ to: '/settings' });
