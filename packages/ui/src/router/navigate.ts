@@ -99,7 +99,7 @@ export interface Router<T extends Record<string, RouteConfigLike> = RouteDefinit
   searchParams: Signal<Record<string, unknown>>;
   /** Navigate to a route pattern, interpolating params and search into the final URL. */
   navigate<TPath extends RoutePattern<T>>(input: NavigateInput<TPath>): Promise<void>;
-  /** Navigate to a URL path (string shorthand). */
+  /** Navigate to a URL path (string shorthand, bypasses typed route validation). */
   navigate(url: string): Promise<void>;
   /** Re-run all loaders for the current route. */
   revalidate(): Promise<void>;

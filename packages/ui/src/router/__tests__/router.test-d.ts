@@ -302,7 +302,10 @@ declare const _plainRouter: Router;
 _plainRouter.navigate({ to: '/anything-goes' });
 
 // Phase 3 Cycle 5: navigate accepts a plain string URL (backward compat with createLink)
+// Note: string overload intentionally bypasses typed route validation.
+// Used by createLink() which bridges (url: string) => void callbacks to navigate().
 _plainRouter.navigate('/anything-goes');
+_p3Router.navigate('/string-also-accepted-on-typed-routers');
 
 // ─── RouterContext + useRouter + RouterView type tests ──────────────────────
 

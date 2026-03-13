@@ -47,6 +47,20 @@ describe('createRouter', () => {
     pushSpy.mockRestore();
   });
 
+  test('navigate with plain string preserves query params', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/tasks': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes, '/');
+    const pushSpy = vi.spyOn(window.history, 'pushState');
+
+    await (router as Router).navigate('/tasks?status=done');
+
+    expect(pushSpy).toHaveBeenCalledWith(null, '', '/tasks?status=done');
+    pushSpy.mockRestore();
+  });
+
   test('navigate interpolates route params into the final URL', async () => {
     const routes = defineRoutes({
       '/': { component: () => document.createElement('div') },
