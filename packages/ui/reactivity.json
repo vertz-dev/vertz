@@ -42,24 +42,7 @@
     "useAuth": {
       "kind": "function",
       "reactivity": {
-        "plainProperties": [
-          "forgotPassword",
-          "mfaChallenge",
-          "refresh",
-          "resetPassword",
-          "signIn",
-          "signOut",
-          "signUp"
-        ],
-        "signalProperties": [
-          "error",
-          "isAuthenticated",
-          "isLoading",
-          "providers",
-          "status",
-          "user"
-        ],
-        "type": "signal-api"
+        "type": "reactive-source"
       }
     },
     "useContext": {

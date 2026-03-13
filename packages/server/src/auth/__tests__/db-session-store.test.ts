@@ -21,7 +21,7 @@ sessionStoreTests('SQLite', async () => {
 });
 
 describe('DbSessionStore.findActiveSessionById', () => {
-  it('returns an active session from the typed auth_sessions delegate', async () => {
+  it('returns an active session via ORM get()', async () => {
     const db = {
       auth_sessions: {
         get: async () => ({
@@ -57,7 +57,7 @@ describe('DbSessionStore.findActiveSessionById', () => {
     expect(session?.revokedAt).toBeNull();
   });
 
-  it('returns null when the typed auth_sessions delegate finds no active row', async () => {
+  it('returns null when ORM get() finds no record', async () => {
     const db = {
       auth_sessions: {
         get: async () => ({ ok: true, data: null }),
@@ -69,12 +69,12 @@ describe('DbSessionStore.findActiveSessionById', () => {
     await expect(store.findActiveSessionById('missing-session')).resolves.toBeNull();
   });
 
-  it('returns null when the typed auth_sessions delegate errors', async () => {
+  it('returns null when ORM get() errors', async () => {
     const db = {
       auth_sessions: {
         get: async () => ({
           ok: false,
-          error: { message: 'delegate failed' },
+          error: { message: 'query failed' },
         }),
       },
     } as unknown as AuthDbClient;

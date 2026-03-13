@@ -111,6 +111,8 @@ export function installDomShim(): void {
     querySelector: () => null,
     querySelectorAll: () => [],
     getElementById: () => null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
     cookie: '',
   };
 

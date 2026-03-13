@@ -23,6 +23,7 @@ interface SessionRow {
   revoked_at: string | null;
 }
 
+/** ORM record shape — camelCase fields, string dates. */
 interface SessionRecord {
   id: string;
   userId: string;
@@ -189,6 +190,7 @@ export class DbSessionStore implements SessionStore {
     // No cleanup needed — DB handles it
   }
 
+  /** Map a raw SQL row (snake_case) to StoredSession. */
   private rowToSession(row: SessionRow): StoredSession {
     return {
       id: row.id,
@@ -204,18 +206,19 @@ export class DbSessionStore implements SessionStore {
     };
   }
 
-  private recordToSession(row: SessionRecord): StoredSession {
+  /** Map an ORM record (camelCase) to StoredSession. */
+  private recordToSession(rec: SessionRecord): StoredSession {
     return {
-      id: row.id,
-      userId: row.userId,
-      refreshTokenHash: row.refreshTokenHash,
-      previousRefreshHash: row.previousRefreshHash,
-      ipAddress: row.ipAddress,
-      userAgent: row.userAgent,
-      createdAt: new Date(row.createdAt),
-      lastActiveAt: new Date(row.lastActiveAt),
-      expiresAt: new Date(row.expiresAt),
-      revokedAt: row.revokedAt ? new Date(row.revokedAt) : null,
+      id: rec.id,
+      userId: rec.userId,
+      refreshTokenHash: rec.refreshTokenHash,
+      previousRefreshHash: rec.previousRefreshHash,
+      ipAddress: rec.ipAddress,
+      userAgent: rec.userAgent,
+      createdAt: new Date(rec.createdAt),
+      lastActiveAt: new Date(rec.lastActiveAt),
+      expiresAt: new Date(rec.expiresAt),
+      revokedAt: rec.revokedAt ? new Date(rec.revokedAt) : null,
     };
   }
 }

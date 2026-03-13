@@ -186,6 +186,17 @@ describe('Type-level tests', () => {
     };
   });
 
+  it('OAuthUserInfo accepts optional name and avatarUrl', () => {
+    const _info: OAuthUserInfo = {
+      providerId: '123',
+      email: 'user@example.com',
+      emailVerified: true,
+      name: 'User',
+      avatarUrl: 'https://example.com/avatar.png',
+      raw: { id: 123, login: 'octocat' },
+    };
+  });
+
   it('OAuthUserInfo without raw is incomplete', () => {
     // @ts-expect-error — raw is required on OAuthUserInfo
     const _info: OAuthUserInfo = {

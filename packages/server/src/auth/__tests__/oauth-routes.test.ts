@@ -820,4 +820,216 @@ describe('OAuth Routes', () => {
       expect(found).not.toBeNull();
     });
   });
+
+  describe('onUserCreated callback', () => {
+    async function initiateAndGetState(
+      auth: ReturnType<typeof createAuth>,
+      providerId = 'mock',
+    ): Promise<{ state: string; cookie: string }> {
+      const initiateResponse = await auth.handler(
+        new Request(`http://localhost:3000/api/auth/oauth/${providerId}`),
+      );
+
+      const location = initiateResponse.headers.get('Location') ?? '';
+      const stateParam = new URL(location).searchParams.get('state') ?? '';
+      const setCookie = initiateResponse.headers.getSetCookie();
+      const oauthCookie = setCookie.find((c) => c.startsWith('vertz.oauth='));
+      const cookieValue = oauthCookie?.split(';')[0] ?? '';
+
+      return { state: stateParam, cookie: cookieValue };
+    }
+
+    it('fires with provider and profile on OAuth sign-up', async () => {
+      const oauthAccountStore = new InMemoryOAuthAccountStore();
+      const userStore = new InMemoryUserStore();
+      let callbackPayload: unknown = null;
+
+      const auth = createTestAuth({
+        providers: [createMockProvider()],
+        oauthAccountStore,
+        userStore,
+        onUserCreated: async (payload) => {
+          callbackPayload = payload;
+        },
+      });
+
+      const { state, cookie } = await initiateAndGetState(auth);
+
+      await auth.handler(
+        new Request(
+          `http://localhost:3000/api/auth/oauth/mock/callback?code=auth-code&state=${state}`,
+          { headers: { cookie } },
+        ),
+      );
+
+      expect(callbackPayload).not.toBeNull();
+      const p = callbackPayload as { user: unknown; provider: unknown; profile: unknown };
+      expect(p.provider).toEqual({ id: 'mock', name: 'Mock' });
+      expect(p.profile).toBeDefined();
+      expect((p.profile as Record<string, unknown>).login).toBe('mockuser');
+      expect((p.user as { email: string }).email).toBe('oauth@example.com');
+    });
+
+    it('provides ctx.entities in callback', async () => {
+      const oauthAccountStore = new InMemoryOAuthAccountStore();
+      const userStore = new InMemoryUserStore();
+      let receivedEntities: unknown = null;
+
+      const mockProxy = {
+        users: {
+          get: async () => null,
+          list: async () => ({ items: [], total: 0 }),
+          create: async (data: Record<string, unknown>) => data,
+          update: async (_id: string, data: Record<string, unknown>) => data,
+          delete: async () => {},
+        },
+      };
+
+      const auth = createTestAuth({
+        providers: [createMockProvider()],
+        oauthAccountStore,
+        userStore,
+        onUserCreated: async (_payload, ctx) => {
+          receivedEntities = ctx.entities;
+        },
+        _entityProxy: mockProxy,
+      });
+
+      const { state, cookie } = await initiateAndGetState(auth);
+
+      await auth.handler(
+        new Request(
+          `http://localhost:3000/api/auth/oauth/mock/callback?code=auth-code&state=${state}`,
+          { headers: { cookie } },
+        ),
+      );
+
+      expect(receivedEntities).toBe(mockProxy);
+    });
+
+    it('rolls back auth user when callback throws on OAuth', async () => {
+      const oauthAccountStore = new InMemoryOAuthAccountStore();
+      const userStore = new InMemoryUserStore();
+
+      const auth = createTestAuth({
+        providers: [createMockProvider()],
+        oauthAccountStore,
+        userStore,
+        onUserCreated: async () => {
+          throw new Error('Entity creation failed');
+        },
+      });
+
+      const { state, cookie } = await initiateAndGetState(auth);
+
+      const res = await auth.handler(
+        new Request(
+          `http://localhost:3000/api/auth/oauth/mock/callback?code=auth-code&state=${state}`,
+          { headers: { cookie } },
+        ),
+      );
+
+      // Should redirect with error
+      expect(res.status).toBe(302);
+      const location = res.headers.get('Location') ?? '';
+      expect(location).toContain('error=user_setup_failed');
+
+      // User should be rolled back
+      const found = await userStore.findByEmail('oauth@example.com');
+      expect(found).toBeNull();
+    });
+
+    it('rolls back OAuth account link when callback throws', async () => {
+      const oauthAccountStore = new InMemoryOAuthAccountStore();
+      const userStore = new InMemoryUserStore();
+
+      const auth = createTestAuth({
+        providers: [createMockProvider()],
+        oauthAccountStore,
+        userStore,
+        onUserCreated: async () => {
+          throw new Error('Entity creation failed');
+        },
+      });
+
+      const { state, cookie } = await initiateAndGetState(auth);
+
+      await auth.handler(
+        new Request(
+          `http://localhost:3000/api/auth/oauth/mock/callback?code=auth-code&state=${state}`,
+          { headers: { cookie } },
+        ),
+      );
+
+      // OAuth link should be rolled back
+      const link = await oauthAccountStore.findByProviderAccount('mock', 'mock-provider-id-123');
+      expect(link).toBeNull();
+    });
+
+    it('works normally when onUserCreated is not provided', async () => {
+      const oauthAccountStore = new InMemoryOAuthAccountStore();
+      const userStore = new InMemoryUserStore();
+
+      const auth = createTestAuth({
+        providers: [createMockProvider()],
+        oauthAccountStore,
+        userStore,
+        // No onUserCreated
+      });
+
+      const { state, cookie } = await initiateAndGetState(auth);
+
+      const res = await auth.handler(
+        new Request(
+          `http://localhost:3000/api/auth/oauth/mock/callback?code=auth-code&state=${state}`,
+          { headers: { cookie } },
+        ),
+      );
+
+      expect(res.status).toBe(302);
+      expect(res.headers.get('Location')).toBe('/');
+
+      const found = await userStore.findByEmail('oauth@example.com');
+      expect(found).not.toBeNull();
+    });
+  });
+
+  describe('error redirect URL construction', () => {
+    it('sets error param via URL constructor when oauthErrorRedirect already has query params', async () => {
+      const auth = createTestAuth({
+        providers: [createMockProvider()],
+        oauthAccountStore: new InMemoryOAuthAccountStore(),
+        oauthErrorRedirect: '/login?source=oauth',
+      });
+
+      // Missing cookie → triggers error redirect
+      const res = await auth.handler(
+        new Request(
+          'http://localhost:3000/api/auth/oauth/mock/callback?code=auth-code&state=some-state',
+        ),
+      );
+
+      expect(res.status).toBe(302);
+      const location = res.headers.get('Location') ?? '';
+      expect(location).toBe('/login?source=oauth&error=invalid_state');
+    });
+
+    it('appends error param with ? when oauthErrorRedirect has no query params', async () => {
+      const auth = createTestAuth({
+        providers: [createMockProvider()],
+        oauthAccountStore: new InMemoryOAuthAccountStore(),
+        oauthErrorRedirect: '/login',
+      });
+
+      const res = await auth.handler(
+        new Request(
+          'http://localhost:3000/api/auth/oauth/mock/callback?code=auth-code&state=some-state',
+        ),
+      );
+
+      expect(res.status).toBe(302);
+      const location = res.headers.get('Location') ?? '';
+      expect(location).toBe('/login?error=invalid_state');
+    });
+  });
 });
