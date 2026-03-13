@@ -76,7 +76,7 @@ const currentPath = computed(() => {
 });
 
 export const Link = createLink(currentPath, (url: string) => {
-  appRouter.navigate({ to: url as Parameters<typeof appRouter.navigate>[0]['to'] });
+  appRouter.navigate(url);
 });
 
 /**

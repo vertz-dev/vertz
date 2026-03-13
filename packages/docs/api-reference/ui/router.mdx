@@ -220,7 +220,7 @@ Create a Link component factory bound to a router's state. Used internally — m
 import { createLink } from '@vertz/ui/router';
 
 const Link = createLink(router.current, (url) =>
-  router.navigate({ to: url as Parameters<typeof router.navigate>[0]['to'] }),
+  router.navigate(url),
 );
 ```
 

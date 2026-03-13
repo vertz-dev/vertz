@@ -21,9 +21,7 @@ export function HomePage() {
               class={homeStyles.categoryCard}
               onClick={() => {
                 if (entries.length > 0) {
-                  router.navigate({
-                    to: `/${entries[0].slug}` as Parameters<typeof router.navigate>[0]['to'],
-                  });
+                  router.navigate(`/${entries[0].slug}`);
                 }
               }}
             >
