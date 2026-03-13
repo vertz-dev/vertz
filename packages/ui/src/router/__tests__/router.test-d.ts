@@ -301,6 +301,9 @@ void _p3Typed;
 declare const _plainRouter: Router;
 _plainRouter.navigate({ to: '/anything-goes' });
 
+// Phase 3 Cycle 5: navigate accepts a plain string URL (backward compat with createLink)
+_plainRouter.navigate('/anything-goes');
+
 // ─── RouterContext + useRouter + RouterView type tests ──────────────────────
 
 // useRouter() returns UnwrapSignals<Router> (signal properties auto-unwrapped)
