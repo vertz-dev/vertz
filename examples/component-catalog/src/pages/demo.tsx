@@ -6,9 +6,7 @@ export function DemoPage(entry: ComponentEntry) {
     <div>
       <div class={demoStyles.demoLabel}>{entry.name}</div>
       <div class={demoStyles.demoDescription}>{entry.description}</div>
-      <div class={demoStyles.demoBox}>
-        {entry.demo()}
-      </div>
+      <div class={demoStyles.demoBox}>{entry.demo()}</div>
     </div>
   );
 }
