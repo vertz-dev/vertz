@@ -1,8 +1,7 @@
-import { getInjectedCSS, globalCss, ThemeProvider } from '@vertz/ui';
-import type { ComponentEntry } from './demos';
+import { getInjectedCSS, globalCss, RouterView, ThemeProvider } from '@vertz/ui';
 import { categoryLabels, categoryOrder, componentRegistry, groupByCategory } from './demos';
 import { appRouter, Link } from './router';
-import { demoStyles, homeStyles, layoutStyles, navStyles, scrollStyles } from './styles/catalog';
+import { layoutStyles, navStyles, scrollStyles } from './styles/catalog';
 import { catalogTheme, themeGlobals, themeStyles } from './styles/theme';
 
 const appGlobals = globalCss({
@@ -20,68 +19,6 @@ const componentCss = Object.values(themeStyles)
 export { getInjectedCSS };
 export const theme = catalogTheme;
 export const styles = [themeGlobals.css, appGlobals.css, scrollStyles.css, ...componentCss];
-
-/** Build the home page content */
-function renderHome(): HTMLElement {
-  const grouped = groupByCategory(componentRegistry);
-  const el = document.createElement('div');
-
-  const title = document.createElement('h1');
-  title.className = homeStyles.title;
-  title.textContent = 'Component Catalog';
-
-  const subtitle = document.createElement('p');
-  subtitle.className = homeStyles.subtitle;
-  subtitle.textContent = `${componentRegistry.length} themed components from @vertz/theme-shadcn`;
-
-  const grid = document.createElement('div');
-  grid.className = homeStyles.grid;
-
-  for (const cat of categoryOrder) {
-    const entries = grouped.get(cat) ?? [];
-    const card = document.createElement('div');
-    card.className = homeStyles.categoryCard;
-    card.addEventListener('click', () => {
-      if (entries.length > 0) {
-        appRouter.navigate({ to: `/${entries[0].slug}` });
-      }
-    });
-
-    const name = document.createElement('div');
-    name.className = homeStyles.categoryName;
-    name.textContent = categoryLabels[cat];
-
-    const count = document.createElement('div');
-    count.className = homeStyles.categoryCount;
-    count.textContent = `${entries.length} components`;
-
-    card.append(name, count);
-    grid.append(card);
-  }
-
-  el.append(title, subtitle, grid);
-  return el;
-}
-
-/** Build a demo page */
-function renderDemo(entry: ComponentEntry): HTMLElement {
-  const el = document.createElement('div');
-
-  const label = document.createElement('div');
-  label.className = demoStyles.demoLabel;
-  label.textContent = entry.name;
-
-  const desc = document.createElement('div');
-  desc.className = demoStyles.demoDescription;
-  desc.textContent = entry.description;
-
-  const box = document.createElement('div');
-  box.className = demoStyles.demoBox;
-  box.append(entry.demo());
-
-  el.append(label, desc, box);
-  return el;
-}
 
 function Sidebar() {
   let currentTheme = 'light';
@@ -159,56 +96,14 @@ function Sidebar() {
 }
 
 export function App() {
-  // Build a lookup of slug -> entry
-  const entryMap = new Map<string, ComponentEntry>();
-  for (const entry of componentRegistry) {
-    entryMap.set(entry.slug, entry);
-  }
-
-  // Main content area with overflow scroll
-  const mainEl = document.createElement('div');
-  mainEl.className = `${layoutStyles.main} ${scrollStyles.thin}`;
-  mainEl.style.cssText = 'overflow-y: auto;';
-
-  function renderRoute(path: string) {
-    mainEl.innerHTML = '';
-    if (path === '/') {
-      mainEl.append(renderHome());
-    } else {
-      const slug = path.slice(1); // remove leading /
-      const entry = entryMap.get(slug);
-      if (entry) {
-        mainEl.append(renderDemo(entry));
-      } else {
-        const notFound = document.createElement('div');
-        notFound.textContent = 'Page not found';
-        mainEl.append(notFound);
-      }
-    }
-  }
-
-  // Initial render
-  renderRoute(window.location.pathname);
-
-  // Listen for route changes
-  const originalNavigate = appRouter.navigate.bind(appRouter);
-  appRouter.navigate = ((input: { to: string }) => {
-    const result = originalNavigate(input);
-    renderRoute(input.to);
-    return result;
-  }) as typeof appRouter.navigate;
-
-  // Also handle popstate (back/forward)
-  window.addEventListener('popstate', () => {
-    renderRoute(window.location.pathname);
-  });
-
   return (
     <div>
       <ThemeProvider theme="light">
         <div class={layoutStyles.shell}>
           <Sidebar />
-          {mainEl}
+          <div class={`${layoutStyles.main} ${scrollStyles.thin}`} style="overflow-y: auto;">
+            <RouterView router={appRouter} fallback={() => <div>Page not found</div>} />
+          </div>
         </div>
       </ThemeProvider>
     </div>
