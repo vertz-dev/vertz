@@ -1,8 +1,14 @@
-import { getInjectedCSS, globalCss, ThemeProvider } from '@vertz/ui';
-import type { ComponentEntry } from './demos';
+import {
+  getInjectedCSS,
+  globalCss,
+  Link,
+  RouterContext,
+  RouterView,
+  ThemeProvider,
+} from '@vertz/ui';
 import { categoryLabels, categoryOrder, componentRegistry, groupByCategory } from './demos';
-import { appRouter, Link } from './router';
-import { demoStyles, homeStyles, layoutStyles, navStyles, scrollStyles } from './styles/catalog';
+import { appRouter } from './router';
+import { layoutStyles, navStyles, scrollStyles } from './styles/catalog';
 import { catalogTheme, themeGlobals, themeStyles } from './styles/theme';
 
 const appGlobals = globalCss({
@@ -21,70 +27,6 @@ export { getInjectedCSS };
 export const theme = catalogTheme;
 export const styles = [themeGlobals.css, appGlobals.css, scrollStyles.css, ...componentCss];
 
-/** Build the home page content */
-function renderHome(): HTMLElement {
-  const grouped = groupByCategory(componentRegistry);
-  const el = document.createElement('div');
-
-  const title = document.createElement('h1');
-  title.className = homeStyles.title;
-  title.textContent = 'Component Catalog';
-
-  const subtitle = document.createElement('p');
-  subtitle.className = homeStyles.subtitle;
-  subtitle.textContent = `${componentRegistry.length} themed components from @vertz/theme-shadcn`;
-
-  const grid = document.createElement('div');
-  grid.className = homeStyles.grid;
-
-  for (const cat of categoryOrder) {
-    const entries = grouped.get(cat) ?? [];
-    const card = document.createElement('div');
-    card.className = homeStyles.categoryCard;
-    card.addEventListener('click', () => {
-      if (entries.length > 0) {
-        appRouter.navigate({
-          to: `/${entries[0].slug}` as Parameters<typeof appRouter.navigate>[0]['to'],
-        });
-      }
-    });
-
-    const name = document.createElement('div');
-    name.className = homeStyles.categoryName;
-    name.textContent = categoryLabels[cat];
-
-    const count = document.createElement('div');
-    count.className = homeStyles.categoryCount;
-    count.textContent = `${entries.length} components`;
-
-    card.append(name, count);
-    grid.append(card);
-  }
-
-  el.append(title, subtitle, grid);
-  return el;
-}
-
-/** Build a demo page */
-function renderDemo(entry: ComponentEntry): HTMLElement {
-  const el = document.createElement('div');
-
-  const label = document.createElement('div');
-  label.className = demoStyles.demoLabel;
-  label.textContent = entry.name;
-
-  const desc = document.createElement('div');
-  desc.className = demoStyles.demoDescription;
-  desc.textContent = entry.description;
-
-  const box = document.createElement('div');
-  box.className = demoStyles.demoBox;
-  box.append(entry.demo());
-
-  el.append(label, desc, box);
-  return el;
-}
-
 function Sidebar() {
   let currentTheme = 'light';
   const grouped = groupByCategory(componentRegistry);
@@ -95,123 +37,55 @@ function Sidebar() {
     document.documentElement.setAttribute('data-theme', next);
   }
 
-  // Build nav links
-  const navLinks = document.createElement('div');
-  navLinks.style.cssText = 'display: flex; flex-direction: column; gap: 2px;';
-
-  navLinks.append(
-    Link({
-      href: '/',
-      children: 'Overview',
-      className: navStyles.navItem,
-      activeClass: navStyles.navItemActive,
-    }),
-  );
-
-  for (const cat of categoryOrder) {
-    const entries = grouped.get(cat) ?? [];
-    if (entries.length === 0) continue;
-
-    const section = document.createElement('div');
-    const title = document.createElement('div');
-    title.className = navStyles.categoryTitle;
-    title.textContent = categoryLabels[cat];
-    section.append(title);
-
-    for (const entry of entries) {
-      section.append(
-        Link({
-          href: `/${entry.slug}`,
-          children: entry.name,
-          className: navStyles.navItem,
-          activeClass: navStyles.navItemActive,
-        }),
-      );
-    }
-    navLinks.append(section);
-  }
-
-  // Scrollable nav container
-  const navScroll = document.createElement('div');
-  navScroll.className = scrollStyles.thin;
-  navScroll.style.cssText = 'flex: 1; min-height: 0; overflow-y: auto;';
-  navScroll.appendChild(navLinks);
-
-  const themeToggle = document.createElement('div');
-  themeToggle.className = navStyles.themeToggle;
-  themeToggle.setAttribute('role', 'button');
-  themeToggle.setAttribute('tabindex', '0');
-  themeToggle.textContent = 'Toggle Theme';
-  themeToggle.addEventListener('click', toggleTheme);
-  themeToggle.addEventListener('keydown', (e: KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      toggleTheme();
-    }
-  });
-
   return (
     <nav class={layoutStyles.sidebar} aria-label="Component navigation">
       <div class={navStyles.title}>Components</div>
       <div class={navStyles.subtitle}>{componentRegistry.length} themed components</div>
-      {navScroll}
-      {themeToggle}
+      <div class={scrollStyles.thin} style="flex: 1; min-height: 0; overflow-y: auto;">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <Link href="/" className={navStyles.navItem} activeClass={navStyles.navItemActive}>
+            Overview
+          </Link>
+          {categoryOrder
+            .filter((cat) => (grouped.get(cat) ?? []).length > 0)
+            .map((cat) => {
+              const entries = grouped.get(cat) ?? [];
+              return (
+                <div>
+                  <div class={navStyles.categoryTitle}>{categoryLabels[cat]}</div>
+                  {entries.map((entry) => (
+                    <Link
+                      href={`/${entry.slug}`}
+                      className={navStyles.navItem}
+                      activeClass={navStyles.navItemActive}
+                    >
+                      {entry.name}
+                    </Link>
+                  ))}
+                </div>
+              );
+            })}
+        </div>
+      </div>
+      <button type="button" class={navStyles.themeToggle} onClick={toggleTheme}>
+        Toggle Theme
+      </button>
     </nav>
   );
 }
 
 export function App() {
-  // Build a lookup of slug -> entry
-  const entryMap = new Map<string, ComponentEntry>();
-  for (const entry of componentRegistry) {
-    entryMap.set(entry.slug, entry);
-  }
-
-  // Main content area with overflow scroll
-  const mainEl = document.createElement('div');
-  mainEl.className = `${layoutStyles.main} ${scrollStyles.thin}`;
-  mainEl.style.cssText = 'overflow-y: auto;';
-
-  function renderRoute(path: string) {
-    mainEl.innerHTML = '';
-    if (path === '/') {
-      mainEl.append(renderHome());
-    } else {
-      const slug = path.slice(1); // remove leading /
-      const entry = entryMap.get(slug);
-      if (entry) {
-        mainEl.append(renderDemo(entry));
-      } else {
-        const notFound = document.createElement('div');
-        notFound.textContent = 'Page not found';
-        mainEl.append(notFound);
-      }
-    }
-  }
-
-  // Initial render
-  renderRoute(window.location.pathname);
-
-  // Listen for route changes
-  const originalNavigate = appRouter.navigate.bind(appRouter);
-  appRouter.navigate = ((input: Parameters<typeof appRouter.navigate>[0]) => {
-    const result = originalNavigate(input);
-    renderRoute(input.to);
-    return result;
-  }) as typeof appRouter.navigate;
-
-  // Also handle popstate (back/forward)
-  window.addEventListener('popstate', () => {
-    renderRoute(window.location.pathname);
-  });
-
   return (
     <div>
       <ThemeProvider theme="light">
-        <div class={layoutStyles.shell}>
-          <Sidebar />
-          {mainEl}
-        </div>
+        <RouterContext.Provider value={appRouter}>
+          <div class={layoutStyles.shell}>
+            <Sidebar />
+            <div class={`${layoutStyles.main} ${scrollStyles.thin}`} style="overflow-y: auto;">
+              <RouterView router={appRouter} fallback={() => <div>Page not found</div>} />
+            </div>
+          </div>
+        </RouterContext.Provider>
       </ThemeProvider>
     </div>
   );
