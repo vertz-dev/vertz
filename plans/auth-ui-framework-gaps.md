@@ -275,33 +275,10 @@ DX. This is the #1 perceived-performance issue.
 
 ---
 
-## 5. Sign-Out with Redirect
+## 5. Sign-Out with Redirect — ✅ DONE (#1213)
 
-### The Problem
-
-The Linear clone's sign-out handler calls `auth.signOut()` but relies on the
-`AuthGuard`'s reactive ternary to redirect back to `/login`. This works but is implicit
-— the developer doesn't control the post-sign-out destination.
-
-```tsx
-const handleSignOut = async () => {
-  await auth.signOut();
-  // No explicit redirect — AuthGuard's ternary handles it
-};
-```
-
-### Proposed Framework Solution
-
-`auth.signOut()` should accept an optional redirect path:
-
-```tsx
-await auth.signOut({ redirectTo: '/login' });
-// or
-await auth.signOut(); // Uses oauthErrorRedirect from server config as default
-```
-
-**Priority:** Low. The implicit redirect via AuthGuard works. Explicit redirect is
-a DX improvement.
+Implemented in PR #1213. `auth.signOut({ redirectTo: '/login' })` navigates via
+SPA router after clearing the session. Linear clone updated to use it.
 
 ---
 
@@ -372,7 +349,7 @@ export const appRouter = createRouter(routes, { serverNav: true });
 | 1 | ProtectedRoute component | High | Low | Replaces hand-written auth guard |
 | 7 | Router initialPath auto-detect | Medium | Low | Removes boilerplate |
 | 2 | OAuth button / provider metadata | Medium | Medium | Removes hardcoded URLs and icons |
-| 5 | Sign-out with redirect | Low | Low | DX improvement |
+| 5 | ~~Sign-out with redirect~~ | ✅ Done | — | PR #1213 |
 | 6 | User profile display helpers | Low | Low | Nice-to-have, could be docs |
 
 ---
