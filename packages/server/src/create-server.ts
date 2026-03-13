@@ -45,6 +45,8 @@ function isDatabaseClient(
 export interface ServerInstance extends AppBuilder {
   auth: AuthInstance;
   initialize(): Promise<void>;
+  /** Routes auth requests (/api/auth/*) to auth.handler, everything else to entity handler */
+  readonly requestHandler: (request: Request) => Promise<Response>;
 }
 
 // ---------------------------------------------------------------------------
@@ -302,9 +304,12 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
 
     const auth = createAuth(authConfig);
 
+    const authPrefix = `${apiPrefix}/auth`;
+
     const serverInstance = app as AppBuilder & {
       auth: AuthInstance;
       initialize: () => Promise<void>;
+      readonly requestHandler: (request: Request) => Promise<Response>;
     };
 
     serverInstance.auth = auth;
@@ -312,6 +317,22 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
       await initializeAuthTables(dbClient);
       await auth.initialize();
     };
+
+    Object.defineProperty(serverInstance, 'requestHandler', {
+      get() {
+        const entityHandler = this.handler;
+        const authHandler = this.auth.handler;
+        return (request: Request) => {
+          const pathname = new URL(request.url).pathname;
+          if (pathname === authPrefix || pathname.startsWith(`${authPrefix}/`)) {
+            return authHandler(request);
+          }
+          return entityHandler(request);
+        };
+      },
+      enumerable: true,
+      configurable: false,
+    });
 
     return serverInstance as ServerInstance;
   }
