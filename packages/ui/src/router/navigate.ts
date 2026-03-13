@@ -99,8 +99,6 @@ export interface Router<T extends Record<string, RouteConfigLike> = RouteDefinit
   searchParams: Signal<Record<string, unknown>>;
   /** Navigate to a route pattern, interpolating params and search into the final URL. */
   navigate<TPath extends RoutePattern<T>>(input: NavigateInput<TPath>): Promise<void>;
-  /** Navigate to a URL path (string shorthand, bypasses typed route validation). */
-  navigate(url: string): Promise<void>;
   /** Re-run all loaders for the current route. */
   revalidate(): Promise<void>;
   /** Remove popstate listener and clean up the router. */
@@ -451,9 +449,8 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     }
   }
 
-  async function navigate(input: NavigateInput | string): Promise<void> {
-    const resolved: NavigateInput = typeof input === 'string' ? { to: input } : input;
-    const navUrl = buildNavigationUrl(resolved.to, resolved);
+  async function navigate(input: NavigateInput): Promise<void> {
+    const navUrl = buildNavigationUrl(input.to, input);
 
     // Capture generation at start — if a newer navigate() starts while we
     // await prefetch, this navigate should skip applyNavigation.
@@ -463,7 +460,7 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     const handle = startPrefetch(navUrl);
 
     // Update browser history
-    if (resolved.replace) {
+    if (input.replace) {
       window.history.replaceState(null, '', navUrl);
     } else {
       window.history.pushState(null, '', navUrl);

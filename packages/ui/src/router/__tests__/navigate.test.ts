@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'bun:test';
 import { createTestSSRContext, disableTestSSR, enableTestSSR } from '../../ssr/test-ssr-helpers';
 import { defineRoutes } from '../define-routes';
-import type { Router, RouterOptions } from '../navigate';
+import type { RouterOptions } from '../navigate';
 import { createRouter } from '../navigate';
 
 describe('createRouter', () => {
@@ -30,35 +30,6 @@ describe('createRouter', () => {
 
     expect(router.current.value).not.toBeNull();
     expect(router.current.value?.route.pattern).toBe('/about');
-  });
-
-  test('navigate accepts a plain string URL (backward compat)', async () => {
-    const routes = defineRoutes({
-      '/': { component: () => document.createElement('div') },
-      '/about': { component: () => document.createElement('div') },
-    });
-    const router = createRouter(routes, '/');
-    const pushSpy = vi.spyOn(window.history, 'pushState');
-
-    await (router as Router).navigate('/about');
-
-    expect(pushSpy).toHaveBeenCalledWith(null, '', '/about');
-    expect(router.current.value?.route.pattern).toBe('/about');
-    pushSpy.mockRestore();
-  });
-
-  test('navigate with plain string preserves query params', async () => {
-    const routes = defineRoutes({
-      '/': { component: () => document.createElement('div') },
-      '/tasks': { component: () => document.createElement('div') },
-    });
-    const router = createRouter(routes, '/');
-    const pushSpy = vi.spyOn(window.history, 'pushState');
-
-    await (router as Router).navigate('/tasks?status=done');
-
-    expect(pushSpy).toHaveBeenCalledWith(null, '', '/tasks?status=done');
-    pushSpy.mockRestore();
   });
 
   test('navigate interpolates route params into the final URL', async () => {

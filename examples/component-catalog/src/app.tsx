@@ -43,7 +43,7 @@ function renderHome(): HTMLElement {
     card.className = homeStyles.categoryCard;
     card.addEventListener('click', () => {
       if (entries.length > 0) {
-        appRouter.navigate(`/${entries[0].slug}`);
+        appRouter.navigate({ to: `/${entries[0].slug}` });
       }
     });
 
@@ -192,10 +192,9 @@ export function App() {
 
   // Listen for route changes
   const originalNavigate = appRouter.navigate.bind(appRouter);
-  appRouter.navigate = ((input: { to: string } | string) => {
-    const result = originalNavigate(input as string);
-    const url = typeof input === 'string' ? input : input.to;
-    renderRoute(url);
+  appRouter.navigate = ((input: { to: string }) => {
+    const result = originalNavigate(input);
+    renderRoute(input.to);
     return result;
   }) as typeof appRouter.navigate;
 

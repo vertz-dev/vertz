@@ -27,5 +27,5 @@ const currentPath = computed(() => {
 });
 
 export const Link = createLink(currentPath, (url: string) => {
-  appRouter.navigate(url);
+  (appRouter as import('@vertz/ui').Router).navigate({ to: url });
 });
