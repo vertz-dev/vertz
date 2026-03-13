@@ -31,11 +31,17 @@ const _signUpResult: PromiseLike<Result<AuthResponse, Error>> = auth.signUp({
 // @ts-expect-error — signUp requires email and password
 auth.signUp({});
 
-// Positive: signOut takes no args
+// Positive: signOut takes no args (backward compat)
 const _signOutResult: Promise<void> = auth.signOut();
 
-// @ts-expect-error — signOut takes no arguments
-auth.signOut('arg');
+// Positive: signOut accepts optional redirectTo
+const _signOutRedirect: Promise<void> = auth.signOut({ redirectTo: '/login' });
+
+// Positive: signOut accepts empty options
+const _signOutEmpty: Promise<void> = auth.signOut({});
+
+// @ts-expect-error — signOut rejects unknown options
+auth.signOut({ invalid: true });
 
 // Positive: mfaChallenge accepts valid input
 const _mfaResult: PromiseLike<Result<AuthResponse, Error>> = auth.mfaChallenge({ code: '123456' });
@@ -79,6 +85,8 @@ const _user: import('../auth-types').User | null = ctxValue.user.value;
 void _signInResult;
 void _signUpResult;
 void _signOutResult;
+void _signOutRedirect;
+void _signOutEmpty;
 void _mfaResult;
 void _forgotResult;
 void _resetResult;

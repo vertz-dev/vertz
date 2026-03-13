@@ -1,6 +1,7 @@
 import type { Result } from '@vertz/fetch';
 import { type Context, createContext, type UnwrapSignals, useContext } from '../component/context';
 import type { SdkMethodWithMeta } from '../form/form';
+import { RouterContext } from '../router/router-context';
 import { _tryOnCleanup } from '../runtime/disposal';
 import { computed, signal } from '../runtime/signal';
 import type { ReadonlySignal, Signal } from '../runtime/signal-types';
@@ -17,6 +18,7 @@ import type {
   MfaInput,
   ResetInput,
   SignInInput,
+  SignOutOptions,
   SignUpInput,
   User,
 } from './auth-types';
@@ -45,7 +47,7 @@ export interface AuthContextValue {
   error: Signal<AuthClientError | null>;
   signIn: SdkMethodWithMeta<SignInInput, AuthResponse>;
   signUp: SdkMethodWithMeta<SignUpInput, AuthResponse>;
-  signOut: () => Promise<void>;
+  signOut: (options?: SignOutOptions) => Promise<void>;
   refresh: () => Promise<void>;
   mfaChallenge: SdkMethodWithMeta<MfaInput, AuthResponse>;
   forgotPassword: SdkMethodWithMeta<ForgotInput, void>;
@@ -91,6 +93,10 @@ export function AuthProvider({
   flagEntitlementMap,
   children,
 }: AuthProviderProps): HTMLElement {
+  // Capture router at render time (synchronous — context stack is active).
+  // Used by signOut({ redirectTo }) for SPA navigation after clearing session.
+  const router = useContext(RouterContext);
+
   const userSignal = signal<User | null>(null);
   const statusSignal = signal<AuthStatus>('idle');
   const errorSignal = signal<AuthClientError | null>(null);
@@ -274,7 +280,7 @@ export function AuthProvider({
     },
   ) as SdkMethodWithMeta<ResetInput, void>;
 
-  const signOut = async () => {
+  const signOut = async (options?: SignOutOptions) => {
     tokenRefresh.cancel();
     try {
       await fetch(`${basePath}/signout`, {
@@ -291,6 +297,17 @@ export function AuthProvider({
     clearAccessSet();
     if (typeof window !== 'undefined') {
       delete window.__VERTZ_SESSION__;
+    }
+    if (options?.redirectTo) {
+      if (router) {
+        router.navigate({ to: options.redirectTo, replace: true }).catch(() => {
+          // Navigation error after signout is non-fatal
+        });
+      } else if (typeof console !== 'undefined') {
+        console.warn(
+          '[vertz] signOut({ redirectTo }) was called but no RouterContext is available. Navigation was skipped.',
+        );
+      }
     }
   };
 
