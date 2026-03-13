@@ -395,4 +395,57 @@ describe('DOM helpers — hydration branches', () => {
       expect(parent.textContent).toBe('text');
     });
   });
+
+  describe('__insert with imperatively-created nodes', () => {
+    it('replaces SSR placeholder with live node during hydration', () => {
+      // Simulate SSR output: <div style="width: 300px"><div data-state="active">SSR slider</div></div>
+      const root = document.createElement('div');
+      root.innerHTML = '<div style="width: 300px"><div data-state="active">SSR slider</div></div>';
+      const wrapper = root.firstChild as HTMLElement;
+      const ssrSlider = wrapper.firstChild as HTMLElement;
+      startHydration(root);
+
+      // Claim the wrapper via __element (like the compiler would)
+      const claimed = __element('div');
+      expect(claimed).toBe(wrapper);
+      __enterChildren(claimed);
+
+      // Simulate a primitive creating its own element imperatively
+      const liveSlider = document.createElement('div');
+      liveSlider.setAttribute('data-state', 'active');
+      let clicked = false;
+      liveSlider.addEventListener('pointerdown', () => {
+        clicked = true;
+      });
+
+      // __insert should replace the SSR placeholder with the live node
+      __insert(claimed, liveSlider);
+      __exitChildren();
+
+      // The live node (with event listener) should be in the DOM
+      expect(wrapper.firstChild).toBe(liveSlider);
+      // The SSR node should be removed
+      expect(ssrSlider.parentNode).toBeNull();
+      // Event listener should work
+      liveSlider.dispatchEvent(new Event('pointerdown'));
+      expect(clicked).toBe(true);
+    });
+
+    it('appends live node when no SSR placeholder exists', () => {
+      const root = document.createElement('div');
+      root.innerHTML = '<div></div>';
+      const wrapper = root.firstChild as HTMLElement;
+      startHydration(root);
+
+      const claimed = __element('div');
+      __enterChildren(claimed);
+
+      // No SSR child exists — cursor is null
+      const liveNode = document.createElement('span');
+      __insert(claimed, liveNode);
+      __exitChildren();
+
+      expect(wrapper.firstChild).toBe(liveNode);
+    });
+  });
 });

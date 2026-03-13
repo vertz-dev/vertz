@@ -6,6 +6,7 @@ import {
   getIsHydrating,
   pauseHydration,
   resumeHydration,
+  skipNode,
 } from '../hydrate/hydration-context';
 import { domEffect } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
@@ -202,11 +203,29 @@ function resolveAndInsert(parent: Node, value: unknown, depth = 0): void {
  * During hydration, nodes are already in the DOM (no-op) and text nodes
  * are claimed from SSR output. During CSR, nodes are appended and text
  * nodes are created.
+ *
+ * Special case: imperatively-created nodes (e.g., from primitives like
+ * Slider.Root()) have no parentNode — they were created via
+ * document.createElement, not claimed from SSR via __element(). These
+ * must replace the inert SSR placeholder to preserve event listeners.
  */
 function insertLeaf(parent: Node, value: unknown): void {
   if (getIsHydrating()) {
     if (isRenderNode(value)) {
-      return; // No-op — node already in DOM
+      const node = value as Node;
+      if (node.parentNode) {
+        return; // Already in DOM (claimed from SSR via __element)
+      }
+      // Orphaned node — created imperatively (e.g., by a primitive).
+      // Replace the SSR placeholder with the live node that carries
+      // event listeners and internal state.
+      const ssrNode = skipNode();
+      if (ssrNode && ssrNode.parentNode === parent) {
+        parent.replaceChild(node, ssrNode);
+      } else {
+        parent.appendChild(node);
+      }
+      return;
     }
     // For string/number values, claim the existing text node
     claimText();

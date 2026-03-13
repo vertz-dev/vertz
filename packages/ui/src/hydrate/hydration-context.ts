@@ -224,6 +224,22 @@ export function enterChildren(el: Element): void {
 }
 
 /**
+ * Skip the current node without claiming it and advance the cursor.
+ * Returns the skipped node (or null if cursor is exhausted).
+ *
+ * Used when the SSR node needs to be replaced by a live node — e.g.,
+ * imperatively-created primitive elements that carry event listeners
+ * and must replace the inert SSR placeholder.
+ */
+export function skipNode(): Node | null {
+  const node = currentNode;
+  if (currentNode) {
+    currentNode = currentNode.nextSibling;
+  }
+  return node;
+}
+
+/**
  * Pop the cursor from the stack, restoring the parent's position.
  * Called by compiler-emitted `__exitChildren()`.
  */
