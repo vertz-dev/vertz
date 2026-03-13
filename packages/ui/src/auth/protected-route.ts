@@ -11,7 +11,7 @@ import { useContext } from '../component/context';
 import { RouterContext } from '../router/router-context';
 import { computed, domEffect } from '../runtime/signal';
 import type { ReadonlySignal } from '../runtime/signal-types';
-import { can } from './access-context';
+import { can, type Entitlement } from './access-context';
 import { AuthContext } from './auth-context';
 
 export interface ProtectedRouteProps {
@@ -22,7 +22,7 @@ export interface ProtectedRouteProps {
   /** Rendered when authenticated */
   children: (() => unknown) | unknown;
   /** Optional: required entitlements (integrates with can()) */
-  requires?: string[];
+  requires?: Entitlement[];
   /** Rendered when authenticated but lacking required entitlements. Default: null */
   forbidden?: () => unknown;
   /** Append ?returnTo=<currentPath> when redirecting. Default: true */
