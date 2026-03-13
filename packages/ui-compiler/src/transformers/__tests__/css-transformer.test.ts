@@ -289,6 +289,17 @@ const button = css({ root: ['m:2'] });`;
     expect(result.css).toMatch(/@container \(min-width: 400px\) \{\n\s+\._[a-f0-9]+ \{/);
   });
 
+  it('wraps @supports at-rules around the class selector', () => {
+    const source = `const styles = css({
+  layout: ['flex', { '@supports (display: grid)': ['grid'] }],
+});`;
+    const result = transformCSS(source);
+
+    expect(result.css).toContain('@supports (display: grid)');
+    expect(result.css).toContain('display: grid');
+    expect(result.css).toMatch(/@supports \(display: grid\) \{\n\s+\._[a-f0-9]+ \{/);
+  });
+
   it('does not drop class selector inside @media blocks', () => {
     const source = `const styles = css({
   layout: ['flex', { '@media (min-width: 1024px)': ['flex-col'] }],
