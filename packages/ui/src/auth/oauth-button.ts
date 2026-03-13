@@ -3,11 +3,28 @@
  *
  * Reads provider metadata from useAuth().providers to resolve the auth URL.
  * Uses window.location.href for redirect (OAuth requires full-page navigation).
+ *
+ * Uses __element/__on/__enterChildren/__exitChildren/__append/__staticText
+ * so that during hydration it claims existing SSR nodes.
  */
 
+import { __append, __element, __enterChildren, __exitChildren, __staticText } from '../dom/element';
+import { __on } from '../dom/events';
 import { useAuth } from './auth-context';
 import type { OAuthProviderInfo } from './auth-types';
 import { getProviderIcon } from './provider-icons';
+
+/** Dangerous URL schemes that must never appear in redirects. */
+const DANGEROUS_SCHEMES = ['javascript:', 'data:', 'vbscript:'];
+
+function isSafeUrl(url: string): boolean {
+  const normalized = url.replace(/\s/g, '').toLowerCase();
+  if (normalized.startsWith('//')) return false;
+  for (const scheme of DANGEROUS_SCHEMES) {
+    if (normalized.startsWith(scheme)) return false;
+  }
+  return true;
+}
 
 export interface OAuthButtonProps {
   /** Provider ID (e.g., 'github', 'google') */
@@ -20,41 +37,46 @@ export interface OAuthButtonProps {
   _providers?: OAuthProviderInfo[];
 }
 
-export function OAuthButton({
-  provider,
-  label,
-  iconOnly,
-  _providers,
-}: OAuthButtonProps): HTMLElement {
+export function OAuthButton({ provider, label, iconOnly, _providers }: OAuthButtonProps): Element {
   const providers = _providers ?? useAuth().providers;
 
   const providerInfo = (providers as OAuthProviderInfo[]).find((p) => p.id === provider);
 
   if (!providerInfo) {
-    // Provider not configured — render empty span
-    return document.createElement('span');
+    return __element('span');
   }
 
-  const button = document.createElement('button');
-  button.type = 'button';
+  const safeAuthUrl = isSafeUrl(providerInfo.authUrl) ? providerInfo.authUrl : '#';
+
+  const props: Record<string, string> = { type: 'button' };
+  if (iconOnly) {
+    props['aria-label'] = `Continue with ${providerInfo.name}`;
+  }
+
+  const el = __element('button', props);
+
+  __on(el, 'click', () => {
+    window.location.href = safeAuthUrl;
+  });
+
+  __enterChildren(el);
 
   // Icon
-  const iconSpan = document.createElement('span');
+  const iconSpan = __element('span');
   iconSpan.innerHTML = getProviderIcon(provider, 20);
-  button.appendChild(iconSpan);
+  __append(el, iconSpan);
 
   // Label (unless iconOnly)
   if (!iconOnly) {
     const text = label ?? `Continue with ${providerInfo.name}`;
-    const textSpan = document.createElement('span');
-    textSpan.textContent = text;
-    button.appendChild(textSpan);
+    const textSpan = __element('span');
+    __enterChildren(textSpan);
+    __append(textSpan, __staticText(text));
+    __exitChildren();
+    __append(el, textSpan);
   }
 
-  // Redirect on click
-  button.addEventListener('click', () => {
-    window.location.href = providerInfo.authUrl;
-  });
+  __exitChildren();
 
-  return button;
+  return el;
 }
