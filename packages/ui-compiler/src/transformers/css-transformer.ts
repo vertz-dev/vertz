@@ -281,9 +281,14 @@ function buildCSSRules(className: string, entries: ExtractedEntry[]): string[] {
           nestedDecls.push(`${raw.property}: ${raw.value};`);
         }
       }
-      const resolvedSelector = entry.selector.replaceAll('&', `.${className}`);
       if (nestedDecls.length > 0) {
-        rules.push(formatCSSRule(resolvedSelector, nestedDecls));
+        if (entry.selector.startsWith('@')) {
+          // At-rules (@media, @container, etc.) wrap the class selector inside
+          rules.push(formatAtRule(entry.selector, `.${className}`, nestedDecls));
+        } else {
+          const resolvedSelector = entry.selector.replaceAll('&', `.${className}`);
+          rules.push(formatCSSRule(resolvedSelector, nestedDecls));
+        }
       }
     }
   }
@@ -302,6 +307,12 @@ function buildCSSRules(className: string, entries: ExtractedEntry[]): string[] {
 function formatCSSRule(selector: string, declarations: string[]): string {
   const props = declarations.map((d) => `  ${d}`).join('\n');
   return `${selector} {\n${props}\n}`;
+}
+
+/** Format an at-rule (@media, @container) wrapping a class selector. */
+function formatAtRule(atRule: string, classSelector: string, declarations: string[]): string {
+  const props = declarations.map((d) => `    ${d}`).join('\n');
+  return `${atRule} {\n  ${classSelector} {\n${props}\n  }\n}`;
 }
 
 // ─── Inline shorthand parser (uses shared token tables) ──────

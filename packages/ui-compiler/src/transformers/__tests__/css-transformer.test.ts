@@ -1,6 +1,6 @@
+import { describe, expect, it } from 'bun:test';
 import MagicString from 'magic-string';
 import { Project, ts } from 'ts-morph';
-import { describe, expect, it } from 'bun:test';
 import { CSSAnalyzer } from '../../analyzers/css-analyzer';
 import { CSSTransformer } from '../css-transformer';
 
@@ -264,5 +264,51 @@ const button = css({ root: ['m:2'] });`;
       'background-color: color-mix(in oklch, var(--color-primary) 90%, transparent);',
     );
     expect(result.css).toContain(':hover');
+  });
+
+  it('wraps @media at-rules around the class selector', () => {
+    const source = `const styles = css({
+  grid: ['gap:4', { '@media (min-width: 768px)': ['grid-cols:2'] }],
+});`;
+    const result = transformCSS(source);
+
+    expect(result.css).toContain('@media (min-width: 768px)');
+    expect(result.css).toContain('grid-template-columns:');
+    // Class selector must be nested inside the @media block
+    expect(result.css).toMatch(/@media \(min-width: 768px\) \{\n\s+\._[a-f0-9]+ \{/);
+  });
+
+  it('wraps @container at-rules around the class selector', () => {
+    const source = `const styles = css({
+  card: ['p:4', { '@container (min-width: 400px)': ['p:8'] }],
+});`;
+    const result = transformCSS(source);
+
+    expect(result.css).toContain('@container (min-width: 400px)');
+    expect(result.css).toContain('padding: 2rem');
+    expect(result.css).toMatch(/@container \(min-width: 400px\) \{\n\s+\._[a-f0-9]+ \{/);
+  });
+
+  it('wraps @supports at-rules around the class selector', () => {
+    const source = `const styles = css({
+  layout: ['flex', { '@supports (display: grid)': ['grid'] }],
+});`;
+    const result = transformCSS(source);
+
+    expect(result.css).toContain('@supports (display: grid)');
+    expect(result.css).toContain('display: grid');
+    expect(result.css).toMatch(/@supports \(display: grid\) \{\n\s+\._[a-f0-9]+ \{/);
+  });
+
+  it('does not drop class selector inside @media blocks', () => {
+    const source = `const styles = css({
+  layout: ['flex', { '@media (min-width: 1024px)': ['flex-col'] }],
+});`;
+    const result = transformCSS(source);
+
+    // Should NOT have declarations directly inside @media (no class selector)
+    expect(result.css).not.toMatch(/@media[^{]+\{\n\s+flex-direction/);
+    // Should have proper nesting: @media { .class { declarations } }
+    expect(result.css).toMatch(/@media[^{]+\{\n\s+\._[a-f0-9]+ \{\n\s+flex-direction/);
   });
 });
