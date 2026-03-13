@@ -30,67 +30,39 @@ function Sidebar() {
     document.documentElement.setAttribute('data-theme', next);
   }
 
-  // Build nav links
-  const navLinks = document.createElement('div');
-  navLinks.style.cssText = 'display: flex; flex-direction: column; gap: 2px;';
-
-  navLinks.append(
-    Link({
-      href: '/',
-      children: 'Overview',
-      className: navStyles.navItem,
-      activeClass: navStyles.navItemActive,
-    }),
-  );
-
-  for (const cat of categoryOrder) {
-    const entries = grouped.get(cat) ?? [];
-    if (entries.length === 0) continue;
-
-    const section = document.createElement('div');
-    const title = document.createElement('div');
-    title.className = navStyles.categoryTitle;
-    title.textContent = categoryLabels[cat];
-    section.append(title);
-
-    for (const entry of entries) {
-      section.append(
-        Link({
-          href: `/${entry.slug}`,
-          children: entry.name,
-          className: navStyles.navItem,
-          activeClass: navStyles.navItemActive,
-        }),
-      );
-    }
-    navLinks.append(section);
-  }
-
-  // Scrollable nav container
-  const navScroll = document.createElement('div');
-  navScroll.className = scrollStyles.thin;
-  navScroll.style.cssText = 'flex: 1; min-height: 0; overflow-y: auto;';
-  navScroll.appendChild(navLinks);
-
-  const themeToggle = document.createElement('div');
-  themeToggle.className = navStyles.themeToggle;
-  themeToggle.setAttribute('role', 'button');
-  themeToggle.setAttribute('tabindex', '0');
-  themeToggle.textContent = 'Toggle Theme';
-  themeToggle.addEventListener('click', toggleTheme);
-  themeToggle.addEventListener('keydown', (e: KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      toggleTheme();
-    }
-  });
-
   return (
     <nav class={layoutStyles.sidebar} aria-label="Component navigation">
       <div class={navStyles.title}>Components</div>
       <div class={navStyles.subtitle}>{componentRegistry.length} themed components</div>
-      {navScroll}
-      {themeToggle}
+      <div class={scrollStyles.thin} style="flex: 1; min-height: 0; overflow-y: auto;">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <Link href="/" className={navStyles.navItem} activeClass={navStyles.navItemActive}>
+            Overview
+          </Link>
+          {categoryOrder.map((cat) => {
+            const entries = grouped.get(cat) ?? [];
+            if (entries.length === 0) return null;
+            return (
+              <div key={cat}>
+                <div class={navStyles.categoryTitle}>{categoryLabels[cat]}</div>
+                {entries.map((entry) => (
+                  <Link
+                    key={entry.slug}
+                    href={`/${entry.slug}`}
+                    className={navStyles.navItem}
+                    activeClass={navStyles.navItemActive}
+                  >
+                    {entry.name}
+                  </Link>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <button type="button" class={navStyles.themeToggle} onClick={toggleTheme}>
+        Toggle Theme
+      </button>
     </nav>
   );
 }
