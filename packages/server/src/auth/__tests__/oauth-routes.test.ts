@@ -995,11 +995,11 @@ describe('OAuth Routes', () => {
   });
 
   describe('error redirect URL construction', () => {
-    it('appends error param with & when oauthErrorRedirect already has query params', async () => {
+    it('sets error param via URL constructor when oauthErrorRedirect already has query params', async () => {
       const auth = createTestAuth({
         providers: [createMockProvider()],
         oauthAccountStore: new InMemoryOAuthAccountStore(),
-        oauthErrorRedirect: '/login?error=oauth',
+        oauthErrorRedirect: '/login?source=oauth',
       });
 
       // Missing cookie → triggers error redirect
@@ -1011,7 +1011,7 @@ describe('OAuth Routes', () => {
 
       expect(res.status).toBe(302);
       const location = res.headers.get('Location') ?? '';
-      expect(location).toBe('/login?error=oauth&error=invalid_state');
+      expect(location).toBe('/login?source=oauth&error=invalid_state');
     });
 
     it('appends error param with ? when oauthErrorRedirect has no query params', async () => {

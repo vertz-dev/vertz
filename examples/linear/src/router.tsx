@@ -45,9 +45,4 @@ export const routes = defineRoutes({
   },
 });
 
-const initialPath =
-  typeof window !== 'undefined' && window.location
-    ? window.location.pathname
-    : ((globalThis as Record<string, unknown>).__SSR_URL__ as string) || '/';
-
-export const appRouter = createRouter(routes, initialPath, { serverNav: true });
+export const appRouter = createRouter(routes, { serverNav: true });

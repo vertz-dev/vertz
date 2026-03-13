@@ -311,7 +311,7 @@ authenticated app. Could be in a recipes/patterns doc instead.
 
 ---
 
-## 7. `initialPath` Boilerplate in Router
+## 7. `initialPath` Boilerplate in Router — ✅ DONE (#1219)
 
 ### The Problem
 
@@ -347,7 +347,7 @@ export const appRouter = createRouter(routes, { serverNav: true });
 | 4 | ~~SSR session injection~~ | ✅ Done | — | PR #1216 |
 | 3 | Dev server handler auto-composition | High | Low | Removes boilerplate from every app |
 | 1 | ~~ProtectedRoute component~~ | ✅ Done | — | PR #1214 |
-| 7 | Router initialPath auto-detect | Medium | Low | Removes boilerplate |
+| 7 | ~~Router initialPath auto-detect~~ | ✅ Done | — | PR #1219 |
 | 2 | ~~OAuth button / provider metadata~~ | ✅ Done | — | PR #1215 |
 | 5 | ~~Sign-out with redirect~~ | ✅ Done | — | PR #1213 |
 | 6 | User profile display helpers | Low | Low | Nice-to-have, could be docs |
