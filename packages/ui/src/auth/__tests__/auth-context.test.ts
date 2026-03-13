@@ -378,6 +378,29 @@ describe('AuthProvider', () => {
       fetchSpy.mockRestore();
     });
 
+    it('does not navigate when redirectTo is empty string', async () => {
+      const fetchSpy = spyOn(globalThis, 'fetch')
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              user: { id: '1', email: 'a@b.com', role: 'user' },
+              expiresAt: Date.now() + 60_000,
+            }),
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(new Response(null, { status: 200 }));
+
+      const { auth, mockRouter } = captureAuthWithRouter();
+      await auth.signIn({ email: 'a@b.com', password: 'pass' });
+      await auth.signOut({ redirectTo: '' });
+
+      expect(auth.status).toBe('unauthenticated');
+      expect(mockRouter.navigateCalls).toHaveLength(0);
+
+      fetchSpy.mockRestore();
+    });
+
     it('still navigates when network call fails', async () => {
       const fetchSpy = spyOn(globalThis, 'fetch')
         .mockResolvedValueOnce(
