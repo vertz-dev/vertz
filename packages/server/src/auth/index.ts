@@ -49,6 +49,7 @@ import { InMemoryOAuthAccountStore } from './oauth-account-store';
 import { hashPassword, validatePassword, verifyPassword } from './password';
 import { InMemoryPasswordResetStore } from './password-reset-store';
 import { InMemoryRateLimitStore } from './rate-limit-store';
+import { resolveSessionForSSR as createSSRResolver } from './resolve-session-for-ssr';
 import { InMemorySessionStore } from './session-store';
 import {
   generateBackupCodes,
@@ -2456,6 +2457,11 @@ export function createAuth(config: AuthConfig): AuthInstance {
       passwordResetStore?.dispose();
       pendingMfaSecrets.clear();
     },
+    resolveSessionForSSR: createSSRResolver({
+      jwtSecret,
+      jwtAlgorithm,
+      cookieName: cookieConfig.name || 'vertz.sid',
+    }),
   };
 }
 
@@ -2579,6 +2585,8 @@ export { InMemoryPlanVersionStore } from './plan-version-store';
 // Re-export provider factories
 export { discord, github, google } from './providers';
 export { InMemoryRateLimitStore } from './rate-limit-store';
+export type { ResolveSessionForSSRConfig, SSRSessionResult } from './resolve-session-for-ssr';
+export { resolveSessionForSSR } from './resolve-session-for-ssr';
 export type { RoleAssignment, RoleAssignmentStore } from './role-assignment-store';
 export { InMemoryRoleAssignmentStore } from './role-assignment-store';
 export type {

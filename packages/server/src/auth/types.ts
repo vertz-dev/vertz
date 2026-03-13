@@ -560,6 +560,15 @@ export interface AuthInstance {
   initialize: () => Promise<void>;
   /** Dispose stores and cleanup intervals */
   dispose: () => void;
+  /**
+   * JWT-only session resolver for SSR injection.
+   * Reads the session cookie, verifies JWT (no DB lookup), and returns
+   * minimal session data + optional access set for client hydration.
+   */
+  resolveSessionForSSR: (request: Request) => Promise<{
+    session: { user: Record<string, unknown>; expiresAt: number };
+    accessSet?: unknown;
+  } | null>;
 }
 
 // ============================================================================

@@ -29,6 +29,8 @@ export type { GenerateSSRHtmlOptions } from './ssr-html';
 export { generateSSRHtml } from './ssr-html';
 export type { SSRDiscoverResult, SSRModule, SSRRenderResult } from './ssr-render';
 export { ssrDiscoverQueries, ssrRenderToString } from './ssr-render';
+export type { SessionData, SessionResolver, SSRSessionInfo } from './ssr-session';
+export { createSessionScript } from './ssr-session';
 export {
   createSSRDataChunk,
   getStreamingRuntimeScript,

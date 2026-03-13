@@ -12,8 +12,27 @@
 
 export interface SessionData {
   user: { id: string; email: string; role: string; [key: string]: unknown };
+  /** Unix timestamp in milliseconds (JWT exp * 1000). */
   expiresAt: number;
 }
+
+/** Resolved session data for SSR injection. */
+export interface SSRSessionInfo {
+  session: SessionData;
+  /**
+   * Access set from JWT acl claim.
+   * - Present (object): inline access set (no overflow)
+   * - null: access control is configured but the set overflowed the JWT
+   * - undefined: access control is not configured
+   */
+  accessSet?: import('@vertz/ui/auth').AccessSet | null;
+}
+
+/**
+ * Callback that extracts session data from a request.
+ * Returns null when no valid session exists (expired, missing, or invalid cookie).
+ */
+export type SessionResolver = (request: Request) => Promise<SSRSessionInfo | null>;
 
 /**
  * Serialize a session into a `<script>` tag that sets
