@@ -514,6 +514,72 @@ describe('generateSSRPageHtml', () => {
 
     expect(html).not.toContain('__vertz_build_error');
   });
+
+  it('includes sessionScript when provided', () => {
+    const sessionScript =
+      '<script>window.__VERTZ_SESSION__={"user":{"id":"u1"},"expiresAt":999}</script>';
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '<p>Hello</p>',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+      sessionScript,
+    });
+
+    expect(html).toContain('window.__VERTZ_SESSION__');
+  });
+
+  it('places sessionScript after #app div and before ssrDataScript', () => {
+    const sessionScript =
+      '<script>window.__VERTZ_SESSION__={"user":{"id":"u1"},"expiresAt":999}</script>';
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '<p>Content</p>',
+      ssrData: [{ key: 'tasks', data: [1, 2] }],
+      scriptTag: '<script src="/app.js"></script>',
+      sessionScript,
+    });
+
+    const appDivEnd = html.indexOf('</div>');
+    const sessionIdx = html.indexOf('__VERTZ_SESSION__');
+    const ssrDataIdx = html.indexOf('__VERTZ_SSR_DATA__');
+    const scriptTagIdx = html.indexOf('src="/app.js"');
+
+    expect(sessionIdx).toBeGreaterThan(appDivEnd);
+    expect(sessionIdx).toBeLessThan(ssrDataIdx);
+    expect(ssrDataIdx).toBeLessThan(scriptTagIdx);
+  });
+
+  it('places sessionScript before scriptTag when no ssrData', () => {
+    const sessionScript =
+      '<script>window.__VERTZ_SESSION__={"user":{"id":"u1"},"expiresAt":999}</script>';
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+      sessionScript,
+    });
+
+    const sessionIdx = html.indexOf('__VERTZ_SESSION__');
+    const scriptTagIdx = html.indexOf('src="/app.js"');
+    expect(sessionIdx).toBeLessThan(scriptTagIdx);
+  });
+
+  it('omits sessionScript when not provided', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    expect(html).not.toContain('__VERTZ_SESSION__');
+  });
 });
 
 describe('createFetchInterceptor', () => {
