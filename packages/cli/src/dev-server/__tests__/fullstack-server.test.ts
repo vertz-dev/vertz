@@ -161,6 +161,41 @@ describe('importServerModule', () => {
 
     expect(importServerModule(serverPath)).rejects.toThrow('default export');
   });
+
+  it('extracts sessionResolver when auth.resolveSessionForSSR exists', async () => {
+    const serverPath = join(tmpDir, 'server-with-auth.ts');
+    writeFileSync(
+      serverPath,
+      `
+      const resolver = async (req: Request) => ({ session: { user: { id: '1', email: 'a@b.c', role: 'user' }, expiresAt: 0 } });
+      const app = {
+        handler: async (req: Request) => new Response('ok'),
+        auth: { resolveSessionForSSR: resolver },
+      };
+      export default app;
+    `,
+    );
+
+    const mod = await importServerModule(serverPath);
+
+    expect(mod.sessionResolver).toBeDefined();
+    expect(typeof mod.sessionResolver).toBe('function');
+  });
+
+  it('returns undefined sessionResolver when auth is not configured', async () => {
+    const serverPath = join(tmpDir, 'server-no-auth.ts');
+    writeFileSync(
+      serverPath,
+      `
+      const app = { handler: async (req: Request) => new Response('ok') };
+      export default app;
+    `,
+    );
+
+    const mod = await importServerModule(serverPath);
+
+    expect(mod.sessionResolver).toBeUndefined();
+  });
 });
 
 describe('formatBanner', () => {
