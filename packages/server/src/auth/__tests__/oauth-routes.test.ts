@@ -489,6 +489,24 @@ describe('OAuth Routes', () => {
       expect(location).toContain('error=invalid_state');
     });
 
+    it('preserves absolute URLs in error redirects', async () => {
+      const auth = createTestAuth({
+        providers: [createMockProvider()],
+        oauthAccountStore: new InMemoryOAuthAccountStore(),
+        oauthErrorRedirect: 'https://myapp.com/login',
+      });
+
+      const callbackResponse = await auth.handler(
+        new Request(
+          'http://localhost:3000/api/auth/oauth/mock/callback?code=auth-code&state=some-state',
+        ),
+      );
+
+      expect(callbackResponse.status).toBe(302);
+      const location = callbackResponse.headers.get('Location') ?? '';
+      expect(location).toBe('https://myapp.com/login?error=invalid_state');
+    });
+
     it('with empty email from provider redirects to error', async () => {
       const auth = createTestAuth({
         providers: [

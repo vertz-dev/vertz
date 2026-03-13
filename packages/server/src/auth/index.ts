@@ -1273,10 +1273,11 @@ export function createAuth(config: AuthConfig): AuthInstance {
         const providerId = path.replace('/oauth/', '').replace('/callback', '');
         const provider = providers.get(providerId);
 
+        const isAbsoluteUrl = /^https?:\/\//.test(oauthErrorRedirect);
         const errorUrl = (error: string) => {
           const url = new URL(oauthErrorRedirect, 'http://localhost');
           url.searchParams.set('error', error);
-          return url.pathname + url.search + url.hash;
+          return isAbsoluteUrl ? url.toString() : url.pathname + url.search + url.hash;
         };
 
         if (!provider || !oauthEncryptionKey || !oauthAccountStore) {
