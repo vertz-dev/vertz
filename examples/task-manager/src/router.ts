@@ -51,19 +51,15 @@ export const routes = defineRoutes({
 });
 
 /**
- * Create the router instance with routes and initial URL.
+ * Create the router instance with routes.
  *
  * The router provides reactive signals for the current route,
  * loader data, and navigation methods.
  *
- * SSR-compatible: Falls back to __SSR_URL__ or '/' when window is not available.
+ * createRouter auto-detects the initial URL from window.location (browser)
+ * or SSR context — no manual detection needed.
  */
-const initialPath =
-  typeof window !== 'undefined' && window.location
-    ? window.location.pathname
-    : ((globalThis as Record<string, unknown>).__SSR_URL__ as string) || '/';
-
-export const appRouter = createRouter(routes, initialPath, { serverNav: true });
+export const appRouter = createRouter(routes, { serverNav: true });
 
 /**
  * Create the Link component factory, bound to the router's current path.
@@ -76,7 +72,7 @@ export const appRouter = createRouter(routes, initialPath, { serverNav: true });
  */
 const currentPath = computed(() => {
   const match = appRouter.current.value;
-  return match ? window.location.pathname : initialPath;
+  return match ? window.location.pathname : '/';
 });
 
 export const Link = createLink(currentPath, (url: string) => {
