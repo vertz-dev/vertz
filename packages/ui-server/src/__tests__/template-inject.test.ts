@@ -24,6 +24,24 @@ describe('injectIntoTemplate', () => {
     expect(result).toContain('<div id="app"><p>Hello</p></div>');
   });
 
+  it('injects app HTML into <!--ssr-outlet--> when present', () => {
+    const outletTemplate = `<!doctype html>
+<html>
+  <head><title>Test</title></head>
+  <body>
+    <div id="app"><!--ssr-outlet--></div>
+  </body>
+</html>`;
+    const result = injectIntoTemplate({
+      template: outletTemplate,
+      appHtml: '<p>SSR Content</p>',
+      appCss: '',
+      ssrData: [],
+    });
+    expect(result).toContain('<p>SSR Content</p>');
+    expect(result).not.toContain('<!--ssr-outlet-->');
+  });
+
   it('injects CSS before </head>', () => {
     const css = '<style data-vertz-css>body { margin: 0; }</style>';
     const result = injectIntoTemplate({
