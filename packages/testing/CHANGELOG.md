@@ -1,5 +1,13 @@
 # @vertz/testing
 
+## 0.2.19
+
+### Patch Changes
+
+- Updated dependencies [[`ae1a64a`](https://github.com/vertz-dev/vertz/commit/ae1a64a23608880b8e87ed2a44907eabddba873e)]:
+  - @vertz/server@0.2.19
+  - @vertz/core@0.2.19
+
 ## 0.2.18
 
 ### Patch Changes
