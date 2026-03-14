@@ -334,17 +334,20 @@ function buildErrorChannelScript(editor: string): string {
     // _canAutoRestart: check if auto-restart is allowed (max 3 within 10s window)
     'V._canAutoRestart=function(){',
     "var raw=sessionStorage.getItem('__vertz_auto_restart');",
-    'var ts=raw?JSON.parse(raw):[];',
+    'var ts;try{ts=raw?JSON.parse(raw):[]}catch(e){ts=[]}',
     'var now=Date.now();',
     'ts=ts.filter(function(t){return now-t<10000});',
     'return ts.length<3};',
     // _autoRestart: auto-send restart via WS if allowed by cap, track in sessionStorage
+    // Parses sessionStorage once, pushes timestamp, saves, and sends restart.
     'V._autoRestart=function(){',
     'if(V._restarting)return;',
-    'if(!V._canAutoRestart())return;',
     "var raw=sessionStorage.getItem('__vertz_auto_restart');",
-    'var ts=raw?JSON.parse(raw):[];',
-    'ts.push(Date.now());',
+    'var ts;try{ts=raw?JSON.parse(raw):[]}catch(e){ts=[]}',
+    'var now=Date.now();',
+    'ts=ts.filter(function(t){return now-t<10000});',
+    'if(ts.length>=3)return;',
+    'ts.push(now);',
     "sessionStorage.setItem('__vertz_auto_restart',JSON.stringify(ts));",
     "if(V._ws&&V._ws.readyState===1){V._ws.send(JSON.stringify({type:'restart'}))}};",
     // _recovering: after a controlled reload for error recovery, Bun's HMR may
@@ -791,6 +794,23 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
   let runtimeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   let pendingRuntimeError: ErrorDetail[] | null = null;
 
+  // Server-side auto-restart cap: max 3 within 10s window
+  const autoRestartTimestamps: number[] = [];
+  const AUTO_RESTART_CAP = 3;
+  const AUTO_RESTART_WINDOW_MS = 10_000;
+
+  function canAutoRestart(): boolean {
+    const now = Date.now();
+    // Prune timestamps outside window
+    while (
+      autoRestartTimestamps.length > 0 &&
+      now - (autoRestartTimestamps[0] ?? 0) > AUTO_RESTART_WINDOW_MS
+    ) {
+      autoRestartTimestamps.shift();
+    }
+    return autoRestartTimestamps.length < AUTO_RESTART_CAP;
+  }
+
   function broadcastError(category: ErrorCategory, errors: ErrorDetail[]): void {
     // Build errors are root cause — don't let SSR/runtime errors overwrite them
     if (currentError?.category === 'build' && category !== 'build') {
@@ -804,19 +824,25 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     if (category === 'runtime') {
       // Stale-graph errors bypass debounce and immediately trigger auto-restart
       if (errors.some((e) => isStaleGraphError(e.message ?? ''))) {
-        if (!isRestarting) {
+        // Broadcast the error to clients first (so they show the overlay)
+        currentError = { category: 'runtime', errors };
+        const errMsg = JSON.stringify({ type: 'error', category: 'runtime', errors });
+        for (const ws of wsClients) {
+          ws.sendText(errMsg);
+        }
+        // Auto-restart with loop prevention
+        if (!isRestarting && canAutoRestart()) {
+          autoRestartTimestamps.push(Date.now());
           if (logRequests) {
             const truncated = errors[0]?.message?.slice(0, 80) ?? '';
             console.log(`[Server] Stale graph detected: ${truncated}`);
           }
-          // Broadcast the error to clients first (so they show the overlay)
-          currentError = { category: 'runtime', errors };
-          const errMsg = JSON.stringify({ type: 'error', category: 'runtime', errors });
-          for (const ws of wsClients) {
-            ws.sendText(errMsg);
-          }
           // Fire-and-forget auto-restart
           devServer.restart();
+        } else if (!isRestarting && !canAutoRestart()) {
+          if (logRequests) {
+            console.log('[Server] Auto-restart cap reached (3 in 10s), waiting for manual restart');
+          }
         }
         return;
       }

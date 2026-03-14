@@ -162,6 +162,31 @@ describe('createBunDevServer', () => {
     errSpy.mockRestore();
   });
 
+  it('broadcastError still broadcasts stale-graph errors even when restart cap is reached', () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = spyOn(console, 'error').mockImplementation(() => {});
+    const server = createBunDevServer({
+      entry: './src/app.tsx',
+      logRequests: true,
+    });
+
+    const staleError = [{ message: "Export named 'Button' not found in module './components'" }];
+
+    // Even stale-graph errors should be broadcast (for overlay display)
+    // regardless of whether restart fires or not
+    server.broadcastError('runtime', staleError);
+
+    // The error should be broadcast — it won't be debounced
+    // (stale-graph errors bypass the debounce timer)
+    const staleMsg = logSpy.mock.calls.find(
+      (c) => typeof c[0] === 'string' && c[0].includes('Stale graph detected'),
+    );
+    expect(staleMsg).toBeDefined();
+
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+
   it('broadcastError does not auto-restart for non-stale-graph runtime errors', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = spyOn(console, 'error').mockImplementation(() => {});
@@ -173,11 +198,11 @@ describe('createBunDevServer', () => {
     // Call broadcastError with a normal runtime error
     server.broadcastError('runtime', [{ message: "Cannot read property 'foo' of undefined" }]);
 
-    // Should NOT trigger a restart
-    const restartMsg = logSpy.mock.calls.find(
-      (c) => typeof c[0] === 'string' && c[0].includes('Restarting dev server'),
+    // Should NOT trigger a stale-graph detection (synchronous log)
+    const staleMsg = logSpy.mock.calls.find(
+      (c) => typeof c[0] === 'string' && c[0].includes('Stale graph detected'),
     );
-    expect(restartMsg).toBeUndefined();
+    expect(staleMsg).toBeUndefined();
 
     logSpy.mockRestore();
     errSpy.mockRestore();
