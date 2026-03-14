@@ -135,7 +135,6 @@ describe('UserAvatar', () => {
     expect(el.textContent).toBe('JD');
   });
 
-
   it('throws descriptive error when no AuthProvider and no user prop', () => {
     expect(() => UserAvatar({})).toThrow(
       'UserAvatar must be used within AuthProvider, or pass a `user` prop',

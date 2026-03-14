@@ -2,6 +2,7 @@ import { useContext } from '@vertz/ui';
 import type { User } from '@vertz/ui/auth';
 import { AuthContext, getUserDisplayName } from '@vertz/ui/auth';
 import { __child } from '@vertz/ui/internals';
+import type { JSX } from '@vertz/ui/jsx-runtime';
 import { Avatar } from './avatar';
 
 export interface UserAvatarProps {
@@ -16,7 +17,7 @@ export function UserAvatar({
   user,
   fallback,
   class: className,
-}: UserAvatarProps): HTMLElement {
+}: UserAvatarProps): JSX.Element {
   if (user) {
     const avatarUrl = typeof user.avatarUrl === 'string' ? user.avatarUrl : undefined;
     return (

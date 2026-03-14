@@ -10,27 +10,25 @@ import { ProtectedRoute } from '../protected-route';
 import { UserAvatar } from '../user-avatar';
 import { UserName } from '../user-name';
 
-// --- Category A: Simple return type narrowing ---
+// --- All components must be usable as JSX (compiles without error) ---
 
-// Avatar returns JSX.Element (HTMLElement via JSX)
-void (jsx(Avatar, {}) satisfies HTMLElement);
+// Avatar (.tsx — returns JSX.Element)
+void jsx(Avatar, {});
 
-// OAuthButton returns JSX.Element (HTMLElement via JSX)
-void (jsx(OAuthButton, { provider: 'github' }) satisfies HTMLElement);
+// OAuthButton (.tsx — returns JSX.Element)
+void jsx(OAuthButton, { provider: 'github' });
 
-// --- Category B: Signal-returning → __child() refactoring ---
-
-// ProtectedRoute returns HTMLElement
+// ProtectedRoute (.ts — returns HTMLElement via __child)
 void (jsx(ProtectedRoute, { children: () => jsx('div', {}) }) satisfies HTMLElement);
 
-// AuthGate returns HTMLElement
+// AuthGate (.ts — returns HTMLElement via __child)
 void (jsx(AuthGate, { children: () => jsx('div', {}) }) satisfies HTMLElement);
 
-// AccessGate returns HTMLElement
+// AccessGate (.ts — returns HTMLElement via __child)
 void (jsx(AccessGate, { children: () => jsx('div', {}) }) satisfies HTMLElement);
 
-// UserName returns HTMLElement
-void (jsx(UserName, {}) satisfies HTMLElement);
+// UserName (.tsx — inferred return, includes JSX.Element from static path)
+void jsx(UserName, {});
 
-// UserAvatar returns HTMLElement
-void (jsx(UserAvatar, {}) satisfies HTMLElement);
+// UserAvatar (.tsx — inferred return, includes JSX.Element from static path)
+void jsx(UserAvatar, {});

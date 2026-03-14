@@ -2,6 +2,7 @@ import { useContext } from '@vertz/ui';
 import type { User } from '@vertz/ui/auth';
 import { AuthContext, getUserDisplayName } from '@vertz/ui/auth';
 import { __child } from '@vertz/ui/internals';
+import type { JSX } from '@vertz/ui/jsx-runtime';
 
 export interface UserNameProps {
   fallback?: string;
@@ -13,7 +14,7 @@ export function UserName({
   fallback = 'Unknown',
   user,
   class: className,
-}: UserNameProps): HTMLElement {
+}: UserNameProps): JSX.Element {
   if (user) {
     return <span class={className}>{getUserDisplayName(user, fallback)}</span>;
   }
