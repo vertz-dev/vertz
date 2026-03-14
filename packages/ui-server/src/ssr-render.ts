@@ -85,6 +85,8 @@ export interface SSRRenderResult {
   headTags: string;
   /** Route patterns discovered by createRouter() during SSR (for build-time pre-rendering). */
   discoveredRoutes?: string[];
+  /** Set when ProtectedRoute writes a redirect during SSR. Server should return 302. */
+  redirect?: { to: string };
 }
 
 export interface SSRDiscoverResult {
@@ -156,6 +158,8 @@ export async function ssrRenderToString(
     ssrTimeout?: number;
     /** Pre-computed font fallback metrics (computed at server startup). */
     fallbackMetrics?: Record<string, FontFallbackMetrics>;
+    /** Auth state resolved from session cookie. Passed to SSRRenderContext for AuthProvider. */
+    ssrAuth?: import('@vertz/ui/internals').SSRAuth;
   },
 ): Promise<SSRRenderResult> {
   const normalizedUrl = url.endsWith('/index.html')
@@ -166,6 +170,11 @@ export async function ssrRenderToString(
 
   ensureDomShim();
   const ctx = createRequestContext(normalizedUrl);
+
+  // Inject auth state so AuthProvider can hydrate synchronously during SSR
+  if (options?.ssrAuth) {
+    ctx.ssrAuth = options.ssrAuth;
+  }
 
   return ssrStorage.run(ctx, async () => {
     try {
@@ -193,6 +202,17 @@ export async function ssrRenderToString(
 
       // Pass 1: Discovery — triggers query() registrations and lazy route component discovery
       createApp();
+
+      // If ProtectedRoute wrote a redirect during Pass 1, skip Pass 2 entirely
+      if (ctx.ssrRedirect) {
+        return {
+          html: '',
+          css: '',
+          ssrData: [],
+          headTags: '',
+          redirect: ctx.ssrRedirect,
+        };
+      }
 
       // Resolve lazy route components discovered during Pass 1.
       // Always set resolvedComponents (even if empty) so Pass 2's

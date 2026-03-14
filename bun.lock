@@ -534,6 +534,7 @@
       "devDependencies": {
         "@happy-dom/global-registrator": "^20.8.3",
         "@vertz/codegen": "workspace:^",
+        "@vertz/ui-auth": "workspace:^",
         "bun-types": "^1.3.10",
         "bunup": "^0.16.31",
         "happy-dom": "^20.8.3",

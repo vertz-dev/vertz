@@ -9,6 +9,7 @@
  */
 
 import { compileTheme, type FontFallbackMetrics, type PreloadItem } from '@vertz/ui';
+import type { SSRAuth } from '@vertz/ui/internals';
 import { escapeAttr } from './html-serializer';
 import { createAccessSetScript } from './ssr-access-set';
 import type { SSRModule } from './ssr-render';
@@ -151,18 +152,27 @@ export function createSSRHandler(
 
     // Resolve session in isolated try/catch (graceful degradation)
     let sessionScript = '';
+    let ssrAuth: SSRAuth | undefined;
     if (sessionResolver) {
       try {
         const sessionResult = await sessionResolver(request);
         if (sessionResult) {
+          ssrAuth = {
+            status: 'authenticated',
+            user: sessionResult.session.user,
+            expiresAt: sessionResult.session.expiresAt,
+          };
           const scripts: string[] = [];
           scripts.push(createSessionScript(sessionResult.session, nonce));
           if (sessionResult.accessSet != null) {
             scripts.push(createAccessSetScript(sessionResult.accessSet, nonce));
           }
           sessionScript = scripts.join('\n');
+        } else {
+          ssrAuth = { status: 'unauthenticated' };
         }
       } catch (resolverErr) {
+        // ssrAuth stays undefined → auth unknown during SSR → no redirect
         console.warn(
           '[Server] Session resolver failed:',
           resolverErr instanceof Error ? resolverErr.message : resolverErr,
@@ -174,7 +184,7 @@ export function createSSRHandler(
     return handleHTMLRequest(
       module,
       template,
-      pathname,
+      pathname + url.search,
       ssrTimeout,
       nonce,
       fallbackMetrics,
@@ -182,6 +192,7 @@ export function createSSRHandler(
       modulepreloadTags,
       cacheControl,
       sessionScript,
+      ssrAuth,
     );
   };
 }
@@ -232,9 +243,18 @@ async function handleHTMLRequest(
   modulepreloadTags?: string,
   cacheControl?: string,
   sessionScript?: string,
+  ssrAuth?: SSRAuth,
 ): Promise<Response> {
   try {
-    const result = await ssrRenderToString(module, url, { ssrTimeout, fallbackMetrics });
+    const result = await ssrRenderToString(module, url, { ssrTimeout, fallbackMetrics, ssrAuth });
+
+    // SSR redirect — return 302 instead of rendered HTML
+    if (result.redirect) {
+      return new Response(null, {
+        status: 302,
+        headers: { Location: result.redirect.to },
+      });
+    }
 
     // Combine head tags: font preloads + modulepreload links
     const allHeadTags = [result.headTags, modulepreloadTags].filter(Boolean).join('\n');

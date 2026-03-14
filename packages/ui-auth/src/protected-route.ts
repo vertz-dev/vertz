@@ -2,7 +2,7 @@ import type { ReadonlySignal } from '@vertz/ui';
 import { computed, useContext } from '@vertz/ui';
 import type { Entitlement } from '@vertz/ui/auth';
 import { AuthContext, can } from '@vertz/ui/auth';
-import { domEffect, isBrowser } from '@vertz/ui/internals';
+import { domEffect, getSSRContext, isBrowser } from '@vertz/ui/internals';
 import { RouterContext } from '@vertz/ui/router';
 
 export interface ProtectedRouteProps {
@@ -51,7 +51,18 @@ export function ProtectedRoute({
     return !(ctx.isAuthenticated as boolean);
   });
 
-  if (router) {
+  // Side effect: redirect on unauthenticated states.
+  // Use getSSRContext() to detect active SSR render — more precise than isBrowser()
+  // which also returns false in non-browser test environments.
+  const ssrCtx = getSSRContext();
+  if (ssrCtx) {
+    // SSR: write redirect to context so the server can return 302
+    if (shouldRedirect.value) {
+      const search = returnTo ? `?returnTo=${encodeURIComponent(ssrCtx.url)}` : '';
+      ssrCtx.ssrRedirect = { to: `${loginPath}${search}` };
+    }
+  } else if (router) {
+    // Client: domEffect tracks dependencies reactively and re-runs when shouldRedirect changes.
     domEffect(() => {
       if (shouldRedirect.value) {
         const search =
