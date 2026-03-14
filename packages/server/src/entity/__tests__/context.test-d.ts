@@ -1,5 +1,5 @@
-import { d } from '@vertz/db';
 import { describe, it } from 'bun:test';
+import { d } from '@vertz/db';
 import { createEntityContext } from '../context';
 import type { EntityOperations } from '../entity-operations';
 import type { EntityContext } from '../types';
@@ -95,16 +95,13 @@ describe('EntityContext type flow', () => {
     type Ctx = EntityContext;
     const _check1: string | null = {} as Ctx['userId'];
     const _check2: Ctx['userId'] = {} as string | null;
-    void _check1; void _check2;
+    void _check1;
+    void _check2;
   });
 
   it('createEntityContext() return type preserves TModel generic', () => {
     // Verify the factory function threads TModel through to the return type
-    const ctx = createEntityContext(
-      { userId: 'user-1' },
-      {} as EntityOperations<UsersModel>,
-      {},
-    );
+    const ctx = createEntityContext({ userId: 'user-1' }, {} as EntityOperations<UsersModel>, {});
 
     // ctx.entity should be typed with UsersModel
     type CreateParam = Parameters<typeof ctx.entity.create>[0];

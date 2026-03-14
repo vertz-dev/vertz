@@ -51,9 +51,7 @@ describe('discriminatedUnion', () => {
       s.object({ type: s.literal('b'), count: s.number() }),
     ]);
     type Output = Unwrap<ReturnType<typeof schema.parse>>;
-    type _t1 = Expect<Equal<Output,
-      { type: 'a'; value: string } | { type: 'b'; count: number }
-    >>;
+    type _t1 = Expect<Equal<Output, { type: 'a'; value: string } | { type: 'b'; count: number }>>;
   });
 
   it('requires at least one option', () => {

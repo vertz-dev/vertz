@@ -14,7 +14,9 @@
     "provenance": true
   },
   "sideEffects": false,
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "exports": {
     "./server": {
       "import": "./dist/server.js",

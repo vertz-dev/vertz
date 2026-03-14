@@ -32,6 +32,7 @@ describe('ManifestGenerator type-level tests', () => {
   it('ManifestDiagnostic severity is union type', () => {
     const _check1: 'error' | 'warning' | 'info' = {} as ManifestDiagnostic['severity'];
     const _check2: ManifestDiagnostic['severity'] = {} as 'error' | 'warning' | 'info';
-    void _check1; void _check2;
+    void _check1;
+    void _check2;
   });
 });

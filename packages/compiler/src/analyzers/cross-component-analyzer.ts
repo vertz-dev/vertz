@@ -115,7 +115,7 @@ export class CrossComponentAnalyzer extends BaseAnalyzer<CrossComponentAnalyzerR
 
       const nameNode = attr.getNameNode();
       const propName = nameNode.getText();
-      
+
       // Skip ref and key
       if (propName === 'ref' || propName === 'key') {
         continue;
@@ -157,17 +157,22 @@ export class CrossComponentAnalyzer extends BaseAnalyzer<CrossComponentAnalyzerR
   private traceExpressionToSource(
     expr: Expression,
     parentData: ComponentFieldAccess,
-  ): { kind: 'query' | 'prop'; queryVar?: string; parentProp?: string; isArrayElement?: boolean } | null {
+  ): {
+    kind: 'query' | 'prop';
+    queryVar?: string;
+    parentProp?: string;
+    isArrayElement?: boolean;
+  } | null {
     // Handle direct identifier
     if (Node.isIdentifier(expr)) {
       const name = expr.getText();
       // Check if it's a query variable
-      const queryAccess = parentData.queryAccess.find(q => q.queryVar === name);
+      const queryAccess = parentData.queryAccess.find((q) => q.queryVar === name);
       if (queryAccess) {
         return { kind: 'query', queryVar: name };
       }
       // Check if it's a prop (destructured)
-      const propAccess = parentData.propAccess.find(p => p.propName === name);
+      const propAccess = parentData.propAccess.find((p) => p.propName === name);
       if (propAccess) {
         return { kind: 'prop', parentProp: name };
       }
@@ -196,7 +201,7 @@ export class CrossComponentAnalyzer extends BaseAnalyzer<CrossComponentAnalyzerR
       const baseName = base.getText();
 
       // Check if it traces to a query
-      const queryAccess = parentData.queryAccess.find(q => q.queryVar === baseName);
+      const queryAccess = parentData.queryAccess.find((q) => q.queryVar === baseName);
       if (queryAccess) {
         // Check if it's accessing .data property
         if (this.isDataPropertyAccess(expr, baseName)) {
@@ -205,7 +210,9 @@ export class CrossComponentAnalyzer extends BaseAnalyzer<CrossComponentAnalyzerR
       }
 
       // Check if it traces to a prop
-      const propAccess = parentData.propAccess.find(p => p.propName === baseName || this.extractPropName(expr) === p.propName);
+      const propAccess = parentData.propAccess.find(
+        (p) => p.propName === baseName || this.extractPropName(expr) === p.propName,
+      );
       if (propAccess) {
         return { kind: 'prop', parentProp: propAccess.propName };
       }
@@ -220,7 +227,7 @@ export class CrossComponentAnalyzer extends BaseAnalyzer<CrossComponentAnalyzerR
       if (!base) return null;
 
       const baseName = base.getText();
-      const queryAccess = parentData.queryAccess.find(q => q.queryVar === baseName);
+      const queryAccess = parentData.queryAccess.find((q) => q.queryVar === baseName);
       if (queryAccess) {
         return { kind: 'query', queryVar: baseName, isArrayElement: true };
       }
@@ -233,7 +240,7 @@ export class CrossComponentAnalyzer extends BaseAnalyzer<CrossComponentAnalyzerR
       const callExpr = expr.getExpression();
       if (Node.isPropertyAccessExpression(callExpr)) {
         const methodName = callExpr.getName();
-        
+
         // Check if it's an array method
         if (['map', 'filter', 'find', 'slice'].includes(methodName)) {
           const obj = callExpr.getExpression();
@@ -241,25 +248,27 @@ export class CrossComponentAnalyzer extends BaseAnalyzer<CrossComponentAnalyzerR
           if (!base) return null;
 
           const baseName = base.getText();
-          const queryAccess = parentData.queryAccess.find(q => q.queryVar === baseName);
+          const queryAccess = parentData.queryAccess.find((q) => q.queryVar === baseName);
           if (queryAccess) {
             // These methods preserve entity data but operate on elements
             const isElementMethod = ['map', 'filter', 'find'].includes(methodName);
-            return { 
-              kind: 'query', 
-              queryVar: baseName, 
-              isArrayElement: isElementMethod 
+            return {
+              kind: 'query',
+              queryVar: baseName,
+              isArrayElement: isElementMethod,
             };
           }
 
           // Check if it traces to a prop array method
-          const propAccess = parentData.propAccess.find(p => p.propName === baseName || this.extractPropName(obj) === p.propName);
+          const propAccess = parentData.propAccess.find(
+            (p) => p.propName === baseName || this.extractPropName(obj) === p.propName,
+          );
           if (propAccess) {
             const isElementMethod = ['map', 'filter', 'find'].includes(methodName);
-            return { 
-              kind: 'prop', 
+            return {
+              kind: 'prop',
               parentProp: propAccess.propName,
-              isArrayElement: isElementMethod 
+              isArrayElement: isElementMethod,
             };
           }
         }
@@ -273,7 +282,12 @@ export class CrossComponentAnalyzer extends BaseAnalyzer<CrossComponentAnalyzerR
   private traceCallbackParameter(
     identifier: Expression,
     parentData: ComponentFieldAccess,
-  ): { kind: 'query' | 'prop'; queryVar?: string; parentProp?: string; isArrayElement?: boolean } | null {
+  ): {
+    kind: 'query' | 'prop';
+    queryVar?: string;
+    parentProp?: string;
+    isArrayElement?: boolean;
+  } | null {
     if (!Node.isIdentifier(identifier)) return null;
 
     const paramName = identifier.getText();
@@ -282,12 +296,12 @@ export class CrossComponentAnalyzer extends BaseAnalyzer<CrossComponentAnalyzerR
     let current: any = identifier;
     while (current) {
       const parent = current.getParent();
-      
+
       // Check if we're inside an arrow function that's a callback to map/filter/etc
       if (parent && Node.isArrowFunction(parent)) {
         const params = parent.getParameters();
-        const isParam = params.some(p => p.getName() === paramName);
-        
+        const isParam = params.some((p) => p.getName() === paramName);
+
         if (isParam) {
           // Found the arrow function where this is a parameter
           // Now find the call expression that uses this arrow function
@@ -296,7 +310,7 @@ export class CrossComponentAnalyzer extends BaseAnalyzer<CrossComponentAnalyzerR
             const callExpr = callParent.getExpression();
             if (Node.isPropertyAccessExpression(callExpr)) {
               const methodName = callExpr.getName();
-              
+
               if (['map', 'filter', 'find', 'some', 'every', 'forEach'].includes(methodName)) {
                 // Trace the object being called (e.g., posts.data or props.items)
                 const obj = callExpr.getExpression();
@@ -306,14 +320,17 @@ export class CrossComponentAnalyzer extends BaseAnalyzer<CrossComponentAnalyzerR
           }
         }
       }
-      
+
       current = parent;
     }
 
     return null;
   }
 
-  private findVariableDeclaration(sourceFile: SourceFile, varName: string): VariableDeclaration | null {
+  private findVariableDeclaration(
+    sourceFile: SourceFile,
+    varName: string,
+  ): VariableDeclaration | null {
     let result: VariableDeclaration | null = null;
     sourceFile.forEachDescendant((node) => {
       if (Node.isVariableDeclaration(node)) {
@@ -342,11 +359,11 @@ export class CrossComponentAnalyzer extends BaseAnalyzer<CrossComponentAnalyzerR
     while (Node.isPropertyAccessExpression(current)) {
       const name = current.getName();
       const obj = current.getExpression();
-      
+
       if (name === 'data' && Node.isIdentifier(obj) && obj.getText() === baseName) {
         return true;
       }
-      
+
       current = obj;
     }
     return false;
@@ -368,14 +385,11 @@ export class CrossComponentAnalyzer extends BaseAnalyzer<CrossComponentAnalyzerR
     return null;
   }
 
-  private resolveComponentPath(
-    componentName: string,
-    _parentPath: string,
-  ): string | null {
+  private resolveComponentPath(componentName: string, _parentPath: string): string | null {
     // Try to find the component in the project
     for (const sourceFile of this.project.getSourceFiles()) {
       const filePath = this.normalizeFilePath(sourceFile);
-      
+
       // Check function declarations
       const funcDecls = sourceFile.getFunctions();
       for (const func of funcDecls) {
@@ -448,9 +462,9 @@ export class CrossComponentAnalyzer extends BaseAnalyzer<CrossComponentAnalyzerR
     // Start with local field accesses
     const compData = componentMap.get(component);
     if (compData) {
-      const queryAccess = compData.queryAccess.find(q => q.queryVar === queryVar);
+      const queryAccess = compData.queryAccess.find((q) => q.queryVar === queryVar);
       if (queryAccess) {
-        queryAccess.fields.forEach(f => fields.add(f));
+        queryAccess.fields.forEach((f) => fields.add(f));
         if (queryAccess.hasOpaqueAccess) {
           hasOpaqueAccess = true;
         }
@@ -490,9 +504,9 @@ export class CrossComponentAnalyzer extends BaseAnalyzer<CrossComponentAnalyzerR
       if (!childComp) continue;
 
       // Find field accesses on this prop
-      const propAccess = childComp.propAccess.find(p => p.propName === current.prop);
+      const propAccess = childComp.propAccess.find((p) => p.propName === current.prop);
       if (propAccess) {
-        propAccess.fields.forEach(f => fields.add(f));
+        propAccess.fields.forEach((f) => fields.add(f));
         if (propAccess.hasOpaqueAccess) {
           hasOpaqueAccess = true;
         }
@@ -500,7 +514,11 @@ export class CrossComponentAnalyzer extends BaseAnalyzer<CrossComponentAnalyzerR
 
       // Find downstream edges (this component passes the prop to children)
       for (const edge of propFlowGraph) {
-        if (edge.parent === current.component && edge.sourceKind === 'prop' && edge.parentProp === current.prop) {
+        if (
+          edge.parent === current.component &&
+          edge.sourceKind === 'prop' &&
+          edge.parentProp === current.prop
+        ) {
           queue.push({
             component: edge.child,
             prop: edge.childProp,

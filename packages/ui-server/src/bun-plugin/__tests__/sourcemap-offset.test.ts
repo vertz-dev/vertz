@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it, vi } from 'bun:test';
-import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
+import { originalPositionFor, TraceMap } from '@jridgewell/trace-mapping';
 
 import { createVertzBunPlugin } from '../plugin';
 
@@ -28,9 +28,7 @@ export default function TodoList() {
 
 // Helper: extract inline source map from plugin output
 function extractSourceMap(contents: string): TraceMap | null {
-  const match = contents.match(
-    /\/\/# sourceMappingURL=data:application\/json;base64,(.+)$/m,
-  );
+  const match = contents.match(/\/\/# sourceMappingURL=data:application\/json;base64,(.+)$/m);
   if (!match) return null;
   const json = Buffer.from(match[1], 'base64').toString('utf-8');
   return new TraceMap(json);

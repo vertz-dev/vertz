@@ -1,7 +1,7 @@
 import { describe, it } from 'bun:test';
-import type { Equal, Expect, Unwrap } from './_type-helpers';
 import type { ReadonlySchema, SchemaAny } from '../core/schema';
 import { s } from '../index';
+import type { Equal, Expect, Unwrap } from './_type-helpers';
 
 describe('optional', () => {
   it('adds undefined to output', () => {

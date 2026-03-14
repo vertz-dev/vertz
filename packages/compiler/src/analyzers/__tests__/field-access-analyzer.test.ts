@@ -1,5 +1,5 @@
-import { Project } from 'ts-morph';
 import { describe, expect, it } from 'bun:test';
+import { Project } from 'ts-morph';
 import { resolveConfig } from '../../config';
 import { FieldAccessAnalyzer } from '../field-access-analyzer';
 
@@ -123,8 +123,8 @@ function Component() {
       const analyzer = new FieldAccessAnalyzer(project, resolveConfig());
       const results = await analyzer.analyze();
       expect(results[0].queryAccess).toHaveLength(2);
-      expect(results[0].queryAccess.find(q => q.queryVar === 'posts')?.fields).toEqual(['title']);
-      expect(results[0].queryAccess.find(q => q.queryVar === 'users')?.fields).toEqual(['name']);
+      expect(results[0].queryAccess.find((q) => q.queryVar === 'posts')?.fields).toEqual(['title']);
+      expect(results[0].queryAccess.find((q) => q.queryVar === 'users')?.fields).toEqual(['name']);
     });
 
     it('flags opaque access (computed property)', async () => {
@@ -230,8 +230,8 @@ function Component() {
       const analyzer = new FieldAccessAnalyzer(project, resolveConfig());
       const results = await analyzer.analyze();
       expect(results[0].propAccess).toHaveLength(2);
-      expect(results[0].propAccess.find(p => p.propName === 'post')?.fields).toEqual(['title']);
-      expect(results[0].propAccess.find(p => p.propName === 'user')?.fields).toEqual(['name']);
+      expect(results[0].propAccess.find((p) => p.propName === 'post')?.fields).toEqual(['title']);
+      expect(results[0].propAccess.find((p) => p.propName === 'user')?.fields).toEqual(['name']);
     });
 
     it('handles destructured props', async () => {
@@ -316,8 +316,8 @@ function A() {
       const analyzer = new FieldAccessAnalyzer(project, resolveConfig());
       const results = await analyzer.analyze();
       expect(results).toHaveLength(2);
-      const compA = results.find(r => r.component === 'src/a.tsx');
-      const compB = results.find(r => r.component === 'src/b.tsx');
+      const compA = results.find((r) => r.component === 'src/a.tsx');
+      const compB = results.find((r) => r.component === 'src/b.tsx');
       expect(compA?.queryAccess[0].fields).toEqual(['title']);
       expect(compB?.propAccess[0].fields).toEqual(['name']);
     });

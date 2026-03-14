@@ -5,12 +5,10 @@
  * If this test fails, it means the registry and the manifest are out of sync.
  * Run `generateFrameworkManifest()` and write its output to reactivity.json.
  */
-import { resolve } from 'node:path';
+
 import { describe, expect, it } from 'bun:test';
-import {
-  REACTIVE_SOURCE_APIS,
-  SIGNAL_API_REGISTRY,
-} from '../signal-api-registry';
+import { resolve } from 'node:path';
+import { REACTIVE_SOURCE_APIS, SIGNAL_API_REGISTRY } from '../signal-api-registry';
 import type { ReactivityManifest } from '../types';
 
 /**
@@ -67,22 +65,26 @@ function generateFrameworkManifest(): ReactivityManifest {
  * so the comparison is deterministic regardless of insertion order.
  */
 function normalize(manifest: ReactivityManifest): string {
-  return JSON.stringify(manifest, (_key, value) => {
-    if (value instanceof Set) {
-      return [...value].sort();
-    }
-    if (Array.isArray(value)) {
-      return [...value].sort();
-    }
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      const sorted: Record<string, unknown> = {};
-      for (const k of Object.keys(value).sort()) {
-        sorted[k] = value[k];
+  return JSON.stringify(
+    manifest,
+    (_key, value) => {
+      if (value instanceof Set) {
+        return [...value].sort();
       }
-      return sorted;
-    }
-    return value;
-  }, 2);
+      if (Array.isArray(value)) {
+        return [...value].sort();
+      }
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const sorted: Record<string, unknown> = {};
+        for (const k of Object.keys(value).sort()) {
+          sorted[k] = value[k];
+        }
+        return sorted;
+      }
+      return value;
+    },
+    2,
+  );
 }
 
 describe('framework manifest consistency', () => {

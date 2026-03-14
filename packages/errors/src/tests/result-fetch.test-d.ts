@@ -25,40 +25,52 @@ describe('FetchError class shapes', () => {
   it('FetchNetworkError has code NetworkError', () => {
     const _check1: 'NetworkError' = {} as FetchNetworkError['code'];
     const _check2: FetchNetworkError['code'] = {} as 'NetworkError';
-    void _check1; void _check2;
+    void _check1;
+    void _check2;
   });
 
   it('HttpError has code HttpError and status', () => {
     const _check1: 'HttpError' = {} as HttpError['code'];
     const _check2: HttpError['code'] = {} as 'HttpError';
-    void _check1; void _check2;
+    void _check1;
+    void _check2;
     const _check3: number = {} as HttpError['status'];
     const _check4: HttpError['status'] = {} as number;
-    void _check3; void _check4;
+    void _check3;
+    void _check4;
   });
 
   it('FetchTimeoutError has code TimeoutError', () => {
     const _check1: 'TimeoutError' = {} as FetchTimeoutError['code'];
     const _check2: FetchTimeoutError['code'] = {} as 'TimeoutError';
-    void _check1; void _check2;
+    void _check1;
+    void _check2;
   });
 
   it('ParseError has code ParseError and path', () => {
     const _check1: 'ParseError' = {} as ParseError['code'];
     const _check2: ParseError['code'] = {} as 'ParseError';
-    void _check1; void _check2;
+    void _check1;
+    void _check2;
     const _check3: string = {} as ParseError['path'];
     const _check4: ParseError['path'] = {} as string;
-    void _check3; void _check4;
+    void _check3;
+    void _check4;
   });
 
   it('FetchValidationError has code ValidationError and errors', () => {
     const _check1: 'ValidationError' = {} as FetchValidationError['code'];
     const _check2: FetchValidationError['code'] = {} as 'ValidationError';
-    void _check1; void _check2;
-    const _check3: readonly { readonly path: string; readonly message: string }[] = {} as FetchValidationError['errors'];
-    const _check4: FetchValidationError['errors'] = {} as readonly { readonly path: string; readonly message: string }[];
-    void _check3; void _check4;
+    void _check1;
+    void _check2;
+    const _check3: readonly { readonly path: string; readonly message: string }[] =
+      {} as FetchValidationError['errors'];
+    const _check4: FetchValidationError['errors'] = {} as readonly {
+      readonly path: string;
+      readonly message: string;
+    }[];
+    void _check3;
+    void _check4;
   });
 });
 

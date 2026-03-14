@@ -1,4 +1,10 @@
-import type { CallExpression, Expression, Node, ObjectLiteralExpression, SourceFile } from 'ts-morph';
+import type {
+  CallExpression,
+  Expression,
+  Node,
+  ObjectLiteralExpression,
+  SourceFile,
+} from 'ts-morph';
 import { SyntaxKind } from 'ts-morph';
 import type {
   AccessEntityIR,

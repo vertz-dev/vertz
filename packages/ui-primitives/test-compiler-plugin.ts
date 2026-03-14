@@ -3,8 +3,9 @@
  * at test time. This ensures `let` → signal() and JSX → __element()/__attr()
  * transforms run during `bun test`, matching the build-time behavior.
  */
-import { plugin } from 'bun';
+
 import { compile } from '@vertz/ui-compiler';
+import { plugin } from 'bun';
 
 plugin({
   name: 'vertz-test-compiler',

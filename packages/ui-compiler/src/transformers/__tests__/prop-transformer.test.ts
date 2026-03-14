@@ -1,6 +1,6 @@
+import { describe, expect, it } from 'bun:test';
 import MagicString from 'magic-string';
 import { Project, ts } from 'ts-morph';
-import { describe, expect, it } from 'bun:test';
 import { ComponentAnalyzer } from '../../analyzers/component-analyzer';
 import { JsxAnalyzer } from '../../analyzers/jsx-analyzer';
 import type { VariableInfo } from '../../types';

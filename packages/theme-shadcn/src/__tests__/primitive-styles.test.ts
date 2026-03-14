@@ -118,9 +118,7 @@ describe('select', () => {
     // display:none is allowed for the indicator (hidden until selected),
     // but not for the content panel animated open/close states.
     const contentClass = select.content;
-    const contentRules = select.css
-      .split('}')
-      .filter((rule) => rule.includes(contentClass));
+    const contentRules = select.css.split('}').filter((rule) => rule.includes(contentClass));
     for (const rule of contentRules) {
       expect(rule).not.toContain('display: none');
     }

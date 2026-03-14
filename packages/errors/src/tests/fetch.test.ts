@@ -2,39 +2,39 @@
  * Tests for FetchError classes.
  */
 
-import { describe, it, expect } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 import {
-  FetchNetworkError,
-  HttpError,
+  createHttpError,
   FetchBadRequestError,
-  FetchUnauthorizedError,
-  FetchForbiddenError,
-  FetchNotFoundError,
   FetchConflictError,
+  FetchForbiddenError,
   FetchGoneError,
-  FetchUnprocessableEntityError,
-  FetchRateLimitError,
   FetchInternalServerError,
+  FetchNetworkError,
+  FetchNotFoundError,
+  FetchRateLimitError,
   FetchServiceUnavailableError,
   FetchTimeoutError,
-  ParseError,
+  FetchUnauthorizedError,
+  FetchUnprocessableEntityError,
   FetchValidationError,
-  isFetchNetworkError,
-  isHttpError,
+  HttpError,
   isFetchBadRequestError,
-  isFetchUnauthorizedError,
-  isFetchForbiddenError,
-  isFetchNotFoundError,
   isFetchConflictError,
+  isFetchForbiddenError,
   isFetchGoneError,
-  isFetchUnprocessableEntityError,
-  isFetchRateLimitError,
   isFetchInternalServerError,
+  isFetchNetworkError,
+  isFetchNotFoundError,
+  isFetchRateLimitError,
   isFetchServiceUnavailableError,
   isFetchTimeoutError,
-  isParseError,
+  isFetchUnauthorizedError,
+  isFetchUnprocessableEntityError,
   isFetchValidationError,
-  createHttpError,
+  isHttpError,
+  isParseError,
+  ParseError,
 } from '../fetch.js';
 
 describe('FetchError classes', () => {
@@ -409,14 +409,18 @@ describe('FetchError classes', () => {
 
     it('should correctly identify FetchInternalServerError (500)', () => {
       expect(isFetchInternalServerError(new FetchInternalServerError('Server error'))).toBe(true);
-      expect(isFetchInternalServerError(new FetchServiceUnavailableError('Unavailable'))).toBe(false);
+      expect(isFetchInternalServerError(new FetchServiceUnavailableError('Unavailable'))).toBe(
+        false,
+      );
     });
 
     it('should correctly identify FetchServiceUnavailableError (503)', () => {
       expect(isFetchServiceUnavailableError(new FetchServiceUnavailableError('Unavailable'))).toBe(
         true,
       );
-      expect(isFetchServiceUnavailableError(new FetchInternalServerError('Server error'))).toBe(false);
+      expect(isFetchServiceUnavailableError(new FetchInternalServerError('Server error'))).toBe(
+        false,
+      );
     });
   });
 
@@ -518,4 +522,9 @@ describe('FetchError classes', () => {
 /**
  * Union type for all FetchError types
  */
-export type FetchError = FetchNetworkError | HttpError | FetchTimeoutError | ParseError | FetchValidationError;
+export type FetchError =
+  | FetchNetworkError
+  | HttpError
+  | FetchTimeoutError
+  | ParseError
+  | FetchValidationError;

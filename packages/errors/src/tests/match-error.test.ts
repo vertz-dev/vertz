@@ -2,38 +2,44 @@
  * Tests for matchError() utility.
  */
 
-import { describe, it, expect } from 'bun:test';
-import { matchError } from '../match-error.js';
-import { FetchNetworkError, HttpError, FetchTimeoutError, ParseError, FetchValidationError } from '../fetch.js';
+import { describe, expect, it } from 'bun:test';
 import {
   BadRequestError,
-  EntityUnauthorizedError,
+  EntityConflictError,
   EntityForbiddenError,
   EntityNotFoundError,
-  MethodNotAllowedError,
-  EntityConflictError,
+  EntityUnauthorizedError,
   EntityValidationError,
   InternalError,
+  MethodNotAllowedError,
   ServiceUnavailableError,
 } from '../entity.js';
+import {
+  FetchNetworkError,
+  FetchTimeoutError,
+  FetchValidationError,
+  HttpError,
+  ParseError,
+} from '../fetch.js';
+import { matchError } from '../match-error.js';
 
 // Test helper to simulate matchError usage
-type FetchErrorType = 
-  | FetchNetworkError 
-  | HttpError 
-  | FetchTimeoutError 
-  | ParseError 
+type FetchErrorType =
+  | FetchNetworkError
+  | HttpError
+  | FetchTimeoutError
+  | ParseError
   | FetchValidationError;
 
-type EntityErrorType = 
-  | BadRequestError 
-  | EntityUnauthorizedError 
-  | EntityForbiddenError 
-  | EntityNotFoundError 
-  | MethodNotAllowedError 
-  | EntityConflictError 
-  | EntityValidationError 
-  | InternalError 
+type EntityErrorType =
+  | BadRequestError
+  | EntityUnauthorizedError
+  | EntityForbiddenError
+  | EntityNotFoundError
+  | MethodNotAllowedError
+  | EntityConflictError
+  | EntityValidationError
+  | InternalError
   | ServiceUnavailableError;
 
 describe('matchError', () => {

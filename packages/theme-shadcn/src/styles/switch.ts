@@ -53,7 +53,8 @@ export function createSwitchStyles(): CSSOutput<SwitchBlocks> {
         '&': [
           {
             property: 'transition',
-            value: 'transform 150ms cubic-bezier(0.4, 0, 0.2, 1), width 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+            value:
+              'transform 150ms cubic-bezier(0.4, 0, 0.2, 1), width 150ms cubic-bezier(0.4, 0, 0.2, 1)',
           },
         ],
       },
@@ -114,7 +115,8 @@ export function createSwitchStyles(): CSSOutput<SwitchBlocks> {
         '&': [
           {
             property: 'transition',
-            value: 'transform 150ms cubic-bezier(0.4, 0, 0.2, 1), width 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+            value:
+              'transform 150ms cubic-bezier(0.4, 0, 0.2, 1), width 150ms cubic-bezier(0.4, 0, 0.2, 1)',
           },
         ],
       },

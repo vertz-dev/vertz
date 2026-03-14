@@ -2,10 +2,7 @@
 export type ComponentLoader = () => Promise<{ default: ComponentFunction }>;
 
 /** A component function that takes props and optionally an element to mount into. May return a Node. */
-export type ComponentFunction = (
-  props: Record<string, unknown>,
-  el?: Element,
-) => Node | void;
+export type ComponentFunction = (props: Record<string, unknown>, el?: Element) => Node | void;
 
 /** Maps component IDs to their dynamic import loaders. */
 export type ComponentRegistry = Record<string, ComponentLoader>;

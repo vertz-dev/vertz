@@ -85,7 +85,9 @@ export class FieldAccessAnalyzer extends BaseAnalyzer<FieldAccessAnalyzerResult>
     };
   }
 
-  private findQueryCalls(sourceFile: SourceFile): Array<{ queryVar: string; callExpr: CallExpression }> {
+  private findQueryCalls(
+    sourceFile: SourceFile,
+  ): Array<{ queryVar: string; callExpr: CallExpression }> {
     const queries: Array<{ queryVar: string; callExpr: CallExpression }> = [];
 
     sourceFile.forEachDescendant((node) => {
@@ -104,9 +106,7 @@ export class FieldAccessAnalyzer extends BaseAnalyzer<FieldAccessAnalyzerResult>
     return queries;
   }
 
-  private findComponents(
-    sourceFile: SourceFile,
-  ): Array<FunctionDeclaration | ArrowFunction> {
+  private findComponents(sourceFile: SourceFile): Array<FunctionDeclaration | ArrowFunction> {
     const components: Array<FunctionDeclaration | ArrowFunction> = [];
 
     sourceFile.forEachDescendant((node) => {
@@ -183,7 +183,7 @@ export class FieldAccessAnalyzer extends BaseAnalyzer<FieldAccessAnalyzerResult>
     } else {
       // Non-destructured: look for props.X.Y
       const visited = new Map<string, Set<string>>(); // Track visited chains per prop
-      
+
       // Also handle array methods on props (e.g., props.items.map(...))
       component.forEachDescendant((node) => {
         if (Node.isCallExpression(node)) {
@@ -204,20 +204,20 @@ export class FieldAccessAnalyzer extends BaseAnalyzer<FieldAccessAnalyzerResult>
                       if (params.length > 0) {
                         const paramName = params[0].getName();
                         const callbackFields = this.extractFieldsFromCallback(callback, paramName);
-                        
+
                         if (!propAccess.has(propName)) {
                           propAccess.set(propName, { fields: new Set(), hasOpaque: false });
                           visited.set(propName, new Set());
                         }
-                        
+
                         const visitedSet = visited.get(propName)!;
-                        callbackFields.fields.forEach(f => {
+                        callbackFields.fields.forEach((f) => {
                           if (!visitedSet.has(f)) {
                             propAccess.get(propName)!.fields.add(f);
                             visitedSet.add(f);
                           }
                         });
-                        
+
                         if (callbackFields.hasOpaque) {
                           propAccess.get(propName)!.hasOpaque = true;
                         }
@@ -230,14 +230,14 @@ export class FieldAccessAnalyzer extends BaseAnalyzer<FieldAccessAnalyzerResult>
           }
         }
       });
-      
+
       component.forEachDescendant((node) => {
         if (Node.isPropertyAccessExpression(node)) {
           // Check if this chain starts with props.propName
           const propChainInfo = this.extractPropChainInfo(node, propsName);
           if (propChainInfo) {
             const { propName, isLeaf } = propChainInfo;
-            
+
             // Skip primitive-like props
             if (this.isPrimitivePropName(propName)) {
               return;
@@ -253,11 +253,11 @@ export class FieldAccessAnalyzer extends BaseAnalyzer<FieldAccessAnalyzerResult>
               // Extract the field path after the prop name
               const fieldPath = this.extractFieldPathFromPropChain(node, propsName, propName);
               const visitedSet = visited.get(propName)!;
-              
+
               if (fieldPath && !visitedSet.has(fieldPath)) {
                 propAccess.get(propName)!.fields.add(fieldPath);
                 visitedSet.add(fieldPath);
-                
+
                 // Mark all prefixes as visited
                 const parts = fieldPath.split('.');
                 for (let i = 1; i < parts.length; i++) {
@@ -294,7 +294,27 @@ export class FieldAccessAnalyzer extends BaseAnalyzer<FieldAccessAnalyzerResult>
   }
 
   private isPrimitivePropName(name: string): boolean {
-    const primitiveProps = ['className', 'onClick', 'onChange', 'style', 'key', 'ref', 'children', 'count', 'value', 'disabled', 'checked', 'href', 'src', 'alt', 'title', 'id', 'name', 'placeholder', 'type'];
+    const primitiveProps = [
+      'className',
+      'onClick',
+      'onChange',
+      'style',
+      'key',
+      'ref',
+      'children',
+      'count',
+      'value',
+      'disabled',
+      'checked',
+      'href',
+      'src',
+      'alt',
+      'title',
+      'id',
+      'name',
+      'placeholder',
+      'type',
+    ];
     return primitiveProps.includes(name);
   }
 
@@ -314,13 +334,13 @@ export class FieldAccessAnalyzer extends BaseAnalyzer<FieldAccessAnalyzerResult>
           // Only track if this is not part of a longer chain
           const parent = node.getParent();
           const isLeaf = !parent || !Node.isPropertyAccessExpression(parent);
-          
+
           if (isLeaf) {
             const fieldPath = this.buildPropertyPath(node);
             if (fieldPath && !visited.has(fieldPath)) {
               fields.add(fieldPath);
               visited.add(fieldPath);
-              
+
               // Mark all prefixes as visited to avoid double-counting
               const parts = fieldPath.split('.');
               for (let i = 1; i < parts.length; i++) {
@@ -369,7 +389,7 @@ export class FieldAccessAnalyzer extends BaseAnalyzer<FieldAccessAnalyzerResult>
                 if (params.length > 0) {
                   const paramName = params[0].getName();
                   const callbackFields = this.extractFieldsFromCallback(callback, paramName);
-                  callbackFields.fields.forEach(f => {
+                  callbackFields.fields.forEach((f) => {
                     if (!visited.has(f)) {
                       fields.add(f);
                       visited.add(f);
@@ -395,15 +415,16 @@ export class FieldAccessAnalyzer extends BaseAnalyzer<FieldAccessAnalyzerResult>
             for (const element of elements) {
               // Get the field name - either from the property name or the element name (for shorthand)
               const propNameNode = element.getPropertyNameNode();
-              const fieldName = propNameNode && Node.isIdentifier(propNameNode) 
-                ? propNameNode.getText() 
-                : element.getName();
+              const fieldName =
+                propNameNode && Node.isIdentifier(propNameNode)
+                  ? propNameNode.getText()
+                  : element.getName();
               const destructuredName = element.getName();
-              
+
               // Track nested access on destructured field
               const nestedFields = this.extractFieldsFromVariable(sourceFile, destructuredName);
               if (nestedFields.fields.length > 0) {
-                nestedFields.fields.forEach(f => {
+                nestedFields.fields.forEach((f) => {
                   const fullPath = `${fieldName}.${f}`;
                   if (!visited.has(fullPath)) {
                     fields.add(fullPath);
@@ -442,7 +463,7 @@ export class FieldAccessAnalyzer extends BaseAnalyzer<FieldAccessAnalyzerResult>
     varName: string,
   ): { fields: string[]; hasOpaque: boolean } {
     const fields = new Set<string>();
-    let hasOpaque = false;
+    const hasOpaque = false;
 
     sourceFile.forEachDescendant((node) => {
       if (Node.isPropertyAccessExpression(node)) {
@@ -451,7 +472,7 @@ export class FieldAccessAnalyzer extends BaseAnalyzer<FieldAccessAnalyzerResult>
           // Build the path but exclude the variable name itself
           const parts: string[] = [];
           let current: any = node;
-          
+
           while (current && Node.isPropertyAccessExpression(current)) {
             const name = current.getName();
             if (name !== varName) {
@@ -459,7 +480,7 @@ export class FieldAccessAnalyzer extends BaseAnalyzer<FieldAccessAnalyzerResult>
             }
             current = current.getExpression();
           }
-          
+
           if (parts.length > 0) {
             fields.add(parts.join('.'));
           }
@@ -517,18 +538,22 @@ export class FieldAccessAnalyzer extends BaseAnalyzer<FieldAccessAnalyzerResult>
     return false;
   }
 
-  private chainsBackToData(node: PropertyAccessExpression, varName: string, dataProperty: string): boolean {
+  private chainsBackToData(
+    node: PropertyAccessExpression,
+    varName: string,
+    dataProperty: string,
+  ): boolean {
     let current: any = node;
-    
+
     while (current) {
       if (Node.isPropertyAccessExpression(current)) {
         const obj = current.getExpression();
-        
+
         // Check if we found the data access
         if (this.isDataAccess(current, varName, dataProperty)) {
           return true;
         }
-        
+
         // Continue walking down
         current = obj;
       } else if (Node.isCallExpression(current)) {
@@ -539,7 +564,7 @@ export class FieldAccessAnalyzer extends BaseAnalyzer<FieldAccessAnalyzerResult>
         break;
       }
     }
-    
+
     return false;
   }
 
@@ -574,7 +599,9 @@ export class FieldAccessAnalyzer extends BaseAnalyzer<FieldAccessAnalyzerResult>
     }
 
     // Filter out 'data' and any method calls like 'map', 'filter'
-    const filtered = parts.filter(p => p !== 'data' && !['map', 'filter', 'find', 'some', 'every', 'forEach'].includes(p));
+    const filtered = parts.filter(
+      (p) => p !== 'data' && !['map', 'filter', 'find', 'some', 'every', 'forEach'].includes(p),
+    );
 
     return filtered.length > 0 ? filtered.join('.') : null;
   }
@@ -586,7 +613,7 @@ export class FieldAccessAnalyzer extends BaseAnalyzer<FieldAccessAnalyzerResult>
     // Walk down to find if this chain starts with props.propName
     let current: any = node;
     const chain: string[] = [];
-    
+
     while (current && Node.isPropertyAccessExpression(current)) {
       chain.unshift(current.getName());
       current = current.getExpression();
@@ -603,7 +630,7 @@ export class FieldAccessAnalyzer extends BaseAnalyzer<FieldAccessAnalyzerResult>
     }
 
     const propName = chain[0];
-    
+
     // Check if this is a leaf (not part of a longer chain)
     const parent = node.getParent();
     const isLeaf = !parent || !Node.isPropertyAccessExpression(parent);

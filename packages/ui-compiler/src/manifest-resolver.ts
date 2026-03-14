@@ -12,9 +12,9 @@
  *
  * @see plans/cross-file-reactivity-analysis.md Section 2.2.4
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { type FileAnalysis, type ReExportRef, analyzeFile } from './manifest-generator';
+import { analyzeFile, type FileAnalysis, type ReExportRef } from './manifest-generator';
 import { loadManifestFromJson } from './reactivity-manifest';
 import type { LoadedReactivityManifest, ReactivityManifest } from './types';
 
@@ -222,8 +222,8 @@ function resolveReExport(
   if (!resolvedPath) return;
 
   // Resolve the target file's manifest first
-  const targetManifest = resolveFileManifest(resolvedPath, ctx) ??
-    ctx.resolvedManifests.get(resolvedPath);
+  const targetManifest =
+    resolveFileManifest(resolvedPath, ctx) ?? ctx.resolvedManifests.get(resolvedPath);
 
   if (!targetManifest) return;
 

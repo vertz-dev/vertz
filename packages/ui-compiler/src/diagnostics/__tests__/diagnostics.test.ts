@@ -1,5 +1,5 @@
-import { Project, ts } from 'ts-morph';
 import { describe, expect, it } from 'bun:test';
+import { Project, ts } from 'ts-morph';
 import { ComponentAnalyzer } from '../../analyzers/component-analyzer';
 import type { ComponentInfo, VariableInfo } from '../../types';
 import { MutationDiagnostics } from '../mutation-diagnostics';

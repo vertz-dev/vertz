@@ -1,10 +1,11 @@
 /**
  * Tests for manifest resolver — cross-file reactivity propagation.
  */
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import {
   generateAllManifests,
   regenerateFileManifest,
@@ -238,9 +239,7 @@ describe('manifest-resolver', () => {
         srcDir: join(project.dir, 'src'),
       });
 
-      const testManifest = result.manifests.get(
-        join(project.dir, 'src/hooks/use-tasks.test.ts'),
-      );
+      const testManifest = result.manifests.get(join(project.dir, 'src/hooks/use-tasks.test.ts'));
       expect(testManifest).toBeUndefined();
     });
 
@@ -430,9 +429,7 @@ describe('manifest-resolver', () => {
         packageManifests: { '@vertz/ui': FRAMEWORK_MANIFEST },
       });
 
-      const hookManifest = result.manifests.get(
-        join(project.dir, 'src/hooks/use-tasks.ts'),
-      );
+      const hookManifest = result.manifests.get(join(project.dir, 'src/hooks/use-tasks.ts'));
       expect(hookManifest).toBeDefined();
 
       const useTasks = hookManifest!.exports.useTasks;

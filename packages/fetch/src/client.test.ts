@@ -1,3 +1,4 @@
+import { describe, expect, it, mock } from 'bun:test';
 import {
   FetchError,
   FetchNetworkError,
@@ -7,7 +8,6 @@ import {
   ParseError,
   unwrap,
 } from '@vertz/errors';
-import { describe, expect, it, mock } from 'bun:test';
 import { FetchClient } from './client';
 
 describe('FetchClient', () => {
@@ -606,8 +606,9 @@ describe('FetchClient edge cases', () => {
 
 describe('FetchClient convenience methods', () => {
   it('get() delegates to request with GET method', async () => {
-    const mockFetch = mock()
-      .mockResolvedValue(new Response(JSON.stringify({ users: [] }), { status: 200 }));
+    const mockFetch = mock().mockResolvedValue(
+      new Response(JSON.stringify({ users: [] }), { status: 200 }),
+    );
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
       fetch: mockFetch,
@@ -623,8 +624,9 @@ describe('FetchClient convenience methods', () => {
   });
 
   it('post() sends body with POST method', async () => {
-    const mockFetch = mock()
-      .mockResolvedValue(new Response(JSON.stringify({ id: 1 }), { status: 201 }));
+    const mockFetch = mock().mockResolvedValue(
+      new Response(JSON.stringify({ id: 1 }), { status: 201 }),
+    );
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
       fetch: mockFetch,
@@ -641,8 +643,9 @@ describe('FetchClient convenience methods', () => {
   });
 
   it('patch() sends body with PATCH method', async () => {
-    const mockFetch = mock()
-      .mockResolvedValue(new Response(JSON.stringify({ id: 1, name: 'Bob' }), { status: 200 }));
+    const mockFetch = mock().mockResolvedValue(
+      new Response(JSON.stringify({ id: 1, name: 'Bob' }), { status: 200 }),
+    );
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
       fetch: mockFetch,
@@ -659,8 +662,9 @@ describe('FetchClient convenience methods', () => {
   });
 
   it('put() sends body with PUT method', async () => {
-    const mockFetch = mock()
-      .mockResolvedValue(new Response(JSON.stringify({ id: 1 }), { status: 200 }));
+    const mockFetch = mock().mockResolvedValue(
+      new Response(JSON.stringify({ id: 1 }), { status: 200 }),
+    );
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
       fetch: mockFetch,
@@ -677,8 +681,9 @@ describe('FetchClient convenience methods', () => {
   });
 
   it('delete() delegates to request with DELETE method', async () => {
-    const mockFetch = mock()
-      .mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 }));
+    const mockFetch = mock().mockResolvedValue(
+      new Response(JSON.stringify({ success: true }), { status: 200 }),
+    );
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
       fetch: mockFetch,
@@ -720,10 +725,9 @@ describe('FetchClient network error handling', () => {
   });
 
   it('should parse serverCode from error response', async () => {
-    const mockFetch = mock()
-      .mockResolvedValue(
-        new Response(JSON.stringify({ error: { code: 'USER_NOT_FOUND' } }), { status: 404 }),
-      );
+    const mockFetch = mock().mockResolvedValue(
+      new Response(JSON.stringify({ error: { code: 'USER_NOT_FOUND' } }), { status: 404 }),
+    );
     const client = new FetchClient({ baseURL: 'http://localhost', fetch: mockFetch });
     const result = await client.get('/test');
     expect(result.ok).toBe(false);
@@ -736,8 +740,9 @@ describe('FetchClient network error handling', () => {
 
 describe('FetchClient buildURL', () => {
   it('preserves base path when path starts with /', async () => {
-    const mockFetch = mock()
-      .mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    const mockFetch = mock().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 }),
+    );
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000/api',
@@ -751,8 +756,9 @@ describe('FetchClient buildURL', () => {
   });
 
   it('preserves base path when path has no leading /', async () => {
-    const mockFetch = mock()
-      .mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    const mockFetch = mock().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 }),
+    );
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000/api',
@@ -825,8 +831,7 @@ describe('FetchClient parse and validation errors', () => {
     const body = {
       error: { code: 'ValidationError', errors: [{ path: 'email', message: 'Invalid email' }] },
     };
-    const mockFetch = mock()
-      .mockResolvedValue(new Response(JSON.stringify(body), { status: 422 }));
+    const mockFetch = mock().mockResolvedValue(new Response(JSON.stringify(body), { status: 422 }));
     const client = new FetchClient({ baseURL: 'http://localhost', fetch: mockFetch });
     const result = await client.get('/test');
     expect(result.ok).toBe(false);

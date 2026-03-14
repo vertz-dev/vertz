@@ -12,7 +12,8 @@ describe('FileChange', () => {
   it('kind is a union type', () => {
     const _check1: 'added' | 'modified' | 'deleted' = {} as FileChange['kind'];
     const _check2: FileChange['kind'] = {} as 'added' | 'modified' | 'deleted';
-    void _check1; void _check2;
+    void _check1;
+    void _check2;
   });
 });
 
@@ -34,11 +35,14 @@ describe('IncrementalCompiler', () => {
   it('constructor requires Compiler', () => {
     const _check1: [Compiler] = {} as ConstructorParameters<typeof IncrementalCompiler>;
     const _check2: ConstructorParameters<typeof IncrementalCompiler> = {} as [Compiler];
-    void _check1; void _check2;
+    void _check1;
+    void _check2;
   });
 
   it('handleChanges returns Promise<IncrementalResult>', () => {
-    const _check: IncrementalResult = {} as Awaited<ReturnType<IncrementalCompiler['handleChanges']>>;
+    const _check: IncrementalResult = {} as Awaited<
+      ReturnType<IncrementalCompiler['handleChanges']>
+    >;
     void _check;
   });
 });

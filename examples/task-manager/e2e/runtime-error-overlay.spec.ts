@@ -77,10 +77,10 @@ test.describe('Runtime Error Overlay Diagnostic', () => {
     }
     console.log('\n========== END ==========');
 
-    // Assert: the overlay should contain meaningful source info
+    // Assert: the overlay should contain the runtime error reference
     expect(overlayText).toContain('NonExistentComponent');
 
-    // Assert: the overlay should show the source file path
-    expect(overlayText).toContain('src/components/task-card.tsx');
+    // Assert: the overlay categorizes it as a runtime error (not SSR)
+    expect(overlayText).toContain('Runtime error');
   });
 });

@@ -38,9 +38,9 @@ export function createMigrationQueryError(
 /**
  * Type guard for MigrationQueryError.
  */
-export function isMigrationQueryError(
-  error: { readonly code: string },
-): error is MigrationQueryError {
+export function isMigrationQueryError(error: {
+  readonly code: string;
+}): error is MigrationQueryError {
   return error.code === 'MIGRATION_QUERY_ERROR';
 }
 
@@ -77,9 +77,9 @@ export function createMigrationChecksumMismatch(
 /**
  * Type guard for MigrationChecksumMismatch.
  */
-export function isMigrationChecksumMismatch(
-  error: { readonly code: string },
-): error is MigrationChecksumMismatch {
+export function isMigrationChecksumMismatch(error: {
+  readonly code: string;
+}): error is MigrationChecksumMismatch {
   return error.code === 'MIGRATION_CHECKSUM_MISMATCH';
 }
 
@@ -106,9 +106,9 @@ export function createMigrationHistoryNotFound(): MigrationHistoryNotFound {
 /**
  * Type guard for MigrationHistoryNotFound.
  */
-export function isMigrationHistoryNotFound(
-  error: { readonly code: string },
-): error is MigrationHistoryNotFound {
+export function isMigrationHistoryNotFound(error: {
+  readonly code: string;
+}): error is MigrationHistoryNotFound {
   return error.code === 'MIGRATION_HISTORY_NOT_FOUND';
 }
 

@@ -1139,11 +1139,10 @@ describe('EntityStore - on-demand eviction during merge', () => {
 describe('EntityStore - field selection tracking', () => {
   it('mergeWithSelect registers select fields and wraps entities in dev proxies', () => {
     const store = new EntityStore({ devMode: true });
-    store.mergeWithSelect(
-      'users',
-      [{ id: 'u1', name: 'Alice', email: 'a@test.com' }],
-      { fields: ['id', 'name', 'email'], querySource: 'GET:/users' },
-    );
+    store.mergeWithSelect('users', [{ id: 'u1', name: 'Alice', email: 'a@test.com' }], {
+      fields: ['id', 'name', 'email'],
+      querySource: 'GET:/users',
+    });
 
     const sig = store.get<{ id: string; name: string; bio?: string }>('users', 'u1');
     const entity = sig.value!;
@@ -1168,11 +1167,10 @@ describe('EntityStore - field selection tracking', () => {
 
   it('does not wrap entities in dev proxies when devMode is false', () => {
     const store = new EntityStore({ devMode: false });
-    store.mergeWithSelect(
-      'users',
-      [{ id: 'u1', name: 'Alice' }],
-      { fields: ['id', 'name'], querySource: 'GET:/users' },
-    );
+    store.mergeWithSelect('users', [{ id: 'u1', name: 'Alice' }], {
+      fields: ['id', 'name'],
+      querySource: 'GET:/users',
+    });
 
     const sig = store.get<{ id: string; name: string; bio?: string }>('users', 'u1');
     const entity = sig.value!;
@@ -1210,11 +1208,10 @@ describe('EntityStore - field selection tracking', () => {
 
   it('merging unchanged data with select tracking does NOT produce spurious warnings', () => {
     const store = new EntityStore({ devMode: true });
-    store.mergeWithSelect(
-      'users',
-      [{ id: 'u1', name: 'Alice' }],
-      { fields: ['id', 'name'], querySource: 'GET:/users' },
-    );
+    store.mergeWithSelect('users', [{ id: 'u1', name: 'Alice' }], {
+      fields: ['id', 'name'],
+      querySource: 'GET:/users',
+    });
 
     const warnSpy = vi.fn();
     const originalWarn = console.warn;
@@ -1222,11 +1219,10 @@ describe('EntityStore - field selection tracking', () => {
 
     try {
       // Merge the same data again — should not produce any warnings
-      store.mergeWithSelect(
-        'users',
-        [{ id: 'u1', name: 'Alice' }],
-        { fields: ['id', 'name'], querySource: 'GET:/users' },
-      );
+      store.mergeWithSelect('users', [{ id: 'u1', name: 'Alice' }], {
+        fields: ['id', 'name'],
+        querySource: 'GET:/users',
+      });
       expect(warnSpy).not.toHaveBeenCalled();
     } finally {
       console.warn = originalWarn;
@@ -1235,11 +1231,10 @@ describe('EntityStore - field selection tracking', () => {
 
   it('Proxy works correctly after applyLayer + rollbackLayer', () => {
     const store = new EntityStore({ devMode: true });
-    store.mergeWithSelect(
-      'users',
-      [{ id: 'u1', name: 'Alice', email: 'a@test.com' }],
-      { fields: ['id', 'name', 'email'], querySource: 'GET:/users' },
-    );
+    store.mergeWithSelect('users', [{ id: 'u1', name: 'Alice', email: 'a@test.com' }], {
+      fields: ['id', 'name', 'email'],
+      querySource: 'GET:/users',
+    });
 
     // Apply optimistic layer
     store.applyLayer('users', 'u1', 'mut-1', { name: 'Bob' });
@@ -1266,11 +1261,10 @@ describe('EntityStore - field selection tracking', () => {
 
   it('Proxy works correctly after commitLayer with server data', () => {
     const store = new EntityStore({ devMode: true });
-    store.mergeWithSelect(
-      'users',
-      [{ id: 'u1', name: 'Alice' }],
-      { fields: ['id', 'name'], querySource: 'GET:/users' },
-    );
+    store.mergeWithSelect('users', [{ id: 'u1', name: 'Alice' }], {
+      fields: ['id', 'name'],
+      querySource: 'GET:/users',
+    });
 
     store.applyLayer('users', 'u1', 'mut-1', { name: 'Bob' });
     store.commitLayer('users', 'u1', 'mut-1', { id: 'u1', name: 'Bob' });

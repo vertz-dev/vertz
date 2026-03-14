@@ -134,23 +134,15 @@ describe('writeIncremental', () => {
 
   describe('path traversal protection', () => {
     it('throws when file.path contains ../ that escapes the output directory', async () => {
-      const files: GeneratedFile[] = [
-        { path: '../../malicious.ts', content: '// pwned' },
-      ];
+      const files: GeneratedFile[] = [{ path: '../../malicious.ts', content: '// pwned' }];
 
-      await expect(writeIncremental(files, outputDir)).rejects.toThrow(
-        'escapes output directory',
-      );
+      await expect(writeIncremental(files, outputDir)).rejects.toThrow('escapes output directory');
     });
 
     it('throws when file.path uses nested ../ to escape', async () => {
-      const files: GeneratedFile[] = [
-        { path: 'types/../../../etc/passwd', content: 'root:x:0:0' },
-      ];
+      const files: GeneratedFile[] = [{ path: 'types/../../../etc/passwd', content: 'root:x:0:0' }];
 
-      await expect(writeIncremental(files, outputDir)).rejects.toThrow(
-        'escapes output directory',
-      );
+      await expect(writeIncremental(files, outputDir)).rejects.toThrow('escapes output directory');
     });
 
     it('allows file.path with ../ that stays within output directory', async () => {

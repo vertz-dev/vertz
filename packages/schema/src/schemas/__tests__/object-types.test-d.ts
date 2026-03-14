@@ -30,10 +30,15 @@ describe('partial', () => {
   it('makes all properties optional', () => {
     const schema = s.object({ name: s.string(), age: s.number() }).partial();
     type Output = Unwrap<ReturnType<typeof schema.parse>>;
-    type _t1 = Expect<Extends<Output, {
-      name: string | undefined;
-      age: number | undefined;
-    }>>;
+    type _t1 = Expect<
+      Extends<
+        Output,
+        {
+          name: string | undefined;
+          age: number | undefined;
+        }
+      >
+    >;
   });
 
   it('rejects wrong property types', () => {
