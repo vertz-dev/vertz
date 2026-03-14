@@ -1,6 +1,6 @@
 {
   "name": "@vertz/ui-auth",
-  "version": "0.2.17",
+  "version": "0.2.18",
   "type": "module",
   "license": "MIT",
   "description": "Auth UI components for Vertz — Avatar, OAuthButton, AuthGate, ProtectedRoute",

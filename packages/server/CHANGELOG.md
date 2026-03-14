@@ -1,5 +1,37 @@
 # @vertz/server
 
+## 0.2.18
+
+### Patch Changes
+
+- [#1263](https://github.com/vertz-dev/vertz/pull/1263) [`2406b51`](https://github.com/vertz-dev/vertz/commit/2406b5145360694def02081756c980bc58879bda) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(server): extract where/orderBy/limit from q= base64 JSON parameter
+
+  The q= parameter parser silently dropped where, orderBy, and limit from the
+  decoded JSON even though they were allowed keys. Clients could send filtered
+  queries via q= and get unfiltered results with no error. Now properly extracts
+  and merges these fields with URL params.
+
+- [#1261](https://github.com/vertz-dev/vertz/pull/1261) [`0e3156a`](https://github.com/vertz-dev/vertz/commit/0e3156afd8d3dea6cdb59fd26657f53558c408cc) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(server): AuthInstance.resolveSessionForSSR now assignable to SessionResolver
+
+  Updated the return type of `resolveSessionForSSR` on `AuthInstance` to use the
+  correct `{ id: string; email: string; role: string }` user shape and `AccessSet | null`
+  for `accessSet`, matching what the implementation already returns. Previously typed
+  loosely as `Record<string, unknown>` / `unknown`, which caused a type error when
+  passed to `createBunDevServer`'s `sessionResolver` option.
+
+- [#1262](https://github.com/vertz-dev/vertz/pull/1262) [`e015221`](https://github.com/vertz-dev/vertz/commit/e015221049179a19e260a3a6fdd46ec9557e7777) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(server): POST /query now validates cursor length at route level
+
+  The POST /query endpoint was passing `body.after` directly to the CRUD pipeline
+  without checking its length. The GET route used `parseVertzQL` which goes through
+  the pipeline's silent 512-char guard, but POST /query bypassed this. Now returns
+  400 BadRequest when the cursor exceeds MAX_CURSOR_LENGTH (512).
+
+- Updated dependencies []:
+  - @vertz/core@0.2.18
+  - @vertz/db@0.2.18
+  - @vertz/errors@0.2.18
+  - @vertz/schema@0.2.18
+
 ## 0.2.17
 
 ### Patch Changes

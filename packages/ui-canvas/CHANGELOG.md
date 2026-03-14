@@ -1,5 +1,12 @@
 # @vertz/ui-canvas
 
+## 0.2.18
+
+### Patch Changes
+
+- Updated dependencies [[`b4cb6b6`](https://github.com/vertz-dev/vertz/commit/b4cb6b6826583c05efcdfd0af0e046a49f6eed91), [`c2355f9`](https://github.com/vertz-dev/vertz/commit/c2355f9d3e13feac615b00d48406e4626e92869b), [`e5ac67e`](https://github.com/vertz-dev/vertz/commit/e5ac67e24a05e0342a8c470ef741d7729ebeaf58)]:
+  - @vertz/ui@0.2.18
+
 ## 0.2.17
 
 ### Patch Changes
