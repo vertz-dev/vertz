@@ -844,7 +844,6 @@ import { api } from '../client';
 import { themeComponents } from '../styles/theme';
 
 const { Button } = themeComponents;
-const { AlertDialog } = themeComponents.primitives;
 
 // Global CSS for list item enter/exit animations
 void globalCss({
@@ -907,7 +906,9 @@ function TaskItem({ id, title, completed }: TaskItemProps) {
   };
 
   const handleDelete = async () => {
-    await api.tasks.delete(id);
+    if (confirm(\`Delete "\${title}"?\`)) {
+      await api.tasks.delete(id);
+    }
   };
 
   return (
@@ -921,24 +922,7 @@ function TaskItem({ id, title, completed }: TaskItemProps) {
       <span class={completed ? styles.labelDone : styles.label}>
         {title}
       </span>
-
-      <AlertDialog>
-        <AlertDialog.Trigger>
-          <Button intent="ghost" size="sm">Delete</Button>
-        </AlertDialog.Trigger>
-        <AlertDialog.Content>
-          <AlertDialog.Title>Delete task?</AlertDialog.Title>
-          <AlertDialog.Description>
-            This will permanently delete "{title}".
-          </AlertDialog.Description>
-          <AlertDialog.Footer>
-            <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-            <AlertDialog.Action>
-              <span onClick={handleDelete}>Delete</span>
-            </AlertDialog.Action>
-          </AlertDialog.Footer>
-        </AlertDialog.Content>
-      </AlertDialog>
+      <Button intent="ghost" size="sm" onClick={handleDelete}>Delete</Button>
     </div>
   );
 }

@@ -316,7 +316,6 @@ describe('templates', () => {
       const result = homePageTemplate();
       expect(result).toContain("import { themeComponents } from '../styles/theme'");
       expect(result).toContain('const { Button } = themeComponents');
-      expect(result).toContain('const { AlertDialog } = themeComponents.primitives');
       expect(result).toContain('<Button');
     });
 
@@ -327,14 +326,10 @@ describe('templates', () => {
       expect(result).toContain('api.tasks.update');
     });
 
-    it('uses AlertDialog primitive for delete confirmation', () => {
+    it('uses confirm dialog for delete', () => {
       const result = homePageTemplate();
       expect(result).toContain('api.tasks.delete');
-      expect(result).toContain('<AlertDialog>');
-      expect(result).toContain('AlertDialog.Trigger');
-      expect(result).toContain('AlertDialog.Content');
-      expect(result).toContain('AlertDialog.Action');
-      expect(result).toContain('AlertDialog.Cancel');
+      expect(result).toContain('confirm(');
     });
 
     it('shows remaining task count', () => {
