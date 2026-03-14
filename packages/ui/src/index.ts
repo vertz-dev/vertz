@@ -76,10 +76,9 @@ export {
   zoomOut,
 } from './css';
 // Dialog stack
-export type { DialogComponent, DialogHandle, DialogStack } from './dialog';
+export type { DialogComponent, DialogHandle, DialogResult, DialogStack } from './dialog';
 export {
   createDialogStack,
-  DialogDismissedError,
   DialogStackContext,
   useDialogStack,
 } from './dialog';
