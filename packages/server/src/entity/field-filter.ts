@@ -93,7 +93,7 @@ export function narrowRelationFields(
  * If select is undefined, all fields pass through unchanged.
  */
 export function applySelect(
-  select: Record<string, true> | undefined,
+  select: Record<string, unknown> | undefined,
   data: Record<string, unknown>,
 ): Record<string, unknown> {
   if (!select) return data;
@@ -103,6 +103,24 @@ export function applySelect(
     if (key in data) {
       result[key] = data[key];
     }
+  }
+  return result;
+}
+
+/**
+ * Sets descriptor-guarded fields to null.
+ * Used after applySelect to null out fields the user can't see
+ * due to failing access rule descriptors.
+ */
+export function nullGuardedFields(
+  nulledFields: Set<string>,
+  data: Record<string, unknown>,
+): Record<string, unknown> {
+  if (nulledFields.size === 0) return data;
+
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data)) {
+    result[key] = nulledFields.has(key) ? null : value;
   }
   return result;
 }

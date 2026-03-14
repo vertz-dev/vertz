@@ -1,5 +1,6 @@
 import { describe, expect, it, mock } from 'bun:test';
 import { d } from '@vertz/db';
+import { rules } from '../../auth/rules';
 import type { EntityDbAdapter } from '../crud-pipeline';
 import { EntityRegistry } from '../entity-registry';
 import { generateEntityRoutes } from '../route-generator';
@@ -77,7 +78,6 @@ function buildEntityDef(overrides: Partial<EntityDefinition> = {}): EntityDefini
     before: {},
     after: {},
     actions: {},
-    relations: {},
     ...overrides,
   } as EntityDefinition;
 }
@@ -966,7 +966,7 @@ describe('Feature: Include pass-through in route handlers (#1130)', () => {
           list: listSpy,
         };
         const def = buildEntityDef({
-          relations: { posts: true },
+          expose: { select: { id: true, name: true }, include: { posts: true } },
         });
         const registry = new EntityRegistry();
         const routes = generateEntityRoutes(def, registry, db);
@@ -1004,11 +1004,14 @@ describe('Feature: Include pass-through in route handlers (#1130)', () => {
           list: listSpy,
         };
         const def = buildEntityDef({
-          relations: {
-            posts: {
-              select: { title: true, status: true },
-              allowWhere: ['status'],
-              allowOrderBy: ['createdAt'],
+          expose: {
+            select: { id: true, name: true },
+            include: {
+              posts: {
+                select: { title: true, status: true },
+                allowWhere: { status: true },
+                allowOrderBy: { createdAt: true },
+              },
             },
           },
         });
@@ -1061,7 +1064,7 @@ describe('Feature: Include pass-through in route handlers (#1130)', () => {
           get: getSpy,
         };
         const def = buildEntityDef({
-          relations: { posts: true },
+          expose: { select: { id: true, name: true }, include: { posts: true } },
         });
         const registry = new EntityRegistry();
         const routes = generateEntityRoutes(def, registry, db);
@@ -1083,6 +1086,440 @@ describe('Feature: Include pass-through in route handlers (#1130)', () => {
         expect(getSpy).toHaveBeenCalledTimes(1);
         // get should receive (id, options) where options includes include
         expect(getSpy.mock.calls[0]![1]).toEqual({ include: { posts: true } });
+      });
+    });
+  });
+
+  // --- Entity-level expose validation ---
+
+  describe('Given an entity with expose.allowWhere restricting filterable fields', () => {
+    const def = buildEntityDef({
+      expose: {
+        select: { id: true, name: true, email: true, role: true },
+        allowWhere: { role: true },
+        allowOrderBy: { name: true },
+      },
+    } as Partial<EntityDefinition>);
+
+    describe('When listing with a filter on a non-allowed field', () => {
+      it('Then returns 400 with "not filterable" error', async () => {
+        const db = createMockDb([
+          { id: 'u1', name: 'Alice', email: 'a@b.com', role: 'admin', passwordHash: 'h' },
+        ]);
+        const registry = new EntityRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+        const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
+
+        const resp = await listRoute!.handler({
+          userId: 'u1',
+          tenantId: null,
+          roles: [],
+          params: {},
+          body: {},
+          query: { 'where[email]': 'a@b.com' },
+          headers: {},
+        });
+        const body = await resp.json();
+
+        expect(resp.status).toBe(400);
+        expect(body.error.message).toContain('email');
+        expect(body.error.message).toContain('not filterable');
+      });
+    });
+
+    describe('When listing with a filter on an allowed field', () => {
+      it('Then returns 200', async () => {
+        const db = createMockDb([
+          { id: 'u1', name: 'Alice', email: 'a@b.com', role: 'admin', passwordHash: 'h' },
+        ]);
+        const registry = new EntityRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+        const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
+
+        const resp = await listRoute!.handler({
+          userId: 'u1',
+          tenantId: null,
+          roles: [],
+          params: {},
+          body: {},
+          query: { 'where[role]': 'admin' },
+          headers: {},
+        });
+
+        expect(resp.status).toBe(200);
+      });
+    });
+
+    describe('When sorting by a non-allowed field', () => {
+      it('Then returns 400 with "not sortable" error', async () => {
+        const db = createMockDb([
+          { id: 'u1', name: 'Alice', email: 'a@b.com', role: 'admin', passwordHash: 'h' },
+        ]);
+        const registry = new EntityRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+        const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
+
+        const resp = await listRoute!.handler({
+          userId: 'u1',
+          tenantId: null,
+          roles: [],
+          params: {},
+          body: {},
+          query: { orderBy: 'email:asc' },
+          headers: {},
+        });
+        const body = await resp.json();
+
+        expect(resp.status).toBe(400);
+        expect(body.error.message).toContain('email');
+        expect(body.error.message).toContain('not sortable');
+      });
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 2: Descriptor runtime evaluation (#expose)
+// ---------------------------------------------------------------------------
+
+describe('Feature: Expose descriptor runtime evaluation', () => {
+  describe('Given an entity with expose.select containing a descriptor-guarded field', () => {
+    describe('When list is called and user lacks the entitlement', () => {
+      it('Then the descriptor-guarded field returns null in the response', async () => {
+        const db = createMockDb([
+          {
+            id: 'emp-1',
+            name: 'Alice',
+            email: 'a@b.com',
+            role: 'admin',
+            passwordHash: 'hash',
+            createdAt: '2024-01-01',
+          },
+        ]);
+        const def = buildEntityDef({
+          expose: {
+            select: {
+              id: true,
+              name: true,
+              email: rules.entitlement('hr:view-email'),
+            },
+          },
+        } as Partial<EntityDefinition>);
+        const registry = new EntityRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+        const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
+
+        const resp = await listRoute!.handler({
+          userId: 'u1',
+          tenantId: null,
+          roles: [],
+          params: {},
+          body: {},
+          query: {},
+          headers: {},
+        });
+        const body = await resp.json();
+
+        expect(resp.status).toBe(200);
+        expect(body.items).toHaveLength(1);
+        expect(body.items[0].id).toBe('emp-1');
+        expect(body.items[0].name).toBe('Alice');
+        // email should be null because user lacks 'hr:view-email' entitlement
+        expect(body.items[0].email).toBeNull();
+      });
+    });
+
+    describe('When get is called and user lacks the entitlement', () => {
+      it('Then the descriptor-guarded field returns null in the response', async () => {
+        const db = createMockDb([
+          {
+            id: 'emp-1',
+            name: 'Alice',
+            email: 'a@b.com',
+            role: 'admin',
+            passwordHash: 'hash',
+            createdAt: '2024-01-01',
+          },
+        ]);
+        const def = buildEntityDef({
+          expose: {
+            select: {
+              id: true,
+              name: true,
+              email: rules.entitlement('hr:view-email'),
+            },
+          },
+        } as Partial<EntityDefinition>);
+        const registry = new EntityRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+        const getRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users/:id');
+
+        const resp = await getRoute!.handler({
+          userId: 'u1',
+          tenantId: null,
+          roles: [],
+          params: { id: 'emp-1' },
+          body: {},
+          query: {},
+          headers: {},
+        });
+        const body = await resp.json();
+
+        expect(resp.status).toBe(200);
+        expect(body.id).toBe('emp-1');
+        expect(body.name).toBe('Alice');
+        expect(body.email).toBeNull();
+      });
+    });
+  });
+
+  describe('Given an entity with expose.allowWhere containing a descriptor-guarded field', () => {
+    describe('When list is called with a filter on the guarded field and user lacks the entitlement', () => {
+      it('Then returns 400 with "not filterable" error', async () => {
+        const db = createMockDb([
+          { id: 'emp-1', name: 'Alice', email: 'a@b.com', role: 'admin', passwordHash: 'h' },
+        ]);
+        const def = buildEntityDef({
+          expose: {
+            select: { id: true, name: true, email: true },
+            allowWhere: {
+              name: true,
+              email: rules.entitlement('hr:filter-email'),
+            },
+          },
+        } as Partial<EntityDefinition>);
+        const registry = new EntityRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+        const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
+
+        const resp = await listRoute!.handler({
+          userId: 'u1',
+          tenantId: null,
+          roles: [],
+          params: {},
+          body: {},
+          query: { 'where[email]': 'a@b.com' },
+          headers: {},
+        });
+        const body = await resp.json();
+
+        expect(resp.status).toBe(400);
+        expect(body.error.message).toContain('email');
+        expect(body.error.message).toContain('not filterable');
+      });
+    });
+  });
+
+  describe('Given an entity with expose.allowOrderBy containing a descriptor-guarded field', () => {
+    describe('When list is called with sort on the guarded field and user lacks the entitlement', () => {
+      it('Then returns 400 with "not sortable" error', async () => {
+        const db = createMockDb([
+          { id: 'emp-1', name: 'Alice', email: 'a@b.com', role: 'admin', passwordHash: 'h' },
+        ]);
+        const def = buildEntityDef({
+          expose: {
+            select: { id: true, name: true, email: true },
+            allowOrderBy: {
+              name: true,
+              email: rules.entitlement('hr:sort-email'),
+            },
+          },
+        } as Partial<EntityDefinition>);
+        const registry = new EntityRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+        const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
+
+        const resp = await listRoute!.handler({
+          userId: 'u1',
+          tenantId: null,
+          roles: [],
+          params: {},
+          body: {},
+          query: { orderBy: 'email:asc' },
+          headers: {},
+        });
+        const body = await resp.json();
+
+        expect(resp.status).toBe(400);
+        expect(body.error.message).toContain('email');
+        expect(body.error.message).toContain('not sortable');
+      });
+    });
+  });
+
+  describe('Given an entity with expose containing only `true` values (no descriptors)', () => {
+    describe('When list is called', () => {
+      it('Then no evaluation happens and all fields are returned normally', async () => {
+        const db = createMockDb([
+          { id: 'emp-1', name: 'Alice', email: 'a@b.com', role: 'admin', passwordHash: 'h' },
+        ]);
+        const def = buildEntityDef({
+          expose: {
+            select: { id: true, name: true, email: true },
+          },
+        } as Partial<EntityDefinition>);
+        const registry = new EntityRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+        const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
+
+        const resp = await listRoute!.handler({
+          userId: 'u1',
+          tenantId: null,
+          roles: [],
+          params: {},
+          body: {},
+          query: {},
+          headers: {},
+        });
+        const body = await resp.json();
+
+        expect(resp.status).toBe(200);
+        expect(body.items[0].email).toBe('a@b.com');
+      });
+    });
+  });
+
+  describe('Given POST /query with a descriptor-guarded allowWhere field', () => {
+    describe('When user lacks the entitlement and filters by that field', () => {
+      it('Then returns 400 with "not filterable" error', async () => {
+        const db = createMockDb([
+          { id: 'emp-1', name: 'Alice', email: 'a@b.com', role: 'admin', passwordHash: 'h' },
+        ]);
+        const def = buildEntityDef({
+          expose: {
+            select: { id: true, name: true, email: true },
+            allowWhere: {
+              name: true,
+              email: rules.entitlement('hr:filter-email'),
+            },
+          },
+        } as Partial<EntityDefinition>);
+        const registry = new EntityRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+        const queryRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users/query');
+
+        const resp = await queryRoute!.handler({
+          userId: 'u1',
+          tenantId: null,
+          roles: [],
+          params: {},
+          body: { where: { email: 'a@b.com' } },
+          query: {},
+          headers: {},
+        });
+        const body = await resp.json();
+
+        expect(resp.status).toBe(400);
+        expect(body.error.message).toContain('email');
+        expect(body.error.message).toContain('not filterable');
+      });
+    });
+  });
+
+  describe('Given POST /query with descriptor-guarded select field', () => {
+    describe('When user lacks the entitlement', () => {
+      it('Then the descriptor-guarded field returns null in the response', async () => {
+        const db = createMockDb([
+          { id: 'emp-1', name: 'Alice', email: 'a@b.com', role: 'admin', passwordHash: 'h' },
+        ]);
+        const def = buildEntityDef({
+          expose: {
+            select: {
+              id: true,
+              name: true,
+              email: rules.entitlement('hr:view-email'),
+            },
+          },
+        } as Partial<EntityDefinition>);
+        const registry = new EntityRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+        const queryRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users/query');
+
+        const resp = await queryRoute!.handler({
+          userId: 'u1',
+          tenantId: null,
+          roles: [],
+          params: {},
+          body: {},
+          query: {},
+          headers: {},
+        });
+        const body = await resp.json();
+
+        expect(resp.status).toBe(200);
+        expect(body.items[0].email).toBeNull();
+      });
+    });
+  });
+
+  describe('Given create response with descriptor-guarded select field', () => {
+    describe('When user lacks the entitlement', () => {
+      it('Then the descriptor-guarded field returns null in the create response', async () => {
+        const db = createMockDb();
+        const def = buildEntityDef({
+          expose: {
+            select: {
+              id: true,
+              name: true,
+              email: rules.entitlement('hr:view-email'),
+            },
+          },
+        } as Partial<EntityDefinition>);
+        const registry = new EntityRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+        const createRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users');
+
+        const resp = await createRoute!.handler({
+          userId: 'u1',
+          tenantId: null,
+          roles: [],
+          params: {},
+          body: { name: 'Bob', email: 'bob@example.com' },
+          query: {},
+          headers: {},
+        });
+        const body = await resp.json();
+
+        expect(resp.status).toBe(201);
+        expect(body.name).toBe('Bob');
+        expect(body.email).toBeNull();
+      });
+    });
+  });
+
+  describe('Given update response with descriptor-guarded select field', () => {
+    describe('When user lacks the entitlement', () => {
+      it('Then the descriptor-guarded field returns null in the update response', async () => {
+        const db = createMockDb([
+          { id: 'emp-1', name: 'Alice', email: 'a@b.com', role: 'admin', passwordHash: 'h' },
+        ]);
+        const def = buildEntityDef({
+          expose: {
+            select: {
+              id: true,
+              name: true,
+              email: rules.entitlement('hr:view-email'),
+            },
+          },
+        } as Partial<EntityDefinition>);
+        const registry = new EntityRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+        const updateRoute = routes.find((r) => r.method === 'PATCH');
+
+        const resp = await updateRoute!.handler({
+          userId: 'u1',
+          tenantId: null,
+          roles: [],
+          params: { id: 'emp-1' },
+          body: { name: 'Alice Updated' },
+          query: {},
+          headers: {},
+        });
+        const body = await resp.json();
+
+        expect(resp.status).toBe(200);
+        expect(body.name).toBe('Alice Updated');
+        expect(body.email).toBeNull();
       });
     });
   });

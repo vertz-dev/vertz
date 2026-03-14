@@ -1,4 +1,5 @@
 import type { ColumnBuilder, ColumnMetadata, TableDef } from '@vertz/db';
+import type { EvaluatedExpose } from './expose-evaluator';
 import type { EntityRelationsConfig, RelationConfigObject } from './types';
 
 // ---------------------------------------------------------------------------
@@ -11,6 +12,19 @@ import type { EntityRelationsConfig, RelationConfigObject } from './types';
 //   limit=N                     → { limit: N }
 //   after=cursor                → { after: cursor }
 // ---------------------------------------------------------------------------
+
+/**
+ * Extracts allowed field keys from either array format (old) or object format (new expose API).
+ * - Array: `['status', 'createdAt']` → `['status', 'createdAt']`
+ * - Object: `{ status: true, createdAt: true }` → `['status', 'createdAt']`
+ */
+function extractAllowKeys(
+  allow: readonly string[] | Record<string, unknown> | undefined,
+): string[] {
+  if (!allow) return [];
+  if (Array.isArray(allow)) return allow as string[];
+  return Object.keys(allow);
+}
 
 /** Maximum allowed limit to prevent DoS via large result sets. */
 export const MAX_LIMIT = 1000;
@@ -186,10 +200,22 @@ function getHiddenColumns(table: TableDef): Set<string> {
  * - Includes for relations not exposed in entity config
  * - Over-wide field selections on includes beyond entity config restrictions
  */
+/**
+ * Entity-level expose config for validation.
+ * Subset of ExposeConfig relevant to VertzQL validation.
+ */
+export interface ExposeValidationConfig {
+  readonly select?: Record<string, unknown>;
+  readonly allowWhere?: Record<string, unknown>;
+  readonly allowOrderBy?: Record<string, unknown>;
+}
+
 export function validateVertzQL(
   options: VertzQLOptions,
   table: TableDef,
   relationsConfig?: EntityRelationsConfig,
+  exposeConfig?: ExposeValidationConfig,
+  evaluatedExpose?: EvaluatedExpose,
 ): ValidationResult {
   // Surface q= parse errors
   if (options._qError) {
@@ -200,8 +226,22 @@ export function validateVertzQL(
 
   // Validate where fields
   if (options.where) {
+    // When evaluated expose is available, use the evaluated set;
+    // otherwise fall back to static key extraction from exposeConfig
+    const allowWhereSet = evaluatedExpose ? evaluatedExpose.allowedWhereFields : null;
+    const allowWhereKeys =
+      !evaluatedExpose && exposeConfig ? extractAllowKeys(exposeConfig.allowWhere) : null;
+
     for (const field of Object.keys(options.where)) {
       if (hiddenColumns.has(field)) {
+        return { ok: false, error: `Field "${field}" is not filterable` };
+      }
+      // Evaluated expose check (descriptor-aware)
+      if (allowWhereSet !== null && !allowWhereSet.has(field)) {
+        return { ok: false, error: `Field "${field}" is not filterable` };
+      }
+      // Static entity-level allowWhere check (no descriptors evaluated)
+      if (allowWhereKeys !== null && !allowWhereKeys.includes(field)) {
         return { ok: false, error: `Field "${field}" is not filterable` };
       }
     }
@@ -209,8 +249,20 @@ export function validateVertzQL(
 
   // Validate orderBy fields
   if (options.orderBy) {
+    const allowOrderBySet = evaluatedExpose ? evaluatedExpose.allowedOrderByFields : null;
+    const allowOrderByKeys =
+      !evaluatedExpose && exposeConfig ? extractAllowKeys(exposeConfig.allowOrderBy) : null;
+
     for (const field of Object.keys(options.orderBy)) {
       if (hiddenColumns.has(field)) {
+        return { ok: false, error: `Field "${field}" is not sortable` };
+      }
+      // Evaluated expose check (descriptor-aware)
+      if (allowOrderBySet !== null && !allowOrderBySet.has(field)) {
+        return { ok: false, error: `Field "${field}" is not sortable` };
+      }
+      // Static entity-level allowOrderBy check
+      if (allowOrderByKeys !== null && !allowOrderByKeys.includes(field)) {
         return { ok: false, error: `Field "${field}" is not sortable` };
       }
     }
@@ -218,8 +270,17 @@ export function validateVertzQL(
 
   // Validate select fields
   if (options.select) {
+    const exposeSelectKeys = exposeConfig ? extractAllowKeys(exposeConfig.select) : null;
     for (const field of Object.keys(options.select)) {
       if (hiddenColumns.has(field)) {
+        return { ok: false, error: `Field "${field}" is not selectable` };
+      }
+      // Entity-level select check
+      if (
+        exposeSelectKeys !== null &&
+        exposeSelectKeys.length > 0 &&
+        !exposeSelectKeys.includes(field)
+      ) {
         return { ok: false, error: `Field "${field}" is not selectable` };
       }
     }
@@ -260,7 +321,8 @@ function validateInclude(
 
     // Validate where fields against allowWhere
     if (requested.where) {
-      if (!configObj || !configObj.allowWhere || configObj.allowWhere.length === 0) {
+      const allowWhereKeys = extractAllowKeys(configObj?.allowWhere);
+      if (!configObj || allowWhereKeys.length === 0) {
         return {
           ok: false,
           error:
@@ -268,14 +330,14 @@ function validateInclude(
             "Add 'allowWhere' to the entity relations config.",
         };
       }
-      const allowedSet = new Set(configObj.allowWhere);
+      const allowedSet = new Set(allowWhereKeys);
       for (const field of Object.keys(requested.where)) {
         if (!allowedSet.has(field)) {
           return {
             ok: false,
             error:
               `Field '${field}' is not filterable on relation '${relationPath}'. ` +
-              `Allowed: ${configObj.allowWhere.join(', ')}`,
+              `Allowed: ${allowWhereKeys.join(', ')}`,
           };
         }
       }
@@ -283,7 +345,8 @@ function validateInclude(
 
     // Validate orderBy fields against allowOrderBy
     if (requested.orderBy) {
-      if (!configObj || !configObj.allowOrderBy || configObj.allowOrderBy.length === 0) {
+      const allowOrderByKeys = extractAllowKeys(configObj?.allowOrderBy);
+      if (!configObj || allowOrderByKeys.length === 0) {
         return {
           ok: false,
           error:
@@ -291,14 +354,14 @@ function validateInclude(
             "Add 'allowOrderBy' to the entity relations config.",
         };
       }
-      const allowedSet = new Set(configObj.allowOrderBy);
+      const allowedSet = new Set(allowOrderByKeys);
       for (const [field, dir] of Object.entries(requested.orderBy)) {
         if (!allowedSet.has(field)) {
           return {
             ok: false,
             error:
               `Field '${field}' is not sortable on relation '${relationPath}'. ` +
-              `Allowed: ${configObj.allowOrderBy.join(', ')}`,
+              `Allowed: ${allowOrderByKeys.join(', ')}`,
           };
         }
         if (dir !== 'asc' && dir !== 'desc') {

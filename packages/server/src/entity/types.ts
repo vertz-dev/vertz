@@ -134,6 +134,51 @@ export type EntityRelationsConfig<
 };
 
 // ---------------------------------------------------------------------------
+// Expose config — controls what's exposed through the entity API
+// ---------------------------------------------------------------------------
+
+/** Extract the target table type from a RelationDef. */
+type RelationTargetTable<R> = R extends RelationDef<infer T> ? T : TableDef;
+
+/** Structured expose config for a relation. Controls field, filter, sort, and nested relation exposure. */
+export interface RelationExposeConfig<R extends RelationDef = RelationDef> {
+  /** Which fields of the related entity to expose. */
+  readonly select: { [K in PublicColumnKeys<RelationTargetTable<R>>]?: true | AuthAccessRule };
+  /** Which fields clients can filter on via VertzQL `where`. */
+  readonly allowWhere?: { [K in PublicColumnKeys<RelationTargetTable<R>>]?: true | AuthAccessRule };
+  /** Which fields clients can sort on via VertzQL `orderBy`. */
+  readonly allowOrderBy?: {
+    [K in PublicColumnKeys<RelationTargetTable<R>>]?: true | AuthAccessRule;
+  };
+  /** Max items returned per parent row. Defaults to DEFAULT_RELATION_LIMIT. */
+  readonly maxLimit?: number;
+  /** Nested relation exposure (loosely typed — target model relations not available from RelationDef). */
+  readonly include?: Record<string, true | false | RelationExposeConfig>;
+}
+
+/** Controls which fields, filters, sorts, and relations are exposed through the entity API. */
+export interface ExposeConfig<
+  TTable extends TableDef = TableDef,
+  TModel extends ModelDef = ModelDef,
+> {
+  /** Which fields of the entity to expose. Required when expose is present. */
+  readonly select: { [K in PublicColumnKeys<TTable>]?: true | AuthAccessRule };
+  /** Which fields clients can filter on via VertzQL `where`. */
+  readonly allowWhere?: { [K in PublicColumnKeys<TTable>]?: true | AuthAccessRule };
+  /** Which fields clients can sort on via VertzQL `orderBy`. */
+  readonly allowOrderBy?: { [K in PublicColumnKeys<TTable>]?: true | AuthAccessRule };
+  /** Which relations to expose and how. */
+  readonly include?: {
+    [K in keyof TModel['relations']]?:
+      | true
+      | false
+      | RelationExposeConfig<
+          TModel['relations'][K] extends RelationDef ? TModel['relations'][K] : RelationDef
+        >;
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Typed query options — SDK-facing types for VertzQL
 // ---------------------------------------------------------------------------
 
@@ -250,7 +295,7 @@ export interface EntityConfig<
     ) => void | Promise<void>;
   };
   readonly actions?: { readonly [K in keyof TActions]: TActions[K] };
-  readonly relations?: EntityRelationsConfig<TModel['relations']>;
+  readonly expose?: ExposeConfig<TModel['table'], TModel>;
 }
 
 // ---------------------------------------------------------------------------
@@ -266,7 +311,7 @@ export interface EntityDefinition<TModel extends ModelDef = ModelDef> {
   readonly before: EntityBeforeHooks;
   readonly after: EntityAfterHooks;
   readonly actions: Record<string, EntityActionDef>;
-  readonly relations: EntityRelationsConfig<TModel['relations']>;
+  readonly expose?: ExposeConfig<TModel['table'], TModel>;
   /** DB table name (defaults to entity name). */
   readonly table: string;
   /** Whether CRUD auto-filters by tenantId. */

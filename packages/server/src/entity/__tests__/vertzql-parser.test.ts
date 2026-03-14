@@ -589,6 +589,154 @@ describe('Feature: VertzQL validation', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Entity-level expose.allowWhere / expose.allowOrderBy / expose.select validation
+// ---------------------------------------------------------------------------
+
+describe('Feature: VertzQL entity-level expose validation', () => {
+  describe('Given an entity with expose.allowWhere: { status: true, createdAt: true }', () => {
+    const exposeConfig = {
+      select: { id: true, title: true, status: true, createdAt: true },
+      allowWhere: { status: true, createdAt: true },
+    };
+
+    describe('When filtering by an allowed field', () => {
+      it('Then returns ok', () => {
+        const options = { where: { status: 'todo' } };
+
+        const result = validateVertzQL(options, usersTable, undefined, exposeConfig);
+
+        expect(result.ok).toBe(true);
+      });
+    });
+
+    describe('When filtering by a non-allowed field', () => {
+      it('Then returns an error indicating the field is not filterable', () => {
+        const options = { where: { title: 'foo' } };
+
+        const result = validateVertzQL(options, usersTable, undefined, exposeConfig);
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toContain('title');
+          expect(result.error).toContain('not filterable');
+        }
+      });
+    });
+  });
+
+  describe('Given an entity with expose.allowOrderBy: { createdAt: true }', () => {
+    const exposeConfig = {
+      select: { id: true, title: true, createdAt: true },
+      allowOrderBy: { createdAt: true },
+    };
+
+    describe('When sorting by an allowed field', () => {
+      it('Then returns ok', () => {
+        const options = { orderBy: { createdAt: 'desc' as const } };
+
+        const result = validateVertzQL(options, usersTable, undefined, exposeConfig);
+
+        expect(result.ok).toBe(true);
+      });
+    });
+
+    describe('When sorting by a non-allowed field', () => {
+      it('Then returns an error indicating the field is not sortable', () => {
+        const options = { orderBy: { title: 'asc' as const } };
+
+        const result = validateVertzQL(options, usersTable, undefined, exposeConfig);
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toContain('title');
+          expect(result.error).toContain('not sortable');
+        }
+      });
+    });
+  });
+
+  describe('Given an entity with expose.select restricting fields', () => {
+    const exposeConfig = {
+      select: { id: true, title: true, status: true },
+    };
+
+    describe('When selecting an exposed field', () => {
+      it('Then returns ok', () => {
+        const options = { select: { title: true as const } };
+
+        const result = validateVertzQL(options, usersTable, undefined, exposeConfig);
+
+        expect(result.ok).toBe(true);
+      });
+    });
+
+    describe('When selecting a non-exposed field', () => {
+      it('Then returns an error indicating the field is not selectable', () => {
+        const options = { select: { email: true as const } };
+
+        const result = validateVertzQL(options, usersTable, undefined, exposeConfig);
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toContain('email');
+          expect(result.error).toContain('not selectable');
+        }
+      });
+    });
+  });
+
+  describe('Given an entity without expose config', () => {
+    describe('When filtering by any public field', () => {
+      it('Then returns ok (backwards compatible)', () => {
+        const options = { where: { email: 'test@example.com' } };
+
+        const result = validateVertzQL(options, usersTable);
+
+        expect(result.ok).toBe(true);
+      });
+    });
+  });
+
+  describe('Given an entity with expose but no allowWhere', () => {
+    const exposeConfig = {
+      select: { id: true, title: true },
+    };
+
+    describe('When filtering by any field', () => {
+      it('Then returns an error (no filters allowed)', () => {
+        const options = { where: { title: 'foo' } };
+
+        const result = validateVertzQL(options, usersTable, undefined, exposeConfig);
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toContain('not filterable');
+        }
+      });
+    });
+  });
+
+  describe('Given an entity with expose but no allowOrderBy', () => {
+    const exposeConfig = {
+      select: { id: true, title: true },
+    };
+
+    describe('When sorting by any field', () => {
+      it('Then returns an error (no sorts allowed)', () => {
+        const options = { orderBy: { title: 'asc' as const } };
+
+        const result = validateVertzQL(options, usersTable, undefined, exposeConfig);
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toContain('not sortable');
+        }
+      });
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Phase 2: Relation include with where/orderBy/limit validation (#1130)
 // ---------------------------------------------------------------------------
 
@@ -1089,6 +1237,105 @@ describe('Feature: VertzQL q= parameter security hardening', () => {
 
           expect(result._qError).toBeUndefined();
           expect(result.select).toBeDefined();
+        }
+      });
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 2: Evaluated expose descriptor validation
+// ---------------------------------------------------------------------------
+
+describe('Feature: validateVertzQL with evaluated expose (descriptor runtime)', () => {
+  describe('Given an evaluated expose with allowedWhereFields excluding "salary"', () => {
+    describe('When validating a where filter on "salary"', () => {
+      it('Then returns "not filterable" error', () => {
+        const options = { where: { salary: { gte: 50000 } } };
+        const exposeConfig = {
+          select: { id: true, name: true, salary: {} },
+          allowWhere: { name: true, salary: {} },
+        };
+        // Evaluated expose: salary descriptor failed, so salary is not in allowedWhereFields
+        const evaluatedExpose = {
+          allowedSelectFields: new Set(['id', 'name', 'salary']),
+          nulledFields: new Set(['salary']),
+          allowedWhereFields: new Set(['name']),
+          allowedOrderByFields: new Set<string>(),
+        };
+
+        const result = validateVertzQL(
+          options,
+          usersTable,
+          undefined,
+          exposeConfig,
+          evaluatedExpose,
+        );
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toContain('salary');
+          expect(result.error).toContain('not filterable');
+        }
+      });
+    });
+  });
+
+  describe('Given an evaluated expose with allowedWhereFields including "name"', () => {
+    describe('When validating a where filter on "name"', () => {
+      it('Then returns ok', () => {
+        const options = { where: { name: 'Alice' } };
+        const exposeConfig = {
+          select: { id: true, name: true },
+          allowWhere: { name: true },
+        };
+        const evaluatedExpose = {
+          allowedSelectFields: new Set(['id', 'name']),
+          nulledFields: new Set<string>(),
+          allowedWhereFields: new Set(['name']),
+          allowedOrderByFields: new Set<string>(),
+        };
+
+        const result = validateVertzQL(
+          options,
+          usersTable,
+          undefined,
+          exposeConfig,
+          evaluatedExpose,
+        );
+
+        expect(result.ok).toBe(true);
+      });
+    });
+  });
+
+  describe('Given an evaluated expose with allowedOrderByFields excluding "salary"', () => {
+    describe('When validating an orderBy on "salary"', () => {
+      it('Then returns "not sortable" error', () => {
+        const options = { orderBy: { salary: 'desc' as const } };
+        const exposeConfig = {
+          select: { id: true, salary: {} },
+          allowOrderBy: { salary: {} },
+        };
+        const evaluatedExpose = {
+          allowedSelectFields: new Set(['id', 'salary']),
+          nulledFields: new Set(['salary']),
+          allowedWhereFields: new Set<string>(),
+          allowedOrderByFields: new Set<string>(),
+        };
+
+        const result = validateVertzQL(
+          options,
+          usersTable,
+          undefined,
+          exposeConfig,
+          evaluatedExpose,
+        );
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toContain('salary');
+          expect(result.error).toContain('not sortable');
         }
       });
     });
