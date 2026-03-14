@@ -28,13 +28,14 @@ export function IssueDetailPage() {
 
   let updateError = '';
 
-  // Build user lookup map for author resolution
-  const userMap: Record<string, { name: string; avatarUrl: string | null }> = {};
-  if (users.data?.items) {
-    for (const u of users.data.items) {
-      userMap[u.id] = { name: u.name, avatarUrl: u.avatarUrl };
-    }
-  }
+  // Build user lookup map for author resolution.
+  // Must be a single declarative expression so the compiler wraps it in computed()
+  // and re-evaluates when users.data loads.
+  const userMap: Record<string, { name: string; avatarUrl: string | null }> = users.data?.items
+    ? Object.fromEntries(
+        users.data.items.map((u) => [u.id, { name: u.name, avatarUrl: u.avatarUrl }]),
+      )
+    : {};
 
   const handleStatusChange = async (status: IssueStatus) => {
     const res = await issueApi.update(issueId, { status });

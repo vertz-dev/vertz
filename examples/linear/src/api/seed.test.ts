@@ -99,6 +99,31 @@ describe('seedDatabase', () => {
         expect(count.count).toBe(10);
       });
 
+      it('Then comments reference valid issues and authors', () => {
+        seedDatabase(db);
+        // Verify a specific comment's relationships
+        const comment = db
+          .query(
+            `SELECT c.body, c.author_id, i.title as issue_title
+             FROM comments c
+             JOIN issues i ON c.issue_id = i.id
+             WHERE c.id = 'com-1'`,
+          )
+          .get() as { body: string; author_id: string; issue_title: string };
+
+        expect(comment.body).toContain('CI is green');
+        expect(comment.author_id).toBe('seed-bob');
+        expect(comment.issue_title).toBe('Set up CI pipeline');
+      });
+
+      it('Then issues span all statuses', () => {
+        seedDatabase(db);
+        const statuses = db.query('SELECT DISTINCT status FROM issues ORDER BY status').all() as {
+          status: string;
+        }[];
+        expect(statuses.map((s) => s.status)).toEqual(['backlog', 'done', 'in_progress', 'todo']);
+      });
+
       it('Then seed comments have staggered timestamps', () => {
         seedDatabase(db);
         const timestamps = db
