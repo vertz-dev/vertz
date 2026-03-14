@@ -36,6 +36,20 @@ import { ssrRenderToString, ssrStreamNavQueries } from './ssr-render';
 import { createSessionScript } from './ssr-session';
 import { safeSerialize } from './ssr-streaming-runtime';
 
+/**
+ * Detect `public/favicon.svg` and return a `<link>` tag for it.
+ * Returns empty string when the file does not exist.
+ *
+ * Detection runs once at server startup — adding or removing the file
+ * requires a dev server restart (consistent with production build).
+ */
+export function detectFaviconTag(projectRoot: string): string {
+  const faviconPath = resolve(projectRoot, 'public', 'favicon.svg');
+  return existsSync(faviconPath)
+    ? '<link rel="icon" type="image/svg+xml" href="/favicon.svg">'
+    : '';
+}
+
 export interface BunDevServerOptions {
   /** SSR entry module (e.g., './src/app.tsx') */
   entry: string;
@@ -656,9 +670,12 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     projectRoot = process.cwd(),
     logRequests = true,
     editor: editorOption,
-    headTags = '',
+    headTags: headTagsOption = '',
     sessionResolver,
   } = options;
+
+  const faviconTag = detectFaviconTag(projectRoot);
+  const headTags = [faviconTag, headTagsOption].filter(Boolean).join('\n');
 
   const editor = detectEditor(editorOption);
 

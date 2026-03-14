@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
   buildScriptTag,
   clearSSRRequireCache,
   createBunDevServer,
   createFetchInterceptor,
   createRuntimeErrorDeduplicator,
+  detectFaviconTag,
   formatTerminalRuntimeError,
   generateSSRPageHtml,
   parseHMRAssets,
@@ -579,6 +583,50 @@ describe('generateSSRPageHtml', () => {
     });
 
     expect(html).not.toContain('__VERTZ_SESSION__');
+  });
+
+  it('includes headTags with favicon link when provided', () => {
+    const faviconTag = '<link rel="icon" type="image/svg+xml" href="/favicon.svg">';
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+      headTags: faviconTag,
+    });
+
+    expect(html).toContain(faviconTag);
+    const titleIdx = html.indexOf('<title>');
+    const faviconIdx = html.indexOf(faviconTag);
+    expect(faviconIdx).toBeGreaterThan(titleIdx);
+  });
+});
+
+describe('detectFaviconTag', () => {
+  it('returns link tag when public/favicon.svg exists', () => {
+    const tmpDir = path.join(os.tmpdir(), `vertz-favicon-exists-${Date.now()}`);
+    mkdirSync(path.join(tmpDir, 'public'), { recursive: true });
+    writeFileSync(path.join(tmpDir, 'public', 'favicon.svg'), '<svg></svg>');
+
+    const tag = detectFaviconTag(tmpDir);
+    expect(tag).toBe('<link rel="icon" type="image/svg+xml" href="/favicon.svg">');
+  });
+
+  it('returns empty string when public/favicon.svg does not exist', () => {
+    const tmpDir = path.join(os.tmpdir(), `vertz-favicon-missing-${Date.now()}`);
+    mkdirSync(tmpDir, { recursive: true });
+
+    const tag = detectFaviconTag(tmpDir);
+    expect(tag).toBe('');
+  });
+
+  it('returns empty string when public/ directory does not exist', () => {
+    const tmpDir = path.join(os.tmpdir(), `vertz-favicon-nodir-${Date.now()}`);
+    mkdirSync(tmpDir, { recursive: true });
+
+    const tag = detectFaviconTag(tmpDir);
+    expect(tag).toBe('');
   });
 });
 
