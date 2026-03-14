@@ -1,7 +1,7 @@
 /**
- * Tests for raw CSS declarations in css() object-form selectors.
+ * Tests for CSS declaration objects in css() object-form selectors.
  *
- * Raw declarations allow inline CSS property-value pairs that can't be
+ * CSS declaration objects allow inline CSS property-value pairs that can't be
  * expressed as shorthand strings (e.g. opacity modifiers, color-mix).
  */
 import { beforeEach, describe, expect, it } from 'bun:test';
@@ -19,8 +19,7 @@ describe('css() raw declarations', () => {
         {
           '&:hover': [
             {
-              property: 'background-color',
-              value: 'color-mix(in oklch, var(--color-primary) 90%, transparent)',
+              'background-color': 'color-mix(in oklch, var(--color-primary) 90%, transparent)',
             },
           ],
         },
@@ -42,8 +41,7 @@ describe('css() raw declarations', () => {
           '[data-theme="dark"] &': [
             'text:foreground',
             {
-              property: 'background-color',
-              value: 'color-mix(in oklch, var(--color-input) 30%, transparent)',
+              'background-color': 'color-mix(in oklch, var(--color-input) 30%, transparent)',
             },
           ],
         },
@@ -63,10 +61,9 @@ describe('css() raw declarations', () => {
         {
           '&:focus-visible': [
             {
-              property: 'outline',
-              value: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+              outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+              'outline-offset': '2px',
             },
-            { property: 'outline-offset', value: '2px' },
           ],
         },
       ],

@@ -19,7 +19,7 @@ export {
 } from './animations';
 // Internal utilities — exported for compiler use
 export { generateClassName } from './class-generator';
-export type { CSSInput, CSSOutput, RawDeclaration, StyleEntry, StyleValue } from './css';
+export type { CSSInput, CSSOutput, StyleEntry, StyleValue } from './css';
 export { css, getInjectedCSS, injectCSS, resetInjectedStyles } from './css';
 export type {
   CompiledFonts,

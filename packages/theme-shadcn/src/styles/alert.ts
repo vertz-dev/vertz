@@ -25,11 +25,7 @@ export function createAlertStyles(): CSSOutput<AlertBlocks> {
     ],
     alertDestructive: ['text:destructive', 'bg:card'],
     alertTitle: ['font:medium', 'leading:none', 'tracking:tight', 'mb:1'],
-    alertDescription: [
-      'text:muted-foreground',
-      'text:sm',
-      { '&': [{ property: 'line-height', value: '1.625' }] },
-    ],
+    alertDescription: ['text:muted-foreground', 'text:sm', { '&': { 'line-height': '1.625' } }],
   });
   return {
     root: s.alertRoot,

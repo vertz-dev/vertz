@@ -21,10 +21,10 @@ export function createTabsStyles(): CSSOutput<TabsBlocks> {
       'bg:muted',
       'text:muted-foreground',
       {
-        '&': [
-          { property: 'padding', value: '3px' },
-          { property: 'height', value: '2rem' },
-        ],
+        '&': {
+          padding: '3px',
+          height: '2rem',
+        },
       },
     ],
     tabsTrigger: [
@@ -38,11 +38,11 @@ export function createTabsStyles(): CSSOutput<TabsBlocks> {
       'cursor:pointer',
       'transition:colors',
       {
-        '&': [
-          { property: 'background', value: 'transparent' },
-          { property: 'padding', value: '0.125rem 0.375rem' },
-          { property: 'border', value: '1px solid transparent' },
-        ],
+        '&': {
+          background: 'transparent',
+          padding: '0.125rem 0.375rem',
+          border: '1px solid transparent',
+        },
       },
       { '&[data-state="inactive"]': [textOpacity('foreground', 60)] },
       {
@@ -70,11 +70,11 @@ export function createTabsStyles(): CSSOutput<TabsBlocks> {
       'cursor:pointer',
       'border:0',
       {
-        '&': [
-          { property: 'background', value: 'transparent' },
-          { property: 'margin-bottom', value: '-1px' },
-          { property: 'transition', value: 'color 150ms, box-shadow 150ms' },
-        ],
+        '&': {
+          background: 'transparent',
+          'margin-bottom': '-1px',
+          transition: 'color 150ms, box-shadow 150ms',
+        },
       },
       { '&[data-state="inactive"]': [textOpacity('foreground', 60)] },
       { '&[data-state="inactive"]:hover': [textOpacity('foreground', 80)] },
@@ -82,8 +82,7 @@ export function createTabsStyles(): CSSOutput<TabsBlocks> {
         '&[data-state="active"]': [
           'text:foreground',
           {
-            property: 'box-shadow',
-            value: 'inset 0 -2px 0 0 currentColor',
+            'box-shadow': 'inset 0 -2px 0 0 currentColor',
           },
         ],
       },

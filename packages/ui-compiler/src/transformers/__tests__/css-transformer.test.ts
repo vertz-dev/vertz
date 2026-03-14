@@ -182,9 +182,9 @@ const button = css({ root: ['m:2'] });`;
     expect(result.css).toContain('text-transform: uppercase;');
   });
 
-  it('handles raw declaration objects in nested selectors', () => {
+  it('handles CSS declaration objects in nested selectors', () => {
     const source = `const styles = css({
-  btn: ['p:4', { '&:hover': [{ property: 'background-color', value: 'color-mix(in oklch, var(--color-primary) 90%, transparent)' }] }],
+  btn: ['p:4', { '&:hover': [{ 'background-color': 'color-mix(in oklch, var(--color-primary) 90%, transparent)' }] }],
 });`;
     const result = transformCSS(source);
     expect(result.css).toContain(
@@ -193,9 +193,9 @@ const button = css({ root: ['m:2'] });`;
     expect(result.css).toContain(':hover');
   });
 
-  it('mixes raw declarations with shorthands in nested selectors', () => {
+  it('mixes CSS declaration objects with shorthands in nested selectors', () => {
     const source = `const styles = css({
-  card: ['p:4', { '[data-theme="dark"] &': ['text:foreground', { property: 'background-color', value: 'rgba(0,0,0,0.3)' }] }],
+  card: ['p:4', { '[data-theme="dark"] &': ['text:foreground', { 'background-color': 'rgba(0,0,0,0.3)' }] }],
 });`;
     const result = transformCSS(source);
     expect(result.css).toContain('color: var(--color-foreground);');
@@ -213,18 +213,18 @@ const button = css({ root: ['m:2'] });`;
     expect(result.css).not.toContain('&');
   });
 
-  it('handles nested selector with only raw declarations (no shorthands)', () => {
+  it('handles nested selector with only CSS declaration objects (no shorthands)', () => {
     const source = `const styles = css({
-  overlay: ['fixed', { '&': [{ property: 'background-color', value: 'oklch(0 0 0 / 50%)' }] }],
+  overlay: ['fixed', { '&': [{ 'background-color': 'oklch(0 0 0 / 50%)' }] }],
 });`;
     const result = transformCSS(source);
     expect(result.css).toContain('background-color: oklch(0 0 0 / 50%);');
     expect(result.css).toContain('position: fixed;');
   });
 
-  it('handles multiple raw declarations in a single nested selector', () => {
+  it('handles multiple CSS properties in a single declaration object', () => {
     const source = `const styles = css({
-  btn: [{ '&:focus-visible': [{ property: 'outline', value: '3px solid blue' }, { property: 'outline-offset', value: '2px' }] }],
+  btn: [{ '&:focus-visible': [{ outline: '3px solid blue', 'outline-offset': '2px' }] }],
 });`;
     const result = transformCSS(source);
     expect(result.css).toContain('outline: 3px solid blue;');
@@ -253,9 +253,9 @@ const button = css({ root: ['m:2'] });`;
     expect(result.css).toContain('rgb(0 0 0 / 0.03)');
   });
 
-  it('handles raw declarations alongside keywords in nested selectors', () => {
+  it('handles CSS declaration objects alongside keywords in nested selectors', () => {
     const source = `const styles = css({
-  btn: [{ '&:disabled': ['pointer-events-none', 'opacity:0.5'] }, { '&:hover': [{ property: 'background-color', value: 'color-mix(in oklch, var(--color-primary) 90%, transparent)' }] }],
+  btn: [{ '&:disabled': ['pointer-events-none', 'opacity:0.5'] }, { '&:hover': [{ 'background-color': 'color-mix(in oklch, var(--color-primary) 90%, transparent)' }] }],
 });`;
     const result = transformCSS(source);
     expect(result.css).toContain('pointer-events: none;');
@@ -310,5 +310,39 @@ const button = css({ root: ['m:2'] });`;
     expect(result.css).not.toMatch(/@media[^{]+\{\n\s+flex-direction/);
     // Should have proper nesting: @media { .class { declarations } }
     expect(result.css).toMatch(/@media[^{]+\{\n\s+\._[a-f0-9]+ \{\n\s+flex-direction/);
+  });
+
+  it('handles direct object form for @media at-rules', () => {
+    const source = `const styles = css({
+  layout: ['flex', { '@media (min-width: 640px)': { 'flex-direction': 'row', 'align-items': 'center' } }],
+});`;
+    const result = transformCSS(source);
+
+    expect(result.css).toContain('@media (min-width: 640px)');
+    expect(result.css).toContain('flex-direction: row;');
+    expect(result.css).toContain('align-items: center;');
+    expect(result.css).toMatch(/@media \(min-width: 640px\) \{\n\s+\._[a-f0-9]+ \{/);
+  });
+
+  it('handles CSS declaration objects inside nested arrays', () => {
+    const source = `const styles = css({
+  card: ['p:4', { '&:hover': ['text:foreground', { 'background-color': 'rgba(0,0,0,0.3)' }] }],
+});`;
+    const result = transformCSS(source);
+
+    expect(result.css).toContain('color: var(--color-foreground);');
+    expect(result.css).toContain('background-color: rgba(0,0,0,0.3);');
+    expect(result.css).toContain(':hover');
+  });
+
+  it('handles direct object form for pseudo selectors', () => {
+    const source = `const styles = css({
+  btn: ['p:4', { '&:hover': { opacity: '1', transform: 'scale(1.05)' } }],
+});`;
+    const result = transformCSS(source);
+
+    expect(result.css).toContain('opacity: 1;');
+    expect(result.css).toContain('transform: scale(1.05);');
+    expect(result.css).toContain(':hover');
   });
 });

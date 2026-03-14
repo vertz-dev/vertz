@@ -114,39 +114,45 @@ export class CSSAnalyzer {
       if (!prop.isKind(SyntaxKind.PropertyAssignment)) return false;
 
       const init = prop.getInitializer();
-      if (!init || !init.isKind(SyntaxKind.ArrayLiteralExpression)) return false;
+      if (!init) return false;
 
-      for (const el of init.getElements()) {
-        if (el.isKind(SyntaxKind.StringLiteral)) continue;
-        // Accept raw declaration objects: { property: '...', value: '...' }
-        if (el.isKind(SyntaxKind.ObjectLiteralExpression)) {
-          if (this.isStaticRawDeclaration(el)) continue;
+      // Accept array values: ['shorthand', { 'css-prop': 'value' }]
+      if (init.isKind(SyntaxKind.ArrayLiteralExpression)) {
+        for (const el of init.getElements()) {
+          if (el.isKind(SyntaxKind.StringLiteral)) continue;
+          // Accept CSS declaration objects: { 'prop': 'value', ... }
+          if (el.isKind(SyntaxKind.ObjectLiteralExpression)) {
+            if (this.isStaticCSSObject(el)) continue;
+            return false;
+          }
           return false;
         }
+        continue;
+      }
+
+      // Accept direct object values: { 'flex-direction': 'row', ... }
+      if (init.isKind(SyntaxKind.ObjectLiteralExpression)) {
+        if (this.isStaticCSSObject(init)) continue;
         return false;
       }
+
+      return false;
     }
 
     return true;
   }
 
-  /** Check if a node is a static raw declaration: { property: '...', value: '...' } */
-  private isStaticRawDeclaration(node: Node): boolean {
+  /** Check if a node is a static CSS declarations object: all properties have string literal values. */
+  private isStaticCSSObject(node: Node): boolean {
     if (!node.isKind(SyntaxKind.ObjectLiteralExpression)) return false;
     const props = node.getProperties();
-    if (props.length !== 2) return false;
 
-    let hasProperty = false;
-    let hasValue = false;
     for (const prop of props) {
       if (!prop.isKind(SyntaxKind.PropertyAssignment)) return false;
       const init = prop.getInitializer();
       if (!init || !init.isKind(SyntaxKind.StringLiteral)) return false;
-      const name = prop.getName();
-      if (name === 'property') hasProperty = true;
-      else if (name === 'value') hasValue = true;
     }
-    return hasProperty && hasValue;
+    return props.length > 0;
   }
 
   /** Extract block names from a static css() argument. */

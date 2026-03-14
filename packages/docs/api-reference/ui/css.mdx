@@ -58,7 +58,7 @@ Each style entry in the array can be:
 |------|---------|-------------|
 | Shorthand string | `'bg:white'` | Utility shorthand expanded to CSS |
 | Nested selector | `{ '&:hover': ['bg:gray.100'] }` | Pseudo-classes, media queries, child selectors |
-| Raw declaration | `{ property: 'grid-template', value: '1fr auto' }` | Escape hatch for arbitrary CSS |
+| CSS declaration | `{ 'grid-template': '1fr auto' }` | Plain CSS property-value pair for arbitrary CSS |
 
 ```tsx
 const styles = css({
@@ -262,13 +262,8 @@ type CSSOutput<T extends CSSInput> = {
   readonly [K in keyof T & string]: string;
 } & { readonly css: string };
 
-type StyleEntry = string | Record<string, StyleValue[]>;
-type StyleValue = string | RawDeclaration;
-
-interface RawDeclaration {
-  property: string;
-  value: string;
-}
+type StyleEntry = string | Record<string, StyleValue[] | Record<string, string>>;
+type StyleValue = string | Record<string, string>;
 
 type GlobalCSSInput = Record<string, Record<string, string>>;
 interface GlobalCSSOutput {

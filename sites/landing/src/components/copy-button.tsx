@@ -18,8 +18,8 @@ const s = css({
   copyPrefix: [
     'font:xs',
     'text:gray.500',
-    { '&': [{ property: 'display', value: 'none' }] },
-    { '@media (min-width: 640px)': [{ property: 'display', value: 'inline-grid' }] },
+    { '&': { display: 'none' } },
+    { '@media (min-width: 640px)': { display: 'inline-grid' } },
   ],
   dollarSign: ['text:gray.500'],
   mobileBadge: [
@@ -29,17 +29,19 @@ const s = css({
     'px:3',
     'rounded:md',
     'z:50',
-    { '&': [
-      { property: 'right', value: '0.5rem' },
-      { property: 'top', value: '-0.5rem' },
-      { property: 'background', value: '#4ade80' },
-      { property: 'color', value: '#0a0a0b' },
-      { property: 'pointer-events', value: 'none' },
-      { property: 'white-space', value: 'nowrap' },
-      { property: 'transition', value: 'opacity 0.2s' },
-      { property: 'font-weight', value: '500' },
-    ] },
-    { '@media (min-width: 640px)': [{ property: 'display', value: 'none' }] },
+    {
+      '&': {
+        right: '0.5rem',
+        top: '-0.5rem',
+        background: '#4ade80',
+        color: '#0a0a0b',
+        'pointer-events': 'none',
+        'white-space': 'nowrap',
+        transition: 'opacity 0.2s',
+        'font-weight': '500',
+      },
+    },
+    { '@media (min-width: 640px)': { display: 'none' } },
   ],
 });
 

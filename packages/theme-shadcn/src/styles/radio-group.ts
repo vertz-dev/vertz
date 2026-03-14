@@ -1,4 +1,4 @@
-import type { CSSOutput, RawDeclaration, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
 import { css } from '@vertz/ui';
 import { bgOpacity, DARK } from './_helpers';
 
@@ -9,13 +9,12 @@ type RadioGroupBlocks = {
   indicatorIcon: StyleEntry[];
 };
 
-const focusRing: Record<string, (string | RawDeclaration)[]> = {
+const focusRing: Record<string, StyleValue[]> = {
   '&:focus-visible': [
     'outline-none',
     'border:ring',
     {
-      property: 'box-shadow',
-      value: '0 0 0 3px color-mix(in oklch, var(--color-ring) 50%, transparent)',
+      'box-shadow': '0 0 0 3px color-mix(in oklch, var(--color-ring) 50%, transparent)',
     },
   ],
 };
@@ -37,11 +36,11 @@ export function createRadioGroupStyles(): CSSOutput<RadioGroupBlocks> {
       'cursor:pointer',
       'transition:colors',
       {
-        '&': [
-          { property: 'aspect-ratio', value: '1 / 1' },
-          { property: 'padding', value: '0' },
-          { property: 'background', value: 'transparent' },
-        ],
+        '&': {
+          'aspect-ratio': '1 / 1',
+          padding: '0',
+          background: 'transparent',
+        },
       },
       { [DARK]: [bgOpacity('input', 30)] },
       focusRing,
@@ -60,7 +59,7 @@ export function createRadioGroupStyles(): CSSOutput<RadioGroupBlocks> {
       'items:center',
       'justify:center',
       {
-        '&[data-state="unchecked"]': [{ property: 'display', value: 'none' }],
+        '&[data-state="unchecked"]': [{ display: 'none' }],
       },
     ],
     radioGroupIndicatorIcon: [
@@ -69,12 +68,12 @@ export function createRadioGroupStyles(): CSSOutput<RadioGroupBlocks> {
       'w:2',
       'bg:primary-foreground',
       {
-        '&': [
-          { property: 'position', value: 'absolute' },
-          { property: 'top', value: '50%' },
-          { property: 'left', value: '50%' },
-          { property: 'transform', value: 'translate(-50%, -50%)' },
-        ],
+        '&': {
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+        },
       },
     ],
   });

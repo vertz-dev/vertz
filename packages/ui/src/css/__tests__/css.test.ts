@@ -318,4 +318,105 @@ describe('css()', () => {
       (css as any)({ css: ['p:4'] }, 'test.tsx');
     }).toThrow("css(): block name 'css' is reserved");
   });
+
+  it('handles direct object form for media queries', () => {
+    const result = css(
+      {
+        layout: [
+          'flex',
+          'flex-col',
+          {
+            '@media (min-width: 640px)': {
+              'flex-direction': 'row',
+              'align-items': 'center',
+            },
+          },
+        ],
+      },
+      'media-obj.tsx',
+    );
+
+    const className = result.layout as string;
+    expect(result.css).toContain('@media (min-width: 640px)');
+    expect(result.css).toContain('flex-direction: row');
+    expect(result.css).toContain('align-items: center');
+    expect(result.css).toContain(`.${className}`);
+  });
+
+  it('handles direct object form for pseudo selectors', () => {
+    const result = css(
+      {
+        btn: [
+          'p:4',
+          {
+            '&:hover': { opacity: '1' },
+          },
+        ],
+      },
+      'pseudo-obj.tsx',
+    );
+
+    const className = result.btn as string;
+    expect(result.css).toContain(`.${className}:hover`);
+    expect(result.css).toContain('opacity: 1');
+  });
+
+  it('handles CSS object elements inside arrays (mixed with shorthands)', () => {
+    const result = css(
+      {
+        card: [
+          'p:4',
+          {
+            '&:hover': ['text:foreground', { 'background-color': 'rgba(0,0,0,0.3)' }],
+          },
+        ],
+      },
+      'mixed-obj.tsx',
+    );
+
+    expect(result.css).toContain('color: var(--color-foreground)');
+    expect(result.css).toContain('background-color: rgba(0,0,0,0.3)');
+  });
+
+  it('handles multiple CSS properties in a single object element within array', () => {
+    const result = css(
+      {
+        overlay: [
+          'fixed',
+          {
+            '&': [{ 'background-color': 'oklch(0 0 0 / 50%)', 'backdrop-filter': 'blur(4px)' }],
+          },
+        ],
+      },
+      'multi-prop.tsx',
+    );
+
+    expect(result.css).toContain('background-color: oklch(0 0 0 / 50%)');
+    expect(result.css).toContain('backdrop-filter: blur(4px)');
+  });
+
+  it('produces same class name regardless of key order in CSS object (deterministic fingerprinting)', () => {
+    const a = css({
+      layout: [
+        {
+          '@media (min-width: 640px)': {
+            'align-items': 'center',
+            'flex-direction': 'row',
+          },
+        },
+      ],
+    });
+    const b = css({
+      layout: [
+        {
+          '@media (min-width: 640px)': {
+            'flex-direction': 'row',
+            'align-items': 'center',
+          },
+        },
+      ],
+    });
+
+    expect(a.layout).toBe(b.layout);
+  });
 });

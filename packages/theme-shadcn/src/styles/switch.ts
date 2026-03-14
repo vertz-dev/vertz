@@ -1,4 +1,4 @@
-import type { CSSOutput, RawDeclaration, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
 import { css } from '@vertz/ui';
 import { bgOpacity, DARK } from './_helpers';
 
@@ -9,13 +9,12 @@ type SwitchBlocks = {
   thumbSm: StyleEntry[];
 };
 
-const focusRing: Record<string, (string | RawDeclaration)[]> = {
+const focusRing: Record<string, StyleValue[]> = {
   '&:focus-visible': [
     'outline-none',
     'border:ring',
     {
-      property: 'box-shadow',
-      value: '0 0 0 3px color-mix(in oklch, var(--color-ring) 50%, transparent)',
+      'box-shadow': '0 0 0 3px color-mix(in oklch, var(--color-ring) 50%, transparent)',
     },
   ],
 };
@@ -50,38 +49,25 @@ export function createSwitchStyles(): CSSOutput<SwitchBlocks> {
       'rounded:full',
       'bg:background',
       {
-        '&': [
-          {
-            property: 'transition',
-            value:
-              'transform 150ms cubic-bezier(0.4, 0, 0.2, 1), width 150ms cubic-bezier(0.4, 0, 0.2, 1)',
-          },
-        ],
+        '&': {
+          transition:
+            'transform 150ms cubic-bezier(0.4, 0, 0.2, 1), width 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+        },
       },
       {
-        '&[data-state="unchecked"]': [{ property: 'transform', value: 'translateX(0)' }],
-        '&[data-state="checked"]': [
-          { property: 'transform', value: 'translateX(calc(100% - 2px))' },
-        ],
+        '&[data-state="unchecked"]': [{ transform: 'translateX(0)' }],
+        '&[data-state="checked"]': [{ transform: 'translateX(calc(100% - 2px))' }],
       },
       {
-        'button:active > &[data-state="unchecked"]': [
-          'w:5',
-          { property: 'transform', value: 'translateX(0)' },
-        ],
-        'button:active > &[data-state="checked"]': [
-          'w:5',
-          { property: 'transform', value: 'translateX(0.625rem)' },
-        ],
+        'button:active > &[data-state="unchecked"]': ['w:5', { transform: 'translateX(0)' }],
+        'button:active > &[data-state="checked"]': ['w:5', { transform: 'translateX(0.625rem)' }],
       },
       {
-        [`${DARK}[data-state="unchecked"]`]: [
-          { property: 'background-color', value: 'var(--color-foreground)' },
-        ],
+        [`${DARK}[data-state="unchecked"]`]: [{ 'background-color': 'var(--color-foreground)' }],
       },
       {
         [`${DARK}[data-state="checked"]`]: [
-          { property: 'background-color', value: 'var(--color-primary-foreground)' },
+          { 'background-color': 'var(--color-primary-foreground)' },
         ],
       },
     ],
@@ -112,38 +98,25 @@ export function createSwitchStyles(): CSSOutput<SwitchBlocks> {
       'rounded:full',
       'bg:background',
       {
-        '&': [
-          {
-            property: 'transition',
-            value:
-              'transform 150ms cubic-bezier(0.4, 0, 0.2, 1), width 150ms cubic-bezier(0.4, 0, 0.2, 1)',
-          },
-        ],
+        '&': {
+          transition:
+            'transform 150ms cubic-bezier(0.4, 0, 0.2, 1), width 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+        },
       },
       {
-        '&[data-state="unchecked"]': [{ property: 'transform', value: 'translateX(0)' }],
-        '&[data-state="checked"]': [
-          { property: 'transform', value: 'translateX(calc(100% - 2px))' },
-        ],
+        '&[data-state="unchecked"]': [{ transform: 'translateX(0)' }],
+        '&[data-state="checked"]': [{ transform: 'translateX(calc(100% - 2px))' }],
       },
       {
-        'button:active > &[data-state="unchecked"]': [
-          'w:3.5',
-          { property: 'transform', value: 'translateX(0)' },
-        ],
-        'button:active > &[data-state="checked"]': [
-          'w:3.5',
-          { property: 'transform', value: 'translateX(0.5rem)' },
-        ],
+        'button:active > &[data-state="unchecked"]': ['w:3.5', { transform: 'translateX(0)' }],
+        'button:active > &[data-state="checked"]': ['w:3.5', { transform: 'translateX(0.5rem)' }],
       },
       {
-        [`${DARK}[data-state="unchecked"]`]: [
-          { property: 'background-color', value: 'var(--color-foreground)' },
-        ],
+        [`${DARK}[data-state="unchecked"]`]: [{ 'background-color': 'var(--color-foreground)' }],
       },
       {
         [`${DARK}[data-state="checked"]`]: [
-          { property: 'background-color', value: 'var(--color-primary-foreground)' },
+          { 'background-color': 'var(--color-primary-foreground)' },
         ],
       },
     ],

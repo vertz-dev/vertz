@@ -33,17 +33,22 @@ import { parseShorthand } from './shorthand-parser';
 import type { CSSDeclaration } from './token-resolver';
 import { resolveToken } from './token-resolver';
 
-/** A raw CSS declaration: { property, value } for styles that can't be expressed as shorthands. */
-export interface RawDeclaration {
-  property: string;
-  value: string;
-}
+/**
+ * A value within a nested selector array: shorthand string or CSS declarations map.
+ *
+ * Use a string for design token shorthands: 'p:4', 'bg:primary'
+ * Use Record<string, string> for raw CSS: { 'flex-direction': 'row' }
+ */
+export type StyleValue = string | Record<string, string>;
 
-/** A value within a nested selector array: shorthand string or raw declaration. */
-export type StyleValue = string | RawDeclaration;
-
-/** A style entry in the array: either a shorthand string or an object for nested selectors. */
-export type StyleEntry = string | Record<string, StyleValue[]>;
+/**
+ * A style entry: shorthand string or nested selectors map.
+ *
+ * Nested selector values can be:
+ * - Array form: ['text:foreground', { 'background-color': 'red' }]
+ * - Direct object: { 'flex-direction': 'row', 'align-items': 'center' }
+ */
+export type StyleEntry = string | Record<string, StyleValue[] | Record<string, string>>;
 
 /** Input to css(): a record of named style blocks. */
 export type CSSInput = Record<string, StyleEntry[]>;
@@ -168,16 +173,27 @@ export function css<T extends CSSInput>(
           baseDeclarations.push(...resolved.declarations);
         }
       } else {
-        // Object form: { '&::after': ['content:empty', 'block', { property: '...', value: '...' }] }
-        for (const [selector, nestedEntries] of Object.entries(entry)) {
+        // Object form: nested selectors with array or direct object values
+        for (const [selector, nestedValue] of Object.entries(entry)) {
           const nestedDecls: CSSDeclaration[] = [];
-          for (const nestedEntry of nestedEntries) {
-            if (typeof nestedEntry === 'string') {
-              const parsed = parseShorthand(nestedEntry);
-              const resolved = resolveToken(parsed);
-              nestedDecls.push(...resolved.declarations);
-            } else if ('property' in nestedEntry && 'value' in nestedEntry) {
-              nestedDecls.push({ property: nestedEntry.property, value: nestedEntry.value });
+          if (Array.isArray(nestedValue)) {
+            // Array form: ['text:foreground', { 'background-color': 'red' }]
+            for (const nestedEntry of nestedValue) {
+              if (typeof nestedEntry === 'string') {
+                const parsed = parseShorthand(nestedEntry);
+                const resolved = resolveToken(parsed);
+                nestedDecls.push(...resolved.declarations);
+              } else {
+                // CSS declarations map: { 'background-color': 'red', ... }
+                for (const [prop, val] of Object.entries(nestedEntry)) {
+                  nestedDecls.push({ property: prop, value: val });
+                }
+              }
+            }
+          } else {
+            // Direct object form: { 'flex-direction': 'row', 'align-items': 'center' }
+            for (const [prop, val] of Object.entries(nestedValue)) {
+              nestedDecls.push({ property: prop, value: val });
             }
           }
           if (selector.startsWith('@')) {
@@ -231,10 +247,27 @@ function serializeEntries(entries: StyleEntry[]): string {
       if (typeof entry === 'string') return entry;
       // Object form: serialize selector + values
       return Object.entries(entry)
-        .map(
-          ([sel, vals]) =>
-            `${sel}:{${vals.map((v) => (typeof v === 'string' ? v : `${v.property}=${v.value}`)).join(',')}}`,
-        )
+        .map(([sel, val]) => {
+          if (Array.isArray(val)) {
+            const serialized = val
+              .map((v) => {
+                if (typeof v === 'string') return v;
+                // Sort keys for deterministic fingerprinting
+                return Object.keys(v)
+                  .sort()
+                  .map((k) => `${k}=${v[k]}`)
+                  .join(',');
+              })
+              .join(',');
+            return `${sel}:{${serialized}}`;
+          }
+          // Direct object form: sort keys for deterministic fingerprinting
+          const serialized = Object.keys(val)
+            .sort()
+            .map((k) => `${k}=${val[k]}`)
+            .join(',');
+          return `${sel}:{${serialized}}`;
+        })
         .join(';');
     })
     .join('|');

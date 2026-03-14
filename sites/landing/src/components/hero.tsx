@@ -28,10 +28,10 @@ const s = css({
     'items:stretch',
     'gap:4',
     {
-      '@media (min-width: 640px)': [
-        { property: 'flex-direction', value: 'row' },
-        { property: 'align-items', value: 'center' },
-      ],
+      '@media (min-width: 640px)': {
+        'flex-direction': 'row',
+        'align-items': 'center',
+      },
     },
   ],
   githubLink: [
@@ -47,7 +47,7 @@ const s = css({
     'transition:colors',
     'text:gray.400',
     {
-      '@media (min-width: 640px)': [{ property: 'display', value: 'inline-flex' }],
+      '@media (min-width: 640px)': { display: 'inline-flex' },
     },
   ],
 });

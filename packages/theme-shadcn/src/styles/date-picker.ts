@@ -1,4 +1,4 @@
-import type { CSSOutput, RawDeclaration, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
 import { css } from '@vertz/ui';
 
 type DatePickerBlocks = {
@@ -6,14 +6,13 @@ type DatePickerBlocks = {
   content: StyleEntry[];
 };
 
-const focusRing: Record<string, (string | RawDeclaration)[]> = {
+const focusRing: Record<string, StyleValue[]> = {
   '&:focus-visible': [
     'outline-none',
     {
-      property: 'outline',
-      value: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+      outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
     },
-    { property: 'outline-offset', value: '2px' },
+    { 'outline-offset': '2px' },
   ],
 };
 
@@ -34,11 +33,11 @@ export function createDatePickerStyles(): CSSOutput<DatePickerBlocks> {
       'transition:colors',
       focusRing,
       {
-        '&': [
-          { property: 'height', value: '2.5rem' },
-          { property: 'width', value: '100%' },
-          { property: 'padding', value: '0.5rem 0.75rem' },
-        ],
+        '&': {
+          height: '2.5rem',
+          width: '100%',
+          padding: '0.5rem 0.75rem',
+        },
       },
       { '&:hover': ['bg:accent', 'text:accent-foreground'] },
       { '&[data-placeholder="true"]': ['text:muted-foreground'] },
@@ -50,7 +49,7 @@ export function createDatePickerStyles(): CSSOutput<DatePickerBlocks> {
       'border:1',
       'border:border',
       'shadow:md',
-      { '&': [{ property: 'padding', value: '0' }] },
+      { '&': { padding: '0' } },
     ],
   });
   return {

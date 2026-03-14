@@ -1,4 +1,4 @@
-import type { CSSOutput, RawDeclaration, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
 import { css } from '@vertz/ui';
 
 type ResizablePanelBlocks = {
@@ -7,14 +7,13 @@ type ResizablePanelBlocks = {
   handle: StyleEntry[];
 };
 
-const focusRing: Record<string, (string | RawDeclaration)[]> = {
+const focusRing: Record<string, StyleValue[]> = {
   '&:focus-visible': [
     'outline-none',
     {
-      property: 'outline',
-      value: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+      outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
     },
-    { property: 'outline-offset', value: '2px' },
+    { 'outline-offset': '2px' },
   ],
 };
 
@@ -34,22 +33,16 @@ export function createResizablePanelStyles(): CSSOutput<ResizablePanelBlocks> {
         '&:hover': ['bg:muted-foreground'],
       },
       {
-        '&[data-orientation="horizontal"]': [
-          { property: 'width', value: '1px' },
-          {
-            property: 'cursor',
-            value: 'col-resize',
-          },
-        ],
+        '&[data-orientation="horizontal"]': {
+          width: '1px',
+          cursor: 'col-resize',
+        },
       },
       {
-        '&[data-orientation="vertical"]': [
-          { property: 'height', value: '1px' },
-          {
-            property: 'cursor',
-            value: 'row-resize',
-          },
-        ],
+        '&[data-orientation="vertical"]': {
+          height: '1px',
+          cursor: 'row-resize',
+        },
       },
       {
         '&[data-state="dragging"]': ['bg:primary'],

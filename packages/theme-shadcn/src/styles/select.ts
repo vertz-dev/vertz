@@ -1,4 +1,4 @@
-import type { CSSOutput, RawDeclaration, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
 import { css } from '@vertz/ui';
 import { animationDecl, bgOpacity, DARK } from './_helpers';
 
@@ -13,14 +13,13 @@ type SelectBlocks = {
   scrollButton: StyleEntry[];
 };
 
-const focusRing: Record<string, (string | RawDeclaration)[]> = {
+const focusRing: Record<string, StyleValue[]> = {
   '&:focus-visible': [
     'outline-none',
     {
-      property: 'outline',
-      value: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+      outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
     },
-    { property: 'outline-offset', value: '2px' },
+    { 'outline-offset': '2px' },
   ],
 };
 
@@ -42,13 +41,13 @@ export function createSelectStyles(): CSSOutput<SelectBlocks> {
       'cursor:pointer',
       // Nova: h-8, py-2 pr-2 pl-2.5
       {
-        '&': [
-          { property: 'height', value: '2rem' },
-          { property: 'padding-top', value: '0.5rem' },
-          { property: 'padding-bottom', value: '0.5rem' },
-          { property: 'padding-right', value: '0.5rem' },
-          { property: 'padding-left', value: '0.625rem' },
-        ],
+        '&': {
+          height: '2rem',
+          'padding-top': '0.5rem',
+          'padding-bottom': '0.5rem',
+          'padding-right': '0.5rem',
+          'padding-left': '0.625rem',
+        },
       },
       focusRing,
       { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
@@ -64,14 +63,11 @@ export function createSelectStyles(): CSSOutput<SelectBlocks> {
       'p:1',
       // Nova: ring-1 ring-foreground/10 instead of border, shadow-md, min-w-36
       {
-        '&': [
-          {
-            property: 'box-shadow',
-            value:
-              '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent), 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
-          },
-          { property: 'min-width', value: '9rem' },
-        ],
+        '&': {
+          'box-shadow':
+            '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent), 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+          'min-width': '9rem',
+        },
       },
       {
         '&[data-state="open"][data-side="bottom"]': [
@@ -104,10 +100,10 @@ export function createSelectStyles(): CSSOutput<SelectBlocks> {
       'relative',
       // Nova: pr-8 pl-2
       {
-        '&': [
-          { property: 'padding-right', value: '2rem' },
-          { property: 'padding-left', value: '0.5rem' },
-        ],
+        '&': {
+          'padding-right': '2rem',
+          'padding-left': '0.5rem',
+        },
       },
       { '&:hover:not([aria-selected="true"])': ['bg:accent', 'text:accent-foreground'] },
       { '&:focus:not([aria-selected="true"])': ['bg:accent', 'text:accent-foreground'] },
@@ -120,15 +116,15 @@ export function createSelectStyles(): CSSOutput<SelectBlocks> {
       'items:center',
       'justify:center',
       {
-        '&': [
-          { property: 'right', value: '0.5rem' },
-          { property: 'width', value: '0.875rem' },
-          { property: 'height', value: '0.875rem' },
-          { property: 'display', value: 'none' },
-        ],
+        '&': {
+          right: '0.5rem',
+          width: '0.875rem',
+          height: '0.875rem',
+          display: 'none',
+        },
       },
       {
-        '[aria-selected="true"] > &': [{ property: 'display', value: 'flex' }],
+        '[aria-selected="true"] > &': { display: 'flex' },
       },
     ],
     // Nova: scroll-my-1 p-1
@@ -140,11 +136,11 @@ export function createSelectStyles(): CSSOutput<SelectBlocks> {
       'my:1',
       'bg:border',
       {
-        '&': [
-          { property: 'margin-left', value: '-0.25rem' },
-          { property: 'margin-right', value: '-0.25rem' },
-          { property: 'height', value: '1px' },
-        ],
+        '&': {
+          'margin-left': '-0.25rem',
+          'margin-right': '-0.25rem',
+          height: '1px',
+        },
       },
     ],
     selectScrollButton: ['flex', 'items:center', 'justify:center', 'py:1', 'cursor:default'],

@@ -1,4 +1,4 @@
-import type { CSSOutput, RawDeclaration, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
 import { css } from '@vertz/ui';
 import { bgOpacity, DARK } from './_helpers';
 
@@ -6,15 +6,14 @@ type TextareaBlocks = { base: StyleEntry[] };
 
 /** Create textarea css() styles. */
 export function createTextarea(): CSSOutput<TextareaBlocks> {
-  const focusRing: Record<string, (string | RawDeclaration)[]> = {
+  const focusRing: Record<string, StyleValue[]> = {
     '&:focus-visible': [
       'outline-none',
       'border:ring',
       {
-        property: 'outline',
-        value: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+        outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
       },
-      { property: 'outline-offset', value: '2px' },
+      { 'outline-offset': '2px' },
     ],
   };
 
@@ -28,20 +27,16 @@ export function createTextarea(): CSSOutput<TextareaBlocks> {
       'bg:transparent',
       'py:2',
       {
-        '&': [
-          { property: 'padding-left', value: '0.625rem' },
-          { property: 'padding-right', value: '0.625rem' },
-        ],
+        '&': {
+          'padding-left': '0.625rem',
+          'padding-right': '0.625rem',
+          'min-height': '60px',
+          'field-sizing': 'content',
+        },
       },
       'text:sm',
       'text:foreground',
       'transition:colors',
-      {
-        '&': [
-          { property: 'min-height', value: '60px' },
-          { property: 'field-sizing', value: 'content' },
-        ],
-      },
       focusRing,
       { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
       { [DARK]: [bgOpacity('input', 30)] },

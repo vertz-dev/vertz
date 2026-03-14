@@ -12,15 +12,15 @@ const s = css({
     'items:center',
     'px:6',
     'py:4',
-    { '@media (max-width: 639px)': [{ property: 'display', value: 'flex' }, { property: 'flex-wrap', value: 'wrap' }] },
-    { '@media (min-width: 640px)': [{ property: 'display', value: 'grid' }, { property: 'grid-template-columns', value: '1fr 1.5fr 1fr' }] },
+    { '@media (max-width: 639px)': { display: 'flex', 'flex-wrap': 'wrap' } },
+    { '@media (min-width: 640px)': { display: 'grid', 'grid-template-columns': '1fr 1.5fr 1fr' } },
   ],
   pkg: ['font:sm'],
   what: ['font:sm', 'text:gray.300'],
   replaces: [
     'font:xs',
     'text:gray.600',
-    { '@media (min-width: 640px)': [{ property: 'text-align', value: 'right' }] },
+    { '@media (min-width: 640px)': { 'text-align': 'right' } },
   ],
 });
 
@@ -107,11 +107,7 @@ export function TheStack() {
 
         <div class={s.list}>
           {LAYERS.map((layer) => (
-            <div
-              key={layer.pkg}
-              class={s.row}
-              style="border-bottom: 1px solid #1e1e22"
-            >
+            <div key={layer.pkg} class={s.row} style="border-bottom: 1px solid #1e1e22">
               <div class={s.pkg} style={`font-family: var(--font-mono); color: ${layer.color}`}>
                 {layer.pkg}
               </div>

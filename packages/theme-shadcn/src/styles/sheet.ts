@@ -1,4 +1,4 @@
-import type { CSSOutput, RawDeclaration, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
 import { css } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
@@ -13,14 +13,13 @@ type SheetBlocks = {
   close: StyleEntry[];
 };
 
-const focusRing: Record<string, (string | RawDeclaration)[]> = {
+const focusRing: Record<string, StyleValue[]> = {
   '&:focus-visible': [
     'outline-none',
     {
-      property: 'outline',
-      value: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+      outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
     },
-    { property: 'outline-offset', value: '2px' },
+    { 'outline-offset': '2px' },
   ],
 };
 
@@ -44,11 +43,11 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
       'inset:0',
       'z:50',
       {
-        '&': [
-          { property: 'background-color', value: 'oklch(0 0 0 / 10%)' },
-          { property: 'backdrop-filter', value: 'blur(4px)' },
-          { property: '-webkit-backdrop-filter', value: 'blur(4px)' },
-        ],
+        '&': {
+          'background-color': 'oklch(0 0 0 / 10%)',
+          'backdrop-filter': 'blur(4px)',
+          '-webkit-backdrop-filter': 'blur(4px)',
+        },
       },
       {
         '&[data-state="open"]': [animationDecl('vz-fade-in 100ms ease-out forwards')],
@@ -61,11 +60,11 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
       ...PANEL_BASE,
       'border-r:1',
       {
-        '&': [
-          { property: 'inset', value: '0 auto 0 0' },
-          { property: 'width', value: '75%' },
-          { property: 'max-width', value: '24rem' },
-        ],
+        '&': {
+          inset: '0 auto 0 0',
+          width: '75%',
+          'max-width': '24rem',
+        },
       },
       {
         '&[data-state="open"]': [animationDecl('vz-slide-in-from-left 300ms ease-out forwards')],
@@ -78,11 +77,11 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
       ...PANEL_BASE,
       'border-l:1',
       {
-        '&': [
-          { property: 'inset', value: '0 0 0 auto' },
-          { property: 'width', value: '75%' },
-          { property: 'max-width', value: '24rem' },
-        ],
+        '&': {
+          inset: '0 0 0 auto',
+          width: '75%',
+          'max-width': '24rem',
+        },
       },
       {
         '&[data-state="open"]': [animationDecl('vz-slide-in-from-right 300ms ease-out forwards')],
@@ -95,7 +94,7 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
       ...PANEL_BASE,
       'border-b:1',
       {
-        '&': [{ property: 'inset', value: '0 0 auto 0' }],
+        '&': { inset: '0 0 auto 0' },
       },
       {
         '&[data-state="open"]': [animationDecl('vz-slide-in-from-top 300ms ease-out forwards')],
@@ -108,7 +107,7 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
       ...PANEL_BASE,
       'border-t:1',
       {
-        '&': [{ property: 'inset', value: 'auto 0 0 0' }],
+        '&': { inset: 'auto 0 0 0' },
       },
       {
         '&[data-state="open"]': [animationDecl('vz-slide-in-from-bottom 300ms ease-out forwards')],
@@ -124,21 +123,21 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
       'rounded:xs',
       'cursor:pointer',
       {
-        '&': [
-          { property: 'top', value: '0.75rem' },
-          { property: 'right', value: '0.75rem' },
-          { property: 'opacity', value: '0.7' },
-          { property: 'transition', value: 'opacity 150ms' },
-          { property: 'display', value: 'inline-flex' },
-          { property: 'align-items', value: 'center' },
-          { property: 'justify-content', value: 'center' },
-          { property: 'width', value: '1rem' },
-          { property: 'height', value: '1rem' },
-          { property: 'background', value: 'none' },
-          { property: 'border', value: 'none' },
-          { property: 'color', value: 'currentColor' },
-          { property: 'padding', value: '0' },
-        ],
+        '&': {
+          top: '0.75rem',
+          right: '0.75rem',
+          opacity: '0.7',
+          transition: 'opacity 150ms',
+          display: 'inline-flex',
+          'align-items': 'center',
+          'justify-content': 'center',
+          width: '1rem',
+          height: '1rem',
+          background: 'none',
+          border: 'none',
+          color: 'currentColor',
+          padding: '0',
+        },
       },
       { '&:hover': ['opacity:1'] },
       focusRing,

@@ -19,7 +19,7 @@ export function createHoverCardStyles(): CSSOutput<HoverCardBlocks> {
       'shadow:md',
       'p:4',
       {
-        '&': [{ property: 'width', value: '16rem' }],
+        '&': { width: '16rem' },
       },
       {
         '&[data-state="open"]': [animationDecl('vz-fade-in 150ms ease-out forwards')],

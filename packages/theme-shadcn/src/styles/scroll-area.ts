@@ -12,21 +12,17 @@ type ScrollAreaBlocks = {
 export function createScrollAreaStyles(): CSSOutput<ScrollAreaBlocks> {
   const s = css({
     scrollAreaRoot: ['relative', 'overflow-hidden'],
-    scrollAreaViewport: [
-      'h:full',
-      'w:full',
-      { '&': [{ property: 'border-radius', value: 'inherit' }] },
-    ],
+    scrollAreaViewport: ['h:full', 'w:full', { '&': { 'border-radius': 'inherit' } }],
     scrollAreaScrollbar: [
       'flex',
       {
-        '&': [
-          { property: 'touch-action', value: 'none' },
-          { property: 'user-select', value: 'none' },
-        ],
+        '&': {
+          'touch-action': 'none',
+          'user-select': 'none',
+          padding: '1px',
+        },
       },
       'transition:colors',
-      { '&': [{ property: 'padding', value: '1px' }] },
       {
         '&[data-orientation="vertical"]': ['h:full', 'w:2.5', 'border-l:1', 'border:transparent'],
       },

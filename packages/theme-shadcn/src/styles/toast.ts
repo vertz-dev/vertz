@@ -1,4 +1,4 @@
-import type { CSSOutput, RawDeclaration, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
 import { css } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
@@ -11,14 +11,13 @@ type ToastBlocks = {
   close: StyleEntry[];
 };
 
-const focusRing: Record<string, (string | RawDeclaration)[]> = {
+const focusRing: Record<string, StyleValue[]> = {
   '&:focus-visible': [
     'outline-none',
     {
-      property: 'outline',
-      value: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+      outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
     },
-    { property: 'outline-offset', value: '2px' },
+    { 'outline-offset': '2px' },
   ],
 };
 
@@ -33,14 +32,14 @@ export function createToastStyles(): CSSOutput<ToastBlocks> {
       'gap:2',
       'p:4',
       {
-        '&': [
-          { property: 'bottom', value: '0' },
-          { property: 'right', value: '0' },
-          { property: 'max-height', value: '100vh' },
-          { property: 'width', value: '420px' },
-          { property: 'max-width', value: '100vw' },
-          { property: 'pointer-events', value: 'none' },
-        ],
+        '&': {
+          bottom: '0',
+          right: '0',
+          'max-height': '100vh',
+          width: '420px',
+          'max-width': '100vw',
+          'pointer-events': 'none',
+        },
       },
     ],
     toastRoot: [
@@ -56,7 +55,7 @@ export function createToastStyles(): CSSOutput<ToastBlocks> {
       'p:4',
       'shadow:lg',
       {
-        '&': [{ property: 'pointer-events', value: 'auto' }],
+        '&': { 'pointer-events': 'auto' },
       },
       {
         '&[data-state="open"]': [animationDecl('vz-slide-in-from-bottom 200ms ease-out forwards')],
@@ -79,7 +78,7 @@ export function createToastStyles(): CSSOutput<ToastBlocks> {
       'font:medium',
       'transition:colors',
       'shrink-0',
-      { '&': [{ property: 'height', value: '2rem' }] },
+      { '&': { height: '2rem' } },
       { '&:hover': ['bg:secondary'] },
       focusRing,
     ],

@@ -1,4 +1,4 @@
-import type { CSSOutput, RawDeclaration, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
 import { css } from '@vertz/ui';
 
 type CommandBlocks = {
@@ -12,14 +12,13 @@ type CommandBlocks = {
   empty: StyleEntry[];
 };
 
-const focusRing: Record<string, (string | RawDeclaration)[]> = {
+const focusRing: Record<string, StyleValue[]> = {
   '&:focus-visible': [
     'outline-none',
     {
-      property: 'outline',
-      value: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+      outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
     },
-    { property: 'outline-offset', value: '2px' },
+    { 'outline-offset': '2px' },
   ],
 };
 
@@ -47,21 +46,21 @@ export function createCommandStyles(): CSSOutput<CommandBlocks> {
       'outline-none',
       { '&::placeholder': ['text:muted-foreground'] },
       {
-        '&': [
-          { property: 'height', value: '2.5rem' },
-          { property: 'border-bottom', value: '1px solid var(--color-border)' },
-        ],
+        '&': {
+          height: '2.5rem',
+          'border-bottom': '1px solid var(--color-border)',
+        },
       },
       focusRing,
     ],
     commandList: [
       'p:1',
       {
-        '&': [
-          { property: 'max-height', value: '300px' },
-          { property: 'overflow-y', value: 'auto' },
-          { property: 'overflow-x', value: 'hidden' },
-        ],
+        '&': {
+          'max-height': '300px',
+          'overflow-y': 'auto',
+          'overflow-x': 'hidden',
+        },
       },
     ],
     commandItem: [
@@ -72,10 +71,10 @@ export function createCommandStyles(): CSSOutput<CommandBlocks> {
       'text:sm',
       'cursor:pointer',
       {
-        '&': [
-          { property: 'padding-top', value: '0.375rem' },
-          { property: 'padding-bottom', value: '0.375rem' },
-        ],
+        '&': {
+          'padding-top': '0.375rem',
+          'padding-bottom': '0.375rem',
+        },
       },
       { '&[aria-selected="true"]': ['bg:accent', 'text:accent-foreground'] },
     ],
@@ -86,21 +85,21 @@ export function createCommandStyles(): CSSOutput<CommandBlocks> {
       'font:medium',
       'text:muted-foreground',
       {
-        '&': [
-          { property: 'padding-top', value: '0.375rem' },
-          { property: 'padding-bottom', value: '0.375rem' },
-        ],
+        '&': {
+          'padding-top': '0.375rem',
+          'padding-bottom': '0.375rem',
+        },
       },
     ],
     commandSeparator: [
       {
-        '&': [
-          { property: 'margin-left', value: '-0.25rem' },
-          { property: 'margin-right', value: '-0.25rem' },
-          { property: 'height', value: '1px' },
-          { property: 'background-color', value: 'var(--color-border)' },
-          { property: 'border', value: 'none' },
-        ],
+        '&': {
+          'margin-left': '-0.25rem',
+          'margin-right': '-0.25rem',
+          height: '1px',
+          'background-color': 'var(--color-border)',
+          border: 'none',
+        },
       },
     ],
     commandEmpty: ['py:6', 'text:center', 'text:sm', 'text:muted-foreground'],

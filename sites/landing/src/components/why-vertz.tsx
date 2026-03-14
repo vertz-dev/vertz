@@ -7,7 +7,7 @@ const s = css({
   grid: [
     'grid',
     'gap:6',
-    { '@media (min-width: 768px)': [{ property: 'grid-template-columns', value: 'repeat(3, 1fr)' }] },
+    { '@media (min-width: 768px)': { 'grid-template-columns': 'repeat(3, 1fr)' } },
   ],
   card: ['p:8', 'border:1', 'rounded:lg', 'transition:colors'],
   title: ['font:2xl', 'mb:4', 'text:gray.200'],
