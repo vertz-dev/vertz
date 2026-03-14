@@ -50,3 +50,18 @@ export const issuesTable = d.table('issues', {
 });
 
 export const issuesModel = d.model(issuesTable);
+
+// ---------------------------------------------------------------------------
+// Comments
+// ---------------------------------------------------------------------------
+
+export const commentsTable = d.table('comments', {
+  id: d.uuid().primary({ generate: 'uuid' }),
+  issueId: d.uuid(),
+  body: d.text(),
+  authorId: d.text().default(''),
+  createdAt: d.timestamp().default('now').readOnly(),
+  updatedAt: d.timestamp().autoUpdate(),
+});
+
+export const commentsModel = d.model(commentsTable);

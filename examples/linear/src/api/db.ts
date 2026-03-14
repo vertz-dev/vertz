@@ -9,7 +9,7 @@
 import { Database, type SQLQueryBindings } from 'bun:sqlite';
 import { createDb } from '@vertz/db';
 import { authModels } from '@vertz/server';
-import { issuesModel, projectsModel, usersModel } from './schema';
+import { commentsModel, issuesModel, projectsModel, usersModel } from './schema';
 import { seedDatabase } from './seed';
 
 // ---------------------------------------------------------------------------
@@ -99,7 +99,13 @@ function createBunD1(dbPath: string) {
 const d1 = createBunD1('./data/linear.db');
 
 export const db = createDb({
-  models: { ...authModels, users: usersModel, projects: projectsModel, issues: issuesModel },
+  models: {
+    ...authModels,
+    users: usersModel,
+    projects: projectsModel,
+    issues: issuesModel,
+    comments: commentsModel,
+  },
   dialect: 'sqlite',
   // biome-ignore lint/suspicious/noExplicitAny: bun:sqlite D1 wrapper
   d1: d1 as any,

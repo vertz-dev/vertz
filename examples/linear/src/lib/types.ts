@@ -40,6 +40,29 @@ export interface CreateIssueBody {
   assigneeId?: string;
 }
 
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  avatarUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Comment {
+  id: string;
+  issueId: string;
+  body: string;
+  authorId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCommentBody {
+  issueId: string;
+  body: string;
+}
+
 export interface ListResponse<T> {
   items: T[];
   total: number;
