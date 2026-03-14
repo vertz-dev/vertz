@@ -1,5 +1,23 @@
 # @vertz/server
 
+## 0.2.17
+
+### Patch Changes
+
+- [#1237](https://github.com/vertz-dev/vertz/pull/1237) [`e69ef45`](https://github.com/vertz-dev/vertz/commit/e69ef4540fca9e47249fc18c3cd2a74be84f2db8) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add Entity Expose API — unified `expose` config replacing `relations` for controlling VertzQL query surface.
+
+  - `expose.select` restricts which fields appear in API responses
+  - `expose.allowWhere` / `expose.allowOrderBy` restrict filtering and sorting
+  - `expose.include` controls relation exposure with fractal structure
+  - Field-level access descriptors (`rules.*`) for conditional field visibility
+  - Descriptor-guarded fields return `null` (not field omission)
+
+- Updated dependencies []:
+  - @vertz/core@0.2.17
+  - @vertz/db@0.2.17
+  - @vertz/errors@0.2.17
+  - @vertz/schema@0.2.17
+
 ## 0.2.16
 
 ### Patch Changes
