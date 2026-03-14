@@ -15,6 +15,7 @@ import { ProjectLayout } from './components/project-layout';
 import { IssueDetailPage } from './pages/issue-detail-page';
 import { IssueListPage } from './pages/issue-list-page';
 import { LoginPage } from './pages/login-page';
+import { ProjectBoardPage } from './pages/project-board-page';
 import { ProjectsPage } from './pages/projects-page';
 
 /** Redirect `/` → `/projects` so the layout route always has a matched child. */
@@ -48,13 +49,16 @@ export const routes = defineRoutes({
         component: () => <ProjectsPage />,
       },
       '/projects/:projectId': {
-        component: () => ProjectLayout(),
+        component: () => <ProjectLayout />,
         children: {
           '/': {
-            component: () => IssueListPage(),
+            component: () => <IssueListPage />,
+          },
+          '/board': {
+            component: () => <ProjectBoardPage />,
           },
           '/issues/:issueId': {
-            component: () => IssueDetailPage(),
+            component: () => <IssueDetailPage />,
           },
         },
       },

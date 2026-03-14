@@ -1,4 +1,5 @@
 import { css } from '@vertz/ui';
+import { STATUSES } from '../lib/issue-config';
 
 const styles = css({
   container: ['flex', 'gap:1', 'mb:4'],
@@ -26,14 +27,7 @@ const styles = css({
   ],
 });
 
-const statuses = [
-  { value: 'all', label: 'All' },
-  { value: 'backlog', label: 'Backlog' },
-  { value: 'todo', label: 'Todo' },
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'done', label: 'Done' },
-  { value: 'cancelled', label: 'Cancelled' },
-];
+const filterStatuses = [{ value: 'all', label: 'All' }, ...STATUSES];
 
 interface StatusFilterProps {
   value: string;
@@ -43,7 +37,7 @@ interface StatusFilterProps {
 export function StatusFilter({ value, onChange }: StatusFilterProps) {
   return (
     <div class={styles.container}>
-      {statuses.map((s) => (
+      {filterStatuses.map((s) => (
         <button
           type="button"
           class={s.value === value ? styles.active : styles.button}

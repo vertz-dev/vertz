@@ -1,4 +1,5 @@
 import { css } from '@vertz/ui';
+import { STATUSES } from '../lib/issue-config';
 import type { IssueStatus } from '../lib/types';
 
 const styles = css({
@@ -16,14 +17,6 @@ const styles = css({
     'cursor:pointer',
   ],
 });
-
-const statusOptions: { value: IssueStatus; label: string }[] = [
-  { value: 'backlog', label: 'Backlog' },
-  { value: 'todo', label: 'Todo' },
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'done', label: 'Done' },
-  { value: 'cancelled', label: 'Cancelled' },
-];
 
 interface StatusSelectProps {
   value: IssueStatus;
@@ -44,7 +37,7 @@ export function StatusSelect({ value, onChange }: StatusSelectProps) {
           onChange((e.target as HTMLSelectElement).value as IssueStatus);
         }}
       >
-        {statusOptions.map((opt) => (
+        {STATUSES.map((opt) => (
           <option value={opt.value} key={opt.value}>
             {opt.label}
           </option>

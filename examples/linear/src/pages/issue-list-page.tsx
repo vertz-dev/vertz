@@ -3,6 +3,7 @@ import { issueApi, projectApi } from '../api/client';
 import { CreateIssueDialog } from '../components/create-issue-dialog';
 import { IssueRow } from '../components/issue-row';
 import { StatusFilter } from '../components/status-filter';
+import { ViewToggle } from '../components/view-toggle';
 
 const styles = css({
   container: ['p:6'],
@@ -40,6 +41,7 @@ export function IssueListPage() {
 
   return (
     <div class={styles.container}>
+      <ViewToggle projectId={projectId} />
       <header class={styles.header}>
         <h2 class={styles.title}>Issues</h2>
         <button
