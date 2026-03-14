@@ -46,7 +46,7 @@
             "pages": [
               "guides/ui/overview",
               "guides/ui/components",
-              "guides/ui/primitives",
+              "guides/ui/component-library",
               "guides/ui/reactivity",
               "guides/ui/styling",
               "guides/ui/routing",
@@ -148,19 +148,23 @@
       "source": "/guides/ui/query"
     },
     {
-      "destination": "/guides/ui/primitives",
+      "destination": "/guides/ui/component-library",
+      "source": "/guides/ui/primitives"
+    },
+    {
+      "destination": "/guides/ui/component-library",
       "source": "/guides/ui/ui-primitives"
     },
     {
-      "destination": "/guides/ui/primitives",
+      "destination": "/guides/ui/component-library",
       "source": "/guides/ui/theme"
     },
     {
-      "destination": "/guides/ui/primitives",
+      "destination": "/guides/ui/component-library",
       "source": "/guides/components"
     },
     {
-      "destination": "/guides/ui/primitives",
+      "destination": "/guides/ui/component-library",
       "source": "/guides/ui/components-list"
     },
     {
