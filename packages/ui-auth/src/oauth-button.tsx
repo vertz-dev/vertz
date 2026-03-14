@@ -1,5 +1,6 @@
 import type { OAuthProviderInfo } from '@vertz/ui/auth';
 import { getProviderIcon, useAuth } from '@vertz/ui/auth';
+import type { JSX } from '@vertz/ui/jsx-runtime';
 
 const DANGEROUS_SCHEMES = ['javascript:', 'data:', 'vbscript:'];
 
@@ -20,7 +21,12 @@ export interface OAuthButtonProps {
   _providers?: OAuthProviderInfo[];
 }
 
-export function OAuthButton({ provider, label, iconOnly, _providers }: OAuthButtonProps) {
+export function OAuthButton({
+  provider,
+  label,
+  iconOnly,
+  _providers,
+}: OAuthButtonProps): JSX.Element {
   const providers = _providers ?? useAuth().providers;
 
   const providerInfo = (providers as OAuthProviderInfo[]).find((p) => p.id === provider);

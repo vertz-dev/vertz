@@ -1,5 +1,6 @@
 import type { OAuthProviderInfo } from '@vertz/ui/auth';
 import { useAuth } from '@vertz/ui/auth';
+import type { JSX } from '@vertz/ui/jsx-runtime';
 import { OAuthButton } from './oauth-button';
 
 export interface OAuthButtonsProps {
@@ -7,7 +8,7 @@ export interface OAuthButtonsProps {
   _providers?: OAuthProviderInfo[];
 }
 
-export function OAuthButtons({ _providers }: OAuthButtonsProps) {
+export function OAuthButtons({ _providers }: OAuthButtonsProps): JSX.Element {
   const providers = _providers ?? useAuth().providers;
 
   return (

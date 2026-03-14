@@ -1,4 +1,5 @@
 import { getUserIcon } from '@vertz/ui/auth';
+import type { JSX } from '@vertz/ui/jsx-runtime';
 
 const sizes = {
   sm: { width: '32px', height: '32px', icon: 18 },
@@ -14,7 +15,13 @@ export interface AvatarProps {
   class?: string;
 }
 
-export function Avatar({ src, alt, size = 'md', fallback, class: className }: AvatarProps) {
+export function Avatar({
+  src,
+  alt,
+  size = 'md',
+  fallback,
+  class: className,
+}: AvatarProps): JSX.Element {
   let imgFailed = false;
   const sizeConfig = sizes[size] ?? sizes.md;
   const style = `display:inline-flex;align-items:center;justify-content:center;border-radius:9999px;overflow:hidden;flex-shrink:0;vertical-align:middle;width:${sizeConfig.width};height:${sizeConfig.height}`;

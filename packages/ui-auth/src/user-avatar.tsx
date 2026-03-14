@@ -1,6 +1,8 @@
+import type { ReadonlySignal } from '@vertz/ui';
 import { computed, useContext } from '@vertz/ui';
 import type { User } from '@vertz/ui/auth';
 import { AuthContext, getUserDisplayName } from '@vertz/ui/auth';
+import type { JSX } from '@vertz/ui/jsx-runtime';
 import { Avatar } from './avatar';
 
 export interface UserAvatarProps {
@@ -10,7 +12,12 @@ export interface UserAvatarProps {
   class?: string;
 }
 
-export function UserAvatar({ size, user, fallback, class: className }: UserAvatarProps) {
+export function UserAvatar({
+  size,
+  user,
+  fallback,
+  class: className,
+}: UserAvatarProps): JSX.Element | ReadonlySignal<JSX.Element> {
   if (user) {
     const avatarUrl = typeof user.avatarUrl === 'string' ? user.avatarUrl : undefined;
     return (
