@@ -6,6 +6,7 @@ export type {
 } from './accordion';
 export { createThemedAccordion } from './accordion';
 export type {
+  AlertDialogButtonSlotProps,
   AlertDialogRootProps,
   AlertDialogSlotProps,
   ThemedAlertDialogComponent,

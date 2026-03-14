@@ -26,6 +26,10 @@ export interface AlertDialogSlotProps {
   class?: string;
 }
 
+export interface AlertDialogButtonSlotProps extends AlertDialogSlotProps {
+  [key: string]: unknown;
+}
+
 // ── Component type ─────────────────────────────────────────
 
 export interface ThemedAlertDialogComponent {
@@ -35,8 +39,8 @@ export interface ThemedAlertDialogComponent {
   Title: (props: AlertDialogSlotProps) => HTMLHeadingElement;
   Description: (props: AlertDialogSlotProps) => HTMLParagraphElement;
   Footer: (props: AlertDialogSlotProps) => HTMLDivElement;
-  Cancel: (props: AlertDialogSlotProps) => HTMLButtonElement;
-  Action: (props: AlertDialogSlotProps) => HTMLButtonElement;
+  Cancel: (props: AlertDialogButtonSlotProps) => HTMLButtonElement;
+  Action: (props: AlertDialogButtonSlotProps) => HTMLButtonElement;
 }
 
 // ── Factory ────────────────────────────────────────────────
@@ -105,11 +109,21 @@ export function createThemedAlertDialog(
   function AlertDialogCancel({
     children,
     class: className,
-  }: AlertDialogSlotProps): HTMLButtonElement {
+    ...attrs
+  }: AlertDialogButtonSlotProps): HTMLButtonElement {
     const el = document.createElement('button');
     el.setAttribute('type', 'button');
     el.classList.add(styles.cancel);
     if (className) el.classList.add(className);
+    for (const [key, value] of Object.entries(attrs)) {
+      if (value === undefined || value === null) continue;
+      if (key.startsWith('on') && typeof value === 'function') {
+        const event = key.charAt(2).toLowerCase() + key.slice(3);
+        el.addEventListener(event, value as EventListener);
+      } else {
+        el.setAttribute(key, String(value));
+      }
+    }
     for (const node of resolveChildren(children)) {
       el.appendChild(node);
     }
@@ -119,11 +133,21 @@ export function createThemedAlertDialog(
   function AlertDialogAction({
     children,
     class: className,
-  }: AlertDialogSlotProps): HTMLButtonElement {
+    ...attrs
+  }: AlertDialogButtonSlotProps): HTMLButtonElement {
     const el = document.createElement('button');
     el.setAttribute('type', 'button');
     el.classList.add(styles.action);
     if (className) el.classList.add(className);
+    for (const [key, value] of Object.entries(attrs)) {
+      if (value === undefined || value === null) continue;
+      if (key.startsWith('on') && typeof value === 'function') {
+        const event = key.charAt(2).toLowerCase() + key.slice(3);
+        el.addEventListener(event, value as EventListener);
+      } else {
+        el.setAttribute(key, String(value));
+      }
+    }
     for (const node of resolveChildren(children)) {
       el.appendChild(node);
     }
