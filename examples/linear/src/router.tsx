@@ -12,6 +12,7 @@ import { createRouter, defineRoutes, onMount, useRouter } from '@vertz/ui';
 import { ProtectedRoute } from '@vertz/ui-auth';
 import { WorkspaceShell } from './components/auth-guard';
 import { ProjectLayout } from './components/project-layout';
+import { IssueDetailPage } from './pages/issue-detail-page';
 import { IssueListPage } from './pages/issue-list-page';
 import { LoginPage } from './pages/login-page';
 import { ProjectsPage } from './pages/projects-page';
@@ -53,7 +54,7 @@ export const routes = defineRoutes({
             component: () => IssueListPage(),
           },
           '/issues/:issueId': {
-            component: () => <div>Issue detail — coming in Phase 3</div>,
+            component: () => IssueDetailPage(),
           },
         },
       },
