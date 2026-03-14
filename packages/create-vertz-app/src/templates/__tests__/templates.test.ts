@@ -272,6 +272,41 @@ describe('templates', () => {
     it('exports HomePage component', () => {
       expect(homePageTemplate()).toContain('export function HomePage()');
     });
+
+    it('uses form() API for task creation instead of manual submit', () => {
+      const result = homePageTemplate();
+      expect(result).toContain('form(api.tasks.create');
+      expect(result).toContain('resetOnSuccess: true');
+      expect(result).not.toContain('handleSubmit');
+      expect(result).not.toContain('refetch');
+    });
+
+    it('imports form from vertz/ui', () => {
+      const result = homePageTemplate();
+      expect(result).toContain('form,');
+    });
+
+    it('uses form fields for input name binding', () => {
+      const result = homePageTemplate();
+      expect(result).toContain('taskForm.fields.title');
+    });
+
+    it('uses form action/method/onSubmit on the form element', () => {
+      const result = homePageTemplate();
+      expect(result).toContain('taskForm.action');
+      expect(result).toContain('taskForm.method');
+      expect(result).toContain('taskForm.onSubmit');
+    });
+
+    it('shows per-field validation errors', () => {
+      const result = homePageTemplate();
+      expect(result).toContain('taskForm.title.error');
+    });
+
+    it('disables submit button during submission', () => {
+      const result = homePageTemplate();
+      expect(result).toContain('taskForm.submitting');
+    });
   });
 
   describe('claudeMdTemplate', () => {

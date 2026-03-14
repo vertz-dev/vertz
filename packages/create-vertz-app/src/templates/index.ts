@@ -776,6 +776,7 @@ export function homePageTemplate(): string {
   ListTransition,
   css,
   fadeOut,
+  form,
   globalCss,
   query,
   queryMatch,
@@ -797,9 +798,10 @@ void globalCss({
 const pageStyles = css({
   container: ['py:2', 'w:full'],
   heading: ['font:xl', 'font:bold', 'text:foreground', 'mb:4'],
-  form: ['flex', 'gap:2', 'mb:6'],
+  form: ['flex', 'gap:2', 'items:start', 'mb:6'],
+  inputWrap: ['flex-1'],
   input: [
-    'flex-1',
+    'w:full',
     'px:3',
     'py:2',
     'rounded:md',
@@ -808,12 +810,13 @@ const pageStyles = css({
     'bg:background',
     'text:foreground',
   ],
+  fieldError: ['text:destructive', 'font:xs', 'mt:1'],
   button: [
     'px:4',
     'py:2',
     'rounded:md',
-    'bg:primary.600',
-    'text:white',
+    'bg:primary',
+    'text:primary-foreground',
     'font:medium',
     'cursor:pointer',
   ],
@@ -837,31 +840,36 @@ const pageStyles = css({
 export function HomePage() {
   const tasksQuery = query(api.tasks.list());
 
-  const handleSubmit = async (e: SubmitEvent) => {
-    e.preventDefault();
-    const form = e.target as HTMLFormElement;
-    const data = new FormData(form);
-    const title = data.get('title') as string;
-    if (!title.trim()) return;
-
-    await api.tasks.create({ title });
-    form.reset();
-    tasksQuery.refetch();
-  };
+  const taskForm = form(api.tasks.create, {
+    resetOnSuccess: true,
+  });
 
   return (
     <div class={pageStyles.container} data-testid="home-page">
       <h1 class={pageStyles.heading}>Tasks</h1>
 
-      <form class={pageStyles.form} onSubmit={handleSubmit}>
-        <input
-          name="title"
-          class={pageStyles.input}
-          placeholder="What needs to be done?"
-          required
-        />
-        <button type="submit" class={pageStyles.button}>
-          Add
+      <form
+        class={pageStyles.form}
+        action={taskForm.action}
+        method={taskForm.method}
+        onSubmit={taskForm.onSubmit}
+      >
+        <div class={pageStyles.inputWrap}>
+          <input
+            name={taskForm.fields.title}
+            class={pageStyles.input}
+            placeholder="What needs to be done?"
+          />
+          <span class={pageStyles.fieldError}>
+            {taskForm.title.error}
+          </span>
+        </div>
+        <button
+          type="submit"
+          class={pageStyles.button}
+          disabled={taskForm.submitting}
+        >
+          {taskForm.submitting.value ? 'Adding...' : 'Add'}
         </button>
       </form>
 
