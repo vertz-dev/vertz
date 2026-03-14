@@ -138,4 +138,19 @@ describe('UserName', () => {
 
     expect(el.getAttribute('class')).toBe('custom-name');
   });
+
+  it('renders fallback when auth user is null (logged out)', () => {
+    const { ctx } = mockAuthContext(null);
+    let result: unknown;
+
+    AuthContext.Provider({
+      value: ctx,
+      children: () => {
+        result = UserName({ fallback: 'Guest' });
+      },
+    });
+
+    const el = (result as ReadonlySignal<Element>).value;
+    expect(el.textContent).toBe('Guest');
+  });
 });

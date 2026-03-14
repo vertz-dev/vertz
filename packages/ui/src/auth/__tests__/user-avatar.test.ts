@@ -152,4 +152,20 @@ describe('UserAvatar', () => {
 
     expect(el.getAttribute('class')).toBe('custom-avatar');
   });
+
+  it('renders SVG fallback when auth user is null (logged out)', () => {
+    const { ctx } = mockAuthContext(null);
+    let result: unknown;
+
+    AuthContext.Provider({
+      value: ctx,
+      children: () => {
+        result = UserAvatar({});
+      },
+    });
+
+    const el = (result as ReadonlySignal<Element>).value;
+    expect(el.querySelector('img')).toBeNull();
+    expect(el.innerHTML).toContain('<svg');
+  });
 });

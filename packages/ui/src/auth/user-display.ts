@@ -7,7 +7,7 @@ import type { User } from './auth-types';
 export function getUserDisplayName(user: User | null | undefined, fallback = 'Unknown'): string {
   if (!user) return fallback;
   const name = user.name;
-  if (typeof name === 'string' && name.trim().length > 0) return name;
+  if (typeof name === 'string' && name.trim().length > 0) return name.trim();
   if (user.email) return user.email;
   return fallback;
 }

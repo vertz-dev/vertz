@@ -40,6 +40,11 @@ describe('getUserDisplayName', () => {
     const user: User = { id: '1', email: 'jane@example.com', role: 'user', name: '   ' };
     expect(getUserDisplayName(user)).toBe('jane@example.com');
   });
+
+  it('trims leading and trailing whitespace from name', () => {
+    const user: User = { id: '1', email: 'jane@example.com', role: 'user', name: '  Jane Doe  ' };
+    expect(getUserDisplayName(user)).toBe('Jane Doe');
+  });
 });
 
 describe('getUserInitials', () => {
