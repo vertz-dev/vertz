@@ -2,6 +2,8 @@ import type { ChildValue } from '@vertz/ui';
 import { resolveChildren } from '@vertz/ui';
 import type { DialogOptions } from '@vertz/ui-primitives';
 import { Dialog } from '@vertz/ui-primitives';
+import type { ElementEventHandlers } from '../../event-handlers';
+import { wireEventHandlers } from '../../event-handlers';
 
 let idCounter = 0;
 
@@ -26,9 +28,8 @@ export interface AlertDialogSlotProps {
   class?: string;
 }
 
-export interface AlertDialogButtonSlotProps extends AlertDialogSlotProps {
+export interface AlertDialogButtonSlotProps extends AlertDialogSlotProps, ElementEventHandlers {
   disabled?: boolean;
-  [key: string]: unknown;
 }
 
 // ── Component type ─────────────────────────────────────────
@@ -111,22 +112,14 @@ export function createThemedAlertDialog(
     children,
     class: className,
     disabled,
-    ...attrs
+    ...eventHandlers
   }: AlertDialogButtonSlotProps): HTMLButtonElement {
     const el = document.createElement('button');
     el.setAttribute('type', 'button');
     el.classList.add(styles.cancel);
     if (className) el.classList.add(className);
     if (disabled) el.disabled = true;
-    for (const [key, value] of Object.entries(attrs)) {
-      if (value === undefined || value === null) continue;
-      if (key.startsWith('on') && typeof value === 'function') {
-        const event = key.charAt(2).toLowerCase() + key.slice(3);
-        el.addEventListener(event, value as EventListener);
-      } else {
-        el.setAttribute(key, String(value));
-      }
-    }
+    wireEventHandlers(el, eventHandlers);
     for (const node of resolveChildren(children)) {
       el.appendChild(node);
     }
@@ -137,22 +130,14 @@ export function createThemedAlertDialog(
     children,
     class: className,
     disabled,
-    ...attrs
+    ...eventHandlers
   }: AlertDialogButtonSlotProps): HTMLButtonElement {
     const el = document.createElement('button');
     el.setAttribute('type', 'button');
     el.classList.add(styles.action);
     if (className) el.classList.add(className);
     if (disabled) el.disabled = true;
-    for (const [key, value] of Object.entries(attrs)) {
-      if (value === undefined || value === null) continue;
-      if (key.startsWith('on') && typeof value === 'function') {
-        const event = key.charAt(2).toLowerCase() + key.slice(3);
-        el.addEventListener(event, value as EventListener);
-      } else {
-        el.setAttribute(key, String(value));
-      }
-    }
+    wireEventHandlers(el, eventHandlers);
     for (const node of resolveChildren(children)) {
       el.appendChild(node);
     }

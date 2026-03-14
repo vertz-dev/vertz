@@ -319,24 +319,6 @@ describe('createThemedAlertDialog', () => {
     expect(called).toBe(true);
   });
 
-  it('Action forwards extra HTML attributes', async () => {
-    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
-    const styles = createAlertDialogStyles();
-    const AlertDialog = createThemedAlertDialog(styles);
-
-    const action = AlertDialog.Action({ children: 'Delete', 'aria-label': 'confirm-delete' });
-    expect(action.getAttribute('aria-label')).toBe('confirm-delete');
-  });
-
-  it('Cancel forwards extra HTML attributes', async () => {
-    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
-    const styles = createAlertDialogStyles();
-    const AlertDialog = createThemedAlertDialog(styles);
-
-    const cancel = AlertDialog.Cancel({ children: 'Cancel', 'aria-label': 'dismiss' });
-    expect(cancel.getAttribute('aria-label')).toBe('dismiss');
-  });
-
   it('Action disabled={true} disables the button', async () => {
     const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
     const styles = createAlertDialogStyles();
