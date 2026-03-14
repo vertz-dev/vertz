@@ -3,7 +3,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Command } from 'commander';
-import { resolveOptions, scaffold } from '../dist/index.js';
 
 const pkg = JSON.parse(readFileSync(resolve(import.meta.dir, '../package.json'), 'utf-8'));
 
@@ -15,6 +14,7 @@ program
   .version(pkg.version)
   .argument('[name]', 'Project name')
   .action(async (name: string | undefined) => {
+    const { resolveOptions, scaffold } = await import('../dist/index.js');
     try {
       const resolved = await resolveOptions({ projectName: name });
 

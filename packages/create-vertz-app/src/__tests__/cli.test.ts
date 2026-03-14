@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'bun:test';
-import { promises as fs } from 'node:fs';
+import { existsSync, promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
 const CLI_PATH = path.resolve(import.meta.dir, '../../bin/create-vertz-app.ts');
 const PKG_PATH = path.resolve(import.meta.dir, '../../package.json');
+const DIST_PATH = path.resolve(import.meta.dir, '../../dist/index.js');
 
 describe('create-vertz-app CLI', () => {
   describe('--version', () => {
@@ -22,7 +23,9 @@ describe('create-vertz-app CLI', () => {
   });
 
   describe('scaffold output', () => {
-    it('includes the package version in the creating message', async () => {
+    const hasDist = existsSync(DIST_PATH);
+
+    it.skipIf(!hasDist)('includes the package version in the creating message', async () => {
       const pkg = JSON.parse(await fs.readFile(PKG_PATH, 'utf-8'));
       const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'vertz-cli-'));
 
