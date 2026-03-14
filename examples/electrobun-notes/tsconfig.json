@@ -13,6 +13,6 @@
     "target": "ES2022",
     "types": ["bun-types"]
   },
-  "exclude": [".vertz/generated/routes.ts", "src/api/client.ts"],
+  "exclude": [".vertz/generated/routes.ts"],
   "include": ["src", ".vertz/generated"]
 }
