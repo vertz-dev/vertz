@@ -1,7 +1,26 @@
 # vertz Design Docs Map
 
-> Central index of architectural decisions, specs, and design debates.
-> **If it's not here, it's not findable.** Update this file when creating new docs.
+> Central index of active design work, architectural decisions, and reference material.
+> Last updated: 2026-03-14
+>
+> For the full categorized index of all plans (including archived), see [plans/README.md](plans/README.md).
+> Shipped designs live in [plans/archived/](plans/archived/).
+
+---
+
+## Active Work
+
+Features currently being implemented or with approved implementation in progress.
+
+| Doc | Status | Description |
+|-----|--------|-------------|
+| [Action Standalone Cleanup](plans/action-standalone-cleanup.md) | 🔄 In Progress | Implement `action()` with entity DI, remove modules/routers from public API |
+| [Cross-File Reactivity Analysis](plans/cross-file-reactivity-analysis.md) | 🔄 Approved | Fix cross-file signal wrapping bugs in the compiler |
+| [Library Build Plan](plans/library-build-plan.md) | 🔄 Approved | Bun plugin for library compilation with transforms |
+| [Linear Clone](plans/linear-clone.md) | 🔄 In Progress | Linear clone as primary Vertz showcase app |
+| [Linear Clone: Projects & Issues](plans/linear-clone-projects-issues.md) | 🔄 In Progress | Add Projects & Issues entities to Linear clone |
+| [Security Auth Hardening (Impl)](plans/security-auth-hardening-implementation.md) | 🔄 Ready | Signup privilege stripping and session hardening |
+| [SQLite Dialect Impl Spec](plans/sqlite-dialect-impl-spec.md) | 🔄 Ready | SQLite dialect implementation — 5 phases |
 
 ---
 
@@ -9,14 +28,10 @@
 
 | Doc | Status | Description |
 |-----|--------|-------------|
-| [Entity-Driven Architecture (EDA)](plans/entity-driven-architecture.md) | ✅ Implemented | Foundational design: entity(), action(), service(), domain(). DDD alignment, REST/HATEOAS, VertzQL. PR #455. |
-| [Entity Analyzer Design](plans/entity-analyzer-design.md) | ✅ Implemented | Compiler analyzer for entity() calls — static extraction, IR emission, schema resolution, SDK codegen. |
-| [Entity Analyzer Impl Spec](plans/entity-analyzer-impl-spec.md) | ✅ Implemented | Implementation spec — 66 tests, 6 parts. Issue #471. |
-| [Entity-Aware API](plans/entity-aware-api.md) | ✅ Implemented | Entity-aware API layer design |
-| [Entity-Aware API Review: REST](plans/entity-aware-api-review-rest.md) | ✅ Done | REST perspective review |
-| [Entity-Aware API Review: GraphQL](plans/entity-aware-api-review-graphql.md) | ✅ Done | GraphQL perspective review |
-| [Entity API Expert Debate](plans/entity-api-expert-debate.md) | ✅ Done | Expert debate on entity API design |
-| [Entity Phase 1 Spec](plans/entity-phase1-spec.md) | ✅ Done | Phase 1 implementation spec |
+| [Tenant Isolation & Entity Access](plans/tenant-isolation-and-entity-access.md) | 📋 Approved | Descriptor-based access rules + automatic tenant scoping |
+| [955 — Move Tenant to Model](plans/955-move-tenant-to-model.md) | 📋 Approved | Move tenant scoping to model-level `d.model` |
+| [Indirect Tenant Scoping](plans/indirect-tenant-scoping.md) | 📋 Approved | Auto-filter entities via relation chains |
+| [Action Standalone Cleanup](plans/action-standalone-cleanup.md) | 🔄 In Progress | Entity-scoped `action()`, remove modules/routers |
 
 ---
 
@@ -24,30 +39,8 @@
 
 | Doc | Status | Description |
 |-----|--------|-------------|
-| [VertzQL Auto Field Selection](plans/vertzql-auto-field-selection.md) | 📋 Draft (Rev 2) | Compiler-driven query narrowing: automatic `select` injection based on field access analysis. Spans compiler, Bun plugin, SDK, and server. |
-| [Entity Store Design](plans/entity-store-design.md) | ✅ Implemented | Normalized entity cache, signal-per-entity, compiler-inferred field selection, SSR data bridge. |
-| [Entity Store Impl Spec](plans/entity-store-impl-spec.md) | ✅ Implemented | Implementation spec. PR #466 merged. |
-| [Cross-Component Tracing Spec](plans/cross-component-tracing-spec.md) | ✅ Implemented | Compiler extension for entity data flow across components. PR #467 merged. |
-
-### Entity Store Reviews
-
-| Doc | Status | Description |
-|-----|--------|-------------|
-| [DX Skeptic](plans/reviews/entity-store-review-dx-skeptic.md) | ✅ Done | josh — debugging visibility, testing story |
-| [Devil's Advocate](plans/reviews/entity-store-review-devils-advocate.md) | ✅ Done | SSR isolation, memory scaling |
-| [Compiler Expert](plans/reviews/entity-store-review-compiler-expert.md) | ✅ Done | Opaque fallback rate, computed selector overhead |
-| [Impl Spec (Tech Lead)](plans/reviews/entity-store-impl-spec-review-tech-lead.md) | ✅ Done | ben — batch+untrack, merge semantics |
-| [Tracing Spec (Tech Lead)](plans/reviews/cross-component-tracing-spec-review-tech-lead.md) | ✅ Done | ben — rest params, filter chains |
-
-### Entity Analyzer Reviews
-
-| Doc | Status | Description |
-|-----|--------|-------------|
-| [Compiler Expert](plans/reviews/entity-analyzer-review-compiler-expert.md) | ✅ Done | AST extraction, IR design, schema resolution |
-| [DX Skeptic](plans/reviews/entity-analyzer-review-dx-skeptic.md) | ✅ Done | SDK output, error messages, debugging story |
-| [Devil's Advocate](plans/reviews/entity-analyzer-review-devils-advocate.md) | ✅ Done | Architectural risk, scalability, alternatives |
-| [Tech Lead](plans/reviews/entity-analyzer-review-tech-lead.md) | ✅ Done | Implementability, schema feasibility, risk areas |
-| [Impl Spec (Tech Lead)](plans/reviews/entity-analyzer-impl-spec-review-tech-lead.md) | ✅ Done | 8 blocking issues → all addressed |
+| [VertzQL Auto Field Selection](plans/vertzql-auto-field-selection.md) | 📋 Draft (Rev 2) | Compiler-driven query narrowing: automatic `select` injection based on field access analysis |
+| [1268 — SDK Expose Types](plans/1268-sdk-expose-types.md) | 📋 Draft | SDK types reflect entity `expose.select` for end-to-end type safety |
 
 ---
 
@@ -55,22 +48,23 @@
 
 | Doc | Status | Description |
 |-----|--------|-------------|
-| [Errors-as-Values Unification](plans/errors-as-values-unification.md) | ✅ Implemented | Consolidate Result type, error classes, matchError() utility across fetch/server/entities/codegen. Tickets #532-537. |
-| [Result Boundaries v3](plans/result-boundaries.md) | ✅ Implemented | Where Result stops and throwing begins. |
-| [Errors as Values](plans/errors-as-values.md) | ✅ Implemented | Error-as-values philosophy |
-| [Result Types Audit](plans/reviews/result-types-audit.md) | ✅ Done | Result type usage audit |
+| [Errors-as-Values Unification](plans/errors-as-values-unification.md) | 📋 Approved | Consolidate Result type, error classes, `matchError()` across the stack. Tickets #532-537. |
 
 ---
 
-## Async Data & SSR
+## SSR & Rendering
 
 | Doc | Status | Description |
 |-----|--------|-------------|
-| [Async Data Design](plans/async-data-design.md) | ✅ Approved | Suspense model, SSR streaming, auto-skeletons. |
-| [SSR Zero Config](plans/ssr-zero-config.md) | 📋 Draft | Zero-config SSR |
-| [Render Page Design](plans/render-page.md) | 📋 Draft | renderPage API |
-| [Render Page Implementation](plans/render-page-implementation.md) | ✅ Done | renderPage impl |
-| [Retro: SSR DX Gap](plans/retro-ssr-dx-gap.md) | ✅ Done | SSR DX retrospective |
+| [SSR Zero Config](plans/ssr-zero-config.md) | 📋 Draft | Zero-config SSR setup |
+| [SSR Per-Request Isolation](plans/ssr-per-request-isolation.md) | 📋 Approved | Dependency inversion for SSR isolation, mutex bottleneck removal |
+| [Server-Rendered Client Navigations](plans/server-rendered-client-navigations.md) | 📋 Approved | Server-rendered data for client navigations via SSE |
+| [Server Nav Implementation](plans/server-nav-implementation.md) | 📋 Approved | Data-only pre-fetch via SSE for client navigations |
+| [Component Streaming](plans/component-streaming.md) | 📋 Draft | Stream resolved data for slow SSR queries |
+| [Hydration JSX Children Thunks](plans/hydration-jsx-children-thunks.md) | 📋 Approved | Compiler children thunk wrapping for hydration |
+| [Hydration JSX Ordering](plans/hydration-jsx-ordering.md) | 📋 Draft | Fix evaluation order conflict between JSX and hydration |
+| [Universal Rendering Model](plans/universal-rendering-model.md) | 📋 Draft | One pipeline for CSR/SSR/hydration |
+| [Server-Only Components](plans/server-only-components.md) | 📋 Approved | Islands architecture for static/interactive separation |
 
 ---
 
@@ -78,13 +72,12 @@
 
 | Doc | Status | Description |
 |-----|--------|-------------|
-| [UI Design](plans/ui-design.md) | 📋 Draft | UI framework design |
-| [UI Implementation](plans/ui-implementation.md) | 📋 Draft | UI implementation |
-| [UI Competitive Analysis](plans/ui-competitive-analysis.md) | 📋 Draft | Competitor comparison |
-| [Form API — SDK Schema Integration](plans/form-attrs-api-improvement.md) | 📋 Draft | Declarative forms with SDK schema integration, progressive enhancement |
-| [Canvas Phase 1](plans/canvas-phase-1.md) | ✅ Done | Canvas rendering phase 1 |
-| [Canvas Phase 2](plans/canvas-phase-2.md) | 📋 Draft | Canvas phase 2 |
-| [Browser Platform APIs](plans/browser-platform-apis.md) | 📋 Draft | Browser APIs |
+| [UI Auth System](plans/ui-auth-system.md) | 📋 Approved | Client-side auth session management |
+| [Canvas Phase 2](plans/canvas-phase-2.md) | 📋 Draft | JSX-based canvas rendering on PixiJS |
+| [Browser Platform APIs](plans/browser-platform-apis.md) | 📋 Draft | Replace JS polyfills with native browser APIs |
+| [Theme System Architecture](plans/theme-system-architecture.md) | 📋 Approved | Primitive-based theme with shadcn inspiration |
+| [Typed Views / Semantic Layer](plans/typed-views-semantic-layer.md) | 📋 Draft | Typed views as primary read abstraction |
+| [Catalog Router Refactor](plans/catalog-router-refactor.md) | 📋 Draft | Replace manual routing in catalog with RouterView |
 
 ---
 
@@ -92,7 +85,8 @@
 
 | Doc | Status | Description |
 |-----|--------|-------------|
-| [Compiler Design](plans/vertz-compiler-design.md) | 📋 Draft | Compiler architecture |
+| [Cross-File Reactivity Analysis](plans/cross-file-reactivity-analysis.md) | 🔄 Approved | Fix cross-file signal wrapping bugs |
+| [Library Build Plan](plans/library-build-plan.md) | 🔄 Approved | Bun plugin for library compilation |
 
 ---
 
@@ -100,11 +94,13 @@
 
 | Doc | Status | Description |
 |-----|--------|-------------|
-| [Schema Design](plans/vertz-schema-design.md) | ✅ Implemented | Schema system — core schema, effects, refinements, introspection, JSON Schema + OpenAPI. |
-| [Schema Implementation](plans/vertz-schema-implementation.md) | ✅ Implemented | Schema impl |
-| [Database Design](plans/db-design.md) | ✅ Implemented | Database layer — SQLite, PostgreSQL, D1 adapters, migrations, CLI. |
-| [Database Implementation](plans/db-implementation.md) | ✅ Implemented | DB impl |
-| [DB Integration Design](plans/db-integration-design.md) | ✅ Implemented | DB integration |
+| [SQLite Dialect Design](plans/sqlite-dialect-design.md) | 📋 Approved | SQLite dialect abstraction design (v3) |
+| [SQLite Dialect Impl Spec](plans/sqlite-dialect-impl-spec.md) | 🔄 Ready | Implementation spec — 5 phases |
+| [Schema Migrations Architecture](plans/migration-system-architecture.md) | 📋 Draft | Unify auto-migrate and file-based migrations |
+| [Schema Migrations Design](plans/design-schema-migrations.md) | 📋 Draft | Schema migration system design |
+| [Schema Migrations PRD](plans/prd-schema-migrations.md) | 📋 Reference | Product requirements for schema migrations |
+| [Schema Migrations Review](plans/adversarial-review-schema-migrations.md) | 📋 Reference | Adversarial review — verdict: needs major revision |
+| [Auto-Migrate Dev Server](plans/auto-migrate-dev-server.md) | 📋 Draft | Wire auto-migrate into dev server pipeline |
 
 ---
 
@@ -112,18 +108,27 @@
 
 | Doc | Status | Description |
 |-----|--------|-------------|
-| [Access Redesign — Entity-Centric `defineAccess()`](plans/access-redesign.md) | ✅ ~95% Impl | Entity-centric config, entitlements, plans, limits, grandfathering. Layers 1-5 done. **Remaining:** Layer 6 (attribute rule eval) → covered by tenant-isolation plan Phase 1. Layer 7 (FVA) partially stubbed. |
-| [Tenant Isolation & Entity Access Descriptors](plans/tenant-isolation-and-entity-access.md) | 📋 Draft | Bridge entity access to `rules.*` descriptors, automatic tenant scoping, admin entities, session revalidation. |
-| [Auth Module Spec](plans/auth-module-spec.md) | ⏸️ Blocked | Deprioritized to v0.2 |
-| [Auth Phase 2 Spec](plans/auth-phase2-spec.md) | ⏸️ Blocked | Blocked on auth module |
-| [Access System](plans/access-system.md) | 📋 Draft | Access control |
+| [Tenant Isolation & Entity Access](plans/tenant-isolation-and-entity-access.md) | 📋 Approved | Bridge entity access to `rules.*` descriptors, automatic tenant scoping |
+| [955 — Move Tenant to Model](plans/955-move-tenant-to-model.md) | 📋 Approved | Move tenant scoping to model-level |
+| [Security Auth Hardening](plans/security-auth-hardening.md) | 📋 Approved | Framework-owned privilege protection design |
+| [Security Auth Hardening (Impl)](plans/security-auth-hardening-implementation.md) | 🔄 Ready | Implementation plan for auth hardening |
+| [DB-Backed Auth Stores](plans/db-backed-auth-stores.md) | 📋 Approved | DB persistence layer for auth stores |
+| [UI Auth System](plans/ui-auth-system.md) | 📋 Approved | Client-side auth session management |
 
 ### User-Facing Docs
 
 | Doc | Status | Description |
 |-----|--------|-------------|
-| [Server Auth & Access Guide](packages/docs/guides/server/auth.mdx) | ✅ Done | Authentication, `defineAccess()`, plans, `canAndConsume()`, entity access |
+| [Server Auth & Access Guide](packages/docs/guides/server/auth.mdx) | ✅ Done | Authentication, `defineAccess()`, plans, `canAndConsume()` |
 | [Client Access Control Guide](packages/docs/guides/ui/access-control.mdx) | ✅ Done | `can()`, `AccessGate`, SSR hydration, denial reasons |
+
+---
+
+## Routing
+
+| Doc | Status | Description |
+|-----|--------|-------------|
+| [Route Param Schemas](plans/route-param-schemas.md) | 📋 Approved | Schema-based route param parsing and validation |
 
 ---
 
@@ -131,59 +136,38 @@
 
 | Doc | Status | Description |
 |-----|--------|-------------|
-| [Cloud Architecture](plans/cloud-architecture.md) | 📋 Draft | Cloud platform (v0.3+) |
-| [Cloudflare Adapter](plans/cloudflare-adapter.md) | ✅ Done | Cloudflare Workers adapter |
-| [Publish CLI Spec](plans/vertz-publish-spec.md) | 📋 Draft | `vertz publish` command |
+| [Entity-Todo Cloudflare Deployment](plans/entity-todo-cloudflare-deployment.md) | 📋 Draft | Deploy entity-todo on Cloudflare Workers |
+| [Platform Agnosticism Audit](plans/platform-agnosticism-runtime-audit.md) | 📋 Draft | Guard Node.js-specific APIs in runtime packages |
 
 ---
 
-## Codegen & Services
+## Infrastructure
 
 | Doc | Status | Description |
 |-----|--------|-------------|
-| [Codegen Design](plans/codegen-design.md) | ✅ Implemented | Code generation system — entity SDK, types, schema, client generators. |
-| [Codegen & Services Audit](plans/audits/codegen-and-services-audit.md) | ✅ Done | Codegen audit |
-| [API Cheat Sheet](plans/api-cheat-sheet-current.md) | ✅ Done | Current API surface |
+| [Package Runtime Hardening](plans/package-runtime-hardening.md) | 📋 Draft | Cross-package distribution and runtime hardening |
+| [Package Runtime Hardening (Impl)](plans/package-runtime-hardening-implementation.md) | 📋 Draft | Implementation plan for package distribution |
+| [Raw Service Actions](plans/raw-service-actions.md) | 📋 Draft | Content descriptors for non-JSON service actions |
 
 ---
 
-## Testing
+## Reference
 
-| Doc | Status | Description |
-|-----|--------|-------------|
-| [Testing Design](plans/vertz-testing-design.md) | 🔄 Partial | Testing framework — `TestApp` utility exists, minimal. |
-| [Testing Implementation](plans/vertz-testing-implementation.md) | 🔄 Partial | Testing impl — basic utilities, needs expansion. |
-| [Integration Tests](plans/integration-tests.md) | 📋 Draft | Integration strategy |
-
-### E2E Testing DX Debates
-
-| Doc | Status | Description |
-|-----|--------|-------------|
-| [Hybrid DSL](plans/debate-e2e-testing-dx-hybrid-dsl.md) | 📋 Draft | Hybrid DSL for E2E |
-| [Natural Language](plans/debate-e2e-testing-dx-natural-language.md) | 📋 Draft | NL test authoring |
-| [Type-Safe](plans/debate-e2e-testing-dx-type-safe.md) | 📋 Draft | Type-safe tests |
-
-### Framework DX Debates
-
-| Doc | Status | Description |
-|-----|--------|-------------|
-| [Explicit Control](plans/debate-e2e-dx-explicit-control.md) | 📋 Draft | Explicit vs implicit |
-| [LLM-Native](plans/debate-e2e-dx-llm-native.md) | 📋 Draft | LLM-native tooling |
-| [Zero Boilerplate](plans/debate-e2e-dx-zero-boilerplate.md) | 📋 Draft | Zero-boilerplate |
+| Doc | Description |
+|-----|-------------|
+| [API Cheat Sheet](plans/api-cheat-sheet-current.md) | Current state of package APIs |
+| [Auth UI Framework Gaps](plans/auth-ui-framework-gaps.md) | Patterns from Linear clone for framework elevation |
+| [Docs: Entity Field Exposure](plans/docs-entity-field-exposure.md) | Documentation page for field exposure and relations |
+| [Codegen & Services Audit](plans/audits/codegen-and-services-audit.md) | Codegen audit |
 
 ---
 
-## Infrastructure & Process
+## Showcase Apps
 
 | Doc | Status | Description |
 |-----|--------|-------------|
-| [Package Distribution & Runtime Hardening](plans/package-runtime-hardening.md) | 📋 Draft | Cross-package hardening for package exports, runtime coverage, CI/task inputs, auth integrity, and CLI/compiler integration. |
-| [Package Distribution & Runtime Hardening Implementation](plans/package-runtime-hardening-implementation.md) | 📋 Draft | Vertical-slice implementation plan for package/runtime hardening. |
-| [Design Inventory](plans/DESIGN-INVENTORY.md) | ✅ Done | 91 documents catalogued |
-| [Release Automation](plans/release-automation.md) | 📋 Draft | Release workflow |
-| [Turborepo Migration](plans/turborepo-migration.md) | 📋 Draft | Build migration |
-| [Dagger CI Migration](plans/dagger-ci-migration.md) | 📋 Draft | CI migration |
-| [Priority Queue](plans/priority-queue.md) | 📋 Draft | Task prioritization |
+| [Linear Clone](plans/linear-clone.md) | 🔄 In Progress | Primary Vertz showcase app |
+| [Linear Clone: Projects & Issues](plans/linear-clone-projects-issues.md) | 🔄 In Progress | Projects & Issues CRUD for Linear clone |
 
 ---
 
@@ -191,7 +175,13 @@
 
 | Doc | Date | Description |
 |-----|------|-------------|
-| [Entity-First Architecture](plans/decisions/2026-02-20-entity-first-architecture.md) | 2026-02-20 | Entities are THE way to build APIs. Modules/routers deprecated → removed. Compiler portability to Zig/Bun planned. |
+| [Entity-First Architecture](plans/decisions/2026-02-20-entity-first-architecture.md) | 2026-02-20 | Entities are THE way to build APIs. Modules/routers deprecated → removed. |
+
+---
+
+## Retrospectives
+
+See [plans/post-implementation-reviews/](plans/post-implementation-reviews/) for shipped feature retrospectives.
 
 ---
 
@@ -199,7 +189,7 @@
 
 | Icon | Meaning |
 |------|---------|
-| ✅ | Done / Approved / Merged |
-| 🔄 | In Progress |
-| 📋 | Draft |
+| ✅ | Done / Shipped |
+| 🔄 | In Progress / Ready for implementation |
+| 📋 | Draft / Approved but not started |
 | ⏸️ | Blocked / Paused |
