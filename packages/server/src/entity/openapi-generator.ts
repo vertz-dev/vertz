@@ -1,5 +1,10 @@
 import type { ColumnBuilder, ColumnMetadata, RelationDef, TableDef } from '@vertz/db';
-import type { EntityDefinition, ExposeConfig, RelationExposeConfig } from './types';
+import type {
+  EntityActionDef,
+  EntityDefinition,
+  ExposeConfig,
+  RelationExposeConfig,
+} from './types';
 
 // ---------------------------------------------------------------------------
 // JSON Schema types (subset of OpenAPI 3.1 JSON Schema)
@@ -12,6 +17,7 @@ export interface JSONSchemaObject {
   items?: JSONSchemaObject;
   maxLength?: number;
   description?: string;
+  $ref?: string;
   [key: string]: unknown;
 }
 
@@ -29,7 +35,13 @@ export function columnToJsonSchema(
   const schema = sqlTypeToJsonSchema(meta);
 
   if (meta.nullable) {
-    schema.type = [schema.type as string, 'null'];
+    const baseType = schema.type;
+    if (baseType) {
+      schema.type = [baseType as string, 'null'];
+    } else {
+      // Types without an explicit type (e.g., jsonb → {}) get oneOf with null
+      return { oneOf: [schema, { type: 'null' }] };
+    }
   }
 
   return schema;
@@ -134,7 +146,7 @@ function buildColumnsSchema(
           schema = { ...schema, type: [...typeArray, 'null'] };
         }
       }
-      const descriptor = selectFilter![name] as { type?: string; entitlement?: string };
+      const descriptor = selectFilter?.[name] as { type?: string; entitlement?: string };
       const entitlementName = descriptor.entitlement ?? descriptor.type ?? 'access rule';
       schema.description = `Requires entitlement '${entitlementName}'. Returns null when the caller lacks the entitlement.`;
     }
@@ -159,7 +171,8 @@ function buildColumnsSchema(
  * Descriptor-guarded fields (AccessRule values) become nullable with a description.
  *
  * If `relationSchemas` is provided, relation schemas are collected into it
- * with keys like `TasksAssigneeResponse`.
+ * with keys like `TasksAssigneeResponse`, and $ref properties are added
+ * to the parent schema for each relation.
  */
 export function entityResponseSchema(
   def: EntityDefinition,
@@ -191,12 +204,25 @@ export function entityResponseSchema(
       const relationSchemaName = `${entityPrefix}${toPascalCase(relationName)}Response`;
 
       if (config === true) {
-        // Shorthand: all public columns of target table
         relationSchemas[relationSchemaName] = buildColumnsSchema(targetColumns);
       } else {
-        // Structured RelationExposeConfig: use its select
         const relSelect = config.select as Record<string, unknown> | undefined;
         relationSchemas[relationSchemaName] = buildColumnsSchema(targetColumns, relSelect);
+      }
+
+      // Add $ref to parent schema properties
+      if (schema.properties) {
+        const isMany = relation._type === 'many';
+        if (isMany) {
+          schema.properties[relationName] = {
+            type: 'array',
+            items: { $ref: `#/components/schemas/${relationSchemaName}` },
+          };
+        } else {
+          schema.properties[relationName] = {
+            $ref: `#/components/schemas/${relationSchemaName}`,
+          };
+        }
       }
     }
   }
@@ -267,6 +293,8 @@ export function entityUpdateInputSchema(def: EntityDefinition): EntitySchemaObje
 export interface OpenAPISpecOptions {
   info: { title: string; version: string; description?: string };
   servers?: { url: string; description?: string }[];
+  /** API path prefix. Defaults to '/api'. */
+  apiPrefix?: string;
 }
 
 interface OpenAPIOperation {
@@ -276,7 +304,7 @@ interface OpenAPIOperation {
   parameters?: OpenAPIParameter[];
   requestBody?: {
     required: boolean;
-    content: { 'application/json': { schema: { $ref: string } } };
+    content: { 'application/json': { schema: JSONSchemaObject } };
   };
   responses: Record<string, OpenAPIResponse>;
 }
@@ -292,6 +320,7 @@ interface OpenAPIParameter {
 interface OpenAPIResponse {
   description: string;
   content?: { 'application/json': { schema: JSONSchemaObject | EntitySchemaObject } };
+  $ref?: string;
 }
 
 interface OpenAPIPathItem {
@@ -306,7 +335,10 @@ interface OpenAPISpec {
   info: { title: string; version: string; description?: string };
   servers?: { url: string; description?: string }[];
   paths: Record<string, OpenAPIPathItem>;
-  components?: { schemas?: Record<string, EntitySchemaObject> };
+  components?: {
+    schemas?: Record<string, EntitySchemaObject>;
+    responses?: Record<string, OpenAPIResponse>;
+  };
   tags?: { name: string }[];
 }
 
@@ -314,11 +346,69 @@ const ERROR_RESPONSE_SCHEMA: EntitySchemaObject = {
   type: 'object',
   required: ['error'],
   properties: {
-    error: { type: 'string' },
-    message: { type: 'string' },
-    details: {},
+    error: {
+      type: 'object',
+      required: ['code', 'message'],
+      properties: {
+        code: { type: 'string' },
+        message: { type: 'string' },
+      },
+    } as unknown as JSONSchemaObject,
   },
 };
+
+const STANDARD_RESPONSES: Record<string, OpenAPIResponse> = {
+  BadRequest: {
+    description: 'Bad Request',
+    content: {
+      'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } },
+    },
+  },
+  Unauthorized: {
+    description: 'Unauthorized',
+    content: {
+      'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } },
+    },
+  },
+  NotFound: {
+    description: 'Not Found',
+    content: {
+      'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } },
+    },
+  },
+};
+
+function errorRefs(...codes: string[]): Record<string, OpenAPIResponse> {
+  const result: Record<string, OpenAPIResponse> = {};
+  for (const code of codes) {
+    const refName = code === '400' ? 'BadRequest' : code === '401' ? 'Unauthorized' : 'NotFound';
+    result[code] = { $ref: `#/components/responses/${refName}` } as unknown as OpenAPIResponse;
+  }
+  return result;
+}
+
+/**
+ * Extracts JSON Schema from a SchemaLike object using duck-type check.
+ */
+function extractJsonSchema(
+  schema: unknown,
+  entityName: string,
+  actionName: string,
+  field: 'body' | 'response',
+): JSONSchemaObject {
+  if (
+    schema &&
+    typeof schema === 'object' &&
+    'toJSONSchema' in schema &&
+    typeof (schema as Record<string, unknown>).toJSONSchema === 'function'
+  ) {
+    return (schema as { toJSONSchema(): JSONSchemaObject }).toJSONSchema();
+  }
+  console.warn(
+    `[vertz] Warning: Action "${entityName}.${actionName}" ${field} schema does not expose JSON schema — using "any" in OpenAPI spec.`,
+  );
+  return { description: 'Schema not available for automated extraction.' };
+}
 
 /**
  * Generates a full OpenAPI 3.1 specification from entity definitions.
@@ -327,6 +417,7 @@ export function generateOpenAPISpec(
   entities: EntityDefinition[],
   options: OpenAPISpecOptions,
 ): OpenAPISpec {
+  const apiPrefix = options.apiPrefix ?? '/api';
   const paths: Record<string, OpenAPIPathItem> = {};
   const schemas: Record<string, EntitySchemaObject> = {
     ErrorResponse: ERROR_RESPONSE_SCHEMA,
@@ -335,7 +426,7 @@ export function generateOpenAPISpec(
 
   for (const def of entities) {
     const prefix = toPascalCase(def.name);
-    const basePath = `/api/${def.name}`;
+    const basePath = `${apiPrefix}/${def.name}`;
     const tag = def.name;
     tags.push({ name: tag });
 
@@ -378,9 +469,9 @@ export function generateOpenAPISpec(
 
     // Delete (DELETE /api/{entity}/{id})
     if (def.access.delete === false) {
-      itemPath.delete = buildDisabledOperation(prefix, 'delete', tag);
+      itemPath.delete = buildDisabledOperation(def.name, 'delete', tag);
     } else if (def.access.delete !== undefined) {
-      itemPath.delete = buildDeleteOperation(prefix, tag);
+      itemPath.delete = buildDeleteOperation(def.name, tag);
     }
 
     if (Object.keys(collectionPath).length > 0) {
@@ -390,11 +481,34 @@ export function generateOpenAPISpec(
       paths[`${basePath}/{id}`] = itemPath;
     }
 
-    // Query endpoint (GET /api/{entity}/query) — same as list but uses q= param
+    // Query endpoint (POST /api/{entity}/query) — structured query via POST body
     if (def.access.list !== undefined && def.access.list !== false) {
       paths[`${basePath}/query`] = {
-        get: buildQueryOperation(prefix, tag),
+        post: buildQueryOperation(def.name, prefix, tag),
       };
+    }
+
+    // Custom actions
+    if (def.actions) {
+      for (const [actionName, actionDef] of Object.entries(def.actions)) {
+        const method = (actionDef.method ?? 'POST').toUpperCase();
+        const actionPath = actionDef.path ?? actionName;
+        const fullPath = `${basePath}/{id}/${actionPath}`;
+
+        const operation = buildActionOperation(def.name, actionName, actionDef, tag);
+        const pathItem: OpenAPIPathItem = {};
+        if (method === 'POST') {
+          pathItem.post = operation;
+        } else if (method === 'PATCH') {
+          pathItem.patch = operation;
+        } else if (method === 'GET') {
+          pathItem.get = operation;
+        } else if (method === 'DELETE') {
+          pathItem.delete = operation;
+        }
+
+        paths[fullPath] = pathItem;
+      }
     }
   }
 
@@ -402,7 +516,10 @@ export function generateOpenAPISpec(
     openapi: '3.1.0',
     info: options.info,
     paths,
-    components: { schemas },
+    components: {
+      schemas,
+      responses: STANDARD_RESPONSES,
+    },
     tags,
   };
 
@@ -464,7 +581,7 @@ function buildListOperation(def: EntityDefinition, prefix: string, tag: string):
   );
 
   return {
-    operationId: `list${prefix}`,
+    operationId: `${def.name}_list`,
     tags: [tag],
     summary: `List ${def.name}`,
     parameters,
@@ -486,15 +603,16 @@ function buildListOperation(def: EntityDefinition, prefix: string, tag: string):
           },
         },
       },
+      ...errorRefs('400', '401'),
     },
   };
 }
 
 function buildCreateOperation(prefix: string, tag: string): OpenAPIOperation {
   return {
-    operationId: `create${prefix}`,
+    operationId: `${tag}_create`,
     tags: [tag],
-    summary: `Create a ${prefix}`,
+    summary: `Create a ${tag}`,
     requestBody: {
       required: true,
       content: {
@@ -508,43 +626,45 @@ function buildCreateOperation(prefix: string, tag: string): OpenAPIOperation {
         description: 'Created',
         content: {
           'application/json': {
-            schema: {
-              $ref: `#/components/schemas/${prefix}Response`,
-            },
+            schema: { $ref: `#/components/schemas/${prefix}Response` },
           },
         },
       },
+      ...errorRefs('400', '401'),
     },
   };
 }
 
 function buildGetOperation(prefix: string, tag: string): OpenAPIOperation {
   return {
-    operationId: `get${prefix}`,
+    operationId: `${tag}_get`,
     tags: [tag],
-    summary: `Get a ${prefix} by ID`,
-    parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+    summary: `Get a ${tag} by ID`,
+    parameters: [
+      { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+    ],
     responses: {
       '200': {
         description: 'OK',
         content: {
           'application/json': {
-            schema: {
-              $ref: `#/components/schemas/${prefix}Response`,
-            },
+            schema: { $ref: `#/components/schemas/${prefix}Response` },
           },
         },
       },
+      ...errorRefs('401', '404'),
     },
   };
 }
 
 function buildUpdateOperation(prefix: string, tag: string): OpenAPIOperation {
   return {
-    operationId: `update${prefix}`,
+    operationId: `${tag}_update`,
     tags: [tag],
-    summary: `Update a ${prefix}`,
-    parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+    summary: `Update a ${tag}`,
+    parameters: [
+      { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+    ],
     requestBody: {
       required: true,
       content: {
@@ -558,54 +678,63 @@ function buildUpdateOperation(prefix: string, tag: string): OpenAPIOperation {
         description: 'OK',
         content: {
           'application/json': {
-            schema: {
-              $ref: `#/components/schemas/${prefix}Response`,
-            },
+            schema: { $ref: `#/components/schemas/${prefix}Response` },
           },
         },
       },
+      ...errorRefs('400', '401', '404'),
     },
   };
 }
 
-function buildDeleteOperation(prefix: string, tag: string): OpenAPIOperation {
+function buildDeleteOperation(entityName: string, tag: string): OpenAPIOperation {
   return {
-    operationId: `delete${prefix}`,
+    operationId: `${entityName}_delete`,
     tags: [tag],
-    summary: `Delete a ${prefix}`,
-    parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+    summary: `Delete a ${entityName}`,
+    parameters: [
+      { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+    ],
     responses: {
       '204': { description: 'No Content' },
+      ...errorRefs('401', '404'),
     },
   };
 }
 
-function buildDisabledOperation(prefix: string, operation: string, tag: string): OpenAPIOperation {
+function buildDisabledOperation(
+  entityName: string,
+  operation: string,
+  tag: string,
+): OpenAPIOperation {
   return {
-    operationId: `${operation}${prefix}`,
+    operationId: `${entityName}_${operation}`,
     tags: [tag],
-    summary: `${operation} is disabled for ${prefix}`,
-    parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
-    responses: {
-      '405': { description: 'Method Not Allowed' },
-    },
-  };
-}
-
-function buildQueryOperation(prefix: string, tag: string): OpenAPIOperation {
-  return {
-    operationId: `query${prefix}`,
-    tags: [tag],
-    summary: `Query ${prefix} with VertzQL`,
+    summary: `${operation} is disabled for ${entityName}`,
     parameters: [
-      {
-        name: 'q',
-        in: 'query',
-        required: true,
-        schema: { type: 'string' },
-        description: 'Base64-encoded VertzQL query',
-      },
+      { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
     ],
+    responses: {
+      '405': {
+        description: `Method Not Allowed — operation "${operation}" is disabled for ${entityName}`,
+      },
+    },
+  };
+}
+
+function buildQueryOperation(entityName: string, prefix: string, tag: string): OpenAPIOperation {
+  return {
+    operationId: `${entityName}_query`,
+    tags: [tag],
+    summary: `Query ${entityName} (structured query via POST body)`,
+    requestBody: {
+      required: true,
+      content: {
+        'application/json': {
+          schema: { $ref: `#/components/schemas/${prefix}Query` },
+        },
+      },
+    },
     responses: {
       '200': {
         description: 'OK',
@@ -624,6 +753,47 @@ function buildQueryOperation(prefix: string, tag: string): OpenAPIOperation {
           },
         },
       },
+      ...errorRefs('400', '401'),
     },
   };
+}
+
+function buildActionOperation(
+  entityName: string,
+  actionName: string,
+  actionDef: EntityActionDef,
+  tag: string,
+): OpenAPIOperation {
+  const operation: OpenAPIOperation = {
+    operationId: `${entityName}_${actionName}`,
+    tags: [tag],
+    summary: `${actionName} action on ${entityName}`,
+    parameters: [
+      { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+    ],
+    responses: {
+      '200': {
+        description: 'OK',
+        content: {
+          'application/json': {
+            schema: extractJsonSchema(actionDef.response, entityName, actionName, 'response'),
+          },
+        },
+      },
+      ...errorRefs('400', '401', '404'),
+    },
+  };
+
+  if (actionDef.body) {
+    operation.requestBody = {
+      required: true,
+      content: {
+        'application/json': {
+          schema: extractJsonSchema(actionDef.body, entityName, actionName, 'body'),
+        },
+      },
+    };
+  }
+
+  return operation;
 }

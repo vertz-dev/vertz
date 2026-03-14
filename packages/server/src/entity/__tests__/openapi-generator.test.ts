@@ -204,6 +204,15 @@ describe('Feature: Column to JSON Schema mapping', () => {
       });
     });
   });
+
+  describe('Given a nullable jsonb column', () => {
+    describe('When columnToJsonSchema is called', () => {
+      it('Then returns oneOf with null (since jsonb has no base type)', () => {
+        const col = d.jsonb().nullable();
+        expect(columnToJsonSchema(col)).toEqual({ oneOf: [{}, { type: 'null' }] });
+      });
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -406,6 +415,26 @@ describe('Feature: Entity response schema generation', () => {
         expect(assigneeSchema.properties!['name']).toBeDefined();
         expect(assigneeSchema.properties!['email']).toBeDefined();
       });
+
+      it('Then parent schema has $ref property for the relation', () => {
+        const def = entity('tasks', {
+          model: tasksModel,
+          access: { list: rules.authenticated() },
+          expose: {
+            select: { id: true, title: true },
+            include: {
+              assignee: true,
+            },
+          },
+        });
+
+        const schemas: Record<string, EntitySchemaObject> = {};
+        const parentSchema = entityResponseSchema(def, schemas);
+
+        expect(parentSchema.properties!['assignee']).toEqual({
+          $ref: '#/components/schemas/TasksAssigneeResponse',
+        });
+      });
     });
   });
 
@@ -434,6 +463,55 @@ describe('Feature: Entity response schema generation', () => {
         expect(commentSchema.properties!['id']).toBeDefined();
         expect(commentSchema.properties!['text']).toBeDefined();
         expect(commentSchema.properties!['createdAt']).toBeUndefined();
+      });
+
+      it('Then many-relation parent property uses array with $ref items', () => {
+        const def = entity('tasks', {
+          model: tasksModel,
+          access: { list: rules.authenticated() },
+          expose: {
+            select: { id: true, title: true },
+            include: {
+              comments: {
+                select: { id: true, text: true },
+              },
+            },
+          },
+        });
+
+        const schemas: Record<string, EntitySchemaObject> = {};
+        const parentSchema = entityResponseSchema(def, schemas);
+
+        expect(parentSchema.properties!['comments']).toEqual({
+          type: 'array',
+          items: { $ref: '#/components/schemas/TasksCommentsResponse' },
+        });
+      });
+    });
+  });
+
+  describe('Given a relation with include: false', () => {
+    describe('When entityResponseSchema is called', () => {
+      it('Then relation is not included in schemas', () => {
+        const def = entity('tasks', {
+          model: tasksModel,
+          access: { list: rules.authenticated() },
+          expose: {
+            select: { id: true, title: true },
+            include: {
+              assignee: false,
+              comments: {
+                select: { id: true, text: true },
+              },
+            },
+          },
+        });
+
+        const schemas: Record<string, EntitySchemaObject> = {};
+        entityResponseSchema(def, schemas);
+
+        expect(schemas['TasksAssigneeResponse']).toBeUndefined();
+        expect(schemas['TasksCommentsResponse']).toBeDefined();
       });
     });
   });
@@ -615,6 +693,48 @@ describe('Feature: Full OpenAPI spec generation', () => {
         });
         expect(spec.components!.schemas!['ErrorResponse']).toBeDefined();
       });
+
+      it('Then ErrorResponse schema has nested error object with code and message', () => {
+        const spec = generateOpenAPISpec([tasksDef], {
+          info: { title: 'Test', version: '1.0' },
+        });
+        const errorSchema = spec.components!.schemas!['ErrorResponse'];
+        expect(errorSchema.required).toEqual(['error']);
+        const errorProp = errorSchema.properties!['error'] as Record<string, unknown>;
+        expect(errorProp.type).toBe('object');
+        expect(errorProp.required).toEqual(['code', 'message']);
+      });
+
+      it('Then standard error responses are in components.responses', () => {
+        const spec = generateOpenAPISpec([tasksDef], {
+          info: { title: 'Test', version: '1.0' },
+        });
+        expect(spec.components!.responses!['BadRequest']).toBeDefined();
+        expect(spec.components!.responses!['Unauthorized']).toBeDefined();
+        expect(spec.components!.responses!['NotFound']).toBeDefined();
+      });
+
+      it('Then operationId uses entity_operation format', () => {
+        const spec = generateOpenAPISpec([tasksDef], {
+          info: { title: 'Test', version: '1.0' },
+        });
+        expect(spec.paths['/api/tasks']!.get!.operationId).toBe('tasks_list');
+        expect(spec.paths['/api/tasks']!.post!.operationId).toBe('tasks_create');
+        expect(spec.paths['/api/tasks/{id}']!.get!.operationId).toBe('tasks_get');
+        expect(spec.paths['/api/tasks/{id}']!.patch!.operationId).toBe('tasks_update');
+      });
+
+      it('Then operations include error response references', () => {
+        const spec = generateOpenAPISpec([tasksDef], {
+          info: { title: 'Test', version: '1.0' },
+        });
+        const listOp = spec.paths['/api/tasks']!.get!;
+        expect(listOp.responses['400']).toBeDefined();
+        expect(listOp.responses['401']).toBeDefined();
+        const getOp = spec.paths['/api/tasks/{id}']!.get!;
+        expect(getOp.responses['401']).toBeDefined();
+        expect(getOp.responses['404']).toBeDefined();
+      });
     });
   });
 
@@ -730,6 +850,136 @@ describe('Feature: Full OpenAPI spec generation', () => {
           (p: { name: string }) => p.name === 'where[status]',
         );
         expect(statusParam!.schema.enum).toEqual(['todo', 'in_progress', 'done']);
+      });
+    });
+  });
+
+  describe('Given apiPrefix option', () => {
+    describe('When generateOpenAPISpec is called with apiPrefix "/v1"', () => {
+      it('Then paths use the custom prefix', () => {
+        const spec = generateOpenAPISpec([tasksDef], {
+          info: { title: 'Test', version: '1.0' },
+          apiPrefix: '/v1',
+        });
+        expect(spec.paths['/v1/tasks']).toBeDefined();
+        expect(spec.paths['/v1/tasks/{id}']).toBeDefined();
+        expect(spec.paths['/v1/tasks/query']).toBeDefined();
+        expect(spec.paths['/api/tasks']).toBeUndefined();
+      });
+    });
+  });
+
+  describe('Given the query endpoint', () => {
+    describe('When generateOpenAPISpec is called', () => {
+      it('Then query endpoint uses POST method', () => {
+        const spec = generateOpenAPISpec([tasksDef], {
+          info: { title: 'Test', version: '1.0' },
+        });
+        expect(spec.paths['/api/tasks/query']!.post).toBeDefined();
+        expect(spec.paths['/api/tasks/query']!.get).toBeUndefined();
+      });
+
+      it('Then query endpoint has a request body', () => {
+        const spec = generateOpenAPISpec([tasksDef], {
+          info: { title: 'Test', version: '1.0' },
+        });
+        const queryOp = spec.paths['/api/tasks/query']!.post!;
+        expect(queryOp.requestBody).toBeDefined();
+      });
+    });
+  });
+
+  describe('Given multiple entity definitions', () => {
+    describe('When generateOpenAPISpec is called', () => {
+      it('Then generates paths and schemas for all entities', () => {
+        const usersDef = entity('users', {
+          model: d.model(usersTable),
+          access: { list: rules.authenticated(), get: rules.authenticated() },
+          expose: { select: { id: true, name: true, email: true } },
+        });
+        const spec = generateOpenAPISpec([tasksDef, usersDef], {
+          info: { title: 'Test', version: '1.0' },
+        });
+        // Tasks paths
+        expect(spec.paths['/api/tasks']).toBeDefined();
+        expect(spec.paths['/api/tasks/{id}']).toBeDefined();
+        // Users paths
+        expect(spec.paths['/api/users']).toBeDefined();
+        expect(spec.paths['/api/users/{id}']).toBeDefined();
+        // Both schemas exist
+        expect(spec.components!.schemas!['TasksResponse']).toBeDefined();
+        expect(spec.components!.schemas!['UsersResponse']).toBeDefined();
+      });
+    });
+  });
+
+  describe('Given an entity with custom actions', () => {
+    describe('When generateOpenAPISpec is called', () => {
+      it('Then action path is included with correct method', () => {
+        const archiveSchema = {
+          parse: (v: unknown) => v,
+          toJSONSchema: () => ({
+            type: 'object' as const,
+            properties: { reason: { type: 'string' } },
+          }),
+        };
+        const responseSchema = {
+          parse: (v: unknown) => v,
+          toJSONSchema: () => ({
+            type: 'object' as const,
+            properties: { archived: { type: 'boolean' } },
+          }),
+        };
+
+        const withActions = entity('tasks', {
+          model: tasksModel,
+          access: {
+            list: rules.authenticated(),
+            create: rules.authenticated(),
+          },
+          actions: {
+            archive: {
+              method: 'POST',
+              body: archiveSchema,
+              response: responseSchema,
+              handler: async () => ({ archived: true }),
+            },
+          },
+        });
+
+        const spec = generateOpenAPISpec([withActions], {
+          info: { title: 'Test', version: '1.0' },
+        });
+
+        expect(spec.paths['/api/tasks/{id}/archive']).toBeDefined();
+        expect(spec.paths['/api/tasks/{id}/archive']!.post).toBeDefined();
+        const actionOp = spec.paths['/api/tasks/{id}/archive']!.post!;
+        expect(actionOp.operationId).toBe('tasks_archive');
+        expect(actionOp.requestBody).toBeDefined();
+      });
+
+      it('Then action with SchemaLike without toJSONSchema falls back to empty schema', () => {
+        const plainSchema = { parse: (v: unknown) => v };
+
+        const withActions = entity('tasks', {
+          model: tasksModel,
+          access: { list: rules.authenticated() },
+          actions: {
+            notify: {
+              body: plainSchema,
+              response: plainSchema,
+              handler: async () => ({}),
+            },
+          },
+        });
+
+        const spec = generateOpenAPISpec([withActions], {
+          info: { title: 'Test', version: '1.0' },
+        });
+
+        const actionOp = spec.paths['/api/tasks/{id}/notify']!.post!;
+        const respSchema = actionOp.responses['200']?.content?.['application/json']?.schema;
+        expect(respSchema?.description).toContain('Schema not available');
       });
     });
   });
