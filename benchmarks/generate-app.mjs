@@ -1148,12 +1148,7 @@ export const routes = defineRoutes({
   '/security': { component: () => SecurityPage() },
 });
 
-const initialPath =
-  typeof window !== 'undefined' && window.location
-    ? window.location.pathname
-    : (globalThis as any).__SSR_URL__ || '/';
-
-export const appRouter = createRouter(routes, initialPath, { serverNav: true });
+export const appRouter = createRouter(routes, { serverNav: true });
 
 export function useAppRouter() {
   return useRouter<InferRouteMap<typeof routes>>();
@@ -1161,7 +1156,7 @@ export function useAppRouter() {
 
 const currentPath = computed(() => {
   const match = appRouter.current.value;
-  return match ? window.location.pathname : initialPath;
+  return match ? window.location.pathname : '/';
 });
 
 export const Link = createLink(currentPath, (url: string) => {
@@ -1188,13 +1183,13 @@ export const styles = [themeGlobals.css, appGlobals.css];
 function Nav() {
   return (
     <nav class={navStyles.nav} aria-label="Main navigation">
-      <Link href="/" class={navStyles.link}>Home</Link>
-      <Link href="/products" class={navStyles.link}>Products</Link>
-      <Link href="/blog" class={navStyles.link}>Blog</Link>
-      <Link href="/dashboard" class={navStyles.link}>Dashboard</Link>
-      <Link href="/about" class={navStyles.link}>About</Link>
-      <Link href="/docs" class={navStyles.link}>Docs</Link>
-      <Link href="/settings" class={navStyles.link}>Settings</Link>
+      <Link href="/" className={navStyles.link}>Home</Link>
+      <Link href="/products" className={navStyles.link}>Products</Link>
+      <Link href="/blog" className={navStyles.link}>Blog</Link>
+      <Link href="/dashboard" className={navStyles.link}>Dashboard</Link>
+      <Link href="/about" className={navStyles.link}>About</Link>
+      <Link href="/docs" className={navStyles.link}>Docs</Link>
+      <Link href="/settings" className={navStyles.link}>Settings</Link>
     </nav>
   );
 }
