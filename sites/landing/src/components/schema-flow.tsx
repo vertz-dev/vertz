@@ -20,7 +20,7 @@ const s = css({
     'shadow:2xl',
     'bg:gray.950',
     'text:gray.300',
-    { '&': [{ property: 'overflow-x', value: 'auto' }] },
+    { '&': [{ 'overflow-x': 'auto' }] },
   ],
 });
 
