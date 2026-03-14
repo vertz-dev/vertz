@@ -106,11 +106,21 @@ export class EntitySdkGenerator implements Generator {
       switch (op.kind) {
         case 'list': {
           lines.push(`    list: Object.assign(`);
-          lines.push(`      (query?: Record<string, unknown>) => {`);
-          lines.push(`        const resolvedQuery = resolveVertzQL(query);`);
-          lines.push(
-            `        return createDescriptor('GET', '${op.path}', () => client.get<${listOutput}>('${op.path}', { query: resolvedQuery }), resolvedQuery, { entityType: '${entity.entityName}', kind: 'list' as const });`,
-          );
+          if (op.outputSchema) {
+            lines.push(`      <K extends keyof ${outputType} = keyof ${outputType}>(`);
+            lines.push(`        query?: { select?: Record<K, true> } & Record<string, unknown>,`);
+            lines.push(`      ) => {`);
+            lines.push(`        const resolvedQuery = resolveVertzQL(query);`);
+            lines.push(
+              `        return createDescriptor('GET', '${op.path}', () => client.get<ListResponse<Pick<${outputType}, K>>>('${op.path}', { query: resolvedQuery }), resolvedQuery, { entityType: '${entity.entityName}', kind: 'list' as const });`,
+            );
+          } else {
+            lines.push(`      (query?: Record<string, unknown>) => {`);
+            lines.push(`        const resolvedQuery = resolveVertzQL(query);`);
+            lines.push(
+              `        return createDescriptor('GET', '${op.path}', () => client.get<${listOutput}>('${op.path}', { query: resolvedQuery }), resolvedQuery, { entityType: '${entity.entityName}', kind: 'list' as const });`,
+            );
+          }
           lines.push(`      },`);
           lines.push(`      { url: '${op.path}', method: 'GET' as const },`);
           lines.push(`    ),`);
@@ -119,11 +129,21 @@ export class EntitySdkGenerator implements Generator {
         case 'get': {
           const getPathExpr = `\`${op.path.replace(':id', '${id}')}\``;
           lines.push(`    get: Object.assign(`);
-          lines.push(`      (id: string, options?: { select?: Record<string, true> }) => {`);
-          lines.push(`        const resolvedQuery = resolveVertzQL(options);`);
-          lines.push(
-            `        return createDescriptor('GET', ${getPathExpr}, () => client.get<${outputType}>(${getPathExpr}, { query: resolvedQuery }), resolvedQuery, { entityType: '${entity.entityName}', kind: 'get' as const, id });`,
-          );
+          if (op.outputSchema) {
+            lines.push(`      <K extends keyof ${outputType} = keyof ${outputType}>(`);
+            lines.push(`        id: string, options?: { select?: Record<K, true> },`);
+            lines.push(`      ) => {`);
+            lines.push(`        const resolvedQuery = resolveVertzQL(options);`);
+            lines.push(
+              `        return createDescriptor('GET', ${getPathExpr}, () => client.get<Pick<${outputType}, K>>(${getPathExpr}, { query: resolvedQuery }), resolvedQuery, { entityType: '${entity.entityName}', kind: 'get' as const, id });`,
+            );
+          } else {
+            lines.push(`      (id: string, options?: { select?: Record<string, true> }) => {`);
+            lines.push(`        const resolvedQuery = resolveVertzQL(options);`);
+            lines.push(
+              `        return createDescriptor('GET', ${getPathExpr}, () => client.get<${outputType}>(${getPathExpr}, { query: resolvedQuery }), resolvedQuery, { entityType: '${entity.entityName}', kind: 'get' as const, id });`,
+            );
+          }
           lines.push(`      },`);
           lines.push(`      { url: '${op.path}', method: 'GET' as const },`);
           lines.push(`    ),`);

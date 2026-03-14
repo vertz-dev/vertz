@@ -217,8 +217,26 @@ export interface EntityIR extends SourceLocation {
   hooks: EntityHooksIR;
   actions: EntityActionIR[];
   relations: EntityRelationIR[];
+  expose?: EntityExposeIR;
   tenantScoped?: boolean;
   table?: string;
+}
+
+export interface EntityExposeIR {
+  select: EntityExposeFieldIR[];
+  include?: EntityExposeRelationIR[];
+}
+
+export interface EntityExposeFieldIR {
+  name: string;
+  conditional: boolean;
+}
+
+export interface EntityExposeRelationIR {
+  name: string;
+  entity?: string;
+  type?: 'one' | 'many';
+  select?: EntityExposeFieldIR[];
 }
 
 export interface EntityModelRef {

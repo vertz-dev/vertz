@@ -63,13 +63,24 @@ export class EntityTypesGenerator implements Generator {
 
       // Emit output type (response type)
       if (op.outputSchema && !emitted.has(op.outputSchema)) {
-        const outputType = this.emitResponseType(op.outputSchema, op.responseFields);
+        const outputType = this.emitResponseType(op.outputSchema, op.responseFields, entity);
         if (outputType) {
           lines.push(outputType);
           lines.push('');
           emitted.add(op.outputSchema);
         }
       }
+    }
+
+    // Emit Fields type alias for response types (enables SDK select narrowing)
+    const responseSchema = entity.operations.find(
+      (op) => (op.kind === 'list' || op.kind === 'get') && op.outputSchema,
+    )?.outputSchema;
+    if (responseSchema && !emitted.has(`${responseSchema}Fields`)) {
+      const fieldsTypeName = responseSchema.replace(/Response$/, 'Fields');
+      lines.push(`export type ${fieldsTypeName} = keyof ${responseSchema};`);
+      lines.push('');
+      emitted.add(`${responseSchema}Fields`);
     }
 
     // Emit action input/output types
@@ -84,7 +95,8 @@ export class EntityTypesGenerator implements Generator {
       }
 
       if (action.outputSchema && !emitted.has(action.outputSchema)) {
-        const outputType = this.emitResponseType(action.outputSchema, action.resolvedOutputFields);
+        // Action output types don't get expose logic (T|null, relations) — those are entity-specific
+        const outputType = this.emitBodyType(action.outputSchema, action.resolvedOutputFields);
         if (outputType) {
           lines.push(outputType);
           lines.push('');
@@ -119,18 +131,48 @@ export class EntityTypesGenerator implements Generator {
   private emitResponseType(
     typeName: string,
     fields: CodegenResolvedField[] | undefined,
+    entity: CodegenEntityModule,
   ): string | undefined {
     if (!fields || fields.length === 0) return undefined;
+
+    // Build a set of conditional field names for T | null emission
+    const conditionalFields = new Set(
+      entity.exposeSelect?.filter((f) => f.conditional).map((f) => f.name) ?? [],
+    );
 
     const props = fields
       .map((f) => {
         const tsType = TS_TYPE_MAP[f.tsType] ?? 'unknown';
         const optional = f.optional ? '?' : '';
-        return `  ${f.name}${optional}: ${tsType}`;
+        const nullable = conditionalFields.has(f.name) ? ' | null' : '';
+        return `  ${f.name}${optional}: ${tsType}${nullable}`;
       })
       .join(';\n');
 
-    return `export interface ${typeName} {\n${props};\n}`;
+    // Add relation properties from exposeInclude
+    const relationProps: string[] = [];
+    if (entity.exposeInclude) {
+      for (const rel of entity.exposeInclude) {
+        if (!rel.resolvedFields || rel.resolvedFields.length === 0) continue;
+
+        const relFields = rel.resolvedFields
+          .map((f) => {
+            const tsType = TS_TYPE_MAP[f.tsType] ?? 'unknown';
+            return `${f.name}: ${tsType}`;
+          })
+          .join('; ');
+
+        if (rel.type === 'many') {
+          relationProps.push(`  ${rel.name}: Array<{ ${relFields} }>`);
+        } else {
+          relationProps.push(`  ${rel.name}?: { ${relFields} }`);
+        }
+      }
+    }
+
+    const allProps = relationProps.length > 0 ? `${props};\n${relationProps.join(';\n')}` : props;
+
+    return `export interface ${typeName} {\n${allProps};\n}`;
   }
 
   private generateIndex(entities: CodegenEntityModule[]): GeneratedFile {
