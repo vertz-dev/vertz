@@ -18,17 +18,17 @@ void jsx(Avatar, {});
 // OAuthButton (.tsx — returns JSX.Element)
 void jsx(OAuthButton, { provider: 'github' });
 
-// ProtectedRoute (.ts — returns HTMLElement via __child)
-void (jsx(ProtectedRoute, { children: () => jsx('div', {}) }) satisfies HTMLElement);
+// ProtectedRoute (.tsx — returns JSX.Element)
+void jsx(ProtectedRoute, { children: () => jsx('div', {}) });
 
-// AuthGate (.ts — returns HTMLElement via __child)
-void (jsx(AuthGate, { children: () => jsx('div', {}) }) satisfies HTMLElement);
+// AuthGate (.tsx — returns JSX.Element)
+void jsx(AuthGate, { children: () => jsx('div', {}) });
 
-// AccessGate (.ts — returns HTMLElement via __child)
-void (jsx(AccessGate, { children: () => jsx('div', {}) }) satisfies HTMLElement);
+// AccessGate (.tsx — returns JSX.Element)
+void jsx(AccessGate, { children: () => jsx('div', {}) });
 
-// UserName (.tsx — inferred return, includes JSX.Element from static path)
+// UserName (.tsx — returns JSX.Element)
 void jsx(UserName, {});
 
-// UserAvatar (.tsx — inferred return, includes JSX.Element from static path)
+// UserAvatar (.tsx — returns JSX.Element)
 void jsx(UserAvatar, {});
