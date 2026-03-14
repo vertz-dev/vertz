@@ -1,12 +1,13 @@
 #!/usr/bin/env bun
 
 /**
- * Demo: Native Vertz app rendering colored boxes.
+ * Demo: Native Vertz app with flexbox layout.
  *
  * This shows:
- * - NativeElement scene graph (same tree @vertz/ui would produce)
- * - collectDrawCommands() converting tree → draw commands
- * - GLRenderer drawing colored rectangles via shaders
+ * - NativeElement scene graph with Yoga flexbox layout
+ * - Padding, gap, flexGrow, row/column direction
+ * - collectDrawCommands() using computed Yoga layout
+ * - GLRenderer drawing rectangles via batched shaders
  *
  * Run: bun packages/ui-native/examples/demo-app.ts
  */
@@ -17,40 +18,74 @@ import { createGLRenderer } from '../src/render/gl-renderer';
 import { collectDrawCommands } from '../src/render/renderer';
 import { createNativeWindow } from '../src/window/native-window';
 
-// --- Build a scene graph (this is what @vertz/ui would produce) ---
+// --- Build a scene graph with flexbox layout ---
 
 const root = new NativeElement('div');
 root.setAttribute('style:bg', '#1a1a2e');
+root.setAttribute('style:padding', '16');
+root.setAttribute('style:gap', '8');
 
-// Header bar
+// Header bar — fixed height
 const header = new NativeElement('header');
 header.setAttribute('style:bg', '#16213e');
-header.appendChild(new NativeTextNode('Vertz Native'));
+header.setAttribute('style:height', '48');
+header.setAttribute('style:padding', '12');
+header.appendChild(new NativeTextNode('Vertz Native — Flexbox Layout'));
 root.appendChild(header);
 
-// Blue card
+// Card row — horizontal layout
+const cardRow = new NativeElement('div');
+cardRow.setAttribute('style:flexDirection', 'row');
+cardRow.setAttribute('style:gap', '8');
+cardRow.setAttribute('style:height', '80');
+
 const card1 = new NativeElement('div');
 card1.setAttribute('style:bg', '#0f3460');
+card1.setAttribute('style:flexGrow', '1');
+card1.setAttribute('style:padding', '8');
 card1.appendChild(new NativeTextNode('54 MB memory'));
-root.appendChild(card1);
+cardRow.appendChild(card1);
 
-// Purple card
 const card2 = new NativeElement('div');
 card2.setAttribute('style:bg', '#533483');
+card2.setAttribute('style:flexGrow', '1');
+card2.setAttribute('style:padding', '8');
 card2.appendChild(new NativeTextNode('No WebView'));
-root.appendChild(card2);
+cardRow.appendChild(card2);
 
-// Red highlight card
-const card3 = new NativeElement('div');
-card3.setAttribute('style:bg', '#e94560');
-card3.appendChild(new NativeTextNode('GPU rendered'));
-root.appendChild(card3);
+root.appendChild(cardRow);
 
-// Green card
-const card4 = new NativeElement('div');
-card4.setAttribute('style:bg', '#2d6a4f');
-card4.appendChild(new NativeTextNode('Same RenderAdapter'));
-root.appendChild(card4);
+// Content area — fills remaining space
+const content = new NativeElement('div');
+content.setAttribute('style:bg', '#16213e');
+content.setAttribute('style:flexGrow', '1');
+content.setAttribute('style:padding', '12');
+content.setAttribute('style:gap', '8');
+
+// Two rows inside content
+const row1 = new NativeElement('div');
+row1.setAttribute('style:bg', '#e94560');
+row1.setAttribute('style:height', '40');
+row1.setAttribute('style:padding', '8');
+row1.appendChild(new NativeTextNode('GPU rendered'));
+content.appendChild(row1);
+
+const row2 = new NativeElement('div');
+row2.setAttribute('style:bg', '#2d6a4f');
+row2.setAttribute('style:flexGrow', '1');
+row2.setAttribute('style:padding', '8');
+row2.appendChild(new NativeTextNode('Yoga flexbox layout'));
+content.appendChild(row2);
+
+root.appendChild(content);
+
+// Footer — fixed height
+const footer = new NativeElement('footer');
+footer.setAttribute('style:bg', '#0f3460');
+footer.setAttribute('style:height', '32');
+footer.setAttribute('style:padding', '6');
+footer.appendChild(new NativeTextNode('Same RenderAdapter interface'));
+root.appendChild(footer);
 
 // --- Create window and render ---
 
@@ -58,7 +93,7 @@ const WIDTH = 600;
 const HEIGHT = 400;
 
 const win = createNativeWindow({
-  title: 'Vertz Native — Phase 2',
+  title: 'Vertz Native — Phase 3 Flexbox',
   width: WIDTH,
   height: HEIGHT,
 });
@@ -66,24 +101,19 @@ const win = createNativeWindow({
 const gl = loadGL();
 const renderer = createGLRenderer(gl);
 
-console.log('Vertz Native Demo — colored rectangles via OpenGL shaders');
+console.log('Vertz Native Demo — Yoga flexbox layout + OpenGL shaders');
 console.log('Close the window to exit');
 
 let logged = false;
 
 win.runLoop(() => {
-  // Collect draw commands from scene graph
   const commands = collectDrawCommands(root, WIDTH, HEIGHT);
-
-  // Filter to rect commands only (text rendering is Phase 4)
   const rects = commands.filter((c) => c.type === 'rect' && c.color !== 'transparent');
 
-  // Clear background
   gl.glClearColor(0.1, 0.1, 0.18, 1.0);
   gl.glClear(GL_COLOR_BUFFER_BIT);
   gl.glViewport(0, 0, WIDTH, HEIGHT);
 
-  // Render all rectangles in a single batched draw call
   renderer.renderRects(rects as import('../src/render/renderer').RectCommand[], WIDTH, HEIGHT);
 
   if (!logged) {

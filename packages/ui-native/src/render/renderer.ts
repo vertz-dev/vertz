@@ -5,9 +5,10 @@
  * of DrawCommands. These commands are then consumed by the GL renderer
  * (or any other backend) to produce actual pixels.
  *
- * This separation allows testing the rendering logic without a GPU context.
+ * Uses Yoga for flexbox layout computation.
  */
 
+import { type ComputedLayout, computeLayout } from '../layout/layout';
 import { NativeElement, NativeTextNode } from '../native-element';
 
 export interface RectCommand {
@@ -35,78 +36,55 @@ const INVISIBLE_TAGS = new Set(['__comment', '__fragment']);
 /**
  * Collect draw commands from a NativeElement tree.
  *
- * For Phase 1, this uses a simple stack-based layout:
- * - Elements are stacked vertically
- * - Each element fills the parent width
- * - Height is auto (content-based) or explicit
- *
- * Full flexbox layout (Yoga) will replace this in Phase 3.
+ * Uses Yoga flexbox layout to compute positions and sizes,
+ * then emits draw commands for each element.
  */
 export function collectDrawCommands(
   root: NativeElement,
   viewportWidth: number,
   viewportHeight: number,
 ): DrawCommand[] {
+  const layouts = computeLayout(root, viewportWidth, viewportHeight);
   const commands: DrawCommand[] = [];
-  traverseElement(root, 0, 0, viewportWidth, viewportHeight, commands);
+  traverseElement(root, layouts, commands);
   return commands;
 }
 
 function traverseElement(
   el: NativeElement,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
+  layouts: Map<NativeElement, ComputedLayout>,
   commands: DrawCommand[],
-): number {
+): void {
   const isInvisible = INVISIBLE_TAGS.has(el.tag);
+  const layout = layouts.get(el);
 
-  // Draw rect if element has a background color
-  const bg = el.getAttribute('style:bg');
-  if (bg && !isInvisible) {
+  if (layout && !isInvisible) {
+    const bg = el.getAttribute('style:bg');
     commands.push({
       type: 'rect',
-      x,
-      y,
-      width,
-      height,
-      color: bg,
-    });
-  } else if (!isInvisible && !bg) {
-    // Emit a transparent rect so the element participates in layout
-    commands.push({
-      type: 'rect',
-      x,
-      y,
-      width,
-      height,
-      color: 'transparent',
+      x: layout.x,
+      y: layout.y,
+      width: layout.width,
+      height: layout.height,
+      color: bg || 'transparent',
     });
   }
 
-  // Layout children vertically (simple stack for Phase 1)
-  let childY = y;
-  const childHeight = Math.max(30, height / Math.max(el.children.length, 1));
-
   for (const child of el.children) {
     if (child instanceof NativeTextNode) {
+      const parentLayout = layout || { x: 0, y: 0 };
       commands.push({
         type: 'text',
-        x: x + 4,
-        y: childY + 16,
+        x: parentLayout.x + 4,
+        y: parentLayout.y + 16,
         text: child.data,
         color: '#000000',
         fontSize: 14,
       });
-      childY += 20;
     } else if (child instanceof NativeElement) {
-      const usedHeight = traverseElement(child, x, childY, width, childHeight, commands);
-      childY += usedHeight;
+      traverseElement(child, layouts, commands);
     }
   }
-
-  return Math.max(childY - y, 30);
 }
 
 /**

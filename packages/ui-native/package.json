@@ -33,6 +33,9 @@
   "peerDependencies": {
     "@vertz/ui": "workspace:^"
   },
+  "dependencies": {
+    "yoga-layout": "^3.2.1"
+  },
   "devDependencies": {
     "@types/bun": "^1.2.0",
     "@vertz/ui": "workspace:^",

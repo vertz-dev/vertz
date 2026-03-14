@@ -507,6 +507,9 @@
     "packages/ui-native": {
       "name": "@vertz/ui-native",
       "version": "0.0.1",
+      "dependencies": {
+        "yoga-layout": "^3.2.1",
+      },
       "devDependencies": {
         "@types/bun": "^1.2.0",
         "@vertz/ui": "workspace:^",
