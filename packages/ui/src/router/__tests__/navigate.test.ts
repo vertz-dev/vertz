@@ -1120,3 +1120,154 @@ describe('createRouter SSR', () => {
     expect(router.current.value).not.toBeNull();
   });
 });
+
+describe('createRouter viewTransition', () => {
+  let mockStartVT: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    window.history.replaceState(null, '', '/');
+    mockStartVT = vi.fn((cb: () => void) => {
+      cb();
+      return {
+        finished: Promise.resolve(),
+        ready: Promise.resolve(),
+        updateCallbackDone: Promise.resolve(),
+      };
+    });
+    (document as Record<string, unknown>).startViewTransition = mockStartVT;
+    vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: false } as MediaQueryList);
+  });
+
+  afterEach(() => {
+    delete (document as Record<string, unknown>).startViewTransition;
+    vi.restoreAllMocks();
+  });
+
+  test('navigate() calls startViewTransition when global viewTransition is true', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes, '/', { viewTransition: true });
+
+    await router.navigate({ to: '/about' });
+
+    expect(mockStartVT).toHaveBeenCalledTimes(1);
+    expect(router.current.value?.route.pattern).toBe('/about');
+  });
+
+  test('navigate() does not call startViewTransition when no viewTransition config', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes, '/');
+
+    await router.navigate({ to: '/about' });
+
+    expect(mockStartVT).not.toHaveBeenCalled();
+    expect(router.current.value?.route.pattern).toBe('/about');
+  });
+
+  test('navigate() uses route-level viewTransition config', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': {
+        component: () => document.createElement('div'),
+        viewTransition: { className: 'slide' },
+      },
+    });
+    const router = createRouter(routes, '/');
+
+    await router.navigate({ to: '/about' });
+
+    expect(mockStartVT).toHaveBeenCalledTimes(1);
+    expect(document.documentElement.classList.contains('slide')).toBe(false); // cleaned up after
+  });
+
+  test('route viewTransition: false overrides global viewTransition: true', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/no-transition': {
+        component: () => document.createElement('div'),
+        viewTransition: false,
+      },
+    });
+    const router = createRouter(routes, '/', { viewTransition: true });
+
+    await router.navigate({ to: '/no-transition' });
+
+    expect(mockStartVT).not.toHaveBeenCalled();
+    expect(router.current.value?.route.pattern).toBe('/no-transition');
+  });
+
+  test('per-navigation viewTransition: false overrides global and route config', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': {
+        component: () => document.createElement('div'),
+        viewTransition: true,
+      },
+    });
+    const router = createRouter(routes, '/', { viewTransition: true });
+
+    await router.navigate({ to: '/about', viewTransition: false });
+
+    expect(mockStartVT).not.toHaveBeenCalled();
+    expect(router.current.value?.route.pattern).toBe('/about');
+  });
+
+  test('per-navigation viewTransition: true overrides route false', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/no-transition': {
+        component: () => document.createElement('div'),
+        viewTransition: false,
+      },
+    });
+    const router = createRouter(routes, '/');
+
+    await router.navigate({ to: '/no-transition', viewTransition: true });
+
+    expect(mockStartVT).toHaveBeenCalledTimes(1);
+  });
+
+  test('popstate wraps navigation in view transition when globally enabled', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes, '/', { viewTransition: true });
+
+    // Navigate to /about first
+    await router.navigate({ to: '/about' });
+    mockStartVT.mockClear();
+
+    // Simulate back button
+    window.history.back();
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(mockStartVT).toHaveBeenCalled();
+  });
+
+  test('popstate uses target route viewTransition config', async () => {
+    const routes = defineRoutes({
+      '/': {
+        component: () => document.createElement('div'),
+        viewTransition: { className: 'slide' },
+      },
+      '/about': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes, '/');
+
+    // Navigate away from / (which has viewTransition config)
+    await router.navigate({ to: '/about' });
+    mockStartVT.mockClear();
+
+    // Go back to / — should use /'s viewTransition config
+    window.history.back();
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(mockStartVT).toHaveBeenCalled();
+  });
+});
