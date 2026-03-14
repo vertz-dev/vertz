@@ -25,6 +25,7 @@
     "@vertz/theme-shadcn": "workspace:^",
     "@vertz/ui": "workspace:^",
     "@vertz/ui-auth": "workspace:^",
+    "@vertz/ui-server": "workspace:^",
     "vertz": "workspace:^",
     "@happy-dom/global-registrator": "^20.7.0",
     "bun-types": "^1.3.10",
