@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'bun:test';
-import type { ReadonlySignal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
 import type { AccessContextValue, AccessSet } from '@vertz/ui/auth';
 import { AccessContext } from '@vertz/ui/auth';
@@ -20,15 +19,15 @@ describe('AccessGate', () => {
     const loading = signal(true);
     const value: AccessContextValue = { accessSet, loading };
 
-    let result: unknown;
+    let wrapper: HTMLElement | undefined;
     AccessContext.Provider(value, () => {
-      result = AccessGate({
+      wrapper = AccessGate({
         fallback: () => 'loading...',
         children: () => 'content',
       });
     });
 
-    expect((result as ReadonlySignal<unknown>).value).toBe('loading...');
+    expect(wrapper?.textContent).toBe('loading...');
   });
 
   it('renders children when loaded', () => {
@@ -36,37 +35,40 @@ describe('AccessGate', () => {
     const loading = signal(false);
     const value: AccessContextValue = { accessSet, loading };
 
-    let result: unknown;
+    let wrapper: HTMLElement | undefined;
     AccessContext.Provider(value, () => {
-      result = AccessGate({
+      wrapper = AccessGate({
         fallback: () => 'loading...',
         children: () => 'content',
       });
     });
 
-    expect((result as ReadonlySignal<unknown>).value).toBe('content');
+    expect(wrapper?.textContent).toBe('content');
   });
 
   it('renders children when no provider (fail-open for UI)', () => {
-    const result = AccessGate({
+    const wrapper = AccessGate({
       fallback: () => 'loading...',
       children: () => 'content',
     });
 
-    expect(result).toBe('content');
+    // No provider — renders children via __child wrapper
+    expect(wrapper.textContent).toBe('content');
   });
 
-  it('renders null when no fallback and loading', () => {
+  it('renders empty when no fallback and loading', () => {
     const accessSet = signal<AccessSet | null>(null);
     const loading = signal(true);
     const value: AccessContextValue = { accessSet, loading };
 
-    let result: unknown;
+    let wrapper: HTMLElement | undefined;
     AccessContext.Provider(value, () => {
-      result = AccessGate({ children: () => 'content' });
+      wrapper = AccessGate({
+        children: () => 'content',
+      });
     });
 
-    expect((result as ReadonlySignal<unknown>).value).toBeNull();
+    expect(wrapper?.textContent).toBe('');
   });
 
   it('transitions from fallback to children when access set loads', () => {
@@ -74,20 +76,20 @@ describe('AccessGate', () => {
     const loading = signal(true);
     const value: AccessContextValue = { accessSet, loading };
 
-    let result: unknown;
+    let wrapper: HTMLElement | undefined;
     AccessContext.Provider(value, () => {
-      result = AccessGate({
+      wrapper = AccessGate({
         fallback: () => 'loading...',
         children: () => 'content',
       });
     });
 
-    const reactiveResult = result as ReadonlySignal<unknown>;
-    expect(reactiveResult.value).toBe('loading...');
+    // Initially loading — shows fallback
+    expect(wrapper?.textContent).toBe('loading...');
 
     accessSet.value = makeAccessSet();
     loading.value = false;
 
-    expect(reactiveResult.value).toBe('content');
+    expect(wrapper?.textContent).toBe('content');
   });
 });

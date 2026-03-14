@@ -1,11 +1,14 @@
 import { popErrorHandler, pushErrorHandler } from './error-boundary-context';
 
+/** DOM element types accepted by JSX (mirrors JSX.Element). */
+type JsxElement = HTMLElement | SVGElement | DocumentFragment;
+
 /** Props for the ErrorBoundary component. */
 export interface ErrorBoundaryProps {
   /** Function that returns the children to render. */
-  children: () => Node;
+  children: () => JsxElement;
   /** Fallback renderer that receives the caught error and a retry function. */
-  fallback: (error: Error, retry: () => void) => Node;
+  fallback: (error: Error, retry: () => void) => JsxElement;
 }
 
 /**
@@ -29,7 +32,7 @@ function toError(value: unknown): Error {
  * Also registers an async error handler so that nested Suspense components
  * can propagate async errors to this boundary.
  */
-export function ErrorBoundary(props: ErrorBoundaryProps): Node {
+export function ErrorBoundary(props: ErrorBoundaryProps): JsxElement {
   /** Handle an async error from a nested Suspense by replacing the placeholder. */
   function handleAsyncError(error: Error, placeholder: Node): void {
     const fallbackNode = props.fallback(error, retry);

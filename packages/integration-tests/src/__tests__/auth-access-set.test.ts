@@ -345,8 +345,8 @@ describe('Access Set — Client Integration', () => {
       },
     );
 
-    // AccessGate returns a computed signal — read .value
-    expect((result as { value: unknown }).value).toBe('loading...');
+    // AccessGate returns an HTMLElement wrapper via __child() — check textContent
+    expect((result as HTMLElement).textContent).toBe('loading...');
   });
 
   it('SSR serialization: access set JSON is valid and parseable', async () => {

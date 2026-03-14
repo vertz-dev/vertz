@@ -36,11 +36,13 @@ export const OutletContext: Context<OutletContextValue> = createContext<OutletCo
  * Must be called inside a layout component rendered by RouterView.
  * Reads from OutletContext to determine which child to render.
  */
-export function Outlet(): Node {
+export function Outlet(): HTMLElement {
   const ctx = useContext(OutletContext);
 
   if (!ctx) {
-    return document.createComment('outlet:empty');
+    const el = __element('span');
+    el.style.display = 'contents';
+    return el;
   }
 
   const container = __element('div');

@@ -1,5 +1,4 @@
-import type { ReadonlySignal } from '@vertz/ui';
-import { computed, useContext } from '@vertz/ui';
+import { useContext } from '@vertz/ui';
 import type { User } from '@vertz/ui/auth';
 import { AuthContext, getUserDisplayName } from '@vertz/ui/auth';
 import type { JSX } from '@vertz/ui/jsx-runtime';
@@ -17,12 +16,12 @@ export function UserAvatar({
   user,
   fallback,
   class: className,
-}: UserAvatarProps): JSX.Element | ReadonlySignal<JSX.Element> {
+}: UserAvatarProps): JSX.Element {
   if (user) {
-    const avatarUrl = typeof user.avatarUrl === 'string' ? user.avatarUrl : undefined;
+    const src = typeof user.avatarUrl === 'string' ? user.avatarUrl : undefined;
     return (
       <Avatar
-        src={avatarUrl}
+        src={src}
         alt={getUserDisplayName(user)}
         size={size}
         fallback={fallback}
@@ -36,10 +35,9 @@ export function UserAvatar({
     throw new Error('UserAvatar must be used within AuthProvider, or pass a `user` prop');
   }
 
-  return computed(() => {
-    const avatarUrl =
-      ctx.user && typeof ctx.user.avatarUrl === 'string' ? ctx.user.avatarUrl : undefined;
-    const alt = getUserDisplayName(ctx.user);
-    return <Avatar src={avatarUrl} alt={alt} size={size} fallback={fallback} class={className} />;
-  });
+  const avatarUrl =
+    ctx.user && typeof ctx.user.avatarUrl === 'string' ? ctx.user.avatarUrl : undefined;
+  const alt = getUserDisplayName(ctx.user);
+
+  return <Avatar src={avatarUrl} alt={alt} size={size} fallback={fallback} class={className} />;
 }
