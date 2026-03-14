@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "declaration": true,
+    "esModuleInterop": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "@vertz/ui",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "outDir": "dist",
+    "rootDir": ".",
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2022",
+    "types": ["bun-types"]
+  },
+  "exclude": [".vertz/generated/routes.ts", "src/api/client.ts"],
+  "include": ["src", ".vertz/generated"]
+}
