@@ -15,14 +15,9 @@ export function createProgressStyles(): CSSOutput<ProgressBlocks> {
       'overflow-hidden',
       'rounded:full',
       'bg:muted',
-      { '&': [{ property: 'height', value: '0.25rem' }] },
+      { '&': { height: '0.25rem' } },
     ],
-    progressIndicator: [
-      'h:full',
-      'w:full',
-      'bg:primary',
-      { '&': [{ property: 'transition', value: 'all 150ms' }] },
-    ],
+    progressIndicator: ['h:full', 'w:full', 'bg:primary', { '&': { transition: 'all 150ms' } }],
   });
   return {
     root: s.progressRoot,

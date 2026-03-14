@@ -6,8 +6,18 @@
  * not by vitest at runtime.
  */
 
-import type { CSSInput, CSSOutput, StyleEntry } from '../css';
+import type { CSSInput, CSSOutput, StyleEntry, StyleValue } from '../css';
 import { css } from '../css';
+
+// ─── StyleValue — string or CSS declarations map ───────────────────
+
+// String values are valid
+const _strVal: StyleValue = 'p:4';
+void _strVal;
+
+// CSS declarations maps are valid
+const _objVal: StyleValue = { 'flex-direction': 'row' };
+void _objVal;
 
 // ─── StyleEntry — string or nested record ─────────────────────────
 
@@ -15,9 +25,19 @@ import { css } from '../css';
 const _strEntry: StyleEntry = 'p:4';
 void _strEntry;
 
-// Record entries (nested selectors) are valid
+// Record entries with array values (nested selectors) are valid
 const _recEntry: StyleEntry = { '&::after': ['content:empty', 'block'] };
 void _recEntry;
+
+// Record entries with direct object values are valid
+const _directObjEntry: StyleEntry = { '@media (min-width: 640px)': { 'flex-direction': 'row' } };
+void _directObjEntry;
+
+// Mixed: array with CSS objects inside
+const _mixedArrayEntry: StyleEntry = {
+  '&:hover': ['text:foreground', { 'background-color': 'red' }],
+};
+void _mixedArrayEntry;
 
 // @ts-expect-error - number is not a valid StyleEntry
 const _badEntry: StyleEntry = 42;
@@ -95,11 +115,23 @@ css({ css: ['p:4'] });
 const _valid1 = css({ root: ['p:4', 'bg:primary'] });
 void _valid1;
 
-// Valid call with nested records
+// Valid call with nested records (array form)
 const _valid2 = css({
   root: ['p:4', { '&:hover': ['bg:primary.700'] }],
 });
 void _valid2;
+
+// Valid call with direct object form for media queries
+const _valid2b = css({
+  root: ['p:4', { '@media (min-width: 640px)': { 'flex-direction': 'row' } }],
+});
+void _valid2b;
+
+// Valid call with CSS object in array
+const _valid2c = css({
+  root: ['p:4', { '&:hover': [{ 'background-color': 'red', opacity: '1' }] }],
+});
+void _valid2c;
 
 // Valid call with filePath argument
 const _valid3 = css({ root: ['p:4'] }, '/app/components/card.ts');

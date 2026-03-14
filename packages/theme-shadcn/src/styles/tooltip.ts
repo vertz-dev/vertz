@@ -19,7 +19,7 @@ export function createTooltipStyles(): CSSOutput<TooltipBlocks> {
       'py:1.5',
       'text:xs',
       {
-        '&': [{ property: 'white-space', value: 'nowrap' }],
+        '&': { 'white-space': 'nowrap' },
       },
       {
         '&[data-state="open"]': [animationDecl('vz-fade-in 100ms ease-out forwards')],

@@ -1,4 +1,4 @@
-import type { CSSOutput, RawDeclaration, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
 import { css } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
@@ -14,14 +14,13 @@ type DrawerBlocks = {
   close: StyleEntry[];
 };
 
-const focusRing: Record<string, (string | RawDeclaration)[]> = {
+const focusRing: Record<string, StyleValue[]> = {
   '&:focus-visible': [
     'outline-none',
     {
-      property: 'outline',
-      value: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+      outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
     },
-    { property: 'outline-offset', value: '2px' },
+    { 'outline-offset': '2px' },
   ],
 };
 
@@ -44,7 +43,7 @@ export function createDrawerStyles(): CSSOutput<DrawerBlocks> {
       'inset:0',
       'z:50',
       {
-        '&': [{ property: 'background-color', value: 'oklch(0 0 0 / 50%)' }],
+        '&': { 'background-color': 'oklch(0 0 0 / 50%)' },
       },
       {
         '&[data-state="open"]': [animationDecl('vz-fade-in 150ms ease-out forwards')],
@@ -57,12 +56,12 @@ export function createDrawerStyles(): CSSOutput<DrawerBlocks> {
       ...PANEL_BASE,
       'border-r:1',
       {
-        '&': [
-          { property: 'inset', value: '0 auto 0 0' },
-          { property: 'width', value: '75%' },
-          { property: 'max-width', value: '24rem' },
-          { property: 'border-radius', value: '0 0.75rem 0.75rem 0' },
-        ],
+        '&': {
+          inset: '0 auto 0 0',
+          width: '75%',
+          'max-width': '24rem',
+          'border-radius': '0 0.75rem 0.75rem 0',
+        },
       },
       {
         '&[data-state="open"]': [animationDecl('vz-slide-in-from-left 300ms ease-out forwards')],
@@ -75,12 +74,12 @@ export function createDrawerStyles(): CSSOutput<DrawerBlocks> {
       ...PANEL_BASE,
       'border-l:1',
       {
-        '&': [
-          { property: 'inset', value: '0 0 0 auto' },
-          { property: 'width', value: '75%' },
-          { property: 'max-width', value: '24rem' },
-          { property: 'border-radius', value: '0.75rem 0 0 0.75rem' },
-        ],
+        '&': {
+          inset: '0 0 0 auto',
+          width: '75%',
+          'max-width': '24rem',
+          'border-radius': '0.75rem 0 0 0.75rem',
+        },
       },
       {
         '&[data-state="open"]': [animationDecl('vz-slide-in-from-right 300ms ease-out forwards')],
@@ -93,10 +92,10 @@ export function createDrawerStyles(): CSSOutput<DrawerBlocks> {
       ...PANEL_BASE,
       'border-b:1',
       {
-        '&': [
-          { property: 'inset', value: '0 0 auto 0' },
-          { property: 'border-radius', value: '0 0 0.75rem 0.75rem' },
-        ],
+        '&': {
+          inset: '0 0 auto 0',
+          'border-radius': '0 0 0.75rem 0.75rem',
+        },
       },
       {
         '&[data-state="open"]': [animationDecl('vz-slide-in-from-top 300ms ease-out forwards')],
@@ -109,10 +108,10 @@ export function createDrawerStyles(): CSSOutput<DrawerBlocks> {
       ...PANEL_BASE,
       'border-t:1',
       {
-        '&': [
-          { property: 'inset', value: 'auto 0 0 0' },
-          { property: 'border-radius', value: '0.75rem 0.75rem 0 0' },
-        ],
+        '&': {
+          inset: 'auto 0 0 0',
+          'border-radius': '0.75rem 0.75rem 0 0',
+        },
       },
       {
         '&[data-state="open"]': [animationDecl('vz-slide-in-from-bottom 300ms ease-out forwards')],
@@ -125,15 +124,15 @@ export function createDrawerStyles(): CSSOutput<DrawerBlocks> {
     drawerDescription: ['text:sm', 'text:muted-foreground'],
     drawerHandle: [
       {
-        '&': [
-          { property: 'margin-left', value: 'auto' },
-          { property: 'margin-right', value: 'auto' },
-          { property: 'margin-top', value: '1rem' },
-          { property: 'height', value: '0.5rem' },
-          { property: 'width', value: '100px' },
-          { property: 'border-radius', value: '9999px' },
-          { property: 'background-color', value: 'var(--color-muted)' },
-        ],
+        '&': {
+          'margin-left': 'auto',
+          'margin-right': 'auto',
+          'margin-top': '1rem',
+          height: '0.5rem',
+          width: '100px',
+          'border-radius': '9999px',
+          'background-color': 'var(--color-muted)',
+        },
       },
     ],
     drawerClose: [

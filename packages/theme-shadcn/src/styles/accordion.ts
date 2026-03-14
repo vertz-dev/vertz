@@ -32,12 +32,12 @@ export function createAccordionStyles(): CSSOutput<AccordionBlocks> {
       'font:medium',
       'cursor:pointer',
       {
-        '&': [
-          { property: 'border-radius', value: '0.5rem' },
-          { property: 'padding-top', value: '0.625rem' },
-          { property: 'padding-bottom', value: '0.625rem' },
-        ],
-        '&:hover': [{ property: 'text-decoration', value: 'underline' }],
+        '&': {
+          'border-radius': '0.5rem',
+          'padding-top': '0.625rem',
+          'padding-bottom': '0.625rem',
+        },
+        '&:hover': { 'text-decoration': 'underline' },
       },
     ],
     accordionContent: [

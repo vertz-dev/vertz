@@ -22,13 +22,10 @@ export function createPopoverStyles(): CSSOutput<PopoverBlocks> {
       'text:sm',
       // Nova: ring-1 ring-foreground/10 instead of border, shadow-md
       {
-        '&': [
-          {
-            property: 'box-shadow',
-            value:
-              '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent), 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
-          },
-        ],
+        '&': {
+          'box-shadow':
+            '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent), 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+        },
       },
       {
         '&[data-state="open"]': [animationDecl('vz-zoom-in 100ms ease-out forwards')],

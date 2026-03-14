@@ -17,11 +17,11 @@ export function createCarouselStyles(): CSSOutput<CarouselBlocks> {
     carouselSlide: [
       'shrink-0',
       {
-        '&': [
-          { property: 'min-width', value: '0' },
-          { property: 'flex-grow', value: '0' },
-          { property: 'flex-basis', value: '100%' },
-        ],
+        '&': {
+          'min-width': '0',
+          'flex-grow': '0',
+          'flex-basis': '100%',
+        },
       },
       { '&[data-state="inactive"]': ['opacity:0'] },
       { '&[data-state="active"]': ['opacity:1'] },
@@ -39,11 +39,11 @@ export function createCarouselStyles(): CSSOutput<CarouselBlocks> {
       'justify:center',
       'cursor:pointer',
       {
-        '&': [
-          { property: 'left', value: '0.5rem' },
-          { property: 'top', value: '50%' },
-          { property: 'transform', value: 'translateY(-50%)' },
-        ],
+        '&': {
+          left: '0.5rem',
+          top: '50%',
+          transform: 'translateY(-50%)',
+        },
       },
       { '&:hover': ['bg:accent', 'text:accent-foreground'] },
       { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
@@ -61,11 +61,11 @@ export function createCarouselStyles(): CSSOutput<CarouselBlocks> {
       'justify:center',
       'cursor:pointer',
       {
-        '&': [
-          { property: 'right', value: '0.5rem' },
-          { property: 'top', value: '50%' },
-          { property: 'transform', value: 'translateY(-50%)' },
-        ],
+        '&': {
+          right: '0.5rem',
+          top: '50%',
+          transform: 'translateY(-50%)',
+        },
       },
       { '&:hover': ['bg:accent', 'text:accent-foreground'] },
       { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },

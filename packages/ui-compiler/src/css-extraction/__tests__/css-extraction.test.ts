@@ -177,9 +177,9 @@ const button = css({ root: ['m:2'] });`;
     expect(result.css).toContain('outline: none');
   });
 
-  it('extracts raw declaration objects in nested selectors', () => {
+  it('extracts CSS declaration objects in nested selectors', () => {
     const extractor = new CSSExtractor();
-    const source = `const s = css({ btn: ['p:4', { '&:hover': [{ property: 'background-color', value: 'color-mix(in oklch, var(--color-primary) 90%, transparent)' }] }] });`;
+    const source = `const s = css({ btn: ['p:4', { '&:hover': [{ 'background-color': 'color-mix(in oklch, var(--color-primary) 90%, transparent)' }] }] });`;
     const result = extractor.extract(source, 'Button.tsx');
 
     expect(result.css).toContain(
@@ -188,9 +188,9 @@ const button = css({ root: ['m:2'] });`;
     expect(result.css).toContain(':hover');
   });
 
-  it('mixes raw declarations with shorthands in nested selectors', () => {
+  it('mixes CSS declaration objects with shorthands in nested selectors', () => {
     const extractor = new CSSExtractor();
-    const source = `const s = css({ card: ['p:4', { '[data-theme="dark"] &': ['text:foreground', { property: 'background-color', value: 'rgba(0,0,0,0.3)' }] }] });`;
+    const source = `const s = css({ card: ['p:4', { '[data-theme="dark"] &': ['text:foreground', { 'background-color': 'rgba(0,0,0,0.3)' }] }] });`;
     const result = extractor.extract(source, 'Card.tsx');
 
     expect(result.css).toContain('color: var(--color-foreground)');
@@ -216,18 +216,18 @@ const button = css({ root: ['m:2'] });`;
     expect(result.css).toContain(':hover');
   });
 
-  it('extracts nested selector with only raw declarations (no shorthands)', () => {
+  it('extracts nested selector with only CSS declaration objects (no shorthands)', () => {
     const extractor = new CSSExtractor();
-    const source = `const s = css({ overlay: ['fixed', { '&': [{ property: 'background-color', value: 'oklch(0 0 0 / 50%)' }] }] });`;
+    const source = `const s = css({ overlay: ['fixed', { '&': [{ 'background-color': 'oklch(0 0 0 / 50%)' }] }] });`;
     const result = extractor.extract(source, 'Dialog.tsx');
 
     expect(result.css).toContain('background-color: oklch(0 0 0 / 50%)');
     expect(result.css).toContain('position: fixed');
   });
 
-  it('extracts multiple raw declarations in a single nested selector', () => {
+  it('extracts multiple CSS properties in a single declaration object', () => {
     const extractor = new CSSExtractor();
-    const source = `const s = css({ btn: [{ '&:focus-visible': [{ property: 'outline', value: '3px solid blue' }, { property: 'outline-offset', value: '2px' }] }] });`;
+    const source = `const s = css({ btn: [{ '&:focus-visible': [{ outline: '3px solid blue', 'outline-offset': '2px' }] }] });`;
     const result = extractor.extract(source, 'Button.tsx');
 
     expect(result.css).toContain('outline: 3px solid blue');
@@ -256,18 +256,18 @@ const button = css({ root: ['m:2'] });`;
     expect(result.css).toContain('rgb(0 0 0 / 0.03)');
   });
 
-  it('skips css() calls with invalid raw declarations as reactive', () => {
+  it('skips css() calls with dynamic values as reactive', () => {
     const extractor = new CSSExtractor();
-    const source = `const s = css({ btn: ['p:4', { '&:hover': [{ property: 'color', value: someVar }] }] });`;
+    const source = `const s = css({ btn: ['p:4', { '&:hover': [{ color: someVar }] }] });`;
     const result = extractor.extract(source, 'Button.tsx');
 
     expect(result.css).toBe('');
     expect(result.blockNames).toEqual([]);
   });
 
-  it('extracts raw declarations alongside keywords in nested selectors', () => {
+  it('extracts CSS declaration objects alongside keywords in nested selectors', () => {
     const extractor = new CSSExtractor();
-    const source = `const s = css({ btn: [{ '&:disabled': ['pointer-events-none', 'opacity:0.5'] }, { '&:hover': [{ property: 'background-color', value: 'color-mix(in oklch, var(--color-primary) 90%, transparent)' }] }] });`;
+    const source = `const s = css({ btn: [{ '&:disabled': ['pointer-events-none', 'opacity:0.5'] }, { '&:hover': [{ 'background-color': 'color-mix(in oklch, var(--color-primary) 90%, transparent)' }] }] });`;
     const result = extractor.extract(source, 'Button.tsx');
 
     expect(result.css).toContain('pointer-events: none');
@@ -319,6 +319,35 @@ const button = css({ root: ['m:2'] });`;
     expect(result.css).not.toMatch(/@media[^{]+\{\n\s+flex-direction/);
     // Should have proper nesting: @media { .class { declarations } }
     expect(result.css).toMatch(/@media[^{]+\{\n\s+\._[a-f0-9]+ \{\n\s+flex-direction/);
+  });
+
+  it('extracts direct object form for @media at-rules', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ grid: ['gap:4', { '@media (min-width: 768px)': { 'grid-template-columns': 'repeat(2, 1fr)' } }] });`;
+    const result = extractor.extract(source, 'Grid.tsx');
+
+    expect(result.css).toContain('@media (min-width: 768px)');
+    expect(result.css).toContain('grid-template-columns: repeat(2, 1fr)');
+    expect(result.css).toMatch(/@media \(min-width: 768px\) \{\n\s+\._[a-f0-9]+ \{/);
+  });
+
+  it('extracts CSS declaration objects inside nested arrays', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ card: ['p:4', { '&:hover': ['text:foreground', { 'background-color': 'rgba(0,0,0,0.3)' }] }] });`;
+    const result = extractor.extract(source, 'Card.tsx');
+
+    expect(result.css).toContain('color: var(--color-foreground)');
+    expect(result.css).toContain('background-color: rgba(0,0,0,0.3)');
+    expect(result.css).toContain(':hover');
+  });
+
+  it('extracts direct object form for pseudo selectors', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ btn: ['p:4', { '&:hover': { opacity: '1' } }] });`;
+    const result = extractor.extract(source, 'Button.tsx');
+
+    expect(result.css).toContain('opacity: 1');
+    expect(result.css).toContain(':hover');
   });
 });
 

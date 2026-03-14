@@ -21,10 +21,10 @@ export function createAvatarStyles(): CSSOutput<AvatarBlocks> {
       'h:full',
       'w:full',
       {
-        '&': [
-          { property: 'aspect-ratio', value: '1 / 1' },
-          { property: 'object-fit', value: 'cover' },
-        ],
+        '&': {
+          'aspect-ratio': '1 / 1',
+          'object-fit': 'cover',
+        },
       },
     ],
     avatarFallback: [
@@ -42,7 +42,7 @@ export function createAvatarStyles(): CSSOutput<AvatarBlocks> {
     avatarRootSm: ['h:6', 'w:6'],
     avatarRootLg: ['h:10', 'w:10'],
     avatarRootXl: ['h:12', 'w:12'],
-    avatarFallbackSm: [{ '&': [{ property: 'font-size', value: '0.625rem' }] }],
+    avatarFallbackSm: [{ '&': { 'font-size': '0.625rem' } }],
     avatarFallbackLg: ['text:sm'],
     avatarFallbackXl: ['text:base'],
   });

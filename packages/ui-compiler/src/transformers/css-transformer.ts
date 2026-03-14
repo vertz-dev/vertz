@@ -181,17 +181,23 @@ function extractEntries(arrayNode: Node): ExtractedEntry[] {
           : selector;
 
         const init = prop.getInitializer();
-        if (!init || !init.isKind(SyntaxKind.ArrayLiteralExpression)) continue;
+        if (!init) continue;
 
         const nestedEntries: string[] = [];
         const rawDeclarations: RawDecl[] = [];
-        for (const el of init.getElements()) {
-          if (el.isKind(SyntaxKind.StringLiteral)) {
-            nestedEntries.push(el.getLiteralValue());
-          } else if (el.isKind(SyntaxKind.ObjectLiteralExpression)) {
-            const rawDecl = extractRawDeclaration(el);
-            if (rawDecl) rawDeclarations.push(rawDecl);
+
+        if (init.isKind(SyntaxKind.ArrayLiteralExpression)) {
+          // Array form: ['shorthand', { 'css-prop': 'value' }]
+          for (const el of init.getElements()) {
+            if (el.isKind(SyntaxKind.StringLiteral)) {
+              nestedEntries.push(el.getLiteralValue());
+            } else if (el.isKind(SyntaxKind.ObjectLiteralExpression)) {
+              rawDeclarations.push(...extractCSSDeclarations(el));
+            }
           }
+        } else if (init.isKind(SyntaxKind.ObjectLiteralExpression)) {
+          // Direct object form: { 'flex-direction': 'row', 'align-items': 'center' }
+          rawDeclarations.push(...extractCSSDeclarations(init));
         }
 
         results.push({
@@ -208,25 +214,23 @@ function extractEntries(arrayNode: Node): ExtractedEntry[] {
   return results;
 }
 
-/** Extract a raw declaration { property: '...', value: '...' } from an object literal. */
-function extractRawDeclaration(node: Node): RawDecl | null {
-  if (!node.isKind(SyntaxKind.ObjectLiteralExpression)) return null;
+/** Extract CSS declarations from an object literal: { 'prop': 'value', ... } → RawDecl[] */
+function extractCSSDeclarations(node: Node): RawDecl[] {
+  if (!node.isKind(SyntaxKind.ObjectLiteralExpression)) return [];
 
-  let property: string | null = null;
-  let value: string | null = null;
-
+  const declarations: RawDecl[] = [];
   for (const prop of node.getProperties()) {
-    if (!prop.isKind(SyntaxKind.PropertyAssignment)) return null;
-    const name = prop.getName();
+    if (!prop.isKind(SyntaxKind.PropertyAssignment)) continue;
     const init = prop.getInitializer();
-    if (!init || !init.isKind(SyntaxKind.StringLiteral)) return null;
+    if (!init || !init.isKind(SyntaxKind.StringLiteral)) continue;
 
-    if (name === 'property') property = init.getLiteralValue();
-    else if (name === 'value') value = init.getLiteralValue();
+    const nameNode = prop.getNameNode();
+    const name = nameNode.isKind(SyntaxKind.StringLiteral)
+      ? nameNode.getLiteralValue()
+      : prop.getName();
+    declarations.push({ property: name, value: init.getLiteralValue() });
   }
-
-  if (property && value) return { property, value };
-  return null;
+  return declarations;
 }
 
 // ─── Class Name Generation (mirrors @vertz/ui class-generator.ts) ──────

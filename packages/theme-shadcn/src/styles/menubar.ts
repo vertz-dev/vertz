@@ -23,7 +23,7 @@ export function createMenubarStyles(): CSSOutput<MenubarBlocks> {
       'border:border',
       'bg:background',
       'p:1',
-      { '&': [{ property: 'column-gap', value: '0.25rem' }] },
+      { '&': { 'column-gap': '0.25rem' } },
     ],
     mbTrigger: [
       'flex',
@@ -71,13 +71,7 @@ export function createMenubarStyles(): CSSOutput<MenubarBlocks> {
       { '&:focus': ['bg:accent', 'text:accent-foreground'] },
       { '&[data-disabled]': ['pointer-events-none', 'opacity:0.5'] },
     ],
-    mbSeparator: [
-      'mx:1',
-      'my:1',
-      'border-t:1',
-      'border:muted',
-      { '&': [{ property: 'height', value: '1px' }] },
-    ],
+    mbSeparator: ['mx:1', 'my:1', 'border-t:1', 'border:muted', { '&': { height: '1px' } }],
     mbLabel: ['px:2', 'py:1.5', 'text:xs', 'font:semibold', 'text:muted-foreground'],
   });
   return {

@@ -15,10 +15,10 @@ const s = css({
     'tracking:wider',
     'text:gray.500',
     {
-      '@media (min-width: 640px)': [
-        { property: 'flex-direction', value: 'row' },
-        { property: 'justify-content', value: 'space-between' },
-      ],
+      '@media (min-width: 640px)': {
+        'flex-direction': 'row',
+        'justify-content': 'space-between',
+      },
     },
   ],
   linkGroup: ['flex', 'items:center', 'gap:4', 'flex-wrap', 'justify:center'],

@@ -13,10 +13,6 @@ const pulse = keyframes('vz-skeleton-pulse', {
 /** Create skeleton css() styles. */
 export function createSkeletonStyles(): CSSOutput<SkeletonBlocks> {
   return css({
-    base: [
-      'bg:muted',
-      'rounded:md',
-      { '&': [{ property: 'animation', value: `${pulse} 2s ease-in-out infinite` }] },
-    ],
+    base: ['bg:muted', 'rounded:md', { '&': { animation: `${pulse} 2s ease-in-out infinite` } }],
   });
 }

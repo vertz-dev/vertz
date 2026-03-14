@@ -33,7 +33,6 @@ export type {
   GlobalCSSInput,
   GlobalCSSOutput,
   PreloadItem,
-  RawDeclaration,
   StyleEntry,
   StyleValue,
   Theme,

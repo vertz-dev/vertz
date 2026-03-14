@@ -131,38 +131,44 @@ function isStaticNestedObject(node: Node): boolean {
   for (const prop of node.getProperties()) {
     if (!prop.isKind(SyntaxKind.PropertyAssignment)) return false;
     const init = prop.getInitializer();
-    if (!init || !init.isKind(SyntaxKind.ArrayLiteralExpression)) return false;
-    for (const el of init.getElements()) {
-      if (el.isKind(SyntaxKind.StringLiteral)) continue;
-      // Accept raw declaration objects: { property: '...', value: '...' }
-      if (el.isKind(SyntaxKind.ObjectLiteralExpression)) {
-        if (isStaticRawDeclaration(el)) continue;
+    if (!init) return false;
+
+    // Accept array values: ['shorthand', { 'css-prop': 'value' }]
+    if (init.isKind(SyntaxKind.ArrayLiteralExpression)) {
+      for (const el of init.getElements()) {
+        if (el.isKind(SyntaxKind.StringLiteral)) continue;
+        if (el.isKind(SyntaxKind.ObjectLiteralExpression)) {
+          if (isStaticCSSObject(el)) continue;
+          return false;
+        }
         return false;
       }
+      continue;
+    }
+
+    // Accept direct object values: { 'flex-direction': 'row', ... }
+    if (init.isKind(SyntaxKind.ObjectLiteralExpression)) {
+      if (isStaticCSSObject(init)) continue;
       return false;
     }
+
+    return false;
   }
 
   return true;
 }
 
-/** Check if a node is a static raw declaration: { property: '...', value: '...' } */
-function isStaticRawDeclaration(node: Node): boolean {
+/** Check if a node is a static CSS declarations object: all properties have string literal values. */
+function isStaticCSSObject(node: Node): boolean {
   if (!node.isKind(SyntaxKind.ObjectLiteralExpression)) return false;
   const props = node.getProperties();
-  if (props.length !== 2) return false;
 
-  let hasProperty = false;
-  let hasValue = false;
   for (const prop of props) {
     if (!prop.isKind(SyntaxKind.PropertyAssignment)) return false;
     const init = prop.getInitializer();
     if (!init || !init.isKind(SyntaxKind.StringLiteral)) return false;
-    const name = prop.getName();
-    if (name === 'property') hasProperty = true;
-    else if (name === 'value') hasValue = true;
   }
-  return hasProperty && hasValue;
+  return props.length > 0;
 }
 
 // ─── Entry Extraction ──────────────────────────────────────────
@@ -200,17 +206,23 @@ function extractEntries(arrayNode: Node): ExtractedEntry[] {
           : selector;
 
         const init = prop.getInitializer();
-        if (!init || !init.isKind(SyntaxKind.ArrayLiteralExpression)) continue;
+        if (!init) continue;
 
         const nestedEntries: string[] = [];
         const rawDeclarations: RawDecl[] = [];
-        for (const el of init.getElements()) {
-          if (el.isKind(SyntaxKind.StringLiteral)) {
-            nestedEntries.push(el.getLiteralValue());
-          } else if (el.isKind(SyntaxKind.ObjectLiteralExpression)) {
-            const rawDecl = extractRawDeclaration(el);
-            if (rawDecl) rawDeclarations.push(rawDecl);
+
+        if (init.isKind(SyntaxKind.ArrayLiteralExpression)) {
+          // Array form: ['shorthand', { 'css-prop': 'value' }]
+          for (const el of init.getElements()) {
+            if (el.isKind(SyntaxKind.StringLiteral)) {
+              nestedEntries.push(el.getLiteralValue());
+            } else if (el.isKind(SyntaxKind.ObjectLiteralExpression)) {
+              rawDeclarations.push(...extractCSSDeclarations(el));
+            }
           }
+        } else if (init.isKind(SyntaxKind.ObjectLiteralExpression)) {
+          // Direct object form: { 'flex-direction': 'row', ... }
+          rawDeclarations.push(...extractCSSDeclarations(init));
         }
 
         results.push({
@@ -227,25 +239,23 @@ function extractEntries(arrayNode: Node): ExtractedEntry[] {
   return results;
 }
 
-/** Extract a raw declaration { property: '...', value: '...' } from an object literal. */
-function extractRawDeclaration(node: Node): RawDecl | null {
-  if (!node.isKind(SyntaxKind.ObjectLiteralExpression)) return null;
+/** Extract CSS declarations from an object literal: { 'prop': 'value', ... } → RawDecl[] */
+function extractCSSDeclarations(node: Node): RawDecl[] {
+  if (!node.isKind(SyntaxKind.ObjectLiteralExpression)) return [];
 
-  let property: string | null = null;
-  let value: string | null = null;
-
+  const declarations: RawDecl[] = [];
   for (const prop of node.getProperties()) {
-    if (!prop.isKind(SyntaxKind.PropertyAssignment)) return null;
-    const name = prop.getName();
+    if (!prop.isKind(SyntaxKind.PropertyAssignment)) continue;
     const init = prop.getInitializer();
-    if (!init || !init.isKind(SyntaxKind.StringLiteral)) return null;
+    if (!init || !init.isKind(SyntaxKind.StringLiteral)) continue;
 
-    if (name === 'property') property = init.getLiteralValue();
-    else if (name === 'value') value = init.getLiteralValue();
+    const nameNode = prop.getNameNode();
+    const name = nameNode.isKind(SyntaxKind.StringLiteral)
+      ? nameNode.getLiteralValue()
+      : prop.getName();
+    declarations.push({ property: name, value: init.getLiteralValue() });
   }
-
-  if (property && value) return { property, value };
-  return null;
+  return declarations;
 }
 
 // ─── CSS Rule Building ─────────────────────────────────────────

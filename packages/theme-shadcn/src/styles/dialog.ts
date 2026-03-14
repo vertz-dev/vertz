@@ -1,4 +1,4 @@
-import type { CSSOutput, RawDeclaration, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
 import { css } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
@@ -12,14 +12,13 @@ type DialogBlocks = {
   footer: StyleEntry[];
 };
 
-const focusRing: Record<string, (string | RawDeclaration)[]> = {
+const focusRing: Record<string, StyleValue[]> = {
   '&:focus-visible': [
     'outline-none',
     {
-      property: 'outline',
-      value: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+      outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
     },
-    { property: 'outline-offset', value: '2px' },
+    { 'outline-offset': '2px' },
   ],
 };
 
@@ -32,11 +31,11 @@ export function createDialogStyles(): CSSOutput<DialogBlocks> {
       'z:50',
       {
         // Nova: bg-black/10 + backdrop-blur-xs (lighter overlay with blur)
-        '&': [
-          { property: 'background-color', value: 'oklch(0 0 0 / 10%)' },
-          { property: 'backdrop-filter', value: 'blur(4px)' },
-          { property: '-webkit-backdrop-filter', value: 'blur(4px)' },
-        ],
+        '&': {
+          'background-color': 'oklch(0 0 0 / 10%)',
+          'backdrop-filter': 'blur(4px)',
+          '-webkit-backdrop-filter': 'blur(4px)',
+        },
       },
       {
         '&[data-state="open"]': [animationDecl('vz-fade-in 100ms ease-out forwards')],
@@ -51,28 +50,25 @@ export function createDialogStyles(): CSSOutput<DialogBlocks> {
       'bg:background',
       'gap:4',
       {
-        '&': [
-          { property: 'display', value: 'grid' },
-          { property: 'width', value: '100%' },
-          { property: 'max-width', value: 'calc(100% - 2rem)' },
+        '&': {
+          display: 'grid',
+          width: '100%',
+          'max-width': 'calc(100% - 2rem)',
           // Nova: ring-1 ring-foreground/10 instead of border
-          {
-            property: 'box-shadow',
-            value: '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent)',
-          },
+          'box-shadow': '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent)',
           // Nova: rounded-xl p-4 text-sm
-          { property: 'border-radius', value: '0.75rem' },
-          { property: 'padding', value: '1rem' },
-          { property: 'font-size', value: '0.875rem' },
+          'border-radius': '0.75rem',
+          padding: '1rem',
+          'font-size': '0.875rem',
           // Center via inset + margin:auto (avoids transform conflict with animations)
-          { property: 'inset', value: '0' },
-          { property: 'margin', value: 'auto' },
-          { property: 'height', value: 'fit-content' },
-          { property: 'outline', value: 'none' },
-          { property: 'container-type', value: 'inline-size' },
-        ],
+          inset: '0',
+          margin: 'auto',
+          height: 'fit-content',
+          outline: 'none',
+          'container-type': 'inline-size',
+        },
         // Nova: sm:max-w-sm (24rem vs base 32rem)
-        '@media (min-width: 640px)': [{ property: 'max-width', value: '24rem' }],
+        '@media (min-width: 640px)': { 'max-width': '24rem' },
       },
       {
         '&[data-state="open"]': [animationDecl('vz-zoom-in 100ms ease-out forwards')],
@@ -86,17 +82,17 @@ export function createDialogStyles(): CSSOutput<DialogBlocks> {
       'flex-col',
       'gap:2',
       {
-        '@media (min-width: 640px)': [{ property: 'text-align', value: 'left' }],
+        '@media (min-width: 640px)': { 'text-align': 'left' },
       },
     ],
     dialogTitle: [
       {
         // Nova: text-base font-medium (smaller/lighter than base text-lg font-semibold)
-        '&': [
-          { property: 'font-size', value: '1rem' },
-          { property: 'line-height', value: '1' },
-          { property: 'font-weight', value: '500' },
-        ],
+        '&': {
+          'font-size': '1rem',
+          'line-height': '1',
+          'font-weight': '500',
+        },
       },
     ],
     dialogDescription: ['text:sm', 'text:muted-foreground'],
@@ -105,24 +101,24 @@ export function createDialogStyles(): CSSOutput<DialogBlocks> {
       'rounded:xs',
       'cursor:pointer',
       {
-        '&': [
+        '&': {
           // Nova: top-2 right-2 (closer to corner)
-          { property: 'top', value: '0.5rem' },
-          { property: 'right', value: '0.5rem' },
-          { property: 'opacity', value: '0.7' },
-          { property: 'transition', value: 'opacity 150ms' },
-          { property: 'display', value: 'inline-flex' },
-          { property: 'align-items', value: 'center' },
-          { property: 'justify-content', value: 'center' },
-          { property: 'width', value: '1rem' },
-          { property: 'height', value: '1rem' },
-          { property: 'background', value: 'none' },
-          { property: 'border', value: 'none' },
-          { property: 'color', value: 'currentColor' },
-          { property: 'padding', value: '0' },
-        ],
-        '&:hover': [{ property: 'opacity', value: '1' }],
-        '&:disabled': [{ property: 'pointer-events', value: 'none' }],
+          top: '0.5rem',
+          right: '0.5rem',
+          opacity: '0.7',
+          transition: 'opacity 150ms',
+          display: 'inline-flex',
+          'align-items': 'center',
+          'justify-content': 'center',
+          width: '1rem',
+          height: '1rem',
+          background: 'none',
+          border: 'none',
+          color: 'currentColor',
+          padding: '0',
+        },
+        '&:hover': { opacity: '1' },
+        '&:disabled': { 'pointer-events': 'none' },
       },
       focusRing,
     ],
@@ -130,22 +126,19 @@ export function createDialogStyles(): CSSOutput<DialogBlocks> {
       'flex',
       'gap:2',
       {
-        '&': [
-          { property: 'flex-direction', value: 'column-reverse' },
+        '&': {
+          'flex-direction': 'column-reverse',
           // Nova: bg-muted/50 -mx-4 -mb-4 rounded-b-xl border-t p-4
-          {
-            property: 'background-color',
-            value: 'color-mix(in oklch, var(--color-muted) 50%, transparent)',
-          },
-          { property: 'margin', value: '0 -1rem -1rem -1rem' },
-          { property: 'border-radius', value: '0 0 0.75rem 0.75rem' },
-          { property: 'border-top', value: '1px solid var(--color-border)' },
-          { property: 'padding', value: '1rem' },
-        ],
-        '@container (min-width: 20rem)': [
-          { property: 'flex-direction', value: 'row' },
-          { property: 'justify-content', value: 'flex-end' },
-        ],
+          'background-color': 'color-mix(in oklch, var(--color-muted) 50%, transparent)',
+          margin: '0 -1rem -1rem -1rem',
+          'border-radius': '0 0 0.75rem 0.75rem',
+          'border-top': '1px solid var(--color-border)',
+          padding: '1rem',
+        },
+        '@container (min-width: 20rem)': {
+          'flex-direction': 'row',
+          'justify-content': 'flex-end',
+        },
       },
     ],
   });

@@ -1,4 +1,4 @@
-import type { CSSOutput, RawDeclaration, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
 import { css } from '@vertz/ui';
 import { bgOpacity, DARK } from './_helpers';
 
@@ -7,13 +7,12 @@ type CheckboxBlocks = {
   indicator: StyleEntry[];
 };
 
-const focusRing: Record<string, (string | RawDeclaration)[]> = {
+const focusRing: Record<string, StyleValue[]> = {
   '&:focus-visible': [
     'outline-none',
     'border:ring',
     {
-      property: 'box-shadow',
-      value: '0 0 0 3px color-mix(in oklch, var(--color-ring) 50%, transparent)',
+      'box-shadow': '0 0 0 3px color-mix(in oklch, var(--color-ring) 50%, transparent)',
     },
   ],
 };
@@ -32,9 +31,7 @@ export function createCheckboxStyles(): CSSOutput<CheckboxBlocks> {
       'border:input',
       'cursor:pointer',
       'transition:colors',
-      { '&': [{ property: 'padding', value: '0' }] },
-      { '&': [{ property: 'background', value: 'transparent' }] },
-      { '&': [{ property: 'border-radius', value: '4px' }] },
+      { '&': { padding: '0', background: 'transparent', 'border-radius': '4px' } },
       { [DARK]: [bgOpacity('input', 30)] },
       focusRing,
       { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },

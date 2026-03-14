@@ -11,13 +11,13 @@ type SeparatorBlocks = {
 export function createSeparator(): CSSOutput<SeparatorBlocks> {
   const s = css({
     separatorBase: ['bg:border', 'shrink-0'],
-    separatorHorizontal: ['w:full', { '&': [{ property: 'height', value: '1px' }] }],
+    separatorHorizontal: ['w:full', { '&': { height: '1px' } }],
     separatorVertical: [
       {
-        '&': [
-          { property: 'height', value: '100%' },
-          { property: 'width', value: '1px' },
-        ],
+        '&': {
+          height: '100%',
+          width: '1px',
+        },
       },
     ],
   });

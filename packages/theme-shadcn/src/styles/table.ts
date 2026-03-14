@@ -20,14 +20,14 @@ export function createTableStyles(): CSSOutput<TableBlocks> {
       'w:full',
       'text:sm',
       {
-        '&': [
-          { property: 'caption-side', value: 'bottom' },
-          { property: 'border-collapse', value: 'collapse' },
-        ],
+        '&': {
+          'caption-side': 'bottom',
+          'border-collapse': 'collapse',
+        },
       },
     ],
     tableHeader: [{ '& tr': ['border-b:1', 'border:border'] }],
-    tableBody: [{ '& tr:last-child': [{ property: 'border-bottom', value: '0' }] }],
+    tableBody: [{ '& tr:last-child': { 'border-bottom': '0' } }],
     tableRow: [
       'border-b:1',
       'border:border',
@@ -42,24 +42,20 @@ export function createTableStyles(): CSSOutput<TableBlocks> {
       'text:foreground',
       'whitespace-nowrap',
       {
-        '&': [
-          { property: 'vertical-align', value: 'middle' },
-          { property: 'height', value: '2.5rem' },
-        ],
+        '&': {
+          'vertical-align': 'middle',
+          height: '2.5rem',
+        },
       },
     ],
-    tableCell: [
-      'p:2',
-      'whitespace-nowrap',
-      { '&': [{ property: 'vertical-align', value: 'middle' }] },
-    ],
+    tableCell: ['p:2', 'whitespace-nowrap', { '&': { 'vertical-align': 'middle' } }],
     tableCaption: ['mt:4', 'text:sm', 'text:muted-foreground'],
     tableFooter: [
       'border-t:1',
       'border:border',
       'font:medium',
       { '&': [bgOpacity('muted', 50)] },
-      { '&>tr:last-child': [{ property: 'border-bottom', value: '0' }] },
+      { '&>tr:last-child': { 'border-bottom': '0' } },
     ],
   });
   return {

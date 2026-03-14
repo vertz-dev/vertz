@@ -1,24 +1,23 @@
-import type { RawDeclaration, StyleEntry, VariantFunction, VariantsConfig } from '@vertz/ui';
+import type { StyleEntry, StyleValue, VariantFunction, VariantsConfig } from '@vertz/ui';
 import { variants } from '@vertz/ui';
 import { bgOpacity, DARK } from './_helpers';
 
-const focusRing: Record<string, (string | RawDeclaration)[]> = {
+const focusRing: Record<string, StyleValue[]> = {
   '&:focus-visible': [
     'outline-none',
     'border:ring',
     {
-      property: 'outline',
-      value: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+      outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
     },
-    { property: 'outline-offset', value: '2px' },
+    { 'outline-offset': '2px' },
   ],
 };
 
-const disabledStyles: Record<string, (string | RawDeclaration)[]> = {
+const disabledStyles: Record<string, StyleValue[]> = {
   '&:disabled': ['pointer-events-none', 'opacity:0.5'],
 };
 
-const svgStyles: Record<string, (string | RawDeclaration)[]> = {
+const svgStyles: Record<string, StyleValue[]> = {
   '& svg': ['pointer-events-none', 'shrink-0'],
 };
 
@@ -36,12 +35,10 @@ const intentVariants: Record<string, StyleEntry[]> = {
     {
       '&:focus-visible': [
         {
-          property: 'outline',
-          value: '3px solid color-mix(in oklch, var(--color-destructive) 20%, transparent)',
+          outline: '3px solid color-mix(in oklch, var(--color-destructive) 20%, transparent)',
         },
         {
-          property: 'border-color',
-          value: 'color-mix(in oklch, var(--color-destructive) 40%, transparent)',
+          'border-color': 'color-mix(in oklch, var(--color-destructive) 40%, transparent)',
         },
       ],
     },
@@ -64,7 +61,7 @@ const intentVariants: Record<string, StyleEntry[]> = {
   link: [
     'bg:transparent',
     'text:primary',
-    { '&:hover': [{ property: 'text-decoration-line', value: 'underline' }] },
+    { '&:hover': [{ 'text-decoration-line': 'underline' }] },
   ],
 };
 
@@ -75,30 +72,30 @@ const sizeVariants: Record<string, StyleEntry[]> = {
     'gap:1',
     'rounded:md',
     {
-      '&': [
-        { property: 'padding-left', value: '0.625rem' },
-        { property: 'padding-right', value: '0.625rem' },
-      ],
+      '&': {
+        'padding-left': '0.625rem',
+        'padding-right': '0.625rem',
+      },
     },
   ],
   md: [
     'h:8',
     'gap:1.5',
     {
-      '&': [
-        { property: 'padding-left', value: '0.625rem' },
-        { property: 'padding-right', value: '0.625rem' },
-      ],
+      '&': {
+        'padding-left': '0.625rem',
+        'padding-right': '0.625rem',
+      },
     },
   ],
   lg: [
     'h:9',
     'gap:1.5',
     {
-      '&': [
-        { property: 'padding-left', value: '0.625rem' },
-        { property: 'padding-right', value: '0.625rem' },
-      ],
+      '&': {
+        'padding-left': '0.625rem',
+        'padding-right': '0.625rem',
+      },
     },
   ],
   icon: ['h:8', 'w:8'],
@@ -123,7 +120,7 @@ export const buttonConfig: VariantsConfig<ButtonVariants> = {
     'gap:2',
     'rounded:lg',
     'border:1',
-    { '&': [{ property: 'border-color', value: 'transparent' }] },
+    { '&': { 'border-color': 'transparent' } },
     'text:sm',
     'font:medium',
     'transition:colors',

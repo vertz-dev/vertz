@@ -1,30 +1,26 @@
-import type { RawDeclaration } from '@vertz/ui';
-
 /**
- * Generate a raw CSS declaration for a background color token with opacity.
+ * Generate a CSS declaration object for a background color token with opacity.
  * Uses color-mix() for broad browser support (Chrome 111+, Safari 16.2+, Firefox 113+).
  */
-export function bgOpacity(token: string, percent: number): RawDeclaration {
+export function bgOpacity(token: string, percent: number): { 'background-color': string } {
   return {
-    property: 'background-color',
-    value: `color-mix(in oklch, var(--color-${token}) ${percent}%, transparent)`,
+    'background-color': `color-mix(in oklch, var(--color-${token}) ${percent}%, transparent)`,
   };
 }
 
 /**
- * Generate a raw CSS declaration for a text color token with opacity.
+ * Generate a CSS declaration object for a text color token with opacity.
  * Uses color-mix() for broad browser support.
  */
-export function textOpacity(token: string, percent: number): RawDeclaration {
+export function textOpacity(token: string, percent: number): { color: string } {
   return {
-    property: 'color',
-    value: `color-mix(in oklch, var(--color-${token}) ${percent}%, transparent)`,
+    color: `color-mix(in oklch, var(--color-${token}) ${percent}%, transparent)`,
   };
 }
 
-/** Create a RawDeclaration for a CSS animation. */
-export function animationDecl(value: string): RawDeclaration {
-  return { property: 'animation', value };
+/** Create a CSS declaration object for a CSS animation. */
+export function animationDecl(value: string): { animation: string } {
+  return { animation: value };
 }
 
 /** Standard animation timing. */

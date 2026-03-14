@@ -8,7 +8,7 @@
  * internal barrel (./index.ts).
  */
 
-export type { CSSInput, CSSOutput, StyleEntry } from './css';
+export type { CSSInput, CSSOutput, StyleEntry, StyleValue } from './css';
 export { css } from './css';
 export type {
   CompiledFonts,

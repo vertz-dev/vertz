@@ -18,7 +18,7 @@ const s = css({
     'gap:12',
     'max-w:xl',
     'mx:auto',
-    { '@media (min-width: 640px)': [{ property: 'grid-template-columns', value: '1fr 1fr' }] },
+    { '@media (min-width: 640px)': { 'grid-template-columns': '1fr 1fr' } },
   ],
   card: ['text:center'],
   imgWrap: ['mx:auto', 'mb:4', 'w:20', 'h:20'],

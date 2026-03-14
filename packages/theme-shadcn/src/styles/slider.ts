@@ -1,4 +1,4 @@
-import type { CSSOutput, RawDeclaration, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleEntry } from '@vertz/ui';
 import { css } from '@vertz/ui';
 
 type SliderBlocks = {
@@ -8,9 +8,8 @@ type SliderBlocks = {
   thumb: StyleEntry[];
 };
 
-const ringStyle: RawDeclaration = {
-  property: 'box-shadow',
-  value: '0 0 0 3px color-mix(in oklch, var(--color-ring) 50%, transparent)',
+const ringStyle = {
+  'box-shadow': '0 0 0 3px color-mix(in oklch, var(--color-ring) 50%, transparent)',
 };
 
 /** Create slider css() styles following shadcn conventions. */
@@ -22,12 +21,12 @@ export function createSliderStyles(): CSSOutput<SliderBlocks> {
       'w:full',
       'items:center',
       {
-        '&': [
-          { property: 'touch-action', value: 'none' },
-          { property: 'user-select', value: 'none' },
-          { property: 'height', value: '20px' },
-          { property: 'cursor', value: 'pointer' },
-        ],
+        '&': {
+          'touch-action': 'none',
+          'user-select': 'none',
+          height: '20px',
+          cursor: 'pointer',
+        },
       },
     ],
     sliderTrack: [
@@ -36,10 +35,10 @@ export function createSliderStyles(): CSSOutput<SliderBlocks> {
       'rounded:full',
       'bg:muted',
       {
-        '&': [
-          { property: 'height', value: '0.25rem' },
-          { property: 'overflow', value: 'visible' },
-        ],
+        '&': {
+          height: '0.25rem',
+          overflow: 'visible',
+        },
       },
     ],
     sliderRange: ['bg:primary'],
@@ -52,18 +51,18 @@ export function createSliderStyles(): CSSOutput<SliderBlocks> {
       'border:ring',
       'cursor:pointer',
       {
-        '&': [
-          { property: 'background', value: 'white' },
-          { property: 'transition', value: 'color 150ms, box-shadow 150ms' },
-          { property: 'top', value: '50%' },
-        ],
+        '&': {
+          background: 'white',
+          transition: 'color 150ms, box-shadow 150ms',
+          top: '50%',
+        },
       },
       {
-        '&::after': [
-          { property: 'content', value: '""' },
-          { property: 'position', value: 'absolute' },
-          { property: 'inset', value: '-0.5rem' },
-        ],
+        '&::after': {
+          content: '""',
+          position: 'absolute',
+          inset: '-0.5rem',
+        },
       },
       {
         '&:hover': ['outline-none', ringStyle],

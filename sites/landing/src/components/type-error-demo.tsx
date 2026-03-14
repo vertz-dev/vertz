@@ -7,11 +7,7 @@ const s = css({
   sectionLabel: ['font:xs', 'tracking:widest', 'uppercase', 'mb:4', 'text:center', 'text:gray.500'],
   heading: ['font:4xl', 'mb:4', 'text:center'],
   subtitle: ['text:center', 'mb:12', 'max-w:xl', 'mx:auto', 'text:gray.400'],
-  grid: [
-    'grid',
-    'gap:8',
-    { '@media (min-width: 768px)': [{ property: 'grid-template-columns', value: '1fr 1fr' }] },
-  ],
+  grid: ['grid', 'gap:8', { '@media (min-width: 768px)': { 'grid-template-columns': '1fr 1fr' } }],
   columnLabel: ['font:xs', 'uppercase', 'tracking:wider', 'mb:3'],
   codeBlock: [
     'border:1',
@@ -19,7 +15,7 @@ const s = css({
     'p:6',
     'font:sm',
     'bg:gray.950',
-    { '&': [{ property: 'overflow-x', value: 'auto' }] },
+    { '&': { 'overflow-x': 'auto' } },
   ],
   errorHint: ['font:xs', 'pl:4', 'text:gray.500'],
   errorSpacer: ['mt:4', 'mb:1', 'text:gray.500'],

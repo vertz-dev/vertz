@@ -45,13 +45,7 @@ export function createContextMenuStyles(): CSSOutput<ContextMenuBlocks> {
     ],
     cmGroup: ['py:1'],
     cmLabel: ['px:2', 'py:1.5', 'text:xs', 'font:semibold', 'text:muted-foreground'],
-    cmSeparator: [
-      'mx:1',
-      'my:1',
-      'border-t:1',
-      'border:muted',
-      { '&': [{ property: 'height', value: '1px' }] },
-    ],
+    cmSeparator: ['mx:1', 'my:1', 'border-t:1', 'border:muted', { '&': { height: '1px' } }],
   });
   return {
     content: s.cmContent,

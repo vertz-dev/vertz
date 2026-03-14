@@ -1,4 +1,4 @@
-import type { CSSOutput, RawDeclaration, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
 import { css } from '@vertz/ui';
 
 type CalendarBlocks = {
@@ -12,14 +12,13 @@ type CalendarBlocks = {
   dayButton: StyleEntry[];
 };
 
-const focusRing: Record<string, (string | RawDeclaration)[]> = {
+const focusRing: Record<string, StyleValue[]> = {
   '&:focus-visible': [
     'outline-none',
     {
-      property: 'outline',
-      value: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+      outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
     },
-    { property: 'outline-offset', value: '2px' },
+    { 'outline-offset': '2px' },
   ],
 };
 
@@ -42,18 +41,18 @@ export function createCalendarStyles(): CSSOutput<CalendarBlocks> {
       { '&:hover': ['bg:accent', 'text:accent-foreground'] },
       focusRing,
       {
-        '&': [
-          { property: 'height', value: '1.75rem' },
-          { property: 'width', value: '1.75rem' },
-        ],
+        '&': {
+          height: '1.75rem',
+          width: '1.75rem',
+        },
       },
     ],
     calendarGrid: [
       {
-        '&': [
-          { property: 'width', value: '100%' },
-          { property: 'border-collapse', value: 'collapse' },
-        ],
+        '&': {
+          width: '100%',
+          'border-collapse': 'collapse',
+        },
       },
     ],
     calendarHeadCell: [
@@ -61,18 +60,18 @@ export function createCalendarStyles(): CSSOutput<CalendarBlocks> {
       'text:xs',
       'font:medium',
       {
-        '&': [
-          { property: 'width', value: '2rem' },
-          { property: 'text-align', value: 'center' },
-        ],
+        '&': {
+          width: '2rem',
+          'text-align': 'center',
+        },
       },
     ],
     calendarCell: [
       {
-        '&': [
-          { property: 'text-align', value: 'center' },
-          { property: 'padding', value: '0' },
-        ],
+        '&': {
+          'text-align': 'center',
+          padding: '0',
+        },
       },
     ],
     calendarDayButton: [
@@ -86,10 +85,10 @@ export function createCalendarStyles(): CSSOutput<CalendarBlocks> {
       'transition:colors',
       focusRing,
       {
-        '&': [
-          { property: 'height', value: '2rem' },
-          { property: 'width', value: '2rem' },
-        ],
+        '&': {
+          height: '2rem',
+          width: '2rem',
+        },
       },
       { '&:hover': ['bg:accent', 'text:accent-foreground'] },
       { '&[aria-selected="true"]': ['bg:primary', 'text:primary-foreground'] },

@@ -29,7 +29,7 @@ export const badgeConfig: VariantsConfig<BadgeVariants> = {
     'border:transparent',
     'whitespace-nowrap',
     'shrink-0',
-    { '&': [{ property: 'height', value: '1.25rem' }] },
+    { '&': { height: '1.25rem' } },
   ],
   variants: {
     color: colorVariants,

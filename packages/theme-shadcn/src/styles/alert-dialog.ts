@@ -1,4 +1,4 @@
-import type { CSSOutput, RawDeclaration, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
 import { css } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
@@ -12,14 +12,13 @@ type AlertDialogBlocks = {
   action: StyleEntry[];
 };
 
-const focusRing: Record<string, (string | RawDeclaration)[]> = {
+const focusRing: Record<string, StyleValue[]> = {
   '&:focus-visible': [
     'outline-none',
     {
-      property: 'outline',
-      value: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+      outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
     },
-    { property: 'outline-offset', value: '2px' },
+    { 'outline-offset': '2px' },
   ],
 };
 
@@ -32,11 +31,11 @@ export function createAlertDialogStyles(): CSSOutput<AlertDialogBlocks> {
       'z:50',
       {
         // Nova: bg-black/10 + backdrop-blur-xs
-        '&': [
-          { property: 'background-color', value: 'oklch(0 0 0 / 10%)' },
-          { property: 'backdrop-filter', value: 'blur(4px)' },
-          { property: '-webkit-backdrop-filter', value: 'blur(4px)' },
-        ],
+        '&': {
+          'background-color': 'oklch(0 0 0 / 10%)',
+          'backdrop-filter': 'blur(4px)',
+          '-webkit-backdrop-filter': 'blur(4px)',
+        },
       },
       {
         '&[data-state="open"]': [animationDecl('vz-fade-in 100ms ease-out forwards')],
@@ -51,26 +50,23 @@ export function createAlertDialogStyles(): CSSOutput<AlertDialogBlocks> {
       'bg:background',
       'gap:4',
       {
-        '&': [
-          { property: 'display', value: 'grid' },
-          { property: 'width', value: '100%' },
-          { property: 'max-width', value: 'calc(100% - 2rem)' },
+        '&': {
+          display: 'grid',
+          width: '100%',
+          'max-width': 'calc(100% - 2rem)',
           // Nova: ring-1 ring-foreground/10 instead of border
-          {
-            property: 'box-shadow',
-            value: '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent)',
-          },
+          'box-shadow': '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent)',
           // Nova: rounded-xl p-4
-          { property: 'border-radius', value: '0.75rem' },
-          { property: 'padding', value: '1rem' },
+          'border-radius': '0.75rem',
+          padding: '1rem',
           // Center via inset + margin:auto
-          { property: 'inset', value: '0' },
-          { property: 'margin', value: 'auto' },
-          { property: 'height', value: 'fit-content' },
-          { property: 'container-type', value: 'inline-size' },
-        ],
+          inset: '0',
+          margin: 'auto',
+          height: 'fit-content',
+          'container-type': 'inline-size',
+        },
         // Nova: sm:max-w-sm
-        '@media (min-width: 640px)': [{ property: 'max-width', value: '24rem' }],
+        '@media (min-width: 640px)': { 'max-width': '24rem' },
       },
       {
         '&[data-state="open"]': [animationDecl('vz-zoom-in 100ms ease-out forwards')],
@@ -82,10 +78,10 @@ export function createAlertDialogStyles(): CSSOutput<AlertDialogBlocks> {
     alertDialogTitle: [
       {
         // Nova: text-base font-medium
-        '&': [
-          { property: 'font-size', value: '1rem' },
-          { property: 'font-weight', value: '500' },
-        ],
+        '&': {
+          'font-size': '1rem',
+          'font-weight': '500',
+        },
       },
     ],
     alertDialogDescription: ['text:sm', 'text:muted-foreground'],
@@ -93,22 +89,19 @@ export function createAlertDialogStyles(): CSSOutput<AlertDialogBlocks> {
       'flex',
       'gap:2',
       {
-        '&': [
-          { property: 'flex-direction', value: 'column-reverse' },
+        '&': {
+          'flex-direction': 'column-reverse',
           // Nova: bg-muted/50 -mx-4 -mb-4 rounded-b-xl border-t p-4
-          {
-            property: 'background-color',
-            value: 'color-mix(in oklch, var(--color-muted) 50%, transparent)',
-          },
-          { property: 'margin', value: '0 -1rem -1rem -1rem' },
-          { property: 'border-radius', value: '0 0 0.75rem 0.75rem' },
-          { property: 'border-top', value: '1px solid var(--color-border)' },
-          { property: 'padding', value: '1rem' },
-        ],
-        '@container (min-width: 20rem)': [
-          { property: 'flex-direction', value: 'row' },
-          { property: 'justify-content', value: 'flex-end' },
-        ],
+          'background-color': 'color-mix(in oklch, var(--color-muted) 50%, transparent)',
+          margin: '0 -1rem -1rem -1rem',
+          'border-radius': '0 0 0.75rem 0.75rem',
+          'border-top': '1px solid var(--color-border)',
+          padding: '1rem',
+        },
+        '@container (min-width: 20rem)': {
+          'flex-direction': 'row',
+          'justify-content': 'flex-end',
+        },
       },
     ],
     alertDialogCancel: [
@@ -141,7 +134,7 @@ export function createAlertDialogStyles(): CSSOutput<AlertDialogBlocks> {
       'font:medium',
       'cursor:pointer',
       'transition:colors',
-      { '&:hover': [{ property: 'opacity', value: '0.9' }] },
+      { '&:hover': [{ opacity: '0.9' }] },
       focusRing,
     ],
   });

@@ -41,10 +41,10 @@ export function createNavigationMenuStyles(): CSSOutput<NavigationMenuBlocks> {
       'shadow:lg',
       'text:popover-foreground',
       {
-        '&': [
-          { property: 'left', value: '0' },
-          { property: 'top', value: '100%' },
-        ],
+        '&': {
+          left: '0',
+          top: '100%',
+        },
       },
       {
         '&[data-state="open"]': [animationDecl('vz-fade-in 150ms ease-out forwards')],
@@ -60,7 +60,7 @@ export function createNavigationMenuStyles(): CSSOutput<NavigationMenuBlocks> {
       'text:sm',
       'leading:none',
       {
-        '&': [{ property: 'text-decoration-line', value: 'none' }],
+        '&': { 'text-decoration-line': 'none' },
       },
       { '&:hover': ['bg:accent', 'text:accent-foreground'] },
     ],
@@ -68,10 +68,10 @@ export function createNavigationMenuStyles(): CSSOutput<NavigationMenuBlocks> {
       'absolute',
       'w:full',
       {
-        '&': [
-          { property: 'left', value: '0' },
-          { property: 'top', value: '100%' },
-        ],
+        '&': {
+          left: '0',
+          top: '100%',
+        },
       },
     ],
   });
