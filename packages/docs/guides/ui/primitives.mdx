@@ -1,0 +1,603 @@
+---
+title: UI Primitives & Components
+description: "Accessible, styled components — Button, Dialog, Select, Tabs, Table, Card, and more. Use these instead of building from scratch."
+---
+
+Vertz ships a full set of ready-to-use UI components with a shadcn-inspired theme. Use them instead of building from scratch.
+
+## Architecture
+
+The component system has two layers:
+
+- **`@vertz/ui-primitives`** — Headless, accessible components with WAI-ARIA patterns. No styling, just behavior.
+- **`@vertz/theme-shadcn`** — Wraps every primitive with shadcn-inspired styles, plus adds common components like Button, Input, Card, and Table.
+
+Most apps only import from `@vertz/theme-shadcn`.
+
+## Setup
+
+Call `configureTheme()` once in your app to get styled components:
+
+```tsx
+import { configureTheme } from '@vertz/theme-shadcn';
+
+const { components } = configureTheme({ palette: 'zinc', radius: 'md' });
+
+// Direct components — simple styled elements
+const { Button, Input, Label, Card, Badge, Alert, Avatar, Table } = components;
+
+// Primitive components — themed wrappers around @vertz/ui-primitives
+const { Dialog, Select, Tabs, Accordion, Sheet, Popover, Tooltip } = components.primitives;
+```
+
+<Note>
+**Direct components** (`components.Button`, `components.Card`, etc.) are simple styled wrappers.
+**Primitive components** (`components.primitives.Dialog`, etc.) are themed wrappers around `@vertz/ui-primitives` with compound sub-components (e.g., `Dialog.Trigger`, `Dialog.Content`).
+</Note>
+
+---
+
+## Form
+
+### Button
+
+Triggers an action or event. Supports intents and sizes.
+
+```tsx
+const { Button } = components;
+
+<Button intent="primary" size="md">Save</Button>
+<Button intent="outline" size="sm">Cancel</Button>
+<Button intent="destructive" size="md">Delete</Button>
+<Button intent="ghost" size="md">Ghost</Button>
+```
+
+Intents: `primary`, `secondary`, `outline`, `ghost`, `destructive`, `link`. Sizes: `sm`, `md`, `lg`.
+
+### Input
+
+Text input field for forms.
+
+```tsx
+const { Input } = components;
+
+<Input placeholder="Enter your email..." />
+<Input type="password" placeholder="Password" />
+<Input disabled placeholder="Disabled" />
+```
+
+### Textarea
+
+Multi-line text input.
+
+```tsx
+const { Textarea } = components;
+
+<Textarea placeholder="Write a message..." />
+```
+
+### Label
+
+Accessible label for form controls.
+
+```tsx
+const { Label } = components;
+
+<Label for="email">Email</Label>
+<Input id="email" name="email" placeholder="you@example.com" />
+```
+
+### FormGroup
+
+Groups form controls with error display.
+
+```tsx
+const { FormGroup: FormGroupSuite, Label, Input } = components;
+
+<FormGroupSuite.FormGroup>
+  <Label>Email</Label>
+  <Input name="email" placeholder="Enter email" />
+  <FormGroupSuite.FormError>Please enter a valid email address</FormGroupSuite.FormError>
+</FormGroupSuite.FormGroup>
+```
+
+### Checkbox
+
+Toggle control for boolean values.
+
+```tsx
+const { checkbox } = components.primitives;
+
+<label style="display: flex; align-items: center; gap: 8px">
+  {checkbox({ defaultChecked: true })}
+  Accept terms and conditions
+</label>
+```
+
+### Switch
+
+Toggle between on and off states.
+
+```tsx
+const { switch: createSwitch } = components.primitives;
+
+{createSwitch({ defaultChecked: true })}
+```
+
+Supports `size: 'sm'` for compact variant.
+
+### RadioGroup
+
+Select one option from a set.
+
+```tsx
+const { radioGroup } = components.primitives;
+
+const radio = radioGroup({ defaultValue: 'comfortable' });
+radio.Item('default', 'Default');
+radio.Item('comfortable', 'Comfortable');
+radio.Item('compact', 'Compact');
+
+// Use radio.root in your JSX
+{radio.root}
+```
+
+### Select
+
+Dropdown selection control.
+
+```tsx
+const { Select } = components.primitives;
+
+<Select defaultValue="Select a fruit...">
+  <Select.Content>
+    <Select.Group label="Fruits">
+      <Select.Item value="apple">Apple</Select.Item>
+      <Select.Item value="banana">Banana</Select.Item>
+    </Select.Group>
+    <Select.Separator />
+    <Select.Group label="Vegetables">
+      <Select.Item value="carrot">Carrot</Select.Item>
+    </Select.Group>
+  </Select.Content>
+</Select>
+```
+
+### Slider
+
+Range input with track and thumb.
+
+```tsx
+const { slider } = components.primitives;
+
+{slider({ defaultValue: 50, min: 0, max: 100 }).root}
+```
+
+### Toggle
+
+Toggle button with pressed state.
+
+```tsx
+const { toggle } = components.primitives;
+
+{toggle()}
+```
+
+---
+
+## Layout
+
+### Card
+
+Container with header, content, and footer.
+
+```tsx
+const { Card: C, Button } = components;
+
+<C.Card>
+  <C.CardHeader>
+    <C.CardTitle>Card Title</C.CardTitle>
+    <C.CardDescription>Card description goes here.</C.CardDescription>
+  </C.CardHeader>
+  <C.CardContent>
+    This is the card content area.
+  </C.CardContent>
+  <C.CardFooter>
+    <Button intent="outline" size="sm">Cancel</Button>
+    <Button intent="primary" size="sm">Save</Button>
+  </C.CardFooter>
+</C.Card>
+```
+
+### Separator
+
+Visual divider between content.
+
+```tsx
+const { Separator } = components;
+
+<Separator />
+```
+
+### Accordion
+
+Expandable/collapsible content sections.
+
+```tsx
+const { Accordion } = components.primitives;
+
+<Accordion>
+  <Accordion.Item value="item-1">
+    <Accordion.Trigger>Is it accessible?</Accordion.Trigger>
+    <Accordion.Content>Yes. It adheres to WAI-ARIA patterns.</Accordion.Content>
+  </Accordion.Item>
+  <Accordion.Item value="item-2">
+    <Accordion.Trigger>Is it styled?</Accordion.Trigger>
+    <Accordion.Content>Yes. It matches the theme.</Accordion.Content>
+  </Accordion.Item>
+</Accordion>
+```
+
+### Tabs
+
+Tabbed content organization.
+
+```tsx
+const { Tabs } = components.primitives;
+
+<Tabs defaultValue="account">
+  <Tabs.List>
+    <Tabs.Trigger value="account">Account</Tabs.Trigger>
+    <Tabs.Trigger value="password">Password</Tabs.Trigger>
+  </Tabs.List>
+  <Tabs.Content value="account">Account settings here.</Tabs.Content>
+  <Tabs.Content value="password">Password settings here.</Tabs.Content>
+</Tabs>
+```
+
+Supports `variant="line"` for an underline tab style.
+
+---
+
+## Data Display
+
+### Badge
+
+Small status or count indicator.
+
+```tsx
+const { Badge } = components;
+
+<Badge color="blue">New</Badge>
+<Badge color="green">Active</Badge>
+<Badge color="red">Error</Badge>
+<Badge color="yellow">Warning</Badge>
+<Badge color="gray">Draft</Badge>
+```
+
+### Avatar
+
+User profile image with fallback.
+
+```tsx
+const { Avatar: A } = components;
+
+<A.Avatar>
+  <A.AvatarFallback>JD</A.AvatarFallback>
+</A.Avatar>
+```
+
+### Table
+
+Tabular data display.
+
+```tsx
+const { Table: T } = components;
+
+<T.Table>
+  <T.TableHeader>
+    <T.TableRow>
+      <T.TableHead>Name</T.TableHead>
+      <T.TableHead>Status</T.TableHead>
+      <T.TableHead>Role</T.TableHead>
+    </T.TableRow>
+  </T.TableHeader>
+  <T.TableBody>
+    <T.TableRow>
+      <T.TableCell>Alice Johnson</T.TableCell>
+      <T.TableCell>Active</T.TableCell>
+      <T.TableCell>Admin</T.TableCell>
+    </T.TableRow>
+  </T.TableBody>
+</T.Table>
+```
+
+### Skeleton
+
+Loading placeholder with pulse animation.
+
+```tsx
+const { Skeleton: S } = components;
+
+<S.Skeleton width="200px" height="16px" />
+<S.Skeleton width="150px" height="16px" />
+```
+
+### Progress
+
+Shows task completion percentage.
+
+```tsx
+const { progress } = components.primitives;
+
+{progress({ defaultValue: 66 }).root}
+```
+
+---
+
+## Overlays
+
+### Dialog
+
+Modal dialog with backdrop.
+
+```tsx
+const { Button } = components;
+const { Dialog } = components.primitives;
+
+<Dialog>
+  <Dialog.Trigger>
+    <Button intent="outline" size="md">Edit Profile</Button>
+  </Dialog.Trigger>
+  <Dialog.Content>
+    <Dialog.Header>
+      <Dialog.Title>Edit profile</Dialog.Title>
+      <Dialog.Description>Make changes to your profile here.</Dialog.Description>
+    </Dialog.Header>
+    {/* Form fields go here */}
+    <Dialog.Footer>
+      <Button intent="outline" size="md">Cancel</Button>
+      <Button intent="primary" size="md">Save changes</Button>
+    </Dialog.Footer>
+  </Dialog.Content>
+</Dialog>
+```
+
+### AlertDialog
+
+Confirmation dialog requiring action.
+
+```tsx
+const { Button } = components;
+const { AlertDialog } = components.primitives;
+
+<AlertDialog>
+  <AlertDialog.Trigger>
+    <Button intent="destructive" size="md">Delete Account</Button>
+  </AlertDialog.Trigger>
+  <AlertDialog.Content>
+    <AlertDialog.Title>Are you absolutely sure?</AlertDialog.Title>
+    <AlertDialog.Description>
+      This action cannot be undone.
+    </AlertDialog.Description>
+    <AlertDialog.Footer>
+      <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+      <AlertDialog.Action>Continue</AlertDialog.Action>
+    </AlertDialog.Footer>
+  </AlertDialog.Content>
+</AlertDialog>
+```
+
+### Sheet
+
+Side panel that slides in from edge.
+
+```tsx
+const { Button } = components;
+const { Sheet } = components.primitives;
+
+<Sheet>
+  <Sheet.Trigger>
+    <Button intent="outline" size="md">Open Sheet</Button>
+  </Sheet.Trigger>
+  <Sheet.Content>
+    <Sheet.Title>Edit profile</Sheet.Title>
+    <Sheet.Description>Make changes to your profile here.</Sheet.Description>
+    {/* Content goes here */}
+  </Sheet.Content>
+</Sheet>
+```
+
+Supports `side="left"`, `side="right"` (default), `side="top"`, `side="bottom"`.
+
+### Popover
+
+Floating content anchored to trigger.
+
+```tsx
+const { Button } = components;
+const { Popover } = components.primitives;
+
+<Popover>
+  <Popover.Trigger>
+    <Button intent="outline" size="md">Open popover</Button>
+  </Popover.Trigger>
+  <Popover.Content>
+    <div style="padding: 16px; width: 280px;">
+      <h4>Dimensions</h4>
+      <p>Set the dimensions for the layer.</p>
+    </div>
+  </Popover.Content>
+</Popover>
+```
+
+### Tooltip
+
+Brief info on hover or focus.
+
+```tsx
+const { Button } = components;
+const { Tooltip } = components.primitives;
+
+<Tooltip>
+  <Tooltip.Trigger>
+    <Button intent="outline" size="md">Hover me</Button>
+  </Tooltip.Trigger>
+  <Tooltip.Content>Add to library</Tooltip.Content>
+</Tooltip>
+```
+
+---
+
+## Navigation
+
+### Breadcrumb
+
+Navigation breadcrumb trail.
+
+```tsx
+const { Breadcrumb } = components;
+
+<Breadcrumb items={[
+  { label: 'Home', href: '/' },
+  { label: 'Projects', href: '/projects' },
+  { label: 'Current Project' },
+]} />
+```
+
+The last item renders as the current page (no link). Supports a custom `separator` prop (defaults to `/`).
+
+### Pagination
+
+Page navigation controls.
+
+```tsx
+const { Pagination } = components;
+
+<Pagination
+  currentPage={2}
+  totalPages={10}
+  onPageChange={(page) => { /* navigate to page */ }}
+/>
+```
+
+Supports `siblingCount` to control how many page numbers show around the current page.
+
+### DropdownMenu
+
+Menu triggered by a button click.
+
+```tsx
+const { Button } = components;
+const { DropdownMenu } = components.primitives;
+
+<DropdownMenu>
+  <DropdownMenu.Trigger>
+    <Button intent="outline" size="md">Open</Button>
+  </DropdownMenu.Trigger>
+  <DropdownMenu.Content>
+    <DropdownMenu.Label>My Account</DropdownMenu.Label>
+    <DropdownMenu.Separator />
+    <DropdownMenu.Item value="profile">Profile</DropdownMenu.Item>
+    <DropdownMenu.Item value="billing">Billing</DropdownMenu.Item>
+    <DropdownMenu.Separator />
+    <DropdownMenu.Item value="logout">Log out</DropdownMenu.Item>
+  </DropdownMenu.Content>
+</DropdownMenu>
+```
+
+---
+
+## Feedback
+
+### Alert
+
+Inline alert messages.
+
+```tsx
+const { Alert: A } = components;
+
+<A.Alert>
+  <A.AlertTitle>Heads up!</A.AlertTitle>
+  <A.AlertDescription>You can add components using the CLI.</A.AlertDescription>
+</A.Alert>
+
+<A.Alert variant="destructive">
+  <A.AlertTitle>Error</A.AlertTitle>
+  <A.AlertDescription>Your session has expired.</A.AlertDescription>
+</A.Alert>
+```
+
+### Toast
+
+Temporary notification popup.
+
+```tsx
+const { Button } = components;
+const { toast } = components.primitives;
+
+const t = toast({});
+document.body.appendChild(t.region);
+
+<Button
+  intent="outline"
+  size="md"
+  onClick={() => t.announce('Event has been created.')}
+>
+  Show Toast
+</Button>
+```
+
+---
+
+## Additional primitives
+
+These components are available in `@vertz/ui-primitives` and themed via `components.primitives`, but are less commonly used:
+
+| Component | Description |
+|-----------|-------------|
+| Calendar | Date grid with month navigation |
+| DatePicker | Date picker composing Calendar + Popover |
+| Carousel | Slide navigation with prev/next controls |
+| Collapsible | Expandable/collapsible content section |
+| Command | Searchable command palette |
+| ContextMenu | Right-click context menu |
+| Drawer | Bottom/side panel wrapping Dialog |
+| HoverCard | Hover-triggered interactive card |
+| Menubar | Horizontal menu bar with dropdowns |
+| NavigationMenu | Site navigation with hover dropdowns |
+| ResizablePanel | Resizable panel layout with drag handles |
+| ScrollArea | Custom scrollbars |
+| ToggleGroup | Group of toggle buttons |
+
+All are accessible via `components.primitives.*` after calling `configureTheme()`.
+
+---
+
+## Headless usage
+
+For custom styling, import directly from `@vertz/ui-primitives` and apply your own classes:
+
+```tsx
+import { Dialog } from '@vertz/ui-primitives';
+
+const dialog = Dialog.Root({ modal: true });
+```
+
+See [Styling](/guides/ui/styling) for details on `css()` and `variants()`.
+
+## Theme configuration
+
+`configureTheme()` accepts palette and radius options:
+
+```tsx
+const { components, styles, theme, globals } = configureTheme({
+  palette: 'zinc',  // zinc, slate, stone, gray, neutral
+  radius: 'md',     // none, sm, md, lg, full
+});
+```
+
+- `components` — Ready-to-use themed component functions
+- `styles` — Pre-built style objects for manual styling
+- `theme` — Resolved CSS variables
+- `globals` — Global CSS string to inject
