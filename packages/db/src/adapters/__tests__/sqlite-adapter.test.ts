@@ -4,7 +4,10 @@
  * Uses bun:sqlite with :memory: database for fast, isolated tests.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import type { DbDriver } from '../../client/driver';
 import { d } from '../../d';
 import {
@@ -383,5 +386,84 @@ describe('SqliteAdapter — autoUpdate columns', () => {
 
     // createdAt is readOnly — should remain unchanged
     expect(updated.createdAt).toBe(originalCreatedAt);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// createSqliteAdapter — dataDir path resolution (lines 141-145)
+// ---------------------------------------------------------------------------
+
+describe('createSqliteAdapter — dataDir path resolution', () => {
+  const simpleTable = d.table('simple', {
+    id: d.uuid().primary({ generate: 'uuid' }),
+    name: d.text(),
+  });
+
+  type SimpleSchema = typeof simpleTable;
+
+  it('creates database in dataDir when dbPath is not provided', async () => {
+    const tmpDir = path.join(os.tmpdir(), `vertz-test-${Date.now()}`);
+
+    const consoleSpy = spyOn(console, 'log').mockImplementation(() => {});
+
+    const adapter = await createSqliteAdapter<SimpleSchema>({
+      schema: simpleTable,
+      dataDir: tmpDir,
+      migrations: { autoApply: true },
+    } as SqliteAdapterOptions<SimpleSchema>);
+
+    expect(adapter).toBeDefined();
+    // Verify the db file was created in the expected location
+    const expectedDbPath = path.join(tmpDir, 'simple.db');
+    expect(fs.existsSync(expectedDbPath)).toBe(true);
+
+    // Clean up
+    consoleSpy.mockRestore();
+    try {
+      fs.unlinkSync(expectedDbPath);
+      fs.rmdirSync(tmpDir);
+    } catch {
+      // Ignore cleanup errors
+    }
+  });
+
+  it('creates data directory if it does not exist', async () => {
+    const tmpDir = path.join(os.tmpdir(), `vertz-test-new-dir-${Date.now()}`);
+
+    // Ensure directory does not exist
+    expect(fs.existsSync(tmpDir)).toBe(false);
+
+    const consoleSpy = spyOn(console, 'log').mockImplementation(() => {});
+
+    const adapter = await createSqliteAdapter<SimpleSchema>({
+      schema: simpleTable,
+      dataDir: tmpDir,
+      migrations: { autoApply: true },
+    } as SqliteAdapterOptions<SimpleSchema>);
+
+    expect(adapter).toBeDefined();
+    // Directory should have been created
+    expect(fs.existsSync(tmpDir)).toBe(true);
+
+    // Clean up
+    consoleSpy.mockRestore();
+    try {
+      fs.unlinkSync(path.join(tmpDir, 'simple.db'));
+      fs.rmdirSync(tmpDir);
+    } catch {
+      // Ignore cleanup errors
+    }
+  });
+
+  it('creates adapter without migrations', async () => {
+    const adapter = await createSqliteAdapter<SimpleSchema>({
+      schema: simpleTable,
+      dbPath: ':memory:',
+    } as SqliteAdapterOptions<SimpleSchema>);
+
+    expect(adapter).toBeDefined();
+    expect(adapter).toHaveProperty('get');
+    expect(adapter).toHaveProperty('list');
+    expect(adapter).toHaveProperty('create');
   });
 });

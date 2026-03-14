@@ -310,6 +310,136 @@ describe('generateMigrationSql', () => {
     const sql = generateMigrationSql(changes);
     expect(sql).toContain("SET DEFAULT 'pending'");
   });
+
+  it('generates SET NOT NULL for column_altered when newNullable is false', () => {
+    const changes: DiffChange[] = [
+      {
+        type: 'column_altered',
+        table: 'users',
+        column: 'bio',
+        oldNullable: true,
+        newNullable: false,
+      },
+    ];
+    const sql = generateMigrationSql(changes);
+    expect(sql).toBe('ALTER TABLE "users" ALTER COLUMN "bio" SET NOT NULL;');
+  });
+
+  it('generates DROP DEFAULT for column_altered when newDefault is empty string', () => {
+    const changes: DiffChange[] = [
+      {
+        type: 'column_altered',
+        table: 'items',
+        column: 'status',
+        oldDefault: "'active'",
+        newDefault: '',
+      },
+    ];
+    const sql = generateMigrationSql(changes);
+    expect(sql).toBe('ALTER TABLE "items" ALTER COLUMN "status" DROP DEFAULT;');
+  });
+
+  it('generates combined TYPE, NOT NULL, and DEFAULT changes in one column_altered', () => {
+    const changes: DiffChange[] = [
+      {
+        type: 'column_altered',
+        table: 'users',
+        column: 'age',
+        oldType: 'integer',
+        newType: 'bigint',
+        oldNullable: true,
+        newNullable: false,
+        newDefault: '0',
+      },
+    ];
+    const sql = generateMigrationSql(changes);
+    expect(sql).toContain('ALTER TABLE "users" ALTER COLUMN "age" TYPE bigint;');
+    expect(sql).toContain('ALTER TABLE "users" ALTER COLUMN "age" SET NOT NULL;');
+    expect(sql).toContain('ALTER TABLE "users" ALTER COLUMN "age" SET DEFAULT 0;');
+  });
+
+  it('generates CREATE TYPE before CREATE TABLE for Postgres enum columns in table_added', () => {
+    const changes: DiffChange[] = [{ type: 'table_added', table: 'tasks' }];
+    const sql = generateMigrationSql(changes, {
+      tables: {
+        tasks: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: true, unique: false },
+            status: { type: 'task_status', nullable: false, primary: false, unique: false },
+          },
+          indexes: [],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+      enums: { task_status: ['todo', 'in_progress', 'done'] },
+    });
+
+    // The enum CREATE TYPE should appear before the CREATE TABLE
+    const enumIdx = sql.indexOf('CREATE TYPE "task_status"');
+    const tableIdx = sql.indexOf('CREATE TABLE "tasks"');
+    expect(enumIdx).not.toBe(-1);
+    expect(tableIdx).not.toBe(-1);
+    expect(enumIdx).toBeLessThan(tableIdx);
+  });
+
+  it('deduplicates CREATE TYPE when two columns share the same Postgres enum', () => {
+    const changes: DiffChange[] = [{ type: 'table_added', table: 'items' }];
+    const sql = generateMigrationSql(changes, {
+      tables: {
+        items: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: true, unique: false },
+            status: { type: 'item_status', nullable: false, primary: false, unique: false },
+            prevStatus: { type: 'item_status', nullable: true, primary: false, unique: false },
+          },
+          indexes: [],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+      enums: { item_status: ['active', 'archived'] },
+    });
+
+    // CREATE TYPE should appear exactly once
+    const typeMatches = sql.match(/CREATE TYPE "item_status"/g);
+    expect(typeMatches).toHaveLength(1);
+  });
+
+  it('generates multiple ALTER TYPE ADD VALUE for enum_altered with multiple added values', () => {
+    const changes: DiffChange[] = [
+      {
+        type: 'enum_altered',
+        enumName: 'user_role',
+        addedValues: ['viewer', 'moderator'],
+        removedValues: [],
+      },
+    ];
+    const sql = generateMigrationSql(changes);
+    expect(sql).toContain('ALTER TYPE "user_role" ADD VALUE \'viewer\';');
+    expect(sql).toContain('ALTER TYPE "user_role" ADD VALUE \'moderator\';');
+  });
+
+  it('generates CREATE TABLE with indexes that have type and where in table_added', () => {
+    const changes: DiffChange[] = [{ type: 'table_added', table: 'articles' }];
+    const sql = generateMigrationSql(changes, {
+      tables: {
+        articles: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: true, unique: false },
+            title: { type: 'text', nullable: false, primary: false, unique: false },
+          },
+          indexes: [{ columns: ['title'], type: 'gin', where: "status = 'published'" }],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+    });
+
+    expect(sql).toContain(
+      'CREATE INDEX "idx_articles_title" ON "articles" USING gin ("title") WHERE status = \'published\'',
+    );
+  });
 });
 
 describe('generateRollbackSql', () => {
@@ -385,5 +515,70 @@ describe('generateRollbackSql', () => {
     ];
     const sql = generateRollbackSql(changes);
     expect(sql).toBe('ALTER TABLE "users" RENAME COLUMN "full_name" TO "name";');
+  });
+
+  it('reverses table_removed to table_added (re-creates the table)', () => {
+    const changes: DiffChange[] = [{ type: 'table_removed', table: 'users' }];
+    const sql = generateRollbackSql(changes, {
+      tables: {
+        users: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: true, unique: false },
+            name: { type: 'text', nullable: false, primary: false, unique: false },
+          },
+          indexes: [],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+    });
+    expect(sql).toContain('CREATE TABLE "users"');
+    expect(sql).toContain('"id" uuid NOT NULL');
+  });
+
+  it('reverses column_removed to column_added (re-adds the column)', () => {
+    const changes: DiffChange[] = [{ type: 'column_removed', table: 'users', column: 'bio' }];
+    const sql = generateRollbackSql(changes, {
+      tables: {
+        users: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: true, unique: false },
+            bio: { type: 'text', nullable: true, primary: false, unique: false },
+          },
+          indexes: [],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+    });
+    expect(sql).toContain('ALTER TABLE "users" ADD COLUMN "bio" text');
+  });
+
+  it('reverses enum_added to DROP TYPE', () => {
+    const changes: DiffChange[] = [{ type: 'enum_added', enumName: 'user_role' }];
+    const sql = generateRollbackSql(changes);
+    expect(sql).toBe('DROP TYPE "user_role";');
+  });
+
+  it('reverses enum_removed to CREATE TYPE (re-creates the enum)', () => {
+    const changes: DiffChange[] = [{ type: 'enum_removed', enumName: 'user_role' }];
+    const sql = generateRollbackSql(changes, {
+      enums: { user_role: ['admin', 'editor', 'viewer'] },
+    });
+    expect(sql).toBe("CREATE TYPE \"user_role\" AS ENUM ('admin', 'editor', 'viewer');");
+  });
+
+  it('reverses enum_altered by swapping added and removed values', () => {
+    const changes: DiffChange[] = [
+      {
+        type: 'enum_altered',
+        enumName: 'user_role',
+        addedValues: ['viewer'],
+        removedValues: ['guest'],
+      },
+    ];
+    const sql = generateRollbackSql(changes);
+    // The rollback should try to add back 'guest' (which was removed)
+    expect(sql).toContain('ALTER TYPE "user_role" ADD VALUE \'guest\';');
   });
 });

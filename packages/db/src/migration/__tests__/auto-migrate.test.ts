@@ -292,6 +292,57 @@ describe('auto-migrate', () => {
     });
   });
 
+  describe('custom storage adapter', () => {
+    it('uses provided storage instead of NodeSnapshotStorage', async () => {
+      const store = new Map<string, SchemaSnapshot>();
+
+      const customStorage = {
+        async load(key: string): Promise<SchemaSnapshot | null> {
+          return store.get(key) ?? null;
+        },
+        async save(key: string, snapshot: SchemaSnapshot): Promise<void> {
+          store.set(key, snapshot);
+        },
+      };
+
+      const users = d.table('users', {
+        id: d.uuid().primary(),
+        name: d.text(),
+      });
+
+      const currentSchema = createSnapshot([users]);
+
+      await autoMigrate({
+        currentSchema,
+        snapshotPath: 'my-key',
+        dialect: 'sqlite',
+        db: queryFn,
+        storage: customStorage,
+      });
+
+      // Verify snapshot was saved to the custom storage
+      expect(store.has('my-key')).toBe(true);
+      const saved = store.get('my-key');
+      expect(saved).toBeDefined();
+      expect(saved?.tables).toHaveProperty('users');
+
+      // Second run should detect no changes (reads from custom storage)
+      db.queries = [];
+      await autoMigrate({
+        currentSchema,
+        snapshotPath: 'my-key',
+        dialect: 'sqlite',
+        db: queryFn,
+        storage: customStorage,
+      });
+
+      const migrationInserts = db.queries.filter((q) =>
+        q.sql.includes('INSERT INTO "_vertz_migrations"'),
+      );
+      expect(migrationInserts).toHaveLength(0);
+    });
+  });
+
   describe('error handling', () => {
     it('handles corrupted snapshot file gracefully', async () => {
       const originalWarn = console.warn;

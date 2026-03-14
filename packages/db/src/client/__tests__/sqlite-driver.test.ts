@@ -334,6 +334,28 @@ describe('sqlite-driver', () => {
       expect(mockD1.prepare).toHaveBeenCalledWith('SELECT 1');
     });
   });
+
+  describe('close', () => {
+    it('resolves without error (D1 does not require explicit closing)', async () => {
+      const driver = createSqliteDriver(mockD1);
+
+      // close() is a no-op for D1 but should still resolve
+      await expect(driver.close()).resolves.toBeUndefined();
+    });
+  });
+
+  describe('execute without params', () => {
+    it('calls D1 binding .run() without bind when no params provided', async () => {
+      mockPrepared.run.mockResolvedValue({ meta: { changes: 3 } });
+
+      const driver = createSqliteDriver(mockD1);
+      const result = await driver.execute('DELETE FROM users');
+
+      expect(mockD1.prepare).toHaveBeenCalledWith('DELETE FROM users');
+      expect(mockPrepared.bind).not.toHaveBeenCalled();
+      expect(result).toEqual({ rowsAffected: 3 });
+    });
+  });
 });
 
 describe('buildTableSchema', () => {

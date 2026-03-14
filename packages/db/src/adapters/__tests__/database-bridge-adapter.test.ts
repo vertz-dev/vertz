@@ -190,4 +190,98 @@ describe('createDatabaseBridgeAdapter', () => {
 
     expect(result).toBeNull();
   });
+
+  it('get() returns null when delegate.get returns an error result', async () => {
+    const db = createMockDb({
+      get: async () => ({
+        ok: false as const,
+        error: { code: 'QUERY_ERROR' as const, message: 'connection failed' },
+      }),
+    });
+
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    const result = await adapter.get('u1');
+
+    expect(result).toBeNull();
+  });
+
+  it('list() throws when delegate.listAndCount returns an error result', async () => {
+    const errorObj = { code: 'QUERY_ERROR' as const, message: 'connection failed' };
+    const db = createMockDb({
+      listAndCount: async () => ({
+        ok: false as const,
+        error: errorObj,
+      }),
+    });
+
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    await expect(adapter.list()).rejects.toEqual(errorObj);
+  });
+
+  it('create() throws when delegate.create returns an error result', async () => {
+    const errorObj = { code: 'CONSTRAINT_ERROR' as const, message: 'duplicate key' };
+    const db = createMockDb({
+      create: async () => ({
+        ok: false as const,
+        error: errorObj,
+      }),
+    });
+
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    await expect(adapter.create({ name: 'Test', email: 'test@x.com' })).rejects.toEqual(errorObj);
+  });
+
+  it('update() throws when delegate.update returns an error result', async () => {
+    const errorObj = { code: 'CONSTRAINT_ERROR' as const, message: 'constraint violation' };
+    const db = createMockDb({
+      update: async () => ({
+        ok: false as const,
+        error: errorObj,
+      }),
+    });
+
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    await expect(adapter.update('u1', { name: 'Updated' })).rejects.toEqual(errorObj);
+  });
+
+  it('get() passes include option to delegate.get', async () => {
+    let capturedOptions: unknown;
+    const mockUser = { id: 'u1', name: 'Alice', email: 'alice@example.com' };
+    const db = createMockDb({
+      get: async (options?: unknown) => {
+        capturedOptions = options;
+        return ok(mockUser);
+      },
+    });
+
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    await adapter.get('u1', { include: { posts: true } });
+
+    expect(capturedOptions).toEqual(
+      expect.objectContaining({ where: { id: 'u1' }, include: { posts: true } }),
+    );
+  });
+
+  it('list() passes orderBy and include options to delegate.listAndCount', async () => {
+    let capturedOptions: unknown;
+    const db = createMockDb({
+      listAndCount: async (options?: unknown) => {
+        capturedOptions = options;
+        return ok({ data: [], total: 0 });
+      },
+    });
+
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    await adapter.list({
+      orderBy: { name: 'asc' },
+      include: { posts: true },
+    });
+
+    expect(capturedOptions).toEqual(
+      expect.objectContaining({
+        orderBy: { name: 'asc' },
+        include: { posts: true },
+      }),
+    );
+  });
 });

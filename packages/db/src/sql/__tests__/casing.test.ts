@@ -32,6 +32,14 @@ describe('camelToSnake', () => {
   it('handles empty string', () => {
     expect(camelToSnake('')).toBe('');
   });
+
+  it('uses override when the key matches', () => {
+    expect(camelToSnake('oAuth', { oAuth: 'oauth' })).toBe('oauth');
+  });
+
+  it('falls through to normal conversion when override does not match', () => {
+    expect(camelToSnake('firstName', { oAuth: 'oauth' })).toBe('first_name');
+  });
 });
 
 describe('snakeToCamel', () => {
@@ -61,5 +69,13 @@ describe('snakeToCamel', () => {
 
   it('handles double underscore by preserving it', () => {
     expect(snakeToCamel('org__id')).toBe('org__id');
+  });
+
+  it('uses reverse override when the value matches', () => {
+    expect(snakeToCamel('oauth', { oAuth: 'oauth' })).toBe('oAuth');
+  });
+
+  it('falls through to normal conversion when no override value matches', () => {
+    expect(snakeToCamel('first_name', { oAuth: 'oauth' })).toBe('firstName');
   });
 });

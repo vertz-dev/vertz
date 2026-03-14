@@ -120,4 +120,115 @@ describe('reset', () => {
       expect(sql).toContain('CASCADE');
     }
   });
+
+  describe('error handling', () => {
+    it('returns error when listing tables fails', async () => {
+      const queryFn: MigrationQueryFn = mock().mockImplementation(async (sql: string) => {
+        if (sql.includes('sqlite_master') || sql.includes('pg_tables')) {
+          throw new Error('connection refused');
+        }
+        return { rows: [], rowCount: 0 };
+      });
+
+      const result = await reset({
+        queryFn,
+        migrationFiles: [],
+        dialect: defaultSqliteDialect,
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.message).toContain('Failed to list user tables');
+      }
+    });
+
+    it('returns error when dropping a table fails', async () => {
+      const queryFn: MigrationQueryFn = mock().mockImplementation(async (sql: string) => {
+        if (sql.includes('sqlite_master')) {
+          return { rows: [{ name: 'locked_table' }], rowCount: 1 };
+        }
+        if (sql.includes('DROP TABLE') && sql.includes('locked_table')) {
+          throw new Error('table is locked');
+        }
+        return { rows: [], rowCount: 0 };
+      });
+
+      const result = await reset({
+        queryFn,
+        migrationFiles: [],
+        dialect: defaultSqliteDialect,
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.message).toContain('Failed to drop table');
+      }
+    });
+
+    it('returns error when dropping history table fails', async () => {
+      const queryFn: MigrationQueryFn = mock().mockImplementation(async (sql: string) => {
+        if (sql.includes('sqlite_master')) {
+          return { rows: [], rowCount: 0 };
+        }
+        if (sql.includes('DROP TABLE') && sql.includes('_vertz_migrations')) {
+          throw new Error('cannot drop history');
+        }
+        return { rows: [], rowCount: 0 };
+      });
+
+      const result = await reset({
+        queryFn,
+        migrationFiles: [],
+        dialect: defaultSqliteDialect,
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.message).toContain('Failed to drop history table');
+      }
+    });
+
+    it('returns error when re-applying a migration fails', async () => {
+      const queryFn: MigrationQueryFn = mock().mockImplementation(async (sql: string) => {
+        if (sql.includes('sqlite_master')) return { rows: [], rowCount: 0 };
+        if (sql.includes('DROP TABLE')) return { rows: [], rowCount: 0 };
+        if (sql.includes('CREATE TABLE') && sql.includes('_vertz_migrations'))
+          return { rows: [], rowCount: 0 };
+        if (sql.includes('SELECT')) return { rows: [], rowCount: 0 };
+        // Migration SQL fails
+        throw new Error('syntax error');
+      });
+
+      const result = await reset({
+        queryFn,
+        migrationFiles: [{ name: '0001_init.sql', sql: 'CREATE TABLE a (id int);', timestamp: 1 }],
+        dialect: defaultSqliteDialect,
+      });
+
+      expect(result.ok).toBe(false);
+    });
+
+    it('returns error when creating history table fails after reset', async () => {
+      const queryFn: MigrationQueryFn = mock().mockImplementation(async (sql: string) => {
+        if (sql.includes('sqlite_master')) {
+          return { rows: [], rowCount: 0 };
+        }
+        if (sql.includes('DROP TABLE')) {
+          return { rows: [], rowCount: 0 };
+        }
+        if (sql.includes('CREATE TABLE') && sql.includes('_vertz_migrations')) {
+          throw new Error('disk full');
+        }
+        return { rows: [], rowCount: 0 };
+      });
+
+      const result = await reset({
+        queryFn,
+        migrationFiles: [],
+        dialect: defaultSqliteDialect,
+      });
+
+      expect(result.ok).toBe(false);
+    });
+  });
 });

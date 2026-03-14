@@ -102,4 +102,35 @@ describe('baseline', () => {
     const checksum = insertedParams[0]?.[1] as string;
     expect(checksum).toMatch(/^[0-9a-f]{64}$/);
   });
+
+  it('returns error when createHistoryTable fails', async () => {
+    const queryFn: MigrationQueryFn = mock().mockImplementation(async () => {
+      throw new Error('connection refused');
+    });
+
+    const result = await baseline({
+      queryFn,
+      migrationFiles: [{ name: '0001_init.sql', sql: 'CREATE TABLE a (id int);', timestamp: 1 }],
+    });
+
+    expect(result.ok).toBe(false);
+  });
+
+  it('returns error when getApplied fails', async () => {
+    let callCount = 0;
+    const queryFn: MigrationQueryFn = mock().mockImplementation(async () => {
+      callCount++;
+      // First call (CREATE TABLE IF NOT EXISTS) succeeds
+      if (callCount === 1) return { rows: [], rowCount: 0 };
+      // Second call (SELECT from history) fails
+      throw new Error('permission denied');
+    });
+
+    const result = await baseline({
+      queryFn,
+      migrationFiles: [{ name: '0001_init.sql', sql: 'CREATE TABLE a (id int);', timestamp: 1 }],
+    });
+
+    expect(result.ok).toBe(false);
+  });
 });

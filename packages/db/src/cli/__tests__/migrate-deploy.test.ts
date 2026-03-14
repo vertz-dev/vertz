@@ -178,4 +178,54 @@ describe('migrateDeploy', () => {
       expect(result.migrations).toBeUndefined();
     });
   });
+
+  describe('error handling', () => {
+    it('returns error when createHistoryTable fails (non-dry-run)', async () => {
+      const queryFn: MigrationQueryFn = mock().mockImplementation(async () => {
+        throw new Error('connection refused');
+      });
+
+      const result = await migrateDeploy({
+        queryFn,
+        migrationFiles: [{ name: '0001_init.sql', sql: 'CREATE TABLE a (id int);', timestamp: 1 }],
+      });
+
+      expect(result.ok).toBe(false);
+    });
+
+    it('returns error when runner.apply fails', async () => {
+      const queryFn: MigrationQueryFn = mock().mockImplementation(async (sql: string) => {
+        // CREATE history table succeeds
+        if (sql.includes('CREATE TABLE IF NOT EXISTS')) return { rows: [], rowCount: 0 };
+        // getApplied succeeds (no applied migrations)
+        if (sql.includes('SELECT')) return { rows: [], rowCount: 0 };
+        // Migration SQL execution fails
+        throw new Error('syntax error in migration');
+      });
+
+      const result = await migrateDeploy({
+        queryFn,
+        migrationFiles: [{ name: '0001_init.sql', sql: 'CREATE TABLE a (id int);', timestamp: 1 }],
+      });
+
+      expect(result.ok).toBe(false);
+    });
+
+    it('returns error when getApplied fails (non-dry-run)', async () => {
+      const queryFn: MigrationQueryFn = mock().mockImplementation(async (sql: string) => {
+        if (sql.includes('CREATE TABLE')) {
+          return { rows: [], rowCount: 0 };
+        }
+        // getApplied SELECT fails
+        throw new Error('query failed');
+      });
+
+      const result = await migrateDeploy({
+        queryFn,
+        migrationFiles: [{ name: '0001_init.sql', sql: 'CREATE TABLE a (id int);', timestamp: 1 }],
+      });
+
+      expect(result.ok).toBe(false);
+    });
+  });
 });

@@ -637,6 +637,190 @@ describe('Many-to-many relation loading (B2)', () => {
     const titles = posts.map((p) => p.title).sort();
     expect(titles).toEqual(['Post 1', 'Post 2']);
   });
+
+  it('sets M2M relation to empty array when all primary PKs are null', async () => {
+    const rows = [
+      { id: null, title: 'Ghost Post' },
+      { id: null, title: 'Another Ghost' },
+    ];
+    const queryFn = async <T>(sql: string, params: readonly unknown[]) => {
+      const result = await pg.query<T>(sql, params as unknown[]);
+      return { rows: result.rows as readonly T[], rowCount: result.affectedRows ?? 0 };
+    };
+
+    const tablesRegistry = {
+      posts: { table: postsTable, relations: models.posts.relations },
+      tags: { table: tagsTable, relations: models.tags.relations },
+      postTags: { table: postTagsTable, relations: {} },
+    };
+
+    await loadRelations(
+      queryFn,
+      rows,
+      models.posts.relations,
+      { tags: true },
+      0,
+      tablesRegistry,
+      postsTable,
+    );
+
+    expect(rows[0]?.tags).toEqual([]);
+    expect(rows[1]?.tags).toEqual([]);
+  });
+
+  it('throws when budget is exhausted before M2M join query', async () => {
+    const user = unwrap(await db.users.create({ data: { name: 'BudgetTest' } })) as Record<
+      string,
+      unknown
+    >;
+
+    const post = unwrap(
+      await db.posts.create({ data: { title: 'Budget Post', authorId: user.id } }),
+    ) as Record<string, unknown>;
+
+    const rows = [{ ...post }];
+    const queryFn = async <T>(sql: string, params: readonly unknown[]) => {
+      const result = await pg.query<T>(sql, params as unknown[]);
+      return { rows: result.rows as readonly T[], rowCount: result.affectedRows ?? 0 };
+    };
+
+    const tablesRegistry = {
+      posts: { table: postsTable, relations: models.posts.relations },
+      tags: { table: tagsTable, relations: models.tags.relations },
+      postTags: { table: postTagsTable, relations: {} },
+    };
+
+    await expect(
+      loadRelations(
+        queryFn,
+        rows,
+        models.posts.relations,
+        { tags: true },
+        0,
+        tablesRegistry,
+        postsTable,
+        {
+          remaining: 0,
+        },
+      ),
+    ).rejects.toThrow('Relation query budget exceeded');
+  });
+
+  it('throws when budget is exhausted before M2M target query', async () => {
+    const user = unwrap(await db.users.create({ data: { name: 'BudgetTest2' } })) as Record<
+      string,
+      unknown
+    >;
+
+    const post = unwrap(
+      await db.posts.create({ data: { title: 'Budget Post 2', authorId: user.id } }),
+    ) as Record<string, unknown>;
+
+    const tag = unwrap(await db.tags.create({ data: { label: 'BudgetTag' } })) as Record<
+      string,
+      unknown
+    >;
+    unwrap(await db.postTags.create({ data: { postId: post.id, tagId: tag.id } }));
+
+    const rows = [{ ...post }];
+    const queryFn = async <T>(sql: string, params: readonly unknown[]) => {
+      const result = await pg.query<T>(sql, params as unknown[]);
+      return { rows: result.rows as readonly T[], rowCount: result.affectedRows ?? 0 };
+    };
+
+    const tablesRegistry = {
+      posts: { table: postsTable, relations: models.posts.relations },
+      tags: { table: tagsTable, relations: models.tags.relations },
+      postTags: { table: postTagsTable, relations: {} },
+    };
+
+    await expect(
+      loadRelations(
+        queryFn,
+        rows,
+        models.posts.relations,
+        { tags: true },
+        0,
+        tablesRegistry,
+        postsTable,
+        {
+          remaining: 1,
+        },
+      ),
+    ).rejects.toThrow('Relation query budget exceeded');
+  });
+
+  it('loads nested includes on M2M target rows', async () => {
+    const user = unwrap(await db.users.create({ data: { name: 'NestedM2M' } })) as Record<
+      string,
+      unknown
+    >;
+
+    const post = unwrap(
+      await db.posts.create({ data: { title: 'Nested Post', authorId: user.id } }),
+    ) as Record<string, unknown>;
+
+    const tag = unwrap(await db.tags.create({ data: { label: 'NestedTag' } })) as Record<
+      string,
+      unknown
+    >;
+    unwrap(await db.postTags.create({ data: { postId: post.id, tagId: tag.id } }));
+
+    const result = unwrap(
+      await db.tags.get({
+        where: { label: 'NestedTag' },
+        include: { posts: { include: { author: true } } },
+      }),
+    ) as Record<string, unknown>;
+
+    expect(result).not.toBeNull();
+    const posts = result.posts as Record<string, unknown>[];
+    expect(posts).toHaveLength(1);
+    expect(posts[0]?.title).toBe('Nested Post');
+    const author = posts[0]?.author as Record<string, unknown>;
+    expect(author).not.toBeNull();
+    expect(author.name).toBe('NestedM2M');
+  });
+
+  it('skips nested include when target table is not in tablesRegistry', async () => {
+    const user = unwrap(await db.users.create({ data: { name: 'NoRegistry' } })) as Record<
+      string,
+      unknown
+    >;
+
+    const post = unwrap(
+      await db.posts.create({ data: { title: 'Orphan Post', authorId: user.id } }),
+    ) as Record<string, unknown>;
+
+    const rows = [{ ...post }];
+    const queryFn = async <T>(sql: string, params: readonly unknown[]) => {
+      const result = await pg.query<T>(sql, params as unknown[]);
+      return { rows: result.rows as readonly T[], rowCount: result.affectedRows ?? 0 };
+    };
+
+    // tablesRegistry intentionally omits 'users' — so findTargetRelations(usersTable) returns undefined
+    const tablesRegistry = {
+      posts: { table: postsTable, relations: models.posts.relations },
+      // users is deliberately missing — nested include on author will be skipped
+    };
+
+    await loadRelations(
+      queryFn,
+      rows,
+      models.posts.relations,
+      { author: { include: { posts: true } } },
+      0,
+      tablesRegistry,
+      postsTable,
+    );
+
+    // Author is loaded (top-level include works)
+    const author = (rows[0] as Record<string, unknown>).author as Record<string, unknown>;
+    expect(author).toBeDefined();
+    expect(author.name).toBe('NoRegistry');
+    // Nested 'posts' on author is NOT loaded because users table isn't in registry
+    expect(author.posts).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1193,6 +1377,137 @@ describe('Relation include with where/orderBy/limit (#1130)', () => {
       expect(authorPosts).toHaveLength(1);
       // 5th include level (depth 4) is NOT loaded
       expect(authorPosts[0]?.comments).toBeUndefined();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Edge cases: null FKs, unmatched includes, budget on 'one' relations
+  // -------------------------------------------------------------------------
+
+  describe('edge cases', () => {
+    it('returns empty array immediately when primaryRows is empty', async () => {
+      const queryFn = async <T>(sql: string, params: readonly unknown[]) => {
+        const result = await pg.query<T>(sql, params as unknown[]);
+        return { rows: result.rows as readonly T[], rowCount: result.affectedRows ?? 0 };
+      };
+
+      const result = await loadRelations(queryFn, [], models.users.relations, { posts: true }, 0);
+      expect(result).toEqual([]);
+    });
+
+    it('auto-adds FK column to select when not included in many relation', async () => {
+      const user = unwrap(
+        await db.users.create({ data: { name: 'Alice', email: 'alice-fk@test.com' } }),
+      ) as Record<string, unknown>;
+
+      unwrap(await db.posts.create({ data: { title: 'Test FK', authorId: user.id } }));
+
+      // select only 'text' for comments — FK column 'postId' should be auto-added
+      const result = unwrap(
+        await db.users.get({
+          where: { name: 'Alice' },
+          include: { posts: { select: { title: true } } },
+        }),
+      ) as Record<string, unknown>;
+
+      expect(result).not.toBeNull();
+      const posts = result.posts as Record<string, unknown>[];
+      expect(posts).toHaveLength(1);
+      expect(posts[0]?.title).toBe('Test FK');
+    });
+
+    it('returns rows unmodified when include keys do not match any relations', async () => {
+      const user = unwrap(
+        await db.users.create({ data: { name: 'Alice', email: 'alice-edge@test.com' } }),
+      ) as Record<string, unknown>;
+
+      const rows = [{ ...user }];
+      const queryFn = async <T>(sql: string, params: readonly unknown[]) => {
+        const result = await pg.query<T>(sql, params as unknown[]);
+        return { rows: result.rows as readonly T[], rowCount: result.affectedRows ?? 0 };
+      };
+
+      const result = await loadRelations(
+        queryFn,
+        rows,
+        models.users.relations,
+        { nonExistentRelation: true },
+        0,
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result[0]?.name).toBe('Alice');
+      expect((result[0] as Record<string, unknown>).nonExistentRelation).toBeUndefined();
+    });
+
+    it('sets one-relation to null when all FK values are null', async () => {
+      const rows = [
+        { id: 'fake-id-1', title: 'Post 1', authorId: null },
+        { id: 'fake-id-2', title: 'Post 2', authorId: null },
+      ];
+      const queryFn = async <T>(sql: string, params: readonly unknown[]) => {
+        const result = await pg.query<T>(sql, params as unknown[]);
+        return { rows: result.rows as readonly T[], rowCount: result.affectedRows ?? 0 };
+      };
+
+      await loadRelations(queryFn, rows, models.posts.relations, { author: true }, 0);
+
+      expect(rows[0]?.author).toBeNull();
+      expect(rows[1]?.author).toBeNull();
+    });
+
+    it('sets many-relation to empty array when all PK values are null', async () => {
+      const rows = [
+        { id: null, name: 'Ghost User' },
+        { id: null, name: 'Another Ghost' },
+      ];
+      const queryFn = async <T>(sql: string, params: readonly unknown[]) => {
+        const result = await pg.query<T>(sql, params as unknown[]);
+        return { rows: result.rows as readonly T[], rowCount: result.affectedRows ?? 0 };
+      };
+
+      const tablesRegistry = {
+        users: { table: usersTable, relations: models.users.relations },
+        posts: { table: postsTable, relations: models.posts.relations },
+      };
+
+      await loadRelations(
+        queryFn,
+        rows,
+        models.users.relations,
+        { posts: true },
+        0,
+        tablesRegistry,
+        usersTable,
+      );
+
+      expect(rows[0]?.posts).toEqual([]);
+      expect(rows[1]?.posts).toEqual([]);
+    });
+
+    it('throws when budget is exhausted before a one-relation query', async () => {
+      const user = unwrap(
+        await db.users.create({ data: { name: 'Alice', email: 'alice-budget@test.com' } }),
+      ) as Record<string, unknown>;
+
+      const rows = [{ id: 'fake-post-id', title: 'Post 1', authorId: user.id }];
+      const queryFn = async <T>(sql: string, params: readonly unknown[]) => {
+        const result = await pg.query<T>(sql, params as unknown[]);
+        return { rows: result.rows as readonly T[], rowCount: result.affectedRows ?? 0 };
+      };
+
+      await expect(
+        loadRelations(
+          queryFn,
+          rows,
+          models.posts.relations,
+          { author: true },
+          0,
+          undefined,
+          undefined,
+          { remaining: 0 },
+        ),
+      ).rejects.toThrow('Relation query budget exceeded');
     });
   });
 

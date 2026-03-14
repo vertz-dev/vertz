@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { d } from '../d';
+import { columnToSchema } from './column-mapper';
 import { tableToSchemas } from './table-to-schemas';
 
 // ---------------------------------------------------------------------------
@@ -389,6 +390,27 @@ describe('tableToSchemas', () => {
   // -------------------------------------------------------------------------
   // Error on unknown column type
   // -------------------------------------------------------------------------
+
+  describe('varchar without length', () => {
+    it('maps varchar without length to plain s.string() (no max constraint)', () => {
+      const schema = columnToSchema({
+        sqlType: 'varchar',
+        primary: false,
+        unique: false,
+        nullable: false,
+        hasDefault: false,
+        _annotations: {},
+        isReadOnly: false,
+        isAutoUpdate: false,
+        check: null,
+      });
+
+      // Should accept any length string (no max constraint)
+      const longString = 'x'.repeat(10000);
+      const result = schema.safeParse(longString);
+      expect(result.ok).toBe(true);
+    });
+  });
 
   describe('unknown column type', () => {
     it('throws on unrecognized sqlType', () => {
