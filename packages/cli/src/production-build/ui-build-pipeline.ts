@@ -248,7 +248,7 @@ ${modulepreloadLinks}
       minify: false,
       outdir: distServer,
       naming: '[name].[ext]',
-      external: ['@vertz/ui', '@vertz/ui-server', '@vertz/ui-primitives'],
+      external: ['@vertz/ui', '@vertz/ui-server', '@vertz/ui-primitives', 'vertz'],
     });
 
     if (!serverResult.success) {
