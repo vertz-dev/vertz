@@ -123,9 +123,7 @@ function DialogClose({ children, class: cls }: SlotProps): HTMLElement {
     }
   } else {
     el.setAttribute('aria-label', 'Close');
-    // Minimal SVG fallback for close icon
-    el.innerHTML =
-      '<svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M11.78 4.28a.75.75 0 0 0-1.06-1.06L7.5 6.44 4.28 3.22a.75.75 0 0 0-1.06 1.06L6.44 7.5 3.22 10.72a.75.75 0 1 0 1.06 1.06L7.5 8.56l3.22 3.22a.75.75 0 0 0 1.06-1.06L8.56 7.5l3.22-3.22Z" fill="currentColor"/></svg>';
+    el.textContent = '\u00D7'; // × multiplication sign as close fallback
   }
   return el;
 }

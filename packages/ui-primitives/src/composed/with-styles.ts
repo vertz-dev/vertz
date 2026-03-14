@@ -56,7 +56,7 @@ export function withStyles<C extends ComposedPrimitive>(
   // Copy all sub-component properties (Trigger, Content, Title, etc.)
   const subComponents: Record<string, unknown> = {};
   for (const key of Object.getOwnPropertyNames(component)) {
-    if (key !== 'length' && key !== 'name' && key !== 'prototype') {
+    if (key !== 'length' && key !== 'name' && key !== 'prototype' && key !== '__classKeys') {
       subComponents[key] = (component as Record<string, unknown>)[key];
     }
   }
