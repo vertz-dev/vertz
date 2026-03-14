@@ -120,12 +120,11 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
   const tenantChain = options?.tenantChain ?? def.tenantChain ?? null;
   const isIndirectlyScoped = tenantChain !== null;
   const queryParentIds = options?.queryParentIds ?? null;
-  // Extract expose.select keys as a simple Record<string, true> for applySelect.
-  // Values may be AccessRule descriptors (evaluated in Phase 2), but applySelect only checks keys.
+  // Extract expose.select keys for applySelect (which checks key presence, not values).
   // Include relation keys from expose.include so they pass through applySelect.
   const exposeSelect = def.expose?.select
     ? {
-        ...(def.expose.select as Record<string, true>),
+        ...def.expose.select,
         ...Object.fromEntries(
           Object.entries(def.expose.include ?? {})
             .filter(([, v]) => v !== false)

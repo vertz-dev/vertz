@@ -1,4 +1,5 @@
 import type { ColumnBuilder, ColumnMetadata, TableDef } from '@vertz/db';
+import type { EvaluatedExpose } from './expose-evaluator';
 import type { EntityRelationsConfig, RelationConfigObject } from './types';
 
 // ---------------------------------------------------------------------------
@@ -209,23 +210,12 @@ export interface ExposeValidationConfig {
   readonly allowOrderBy?: Record<string, unknown>;
 }
 
-/**
- * Pre-evaluated expose descriptor results.
- * When provided, overrides static key extraction for where/orderBy validation.
- */
-export interface EvaluatedExposeValidation {
-  readonly allowedSelectFields: Set<string>;
-  readonly nulledFields: Set<string>;
-  readonly allowedWhereFields: Set<string>;
-  readonly allowedOrderByFields: Set<string>;
-}
-
 export function validateVertzQL(
   options: VertzQLOptions,
   table: TableDef,
   relationsConfig?: EntityRelationsConfig,
   exposeConfig?: ExposeValidationConfig,
-  evaluatedExpose?: EvaluatedExposeValidation,
+  evaluatedExpose?: EvaluatedExpose,
 ): ValidationResult {
   // Surface q= parse errors
   if (options._qError) {

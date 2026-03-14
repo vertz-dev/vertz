@@ -93,7 +93,7 @@ export function narrowRelationFields(
  * If select is undefined, all fields pass through unchanged.
  */
 export function applySelect(
-  select: Record<string, true> | undefined,
+  select: Record<string, unknown> | undefined,
   data: Record<string, unknown>,
 ): Record<string, unknown> {
   if (!select) return data;
