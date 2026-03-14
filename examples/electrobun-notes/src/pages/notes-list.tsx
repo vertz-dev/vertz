@@ -1,4 +1,5 @@
-import { css, query, queryMatch } from '@vertz/ui';
+import { css, ListTransition, query, queryMatch } from '@vertz/ui';
+import type { NotesResponse } from '../api/client';
 import { api } from '../api/client';
 import { NoteForm } from '../components/note-form';
 import { NoteItem } from '../components/note-item';
@@ -42,9 +43,17 @@ export function NotesListPage() {
                 </div>
               )}
               <div data-testid="notes-list" class={pageStyles.notesList}>
-                {response.items.map((note) => (
-                  <NoteItem key={note.id} note={note} />
-                ))}
+                <ListTransition
+                  each={response.items}
+                  keyFn={(note: NotesResponse) => note.id}
+                  children={(note: NotesResponse) => (
+                    <NoteItem
+                      id={note.id}
+                      title={note.title}
+                      content={note.content}
+                    />
+                  )}
+                />
               </div>
             </>
           ),

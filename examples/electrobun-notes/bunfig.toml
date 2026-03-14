@@ -1,3 +1,6 @@
+[serve.static]
+plugins = ["./bun-plugin-shim.ts"]
+
 [test]
 preload = ["./test-setup.ts", "./test-compiler-plugin.ts"]
 root = "./src"

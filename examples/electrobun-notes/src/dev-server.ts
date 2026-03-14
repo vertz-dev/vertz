@@ -15,7 +15,7 @@ import { createBunDevServer } from '@vertz/ui-server/bun-dev-server';
 import { createNotesDb } from './api/db';
 import { notes } from './api/entities/notes.entity';
 
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.PORT) || (3100 + Math.floor(Math.random() * 900));
 
 const db = await createNotesDb();
 
