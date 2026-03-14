@@ -25,21 +25,22 @@ function IndexRedirect() {
 
 export const routes = defineRoutes({
   '/login': {
-    component: () => LoginPage(),
+    component: () => <LoginPage />,
   },
   '/': {
-    component: () =>
-      ProtectedRoute({
-        loginPath: '/login',
-        fallback: () => <div>Loading...</div>,
-        children: () => <WorkspaceShell />,
-      }),
+    component: () => (
+      <ProtectedRoute
+        loginPath="/login"
+        fallback={() => <div>Loading...</div>}
+        children={() => <WorkspaceShell />}
+      />
+    ),
     children: {
       '/': {
-        component: () => IndexRedirect(),
+        component: () => <IndexRedirect />,
       },
       '/projects': {
-        component: () => ProjectsPage(),
+        component: () => <ProjectsPage />,
       },
     },
   },

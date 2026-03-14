@@ -68,7 +68,9 @@ export function WorkspaceShell() {
           </button>
         </div>
       </aside>
-      <main class={sidebarStyles.main}>{Outlet()}</main>
+      <main class={sidebarStyles.main}>
+        <Outlet />
+      </main>
     </div>
   );
 }
