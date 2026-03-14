@@ -75,6 +75,47 @@ describe('Child node rendering', () => {
     marker.dispose();
   });
 
+  test('__child() updates text content in-place when fn() returns a string', () => {
+    const name = signal('Jane');
+
+    const wrapper = __child(() => `Hello ${name.value}`);
+
+    // Initial render: wrapper has a single text node
+    expect(wrapper.textContent).toBe('Hello Jane');
+    expect(wrapper.childNodes.length).toBe(1);
+    const textNode = wrapper.firstChild!;
+    expect(textNode.nodeType).toBe(3); // Text node
+
+    // Update signal — text should update in-place (same text node)
+    name.value = 'Bob';
+    expect(wrapper.textContent).toBe('Hello Bob');
+    expect(wrapper.childNodes.length).toBe(1);
+    expect(wrapper.firstChild).toBe(textNode); // Same text node reference
+
+    wrapper.dispose();
+  });
+
+  test('__child() updates text in-place for number-to-string transitions', () => {
+    const val = signal<string | number>('hello');
+
+    const wrapper = __child(() => val.value);
+
+    expect(wrapper.textContent).toBe('hello');
+    const textNode = wrapper.firstChild!;
+
+    // Change to number — should still update in-place
+    val.value = 42;
+    expect(wrapper.textContent).toBe('42');
+    expect(wrapper.firstChild).toBe(textNode); // Same text node
+
+    // Back to string
+    val.value = 'world';
+    expect(wrapper.textContent).toBe('world');
+    expect(wrapper.firstChild).toBe(textNode); // Same text node
+
+    wrapper.dispose();
+  });
+
   test('__child() skips DOM operations when fn() returns same Node reference', () => {
     const s = signal(0);
     const stableNode = document.createElement('div');
