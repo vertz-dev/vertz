@@ -843,7 +843,7 @@ export function homePageTemplate(): string {
 import { api } from '../client';
 import { themeComponents } from '../styles/theme';
 
-const { Button, Input } = themeComponents;
+const { Button } = themeComponents;
 const { AlertDialog } = themeComponents.primitives;
 
 // Global CSS for list item enter/exit animations
@@ -862,6 +862,17 @@ const styles = css({
   heading: ['font:xl', 'font:bold', 'text:foreground', 'mb:4'],
   form: ['flex', 'items:start', 'gap:2', 'mb:6'],
   inputWrap: ['flex-1'],
+  input: [
+    'w:full',
+    'h:10',
+    'px:3',
+    'rounded:md',
+    'border:1',
+    'border:border',
+    'bg:background',
+    'text:foreground',
+    'text:sm',
+  ],
   fieldError: ['text:destructive', 'font:xs', 'mt:1'],
   list: ['flex', 'flex-col', 'gap:2'],
   item: [
@@ -950,8 +961,9 @@ export function HomePage() {
         onSubmit={taskForm.onSubmit}
       >
         <div class={styles.inputWrap}>
-          <Input
+          <input
             name={taskForm.fields.title}
+            class={styles.input}
             placeholder="What needs to be done?"
           />
           <span class={styles.fieldError}>

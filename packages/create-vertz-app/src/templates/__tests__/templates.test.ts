@@ -315,10 +315,9 @@ describe('templates', () => {
     it('uses theme components instead of raw HTML', () => {
       const result = homePageTemplate();
       expect(result).toContain("import { themeComponents } from '../styles/theme'");
-      expect(result).toContain('const { Button, Input } = themeComponents');
+      expect(result).toContain('const { Button } = themeComponents');
       expect(result).toContain('const { AlertDialog } = themeComponents.primitives');
       expect(result).toContain('<Button');
-      expect(result).toContain('<Input');
     });
 
     it('includes TaskItem component with checkbox toggle', () => {
