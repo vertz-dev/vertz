@@ -331,40 +331,85 @@ After mutations (\`create\`, \`update\`, \`delete\`), related queries are automa
 refetched in the background. No manual \`refetch()\` calls needed — the framework
 handles cache invalidation via optimistic updates.
 
+## Theme Components — Prefer Over Raw HTML
+
+When a themed component exists, use it instead of raw HTML elements with manual class names.
+Theme components are pre-configured with the app's design tokens and provide consistent styling.
+
+### Using Components
+
+\`\`\`tsx
+import { themeComponents } from '../styles/theme';
+
+const { Button, Input } = themeComponents;
+const { AlertDialog } = themeComponents.primitives;
+
+// RIGHT — use theme components
+<Button intent="primary" size="md">Submit</Button>
+<Input placeholder="Enter text" />
+
+// WRONG — raw HTML with manual styles
+<button class={button({ intent: 'primary', size: 'md' })}>Submit</button>
+<input class={inputStyles.base} placeholder="Enter text" />
+\`\`\`
+
+### Available Components
+
+**Direct** (from \`themeComponents\`): \`Button\`, \`Input\`, \`Label\`, \`Badge\`, \`Textarea\`,
+\`Card\` suite, \`Table\` suite, \`Avatar\` suite, \`FormGroup\` suite
+
+**Primitives** (from \`themeComponents.primitives\`): \`AlertDialog\`, \`Dialog\`, \`Tabs\`,
+\`Select\`, \`DropdownMenu\`, \`Popover\`, \`Sheet\`, \`Tooltip\`, \`Accordion\`
+— all with sub-components (\`.Trigger\`, \`.Content\`, \`.Footer\`, etc.)
+
+## Dialogs
+
+### Composable \`<AlertDialog>\` for inline confirmations
+
+\`\`\`tsx
+const { Button } = themeComponents;
+const { AlertDialog } = themeComponents.primitives;
+
+<AlertDialog>
+  <AlertDialog.Trigger>
+    <Button intent="danger" size="sm">Delete</Button>
+  </AlertDialog.Trigger>
+  <AlertDialog.Content>
+    <AlertDialog.Title>Delete task?</AlertDialog.Title>
+    <AlertDialog.Description>This action cannot be undone.</AlertDialog.Description>
+    <AlertDialog.Footer>
+      <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+      <AlertDialog.Action onClick={handleDelete}>Delete</AlertDialog.Action>
+    </AlertDialog.Footer>
+  </AlertDialog.Content>
+</AlertDialog>
+\`\`\`
+
+### \`useDialogStack()\` for imperative/stacked dialogs
+
+Use when you need promise-based results or dialogs opened from event handlers:
+
+\`\`\`tsx
+import { useDialogStack } from 'vertz/ui';
+
+const dialogs = useDialogStack();
+const confirmed = await dialogs.open(ConfirmDialog, { message: 'Delete?' });
+if (confirmed) handleDelete();
+\`\`\`
+
 ## Styling
 
-### \`css()\` for scoped styles
+### \`css()\` for layout and custom styles
+
+Use \`css()\` for layout-specific styles that don't correspond to a theme component:
 
 \`\`\`tsx
 const styles = css({
   container: ['flex', 'flex-col', 'gap:4', 'p:6'],
-  title: ['font:xl', 'font:bold', 'text:foreground'],
-  card: ['rounded:md', 'border:1', 'border:border', 'bg:card', 'p:4'],
+  heading: ['font:xl', 'font:bold', 'text:foreground'],
 });
 
 return <div class={styles.container}>...</div>;
-\`\`\`
-
-### \`variants()\` for parameterized styles
-
-\`\`\`tsx
-const button = variants({
-  base: ['inline-flex', 'items:center', 'rounded:md', 'font:medium'],
-  variants: {
-    intent: {
-      primary: ['bg:primary.600', 'text:white'],
-      secondary: ['bg:secondary', 'text:secondary-foreground'],
-      danger: ['bg:destructive', 'text:white'],
-    },
-    size: {
-      sm: ['text:xs', 'px:3', 'py:1'],
-      md: ['text:sm', 'px:4', 'py:2'],
-    },
-  },
-  defaultVariants: { intent: 'primary', size: 'md' },
-});
-
-<button class={button({ intent: 'danger', size: 'sm' })}>Delete</button>
 \`\`\`
 
 ### Style Tokens
@@ -761,23 +806,26 @@ mount(App, {
 }
 
 /**
- * src/styles/theme.ts — configureThemeBase from @vertz/theme-shadcn/base
+ * src/styles/theme.ts — configureTheme from @vertz/theme-shadcn
  */
 export function themeTemplate(): string {
-  return `import { configureThemeBase } from '@vertz/theme-shadcn/base';
+  return `import { configureTheme } from '@vertz/theme-shadcn';
 
-const { theme, globals } = configureThemeBase({
+const { theme, globals, components } = configureTheme({
   palette: 'zinc',
   radius: 'md',
 });
 
 export const appTheme = theme;
 export const themeGlobals = globals;
+export const themeComponents = components;
 `;
 }
 
 /**
- * src/pages/home.tsx — task list + create form with query + css
+ * src/pages/home.tsx — full CRUD task list with form, checkbox toggle,
+ * delete confirmation dialog, and animated list transitions.
+ * Demonstrates theme components (Button, Input, AlertDialog) over raw HTML.
  */
 export function homePageTemplate(): string {
   return `import {
@@ -793,8 +841,11 @@ export function homePageTemplate(): string {
   slideInFromTop,
 } from 'vertz/ui';
 import { api } from '../client';
+import { themeComponents } from '../styles/theme';
 
-// Inject global CSS for list item enter/exit animations
+const { Button } = themeComponents;
+
+// Global CSS for list item enter/exit animations
 void globalCss({
   '[data-presence="enter"]': {
     animation: \`\${slideInFromTop} \${ANIMATION_DURATION} \${ANIMATION_EASING}\`,
@@ -805,31 +856,23 @@ void globalCss({
   },
 });
 
-const pageStyles = css({
+const styles = css({
   container: ['py:2', 'w:full'],
   heading: ['font:xl', 'font:bold', 'text:foreground', 'mb:4'],
-  form: ['flex', 'gap:2', 'items:start', 'mb:6'],
+  form: ['flex', 'items:start', 'gap:2', 'mb:6'],
   inputWrap: ['flex-1'],
   input: [
     'w:full',
+    'h:10',
     'px:3',
-    'py:2',
     'rounded:md',
     'border:1',
     'border:border',
     'bg:background',
     'text:foreground',
+    'text:sm',
   ],
   fieldError: ['text:destructive', 'font:xs', 'mt:1'],
-  button: [
-    'px:4',
-    'py:2',
-    'rounded:md',
-    'bg:primary',
-    'text:primary-foreground',
-    'font:medium',
-    'cursor:pointer',
-  ],
   list: ['flex', 'flex-col', 'gap:2'],
   item: [
     'flex',
@@ -842,10 +885,47 @@ const pageStyles = css({
     'border:border',
     'bg:card',
   ],
+  checkbox: ['w:4', 'h:4', 'cursor:pointer', 'rounded:sm'],
+  label: ['flex-1', 'text:sm', 'text:foreground'],
+  labelDone: ['flex-1', 'text:sm', 'text:muted-foreground', 'decoration:line-through'],
   loading: ['text:muted-foreground'],
   error: ['text:destructive'],
   empty: ['text:muted-foreground', 'text:center', 'py:8'],
+  count: ['text:xs', 'text:muted-foreground', 'mt:4'],
 });
+
+interface TaskItemProps {
+  id: string;
+  title: string;
+  completed: boolean;
+}
+
+function TaskItem({ id, title, completed }: TaskItemProps) {
+  const handleToggle = async () => {
+    await api.tasks.update(id, { completed: !completed });
+  };
+
+  const handleDelete = async () => {
+    if (confirm(\`Delete "\${title}"?\`)) {
+      await api.tasks.delete(id);
+    }
+  };
+
+  return (
+    <div class={styles.item}>
+      <input
+        type="checkbox"
+        class={styles.checkbox}
+        checked={completed}
+        onChange={handleToggle}
+      />
+      <span class={completed ? styles.labelDone : styles.label}>
+        {title}
+      </span>
+      <Button intent="ghost" size="sm" onClick={handleDelete}>Delete</Button>
+    </div>
+  );
+}
 
 export function HomePage() {
   const tasksQuery = query(api.tasks.list());
@@ -855,61 +935,64 @@ export function HomePage() {
   });
 
   return (
-    <div class={pageStyles.container} data-testid="home-page">
-      <h1 class={pageStyles.heading}>Tasks</h1>
+    <div class={styles.container} data-testid="home-page">
+      <h1 class={styles.heading}>Tasks</h1>
 
       <form
-        class={pageStyles.form}
+        class={styles.form}
         action={taskForm.action}
         method={taskForm.method}
         onSubmit={taskForm.onSubmit}
       >
-        <div class={pageStyles.inputWrap}>
+        <div class={styles.inputWrap}>
           <input
             name={taskForm.fields.title}
-            class={pageStyles.input}
+            class={styles.input}
             placeholder="What needs to be done?"
           />
-          <span class={pageStyles.fieldError}>
+          <span class={styles.fieldError}>
             {taskForm.title.error}
           </span>
         </div>
-        <button
-          type="submit"
-          class={pageStyles.button}
-          disabled={taskForm.submitting}
-        >
+        <Button type="submit" disabled={taskForm.submitting}>
           {taskForm.submitting.value ? 'Adding...' : 'Add'}
-        </button>
+        </Button>
       </form>
 
       {queryMatch(tasksQuery, {
         loading: () => (
-          <div class={pageStyles.loading}>Loading tasks...</div>
+          <div class={styles.loading}>Loading tasks...</div>
         ),
         error: (err) => (
-          <div class={pageStyles.error}>
+          <div class={styles.error}>
             {err instanceof Error ? err.message : String(err)}
           </div>
         ),
         data: (response) => (
           <>
             {response.items.length === 0 && (
-              <div class={pageStyles.empty}>
+              <div class={styles.empty}>
                 No tasks yet. Add one above!
               </div>
             )}
-            <div data-testid="task-list" class={pageStyles.list}>
+            <div data-testid="task-list" class={styles.list}>
               <ListTransition
                 each={response.items}
                 keyFn={(task) => task.id}
                 children={(task) => (
-                  <div class={pageStyles.item}>
-                    <span>{task.title}</span>
-                  </div>
+                  <TaskItem
+                    id={task.id}
+                    title={task.title}
+                    completed={task.completed}
+                  />
                 )}
               />
             </div>
+            {response.items.length > 0 && (
+              <div class={styles.count}>
+                {response.items.filter((t) => !t.completed).length} remaining
+              </div>
+            )}
           </>
         ),
       })}

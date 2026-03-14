@@ -111,6 +111,90 @@ const card = TaskCard({ task, onClick: handleClick });
 />
 ```
 
+## Theme Components — Prefer Over Raw HTML
+
+When a themed component exists, use it instead of raw HTML elements with manual class names.
+
+### Setup
+
+Use `configureTheme()` (not `configureThemeBase`) and export components:
+
+```tsx
+// src/styles/theme.ts
+import { configureTheme } from '@vertz/theme-shadcn';
+
+const { theme, globals, styles, components } = configureTheme({
+  palette: 'zinc',
+  radius: 'md',
+});
+
+export const appTheme = theme;
+export const themeGlobals = globals;
+export const themeStyles = styles;
+export const themeComponents = components;
+```
+
+### Using Components
+
+```tsx
+import { themeComponents } from '../styles/theme';
+
+const { Button, Input } = themeComponents;
+const { AlertDialog } = themeComponents.primitives;
+
+// RIGHT — use theme components
+<Button intent="primary" size="md">Submit</Button>
+<Input placeholder="Enter text" />
+
+// WRONG — raw HTML with manual styles
+<button class={button({ intent: 'primary', size: 'md' })}>Submit</button>
+<input class={inputStyles.base} placeholder="Enter text" />
+```
+
+### Available Components
+
+**Direct** (from `themeComponents`): `Button`, `Input`, `Label`, `Badge`, `Textarea`, `Card` suite, `Table` suite, `Avatar` suite, `FormGroup` suite
+
+**Primitives** (from `themeComponents.primitives`): `AlertDialog`, `Dialog`, `Tabs`, `Select`, `DropdownMenu`, `Popover`, `Sheet`, `Tooltip`, `Accordion` — all with sub-components (`.Trigger`, `.Content`, `.Footer`, etc.)
+
+### When to Use `css()` Instead
+
+Use `css()` for layout-specific styles that don't correspond to a theme component — containers, grids, page layout, spacing between sections. Theme components handle their own styling.
+
+## Dialogs
+
+### Composable `<AlertDialog>` for inline confirmations
+
+```tsx
+const { Button } = themeComponents;
+const { AlertDialog } = themeComponents.primitives;
+
+<AlertDialog>
+  <AlertDialog.Trigger>
+    <Button intent="danger" size="sm">Delete</Button>
+  </AlertDialog.Trigger>
+  <AlertDialog.Content>
+    <AlertDialog.Title>Delete task?</AlertDialog.Title>
+    <AlertDialog.Description>This action cannot be undone.</AlertDialog.Description>
+    <AlertDialog.Footer>
+      <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+      <AlertDialog.Action onClick={handleDelete}>Delete</AlertDialog.Action>
+    </AlertDialog.Footer>
+  </AlertDialog.Content>
+</AlertDialog>
+```
+
+### `useDialogStack()` for imperative/stacked dialogs
+
+Use when you need promise-based results, multiple stacked dialogs, or dialogs opened from event handlers:
+
+```tsx
+const dialogs = useDialogStack();
+
+const confirmed = await dialogs.open(ConfirmDialog, { message: 'Delete?' });
+if (confirmed) handleDelete();
+```
+
 ## Styling
 
 ### `css()` for scoped styles, `variants()` for parameterized

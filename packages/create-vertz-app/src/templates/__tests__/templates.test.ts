@@ -251,10 +251,15 @@ describe('templates', () => {
   });
 
   describe('themeTemplate', () => {
-    it('uses configureThemeBase from @vertz/theme-shadcn/base', () => {
+    it('uses configureTheme from @vertz/theme-shadcn', () => {
       const result = themeTemplate();
-      expect(result).toContain('configureThemeBase');
-      expect(result).toContain("from '@vertz/theme-shadcn/base'");
+      expect(result).toContain('configureTheme');
+      expect(result).toContain("from '@vertz/theme-shadcn'");
+    });
+
+    it('exports themeComponents', () => {
+      const result = themeTemplate();
+      expect(result).toContain('export const themeComponents = components');
     });
   });
 
@@ -278,7 +283,6 @@ describe('templates', () => {
       expect(result).toContain('form(api.tasks.create');
       expect(result).toContain('resetOnSuccess: true');
       expect(result).not.toContain('handleSubmit');
-      expect(result).not.toContain('refetch');
     });
 
     it('imports form from vertz/ui', () => {
@@ -306,6 +310,45 @@ describe('templates', () => {
     it('disables submit button during submission', () => {
       const result = homePageTemplate();
       expect(result).toContain('taskForm.submitting');
+    });
+
+    it('uses theme components instead of raw HTML', () => {
+      const result = homePageTemplate();
+      expect(result).toContain("import { themeComponents } from '../styles/theme'");
+      expect(result).toContain('const { Button } = themeComponents');
+      expect(result).toContain('<Button');
+    });
+
+    it('includes TaskItem component with checkbox toggle', () => {
+      const result = homePageTemplate();
+      expect(result).toContain('function TaskItem(');
+      expect(result).toContain('type="checkbox"');
+      expect(result).toContain('api.tasks.update');
+    });
+
+    it('uses confirm dialog for delete', () => {
+      const result = homePageTemplate();
+      expect(result).toContain('api.tasks.delete');
+      expect(result).toContain('confirm(');
+    });
+
+    it('shows remaining task count', () => {
+      const result = homePageTemplate();
+      expect(result).toContain('remaining');
+      expect(result).toContain('.filter');
+      expect(result).toContain('!t.completed');
+    });
+
+    it('uses ListTransition for animated list', () => {
+      const result = homePageTemplate();
+      expect(result).toContain('ListTransition');
+      expect(result).toContain('slideInFromTop');
+      expect(result).toContain('fadeOut');
+    });
+
+    it('relies on automatic cache invalidation (no manual refetch)', () => {
+      const result = homePageTemplate();
+      expect(result).not.toContain('refetch');
     });
   });
 
@@ -418,10 +461,11 @@ describe('templates', () => {
       expect(result).toContain('queryMatch(');
     });
 
-    it('documents css() for styling', () => {
+    it('documents css() for styling and theme components', () => {
       const result = uiDevelopmentRuleTemplate();
       expect(result).toContain('css(');
-      expect(result).toContain('variants(');
+      expect(result).toContain('themeComponents');
+      expect(result).toContain('AlertDialog');
     });
 
     it('documents JSX conventions', () => {
