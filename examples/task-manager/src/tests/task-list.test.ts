@@ -49,11 +49,14 @@ describe('TaskListPage', () => {
     const { page, router } = renderTaskListPage();
     const { queryByText, unmount } = renderTest(page);
 
-    // Wait for the mock tasks to load and render
-    await waitFor(() => {
-      expect(queryByText('Set up CI/CD pipeline')).not.toBeNull();
-      expect(queryByText('Implement user authentication')).not.toBeNull();
-    });
+    // Wait for the mock tasks to load and render (mock delay is 1s, CI needs margin)
+    await waitFor(
+      () => {
+        expect(queryByText('Set up CI/CD pipeline')).not.toBeNull();
+        expect(queryByText('Implement user authentication')).not.toBeNull();
+      },
+      { timeout: 3000 },
+    );
 
     unmount();
     router.dispose();
