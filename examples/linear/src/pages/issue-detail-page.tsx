@@ -7,6 +7,7 @@ import type { IssuePriority, IssueStatus } from '../lib/types';
 const styles = css({
   container: ['p:6'],
   loading: ['text:sm', 'text:muted-foreground', 'py:8'],
+  error: ['text:sm', 'text:destructive', 'py:8'],
   layout: ['flex', 'gap:8'],
   main: ['flex-1'],
   identifier: ['text:sm', 'text:muted-foreground', 'font:mono', 'mb:2'],
@@ -22,19 +23,35 @@ export function IssueDetailPage() {
   const issue = query(issueApi.get(issueId));
   const project = query(projectApi.get(projectId));
 
+  let updateError = '';
+
   const handleStatusChange = async (status: IssueStatus) => {
-    await issueApi.update(issueId, { status });
+    const res = await issueApi.update(issueId, { status });
+    if (!res.ok) {
+      updateError = 'Failed to update status';
+      return;
+    }
+    updateError = '';
     issue.refetch();
   };
 
   const handlePriorityChange = async (priority: IssuePriority) => {
-    await issueApi.update(issueId, { priority });
+    const res = await issueApi.update(issueId, { priority });
+    if (!res.ok) {
+      updateError = 'Failed to update priority';
+      return;
+    }
+    updateError = '';
     issue.refetch();
   };
 
   return (
     <div class={styles.container}>
       {issue.loading && <div class={styles.loading}>Loading issue...</div>}
+
+      {issue.error && <div class={styles.error}>Failed to load issue. Please try again.</div>}
+
+      {updateError && <div class={styles.error}>{updateError}</div>}
 
       {issue.data && (
         <div class={styles.layout}>

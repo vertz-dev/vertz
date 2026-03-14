@@ -19,10 +19,10 @@ const styles = css({
     'text:xs',
     'rounded:full',
     'border:1',
-    'border:primary.600',
+    'border:primary',
     'cursor:pointer',
-    'bg:primary.600',
-    'text:white',
+    'bg:primary',
+    'text:primary-foreground',
   ],
 });
 
@@ -47,6 +47,7 @@ export function StatusFilter({ value, onChange }: StatusFilterProps) {
         <button
           type="button"
           class={s.value === value ? styles.active : styles.button}
+          aria-pressed={s.value === value ? 'true' : 'false'}
           onClick={() => onChange(s.value)}
           key={s.value}
         >

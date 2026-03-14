@@ -15,14 +15,14 @@ const styles = css({
   identifier: ['text:xs', 'text:muted-foreground', 'font:mono', 'w:20', 'shrink:0'],
   title: ['text:sm', 'text:foreground', 'flex-1', 'truncate'],
   status: ['text:xs', 'px:2', 'py:0.5', 'rounded:full', 'shrink:0'],
-  priority: ['text:xs', 'text:muted-foreground', 'shrink:0'],
+  priority: ['text:xs', 'shrink:0', 'font:medium'],
 });
 
 const statusColors: Record<string, string> = {
   backlog: 'bg:muted text:muted-foreground',
-  todo: 'bg:primary.100 text:primary.700',
-  in_progress: 'bg:warning.100 text:warning.700',
-  done: 'bg:success.100 text:success.700',
+  todo: 'bg:secondary text:foreground',
+  in_progress: 'bg:accent text:accent-foreground',
+  done: 'bg:primary text:primary-foreground',
   cancelled: 'bg:muted text:muted-foreground',
 };
 
@@ -34,12 +34,12 @@ const statusLabels: Record<string, string> = {
   cancelled: 'Cancelled',
 };
 
-const priorityLabels: Record<string, string> = {
-  urgent: 'Urgent',
-  high: 'High',
-  medium: 'Medium',
-  low: 'Low',
-  none: '',
+const priorityConfig: Record<string, { label: string; color: string }> = {
+  urgent: { label: 'Urgent', color: '#ef4444' },
+  high: { label: 'High', color: '#f97316' },
+  medium: { label: 'Medium', color: '#eab308' },
+  low: { label: 'Low', color: '#3b82f6' },
+  none: { label: '', color: '' },
 };
 
 interface IssueRowProps {
@@ -57,8 +57,10 @@ export function IssueRow({ issue, projectKey }: IssueRowProps) {
       <span class={`${styles.status} ${statusColors[issue.status] ?? ''}`}>
         {statusLabels[issue.status] ?? issue.status}
       </span>
-      {issue.priority !== 'none' && (
-        <span class={styles.priority}>{priorityLabels[issue.priority]}</span>
+      {issue.priority !== 'none' && priorityConfig[issue.priority] && (
+        <span class={styles.priority} style={`color: ${priorityConfig[issue.priority].color}`}>
+          {priorityConfig[issue.priority].label}
+        </span>
       )}
     </div>
   );
