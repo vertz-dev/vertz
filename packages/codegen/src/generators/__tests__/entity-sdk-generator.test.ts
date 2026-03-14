@@ -185,7 +185,7 @@ describe('EntitySdkGenerator', () => {
     const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
     const userFile = files.find((f) => f.path === 'entities/user.ts');
 
-    expect(userFile?.content).toContain('client.get<ListResponse<UserResponse>>');
+    expect(userFile?.content).toContain('client.get<ListResponse<Pick<UserResponse, K>>>');
     expect(userFile?.content).not.toContain('client.get<UserResponse[]>');
     expect(userFile?.content).toContain(
       "import { type FetchClient, type ListResponse, createDescriptor, resolveVertzQL } from '@vertz/fetch'",
@@ -779,10 +779,172 @@ describe('EntitySdkGenerator', () => {
       const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
       const userFile = files.find((f) => f.path === 'entities/user.ts');
 
-      expect(userFile?.content).toContain(
-        '(id: string, options?: { select?: Record<string, true> })',
-      );
+      expect(userFile?.content).toContain('id: string, options?: { select?: Record<K, true> }');
       expect(userFile?.content).toContain('resolveVertzQL');
+    });
+
+    it('list() has generic signature constraining K to keyof ResponseType', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'user',
+          operations: [
+            {
+              kind: 'list',
+              method: 'GET',
+              path: '/user',
+              operationId: 'listUser',
+              outputSchema: 'UserResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const userFile = files.find((f) => f.path === 'entities/user.ts');
+
+      expect(userFile?.content).toContain('<K extends keyof UserResponse = keyof UserResponse>');
+    });
+
+    it('list() return type uses Pick<ResponseType, K>', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'user',
+          operations: [
+            {
+              kind: 'list',
+              method: 'GET',
+              path: '/user',
+              operationId: 'listUser',
+              outputSchema: 'UserResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const userFile = files.find((f) => f.path === 'entities/user.ts');
+
+      expect(userFile?.content).toContain('client.get<ListResponse<Pick<UserResponse, K>>>');
+    });
+
+    it('list() query parameter includes typed select', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'user',
+          operations: [
+            {
+              kind: 'list',
+              method: 'GET',
+              path: '/user',
+              operationId: 'listUser',
+              outputSchema: 'UserResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const userFile = files.find((f) => f.path === 'entities/user.ts');
+
+      expect(userFile?.content).toContain(
+        'query?: { select?: Record<K, true> } & Record<string, unknown>',
+      );
+    });
+
+    it('get() has generic signature constraining K to keyof ResponseType', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'user',
+          operations: [
+            {
+              kind: 'get',
+              method: 'GET',
+              path: '/user/:id',
+              operationId: 'getUser',
+              outputSchema: 'UserResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const userFile = files.find((f) => f.path === 'entities/user.ts');
+
+      expect(userFile?.content).toContain('<K extends keyof UserResponse = keyof UserResponse>');
+    });
+
+    it('get() return type uses Pick<ResponseType, K>', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'user',
+          operations: [
+            {
+              kind: 'get',
+              method: 'GET',
+              path: '/user/:id',
+              operationId: 'getUser',
+              outputSchema: 'UserResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const userFile = files.find((f) => f.path === 'entities/user.ts');
+
+      expect(userFile?.content).toContain('client.get<Pick<UserResponse, K>>');
+    });
+
+    it('get() options parameter includes typed select', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'user',
+          operations: [
+            {
+              kind: 'get',
+              method: 'GET',
+              path: '/user/:id',
+              operationId: 'getUser',
+              outputSchema: 'UserResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const userFile = files.find((f) => f.path === 'entities/user.ts');
+
+      expect(userFile?.content).toContain('id: string, options?: { select?: Record<K, true> }');
+    });
+
+    it('preserves non-generic list signature when output schema is undefined', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'user',
+          operations: [
+            {
+              kind: 'list',
+              method: 'GET',
+              path: '/user',
+              operationId: 'listUser',
+              // No outputSchema
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const userFile = files.find((f) => f.path === 'entities/user.ts');
+
+      expect(userFile?.content).toContain('(query?: Record<string, unknown>)');
+      expect(userFile?.content).not.toContain('extends keyof');
     });
 
     it('get() passes resolved query to createDescriptor for cache key', () => {

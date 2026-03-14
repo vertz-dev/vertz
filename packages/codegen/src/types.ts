@@ -139,6 +139,19 @@ export interface CodegenRelation {
   entity: string;
 }
 
+export interface CodegenExposeField {
+  name: string;
+  conditional: boolean;
+}
+
+export interface CodegenExposeRelation {
+  name: string;
+  entity: string;
+  type: 'one' | 'many';
+  select?: CodegenExposeField[];
+  resolvedFields?: CodegenResolvedField[];
+}
+
 export interface CodegenEntityModule {
   entityName: string;
   operations: CodegenEntityOperation[];
@@ -149,6 +162,8 @@ export interface CodegenEntityModule {
   primaryKey?: string;
   hiddenFields?: string[];
   responseFields?: CodegenResolvedField[];
+  exposeSelect?: CodegenExposeField[];
+  exposeInclude?: CodegenExposeRelation[];
   relationSelections?: Record<string, 'all' | string[]>;
   relationQueryConfig?: Record<
     string,

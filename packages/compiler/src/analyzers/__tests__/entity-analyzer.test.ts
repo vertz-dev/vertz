@@ -1455,4 +1455,212 @@ describe('EntityAnalyzer', () => {
       expect(result.entities[0]?.name).toBe('user');
     });
   });
+
+  describe('Expose Extraction', () => {
+    it('extracts expose.select with true values as conditional: false', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { taskModel } from './models';
+
+        export const taskEntity = entity('tasks', {
+          model: taskModel,
+          expose: {
+            select: { id: true, title: true, status: true },
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.entities).toHaveLength(1);
+      expect(result.entities[0]?.expose).toBeDefined();
+      expect(result.entities[0]?.expose?.select).toEqual([
+        { name: 'id', conditional: false },
+        { name: 'title', conditional: false },
+        { name: 'status', conditional: false },
+      ]);
+    });
+
+    it('marks descriptor values as conditional: true', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { rules } from '@vertz/auth/rules';
+        import { empModel } from './models';
+
+        export const empEntity = entity('employees', {
+          model: empModel,
+          expose: {
+            select: {
+              id: true,
+              name: true,
+              salary: rules.entitlement('hr:view-compensation'),
+            },
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.entities[0]?.expose?.select).toEqual([
+        { name: 'id', conditional: false },
+        { name: 'name', conditional: false },
+        { name: 'salary', conditional: true },
+      ]);
+    });
+
+    it('marks compound descriptors (rules.all) as conditional: true', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { rules } from '@vertz/auth/rules';
+        import { empModel } from './models';
+
+        export const empEntity = entity('employees', {
+          model: empModel,
+          expose: {
+            select: {
+              id: true,
+              salary: rules.all(rules.entitlement('hr:view'), rules.role('admin')),
+            },
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.entities[0]?.expose?.select).toEqual([
+        { name: 'id', conditional: false },
+        { name: 'salary', conditional: true },
+      ]);
+    });
+
+    it('returns undefined expose when not present', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { userModel } from './models';
+
+        export const userEntity = entity('user', {
+          model: userModel,
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.entities[0]?.expose).toBeUndefined();
+    });
+
+    it('extracts expose.include with relation configs', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { taskModel } from './models';
+
+        export const taskEntity = entity('tasks', {
+          model: taskModel,
+          expose: {
+            select: { id: true, title: true },
+            include: {
+              assignee: { select: { id: true, name: true } },
+            },
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.entities[0]?.expose?.include).toEqual([
+        {
+          name: 'assignee',
+          select: [
+            { name: 'id', conditional: false },
+            { name: 'name', conditional: false },
+          ],
+        },
+      ]);
+    });
+
+    it('handles expose.include with true (all fields)', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { taskModel } from './models';
+
+        export const taskEntity = entity('tasks', {
+          model: taskModel,
+          expose: {
+            select: { id: true },
+            include: {
+              tags: true,
+            },
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.entities[0]?.expose?.include).toEqual([
+        { name: 'tags' },
+      ]);
+    });
+
+    it('skips expose.include with false (excluded)', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { taskModel } from './models';
+
+        export const taskEntity = entity('tasks', {
+          model: taskModel,
+          expose: {
+            select: { id: true },
+            include: {
+              assignee: { select: { id: true } },
+              comments: false,
+            },
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.entities[0]?.expose?.include).toEqual([
+        {
+          name: 'assignee',
+          select: [{ name: 'id', conditional: false }],
+        },
+      ]);
+    });
+
+    it('emits ENTITY_EXPOSE_EMPTY_SELECT for empty select', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { taskModel } from './models';
+
+        export const taskEntity = entity('tasks', {
+          model: taskModel,
+          expose: {
+            select: {},
+          },
+        });
+      `,
+      );
+
+      const analyzer = new EntityAnalyzer(project, config);
+      await analyzer.analyze();
+      const diagnostics = analyzer.getDiagnostics();
+      expect(diagnostics.some((d) => d.code === 'ENTITY_EXPOSE_EMPTY_SELECT')).toBe(true);
+    });
+  });
 });

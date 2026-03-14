@@ -1,6 +1,8 @@
 import type { AppIR, InlineSchemaRef } from '@vertz/compiler';
 import type {
   CodegenEntityOperation,
+  CodegenExposeField,
+  CodegenExposeRelation,
   CodegenIR,
   CodegenResolvedField,
   CodegenSchema,
@@ -39,6 +41,20 @@ export function adaptIR(appIR: AppIR): CodegenIR {
 
   // Sort schemas deterministically
   const allSchemas = [...schemas].sort((a, b) => a.name.localeCompare(b.name));
+
+  // Build entity name → responseFields map for cross-entity relation resolution
+  const entityResponseFieldsMap = new Map<string, CodegenResolvedField[]>();
+  for (const entity of appIR.entities ?? []) {
+    const respRef = entity.modelRef.schemaRefs.response;
+    if (respRef?.kind === 'inline') {
+      const fields = (respRef as InlineSchemaRef).resolvedFields?.map((f) => ({
+        name: f.name,
+        tsType: f.tsType as CodegenResolvedField['tsType'],
+        optional: f.optional,
+      }));
+      if (fields) entityResponseFieldsMap.set(entity.name, fields);
+    }
+  }
 
   // Process entities into entity-specific codegen modules
   const entities = (appIR.entities ?? []).map((entity) => {
@@ -169,6 +185,56 @@ export function adaptIR(appIR: AppIR): CodegenIR {
       }));
     }
 
+    // Process expose config: filter responseFields, map exposeSelect/exposeInclude
+    let exposeSelect: CodegenExposeField[] | undefined;
+    let exposeInclude: CodegenExposeRelation[] | undefined;
+
+    if (entity.expose) {
+      exposeSelect = entity.expose.select.map((f) => ({
+        name: f.name,
+        conditional: f.conditional,
+      }));
+
+      // Filter responseFields to only include exposed, non-hidden fields
+      if (entityResponseFields) {
+        const exposedNames = new Set(entity.expose.select.map((f) => f.name));
+        const hiddenNames = new Set(entity.modelRef.hiddenFields ?? []);
+        entityResponseFields = entityResponseFields.filter(
+          (f) => exposedNames.has(f.name) && !hiddenNames.has(f.name),
+        );
+      }
+
+      // Resolve expose.include relations
+      if (entity.expose.include && entity.expose.include.length > 0) {
+        const resolved: CodegenExposeRelation[] = [];
+        for (const rel of entity.expose.include) {
+          if (!rel.entity || !rel.type) continue;
+
+          const targetFields = entityResponseFieldsMap.get(rel.entity);
+          let resolvedFields: CodegenResolvedField[] | undefined;
+
+          if (targetFields && rel.select) {
+            const selectedNames = new Set(rel.select.map((f) => f.name));
+            resolvedFields = targetFields.filter((f) => selectedNames.has(f.name));
+          } else if (targetFields) {
+            resolvedFields = targetFields;
+          }
+
+          resolved.push({
+            name: rel.name,
+            entity: rel.entity,
+            type: rel.type,
+            ...(rel.select
+              ? { select: rel.select.map((f) => ({ name: f.name, conditional: f.conditional })) }
+              : {}),
+            ...(resolvedFields ? { resolvedFields } : {}),
+          });
+        }
+
+        if (resolved.length > 0) exposeInclude = resolved;
+      }
+    }
+
     return {
       entityName: entity.name,
       operations,
@@ -179,6 +245,8 @@ export function adaptIR(appIR: AppIR): CodegenIR {
       primaryKey: entity.modelRef.primaryKey,
       hiddenFields: entity.modelRef.hiddenFields,
       responseFields: entityResponseFields,
+      exposeSelect,
+      exposeInclude,
       relationSelections:
         Object.keys(relationSelections).length > 0 ? relationSelections : undefined,
       relationQueryConfig:

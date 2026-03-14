@@ -11,6 +11,9 @@ import type {
   EntityAccessIR,
   EntityAccessRuleKind,
   EntityActionIR,
+  EntityExposeFieldIR,
+  EntityExposeIR,
+  EntityExposeRelationIR,
   EntityHooksIR,
   EntityIR,
   EntityModelRef,
@@ -236,6 +239,9 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
       this.extractModelTableMetadata(modelExpr, modelRef);
     }
 
+    // 4.7. Extract expose config
+    const expose = this.extractExpose(configObj, loc);
+
     // 5. Validate action names don't collide with CRUD ops
     for (const action of actions) {
       if ((CRUD_OPS as readonly string[]).includes(action.name)) {
@@ -268,6 +274,7 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
         hooks,
         actions,
         relations,
+        ...(expose ? { expose } : {}),
         ...(tenantScoped !== undefined && tenantScoped !== null ? { tenantScoped } : {}),
         ...(table !== undefined && table !== null ? { table } : {}),
         ...loc,
@@ -736,6 +743,66 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
           ...(maxLimit !== undefined ? { maxLimit } : {}),
         };
       });
+  }
+
+  private extractExpose(
+    configObj: ObjectLiteralExpression,
+    loc: SourceLocation,
+  ): EntityExposeIR | undefined {
+    const exposeExpr = getPropertyValue(configObj, 'expose');
+    if (!exposeExpr || !exposeExpr.isKind(SyntaxKind.ObjectLiteralExpression)) return undefined;
+
+    const selectExpr = getPropertyValue(exposeExpr, 'select');
+    if (!selectExpr || !selectExpr.isKind(SyntaxKind.ObjectLiteralExpression)) return undefined;
+
+    const select = this.extractExposeFields(selectExpr);
+
+    if (select.length === 0) {
+      this.addDiagnostic({
+        code: 'ENTITY_EXPOSE_EMPTY_SELECT',
+        severity: 'warning',
+        message: 'expose.select is empty — no fields will be visible in the API',
+        ...loc,
+      });
+    }
+
+    const includeExpr = getPropertyValue(exposeExpr, 'include');
+    let include: EntityExposeRelationIR[] | undefined;
+
+    if (includeExpr?.isKind(SyntaxKind.ObjectLiteralExpression)) {
+      include = getProperties(includeExpr)
+        .filter(({ value }) => getBooleanValue(value) !== false)
+        .map(({ name, value }) => {
+          const boolVal = getBooleanValue(value);
+
+          // true → all fields of target entity
+          if (boolVal === true || !value.isKind(SyntaxKind.ObjectLiteralExpression)) {
+            return { name } as EntityExposeRelationIR;
+          }
+
+          // Object config: { select: { field: true | descriptor } }
+          const relSelectExpr = getPropertyValue(value, 'select');
+          if (relSelectExpr?.isKind(SyntaxKind.ObjectLiteralExpression)) {
+            return {
+              name,
+              select: this.extractExposeFields(relSelectExpr),
+            } as EntityExposeRelationIR;
+          }
+
+          return { name } as EntityExposeRelationIR;
+        });
+
+      if (include.length === 0) include = undefined;
+    }
+
+    return { select, ...(include ? { include } : {}) };
+  }
+
+  private extractExposeFields(obj: ObjectLiteralExpression): EntityExposeFieldIR[] {
+    return getProperties(obj).map(({ name, value }) => ({
+      name,
+      conditional: getBooleanValue(value) !== true,
+    }));
   }
 
   /**

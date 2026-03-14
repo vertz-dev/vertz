@@ -264,4 +264,144 @@ describe('IR Adapter - Entities', () => {
 
     expect(result.entities).toEqual([]);
   });
+
+  describe('Expose config piping', () => {
+    it('maps EntityIR.expose.select to CodegenEntityModule.exposeSelect', () => {
+      const appIR = createEmptyAppIR();
+      const entity = createBasicEntity('tasks');
+      entity.expose = {
+        select: [
+          { name: 'id', conditional: false },
+          { name: 'title', conditional: false },
+          { name: 'salary', conditional: true },
+        ],
+      };
+      appIR.entities = [entity];
+
+      const result = adaptIR(appIR);
+
+      expect(result.entities[0]?.exposeSelect).toEqual([
+        { name: 'id', conditional: false },
+        { name: 'title', conditional: false },
+        { name: 'salary', conditional: true },
+      ]);
+    });
+
+    it('filters responseFields to only exposed non-hidden fields', () => {
+      const appIR = createEmptyAppIR();
+      const entity = createBasicEntity('tasks');
+      entity.modelRef.schemaRefs = {
+        response: {
+          kind: 'inline',
+          sourceFile: '/test.ts',
+          resolvedFields: [
+            { name: 'id', tsType: 'string', optional: false },
+            { name: 'title', tsType: 'string', optional: false },
+            { name: 'internalNotes', tsType: 'string', optional: false },
+            { name: 'deletedAt', tsType: 'date', optional: true },
+          ],
+        },
+        resolved: true,
+      };
+      entity.expose = {
+        select: [
+          { name: 'id', conditional: false },
+          { name: 'title', conditional: false },
+        ],
+      };
+      appIR.entities = [entity];
+
+      const result = adaptIR(appIR);
+
+      expect(result.entities[0]?.responseFields).toEqual([
+        { name: 'id', tsType: 'string', optional: false },
+        { name: 'title', tsType: 'string', optional: false },
+      ]);
+    });
+
+    it('leaves responseFields unchanged when no expose config', () => {
+      const appIR = createEmptyAppIR();
+      const entity = createBasicEntity('tasks');
+      entity.modelRef.schemaRefs = {
+        response: {
+          kind: 'inline',
+          sourceFile: '/test.ts',
+          resolvedFields: [
+            { name: 'id', tsType: 'string', optional: false },
+            { name: 'title', tsType: 'string', optional: false },
+          ],
+        },
+        resolved: true,
+      };
+      appIR.entities = [entity];
+
+      const result = adaptIR(appIR);
+
+      expect(result.entities[0]?.responseFields).toEqual([
+        { name: 'id', tsType: 'string', optional: false },
+        { name: 'title', tsType: 'string', optional: false },
+      ]);
+      expect(result.entities[0]?.exposeSelect).toBeUndefined();
+    });
+
+    it('maps expose.include with resolved relation fields', () => {
+      const appIR = createEmptyAppIR();
+
+      // Target entity (users)
+      const usersEntity = createBasicEntity('users');
+      usersEntity.modelRef.schemaRefs = {
+        response: {
+          kind: 'inline',
+          sourceFile: '/test.ts',
+          resolvedFields: [
+            { name: 'id', tsType: 'string', optional: false },
+            { name: 'name', tsType: 'string', optional: false },
+            { name: 'email', tsType: 'string', optional: false },
+          ],
+        },
+        resolved: true,
+      };
+
+      // Source entity (tasks) with expose.include
+      const tasksEntity = createBasicEntity('tasks');
+      tasksEntity.relations = [
+        { name: 'assignee', type: 'one', entity: 'users', selection: 'all' },
+      ];
+      tasksEntity.expose = {
+        select: [{ name: 'id', conditional: false }],
+        include: [
+          {
+            name: 'assignee',
+            entity: 'users',
+            type: 'one',
+            select: [
+              { name: 'id', conditional: false },
+              { name: 'name', conditional: false },
+            ],
+          },
+        ],
+      };
+
+      appIR.entities = [usersEntity, tasksEntity];
+
+      const result = adaptIR(appIR);
+
+      const tasksModule = result.entities.find((e) => e.entityName === 'tasks');
+      expect(tasksModule?.exposeInclude).toEqual([
+        {
+          name: 'assignee',
+          entity: 'users',
+          type: 'one',
+          select: [
+            { name: 'id', conditional: false },
+            { name: 'name', conditional: false },
+          ],
+          resolvedFields: [
+            { name: 'id', tsType: 'string', optional: false },
+            { name: 'name', tsType: 'string', optional: false },
+          ],
+        },
+      ]);
+    });
+  });
 });
