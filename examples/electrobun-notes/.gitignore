@@ -1,0 +1,4 @@
+# Override root .gitignore: generated files are committed for CI
+!.vertz/
+!.vertz/generated/
+!.vertz/generated/**

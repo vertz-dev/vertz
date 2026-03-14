@@ -1,0 +1,291 @@
+{
+  "version": "1.0.0",
+  "app": {
+    "basePath": "/"
+  },
+  "modules": [
+    {
+      "name": "__entities",
+      "services": [],
+      "routers": [
+        "__entities_router"
+      ],
+      "exports": [],
+      "imports": []
+    }
+  ],
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/notes",
+      "operationId": "listNotes",
+      "module": "__entities",
+      "router": "__entities_router",
+      "middleware": [],
+      "response": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "content": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "content",
+                "createdAt",
+                "updatedAt"
+              ]
+            }
+          },
+          "total": {
+            "type": "number"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hasNextPage": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "nextCursor",
+          "hasNextPage"
+        ]
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/notes/:id",
+      "operationId": "getNotes",
+      "module": "__entities",
+      "router": "__entities_router",
+      "middleware": [],
+      "response": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "content",
+          "createdAt",
+          "updatedAt"
+        ]
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/notes",
+      "operationId": "createNotes",
+      "module": "__entities",
+      "router": "__entities_router",
+      "middleware": [],
+      "body": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "response": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "content",
+          "createdAt",
+          "updatedAt"
+        ]
+      }
+    },
+    {
+      "method": "PATCH",
+      "path": "/notes/:id",
+      "operationId": "updateNotes",
+      "module": "__entities",
+      "router": "__entities_router",
+      "middleware": [],
+      "body": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        }
+      },
+      "response": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "content",
+          "createdAt",
+          "updatedAt"
+        ]
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/notes/:id",
+      "operationId": "deleteNotes",
+      "module": "__entities",
+      "router": "__entities_router",
+      "middleware": [],
+      "response": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "content",
+          "createdAt",
+          "updatedAt"
+        ]
+      }
+    }
+  ],
+  "schemas": {},
+  "middleware": [],
+  "dependencyGraph": {
+    "initializationOrder": [],
+    "edges": []
+  },
+  "diagnostics": {
+    "errors": 4,
+    "warnings": 0,
+    "items": [
+      {
+        "severity": "error",
+        "code": "VERTZ_APP_NOT_FOUND",
+        "message": "No vertz.app() call found in the project."
+      },
+      {
+        "severity": "error",
+        "code": "ENTITY_MISSING_ARGS",
+        "message": "entity() requires two arguments: name and config"
+      },
+      {
+        "severity": "error",
+        "code": "ENTITY_MISSING_ARGS",
+        "message": "entity() requires two arguments: name and config"
+      },
+      {
+        "severity": "error",
+        "code": "ENTITY_MISSING_ARGS",
+        "message": "entity() requires two arguments: name and config"
+      }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "notes": {
+    "primaryKey": "id",
+    "tenantScoped": false,
+    "hiddenFields": [],
+    "fields": [
+      "id",
+      "title",
+      "content",
+      "createdAt",
+      "updatedAt"
+    ],
+    "relations": {}
+  }
+}
