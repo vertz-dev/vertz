@@ -75,6 +75,104 @@ describe('Child node rendering', () => {
     marker.dispose();
   });
 
+  test('__child() updates text content in-place when fn() returns a string', () => {
+    const name = signal('Jane');
+
+    const wrapper = __child(() => `Hello ${name.value}`);
+
+    // Initial render: wrapper has a single text node
+    expect(wrapper.textContent).toBe('Hello Jane');
+    expect(wrapper.childNodes.length).toBe(1);
+    const textNode = wrapper.firstChild!;
+    expect(textNode.nodeType).toBe(3); // Text node
+
+    // Update signal — text should update in-place (same text node)
+    name.value = 'Bob';
+    expect(wrapper.textContent).toBe('Hello Bob');
+    expect(wrapper.childNodes.length).toBe(1);
+    expect(wrapper.firstChild).toBe(textNode); // Same text node reference
+
+    wrapper.dispose();
+  });
+
+  test('__child() updates text in-place for number-to-string transitions', () => {
+    const val = signal<string | number>('hello');
+
+    const wrapper = __child(() => val.value);
+
+    expect(wrapper.textContent).toBe('hello');
+    const textNode = wrapper.firstChild!;
+
+    // Change to number — should still update in-place
+    val.value = 42;
+    expect(wrapper.textContent).toBe('42');
+    expect(wrapper.firstChild).toBe(textNode); // Same text node
+
+    // Back to string
+    val.value = 'world';
+    expect(wrapper.textContent).toBe('world');
+    expect(wrapper.firstChild).toBe(textNode); // Same text node
+
+    wrapper.dispose();
+  });
+
+  test('__child() transitions from text to null correctly', () => {
+    const val = signal<string | null>('hello');
+
+    const wrapper = __child(() => val.value);
+
+    expect(wrapper.textContent).toBe('hello');
+    expect(wrapper.childNodes.length).toBe(1);
+
+    // Transition to null — should clear the text node
+    val.value = null;
+    expect(wrapper.textContent).toBe('');
+    expect(wrapper.childNodes.length).toBe(0);
+
+    // Back to text — creates a new text node
+    val.value = 'world';
+    expect(wrapper.textContent).toBe('world');
+    expect(wrapper.childNodes.length).toBe(1);
+
+    wrapper.dispose();
+  });
+
+  test('__child() transitions from text to Node correctly', () => {
+    const node = document.createElement('span');
+    node.textContent = 'element';
+    const val = signal<string | Node>('text');
+
+    const wrapper = __child(() => val.value);
+
+    expect(wrapper.textContent).toBe('text');
+    expect(wrapper.childNodes.length).toBe(1);
+    expect(wrapper.firstChild!.nodeType).toBe(3); // Text node
+
+    // Transition to Node — should replace text with the element
+    val.value = node;
+    expect(wrapper.textContent).toBe('element');
+    expect(wrapper.childNodes.length).toBe(1);
+    expect(wrapper.firstChild).toBe(node);
+
+    wrapper.dispose();
+  });
+
+  test('__child() handles falsy number 0 correctly in text fast-path', () => {
+    const val = signal<number>(1);
+
+    const wrapper = __child(() => val.value);
+
+    expect(wrapper.textContent).toBe('1');
+    const textNode = wrapper.firstChild!;
+
+    // 0 is falsy but should render as "0", not empty
+    val.value = 0;
+    expect(wrapper.textContent).toBe('0');
+    expect(wrapper.firstChild).toBe(textNode); // Same text node — in-place update
+
+    wrapper.dispose();
+  });
+
   test('__child() skips DOM operations when fn() returns same Node reference', () => {
     const s = signal(0);
     const stableNode = document.createElement('div');

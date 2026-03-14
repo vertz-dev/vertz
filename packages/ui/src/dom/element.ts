@@ -125,6 +125,19 @@ export function __child(
             return;
           }
 
+          // Text-in-place optimization (same as CSR path)
+          if (
+            !isRenderNode(value) &&
+            value != null &&
+            typeof value !== 'boolean' &&
+            wrapper.childNodes.length === 1 &&
+            wrapper.firstChild!.nodeType === 3
+          ) {
+            const text = typeof value === 'string' ? value : String(value);
+            (wrapper.firstChild as Text).data = text;
+            return;
+          }
+
           // Clear previous content
           while (wrapper.firstChild) {
             wrapper.removeChild(wrapper.firstChild);
@@ -153,6 +166,22 @@ export function __child(
     // without this check, __child would detach and re-attach it on every
     // signal change, disrupting internal state (e.g., __list reconciliation).
     if (isRenderNode(value) && wrapper.childNodes.length === 1 && wrapper.firstChild === value) {
+      return;
+    }
+
+    // Text-in-place optimization: if the new value is a primitive and the
+    // current content is a single Text node, update node.data directly
+    // instead of removing + creating a new Text node.
+    if (
+      !isRenderNode(value) &&
+      value != null &&
+      typeof value !== 'boolean' &&
+      typeof value !== 'function' &&
+      wrapper.childNodes.length === 1 &&
+      wrapper.firstChild!.nodeType === 3
+    ) {
+      const text = typeof value === 'string' ? value : String(value);
+      (wrapper.firstChild as Text).data = text;
       return;
     }
 

@@ -105,6 +105,48 @@ describe('UserName', () => {
     expect(wrapper?.textContent).toBe('Bob Smith');
   });
 
+  it('updates text content in-place without rebuilding text node', () => {
+    const { ctx, userSignal } = mockAuthContext({
+      id: '1',
+      email: 'jane@example.com',
+      role: 'user',
+      name: 'Jane Doe',
+    });
+    let wrapper: HTMLElement | undefined;
+
+    AuthContext.Provider({
+      value: ctx,
+      children: () => {
+        wrapper = UserName({});
+      },
+    });
+
+    expect(wrapper?.textContent).toBe('Jane Doe');
+
+    // Find the deepest text node
+    function findTextNode(node: Node): Text | null {
+      if (node.nodeType === 3) return node as Text;
+      for (const child of Array.from(node.childNodes)) {
+        const found = findTextNode(child);
+        if (found) return found;
+      }
+      return null;
+    }
+
+    const textNode = findTextNode(wrapper!);
+    expect(textNode).not.toBeNull();
+    expect(textNode!.data).toBe('Jane Doe');
+
+    // Update signal — text node should be reused (in-place update)
+    userSignal.value = { id: '1', email: 'bob@example.com', role: 'user', name: 'Bob Smith' };
+
+    expect(wrapper?.textContent).toBe('Bob Smith');
+
+    const textNodeAfter = findTextNode(wrapper!);
+    expect(textNodeAfter).toBe(textNode); // Same Text node reference
+    expect(textNodeAfter!.data).toBe('Bob Smith');
+  });
+
   it('uses provided user instead of auth context (static, no __child)', () => {
     const overrideUser: User = {
       id: '2',

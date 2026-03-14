@@ -19,13 +19,17 @@ describe('Avatar', () => {
   it('renders default user icon SVG when no src and no fallback', () => {
     const el = Avatar({}) as HTMLElement;
     expect(el.innerHTML).toContain('<svg');
-    expect(el.querySelector('img')).toBeNull();
+    // img is always in DOM but hidden when no src
+    const img = el.querySelector('img');
+    expect(img?.getAttribute('style')).toContain('display:none');
   });
 
   it('renders fallback content when no src and fallback function is provided', () => {
     const el = Avatar({ fallback: () => 'JD' }) as HTMLElement;
-    expect(el.textContent).toBe('JD');
-    expect(el.querySelector('img')).toBeNull();
+    expect(el.textContent).toContain('JD');
+    // img is always in DOM but hidden when no src
+    const img = el.querySelector('img');
+    expect(img?.getAttribute('style')).toContain('display:none');
   });
 
   it('renders string fallback when no src', () => {
@@ -66,7 +70,8 @@ describe('Avatar', () => {
 
     img?.dispatchEvent(new Event('error'));
 
-    expect(el.querySelector('img')).toBeNull();
+    // img is hidden, fallback is shown
+    expect(img?.getAttribute('style')).toContain('display:none');
     expect(el.innerHTML).toContain('<svg');
   });
 
@@ -76,8 +81,9 @@ describe('Avatar', () => {
 
     img?.dispatchEvent(new Event('error'));
 
-    expect(el.querySelector('img')).toBeNull();
-    expect(el.textContent).toBe('FB');
+    // img is hidden, fallback is shown
+    expect(img?.getAttribute('style')).toContain('display:none');
+    expect(el.textContent).toContain('FB');
   });
 
   it('renders rounded container with overflow hidden', () => {

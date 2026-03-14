@@ -73,7 +73,9 @@ describe('UserAvatar', () => {
       },
     });
 
-    expect(wrapper?.querySelector('img')).toBeNull();
+    // img is always in DOM but hidden when no src
+    const img = wrapper?.querySelector('img');
+    expect(img?.getAttribute('style')).toContain('display:none');
     expect(wrapper?.innerHTML).toContain('<svg');
   });
 
@@ -104,6 +106,78 @@ describe('UserAvatar', () => {
     expect(wrapper?.querySelector('img')?.getAttribute('src')).toBe('/bob.jpg');
   });
 
+  it('reuses the same img element when avatarUrl changes (in-place update)', () => {
+    const { ctx, userSignal } = mockAuthContext({
+      id: '1',
+      email: 'jane@example.com',
+      role: 'user',
+      avatarUrl: '/jane.jpg',
+    });
+    let wrapper: HTMLElement | undefined;
+
+    AuthContext.Provider({
+      value: ctx,
+      children: () => {
+        wrapper = UserAvatar({});
+      },
+    });
+
+    const img1 = wrapper?.querySelector('img');
+    expect(img1).not.toBeNull();
+    expect(img1?.getAttribute('src')).toBe('/jane.jpg');
+
+    // Change avatar URL — img element should be reused (in-place attribute update)
+    userSignal.value = {
+      id: '1',
+      email: 'jane@example.com',
+      role: 'user',
+      avatarUrl: '/jane-new.jpg',
+    };
+
+    const img2 = wrapper?.querySelector('img');
+    expect(img2).not.toBeNull();
+    expect(img2?.getAttribute('src')).toBe('/jane-new.jpg');
+    expect(img2).toBe(img1); // Same DOM element — not rebuilt
+  });
+
+  it('recovers from failed image when avatarUrl changes to a new URL', () => {
+    const { ctx, userSignal } = mockAuthContext({
+      id: '1',
+      email: 'jane@example.com',
+      role: 'user',
+      avatarUrl: '/broken.jpg',
+    });
+    let wrapper: HTMLElement | undefined;
+
+    AuthContext.Provider({
+      value: ctx,
+      children: () => {
+        wrapper = UserAvatar({});
+      },
+    });
+
+    // Image is visible initially
+    const img = wrapper?.querySelector('img');
+    expect(img).not.toBeNull();
+    expect(img?.getAttribute('style')).not.toContain('display:none');
+
+    // Simulate image error — should switch to fallback
+    img?.dispatchEvent(new Event('error'));
+    expect(img?.getAttribute('style')).toContain('display:none');
+    expect(wrapper?.innerHTML).toContain('<svg');
+
+    // Change to a new URL — should recover and show the new image
+    userSignal.value = {
+      id: '1',
+      email: 'jane@example.com',
+      role: 'user',
+      avatarUrl: '/working.jpg',
+    };
+
+    expect(img?.getAttribute('src')).toBe('/working.jpg');
+    expect(img?.getAttribute('style')).not.toContain('display:none');
+  });
+
   it('uses provided user instead of auth context (static, no __child)', () => {
     const overrideUser: User = {
       id: '2',
@@ -131,7 +205,9 @@ describe('UserAvatar', () => {
     const overrideUser: User = { id: '1', email: 'jane@example.com', role: 'user' };
     const el = UserAvatar({ user: overrideUser, fallback: 'JD' });
 
-    expect(el.querySelector('img')).toBeNull();
+    // img is always in DOM but hidden when no src
+    const img = el.querySelector('img');
+    expect(img?.getAttribute('style')).toContain('display:none');
     expect(el.textContent).toBe('JD');
   });
 
@@ -159,7 +235,9 @@ describe('UserAvatar', () => {
       },
     });
 
-    expect(wrapper?.querySelector('img')).toBeNull();
+    // img is always in DOM but hidden when no src
+    const img = wrapper?.querySelector('img');
+    expect(img?.getAttribute('style')).toContain('display:none');
     expect(wrapper?.innerHTML).toContain('<svg');
   });
 });
