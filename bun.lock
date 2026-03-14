@@ -504,6 +504,19 @@
         "typescript": "^5.7.0",
       },
     },
+    "packages/ui-native": {
+      "name": "@vertz/ui-native",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@types/bun": "^1.2.0",
+        "@vertz/ui": "workspace:^",
+        "bunup": "^0.16.31",
+        "typescript": "^5.7.0",
+      },
+      "peerDependencies": {
+        "@vertz/ui": "workspace:^",
+      },
+    },
     "packages/ui-primitives": {
       "name": "@vertz/ui-primitives",
       "version": "0.2.18",
@@ -1187,6 +1200,8 @@
 
     "@types/better-sqlite3": ["@types/better-sqlite3@7.6.13", "", { "dependencies": { "@types/node": "*" } }, "sha512-NMv9ASNARoKksWtsq/SHakpYAYnhBrQgGD8zkLYk/jaK8jUGn08CfEdTRgYhMypUQAfzSP8W6gNLe0q19/t4VA=="],
 
+    "@types/bun": ["@types/bun@1.3.10", "", { "dependencies": { "bun-types": "1.3.10" } }, "sha512-0+rlrUrOrTSskibryHbvQkDOWRJwJZqZlxrUs1u4oOoTln8+WIXBPmAuCF35SWB2z4Zl3E84Nl/D0P7803nigQ=="],
+
     "@types/chai": ["@types/chai@5.2.3", "", { "dependencies": { "@types/deep-eql": "*", "assertion-error": "^2.0.1" } }, "sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA=="],
 
     "@types/deep-eql": ["@types/deep-eql@4.0.2", "", {}, "sha512-c9h9dVVMigMPc4bwTvC5dxqtqJZwQPePsWjPlpSOnojbor6pGqdk541lfA7AqFQr5pB1BRdq0juY9db81BwyFw=="],
@@ -1286,6 +1301,8 @@
     "@vertz/ui-canvas": ["@vertz/ui-canvas@workspace:packages/ui-canvas"],
 
     "@vertz/ui-compiler": ["@vertz/ui-compiler@workspace:packages/ui-compiler"],
+
+    "@vertz/ui-native": ["@vertz/ui-native@workspace:packages/ui-native"],
 
     "@vertz/ui-primitives": ["@vertz/ui-primitives@workspace:packages/ui-primitives"],
 
