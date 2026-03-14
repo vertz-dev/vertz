@@ -9,7 +9,8 @@
 import { Database, type SQLQueryBindings } from 'bun:sqlite';
 import { createDb } from '@vertz/db';
 import { authModels } from '@vertz/server';
-import { issuesModel, projectsModel, usersModel } from './schema';
+import { commentsModel, issuesModel, projectsModel, usersModel } from './schema';
+import { seedDatabase } from './seed';
 
 // ---------------------------------------------------------------------------
 // D1-compatible wrapper for bun:sqlite
@@ -55,6 +56,17 @@ function createBunD1(dbPath: string) {
     UNIQUE(project_id, number)
   )`);
 
+  sqlite.exec(`CREATE TABLE IF NOT EXISTS comments (
+    id TEXT PRIMARY KEY,
+    issue_id TEXT NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
+    body TEXT NOT NULL,
+    author_id TEXT NOT NULL REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
+  seedDatabase(sqlite);
+
   return {
     prepare(sql: string) {
       const stmt = sqlite.prepare(sql);
@@ -87,7 +99,13 @@ function createBunD1(dbPath: string) {
 const d1 = createBunD1('./data/linear.db');
 
 export const db = createDb({
-  models: { ...authModels, users: usersModel, projects: projectsModel, issues: issuesModel },
+  models: {
+    ...authModels,
+    users: usersModel,
+    projects: projectsModel,
+    issues: issuesModel,
+    comments: commentsModel,
+  },
   dialect: 'sqlite',
   // biome-ignore lint/suspicious/noExplicitAny: bun:sqlite D1 wrapper
   d1: d1 as any,

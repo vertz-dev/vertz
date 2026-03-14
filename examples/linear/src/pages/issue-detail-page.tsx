@@ -1,5 +1,6 @@
 import { css, query, useParams } from '@vertz/ui';
-import { issueApi, projectApi } from '../api/client';
+import { commentApi, issueApi, projectApi, userApi } from '../api/client';
+import { CommentSection } from '../components/comment-section';
 import { PrioritySelect } from '../components/priority-select';
 import { StatusSelect } from '../components/status-select';
 import type { IssuePriority, IssueStatus } from '../lib/types';
@@ -22,8 +23,19 @@ export function IssueDetailPage() {
   const { projectId, issueId } = useParams<'/projects/:projectId/issues/:issueId'>();
   const issue = query(issueApi.get(issueId));
   const project = query(projectApi.get(projectId));
+  const comments = query(commentApi.list(issueId));
+  const users = query(userApi.list());
 
   let updateError = '';
+
+  // Build user lookup map for author resolution.
+  // Must be a single declarative expression so the compiler wraps it in computed()
+  // and re-evaluates when users.data loads.
+  const userMap: Record<string, { name: string; avatarUrl: string | null }> = users.data?.items
+    ? Object.fromEntries(
+        users.data.items.map((u) => [u.id, { name: u.name, avatarUrl: u.avatarUrl }]),
+      )
+    : {};
 
   const handleStatusChange = async (status: IssueStatus) => {
     const res = await issueApi.update(issueId, { status });
@@ -68,6 +80,14 @@ export function IssueDetailPage() {
             <div class={styles.meta}>
               {`Created ${new Date(issue.data.createdAt).toLocaleDateString()}`}
             </div>
+
+            <CommentSection
+              comments={comments.data?.items ?? []}
+              loading={comments.loading}
+              issueId={issueId}
+              userMap={userMap}
+              onCommentAdded={() => comments.refetch()}
+            />
           </div>
 
           <aside class={styles.sidebar}>

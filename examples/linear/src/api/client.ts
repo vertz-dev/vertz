@@ -11,11 +11,14 @@ import { err, FetchNetworkError, HttpError, ok } from '@vertz/errors';
 import type { FetchResponse } from '@vertz/fetch';
 import { createDescriptor } from '@vertz/fetch';
 import type {
+  Comment,
+  CreateCommentBody,
   CreateIssueBody,
   CreateProjectBody,
   Issue,
   ListResponse,
   Project,
+  User,
 } from '../lib/types';
 
 const BASE = '/api';
@@ -124,4 +127,39 @@ export const issueApi = {
     if (!res.ok) return res;
     return ok(undefined);
   },
+};
+
+export const commentApi = {
+  list: Object.assign(
+    (issueId: string) =>
+      createDescriptor<ListResponse<Comment>>('GET', `/comments?issueId=${issueId}`, () =>
+        fetchJson<ListResponse<Comment>>('GET', `/comments?issueId=${issueId}`),
+      ),
+    { url: '/api/comments', method: 'GET' as const },
+  ),
+
+  create: Object.assign(
+    async (body: CreateCommentBody) => {
+      const res = await fetchJson<Comment>('POST', '/comments', body);
+      if (!res.ok) return res;
+      return ok(res.data.data);
+    },
+    { url: '/api/comments', method: 'POST' as const },
+  ),
+
+  delete: async (id: string) => {
+    const res = await fetchJson<void>('DELETE', `/comments/${id}`);
+    if (!res.ok) return res;
+    return ok(undefined);
+  },
+};
+
+export const userApi = {
+  list: Object.assign(
+    () =>
+      createDescriptor<ListResponse<User>>('GET', '/users', () =>
+        fetchJson<ListResponse<User>>('GET', '/users'),
+      ),
+    { url: '/api/users', method: 'GET' as const },
+  ),
 };
