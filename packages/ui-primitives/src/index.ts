@@ -67,7 +67,7 @@ export type {
 export { NavigationMenu } from './navigation-menu/navigation-menu';
 export type { PopoverElements, PopoverOptions, PopoverState } from './popover/popover';
 export { Popover } from './popover/popover';
-export type { ProgressElements, ProgressOptions } from './progress/progress';
+export type { ProgressElements, ProgressOptions, ProgressState } from './progress/progress';
 export { Progress } from './progress/progress';
 export type { RadioElements, RadioOptions, RadioState } from './radio/radio';
 export { Radio } from './radio/radio';

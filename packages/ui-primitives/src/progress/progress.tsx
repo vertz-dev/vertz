@@ -3,6 +3,8 @@
  * Follows WAI-ARIA progressbar pattern.
  */
 
+import type { Signal } from '@vertz/ui';
+import { signal } from '@vertz/ui';
 import { setDataState } from '../utils/aria';
 import { uniqueId } from '../utils/id';
 
@@ -10,6 +12,10 @@ export interface ProgressOptions {
   defaultValue?: number;
   min?: number;
   max?: number;
+}
+
+export interface ProgressState {
+  value: Signal<number>;
 }
 
 export interface ProgressElements {
@@ -25,6 +31,7 @@ function dataStateFor(pct: number): string {
 
 function ProgressRoot(options: ProgressOptions = {}) {
   const { defaultValue = 0, min = 0, max = 100 } = options;
+  const state: ProgressState = { value: signal(defaultValue) };
 
   const initialPct = ((defaultValue - min) / (max - min)) * 100;
 
@@ -47,17 +54,21 @@ function ProgressRoot(options: ProgressOptions = {}) {
 
   function setValue(val: number): void {
     const clamped = Math.min(max, Math.max(min, val));
+    state.value.value = clamped;
     root.setAttribute('aria-valuenow', String(clamped));
     const pct = ((clamped - min) / (max - min)) * 100;
     indicator.style.width = `${pct}%`;
     setDataState(root, dataStateFor(pct));
   }
 
-  return { root, indicator, setValue };
+  return { root, indicator, state, setValue };
 }
 
 export const Progress: {
-  Root: (options?: ProgressOptions) => ProgressElements & { setValue: (value: number) => void };
+  Root: (options?: ProgressOptions) => ProgressElements & {
+    state: ProgressState;
+    setValue: (value: number) => void;
+  };
 } = {
   Root: ProgressRoot,
 };
