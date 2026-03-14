@@ -1252,15 +1252,16 @@ describe('Feature: q= param extracts where/orderBy/limit/offset (#1243)', () => 
     });
   });
 
-  describe('Given a q= param with offset', () => {
+  describe('Given a q= param with offset (not a supported key)', () => {
     describe('When parseVertzQL is called', () => {
-      it('Then extracts offset from the decoded q= JSON', () => {
-        const structural = { offset: 20 };
+      it('Then strips offset (not wired to DB layer)', () => {
+        const structural = { offset: 20, select: { id: true } };
         const q = btoa(JSON.stringify(structural));
 
         const result = parseVertzQL({ q });
 
-        expect(result.offset).toBe(20);
+        expect(result).not.toHaveProperty('offset');
+        expect(result.select).toEqual({ id: true });
       });
     });
   });
@@ -1287,6 +1288,58 @@ describe('Feature: q= param extracts where/orderBy/limit/offset (#1243)', () => 
         const result = parseVertzQL({ orderBy: 'createdAt:desc', q });
 
         expect(result.orderBy).toEqual({ createdAt: 'desc', updatedAt: 'asc' });
+      });
+    });
+  });
+
+  describe('Given same-field collision between URL where and q= where', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then q= value overrides the URL value for that field', () => {
+        const structural = { where: { status: 'active' } };
+        const q = btoa(JSON.stringify(structural));
+
+        const result = parseVertzQL({ 'where[status]': 'draft', q });
+
+        expect(result.where).toEqual({ status: 'active' });
+      });
+    });
+  });
+
+  describe('Given both URL limit and q= limit', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then q= limit overrides the URL limit', () => {
+        const structural = { limit: 50 };
+        const q = btoa(JSON.stringify(structural));
+
+        const result = parseVertzQL({ limit: '10', q });
+
+        expect(result.limit).toBe(50);
+      });
+    });
+  });
+
+  describe('Given a q= param with invalid orderBy direction', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then normalizes invalid direction to asc', () => {
+        const structural = { orderBy: { createdAt: 'descending' } };
+        const q = btoa(JSON.stringify(structural));
+
+        const result = parseVertzQL({ q });
+
+        expect(result.orderBy).toEqual({ createdAt: 'asc' });
+      });
+    });
+  });
+
+  describe('Given a q= param with where as an array', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then ignores the array value', () => {
+        const structural = { where: ['status', 'active'] };
+        const q = btoa(JSON.stringify(structural));
+
+        const result = parseVertzQL({ q });
+
+        expect(result.where).toBeUndefined();
       });
     });
   });

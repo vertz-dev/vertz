@@ -41,7 +41,7 @@ export const MAX_LIMIT = 1000;
 export const MAX_Q_BASE64_LENGTH = 10_240;
 
 /** Keys allowed in the decoded `q` parameter JSON object. */
-const ALLOWED_Q_KEYS = new Set(['select', 'include', 'where', 'orderBy', 'limit', 'offset']);
+const ALLOWED_Q_KEYS = new Set(['select', 'include', 'where', 'orderBy', 'limit']);
 
 /** Shape of a single include entry with optional filtering/sorting/pagination. */
 export interface VertzQLIncludeEntry {
@@ -56,7 +56,6 @@ export interface VertzQLOptions {
   where?: Record<string, unknown>;
   orderBy?: Record<string, 'asc' | 'desc'>;
   limit?: number;
-  offset?: number;
   after?: string;
   select?: Record<string, true>;
   include?: Record<string, true | VertzQLIncludeEntry>;
@@ -156,26 +155,25 @@ export function parseVertzQL(query: Record<string, string>): VertzQLOptions {
         if (decoded.include && typeof decoded.include === 'object') {
           result.include = decoded.include as Record<string, true | VertzQLIncludeEntry>;
         }
-        if (decoded.where && typeof decoded.where === 'object') {
+        if (decoded.where && typeof decoded.where === 'object' && !Array.isArray(decoded.where)) {
           result.where = { ...result.where, ...(decoded.where as Record<string, unknown>) };
         }
-        if (decoded.orderBy && typeof decoded.orderBy === 'object') {
-          result.orderBy = {
-            ...result.orderBy,
-            ...(decoded.orderBy as Record<string, 'asc' | 'desc'>),
-          };
+        if (
+          decoded.orderBy &&
+          typeof decoded.orderBy === 'object' &&
+          !Array.isArray(decoded.orderBy)
+        ) {
+          const orderByObj = decoded.orderBy as Record<string, unknown>;
+          const sanitized: Record<string, 'asc' | 'desc'> = {};
+          for (const [field, dir] of Object.entries(orderByObj)) {
+            sanitized[field] = dir === 'desc' ? 'desc' : 'asc';
+          }
+          result.orderBy = { ...result.orderBy, ...sanitized };
         }
         if (decoded.limit !== undefined) {
           const parsed = typeof decoded.limit === 'number' ? decoded.limit : Number(decoded.limit);
           if (!Number.isNaN(parsed)) {
             result.limit = Math.max(0, Math.min(parsed, MAX_LIMIT));
-          }
-        }
-        if (decoded.offset !== undefined) {
-          const parsed =
-            typeof decoded.offset === 'number' ? decoded.offset : Number(decoded.offset);
-          if (!Number.isNaN(parsed)) {
-            result.offset = Math.max(0, parsed);
           }
         }
       } catch {
