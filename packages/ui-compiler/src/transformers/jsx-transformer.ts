@@ -392,8 +392,12 @@ function transformChild(
       }
     }
 
-    // List patterns: keep gated by reactive flag (static arrays don't need reconciliation)
-    if (exprInfo?.reactive) {
+    // List patterns: always transform .map() to __list() regardless of reactivity.
+    // __list() handles static arrays gracefully (domEffect runs once, never re-fires).
+    // Gating by reactivity misses callback parameters from APIs like queryMatch(),
+    // where the parameter is a reactive proxy at runtime but opaque to the compiler.
+    // This matches __conditional(), which is also ungated.
+    {
       const listCode = tryTransformList(exprNode, reactiveNames, jsxMap, parentVar, source);
       if (listCode) {
         return listCode;

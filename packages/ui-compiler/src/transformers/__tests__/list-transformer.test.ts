@@ -53,8 +53,8 @@ function App() {
     });
   });
 
-  describe('static .map() - no transform', () => {
-    it('does NOT transform static array .map() to __list()', () => {
+  describe('static .map() — always uses __list()', () => {
+    it('transforms static array .map() to __list() (runtime handles static arrays gracefully)', () => {
       const result = compile(
         `
 function App() {
@@ -64,8 +64,10 @@ function App() {
         `.trim(),
       );
 
-      // Static arrays should not use __list
-      expect(result.code).not.toContain('__list(');
+      // __list() handles static arrays gracefully — domEffect runs once, never re-fires.
+      // Always transforming .map() ensures callback parameters from APIs like queryMatch()
+      // (reactive proxies at runtime but opaque to the compiler) get proper list reconciliation.
+      expect(result.code).toContain('__list(');
     });
   });
 
@@ -84,6 +86,40 @@ function App() {
       expect(result.code).toContain('UserCard(');
       // Key function should use user.id
       expect(result.code).toContain('user.id');
+    });
+  });
+
+  describe('.map() on callback parameters (queryMatch pattern)', () => {
+    it('transforms .map() on callback parameter inside function call to __list()', () => {
+      const result = compile(
+        `
+import { query, queryMatch } from '@vertz/ui';
+function App() {
+  const q = query(() => fetch('/api'));
+  return <div>{queryMatch(q, {
+    loading: () => <span>Loading</span>,
+    error: (e) => <span>Error</span>,
+    data: (response) => <ul>{response.items.map(item => <li key={item.id}>{item.name}</li>)}</ul>,
+  })}</div>;
+}
+        `.trim(),
+      );
+
+      expect(result.code).toContain('__list(');
+      expect(result.code).toContain('item.id');
+    });
+
+    it('transforms .map() on const array variable to __list()', () => {
+      const result = compile(
+        `
+function App() {
+  const navItems = [{ label: "Home" }, { label: "About" }];
+  return <nav>{navItems.map(item => <a key={item.label}>{item.label}</a>)}</nav>;
+}
+        `.trim(),
+      );
+
+      expect(result.code).toContain('__list(');
     });
   });
 
