@@ -1,5 +1,16 @@
 # @vertz/ui-primitives
 
+## 0.2.16
+
+### Patch Changes
+
+- [#1175](https://github.com/vertz-dev/vertz/pull/1175) [`7de4b67`](https://github.com/vertz-dev/vertz/commit/7de4b67985065450262fa6f5a3acdc6b269f177e) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix `sideEffects` metadata to declare shared chunks as side-effectful, eliminating `ignored-bare-import` warnings during tree-shaking. Add regression test that fails on these warnings.
+
+- [#1153](https://github.com/vertz-dev/vertz/pull/1153) [`9ea1dc0`](https://github.com/vertz-dev/vertz/commit/9ea1dc08a892918af7fbe5433293cf7c370f34f0) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Multi-entry build for better tree-shaking. Importing a single component (e.g. Tooltip) no longer pulls in all 30+ headless primitives. Single-import bundles drop from 100% to 16% of the full package.
+
+- Updated dependencies [[`97e9fc9`](https://github.com/vertz-dev/vertz/commit/97e9fc9a80548e2be111542513802269162f4136), [`d2f6baf`](https://github.com/vertz-dev/vertz/commit/d2f6baf560db958f56257879d5d69da200ed519d), [`24b81a2`](https://github.com/vertz-dev/vertz/commit/24b81a26f0064863c1e50cdd17c0fe0fc022f6ea), [`af0b64c`](https://github.com/vertz-dev/vertz/commit/af0b64c62480606cd9bb7ec9a25d7a4f0903d9cf), [`caf4647`](https://github.com/vertz-dev/vertz/commit/caf464741b53fdd65be1c558cf2330172f6d2feb), [`b061fc4`](https://github.com/vertz-dev/vertz/commit/b061fc4d04e851ae1ec6addd9342cec7b1a698f8), [`d44234d`](https://github.com/vertz-dev/vertz/commit/d44234de726d5dfa786103b3e5a311754753f08e), [`6c33552`](https://github.com/vertz-dev/vertz/commit/6c3355265cd072d2c5b3d41c3c60e76d75c6e21c), [`d0e9dc5`](https://github.com/vertz-dev/vertz/commit/d0e9dc5065fea630cd046ef55f279fe9fb400086), [`9f6f292`](https://github.com/vertz-dev/vertz/commit/9f6f292137d89064c1d86c2231e1f416fa1abd61), [`0f6d90a`](https://github.com/vertz-dev/vertz/commit/0f6d90adf785c52ff1e70187e3479941b2db896c), [`d8257a5`](https://github.com/vertz-dev/vertz/commit/d8257a5665704fa0f2c2e6646f3b5ab8c39c5cdc)]:
+  - @vertz/ui@0.2.16
+
 ## 0.2.15
 
 ### Patch Changes
