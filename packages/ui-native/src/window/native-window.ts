@@ -54,6 +54,8 @@ export interface NativeWindow {
   readonly width: number;
   /** Current window height in screen coordinates — use for layout and hit testing. */
   readonly height: number;
+  /** The native NSWindow pointer (macOS only — for Cocoa overlay controls). */
+  readonly nsWindow: number;
   /** Whether the window close was requested. */
   shouldClose(): boolean;
   /** Swap front/back buffers (present frame). */
@@ -139,6 +141,9 @@ export function createNativeWindow(options: NativeWindowOptions): NativeWindow {
   return {
     get handle() {
       return handle;
+    },
+    get nsWindow() {
+      return g.glfwGetCocoaWindow(handle) as number;
     },
     get framebufferWidth() {
       return getFramebufferSize().width;

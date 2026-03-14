@@ -83,4 +83,6 @@ export interface GLFWBindings {
   glfwGetCursorPos(window: number, xpos: Uint8Array, ypos: Uint8Array): void;
   glfwGetMouseButton(window: number, button: number): number;
   glfwGetKey(window: number, key: number): number;
+  /** Get the native NSWindow* (macOS only). Requires GLFW_EXPOSE_NATIVE_COCOA. */
+  glfwGetCocoaWindow(window: number): number;
 }

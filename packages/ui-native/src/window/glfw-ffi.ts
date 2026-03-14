@@ -83,6 +83,7 @@ export function loadGLFW(): GLFWBindings {
     },
     glfwGetMouseButton: { args: [ptrType, i32], returns: i32 },
     glfwGetKey: { args: [ptrType, i32], returns: i32 },
+    glfwGetCocoaWindow: { args: [ptrType], returns: ptrType },
   });
 
   return lib.symbols as unknown as GLFWBindings;
