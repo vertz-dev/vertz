@@ -426,6 +426,96 @@ describe('Feature: CRUD pipeline', () => {
     });
   });
 
+  // --- Expose select ---
+
+  describe('Given an entity with expose.select restricting to id and name', () => {
+    const def = entity('users', {
+      model: usersModel,
+      access: { list: () => true, get: () => true, create: () => true, update: () => true },
+      expose: {
+        select: { id: true, name: true },
+      },
+    });
+
+    describe('When listing records', () => {
+      it('Then response only contains fields from expose.select', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = unwrap(await handlers.list(ctx));
+
+        expect(result.body.items).toHaveLength(2);
+        for (const record of result.body.items) {
+          expect(Object.keys(record).sort()).toEqual(['id', 'name']);
+        }
+      });
+    });
+
+    describe('When getting a record', () => {
+      it('Then response only contains fields from expose.select', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = unwrap(await handlers.get(ctx, 'user-1'));
+
+        expect(Object.keys(result.body).sort()).toEqual(['id', 'name']);
+      });
+    });
+
+    describe('When creating a record', () => {
+      it('Then response only contains fields from expose.select', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = unwrap(
+          await handlers.create(ctx, { email: 'new@example.com', name: 'New' }),
+        );
+
+        expect(Object.keys(result.body).sort()).toEqual(['id', 'name']);
+      });
+    });
+
+    describe('When updating a record', () => {
+      it('Then response only contains fields from expose.select', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = unwrap(await handlers.update(ctx, 'user-1', { name: 'Updated' }));
+
+        expect(Object.keys(result.body).sort()).toEqual(['id', 'name']);
+      });
+    });
+  });
+
+  describe('Given an entity without expose config', () => {
+    const def = entity('users', {
+      model: usersModel,
+      access: { list: () => true },
+    });
+
+    describe('When listing records', () => {
+      it('Then response contains all non-hidden fields (backwards compatible)', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = unwrap(await handlers.list(ctx));
+
+        for (const record of result.body.items) {
+          // Should have all fields except hidden ones
+          expect(record).toHaveProperty('email');
+          expect(record).toHaveProperty('role');
+          expect(record).toHaveProperty('createdAt');
+          expect(record).not.toHaveProperty('passwordHash');
+        }
+      });
+    });
+  });
+
   // --- Pagination ---
 
   describe('Given an entity with open list access and 2 rows', () => {

@@ -16,7 +16,12 @@ import {
   type Result,
 } from '@vertz/errors';
 import { enforceAccess, extractWhereConditions } from './access-enforcer';
-import { narrowRelationFields, stripHiddenFields, stripReadOnlyFields } from './field-filter';
+import {
+  applySelect,
+  narrowRelationFields,
+  stripHiddenFields,
+  stripReadOnlyFields,
+} from './field-filter';
 import type { TenantChain } from './tenant-chain';
 import type { EntityContext, EntityDefinition, EntityRelationsConfig } from './types';
 
@@ -115,6 +120,19 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
   const tenantChain = options?.tenantChain ?? def.tenantChain ?? null;
   const isIndirectlyScoped = tenantChain !== null;
   const queryParentIds = options?.queryParentIds ?? null;
+  // Extract expose.select keys as a simple Record<string, true> for applySelect.
+  // Values may be AccessRule descriptors (evaluated in Phase 2), but applySelect only checks keys.
+  // Include relation keys from expose.include so they pass through applySelect.
+  const exposeSelect = def.expose?.select
+    ? {
+        ...(def.expose.select as Record<string, true>),
+        ...Object.fromEntries(
+          Object.entries(def.expose.include ?? {})
+            .filter(([, v]) => v !== false)
+            .map(([k]) => [k, true as const]),
+        ),
+      }
+    : undefined;
 
   /** Returns 404 error for the entity */
   function notFound(id: string) {
@@ -223,9 +241,12 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
       const include = options?.include;
       const { data: rows, total } = await db.list({ where, orderBy, limit, after, include });
       const data = rows.map((row) =>
-        narrowRelationFields(
-          (def.expose?.include ?? {}) as EntityRelationsConfig,
-          stripHiddenFields(table, row),
+        applySelect(
+          exposeSelect,
+          narrowRelationFields(
+            (def.expose?.include ?? {}) as EntityRelationsConfig,
+            stripHiddenFields(table, row),
+          ),
         ),
       ) as TModel['table']['$response'][];
 
@@ -260,9 +281,12 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
 
       return ok({
         status: 200,
-        body: narrowRelationFields(
-          (def.expose?.include ?? {}) as EntityRelationsConfig,
-          stripHiddenFields(table, row),
+        body: applySelect(
+          exposeSelect,
+          narrowRelationFields(
+            (def.expose?.include ?? {}) as EntityRelationsConfig,
+            stripHiddenFields(table, row),
+          ),
         ) as TModel['table']['$response'],
       });
     },
@@ -334,9 +358,12 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
 
       return ok({
         status: 201,
-        body: narrowRelationFields(
-          (def.expose?.include ?? {}) as EntityRelationsConfig,
-          strippedResult,
+        body: applySelect(
+          exposeSelect,
+          narrowRelationFields(
+            (def.expose?.include ?? {}) as EntityRelationsConfig,
+            strippedResult,
+          ),
         ) as TModel['table']['$response'],
       });
     },
@@ -377,9 +404,12 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
 
       return ok({
         status: 200,
-        body: narrowRelationFields(
-          (def.expose?.include ?? {}) as EntityRelationsConfig,
-          strippedResult,
+        body: applySelect(
+          exposeSelect,
+          narrowRelationFields(
+            (def.expose?.include ?? {}) as EntityRelationsConfig,
+            strippedResult,
+          ),
         ) as TModel['table']['$response'],
       });
     },

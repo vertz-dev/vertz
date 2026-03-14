@@ -1088,4 +1088,91 @@ describe('Feature: Include pass-through in route handlers (#1130)', () => {
       });
     });
   });
+
+  // --- Entity-level expose validation ---
+
+  describe('Given an entity with expose.allowWhere restricting filterable fields', () => {
+    const def = buildEntityDef({
+      expose: {
+        select: { id: true, name: true, email: true, role: true },
+        allowWhere: { role: true },
+        allowOrderBy: { name: true },
+      },
+    } as Partial<EntityDefinition>);
+
+    describe('When listing with a filter on a non-allowed field', () => {
+      it('Then returns 400 with "not filterable" error', async () => {
+        const db = createMockDb([
+          { id: 'u1', name: 'Alice', email: 'a@b.com', role: 'admin', passwordHash: 'h' },
+        ]);
+        const registry = new EntityRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+        const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
+
+        const resp = await listRoute!.handler({
+          userId: 'u1',
+          tenantId: null,
+          roles: [],
+          params: {},
+          body: {},
+          query: { 'where[email]': 'a@b.com' },
+          headers: {},
+        });
+        const body = await resp.json();
+
+        expect(resp.status).toBe(400);
+        expect(body.error.message).toContain('email');
+        expect(body.error.message).toContain('not filterable');
+      });
+    });
+
+    describe('When listing with a filter on an allowed field', () => {
+      it('Then returns 200', async () => {
+        const db = createMockDb([
+          { id: 'u1', name: 'Alice', email: 'a@b.com', role: 'admin', passwordHash: 'h' },
+        ]);
+        const registry = new EntityRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+        const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
+
+        const resp = await listRoute!.handler({
+          userId: 'u1',
+          tenantId: null,
+          roles: [],
+          params: {},
+          body: {},
+          query: { 'where[role]': 'admin' },
+          headers: {},
+        });
+
+        expect(resp.status).toBe(200);
+      });
+    });
+
+    describe('When sorting by a non-allowed field', () => {
+      it('Then returns 400 with "not sortable" error', async () => {
+        const db = createMockDb([
+          { id: 'u1', name: 'Alice', email: 'a@b.com', role: 'admin', passwordHash: 'h' },
+        ]);
+        const registry = new EntityRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+        const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
+
+        const resp = await listRoute!.handler({
+          userId: 'u1',
+          tenantId: null,
+          roles: [],
+          params: {},
+          body: {},
+          query: { orderBy: 'email:asc' },
+          headers: {},
+        });
+        const body = await resp.json();
+
+        expect(resp.status).toBe(400);
+        expect(body.error.message).toContain('email');
+        expect(body.error.message).toContain('not sortable');
+      });
+    });
+  });
 });

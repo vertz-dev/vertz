@@ -356,3 +356,134 @@ describe('entity() full expose integration', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// POC: allowWhere/allowOrderBy constrained to select keys (Unknown #1)
+// ---------------------------------------------------------------------------
+// This POC validates the fallback approach: allowWhere/allowOrderBy are typed
+// against PublicColumnKeys<TTable> (same as select). The constraint that
+// allowWhere keys ⊆ select keys is enforced at runtime by validateVertzQL().
+//
+// Adding a TSelect generic to entity() for compile-time enforcement was
+// explored but rejected: TypeScript infers literal object types well, but
+// the additional generic on the already-complex entity<TModel, TActions,
+// TInject>() signature hurts DX (tooltip noise, error messages). The runtime
+// validation catches mismatches with a clear error message, which is
+// sufficient for the pre-v1 stage.
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// POC: T | null typing for descriptor-guarded fields (SDK response type)
+// ---------------------------------------------------------------------------
+// When expose.select has a field set to an AccessRule descriptor instead of
+// `true`, the SDK response type should mark that field as T | null.
+// This POC demonstrates the type utility that achieves this.
+// ---------------------------------------------------------------------------
+
+describe('POC: descriptor-guarded field T | null typing', () => {
+  // Type utility: given a table type and an expose select config, produce
+  // a response type where AccessRule-guarded fields become T | null.
+  type ExposeResponseType<
+    TTable extends Record<string, unknown>,
+    TSelect extends Record<string, true | object>,
+  > = {
+    [K in keyof TSelect & keyof TTable]: TSelect[K] extends true ? TTable[K] : TTable[K] | null;
+  };
+
+  // Simulated table response type
+  type EmployeeRow = {
+    id: string;
+    name: string;
+    salary: number;
+    ssn: string;
+  };
+
+  it('fields with `true` retain their original type', () => {
+    type Select = { id: true; name: true; salary: { type: 'entitlement' }; ssn: { type: 'all' } };
+    type Response = ExposeResponseType<EmployeeRow, Select>;
+
+    const _check: Response['id'] = '' as string;
+    void _check;
+
+    const _check2: Response['name'] = '' as string;
+    void _check2;
+  });
+
+  it('fields with AccessRule become T | null', () => {
+    type Select = { id: true; salary: { type: 'entitlement' } };
+    type Response = ExposeResponseType<EmployeeRow, Select>;
+
+    // salary should be number | null
+    const _check: Response['salary'] = null;
+    void _check;
+
+    const _check2: Response['salary'] = 42;
+    void _check2;
+  });
+
+  it('fields with AccessRule cannot be assigned T directly without null', () => {
+    type Select = { id: true; salary: { type: 'entitlement' } };
+    type Response = ExposeResponseType<EmployeeRow, Select>;
+
+    // Verify the union works — assigning to a variable typed as just `number` should fail
+    // because the response type is `number | null`
+    type SalaryType = Response['salary'];
+    // number | null is NOT assignable to number
+    // @ts-expect-error — number | null is not assignable to number
+    const _narrow: number = {} as SalaryType;
+    void _narrow;
+  });
+});
+
+describe('POC: allowWhere/allowOrderBy field validity', () => {
+  it('allowWhere accepts fields from PublicColumnKeys', () => {
+    entity('posts', {
+      model: postsModel,
+      expose: {
+        select: { id: true, title: true, status: true },
+        allowWhere: { status: true },
+      },
+    });
+  });
+
+  it('allowWhere rejects hidden fields', () => {
+    entity('users', {
+      model: usersModel,
+      expose: {
+        select: { id: true, name: true },
+        allowWhere: {
+          name: true,
+          // @ts-expect-error — passwordHash is hidden, can't be in allowWhere
+          passwordHash: true,
+        },
+      },
+    });
+  });
+
+  it('allowWhere rejects non-existent fields', () => {
+    entity('users', {
+      model: usersModel,
+      expose: {
+        select: { id: true },
+        allowWhere: {
+          // @ts-expect-error — notAField does not exist on usersTable
+          notAField: true,
+        },
+      },
+    });
+  });
+
+  it('allowOrderBy rejects hidden fields', () => {
+    entity('users', {
+      model: usersModel,
+      expose: {
+        select: { id: true, name: true },
+        allowOrderBy: {
+          name: true,
+          // @ts-expect-error — passwordHash is hidden, can't be in allowOrderBy
+          passwordHash: true,
+        },
+      },
+    });
+  });
+});

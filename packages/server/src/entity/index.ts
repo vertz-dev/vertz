@@ -46,5 +46,10 @@ export type {
   TypedSelectOption,
   TypedWhereOption,
 } from './types';
-export type { ValidationResult, VertzQLIncludeEntry, VertzQLOptions } from './vertzql-parser';
+export type {
+  ExposeValidationConfig,
+  ValidationResult,
+  VertzQLIncludeEntry,
+  VertzQLOptions,
+} from './vertzql-parser';
 export { MAX_LIMIT, parseVertzQL, validateVertzQL } from './vertzql-parser';

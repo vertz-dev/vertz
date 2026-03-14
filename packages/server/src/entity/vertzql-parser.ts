@@ -199,10 +199,21 @@ function getHiddenColumns(table: TableDef): Set<string> {
  * - Includes for relations not exposed in entity config
  * - Over-wide field selections on includes beyond entity config restrictions
  */
+/**
+ * Entity-level expose config for validation.
+ * Subset of ExposeConfig relevant to VertzQL validation.
+ */
+export interface ExposeValidationConfig {
+  readonly select?: Record<string, unknown>;
+  readonly allowWhere?: Record<string, unknown>;
+  readonly allowOrderBy?: Record<string, unknown>;
+}
+
 export function validateVertzQL(
   options: VertzQLOptions,
   table: TableDef,
   relationsConfig?: EntityRelationsConfig,
+  exposeConfig?: ExposeValidationConfig,
 ): ValidationResult {
   // Surface q= parse errors
   if (options._qError) {
@@ -213,8 +224,13 @@ export function validateVertzQL(
 
   // Validate where fields
   if (options.where) {
+    const allowWhereKeys = exposeConfig ? extractAllowKeys(exposeConfig.allowWhere) : null;
     for (const field of Object.keys(options.where)) {
       if (hiddenColumns.has(field)) {
+        return { ok: false, error: `Field "${field}" is not filterable` };
+      }
+      // Entity-level allowWhere check
+      if (allowWhereKeys !== null && !allowWhereKeys.includes(field)) {
         return { ok: false, error: `Field "${field}" is not filterable` };
       }
     }
@@ -222,8 +238,13 @@ export function validateVertzQL(
 
   // Validate orderBy fields
   if (options.orderBy) {
+    const allowOrderByKeys = exposeConfig ? extractAllowKeys(exposeConfig.allowOrderBy) : null;
     for (const field of Object.keys(options.orderBy)) {
       if (hiddenColumns.has(field)) {
+        return { ok: false, error: `Field "${field}" is not sortable` };
+      }
+      // Entity-level allowOrderBy check
+      if (allowOrderByKeys !== null && !allowOrderByKeys.includes(field)) {
         return { ok: false, error: `Field "${field}" is not sortable` };
       }
     }
@@ -231,8 +252,17 @@ export function validateVertzQL(
 
   // Validate select fields
   if (options.select) {
+    const exposeSelectKeys = exposeConfig ? extractAllowKeys(exposeConfig.select) : null;
     for (const field of Object.keys(options.select)) {
       if (hiddenColumns.has(field)) {
+        return { ok: false, error: `Field "${field}" is not selectable` };
+      }
+      // Entity-level select check
+      if (
+        exposeSelectKeys !== null &&
+        exposeSelectKeys.length > 0 &&
+        !exposeSelectKeys.includes(field)
+      ) {
         return { ok: false, error: `Field "${field}" is not selectable` };
       }
     }

@@ -364,7 +364,30 @@ Since we're pre-v1 with no external users, this is a clean breaking change — n
 
 ## POC Results
 
-N/A — to be done in Phase 1.
+### Unknown #1: `allowWhere` keys ⊆ `select` keys — generic inference
+
+**Question**: Can TypeScript infer a `TSelect` generic from the `expose.select` object to constrain `allowWhere`/`allowOrderBy` keys at compile time?
+
+**Explored**: Adding a `TSelect` generic to `entity<TModel, TActions, TInject, TSelect>()`. TypeScript CAN infer literal object types from inline objects, but the additional generic on the already-complex signature hurts DX (tooltip noise, longer error messages).
+
+**Decision**: Fallback approach adopted. `allowWhere`/`allowOrderBy` are typed against `PublicColumnKeys<TTable>` (same as `select`) — this catches hidden fields and non-existent fields at compile time. The subset constraint (`allowWhere` keys must be in `select` keys) is enforced at runtime by `validateVertzQL()`, which returns a clear error message. This is sufficient for pre-v1.
+
+**Tests**: `expose-types.test-d.ts` — "POC: allowWhere/allowOrderBy field validity" section. Confirms hidden fields and non-existent fields are rejected at the type level.
+
+### Unknown #2: `T | null` typing for descriptor-guarded fields
+
+**Question**: Can we produce an SDK response type where AccessRule-guarded fields become `T | null`?
+
+**Explored**: Type utility `ExposeResponseType<TTable, TSelect>` using conditional mapped types:
+```ts
+type ExposeResponseType<TTable, TSelect> = {
+  [K in keyof TSelect & keyof TTable]: TSelect[K] extends true ? TTable[K] : TTable[K] | null;
+};
+```
+
+**Result**: Works perfectly. Fields with `true` retain their original type. Fields with any object value (AccessRule descriptors) get `T | null`. The conditional `extends true` correctly distinguishes between `true` (literal) and object types.
+
+**Tests**: `expose-types.test-d.ts` — "POC: descriptor-guarded field T | null typing" section. Verifies both directions (assignment to `T | null`, rejection of narrow `T` assignment).
 
 ## Type Flow Map
 

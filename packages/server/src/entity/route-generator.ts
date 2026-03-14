@@ -8,7 +8,12 @@ import { entityErrorHandler } from './error-handler';
 import { applySelect } from './field-filter';
 import type { TenantChain } from './tenant-chain';
 import type { EntityDefinition, EntityRelationsConfig } from './types';
-import { parseVertzQL, type VertzQLIncludeEntry, validateVertzQL } from './vertzql-parser';
+import {
+  type ExposeValidationConfig,
+  parseVertzQL,
+  type VertzQLIncludeEntry,
+  validateVertzQL,
+} from './vertzql-parser';
 
 // ---------------------------------------------------------------------------
 // Options
@@ -77,6 +82,13 @@ export function generateEntityRoutes(
   const prefix = options?.apiPrefix ?? '/api';
   const basePath = `${prefix}/${def.name}`;
   const tenantChain = options?.tenantChain ?? null;
+  const exposeValidation: ExposeValidationConfig | undefined = def.expose
+    ? {
+        select: def.expose.select as Record<string, unknown> | undefined,
+        allowWhere: def.expose.allowWhere as Record<string, unknown> | undefined,
+        allowOrderBy: def.expose.allowOrderBy as Record<string, unknown> | undefined,
+      }
+    : undefined;
 
   const crudHandlers = createCrudHandlers(def, db, {
     tenantChain,
@@ -126,7 +138,12 @@ export function generateEntityRoutes(
 
             // Validate against entity schema and relations config
             const relationsConfig = (def.expose?.include ?? {}) as EntityRelationsConfig;
-            const validation = validateVertzQL(parsed, def.model.table, relationsConfig);
+            const validation = validateVertzQL(
+              parsed,
+              def.model.table,
+              relationsConfig,
+              exposeValidation,
+            );
             if (!validation.ok) {
               return jsonResponse(
                 { error: { code: 'BadRequest', message: validation.error } },
@@ -248,7 +265,12 @@ export function generateEntityRoutes(
 
             // Validate select/include
             const relationsConfig = (def.expose?.include ?? {}) as EntityRelationsConfig;
-            const validation = validateVertzQL(parsed, def.model.table, relationsConfig);
+            const validation = validateVertzQL(
+              parsed,
+              def.model.table,
+              relationsConfig,
+              exposeValidation,
+            );
             if (!validation.ok) {
               return jsonResponse(
                 { error: { code: 'BadRequest', message: validation.error } },
