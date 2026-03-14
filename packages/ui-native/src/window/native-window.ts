@@ -46,9 +46,9 @@ export interface NativeWindowOptions {
 export interface NativeWindow {
   /** The raw GLFW window pointer (for advanced FFI usage). */
   readonly handle: number;
-  /** Window width in pixels. */
+  /** Current framebuffer width in pixels (updates on resize). */
   readonly width: number;
-  /** Window height in pixels. */
+  /** Current framebuffer height in pixels (updates on resize). */
   readonly height: number;
   /** Whether the window close was requested. */
   shouldClose(): boolean;
@@ -94,26 +94,41 @@ export function createNativeWindow(options: NativeWindowOptions): NativeWindow {
   glfw.glfwWindowHint(GLFW_VISIBLE, options.visible !== false ? GLFW_TRUE : GLFW_FALSE);
 
   const titleBuf = toCString(options.title);
-  const handle = glfw.glfwCreateWindow(options.width, options.height, titleBuf, null, null);
+  const maybeHandle = glfw.glfwCreateWindow(options.width, options.height, titleBuf, null, null);
 
-  if (!handle) {
+  if (!maybeHandle) {
     glfw.glfwTerminate();
     throw new Error('Failed to create GLFW window');
   }
 
+  const handle: number = maybeHandle;
   const g = glfw;
   g.glfwMakeContextCurrent(handle);
   g.glfwSwapInterval(1); // VSync
+
+  // Buffers for reading framebuffer size via FFI (reused each call)
+  const widthBuf = new Uint8Array(4);
+  const heightBuf = new Uint8Array(4);
+  const widthView = new DataView(widthBuf.buffer);
+  const heightView = new DataView(heightBuf.buffer);
+
+  function getFramebufferSize(): { width: number; height: number } {
+    g.glfwGetFramebufferSize(handle, widthBuf, heightBuf);
+    return {
+      width: widthView.getInt32(0, true),
+      height: heightView.getInt32(0, true),
+    };
+  }
 
   return {
     get handle() {
       return handle;
     },
     get width() {
-      return options.width;
+      return getFramebufferSize().width;
     },
     get height() {
-      return options.height;
+      return getFramebufferSize().height;
     },
     shouldClose() {
       return g.glfwWindowShouldClose(handle) !== 0;

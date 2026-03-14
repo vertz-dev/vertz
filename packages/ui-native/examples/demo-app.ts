@@ -107,14 +107,18 @@ console.log('Close the window to exit');
 let logged = false;
 
 win.runLoop(() => {
-  const commands = collectDrawCommands(root, WIDTH, HEIGHT);
+  // Read current framebuffer size (changes on resize)
+  const w = win.width;
+  const h = win.height;
+
+  const commands = collectDrawCommands(root, w, h);
   const rects = commands.filter((c) => c.type === 'rect' && c.color !== 'transparent');
 
   gl.glClearColor(0.1, 0.1, 0.18, 1.0);
   gl.glClear(GL_COLOR_BUFFER_BIT);
-  gl.glViewport(0, 0, WIDTH, HEIGHT);
+  gl.glViewport(0, 0, w, h);
 
-  renderer.renderRects(rects as import('../src/render/renderer').RectCommand[], WIDTH, HEIGHT);
+  renderer.renderRects(rects as import('../src/render/renderer').RectCommand[], w, h);
 
   if (!logged) {
     console.log(`Rendering ${rects.length} rectangles, ${commands.length} total commands`);
