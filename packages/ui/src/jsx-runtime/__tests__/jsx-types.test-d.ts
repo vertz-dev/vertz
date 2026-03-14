@@ -44,3 +44,36 @@ void (jsx(Fragment, { children: 'test' }) satisfies DocumentFragment);
 
 // Test jsxDEV
 void (jsxDEV('div', {}) satisfies HTMLDivElement);
+
+// --- Category A: Components that should be usable as JSX ---
+
+// Outlet returns HTMLElement
+import { Outlet } from '../../router/outlet';
+
+void (jsx(Outlet, {}) satisfies HTMLElement);
+
+// NOTE: OAuthButton, Avatar, ProtectedRoute, AuthGate, AccessGate, UserName, UserAvatar
+// have moved to @vertz/ui-auth. Type tests for those live in packages/ui-auth/.
+
+// --- Category C: Transparent return wrappers ---
+
+// Suspense returns HTMLElement | SVGElement | DocumentFragment (JSX.Element)
+import { Suspense } from '../../component/suspense';
+
+void jsx(Suspense, {
+  children: () => jsx('div', {}),
+  fallback: () => jsx('div', {}),
+});
+
+// ErrorBoundary returns HTMLElement | SVGElement | DocumentFragment (JSX.Element)
+import { ErrorBoundary } from '../../component/error-boundary';
+
+void jsx(ErrorBoundary, {
+  children: () => jsx('div', {}),
+  fallback: (_e: Error, _r: () => void) => jsx('div', {}),
+});
+
+// --- Negative tests: components returning wrong types should NOT compile ---
+
+// @ts-expect-error — component returning string is not a valid JSX component
+void jsx((_props: Record<string, unknown>) => 'hello', {});

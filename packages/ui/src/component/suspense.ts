@@ -1,11 +1,14 @@
 import { type AsyncErrorHandler, getCurrentErrorHandler } from './error-boundary-context';
 
+/** DOM element types accepted by JSX (mirrors JSX.Element). */
+type JsxElement = HTMLElement | SVGElement | DocumentFragment;
+
 /** Props for the Suspense component. */
 export interface SuspenseProps {
   /** Function that returns the children to render (may throw a Promise). */
-  children: () => Node;
+  children: () => JsxElement;
   /** Fallback renderer shown while children are pending. */
-  fallback: () => Node;
+  fallback: () => JsxElement;
 }
 
 /**
@@ -35,7 +38,7 @@ function toError(value: unknown): Error {
  */
 function propagateError(
   error: Error,
-  placeholder: Node,
+  placeholder: JsxElement,
   errorHandler: AsyncErrorHandler | undefined,
 ): void {
   if (errorHandler) {
@@ -58,7 +61,7 @@ function propagateError(
  * to the nearest ErrorBoundary. If no ErrorBoundary exists, the error is surfaced
  * globally via queueMicrotask to avoid silent swallowing.
  */
-export function Suspense(props: SuspenseProps): Node {
+export function Suspense(props: SuspenseProps): JsxElement {
   // Capture the nearest ErrorBoundary's handler at creation time
   const errorHandler = getCurrentErrorHandler();
 

@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'bun:test';
-import type { ReadonlySignal } from '@vertz/ui';
 import { computed, signal } from '@vertz/ui';
 import type { AuthClientError, AuthContextValue, AuthStatus, User } from '@vertz/ui/auth';
 import { AuthContext } from '@vertz/ui/auth';
@@ -43,48 +42,45 @@ describe('UserName', () => {
       role: 'user',
       name: 'Jane Doe',
     });
-    let result: unknown;
+    let wrapper: HTMLElement | undefined;
 
     AuthContext.Provider({
       value: ctx,
       children: () => {
-        result = UserName({});
+        wrapper = UserName({});
       },
     });
 
-    const el = (result as ReadonlySignal<Element>).value;
-    expect(el.tagName).toBe('SPAN');
-    expect(el.textContent).toBe('Jane Doe');
+    // __child wrapper contains a <span> with the name
+    expect(wrapper?.textContent).toBe('Jane Doe');
   });
 
   it('renders email as fallback when no name', () => {
     const { ctx } = mockAuthContext({ id: '1', email: 'jane@example.com', role: 'user' });
-    let result: unknown;
+    let wrapper: HTMLElement | undefined;
 
     AuthContext.Provider({
       value: ctx,
       children: () => {
-        result = UserName({});
+        wrapper = UserName({});
       },
     });
 
-    const el = (result as ReadonlySignal<Element>).value;
-    expect(el.textContent).toBe('jane@example.com');
+    expect(wrapper?.textContent).toBe('jane@example.com');
   });
 
   it('uses custom fallback when no name or email', () => {
     const { ctx } = mockAuthContext({ id: '1', email: '', role: 'user' });
-    let result: unknown;
+    let wrapper: HTMLElement | undefined;
 
     AuthContext.Provider({
       value: ctx,
       children: () => {
-        result = UserName({ fallback: '—' });
+        wrapper = UserName({ fallback: '—' });
       },
     });
 
-    const el = (result as ReadonlySignal<Element>).value;
-    expect(el.textContent).toBe('—');
+    expect(wrapper?.textContent).toBe('—');
   });
 
   it('updates reactively when auth user changes', () => {
@@ -94,30 +90,29 @@ describe('UserName', () => {
       role: 'user',
       name: 'Jane Doe',
     });
-    let result: unknown;
+    let wrapper: HTMLElement | undefined;
 
     AuthContext.Provider({
       value: ctx,
       children: () => {
-        result = UserName({});
+        wrapper = UserName({});
       },
     });
 
-    const sig = result as ReadonlySignal<Element>;
-    expect(sig.value.textContent).toBe('Jane Doe');
+    expect(wrapper?.textContent).toBe('Jane Doe');
 
     userSignal.value = { id: '1', email: 'bob@example.com', role: 'user', name: 'Bob Smith' };
-    expect(sig.value.textContent).toBe('Bob Smith');
+    expect(wrapper?.textContent).toBe('Bob Smith');
   });
 
-  it('uses provided user instead of auth context (static, no computed)', () => {
+  it('uses provided user instead of auth context (static, no __child)', () => {
     const overrideUser: User = {
       id: '2',
       email: 'bob@example.com',
       role: 'user',
       name: 'Bob Smith',
     };
-    const el = UserName({ user: overrideUser }) as Element;
+    const el = UserName({ user: overrideUser });
 
     expect(el.tagName).toBe('SPAN');
     expect(el.textContent).toBe('Bob Smith');
@@ -131,8 +126,22 @@ describe('UserName', () => {
 
   it('applies custom class to span', () => {
     const overrideUser: User = { id: '1', email: 'jane@example.com', role: 'user', name: 'Jane' };
-    const el = UserName({ user: overrideUser, class: 'custom-name' }) as Element;
+    const el = UserName({ user: overrideUser, class: 'custom-name' });
 
     expect(el.getAttribute('class')).toBe('custom-name');
+  });
+
+  it('renders fallback when auth user is null (logged out)', () => {
+    const { ctx } = mockAuthContext(null);
+    let wrapper: HTMLElement | undefined;
+
+    AuthContext.Provider({
+      value: ctx,
+      children: () => {
+        wrapper = UserName({ fallback: 'Guest' });
+      },
+    });
+
+    expect(wrapper?.textContent).toBe('Guest');
   });
 });

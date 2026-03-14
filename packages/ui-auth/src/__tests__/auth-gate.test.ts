@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'bun:test';
-import type { ReadonlySignal } from '@vertz/ui';
 import { computed, signal } from '@vertz/ui';
 import type { AuthClientError, AuthContextValue, AuthStatus } from '@vertz/ui/auth';
 import { AuthContext } from '@vertz/ui/auth';
@@ -38,97 +37,112 @@ function mockAuthContext(status: AuthStatus) {
 describe('AuthGate', () => {
   it('renders fallback when status is idle', () => {
     const { ctx } = mockAuthContext('idle');
-    let rendered: string | undefined;
+    let wrapper: HTMLElement | undefined;
 
     AuthContext.Provider({
       value: ctx,
       children: () => {
-        const result = AuthGate({
+        wrapper = AuthGate({
           fallback: () => 'loading-fallback',
           children: () => 'main-content',
         });
-        rendered = (result as ReadonlySignal<unknown>).value as string;
       },
     });
 
-    expect(rendered).toBe('loading-fallback');
+    expect(wrapper?.textContent).toBe('loading-fallback');
   });
 
   it('renders fallback when status is loading', () => {
     const { ctx } = mockAuthContext('loading');
-    let rendered: string | undefined;
+    let wrapper: HTMLElement | undefined;
 
     AuthContext.Provider({
       value: ctx,
       children: () => {
-        const result = AuthGate({
+        wrapper = AuthGate({
           fallback: () => 'loading-fallback',
           children: () => 'main-content',
         });
-        rendered = (result as ReadonlySignal<unknown>).value as string;
       },
     });
 
-    expect(rendered).toBe('loading-fallback');
+    expect(wrapper?.textContent).toBe('loading-fallback');
   });
 
   it('renders children when status is authenticated', () => {
     const { ctx } = mockAuthContext('authenticated');
-    let rendered: string | undefined;
+    let wrapper: HTMLElement | undefined;
 
     AuthContext.Provider({
       value: ctx,
       children: () => {
-        const result = AuthGate({
+        wrapper = AuthGate({
           fallback: () => 'loading-fallback',
           children: () => 'main-content',
         });
-        rendered = (result as ReadonlySignal<unknown>).value as string;
       },
     });
 
-    expect(rendered).toBe('main-content');
+    expect(wrapper?.textContent).toBe('main-content');
   });
 
   it('renders children when status is unauthenticated', () => {
     const { ctx } = mockAuthContext('unauthenticated');
-    let rendered: string | undefined;
+    let wrapper: HTMLElement | undefined;
 
     AuthContext.Provider({
       value: ctx,
       children: () => {
-        const result = AuthGate({
+        wrapper = AuthGate({
           fallback: () => 'loading-fallback',
           children: () => 'main-content',
         });
-        rendered = (result as ReadonlySignal<unknown>).value as string;
       },
     });
 
-    expect(rendered).toBe('main-content');
+    expect(wrapper?.textContent).toBe('main-content');
   });
 
-  it('renders null fallback when no fallback provided and auth is loading', () => {
-    const { ctx } = mockAuthContext('loading');
-    let rendered: unknown;
+  it('renders children when status is error', () => {
+    const { ctx } = mockAuthContext('error');
+    let wrapper: HTMLElement | undefined;
 
     AuthContext.Provider({
       value: ctx,
       children: () => {
-        const result = AuthGate({ children: () => 'main-content' });
-        rendered = (result as ReadonlySignal<unknown>).value;
+        wrapper = AuthGate({
+          fallback: () => 'loading-fallback',
+          children: () => 'main-content',
+        });
       },
     });
 
-    expect(rendered).toBeNull();
+    expect(wrapper?.textContent).toBe('main-content');
+  });
+
+  it('renders empty when no fallback provided and auth is loading', () => {
+    const { ctx } = mockAuthContext('loading');
+    let wrapper: HTMLElement | undefined;
+
+    AuthContext.Provider({
+      value: ctx,
+      children: () => {
+        wrapper = AuthGate({
+          children: () => 'main-content',
+        });
+      },
+    });
+
+    expect(wrapper?.textContent).toBe('');
   });
 
   it('renders children without provider (fail-open)', () => {
-    const result = AuthGate({
+    const wrapper = AuthGate({
       fallback: () => 'loading-fallback',
       children: () => 'main-content',
     });
 
-    expect(result).toBe('main-content');
+    // Without provider, should fail-open and render children via __child wrapper
+    expect(wrapper.textContent).toBe('main-content');
   });
 });

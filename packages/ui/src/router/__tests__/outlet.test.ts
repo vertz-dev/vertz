@@ -8,9 +8,11 @@ import { Outlet, OutletContext } from '../outlet';
 const mockRouter = { current: signal(null) } as unknown as Router;
 
 describe('Outlet', () => {
-  test('returns empty comment when no OutletContext', () => {
+  test('returns empty element when no OutletContext', () => {
     const result = Outlet();
-    expect(result.nodeType).toBe(Node.COMMENT_NODE);
+    expect(result.nodeType).toBe(Node.ELEMENT_NODE);
+    expect((result as HTMLElement).style.display).toBe('contents');
+    expect(result.childNodes.length).toBe(0);
   });
 
   test('renders child component from context', () => {

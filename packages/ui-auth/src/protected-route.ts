@@ -2,7 +2,7 @@ import type { ReadonlySignal } from '@vertz/ui';
 import { computed, useContext } from '@vertz/ui';
 import type { Entitlement } from '@vertz/ui/auth';
 import { AuthContext, can } from '@vertz/ui/auth';
-import { domEffect, getSSRContext, isBrowser } from '@vertz/ui/internals';
+import { __child, domEffect, getSSRContext, isBrowser } from '@vertz/ui/internals';
 import { RouterContext } from '@vertz/ui/router';
 
 export interface ProtectedRouteProps {
@@ -24,14 +24,14 @@ export function ProtectedRoute({
   requires,
   forbidden,
   returnTo = true,
-}: ProtectedRouteProps): ReadonlySignal<unknown> | unknown {
+}: ProtectedRouteProps): HTMLElement {
   const ctx = useContext(AuthContext);
 
   if (!ctx) {
     if (__DEV__) {
       console.warn('ProtectedRoute used without AuthProvider — rendering children unprotected');
     }
-    return typeof children === 'function' ? children() : children;
+    return __child(() => (typeof children === 'function' ? children() : children));
   }
 
   const router = useContext(RouterContext);
@@ -74,7 +74,7 @@ export function ProtectedRoute({
     });
   }
 
-  return computed(() => {
+  return __child(() => {
     if (!isResolved.value) {
       return fallback ? fallback() : null;
     }
