@@ -202,15 +202,34 @@ export function adaptIR(appIR: AppIR): CodegenIR {
         entityResponseFields = entityResponseFields.filter(
           (f) => exposedNames.has(f.name) && !hiddenNames.has(f.name),
         );
+
+        // Also update per-operation responseFields so types generator uses filtered fields
+        for (const op of operations) {
+          if (op.responseFields) {
+            op.responseFields = op.responseFields.filter(
+              (f) => exposedNames.has(f.name) && !hiddenNames.has(f.name),
+            );
+          }
+        }
       }
 
       // Resolve expose.include relations
       if (entity.expose.include && entity.expose.include.length > 0) {
+        // Build lookup from entity.relations to resolve entity/type for expose.include entries
+        const relationsLookup = new Map(
+          entity.relations
+            .filter((r) => r.type && r.entity)
+            .map((r) => [r.name, { type: r.type as 'one' | 'many', entity: r.entity as string }]),
+        );
+
         const resolved: CodegenExposeRelation[] = [];
         for (const rel of entity.expose.include) {
-          if (!rel.entity || !rel.type) continue;
+          // Resolve entity and type from the relations array if not set on the expose IR
+          const relEntity = rel.entity ?? relationsLookup.get(rel.name)?.entity;
+          const relType = rel.type ?? relationsLookup.get(rel.name)?.type;
+          if (!relEntity || !relType) continue;
 
-          const targetFields = entityResponseFieldsMap.get(rel.entity);
+          const targetFields = entityResponseFieldsMap.get(relEntity);
           let resolvedFields: CodegenResolvedField[] | undefined;
 
           if (targetFields && rel.select) {
@@ -222,8 +241,8 @@ export function adaptIR(appIR: AppIR): CodegenIR {
 
           resolved.push({
             name: rel.name,
-            entity: rel.entity,
-            type: rel.type,
+            entity: relEntity,
+            type: relType,
             ...(rel.select
               ? { select: rel.select.map((f) => ({ name: f.name, conditional: f.conditional })) }
               : {}),

@@ -95,11 +95,8 @@ export class EntityTypesGenerator implements Generator {
       }
 
       if (action.outputSchema && !emitted.has(action.outputSchema)) {
-        const outputType = this.emitResponseType(
-          action.outputSchema,
-          action.resolvedOutputFields,
-          entity,
-        );
+        // Action output types don't get expose logic (T|null, relations) — those are entity-specific
+        const outputType = this.emitBodyType(action.outputSchema, action.resolvedOutputFields);
         if (outputType) {
           lines.push(outputType);
           lines.push('');
