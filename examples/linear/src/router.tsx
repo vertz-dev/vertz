@@ -52,6 +52,9 @@ export const routes = defineRoutes({
           '/': {
             component: () => IssueListPage(),
           },
+          '/issues/:issueId': {
+            component: () => <div>Issue detail — coming in Phase 3</div>,
+          },
         },
       },
     },

@@ -69,6 +69,12 @@ export function IssueListPage() {
         </div>
       )}
 
+      {!issues.loading && filtered && filtered.length === 0 && issues.data?.items.length !== 0 && (
+        <div class={styles.empty}>
+          <p class={styles.emptyDescription}>No issues match the selected filter.</p>
+        </div>
+      )}
+
       {filtered && filtered.length > 0 && (
         <div class={styles.list}>
           {filtered.map((issue) => (

@@ -1,7 +1,7 @@
 import type { FormSchema } from '@vertz/ui';
 import { css, form } from '@vertz/ui';
 import { issueApi } from '../api/client';
-import type { CreateIssueBody } from '../lib/types';
+import type { CreateIssueBody, IssuePriority, IssueStatus } from '../lib/types';
 
 const styles = css({
   overlay: ['fixed', 'inset:0', 'bg:black/50', 'flex', 'items:center', 'justify:center', 'z:50'],
@@ -65,6 +65,9 @@ const styles = css({
   ],
 });
 
+const VALID_STATUSES: IssueStatus[] = ['backlog', 'todo', 'in_progress', 'done', 'cancelled'];
+const VALID_PRIORITIES: IssuePriority[] = ['urgent', 'high', 'medium', 'low', 'none'];
+
 const createIssueSchema: FormSchema<CreateIssueBody> = {
   parse(data: unknown) {
     if (typeof data !== 'object' || data === null) {
@@ -75,6 +78,16 @@ const createIssueSchema: FormSchema<CreateIssueBody> = {
 
     if (!obj.title || typeof obj.title !== 'string' || obj.title.trim().length === 0) {
       errors.title = 'Title is required';
+    }
+
+    const status = (obj.status as string) || 'backlog';
+    if (!VALID_STATUSES.includes(status as IssueStatus)) {
+      errors.status = 'Invalid status';
+    }
+
+    const priority = (obj.priority as string) || 'none';
+    if (!VALID_PRIORITIES.includes(priority as IssuePriority)) {
+      errors.priority = 'Invalid priority';
     }
 
     if (Object.keys(errors).length > 0) {
@@ -89,9 +102,9 @@ const createIssueSchema: FormSchema<CreateIssueBody> = {
         projectId: obj.projectId as string,
         title: (obj.title as string).trim(),
         description: obj.description ? String(obj.description).trim() : undefined,
-        status: (obj.status as string) || undefined,
-        priority: (obj.priority as string) || undefined,
-      } as CreateIssueBody,
+        status: status as IssueStatus,
+        priority: priority as IssuePriority,
+      },
     };
   },
 };
