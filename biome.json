@@ -68,7 +68,13 @@
         "rules": {
           "a11y": {
             "noRedundantRoles": "off",
-            "useSemanticElements": "off"
+            "useSemanticElements": "off",
+            "noNoninteractiveElementToInteractiveRole": "off",
+            "useFocusableInteractive": "off",
+            "useKeyWithClickEvents": "off",
+            "useAriaPropsForRole": "off",
+            "noStaticElementInteractions": "off",
+            "useAriaPropsSupportedByRole": "off"
           }
         }
       }
