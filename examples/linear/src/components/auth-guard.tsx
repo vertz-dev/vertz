@@ -5,20 +5,18 @@
  * This component only handles the authenticated layout.
  */
 
-import { css, Outlet } from '@vertz/ui';
+import { css, Link, Outlet, query } from '@vertz/ui';
 import { useAuth } from '@vertz/ui/auth';
-
-/**
- * WorkspaceShell — sidebar layout for authenticated pages.
- */
+import { projectApi } from '../api/client';
 
 const sidebarStyles = css({
   shell: ['flex', 'min-h:screen', 'bg:background'],
   sidebar: ['w:56', 'bg:card', 'border-r:1', 'border:border', 'p:4', 'flex', 'flex-col'],
-  main: ['flex-1', 'p:6'],
+  main: ['flex-1'],
   brand: ['font:lg', 'font:bold', 'text:foreground', 'mb:6'],
   nav: ['flex', 'flex-col', 'gap:1', 'mb:auto'],
   navItem: ['text:sm', 'text:muted-foreground', 'py:1'],
+  projectLink: ['text:sm', 'text:muted-foreground', 'py:1', 'pl:3', 'truncate'],
   userSection: ['mt:auto', 'pt:4', 'border-t:1', 'border:border', 'flex', 'items:center', 'gap:2'],
   avatar: ['w:8', 'h:8', 'rounded:full'],
   userName: ['text:sm', 'font:medium', 'text:foreground', 'flex-1'],
@@ -34,6 +32,7 @@ const sidebarStyles = css({
 
 export function WorkspaceShell() {
   const auth = useAuth();
+  const projects = query(projectApi.list());
 
   const handleSignOut = async () => {
     await auth.signOut({ redirectTo: '/login' });
@@ -44,7 +43,18 @@ export function WorkspaceShell() {
       <aside class={sidebarStyles.sidebar} data-testid="sidebar">
         <div class={sidebarStyles.brand}>Linear Clone</div>
         <nav class={sidebarStyles.nav}>
-          <div class={sidebarStyles.navItem}>Projects</div>
+          <Link href="/projects" className={sidebarStyles.navItem}>
+            Projects
+          </Link>
+          {projects.data?.items.map((project) => (
+            <Link
+              href={`/projects/${project.id}`}
+              className={sidebarStyles.projectLink}
+              key={project.id}
+            >
+              {`${project.key} — ${project.name}`}
+            </Link>
+          ))}
         </nav>
         <div class={sidebarStyles.userSection}>
           {auth.user?.avatarUrl && (

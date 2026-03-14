@@ -10,7 +10,23 @@ export const usersTable = d.table('users', {
   email: d.text().unique(),
   avatarUrl: d.text().nullable(),
   createdAt: d.timestamp().default('now').readOnly(),
-  updatedAt: d.timestamp().autoUpdate().readOnly(),
+  updatedAt: d.timestamp().autoUpdate(),
 });
 
 export const usersModel = d.model(usersTable);
+
+// ---------------------------------------------------------------------------
+// Projects
+// ---------------------------------------------------------------------------
+
+export const projectsTable = d.table('projects', {
+  id: d.uuid().primary({ generate: 'uuid' }),
+  name: d.text(),
+  key: d.text().unique(),
+  description: d.text().nullable(),
+  createdBy: d.text().default(''),
+  createdAt: d.timestamp().default('now').readOnly(),
+  updatedAt: d.timestamp().autoUpdate(),
+});
+
+export const projectsModel = d.model(projectsTable);

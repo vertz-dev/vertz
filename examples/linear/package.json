@@ -10,6 +10,7 @@
   "dependencies": {
     "@vertz/db": "workspace:*",
     "@vertz/errors": "workspace:*",
+    "@vertz/fetch": "workspace:*",
     "@vertz/schema": "workspace:*",
     "@vertz/server": "workspace:*",
     "@vertz/theme-shadcn": "workspace:*",
