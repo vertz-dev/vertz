@@ -116,6 +116,9 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
     // Post-processing: resolve relation target entity names across entities
     this.resolveRelationEntities(entities, modelExprs);
 
+    // Post-processing: validate expose.include relations after entity resolution
+    this.validateExposeRelations(entities);
+
     return { entities };
   }
 
@@ -755,6 +758,8 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
     const selectExpr = getPropertyValue(exposeExpr, 'select');
     if (!selectExpr || !selectExpr.isKind(SyntaxKind.ObjectLiteralExpression)) return undefined;
 
+    this.checkExposeNonLiteral(selectExpr, 'expose.select', loc);
+
     const select = this.extractExposeFields(selectExpr);
 
     if (select.length === 0) {
@@ -770,6 +775,8 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
     let include: EntityExposeRelationIR[] | undefined;
 
     if (includeExpr?.isKind(SyntaxKind.ObjectLiteralExpression)) {
+      this.checkExposeNonLiteral(includeExpr, 'expose.include', loc);
+
       include = getProperties(includeExpr)
         .filter(({ value }) => getBooleanValue(value) !== false)
         .map(({ name, value }) => {
@@ -803,6 +810,28 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
       name,
       conditional: getBooleanValue(value) !== true,
     }));
+  }
+
+  private checkExposeNonLiteral(
+    obj: ObjectLiteralExpression,
+    context: string,
+    loc: SourceLocation,
+  ): void {
+    for (const prop of obj.getProperties()) {
+      if (
+        prop.isKind(SyntaxKind.SpreadAssignment) ||
+        (prop.isKind(SyntaxKind.PropertyAssignment) &&
+          prop.getNameNode().isKind(SyntaxKind.ComputedPropertyName))
+      ) {
+        this.addDiagnostic({
+          code: 'ENTITY_EXPOSE_NON_LITERAL',
+          severity: 'warning',
+          message: `${context} contains non-literal properties (spread or computed) that can't be statically analyzed`,
+          ...loc,
+        });
+        return; // one diagnostic per object is enough
+      }
+    }
   }
 
   /**
@@ -901,6 +930,34 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
     }
 
     return result;
+  }
+
+  /**
+   * Post-processing: validate expose.include relations after entity resolution.
+   * Emits ENTITY_EXPOSE_RELATION_UNRESOLVED for relations whose target entity
+   * could not be resolved. The IR preserves the entries; the ir-adapter handles
+   * omission from codegen output.
+   */
+  private validateExposeRelations(entities: EntityIR[]): void {
+    for (const entity of entities) {
+      if (!entity.expose?.include) continue;
+
+      const relationMap = new Map(entity.relations.map((r) => [r.name, r]));
+
+      for (const rel of entity.expose.include) {
+        const matchedRelation = relationMap.get(rel.name);
+        if (!matchedRelation || !matchedRelation.entity) {
+          this.addDiagnostic({
+            code: 'ENTITY_EXPOSE_RELATION_UNRESOLVED',
+            severity: 'warning',
+            message: `expose.include references relation "${rel.name}" whose target entity could not be resolved`,
+            file: entity.sourceFile,
+            line: entity.sourceLine,
+            column: entity.sourceColumn,
+          });
+        }
+      }
+    }
   }
 
   /**

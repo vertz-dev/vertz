@@ -1607,9 +1607,7 @@ describe('EntityAnalyzer', () => {
       );
 
       const result = await analyze();
-      expect(result.entities[0]?.expose?.include).toEqual([
-        { name: 'tags' },
-      ]);
+      expect(result.entities[0]?.expose?.include).toEqual([{ name: 'tags' }]);
     });
 
     it('skips expose.include with false (excluded)', async () => {
@@ -1639,6 +1637,164 @@ describe('EntityAnalyzer', () => {
           select: [{ name: 'id', conditional: false }],
         },
       ]);
+    });
+
+    it('emits ENTITY_EXPOSE_NON_LITERAL for computed property in expose.select', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { taskModel } from './models';
+
+        const key = 'title';
+
+        export const taskEntity = entity('tasks', {
+          model: taskModel,
+          expose: {
+            select: { id: true, [key]: true },
+          },
+        });
+      `,
+      );
+
+      const analyzer = new EntityAnalyzer(project, config);
+      await analyzer.analyze();
+      const diagnostics = analyzer.getDiagnostics();
+      expect(diagnostics.some((d) => d.code === 'ENTITY_EXPOSE_NON_LITERAL')).toBe(true);
+    });
+
+    it('emits ENTITY_EXPOSE_NON_LITERAL for spread in expose.select', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { taskModel } from './models';
+
+        const baseFields = { id: true, title: true };
+
+        export const taskEntity = entity('tasks', {
+          model: taskModel,
+          expose: {
+            select: { ...baseFields, status: true },
+          },
+        });
+      `,
+      );
+
+      const analyzer = new EntityAnalyzer(project, config);
+      await analyzer.analyze();
+      const diagnostics = analyzer.getDiagnostics();
+      expect(diagnostics.some((d) => d.code === 'ENTITY_EXPOSE_NON_LITERAL')).toBe(true);
+    });
+
+    it('emits ENTITY_EXPOSE_NON_LITERAL for computed property in expose.include', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { taskModel } from './models';
+
+        const relName = 'assignee';
+
+        export const taskEntity = entity('tasks', {
+          model: taskModel,
+          expose: {
+            select: { id: true },
+            include: { [relName]: true },
+          },
+        });
+      `,
+      );
+
+      const analyzer = new EntityAnalyzer(project, config);
+      await analyzer.analyze();
+      const diagnostics = analyzer.getDiagnostics();
+      expect(diagnostics.some((d) => d.code === 'ENTITY_EXPOSE_NON_LITERAL')).toBe(true);
+      const diag = diagnostics.find((d) => d.code === 'ENTITY_EXPOSE_NON_LITERAL');
+      expect(diag?.message).toContain('expose.include');
+    });
+
+    it('emits ENTITY_EXPOSE_NON_LITERAL for spread in expose.include', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { taskModel } from './models';
+
+        const baseIncludes = { assignee: true };
+
+        export const taskEntity = entity('tasks', {
+          model: taskModel,
+          expose: {
+            select: { id: true },
+            include: { ...baseIncludes, tags: true },
+          },
+        });
+      `,
+      );
+
+      const analyzer = new EntityAnalyzer(project, config);
+      await analyzer.analyze();
+      const diagnostics = analyzer.getDiagnostics();
+      expect(diagnostics.some((d) => d.code === 'ENTITY_EXPOSE_NON_LITERAL')).toBe(true);
+      const diag = diagnostics.find((d) => d.code === 'ENTITY_EXPOSE_NON_LITERAL');
+      expect(diag?.message).toContain('expose.include');
+    });
+
+    it('emits ENTITY_EXPOSE_RELATION_UNRESOLVED when include references undefined relation', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { taskModel } from './models';
+
+        export const taskEntity = entity('tasks', {
+          model: taskModel,
+          expose: {
+            select: { id: true, title: true },
+            include: {
+              assignee: true,
+            },
+          },
+        });
+      `,
+      );
+
+      const analyzer = new EntityAnalyzer(project, config);
+      await analyzer.analyze();
+      const diagnostics = analyzer.getDiagnostics();
+      expect(diagnostics.some((d) => d.code === 'ENTITY_EXPOSE_RELATION_UNRESOLVED')).toBe(true);
+      const diag = diagnostics.find((d) => d.code === 'ENTITY_EXPOSE_RELATION_UNRESOLVED');
+      expect(diag?.message).toContain('assignee');
+    });
+
+    it('emits ENTITY_EXPOSE_RELATION_UNRESOLVED when relation exists but entity unresolvable', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { taskModel } from './models';
+
+        export const taskEntity = entity('tasks', {
+          model: taskModel,
+          relations: {
+            assignee: true,
+          },
+          expose: {
+            select: { id: true },
+            include: {
+              assignee: true,
+            },
+          },
+        });
+      `,
+      );
+
+      const analyzer = new EntityAnalyzer(project, config);
+      await analyzer.analyze();
+      const diagnostics = analyzer.getDiagnostics();
+      // relation is defined but target entity can't be resolved from model types
+      expect(diagnostics.some((d) => d.code === 'ENTITY_EXPOSE_RELATION_UNRESOLVED')).toBe(true);
     });
 
     it('emits ENTITY_EXPOSE_EMPTY_SELECT for empty select', async () => {
