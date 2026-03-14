@@ -1,2 +1,10 @@
 export type { AvatarProps } from './avatar';
 export { Avatar } from './avatar';
+export type { OAuthButtonProps } from './oauth-button';
+export { OAuthButton } from './oauth-button';
+export type { OAuthButtonsProps } from './oauth-buttons';
+export { OAuthButtons } from './oauth-buttons';
+export type { UserAvatarProps } from './user-avatar';
+export { UserAvatar } from './user-avatar';
+export type { UserNameProps } from './user-name';
+export { UserName } from './user-name';
