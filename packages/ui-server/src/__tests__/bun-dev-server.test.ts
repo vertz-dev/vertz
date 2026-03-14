@@ -136,6 +136,29 @@ describe('createBunDevServer', () => {
     consoleErrSpy.mockRestore();
   });
 
+  it('restart() concurrent guard skips when already restarting', async () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = spyOn(console, 'error').mockImplementation(() => {});
+    const server = createBunDevServer({
+      entry: './src/app.tsx',
+      logRequests: true,
+    });
+
+    // Fire two concurrent restarts
+    const first = server.restart();
+    const second = server.restart();
+    await Promise.all([first, second]);
+
+    // The second call should have been skipped
+    const skipMsg = logSpy.mock.calls.find(
+      (c) => typeof c[0] === 'string' && c[0].includes('already in progress'),
+    );
+    expect(skipMsg).toBeDefined();
+
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+
   it('stop() can be called multiple times safely', async () => {
     const server = createBunDevServer({
       entry: './src/app.tsx',
@@ -581,6 +604,73 @@ describe('generateSSRPageHtml', () => {
 
     // When _restarting flag is set and connected message arrives, should reload
     expect(html).toContain('_restarting');
+  });
+
+  it('error channel script uses fast reconnect (100ms) when restarting', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    // Fast reconnect uses 100ms interval when _restarting is true
+    expect(html).toContain('_restarting?100:delay');
+  });
+
+  it('error channel script clears reload guard counter on restart', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    // Reload guard session storage keys cleared to prevent post-restart reload being counted
+    expect(html).toContain('__vertz_reload_count');
+    expect(html).toContain('__vertz_reload_ts');
+  });
+
+  it('error channel script shows timeout message after 10s', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    // 10 second timeout for restart
+    expect(html).toContain('10000');
+    expect(html).toContain('timed out');
+  });
+
+  it('error channel script sends restart request via WebSocket', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    // Restart button sends { type: 'restart' } over WS
+    expect(html).toContain("type:'restart'");
+  });
+
+  it('error channel script handles late reconnect after timeout', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    // Even after timeout message, reconnecting WS should trigger reload
+    expect(html).toContain('timedOut');
   });
 
   it('does not embed build error data element (errors fetched via /__vertz_build_check)', () => {
