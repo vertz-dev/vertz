@@ -1,0 +1,471 @@
+---
+title: "Fields, Relations & Filters"
+description: "Control which fields, filters, and relations are exposed in your entity's query API"
+---
+
+The `expose` config on an entity controls the entire VertzQL query surface — which fields appear in responses, which fields can be filtered or sorted, and which relations clients can include. It uses a fractal structure that mirrors the DB query API.
+
+## Two layers of field control
+
+Field visibility operates at two levels:
+
+1. **Schema annotations** — `.hidden()` and `.readOnly()` on table columns control the schema-level defaults
+2. **`expose` config** — narrows the API surface on top of schema defaults
+
+Schema annotations are the baseline. `expose` can only narrow further — you cannot expose a `.hidden()` field through `expose`.
+
+| Annotation | API response | Filterable | Sortable |
+|------------|-------------|-----------|---------|
+| *(none)* | Included | Yes | Yes |
+| `.hidden()` | Excluded | No | No |
+| `.readOnly()` | Included | Yes | Yes |
+
+## Basic usage
+
+```ts
+import { entity } from 'vertz/server';
+import { rules } from 'vertz/server/rules';
+
+const posts = entity('posts', {
+  model: postsModel,
+  access: {
+    list: rules.authenticated(),
+    get: rules.authenticated(),
+  },
+  expose: {
+    select: { id: true, title: true, status: true, createdAt: true },
+    allowWhere: { status: true, createdAt: true },
+    allowOrderBy: { createdAt: true, title: true },
+    include: {
+      comments: {
+        select: { id: true, text: true, status: true, createdAt: true },
+        allowWhere: { status: true },
+        allowOrderBy: { createdAt: true },
+        maxLimit: 50,
+      },
+      author: {
+        select: { id: true, name: true },
+      },
+    },
+  },
+});
+```
+
+### `select` is required
+
+When `expose` is present, `select` must be provided. This enforces explicit control — if you opt into controlling your API surface, you control all of it:
+
+```ts
+// No expose — all public fields exposed (backwards compatible)
+const logs = entity('logs', {
+  model: logsModel,
+  access: { list: rules.authenticated() },
+});
+
+// With expose — select is required
+const posts = entity('posts', {
+  model: postsModel,
+  // @ts-expect-error — expose requires select
+  expose: {
+    include: { comments: true },
+  },
+});
+```
+
+### `select: {}` for junction entities
+
+An empty `select` is valid — the entity exposes no own fields, only relations:
+
+```ts
+expose: {
+  select: {},
+  include: {
+    project: { select: { id: true, name: true } },
+    user: { select: { id: true, name: true } },
+  },
+},
+```
+
+## Field exposure (`select`)
+
+`select` declares which of the entity's own fields appear in responses. Fields not listed are excluded:
+
+```ts
+expose: {
+  select: {
+    id: true,
+    title: true,
+    status: true,
+    createdAt: true,
+    // content, authorId not listed → excluded from responses
+  },
+},
+```
+
+### Narrowing-only
+
+`select` can only narrow what the schema already exposes. Hidden fields cannot be listed:
+
+```ts
+expose: {
+  select: {
+    id: true,
+    name: true,
+    // @ts-expect-error — passwordHash is .hidden() in the schema
+    passwordHash: true,
+  },
+},
+```
+
+TypeScript catches this at compile time via `PublicColumnKeys<TTable>`.
+
+## Filter allowlists (`allowWhere`)
+
+`allowWhere` declares which fields clients can filter with `where` clauses. Uses object notation:
+
+```ts
+expose: {
+  select: { id: true, title: true, status: true, createdAt: true },
+  allowWhere: { status: true, createdAt: true },
+},
+```
+
+If a client filters by a field not in `allowWhere`, the server returns `400`:
+
+```json
+{
+  "error": {
+    "code": "BadRequest",
+    "message": "Field \"title\" is not filterable"
+  }
+}
+```
+
+### Defaults
+
+| Config | Default | Meaning |
+|--------|---------|---------|
+| `allowWhere` omitted | No filtering allowed | Explicit opt-in |
+| No `expose` at all | All public fields filterable | Backwards compatible |
+
+## Sort allowlists (`allowOrderBy`)
+
+`allowOrderBy` declares which fields can be sorted. Same pattern as `allowWhere`:
+
+```ts
+expose: {
+  select: { id: true, title: true, createdAt: true },
+  allowOrderBy: { createdAt: true, title: true },
+},
+```
+
+Sort directions are `'asc'` or `'desc'`.
+
+## Relation exposure (`include`)
+
+Relations are configured inside `include`. Each relation entry can be:
+
+| Value | Meaning |
+|-------|---------|
+| `true` | Expose with all non-hidden fields |
+| `false` | Do not expose — clients cannot include this relation |
+| `{ select, allowWhere, allowOrderBy, maxLimit, include }` | Fine-grained control |
+
+```ts
+expose: {
+  select: { id: true, title: true },
+  include: {
+    tags: true,               // all non-hidden fields
+    internalNotes: false,     // hidden entirely
+    comments: {               // fine-grained
+      select: { id: true, text: true, status: true },
+      allowWhere: { status: true },
+      maxLimit: 50,
+    },
+  },
+},
+```
+
+### Fractal structure
+
+The `expose` config mirrors the DB query API at every level:
+
+| DB Query | Entity Expose | Purpose |
+|----------|---------------|---------|
+| `select: { id: true }` | `select: { id: true }` | Which fields are available |
+| `where: { status: 'active' }` | `allowWhere: { status: true }` | Which fields can be filtered |
+| `orderBy: { createdAt: 'desc' }` | `allowOrderBy: { createdAt: true }` | Which fields can be sorted |
+| `include: { comments: { ... } }` | `include: { comments: { ... } }` | Relation config (recursive) |
+
+Same shape, same names, same nesting.
+
+### Nested relations
+
+Relations can expose their own relations via nested `include`:
+
+```ts
+expose: {
+  select: { id: true, title: true },
+  include: {
+    comments: {
+      select: { id: true, text: true, createdAt: true },
+      allowOrderBy: { createdAt: true },
+      maxLimit: 50,
+      include: {
+        author: {
+          select: { id: true, name: true },
+        },
+      },
+    },
+  },
+},
+```
+
+Client query mirrors the structure:
+
+```ts
+const posts = await api.posts.list({
+  include: {
+    comments: {
+      orderBy: { createdAt: 'desc' },
+      limit: 10,
+      include: { author: true },
+    },
+  },
+});
+// posts[0].comments[0].author → { id: string, name: string }
+```
+
+### Relation limits (`maxLimit`)
+
+`maxLimit` caps how many related rows per parent:
+
+```ts
+include: {
+  comments: {
+    select: { id: true, text: true },
+    maxLimit: 50,
+  },
+}
+```
+
+If a client sends `limit: 200` with `maxLimit: 50`, the server silently clamps to `50`.
+
+## Field-level access descriptors
+
+Fields in `select`, `allowWhere`, and `allowOrderBy` can use `rules.*` descriptors for conditional access:
+
+```ts
+import { rules } from 'vertz/server/rules';
+
+const employees = entity('employees', {
+  model: employeesModel,
+  access: { list: rules.authenticated(), get: rules.authenticated() },
+  expose: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      department: true,
+      salary: rules.entitlement('hr:view-compensation'),
+      ssn: rules.all(
+        rules.entitlement('hr:view-pii'),
+        rules.fva(300),
+      ),
+    },
+    allowWhere: {
+      department: true,
+      name: true,
+      salary: rules.entitlement('hr:filter-compensation'),
+    },
+    allowOrderBy: { name: true, department: true },
+  },
+});
+```
+
+### `null` semantics
+
+When a user doesn't satisfy a descriptor, the field returns `null` — not omitted:
+
+```json
+{
+  "id": "emp-1",
+  "name": "Alice",
+  "email": "alice@acme.com",
+  "department": "Engineering",
+  "salary": null,
+  "ssn": null
+}
+```
+
+Using `null` is intentional:
+- Signals "this field exists but you can't see its value"
+- The client always knows the field shape
+- No runtime type surprises — the field is always in the object
+
+### Descriptor evaluation
+
+Descriptors are evaluated **once per request**, not per row. They check user-level attributes (entitlements, roles, FVA), producing a static set of allowed/nulled fields for the entire response.
+
+### Descriptor-guarded filters
+
+When a user filters by a descriptor-guarded field they don't have access to, the error says "field not filterable" — it doesn't reveal that the field is access-controlled:
+
+```json
+{
+  "error": {
+    "code": "BadRequest",
+    "message": "Field \"salary\" is not filterable"
+  }
+}
+```
+
+## Error responses
+
+The server returns `400 Bad Request` with clear error messages for every rejection case.
+
+### Field not in `allowWhere`
+
+```json
+{ "error": { "code": "BadRequest", "message": "Field \"title\" is not filterable" } }
+```
+
+### Field not in `allowOrderBy`
+
+```json
+{ "error": { "code": "BadRequest", "message": "Field \"title\" is not sortable" } }
+```
+
+### Field not in `select` (client `select` query)
+
+```json
+{ "error": { "code": "BadRequest", "message": "Field \"content\" is not selectable" } }
+```
+
+### Relation not exposed
+
+```json
+{ "error": { "code": "BadRequest", "message": "Relation \"project\" is not exposed" } }
+```
+
+### Relation field not in `select`
+
+```json
+{ "error": { "code": "BadRequest", "message": "Field \"email\" is not exposed on relation \"author\"" } }
+```
+
+### Nested relation error paths
+
+Errors include the full relation path:
+
+```json
+{ "error": { "message": "Field 'rating' is not filterable on relation 'author.organization'" } }
+```
+
+## Backwards compatibility
+
+If you don't provide `expose`, the entity behaves as before:
+- All non-hidden fields are included in responses
+- All non-hidden fields are filterable and sortable
+- No relations are exposed (you must opt in)
+
+This is a safe default — adding `expose` is always opt-in.
+
+## End-to-end example
+
+### 1. Define the entity
+
+```ts
+const tasks = entity('tasks', {
+  model: tasksModel,
+  access: {
+    list: rules.authenticated(),
+    get: rules.authenticated(),
+  },
+  expose: {
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      createdAt: true,
+      estimate: rules.entitlement('pm:view-estimates'),
+    },
+    allowWhere: { status: true, createdAt: true },
+    allowOrderBy: { createdAt: true, title: true },
+    include: {
+      assignee: { select: { id: true, name: true } },
+      comments: {
+        select: { id: true, text: true, createdAt: true },
+        allowWhere: { createdAt: true },
+        allowOrderBy: { createdAt: true },
+        maxLimit: 20,
+      },
+    },
+  },
+});
+```
+
+### 2. Client query
+
+```ts
+const result = await api.tasks.list({
+  where: { status: 'todo' },
+  orderBy: { createdAt: 'desc' },
+  include: {
+    assignee: true,
+    comments: {
+      orderBy: { createdAt: 'desc' },
+      limit: 5,
+    },
+  },
+});
+```
+
+### 3. Server validates
+
+1. `where: { status: 'todo' }` — `status` is in `allowWhere` ✓
+2. `orderBy: { createdAt: 'desc' }` — `createdAt` is in `allowOrderBy` ✓
+3. `include.assignee: true` — `assignee` is exposed ✓
+4. `include.comments.orderBy` — `createdAt` is in comments' `allowOrderBy` ✓
+5. `include.comments.limit: 5` — under `maxLimit: 20` ✓
+
+### 4. Response
+
+```json
+{
+  "items": [
+    {
+      "id": "task-1",
+      "title": "Fix login bug",
+      "status": "todo",
+      "createdAt": "2026-03-01T10:00:00Z",
+      "estimate": null,
+      "assignee": { "id": "user-1", "name": "Alice" },
+      "comments": [
+        { "id": "c-1", "text": "Reproduced on staging", "createdAt": "2026-03-02T14:30:00Z" }
+      ]
+    }
+  ],
+  "total": 1,
+  "hasNextPage": false
+}
+```
+
+Note: `estimate` is `null` because the user lacks the `pm:view-estimates` entitlement.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Schema" icon="table" href="/guides/db/schema">
+    Column types, annotations, and how `.hidden()` and `.readOnly()` affect the API surface.
+  </Card>
+  <Card title="Entities" icon="database" href="/guides/server/entities">
+    Entity definitions, access rules, hooks, and custom actions.
+  </Card>
+  <Card title="Queries" icon="magnifying-glass" href="/guides/db/queries">
+    Typed CRUD operations, filter operators, and the DB query API.
+  </Card>
+  <Card title="Authentication" icon="shield-check" href="/guides/server/auth">
+    Access rules, `rules.*` descriptors, and `defineAccess()`.
+  </Card>
+</CardGroup>

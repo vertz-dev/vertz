@@ -42,6 +42,8 @@ The entity name (`'users'`) determines the API path (`/api/users`). The model de
 
 These annotations drive automatic input/output filtering. You don't write serializers — the framework strips hidden fields from responses and rejects read-only fields in mutations automatically.
 
+For fine-grained control over which relation fields, filters, and sort options are exposed to clients, see the [Fields, Relations & Filters](/guides/server/entity-exposure) guide.
+
 ## Access rules
 
 Access rules define who can perform each operation. They're evaluated at request time, before any data access.

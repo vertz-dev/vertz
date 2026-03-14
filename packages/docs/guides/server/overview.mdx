@@ -24,6 +24,7 @@ description: "vertz/server — entity-driven backend with auto-generated CRUD, a
 | Feature | Description |
 |---------|-------------|
 | **Entities** | Declarative data models with CRUD, access rules, hooks, and custom actions |
+| **Field & relation exposure** | Control which fields, filters, and relations are exposed in query responses |
 | **Services** | Standalone operations not tied to a single entity |
 | **Access control** | Deny-by-default, per-operation access rules with row-level checks |
 | **Environment** | Validated, typed, frozen config via `createEnv()` |
@@ -97,6 +98,9 @@ Types flow from your schema definition through the server, into the generated SD
 <CardGroup cols={2}>
   <Card title="Entities" icon="database" href="/guides/server/entities">
     Models, access rules, hooks, and custom actions.
+  </Card>
+  <Card title="Fields, Relations & Filters" icon="filter" href="/guides/server/entity-exposure">
+    Control which fields, filters, and relations clients can query.
   </Card>
   <Card title="Authentication" icon="shield-check" href="/guides/server/auth">
     Email/password, JWT sessions, refresh tokens, and session management.
