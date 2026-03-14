@@ -1,5 +1,26 @@
 # vertz
 
+## 0.2.17
+
+### Patch Changes
+
+- [#1253](https://github.com/vertz-dev/vertz/pull/1253) [`f284697`](https://github.com/vertz-dev/vertz/commit/f284697218e3ebcc7a196e8a6633c822e206646e) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Extract `@vertz/ui-auth` package for JSX-based auth components. Moves `Avatar`, `UserAvatar`, `UserName`, `OAuthButton`, `OAuthButtons`, `AuthGate`, `AccessGate`, and `ProtectedRoute` from `@vertz/ui/auth` into the new `@vertz/ui-auth` package, converting DOM-primitive components to JSX. Non-component exports (`AuthContext`, `useAuth`, `can`, `createAccessProvider`, etc.) remain in `@vertz/ui/auth`.
+
+- Updated dependencies [[`e69ef45`](https://github.com/vertz-dev/vertz/commit/e69ef4540fca9e47249fc18c3cd2a74be84f2db8), [`f284697`](https://github.com/vertz-dev/vertz/commit/f284697218e3ebcc7a196e8a6633c822e206646e), [`6d6a85c`](https://github.com/vertz-dev/vertz/commit/6d6a85c0fd9f354a8d077e2eb1afdcf065344b95)]:
+  - @vertz/server@0.2.17
+  - @vertz/ui-auth@0.2.17
+  - @vertz/ui@0.2.17
+  - @vertz/cloudflare@0.2.17
+  - @vertz/db@0.2.17
+  - @vertz/errors@0.2.17
+  - @vertz/fetch@0.2.17
+  - @vertz/schema@0.2.17
+  - @vertz/testing@0.2.17
+  - @vertz/tui@0.2.17
+  - @vertz/ui-compiler@0.2.17
+  - @vertz/ui-primitives@0.2.17
+  - @vertz/ui-server@0.2.17
+
 ## 0.2.16
 
 ### Patch Changes
