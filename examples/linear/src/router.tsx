@@ -1,14 +1,19 @@
 /**
  * Router configuration for the Linear clone.
  *
- * Two top-level routes:
+ * Routes:
  * - /login — public, renders LoginPage
  * - / — protected via ProtectedRoute, renders workspace shell with Outlet
+ *   - /projects — project list
+ *   - /projects/:projectId — project layout with nested routes
  */
 
 import { createRouter, defineRoutes, onMount, useRouter } from '@vertz/ui';
 import { ProtectedRoute } from '@vertz/ui-auth';
 import { WorkspaceShell } from './components/auth-guard';
+import { ProjectLayout } from './components/project-layout';
+import { IssueDetailPage } from './pages/issue-detail-page';
+import { IssueListPage } from './pages/issue-list-page';
 import { LoginPage } from './pages/login-page';
 import { ProjectsPage } from './pages/projects-page';
 
@@ -41,6 +46,17 @@ export const routes = defineRoutes({
       },
       '/projects': {
         component: () => <ProjectsPage />,
+      },
+      '/projects/:projectId': {
+        component: () => ProjectLayout(),
+        children: {
+          '/': {
+            component: () => IssueListPage(),
+          },
+          '/issues/:issueId': {
+            component: () => IssueDetailPage(),
+          },
+        },
       },
     },
   },

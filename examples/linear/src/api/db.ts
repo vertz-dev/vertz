@@ -9,7 +9,7 @@
 import { Database, type SQLQueryBindings } from 'bun:sqlite';
 import { createDb } from '@vertz/db';
 import { authModels } from '@vertz/server';
-import { usersModel } from './schema';
+import { issuesModel, projectsModel, usersModel } from './schema';
 
 // ---------------------------------------------------------------------------
 // D1-compatible wrapper for bun:sqlite
@@ -28,6 +28,31 @@ function createBunD1(dbPath: string) {
     avatar_url TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
+  sqlite.exec(`CREATE TABLE IF NOT EXISTS projects (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    key TEXT NOT NULL UNIQUE,
+    description TEXT,
+    created_by TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
+  sqlite.exec(`CREATE TABLE IF NOT EXISTS issues (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id),
+    number INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    status TEXT NOT NULL DEFAULT 'backlog',
+    priority TEXT NOT NULL DEFAULT 'none',
+    assignee_id TEXT REFERENCES users(id),
+    created_by TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(project_id, number)
   )`);
 
   return {
@@ -62,7 +87,7 @@ function createBunD1(dbPath: string) {
 const d1 = createBunD1('./data/linear.db');
 
 export const db = createDb({
-  models: { ...authModels, users: usersModel },
+  models: { ...authModels, users: usersModel, projects: projectsModel, issues: issuesModel },
   dialect: 'sqlite',
   // biome-ignore lint/suspicious/noExplicitAny: bun:sqlite D1 wrapper
   d1: d1 as any,

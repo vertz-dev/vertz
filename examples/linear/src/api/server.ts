@@ -8,13 +8,15 @@
 
 import { createServer, github } from '@vertz/server';
 import { db } from './db';
+import { issues } from './entities/issues.entity';
+import { projects } from './entities/projects.entity';
 import { users } from './entities/users.entity';
 
 const APP_URL = process.env.APP_URL ?? 'http://localhost:3000';
 
 export const app = createServer({
   basePath: '/api',
-  entities: [users],
+  entities: [users, projects, issues],
   // biome-ignore lint/suspicious/noExplicitAny: DatabaseClient model variance
   db: db as any,
   auth: {
