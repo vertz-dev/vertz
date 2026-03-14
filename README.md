@@ -104,7 +104,7 @@ Change `d.text()` to `d.integer()` on a column — `tsc` lights up red in your e
 ## Try It
 
 ```bash
-bunx @vertz/create-vertz-app my-app
+bunx @vertz/create-vertz-app@latest my-app
 cd my-app
 bun install
 bun run dev

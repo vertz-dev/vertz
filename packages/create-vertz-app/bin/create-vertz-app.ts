@@ -1,20 +1,24 @@
 #!/usr/bin/env bun
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { Command } from 'commander';
 import { resolveOptions, scaffold } from '../dist/index.js';
+
+const pkg = JSON.parse(readFileSync(resolve(import.meta.dir, '../package.json'), 'utf-8'));
 
 const program = new Command();
 
 program
   .name('create-vertz-app')
   .description('Scaffold a new Vertz project')
-  .version('0.1.0')
+  .version(pkg.version)
   .argument('[name]', 'Project name')
   .action(async (name: string | undefined) => {
     try {
       const resolved = await resolveOptions({ projectName: name });
 
-      console.log(`Creating Vertz app: ${resolved.projectName}`);
+      console.log(`Creating Vertz app: ${resolved.projectName} (v${pkg.version})`);
 
       const targetDir = process.cwd();
       await scaffold(targetDir, resolved);
