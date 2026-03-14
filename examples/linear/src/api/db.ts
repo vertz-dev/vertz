@@ -10,6 +10,7 @@ import { Database, type SQLQueryBindings } from 'bun:sqlite';
 import { createDb } from '@vertz/db';
 import { authModels } from '@vertz/server';
 import { issuesModel, projectsModel, usersModel } from './schema';
+import { seedDatabase } from './seed';
 
 // ---------------------------------------------------------------------------
 // D1-compatible wrapper for bun:sqlite
@@ -54,6 +55,17 @@ function createBunD1(dbPath: string) {
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(project_id, number)
   )`);
+
+  sqlite.exec(`CREATE TABLE IF NOT EXISTS comments (
+    id TEXT PRIMARY KEY,
+    issue_id TEXT NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
+    body TEXT NOT NULL,
+    author_id TEXT NOT NULL REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+
+  seedDatabase(sqlite);
 
   return {
     prepare(sql: string) {
