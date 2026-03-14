@@ -397,6 +397,68 @@ describe('queryMatch()', () => {
     wrapper.dispose();
   });
 
+  test('__list inside data handler updates when data changes via proxy (issue #1249)', () => {
+    // Reproduces the exact bug scenario: .map() on the data proxy parameter
+    // should update the DOM when query data changes. The compiler now generates
+    // __list() for ALL .map() calls in JSX, so `response.items.map(...)` becomes
+    // `__list(el, () => response.items, ...)` where `response` is the reactive proxy.
+    const qr = fakeQueryResult<{ items: { id: string; title: string }[] }>({
+      loading: false,
+      data: { items: [{ id: '1', title: 'First' }] },
+    });
+
+    const container = document.createElement('div');
+
+    const wrapper = queryMatch(qr, {
+      loading: () => document.createElement('div'),
+      error: () => document.createElement('div'),
+      data: (response) => {
+        const el = document.createElement('ul');
+        // Simulates compiler output: __list(el, () => response.items, ...)
+        // `response` is the reactive proxy — response.items reads from dataSignal.value
+        __list(
+          el,
+          () => response.items,
+          (item) => item.id,
+          (item) => {
+            const li = document.createElement('li');
+            domEffect(() => {
+              li.textContent = item.title;
+            });
+            return li;
+          },
+        );
+        return el;
+      },
+    });
+    container.appendChild(wrapper);
+
+    const listEl = wrapper.children[0] as HTMLElement;
+    expect(listEl.children.length).toBe(1);
+    expect(listEl.children[0]?.textContent).toBe('First');
+
+    // Simulate cache invalidation + refetch: data changes
+    qr._data.value = {
+      items: [
+        { id: '1', title: 'First (updated)' },
+        { id: '2', title: 'Second' },
+      ],
+    };
+
+    // __list should reactively update: existing key '1' updates, new key '2' appears
+    expect(listEl.children.length).toBe(2);
+    expect(listEl.children[0]?.textContent).toBe('First (updated)');
+    expect(listEl.children[1]?.textContent).toBe('Second');
+
+    // Remove an item
+    qr._data.value = { items: [{ id: '2', title: 'Second' }] };
+
+    expect(listEl.children.length).toBe(1);
+    expect(listEl.children[0]?.textContent).toBe('Second');
+
+    wrapper.dispose();
+  });
+
   test('__list updates reactive bindings when item changes at same index key', () => {
     // Reproduces the compiler-generated scenario: .map() without explicit key
     // generates index-based keyFn. __list wraps each item in a reactive proxy,
