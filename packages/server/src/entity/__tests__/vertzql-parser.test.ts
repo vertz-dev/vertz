@@ -1192,6 +1192,160 @@ describe('Feature: Entity relations config with allowWhere/allowOrderBy (#1130)'
 });
 
 // ---------------------------------------------------------------------------
+// Bug fix: q= param silently drops where/orderBy/limit/offset (#1243)
+// ---------------------------------------------------------------------------
+
+describe('Feature: q= param extracts where/orderBy/limit/offset (#1243)', () => {
+  describe('Given a q= param with where, orderBy, limit, and select', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then extracts where from the decoded q= JSON', () => {
+        const structural = {
+          where: { status: 'active' },
+          select: { id: true },
+        };
+        const q = btoa(JSON.stringify(structural));
+
+        const result = parseVertzQL({ q });
+
+        expect(result.where).toEqual({ status: 'active' });
+        expect(result.select).toEqual({ id: true });
+      });
+    });
+  });
+
+  describe('Given a q= param with orderBy', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then extracts orderBy from the decoded q= JSON', () => {
+        const structural = { orderBy: { createdAt: 'desc' } };
+        const q = btoa(JSON.stringify(structural));
+
+        const result = parseVertzQL({ q });
+
+        expect(result.orderBy).toEqual({ createdAt: 'desc' });
+      });
+    });
+  });
+
+  describe('Given a q= param with limit', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then extracts limit and clamps to MAX_LIMIT', () => {
+        const structural = { limit: 50 };
+        const q = btoa(JSON.stringify(structural));
+
+        const result = parseVertzQL({ q });
+
+        expect(result.limit).toBe(50);
+      });
+    });
+  });
+
+  describe('Given a q= param with limit exceeding MAX_LIMIT', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then clamps limit to MAX_LIMIT', () => {
+        const structural = { limit: 999999 };
+        const q = btoa(JSON.stringify(structural));
+
+        const result = parseVertzQL({ q });
+
+        expect(result.limit).toBe(1000);
+      });
+    });
+  });
+
+  describe('Given a q= param with offset (not a supported key)', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then strips offset (not wired to DB layer)', () => {
+        const structural = { offset: 20, select: { id: true } };
+        const q = btoa(JSON.stringify(structural));
+
+        const result = parseVertzQL({ q });
+
+        expect(result).not.toHaveProperty('offset');
+        expect(result.select).toEqual({ id: true });
+      });
+    });
+  });
+
+  describe('Given both URL where params and q= where', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then merges q= where into URL where (q= overrides per-field)', () => {
+        const structural = { where: { status: 'active' } };
+        const q = btoa(JSON.stringify(structural));
+
+        const result = parseVertzQL({ 'where[role]': 'admin', q });
+
+        expect(result.where).toEqual({ role: 'admin', status: 'active' });
+      });
+    });
+  });
+
+  describe('Given both URL orderBy and q= orderBy', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then merges q= orderBy into URL orderBy', () => {
+        const structural = { orderBy: { updatedAt: 'asc' } };
+        const q = btoa(JSON.stringify(structural));
+
+        const result = parseVertzQL({ orderBy: 'createdAt:desc', q });
+
+        expect(result.orderBy).toEqual({ createdAt: 'desc', updatedAt: 'asc' });
+      });
+    });
+  });
+
+  describe('Given same-field collision between URL where and q= where', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then q= value overrides the URL value for that field', () => {
+        const structural = { where: { status: 'active' } };
+        const q = btoa(JSON.stringify(structural));
+
+        const result = parseVertzQL({ 'where[status]': 'draft', q });
+
+        expect(result.where).toEqual({ status: 'active' });
+      });
+    });
+  });
+
+  describe('Given both URL limit and q= limit', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then q= limit overrides the URL limit', () => {
+        const structural = { limit: 50 };
+        const q = btoa(JSON.stringify(structural));
+
+        const result = parseVertzQL({ limit: '10', q });
+
+        expect(result.limit).toBe(50);
+      });
+    });
+  });
+
+  describe('Given a q= param with invalid orderBy direction', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then normalizes invalid direction to asc', () => {
+        const structural = { orderBy: { createdAt: 'descending' } };
+        const q = btoa(JSON.stringify(structural));
+
+        const result = parseVertzQL({ q });
+
+        expect(result.orderBy).toEqual({ createdAt: 'asc' });
+      });
+    });
+  });
+
+  describe('Given a q= param with where as an array', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then ignores the array value', () => {
+        const structural = { where: ['status', 'active'] };
+        const q = btoa(JSON.stringify(structural));
+
+        const result = parseVertzQL({ q });
+
+        expect(result.where).toBeUndefined();
+      });
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Security: q= parameter hardening
 // ---------------------------------------------------------------------------
 
