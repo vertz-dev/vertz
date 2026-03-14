@@ -27,6 +27,7 @@ export interface AlertDialogSlotProps {
 }
 
 export interface AlertDialogButtonSlotProps extends AlertDialogSlotProps {
+  disabled?: boolean;
   [key: string]: unknown;
 }
 
@@ -109,12 +110,14 @@ export function createThemedAlertDialog(
   function AlertDialogCancel({
     children,
     class: className,
+    disabled,
     ...attrs
   }: AlertDialogButtonSlotProps): HTMLButtonElement {
     const el = document.createElement('button');
     el.setAttribute('type', 'button');
     el.classList.add(styles.cancel);
     if (className) el.classList.add(className);
+    if (disabled) el.disabled = true;
     for (const [key, value] of Object.entries(attrs)) {
       if (value === undefined || value === null) continue;
       if (key.startsWith('on') && typeof value === 'function') {
@@ -133,12 +136,14 @@ export function createThemedAlertDialog(
   function AlertDialogAction({
     children,
     class: className,
+    disabled,
     ...attrs
   }: AlertDialogButtonSlotProps): HTMLButtonElement {
     const el = document.createElement('button');
     el.setAttribute('type', 'button');
     el.classList.add(styles.action);
     if (className) el.classList.add(className);
+    if (disabled) el.disabled = true;
     for (const [key, value] of Object.entries(attrs)) {
       if (value === undefined || value === null) continue;
       if (key.startsWith('on') && typeof value === 'function') {
