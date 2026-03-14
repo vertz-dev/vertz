@@ -81,6 +81,7 @@ interface StackEntry {
   resolve: (result: DialogResult<unknown>) => void;
   cleanups: DisposeFn[];
   dismissible: boolean;
+  settled: boolean;
 }
 
 // ── Implementation ──
@@ -113,6 +114,7 @@ export function createDialogStack(container: HTMLElement): DialogStack {
         resolve: resolve as (result: DialogResult<unknown>) => void,
         cleanups: [],
         dismissible: true,
+        settled: false,
       };
 
       // Render within captured context scope
@@ -151,8 +153,10 @@ export function createDialogStack(container: HTMLElement): DialogStack {
   }
 
   function closeEntry(entry: StackEntry, result: unknown): void {
+    if (entry.settled) return;
     const idx = entries.indexOf(entry);
     if (idx === -1) return;
+    entry.settled = true;
 
     // Set closed state for exit animation
     entry.wrapper.setAttribute('data-state', 'closed');
@@ -210,8 +214,10 @@ export function createDialogStack(container: HTMLElement): DialogStack {
   };
 
   function dismissEntry(entry: StackEntry): void {
+    if (entry.settled) return;
     const idx = entries.indexOf(entry);
     if (idx === -1) return;
+    entry.settled = true;
 
     entry.wrapper.setAttribute('data-state', 'closed');
     onAnimationsComplete(entry.wrapper, () => {

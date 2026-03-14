@@ -313,6 +313,49 @@ describe('DialogStack', () => {
     expect(stack.size).toBe(2);
   });
 
+  it('ignores Escape after dialog.close() has been called (no double resolution)', async () => {
+    const stack = createDialogStack(container);
+    let closeHandle: (() => void) | undefined;
+
+    function SimpleDialog({ dialog }: { dialog: DialogHandle<boolean> }) {
+      closeHandle = () => dialog.close(true);
+      return document.createElement('div');
+    }
+
+    const promise = stack.open(SimpleDialog, {});
+    const wrapper = container.querySelector('[data-dialog-wrapper]') as HTMLElement;
+
+    // Close via dialog.close()
+    closeHandle!();
+
+    // Then try to dismiss via Escape — should be ignored (settled flag prevents it)
+    wrapper.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+    const result = await promise;
+    expect(result).toEqual({ ok: true, data: true });
+  });
+
+  it('ignores dialog.close() after closeAll() has already dismissed', async () => {
+    const stack = createDialogStack(container);
+    let closeHandle: (() => void) | undefined;
+
+    function SimpleDialog({ dialog }: { dialog: DialogHandle<boolean> }) {
+      closeHandle = () => dialog.close(true);
+      return document.createElement('div');
+    }
+
+    const promise = stack.open(SimpleDialog, {});
+
+    // Dismiss via closeAll
+    stack.closeAll();
+
+    // Then try to close explicitly — should be ignored
+    closeHandle!();
+
+    const result = await promise;
+    expect(result).toEqual({ ok: false });
+  });
+
   it('useDialogStack captures context scope eagerly for use in event handlers', () => {
     const internalStack = createDialogStack(container);
     const ProjectContext = createContext<string>();
