@@ -1,5 +1,12 @@
 # @vertz/fetch
 
+## 0.2.19
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vertz/errors@0.2.19
+
 ## 0.2.18
 
 ### Patch Changes

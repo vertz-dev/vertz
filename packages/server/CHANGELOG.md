@@ -1,5 +1,17 @@
 # @vertz/server
 
+## 0.2.19
+
+### Patch Changes
+
+- [#1266](https://github.com/vertz-dev/vertz/pull/1266) [`ae1a64a`](https://github.com/vertz-dev/vertz/commit/ae1a64a23608880b8e87ed2a44907eabddba873e) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add OpenAPI 3.1 spec generation from entity definitions. The `generateOpenAPISpec()` function produces a complete OpenAPI document from entity `expose` configs, including response schemas, create/update input schemas, VertzQL query parameters, relation includes, custom actions, and standard error responses.
+
+- Updated dependencies []:
+  - @vertz/core@0.2.19
+  - @vertz/db@0.2.19
+  - @vertz/errors@0.2.19
+  - @vertz/schema@0.2.19
+
 ## 0.2.18
 
 ### Patch Changes
