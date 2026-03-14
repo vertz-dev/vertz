@@ -48,13 +48,16 @@ const postsModel = d.model(postsTable, {
 // EntityRelationsConfig — field narrowing constrained to target table columns
 // ---------------------------------------------------------------------------
 
-describe('EntityRelationsConfig field narrowing', () => {
+describe('expose.include field narrowing', () => {
   it('accepts field names that exist on the target relation table (with select wrapper)', () => {
     // posts target is postsTable, which has id, title, body, authorId, createdAt
     entity('users', {
       model: usersModel,
-      relations: {
-        posts: { select: { id: true, title: true } },
+      expose: {
+        select: { id: true },
+        include: {
+          posts: { select: { id: true, title: true } },
+        },
       },
     });
   });
@@ -62,9 +65,12 @@ describe('EntityRelationsConfig field narrowing', () => {
   it('rejects field names that do NOT exist on the target relation table', () => {
     entity('users', {
       model: usersModel,
-      relations: {
-        // @ts-expect-error — 'nonExistentField' is not a column on postsTable
-        posts: { select: { id: true, nonExistentField: true } },
+      expose: {
+        select: { id: true },
+        include: {
+          // @ts-expect-error — 'nonExistentField' is not a column on postsTable
+          posts: { select: { id: true, nonExistentField: true } },
+        },
       },
     });
   });
@@ -72,9 +78,12 @@ describe('EntityRelationsConfig field narrowing', () => {
   it('rejects relation names not in model', () => {
     entity('users', {
       model: usersModel,
-      relations: {
-        // @ts-expect-error — 'comments' is not a relation on usersModel
-        comments: true,
+      expose: {
+        select: { id: true },
+        include: {
+          // @ts-expect-error — 'comments' is not a relation on usersModel
+          comments: true,
+        },
       },
     });
   });
@@ -84,13 +93,16 @@ describe('EntityRelationsConfig field narrowing', () => {
 // EntityRelationsConfig — multi-relation models
 // ---------------------------------------------------------------------------
 
-describe('EntityRelationsConfig with multiple relations', () => {
+describe('expose.include with multiple relations', () => {
   it('accepts valid field narrowing on multiple relations', () => {
     entity('posts', {
       model: postsModel,
-      relations: {
-        author: { select: { id: true, name: true } },
-        tags: { select: { id: true, label: true } },
+      expose: {
+        select: { id: true },
+        include: {
+          author: { select: { id: true, name: true } },
+          tags: { select: { id: true, label: true } },
+        },
       },
     });
   });
@@ -98,9 +110,12 @@ describe('EntityRelationsConfig with multiple relations', () => {
   it('rejects fields from wrong relation table', () => {
     entity('posts', {
       model: postsModel,
-      relations: {
-        // @ts-expect-error — 'label' is a column on tagsTable, not usersTable
-        author: { select: { id: true, label: true } },
+      expose: {
+        select: { id: true },
+        include: {
+          // @ts-expect-error — 'label' is a column on tagsTable, not usersTable
+          author: { select: { id: true, label: true } },
+        },
       },
     });
   });
@@ -162,7 +177,7 @@ describe('TypedIncludeOption constrained by relations config', () => {
   // Simulate a relations config that exposes author with narrowed fields
   // and tags as fully open
   type PostRelationsConfig = {
-    author: { id: true; name: true };
+    author: { select: { id: true; name: true } };
     tags: true;
   };
 
@@ -182,7 +197,7 @@ describe('TypedIncludeOption constrained by relations config', () => {
 
   it('accepts a subset of allowed fields for narrowed relations', () => {
     const _include: TypedIncludeOption<PostRelationsConfig> = {
-      author: { id: true },
+      author: { select: { id: true } },
     };
     void _include;
   });
@@ -206,14 +221,14 @@ describe('TypedIncludeOption constrained by relations config', () => {
 
 describe('TypedQueryOptions full integration', () => {
   type TestRelationsConfig = {
-    posts: { id: true; title: true };
+    posts: { select: { id: true; title: true } };
   };
 
   it('accepts valid where + select + include', () => {
     const _opts: TypedQueryOptions<typeof usersTable, TestRelationsConfig> = {
       where: { role: 'admin' },
       select: { name: true, email: true },
-      include: { posts: { id: true } },
+      include: { posts: { select: { id: true } } },
       limit: 20,
       orderBy: { name: 'asc' },
     };

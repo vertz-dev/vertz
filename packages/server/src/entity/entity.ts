@@ -41,7 +41,7 @@ export function entity<
     before: (config.before ?? {}) as EntityDefinition<TModel>['before'],
     after: (config.after ?? {}) as EntityDefinition<TModel>['after'],
     actions: (config.actions ?? {}) as Record<string, EntityActionDef>,
-    relations: config.relations ?? {},
+    expose: config.expose,
     table: config.table ?? name,
     tenantScoped,
     tenantChain: null,

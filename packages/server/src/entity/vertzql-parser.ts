@@ -12,6 +12,19 @@ import type { EntityRelationsConfig, RelationConfigObject } from './types';
 //   after=cursor                → { after: cursor }
 // ---------------------------------------------------------------------------
 
+/**
+ * Extracts allowed field keys from either array format (old) or object format (new expose API).
+ * - Array: `['status', 'createdAt']` → `['status', 'createdAt']`
+ * - Object: `{ status: true, createdAt: true }` → `['status', 'createdAt']`
+ */
+function extractAllowKeys(
+  allow: readonly string[] | Record<string, unknown> | undefined,
+): string[] {
+  if (!allow) return [];
+  if (Array.isArray(allow)) return allow as string[];
+  return Object.keys(allow);
+}
+
 /** Maximum allowed limit to prevent DoS via large result sets. */
 export const MAX_LIMIT = 1000;
 
@@ -260,7 +273,8 @@ function validateInclude(
 
     // Validate where fields against allowWhere
     if (requested.where) {
-      if (!configObj || !configObj.allowWhere || configObj.allowWhere.length === 0) {
+      const allowWhereKeys = extractAllowKeys(configObj?.allowWhere);
+      if (!configObj || allowWhereKeys.length === 0) {
         return {
           ok: false,
           error:
@@ -268,14 +282,14 @@ function validateInclude(
             "Add 'allowWhere' to the entity relations config.",
         };
       }
-      const allowedSet = new Set(configObj.allowWhere);
+      const allowedSet = new Set(allowWhereKeys);
       for (const field of Object.keys(requested.where)) {
         if (!allowedSet.has(field)) {
           return {
             ok: false,
             error:
               `Field '${field}' is not filterable on relation '${relationPath}'. ` +
-              `Allowed: ${configObj.allowWhere.join(', ')}`,
+              `Allowed: ${allowWhereKeys.join(', ')}`,
           };
         }
       }
@@ -283,7 +297,8 @@ function validateInclude(
 
     // Validate orderBy fields against allowOrderBy
     if (requested.orderBy) {
-      if (!configObj || !configObj.allowOrderBy || configObj.allowOrderBy.length === 0) {
+      const allowOrderByKeys = extractAllowKeys(configObj?.allowOrderBy);
+      if (!configObj || allowOrderByKeys.length === 0) {
         return {
           ok: false,
           error:
@@ -291,14 +306,14 @@ function validateInclude(
             "Add 'allowOrderBy' to the entity relations config.",
         };
       }
-      const allowedSet = new Set(configObj.allowOrderBy);
+      const allowedSet = new Set(allowOrderByKeys);
       for (const [field, dir] of Object.entries(requested.orderBy)) {
         if (!allowedSet.has(field)) {
           return {
             ok: false,
             error:
               `Field '${field}' is not sortable on relation '${relationPath}'. ` +
-              `Allowed: ${configObj.allowOrderBy.join(', ')}`,
+              `Allowed: ${allowOrderByKeys.join(', ')}`,
           };
         }
         if (dir !== 'asc' && dir !== 'desc') {

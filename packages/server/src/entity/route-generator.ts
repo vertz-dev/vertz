@@ -7,7 +7,7 @@ import type { EntityRegistry } from './entity-registry';
 import { entityErrorHandler } from './error-handler';
 import { applySelect } from './field-filter';
 import type { TenantChain } from './tenant-chain';
-import type { EntityDefinition } from './types';
+import type { EntityDefinition, EntityRelationsConfig } from './types';
 import { parseVertzQL, type VertzQLIncludeEntry, validateVertzQL } from './vertzql-parser';
 
 // ---------------------------------------------------------------------------
@@ -125,7 +125,7 @@ export function generateEntityRoutes(
             const parsed = parseVertzQL(query);
 
             // Validate against entity schema and relations config
-            const relationsConfig = def.relations;
+            const relationsConfig = (def.expose?.include ?? {}) as EntityRelationsConfig;
             const validation = validateVertzQL(parsed, def.model.table, relationsConfig);
             if (!validation.ok) {
               return jsonResponse(
@@ -181,7 +181,7 @@ export function generateEntityRoutes(
             include: body.include as Record<string, true | VertzQLIncludeEntry> | undefined,
           };
 
-          const relationsConfig = def.relations;
+          const relationsConfig = (def.expose?.include ?? {}) as EntityRelationsConfig;
           const validation = validateVertzQL(parsed, def.model.table, relationsConfig);
           if (!validation.ok) {
             return jsonResponse({ error: { code: 'BadRequest', message: validation.error } }, 400);
@@ -247,7 +247,7 @@ export function generateEntityRoutes(
             const parsed = parseVertzQL(query);
 
             // Validate select/include
-            const relationsConfig = def.relations;
+            const relationsConfig = (def.expose?.include ?? {}) as EntityRelationsConfig;
             const validation = validateVertzQL(parsed, def.model.table, relationsConfig);
             if (!validation.ok) {
               return jsonResponse(

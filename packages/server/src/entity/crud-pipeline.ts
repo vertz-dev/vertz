@@ -18,7 +18,7 @@ import {
 import { enforceAccess, extractWhereConditions } from './access-enforcer';
 import { narrowRelationFields, stripHiddenFields, stripReadOnlyFields } from './field-filter';
 import type { TenantChain } from './tenant-chain';
-import type { EntityContext, EntityDefinition } from './types';
+import type { EntityContext, EntityDefinition, EntityRelationsConfig } from './types';
 
 // Re-export types from @vertz/db for backward compatibility
 export type { EntityDbAdapter, GetOptions, ListOptions } from '@vertz/db';
@@ -223,7 +223,10 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
       const include = options?.include;
       const { data: rows, total } = await db.list({ where, orderBy, limit, after, include });
       const data = rows.map((row) =>
-        narrowRelationFields(def.relations, stripHiddenFields(table, row)),
+        narrowRelationFields(
+          (def.expose?.include ?? {}) as EntityRelationsConfig,
+          stripHiddenFields(table, row),
+        ),
       ) as TModel['table']['$response'][];
 
       // Compute nextCursor: if we got a full page, there may be more rows
@@ -258,7 +261,7 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
       return ok({
         status: 200,
         body: narrowRelationFields(
-          def.relations,
+          (def.expose?.include ?? {}) as EntityRelationsConfig,
           stripHiddenFields(table, row),
         ) as TModel['table']['$response'],
       });
@@ -331,7 +334,10 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
 
       return ok({
         status: 201,
-        body: narrowRelationFields(def.relations, strippedResult) as TModel['table']['$response'],
+        body: narrowRelationFields(
+          (def.expose?.include ?? {}) as EntityRelationsConfig,
+          strippedResult,
+        ) as TModel['table']['$response'],
       });
     },
 
@@ -371,7 +377,10 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
 
       return ok({
         status: 200,
-        body: narrowRelationFields(def.relations, strippedResult) as TModel['table']['$response'],
+        body: narrowRelationFields(
+          (def.expose?.include ?? {}) as EntityRelationsConfig,
+          strippedResult,
+        ) as TModel['table']['$response'],
       });
     },
 

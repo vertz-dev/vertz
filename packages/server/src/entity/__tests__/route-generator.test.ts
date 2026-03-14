@@ -77,7 +77,6 @@ function buildEntityDef(overrides: Partial<EntityDefinition> = {}): EntityDefini
     before: {},
     after: {},
     actions: {},
-    relations: {},
     ...overrides,
   } as EntityDefinition;
 }
@@ -966,7 +965,7 @@ describe('Feature: Include pass-through in route handlers (#1130)', () => {
           list: listSpy,
         };
         const def = buildEntityDef({
-          relations: { posts: true },
+          expose: { select: { id: true, name: true }, include: { posts: true } },
         });
         const registry = new EntityRegistry();
         const routes = generateEntityRoutes(def, registry, db);
@@ -1004,11 +1003,14 @@ describe('Feature: Include pass-through in route handlers (#1130)', () => {
           list: listSpy,
         };
         const def = buildEntityDef({
-          relations: {
-            posts: {
-              select: { title: true, status: true },
-              allowWhere: ['status'],
-              allowOrderBy: ['createdAt'],
+          expose: {
+            select: { id: true, name: true },
+            include: {
+              posts: {
+                select: { title: true, status: true },
+                allowWhere: { status: true },
+                allowOrderBy: { createdAt: true },
+              },
             },
           },
         });
@@ -1061,7 +1063,7 @@ describe('Feature: Include pass-through in route handlers (#1130)', () => {
           get: getSpy,
         };
         const def = buildEntityDef({
-          relations: { posts: true },
+          expose: { select: { id: true, name: true }, include: { posts: true } },
         });
         const registry = new EntityRegistry();
         const routes = generateEntityRoutes(def, registry, db);

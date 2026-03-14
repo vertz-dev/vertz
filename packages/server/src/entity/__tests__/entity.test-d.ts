@@ -218,37 +218,30 @@ describe('entity() custom action types', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Relations config — constrained to model relations
+// Expose config — relation exposure via include (moved to expose-types.test-d.ts)
+// Basic smoke test here for integration
 // ---------------------------------------------------------------------------
 
-describe('entity() relations config types', () => {
-  it('accepts valid relation names from model', () => {
+describe('entity() expose.include types', () => {
+  it('accepts valid relation names from model via expose.include', () => {
     entity('users', {
       model: usersModel,
-      relations: { posts: true },
+      expose: {
+        select: { id: true, name: true },
+        include: { posts: true },
+      },
     });
   });
 
-  it('accepts false to exclude a relation', () => {
+  it('rejects relation names not in model via expose.include', () => {
     entity('users', {
       model: usersModel,
-      relations: { posts: false },
-    });
-  });
-
-  it('accepts field narrowing on a relation (with select wrapper)', () => {
-    entity('users', {
-      model: usersModel,
-      relations: { posts: { select: { id: true, title: true } } },
-    });
-  });
-
-  it('rejects relation names not in model', () => {
-    entity('users', {
-      model: usersModel,
-      relations: {
-        // @ts-expect-error — 'comments' is not a relation on usersModel
-        comments: true,
+      expose: {
+        select: { id: true },
+        include: {
+          // @ts-expect-error — 'comments' is not a relation on usersModel
+          comments: true,
+        },
       },
     });
   });
@@ -277,7 +270,10 @@ describe('entity() full config integration', () => {
         create: (_result, _ctx) => {},
         delete: (_row, _ctx) => {},
       },
-      relations: { posts: true },
+      expose: {
+        select: { id: true, name: true },
+        include: { posts: true },
+      },
     });
   });
 });

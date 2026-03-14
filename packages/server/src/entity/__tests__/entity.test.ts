@@ -70,13 +70,13 @@ describe('Feature: entity() definition', () => {
           access: { list: () => true },
           before: { create: (data) => data },
           after: { create: () => {} },
-          relations: { posts: true },
+          expose: { select: { id: true }, include: { posts: true } },
         });
 
         expect(Object.isFrozen(def.access)).toBe(true);
         expect(Object.isFrozen(def.before)).toBe(true);
         expect(Object.isFrozen(def.after)).toBe(true);
-        expect(Object.isFrozen(def.relations)).toBe(true);
+        expect(Object.isFrozen(def.expose)).toBe(true);
       });
 
       it('Then .model is the passed model', () => {
@@ -126,10 +126,10 @@ describe('Feature: entity() definition', () => {
         expect(def.actions).toEqual({});
       });
 
-      it('Then .relations defaults to {}', () => {
+      it('Then .expose defaults to undefined', () => {
         const def = entity('users', { model: usersModel });
 
-        expect(def.relations).toEqual({});
+        expect(def.expose).toBeUndefined();
       });
     });
   });
@@ -158,15 +158,21 @@ describe('Feature: entity() definition', () => {
     });
   });
 
-  describe('Given an entity config with relations', () => {
-    describe('When calling entity() with relations config', () => {
-      it('Then .relations contains the passed config', () => {
+  describe('Given an entity config with expose', () => {
+    describe('When calling entity() with expose config', () => {
+      it('Then .expose contains the passed config', () => {
         const def = entity('users', {
           model: usersModel,
-          relations: { posts: true },
+          expose: {
+            select: { id: true, name: true },
+            include: { posts: true },
+          },
         });
 
-        expect(def.relations).toEqual({ posts: true });
+        expect(def.expose).toEqual({
+          select: { id: true, name: true },
+          include: { posts: true },
+        });
       });
     });
   });

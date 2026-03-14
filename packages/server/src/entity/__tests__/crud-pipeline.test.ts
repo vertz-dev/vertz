@@ -845,7 +845,7 @@ describe('Feature: CRUD pipeline', () => {
 
   // --- Relation field narrowing ---
 
-  describe('Given an entity with relations: { creator: { id: true, name: true } }', () => {
+  describe('Given an entity with expose.include: { creator: { select: { id: true, name: true } } }', () => {
     const tasksTable = d.table('tasks', {
       id: d.uuid().primary(),
       title: d.text(),
@@ -854,7 +854,10 @@ describe('Feature: CRUD pipeline', () => {
     const def = entity('tasks', {
       model: tasksModel,
       access: { list: () => true, get: () => true },
-      relations: { creator: { select: { id: true, name: true } } },
+      expose: {
+        select: { id: true, title: true },
+        include: { creator: { select: { id: true, name: true } } },
+      },
     });
 
     function createTaskDbWithRelations() {
@@ -910,7 +913,7 @@ describe('Feature: CRUD pipeline', () => {
     });
   });
 
-  describe('Given an entity with relations: { project: false }', () => {
+  describe('Given an entity with expose.include: { project: false }', () => {
     const tasksTable = d.table('tasks', {
       id: d.uuid().primary(),
       title: d.text(),
@@ -919,7 +922,7 @@ describe('Feature: CRUD pipeline', () => {
     const def = entity('tasks', {
       model: tasksModel,
       access: { list: () => true, get: () => true },
-      relations: { project: false },
+      expose: { select: { id: true, title: true }, include: { project: false } },
     });
 
     function createTaskDbWithProject() {
