@@ -108,6 +108,24 @@ export function applySelect(
 }
 
 /**
+ * Sets descriptor-guarded fields to null.
+ * Used after applySelect to null out fields the user can't see
+ * due to failing access rule descriptors.
+ */
+export function nullGuardedFields(
+  nulledFields: Set<string>,
+  data: Record<string, unknown>,
+): Record<string, unknown> {
+  if (nulledFields.size === 0) return data;
+
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data)) {
+    result[key] = nulledFields.has(key) ? null : value;
+  }
+  return result;
+}
+
+/**
  * Strips readOnly and primary key columns from input data.
  * Used before DB writes to prevent setting immutable fields.
  */

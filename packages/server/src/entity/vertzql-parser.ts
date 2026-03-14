@@ -209,11 +209,23 @@ export interface ExposeValidationConfig {
   readonly allowOrderBy?: Record<string, unknown>;
 }
 
+/**
+ * Pre-evaluated expose descriptor results.
+ * When provided, overrides static key extraction for where/orderBy validation.
+ */
+export interface EvaluatedExposeValidation {
+  readonly allowedSelectFields: Set<string>;
+  readonly nulledFields: Set<string>;
+  readonly allowedWhereFields: Set<string>;
+  readonly allowedOrderByFields: Set<string>;
+}
+
 export function validateVertzQL(
   options: VertzQLOptions,
   table: TableDef,
   relationsConfig?: EntityRelationsConfig,
   exposeConfig?: ExposeValidationConfig,
+  evaluatedExpose?: EvaluatedExposeValidation,
 ): ValidationResult {
   // Surface q= parse errors
   if (options._qError) {
@@ -224,12 +236,21 @@ export function validateVertzQL(
 
   // Validate where fields
   if (options.where) {
-    const allowWhereKeys = exposeConfig ? extractAllowKeys(exposeConfig.allowWhere) : null;
+    // When evaluated expose is available, use the evaluated set;
+    // otherwise fall back to static key extraction from exposeConfig
+    const allowWhereSet = evaluatedExpose ? evaluatedExpose.allowedWhereFields : null;
+    const allowWhereKeys =
+      !evaluatedExpose && exposeConfig ? extractAllowKeys(exposeConfig.allowWhere) : null;
+
     for (const field of Object.keys(options.where)) {
       if (hiddenColumns.has(field)) {
         return { ok: false, error: `Field "${field}" is not filterable` };
       }
-      // Entity-level allowWhere check
+      // Evaluated expose check (descriptor-aware)
+      if (allowWhereSet !== null && !allowWhereSet.has(field)) {
+        return { ok: false, error: `Field "${field}" is not filterable` };
+      }
+      // Static entity-level allowWhere check (no descriptors evaluated)
       if (allowWhereKeys !== null && !allowWhereKeys.includes(field)) {
         return { ok: false, error: `Field "${field}" is not filterable` };
       }
@@ -238,12 +259,19 @@ export function validateVertzQL(
 
   // Validate orderBy fields
   if (options.orderBy) {
-    const allowOrderByKeys = exposeConfig ? extractAllowKeys(exposeConfig.allowOrderBy) : null;
+    const allowOrderBySet = evaluatedExpose ? evaluatedExpose.allowedOrderByFields : null;
+    const allowOrderByKeys =
+      !evaluatedExpose && exposeConfig ? extractAllowKeys(exposeConfig.allowOrderBy) : null;
+
     for (const field of Object.keys(options.orderBy)) {
       if (hiddenColumns.has(field)) {
         return { ok: false, error: `Field "${field}" is not sortable` };
       }
-      // Entity-level allowOrderBy check
+      // Evaluated expose check (descriptor-aware)
+      if (allowOrderBySet !== null && !allowOrderBySet.has(field)) {
+        return { ok: false, error: `Field "${field}" is not sortable` };
+      }
+      // Static entity-level allowOrderBy check
       if (allowOrderByKeys !== null && !allowOrderByKeys.includes(field)) {
         return { ok: false, error: `Field "${field}" is not sortable` };
       }

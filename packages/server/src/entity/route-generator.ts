@@ -5,7 +5,8 @@ import { createCrudHandlers, type EntityDbAdapter, type ListOptions } from './cr
 import type { EntityOperations } from './entity-operations';
 import type { EntityRegistry } from './entity-registry';
 import { entityErrorHandler } from './error-handler';
-import { applySelect } from './field-filter';
+import { type ExposeEvalConfig, evaluateExposeDescriptors } from './expose-evaluator';
+import { applySelect, nullGuardedFields } from './field-filter';
 import type { TenantChain } from './tenant-chain';
 import type { EntityDefinition, EntityRelationsConfig } from './types';
 import {
@@ -63,6 +64,43 @@ function getParams(ctx: Record<string, unknown>): Record<string, string> {
 }
 
 // ---------------------------------------------------------------------------
+// Expose descriptor detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns true if any value in the record is not `true` (i.e., is an AccessRule descriptor).
+ */
+function hasDescriptorValues(record: Record<string, unknown> | undefined): boolean {
+  if (!record) return false;
+  return Object.values(record).some((v) => v !== true);
+}
+
+/**
+ * Checks if an expose config has any AccessRule descriptors that need runtime evaluation.
+ */
+function hasDescriptors(expose: {
+  select?: Record<string, unknown>;
+  allowWhere?: Record<string, unknown>;
+  allowOrderBy?: Record<string, unknown>;
+}): boolean {
+  return (
+    hasDescriptorValues(expose.select) ||
+    hasDescriptorValues(expose.allowWhere) ||
+    hasDescriptorValues(expose.allowOrderBy)
+  );
+}
+
+/**
+ * Applies nulling to a single row's fields based on evaluated expose descriptors.
+ */
+function applyNulling(
+  data: Record<string, unknown>,
+  nulledFields: Set<string>,
+): Record<string, unknown> {
+  return nullGuardedFields(nulledFields, data);
+}
+
+// ---------------------------------------------------------------------------
 // Route generator
 // ---------------------------------------------------------------------------
 
@@ -89,6 +127,14 @@ export function generateEntityRoutes(
         allowOrderBy: def.expose.allowOrderBy as Record<string, unknown> | undefined,
       }
     : undefined;
+
+  // Check if expose config has any AccessRule descriptors that need runtime evaluation.
+  // If all values are `true`, no per-request evaluation is needed.
+  const exposeEvalConfig: ExposeEvalConfig | null = def.expose
+    ? hasDescriptors(def.expose)
+      ? (def.expose as ExposeEvalConfig)
+      : null
+    : null;
 
   const crudHandlers = createCrudHandlers(def, db, {
     tenantChain,
@@ -136,6 +182,11 @@ export function generateEntityRoutes(
             const query = (ctx.query ?? {}) as Record<string, string>;
             const parsed = parseVertzQL(query);
 
+            // Pre-evaluate expose descriptors once per request
+            const evaluated = exposeEvalConfig
+              ? await evaluateExposeDescriptors(exposeEvalConfig, entityCtx)
+              : null;
+
             // Validate against entity schema and relations config
             const relationsConfig = (def.expose?.include ?? {}) as EntityRelationsConfig;
             const validation = validateVertzQL(
@@ -143,6 +194,7 @@ export function generateEntityRoutes(
               def.model.table,
               relationsConfig,
               exposeValidation,
+              evaluated ?? undefined,
             );
             if (!validation.ok) {
               return jsonResponse(
@@ -162,6 +214,13 @@ export function generateEntityRoutes(
             if (!result.ok) {
               const { status, body } = entityErrorHandler(result.error);
               return jsonResponse(body, status);
+            }
+
+            // Apply nulling for descriptor-guarded fields
+            if (evaluated && evaluated.nulledFields.size > 0 && result.data.body.items) {
+              result.data.body.items = result.data.body.items.map((row) =>
+                applyNulling(row as Record<string, unknown>, evaluated.nulledFields),
+              );
             }
 
             // Apply select narrowing if requested
@@ -198,8 +257,19 @@ export function generateEntityRoutes(
             include: body.include as Record<string, true | VertzQLIncludeEntry> | undefined,
           };
 
+          // Pre-evaluate expose descriptors once per request
+          const evaluated = exposeEvalConfig
+            ? await evaluateExposeDescriptors(exposeEvalConfig, entityCtx)
+            : null;
+
           const relationsConfig = (def.expose?.include ?? {}) as EntityRelationsConfig;
-          const validation = validateVertzQL(parsed, def.model.table, relationsConfig);
+          const validation = validateVertzQL(
+            parsed,
+            def.model.table,
+            relationsConfig,
+            exposeValidation,
+            evaluated ?? undefined,
+          );
           if (!validation.ok) {
             return jsonResponse({ error: { code: 'BadRequest', message: validation.error } }, 400);
           }
@@ -215,6 +285,13 @@ export function generateEntityRoutes(
           if (!result.ok) {
             const { status, body: errBody } = entityErrorHandler(result.error);
             return jsonResponse(errBody, status);
+          }
+
+          // Apply nulling for descriptor-guarded fields
+          if (evaluated && evaluated.nulledFields.size > 0 && result.data.body.items) {
+            result.data.body.items = result.data.body.items.map((row) =>
+              applyNulling(row as Record<string, unknown>, evaluated.nulledFields),
+            );
           }
 
           // Apply select narrowing if requested
@@ -263,6 +340,11 @@ export function generateEntityRoutes(
             const query = (ctx.query ?? {}) as Record<string, string>;
             const parsed = parseVertzQL(query);
 
+            // Pre-evaluate expose descriptors once per request
+            const evaluated = exposeEvalConfig
+              ? await evaluateExposeDescriptors(exposeEvalConfig, entityCtx)
+              : null;
+
             // Validate select/include
             const relationsConfig = (def.expose?.include ?? {}) as EntityRelationsConfig;
             const validation = validateVertzQL(
@@ -270,6 +352,7 @@ export function generateEntityRoutes(
               def.model.table,
               relationsConfig,
               exposeValidation,
+              evaluated ?? undefined,
             );
             if (!validation.ok) {
               return jsonResponse(
@@ -285,10 +368,14 @@ export function generateEntityRoutes(
               return jsonResponse(body, status);
             }
 
+            // Apply nulling for descriptor-guarded fields
+            let responseBody = result.data.body as Record<string, unknown>;
+            if (evaluated && evaluated.nulledFields.size > 0) {
+              responseBody = applyNulling(responseBody, evaluated.nulledFields);
+            }
+
             // Apply select narrowing if requested
-            const body = parsed.select
-              ? applySelect(parsed.select, result.data.body)
-              : result.data.body;
+            const body = parsed.select ? applySelect(parsed.select, responseBody) : responseBody;
 
             return jsonResponse(body, result.data.status);
           } catch (error) {
@@ -330,7 +417,17 @@ export function generateEntityRoutes(
               const { status, body } = entityErrorHandler(result.error);
               return jsonResponse(body, status);
             }
-            return jsonResponse(result.data.body, result.data.status);
+
+            // Apply nulling for descriptor-guarded fields
+            let responseBody = result.data.body as Record<string, unknown>;
+            if (exposeEvalConfig) {
+              const evaluated = await evaluateExposeDescriptors(exposeEvalConfig, entityCtx);
+              if (evaluated.nulledFields.size > 0) {
+                responseBody = applyNulling(responseBody, evaluated.nulledFields);
+              }
+            }
+
+            return jsonResponse(responseBody, result.data.status);
           } catch (error) {
             const { status, body } = entityErrorHandler(error);
             return jsonResponse(body, status);
@@ -371,7 +468,17 @@ export function generateEntityRoutes(
               const { status, body } = entityErrorHandler(result.error);
               return jsonResponse(body, status);
             }
-            return jsonResponse(result.data.body, result.data.status);
+
+            // Apply nulling for descriptor-guarded fields
+            let responseBody = result.data.body as Record<string, unknown>;
+            if (exposeEvalConfig) {
+              const evaluated = await evaluateExposeDescriptors(exposeEvalConfig, entityCtx);
+              if (evaluated.nulledFields.size > 0) {
+                responseBody = applyNulling(responseBody, evaluated.nulledFields);
+              }
+            }
+
+            return jsonResponse(responseBody, result.data.status);
           } catch (error) {
             const { status, body } = entityErrorHandler(error);
             return jsonResponse(body, status);

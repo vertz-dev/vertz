@@ -3,6 +3,7 @@ import { d } from '@vertz/db';
 import {
   applySelect,
   narrowRelationFields,
+  nullGuardedFields,
   stripHiddenFields,
   stripReadOnlyFields,
 } from '../field-filter';
@@ -145,6 +146,37 @@ describe('Feature: field selection (applySelect)', () => {
         const data = { id: '1', name: 'Alice', email: 'a@b.com' };
 
         const result = applySelect(undefined, data);
+
+        expect(result).toEqual(data);
+      });
+    });
+  });
+});
+
+describe('Feature: null guarded fields', () => {
+  describe('Given a set of nulled fields', () => {
+    describe('When nullGuardedFields is called', () => {
+      it('Then specified fields are set to null', () => {
+        const data = { id: '1', name: 'Alice', salary: 100000, ssn: '123-45-6789' };
+        const nulled = new Set(['salary', 'ssn']);
+
+        const result = nullGuardedFields(nulled, data);
+
+        expect(result.id).toBe('1');
+        expect(result.name).toBe('Alice');
+        expect(result.salary).toBeNull();
+        expect(result.ssn).toBeNull();
+      });
+    });
+  });
+
+  describe('Given an empty set of nulled fields', () => {
+    describe('When nullGuardedFields is called', () => {
+      it('Then all fields pass through unchanged', () => {
+        const data = { id: '1', name: 'Alice', salary: 100000 };
+        const nulled = new Set<string>();
+
+        const result = nullGuardedFields(nulled, data);
 
         expect(result).toEqual(data);
       });
