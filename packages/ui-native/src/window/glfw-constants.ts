@@ -31,10 +31,20 @@ export const GLFW_COCOA_RETINA_FRAMEBUFFER = 0x00023001;
 export const GLFW_SCALE_FRAMEBUFFER = 0x0002200d;
 
 // Key codes (subset — extend as needed)
+export const GLFW_KEY_SPACE = 32;
 export const GLFW_KEY_ESCAPE = 256;
 export const GLFW_KEY_ENTER = 257;
 export const GLFW_KEY_TAB = 258;
 export const GLFW_KEY_BACKSPACE = 259;
+export const GLFW_KEY_DELETE = 261;
+export const GLFW_KEY_RIGHT = 262;
+export const GLFW_KEY_LEFT = 263;
+export const GLFW_KEY_DOWN = 264;
+export const GLFW_KEY_UP = 265;
+export const GLFW_KEY_LEFT_SHIFT = 340;
+export const GLFW_KEY_LEFT_CONTROL = 341;
+export const GLFW_KEY_LEFT_ALT = 342;
+export const GLFW_KEY_LEFT_SUPER = 343;
 
 // Mouse buttons
 export const GLFW_MOUSE_BUTTON_LEFT = 0;
@@ -69,4 +79,7 @@ export interface GLFWBindings {
   glfwSetWindowShouldClose(window: number, value: number): void;
   glfwGetFramebufferSize(window: number, width: Uint8Array, height: Uint8Array): void;
   glfwSwapInterval(interval: number): void;
+  glfwGetCursorPos(window: number, xpos: Uint8Array, ypos: Uint8Array): void;
+  glfwGetMouseButton(window: number, button: number): number;
+  glfwGetKey(window: number, key: number): number;
 }

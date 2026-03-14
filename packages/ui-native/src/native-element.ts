@@ -79,11 +79,11 @@ export class NativeElement implements RenderElement {
   }
 
   /** Dispatch an event to all registered listeners. */
-  dispatchEvent(event: string, data: Event): void {
+  dispatchEvent(event: string, data: unknown): void {
     const list = this._listeners.get(event);
     if (!list) return;
     for (const handler of list) {
-      handler(data);
+      handler(data as Event);
     }
   }
 

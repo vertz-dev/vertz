@@ -73,6 +73,12 @@ export function loadGLFW(): GLFWBindings {
       returns: ffiVoid,
     },
     glfwSwapInterval: { args: [i32], returns: ffiVoid },
+    glfwGetCursorPos: {
+      args: [ptrType, ptrType, ptrType],
+      returns: ffiVoid,
+    },
+    glfwGetMouseButton: { args: [ptrType, i32], returns: i32 },
+    glfwGetKey: { args: [ptrType, i32], returns: i32 },
   });
 
   return lib.symbols as unknown as GLFWBindings;
