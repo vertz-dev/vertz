@@ -142,24 +142,6 @@
         "wrangler": "^4.65.0",
       },
     },
-    "examples/template-todo": {
-      "name": "template-todo-example",
-      "dependencies": {
-        "@vertz/db": "workspace:*",
-        "@vertz/fetch": "workspace:*",
-        "@vertz/schema": "workspace:*",
-        "@vertz/server": "workspace:*",
-        "@vertz/theme-shadcn": "workspace:*",
-        "@vertz/ui": "workspace:*",
-        "@vertz/ui-server": "workspace:*",
-      },
-      "devDependencies": {
-        "@vertz/cli": "workspace:*",
-        "@vertz/ui-compiler": "workspace:*",
-        "bun-types": "^1.3.9",
-        "typescript": "^5.8.0",
-      },
-    },
     "packages/cli": {
       "name": "@vertz/cli",
       "version": "0.2.17",
@@ -1952,8 +1934,6 @@
     "tar-fs": ["tar-fs@2.1.4", "", { "dependencies": { "chownr": "^1.1.1", "mkdirp-classic": "^0.5.2", "pump": "^3.0.0", "tar-stream": "^2.1.4" } }, "sha512-mDAjwmZdh7LTT6pNleZ05Yt65HC3E+NiQzl672vQG38jIrehtJk/J3mNwIg+vShQPcLF/LV7CMnDW6vjj6sfYQ=="],
 
     "tar-stream": ["tar-stream@2.2.0", "", { "dependencies": { "bl": "^4.0.3", "end-of-stream": "^1.4.1", "fs-constants": "^1.0.0", "inherits": "^2.0.3", "readable-stream": "^3.1.1" } }, "sha512-ujeqbceABgwMZxEJnk2HDY2DlnUZ+9oEcb1KzTVfYHio0UE6dG71n60d8D2I4qNvleWrrXpmjpt7vZeF1LnMZQ=="],
-
-    "template-todo-example": ["template-todo-example@workspace:examples/template-todo"],
 
     "term-size": ["term-size@2.2.1", "", {}, "sha512-wK0Ri4fOGjv/XPy8SBHZChl8CM7uMc5VML7SqiQ0zG7+J5Vr+RMQDoHa2CNT6KHUnTGIXH34UDMkPzAUyapBZg=="],
 
