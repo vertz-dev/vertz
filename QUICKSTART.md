@@ -10,7 +10,7 @@ Get a working Vertz full-stack app running in under 5 minutes. Copy-paste friend
 ## Step 1: Create Your App
 
 ```bash
-npx @vertz/create-vertz-app my-app
+bunx @vertz/create-vertz-app@latest my-app
 cd my-app
 ```
 
