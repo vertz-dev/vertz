@@ -3,12 +3,14 @@
  * Follows WAI-ARIA progressbar pattern.
  */
 
-import type { Signal } from '@vertz/ui';
-import { signal } from '@vertz/ui';
+import type { Ref, Signal } from '@vertz/ui';
+import { ref, signal } from '@vertz/ui';
 import { setDataState } from '../utils/aria';
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 import { uniqueId } from '../utils/id';
 
-export interface ProgressOptions {
+export interface ProgressOptions extends ElementAttrs {
   defaultValue?: number;
   min?: number;
   max?: number;
@@ -30,14 +32,11 @@ function dataStateFor(pct: number): string {
 }
 
 function ProgressRoot(options: ProgressOptions = {}) {
-  const { defaultValue = 0, min = 0, max = 100 } = options;
+  const { defaultValue = 0, min = 0, max = 100, ...attrs } = options;
   const state: ProgressState = { value: signal(defaultValue) };
+  const indicatorRef: Ref<HTMLDivElement> = ref();
 
   const initialPct = ((defaultValue - min) / (max - min)) * 100;
-
-  const indicator = (
-    <div data-part="indicator" style={`width: ${initialPct}%`} />
-  ) as HTMLDivElement;
 
   const root = (
     <div
@@ -48,9 +47,13 @@ function ProgressRoot(options: ProgressOptions = {}) {
       aria-valuemax={String(max)}
       data-state={dataStateFor(initialPct)}
     >
-      {indicator}
+      <div ref={indicatorRef} data-part="indicator" style={`width: ${initialPct}%`} />
     </div>
   ) as HTMLDivElement;
+
+  const indicator = indicatorRef.current!;
+
+  applyAttrs(root, attrs);
 
   function setValue(val: number): void {
     const clamped = Math.min(max, Math.max(min, val));

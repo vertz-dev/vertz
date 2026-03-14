@@ -1,10 +1,12 @@
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
 import { setHidden } from '../utils/aria';
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 import { uniqueId } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
-export interface CommandOptions {
+export interface CommandOptions extends ElementAttrs {
   filter?: (value: string, search: string) => boolean;
   onSelect?: (value: string) => void;
   onInputChange?: (value: string) => void;
@@ -32,7 +34,7 @@ function CommandRoot(options: CommandOptions = {}): CommandElements & {
   };
   Separator: () => HTMLHRElement;
 } {
-  const { filter: customFilter, onSelect, onInputChange, placeholder } = options;
+  const { filter: customFilter, onSelect, onInputChange, placeholder, ...attrs } = options;
   const listId = uniqueId('command-list');
   const state: CommandState = {
     inputValue: signal(''),
@@ -158,6 +160,8 @@ function CommandRoot(options: CommandOptions = {}): CommandElements & {
       {empty}
     </div>
   ) as HTMLDivElement;
+
+  applyAttrs(root, attrs);
 
   function createItem(
     value: string,

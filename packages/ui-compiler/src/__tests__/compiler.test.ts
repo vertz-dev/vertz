@@ -306,4 +306,33 @@ function Card({ title, subtitle }: CardProps) {
     expect(result.code).toContain('computed(() => __props.title');
     expect(result.code).toContain('label.value');
   });
+
+  it('emits ref.current assignment for ref prop on JSX elements', () => {
+    const result = compile(
+      `
+function MyComponent() {
+  const myRef = ref();
+  return <div ref={myRef} id="test">hello</div>;
+}
+      `.trim(),
+    );
+    expect(result.code).toContain('myRef.current =');
+    expect(result.code).not.toContain('.setAttribute("ref"');
+  });
+
+  it('emits ref.current assignment for ref on nested child elements', () => {
+    const result = compile(
+      `
+function MyComponent() {
+  const childRef = ref();
+  return (
+    <div>
+      <span ref={childRef}>inner</span>
+    </div>
+  );
+}
+      `.trim(),
+    );
+    expect(result.code).toContain('childRef.current =');
+  });
 });

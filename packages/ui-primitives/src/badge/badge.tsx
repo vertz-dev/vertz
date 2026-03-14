@@ -1,6 +1,8 @@
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 import { uniqueId } from '../utils/id';
 
-export interface BadgeOptions {
+export interface BadgeOptions extends ElementAttrs {
   variant?: 'default' | 'secondary' | 'outline' | 'destructive';
 }
 
@@ -9,12 +11,13 @@ export interface BadgeElements {
 }
 
 function BadgeRoot(options: BadgeOptions = {}): BadgeElements {
-  const { variant = 'default' } = options;
+  const { variant = 'default', ...attrs } = options;
 
   const badge = (
     <span id={uniqueId('badge')} data-slot="badge" data-variant={variant} />
   ) as HTMLSpanElement;
 
+  applyAttrs(badge, attrs);
   return { badge };
 }
 

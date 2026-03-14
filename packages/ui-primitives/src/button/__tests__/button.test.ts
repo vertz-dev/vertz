@@ -49,4 +49,17 @@ describe('Button', () => {
 
     document.body.removeChild(root);
   });
+
+  it('passes HTML attributes through to the element', () => {
+    const root = Button.Root({
+      class: 'my-btn',
+      'aria-label': 'Close dialog',
+      'data-testid': 'close-btn',
+      id: 'custom-id',
+    });
+    expect(root.getAttribute('class')).toBe('my-btn');
+    expect(root.getAttribute('aria-label')).toBe('Close dialog');
+    expect(root.getAttribute('data-testid')).toBe('close-btn');
+    expect(root.getAttribute('id')).toBe('custom-id');
+  });
 });

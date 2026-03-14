@@ -15,11 +15,13 @@ import {
   setHiddenAnimated,
   setLabelledBy,
 } from '../utils/aria';
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 import { focusFirst, saveFocus, trapFocus } from '../utils/focus';
 import { linkedIds } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
-export interface DialogOptions {
+export interface DialogOptions extends ElementAttrs {
   modal?: boolean;
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -40,7 +42,7 @@ export interface DialogElements {
 }
 
 function DialogRoot(options: DialogOptions = {}): DialogElements & { state: DialogState } {
-  const { modal = true, defaultOpen = false, onOpenChange } = options;
+  const { modal = true, defaultOpen = false, onOpenChange, ...attrs } = options;
   const ids = linkedIds('dialog');
   const titleId = `${ids.contentId}-title`;
   const state: DialogState = { open: signal(defaultOpen) };
@@ -133,6 +135,8 @@ function DialogRoot(options: DialogOptions = {}): DialogElements & { state: Dial
   const close = (
     <button type="button" aria-label="Close" onClick={() => closeDialog()} />
   ) as HTMLButtonElement;
+
+  applyAttrs(content, attrs);
 
   return { trigger, overlay, content, title, close, state, show: openDialog, hide: closeDialog };
 }

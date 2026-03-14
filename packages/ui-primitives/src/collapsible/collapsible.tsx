@@ -6,9 +6,11 @@
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
 import { setDataState, setExpanded, setHidden, setHiddenAnimated } from '../utils/aria';
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 import { linkedIds } from '../utils/id';
 
-export interface CollapsibleOptions {
+export interface CollapsibleOptions extends ElementAttrs {
   defaultOpen?: boolean;
   disabled?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -26,7 +28,7 @@ export interface CollapsibleElements {
 }
 
 function CollapsibleRoot(options: CollapsibleOptions = {}) {
-  const { defaultOpen = false, disabled = false, onOpenChange } = options;
+  const { defaultOpen = false, disabled = false, onOpenChange, ...attrs } = options;
   const ids = linkedIds('collapsible');
   const state: CollapsibleState = {
     open: signal(defaultOpen),
@@ -80,6 +82,8 @@ function CollapsibleRoot(options: CollapsibleOptions = {}) {
       {content}
     </div>
   ) as HTMLDivElement;
+
+  applyAttrs(root, attrs);
 
   return { root, trigger, content, state };
 }

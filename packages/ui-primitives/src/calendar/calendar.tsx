@@ -1,5 +1,7 @@
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 
 const MONTH_NAMES = [
   'January',
@@ -18,7 +20,7 @@ const MONTH_NAMES = [
 
 const DAY_NAMES = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
-export interface CalendarOptions {
+export interface CalendarOptions extends ElementAttrs {
   mode?: 'single' | 'range' | 'multiple';
   defaultValue?: Date | Date[] | { from: Date; to: Date };
   defaultMonth?: Date;
@@ -70,13 +72,25 @@ function addMonths(date: Date, months: number): Date {
 }
 
 function CalendarRoot(options: CalendarOptions = {}): CalendarElements & { state: CalendarState } {
+  const {
+    mode: modeOpt,
+    defaultValue,
+    defaultMonth: defaultMonthOpt,
+    minDate,
+    maxDate,
+    disabled,
+    weekStartsOn: weekStartsOnOpt,
+    onValueChange,
+    onMonthChange,
+    ...attrs
+  } = options;
   const now = new Date();
-  const defaultMonth = options.defaultMonth ?? now;
-  const weekStartsOn = options.weekStartsOn ?? 0;
-  const mode = options.mode ?? 'single';
+  const defaultMonth = defaultMonthOpt ?? now;
+  const weekStartsOn = weekStartsOnOpt ?? 0;
+  const mode = modeOpt ?? 'single';
 
   const state: CalendarState = {
-    value: signal<Date | Date[] | { from: Date; to: Date } | null>(options.defaultValue ?? null),
+    value: signal<Date | Date[] | { from: Date; to: Date } | null>(defaultValue ?? null),
     focusedDate: signal(defaultMonth),
     displayMonth: signal(defaultMonth),
   };
@@ -87,11 +101,11 @@ function CalendarRoot(options: CalendarOptions = {}): CalendarElements & { state
   }
 
   function isDateDisabled(date: Date): boolean {
-    if (options.disabled?.(date)) return true;
-    if (options.minDate && date < options.minDate && !isSameDay(date, options.minDate)) {
+    if (disabled?.(date)) return true;
+    if (minDate && date < minDate && !isSameDay(date, minDate)) {
       return true;
     }
-    if (options.maxDate && date > options.maxDate && !isSameDay(date, options.maxDate)) {
+    if (maxDate && date > maxDate && !isSameDay(date, maxDate)) {
       return true;
     }
     return false;
@@ -143,7 +157,7 @@ function CalendarRoot(options: CalendarOptions = {}): CalendarElements & { state
       }
     }
 
-    options.onValueChange?.(state.value.peek());
+    onValueChange?.(state.value.peek());
   }
 
   function buildGrid(): void {
@@ -245,7 +259,7 @@ function CalendarRoot(options: CalendarOptions = {}): CalendarElements & { state
 
   function navigateMonth(delta: number): void {
     state.displayMonth.value = addMonths(state.displayMonth.peek(), delta);
-    options.onMonthChange?.(state.displayMonth.peek());
+    onMonthChange?.(state.displayMonth.peek());
     rebuildGrid();
   }
 
@@ -320,7 +334,7 @@ function CalendarRoot(options: CalendarOptions = {}): CalendarElements & { state
             next.getFullYear() !== state.displayMonth.peek().getFullYear()
           ) {
             state.displayMonth.value = new Date(next.getFullYear(), next.getMonth(), 1);
-            options.onMonthChange?.(state.displayMonth.peek());
+            onMonthChange?.(state.displayMonth.peek());
             rebuildGrid();
           }
           const dateKey = next.toISOString().split('T')[0];
@@ -340,6 +354,8 @@ function CalendarRoot(options: CalendarOptions = {}): CalendarElements & { state
       {grid}
     </div>
   ) as HTMLDivElement;
+
+  applyAttrs(root, attrs);
 
   return { root, header, title, prevButton, nextButton, grid, state };
 }

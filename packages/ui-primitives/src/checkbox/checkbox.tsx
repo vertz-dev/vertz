@@ -3,12 +3,14 @@
  * Follows WAI-ARIA checkbox pattern, Space to toggle.
  */
 
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 import { uniqueId } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
 export type CheckedState = boolean | 'mixed';
 
-export interface CheckboxOptions {
+export interface CheckboxOptions extends ElementAttrs {
   defaultChecked?: CheckedState;
   disabled?: boolean;
   onCheckedChange?: (checked: CheckedState) => void;
@@ -25,7 +27,7 @@ function ariaCheckedFor(checked: CheckedState): string {
 }
 
 function CheckboxRoot(options: CheckboxOptions = {}) {
-  const { defaultChecked = false, disabled = false, onCheckedChange } = options;
+  const { defaultChecked = false, disabled = false, onCheckedChange, ...attrs } = options;
 
   let checked: CheckedState = defaultChecked;
 
@@ -55,6 +57,7 @@ function CheckboxRoot(options: CheckboxOptions = {}) {
     />
   ) as HTMLButtonElement;
 
+  applyAttrs(el, attrs);
   return el;
 }
 

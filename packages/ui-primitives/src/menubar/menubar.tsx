@@ -6,6 +6,8 @@
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
 import { setDataState, setExpanded, setHidden, setHiddenAnimated } from '../utils/aria';
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
@@ -13,7 +15,7 @@ import { setRovingTabindex } from '../utils/focus';
 import { linkedIds } from '../utils/id';
 import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
-export interface MenubarOptions {
+export interface MenubarOptions extends ElementAttrs {
   onSelect?: (value: string) => void;
   positioning?: FloatingOptions;
 }
@@ -42,7 +44,7 @@ function MenubarRoot(options: MenubarOptions = {}): MenubarElements & {
     Separator: () => HTMLHRElement;
   };
 } {
-  const { onSelect, positioning } = options;
+  const { onSelect, positioning, ...attrs } = options;
   const state: MenubarState = { activeMenu: signal<string | null>(null) };
   const triggers: HTMLButtonElement[] = [];
   const menus: Map<
@@ -294,6 +296,8 @@ function MenubarRoot(options: MenubarOptions = {}): MenubarElements & {
 
     return { trigger, content, Item, Group, Separator };
   }
+
+  applyAttrs(root, attrs);
 
   return { root, state, Menu };
 }

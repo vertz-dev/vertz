@@ -12,10 +12,12 @@ import {
   setHiddenAnimated,
   setSelected,
 } from '../utils/aria';
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 import { linkedIds } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
-export interface ComboboxOptions {
+export interface ComboboxOptions extends ElementAttrs {
   defaultValue?: string;
   onValueChange?: (value: string) => void;
   onInputChange?: (input: string) => void;
@@ -37,7 +39,7 @@ function ComboboxRoot(options: ComboboxOptions = {}): ComboboxElements & {
   state: ComboboxState;
   Option: (value: string, label?: string) => HTMLDivElement;
 } {
-  const { defaultValue = '', onValueChange, onInputChange } = options;
+  const { defaultValue = '', onValueChange, onInputChange, ...attrs } = options;
   const ids = linkedIds('combobox');
   const state: ComboboxState = {
     open: signal(false),
@@ -178,6 +180,8 @@ function ComboboxRoot(options: ComboboxOptions = {}): ComboboxElements & {
     listbox.appendChild(opt);
     return opt;
   }
+
+  applyAttrs(input, attrs);
 
   return { input, listbox, state, Option };
 }

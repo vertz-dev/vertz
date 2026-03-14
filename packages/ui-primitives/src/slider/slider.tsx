@@ -6,10 +6,12 @@
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
 import { setDataState, setValueRange } from '../utils/aria';
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 import { uniqueId } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
-export interface SliderOptions {
+export interface SliderOptions extends ElementAttrs {
   defaultValue?: number;
   min?: number;
   max?: number;
@@ -37,6 +39,7 @@ function SliderRoot(options: SliderOptions = {}): SliderElements & { state: Slid
     step = 1,
     disabled = false,
     onValueChange,
+    ...attrs
   } = options;
 
   const state: SliderState = {
@@ -140,6 +143,8 @@ function SliderRoot(options: SliderOptions = {}): SliderElements & { state: Slid
   // Initialize position
   const pct = ((defaultValue - min) / (max - min)) * 100;
   updatePosition(pct);
+
+  applyAttrs(root, attrs);
 
   return { root, thumb, track, state };
 }

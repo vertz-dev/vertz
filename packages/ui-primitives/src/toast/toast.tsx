@@ -6,9 +6,11 @@
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
 import { setDataState } from '../utils/aria';
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 import { uniqueId } from '../utils/id';
 
-export interface ToastOptions {
+export interface ToastOptions extends ElementAttrs {
   duration?: number;
   politeness?: 'polite' | 'assertive';
 }
@@ -28,12 +30,14 @@ export interface ToastElements {
 }
 
 function ToastRoot(options: ToastOptions = {}) {
-  const { duration = 5000, politeness = 'polite' } = options;
+  const { duration = 5000, politeness = 'polite', ...attrs } = options;
   const state: ToastState = { messages: signal<ToastMessage[]>([]) };
 
   const region = (
     <div role="status" aria-live={politeness} aria-atomic="false" data-state="empty" />
   ) as HTMLDivElement;
+
+  applyAttrs(region, attrs);
 
   function announce(content: string): ToastMessage {
     const id = uniqueId('toast');

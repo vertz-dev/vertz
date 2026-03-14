@@ -6,12 +6,14 @@
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
 import { setDataState, setDescribedBy, setHidden, setHiddenAnimated } from '../utils/aria';
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
 import { uniqueId } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
-export interface TooltipOptions {
+export interface TooltipOptions extends ElementAttrs {
   delay?: number;
   onOpenChange?: (open: boolean) => void;
   positioning?: FloatingOptions;
@@ -27,7 +29,7 @@ export interface TooltipElements {
 }
 
 function TooltipRoot(options: TooltipOptions = {}): TooltipElements & { state: TooltipState } {
-  const { delay = 300, onOpenChange, positioning } = options;
+  const { delay = 300, onOpenChange, positioning, ...attrs } = options;
   const contentId = uniqueId('tooltip');
   const state: TooltipState = { open: signal(false) };
   let showTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -92,6 +94,8 @@ function TooltipRoot(options: TooltipOptions = {}): TooltipElements & { state: T
       style="display: none"
     />
   ) as HTMLDivElement;
+
+  applyAttrs(trigger, attrs);
 
   return { trigger, content, state };
 }

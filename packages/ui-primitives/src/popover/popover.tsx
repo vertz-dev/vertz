@@ -6,6 +6,8 @@
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
 import { setDataState, setExpanded, setHidden, setHiddenAnimated } from '../utils/aria';
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
@@ -13,7 +15,7 @@ import { focusFirst, saveFocus } from '../utils/focus';
 import { linkedIds } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
-export interface PopoverOptions {
+export interface PopoverOptions extends ElementAttrs {
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
   positioning?: FloatingOptions;
@@ -29,7 +31,7 @@ export interface PopoverElements {
 }
 
 function PopoverRoot(options: PopoverOptions = {}): PopoverElements & { state: PopoverState } {
-  const { defaultOpen = false, onOpenChange, positioning } = options;
+  const { defaultOpen = false, onOpenChange, positioning, ...attrs } = options;
   const ids = linkedIds('popover');
   const state: PopoverState = { open: signal(defaultOpen) };
   let restoreFocus: (() => void) | null = null;
@@ -106,6 +108,8 @@ function PopoverRoot(options: PopoverOptions = {}): PopoverElements & { state: P
       }}
     />
   ) as HTMLDivElement;
+
+  applyAttrs(trigger, attrs);
 
   return { trigger, content, state };
 }

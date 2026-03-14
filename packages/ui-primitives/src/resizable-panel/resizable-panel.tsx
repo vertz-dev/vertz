@@ -6,9 +6,11 @@
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
 import { setDataState, setValueRange } from '../utils/aria';
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 import { isKey, Keys } from '../utils/keyboard';
 
-export interface ResizablePanelOptions {
+export interface ResizablePanelOptions extends ElementAttrs {
   orientation?: 'horizontal' | 'vertical';
   onResize?: (sizes: number[]) => void;
 }
@@ -32,7 +34,7 @@ function ResizablePanelRoot(options: ResizablePanelOptions = {}): ResizablePanel
   Panel: (panelOptions?: PanelOptions) => HTMLDivElement;
   Handle: () => HTMLDivElement;
 } {
-  const { orientation = 'horizontal', onResize } = options;
+  const { orientation = 'horizontal', onResize, ...attrs } = options;
   const state: ResizablePanelState = { sizes: signal<number[]>([]) };
   const panels: { el: HTMLDivElement; minSize: number; maxSize: number }[] = [];
   const handles: HTMLDivElement[] = [];
@@ -196,6 +198,8 @@ function ResizablePanelRoot(options: ResizablePanelOptions = {}): ResizablePanel
     root.appendChild(handle);
     return handle;
   }
+
+  applyAttrs(root, attrs);
 
   return { root, state, Panel, Handle };
 }

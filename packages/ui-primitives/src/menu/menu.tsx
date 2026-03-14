@@ -6,13 +6,15 @@
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
 import { setDataState, setExpanded, setHidden, setHiddenAnimated } from '../utils/aria';
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
 import { linkedIds } from '../utils/id';
 import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
-export interface MenuOptions {
+export interface MenuOptions extends ElementAttrs {
   onSelect?: (value: string) => void;
   positioning?: FloatingOptions;
 }
@@ -37,7 +39,7 @@ function MenuRoot(options: MenuOptions = {}): MenuElements & {
   Separator: () => HTMLHRElement;
   Label: (text: string) => HTMLDivElement;
 } {
-  const { onSelect, positioning } = options;
+  const { onSelect, positioning, ...attrs } = options;
   const ids = linkedIds('menu');
   const state: MenuState = {
     open: signal(false),
@@ -250,6 +252,8 @@ function MenuRoot(options: MenuOptions = {}): MenuElements & {
     content.appendChild(el);
     return el;
   }
+
+  applyAttrs(trigger, attrs);
 
   return { trigger, content, state, Item, Group, Separator, Label };
 }

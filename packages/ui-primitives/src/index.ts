@@ -106,4 +106,5 @@ export type {
 export { ToggleGroup } from './toggle-group/toggle-group';
 export type { TooltipElements, TooltipOptions, TooltipState } from './tooltip/tooltip';
 export { Tooltip } from './tooltip/tooltip';
+export type { ElementAttrs } from './utils/attrs';
 export type { FloatingOptions } from './utils/floating';

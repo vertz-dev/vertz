@@ -6,11 +6,13 @@
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
 import { setChecked, setDataState } from '../utils/aria';
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 import { setRovingTabindex } from '../utils/focus';
 import { uniqueId } from '../utils/id';
 import { handleListNavigation } from '../utils/keyboard';
 
-export interface RadioOptions {
+export interface RadioOptions extends ElementAttrs {
   defaultValue?: string;
   onValueChange?: (value: string) => void;
 }
@@ -27,7 +29,7 @@ function RadioRoot(options: RadioOptions = {}): RadioElements & {
   state: RadioState;
   Item: (value: string, label?: string) => HTMLDivElement;
 } {
-  const { defaultValue = '', onValueChange } = options;
+  const { defaultValue = '', onValueChange, ...attrs } = options;
   const state: RadioState = { value: signal(defaultValue) };
   const items: HTMLDivElement[] = [];
   const itemValues: string[] = [];
@@ -89,6 +91,8 @@ function RadioRoot(options: RadioOptions = {}): RadioElements & {
 
     return item;
   }
+
+  applyAttrs(root, attrs);
 
   return { root, state, Item };
 }

@@ -322,6 +322,16 @@ function processAttribute(
   const init = attr.getInitializer();
   if (!init) return null;
 
+  // Ref prop: ref={myRef} → myRef.current = el
+  if (attrName === 'ref' && init.isKind(SyntaxKind.JsxExpression)) {
+    const exprNode = init.getExpression();
+    const refText = exprNode ? source.slice(exprNode.getStart(), exprNode.getEnd()) : '';
+    if (refText) {
+      return `${refText}.current = ${elVar}`;
+    }
+    return null;
+  }
+
   // Event handlers: onClick → __on(el, "click", handler)
   if (attrName.startsWith('on') && attrName.length > 2) {
     const eventName = attrName[2]?.toLowerCase() + attrName.slice(3);

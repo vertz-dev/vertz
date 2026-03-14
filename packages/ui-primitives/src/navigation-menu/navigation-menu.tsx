@@ -1,11 +1,13 @@
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
 import { setDataState, setExpanded, setHidden, setHiddenAnimated } from '../utils/aria';
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 import { focusFirst, setRovingTabindex } from '../utils/focus';
 import { linkedIds } from '../utils/id';
 import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
-export interface NavigationMenuOptions {
+export interface NavigationMenuOptions extends ElementAttrs {
   orientation?: 'horizontal' | 'vertical';
   delayOpen?: number;
   delayClose?: number;
@@ -32,7 +34,7 @@ function NavigationMenuRoot(options: NavigationMenuOptions = {}): NavigationMenu
   };
   Link: (href: string, label: string) => HTMLAnchorElement;
 } {
-  const { orientation = 'horizontal', delayOpen = 200, delayClose = 300 } = options;
+  const { orientation = 'horizontal', delayOpen = 200, delayClose = 300, ...attrs } = options;
   const state: NavigationMenuState = { activeItem: signal<string | null>(null) };
   const triggers: HTMLButtonElement[] = [];
   const items: Map<string, { trigger: HTMLButtonElement; content: HTMLDivElement }> = new Map();
@@ -200,6 +202,8 @@ function NavigationMenuRoot(options: NavigationMenuOptions = {}): NavigationMenu
     list.appendChild(a);
     return a;
   }
+
+  applyAttrs(root, attrs);
 
   return { root, list, viewport, state, Item, Link };
 }

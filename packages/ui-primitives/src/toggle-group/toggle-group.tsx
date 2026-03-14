@@ -1,10 +1,12 @@
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
 import { setDataState, setPressed } from '../utils/aria';
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 import { setRovingTabindex } from '../utils/focus';
 import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
-export interface ToggleGroupOptions {
+export interface ToggleGroupOptions extends ElementAttrs {
   type?: 'single' | 'multiple';
   defaultValue?: string[];
   orientation?: 'horizontal' | 'vertical';
@@ -31,6 +33,7 @@ function ToggleGroupRoot(options: ToggleGroupOptions = {}): ToggleGroupElements 
     orientation = 'horizontal',
     disabled = false,
     onValueChange,
+    ...attrs
   } = options;
 
   const state: ToggleGroupState = {
@@ -118,6 +121,8 @@ function ToggleGroupRoot(options: ToggleGroupOptions = {}): ToggleGroupElements 
     root.appendChild(item);
     return item;
   }
+
+  applyAttrs(root, attrs);
 
   return { root, state, Item };
 }

@@ -6,10 +6,12 @@
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
 import { setDataState, setExpanded, setHidden, setHiddenAnimated } from '../utils/aria';
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 import { uniqueId } from '../utils/id';
 import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
-export interface AccordionOptions {
+export interface AccordionOptions extends ElementAttrs {
   multiple?: boolean;
   defaultValue?: string[];
   onValueChange?: (value: string[]) => void;
@@ -31,7 +33,7 @@ function AccordionRoot(options: AccordionOptions = {}): AccordionElements & {
     content: HTMLDivElement;
   };
 } {
-  const { multiple = false, defaultValue = [], onValueChange } = options;
+  const { multiple = false, defaultValue = [], onValueChange, ...attrs } = options;
   const state: AccordionState = { value: signal([...defaultValue]) };
   const triggers: HTMLButtonElement[] = [];
   const itemMap = new Map<string, { trigger: HTMLButtonElement; content: HTMLDivElement }>();
@@ -148,6 +150,8 @@ function AccordionRoot(options: AccordionOptions = {}): AccordionElements & {
 
     return { item, trigger, content };
   }
+
+  applyAttrs(root, attrs);
 
   return { root, state, Item };
 }

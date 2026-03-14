@@ -6,9 +6,11 @@
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
 import { setDataState } from '../utils/aria';
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 import { isKey, Keys } from '../utils/keyboard';
 
-export interface CarouselOptions {
+export interface CarouselOptions extends ElementAttrs {
   orientation?: 'horizontal' | 'vertical';
   loop?: boolean;
   defaultIndex?: number;
@@ -34,7 +36,13 @@ function CarouselRoot(options: CarouselOptions = {}): CarouselElements & {
   goNext: () => void;
   goPrev: () => void;
 } {
-  const { orientation = 'horizontal', loop = false, defaultIndex = 0, onSlideChange } = options;
+  const {
+    orientation = 'horizontal',
+    loop = false,
+    defaultIndex = 0,
+    onSlideChange,
+    ...attrs
+  } = options;
 
   const state: CarouselState = {
     currentIndex: signal(defaultIndex),
@@ -124,6 +132,7 @@ function CarouselRoot(options: CarouselOptions = {}): CarouselElements & {
   }
 
   updateSlideVisibility();
+  applyAttrs(root, attrs);
 
   return { root, viewport, prevButton, nextButton, state, Slide, goTo, goNext, goPrev };
 }

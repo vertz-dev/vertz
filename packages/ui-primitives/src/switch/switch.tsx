@@ -3,17 +3,19 @@
  * Follows WAI-ARIA switch pattern, Space to toggle.
  */
 
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 import { uniqueId } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
-export interface SwitchOptions {
+export interface SwitchOptions extends ElementAttrs {
   defaultChecked?: boolean;
   disabled?: boolean;
   onCheckedChange?: (checked: boolean) => void;
 }
 
 function SwitchRoot(options: SwitchOptions = {}) {
-  const { defaultChecked = false, disabled = false, onCheckedChange } = options;
+  const { defaultChecked = false, disabled = false, onCheckedChange, ...attrs } = options;
 
   let checked = defaultChecked;
 
@@ -23,7 +25,7 @@ function SwitchRoot(options: SwitchOptions = {}) {
     onCheckedChange?.(checked);
   }
 
-  return (
+  const el = (
     <button
       type="button"
       role="switch"
@@ -41,6 +43,9 @@ function SwitchRoot(options: SwitchOptions = {}) {
       }}
     />
   ) as HTMLButtonElement;
+
+  applyAttrs(el, attrs);
+  return el;
 }
 
 export const Switch: { Root: (options?: SwitchOptions) => HTMLButtonElement } = {

@@ -5,8 +5,10 @@
 
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 
-export interface ScrollAreaOptions {
+export interface ScrollAreaOptions extends ElementAttrs {
   orientation?: 'vertical' | 'horizontal' | 'both';
   type?: 'auto' | 'always' | 'hover' | 'scroll';
 }
@@ -30,7 +32,7 @@ function ScrollAreaRoot(options: ScrollAreaOptions = {}): ScrollAreaElements & {
   state: ScrollAreaState;
   update: () => void;
 } {
-  const { orientation = 'vertical' } = options;
+  const { orientation = 'vertical', type: _type, ...attrs } = options;
 
   const state: ScrollAreaState = {
     scrollTop: signal(0),
@@ -171,6 +173,8 @@ function ScrollAreaRoot(options: ScrollAreaOptions = {}): ScrollAreaElements & {
   // Append scrollbars conditionally via imperative DOM
   if (orientation === 'vertical' || orientation === 'both') root.appendChild(scrollbarY);
   if (orientation === 'horizontal' || orientation === 'both') root.appendChild(scrollbarX);
+
+  applyAttrs(root, attrs);
 
   return { root, viewport, content, scrollbarY, thumbY, scrollbarX, thumbX, state, update };
 }

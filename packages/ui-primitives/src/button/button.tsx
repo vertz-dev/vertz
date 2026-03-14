@@ -3,17 +3,19 @@
  * Supports Enter/Space activation.
  */
 
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 import { handleActivation } from '../utils/keyboard';
 
-export interface ButtonOptions {
+export interface ButtonOptions extends ElementAttrs {
   disabled?: boolean;
   onClick?: () => void;
 }
 
 function ButtonRoot(options: ButtonOptions = {}) {
-  const { disabled = false, onClick } = options;
+  const { disabled = false, onClick, ...attrs } = options;
 
-  return (
+  const el = (
     <button
       type="button"
       disabled={disabled}
@@ -30,6 +32,9 @@ function ButtonRoot(options: ButtonOptions = {}) {
       }}
     />
   ) as HTMLButtonElement;
+
+  applyAttrs(el, attrs);
+  return el;
 }
 
 export const Button: { Root: (options?: ButtonOptions) => HTMLButtonElement } = {

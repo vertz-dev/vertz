@@ -6,11 +6,13 @@
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
 import { setDataState, setHidden, setSelected } from '../utils/aria';
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 import { setRovingTabindex } from '../utils/focus';
 import { uniqueId } from '../utils/id';
 import { handleListNavigation } from '../utils/keyboard';
 
-export interface TabsOptions {
+export interface TabsOptions extends ElementAttrs {
   defaultValue?: string;
   orientation?: 'horizontal' | 'vertical';
   onValueChange?: (value: string) => void;
@@ -35,7 +37,7 @@ function TabsRoot(options: TabsOptions = {}): TabsElements & {
     panel: HTMLDivElement;
   };
 } {
-  const { defaultValue = '', orientation = 'horizontal', onValueChange } = options;
+  const { defaultValue = '', orientation = 'horizontal', onValueChange, ...attrs } = options;
   const state: TabsState = { value: signal(defaultValue) };
   const triggers: HTMLButtonElement[] = [];
   const panels: HTMLDivElement[] = [];
@@ -132,6 +134,8 @@ function TabsRoot(options: TabsOptions = {}): TabsElements & {
 
     return { trigger: trig, panel };
   }
+
+  applyAttrs(root, attrs);
 
   return { root, list, state, Tab };
 }

@@ -1,12 +1,14 @@
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
 import { setDataState, setExpanded, setHidden, setHiddenAnimated } from '../utils/aria';
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
 import { uniqueId } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
-export interface HoverCardOptions {
+export interface HoverCardOptions extends ElementAttrs {
   openDelay?: number;
   closeDelay?: number;
   onOpenChange?: (open: boolean) => void;
@@ -25,7 +27,7 @@ export interface HoverCardElements {
 function HoverCardRoot(
   options: HoverCardOptions = {},
 ): HoverCardElements & { state: HoverCardState } {
-  const { openDelay = 700, closeDelay = 300, onOpenChange, positioning } = options;
+  const { openDelay = 700, closeDelay = 300, onOpenChange, positioning, ...attrs } = options;
   const contentId = uniqueId('hovercard');
   const state: HoverCardState = { open: signal(false) };
   let openTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -163,6 +165,8 @@ function HoverCardRoot(
       onKeydown={handleContentKeydown}
     />
   ) as HTMLDivElement;
+
+  applyAttrs(trigger, attrs);
 
   return { trigger, content, state };
 }

@@ -12,13 +12,15 @@ import {
   setHiddenAnimated,
   setSelected,
 } from '../utils/aria';
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
 import { linkedIds } from '../utils/id';
 import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
-export interface SelectOptions {
+export interface SelectOptions extends ElementAttrs {
   defaultValue?: string;
   placeholder?: string;
   onValueChange?: (value: string) => void;
@@ -45,7 +47,7 @@ function SelectRoot(options: SelectOptions = {}): SelectElements & {
   };
   Separator: () => HTMLHRElement;
 } {
-  const { defaultValue = '', placeholder = '', onValueChange, positioning } = options;
+  const { defaultValue = '', placeholder = '', onValueChange, positioning, ...attrs } = options;
   const ids = linkedIds('select');
   const state: SelectState = {
     open: signal(false),
@@ -268,6 +270,8 @@ function SelectRoot(options: SelectOptions = {}): SelectElements & {
     content.appendChild(hr);
     return hr;
   }
+
+  applyAttrs(trigger, attrs);
 
   return { trigger, content, state, Item, Group, Separator };
 }
