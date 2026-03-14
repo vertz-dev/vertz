@@ -129,7 +129,7 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
   ) as import('@vertz/ui-compiler').ReactivityManifest;
   const manifestResult = generateAllManifests({
     srcDir,
-    packageManifests: { '@vertz/ui': frameworkManifestJson },
+    packageManifests: { '@vertz/ui': frameworkManifestJson, 'vertz/ui': frameworkManifestJson },
   });
 
   // Mutable manifest map — HMR updates can modify it
