@@ -176,6 +176,7 @@ export function __child(
       !isRenderNode(value) &&
       value != null &&
       typeof value !== 'boolean' &&
+      typeof value !== 'function' &&
       wrapper.childNodes.length === 1 &&
       wrapper.firstChild!.nodeType === 3
     ) {

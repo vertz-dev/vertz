@@ -140,6 +140,44 @@ describe('UserAvatar', () => {
     expect(img2).toBe(img1); // Same DOM element — not rebuilt
   });
 
+  it('recovers from failed image when avatarUrl changes to a new URL', () => {
+    const { ctx, userSignal } = mockAuthContext({
+      id: '1',
+      email: 'jane@example.com',
+      role: 'user',
+      avatarUrl: '/broken.jpg',
+    });
+    let wrapper: HTMLElement | undefined;
+
+    AuthContext.Provider({
+      value: ctx,
+      children: () => {
+        wrapper = UserAvatar({});
+      },
+    });
+
+    // Image is visible initially
+    const img = wrapper?.querySelector('img');
+    expect(img).not.toBeNull();
+    expect(img?.getAttribute('style')).not.toContain('display:none');
+
+    // Simulate image error — should switch to fallback
+    img?.dispatchEvent(new Event('error'));
+    expect(img?.getAttribute('style')).toContain('display:none');
+    expect(wrapper?.innerHTML).toContain('<svg');
+
+    // Change to a new URL — should recover and show the new image
+    userSignal.value = {
+      id: '1',
+      email: 'jane@example.com',
+      role: 'user',
+      avatarUrl: '/working.jpg',
+    };
+
+    expect(img?.getAttribute('src')).toBe('/working.jpg');
+    expect(img?.getAttribute('style')).not.toContain('display:none');
+  });
+
   it('uses provided user instead of auth context (static, no __child)', () => {
     const overrideUser: User = {
       id: '2',
