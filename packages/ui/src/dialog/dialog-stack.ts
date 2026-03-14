@@ -29,7 +29,7 @@ export function useDialogStack(): DialogStack {
     open<TResult, TProps>(
       component: DialogComponent<TResult, TProps>,
       props: TProps,
-    ): Promise<TResult> {
+    ): Promise<DialogResult<TResult>> {
       return stack.openWithScope(component, props, capturedScope);
     },
     openWithScope: stack.openWithScope,
@@ -52,25 +52,20 @@ export type DialogComponent<TResult, TProps = Record<string, never>> = (
   props: TProps & { dialog: DialogHandle<TResult> },
 ) => Node;
 
-export class DialogDismissedError extends Error {
-  constructor() {
-    super('Dialog was dismissed');
-    this.name = 'DialogDismissedError';
-  }
-}
+export type DialogResult<T> = { readonly ok: true; readonly data: T } | { readonly ok: false };
 
 export interface DialogStack {
   open<TResult, TProps>(
     component: DialogComponent<TResult, TProps>,
     props: TProps,
-  ): Promise<TResult>;
+  ): Promise<DialogResult<TResult>>;
 
   /** @internal — used by useDialogStack() to pass captured context scope */
   openWithScope<TResult, TProps>(
     component: DialogComponent<TResult, TProps>,
     props: TProps,
     scope: ContextScope | null,
-  ): Promise<TResult>;
+  ): Promise<DialogResult<TResult>>;
 
   readonly size: number;
 
@@ -83,10 +78,10 @@ interface StackEntry {
   id: number;
   wrapper: HTMLDivElement;
   node: Node;
-  resolve: (result: unknown) => void;
-  reject: (error: Error) => void;
+  resolve: (result: DialogResult<unknown>) => void;
   cleanups: DisposeFn[];
   dismissible: boolean;
+  settled: boolean;
 }
 
 // ── Implementation ──
@@ -99,8 +94,8 @@ export function createDialogStack(container: HTMLElement): DialogStack {
     component: DialogComponent<TResult, TProps>,
     props: TProps,
     capturedScope?: ContextScope | null,
-  ): Promise<TResult> {
-    return new Promise<TResult>((resolve, reject) => {
+  ): Promise<DialogResult<TResult>> {
+    return new Promise<DialogResult<TResult>>((resolve) => {
       // Background current top entry
       if (entries.length > 0) {
         entries[entries.length - 1]!.wrapper.setAttribute('data-state', 'background');
@@ -116,10 +111,10 @@ export function createDialogStack(container: HTMLElement): DialogStack {
         id: nextId++,
         wrapper,
         node: null!,
-        resolve: resolve as (result: unknown) => void,
-        reject,
+        resolve: resolve as (result: DialogResult<unknown>) => void,
         cleanups: [],
         dismissible: true,
+        settled: false,
       };
 
       // Render within captured context scope
@@ -158,8 +153,10 @@ export function createDialogStack(container: HTMLElement): DialogStack {
   }
 
   function closeEntry(entry: StackEntry, result: unknown): void {
+    if (entry.settled) return;
     const idx = entries.indexOf(entry);
     if (idx === -1) return;
+    entry.settled = true;
 
     // Set closed state for exit animation
     entry.wrapper.setAttribute('data-state', 'closed');
@@ -182,7 +179,7 @@ export function createDialogStack(container: HTMLElement): DialogStack {
       }
       updateDepthAttributes();
 
-      entry.resolve(result);
+      entry.resolve({ ok: true, data: result });
     });
   }
 
@@ -196,14 +193,14 @@ export function createDialogStack(container: HTMLElement): DialogStack {
     open<TResult, TProps>(
       component: DialogComponent<TResult, TProps>,
       props: TProps,
-    ): Promise<TResult> {
+    ): Promise<DialogResult<TResult>> {
       return open(component, props);
     },
     openWithScope<TResult, TProps>(
       component: DialogComponent<TResult, TProps>,
       props: TProps,
       scope: ContextScope | null,
-    ): Promise<TResult> {
+    ): Promise<DialogResult<TResult>> {
       return open(component, props, scope);
     },
     get size() {
@@ -217,8 +214,10 @@ export function createDialogStack(container: HTMLElement): DialogStack {
   };
 
   function dismissEntry(entry: StackEntry): void {
+    if (entry.settled) return;
     const idx = entries.indexOf(entry);
     if (idx === -1) return;
+    entry.settled = true;
 
     entry.wrapper.setAttribute('data-state', 'closed');
     onAnimationsComplete(entry.wrapper, () => {
@@ -238,7 +237,7 @@ export function createDialogStack(container: HTMLElement): DialogStack {
       }
       updateDepthAttributes();
 
-      entry.reject(new DialogDismissedError());
+      entry.resolve({ ok: false });
     });
   }
 }

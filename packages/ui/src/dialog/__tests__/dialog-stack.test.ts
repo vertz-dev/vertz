@@ -1,12 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { createContext, getContextScope, useContext } from '../../component/context';
 import type { DialogHandle, DialogStack } from '../dialog-stack';
-import {
-  createDialogStack,
-  DialogDismissedError,
-  DialogStackContext,
-  useDialogStack,
-} from '../dialog-stack';
+import { createDialogStack, DialogStackContext, useDialogStack } from '../dialog-stack';
 
 describe('DialogStack', () => {
   let container: HTMLDivElement;
@@ -20,7 +15,7 @@ describe('DialogStack', () => {
     document.body.removeChild(container);
   });
 
-  it('opens a dialog and resolves with the close value', async () => {
+  it('opens a dialog and resolves with { ok: true, data: value }', async () => {
     const stack = createDialogStack(container);
 
     function ConfirmDialog({
@@ -39,13 +34,14 @@ describe('DialogStack', () => {
       return el;
     }
 
-    const result = stack.open(ConfirmDialog, { message: 'Are you sure?' });
+    const promise = stack.open(ConfirmDialog, { message: 'Are you sure?' });
 
     expect(container.textContent).toContain('Are you sure?');
 
     container.querySelector('button')!.click();
 
-    expect(await result).toBe(true);
+    const result = await promise;
+    expect(result).toEqual({ ok: true, data: true });
   });
 
   it('tracks stack size', async () => {
@@ -78,11 +74,13 @@ describe('DialogStack', () => {
     expect(stack.size).toBe(2);
 
     container.querySelector('[data-testid="close-b"]')!.click();
-    await r2;
+    const result2 = await r2;
+    expect(result2.ok).toBe(true);
     expect(stack.size).toBe(1);
 
     container.querySelector('[data-testid="close-a"]')!.click();
-    await r1;
+    const result1 = await r1;
+    expect(result1.ok).toBe(true);
     expect(stack.size).toBe(0);
   });
 
@@ -156,7 +154,7 @@ describe('DialogStack', () => {
     expect(wrapperA.getAttribute('data-state')).toBe('open');
   });
 
-  it('closeAll dismisses all dialogs with DialogDismissedError', async () => {
+  it('closeAll resolves all dialogs with { ok: false }', async () => {
     const stack = createDialogStack(container);
 
     function SimpleDialog({ dialog }: { dialog: DialogHandle<void> }) {
@@ -169,12 +167,12 @@ describe('DialogStack', () => {
 
     stack.closeAll();
 
-    await expect(r1).rejects.toBeInstanceOf(DialogDismissedError);
-    await expect(r2).rejects.toBeInstanceOf(DialogDismissedError);
+    expect(await r1).toEqual({ ok: false });
+    expect(await r2).toEqual({ ok: false });
     expect(stack.size).toBe(0);
   });
 
-  it('supports void result — close() with no arguments', async () => {
+  it('supports void result — close() resolves with { ok: true, data: undefined }', async () => {
     const stack = createDialogStack(container);
 
     function InfoDialog({ dialog }: { dialog: DialogHandle<void> }) {
@@ -183,10 +181,11 @@ describe('DialogStack', () => {
       return btn;
     }
 
-    const result = stack.open(InfoDialog, {});
+    const promise = stack.open(InfoDialog, {});
     container.querySelector('button')!.click();
 
-    expect(await result).toBeUndefined();
+    const result = await promise;
+    expect(result).toEqual({ ok: true, data: undefined });
   });
 
   it('renders dialog within captured context scope', () => {
@@ -220,11 +219,11 @@ describe('DialogStack', () => {
       return btn;
     }
 
-    const result = stack.open(SimpleDialog, {});
+    const promise = stack.open(SimpleDialog, {});
     expect(container.querySelectorAll('[data-dialog-wrapper]').length).toBe(1);
 
     container.querySelector('button')!.click();
-    await result;
+    await promise;
 
     expect(container.querySelectorAll('[data-dialog-wrapper]').length).toBe(0);
   });
@@ -249,24 +248,26 @@ describe('DialogStack', () => {
       dialogs = useDialogStack();
     });
 
-    const result = dialogs!.open(SimpleDialog, {});
+    const promise = dialogs!.open(SimpleDialog, {});
     container.querySelector('button')!.click();
-    expect(await result).toBe(true);
+    const result = await promise;
+    expect(result).toEqual({ ok: true, data: true });
   });
 
-  it('dismisses topmost dialog on Escape key', async () => {
+  it('dismisses topmost dialog on Escape key with { ok: false }', async () => {
     const stack = createDialogStack(container);
 
     function SimpleDialog({ dialog }: { dialog: DialogHandle<void> }) {
       return document.createElement('div');
     }
 
-    const result = stack.open(SimpleDialog, {});
+    const promise = stack.open(SimpleDialog, {});
 
     const wrapper = container.querySelector('[data-dialog-wrapper]') as HTMLElement;
     wrapper.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
-    await expect(result).rejects.toBeInstanceOf(DialogDismissedError);
+    const result = await promise;
+    expect(result).toEqual({ ok: false });
     expect(stack.size).toBe(0);
   });
 
@@ -310,6 +311,49 @@ describe('DialogStack', () => {
     // (In practice the focus trap prevents this, but the handler
     // should only dismiss if the entry is the topmost)
     expect(stack.size).toBe(2);
+  });
+
+  it('ignores Escape after dialog.close() has been called (no double resolution)', async () => {
+    const stack = createDialogStack(container);
+    let closeHandle: (() => void) | undefined;
+
+    function SimpleDialog({ dialog }: { dialog: DialogHandle<boolean> }) {
+      closeHandle = () => dialog.close(true);
+      return document.createElement('div');
+    }
+
+    const promise = stack.open(SimpleDialog, {});
+    const wrapper = container.querySelector('[data-dialog-wrapper]') as HTMLElement;
+
+    // Close via dialog.close()
+    closeHandle!();
+
+    // Then try to dismiss via Escape — should be ignored (settled flag prevents it)
+    wrapper.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+    const result = await promise;
+    expect(result).toEqual({ ok: true, data: true });
+  });
+
+  it('ignores dialog.close() after closeAll() has already dismissed', async () => {
+    const stack = createDialogStack(container);
+    let closeHandle: (() => void) | undefined;
+
+    function SimpleDialog({ dialog }: { dialog: DialogHandle<boolean> }) {
+      closeHandle = () => dialog.close(true);
+      return document.createElement('div');
+    }
+
+    const promise = stack.open(SimpleDialog, {});
+
+    // Dismiss via closeAll
+    stack.closeAll();
+
+    // Then try to close explicitly — should be ignored
+    closeHandle!();
+
+    const result = await promise;
+    expect(result).toEqual({ ok: false });
   });
 
   it('useDialogStack captures context scope eagerly for use in event handlers', () => {
