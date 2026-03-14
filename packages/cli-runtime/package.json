@@ -1,6 +1,6 @@
 {
   "name": "@vertz/cli-runtime",
-  "version": "0.2.19",
+  "version": "0.2.20",
   "type": "module",
   "license": "MIT",
   "description": "Vertz CLI runtime internals — internal, no stability guarantee",

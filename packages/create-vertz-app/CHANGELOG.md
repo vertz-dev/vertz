@@ -1,5 +1,11 @@
 # @vertz/create-vertz-app
 
+## 0.2.20
+
+### Patch Changes
+
+- [#1281](https://github.com/vertz-dev/vertz/pull/1281) [`9a0a313`](https://github.com/vertz-dev/vertz/commit/9a0a3131656bb22a8cdfb351013c3a7a69cdd553) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add favicon to scaffold template and auto-detect it in the dev server
+
 ## 0.2.19
 
 ## 0.2.18

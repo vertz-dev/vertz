@@ -1,5 +1,20 @@
 # @vertz/cli
 
+## 0.2.20
+
+### Patch Changes
+
+- [#1280](https://github.com/vertz-dev/vertz/pull/1280) [`acf762c`](https://github.com/vertz-dev/vertz/commit/acf762c91597201689ff08fc9752aa0d1082589c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix production SSR build crash when app imports from `vertz/ui` meta-package. The server bundler now correctly externalizes all `vertz/*` subpath imports alongside the existing `@vertz/*` externals.
+
+- Updated dependencies [[`9a0a313`](https://github.com/vertz-dev/vertz/commit/9a0a3131656bb22a8cdfb351013c3a7a69cdd553)]:
+  - @vertz/create-vertz-app@0.2.20
+  - @vertz/ui-server@0.2.20
+  - @vertz/codegen@0.2.20
+  - @vertz/compiler@0.2.20
+  - @vertz/db@0.2.20
+  - @vertz/errors@0.2.20
+  - @vertz/tui@0.2.20
+
 ## 0.2.19
 
 ### Patch Changes

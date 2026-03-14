@@ -1,5 +1,13 @@
 # @vertz/theme-shadcn
 
+## 0.2.20
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vertz/ui@0.2.20
+  - @vertz/ui-primitives@0.2.20
+
 ## 0.2.19
 
 ### Patch Changes
