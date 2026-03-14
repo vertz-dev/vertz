@@ -5,7 +5,8 @@
  * shape and rejects invalid usage. Checked by `tsc --noEmit`.
  */
 
-import { can } from '../access-context';
+import type { ReadonlySignal } from '../../runtime/signal-types';
+import { can, canSignals, type RawAccessCheck } from '../access-context';
 import type { AccessCheck, DenialMeta, DenialReason } from '../access-set-types';
 
 // ─── Positive: can('x') returns AccessCheck with correct properties ──────
@@ -41,3 +42,36 @@ can();
 
 // @ts-expect-error - AccessCheck does not have a 'nonexistent' property
 check.nonexistent;
+
+// ─── canSignals() returns RawAccessCheck with ReadonlySignal properties ──
+
+declare const raw: RawAccessCheck;
+
+// allowed is ReadonlySignal<boolean>
+const _rawAllowed: ReadonlySignal<boolean> = raw.allowed;
+void _rawAllowed;
+
+// loading is ReadonlySignal<boolean>
+const _rawLoading: ReadonlySignal<boolean> = raw.loading;
+void _rawLoading;
+
+// reasons is ReadonlySignal<DenialReason[]>
+const _rawReasons: ReadonlySignal<DenialReason[]> = raw.reasons;
+void _rawReasons;
+
+// reason is ReadonlySignal<DenialReason | undefined>
+const _rawReason: ReadonlySignal<DenialReason | undefined> = raw.reason;
+void _rawReason;
+
+// meta is ReadonlySignal<DenialMeta | undefined>
+const _rawMeta: ReadonlySignal<DenialMeta | undefined> = raw.meta;
+void _rawMeta;
+
+// ─── Negative: canSignals() properties are NOT plain values ─────────────
+
+// @ts-expect-error - canSignals().allowed is ReadonlySignal<boolean>, not boolean
+const _badAllowed: boolean = raw.allowed;
+void _badAllowed;
+
+// @ts-expect-error - canSignals() requires at least one argument
+canSignals();
