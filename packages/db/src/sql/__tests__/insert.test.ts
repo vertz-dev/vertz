@@ -168,6 +168,23 @@ describe('buildInsert', () => {
       );
     });
 
+    it('generates ON CONFLICT DO UPDATE SET with explicit updateValues', () => {
+      const result = buildInsert({
+        table: 'users',
+        data: { name: 'alice', email: 'alice@test.com' },
+        onConflict: {
+          columns: ['email'],
+          action: 'update',
+          updateColumns: ['name'],
+          updateValues: { name: 'updated-alice' },
+        },
+      });
+      expect(result.sql).toBe(
+        'INSERT INTO "users" ("name", "email") VALUES ($1, $2) ON CONFLICT ("email") DO UPDATE SET "name" = $3',
+      );
+      expect(result.params).toEqual(['alice', 'alice@test.com', 'updated-alice']);
+    });
+
     it('generates upsert with RETURNING', () => {
       const result = buildInsert({
         table: 'users',

@@ -161,6 +161,15 @@ describe('Aggregation queries (DB-012)', () => {
       const result = await db.products.aggregate({});
       expect(result.data).toEqual({});
     });
+
+    it('computes per-column _count as Record', async () => {
+      const result = await db.products.aggregate({
+        _count: { name: true, price: true } as unknown as true,
+      });
+      const countResult = result.data._count as Record<string, number>;
+      expect(countResult.name).toBe(5);
+      expect(countResult.price).toBe(5);
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -239,6 +248,51 @@ describe('Aggregation queries (DB-012)', () => {
       expect(widgets?._count).toBe(2);
       // Both gadgets are active
       expect(gadgets?._count).toBe(2);
+    });
+
+    it('computes per-column _count as Record in groupBy', async () => {
+      const result = await db.products.groupBy({
+        by: ['category'],
+        _count: { name: true, price: true } as unknown as true,
+      });
+      expect(result.data).toHaveLength(2);
+      const widgets = result.data.find((r) => r.category === 'widgets');
+      const countResult = widgets?._count as Record<string, number>;
+      expect(countResult.name).toBe(3);
+      expect(countResult.price).toBe(3);
+    });
+
+    it('supports orderBy on regular (non-aggregation) columns', async () => {
+      const result = await db.products.groupBy({
+        by: ['category'],
+        _count: true,
+        orderBy: { category: 'asc' },
+      });
+      expect(result.data).toHaveLength(2);
+      expect(result.data[0]?.category).toBe('gadgets');
+      expect(result.data[1]?.category).toBe('widgets');
+    });
+
+    it('supports limit and offset', async () => {
+      const result = await db.products.groupBy({
+        by: ['category'],
+        _count: true,
+        orderBy: { category: 'asc' },
+        limit: 1,
+        offset: 1,
+      });
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0]?.category).toBe('widgets');
+    });
+
+    it('validates per-column count aliases in orderBy', async () => {
+      const result = await db.products.groupBy({
+        by: ['category'],
+        _count: { name: true } as unknown as true,
+        orderBy: { _count_name: 'desc' } as Record<string, 'asc' | 'desc'>,
+      });
+      expect(result.data).toHaveLength(2);
+      expect(result.data[0]?.category).toBe('widgets');
     });
   });
 

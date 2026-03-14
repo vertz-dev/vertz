@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { PGlite } from '@electric-sql/pglite';
 import { unwrap } from '@vertz/errors';
 import type { MigrationQueryFn, SchemaSnapshot } from '../../migration';
@@ -298,6 +298,360 @@ describe('migrateStatus', () => {
         table: 'users',
         column: 'age',
       });
+    });
+  });
+
+  describe('code changes detection — all change types', () => {
+    it('detects table_removed change', async () => {
+      const savedSnapshot = makeSnapshot({
+        users: { id: { type: 'integer', primary: true } },
+        posts: { id: { type: 'integer', primary: true } },
+      });
+      const currentSnapshot = makeSnapshot({
+        users: { id: { type: 'integer', primary: true } },
+      });
+
+      const result = unwrap(
+        await migrateStatus({
+          queryFn,
+          migrationFiles: [],
+          savedSnapshot,
+          currentSnapshot,
+        }),
+      );
+
+      expect(result.codeChanges).toHaveLength(1);
+      expect(result.codeChanges[0]).toEqual({
+        description: "Removed table 'posts'",
+        type: 'table_removed',
+        table: 'posts',
+      });
+    });
+
+    it('detects column_removed change', async () => {
+      const savedSnapshot = makeSnapshot({
+        users: {
+          id: { type: 'integer', primary: true },
+          email: { type: 'text' },
+        },
+      });
+      const currentSnapshot = makeSnapshot({
+        users: { id: { type: 'integer', primary: true } },
+      });
+
+      const result = unwrap(
+        await migrateStatus({
+          queryFn,
+          migrationFiles: [],
+          savedSnapshot,
+          currentSnapshot,
+        }),
+      );
+
+      expect(result.codeChanges).toHaveLength(1);
+      expect(result.codeChanges[0]).toEqual({
+        description: "Removed column 'email' from table 'users'",
+        type: 'column_removed',
+        table: 'users',
+        column: 'email',
+      });
+    });
+
+    it('detects column_altered change', async () => {
+      const savedSnapshot = makeSnapshot({
+        users: {
+          id: { type: 'integer', primary: true },
+          age: { type: 'integer' },
+        },
+      });
+      const currentSnapshot = makeSnapshot({
+        users: {
+          id: { type: 'integer', primary: true },
+          age: { type: 'bigint' },
+        },
+      });
+
+      const result = unwrap(
+        await migrateStatus({
+          queryFn,
+          migrationFiles: [],
+          savedSnapshot,
+          currentSnapshot,
+        }),
+      );
+
+      expect(result.codeChanges).toHaveLength(1);
+      expect(result.codeChanges[0]).toEqual({
+        description: "Altered column 'age' in table 'users'",
+        type: 'column_altered',
+        table: 'users',
+        column: 'age',
+      });
+    });
+
+    it('detects column_renamed change', async () => {
+      const savedSnapshot = makeSnapshot({
+        users: {
+          id: { type: 'integer', primary: true },
+          name: { type: 'text' },
+        },
+      });
+      const currentSnapshot = makeSnapshot({
+        users: {
+          id: { type: 'integer', primary: true },
+          fullName: { type: 'text' },
+        },
+      });
+
+      const result = unwrap(
+        await migrateStatus({
+          queryFn,
+          migrationFiles: [],
+          savedSnapshot,
+          currentSnapshot,
+        }),
+      );
+
+      const renameChange = result.codeChanges.find((c) => c.type === 'column_renamed');
+      expect(renameChange).toBeDefined();
+      expect(renameChange?.description).toBe("Renamed column in table 'users'");
+      expect(renameChange?.table).toBe('users');
+    });
+
+    it('detects index_added change', async () => {
+      const savedSnapshot: SchemaSnapshot = {
+        version: 1,
+        tables: {
+          users: {
+            columns: {
+              id: { type: 'integer', nullable: false, primary: true, unique: false },
+              email: { type: 'text', nullable: false, primary: false, unique: false },
+            },
+            indexes: [],
+            foreignKeys: [],
+            _metadata: {},
+          },
+        },
+        enums: {},
+      };
+      const currentSnapshot: SchemaSnapshot = {
+        version: 1,
+        tables: {
+          users: {
+            columns: {
+              id: { type: 'integer', nullable: false, primary: true, unique: false },
+              email: { type: 'text', nullable: false, primary: false, unique: false },
+            },
+            indexes: [{ columns: ['email'] }],
+            foreignKeys: [],
+            _metadata: {},
+          },
+        },
+        enums: {},
+      };
+
+      const result = unwrap(
+        await migrateStatus({
+          queryFn,
+          migrationFiles: [],
+          savedSnapshot,
+          currentSnapshot,
+        }),
+      );
+
+      const indexChange = result.codeChanges.find((c) => c.type === 'index_added');
+      expect(indexChange).toBeDefined();
+      expect(indexChange?.description).toBe("Added index on table 'users'");
+      expect(indexChange?.table).toBe('users');
+    });
+
+    it('detects index_removed change', async () => {
+      const savedSnapshot: SchemaSnapshot = {
+        version: 1,
+        tables: {
+          users: {
+            columns: {
+              id: { type: 'integer', nullable: false, primary: true, unique: false },
+              email: { type: 'text', nullable: false, primary: false, unique: false },
+            },
+            indexes: [{ columns: ['email'] }],
+            foreignKeys: [],
+            _metadata: {},
+          },
+        },
+        enums: {},
+      };
+      const currentSnapshot: SchemaSnapshot = {
+        version: 1,
+        tables: {
+          users: {
+            columns: {
+              id: { type: 'integer', nullable: false, primary: true, unique: false },
+              email: { type: 'text', nullable: false, primary: false, unique: false },
+            },
+            indexes: [],
+            foreignKeys: [],
+            _metadata: {},
+          },
+        },
+        enums: {},
+      };
+
+      const result = unwrap(
+        await migrateStatus({
+          queryFn,
+          migrationFiles: [],
+          savedSnapshot,
+          currentSnapshot,
+        }),
+      );
+
+      const indexChange = result.codeChanges.find((c) => c.type === 'index_removed');
+      expect(indexChange).toBeDefined();
+      expect(indexChange?.description).toBe("Removed index on table 'users'");
+      expect(indexChange?.table).toBe('users');
+    });
+
+    it('detects enum_added change', async () => {
+      const savedSnapshot: SchemaSnapshot = { version: 1, tables: {}, enums: {} };
+      const currentSnapshot: SchemaSnapshot = {
+        version: 1,
+        tables: {},
+        enums: { role: ['admin', 'user'] },
+      };
+
+      const result = unwrap(
+        await migrateStatus({
+          queryFn,
+          migrationFiles: [],
+          savedSnapshot,
+          currentSnapshot,
+        }),
+      );
+
+      const enumChange = result.codeChanges.find((c) => c.type === 'enum_added');
+      expect(enumChange).toBeDefined();
+      expect(enumChange?.description).toBe('Added enum type');
+    });
+
+    it('detects enum_removed change', async () => {
+      const savedSnapshot: SchemaSnapshot = {
+        version: 1,
+        tables: {},
+        enums: { role: ['admin', 'user'] },
+      };
+      const currentSnapshot: SchemaSnapshot = { version: 1, tables: {}, enums: {} };
+
+      const result = unwrap(
+        await migrateStatus({
+          queryFn,
+          migrationFiles: [],
+          savedSnapshot,
+          currentSnapshot,
+        }),
+      );
+
+      const enumChange = result.codeChanges.find((c) => c.type === 'enum_removed');
+      expect(enumChange).toBeDefined();
+      expect(enumChange?.description).toBe('Removed enum type');
+    });
+
+    it('detects enum_altered change', async () => {
+      const savedSnapshot: SchemaSnapshot = {
+        version: 1,
+        tables: {},
+        enums: { role: ['admin', 'user'] },
+      };
+      const currentSnapshot: SchemaSnapshot = {
+        version: 1,
+        tables: {},
+        enums: { role: ['admin', 'user', 'viewer'] },
+      };
+
+      const result = unwrap(
+        await migrateStatus({
+          queryFn,
+          migrationFiles: [],
+          savedSnapshot,
+          currentSnapshot,
+        }),
+      );
+
+      const enumChange = result.codeChanges.find((c) => c.type === 'enum_altered');
+      expect(enumChange).toBeDefined();
+      expect(enumChange?.description).toBe('Altered enum type');
+    });
+  });
+
+  describe('error paths', () => {
+    it('returns error when createHistoryTable fails', async () => {
+      const failingQueryFn: MigrationQueryFn = mock().mockImplementation(async () => {
+        throw new Error('connection refused');
+      });
+
+      const result = await migrateStatus({
+        queryFn: failingQueryFn,
+        migrationFiles: [],
+      });
+
+      expect(result.ok).toBe(false);
+    });
+
+    it('returns error when getApplied fails', async () => {
+      const failingQueryFn: MigrationQueryFn = mock().mockImplementation(async (sql: string) => {
+        // First call is createHistoryTable - let it succeed
+        if (sql.includes('CREATE TABLE')) {
+          return { rows: [], rowCount: 0 };
+        }
+        // Second call is getApplied - make it fail
+        throw new Error('query failed');
+      });
+
+      const result = await migrateStatus({
+        queryFn: failingQueryFn,
+        migrationFiles: [],
+      });
+
+      expect(result.ok).toBe(false);
+    });
+  });
+
+  describe('drift detection with introspection', () => {
+    it('detects drift using postgres dialect introspection', async () => {
+      await queryFn(
+        `CREATE TABLE IF NOT EXISTS "_vertz_migrations" (
+          "id" serial PRIMARY KEY,
+          "name" text NOT NULL UNIQUE,
+          "checksum" text NOT NULL,
+          "applied_at" timestamp with time zone NOT NULL DEFAULT now()
+        )`,
+        [],
+      );
+      await queryFn('CREATE TABLE users (id serial PRIMARY KEY, name text NOT NULL)', []);
+
+      const expectedSnapshot = makeSnapshot({
+        users: {
+          id: { type: 'integer', primary: true },
+          name: { type: 'text' },
+          email: { type: 'text' },
+        },
+      });
+
+      const result = unwrap(
+        await migrateStatus({
+          queryFn,
+          migrationFiles: [],
+          currentSnapshot: expectedSnapshot,
+          dialect: {
+            name: 'postgres',
+            param: (n: number) => `$${n}`,
+            mapColumnType: (t: string) => t,
+          },
+        }),
+      );
+
+      expect(result.drift).toBeDefined();
+      expect(Array.isArray(result.drift)).toBe(true);
     });
   });
 });

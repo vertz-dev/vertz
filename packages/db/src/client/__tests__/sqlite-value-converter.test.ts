@@ -50,4 +50,29 @@ describe('fromSqliteValue', () => {
     expect(fromSqliteValue(null, 'text')).toBe(null);
     expect(fromSqliteValue(1, 'text')).toBe(1); // 1 is not converted if not boolean type
   });
+
+  it('converts ISO string to Date for "timestamp with time zone" columns', () => {
+    const result = fromSqliteValue('2024-06-20T15:00:00.000Z', 'timestamp with time zone');
+    expect(result).toBeInstanceOf(Date);
+    expect((result as Date).toISOString()).toBe('2024-06-20T15:00:00.000Z');
+  });
+
+  it('passes through non-0/1 values for boolean columns unchanged', () => {
+    // Values other than 0 and 1 should fall through the boolean branch
+    expect(fromSqliteValue(null, 'boolean')).toBe(null);
+    expect(fromSqliteValue(2, 'boolean')).toBe(2);
+    expect(fromSqliteValue('true', 'boolean')).toBe('true');
+  });
+
+  it('passes through non-string values for timestamp columns unchanged', () => {
+    // Non-string values should fall through the timestamp branch
+    expect(fromSqliteValue(null, 'timestamp')).toBe(null);
+    expect(fromSqliteValue(12345, 'timestamp')).toBe(12345);
+    expect(fromSqliteValue(null, 'timestamp with time zone')).toBe(null);
+  });
+
+  it('passes through undefined values', () => {
+    expect(fromSqliteValue(undefined, 'text')).toBe(undefined);
+    expect(fromSqliteValue(undefined, 'boolean')).toBe(undefined);
+  });
 });

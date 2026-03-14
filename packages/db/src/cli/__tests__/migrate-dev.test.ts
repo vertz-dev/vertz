@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { PGlite } from '@electric-sql/pglite';
 import type { MigrationQueryFn, SchemaSnapshot } from '../../migration';
-import { migrateDev } from '../migrate-dev';
+import type { DiffChange } from '../../migration/differ';
+import { generateMigrationName, migrateDev } from '../migrate-dev';
 
 describe('migrateDev', () => {
   let db: PGlite;
@@ -428,5 +429,161 @@ describe('migrateDev', () => {
       expect(result.collisions).toHaveLength(1);
       expect(result.collisions![0]!.sequenceNumber).toBe(2);
     });
+  });
+
+  describe('rename suggestions', () => {
+    it('returns rename suggestions when a column rename is detected', async () => {
+      const previousSnapshot: SchemaSnapshot = {
+        version: 1,
+        tables: {
+          users: {
+            columns: {
+              id: { type: 'serial', nullable: false, primary: true, unique: false },
+              name: { type: 'text', nullable: false, primary: false, unique: false },
+            },
+            indexes: [],
+            foreignKeys: [],
+            _metadata: {},
+          },
+        },
+        enums: {},
+      };
+
+      const currentSnapshot: SchemaSnapshot = {
+        version: 1,
+        tables: {
+          users: {
+            columns: {
+              id: { type: 'serial', nullable: false, primary: true, unique: false },
+              fullName: { type: 'text', nullable: false, primary: false, unique: false },
+            },
+            indexes: [],
+            foreignKeys: [],
+            _metadata: {},
+          },
+        },
+        enums: {},
+      };
+
+      const result = await migrateDev({
+        queryFn,
+        currentSnapshot,
+        previousSnapshot,
+        existingFiles: [],
+        migrationsDir: '/tmp/migrations',
+        writeFile: async () => {},
+        dryRun: true,
+      });
+
+      expect(result.renames).toBeDefined();
+      expect(result.renames!.length).toBeGreaterThan(0);
+      expect(result.renames![0]!.oldColumn).toBe('name');
+      expect(result.renames![0]!.newColumn).toBe('fullName');
+      expect(result.renames![0]!.table).toBe('users');
+      expect(typeof result.renames![0]!.confidence).toBe('number');
+    });
+  });
+
+  describe('readFile fallback', () => {
+    it('uses createJournal fallback when readFile throws', async () => {
+      const writtenFiles: Array<{ path: string; content: string }> = [];
+
+      const result = await migrateDev({
+        queryFn,
+        currentSnapshot: snapshotWithUsers,
+        previousSnapshot: emptySnapshot,
+        migrationName: 'add_users',
+        existingFiles: [],
+        migrationsDir: '/tmp/migrations',
+        writeFile: async (path, content) => {
+          writtenFiles.push({ path, content });
+        },
+        readFile: async () => {
+          throw new Error('ENOENT: file not found');
+        },
+        dryRun: false,
+      });
+
+      expect(result.migrationFile).toBe('0001_add_users.sql');
+      const journalWrite = writtenFiles.find((f) => f.path.endsWith('_journal.json'));
+      expect(journalWrite).toBeDefined();
+      const journal = JSON.parse(journalWrite!.content);
+      expect(journal.version).toBe(1);
+      expect(journal.migrations).toHaveLength(1);
+    });
+  });
+});
+
+describe('generateMigrationName', () => {
+  it('returns empty-migration for no changes', () => {
+    expect(generateMigrationName([])).toBe('empty-migration');
+  });
+
+  it('generates name for column_altered', () => {
+    const changes: DiffChange[] = [{ type: 'column_altered', table: 'users', column: 'age' }];
+    expect(generateMigrationName(changes)).toBe('alter-age-in-users');
+  });
+
+  it('generates name for column_renamed', () => {
+    const changes: DiffChange[] = [
+      { type: 'column_renamed', table: 'users', oldColumn: 'name', newColumn: 'fullName' },
+    ];
+    expect(generateMigrationName(changes)).toBe('rename-name-to-full-name-in-users');
+  });
+
+  it('generates name for index_added', () => {
+    const changes: DiffChange[] = [{ type: 'index_added', table: 'users', columns: ['email'] }];
+    expect(generateMigrationName(changes)).toBe('add-index-to-users');
+  });
+
+  it('generates name for index_removed', () => {
+    const changes: DiffChange[] = [{ type: 'index_removed', table: 'users', columns: ['email'] }];
+    expect(generateMigrationName(changes)).toBe('drop-index-from-users');
+  });
+
+  it('generates name for enum_added', () => {
+    const changes: DiffChange[] = [{ type: 'enum_added', enumName: 'userRole' }];
+    expect(generateMigrationName(changes)).toBe('add-user-role-enum');
+  });
+
+  it('generates name for enum_removed', () => {
+    const changes: DiffChange[] = [{ type: 'enum_removed', enumName: 'userRole' }];
+    expect(generateMigrationName(changes)).toBe('drop-user-role-enum');
+  });
+
+  it('generates name for enum_altered', () => {
+    const changes: DiffChange[] = [
+      { type: 'enum_altered', enumName: 'userRole', addedValues: ['viewer'] },
+    ];
+    expect(generateMigrationName(changes)).toBe('alter-user-role-enum');
+  });
+
+  it('generates name for column_removed', () => {
+    const changes: DiffChange[] = [{ type: 'column_removed', table: 'users', column: 'email' }];
+    expect(generateMigrationName(changes)).toBe('drop-email-from-users');
+  });
+
+  it('generates name for multiple column_added on same table', () => {
+    const changes: DiffChange[] = [
+      { type: 'column_added', table: 'users', column: 'email' },
+      { type: 'column_added', table: 'users', column: 'name' },
+    ];
+    expect(generateMigrationName(changes)).toBe('add-columns-to-users');
+  });
+
+  it('generates name for multiple column_removed on same table', () => {
+    const changes: DiffChange[] = [
+      { type: 'column_removed', table: 'users', column: 'email' },
+      { type: 'column_removed', table: 'users', column: 'name' },
+    ];
+    expect(generateMigrationName(changes)).toBe('drop-columns-from-users');
+  });
+
+  it('generates update-table name for multiple same-type changes on same table', () => {
+    const changes: DiffChange[] = [
+      { type: 'column_altered', table: 'users', column: 'email' },
+      { type: 'column_altered', table: 'users', column: 'name' },
+    ];
+    expect(generateMigrationName(changes)).toBe('update-users');
   });
 });

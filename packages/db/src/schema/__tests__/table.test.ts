@@ -150,3 +150,39 @@ describe('.shared()', () => {
     expect(lookups._columns.value._meta.nullable).toBe(true);
   });
 });
+
+describe('phantom type getters', () => {
+  const users = d.table('users', {
+    id: d.uuid().primary(),
+    name: d.text(),
+    email: d.text().nullable(),
+  });
+
+  it('$infer returns undefined at runtime', () => {
+    expect(users.$infer).toBeUndefined();
+  });
+
+  it('$infer_all returns undefined at runtime', () => {
+    expect(users.$infer_all).toBeUndefined();
+  });
+
+  it('$insert returns undefined at runtime', () => {
+    expect(users.$insert).toBeUndefined();
+  });
+
+  it('$update returns undefined at runtime', () => {
+    expect(users.$update).toBeUndefined();
+  });
+
+  it('$response returns undefined at runtime', () => {
+    expect(users.$response).toBeUndefined();
+  });
+
+  it('$create_input returns undefined at runtime', () => {
+    expect(users.$create_input).toBeUndefined();
+  });
+
+  it('$update_input returns undefined at runtime', () => {
+    expect(users.$update_input).toBeUndefined();
+  });
+});

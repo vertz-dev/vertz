@@ -214,6 +214,165 @@ describe('computeDiff', () => {
     ]);
   });
 
+  it('detects column_altered when default changes', () => {
+    const before: SchemaSnapshot = {
+      version: 1,
+      tables: {
+        items: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: true, unique: false },
+            status: {
+              type: 'text',
+              nullable: false,
+              primary: false,
+              unique: false,
+              default: "'active'",
+            },
+          },
+          indexes: [],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+      enums: {},
+    };
+    const after: SchemaSnapshot = {
+      version: 1,
+      tables: {
+        items: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: true, unique: false },
+            status: {
+              type: 'text',
+              nullable: false,
+              primary: false,
+              unique: false,
+              default: "'pending'",
+            },
+          },
+          indexes: [],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+      enums: {},
+    };
+
+    const result = computeDiff(before, after);
+
+    expect(result.changes).toEqual([
+      {
+        type: 'column_altered',
+        table: 'items',
+        column: 'status',
+        oldDefault: "'active'",
+        newDefault: "'pending'",
+      },
+    ]);
+  });
+
+  it('detects column_altered when default is added', () => {
+    const before: SchemaSnapshot = {
+      version: 1,
+      tables: {
+        items: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: true, unique: false },
+            status: { type: 'text', nullable: false, primary: false, unique: false },
+          },
+          indexes: [],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+      enums: {},
+    };
+    const after: SchemaSnapshot = {
+      version: 1,
+      tables: {
+        items: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: true, unique: false },
+            status: {
+              type: 'text',
+              nullable: false,
+              primary: false,
+              unique: false,
+              default: "'active'",
+            },
+          },
+          indexes: [],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+      enums: {},
+    };
+
+    const result = computeDiff(before, after);
+
+    expect(result.changes).toEqual([
+      {
+        type: 'column_altered',
+        table: 'items',
+        column: 'status',
+        oldDefault: undefined,
+        newDefault: "'active'",
+      },
+    ]);
+  });
+
+  it('detects column_altered when default is removed', () => {
+    const before: SchemaSnapshot = {
+      version: 1,
+      tables: {
+        items: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: true, unique: false },
+            status: {
+              type: 'text',
+              nullable: false,
+              primary: false,
+              unique: false,
+              default: "'active'",
+            },
+          },
+          indexes: [],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+      enums: {},
+    };
+    const after: SchemaSnapshot = {
+      version: 1,
+      tables: {
+        items: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: true, unique: false },
+            status: { type: 'text', nullable: false, primary: false, unique: false },
+          },
+          indexes: [],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+      enums: {},
+    };
+
+    const result = computeDiff(before, after);
+
+    expect(result.changes).toEqual([
+      {
+        type: 'column_altered',
+        table: 'items',
+        column: 'status',
+        oldDefault: "'active'",
+        newDefault: undefined,
+      },
+    ]);
+  });
+
   it('detects enum_added', () => {
     const before = emptySnapshot();
     const after: SchemaSnapshot = {

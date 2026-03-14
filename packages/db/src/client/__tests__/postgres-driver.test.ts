@@ -471,8 +471,8 @@ describe('PostgreSQL Driver', () => {
 
       const result = await driver.query<{ id: number; created: Date }>('SELECT * FROM users');
 
-      expect(result[0]!.created).toBeInstanceOf(Date);
-      expect(result[0]!.created.toISOString()).toBe('2024-01-15T10:30:00.000Z');
+      expect(result[0]?.created).toBeInstanceOf(Date);
+      expect(result[0]?.created.toISOString()).toBe('2024-01-15T10:30:00.000Z');
     });
   });
 
@@ -512,6 +512,125 @@ describe('PostgreSQL Driver', () => {
       const driver = createPostgresDriver('postgres://localhost:5432/test');
 
       await expect(driver.query('INSERT INTO users (id) VALUES ($1)', [1])).rejects.toThrow();
+    });
+
+    it('rethrows non-postgres errors as-is', async () => {
+      const { createPostgresDriver } = await import('../postgres-driver');
+
+      // A plain error without postgres-specific properties (no code/message shape)
+      const plainError = { notAnError: true };
+      mockUnsafe.mockRejectedValue(plainError);
+
+      const driver = createPostgresDriver('postgres://localhost:5432/test');
+
+      await expect(driver.query('SELECT * FROM users', [])).rejects.toEqual(plainError);
+    });
+  });
+
+  // =========================================================================
+  // beginTransaction
+  // =========================================================================
+
+  describe('beginTransaction', () => {
+    type MockBeginFn = (fn: (...args: never) => unknown) => Promise<unknown>;
+
+    it('executes a callback within a postgres transaction', async () => {
+      // Mock sql.begin to call the callback with a transaction-scoped sql
+      const txUnsafe = mock().mockResolvedValue(
+        Object.assign([{ id: 1, name: 'test' }], { count: 1 }),
+      );
+
+      // Re-mock the postgres module to include begin
+      mock.module('postgres', () => ({
+        default: mock(() => {
+          const sqlObj = {
+            end: mockEnd,
+            unsafe: mockUnsafe,
+            begin: mock(async (fn: MockBeginFn) => {
+              const txSql = { unsafe: txUnsafe };
+              return fn(txSql as never);
+            }),
+          };
+          return sqlObj;
+        }),
+      }));
+
+      const { createPostgresDriver: createDriver } = await import('../postgres-driver');
+      const driver = createDriver('postgres://localhost:5432/test');
+
+      const result = await driver.beginTransaction?.(async (txQueryFn) => {
+        const queryResult = await txQueryFn<{ id: number; name: string }>(
+          'SELECT * FROM users',
+          [],
+        );
+        return queryResult.rows;
+      });
+
+      expect(result).toEqual([{ id: 1, name: 'test' }]);
+      expect(txUnsafe).toHaveBeenCalledWith('SELECT * FROM users', []);
+
+      await driver.close();
+    });
+
+    it('coerces timestamp values in transaction queries', async () => {
+      const txUnsafe = mock().mockResolvedValue(
+        Object.assign([{ id: 1, created: '2024-01-15T10:30:00.000Z' }], { count: 1 }),
+      );
+
+      mock.module('postgres', () => ({
+        default: mock(() => ({
+          end: mockEnd,
+          unsafe: mockUnsafe,
+          begin: mock(async (fn: MockBeginFn) => fn({ unsafe: txUnsafe } as never)),
+        })),
+      }));
+
+      const { createPostgresDriver: createDriver } = await import('../postgres-driver');
+      const driver = createDriver('postgres://localhost:5432/test');
+
+      const result = await driver.beginTransaction?.(async (txQueryFn) => {
+        const queryResult = await txQueryFn<{ id: number; created: Date }>(
+          'SELECT * FROM users',
+          [],
+        );
+        return queryResult.rows[0]?.created;
+      });
+
+      expect(result).toBeInstanceOf(Date);
+      expect((result as Date).toISOString()).toBe('2024-01-15T10:30:00.000Z');
+
+      await driver.close();
+    });
+
+    it('adapts postgres errors thrown inside transaction queries', async () => {
+      const pgError = new Error('duplicate key');
+      Object.assign(pgError, {
+        code: '23505',
+        message: 'duplicate key',
+        table_name: 'users',
+        constraint_name: 'users_pkey',
+      });
+
+      const txUnsafe = mock().mockRejectedValue(pgError);
+
+      mock.module('postgres', () => ({
+        default: mock(() => ({
+          end: mockEnd,
+          unsafe: mockUnsafe,
+          begin: mock(async (fn: MockBeginFn) => fn({ unsafe: txUnsafe } as never)),
+        })),
+      }));
+
+      const { createPostgresDriver: createDriver } = await import('../postgres-driver');
+      const driver = createDriver('postgres://localhost:5432/test');
+
+      await expect(
+        driver.beginTransaction?.(async (txQueryFn) => {
+          await txQueryFn('INSERT INTO users (id) VALUES ($1)', [1]);
+        }),
+      ).rejects.toThrow();
+
+      await driver.close();
     });
   });
 });
