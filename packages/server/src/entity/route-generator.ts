@@ -249,17 +249,25 @@ export function generateEntityRoutes(
           const entityCtx = makeEntityCtx(ctx);
           const body = (ctx.body ?? {}) as Record<string, unknown>;
 
-          // Validate cursor length before processing
-          if (typeof body.after === 'string' && body.after.length > MAX_CURSOR_LENGTH) {
-            return jsonResponse(
-              {
-                error: {
-                  code: 'BadRequest',
-                  message: `cursor exceeds maximum length of ${MAX_CURSOR_LENGTH}`,
+          // Validate cursor type and length before processing
+          if (body.after !== undefined) {
+            if (typeof body.after !== 'string') {
+              return jsonResponse(
+                { error: { code: 'BadRequest', message: 'cursor must be a string' } },
+                400,
+              );
+            }
+            if (body.after.length > MAX_CURSOR_LENGTH) {
+              return jsonResponse(
+                {
+                  error: {
+                    code: 'BadRequest',
+                    message: `cursor exceeds maximum length of ${MAX_CURSOR_LENGTH}`,
+                  },
                 },
-              },
-              400,
-            );
+                400,
+              );
+            }
           }
 
           const parsed = {

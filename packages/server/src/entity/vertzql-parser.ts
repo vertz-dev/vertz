@@ -108,9 +108,9 @@ export function parseVertzQL(query: Record<string, string>): VertzQLOptions {
       continue;
     }
 
-    // after=cursor
+    // after=cursor (drop oversized cursors)
     if (key === 'after') {
-      if (value) {
+      if (value && value.length <= MAX_CURSOR_LENGTH) {
         result.after = value;
       }
       continue;
