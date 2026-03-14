@@ -1,10 +1,20 @@
-import { beforeAll, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import { createServer } from '@vertz/server';
 import { createInMemoryDb } from '../api/db';
 import { notes } from '../api/entities/notes.entity';
 
+type App = ReturnType<typeof createServer>;
+
+interface NoteResponse {
+  id: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 function request(
-  app: ReturnType<typeof createServer>,
+  app: App,
   method: string,
   path: string,
   body?: Record<string, unknown>,
@@ -18,17 +28,17 @@ function request(
 }
 
 async function createNote(
-  app: ReturnType<typeof createServer>,
+  app: App,
   data: { title: string; content?: string },
-) {
+): Promise<NoteResponse> {
   const res = await request(app, 'POST', '/api/notes', data);
-  return res.json();
+  return res.json() as Promise<NoteResponse>;
 }
 
 describe('Given a Vertz server with notes entity', () => {
-  let app: ReturnType<typeof createServer>;
+  let app: App;
 
-  beforeAll(async () => {
+  beforeEach(async () => {
     const db = await createInMemoryDb();
     app = createServer({
       basePath: '/api',
@@ -53,15 +63,15 @@ describe('Given a Vertz server with notes entity', () => {
   });
 
   describe('When listing notes via GET /api/notes', () => {
-    it('Then returns items array with created notes', async () => {
-      // Create a note first
+    it('Then returns items array with the created note', async () => {
       await createNote(app, { title: 'List Test' });
 
       const res = await request(app, 'GET', '/api/notes');
       const body = await res.json();
       expect(res.status).toBe(200);
       expect(body.items).toBeInstanceOf(Array);
-      expect(body.items.length).toBeGreaterThan(0);
+      expect(body.items.length).toBe(1);
+      expect(body.items[0].title).toBe('List Test');
     });
   });
 
@@ -74,6 +84,13 @@ describe('Given a Vertz server with notes entity', () => {
       expect(body.id).toBe(created.id);
       expect(body.title).toBe('Get Test');
       expect(body.content).toBe('Some content');
+    });
+  });
+
+  describe('When getting a non-existent note via GET /api/notes/:id', () => {
+    it('Then returns 404', async () => {
+      const res = await request(app, 'GET', '/api/notes/00000000-0000-0000-0000-000000000000');
+      expect(res.status).toBe(404);
     });
   });
 
@@ -91,13 +108,20 @@ describe('Given a Vertz server with notes entity', () => {
   });
 
   describe('When deleting a note via DELETE /api/notes/:id', () => {
-    it('Then returns success and note is no longer retrievable', async () => {
+    it('Then returns 204 and note is no longer retrievable', async () => {
       const created = await createNote(app, { title: 'To Delete' });
       const deleteRes = await request(app, 'DELETE', `/api/notes/${created.id}`);
       expect(deleteRes.status).toBe(204);
 
       const getRes = await request(app, 'GET', `/api/notes/${created.id}`);
       expect(getRes.status).toBe(404);
+    });
+  });
+
+  describe('When creating a note with missing title via POST /api/notes', () => {
+    it('Then returns an error response', async () => {
+      const res = await request(app, 'POST', '/api/notes', {});
+      expect(res.status).toBeGreaterThanOrEqual(400);
     });
   });
 });
