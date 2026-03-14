@@ -1,4 +1,4 @@
-import { entity, rules } from '@vertz/server';
+import { entity, rules, UnauthorizedException } from '@vertz/server';
 import { projectsModel } from '../schema';
 
 export const projects = entity('projects', {
@@ -11,7 +11,9 @@ export const projects = entity('projects', {
     delete: rules.all(rules.authenticated(), rules.where({ createdBy: rules.user.id })),
   },
   before: {
-    // access: rules.authenticated() guarantees userId is non-null
-    create: (data, ctx) => ({ ...data, createdBy: ctx.userId ?? '' }),
+    create: (data, ctx) => {
+      if (!ctx.userId) throw new UnauthorizedException('Authenticated user required');
+      return { ...data, createdBy: ctx.userId };
+    },
   },
 });

@@ -57,6 +57,9 @@ const styles = css({
 
 const createProjectSchema: FormSchema<CreateProjectBody> = {
   parse(data: unknown) {
+    if (typeof data !== 'object' || data === null) {
+      return { ok: false as const, error: new Error('Invalid form data') };
+    }
     const obj = data as Record<string, unknown>;
     const errors: Record<string, string> = {};
 
@@ -68,6 +71,8 @@ const createProjectSchema: FormSchema<CreateProjectBody> = {
       errors.key = 'Key is required';
     } else if (obj.key.length > 5) {
       errors.key = 'Key must be 5 characters or fewer';
+    } else if (!/^[A-Z0-9]+$/i.test(obj.key)) {
+      errors.key = 'Key must contain only letters and numbers';
     }
 
     if (Object.keys(errors).length > 0) {
@@ -101,7 +106,15 @@ export function CreateProjectDialog({ onClose, onSuccess }: CreateProjectDialogP
 
   return (
     <div class={styles.overlay}>
-      <div class={styles.dialog} role="dialog">
+      <div
+        class={styles.dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-label="New Project"
+        onKeyDown={(e: KeyboardEvent) => {
+          if (e.key === 'Escape') onClose();
+        }}
+      >
         <h3 class={styles.title}>New Project</h3>
         <form action={createForm.action} method={createForm.method} onSubmit={createForm.onSubmit}>
           <div class={styles.field}>

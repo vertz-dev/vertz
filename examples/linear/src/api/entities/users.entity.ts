@@ -4,10 +4,10 @@ import { usersModel } from '../schema';
 export const users = entity('users', {
   model: usersModel,
   access: {
-    list: rules.public,
-    get: rules.public,
+    list: rules.authenticated(),
+    get: rules.authenticated(),
     create: rules.public,
-    update: rules.public,
-    delete: rules.public,
+    update: rules.all(rules.authenticated(), rules.where({ id: rules.user.id })),
+    delete: rules.all(rules.authenticated(), rules.where({ id: rules.user.id })),
   },
 });
