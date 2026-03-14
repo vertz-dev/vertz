@@ -101,6 +101,25 @@ export interface ErrorDetail {
 
 export type ErrorCategory = 'build' | 'resolve' | 'runtime' | 'ssr';
 
+/**
+ * Classify whether an error message indicates a stale module graph
+ * that requires a server restart to resolve.
+ *
+ * Matches export-specific errors only (not generic resolution errors):
+ * - "Export named 'X' not found in module 'Y'"
+ * - "No matching export in 'Y' for import 'X'"
+ * - "'Y' does not provide an export named 'X'"
+ */
+const STALE_GRAPH_PATTERNS = [
+  /Export named ['"].*['"] not found in module/i,
+  /No matching export in ['"].*['"] for import/i,
+  /does not provide an export named/i,
+];
+
+export function isStaleGraphError(message: string): boolean {
+  return STALE_GRAPH_PATTERNS.some((pattern) => pattern.test(message));
+}
+
 /** A resolved stack frame for terminal logging. */
 interface TerminalStackFrame {
   functionName: string | null;
@@ -174,6 +193,13 @@ export function createRuntimeErrorDeduplicator(): {
 export interface BunDevServer {
   start(): Promise<void>;
   stop(): Promise<void>;
+  /**
+   * Soft-restart the dev server: stops Bun.serve(), clears all caches,
+   * creates a fresh Bun.serve() with a clean HMR module graph.
+   * Broadcasts { type: 'restarting' } to clients before stopping.
+   * Skips one-time setup (plugin registration, console.error patching).
+   */
+  restart(): Promise<void>;
   /** Broadcast an error to all connected WebSocket clients. */
   broadcastError(category: ErrorCategory, errors: ErrorDetail[]): void;
   /** Clear current error and notify all connected WebSocket clients.
@@ -300,6 +326,11 @@ function buildErrorChannelScript(editor: string): string {
     // overlay. We wait for the WS clear (server hash update) before triggering
     // a controlled reload via the saved original function.
     'V._needsReload=false;',
+    // _restarting: set when the server sends { type: 'restarting' }. Used to
+    // trigger a full page reload when the WS reconnects after restart.
+    'V._restarting=false;',
+    // isStaleGraph: detect errors that indicate a stale module graph
+    'V.isStaleGraph=function(m){return/Export named [\'"].*[\'"] not found in module/i.test(m)||/No matching export in [\'"].*[\'"] for import/i.test(m)||/does not provide an export named/i.test(m)};',
     // _recovering: after a controlled reload for error recovery, Bun's HMR may
     // send stale module updates that re-trigger runtime errors. This flag
     // (set via sessionStorage before reload) suppresses runtime error overlays
@@ -356,8 +387,8 @@ function buildErrorChannelScript(editor: string): string {
     // removeOverlay(): remove card + data element
     "V.removeOverlay=function(){V._src=null;var e=document.getElementById('__vertz_error');if(e)e.remove();" +
       "var d=document.getElementById('__vertz_error_data');if(d)d.remove()};",
-    // showOverlay(title, body, payload, source): floating card + data element
-    'V.showOverlay=function(t,body,payload,src){',
+    // showOverlay(title, body, payload, source, restartable): floating card + data element
+    'V.showOverlay=function(t,body,payload,src,restartable){',
     'V.removeOverlay();',
     "V._src=src||'ws';",
     "var d=document,c=d.createElement('div');",
@@ -377,12 +408,18 @@ function buildErrorChannelScript(editor: string): string {
     '--ve-error:hsl(0 72% 65%);--ve-link:hsl(217 91% 70%);--ve-border:hsl(0 0% 18%);',
     "--ve-code:hsl(36 80% 65%);--ve-code-bg:hsl(0 0% 11%);--ve-btn:hsl(0 0% 93%);--ve-btn-fg:hsl(0 0% 7%)}}';",
     'd.head.appendChild(st);',
+    // Buttons: when restartable, "Restart Server" is primary, "Retry" is secondary
+    'var btns=restartable?\'<div style="display:flex;gap:6px">\'',
+    '+\'<button id="__vertz_restart" style="background:var(--ve-btn);color:var(--ve-btn-fg);border:none;border-radius:6px;padding:4px 12px;font-size:12px;cursor:pointer;font-weight:500">Restart Server</button>\'',
+    '+\'<button id="__vertz_retry" style="background:transparent;color:var(--ve-muted);border:1px solid var(--ve-border);border-radius:6px;padding:4px 12px;font-size:12px;cursor:pointer">Retry</button></div>\'',
+    ':\'<button id="__vertz_retry" style="background:var(--ve-btn);color:var(--ve-btn-fg);border:none;border-radius:6px;padding:4px 12px;font-size:12px;cursor:pointer;font-weight:500">Retry</button>\';',
     'c.innerHTML=\'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">\'',
     "+'<span style=\"font-size:13px;font-weight:600;color:var(--ve-error)\">'+V.esc(t)+'</span>'",
-    '+\'<button id="__vertz_retry" style="background:var(--ve-btn);color:var(--ve-btn-fg);border:none;border-radius:6px;padding:4px 12px;font-size:12px;cursor:pointer;font-weight:500">Retry</button>\'',
-    "+'</div>'+body;",
+    "+btns+'</div>'+body;",
     '(d.body||d.documentElement).appendChild(c);',
     "d.getElementById('__vertz_retry').onclick=function(){location.reload()};",
+    // Restart Server button: send restart request via WebSocket
+    "var rb=d.getElementById('__vertz_restart');if(rb){rb.onclick=function(){if(V._ws&&V._ws.readyState===1){V._ws.send(JSON.stringify({type:'restart'}))}}};",
     // Inject JSON data element for LLM/MCP access
     "if(payload){var s=d.createElement('script');s.type='application/json';s.id='__vertz_error_data';s.textContent=JSON.stringify(payload);(d.body||d.documentElement).appendChild(s)}};",
     // WebSocket connection with reconnection
@@ -399,7 +436,9 @@ function buildErrorChannelScript(editor: string): string {
     // arriving now are stale (Bun frontend forwarding, module cache lag).
     "if(m.type==='error'){",
     'if(V._recovering)return;',
-    "V.showOverlay(m.category==='build'?'Build failed':m.category==='ssr'?'SSR error':m.category==='resolve'?'Module not found':'Runtime error',V.formatErrors(m.errors)+V.formatStack(m.parsedStack),m,'ws')}",
+    // Check if any error message indicates a stale module graph
+    'var sg=m.errors&&m.errors.some(function(e){return V.isStaleGraph(e.message)});',
+    "V.showOverlay(m.category==='build'?'Build failed':m.category==='ssr'?'SSR error':m.category==='resolve'?'Module not found':'Runtime error',V.formatErrors(m.errors)+V.formatStack(m.parsedStack),m,'ws',sg)}",
     // WS clear → error is resolved server-side.
     // Priority: (1) _needsReload → controlled reload immediately
     //           (2) #app empty → page never rendered, reload for recovery
@@ -411,9 +450,30 @@ function buildErrorChannelScript(editor: string): string {
     "if(!a||a.innerHTML.length<50){V.removeOverlay();sessionStorage.setItem('__vertz_recovering',String(Date.now()));_reload();return}",
     'if(V._hadClientError)return;',
     'V.removeOverlay()}',
-    "else if(m.type==='connected'){delay=1000}",
+    // WS restarting → server is about to restart. Show overlay, set flag, clear reload guard.
+    "else if(m.type==='restarting'){",
+    'V._restarting=true;',
+    'V.removeOverlay();',
+    "V._src='ws';",
+    // Clear reload guard counter so post-restart reload isn't counted as a loop
+    "sessionStorage.removeItem('__vertz_reload_count');sessionStorage.removeItem('__vertz_reload_ts');",
+    // Show a "Restarting..." overlay with no buttons
+    "var d2=document,c2=d2.createElement('div');c2.id='__vertz_error';",
+    "c2.style.cssText='position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:2147483647;background:#1a1a1a;color:#fff;border-radius:8px;padding:14px 20px;font-family:ui-sans-serif,system-ui,sans-serif;font-size:13px;box-shadow:0 4px 24px rgba(0,0,0,0.2)';",
+    "c2.textContent='Restarting dev server\\u2026';",
+    '(d2.body||d2.documentElement).appendChild(c2);',
+    // Timeout: if WS doesn't reconnect within 10s, show fallback message
+    "V._restartTimer=setTimeout(function(){var el=d2.getElementById('__vertz_error');if(el){el.textContent='Restart timed out. Try restarting manually (Ctrl+C and re-run).'}V._restarting=false},10000)}",
+    // WS connected → reset delay. If _restarting, trigger full page reload.
+    // Also handle late reconnect after timeout: if the restart overlay is still
+    // showing (timed out), clear it and reload to recover.
+    "else if(m.type==='connected'){delay=1000;",
+    "var restartEl=document.getElementById('__vertz_error');",
+    "var timedOut=restartEl&&restartEl.textContent&&restartEl.textContent.indexOf('timed out')!==-1;",
+    'if(V._restarting||timedOut){V._restarting=false;if(V._restartTimer){clearTimeout(V._restartTimer);V._restartTimer=null}_reload()}}',
     '}catch(ex){}};',
-    'ws.onclose=function(){V._ws=null;setTimeout(function(){delay=Math.min(delay*2,maxDelay);connect()},delay)};',
+    // Fast reconnect after restart: 100ms intervals instead of exponential backoff
+    'ws.onclose=function(){V._ws=null;var d3=V._restarting?100:delay;setTimeout(function(){if(!V._restarting){delay=Math.min(delay*2,maxDelay)}connect()},d3)};',
     'ws.onerror=function(){ws.close()}}',
     'connect();',
     // sendResolveStack: if WS is connected, ask server to resolve the stack
@@ -428,7 +488,8 @@ function buildErrorChannelScript(editor: string): string {
     'if(V._recovering&&a&&a.innerHTML.length>50)return;',
     'if(V._recovering)V._recovering=false;',
     'V._hadClientError=true;',
-    "V.showOverlay(title,V.formatErrors(errors),payload,'client')}",
+    'var sg2=errors&&errors.some(function(e){return V.isStaleGraph(e.message)});',
+    "V.showOverlay(title,V.formatErrors(errors),payload,'client',sg2)}",
     // Auto-clear recovery mode after 5s in case no errors fire
     'if(V._recovering){setTimeout(function(){V._recovering=false},5000)}',
     "window.addEventListener('error',function(e){",
@@ -459,7 +520,7 @@ function buildErrorChannelScript(editor: string): string {
     // Don't send resolve-stack for HMR errors — the server-side console.error
     // intercept handles these with lastChangedFile context and lineText.
     // Client just shows a minimal placeholder overlay; the server broadcast replaces it.
-    "V.showOverlay('Runtime error',V.formatErrors([{message:hmr[2].split('\\n')[0]}]),{type:'error',category:'runtime',errors:[{message:hmr[2].split('\\n')[0]}]},'client')}",
+    "var hmrMsg=hmr[2].split('\\n')[0];V.showOverlay('Runtime error',V.formatErrors([{message:hmrMsg}]),{type:'error',category:'runtime',errors:[{message:hmrMsg}]},'client',V.isStaleGraph(hmrMsg))}",
     'origCE.apply(console,arguments)};',
     'console.log=function(){',
     "var t=Array.prototype.join.call(arguments,' ');",
@@ -964,6 +1025,17 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     return new Response('OpenAPI spec not found', { status: 404 });
   };
 
+  // ── Restart state ─────────────────────────────────────────────────
+  let isRestarting = false;
+  let pluginsRegistered = false;
+  // Stable reference to the plugin's updateManifest — survives restart because
+  // the plugin itself is only registered once (process-global). On restart we
+  // skip createVertzBunPlugin() to avoid creating a new manifests Map that
+  // diverges from the registered plugin's closure.
+  let stableUpdateManifest:
+    | ((filePath: string, sourceText: string) => { changed: boolean })
+    | null = null;
+
   // ── Unified SSR + HMR ────────────────────────────────────────────
 
   async function start(): Promise<void> {
@@ -976,29 +1048,40 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     // from the project root regardless of where the HMR shell HTML lives.
     const clientSrc = rawClientSrc.replace(/^\.\//, '/');
 
-    // Register JSX runtime swap for SSR (server-side imports)
-    plugin({
-      name: 'vertz-ssr-jsx-swap',
-      setup(build) {
-        build.onResolve({ filter: /^@vertz\/ui\/jsx-runtime$/ }, () => ({
-          path: '@vertz/ui-server/jsx-runtime',
-          external: false,
-        }));
-        build.onResolve({ filter: /^@vertz\/ui\/jsx-dev-runtime$/ }, () => ({
-          path: '@vertz/ui-server/jsx-runtime',
-          external: false,
-        }));
-      },
-    });
+    // Register JSX runtime swap for SSR (server-side imports) — once only,
+    // Bun plugins are process-global and must not be double-registered.
+    if (!pluginsRegistered) {
+      plugin({
+        name: 'vertz-ssr-jsx-swap',
+        setup(build) {
+          build.onResolve({ filter: /^@vertz\/ui\/jsx-runtime$/ }, () => ({
+            path: '@vertz/ui-server/jsx-runtime',
+            external: false,
+          }));
+          build.onResolve({ filter: /^@vertz\/ui\/jsx-dev-runtime$/ }, () => ({
+            path: '@vertz/ui-server/jsx-runtime',
+            external: false,
+          }));
+        },
+      });
+    }
 
-    // Register the Vertz compiler plugin for SSR transforms (no HMR on server side)
-    const { plugin: serverPlugin, updateManifest: updateServerManifest } = createVertzBunPlugin({
-      hmr: false,
-      fastRefresh: false,
-      logger,
-      diagnostics,
-    });
-    plugin(serverPlugin);
+    // Register the Vertz compiler plugin for SSR transforms (no HMR on server side).
+    // Only create the plugin once — the registered plugin's onLoad closure captures
+    // a manifests Map. Creating a new plugin instance would create a new Map, causing
+    // manifest updates from the file watcher to go to the wrong instance.
+    if (!pluginsRegistered) {
+      const { plugin: serverPlugin, updateManifest } = createVertzBunPlugin({
+        hmr: false,
+        fastRefresh: false,
+        logger,
+        diagnostics,
+      });
+      plugin(serverPlugin);
+      stableUpdateManifest = updateManifest;
+    }
+    pluginsRegistered = true;
+    const updateServerManifest = stableUpdateManifest!;
 
     // Load SSR module
     let ssrMod: SSRModule;
@@ -1009,6 +1092,9 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
       }
     } catch (e) {
       console.error('[Server] Failed to load SSR module:', e);
+      if (isRestarting) {
+        throw e;
+      }
       process.exit(1);
     }
 
@@ -1394,7 +1480,10 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
         message(ws, msg) {
           try {
             const data = JSON.parse(typeof msg === 'string' ? msg : new TextDecoder().decode(msg));
-            if (data.type === 'ping') {
+            if (data.type === 'restart') {
+              // Fire-and-forget — restart is async but WS handler is sync
+              devServer.restart();
+            } else if (data.type === 'ping') {
               ws.sendText(JSON.stringify({ type: 'pong' }));
             } else if (data.type === 'resolve-stack' && data.stack) {
               // Client sent an Error.stack for source map resolution
@@ -1716,7 +1805,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
 
   // ── Public API ──────────────────────────────────────────────────
 
-  return {
+  const devServer: BunDevServer = {
     start,
     broadcastError,
     clearError,
@@ -1748,5 +1837,77 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
         server = null;
       }
     },
+
+    async restart() {
+      if (isRestarting) {
+        if (logRequests) {
+          console.log('[Server] Restart already in progress, skipping');
+        }
+        return;
+      }
+
+      isRestarting = true;
+      if (logRequests) {
+        console.log('[Server] Restarting dev server...');
+      }
+
+      // Broadcast { type: 'restarting' } to all connected clients before stopping
+      const restartMsg = JSON.stringify({ type: 'restarting' });
+      for (const ws of wsClients) {
+        try {
+          ws.sendText(restartMsg);
+        } catch {
+          // Client may already be disconnected
+        }
+      }
+
+      // Reuse stop() to avoid duplicating shutdown logic
+      await devServer.stop();
+
+      // Clear dead WS references and all error state
+      wsClients.clear();
+      currentError = null;
+      if (runtimeDebounceTimer) {
+        clearTimeout(runtimeDebounceTimer);
+        runtimeDebounceTimer = null;
+      }
+      pendingRuntimeError = null;
+      lastBuildError = '';
+      lastBroadcastedError = '';
+      lastChangedFile = '';
+      clearGraceUntil = 0;
+      terminalDedup.reset();
+      clearSSRRequireCache();
+      sourceMapResolver.invalidate();
+
+      // Port binding retry: the port may not be released instantly after stop.
+      // Retry up to 3 times with increasing delays (100ms, 200ms, 500ms).
+      const retryDelays = [100, 200, 500];
+      let lastErr: unknown;
+      for (let attempt = 0; attempt < retryDelays.length; attempt++) {
+        await new Promise((r) => setTimeout(r, retryDelays[attempt]));
+        try {
+          await start();
+          if (logRequests) {
+            console.log(`[Server] Dev server restarted on port ${port}`);
+          }
+          lastErr = null;
+          break;
+        } catch (e) {
+          lastErr = e;
+          if (logRequests) {
+            const errMsg = e instanceof Error ? e.message : String(e);
+            console.log(`[Server] Restart attempt ${attempt + 1} failed: ${errMsg}`);
+          }
+        }
+      }
+      if (lastErr) {
+        const errMsg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+        console.error(`[Server] Restart failed after ${retryDelays.length} attempts: ${errMsg}`);
+      }
+      isRestarting = false;
+    },
   };
+
+  return devServer;
 }
