@@ -37,7 +37,12 @@ export default function CopyButton() {
       style="font-family: var(--font-mono); border-color: #1e1e22; box-shadow: 4px 4px 0 rgba(255,255,255,0.06); transition: all 0.15s"
     >
       <span class={s.dollarSign}>$</span> bun create vertz my-app
-      <span class={s.copyPrefix}>{copied ? 'Copied!' : '(click to copy)'}</span>
+      <span class={s.copyPrefix} style="display: inline-grid">
+        <span style="grid-area: 1/1; visibility: hidden; pointer-events: none">
+          (click to copy)
+        </span>
+        <span style="grid-area: 1/1">{copied ? 'Copied!' : '(click to copy)'}</span>
+      </span>
     </button>
   );
 }

@@ -25,12 +25,17 @@ const s = css({
     'mt:12',
     'flex',
     'flex-col',
-    'items:center',
+    'items:stretch',
     'gap:4',
-    { '@media (min-width: 640px)': [{ property: 'flex-direction', value: 'row' }] },
+    {
+      '@media (min-width: 640px)': [
+        { property: 'flex-direction', value: 'row' },
+        { property: 'align-items', value: 'center' },
+      ],
+    },
   ],
   githubLink: [
-    'inline-flex',
+    'flex',
     'items:center',
     'justify:center',
     'gap:2',
@@ -41,6 +46,9 @@ const s = css({
     'tracking:wider',
     'transition:colors',
     'text:gray.400',
+    {
+      '@media (min-width: 640px)': [{ property: 'display', value: 'inline-flex' }],
+    },
   ],
 });
 
