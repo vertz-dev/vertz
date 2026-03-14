@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
   buildScriptTag,
   clearSSRRequireCache,
   createBunDevServer,
   createFetchInterceptor,
   createRuntimeErrorDeduplicator,
+  detectFaviconTag,
   formatTerminalRuntimeError,
   generateSSRPageHtml,
   parseHMRAssets,
@@ -579,6 +583,25 @@ describe('generateSSRPageHtml', () => {
     });
 
     expect(html).not.toContain('__VERTZ_SESSION__');
+  });
+});
+
+describe('detectFaviconTag', () => {
+  it('returns link tag when public/favicon.svg exists', () => {
+    const tmpDir = path.join(os.tmpdir(), `vertz-favicon-exists-${Date.now()}`);
+    mkdirSync(path.join(tmpDir, 'public'), { recursive: true });
+    writeFileSync(path.join(tmpDir, 'public', 'favicon.svg'), '<svg></svg>');
+
+    const tag = detectFaviconTag(tmpDir);
+    expect(tag).toBe('<link rel="icon" type="image/svg+xml" href="/favicon.svg">');
+  });
+
+  it('returns empty string when public/favicon.svg does not exist', () => {
+    const tmpDir = path.join(os.tmpdir(), `vertz-favicon-missing-${Date.now()}`);
+    mkdirSync(tmpDir, { recursive: true });
+
+    const tag = detectFaviconTag(tmpDir);
+    expect(tag).toBe('');
   });
 });
 

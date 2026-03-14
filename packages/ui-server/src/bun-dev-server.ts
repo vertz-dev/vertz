@@ -24,6 +24,18 @@ import { dirname, normalize, resolve } from 'node:path';
 import type { FontFallbackMetrics } from '@vertz/ui';
 import type { SSRAuth } from '@vertz/ui/internals';
 import { imageContentType, isValidImageName } from './bun-plugin/image-paths';
+
+/**
+ * Detect `public/favicon.svg` and return a `<link>` tag for it.
+ * Returns empty string when the file does not exist.
+ */
+export function detectFaviconTag(projectRoot: string): string {
+  const faviconPath = resolve(projectRoot, 'public', 'favicon.svg');
+  return existsSync(faviconPath)
+    ? '<link rel="icon" type="image/svg+xml" href="/favicon.svg">'
+    : '';
+}
+
 import { createDebugLogger } from './debug-logger';
 import { handleDevImageProxy } from './dev-image-proxy';
 import { DiagnosticsCollector } from './diagnostics-collector';
@@ -656,9 +668,12 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     projectRoot = process.cwd(),
     logRequests = true,
     editor: editorOption,
-    headTags = '',
+    headTags: headTagsOption = '',
     sessionResolver,
   } = options;
+
+  const faviconTag = detectFaviconTag(projectRoot);
+  const headTags = [faviconTag, headTagsOption].filter(Boolean).join('\n');
 
   const editor = detectEditor(editorOption);
 

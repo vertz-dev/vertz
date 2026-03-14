@@ -12,6 +12,7 @@ import {
   envExampleTemplate,
   envModuleTemplate,
   envTemplate,
+  faviconTemplate,
   gitignoreTemplate,
   homePageTemplate,
   packageJsonTemplate,
@@ -62,12 +63,14 @@ export async function scaffold(parentDir: string, options: ScaffoldOptions): Pro
   const pagesDir = path.join(srcDir, 'pages');
   const stylesDir = path.join(srcDir, 'styles');
   const claudeRulesDir = path.join(projectDir, '.claude', 'rules');
+  const publicDir = path.join(projectDir, 'public');
 
   await Promise.all([
     fs.mkdir(entitiesDir, { recursive: true }),
     fs.mkdir(pagesDir, { recursive: true }),
     fs.mkdir(stylesDir, { recursive: true }),
     fs.mkdir(claudeRulesDir, { recursive: true }),
+    fs.mkdir(publicDir, { recursive: true }),
   ]);
 
   // Write all files in parallel
@@ -95,6 +98,9 @@ export async function scaffold(parentDir: string, options: ScaffoldOptions): Pro
     writeFile(srcDir, 'entry-client.ts', entryClientTemplate()),
     writeFile(pagesDir, 'home.tsx', homePageTemplate()),
     writeFile(stylesDir, 'theme.ts', themeTemplate()),
+
+    // Static assets
+    writeFile(publicDir, 'favicon.svg', faviconTemplate()),
 
     // LLM rules
     writeFile(projectDir, 'CLAUDE.md', claudeMdTemplate(projectName)),

@@ -71,6 +71,13 @@ describe('scaffold', () => {
       expect(stat.isDirectory()).toBe(true);
     });
 
+    it('creates public/ subdirectory', async () => {
+      await scaffold(tempDir, defaultOptions);
+
+      const stat = await fs.stat(projectPath('public'));
+      expect(stat.isDirectory()).toBe(true);
+    });
+
     it('does NOT create src/modules/ (removed)', async () => {
       await scaffold(tempDir, defaultOptions);
 
@@ -194,6 +201,14 @@ describe('scaffold', () => {
       const content = await fs.readFile(projectPath('package.json'), 'utf-8');
       const pkg = JSON.parse(content);
       expect(pkg.dependencies.vertz).toBeDefined();
+    });
+
+    it('generates public/favicon.svg with Vertz logo', async () => {
+      await scaffold(tempDir, defaultOptions);
+
+      const content = await fs.readFile(projectPath('public', 'favicon.svg'), 'utf-8');
+      expect(content).toContain('<svg');
+      expect(content).toContain('</svg>');
     });
 
     it('.gitignore includes .vertz/ and *.db', async () => {
