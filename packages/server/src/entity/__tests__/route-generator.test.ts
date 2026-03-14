@@ -1487,6 +1487,34 @@ describe('Feature: Expose descriptor runtime evaluation', () => {
     });
   });
 
+  describe('Given POST /query with an oversized cursor', () => {
+    describe('When the after value exceeds 512 characters', () => {
+      it('Then returns 400 with a BadRequest error', async () => {
+        const db = createMockDb([{ id: '1', name: 'Alice', email: 'a@b.com', role: 'viewer' }]);
+        const def = buildEntityDef();
+        const registry = new EntityRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+        const queryRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users/query');
+
+        const oversizedCursor = 'x'.repeat(513);
+        const resp = await queryRoute!.handler({
+          userId: 'u1',
+          tenantId: null,
+          roles: [],
+          params: {},
+          body: { after: oversizedCursor },
+          query: {},
+          headers: {},
+        });
+        const body = await resp.json();
+
+        expect(resp.status).toBe(400);
+        expect(body.error.code).toBe('BadRequest');
+        expect(body.error.message).toContain('cursor');
+      });
+    });
+  });
+
   describe('Given update response with descriptor-guarded select field', () => {
     describe('When user lacks the entitlement', () => {
       it('Then the descriptor-guarded field returns null in the update response', async () => {

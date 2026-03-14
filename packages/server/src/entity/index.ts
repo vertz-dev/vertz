@@ -52,4 +52,4 @@ export type {
   VertzQLIncludeEntry,
   VertzQLOptions,
 } from './vertzql-parser';
-export { MAX_LIMIT, parseVertzQL, validateVertzQL } from './vertzql-parser';
+export { MAX_CURSOR_LENGTH, MAX_LIMIT, parseVertzQL, validateVertzQL } from './vertzql-parser';
