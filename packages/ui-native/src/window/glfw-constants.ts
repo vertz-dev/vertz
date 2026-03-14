@@ -26,6 +26,10 @@ export const GLFW_OPENGL_FORWARD_COMPAT = 0x00022006;
 // OpenGL profile values
 export const GLFW_OPENGL_CORE_PROFILE = 0x00032001;
 
+// Framebuffer hints
+export const GLFW_COCOA_RETINA_FRAMEBUFFER = 0x00023001;
+export const GLFW_SCALE_FRAMEBUFFER = 0x0002200d;
+
 // Key codes (subset — extend as needed)
 export const GLFW_KEY_ESCAPE = 256;
 export const GLFW_KEY_ENTER = 257;

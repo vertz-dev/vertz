@@ -6,6 +6,7 @@
  */
 
 import {
+  GLFW_COCOA_RETINA_FRAMEBUFFER,
   GLFW_CONTEXT_VERSION_MAJOR,
   GLFW_CONTEXT_VERSION_MINOR,
   GLFW_FALSE,
@@ -13,6 +14,7 @@ import {
   GLFW_OPENGL_FORWARD_COMPAT,
   GLFW_OPENGL_PROFILE,
   GLFW_RESIZABLE,
+  GLFW_SCALE_FRAMEBUFFER,
   GLFW_TRUE,
   GLFW_VISIBLE,
   type GLFWBindings,
@@ -25,6 +27,8 @@ export interface NativeWindowOptions {
   height: number;
   resizable?: boolean;
   visible?: boolean;
+  /** Enable retina/HiDPI framebuffer. Default: false (saves ~50MB on retina displays). */
+  retina?: boolean;
 }
 
 /**
@@ -74,6 +78,12 @@ export function createNativeWindow(options: NativeWindowOptions): NativeWindow {
       throw new Error('Failed to initialize GLFW');
     }
   }
+
+  // Disable retina by default — saves ~50MB of IOSurface memory on retina displays.
+  // At 1x, an 800x600 window uses ~7.5MB of IOSurface vs ~29MB at 2x retina.
+  const useRetina = options.retina === true;
+  glfw.glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, useRetina ? GLFW_TRUE : GLFW_FALSE);
+  glfw.glfwWindowHint(GLFW_SCALE_FRAMEBUFFER, useRetina ? GLFW_TRUE : GLFW_FALSE);
 
   // Configure OpenGL 3.3 core profile
   glfw.glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
