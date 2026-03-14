@@ -20,7 +20,7 @@ describe('Feature: Schema rename propagates type errors', () => {
 
   describe('Given a notes schema with a "title" field', () => {
     describe('When renaming "title" to "heading" and running codegen + typecheck', () => {
-      it('Then typecheck reports errors at every consumer of "title"', { timeout: 30_000 }, () => {
+      it('Then typecheck reports errors at every consumer of "title"', () => {
         // Save original
         originalSchema = readFileSync(SCHEMA_PATH, 'utf-8');
 
@@ -47,7 +47,7 @@ describe('Feature: Schema rename propagates type errors', () => {
 
         // Verify the type-safety test file has errors (it references 'title')
         expect(typecheckOutput).toContain('type-safety.test-d.ts');
-      });
+      }, 30_000);
     });
   });
 });
