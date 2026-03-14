@@ -558,16 +558,20 @@ describe('createThemedTabs', () => {
     const styles = createTabsStyles();
     const Tabs = createThemedTabs(styles);
 
-    const list = Tabs.List({
-      children: [
-        Tabs.Trigger({ value: 'one', children: 'Tab 1' }),
-        Tabs.Trigger({ value: 'two', children: 'Tab 2' }),
-      ],
+    const root = Tabs({
+      defaultValue: 'one',
+      children: () => {
+        const list = Tabs.List({
+          children: () => [
+            Tabs.Trigger({ value: 'one', children: ['Tab 1'] }),
+            Tabs.Trigger({ value: 'two', children: ['Tab 2'] }),
+          ],
+        });
+        const content1 = Tabs.Content({ value: 'one', children: ['Content 1'] });
+        const content2 = Tabs.Content({ value: 'two', children: ['Content 2'] });
+        return [list, content1, content2];
+      },
     });
-    const content1 = Tabs.Content({ value: 'one', children: 'Content 1' });
-    const content2 = Tabs.Content({ value: 'two', children: 'Content 2' });
-
-    const root = Tabs({ defaultValue: 'one', children: [list, content1, content2] });
     expect(root).toBeInstanceOf(HTMLDivElement);
   });
 
@@ -576,21 +580,25 @@ describe('createThemedTabs', () => {
     const styles = createTabsStyles();
     const Tabs = createThemedTabs(styles);
 
-    const list = Tabs.List({
-      children: Tabs.Trigger({ value: 'one', children: 'Tab 1' }),
+    const root = Tabs({
+      defaultValue: 'one',
+      children: () => {
+        const list = Tabs.List({
+          children: () => [Tabs.Trigger({ value: 'one', children: ['Tab 1'] })],
+        });
+        const content = Tabs.Content({ value: 'one', children: ['Content 1'] });
+        return [list, content];
+      },
     });
-    const content = Tabs.Content({ value: 'one', children: 'Content 1' });
-
-    const root = Tabs({ defaultValue: 'one', children: [list, content] });
 
     const listEl = root.querySelector('[role="tablist"]')!;
-    expect(listEl.classList.contains(styles.list)).toBe(true);
+    expect(listEl.className).toContain(styles.list);
 
     const triggerEl = root.querySelector('[role="tab"]')!;
-    expect(triggerEl.classList.contains(styles.trigger)).toBe(true);
+    expect(triggerEl.className).toContain(styles.trigger);
 
     const panelEl = root.querySelector('[role="tabpanel"]')!;
-    expect(panelEl.classList.contains(styles.panel)).toBe(true);
+    expect(panelEl.className).toContain(styles.panel);
   });
 
   it('applies line variant classes when variant is line', async () => {
@@ -598,20 +606,25 @@ describe('createThemedTabs', () => {
     const styles = createTabsStyles();
     const Tabs = createThemedTabs(styles);
 
-    const list = Tabs.List({
-      children: Tabs.Trigger({ value: 'one', children: 'Tab 1' }),
+    const root = Tabs({
+      defaultValue: 'one',
+      variant: 'line',
+      children: () => {
+        const list = Tabs.List({
+          children: () => [Tabs.Trigger({ value: 'one', children: ['Tab 1'] })],
+        });
+        const content = Tabs.Content({ value: 'one', children: ['Content 1'] });
+        return [list, content];
+      },
     });
-    const content = Tabs.Content({ value: 'one', children: 'Content 1' });
-
-    const root = Tabs({ defaultValue: 'one', variant: 'line', children: [list, content] });
 
     const listEl = root.querySelector('[role="tablist"]')!;
-    expect(listEl.classList.contains(styles.listLine)).toBe(true);
-    expect(listEl.classList.contains(styles.list)).toBe(false);
+    expect(listEl.className).toContain(styles.listLine);
+    expect(listEl.className).not.toContain(styles.list);
 
     const triggerEl = root.querySelector('[role="tab"]')!;
-    expect(triggerEl.classList.contains(styles.triggerLine)).toBe(true);
-    expect(triggerEl.classList.contains(styles.trigger)).toBe(false);
+    expect(triggerEl.className).toContain(styles.triggerLine);
+    expect(triggerEl.className).not.toContain(styles.trigger);
   });
 });
 
@@ -629,20 +642,25 @@ describe('createThemedSelect', () => {
     expect(typeof Select.Separator).toBe('function');
   });
 
-  it('returns trigger element with theme class', async () => {
+  it('returns wrapper with trigger having theme class', async () => {
     const { createThemedSelect } = await import('../components/primitives/select');
     const styles = createSelectStyles();
     const Select = createThemedSelect(styles);
 
-    const contentSlot = Select.Content({
-      children: Select.Item({ value: 'a', children: 'A' }),
+    const result = Select({
+      children: () => {
+        const t = Select.Trigger({ children: ['Pick'] });
+        const c = Select.Content({
+          children: () => [Select.Item({ value: 'a', children: ['A'] })],
+        });
+        return [t, c];
+      },
     });
 
-    const result = Select({ children: contentSlot });
-
-    // Root returns the primitive trigger directly; content is portaled to body
     expect(result).toBeInstanceOf(HTMLElement);
-    expect(result.classList.contains(styles.trigger)).toBe(true);
+    const triggerEl = result.querySelector('[role="combobox"]') as HTMLElement;
+    expect(triggerEl).not.toBeNull();
+    expect(triggerEl!.className).toContain(styles.trigger);
   });
 
   it('Item sub-component creates marker element with data-slot', async () => {
@@ -890,10 +908,19 @@ describe('createThemedAccordion', () => {
     const styles = createAccordionStyles();
     const Accordion = createThemedAccordion(styles);
 
-    const trigger = Accordion.Trigger({ children: 'Section 1' });
-    const content = Accordion.Content({ children: 'Content 1' });
-    const item = Accordion.Item({ value: 'section1', children: [trigger, content] });
-    const root = Accordion({ children: item });
+    const root = Accordion({
+      children: () => {
+        const item = Accordion.Item({
+          value: 'section1',
+          children: () => {
+            const trigger = Accordion.Trigger({ children: ['Section 1'] });
+            const content = Accordion.Content({ children: ['Content 1'] });
+            return [trigger, content];
+          },
+        });
+        return [item];
+      },
+    });
 
     expect(root).toBeInstanceOf(HTMLDivElement);
   });
@@ -903,18 +930,27 @@ describe('createThemedAccordion', () => {
     const styles = createAccordionStyles();
     const Accordion = createThemedAccordion(styles);
 
-    const trigger = Accordion.Trigger({ children: 'Section 1' });
-    const content = Accordion.Content({ children: 'Body text' });
-    const item = Accordion.Item({ value: 'section1', children: [trigger, content] });
-    const root = Accordion({ children: item });
+    const root = Accordion({
+      children: () => {
+        const item = Accordion.Item({
+          value: 'section1',
+          children: () => {
+            const trigger = Accordion.Trigger({ children: ['Section 1'] });
+            const content = Accordion.Content({ children: ['Body text'] });
+            return [trigger, content];
+          },
+        });
+        return [item];
+      },
+    });
 
     const itemEl = root.querySelector(`[data-value="section1"]`)!;
     expect(itemEl).toBeTruthy();
     const triggerEl = itemEl.querySelector('button')!;
-    expect(triggerEl.classList.contains(styles.trigger)).toBe(true);
-    expect(itemEl.classList.contains(styles.item)).toBe(true);
+    expect(triggerEl.className).toContain(styles.trigger);
+    expect((itemEl as HTMLElement).className).toContain(styles.item);
     const contentEl = itemEl.querySelector('[role="region"]')!;
-    expect(contentEl.classList.contains(styles.content)).toBe(true);
+    expect((contentEl as HTMLElement).className).toContain(styles.content);
   });
 
   it('preserves primitive behavior — click toggles', async () => {
@@ -922,10 +958,19 @@ describe('createThemedAccordion', () => {
     const styles = createAccordionStyles();
     const Accordion = createThemedAccordion(styles);
 
-    const trigger = Accordion.Trigger({ children: 'Section 1' });
-    const content = Accordion.Content({ children: 'Body text' });
-    const item = Accordion.Item({ value: 'section1', children: [trigger, content] });
-    const root = Accordion({ children: item });
+    const root = Accordion({
+      children: () => {
+        const item = Accordion.Item({
+          value: 'section1',
+          children: () => {
+            const trigger = Accordion.Trigger({ children: ['Section 1'] });
+            const content = Accordion.Content({ children: ['Body text'] });
+            return [trigger, content];
+          },
+        });
+        return [item];
+      },
+    });
 
     const triggerEl = root.querySelector('button')!;
     expect(triggerEl.getAttribute('aria-expanded')).toBe('false');
@@ -938,30 +983,37 @@ describe('createThemedAccordion', () => {
     const styles = createAccordionStyles();
     const Accordion = createThemedAccordion(styles);
 
-    const trigger = Accordion.Trigger({ children: 'My Trigger' });
-    const content = Accordion.Content({ children: 'My Content' });
-    const item = Accordion.Item({ value: 's1', children: [trigger, content] });
-    const root = Accordion({ children: item });
+    const root = Accordion({
+      children: () => {
+        const item = Accordion.Item({
+          value: 's1',
+          children: () => {
+            const trigger = Accordion.Trigger({ children: ['My Trigger'] });
+            const content = Accordion.Content({ children: ['My Content'] });
+            return [trigger, content];
+          },
+        });
+        return [item];
+      },
+    });
 
     const triggerEl = root.querySelector('button')!;
     expect(triggerEl.textContent).toBe('My Trigger');
   });
 
-  it('wraps content in inner padding div', async () => {
+  it('places content text inside the region element', async () => {
     const { createThemedAccordion } = await import('../components/primitives/accordion');
     const styles = createAccordionStyles();
     const Accordion = createThemedAccordion(styles);
 
     const trigger = Accordion.Trigger({ children: 'Trigger' });
     const content = Accordion.Content({ children: 'Content text' });
-    const item = Accordion.Item({ value: 's1', children: [trigger, content] });
-    const root = Accordion({ children: item });
+    const item = Accordion.Item({ value: 's1', children: () => [trigger, content] });
+    const root = Accordion({ children: () => [item] });
 
     const contentEl = root.querySelector('[role="region"]')!;
-    const inner = contentEl.firstElementChild as HTMLElement;
-    expect(inner).toBeTruthy();
-    expect(inner.style.cssText).toContain('padding');
-    expect(inner.textContent).toBe('Content text');
+    expect(contentEl).toBeTruthy();
+    expect(contentEl.textContent).toContain('Content text');
   });
 });
 

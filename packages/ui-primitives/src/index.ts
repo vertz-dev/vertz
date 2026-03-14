@@ -3,6 +3,8 @@
 // Components
 export type { AccordionElements, AccordionOptions, AccordionState } from './accordion/accordion';
 export { Accordion } from './accordion/accordion';
+export type { AccordionClasses, ComposedAccordionProps } from './accordion/accordion-composed';
+export { ComposedAccordion } from './accordion/accordion-composed';
 export type {
   AlertDialogElements,
   AlertDialogOptions,
@@ -99,6 +101,8 @@ export type {
 export { ScrollArea } from './scroll-area/scroll-area';
 export type { SelectElements, SelectOptions, SelectState } from './select/select';
 export { Select } from './select/select';
+export type { ComposedSelectProps, SelectClasses } from './select/select-composed';
+export { ComposedSelect } from './select/select-composed';
 export type { SheetElements, SheetOptions, SheetSide, SheetState } from './sheet/sheet';
 export { Sheet } from './sheet/sheet';
 export type { SliderElements, SliderOptions, SliderState } from './slider/slider';
@@ -107,6 +111,8 @@ export type { SwitchOptions } from './switch/switch';
 export { Switch } from './switch/switch';
 export type { TabsElements, TabsOptions, TabsState } from './tabs/tabs';
 export { Tabs } from './tabs/tabs';
+export type { ComposedTabsProps, TabsClasses } from './tabs/tabs-composed';
+export { ComposedTabs } from './tabs/tabs-composed';
 export type { ToastElements, ToastMessage, ToastOptions, ToastState } from './toast/toast';
 export { Toast } from './toast/toast';
 export type { ToggleOptions } from './toggle/toggle';
