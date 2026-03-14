@@ -254,7 +254,12 @@ describe('buildUI', () => {
     expect(serverCall.target).toBe('bun');
     expect(serverCall.minify).toBe(false);
     expect(serverCall.naming).toBe('[name].[ext]');
-    expect(serverCall.external).toEqual(['@vertz/ui', '@vertz/ui-server', '@vertz/ui-primitives']);
+    expect(serverCall.external).toEqual([
+      '@vertz/ui',
+      '@vertz/ui-server',
+      '@vertz/ui-primitives',
+      'vertz',
+    ]);
   });
 
   it('should pass JSX swap plugin to server build', async () => {
