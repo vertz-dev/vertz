@@ -331,6 +331,25 @@ function buildErrorChannelScript(editor: string): string {
     'V._restarting=false;',
     // isStaleGraph: detect errors that indicate a stale module graph
     'V.isStaleGraph=function(m){return/Export named [\'"].*[\'"] not found in module/i.test(m)||/No matching export in [\'"].*[\'"] for import/i.test(m)||/does not provide an export named/i.test(m)};',
+    // _canAutoRestart: check if auto-restart is allowed (max 3 within 10s window)
+    'V._canAutoRestart=function(){',
+    "var raw=sessionStorage.getItem('__vertz_auto_restart');",
+    'var ts;try{ts=raw?JSON.parse(raw):[]}catch(e){ts=[]}',
+    'var now=Date.now();',
+    'ts=ts.filter(function(t){return now-t<10000});',
+    'return ts.length<3};',
+    // _autoRestart: auto-send restart via WS if allowed by cap, track in sessionStorage
+    // Parses sessionStorage once, pushes timestamp, saves, and sends restart.
+    'V._autoRestart=function(){',
+    'if(V._restarting)return;',
+    "var raw=sessionStorage.getItem('__vertz_auto_restart');",
+    'var ts;try{ts=raw?JSON.parse(raw):[]}catch(e){ts=[]}',
+    'var now=Date.now();',
+    'ts=ts.filter(function(t){return now-t<10000});',
+    'if(ts.length>=3)return;',
+    'ts.push(now);',
+    "sessionStorage.setItem('__vertz_auto_restart',JSON.stringify(ts));",
+    "if(V._ws&&V._ws.readyState===1){V._ws.send(JSON.stringify({type:'restart'}))}};",
     // _recovering: after a controlled reload for error recovery, Bun's HMR may
     // send stale module updates that re-trigger runtime errors. This flag
     // (set via sessionStorage before reload) suppresses runtime error overlays
@@ -489,9 +508,13 @@ function buildErrorChannelScript(editor: string): string {
     'if(V._recovering)V._recovering=false;',
     'V._hadClientError=true;',
     'var sg2=errors&&errors.some(function(e){return V.isStaleGraph(e.message)});',
-    "V.showOverlay(title,V.formatErrors(errors),payload,'client',sg2)}",
+    "V.showOverlay(title,V.formatErrors(errors),payload,'client',sg2);",
+    // Auto-restart for stale-graph errors detected client-side
+    'if(sg2){V._autoRestart()}}',
     // Auto-clear recovery mode after 5s in case no errors fire
     'if(V._recovering){setTimeout(function(){V._recovering=false},5000)}',
+    // Reset auto-restart counter after 5s of successful page load (no stale-graph error)
+    "setTimeout(function(){sessionStorage.removeItem('__vertz_auto_restart')},5000);",
     "window.addEventListener('error',function(e){",
     'var msg=e.message||String(e.error);',
     'var stk=e.error&&e.error.stack;',
@@ -520,7 +543,7 @@ function buildErrorChannelScript(editor: string): string {
     // Don't send resolve-stack for HMR errors — the server-side console.error
     // intercept handles these with lastChangedFile context and lineText.
     // Client just shows a minimal placeholder overlay; the server broadcast replaces it.
-    "var hmrMsg=hmr[2].split('\\n')[0];V.showOverlay('Runtime error',V.formatErrors([{message:hmrMsg}]),{type:'error',category:'runtime',errors:[{message:hmrMsg}]},'client',V.isStaleGraph(hmrMsg))}",
+    "var hmrMsg=hmr[2].split('\\n')[0];var hmrSg=V.isStaleGraph(hmrMsg);V.showOverlay('Runtime error',V.formatErrors([{message:hmrMsg}]),{type:'error',category:'runtime',errors:[{message:hmrMsg}]},'client',hmrSg);if(hmrSg){V._autoRestart()}}",
     'origCE.apply(console,arguments)};',
     'console.log=function(){',
     "var t=Array.prototype.join.call(arguments,' ');",
@@ -771,6 +794,23 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
   let runtimeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   let pendingRuntimeError: ErrorDetail[] | null = null;
 
+  // Server-side auto-restart cap: max 3 within 10s window
+  const autoRestartTimestamps: number[] = [];
+  const AUTO_RESTART_CAP = 3;
+  const AUTO_RESTART_WINDOW_MS = 10_000;
+
+  function canAutoRestart(): boolean {
+    const now = Date.now();
+    // Prune timestamps outside window
+    while (
+      autoRestartTimestamps.length > 0 &&
+      now - (autoRestartTimestamps[0] ?? 0) > AUTO_RESTART_WINDOW_MS
+    ) {
+      autoRestartTimestamps.shift();
+    }
+    return autoRestartTimestamps.length < AUTO_RESTART_CAP;
+  }
+
   function broadcastError(category: ErrorCategory, errors: ErrorDetail[]): void {
     // Build errors are root cause — don't let SSR/runtime errors overwrite them
     if (currentError?.category === 'build' && category !== 'build') {
@@ -782,6 +822,30 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     }
     // Debounce runtime errors to avoid cascading overlays
     if (category === 'runtime') {
+      // Stale-graph errors bypass debounce and immediately trigger auto-restart
+      if (errors.some((e) => isStaleGraphError(e.message ?? ''))) {
+        // Broadcast the error to clients first (so they show the overlay)
+        currentError = { category: 'runtime', errors };
+        const errMsg = JSON.stringify({ type: 'error', category: 'runtime', errors });
+        for (const ws of wsClients) {
+          ws.sendText(errMsg);
+        }
+        // Auto-restart with loop prevention
+        if (!isRestarting && canAutoRestart()) {
+          autoRestartTimestamps.push(Date.now());
+          if (logRequests) {
+            const truncated = errors[0]?.message?.slice(0, 80) ?? '';
+            console.log(`[Server] Stale graph detected: ${truncated}`);
+          }
+          // Fire-and-forget auto-restart
+          devServer.restart();
+        } else if (!isRestarting && !canAutoRestart()) {
+          if (logRequests) {
+            console.log('[Server] Auto-restart cap reached (3 in 10s), waiting for manual restart');
+          }
+        }
+        return;
+      }
       // Keep the most informative error (one with file info)
       if (!pendingRuntimeError || errors.some((e) => e.file)) {
         pendingRuntimeError = errors;

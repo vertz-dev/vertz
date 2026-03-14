@@ -136,6 +136,78 @@ describe('createBunDevServer', () => {
     consoleErrSpy.mockRestore();
   });
 
+  it('broadcastError auto-triggers restart for stale-graph runtime errors', async () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = spyOn(console, 'error').mockImplementation(() => {});
+    const server = createBunDevServer({
+      entry: './src/app.tsx',
+      logRequests: true,
+    });
+
+    // Call broadcastError with a stale-graph runtime error
+    server.broadcastError('runtime', [
+      { message: "Export named 'Button' not found in module './components'" },
+    ]);
+
+    // Give the auto-restart a tick to fire (it's fire-and-forget)
+    await new Promise((r) => setTimeout(r, 50));
+
+    // The server should have logged a restart attempt
+    const restartMsg = logSpy.mock.calls.find(
+      (c) => typeof c[0] === 'string' && c[0].includes('Restarting dev server'),
+    );
+    expect(restartMsg).toBeDefined();
+
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+
+  it('broadcastError still broadcasts stale-graph errors even when restart cap is reached', () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = spyOn(console, 'error').mockImplementation(() => {});
+    const server = createBunDevServer({
+      entry: './src/app.tsx',
+      logRequests: true,
+    });
+
+    const staleError = [{ message: "Export named 'Button' not found in module './components'" }];
+
+    // Even stale-graph errors should be broadcast (for overlay display)
+    // regardless of whether restart fires or not
+    server.broadcastError('runtime', staleError);
+
+    // The error should be broadcast — it won't be debounced
+    // (stale-graph errors bypass the debounce timer)
+    const staleMsg = logSpy.mock.calls.find(
+      (c) => typeof c[0] === 'string' && c[0].includes('Stale graph detected'),
+    );
+    expect(staleMsg).toBeDefined();
+
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+
+  it('broadcastError does not auto-restart for non-stale-graph runtime errors', () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = spyOn(console, 'error').mockImplementation(() => {});
+    const server = createBunDevServer({
+      entry: './src/app.tsx',
+      logRequests: true,
+    });
+
+    // Call broadcastError with a normal runtime error
+    server.broadcastError('runtime', [{ message: "Cannot read property 'foo' of undefined" }]);
+
+    // Should NOT trigger a stale-graph detection (synchronous log)
+    const staleMsg = logSpy.mock.calls.find(
+      (c) => typeof c[0] === 'string' && c[0].includes('Stale graph detected'),
+    );
+    expect(staleMsg).toBeUndefined();
+
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+
   it('restart() concurrent guard skips when already restarting', async () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = spyOn(console, 'error').mockImplementation(() => {});
@@ -671,6 +743,61 @@ describe('generateSSRPageHtml', () => {
 
     // Even after timeout message, reconnecting WS should trigger reload
     expect(html).toContain('timedOut');
+  });
+
+  it('error channel script auto-sends restart for stale-graph window.onerror', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    // window.onerror handler should auto-send restart when stale-graph detected
+    // The handler checks isStaleGraph and sends { type: 'restart' } automatically
+    expect(html).toContain('_autoRestart');
+  });
+
+  it('error channel script tracks auto-restart count in sessionStorage', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    // Auto-restart loop prevention uses sessionStorage to track restarts
+    expect(html).toContain('__vertz_auto_restart');
+  });
+
+  it('error channel script caps auto-restarts at 3 within 10s window', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    // Max 3 auto-restarts in a 10s window, then fall back to manual button
+    expect(html).toContain('_canAutoRestart');
+  });
+
+  it('error channel script resets auto-restart counter after successful page load', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    // After 5s of no stale-graph error, clear the auto-restart counter
+    expect(html).toContain('__vertz_auto_restart');
+    // The reset timeout fires after successful load
+    expect(html).toContain('5000');
   });
 
   it('does not embed build error data element (errors fetched via /__vertz_build_check)', () => {
