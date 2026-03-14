@@ -11,18 +11,13 @@ export type {
 export { AlertDialog } from './alert-dialog/alert-dialog';
 export type { BadgeElements, BadgeOptions } from './badge/badge';
 export { Badge } from './badge/badge';
-export type { ButtonElements, ButtonOptions, ButtonState } from './button/button';
+export type { ButtonOptions } from './button/button';
 export { Button } from './button/button';
 export type { CalendarElements, CalendarOptions, CalendarState } from './calendar/calendar';
 export { Calendar } from './calendar/calendar';
 export type { CarouselElements, CarouselOptions, CarouselState } from './carousel/carousel';
 export { Carousel } from './carousel/carousel';
-export type {
-  CheckboxElements,
-  CheckboxOptions,
-  CheckboxState,
-  CheckedState,
-} from './checkbox/checkbox';
+export type { CheckboxOptions, CheckedState } from './checkbox/checkbox';
 export { Checkbox } from './checkbox/checkbox';
 export type {
   CollapsibleElements,

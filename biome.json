@@ -61,6 +61,17 @@
           }
         }
       }
+    },
+    {
+      "includes": ["packages/ui-primitives/src/**/*.tsx"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noRedundantRoles": "off",
+            "useSemanticElements": "off"
+          }
+        }
+      }
     }
   ],
   "plugins": [

@@ -1,8 +1,6 @@
 import type { VariantFunction } from '@vertz/ui';
 import type {
-  CheckboxElements,
   CheckboxOptions,
-  CheckboxState,
   ProgressElements,
   ProgressOptions,
   ProgressState,
@@ -374,7 +372,7 @@ export interface ThemedPrimitives {
   /** Themed Tabs — composable JSX component with Tabs.List, Tabs.Trigger, Tabs.Content. */
   Tabs: ThemedTabsComponent;
   /** Themed Checkbox — wraps @vertz/ui-primitives Checkbox with shadcn styles. */
-  checkbox: (options?: CheckboxOptions) => CheckboxElements & { state: CheckboxState };
+  checkbox: (options?: CheckboxOptions) => HTMLButtonElement;
   /** Themed Switch — wraps @vertz/ui-primitives Switch with shadcn styles. */
   switch: (options?: ThemedSwitchOptions) => HTMLElement;
   /** Themed Popover — composable JSX component with Popover.Trigger, Popover.Content. */
