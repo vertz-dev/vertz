@@ -584,6 +584,23 @@ describe('generateSSRPageHtml', () => {
 
     expect(html).not.toContain('__VERTZ_SESSION__');
   });
+
+  it('includes headTags with favicon link when provided', () => {
+    const faviconTag = '<link rel="icon" type="image/svg+xml" href="/favicon.svg">';
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+      headTags: faviconTag,
+    });
+
+    expect(html).toContain(faviconTag);
+    const titleIdx = html.indexOf('<title>');
+    const faviconIdx = html.indexOf(faviconTag);
+    expect(faviconIdx).toBeGreaterThan(titleIdx);
+  });
 });
 
 describe('detectFaviconTag', () => {
@@ -598,6 +615,14 @@ describe('detectFaviconTag', () => {
 
   it('returns empty string when public/favicon.svg does not exist', () => {
     const tmpDir = path.join(os.tmpdir(), `vertz-favicon-missing-${Date.now()}`);
+    mkdirSync(tmpDir, { recursive: true });
+
+    const tag = detectFaviconTag(tmpDir);
+    expect(tag).toBe('');
+  });
+
+  it('returns empty string when public/ directory does not exist', () => {
+    const tmpDir = path.join(os.tmpdir(), `vertz-favicon-nodir-${Date.now()}`);
     mkdirSync(tmpDir, { recursive: true });
 
     const tag = detectFaviconTag(tmpDir);

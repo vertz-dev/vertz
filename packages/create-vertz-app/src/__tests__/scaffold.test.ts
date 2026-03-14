@@ -203,12 +203,12 @@ describe('scaffold', () => {
       expect(pkg.dependencies.vertz).toBeDefined();
     });
 
-    it('generates public/favicon.svg with Vertz logo', async () => {
+    it('generates public/favicon.svg with Vertz logo on dark background', async () => {
       await scaffold(tempDir, defaultOptions);
 
       const content = await fs.readFile(projectPath('public', 'favicon.svg'), 'utf-8');
-      expect(content).toContain('<svg');
-      expect(content).toContain('</svg>');
+      expect(content).toContain('viewBox="0 0 298 298"');
+      expect(content).toContain('fill="#0a0a0b"');
     });
 
     it('.gitignore includes .vertz/ and *.db', async () => {

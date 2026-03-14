@@ -24,18 +24,6 @@ import { dirname, normalize, resolve } from 'node:path';
 import type { FontFallbackMetrics } from '@vertz/ui';
 import type { SSRAuth } from '@vertz/ui/internals';
 import { imageContentType, isValidImageName } from './bun-plugin/image-paths';
-
-/**
- * Detect `public/favicon.svg` and return a `<link>` tag for it.
- * Returns empty string when the file does not exist.
- */
-export function detectFaviconTag(projectRoot: string): string {
-  const faviconPath = resolve(projectRoot, 'public', 'favicon.svg');
-  return existsSync(faviconPath)
-    ? '<link rel="icon" type="image/svg+xml" href="/favicon.svg">'
-    : '';
-}
-
 import { createDebugLogger } from './debug-logger';
 import { handleDevImageProxy } from './dev-image-proxy';
 import { DiagnosticsCollector } from './diagnostics-collector';
@@ -47,6 +35,20 @@ import type { SSRModule } from './ssr-render';
 import { ssrRenderToString, ssrStreamNavQueries } from './ssr-render';
 import { createSessionScript } from './ssr-session';
 import { safeSerialize } from './ssr-streaming-runtime';
+
+/**
+ * Detect `public/favicon.svg` and return a `<link>` tag for it.
+ * Returns empty string when the file does not exist.
+ *
+ * Detection runs once at server startup — adding or removing the file
+ * requires a dev server restart (consistent with production build).
+ */
+export function detectFaviconTag(projectRoot: string): string {
+  const faviconPath = resolve(projectRoot, 'public', 'favicon.svg');
+  return existsSync(faviconPath)
+    ? '<link rel="icon" type="image/svg+xml" href="/favicon.svg">'
+    : '';
+}
 
 export interface BunDevServerOptions {
   /** SSR entry module (e.g., './src/app.tsx') */
