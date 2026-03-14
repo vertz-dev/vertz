@@ -43,6 +43,9 @@ export type {
   SignUpInput,
   User,
 } from './auth-types';
+// --- User profile display helpers ---
+export type { AvatarProps } from './avatar';
+export { Avatar } from './avatar';
 export { createAccessProvider } from './create-access-provider';
 // --- OAuth components ---
 export type { OAuthButtonProps } from './oauth-button';
@@ -52,3 +55,9 @@ export { OAuthButtons } from './oauth-buttons';
 export type { ProtectedRouteProps } from './protected-route';
 export { ProtectedRoute } from './protected-route';
 export { getProviderIcon } from './provider-icons';
+export type { UserAvatarProps } from './user-avatar';
+export { UserAvatar } from './user-avatar';
+export { getUserDisplayName, getUserInitials } from './user-display';
+export { getUserIcon } from './user-icon';
+export type { UserNameProps } from './user-name';
+export { UserName } from './user-name';
