@@ -24,6 +24,7 @@ import {
 } from './field-filter';
 import type { TenantChain } from './tenant-chain';
 import type { EntityContext, EntityDefinition, EntityRelationsConfig } from './types';
+import { MAX_CURSOR_LENGTH } from './vertzql-parser';
 
 // Re-export types from @vertz/db for backward compatibility
 export type { EntityDbAdapter, GetOptions, ListOptions } from '@vertz/db';
@@ -234,7 +235,8 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
       const where = indirectWhere ? { ...directWhere, ...indirectWhere } : directWhere;
 
       const limit = Math.max(0, options?.limit ?? 20);
-      const after = options?.after && options.after.length <= 512 ? options.after : undefined;
+      const after =
+        options?.after && options.after.length <= MAX_CURSOR_LENGTH ? options.after : undefined;
 
       const orderBy = options?.orderBy;
       const include = options?.include;

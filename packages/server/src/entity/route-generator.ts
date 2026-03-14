@@ -11,6 +11,7 @@ import type { TenantChain } from './tenant-chain';
 import type { EntityDefinition, EntityRelationsConfig } from './types';
 import {
   type ExposeValidationConfig,
+  MAX_CURSOR_LENGTH,
   parseVertzQL,
   type VertzQLIncludeEntry,
   validateVertzQL,
@@ -247,6 +248,27 @@ export function generateEntityRoutes(
         try {
           const entityCtx = makeEntityCtx(ctx);
           const body = (ctx.body ?? {}) as Record<string, unknown>;
+
+          // Validate cursor type and length before processing
+          if (body.after !== undefined) {
+            if (typeof body.after !== 'string') {
+              return jsonResponse(
+                { error: { code: 'BadRequest', message: 'cursor must be a string' } },
+                400,
+              );
+            }
+            if (body.after.length > MAX_CURSOR_LENGTH) {
+              return jsonResponse(
+                {
+                  error: {
+                    code: 'BadRequest',
+                    message: `cursor exceeds maximum length of ${MAX_CURSOR_LENGTH}`,
+                  },
+                },
+                400,
+              );
+            }
+          }
 
           const parsed = {
             where: body.where as Record<string, unknown> | undefined,

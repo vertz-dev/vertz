@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 import { d } from '@vertz/db';
 import type { EntityRelationsConfig } from '../types';
-import { MAX_Q_BASE64_LENGTH, parseVertzQL, validateVertzQL } from '../vertzql-parser';
+import {
+  MAX_CURSOR_LENGTH,
+  MAX_Q_BASE64_LENGTH,
+  parseVertzQL,
+  validateVertzQL,
+} from '../vertzql-parser';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -185,6 +190,30 @@ describe('Feature: VertzQL query param parsing', () => {
         expect(result.orderBy).toEqual({ createdAt: 'desc' });
         expect(result.limit).toBe(20);
         expect(result.after).toBe('cursor-abc');
+      });
+    });
+  });
+
+  // --- Cursor length validation ---
+
+  describe('Given a query with after= exactly at MAX_CURSOR_LENGTH', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then accepts the cursor', () => {
+        const cursor = 'x'.repeat(MAX_CURSOR_LENGTH);
+        const result = parseVertzQL({ after: cursor });
+
+        expect(result.after).toBe(cursor);
+      });
+    });
+  });
+
+  describe('Given a query with after= exceeding MAX_CURSOR_LENGTH', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then drops the oversized cursor', () => {
+        const cursor = 'x'.repeat(MAX_CURSOR_LENGTH + 1);
+        const result = parseVertzQL({ after: cursor });
+
+        expect(result.after).toBeUndefined();
       });
     });
   });

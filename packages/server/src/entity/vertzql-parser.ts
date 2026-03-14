@@ -26,6 +26,9 @@ function extractAllowKeys(
   return Object.keys(allow);
 }
 
+/** Maximum allowed cursor length to prevent abuse. */
+export const MAX_CURSOR_LENGTH = 512;
+
 /** Maximum allowed limit to prevent DoS via large result sets. */
 export const MAX_LIMIT = 1000;
 
@@ -105,9 +108,9 @@ export function parseVertzQL(query: Record<string, string>): VertzQLOptions {
       continue;
     }
 
-    // after=cursor
+    // after=cursor (drop oversized cursors)
     if (key === 'after') {
-      if (value) {
+      if (value && value.length <= MAX_CURSOR_LENGTH) {
         result.after = value;
       }
       continue;
