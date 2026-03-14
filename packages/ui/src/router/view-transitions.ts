@@ -76,11 +76,9 @@ export async function withViewTransition(
     document.documentElement.classList.add(className);
   }
 
-  const startVT = document.startViewTransition as (
-    cb: () => void | Promise<void>,
-  ) => ViewTransitionObject;
-
-  const transition = startVT(async () => {
+  const transition = (
+    document.startViewTransition as (cb: () => void | Promise<void>) => ViewTransitionObject
+  ).call(document, async () => {
     await update();
   });
 
