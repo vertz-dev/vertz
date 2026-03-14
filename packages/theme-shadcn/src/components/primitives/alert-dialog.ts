@@ -2,6 +2,8 @@ import type { ChildValue } from '@vertz/ui';
 import { resolveChildren } from '@vertz/ui';
 import type { DialogOptions } from '@vertz/ui-primitives';
 import { Dialog } from '@vertz/ui-primitives';
+import type { ElementEventHandlers } from '../../event-handlers';
+import { wireEventHandlers } from '../../event-handlers';
 
 let idCounter = 0;
 
@@ -26,6 +28,10 @@ export interface AlertDialogSlotProps {
   class?: string;
 }
 
+export interface AlertDialogButtonSlotProps extends AlertDialogSlotProps, ElementEventHandlers {
+  disabled?: boolean;
+}
+
 // ── Component type ─────────────────────────────────────────
 
 export interface ThemedAlertDialogComponent {
@@ -35,8 +41,8 @@ export interface ThemedAlertDialogComponent {
   Title: (props: AlertDialogSlotProps) => HTMLHeadingElement;
   Description: (props: AlertDialogSlotProps) => HTMLParagraphElement;
   Footer: (props: AlertDialogSlotProps) => HTMLDivElement;
-  Cancel: (props: AlertDialogSlotProps) => HTMLButtonElement;
-  Action: (props: AlertDialogSlotProps) => HTMLButtonElement;
+  Cancel: (props: AlertDialogButtonSlotProps) => HTMLButtonElement;
+  Action: (props: AlertDialogButtonSlotProps) => HTMLButtonElement;
 }
 
 // ── Factory ────────────────────────────────────────────────
@@ -105,11 +111,15 @@ export function createThemedAlertDialog(
   function AlertDialogCancel({
     children,
     class: className,
-  }: AlertDialogSlotProps): HTMLButtonElement {
+    disabled,
+    ...eventHandlers
+  }: AlertDialogButtonSlotProps): HTMLButtonElement {
     const el = document.createElement('button');
     el.setAttribute('type', 'button');
     el.classList.add(styles.cancel);
     if (className) el.classList.add(className);
+    if (disabled) el.disabled = true;
+    wireEventHandlers(el, eventHandlers);
     for (const node of resolveChildren(children)) {
       el.appendChild(node);
     }
@@ -119,11 +129,15 @@ export function createThemedAlertDialog(
   function AlertDialogAction({
     children,
     class: className,
-  }: AlertDialogSlotProps): HTMLButtonElement {
+    disabled,
+    ...eventHandlers
+  }: AlertDialogButtonSlotProps): HTMLButtonElement {
     const el = document.createElement('button');
     el.setAttribute('type', 'button');
     el.classList.add(styles.action);
     if (className) el.classList.add(className);
+    if (disabled) el.disabled = true;
+    wireEventHandlers(el, eventHandlers);
     for (const node of resolveChildren(children)) {
       el.appendChild(node);
     }

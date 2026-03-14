@@ -287,6 +287,116 @@ describe('createThemedAlertDialog', () => {
     expect(btn.getAttribute('data-state')).toBe('closed');
   });
 
+  it('Cancel forwards onClick handler', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    const AlertDialog = createThemedAlertDialog(styles);
+
+    let called = false;
+    const cancel = AlertDialog.Cancel({
+      children: 'Cancel',
+      onClick: () => {
+        called = true;
+      },
+    });
+    cancel.click();
+    expect(called).toBe(true);
+  });
+
+  it('Action forwards onClick handler', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    const AlertDialog = createThemedAlertDialog(styles);
+
+    let called = false;
+    const action = AlertDialog.Action({
+      children: 'Delete',
+      onClick: () => {
+        called = true;
+      },
+    });
+    action.click();
+    expect(called).toBe(true);
+  });
+
+  it('Action disabled={true} disables the button', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    const AlertDialog = createThemedAlertDialog(styles);
+
+    const action = AlertDialog.Action({ children: 'Delete', disabled: true });
+    expect(action.disabled).toBe(true);
+  });
+
+  it('Action disabled={false} does not disable the button', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    const AlertDialog = createThemedAlertDialog(styles);
+
+    const action = AlertDialog.Action({ children: 'Delete', disabled: false });
+    expect(action.disabled).toBe(false);
+  });
+
+  it('Action fires user onClick AND auto-closes when inside Root', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    const AlertDialog = createThemedAlertDialog(styles);
+
+    let clicked = false;
+    const btn = document.createElement('button');
+    btn.textContent = 'Delete';
+    const triggerSlot = AlertDialog.Trigger({ children: btn });
+    const action = AlertDialog.Action({
+      children: 'Confirm',
+      onClick: () => {
+        clicked = true;
+      },
+    });
+    const contentSlot = AlertDialog.Content({
+      children: [
+        AlertDialog.Title({ children: 'Confirm' }),
+        AlertDialog.Footer({ children: action }),
+      ],
+    });
+
+    AlertDialog({ defaultOpen: true, children: [triggerSlot, contentSlot] });
+
+    expect(btn.getAttribute('data-state')).toBe('open');
+    action.click();
+    expect(clicked).toBe(true);
+    expect(btn.getAttribute('data-state')).toBe('closed');
+  });
+
+  it('Cancel fires user onClick AND auto-closes when inside Root', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    const AlertDialog = createThemedAlertDialog(styles);
+
+    let clicked = false;
+    const btn = document.createElement('button');
+    btn.textContent = 'Delete';
+    const triggerSlot = AlertDialog.Trigger({ children: btn });
+    const cancel = AlertDialog.Cancel({
+      children: 'Dismiss',
+      onClick: () => {
+        clicked = true;
+      },
+    });
+    const contentSlot = AlertDialog.Content({
+      children: [
+        AlertDialog.Title({ children: 'Confirm' }),
+        AlertDialog.Footer({ children: cancel }),
+      ],
+    });
+
+    AlertDialog({ defaultOpen: true, children: [triggerSlot, contentSlot] });
+
+    expect(btn.getAttribute('data-state')).toBe('open');
+    cancel.click();
+    expect(clicked).toBe(true);
+    expect(btn.getAttribute('data-state')).toBe('closed');
+  });
+
   it('Escape key does NOT close the alert dialog', async () => {
     const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
     const styles = createAlertDialogStyles();
