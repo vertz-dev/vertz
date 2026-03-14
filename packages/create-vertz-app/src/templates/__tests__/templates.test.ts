@@ -251,10 +251,15 @@ describe('templates', () => {
   });
 
   describe('themeTemplate', () => {
-    it('uses configureThemeBase from @vertz/theme-shadcn/base', () => {
+    it('uses configureTheme from @vertz/theme-shadcn', () => {
       const result = themeTemplate();
-      expect(result).toContain('configureThemeBase');
-      expect(result).toContain("from '@vertz/theme-shadcn/base'");
+      expect(result).toContain('configureTheme');
+      expect(result).toContain("from '@vertz/theme-shadcn'");
+    });
+
+    it('exports themeComponents', () => {
+      const result = themeTemplate();
+      expect(result).toContain('export const themeComponents = components');
     });
   });
 
@@ -307,6 +312,15 @@ describe('templates', () => {
       expect(result).toContain('taskForm.submitting');
     });
 
+    it('uses theme components instead of raw HTML', () => {
+      const result = homePageTemplate();
+      expect(result).toContain("import { themeComponents } from '../styles/theme'");
+      expect(result).toContain('const { Button, Input } = themeComponents');
+      expect(result).toContain('const { AlertDialog } = themeComponents.primitives');
+      expect(result).toContain('<Button');
+      expect(result).toContain('<Input');
+    });
+
     it('includes TaskItem component with checkbox toggle', () => {
       const result = homePageTemplate();
       expect(result).toContain('function TaskItem(');
@@ -314,12 +328,14 @@ describe('templates', () => {
       expect(result).toContain('api.tasks.update');
     });
 
-    it('includes delete with confirmation dialog', () => {
+    it('uses AlertDialog primitive for delete confirmation', () => {
       const result = homePageTemplate();
       expect(result).toContain('api.tasks.delete');
-      expect(result).toContain('isConfirmOpen');
-      expect(result).toContain('role="alertdialog"');
-      expect(result).toContain('data-state=');
+      expect(result).toContain('<AlertDialog>');
+      expect(result).toContain('AlertDialog.Trigger');
+      expect(result).toContain('AlertDialog.Content');
+      expect(result).toContain('AlertDialog.Action');
+      expect(result).toContain('AlertDialog.Cancel');
     });
 
     it('shows remaining task count', () => {
@@ -451,10 +467,11 @@ describe('templates', () => {
       expect(result).toContain('queryMatch(');
     });
 
-    it('documents css() for styling', () => {
+    it('documents css() for styling and theme components', () => {
       const result = uiDevelopmentRuleTemplate();
       expect(result).toContain('css(');
-      expect(result).toContain('variants(');
+      expect(result).toContain('themeComponents');
+      expect(result).toContain('AlertDialog');
     });
 
     it('documents JSX conventions', () => {
