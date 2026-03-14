@@ -12,6 +12,7 @@ import {
   type StringSchema,
   s,
 } from '@vertz/schema';
+import type { AccessSet } from './access-set';
 
 // ============================================================================
 // Session Types
@@ -566,9 +567,11 @@ export interface AuthInstance {
    * minimal session data + optional access set for client hydration.
    */
   resolveSessionForSSR: (request: Request) => Promise<{
-    session: { user: Record<string, unknown>; expiresAt: number };
-    /** AccessSet | null at runtime; typed as unknown to avoid cross-package dependency on @vertz/ui */
-    accessSet?: unknown;
+    session: {
+      user: { id: string; email: string; role: string; [key: string]: unknown };
+      expiresAt: number;
+    };
+    accessSet?: AccessSet | null;
   } | null>;
 }
 
