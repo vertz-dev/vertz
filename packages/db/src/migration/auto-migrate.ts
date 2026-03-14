@@ -77,15 +77,6 @@ export async function autoMigrate(options: AutoMigrateOptions): Promise<void> {
     const diff = computeDiff({ version: 1, tables: {}, enums: {} }, currentSchema);
 
     if (diff.changes.length > 0) {
-      // Log any destructive changes even on first run (unlikely but possible)
-      for (const change of diff.changes) {
-        if (isDestructiveChange(change)) {
-          console.warn(
-            `[auto-migrate] Warning: Destructive change detected on first run: ${change.type}`,
-          );
-        }
-      }
-
       const sql = generateMigrationSql(
         diff.changes,
         {

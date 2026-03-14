@@ -39,18 +39,17 @@ function isEnumType(col: ColumnSnapshot, enums?: Record<string, string[]>): bool
 
 /**
  * Get enum values for a column type.
+ * Callers must guard with `isEnumType()` first — this always finds a match
+ * when the column type is a known enum.
  */
-function getEnumValues(
-  col: ColumnSnapshot,
-  enums?: Record<string, string[]>,
-): string[] | undefined {
-  if (!enums) return undefined;
+function getEnumValues(col: ColumnSnapshot, enums: Record<string, string[]>): string[] {
   for (const [enumName, values] of Object.entries(enums)) {
     if (col.type.toLowerCase() === enumName.toLowerCase() || col.type === enumName) {
       return values;
     }
   }
-  return undefined;
+  // Unreachable when callers guard with isEnumType()
+  return [];
 }
 
 /**
@@ -69,11 +68,11 @@ function columnDef(
   let sqlType: string;
   let checkConstraint: string | undefined;
 
-  if (isEnum && dialect.name === 'sqlite') {
+  if (isEnum && enums && dialect.name === 'sqlite') {
     // SQLite: use TEXT with CHECK constraint for enums
     sqlType = dialect.mapColumnType('text');
     const enumValues = getEnumValues(col, enums);
-    if (enumValues && enumValues.length > 0) {
+    if (enumValues.length > 0) {
       const escapedValues = enumValues.map((v) => `'${escapeSqlString(v)}'`).join(', ');
       checkConstraint = `CHECK("${snakeName}" IN (${escapedValues}))`;
     }
@@ -189,7 +188,7 @@ export function generateMigrationSql(
           for (const [, col] of Object.entries(table.columns)) {
             if (isEnumType(col, enums)) {
               const enumValues = getEnumValues(col, enums);
-              if (enumValues && enumValues.length > 0) {
+              if (enumValues.length > 0) {
                 // Check if we already emitted this enum type
                 const enumSnakeName = camelToSnake(col.type);
                 const alreadyEmitted = statements.some((s) =>
