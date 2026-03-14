@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { __list } from '../../dom/list';
+import { ListTransition } from '../../component/list-transition';
 import { computed, domEffect, signal } from '../../runtime/signal';
 import type { Signal } from '../../runtime/signal-types';
 import type { QueryResult } from '../query';
@@ -455,6 +456,77 @@ describe('queryMatch()', () => {
 
     expect(listEl.children.length).toBe(1);
     expect(listEl.children[0]?.textContent).toBe('Second');
+
+    wrapper.dispose();
+  });
+
+  test('ListTransition inside data handler updates when data changes via proxy (template pattern)', () => {
+    // Reproduces the exact pattern from the create-vertz-app template:
+    // queryMatch + ListTransition with each={response.items}
+    // This is what the compiler generates for:
+    //   <ListTransition each={response.items} keyFn={(t) => t.id} children={(t) => <div>{t.title}</div>} />
+    const qr = fakeQueryResult<{ items: { id: string; title: string }[] }>({
+      loading: false,
+      data: { items: [{ id: '1', title: 'First' }] },
+    });
+
+    const container = document.createElement('div');
+
+    const wrapper = queryMatch(qr, {
+      loading: () => document.createElement('div'),
+      error: () => document.createElement('div'),
+      data: (response) => {
+        const el = document.createElement('div');
+        // Simulates the compiler output for <ListTransition each={response.items} ... />
+        // The compiler generates getters for all non-literal props:
+        //   ListTransition({ get each() { return response.items; }, ... })
+        const fragment = ListTransition({
+          get each() {
+            return response.items;
+          },
+          keyFn: (item) => item.id,
+          children: (item) => {
+            const div = document.createElement('div');
+            domEffect(() => {
+              div.textContent = item.title;
+            });
+            return div;
+          },
+        });
+        el.appendChild(fragment);
+        return el;
+      },
+    });
+    container.appendChild(wrapper);
+
+    const listEl = wrapper.children[0] as HTMLElement;
+    // 2 comment markers + 1 item = 3 child nodes
+    expect(listEl.childNodes.length).toBe(3);
+    expect((listEl.childNodes[1] as HTMLElement).textContent).toBe('First');
+
+    // Simulate refetch: data signal updates with new items
+    qr._data.value = {
+      items: [
+        { id: '1', title: 'First' },
+        { id: '2', title: 'Second' },
+      ],
+    };
+
+    // ListTransition should reactively update: new key '2' appears
+    expect(listEl.childNodes.length).toBe(4); // 2 markers + 2 items
+    expect((listEl.childNodes[1] as HTMLElement).textContent).toBe('First');
+    expect((listEl.childNodes[2] as HTMLElement).textContent).toBe('Second');
+
+    // Remove an item
+    qr._data.value = { items: [{ id: '2', title: 'Second' }] };
+
+    // Note: ListTransition defers removal until animation completes.
+    // In happy-dom, animations complete synchronously, so the item
+    // may still be present with data-presence="exit".
+    // Check that we have the correct active item:
+    const activeItems = Array.from(listEl.querySelectorAll('div:not([data-presence="exit"])'));
+    expect(activeItems.length).toBe(1);
+    expect(activeItems[0]?.textContent).toBe('Second');
 
     wrapper.dispose();
   });
