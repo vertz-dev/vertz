@@ -99,6 +99,7 @@
         "@vertz/server": "workspace:*",
         "@vertz/theme-shadcn": "workspace:*",
         "@vertz/ui": "workspace:*",
+        "@vertz/ui-auth": "workspace:*",
         "@vertz/ui-server": "workspace:*",
       },
       "devDependencies": {
@@ -342,6 +343,7 @@
         "@vertz/server": "workspace:^",
         "@vertz/theme-shadcn": "workspace:^",
         "@vertz/ui": "workspace:^",
+        "@vertz/ui-auth": "workspace:^",
         "bun-types": "^1.3.10",
         "happy-dom": "^20.7.0",
         "typescript": "^5.7.0",
@@ -551,6 +553,7 @@
         "@vertz/testing": "workspace:^",
         "@vertz/tui": "workspace:^",
         "@vertz/ui": "workspace:^",
+        "@vertz/ui-auth": "workspace:^",
         "@vertz/ui-compiler": "workspace:^",
         "@vertz/ui-primitives": "workspace:^",
         "@vertz/ui-server": "workspace:^",

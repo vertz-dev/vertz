@@ -1,9 +1,15 @@
+export type { AccessGateProps } from './access-gate';
+export { AccessGate } from './access-gate';
+export type { AuthGateProps } from './auth-gate';
+export { AuthGate } from './auth-gate';
 export type { AvatarProps } from './avatar';
 export { Avatar } from './avatar';
 export type { OAuthButtonProps } from './oauth-button';
 export { OAuthButton } from './oauth-button';
 export type { OAuthButtonsProps } from './oauth-buttons';
 export { OAuthButtons } from './oauth-buttons';
+export type { ProtectedRouteProps } from './protected-route';
+export { ProtectedRoute } from './protected-route';
 export type { UserAvatarProps } from './user-avatar';
 export { UserAvatar } from './user-avatar';
 export type { UserNameProps } from './user-name';

@@ -6,7 +6,7 @@
  */
 
 import { css } from '@vertz/ui';
-import { OAuthButton } from '@vertz/ui/auth';
+import { OAuthButton } from '@vertz/ui-auth';
 
 const styles = css({
   container: ['flex', 'items:center', 'justify:center', 'min-h:screen', 'bg:background'],
