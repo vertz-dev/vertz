@@ -25,6 +25,18 @@ export {
   stripHiddenFields,
   stripReadOnlyFields,
 } from './field-filter';
+export type {
+  EntitySchemaObject,
+  JSONSchemaObject,
+  OpenAPISpecOptions,
+} from './openapi-generator';
+export {
+  columnToJsonSchema,
+  entityCreateInputSchema,
+  entityResponseSchema,
+  entityUpdateInputSchema,
+  generateOpenAPISpec,
+} from './openapi-generator';
 export type { EntityRouteOptions } from './route-generator';
 export { generateEntityRoutes } from './route-generator';
 export type { TenantChain, TenantChainHop } from './tenant-chain';
