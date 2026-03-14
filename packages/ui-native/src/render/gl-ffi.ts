@@ -54,6 +54,21 @@ export interface GLBindings {
   glDeleteShader(shader: number): void;
   glGetUniformLocation(program: number, name: Uint8Array): number;
   glUniform4f(location: number, v0: number, v1: number, v2: number, v3: number): void;
+  glBlendFunc(sfactor: number, dfactor: number): void;
+  glGetShaderiv(shader: number, pname: number, params: Uint8Array): void;
+  glGetShaderInfoLog(
+    shader: number,
+    maxLength: number,
+    length: Uint8Array | null,
+    infoLog: Uint8Array,
+  ): void;
+  glGetProgramiv(program: number, pname: number, params: Uint8Array): void;
+  glGetProgramInfoLog(
+    program: number,
+    maxLength: number,
+    length: Uint8Array | null,
+    infoLog: Uint8Array,
+  ): void;
 }
 
 /**
@@ -78,6 +93,8 @@ function findGLLibrary(): string {
   throw new Error('Could not find OpenGL library');
 }
 
+const { ptr: ptrType } = FFIType;
+
 /**
  * Load OpenGL via FFI.
  */
@@ -85,12 +102,43 @@ export function loadGL(): GLBindings {
   const libPath = findGLLibrary();
 
   const lib = dlopen(libPath, {
+    // Clear / viewport
     glClearColor: { args: [f32, f32, f32, f32], returns: ffiVoid },
     glClear: { args: [u32], returns: ffiVoid },
     glViewport: { args: [i32, i32, i32, i32], returns: ffiVoid },
     glEnable: { args: [u32], returns: ffiVoid },
     glDisable: { args: [u32], returns: ffiVoid },
+    // Draw
     glDrawArrays: { args: [u32, i32, i32], returns: ffiVoid },
+    // VAO
+    glGenVertexArrays: { args: [i32, ptrType], returns: ffiVoid },
+    glBindVertexArray: { args: [u32], returns: ffiVoid },
+    // VBO
+    glGenBuffers: { args: [i32, ptrType], returns: ffiVoid },
+    glBindBuffer: { args: [u32, u32], returns: ffiVoid },
+    glBufferData: { args: [u32, i32, ptrType, u32], returns: ffiVoid },
+    // Vertex attributes
+    glVertexAttribPointer: { args: [u32, i32, u32, u32, i32, ptrType], returns: ffiVoid },
+    glEnableVertexAttribArray: { args: [u32], returns: ffiVoid },
+    // Shaders
+    glCreateShader: { args: [u32], returns: u32 },
+    glShaderSource: { args: [u32, i32, ptrType, ptrType], returns: ffiVoid },
+    glCompileShader: { args: [u32], returns: ffiVoid },
+    glCreateProgram: { returns: u32 },
+    glAttachShader: { args: [u32, u32], returns: ffiVoid },
+    glLinkProgram: { args: [u32], returns: ffiVoid },
+    glUseProgram: { args: [u32], returns: ffiVoid },
+    glDeleteShader: { args: [u32], returns: ffiVoid },
+    // Uniforms
+    glGetUniformLocation: { args: [u32, ptrType], returns: i32 },
+    glUniform4f: { args: [i32, f32, f32, f32, f32], returns: ffiVoid },
+    // Blending
+    glBlendFunc: { args: [u32, u32], returns: ffiVoid },
+    // Error checking
+    glGetShaderiv: { args: [u32, u32, ptrType], returns: ffiVoid },
+    glGetShaderInfoLog: { args: [u32, i32, ptrType, ptrType], returns: ffiVoid },
+    glGetProgramiv: { args: [u32, u32, ptrType], returns: ffiVoid },
+    glGetProgramInfoLog: { args: [u32, i32, ptrType, ptrType], returns: ffiVoid },
   });
 
   return lib.symbols as unknown as GLBindings;
