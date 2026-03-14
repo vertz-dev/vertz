@@ -12,6 +12,7 @@ import { createRouter, defineRoutes, onMount, useRouter } from '@vertz/ui';
 import { ProtectedRoute } from '@vertz/ui-auth';
 import { WorkspaceShell } from './components/auth-guard';
 import { ProjectLayout } from './components/project-layout';
+import { IssueListPage } from './pages/issue-list-page';
 import { LoginPage } from './pages/login-page';
 import { ProjectsPage } from './pages/projects-page';
 
@@ -49,7 +50,7 @@ export const routes = defineRoutes({
         component: () => ProjectLayout(),
         children: {
           '/': {
-            component: () => <div>Select an issue or create one.</div>,
+            component: () => IssueListPage(),
           },
         },
       },

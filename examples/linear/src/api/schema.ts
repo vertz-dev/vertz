@@ -30,3 +30,23 @@ export const projectsTable = d.table('projects', {
 });
 
 export const projectsModel = d.model(projectsTable);
+
+// ---------------------------------------------------------------------------
+// Issues
+// ---------------------------------------------------------------------------
+
+export const issuesTable = d.table('issues', {
+  id: d.uuid().primary({ generate: 'uuid' }),
+  projectId: d.uuid(),
+  number: d.integer().default(0),
+  title: d.text(),
+  description: d.text().nullable(),
+  status: d.text().default('backlog'),
+  priority: d.text().default('none'),
+  assigneeId: d.text().nullable(),
+  createdBy: d.text().default(''),
+  createdAt: d.timestamp().default('now').readOnly(),
+  updatedAt: d.timestamp().autoUpdate(),
+});
+
+export const issuesModel = d.model(issuesTable);

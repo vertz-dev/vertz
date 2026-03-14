@@ -10,7 +10,13 @@
 import { err, FetchNetworkError, HttpError, ok } from '@vertz/errors';
 import type { FetchResponse } from '@vertz/fetch';
 import { createDescriptor } from '@vertz/fetch';
-import type { CreateProjectBody, ListResponse, Project } from '../lib/types';
+import type {
+  CreateIssueBody,
+  CreateProjectBody,
+  Issue,
+  ListResponse,
+  Project,
+} from '../lib/types';
 
 const BASE = '/api';
 
@@ -73,6 +79,48 @@ export const projectApi = {
 
   delete: async (id: string) => {
     const res = await fetchJson<void>('DELETE', `/projects/${id}`);
+    if (!res.ok) return res;
+    return ok(undefined);
+  },
+};
+
+export const issueApi = {
+  list: Object.assign(
+    (projectId: string) =>
+      createDescriptor<ListResponse<Issue>>('GET', `/issues?projectId=${projectId}`, () =>
+        fetchJson<ListResponse<Issue>>('GET', `/issues?projectId=${projectId}`),
+      ),
+    { url: '/api/issues', method: 'GET' as const },
+  ),
+
+  get: Object.assign(
+    (id: string) =>
+      createDescriptor<Issue>('GET', `/issues/${id}`, () =>
+        fetchJson<Issue>('GET', `/issues/${id}`),
+      ),
+    { url: '/api/issues/:id', method: 'GET' as const },
+  ),
+
+  create: Object.assign(
+    async (body: CreateIssueBody) => {
+      const res = await fetchJson<Issue>('POST', '/issues', body);
+      if (!res.ok) return res;
+      return ok(res.data.data);
+    },
+    { url: '/api/issues', method: 'POST' as const },
+  ),
+
+  update: Object.assign(
+    async (id: string, body: Partial<Omit<CreateIssueBody, 'projectId'>>) => {
+      const res = await fetchJson<Issue>('PATCH', `/issues/${id}`, body);
+      if (!res.ok) return res;
+      return ok(res.data.data);
+    },
+    { url: '/api/issues/:id', method: 'PATCH' as const },
+  ),
+
+  delete: async (id: string) => {
+    const res = await fetchJson<void>('DELETE', `/issues/${id}`);
     if (!res.ok) return res;
     return ok(undefined);
   },
