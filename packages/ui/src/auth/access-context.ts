@@ -9,7 +9,13 @@
 import { type Context, createContext, type UnwrapSignals, useContext } from '../component/context';
 import { computed } from '../runtime/signal';
 import type { ReadonlySignal, Signal } from '../runtime/signal-types';
-import type { AccessCheck, AccessCheckData, AccessSet, DenialReason } from './access-set-types';
+import type {
+  AccessCheck,
+  AccessCheckData,
+  AccessSet,
+  DenialMeta,
+  DenialReason,
+} from './access-set-types';
 
 // ============================================================================
 // Context
@@ -55,53 +61,41 @@ export type Entitlement = keyof EntitlementRegistry extends never
   : Extract<keyof EntitlementRegistry, string>;
 
 // ============================================================================
-// can()
+// can() + canSignals()
 // ============================================================================
 
 /**
- * Signal-backed fallback for when no provider is present — fail-secure.
- * Uses computed() for consistency with the provider path, so the return shape
- * is always signal-backed regardless of provider presence.
+ * @internal Signal-backed version of AccessCheck — actual runtime type of can() return.
+ * Use with canSignals() when framework code needs reactive signal access without compiler transforms.
  */
-function createFallbackDenied(): AccessCheck {
-  return {
-    allowed: computed(() => false),
-    reasons: computed(() => ['not_authenticated'] as DenialReason[]),
-    reason: computed(() => 'not_authenticated' as DenialReason),
-    meta: computed(() => undefined),
-    loading: computed(() => false),
-    // signal-api pattern: compiler auto-unwraps .value (same as query()/form())
-  } as unknown as AccessCheck;
+export interface RawAccessCheck {
+  readonly allowed: ReadonlySignal<boolean>;
+  readonly reasons: ReadonlySignal<DenialReason[]>;
+  readonly reason: ReadonlySignal<DenialReason | undefined>;
+  readonly meta: ReadonlySignal<DenialMeta | undefined>;
+  readonly loading: ReadonlySignal<boolean>;
 }
 
 const __DEV__ = typeof process !== 'undefined' && process.env.NODE_ENV !== 'production';
 
 /**
- * Check if the current user has a specific entitlement.
- *
- * Must be called in the component body (like query()/form()).
- * Returns an AccessCheck with ReadonlySignal properties that the
- * compiler auto-unwraps via signal-api registration.
- *
- * **UI-advisory only.** Server always re-validates before mutations.
- * `can()` controls UI visibility, not authorization.
- *
- * @param entitlement - The entitlement to check
- * @param entity - Optional entity with pre-computed `__access` metadata
+ * Internal helper: creates signal-backed access check properties.
+ * When ctx is null (no provider), returns fail-secure fallback.
+ * useContext() is called by can()/canSignals(), not here.
  */
-export function can(
+function createAccessCheckRaw(
+  ctx: UnwrapSignals<AccessContextValue> | null | undefined,
   entitlement: Entitlement,
   entity?: { __access?: Record<string, AccessCheckData> },
-): AccessCheck {
-  // Use useContext directly (not useAccessContext) because can() needs
-  // graceful fallback to FALLBACK_DENIED when no provider is present.
-  const ctx = useContext(AccessContext);
-
+): RawAccessCheck {
   if (!ctx) {
-    if (__DEV__) {
-      console.warn('can() called without AccessContext.Provider — all checks denied');
-    }
-    return createFallbackDenied();
+    return {
+      allowed: computed(() => false),
+      reasons: computed(() => ['not_authenticated'] as DenialReason[]),
+      reason: computed(() => 'not_authenticated' as DenialReason),
+      meta: computed(() => undefined),
+      loading: computed(() => false),
+    };
   }
 
   // Create computed signals that derive from the context's access set.
@@ -125,6 +119,55 @@ export function can(
       if (!set) return ctx.loading as boolean;
       return false;
     }),
-    // signal-api pattern: compiler auto-unwraps .value (same as query()/form())
-  } as unknown as AccessCheck;
+  };
+}
+
+/**
+ * Check if the current user has a specific entitlement.
+ *
+ * Must be called in the component body (like query()/form()).
+ * Returns an AccessCheck with ReadonlySignal properties that the
+ * compiler auto-unwraps via signal-api registration.
+ *
+ * **UI-advisory only.** Server always re-validates before mutations.
+ * `can()` controls UI visibility, not authorization.
+ *
+ * @param entitlement - The entitlement to check
+ * @param entity - Optional entity with pre-computed `__access` metadata
+ */
+export function can(
+  entitlement: Entitlement,
+  entity?: { __access?: Record<string, AccessCheckData> },
+): AccessCheck {
+  const ctx = useContext(AccessContext);
+
+  if (!ctx && __DEV__) {
+    console.warn('can() called without AccessContext.Provider — all checks denied');
+  }
+
+  // signal-api pattern: compiler auto-unwraps .value (same as query()/form())
+  return createAccessCheckRaw(ctx, entitlement, entity) as unknown as AccessCheck;
+}
+
+/**
+ * @internal Framework use only.
+ * Same as can() but returns raw ReadonlySignal properties.
+ * Use when framework code needs reactive signal access without compiler transforms.
+ *
+ * Must NOT be added to the signal-api-registry — the compiler must not auto-unwrap these.
+ *
+ * @param entitlement - The entitlement to check
+ * @param entity - Optional entity with pre-computed `__access` metadata
+ */
+export function canSignals(
+  entitlement: Entitlement,
+  entity?: { __access?: Record<string, AccessCheckData> },
+): RawAccessCheck {
+  const ctx = useContext(AccessContext);
+
+  if (!ctx && __DEV__) {
+    console.warn('canSignals() called without AccessContext.Provider — all checks denied');
+  }
+
+  return createAccessCheckRaw(ctx, entitlement, entity);
 }

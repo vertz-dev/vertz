@@ -8,8 +8,13 @@
  */
 
 // --- Access control (existing) ---
-export type { AccessContextValue, Entitlement, EntitlementRegistry } from './access-context';
-export { AccessContext, can, useAccessContext } from './access-context';
+export type {
+  AccessContextValue,
+  Entitlement,
+  EntitlementRegistry,
+  RawAccessCheck,
+} from './access-context';
+export { AccessContext, can, canSignals, useAccessContext } from './access-context';
 export type {
   AccessEventClient,
   AccessEventClientOptions,

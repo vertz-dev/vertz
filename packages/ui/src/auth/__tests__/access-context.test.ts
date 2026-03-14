@@ -1,7 +1,13 @@
 import { describe, expect, it, spyOn } from 'bun:test';
 import { createContext, useContext } from '../../component/context';
 import { signal } from '../../runtime/signal';
-import { AccessContext, type AccessContextValue, can, useAccessContext } from '../access-context';
+import {
+  AccessContext,
+  type AccessContextValue,
+  can,
+  canSignals,
+  useAccessContext,
+} from '../access-context';
 import type { AccessCheckData, AccessSet } from '../access-set-types';
 
 function makeAccessSet(
@@ -226,6 +232,101 @@ describe('can()', () => {
     expect(result!.allowed.value).toBe(false);
 
     // Update the access set
+    accessSet.value = makeAccessSet({
+      'project:edit': { allowed: true, reasons: [] },
+    });
+
+    expect(result!.allowed.value).toBe(true);
+  });
+});
+
+describe('canSignals()', () => {
+  it('returns RawAccessCheck with all ReadonlySignal properties', () => {
+    const accessSet = signal<AccessSet | null>(
+      makeAccessSet({
+        'project:view': {
+          allowed: true,
+          reasons: [],
+          reason: undefined,
+          meta: { limit: { max: 10, consumed: 3, remaining: 7 } },
+        },
+      }),
+    );
+    const loading = signal(false);
+
+    let result: ReturnType<typeof canSignals>;
+    withProvider({ accessSet, loading }, () => {
+      result = canSignals('project:view');
+    });
+
+    // All properties are ReadonlySignal — access .value directly
+    expect(result!.allowed.value).toBe(true);
+    expect(result!.loading.value).toBe(false);
+    expect(result!.reasons.value).toEqual([]);
+    expect(result!.reason.value).toBeUndefined();
+    expect(result!.meta.value?.limit?.remaining).toBe(7);
+  });
+
+  it('returns fail-secure fallback when no provider', () => {
+    const result = canSignals('project:view');
+
+    expect(result.allowed.value).toBe(false);
+    expect(result.reasons.value).toContain('not_authenticated');
+    expect(result.reason.value).toBe('not_authenticated');
+    expect(result.meta.value).toBeUndefined();
+    expect(result.loading.value).toBe(false);
+  });
+
+  it('warns in dev when no provider', () => {
+    const consoleSpy = spyOn(console, 'warn').mockImplementation(() => {});
+
+    canSignals('project:view');
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      'canSignals() called without AccessContext.Provider — all checks denied',
+    );
+    consoleSpy.mockRestore();
+  });
+
+  it('uses entity.__access when present', () => {
+    const accessSet = signal<AccessSet | null>(
+      makeAccessSet({
+        'project:edit': { allowed: false, reasons: ['role_required'] },
+      }),
+    );
+    const loading = signal(false);
+
+    const entity = {
+      __access: {
+        'project:edit': { allowed: true, reasons: [] as string[] },
+      },
+    };
+
+    let result: ReturnType<typeof canSignals>;
+    withProvider({ accessSet, loading }, () => {
+      result = canSignals('project:edit', entity as { __access: Record<string, AccessCheckData> });
+    });
+
+    // Entity-level check says allowed, even though global says denied
+    expect(result!.allowed.value).toBe(true);
+  });
+
+  it('returns same reactive behavior as can()', () => {
+    const accessSet = signal<AccessSet | null>(
+      makeAccessSet({
+        'project:edit': { allowed: false, reasons: ['role_required'] },
+      }),
+    );
+    const loading = signal(false);
+
+    let result: ReturnType<typeof canSignals>;
+    withProvider({ accessSet, loading }, () => {
+      result = canSignals('project:edit');
+    });
+
+    expect(result!.allowed.value).toBe(false);
+
+    // Update reactively
     accessSet.value = makeAccessSet({
       'project:edit': { allowed: true, reasons: [] },
     });
