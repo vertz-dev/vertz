@@ -40,6 +40,20 @@ const DIFF_STYLES = {
     'position: relative; background: rgba(34,197,94,0.1); margin: 0 -1.5rem; padding: 0 1.5rem 0 calc(1.5rem - 3px); border-left: 3px solid #22c55e',
 } as const;
 
+const DIFF_SIGN_STYLES = {
+  removed: 'position: absolute; left: 0.5rem; color: #ef4444',
+  added: 'position: absolute; left: 0.5rem; color: #22c55e',
+} as const;
+
+// Pre-compute diff metadata at module level to avoid compiler
+// transforming `const` inside .map() callbacks into computed signals
+// (which loses closure over the callback index parameter).
+const DIFF_ITEMS = TOKENS_DIFF_SCHEMA.map((line, i) => ({
+  line,
+  diff: DIFF_LINES[i] as 'removed' | 'added' | undefined,
+  key: i,
+}));
+
 function DiffCodeBlock() {
   return (
     <div
@@ -48,18 +62,15 @@ function DiffCodeBlock() {
     >
       <pre style="margin: 0">
         <code>
-          {TOKENS_DIFF_SCHEMA.map((line, i) => {
-            const diff = DIFF_LINES[i];
-            if (diff) {
+          {DIFF_ITEMS.map((item) => {
+            if (item.diff) {
               return (
-                <div key={i} style={DIFF_STYLES[diff]}>
-                  <span
-                    style={`position: absolute; left: 0.5rem; color: ${diff === 'removed' ? '#ef4444' : '#22c55e'}`}
-                  >
-                    {diff === 'removed' ? '-' : '+'}
+                <div key={item.key} style={DIFF_STYLES[item.diff]}>
+                  <span style={DIFF_SIGN_STYLES[item.diff]}>
+                    {item.diff === 'removed' ? '-' : '+'}
                   </span>
-                  <span style={diff === 'removed' ? 'opacity: 0.65' : undefined}>
-                    {line.map((token) => (
+                  <span style={item.diff === 'removed' ? 'opacity: 0.65' : undefined}>
+                    {item.line.map((token) => (
                       <span key={token[1]} style={token[0]}>
                         {token[1]}
                       </span>
@@ -69,8 +80,8 @@ function DiffCodeBlock() {
               );
             }
             return (
-              <span key={i}>
-                {line.map((token) => (
+              <span key={item.key}>
+                {item.line.map((token) => (
                   <span key={token[1]} style={token[0]}>
                     {token[1]}
                   </span>
@@ -85,6 +96,23 @@ function DiffCodeBlock() {
   );
 }
 
+// Pre-compute error API tokens with styles baked in
+const ERROR_API_ITEMS = TOKENS_ERROR_API[0].map((token) => ({
+  content: token[1],
+  style:
+    token[1] === ' title'
+      ? `${token[0]}; text-decoration: wavy underline; text-decoration-color: #ef4444`
+      : token[0],
+}));
+
+// Pre-compute error UI tokens with title split
+const ERROR_UI_ITEMS = TOKENS_ERROR_UI_RENDER[0].map((token) => {
+  if (!token[1].includes('title')) {
+    return { content: token[1], style: token[0], parts: null };
+  }
+  return { content: token[1], style: token[0], parts: token[1].split('title') };
+});
+
 function ErrorCodeBlock() {
   return (
     <div
@@ -97,17 +125,11 @@ function ErrorCodeBlock() {
       <div>
         <pre style="margin: 0; display: inline">
           <code>
-            {TOKENS_ERROR_API[0].map((token) => {
-              const isTitle = token[1] === ' title';
-              return (
-                <span
-                  key={token[1]}
-                  style={`${token[0]}${isTitle ? '; text-decoration: wavy underline; text-decoration-color: #ef4444' : ''}`}
-                >
-                  {token[1]}
-                </span>
-              );
-            })}
+            {ERROR_API_ITEMS.map((item) => (
+              <span key={item.content} style={item.style}>
+                {item.content}
+              </span>
+            ))}
           </code>
         </pre>
       </div>
@@ -119,27 +141,21 @@ function ErrorCodeBlock() {
       <div>
         <pre style="margin: 0; display: inline">
           <code>
-            {TOKENS_ERROR_UI_RENDER[0].map((token) => {
-              const hasTitle = token[1].includes('title');
-              if (!hasTitle) {
-                return (
-                  <span key={token[1]} style={token[0]}>
-                    {token[1]}
-                  </span>
-                );
-              }
-              // Split token content around 'title' to apply wavy underline only to that word
-              const parts = token[1].split('title');
-              return (
-                <span key={token[1]} style={token[0]}>
-                  {parts[0]}
+            {ERROR_UI_ITEMS.map((item) =>
+              item.parts ? (
+                <span key={item.content} style={item.style}>
+                  {item.parts[0]}
                   <span style="text-decoration: wavy underline; text-decoration-color: #ef4444">
                     title
                   </span>
-                  {parts[1]}
+                  {item.parts[1]}
                 </span>
-              );
-            })}
+              ) : (
+                <span key={item.content} style={item.style}>
+                  {item.content}
+                </span>
+              ),
+            )}
           </code>
         </pre>
       </div>

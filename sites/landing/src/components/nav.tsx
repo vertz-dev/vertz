@@ -3,9 +3,13 @@ import { Link } from '@vertz/ui/router';
 import { VertzLogo } from './vertz-logo';
 
 const s = css({
-  nav: ['fixed', 'z:50', 'flex', 'items:center', 'justify:between', 'px:6', 'py:4'],
+  nav: ['fixed', 'z:50', 'flex', 'items:center', 'justify:between', 'px:4', 'py:4',
+    { '@media (min-width: 640px)': [{ property: 'padding-left', value: '1.5rem' }, { property: 'padding-right', value: '1.5rem' }] },
+  ],
   logoWrapper: ['flex', 'items:center', 'gap:2'],
-  links: ['flex', 'items:center', 'gap:6'],
+  links: ['flex', 'items:center', 'gap:3',
+    { '@media (min-width: 640px)': [{ property: 'gap', value: '1.5rem' }] },
+  ],
   link: [
     'font:xs',
     'uppercase',

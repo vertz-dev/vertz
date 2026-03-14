@@ -10,8 +10,10 @@ const s = css({
     'grid',
     'gap:8',
     'items:start',
+    { '&': [{ property: 'min-width', value: '0' }] },
     { '@media (min-width: 768px)': [{ property: 'grid-template-columns', value: '1fr 1fr' }] },
   ],
+  gridItem: [{ '&': [{ property: 'min-width', value: '0' }] }],
   columnLabel: ['font:xs', 'uppercase', 'tracking:wide', 'mb:4'],
   codeBlock: [
     'border:1',
@@ -45,7 +47,7 @@ export function GlueCode() {
         </p>
 
         <div class={s.grid}>
-          <div>
+          <div class={s.gridItem}>
             <p class={s.columnLabel} style="font-family: var(--font-mono); color: #a1a1aa">
               The typical stack
             </p>
@@ -63,7 +65,7 @@ export function GlueCode() {
             </p>
           </div>
 
-          <div>
+          <div class={s.gridItem}>
             <p class={s.columnLabel} style="font-family: var(--font-mono); color: #3b82f6">
               With Vertz
             </p>

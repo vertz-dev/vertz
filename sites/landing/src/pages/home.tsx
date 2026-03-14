@@ -30,7 +30,7 @@ export function HomePage() {
     <div>
       <Nav />
       <HeroGlow />
-      <main style="position: relative">
+      <main style="position: relative; overflow-x: hidden">
         <Hero />
         <GlueCode />
         <SchemaFlow />
