@@ -46,9 +46,13 @@ export interface NativeWindowOptions {
 export interface NativeWindow {
   /** The raw GLFW window pointer (for advanced FFI usage). */
   readonly handle: number;
-  /** Current framebuffer width in pixels (updates on resize). */
+  /** Current framebuffer width in pixels — use for glViewport. */
+  readonly framebufferWidth: number;
+  /** Current framebuffer height in pixels — use for glViewport. */
+  readonly framebufferHeight: number;
+  /** Current window width in screen coordinates — use for layout and hit testing. */
   readonly width: number;
-  /** Current framebuffer height in pixels (updates on resize). */
+  /** Current window height in screen coordinates — use for layout and hit testing. */
   readonly height: number;
   /** Whether the window close was requested. */
   shouldClose(): boolean;
@@ -106,17 +110,29 @@ export function createNativeWindow(options: NativeWindowOptions): NativeWindow {
   g.glfwMakeContextCurrent(handle);
   g.glfwSwapInterval(1); // VSync
 
-  // Buffers for reading framebuffer size via FFI (reused each call)
-  const widthBuf = new Uint8Array(4);
-  const heightBuf = new Uint8Array(4);
-  const widthView = new DataView(widthBuf.buffer);
-  const heightView = new DataView(heightBuf.buffer);
+  // Buffers for reading sizes via FFI (reused each call)
+  const fbWidthBuf = new Uint8Array(4);
+  const fbHeightBuf = new Uint8Array(4);
+  const fbWidthView = new DataView(fbWidthBuf.buffer);
+  const fbHeightView = new DataView(fbHeightBuf.buffer);
+  const winWidthBuf = new Uint8Array(4);
+  const winHeightBuf = new Uint8Array(4);
+  const winWidthView = new DataView(winWidthBuf.buffer);
+  const winHeightView = new DataView(winHeightBuf.buffer);
 
   function getFramebufferSize(): { width: number; height: number } {
-    g.glfwGetFramebufferSize(handle, widthBuf, heightBuf);
+    g.glfwGetFramebufferSize(handle, fbWidthBuf, fbHeightBuf);
     return {
-      width: widthView.getInt32(0, true),
-      height: heightView.getInt32(0, true),
+      width: fbWidthView.getInt32(0, true),
+      height: fbHeightView.getInt32(0, true),
+    };
+  }
+
+  function getWindowSize(): { width: number; height: number } {
+    g.glfwGetWindowSize(handle, winWidthBuf, winHeightBuf);
+    return {
+      width: winWidthView.getInt32(0, true),
+      height: winHeightView.getInt32(0, true),
     };
   }
 
@@ -124,11 +140,17 @@ export function createNativeWindow(options: NativeWindowOptions): NativeWindow {
     get handle() {
       return handle;
     },
-    get width() {
+    get framebufferWidth() {
       return getFramebufferSize().width;
     },
-    get height() {
+    get framebufferHeight() {
       return getFramebufferSize().height;
+    },
+    get width() {
+      return getWindowSize().width;
+    },
+    get height() {
+      return getWindowSize().height;
     },
     shouldClose() {
       return g.glfwWindowShouldClose(handle) !== 0;

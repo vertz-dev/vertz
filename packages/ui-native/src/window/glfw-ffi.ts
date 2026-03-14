@@ -73,6 +73,10 @@ export function loadGLFW(): GLFWBindings {
       returns: ffiVoid,
     },
     glfwSwapInterval: { args: [i32], returns: ffiVoid },
+    glfwGetWindowSize: {
+      args: [ptrType, ptrType, ptrType],
+      returns: ffiVoid,
+    },
     glfwGetCursorPos: {
       args: [ptrType, ptrType, ptrType],
       returns: ffiVoid,

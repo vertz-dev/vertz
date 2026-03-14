@@ -79,6 +79,7 @@ export interface GLFWBindings {
   glfwSetWindowShouldClose(window: number, value: number): void;
   glfwGetFramebufferSize(window: number, width: Uint8Array, height: Uint8Array): void;
   glfwSwapInterval(interval: number): void;
+  glfwGetWindowSize(window: number, width: Uint8Array, height: Uint8Array): void;
   glfwGetCursorPos(window: number, xpos: Uint8Array, ypos: Uint8Array): void;
   glfwGetMouseButton(window: number, button: number): number;
   glfwGetKey(window: number, key: number): number;

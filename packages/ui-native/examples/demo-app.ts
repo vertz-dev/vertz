@@ -157,7 +157,7 @@ win.runLoop(() => {
 
   gl.glClearColor(0.1, 0.1, 0.18, 1.0);
   gl.glClear(GL_COLOR_BUFFER_BIT);
-  gl.glViewport(0, 0, w, h);
+  gl.glViewport(0, 0, win.framebufferWidth, win.framebufferHeight);
 
   // Draw rectangles first
   rectRenderer.renderRects(rects as import('../src/render/renderer').RectCommand[], w, h);
