@@ -3,17 +3,19 @@
  * Follows WAI-ARIA toggle button pattern.
  */
 
+import type { ElementAttrs } from '../utils/attrs';
+import { applyAttrs } from '../utils/attrs';
 import { uniqueId } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
-export interface ToggleOptions {
+export interface ToggleOptions extends ElementAttrs {
   defaultPressed?: boolean;
   disabled?: boolean;
   onPressedChange?: (pressed: boolean) => void;
 }
 
 function ToggleRoot(options: ToggleOptions = {}) {
-  const { defaultPressed = false, disabled = false, onPressedChange } = options;
+  const { defaultPressed = false, disabled = false, onPressedChange, ...attrs } = options;
 
   let pressed = defaultPressed;
 
@@ -23,7 +25,7 @@ function ToggleRoot(options: ToggleOptions = {}) {
     onPressedChange?.(pressed);
   }
 
-  return (
+  const el = (
     <button
       type="button"
       id={uniqueId('toggle')}
@@ -40,6 +42,9 @@ function ToggleRoot(options: ToggleOptions = {}) {
       }}
     />
   ) as HTMLButtonElement;
+
+  applyAttrs(el, attrs);
+  return el;
 }
 
 export const Toggle: { Root: (options?: ToggleOptions) => HTMLButtonElement } = {

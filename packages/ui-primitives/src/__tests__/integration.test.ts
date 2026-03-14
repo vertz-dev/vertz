@@ -111,9 +111,9 @@ describe('Integration Tests', () => {
 
   // IT-7-4: All primitives have correct ARIA attributes
   it('all primitives have correct ARIA attributes', () => {
-    // Button
+    // Button — <button> has implicit role="button"
     const button = Button.Root();
-    expect(button.root.getAttribute('role')).toBe('button');
+    expect(button.tagName).toBe('BUTTON');
 
     // Dialog
     const dialog = Dialog.Root();
@@ -162,7 +162,7 @@ describe('Integration Tests', () => {
 
     // Checkbox
     const checkbox = Checkbox.Root();
-    expect(checkbox.root.getAttribute('role')).toBe('checkbox');
+    expect(checkbox.getAttribute('role')).toBe('checkbox');
 
     // Radio
     const radio = Radio.Root();

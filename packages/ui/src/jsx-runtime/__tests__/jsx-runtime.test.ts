@@ -215,4 +215,40 @@ describe('JSX Runtime (Client)', () => {
       expect(el.querySelector('span')?.textContent).toBe('deep');
     });
   });
+
+  describe('ref prop', () => {
+    it('assigns element to ref.current for object refs', () => {
+      const myRef = { current: undefined as HTMLDivElement | undefined };
+      const el = jsx('div', { ref: myRef, id: 'reftest' });
+      expect(myRef.current).toBe(el);
+      expect(myRef.current).toBeInstanceOf(HTMLDivElement);
+    });
+
+    it('calls callback refs with the element', () => {
+      let captured: HTMLButtonElement | undefined;
+      const el = jsx('button', {
+        ref: (node: HTMLButtonElement) => {
+          captured = node;
+        },
+      });
+      expect(captured).toBe(el);
+      expect(captured).toBeInstanceOf(HTMLButtonElement);
+    });
+
+    it('does not set ref as a DOM attribute', () => {
+      const myRef = { current: undefined as HTMLDivElement | undefined };
+      const el = jsx('div', { ref: myRef });
+      expect(el.hasAttribute('ref')).toBe(false);
+    });
+
+    it('works with nested JSX — ref on child element', () => {
+      const childRef = { current: undefined as HTMLSpanElement | undefined };
+      const parent = jsx('div', {
+        children: jsx('span', { ref: childRef, children: 'inner' }),
+      });
+      expect(childRef.current).toBeInstanceOf(HTMLSpanElement);
+      expect(childRef.current?.textContent).toBe('inner');
+      expect(parent.children[0]).toBe(childRef.current);
+    });
+  });
 });

@@ -689,29 +689,29 @@ describe('createThemedCheckbox', () => {
     const { createThemedCheckbox } = await import('../components/primitives/checkbox');
     const styles = createCheckboxStyles();
     const themedCheckbox = createThemedCheckbox(styles);
-    const checkbox = themedCheckbox();
+    const root = themedCheckbox();
 
-    expect(checkbox.root.classList.contains(styles.root)).toBe(true);
+    expect(root.classList.contains(styles.root)).toBe(true);
   });
 
   it('preserves primitive behavior — click toggles', async () => {
     const { createThemedCheckbox } = await import('../components/primitives/checkbox');
     const styles = createCheckboxStyles();
     const themedCheckbox = createThemedCheckbox(styles);
-    const checkbox = themedCheckbox();
+    const root = themedCheckbox();
 
-    expect(checkbox.state.checked.peek()).toBe(false);
-    checkbox.root.click();
-    expect(checkbox.state.checked.peek()).toBe(true);
+    expect(root.getAttribute('aria-checked')).toBe('false');
+    root.click();
+    expect(root.getAttribute('aria-checked')).toBe('true');
   });
 
   it('passes options through', async () => {
     const { createThemedCheckbox } = await import('../components/primitives/checkbox');
     const styles = createCheckboxStyles();
     const themedCheckbox = createThemedCheckbox(styles);
-    const checkbox = themedCheckbox({ defaultChecked: true });
+    const root = themedCheckbox({ defaultChecked: true });
 
-    expect(checkbox.state.checked.peek()).toBe(true);
+    expect(root.getAttribute('aria-checked')).toBe('true');
   });
 });
 

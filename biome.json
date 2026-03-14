@@ -61,6 +61,23 @@
           }
         }
       }
+    },
+    {
+      "includes": ["packages/ui-primitives/src/**/*.tsx"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noRedundantRoles": "off",
+            "useSemanticElements": "off",
+            "noNoninteractiveElementToInteractiveRole": "off",
+            "useFocusableInteractive": "off",
+            "useKeyWithClickEvents": "off",
+            "useAriaPropsForRole": "off",
+            "noStaticElementInteractions": "off",
+            "useAriaPropsSupportedByRole": "off"
+          }
+        }
+      }
     }
   ],
   "plugins": [

@@ -12,6 +12,7 @@
  * - Fragment          — document fragment
  */
 
+import type { Ref } from '../component/refs';
 import { isSVGTag, normalizeSVGAttr, SVG_NS } from '../dom/svg-tags';
 
 /**
@@ -44,6 +45,7 @@ export namespace JSX {
    */
   export interface IntrinsicAttributes {
     key?: string | number;
+    ref?: Ref<unknown> | ((el: Element) => void);
   }
 
   /**
@@ -90,7 +92,7 @@ function jsxImpl(
   }
 
   // Tag is a string → create a DOM element
-  const { children, ...attrs } = props || {};
+  const { children, ref: refProp, ...attrs } = props || {};
   const svg = isSVGTag(tag);
   const element = svg ? document.createElementNS(SVG_NS, tag) : document.createElement(tag);
 
@@ -116,6 +118,15 @@ function jsxImpl(
   }
 
   applyChildren(element, children);
+
+  // Assign ref after element is fully constructed with children
+  if (refProp != null) {
+    if (typeof refProp === 'function') {
+      (refProp as (el: Element) => void)(element);
+    } else if (typeof refProp === 'object' && 'current' in (refProp as object)) {
+      (refProp as Ref<Element>).current = element;
+    }
+  }
 
   return element;
 }
