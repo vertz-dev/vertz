@@ -1,0 +1,47 @@
+{
+  "name": "@vertz/ui-auth",
+  "version": "0.2.16",
+  "type": "module",
+  "license": "MIT",
+  "description": "Auth UI components for Vertz — Avatar, OAuthButton, AuthGate, ProtectedRoute",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vertz-dev/vertz.git",
+    "directory": "packages/ui-auth"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bunup",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vertz/ui": "workspace:^"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^20.7.0",
+    "@vertz/ui-compiler": "workspace:^",
+    "bunup": "^0.16.31",
+    "happy-dom": "^20.7.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "sideEffects": false
+}

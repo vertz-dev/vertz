@@ -452,6 +452,20 @@
         "typescript": "^5.7.0",
       },
     },
+    "packages/ui-auth": {
+      "name": "@vertz/ui-auth",
+      "version": "0.2.16",
+      "dependencies": {
+        "@vertz/ui": "workspace:^",
+      },
+      "devDependencies": {
+        "@happy-dom/global-registrator": "^20.7.0",
+        "@vertz/ui-compiler": "workspace:^",
+        "bunup": "^0.16.31",
+        "happy-dom": "^20.7.0",
+        "typescript": "^5.7.0",
+      },
+    },
     "packages/ui-canvas": {
       "name": "@vertz/ui-canvas",
       "version": "0.2.16",
@@ -1260,6 +1274,8 @@
     "@vertz/tui": ["@vertz/tui@workspace:packages/tui"],
 
     "@vertz/ui": ["@vertz/ui@workspace:packages/ui"],
+
+    "@vertz/ui-auth": ["@vertz/ui-auth@workspace:packages/ui-auth"],
 
     "@vertz/ui-canvas": ["@vertz/ui-canvas@workspace:packages/ui-canvas"],
 
