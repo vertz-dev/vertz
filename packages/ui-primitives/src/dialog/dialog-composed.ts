@@ -162,8 +162,21 @@ function ComposedDialogRoot({
   const triggerEntry = slots.get('dialog-trigger')?.[0];
   const contentEntry = slots.get('dialog-content')?.[0];
 
-  // Create the low-level dialog primitive
-  const dialog = Dialog.Root({ onOpenChange });
+  // Extract user trigger element (needed before Dialog.Root to wrap onOpenChange)
+  const userTrigger = triggerEntry
+    ? ((triggerEntry.element.firstElementChild as HTMLElement) ?? triggerEntry.element)
+    : null;
+
+  // Create the low-level dialog primitive, wrapping onOpenChange to sync trigger ARIA
+  const dialog = Dialog.Root({
+    onOpenChange: (isOpen) => {
+      if (userTrigger) {
+        userTrigger.setAttribute('aria-expanded', String(isOpen));
+        userTrigger.setAttribute('data-state', isOpen ? 'open' : 'closed');
+      }
+      onOpenChange?.(isOpen);
+    },
+  });
 
   // Apply overlay class
   if (classes?.overlay) {
@@ -177,10 +190,12 @@ function ComposedDialogRoot({
     dialog.content.className = contentClassCombined;
   }
 
-  // Wire the user's trigger: extract user's element from marker, add click handler
-  if (triggerEntry) {
-    const userTrigger =
-      (triggerEntry.element.firstElementChild as HTMLElement) ?? triggerEntry.element;
+  // Wire the user's trigger: ARIA attributes + click handler
+  if (userTrigger) {
+    userTrigger.setAttribute('aria-haspopup', 'dialog');
+    userTrigger.setAttribute('aria-controls', dialog.content.id);
+    userTrigger.setAttribute('aria-expanded', 'false');
+    userTrigger.setAttribute('data-state', 'closed');
 
     userTrigger.addEventListener('click', () => {
       if (dialog.state.open.peek()) {

@@ -173,8 +173,22 @@ function ComposedAlertDialogRoot({
   const triggerEntry = slots.get('alertdialog-trigger')?.[0];
   const contentEntry = slots.get('alertdialog-content')?.[0];
 
-  // Create the low-level alert dialog primitive
-  const alertDialog = AlertDialog.Root({ onOpenChange, onAction });
+  // Extract user trigger element (needed before AlertDialog.Root to wrap onOpenChange)
+  const userTrigger = triggerEntry
+    ? ((triggerEntry.element.firstElementChild as HTMLElement) ?? triggerEntry.element)
+    : null;
+
+  // Create the low-level alert dialog primitive, wrapping onOpenChange to sync trigger ARIA
+  const alertDialog = AlertDialog.Root({
+    onOpenChange: (isOpen) => {
+      if (userTrigger) {
+        userTrigger.setAttribute('aria-expanded', String(isOpen));
+        userTrigger.setAttribute('data-state', isOpen ? 'open' : 'closed');
+      }
+      onOpenChange?.(isOpen);
+    },
+    onAction,
+  });
 
   // Apply overlay class
   if (classes?.overlay) {
@@ -188,10 +202,12 @@ function ComposedAlertDialogRoot({
     alertDialog.content.className = contentClassCombined;
   }
 
-  // Wire the user's trigger
-  if (triggerEntry) {
-    const userTrigger =
-      (triggerEntry.element.firstElementChild as HTMLElement) ?? triggerEntry.element;
+  // Wire the user's trigger: ARIA attributes + click handler
+  if (userTrigger) {
+    userTrigger.setAttribute('aria-haspopup', 'dialog');
+    userTrigger.setAttribute('aria-controls', alertDialog.content.id);
+    userTrigger.setAttribute('aria-expanded', 'false');
+    userTrigger.setAttribute('data-state', 'closed');
 
     userTrigger.addEventListener('click', () => {
       if (!alertDialog.state.open.peek()) {
