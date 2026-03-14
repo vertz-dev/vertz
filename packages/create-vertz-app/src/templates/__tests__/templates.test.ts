@@ -278,7 +278,6 @@ describe('templates', () => {
       expect(result).toContain('form(api.tasks.create');
       expect(result).toContain('resetOnSuccess: true');
       expect(result).not.toContain('handleSubmit');
-      expect(result).not.toContain('refetch');
     });
 
     it('imports form from vertz/ui', () => {
@@ -306,6 +305,40 @@ describe('templates', () => {
     it('disables submit button during submission', () => {
       const result = homePageTemplate();
       expect(result).toContain('taskForm.submitting');
+    });
+
+    it('includes TaskItem component with checkbox toggle', () => {
+      const result = homePageTemplate();
+      expect(result).toContain('function TaskItem(');
+      expect(result).toContain('type="checkbox"');
+      expect(result).toContain('api.tasks.update');
+    });
+
+    it('includes delete with confirmation dialog', () => {
+      const result = homePageTemplate();
+      expect(result).toContain('api.tasks.delete');
+      expect(result).toContain('isConfirmOpen');
+      expect(result).toContain('role="alertdialog"');
+      expect(result).toContain('data-state=');
+    });
+
+    it('shows remaining task count', () => {
+      const result = homePageTemplate();
+      expect(result).toContain('remaining');
+      expect(result).toContain('.filter');
+      expect(result).toContain('!t.completed');
+    });
+
+    it('uses ListTransition for animated list', () => {
+      const result = homePageTemplate();
+      expect(result).toContain('ListTransition');
+      expect(result).toContain('slideInFromTop');
+      expect(result).toContain('fadeOut');
+    });
+
+    it('relies on automatic cache invalidation (no manual refetch)', () => {
+      const result = homePageTemplate();
+      expect(result).not.toContain('refetch');
     });
   });
 

@@ -777,7 +777,8 @@ export const themeGlobals = globals;
 }
 
 /**
- * src/pages/home.tsx — task list + create form with query + css
+ * src/pages/home.tsx — full CRUD task list with form, checkbox toggle,
+ * delete confirmation dialog, and animated list transitions
  */
 export function homePageTemplate(): string {
   return `import {
@@ -794,7 +795,7 @@ export function homePageTemplate(): string {
 } from 'vertz/ui';
 import { api } from '../client';
 
-// Inject global CSS for list item enter/exit animations
+// Global CSS for list item enter/exit animations
 void globalCss({
   '[data-presence="enter"]': {
     animation: \`\${slideInFromTop} \${ANIMATION_DURATION} \${ANIMATION_EASING}\`,
@@ -805,29 +806,31 @@ void globalCss({
   },
 });
 
-const pageStyles = css({
+const styles = css({
   container: ['py:2', 'w:full'],
   heading: ['font:xl', 'font:bold', 'text:foreground', 'mb:4'],
-  form: ['flex', 'gap:2', 'items:start', 'mb:6'],
+  form: ['flex', 'gap:2', 'mb:6'],
   inputWrap: ['flex-1'],
   input: [
     'w:full',
+    'h:10',
     'px:3',
-    'py:2',
     'rounded:md',
     'border:1',
     'border:border',
     'bg:background',
     'text:foreground',
+    'text:sm',
   ],
   fieldError: ['text:destructive', 'font:xs', 'mt:1'],
-  button: [
+  addButton: [
+    'h:10',
     'px:4',
-    'py:2',
     'rounded:md',
     'bg:primary',
     'text:primary-foreground',
     'font:medium',
+    'text:sm',
     'cursor:pointer',
   ],
   list: ['flex', 'flex-col', 'gap:2'],
@@ -842,10 +845,129 @@ const pageStyles = css({
     'border:border',
     'bg:card',
   ],
+  checkbox: ['w:4', 'h:4', 'cursor:pointer', 'rounded:sm'],
+  label: ['flex-1', 'text:sm', 'text:foreground'],
+  labelDone: ['flex-1', 'text:sm', 'text:muted-foreground', 'decoration:line-through'],
+  deleteButton: [
+    'px:2',
+    'py:1',
+    'rounded:sm',
+    'text:xs',
+    'text:muted-foreground',
+    'cursor:pointer',
+    'bg:transparent',
+    'border:0',
+  ],
   loading: ['text:muted-foreground'],
   error: ['text:destructive'],
   empty: ['text:muted-foreground', 'text:center', 'py:8'],
+  count: ['text:xs', 'text:muted-foreground', 'mt:4'],
+  // Confirmation dialog
+  overlay: ['fixed', 'inset:0', 'z:50', 'bg:black/50'],
+  dialogWrap: ['fixed', 'inset:0', 'flex', 'items:center', 'justify:center', 'z:50'],
+  dialog: ['bg:card', 'rounded:lg', 'border:1', 'border:border', 'p:6', 'w:full', 'max-w:sm'],
+  dialogTitle: ['font:base', 'font:semibold', 'text:foreground', 'mb:2'],
+  dialogDesc: ['text:sm', 'text:muted-foreground', 'mb:4'],
+  dialogActions: ['flex', 'justify:end', 'gap:2'],
+  cancelButton: [
+    'px:3',
+    'py:1.5',
+    'rounded:md',
+    'text:sm',
+    'border:1',
+    'border:border',
+    'bg:background',
+    'text:foreground',
+    'cursor:pointer',
+  ],
+  confirmDeleteButton: [
+    'px:3',
+    'py:1.5',
+    'rounded:md',
+    'text:sm',
+    'bg:destructive',
+    'text:destructive-foreground',
+    'cursor:pointer',
+    'border:0',
+  ],
 });
+
+interface TaskItemProps {
+  id: string;
+  title: string;
+  completed: boolean;
+}
+
+function TaskItem({ id, title, completed }: TaskItemProps) {
+  let isConfirmOpen = false;
+
+  const handleToggle = async () => {
+    await api.tasks.update(id, { completed: !completed });
+  };
+
+  const handleDelete = async () => {
+    isConfirmOpen = false;
+    await api.tasks.delete(id);
+  };
+
+  return (
+    <div class={styles.item}>
+      <input
+        type="checkbox"
+        class={styles.checkbox}
+        checked={completed}
+        onChange={handleToggle}
+      />
+      <span class={completed ? styles.labelDone : styles.label}>
+        {title}
+      </span>
+      <button
+        type="button"
+        class={styles.deleteButton}
+        onClick={() => { isConfirmOpen = true; }}
+      >
+        Delete
+      </button>
+
+      {/* Confirmation dialog */}
+      <div
+        class={styles.overlay}
+        style={isConfirmOpen ? '' : 'display: none'}
+        onClick={() => { isConfirmOpen = false; }}
+      />
+      <div class={styles.dialogWrap} style={isConfirmOpen ? '' : 'display: none'}>
+        <div
+          class={styles.dialog}
+          role="alertdialog"
+          aria-modal="true"
+          aria-hidden={isConfirmOpen ? 'false' : 'true'}
+          data-state={isConfirmOpen ? 'open' : 'closed'}
+        >
+          <h2 class={styles.dialogTitle}>Delete task?</h2>
+          <p class={styles.dialogDesc}>
+            This will permanently delete "{title}".
+          </p>
+          <div class={styles.dialogActions}>
+            <button
+              type="button"
+              class={styles.cancelButton}
+              onClick={() => { isConfirmOpen = false; }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class={styles.confirmDeleteButton}
+              onClick={handleDelete}
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function HomePage() {
   const tasksQuery = query(api.tasks.list());
@@ -855,28 +977,28 @@ export function HomePage() {
   });
 
   return (
-    <div class={pageStyles.container} data-testid="home-page">
-      <h1 class={pageStyles.heading}>Tasks</h1>
+    <div class={styles.container} data-testid="home-page">
+      <h1 class={styles.heading}>Tasks</h1>
 
       <form
-        class={pageStyles.form}
+        class={styles.form}
         action={taskForm.action}
         method={taskForm.method}
         onSubmit={taskForm.onSubmit}
       >
-        <div class={pageStyles.inputWrap}>
+        <div class={styles.inputWrap}>
           <input
             name={taskForm.fields.title}
-            class={pageStyles.input}
+            class={styles.input}
             placeholder="What needs to be done?"
           />
-          <span class={pageStyles.fieldError}>
+          <span class={styles.fieldError}>
             {taskForm.title.error}
           </span>
         </div>
         <button
           type="submit"
-          class={pageStyles.button}
+          class={styles.addButton}
           disabled={taskForm.submitting}
         >
           {taskForm.submitting.value ? 'Adding...' : 'Add'}
@@ -885,31 +1007,38 @@ export function HomePage() {
 
       {queryMatch(tasksQuery, {
         loading: () => (
-          <div class={pageStyles.loading}>Loading tasks...</div>
+          <div class={styles.loading}>Loading tasks...</div>
         ),
         error: (err) => (
-          <div class={pageStyles.error}>
+          <div class={styles.error}>
             {err instanceof Error ? err.message : String(err)}
           </div>
         ),
         data: (response) => (
           <>
             {response.items.length === 0 && (
-              <div class={pageStyles.empty}>
+              <div class={styles.empty}>
                 No tasks yet. Add one above!
               </div>
             )}
-            <div data-testid="task-list" class={pageStyles.list}>
+            <div data-testid="task-list" class={styles.list}>
               <ListTransition
                 each={response.items}
                 keyFn={(task) => task.id}
                 children={(task) => (
-                  <div class={pageStyles.item}>
-                    <span>{task.title}</span>
-                  </div>
+                  <TaskItem
+                    id={task.id}
+                    title={task.title}
+                    completed={task.completed}
+                  />
                 )}
               />
             </div>
+            {response.items.length > 0 && (
+              <div class={styles.count}>
+                {response.items.filter((t) => !t.completed).length} remaining
+              </div>
+            )}
           </>
         ),
       })}
