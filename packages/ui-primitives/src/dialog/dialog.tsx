@@ -10,6 +10,7 @@ import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
 import {
   setDataState,
+  setDescribedBy,
   setExpanded,
   setHidden,
   setHiddenAnimated,
@@ -36,6 +37,7 @@ export interface DialogElements {
   content: HTMLDivElement;
   overlay: HTMLDivElement;
   title: HTMLHeadingElement;
+  description: HTMLParagraphElement;
   close: HTMLButtonElement;
   show: () => void;
   hide: () => void;
@@ -45,6 +47,7 @@ function DialogRoot(options: DialogOptions = {}): DialogElements & { state: Dial
   const { modal = true, defaultOpen = false, onOpenChange, ...attrs } = options;
   const ids = linkedIds('dialog');
   const titleId = `${ids.contentId}-title`;
+  const descriptionId = `${ids.contentId}-description`;
   const state: DialogState = { open: signal(defaultOpen) };
   let restoreFocus: (() => void) | null = null;
   let removeTrap: (() => void) | null = null;
@@ -128,9 +131,12 @@ function DialogRoot(options: DialogOptions = {}): DialogElements & { state: Dial
   ) as HTMLDivElement;
 
   setLabelledBy(content, titleId);
+  setDescribedBy(content, descriptionId);
 
   // biome-ignore lint/a11y/useHeadingContent: primitive — consumer provides content
   const title = (<h2 id={titleId} />) as HTMLHeadingElement;
+
+  const description = (<p id={descriptionId} />) as HTMLParagraphElement;
 
   const close = (
     <button type="button" aria-label="Close" onClick={() => closeDialog()} />
@@ -138,7 +144,10 @@ function DialogRoot(options: DialogOptions = {}): DialogElements & { state: Dial
 
   applyAttrs(content, attrs);
 
-  return { trigger, overlay, content, title, close, state, show: openDialog, hide: closeDialog };
+  return {
+    trigger, overlay, content, title, description, close,
+    state, show: openDialog, hide: closeDialog,
+  };
 }
 
 export const Dialog: {

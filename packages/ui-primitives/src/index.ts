@@ -9,6 +9,11 @@ export type {
   AlertDialogState,
 } from './alert-dialog/alert-dialog';
 export { AlertDialog } from './alert-dialog/alert-dialog';
+export type {
+  AlertDialogClasses,
+  ComposedAlertDialogProps,
+} from './alert-dialog/alert-dialog-composed';
+export { ComposedAlertDialog } from './alert-dialog/alert-dialog-composed';
 export type { BadgeElements, BadgeOptions } from './badge/badge';
 export { Badge } from './badge/badge';
 export type { ButtonOptions } from './button/button';
@@ -33,6 +38,11 @@ export type {
 export { Combobox } from './combobox/combobox';
 export type { CommandElements, CommandOptions, CommandState } from './command/command';
 export { Command } from './command/command';
+export type { ScanResult, SlotEntry } from './composed/scan-slots';
+export { scanSlots } from './composed/scan-slots';
+// Composed utilities
+export type { ClassesOf, ComposedPrimitive, StyledPrimitive } from './composed/with-styles';
+export { withStyles } from './composed/with-styles';
 export type {
   ContextMenuElements,
   ContextMenuOptions,
@@ -47,6 +57,9 @@ export type {
 export { DatePicker } from './date-picker/date-picker';
 export type { DialogElements, DialogOptions, DialogState } from './dialog/dialog';
 export { Dialog } from './dialog/dialog';
+// Composed primitives
+export type { ComposedDialogProps, DialogClasses } from './dialog/dialog-composed';
+export { ComposedDialog } from './dialog/dialog-composed';
 export type {
   DropdownMenuElements,
   DropdownMenuOptions,
