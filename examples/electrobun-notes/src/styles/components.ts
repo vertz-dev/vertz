@@ -24,16 +24,7 @@ export const formStyles = css({
 });
 
 export const noteItemStyles = css({
-  item: [
-    'flex',
-    'flex-col',
-    'gap:1',
-    'p:3',
-    'bg:card',
-    'rounded:md',
-    'border:1',
-    'border:border',
-  ],
+  item: ['flex', 'flex-col', 'gap:1', 'p:3', 'bg:card', 'rounded:md', 'border:1', 'border:border'],
   title: ['font:medium', 'text:foreground'],
   content: ['text:sm', 'text:muted-foreground'],
 });

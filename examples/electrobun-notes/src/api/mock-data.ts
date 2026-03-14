@@ -28,8 +28,9 @@ const notes: NotesResponse[] = [
 
 /** Reset mock data to initial state and install fetch mock. */
 export function resetMockData(): void {
-  // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-  (globalThis as any).__VERTZ_CLEAR_QUERY_CACHE__?.();
+  // Note: query cache is module-level in @vertz/ui. resetDefaultQueryCache is
+  // an internal API not exported via subpath. Tests must order carefully to avoid
+  // cache interference (error tests run before data tests).
   notes.length = 0;
   notes.push(
     {

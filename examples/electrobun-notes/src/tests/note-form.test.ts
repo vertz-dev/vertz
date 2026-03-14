@@ -32,6 +32,14 @@ describe('NoteForm', () => {
     unmount();
   });
 
+  test('renders content textarea with placeholder', () => {
+    const { findByTestId, unmount } = renderTest(NoteForm({ onSuccess: () => {} }));
+    const textarea = findByTestId('note-content-input');
+    expect(textarea).toBeDefined();
+    expect(textarea.getAttribute('placeholder')).toBe('Write something...');
+    unmount();
+  });
+
   test('has progressive enhancement attributes', () => {
     const { findByTestId, unmount } = renderTest(NoteForm({ onSuccess: () => {} }));
     const form = findByTestId('create-note-form');

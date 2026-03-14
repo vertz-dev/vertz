@@ -1,7 +1,7 @@
 import { css, getInjectedCSS, globalCss, ThemeProvider } from '@vertz/ui';
 import { NotesListPage } from './pages/notes-list';
 import { layoutStyles } from './styles/components';
-import { themeGlobals, notesTheme } from './styles/theme';
+import { notesTheme, themeGlobals } from './styles/theme';
 
 const appGlobals = globalCss({
   a: {

@@ -6,6 +6,7 @@ import { button, formStyles, inputStyles } from '../styles/components';
 const styles = css({
   row: ['flex', 'gap:2', 'items:start', 'w:full'],
   inputWrap: ['flex-1'],
+  textareaWrap: ['w:full', 'mt:2'],
 });
 
 export interface NoteFormProps {
@@ -44,8 +45,16 @@ export function NoteForm({ onSuccess }: NoteFormProps = {}) {
           data-testid="submit-note"
           disabled={noteForm.submitting}
         >
-          {noteForm.submitting.value ? 'Saving...' : 'Add Note'}
+          {noteForm.submitting ? 'Saving...' : 'Add Note'}
         </button>
+      </div>
+      <div class={styles.textareaWrap}>
+        <textarea
+          class={inputStyles.base}
+          name={noteForm.fields.content}
+          placeholder="Write something..."
+          data-testid="note-content-input"
+        />
       </div>
     </form>
   );

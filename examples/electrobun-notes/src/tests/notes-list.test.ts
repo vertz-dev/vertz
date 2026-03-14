@@ -8,6 +8,21 @@ describe('NotesListPage', () => {
     resetMockData();
   });
 
+  // Error test runs first — before any successful queries cache data.
+  // The query cache is module-level and resetDefaultQueryCache is internal.
+  test('shows error state when fetch fails', async () => {
+    // Override fetch AFTER resetMockData installs the success mock
+    (globalThis as Record<string, unknown>).fetch = async () => {
+      throw new Error('Network failure');
+    };
+    const { findByTestId, unmount } = renderTest(NotesListPage());
+    await waitFor(() => {
+      const error = findByTestId('error');
+      expect(error).toBeDefined();
+    });
+    unmount();
+  });
+
   test('renders page container with testid', () => {
     const { findByTestId, unmount } = renderTest(NotesListPage());
     const page = findByTestId('notes-list-page');
@@ -46,9 +61,12 @@ describe('NotesListPage', () => {
   test('displays note titles after fetch', async () => {
     const { findByTestId, unmount } = renderTest(NotesListPage());
     await waitFor(() => {
-      const item = findByTestId('note-item-1');
-      expect(item).toBeDefined();
-      expect(item.textContent).toContain('First note');
+      const item1 = findByTestId('note-item-1');
+      expect(item1).toBeDefined();
+      expect(item1.textContent).toContain('First note');
+      const item2 = findByTestId('note-item-2');
+      expect(item2).toBeDefined();
+      expect(item2.textContent).toContain('Second note');
     });
     unmount();
   });
