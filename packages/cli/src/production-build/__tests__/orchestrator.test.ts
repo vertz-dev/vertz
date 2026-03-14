@@ -15,7 +15,7 @@ import type { BuildConfig, BuildManifest } from '../types';
 // Mock dependencies
 vi.mock('@vertz/compiler', () => {
   const mockGenerate = vi.fn().mockResolvedValue(undefined);
-  
+
   return {
     createCompiler: vi.fn(() => ({
       analyze: vi.fn().mockResolvedValue({

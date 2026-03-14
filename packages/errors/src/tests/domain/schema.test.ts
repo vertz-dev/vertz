@@ -46,7 +46,6 @@ describe('domain/schema', () => {
       expect(error.code).toBe('VALIDATION_FAILED');
       expect(error.issues).toHaveLength(0);
     });
-
   });
 
   describe('isValidationError', () => {

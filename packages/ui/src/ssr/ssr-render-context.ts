@@ -45,14 +45,34 @@ export interface SSRRenderContext {
 
 type SSRContextResolver = () => SSRRenderContext | undefined;
 
-let _ssrResolver: SSRContextResolver | null = null;
+/**
+ * Key for the SSR resolver on globalThis.
+ * Lives on globalThis so it survives require.cache clears during HMR.
+ * When the dev server clears the entire require.cache and re-imports
+ * SSR modules, module-level variables reset to their initial values.
+ * globalThis persists across module re-evaluations, so the resolver
+ * registered by @vertz/ui-server at import time remains available.
+ *
+ * Same pattern as __VERTZ_CTX_REG__ in component/context.ts.
+ */
+const RESOLVER_KEY = '__VERTZ_SSR_RESOLVER__';
+
+function getResolver(): SSRContextResolver | null {
+  return (
+    ((globalThis as Record<string, unknown>)[RESOLVER_KEY] as SSRContextResolver | null) ?? null
+  );
+}
 
 export function registerSSRResolver(resolver: SSRContextResolver | null): void {
-  _ssrResolver = resolver;
+  if (resolver === null) {
+    delete (globalThis as Record<string, unknown>)[RESOLVER_KEY];
+  } else {
+    (globalThis as Record<string, unknown>)[RESOLVER_KEY] = resolver;
+  }
 }
 
 export function getSSRContext(): SSRRenderContext | undefined {
-  return _ssrResolver?.();
+  return getResolver()?.();
 }
 
 /**
@@ -61,8 +81,9 @@ export function getSSRContext(): SSRRenderContext | undefined {
  * This indicates we are running on the server — regardless of whether
  * an SSR render is currently active. The resolver is registered once
  * at import time by `@vertz/ui-server` and never cleared during the
- * server's lifetime.
+ * server's lifetime. Stored on globalThis so it survives require.cache
+ * clears during HMR module re-evaluation.
  */
 export function hasSSRResolver(): boolean {
-  return _ssrResolver !== null;
+  return getResolver() !== null;
 }

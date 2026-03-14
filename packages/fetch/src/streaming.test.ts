@@ -1,5 +1,5 @@
-import { FetchError } from '@vertz/errors';
 import { describe, expect, it, mock } from 'bun:test';
+import { FetchError } from '@vertz/errors';
 import { FetchClient } from './client';
 
 function createStream(chunks: string[]): ReadableStream<Uint8Array> {
@@ -91,11 +91,8 @@ describe('FetchClient.requestStream (SSE)', () => {
   });
 
   it('throws on non-OK response', async () => {
-    const mockFetch = mock(
-      () =>
-        Promise.resolve(
-          new Response('Unauthorized', { status: 401, statusText: 'Unauthorized' }),
-        ),
+    const mockFetch = mock(() =>
+      Promise.resolve(new Response('Unauthorized', { status: 401, statusText: 'Unauthorized' })),
     );
 
     const client = new FetchClient({

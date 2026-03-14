@@ -10,13 +10,11 @@ import { ssrStorage } from '../ssr-context';
 import { collectStreamChunks } from '../streaming';
 import type { VNode } from '../types';
 
-// Bridge dual-module gap: query() from SOURCE needs the resolver registered
-// on the SOURCE module's _ssrResolver (see query-ssr-threshold.test.ts).
+// Bridge dual-module gap: query() from SOURCE needs the resolver registered.
+// The resolver lives on globalThis (survives require.cache clears), so we
+// must NOT null it in afterAll — that would break other test files.
 beforeAll(() => {
   registerSSRResolver(() => ssrStorage.getStore());
-});
-afterAll(() => {
-  registerSSRResolver(null);
 });
 
 /**

@@ -1,5 +1,5 @@
-import { Project } from 'ts-morph';
 import { describe, expect, it } from 'bun:test';
+import { Project } from 'ts-morph';
 import { resolveConfig } from '../../config';
 import type { SchemaIR, SchemaNameParts, SchemaRef } from '../../ir/types';
 import {

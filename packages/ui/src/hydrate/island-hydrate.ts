@@ -83,10 +83,7 @@ export function hydrateIslands(registry: IslandRegistry): void {
           if (result instanceof Node) {
             const children = Array.from(el.childNodes);
             for (const child of children) {
-              if (
-                child instanceof Element &&
-                child.hasAttribute('data-v-island-props')
-              ) {
+              if (child instanceof Element && child.hasAttribute('data-v-island-props')) {
                 continue;
               }
               el.removeChild(child);

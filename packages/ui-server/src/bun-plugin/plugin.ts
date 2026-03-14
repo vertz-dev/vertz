@@ -34,7 +34,6 @@ import type { BunPlugin } from 'bun';
 import MagicString from 'magic-string';
 import { Project, ts } from 'ts-morph';
 import { injectContextStableIds } from './context-stable-ids';
-import { injectIslandIds } from './island-id-inject';
 import { loadEntitySchema } from './entity-schema-loader';
 import { generateRefreshCode } from './fast-refresh-codegen';
 import type { EntitySchemaManifest } from './field-selection-inject';
@@ -44,6 +43,7 @@ import { filePathHash } from './file-path-hash';
 import { computeImageOutputPaths, resolveImageSrc } from './image-paths';
 import { processImage } from './image-processor';
 import { transformImages } from './image-transform';
+import { injectIslandIds } from './island-id-inject';
 import type {
   CSSSidecarMap,
   FileExtractionsMap,

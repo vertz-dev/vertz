@@ -33,9 +33,7 @@ type EntityErrorHandlers<R> = {
   NotFound: (error: Extract<EntityErrorType, { code: 'NotFound' }>) => R;
   MethodNotAllowed: (error: Extract<EntityErrorType, { code: 'MethodNotAllowed' }>) => R;
   Conflict: (error: Extract<EntityErrorType, { code: 'Conflict' }>) => R;
-  ValidationError: (
-    error: Extract<EntityErrorType, { code: 'ValidationError' }>,
-  ) => R;
+  ValidationError: (error: Extract<EntityErrorType, { code: 'ValidationError' }>) => R;
   InternalError: (error: Extract<EntityErrorType, { code: 'InternalError' }>) => R;
   ServiceUnavailable: (error: Extract<EntityErrorType, { code: 'ServiceUnavailable' }>) => R;
 };

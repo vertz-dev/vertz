@@ -1,5 +1,5 @@
-import { Project, SyntaxKind } from 'ts-morph';
 import { describe, expect, it } from 'bun:test';
+import { Project, SyntaxKind } from 'ts-morph';
 import { resolveConfig } from '../../config';
 import type { InjectRef, ServiceIR, ServiceMethodIR, ServiceMethodParam } from '../../ir/types';
 import { extractMethodSignatures, parseInjectRefs, ServiceAnalyzer } from '../service-analyzer';

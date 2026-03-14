@@ -14,9 +14,7 @@ export type Expect<T extends true> = T;
 
 /** True if A and B are exactly the same type. */
 export type Equal<A, B> =
-  (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2)
-    ? true
-    : false;
+  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 
 /** True if A extends B (structural subtype). */
 export type Extends<A, B> = [A] extends [B] ? true : false;

@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'bun:test';
 import {
   BadRequestException,
   ConflictException,
@@ -7,7 +8,6 @@ import {
   ValidationException,
   VertzException,
 } from '@vertz/core';
-import { describe, expect, it } from 'bun:test';
 import { entityErrorHandler } from '../error-handler';
 
 describe('entityErrorHandler', () => {

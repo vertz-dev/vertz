@@ -21,12 +21,10 @@ import type { VNode } from '../types';
 // Bridge dual-module gap: this test imports query() from @vertz/ui SOURCE,
 // but ssrStorage is from @vertz/ui-server which registered the resolver on
 // the BUILT @vertz/ui. Register the same ALS-backed resolver on the SOURCE
-// module's _ssrResolver so query()'s getSSRContext() returns the correct context.
+// module's globalThis key so query()'s getSSRContext() returns the correct context.
+// Must NOT null it in afterAll — resolver lives on globalThis and other tests need it.
 beforeAll(() => {
   registerSSRResolver(() => ssrStorage.getStore());
-});
-afterAll(() => {
-  registerSSRResolver(null);
 });
 
 /**

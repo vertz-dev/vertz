@@ -1,5 +1,5 @@
-import { Project, ts } from 'ts-morph';
 import { describe, expect, it } from 'bun:test';
+import { Project, ts } from 'ts-morph';
 import { CSSDiagnostics } from '../css-diagnostics';
 
 function createSourceFile(source: string) {

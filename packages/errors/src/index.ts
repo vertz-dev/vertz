@@ -27,18 +27,15 @@
 export * from './app-error.js';
 // Domain errors
 export * from './domain/index.js';
+// Entity error classes
+export * from './entity.js';
+// Fetch error classes
+export * from './fetch.js';
 // Infrastructure errors
 export * from './infra/index.js';
 // Mapping functions
 export * from './mapping/index.js';
-// Result type and utilities
-export * from './result.js';
-
-// Fetch error classes
-export * from './fetch.js';
-
-// Entity error classes
-export * from './entity.js';
-
 // matchError utility
 export * from './match-error.js';
+// Result type and utilities
+export * from './result.js';

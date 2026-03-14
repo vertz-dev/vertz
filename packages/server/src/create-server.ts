@@ -304,10 +304,9 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
         config.auth.oauthAccountStore ??
         (config.auth.providers?.length ? new DbOAuthAccountStore(dbClient) : undefined),
       // Only create entity proxy when onUserCreated callback exists
-      _entityProxy:
-        config.auth.onUserCreated
-          ? (config.auth._entityProxy ?? registry.createProxy())
-          : undefined,
+      _entityProxy: config.auth.onUserCreated
+        ? (config.auth._entityProxy ?? registry.createProxy())
+        : undefined,
     };
 
     const auth = createAuth(authConfig);

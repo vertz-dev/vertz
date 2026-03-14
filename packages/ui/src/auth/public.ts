@@ -49,6 +49,6 @@ export type { OAuthButtonProps } from './oauth-button';
 export { OAuthButton } from './oauth-button';
 export type { OAuthButtonsProps } from './oauth-buttons';
 export { OAuthButtons } from './oauth-buttons';
-export { getProviderIcon } from './provider-icons';
 export type { ProtectedRouteProps } from './protected-route';
 export { ProtectedRoute } from './protected-route';
+export { getProviderIcon } from './provider-icons';

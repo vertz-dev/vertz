@@ -1,5 +1,5 @@
-import * as core from '@vertz/core';
 import { describe, expect, it, mock } from 'bun:test';
+import * as core from '@vertz/core';
 import * as server from '../index';
 
 describe('@vertz/server re-exports', () => {

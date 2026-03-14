@@ -11,8 +11,11 @@ import type { MaybeAccessor } from './unwrap';
 const _drawFn: GraphicsProps['draw'] = () => {};
 void _drawFn;
 
-// @ts-expect-error — GraphicsProps forbids children (children is never)
-const _graphicsWithChildren: GraphicsProps = { draw: () => {}, children: document.createElement('div') };
+const _graphicsWithChildren: GraphicsProps = {
+  draw: () => {},
+  // @ts-expect-error — GraphicsProps forbids children (children is never)
+  children: document.createElement('div'),
+};
 void _graphicsWithChildren;
 
 // x accepts MaybeAccessor<number> | undefined

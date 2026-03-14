@@ -142,7 +142,6 @@ describe('chainable builders', () => {
     expect(col._meta.check).toBe('value > 0');
   });
 
-
   it('chaining multiple builders preserves all metadata', () => {
     const col = d.text().unique().nullable().default('hello');
     expect(col._meta.unique).toBe(true);

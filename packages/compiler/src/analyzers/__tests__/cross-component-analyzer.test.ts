@@ -1,5 +1,5 @@
-import { Project } from 'ts-morph';
 import { describe, expect, it } from 'bun:test';
+import { Project } from 'ts-morph';
 import { resolveConfig } from '../../config';
 import { CrossComponentAnalyzer } from '../cross-component-analyzer';
 
@@ -195,8 +195,8 @@ function Parent() {
       const result = await analyzer.analyze();
 
       expect(result.aggregated).toHaveLength(2);
-      const usersQuery = result.aggregated.find(a => a.queryVar === 'users');
-      const postsQuery = result.aggregated.find(a => a.queryVar === 'posts');
+      const usersQuery = result.aggregated.find((a) => a.queryVar === 'users');
+      const postsQuery = result.aggregated.find((a) => a.queryVar === 'posts');
       expect(usersQuery?.fields).toContain('name');
       expect(postsQuery?.fields).toContain('title');
     });
@@ -460,13 +460,13 @@ function Child(props) {
 
       // Parent query should include 'name'
       const parentQuery = result.aggregated.find(
-        a => a.component === 'src/Parent.tsx' && a.queryVar === 'users'
+        (a) => a.component === 'src/Parent.tsx' && a.queryVar === 'users',
       );
       expect(parentQuery?.fields).toContain('name');
 
       // Child query should include 'theme'
       const childQuery = result.aggregated.find(
-        a => a.component === 'src/Child.tsx' && a.queryVar === 'settings'
+        (a) => a.component === 'src/Child.tsx' && a.queryVar === 'settings',
       );
       expect(childQuery?.fields).toContain('theme');
     });

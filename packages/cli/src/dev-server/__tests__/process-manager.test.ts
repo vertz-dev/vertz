@@ -1,5 +1,5 @@
-import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'bun:test';
+import { EventEmitter } from 'node:events';
 import type { SpawnFn } from '../process-manager';
 import { createProcessManager } from '../process-manager';
 

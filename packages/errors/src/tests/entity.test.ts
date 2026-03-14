@@ -2,26 +2,26 @@
  * Tests for EntityError classes.
  */
 
-import { describe, it, expect } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 import {
   BadRequestError,
-  EntityUnauthorizedError,
+  EntityConflictError,
   EntityForbiddenError,
   EntityNotFoundError,
-  MethodNotAllowedError,
-  EntityConflictError,
+  EntityUnauthorizedError,
   EntityValidationError,
   InternalError,
-  ServiceUnavailableError,
   isBadRequestError,
-  isEntityUnauthorizedError,
+  isEntityConflictError,
   isEntityForbiddenError,
   isEntityNotFoundError,
-  isMethodNotAllowedError,
-  isEntityConflictError,
+  isEntityUnauthorizedError,
   isEntityValidationError,
   isInternalError,
+  isMethodNotAllowedError,
   isServiceUnavailableError,
+  MethodNotAllowedError,
+  ServiceUnavailableError,
 } from '../entity.js';
 
 describe('EntityError classes', () => {

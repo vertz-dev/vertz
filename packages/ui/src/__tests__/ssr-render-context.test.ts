@@ -6,6 +6,7 @@ import { batch } from '../runtime/scheduler';
 import { getSubscriber, setSubscriber } from '../runtime/tracking';
 import {
   getSSRContext,
+  hasSSRResolver,
   registerSSRResolver,
   type SSRRenderContext,
 } from '../ssr/ssr-render-context';
@@ -347,5 +348,20 @@ describe('SSRRenderContext', () => {
     expect(result1EnvelopeStore).toBe(envelope1);
     expect(result2EnvelopeStore).toBe(envelope2);
     expect(result1EnvelopeStore).not.toBe(result2EnvelopeStore);
+  });
+
+  it('stores resolver on globalThis so it survives require.cache clears', () => {
+    const resolver = () => undefined;
+    registerSSRResolver(resolver);
+    expect((globalThis as Record<string, unknown>).__VERTZ_SSR_RESOLVER__).toBe(resolver);
+    expect(hasSSRResolver()).toBe(true);
+  });
+
+  it('registerSSRResolver(null) removes the globalThis entry', () => {
+    registerSSRResolver(() => undefined);
+    expect(hasSSRResolver()).toBe(true);
+    registerSSRResolver(null);
+    expect(hasSSRResolver()).toBe(false);
+    expect((globalThis as Record<string, unknown>).__VERTZ_SSR_RESOLVER__).toBeUndefined();
   });
 });

@@ -1,5 +1,5 @@
-import { d } from '@vertz/db';
 import { describe, it } from 'bun:test';
+import { d } from '@vertz/db';
 import { entity } from '../entity';
 import type { EntityContext } from '../types';
 
@@ -149,9 +149,9 @@ describe('inject flows through action handler ctx', () => {
           handler: async (_input, ctx, _order) => {
             // ctx.entities.users should be typed — get() returns users $response
             const user = await ctx.entities.users.get('id');
-            const _check1: typeof user['email'] = user.email;
+            const _check1: (typeof user)['email'] = user.email;
             void _check1;
-            const _check2: typeof user['name'] = user.name;
+            const _check2: (typeof user)['name'] = user.name;
             void _check2;
             return { ok: true };
           },
@@ -265,9 +265,9 @@ describe('action handler row param typing', () => {
             // row is TResponse | null for collection-level support
             // Narrow to non-null for record-level action type checks
             if (order) {
-              const _check1: typeof order['userId'] = order.userId;
+              const _check1: (typeof order)['userId'] = order.userId;
               void _check1;
-              const _check2: typeof order['status'] = order.status;
+              const _check2: (typeof order)['status'] = order.status;
               void _check2;
             }
             return { ok: true };
@@ -343,9 +343,9 @@ describe('entity() inject config types', () => {
     });
 
     // Both injected entities accessible on the frozen definition
-    const _check1: typeof orders.inject['users'] = orders.inject.users;
+    const _check1: (typeof orders.inject)['users'] = orders.inject.users;
     void _check1;
-    const _check2: typeof orders.inject['products'] = orders.inject.products;
+    const _check2: (typeof orders.inject)['products'] = orders.inject.products;
     void _check2;
   });
 });

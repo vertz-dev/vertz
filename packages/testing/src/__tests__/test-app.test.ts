@@ -1,6 +1,6 @@
+import { describe, expect, it } from 'bun:test';
 import { s } from '@vertz/schema';
 import { createMiddleware } from '@vertz/server';
-import { describe, expect, it } from 'bun:test';
 
 import { createTestApp } from '../test-app';
 

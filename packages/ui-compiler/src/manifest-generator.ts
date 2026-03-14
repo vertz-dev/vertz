@@ -7,10 +7,7 @@
  * @see plans/cross-file-reactivity-analysis.md Section 2.2.2
  */
 import { ts } from 'ts-morph';
-import {
-  REACTIVE_SOURCE_APIS,
-  SIGNAL_API_REGISTRY,
-} from './signal-api-registry';
+import { REACTIVE_SOURCE_APIS, SIGNAL_API_REGISTRY } from './signal-api-registry';
 import type { ExportReactivityInfo, ReactivityManifest, ReactivityShape } from './types';
 
 /**
@@ -164,8 +161,7 @@ export function analyzeFile(filePath: string, sourceText: string): FileAnalysis 
 
       if (stmt.exportClause && ts.isNamedExports(stmt.exportClause)) {
         for (const el of stmt.exportClause.elements) {
-          const originalName =
-            el.propertyName?.getText(sourceFile) ?? el.name.getText(sourceFile);
+          const originalName = el.propertyName?.getText(sourceFile) ?? el.name.getText(sourceFile);
           const exportName = el.name.getText(sourceFile);
 
           if (moduleSpecifier) {
@@ -204,7 +200,11 @@ export function analyzeFile(filePath: string, sourceText: string): FileAnalysis 
       }
     }
 
-    if (ts.isFunctionDeclaration(stmt) && !hasExportModifier(stmt) && !hasDefaultExportModifier(stmt)) {
+    if (
+      ts.isFunctionDeclaration(stmt) &&
+      !hasExportModifier(stmt) &&
+      !hasDefaultExportModifier(stmt)
+    ) {
       const name = stmt.name?.getText(sourceFile);
       if (name) {
         localFnShapes.set(name, analyzeFunctionDeclaration(stmt, sourceFile, importedApis));
@@ -516,16 +516,20 @@ function hasExportModifier(node: ts.Statement): boolean {
   if (!ts.canHaveModifiers(node)) return false;
   const mods = ts.getModifiers(node);
   if (!mods) return false;
-  return mods.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) &&
-    !mods.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword);
+  return (
+    mods.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) &&
+    !mods.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword)
+  );
 }
 
 function hasDefaultExportModifier(node: ts.Statement): boolean {
   if (!ts.canHaveModifiers(node)) return false;
   const mods = ts.getModifiers(node);
   if (!mods) return false;
-  return mods.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) &&
-    mods.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword);
+  return (
+    mods.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) &&
+    mods.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword)
+  );
 }
 
 function stripQuotes(text: string): string {
