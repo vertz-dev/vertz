@@ -1,5 +1,64 @@
 # @vertz/server
 
+## 0.2.16
+
+### Patch Changes
+
+- [#1165](https://github.com/vertz-dev/vertz/pull/1165) [`15511ba`](https://github.com/vertz-dev/vertz/commit/15511ba68fe78c99ba7d056ef17db94d8380f9fa) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Thread TModel generic through createActionHandler for typed row and context in custom entity actions
+
+- [#1179](https://github.com/vertz-dev/vertz/pull/1179) [`2f574cc`](https://github.com/vertz-dev/vertz/commit/2f574cce9e941c63503efb2e32ecef7b53951725) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add transaction support to DatabaseClient with full model delegates
+
+  - `db.transaction(async (tx) => { ... })` wraps multiple operations atomically
+  - `TransactionClient` provides the same model delegates as `DatabaseClient` (`tx.users.create()`, `tx.tasks.list()`, etc.)
+  - PostgreSQL uses `sql.begin()` for connection-scoped transactions
+  - SQLite uses `BEGIN`/`COMMIT`/`ROLLBACK` via single-connection queryFn
+  - Auth plan store operations (`assignPlan`, `removePlan`, `updateOverrides`) now use transactions for atomicity
+  - Failure injection tests verify rollback behavior
+
+- [#1116](https://github.com/vertz-dev/vertz/pull/1116) [`24b81a2`](https://github.com/vertz-dev/vertz/commit/24b81a26f0064863c1e50cdd17c0fe0fc022f6ea) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add `AccessAnalyzer` to extract `defineAccess()` config and `AccessTypesGenerator` to emit typed entitlement unions, making `ctx.can('typo')` a compile error. Add `RlsPolicyGenerator` to generate RLS policies from `rules.where()` conditions. Add `EntitlementRegistry` + `Entitlement` type to `@vertz/server` and `@vertz/ui/auth` for type-safe entitlement narrowing.
+
+- [#1165](https://github.com/vertz-dev/vertz/pull/1165) [`15511ba`](https://github.com/vertz-dev/vertz/commit/15511ba68fe78c99ba7d056ef17db94d8380f9fa) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Thread TModel generic through CrudHandlers and createCrudHandlers for typed row returns and context in CRUD operations
+
+- [#1212](https://github.com/vertz-dev/vertz/pull/1212) [`391096b`](https://github.com/vertz-dev/vertz/commit/391096b426e1debb6cee06b336768b0e20abc191) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(db): handle null direct values in where clause as IS NULL
+
+  Previously, passing `null` as a direct value in a where clause (e.g., `{ revokedAt: null }`)
+  generated `column = $N` with a null parameter, which in SQL always evaluates to NULL (not TRUE),
+  silently breaking the entire WHERE clause. Now correctly generates `column IS NULL`.
+
+  Also reverts DbSessionStore raw SQL workarounds back to ORM-based `get()` calls.
+
+- [#1218](https://github.com/vertz-dev/vertz/pull/1218) [`8c707ca`](https://github.com/vertz-dev/vertz/commit/8c707ca055f965526b043567b93844343e7a51e8) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix OAuth error redirect URL construction to use the URL constructor instead of string concatenation. Handles URL fragments, existing query params, duplicate error params, and absolute URLs correctly.
+
+- [#1216](https://github.com/vertz-dev/vertz/pull/1216) [`c1c0638`](https://github.com/vertz-dev/vertz/commit/c1c06383b8ad50c833b64aa5009fe7b494bb559b) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - SSR session injection to eliminate auth loading flash. JWT session data is now injected as `window.__VERTZ_SESSION__` during SSR, so `AuthProvider` hydrates with session data immediately instead of showing a loading state. Zero-config: the CLI auto-wires the session resolver when auth is configured.
+
+- [#1201](https://github.com/vertz-dev/vertz/pull/1201) [`5dfaebc`](https://github.com/vertz-dev/vertz/commit/5dfaebc83853922f08120c2b5e56af7998752a00) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Refactor plan storage to subscription-based tenant architecture
+
+  - `PlanStore` → `SubscriptionStore`, `OrgPlan` → `Subscription`, methods simplified (`assign`, `get`, `remove`)
+  - `DbPlanStore` → `DbSubscriptionStore`, `InMemoryPlanStore` → `InMemorySubscriptionStore`
+  - All store interfaces (`SubscriptionStore`, `FlagStore`, `WalletStore`) now use `tenantId` instead of `orgId`
+  - Removed `plan` field from `AuthUser`, `ReservedSignUpField`, `UserTableEntry`, and `auth_users` DDL
+  - `computeAccessSet()` resolves plan via `subscriptionStore.get(tenantId)` instead of `user.plan` parameter
+  - `AuthAccessConfig` now accepts `subscriptionStore` and `walletStore`
+
+- [#1221](https://github.com/vertz-dev/vertz/pull/1221) [`667453b`](https://github.com/vertz-dev/vertz/commit/667453bb8011aecaba4cbc79b816409cc8cbc744) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add `requestHandler` to `ServerInstance` — a unified handler that routes auth requests (`/api/auth/*`) to `auth.handler` and everything else to the entity handler. Eliminates the manual if/else routing boilerplate every auth-enabled app previously required.
+
+- [#1132](https://github.com/vertz-dev/vertz/pull/1132) [`541305e`](https://github.com/vertz-dev/vertz/commit/541305e8f98f2cdcc3bbebd992418680402677fb) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat: VertzQL relation queries with where/orderBy/limit support
+
+  Breaking change to EntityRelationsConfig: flat field maps replaced with structured
+  RelationConfigObject containing `select`, `allowWhere`, `allowOrderBy`, `maxLimit`.
+
+  - Extended VertzQL include entries to support `where`, `orderBy`, `limit`, nested `include`
+  - Recursive include validation with path-prefixed errors and maxLimit clamping
+  - Include pass-through from route handler → CRUD pipeline → DB adapter
+  - GetOptions added to EntityDbAdapter.get() for include on single-entity fetch
+  - Codegen IR and entity schema manifest include allowWhere/allowOrderBy/maxLimit
+
+- Updated dependencies [[`2f574cc`](https://github.com/vertz-dev/vertz/commit/2f574cce9e941c63503efb2e32ecef7b53951725), [`391096b`](https://github.com/vertz-dev/vertz/commit/391096b426e1debb6cee06b336768b0e20abc191), [`541305e`](https://github.com/vertz-dev/vertz/commit/541305e8f98f2cdcc3bbebd992418680402677fb)]:
+  - @vertz/db@0.2.16
+  - @vertz/core@0.2.16
+  - @vertz/errors@0.2.16
+  - @vertz/schema@0.2.16
+
 ## 0.2.15
 
 ### Patch Changes

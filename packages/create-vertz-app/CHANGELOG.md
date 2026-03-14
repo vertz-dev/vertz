@@ -1,5 +1,11 @@
 # @vertz/create-vertz-app
 
+## 0.2.16
+
+### Patch Changes
+
+- [#1173](https://github.com/vertz-dev/vertz/pull/1173) [`caf4647`](https://github.com/vertz-dev/vertz/commit/caf464741b53fdd65be1c558cf2330172f6d2feb) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix package release correctness: vertz subpath exports now point to built dist artifacts instead of raw .ts source, Turbo test inputs include out-of-src test directories, and create-vertz-app exposes test/typecheck scripts
+
 ## 0.2.15
 
 ## 0.2.14

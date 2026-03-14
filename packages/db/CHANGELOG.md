@@ -1,5 +1,41 @@
 # @vertz/db
 
+## 0.2.16
+
+### Patch Changes
+
+- [#1179](https://github.com/vertz-dev/vertz/pull/1179) [`2f574cc`](https://github.com/vertz-dev/vertz/commit/2f574cce9e941c63503efb2e32ecef7b53951725) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add transaction support to DatabaseClient with full model delegates
+
+  - `db.transaction(async (tx) => { ... })` wraps multiple operations atomically
+  - `TransactionClient` provides the same model delegates as `DatabaseClient` (`tx.users.create()`, `tx.tasks.list()`, etc.)
+  - PostgreSQL uses `sql.begin()` for connection-scoped transactions
+  - SQLite uses `BEGIN`/`COMMIT`/`ROLLBACK` via single-connection queryFn
+  - Auth plan store operations (`assignPlan`, `removePlan`, `updateOverrides`) now use transactions for atomicity
+  - Failure injection tests verify rollback behavior
+
+- [#1212](https://github.com/vertz-dev/vertz/pull/1212) [`391096b`](https://github.com/vertz-dev/vertz/commit/391096b426e1debb6cee06b336768b0e20abc191) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(db): handle null direct values in where clause as IS NULL
+
+  Previously, passing `null` as a direct value in a where clause (e.g., `{ revokedAt: null }`)
+  generated `column = $N` with a null parameter, which in SQL always evaluates to NULL (not TRUE),
+  silently breaking the entire WHERE clause. Now correctly generates `column IS NULL`.
+
+  Also reverts DbSessionStore raw SQL workarounds back to ORM-based `get()` calls.
+
+- [#1132](https://github.com/vertz-dev/vertz/pull/1132) [`541305e`](https://github.com/vertz-dev/vertz/commit/541305e8f98f2cdcc3bbebd992418680402677fb) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat: VertzQL relation queries with where/orderBy/limit support
+
+  Breaking change to EntityRelationsConfig: flat field maps replaced with structured
+  RelationConfigObject containing `select`, `allowWhere`, `allowOrderBy`, `maxLimit`.
+
+  - Extended VertzQL include entries to support `where`, `orderBy`, `limit`, nested `include`
+  - Recursive include validation with path-prefixed errors and maxLimit clamping
+  - Include pass-through from route handler → CRUD pipeline → DB adapter
+  - GetOptions added to EntityDbAdapter.get() for include on single-entity fetch
+  - Codegen IR and entity schema manifest include allowWhere/allowOrderBy/maxLimit
+
+- Updated dependencies []:
+  - @vertz/errors@0.2.16
+  - @vertz/schema@0.2.16
+
 ## 0.2.15
 
 ### Patch Changes

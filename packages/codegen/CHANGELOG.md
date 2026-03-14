@@ -1,5 +1,29 @@
 # @vertz/codegen
 
+## 0.2.16
+
+### Patch Changes
+
+- [#1116](https://github.com/vertz-dev/vertz/pull/1116) [`24b81a2`](https://github.com/vertz-dev/vertz/commit/24b81a26f0064863c1e50cdd17c0fe0fc022f6ea) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add `AccessAnalyzer` to extract `defineAccess()` config and `AccessTypesGenerator` to emit typed entitlement unions, making `ctx.can('typo')` a compile error. Add `RlsPolicyGenerator` to generate RLS policies from `rules.where()` conditions. Add `EntitlementRegistry` + `Entitlement` type to `@vertz/server` and `@vertz/ui/auth` for type-safe entitlement narrowing.
+
+- [#1105](https://github.com/vertz-dev/vertz/pull/1105) [`6317fa3`](https://github.com/vertz-dev/vertz/commit/6317fa32f4f442451db00461b6f891388d66b99e) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Wire create() mutations through OptimisticHandler for MutationEventBus emission, enabling automatic list query revalidation after entity creation
+
+- [#1131](https://github.com/vertz-dev/vertz/pull/1131) [`ab3f364`](https://github.com/vertz-dev/vertz/commit/ab3f36478018245cc9473217a9a3bf7b04c6a5cb) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Export EntitySchemaManifest, EntitySchemaManifestEntry, and EntitySchemaRelation types from @vertz/codegen. Update @vertz/ui-server to import from the canonical source instead of maintaining duplicate definitions.
+
+- [#1132](https://github.com/vertz-dev/vertz/pull/1132) [`541305e`](https://github.com/vertz-dev/vertz/commit/541305e8f98f2cdcc3bbebd992418680402677fb) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat: VertzQL relation queries with where/orderBy/limit support
+
+  Breaking change to EntityRelationsConfig: flat field maps replaced with structured
+  RelationConfigObject containing `select`, `allowWhere`, `allowOrderBy`, `maxLimit`.
+
+  - Extended VertzQL include entries to support `where`, `orderBy`, `limit`, nested `include`
+  - Recursive include validation with path-prefixed errors and maxLimit clamping
+  - Include pass-through from route handler → CRUD pipeline → DB adapter
+  - GetOptions added to EntityDbAdapter.get() for include on single-entity fetch
+  - Codegen IR and entity schema manifest include allowWhere/allowOrderBy/maxLimit
+
+- Updated dependencies [[`24b81a2`](https://github.com/vertz-dev/vertz/commit/24b81a26f0064863c1e50cdd17c0fe0fc022f6ea), [`541305e`](https://github.com/vertz-dev/vertz/commit/541305e8f98f2cdcc3bbebd992418680402677fb)]:
+  - @vertz/compiler@0.2.16
+
 ## 0.2.15
 
 ### Patch Changes
