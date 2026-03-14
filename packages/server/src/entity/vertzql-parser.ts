@@ -56,6 +56,7 @@ export interface VertzQLOptions {
   where?: Record<string, unknown>;
   orderBy?: Record<string, 'asc' | 'desc'>;
   limit?: number;
+  offset?: number;
   after?: string;
   select?: Record<string, true>;
   include?: Record<string, true | VertzQLIncludeEntry>;
@@ -154,6 +155,28 @@ export function parseVertzQL(query: Record<string, string>): VertzQLOptions {
         }
         if (decoded.include && typeof decoded.include === 'object') {
           result.include = decoded.include as Record<string, true | VertzQLIncludeEntry>;
+        }
+        if (decoded.where && typeof decoded.where === 'object') {
+          result.where = { ...result.where, ...(decoded.where as Record<string, unknown>) };
+        }
+        if (decoded.orderBy && typeof decoded.orderBy === 'object') {
+          result.orderBy = {
+            ...result.orderBy,
+            ...(decoded.orderBy as Record<string, 'asc' | 'desc'>),
+          };
+        }
+        if (decoded.limit !== undefined) {
+          const parsed = typeof decoded.limit === 'number' ? decoded.limit : Number(decoded.limit);
+          if (!Number.isNaN(parsed)) {
+            result.limit = Math.max(0, Math.min(parsed, MAX_LIMIT));
+          }
+        }
+        if (decoded.offset !== undefined) {
+          const parsed =
+            typeof decoded.offset === 'number' ? decoded.offset : Number(decoded.offset);
+          if (!Number.isNaN(parsed)) {
+            result.offset = Math.max(0, parsed);
+          }
         }
       } catch {
         result._qError = 'Invalid q= parameter: not valid base64 or JSON';
