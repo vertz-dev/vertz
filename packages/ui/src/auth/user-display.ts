@@ -7,7 +7,7 @@ import type { User } from './auth-types';
 export function getUserDisplayName(user: User | null | undefined, fallback = 'Unknown'): string {
   if (!user) return fallback;
   const name = user.name;
-  if (typeof name === 'string' && name.length > 0) return name;
+  if (typeof name === 'string' && name.trim().length > 0) return name;
   if (user.email) return user.email;
   return fallback;
 }
@@ -19,7 +19,7 @@ export function getUserDisplayName(user: User | null | undefined, fallback = 'Un
 export function getUserInitials(user: User | null | undefined): string {
   if (!user) return '?';
   const name = user.name;
-  if (typeof name === 'string' && name.length > 0) {
+  if (typeof name === 'string' && name.trim().length > 0) {
     const words = name.trim().split(/\s+/);
     const first = words[0] ?? '';
     const last = words[words.length - 1] ?? '';

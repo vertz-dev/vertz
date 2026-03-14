@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { computed, signal } from '../../runtime/signal';
+import type { ReadonlySignal } from '../../runtime/signal-types';
 import type { AuthContextValue } from '../auth-context';
 import { AuthContext } from '../auth-context';
 import type { AuthClientError, AuthStatus, User } from '../auth-types';
@@ -43,49 +44,76 @@ describe('UserName', () => {
       role: 'user',
       name: 'Jane Doe',
     });
-    let el: Element | undefined;
+    let result: unknown;
 
     AuthContext.Provider({
       value: ctx,
       children: () => {
-        el = UserName({}) as Element;
+        result = UserName({});
       },
     });
 
-    expect(el).toBeDefined();
-    expect(el?.tagName).toBe('SPAN');
-    expect(el?.textContent).toBe('Jane Doe');
+    // Returns computed signal when reading from auth context
+    const el = (result as ReadonlySignal<Element>).value;
+    expect(el.tagName).toBe('SPAN');
+    expect(el.textContent).toBe('Jane Doe');
   });
 
   it('renders email as fallback when no name', () => {
     const { ctx } = mockAuthContext({ id: '1', email: 'jane@example.com', role: 'user' });
-    let el: Element | undefined;
+    let result: unknown;
 
     AuthContext.Provider({
       value: ctx,
       children: () => {
-        el = UserName({}) as Element;
+        result = UserName({});
       },
     });
 
-    expect(el?.textContent).toBe('jane@example.com');
+    const el = (result as ReadonlySignal<Element>).value;
+    expect(el.textContent).toBe('jane@example.com');
   });
 
   it('uses custom fallback when no name or email', () => {
     const { ctx } = mockAuthContext({ id: '1', email: '', role: 'user' });
-    let el: Element | undefined;
+    let result: unknown;
 
     AuthContext.Provider({
       value: ctx,
       children: () => {
-        el = UserName({ fallback: '—' }) as Element;
+        result = UserName({ fallback: '—' });
       },
     });
 
-    expect(el?.textContent).toBe('—');
+    const el = (result as ReadonlySignal<Element>).value;
+    expect(el.textContent).toBe('—');
   });
 
-  it('uses provided user instead of auth context', () => {
+  it('updates reactively when auth user changes', () => {
+    const { ctx, userSignal } = mockAuthContext({
+      id: '1',
+      email: 'jane@example.com',
+      role: 'user',
+      name: 'Jane Doe',
+    });
+    let result: unknown;
+
+    AuthContext.Provider({
+      value: ctx,
+      children: () => {
+        result = UserName({});
+      },
+    });
+
+    const sig = result as ReadonlySignal<Element>;
+    expect(sig.value.textContent).toBe('Jane Doe');
+
+    // Update user signal
+    userSignal.value = { id: '1', email: 'bob@example.com', role: 'user', name: 'Bob Smith' };
+    expect(sig.value.textContent).toBe('Bob Smith');
+  });
+
+  it('uses provided user instead of auth context (static, no computed)', () => {
     const overrideUser: User = {
       id: '2',
       email: 'bob@example.com',

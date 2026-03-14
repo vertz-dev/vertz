@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { computed, signal } from '../../runtime/signal';
+import type { ReadonlySignal } from '../../runtime/signal-types';
 import type { AuthContextValue } from '../auth-context';
 import { AuthContext } from '../auth-context';
 import type { AuthClientError, AuthStatus, User } from '../auth-types';
@@ -43,17 +44,17 @@ describe('UserAvatar', () => {
       role: 'user',
       avatarUrl: '/photo.jpg',
     });
-    let el: Element | undefined;
+    let result: unknown;
 
     AuthContext.Provider({
       value: ctx,
       children: () => {
-        el = UserAvatar({}) as Element;
+        result = UserAvatar({});
       },
     });
 
-    expect(el).toBeDefined();
-    const img = el?.querySelector('img');
+    const el = (result as ReadonlySignal<Element>).value;
+    const img = el.querySelector('img');
     expect(img).not.toBeNull();
     expect(img?.getAttribute('src')).toBe('/photo.jpg');
   });
@@ -65,20 +66,50 @@ describe('UserAvatar', () => {
       role: 'user',
       name: 'Jane Doe',
     });
-    let el: Element | undefined;
+    let result: unknown;
 
     AuthContext.Provider({
       value: ctx,
       children: () => {
-        el = UserAvatar({}) as Element;
+        result = UserAvatar({});
       },
     });
 
-    expect(el?.querySelector('img')).toBeNull();
-    expect(el?.innerHTML).toContain('<svg');
+    const el = (result as ReadonlySignal<Element>).value;
+    expect(el.querySelector('img')).toBeNull();
+    expect(el.innerHTML).toContain('<svg');
   });
 
-  it('uses provided user instead of auth context', () => {
+  it('updates reactively when auth user changes', () => {
+    const { ctx, userSignal } = mockAuthContext({
+      id: '1',
+      email: 'jane@example.com',
+      role: 'user',
+      avatarUrl: '/jane.jpg',
+    });
+    let result: unknown;
+
+    AuthContext.Provider({
+      value: ctx,
+      children: () => {
+        result = UserAvatar({});
+      },
+    });
+
+    const sig = result as ReadonlySignal<Element>;
+    expect(sig.value.querySelector('img')?.getAttribute('src')).toBe('/jane.jpg');
+
+    // Update user — avatar should change
+    userSignal.value = {
+      id: '2',
+      email: 'bob@example.com',
+      role: 'user',
+      avatarUrl: '/bob.jpg',
+    };
+    expect(sig.value.querySelector('img')?.getAttribute('src')).toBe('/bob.jpg');
+  });
+
+  it('uses provided user instead of auth context (static, no computed)', () => {
     const overrideUser: User = {
       id: '2',
       email: 'bob@example.com',

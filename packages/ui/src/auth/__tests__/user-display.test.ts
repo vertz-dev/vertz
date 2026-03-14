@@ -35,6 +35,11 @@ describe('getUserDisplayName', () => {
     const user: User = { id: '1', email: 'jane@example.com', role: 'user', name: '' };
     expect(getUserDisplayName(user)).toBe('jane@example.com');
   });
+
+  it('falls through to email when name is whitespace-only', () => {
+    const user: User = { id: '1', email: 'jane@example.com', role: 'user', name: '   ' };
+    expect(getUserDisplayName(user)).toBe('jane@example.com');
+  });
 });
 
 describe('getUserInitials', () => {
@@ -73,6 +78,16 @@ describe('getUserInitials', () => {
 
   it('falls through to email when name is non-string', () => {
     const user: User = { id: '1', email: 'jane@example.com', role: 'user', name: 42 };
+    expect(getUserInitials(user)).toBe('J');
+  });
+
+  it('returns "?" when name is whitespace-only', () => {
+    const user: User = { id: '1', email: '', role: 'user', name: '   ' };
+    expect(getUserInitials(user)).toBe('?');
+  });
+
+  it('returns email initial when name is whitespace-only and email exists', () => {
+    const user: User = { id: '1', email: 'jane@example.com', role: 'user', name: '   ' };
     expect(getUserInitials(user)).toBe('J');
   });
 });
