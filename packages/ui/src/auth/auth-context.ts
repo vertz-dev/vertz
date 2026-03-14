@@ -6,6 +6,7 @@ import { RouterContext } from '../router/router-context';
 import { _tryOnCleanup } from '../runtime/disposal';
 import { computed, signal } from '../runtime/signal';
 import type { ReadonlySignal, Signal } from '../runtime/signal-types';
+import { getSSRContext } from '../ssr/ssr-render-context';
 import { AccessContext } from './access-context';
 import { createAccessEventClient } from './access-event-client';
 import { handleAccessEvent } from './access-event-handler';
@@ -448,6 +449,23 @@ export function AuthProvider({
         void refresh();
       }, 0);
     }
+  } else {
+    // SSR — hydrate from request context if available.
+    // When ssrAuth is set, AuthProvider knows the auth state immediately
+    // instead of staying at 'idle'. This enables ProtectedRoute to issue
+    // an HTTP redirect during SSR rather than rendering fallback content.
+    const ssrCtx = getSSRContext();
+    if (ssrCtx?.ssrAuth) {
+      if (ssrCtx.ssrAuth.status === 'authenticated') {
+        userSignal.value = ssrCtx.ssrAuth.user;
+        statusSignal.value = 'authenticated';
+      } else {
+        statusSignal.value = 'unauthenticated';
+      }
+    }
+    // If ssrAuth is undefined: session resolver not configured.
+    // Status stays 'idle' → ProtectedRoute renders fallback → no SSR redirect.
+    // Client-side redirect handles it after hydration.
   }
 
   // Wrap in AccessContext.Provider when accessControl is enabled

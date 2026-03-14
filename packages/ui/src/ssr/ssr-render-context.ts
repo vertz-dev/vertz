@@ -41,7 +41,30 @@ export interface SSRRenderContext {
    * Used by the build pipeline to discover which routes to pre-render.
    */
   discoveredRoutes?: string[];
+
+  /**
+   * Auth state resolved by the server (e.g. from session cookie).
+   * Set by ssrRenderToString() before Pass 1 so AuthProvider can
+   * hydrate status/user synchronously during SSR.
+   */
+  ssrAuth?: SSRAuth;
+
+  /**
+   * Written by ProtectedRoute during Pass 1 when the user is not
+   * authenticated. Signals ssrRenderToString() to skip Pass 2 and
+   * return a redirect response instead.
+   */
+  ssrRedirect?: { to: string };
 }
+
+/** Auth state injected into SSRRenderContext by the server. */
+export type SSRAuth =
+  | {
+      status: 'authenticated';
+      user: { id: string; email: string; role: string; [key: string]: unknown };
+      expiresAt: number;
+    }
+  | { status: 'unauthenticated' };
 
 type SSRContextResolver = () => SSRRenderContext | undefined;
 

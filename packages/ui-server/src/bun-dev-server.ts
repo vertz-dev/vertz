@@ -22,6 +22,7 @@ import { execSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, watch, writeFileSync } from 'node:fs';
 import { dirname, normalize, resolve } from 'node:path';
 import type { FontFallbackMetrics } from '@vertz/ui';
+import type { SSRAuth } from '@vertz/ui/internals';
 import { imageContentType, isValidImageName } from './bun-plugin/image-paths';
 import { createDebugLogger } from './debug-logger';
 import { handleDevImageProxy } from './dev-image-proxy';
@@ -1252,18 +1253,27 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
 
           // Resolve session in isolated try/catch (graceful degradation)
           let sessionScript = '';
+          let ssrAuth: SSRAuth | undefined;
           if (sessionResolver) {
             try {
               const sessionResult = await sessionResolver(request);
               if (sessionResult) {
+                ssrAuth = {
+                  status: 'authenticated',
+                  user: sessionResult.session.user,
+                  expiresAt: sessionResult.session.expiresAt,
+                };
                 const scripts: string[] = [];
                 scripts.push(createSessionScript(sessionResult.session));
                 if (sessionResult.accessSet != null) {
                   scripts.push(createAccessSetScript(sessionResult.accessSet));
                 }
                 sessionScript = scripts.join('\n');
+              } else {
+                ssrAuth = { status: 'unauthenticated' };
               }
             } catch (resolverErr) {
+              // ssrAuth stays undefined → auth unknown during SSR → no redirect
               console.warn(
                 '[Server] Session resolver failed:',
                 resolverErr instanceof Error ? resolverErr.message : resolverErr,
@@ -1274,15 +1284,25 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
           const doRender = async () => {
             logger.log('ssr', 'render-start', { url: pathname });
             const ssrStart = performance.now();
-            const result = await ssrRenderToString(ssrMod, pathname, {
+            const result = await ssrRenderToString(ssrMod, pathname + url.search, {
               ssrTimeout: 300,
               fallbackMetrics: fontFallbackMetrics,
+              ssrAuth,
             });
             logger.log('ssr', 'render-done', {
               url: pathname,
               durationMs: Math.round(performance.now() - ssrStart),
               htmlBytes: result.html.length,
             });
+
+            // SSR redirect — return 302 instead of rendered HTML
+            if (result.redirect) {
+              return new Response(null, {
+                status: 302,
+                headers: { Location: result.redirect.to },
+              });
+            }
+
             const scriptTag = buildScriptTag(bundledScriptUrl, hmrBootstrapScript, clientSrc);
             const combinedHeadTags = [headTags, result.headTags].filter(Boolean).join('\n');
             const html = generateSSRPageHtml({

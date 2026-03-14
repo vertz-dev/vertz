@@ -7,6 +7,9 @@ import {
   RouterContext,
   RouterView,
 } from '@vertz/ui';
+import { AuthProvider, useAuth } from '@vertz/ui/auth';
+import { getSSRContext } from '@vertz/ui/internals';
+import { ProtectedRoute } from '@vertz/ui-auth';
 import { installDomShim } from '../dom-shim';
 import { registerSSRQuery } from '../ssr-context';
 import { ssrDiscoverQueries, ssrRenderToString, ssrStreamNavQueries } from '../ssr-render';
@@ -805,5 +808,516 @@ describe('ssrRenderToString discoveredRoutes', () => {
 
     expect(result.discoveredRoutes).toContain('/docs');
     expect(result.discoveredRoutes).toContain('/docs/:slug');
+  });
+});
+
+describe('SSR redirect plumbing', () => {
+  describe('Given ssrRenderToString called with ssrAuth option', () => {
+    it('Then the SSRRenderContext has ssrAuth set (unauthenticated)', async () => {
+      let capturedAuth: unknown;
+      const module = {
+        default: () => {
+          const ctx = getSSRContext();
+          capturedAuth = ctx?.ssrAuth;
+          const el = document.createElement('div');
+          el.textContent = 'App';
+          return el;
+        },
+      };
+
+      await ssrRenderToString(module, '/admin', {
+        ssrAuth: { status: 'unauthenticated' },
+      });
+
+      expect(capturedAuth).toEqual({ status: 'unauthenticated' });
+    });
+
+    it('Then the SSRRenderContext has ssrAuth set (authenticated)', async () => {
+      let capturedAuth: unknown;
+      const module = {
+        default: () => {
+          const ctx = getSSRContext();
+          capturedAuth = ctx?.ssrAuth;
+          const el = document.createElement('div');
+          el.textContent = 'App';
+          return el;
+        },
+      };
+
+      const user = { id: '1', email: 'test@example.com', role: 'admin' };
+      await ssrRenderToString(module, '/admin', {
+        ssrAuth: { status: 'authenticated', user, expiresAt: Date.now() + 3600_000 },
+      });
+
+      expect(capturedAuth).toEqual(expect.objectContaining({ status: 'authenticated', user }));
+    });
+
+    it('Then the SSRRenderContext has ssrAuth undefined when not provided', async () => {
+      let capturedAuth: unknown = 'SENTINEL';
+      const module = {
+        default: () => {
+          const ctx = getSSRContext();
+          capturedAuth = ctx?.ssrAuth;
+          const el = document.createElement('div');
+          el.textContent = 'App';
+          return el;
+        },
+      };
+
+      await ssrRenderToString(module, '/admin');
+
+      expect(capturedAuth).toBeUndefined();
+    });
+  });
+
+  describe('Given ctx.ssrRedirect is set during Pass 1', () => {
+    it('Then Pass 2 is skipped and result.redirect is populated', async () => {
+      let callCount = 0;
+      const module = {
+        default: () => {
+          callCount++;
+          // Simulate ProtectedRoute writing ssrRedirect during Pass 1
+          if (callCount === 1) {
+            const ctx = getSSRContext();
+            if (ctx) {
+              ctx.ssrRedirect = { to: '/login?returnTo=%2Fadmin' };
+            }
+          }
+          const el = document.createElement('div');
+          el.textContent = 'Should not render';
+          return el;
+        },
+      };
+
+      const result = await ssrRenderToString(module, '/admin');
+
+      expect(callCount).toBe(1); // Only Pass 1 — Pass 2 skipped
+      expect(result.redirect).toEqual({ to: '/login?returnTo=%2Fadmin' });
+    });
+
+    it('Then result.html, result.css, and result.ssrData are empty', async () => {
+      const module = {
+        default: () => {
+          const ctx = getSSRContext();
+          if (ctx) {
+            ctx.ssrRedirect = { to: '/login' };
+          }
+          const el = document.createElement('div');
+          el.textContent = 'Content';
+          return el;
+        },
+      };
+
+      const result = await ssrRenderToString(module, '/admin');
+
+      expect(result.html).toBe('');
+      expect(result.css).toBe('');
+      expect(result.ssrData).toEqual([]);
+      expect(result.redirect).toEqual({ to: '/login' });
+    });
+  });
+
+  describe('Given url includes search params', () => {
+    it('Then ctx.url includes the full path with search string', async () => {
+      let capturedUrl: string | undefined;
+      const module = {
+        default: () => {
+          const ctx = getSSRContext();
+          capturedUrl = ctx?.url;
+          const el = document.createElement('div');
+          el.textContent = 'App';
+          return el;
+        },
+      };
+
+      await ssrRenderToString(module, '/admin?tab=settings');
+
+      expect(capturedUrl).toBe('/admin?tab=settings');
+    });
+  });
+});
+
+describe('AuthProvider SSR hydration', () => {
+  describe('Given AuthProvider running during SSR with ssrAuth authenticated', () => {
+    it('Then status is "authenticated" and user has user data', async () => {
+      let capturedStatus: unknown;
+      let capturedUser: unknown;
+      const user = { id: '1', email: 'test@example.com', role: 'admin' };
+      const module = {
+        default: () => {
+          const container = document.createElement('div');
+          AuthProvider({
+            children: () => {
+              const auth = useAuth();
+              capturedStatus = auth.status;
+              capturedUser = auth.user;
+              container.textContent = 'Authenticated';
+              return container;
+            },
+          });
+          return container;
+        },
+      };
+
+      await ssrRenderToString(module, '/app', {
+        ssrAuth: { status: 'authenticated', user, expiresAt: Date.now() + 3600_000 },
+      });
+
+      expect(capturedStatus).toBe('authenticated');
+      expect(capturedUser).toEqual(user);
+    });
+  });
+
+  describe('Given AuthProvider running during SSR with ssrAuth unauthenticated', () => {
+    it('Then status is "unauthenticated" and user is null', async () => {
+      let capturedStatus: unknown;
+      let capturedUser: unknown;
+      const module = {
+        default: () => {
+          const container = document.createElement('div');
+          AuthProvider({
+            children: () => {
+              const auth = useAuth();
+              capturedStatus = auth.status;
+              capturedUser = auth.user;
+              container.textContent = 'Unauthenticated';
+              return container;
+            },
+          });
+          return container;
+        },
+      };
+
+      await ssrRenderToString(module, '/app', {
+        ssrAuth: { status: 'unauthenticated' },
+      });
+
+      expect(capturedStatus).toBe('unauthenticated');
+      expect(capturedUser).toBeNull();
+    });
+  });
+
+  describe('Given AuthProvider running during SSR without ssrAuth', () => {
+    it('Then status stays "idle"', async () => {
+      let capturedStatus: unknown;
+      const module = {
+        default: () => {
+          const container = document.createElement('div');
+          AuthProvider({
+            children: () => {
+              const auth = useAuth();
+              capturedStatus = auth.status;
+              container.textContent = 'Idle';
+              return container;
+            },
+          });
+          return container;
+        },
+      };
+
+      await ssrRenderToString(module, '/app');
+
+      expect(capturedStatus).toBe('idle');
+    });
+  });
+});
+
+describe('ProtectedRoute SSR redirect', () => {
+  describe('Given ProtectedRoute during SSR with unauthenticated status', () => {
+    it('Then result.redirect is set with loginPath and returnTo', async () => {
+      const module = {
+        default: () => {
+          const container = document.createElement('div');
+          AuthProvider({
+            children: () => {
+              const result = ProtectedRoute({
+                loginPath: '/login',
+                children: () => {
+                  container.textContent = 'Protected content';
+                  return container;
+                },
+              });
+              // Trigger evaluation of the computed
+              if (result && typeof result === 'object' && 'value' in result) {
+                (result as { value: unknown }).value;
+              }
+              return container;
+            },
+          });
+          return container;
+        },
+      };
+
+      const result = await ssrRenderToString(module, '/admin', {
+        ssrAuth: { status: 'unauthenticated' },
+      });
+
+      expect(result.redirect).toBeDefined();
+      expect(result.redirect!.to).toBe('/login?returnTo=%2Fadmin');
+    });
+  });
+
+  describe('Given ProtectedRoute during SSR with authenticated status', () => {
+    it('Then result.redirect is undefined', async () => {
+      const user = { id: '1', email: 'test@example.com', role: 'user' };
+      const module = {
+        default: () => {
+          const container = document.createElement('div');
+          AuthProvider({
+            children: () => {
+              const result = ProtectedRoute({
+                children: () => {
+                  container.textContent = 'Protected content';
+                  return container;
+                },
+              });
+              if (result && typeof result === 'object' && 'value' in result) {
+                (result as { value: unknown }).value;
+              }
+              return container;
+            },
+          });
+          return container;
+        },
+      };
+
+      const result = await ssrRenderToString(module, '/dashboard', {
+        ssrAuth: { status: 'authenticated', user, expiresAt: Date.now() + 3600_000 },
+      });
+
+      expect(result.redirect).toBeUndefined();
+    });
+  });
+
+  describe('Given ProtectedRoute during SSR with no ssrAuth (idle)', () => {
+    it('Then result.redirect is undefined (no SSR redirect, client handles it)', async () => {
+      const module = {
+        default: () => {
+          const container = document.createElement('div');
+          AuthProvider({
+            children: () => {
+              const result = ProtectedRoute({
+                children: () => {
+                  container.textContent = 'Protected content';
+                  return container;
+                },
+              });
+              if (result && typeof result === 'object' && 'value' in result) {
+                (result as { value: unknown }).value;
+              }
+              return container;
+            },
+          });
+          return container;
+        },
+      };
+
+      const result = await ssrRenderToString(module, '/admin');
+
+      expect(result.redirect).toBeUndefined();
+    });
+  });
+
+  describe('Given ProtectedRoute with returnTo=false during SSR', () => {
+    it('Then redirect has no ?returnTo= query parameter', async () => {
+      const module = {
+        default: () => {
+          const container = document.createElement('div');
+          AuthProvider({
+            children: () => {
+              const result = ProtectedRoute({
+                loginPath: '/login',
+                returnTo: false,
+                children: () => {
+                  container.textContent = 'Protected';
+                  return container;
+                },
+              });
+              if (result && typeof result === 'object' && 'value' in result) {
+                (result as { value: unknown }).value;
+              }
+              return container;
+            },
+          });
+          return container;
+        },
+      };
+
+      const result = await ssrRenderToString(module, '/admin', {
+        ssrAuth: { status: 'unauthenticated' },
+      });
+
+      expect(result.redirect).toBeDefined();
+      expect(result.redirect!.to).toBe('/login');
+    });
+  });
+
+  describe('Given ProtectedRoute with custom loginPath during SSR', () => {
+    it('Then redirect uses the custom loginPath', async () => {
+      const module = {
+        default: () => {
+          const container = document.createElement('div');
+          AuthProvider({
+            children: () => {
+              const result = ProtectedRoute({
+                loginPath: '/auth/signin',
+                children: () => {
+                  container.textContent = 'Protected';
+                  return container;
+                },
+              });
+              if (result && typeof result === 'object' && 'value' in result) {
+                (result as { value: unknown }).value;
+              }
+              return container;
+            },
+          });
+          return container;
+        },
+      };
+
+      const result = await ssrRenderToString(module, '/admin', {
+        ssrAuth: { status: 'unauthenticated' },
+      });
+
+      expect(result.redirect).toBeDefined();
+      expect(result.redirect!.to).toBe('/auth/signin?returnTo=%2Fadmin');
+    });
+  });
+
+  describe('Given request URL with query params during SSR', () => {
+    it('Then returnTo preserves the full path including query string', async () => {
+      const module = {
+        default: () => {
+          const container = document.createElement('div');
+          AuthProvider({
+            children: () => {
+              const result = ProtectedRoute({
+                loginPath: '/login',
+                children: () => {
+                  container.textContent = 'Protected';
+                  return container;
+                },
+              });
+              if (result && typeof result === 'object' && 'value' in result) {
+                (result as { value: unknown }).value;
+              }
+              return container;
+            },
+          });
+          return container;
+        },
+      };
+
+      const result = await ssrRenderToString(module, '/admin?tab=settings', {
+        ssrAuth: { status: 'unauthenticated' },
+      });
+
+      expect(result.redirect).toBeDefined();
+      expect(result.redirect!.to).toBe('/login?returnTo=%2Fadmin%3Ftab%3Dsettings');
+    });
+  });
+
+  describe('Given authenticated request to a non-protected route', () => {
+    it('Then server renders HTML normally (ssrAuth does not interfere)', async () => {
+      const module = {
+        default: () => {
+          const container = document.createElement('div');
+          AuthProvider({
+            children: () => {
+              // No ProtectedRoute — just normal content
+              container.textContent = 'Public page';
+              return container;
+            },
+          });
+          return container;
+        },
+      };
+
+      const user = { id: '1', email: 'test@example.com', role: 'user' };
+      const result = await ssrRenderToString(module, '/public', {
+        ssrAuth: { status: 'authenticated', user, expiresAt: Date.now() + 3600_000 },
+      });
+
+      expect(result.redirect).toBeUndefined();
+      expect(result.html).toContain('Public page');
+    });
+  });
+
+  describe('Given a redirect result from ssrRenderToString', () => {
+    it('Then result.ssrData is empty (no queries resolved)', async () => {
+      const module = {
+        default: () => {
+          const container = document.createElement('div');
+          AuthProvider({
+            children: () => {
+              const result = ProtectedRoute({
+                children: () => {
+                  container.textContent = 'Protected';
+                  return container;
+                },
+              });
+              if (result && typeof result === 'object' && 'value' in result) {
+                (result as { value: unknown }).value;
+              }
+              return container;
+            },
+          });
+          return container;
+        },
+      };
+
+      const result = await ssrRenderToString(module, '/admin', {
+        ssrAuth: { status: 'unauthenticated' },
+      });
+
+      expect(result.redirect).toBeDefined();
+      expect(result.ssrData).toEqual([]);
+    });
+  });
+
+  describe('Given nested ProtectedRoute components during SSR', () => {
+    it('Then the first ProtectedRoute writes ssrRedirect and redirect is returned', async () => {
+      const module = {
+        default: () => {
+          const container = document.createElement('div');
+          AuthProvider({
+            children: () => {
+              // Outer ProtectedRoute
+              const outer = ProtectedRoute({
+                loginPath: '/login',
+                children: () => {
+                  // Inner ProtectedRoute (nested)
+                  const inner = ProtectedRoute({
+                    loginPath: '/inner-login',
+                    children: () => {
+                      container.textContent = 'Deeply protected';
+                      return container;
+                    },
+                  });
+                  if (inner && typeof inner === 'object' && 'value' in inner) {
+                    (inner as { value: unknown }).value;
+                  }
+                  return container;
+                },
+              });
+              if (outer && typeof outer === 'object' && 'value' in outer) {
+                (outer as { value: unknown }).value;
+              }
+              return container;
+            },
+          });
+          return container;
+        },
+      };
+
+      const result = await ssrRenderToString(module, '/admin', {
+        ssrAuth: { status: 'unauthenticated' },
+      });
+
+      expect(result.redirect).toBeDefined();
+      // Redirect URL contains loginPath (either outer or inner — both are valid)
+      expect(result.redirect!.to).toContain('returnTo=%2Fadmin');
+    });
   });
 });
