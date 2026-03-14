@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import type { OAuthProviderInfo } from '../auth-types';
+import type { OAuthProviderInfo } from '@vertz/ui/auth';
 import { OAuthButton } from '../oauth-button';
 import { OAuthButtons } from '../oauth-buttons';
 
@@ -10,14 +10,13 @@ const providers: OAuthProviderInfo[] = [
 
 describe('OAuthButton', () => {
   it('renders a button with "Continue with" text for known provider', () => {
-    const el = OAuthButton({ provider: 'github', _providers: providers });
-    expect(el).toBeDefined();
+    const el = OAuthButton({ provider: 'github', _providers: providers }) as HTMLElement;
     expect(el.tagName).toBe('BUTTON');
     expect(el.textContent).toContain('Continue with GitHub');
   });
 
   it('renders the provider icon', () => {
-    const el = OAuthButton({ provider: 'github', _providers: providers });
+    const el = OAuthButton({ provider: 'github', _providers: providers }) as HTMLElement;
     expect(el.innerHTML).toContain('<svg');
   });
 
@@ -30,7 +29,7 @@ describe('OAuthButton', () => {
       Object.defineProperty(window, 'location', { value: locationMock, writable: true });
     }
 
-    const el = OAuthButton({ provider: 'github', _providers: providers });
+    const el = OAuthButton({ provider: 'github', _providers: providers }) as HTMLElement;
     (el as HTMLButtonElement).click();
 
     expect(locationMock.href).toBe('/api/auth/oauth/github');
@@ -43,7 +42,7 @@ describe('OAuthButton', () => {
   });
 
   it('renders empty span when provider is not in list', () => {
-    const el = OAuthButton({ provider: 'gitlab', _providers: providers });
+    const el = OAuthButton({ provider: 'gitlab', _providers: providers }) as HTMLElement;
     expect(el.tagName).toBe('SPAN');
     expect(el.textContent).toBe('');
   });
@@ -53,18 +52,26 @@ describe('OAuthButton', () => {
       provider: 'github',
       label: 'Sign in with GitHub',
       _providers: providers,
-    });
+    }) as HTMLElement;
     expect(el.textContent).toContain('Sign in with GitHub');
   });
 
   it('renders icon only when iconOnly is true', () => {
-    const el = OAuthButton({ provider: 'github', iconOnly: true, _providers: providers });
+    const el = OAuthButton({
+      provider: 'github',
+      iconOnly: true,
+      _providers: providers,
+    }) as HTMLElement;
     expect(el.innerHTML).toContain('<svg');
     expect(el.textContent).not.toContain('Continue');
   });
 
   it('sets aria-label when iconOnly is true', () => {
-    const el = OAuthButton({ provider: 'github', iconOnly: true, _providers: providers });
+    const el = OAuthButton({
+      provider: 'github',
+      iconOnly: true,
+      _providers: providers,
+    }) as HTMLElement;
     expect(el.getAttribute('aria-label')).toBe('Continue with GitHub');
   });
 
@@ -81,10 +88,9 @@ describe('OAuthButton', () => {
       { id: 'evil', name: 'Evil', authUrl: 'javascript:alert(1)' },
     ];
 
-    const el = OAuthButton({ provider: 'evil', _providers: dangerousProviders });
+    const el = OAuthButton({ provider: 'evil', _providers: dangerousProviders }) as HTMLElement;
     (el as HTMLButtonElement).click();
 
-    // Should redirect to '#' instead of the dangerous URL
     expect(locationMock.href).toBe('#');
 
     if (origLocation) {
@@ -97,13 +103,13 @@ describe('OAuthButton', () => {
 
 describe('OAuthButtons', () => {
   it('renders a button for each configured provider', () => {
-    const el = OAuthButtons({ _providers: providers });
+    const el = OAuthButtons({ _providers: providers }) as HTMLElement;
     const buttons = el.querySelectorAll('button');
     expect(buttons.length).toBe(2);
   });
 
   it('renders nothing when no providers configured', () => {
-    const el = OAuthButtons({ _providers: [] });
+    const el = OAuthButtons({ _providers: [] }) as HTMLElement;
     const buttons = el.querySelectorAll('button');
     expect(buttons.length).toBe(0);
   });

@@ -7,7 +7,7 @@
  */
 
 import { createRouter, defineRoutes, onMount, useRouter } from '@vertz/ui';
-import { ProtectedRoute } from '@vertz/ui/auth';
+import { ProtectedRoute } from '@vertz/ui-auth';
 import { WorkspaceShell } from './components/auth-guard';
 import { LoginPage } from './pages/login-page';
 import { ProjectsPage } from './pages/projects-page';

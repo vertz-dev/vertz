@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'bun:test';
-import { signal } from '../../runtime/signal';
-import type { ReadonlySignal } from '../../runtime/signal-types';
-import { AccessContext, type AccessContextValue } from '../access-context';
+import type { ReadonlySignal } from '@vertz/ui';
+import { signal } from '@vertz/ui';
+import type { AccessContextValue, AccessSet } from '@vertz/ui/auth';
+import { AccessContext } from '@vertz/ui/auth';
 import { AccessGate } from '../access-gate';
-import type { AccessSet } from '../access-set-types';
 
 function makeAccessSet(): AccessSet {
   return {
@@ -28,7 +28,6 @@ describe('AccessGate', () => {
       });
     });
 
-    // Result is a computed signal — read .value to get current value
     expect((result as ReadonlySignal<unknown>).value).toBe('loading...');
   });
 
@@ -54,7 +53,6 @@ describe('AccessGate', () => {
       children: () => 'content',
     });
 
-    // No provider — renders children directly (not a signal)
     expect(result).toBe('content');
   });
 
@@ -65,9 +63,7 @@ describe('AccessGate', () => {
 
     let result: unknown;
     AccessContext.Provider(value, () => {
-      result = AccessGate({
-        children: () => 'content',
-      });
+      result = AccessGate({ children: () => 'content' });
     });
 
     expect((result as ReadonlySignal<unknown>).value).toBeNull();
@@ -87,10 +83,8 @@ describe('AccessGate', () => {
     });
 
     const reactiveResult = result as ReadonlySignal<unknown>;
-    // Initially loading — shows fallback
     expect(reactiveResult.value).toBe('loading...');
 
-    // Access set loads — should reactively switch to children
     accessSet.value = makeAccessSet();
     loading.value = false;
 

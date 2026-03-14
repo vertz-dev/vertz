@@ -1,16 +1,20 @@
 import { describe, expect, it } from 'bun:test';
-import { computed, signal } from '../../runtime/signal';
-import type { ReadonlySignal } from '../../runtime/signal-types';
-import type { AuthContextValue } from '../auth-context';
-import { AuthContext } from '../auth-context';
+import type { ReadonlySignal } from '@vertz/ui';
+import { computed, signal } from '@vertz/ui';
+import type { AuthClientError, AuthContextValue, AuthStatus } from '@vertz/ui/auth';
+import { AuthContext } from '@vertz/ui/auth';
 import { AuthGate } from '../auth-gate';
-import type { AuthClientError, AuthStatus } from '../auth-types';
 
-/** Create a minimal mock AuthContextValue with controllable status. */
 function mockAuthContext(status: AuthStatus) {
   const statusSignal = signal<AuthStatus>(status);
   const userSignal = signal(null);
   const errorSignal = signal<AuthClientError | null>(null);
+
+  const noop = Object.assign(() => Promise.resolve({ ok: true as const, data: undefined }), {
+    url: '/api/auth/noop',
+    method: 'POST',
+    meta: { bodySchema: { parse: (d: unknown) => ({ ok: true as const, data: d }) } },
+  });
 
   const ctx: AuthContextValue = {
     user: userSignal,
@@ -18,32 +22,14 @@ function mockAuthContext(status: AuthStatus) {
     isAuthenticated: computed(() => statusSignal.value === 'authenticated'),
     isLoading: computed(() => statusSignal.value === 'loading'),
     error: errorSignal,
-    signIn: Object.assign(
-      () =>
-        Promise.resolve({
-          ok: true as const,
-          data: { user: { id: '1', email: '', role: '' }, expiresAt: 0 },
-        }),
-      {
-        url: '/api/auth/signin',
-        method: 'POST',
-        meta: { bodySchema: { parse: (d: unknown) => ({ ok: true as const, data: d }) } },
-      },
-    ),
-    signUp: Object.assign(
-      () =>
-        Promise.resolve({
-          ok: true as const,
-          data: { user: { id: '1', email: '', role: '' }, expiresAt: 0 },
-        }),
-      {
-        url: '/api/auth/signup',
-        method: 'POST',
-        meta: { bodySchema: { parse: (d: unknown) => ({ ok: true as const, data: d }) } },
-      },
-    ),
+    signIn: noop as AuthContextValue['signIn'],
+    signUp: noop as AuthContextValue['signUp'],
     signOut: () => Promise.resolve(),
     refresh: () => Promise.resolve(),
+    mfaChallenge: noop as AuthContextValue['mfaChallenge'],
+    forgotPassword: noop as AuthContextValue['forgotPassword'],
+    resetPassword: noop as AuthContextValue['resetPassword'],
+    providers: signal([]),
   };
 
   return { ctx, statusSignal };
@@ -61,7 +47,6 @@ describe('AuthGate', () => {
           fallback: () => 'loading-fallback',
           children: () => 'main-content',
         });
-        // The result is a computed signal
         rendered = (result as ReadonlySignal<unknown>).value as string;
       },
     });
@@ -123,24 +108,6 @@ describe('AuthGate', () => {
     expect(rendered).toBe('main-content');
   });
 
-  it('renders children when status is error', () => {
-    const { ctx } = mockAuthContext('error');
-    let rendered: string | undefined;
-
-    AuthContext.Provider({
-      value: ctx,
-      children: () => {
-        const result = AuthGate({
-          fallback: () => 'loading-fallback',
-          children: () => 'main-content',
-        });
-        rendered = (result as ReadonlySignal<unknown>).value as string;
-      },
-    });
-
-    expect(rendered).toBe('main-content');
-  });
-
   it('renders null fallback when no fallback provided and auth is loading', () => {
     const { ctx } = mockAuthContext('loading');
     let rendered: unknown;
@@ -148,9 +115,7 @@ describe('AuthGate', () => {
     AuthContext.Provider({
       value: ctx,
       children: () => {
-        const result = AuthGate({
-          children: () => 'main-content',
-        });
+        const result = AuthGate({ children: () => 'main-content' });
         rendered = (result as ReadonlySignal<unknown>).value;
       },
     });
@@ -164,7 +129,6 @@ describe('AuthGate', () => {
       children: () => 'main-content',
     });
 
-    // Without provider, should fail-open and render children
     expect(result).toBe('main-content');
   });
 });

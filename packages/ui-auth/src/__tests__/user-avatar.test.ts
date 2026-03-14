@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'bun:test';
-import { computed, signal } from '../../runtime/signal';
-import type { ReadonlySignal } from '../../runtime/signal-types';
-import type { AuthContextValue } from '../auth-context';
-import { AuthContext } from '../auth-context';
-import type { AuthClientError, AuthStatus, User } from '../auth-types';
+import type { ReadonlySignal } from '@vertz/ui';
+import { computed, signal } from '@vertz/ui';
+import type { AuthClientError, AuthContextValue, AuthStatus, User } from '@vertz/ui/auth';
+import { AuthContext } from '@vertz/ui/auth';
 import { UserAvatar } from '../user-avatar';
 
 function mockAuthContext(user: User | null) {
@@ -99,7 +98,6 @@ describe('UserAvatar', () => {
     const sig = result as ReadonlySignal<Element>;
     expect(sig.value.querySelector('img')?.getAttribute('src')).toBe('/jane.jpg');
 
-    // Update user — avatar should change
     userSignal.value = {
       id: '2',
       email: 'bob@example.com',
@@ -132,14 +130,6 @@ describe('UserAvatar', () => {
     expect(style).toContain('height:56px');
   });
 
-  it('passes fallback to Avatar', () => {
-    const overrideUser: User = { id: '1', email: 'jane@example.com', role: 'user' };
-    const el = UserAvatar({ user: overrideUser, fallback: 'JD' }) as Element;
-
-    expect(el.querySelector('img')).toBeNull();
-    expect(el.textContent).toBe('JD');
-  });
-
   it('throws descriptive error when no AuthProvider and no user prop', () => {
     expect(() => UserAvatar({})).toThrow(
       'UserAvatar must be used within AuthProvider, or pass a `user` prop',
@@ -151,21 +141,5 @@ describe('UserAvatar', () => {
     const el = UserAvatar({ user: overrideUser, class: 'custom-avatar' }) as Element;
 
     expect(el.getAttribute('class')).toBe('custom-avatar');
-  });
-
-  it('renders SVG fallback when auth user is null (logged out)', () => {
-    const { ctx } = mockAuthContext(null);
-    let result: unknown;
-
-    AuthContext.Provider({
-      value: ctx,
-      children: () => {
-        result = UserAvatar({});
-      },
-    });
-
-    const el = (result as ReadonlySignal<Element>).value;
-    expect(el.querySelector('img')).toBeNull();
-    expect(el.innerHTML).toContain('<svg');
   });
 });

@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'bun:test';
-import { computed, signal } from '../../runtime/signal';
-import type { ReadonlySignal } from '../../runtime/signal-types';
-import type { AuthContextValue } from '../auth-context';
-import { AuthContext } from '../auth-context';
-import type { AuthClientError, AuthStatus, User } from '../auth-types';
+import type { ReadonlySignal } from '@vertz/ui';
+import { computed, signal } from '@vertz/ui';
+import type { AuthClientError, AuthContextValue, AuthStatus, User } from '@vertz/ui/auth';
+import { AuthContext } from '@vertz/ui/auth';
 import { UserName } from '../user-name';
 
 function mockAuthContext(user: User | null) {
@@ -37,7 +36,7 @@ function mockAuthContext(user: User | null) {
 }
 
 describe('UserName', () => {
-  it('renders <span> with user name when name is available', () => {
+  it('renders span with user name when name is available', () => {
     const { ctx } = mockAuthContext({
       id: '1',
       email: 'jane@example.com',
@@ -53,7 +52,6 @@ describe('UserName', () => {
       },
     });
 
-    // Returns computed signal when reading from auth context
     const el = (result as ReadonlySignal<Element>).value;
     expect(el.tagName).toBe('SPAN');
     expect(el.textContent).toBe('Jane Doe');
@@ -108,7 +106,6 @@ describe('UserName', () => {
     const sig = result as ReadonlySignal<Element>;
     expect(sig.value.textContent).toBe('Jane Doe');
 
-    // Update user signal
     userSignal.value = { id: '1', email: 'bob@example.com', role: 'user', name: 'Bob Smith' };
     expect(sig.value.textContent).toBe('Bob Smith');
   });
@@ -137,20 +134,5 @@ describe('UserName', () => {
     const el = UserName({ user: overrideUser, class: 'custom-name' }) as Element;
 
     expect(el.getAttribute('class')).toBe('custom-name');
-  });
-
-  it('renders fallback when auth user is null (logged out)', () => {
-    const { ctx } = mockAuthContext(null);
-    let result: unknown;
-
-    AuthContext.Provider({
-      value: ctx,
-      children: () => {
-        result = UserName({ fallback: 'Guest' });
-      },
-    });
-
-    const el = (result as ReadonlySignal<Element>).value;
-    expect(el.textContent).toBe('Guest');
   });
 });

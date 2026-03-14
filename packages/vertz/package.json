@@ -73,6 +73,10 @@
     "./ui-server/bun-plugin": {
       "import": "./dist/ui-server-bun-plugin.js",
       "types": "./dist/ui-server-bun-plugin.d.ts"
+    },
+    "./ui-auth": {
+      "import": "./dist/ui-auth.js",
+      "types": "./dist/ui-auth.d.ts"
     }
   },
   "scripts": {
@@ -92,6 +96,7 @@
     "@vertz/cloudflare": "workspace:^",
     "@vertz/tui": "workspace:^",
     "@vertz/ui-primitives": "workspace:^",
+    "@vertz/ui-auth": "workspace:^",
     "@vertz/ui-server": "workspace:^"
   },
   "devDependencies": {}

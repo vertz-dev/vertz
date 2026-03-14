@@ -218,7 +218,7 @@ describe('Access Set — Client Integration', () => {
   // Dynamic import to avoid issues with module resolution at test file load time
   let AccessContext: typeof import('@vertz/ui/auth').AccessContext;
   let can: typeof import('@vertz/ui/auth').can;
-  let AccessGate: typeof import('@vertz/ui/auth').AccessGate;
+  let AccessGate: typeof import('@vertz/ui-auth').AccessGate;
   let createAccessProvider: typeof import('@vertz/ui/auth').createAccessProvider;
   let loaded = false;
 
@@ -227,8 +227,9 @@ describe('Access Set — Client Integration', () => {
     const mod = await import('@vertz/ui/auth');
     AccessContext = mod.AccessContext;
     can = mod.can;
-    AccessGate = mod.AccessGate;
     createAccessProvider = mod.createAccessProvider;
+    const authUiMod = await import('@vertz/ui-auth');
+    AccessGate = authUiMod.AccessGate;
     loaded = true;
   }
 
