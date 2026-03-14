@@ -1,13 +1,13 @@
 #!/usr/bin/env bun
 
 /**
- * Demo: Native Vertz app with flexbox layout.
+ * Demo: Native Vertz app with flexbox layout and text rendering.
  *
  * This shows:
  * - NativeElement scene graph with Yoga flexbox layout
+ * - FreeType text rendering via glyph atlas + OpenGL textured quads
  * - Padding, gap, flexGrow, row/column direction
- * - collectDrawCommands() using computed Yoga layout
- * - GLRenderer drawing rectangles via batched shaders
+ * - Responsive resize
  *
  * Run: bun packages/ui-native/examples/demo-app.ts
  */
@@ -16,6 +16,7 @@ import { NativeElement, NativeTextNode } from '../src/native-element';
 import { GL_COLOR_BUFFER_BIT, loadGL } from '../src/render/gl-ffi';
 import { createGLRenderer } from '../src/render/gl-renderer';
 import { collectDrawCommands } from '../src/render/renderer';
+import { createTextRenderer } from '../src/text/text-renderer';
 import { createNativeWindow } from '../src/window/native-window';
 
 // --- Build a scene graph with flexbox layout ---
@@ -30,7 +31,7 @@ const header = new NativeElement('header');
 header.setAttribute('style:bg', '#16213e');
 header.setAttribute('style:height', '48');
 header.setAttribute('style:padding', '12');
-header.appendChild(new NativeTextNode('Vertz Native — Flexbox Layout'));
+header.appendChild(new NativeTextNode('Vertz Native — Text Rendering'));
 root.appendChild(header);
 
 // Card row — horizontal layout
@@ -42,14 +43,14 @@ cardRow.setAttribute('style:height', '80');
 const card1 = new NativeElement('div');
 card1.setAttribute('style:bg', '#0f3460');
 card1.setAttribute('style:flexGrow', '1');
-card1.setAttribute('style:padding', '8');
+card1.setAttribute('style:padding', '12');
 card1.appendChild(new NativeTextNode('54 MB memory'));
 cardRow.appendChild(card1);
 
 const card2 = new NativeElement('div');
 card2.setAttribute('style:bg', '#533483');
 card2.setAttribute('style:flexGrow', '1');
-card2.setAttribute('style:padding', '8');
+card2.setAttribute('style:padding', '12');
 card2.appendChild(new NativeTextNode('No WebView'));
 cardRow.appendChild(card2);
 
@@ -62,7 +63,6 @@ content.setAttribute('style:flexGrow', '1');
 content.setAttribute('style:padding', '12');
 content.setAttribute('style:gap', '8');
 
-// Two rows inside content
 const row1 = new NativeElement('div');
 row1.setAttribute('style:bg', '#e94560');
 row1.setAttribute('style:height', '40');
@@ -74,7 +74,7 @@ const row2 = new NativeElement('div');
 row2.setAttribute('style:bg', '#2d6a4f');
 row2.setAttribute('style:flexGrow', '1');
 row2.setAttribute('style:padding', '8');
-row2.appendChild(new NativeTextNode('Yoga flexbox layout'));
+row2.appendChild(new NativeTextNode('FreeType + OpenGL text rendering'));
 content.appendChild(row2);
 
 root.appendChild(content);
@@ -91,41 +91,54 @@ root.appendChild(footer);
 
 const WIDTH = 600;
 const HEIGHT = 400;
+const FONT_PATH = '/System/Library/Fonts/Supplemental/Arial.ttf';
 
 const win = createNativeWindow({
-  title: 'Vertz Native — Phase 3 Flexbox',
+  title: 'Vertz Native — Phase 4 Text',
   width: WIDTH,
   height: HEIGHT,
 });
 
 const gl = loadGL();
-const renderer = createGLRenderer(gl);
+const rectRenderer = createGLRenderer(gl);
+const textRenderer = createTextRenderer(gl, FONT_PATH, 16);
 
-console.log('Vertz Native Demo — Yoga flexbox layout + OpenGL shaders');
+console.log('Vertz Native Demo — FreeType text + Yoga layout + OpenGL shaders');
 console.log('Close the window to exit');
 
 let logged = false;
 
 win.runLoop(() => {
-  // Read current framebuffer size (changes on resize)
   const w = win.width;
   const h = win.height;
 
   const commands = collectDrawCommands(root, w, h);
   const rects = commands.filter((c) => c.type === 'rect' && c.color !== 'transparent');
+  const texts = commands.filter((c) => c.type === 'text');
 
   gl.glClearColor(0.1, 0.1, 0.18, 1.0);
   gl.glClear(GL_COLOR_BUFFER_BIT);
   gl.glViewport(0, 0, w, h);
 
-  renderer.renderRects(rects as import('../src/render/renderer').RectCommand[], w, h);
+  // Draw rectangles first
+  rectRenderer.renderRects(rects as import('../src/render/renderer').RectCommand[], w, h);
+
+  // Draw text on top
+  for (const cmd of texts) {
+    if (cmd.type === 'text') {
+      textRenderer.renderText(cmd.text, cmd.x, cmd.y, [1, 1, 1, 1], w, h);
+    }
+  }
 
   if (!logged) {
-    console.log(`Rendering ${rects.length} rectangles, ${commands.length} total commands`);
+    console.log(
+      `Rendering ${rects.length} rects, ${texts.length} text commands, ${commands.length} total`,
+    );
     logged = true;
   }
 });
 
-renderer.dispose();
+rectRenderer.dispose();
+textRenderer.dispose();
 console.log('Window closed.');
 win.destroy();

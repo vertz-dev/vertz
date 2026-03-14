@@ -73,13 +73,17 @@ function traverseElement(
   for (const child of el.children) {
     if (child instanceof NativeTextNode) {
       const parentLayout = layout || { x: 0, y: 0 };
+      const padAll = Number(el.getAttribute('style:padding') || 0);
+      const padLeft = Number(el.getAttribute('style:paddingLeft') || padAll);
+      const padTop = Number(el.getAttribute('style:paddingTop') || padAll);
+      const fontSize = Number(el.getAttribute('style:fontSize') || 14);
       commands.push({
         type: 'text',
-        x: parentLayout.x + 4,
-        y: parentLayout.y + 16,
+        x: parentLayout.x + padLeft,
+        y: parentLayout.y + padTop,
         text: child.data,
-        color: '#000000',
-        fontSize: 14,
+        color: el.getAttribute('style:color') || '#ffffff',
+        fontSize,
       });
     } else if (child instanceof NativeElement) {
       traverseElement(child, layouts, commands);

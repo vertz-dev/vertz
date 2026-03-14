@@ -22,6 +22,17 @@ export const GL_VERTEX_SHADER = 0x8b31;
 export const GL_FRAGMENT_SHADER = 0x8b30;
 export const GL_COMPILE_STATUS = 0x8b81;
 export const GL_LINK_STATUS = 0x8b82;
+export const GL_TEXTURE_2D = 0x0de1;
+export const GL_TEXTURE_WRAP_S = 0x2802;
+export const GL_TEXTURE_WRAP_T = 0x2803;
+export const GL_TEXTURE_MIN_FILTER = 0x2801;
+export const GL_TEXTURE_MAG_FILTER = 0x2800;
+export const GL_CLAMP_TO_EDGE = 0x812f;
+export const GL_LINEAR = 0x2601;
+export const GL_RED = 0x1903;
+export const GL_UNSIGNED_BYTE = 0x1401;
+export const GL_UNPACK_ALIGNMENT = 0x0cf5;
+export const GL_TEXTURE0 = 0x84c0;
 
 export interface GLBindings {
   glClearColor(r: number, g: number, b: number, a: number): void;
@@ -69,6 +80,35 @@ export interface GLBindings {
     length: Uint8Array | null,
     infoLog: Uint8Array,
   ): void;
+  // Textures
+  glGenTextures(n: number, textures: Uint8Array): void;
+  glBindTexture(target: number, texture: number): void;
+  glTexImage2D(
+    target: number,
+    level: number,
+    internalformat: number,
+    width: number,
+    height: number,
+    border: number,
+    format: number,
+    type: number,
+    data: Uint8Array | null,
+  ): void;
+  glTexSubImage2D(
+    target: number,
+    level: number,
+    xoffset: number,
+    yoffset: number,
+    width: number,
+    height: number,
+    format: number,
+    type: number,
+    data: Uint8Array,
+  ): void;
+  glTexParameteri(target: number, pname: number, param: number): void;
+  glPixelStorei(pname: number, param: number): void;
+  glActiveTexture(texture: number): void;
+  glUniform1i(location: number, v0: number): void;
 }
 
 /**
@@ -139,6 +179,19 @@ export function loadGL(): GLBindings {
     glGetShaderInfoLog: { args: [u32, i32, ptrType, ptrType], returns: ffiVoid },
     glGetProgramiv: { args: [u32, u32, ptrType], returns: ffiVoid },
     glGetProgramInfoLog: { args: [u32, i32, ptrType, ptrType], returns: ffiVoid },
+    // Textures
+    glGenTextures: { args: [i32, ptrType], returns: ffiVoid },
+    glBindTexture: { args: [u32, u32], returns: ffiVoid },
+    glTexImage2D: { args: [u32, i32, i32, i32, i32, i32, u32, u32, ptrType], returns: ffiVoid },
+    glTexSubImage2D: {
+      args: [u32, i32, i32, i32, i32, i32, u32, u32, ptrType],
+      returns: ffiVoid,
+    },
+    glTexParameteri: { args: [u32, u32, i32], returns: ffiVoid },
+    glPixelStorei: { args: [u32, i32], returns: ffiVoid },
+    glActiveTexture: { args: [u32], returns: ffiVoid },
+    // Uniforms (additional)
+    glUniform1i: { args: [i32, i32], returns: ffiVoid },
   });
 
   return lib.symbols as unknown as GLBindings;
