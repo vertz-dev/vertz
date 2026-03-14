@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun run src/dev-server.ts",
+    "dev:desktop": "electrobun dev",
     "codegen": "bun node_modules/@vertz/cli/dist/vertz.js codegen",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
