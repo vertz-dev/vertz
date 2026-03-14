@@ -11,6 +11,7 @@ import {
   detectFaviconTag,
   formatTerminalRuntimeError,
   generateSSRPageHtml,
+  isStaleGraphError,
   parseHMRAssets,
 } from '../bun-dev-server';
 
@@ -112,6 +113,27 @@ describe('createBunDevServer', () => {
     });
 
     expect(server).toBeDefined();
+  });
+
+  it('returns an object with a restart method', () => {
+    const server = createBunDevServer({
+      entry: './src/app.tsx',
+    });
+
+    expect(typeof server.restart).toBe('function');
+  });
+
+  it('restart() is safe to call before start()', async () => {
+    const consoleSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const consoleErrSpy = spyOn(console, 'error').mockImplementation(() => {});
+    const server = createBunDevServer({
+      entry: './src/app.tsx',
+    });
+
+    // Should not throw — restart handles the case where server is not running
+    await server.restart();
+    consoleSpy.mockRestore();
+    consoleErrSpy.mockRestore();
   });
 
   it('stop() can be called multiple times safely', async () => {
@@ -507,6 +529,60 @@ describe('generateSSRPageHtml', () => {
     expect(html).toContain('__vertz_overlay');
   });
 
+  it('error channel script includes stale-graph error detection', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    // Should include inline isStaleGraph function that detects export-specific errors
+    expect(html).toContain('isStaleGraph');
+    expect(html).toContain('Export named');
+    expect(html).toContain('not found in module');
+  });
+
+  it('error channel script includes "Restart Server" button for stale-graph errors', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    expect(html).toContain('Restart Server');
+    expect(html).toContain('__vertz_restart');
+  });
+
+  it('error channel script handles restarting message from WebSocket', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    expect(html).toContain("'restarting'");
+    expect(html).toContain('Restarting dev server');
+  });
+
+  it('error channel script reloads page after reconnect following restart', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    // When _restarting flag is set and connected message arrives, should reload
+    expect(html).toContain('_restarting');
+  });
+
   it('does not embed build error data element (errors fetched via /__vertz_build_check)', () => {
     const html = generateSSRPageHtml({
       title: 'App',
@@ -812,6 +888,40 @@ describe('createRuntimeErrorDeduplicator', () => {
     dedup.reset();
 
     expect(dedup.shouldLog('Error: foo', 'src/a.tsx', 10)).toBe(true);
+  });
+});
+
+describe('isStaleGraphError', () => {
+  it('returns true for "Export named X not found in module Y"', () => {
+    expect(
+      isStaleGraphError("Export named 'button' not found in module './styles/components.ts'"),
+    ).toBe(true);
+  });
+
+  it('returns true for "No matching export" errors', () => {
+    expect(isStaleGraphError("No matching export in './utils.ts' for import 'helper'")).toBe(true);
+  });
+
+  it('returns true for "does not provide an export named" errors', () => {
+    expect(
+      isStaleGraphError("./styles/components.ts does not provide an export named 'button'"),
+    ).toBe(true);
+  });
+
+  it('returns false for generic runtime errors', () => {
+    expect(isStaleGraphError("Cannot read property 'foo' of undefined")).toBe(false);
+  });
+
+  it('returns false for syntax errors', () => {
+    expect(isStaleGraphError("Unexpected token '}'")).toBe(false);
+  });
+
+  it('returns false for "Could not resolve" errors (handled by resolve category)', () => {
+    expect(isStaleGraphError("Could not resolve './missing-module'")).toBe(false);
+  });
+
+  it('returns false for empty string', () => {
+    expect(isStaleGraphError('')).toBe(false);
   });
 });
 
