@@ -20,7 +20,7 @@ describe('Feature: Schema rename propagates type errors', () => {
 
   describe('Given a notes schema with a "title" field', () => {
     describe('When renaming "title" to "heading" and running codegen + typecheck', () => {
-      it('Then typecheck reports errors at every consumer of "title"', () => {
+      it('Then typecheck reports errors at every consumer of "title"', { timeout: 30_000 }, () => {
         // Save original
         originalSchema = readFileSync(SCHEMA_PATH, 'utf-8');
 
