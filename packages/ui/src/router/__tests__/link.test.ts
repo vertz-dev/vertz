@@ -63,6 +63,27 @@ describe('Link component', () => {
     expect(el.classList.contains('nav-link')).toBe(true);
   });
 
+  test('applies class prop to the anchor', () => {
+    const currentPath = signal('/');
+    const navigate = vi.fn();
+    const Link = createLink(currentPath, navigate);
+
+    const el = Link({ children: 'Home', class: 'nav-link', href: '/' });
+
+    expect(el.classList.contains('nav-link')).toBe(true);
+  });
+
+  test('class prop takes precedence over className', () => {
+    const currentPath = signal('/');
+    const navigate = vi.fn();
+    const Link = createLink(currentPath, navigate);
+
+    const el = Link({ children: 'Home', class: 'primary', className: 'secondary', href: '/' });
+
+    expect(el.classList.contains('primary')).toBe(true);
+    expect(el.classList.contains('secondary')).toBe(false);
+  });
+
   test('does not navigate on ctrl+click (allows new tab)', () => {
     const currentPath = signal('/');
     const navigate = vi.fn();
@@ -349,6 +370,19 @@ describe('Link (context-based)', () => {
       Link({ children: 'Home', className: 'nav-link', href: '/' }),
     );
     expect(el.classList.contains('nav-link')).toBe(true);
+  });
+
+  test('applies class prop to the anchor', () => {
+    const el = renderInRouter('/', () => Link({ children: 'Home', class: 'nav-link', href: '/' }));
+    expect(el.classList.contains('nav-link')).toBe(true);
+  });
+
+  test('class prop takes precedence over className', () => {
+    const el = renderInRouter('/', () =>
+      Link({ children: 'Home', class: 'primary', className: 'secondary', href: '/' }),
+    );
+    expect(el.classList.contains('primary')).toBe(true);
+    expect(el.classList.contains('secondary')).toBe(false);
   });
 
   test('accepts thunked children', () => {

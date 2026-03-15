@@ -43,7 +43,7 @@ function Sidebar() {
       <div class={navStyles.subtitle}>{componentRegistry.length} themed components</div>
       <div class={scrollStyles.thin} style="flex: 1; min-height: 0; overflow-y: auto;">
         <div style="display: flex; flex-direction: column; gap: 2px;">
-          <Link href="/" className={navStyles.navItem} activeClass={navStyles.navItemActive}>
+          <Link href="/" class={navStyles.navItem} activeClass={navStyles.navItemActive}>
             Overview
           </Link>
           {categoryOrder.flatMap((cat) => {
@@ -55,7 +55,7 @@ function Sidebar() {
                 {entries.map((entry) => (
                   <Link
                     href={`/${entry.slug}`}
-                    className={navStyles.navItem}
+                    class={navStyles.navItem}
                     activeClass={navStyles.navItemActive}
                   >
                     {entry.name}

@@ -32,14 +32,10 @@ interface ViewToggleProps {
 export function ViewToggle({ projectId }: ViewToggleProps) {
   return (
     <div class={styles.container}>
-      <Link href={`/projects/${projectId}`} className={styles.tab} activeClass={styles.activeTab}>
+      <Link href={`/projects/${projectId}`} class={styles.tab} activeClass={styles.activeTab}>
         List
       </Link>
-      <Link
-        href={`/projects/${projectId}/board`}
-        className={styles.tab}
-        activeClass={styles.activeTab}
-      >
+      <Link href={`/projects/${projectId}/board`} class={styles.tab} activeClass={styles.activeTab}>
         Board
       </Link>
     </div>

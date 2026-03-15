@@ -58,13 +58,13 @@ export function WorkspaceShell() {
       <aside class={sidebarStyles.sidebar} data-testid="sidebar">
         <div class={sidebarStyles.brand}>Linear Clone</div>
         <nav class={sidebarStyles.nav}>
-          <Link href="/projects" className={sidebarStyles.navItem}>
+          <Link href="/projects" class={sidebarStyles.navItem}>
             Projects
           </Link>
           {projects.data?.items.map((project) => (
             <Link
               href={`/projects/${project.id}`}
-              className={sidebarStyles.projectLink}
+              class={sidebarStyles.projectLink}
               key={project.id}
             >
               {`${project.key} — ${project.name}`}
