@@ -10,15 +10,23 @@ import { plugin } from 'bun';
 plugin({
   name: 'vertz-test-compiler',
   setup(build) {
+    // Batch-1 composed primitives (PR #1323) still use imperative patterns.
+    // Skip reactive transforms for them; transpile JSX only.
+    const batch1Composed =
+      /(accordion|alert-dialog|dialog|dropdown-menu|popover|select|sheet|tabs|tooltip)-composed\.tsx$/;
+
     build.onLoad({ filter: /\.tsx$/ }, async (args) => {
       const source = await Bun.file(args.path).text();
 
-      // Composed primitives are framework-level code — they use JSX for
-      // declarative element creation but are NOT user components. Skip
-      // reactive transforms (let→signal, computed) that would break them.
-      // Pass through to Bun's native JSX handling.
-      if (args.path.includes('-composed.tsx')) {
-        return { contents: source, loader: 'tsx' };
+      if (batch1Composed.test(args.path)) {
+        const transpiled = new Bun.Transpiler({
+          loader: 'tsx',
+          autoImportJSX: true,
+          tsconfig: JSON.stringify({
+            compilerOptions: { jsx: 'react-jsx', jsxImportSource: '@vertz/ui' },
+          }),
+        }).transformSync(source);
+        return { contents: transpiled, loader: 'js' };
       }
 
       const result = compile(source, {

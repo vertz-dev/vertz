@@ -73,15 +73,27 @@ watch(
 
 ### Fully declarative — no imperative DOM manipulation
 
-No `appendChild`, `innerHTML`, `textContent`, `className`, `setAttribute`, `document.createElement` outside `@vertz/ui-primitives`. If you can't express it declaratively, it's a framework gap — fix the framework.
+No `appendChild`, `innerHTML`, `textContent`, `className`, `setAttribute`, `document.createElement` — anywhere. This applies to ALL packages including `@vertz/ui-primitives`. If you can't express it declaratively, it's a framework gap — fix the framework.
 
 ```tsx
 // WRONG
 const el = <div />;
 el.textContent = title;
 
+// WRONG — even in ui-primitives
+const indicator = document.createElement('span');
+indicator.setAttribute('data-part', 'indicator');
+root.appendChild(indicator);
+
 // RIGHT
 return <div class={styles.panel}>{title}</div>;
+
+// RIGHT — in ui-primitives
+return (
+  <button role="checkbox" class={classes?.root}>
+    <span data-part="indicator" class={classes?.indicator} />
+  </button>
+);
 ```
 
 ### Use JSX for custom components — never call as functions
@@ -299,3 +311,113 @@ const view = RouterView({
 // RIGHT
 '/': { component: () => TaskListPage() }
 ```
+
+## Writing Library Packages (ui-primitives, theme-shadcn)
+
+### The Vertz compiler builds libraries too
+
+The `createVertzLibraryPlugin()` from `@vertz/ui-compiler` runs the full Vertz compiler on `.tsx` files during library builds. This means **library code gets the same reactive transforms as app code**:
+
+- `let` → `signal()` (reactive local state)
+- `const derived = x + y` → `computed()` (derived values)
+- JSX attributes referencing reactive values → getter-based reactivity
+
+**There is NO reason to write imperative DOM code.** The old pattern of calling factory APIs (`Checkbox.Root()`, `Slider.Root()`) and imperatively modifying the returned elements is obsolete. Write declarative JSX instead.
+
+### How to write a primitive component
+
+```tsx
+// checkbox-composed.tsx — CORRECT: fully declarative JSX
+
+function ComposedCheckboxRoot({
+  children,
+  classes,
+  defaultChecked = false,
+  disabled = false,
+  onCheckedChange,
+}: ComposedCheckboxProps) {
+  // `let` becomes a signal — the compiler handles reactivity
+  let checked: CheckedState = defaultChecked;
+
+  function toggle() {
+    if (disabled) return;
+    checked = checked === 'mixed' ? true : !checked;
+    onCheckedChange?.(checked);
+  }
+
+  // Full declarative JSX structure — no factory wrapping
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={ariaCheckedFor(checked)}
+      data-state={dataStateFor(checked)}
+      disabled={disabled}
+      class={classes?.root}
+      onClick={toggle}
+    >
+      <span data-part="indicator" data-state={dataStateFor(checked)} class={classes?.indicator} />
+      {children}
+    </button>
+  );
+}
+```
+
+### WRONG: wrapping a factory and modifying the result
+
+```tsx
+// WRONG — calling a factory and imperatively modifying the returned element
+function ComposedCheckboxRoot({ children, classes, ...opts }: ComposedCheckboxProps) {
+  const root = Checkbox.Root(opts);              // ← factory call
+  root.className = classes?.root;                // ← imperative
+  const indicator = document.createElement('span'); // ← imperative
+  indicator.setAttribute('data-part', 'indicator'); // ← imperative
+  root.appendChild(indicator);                   // ← imperative
+  return root;
+}
+```
+
+### Build configuration
+
+In `bunup.config.ts`, use `createVertzLibraryPlugin()` to compile `.tsx` files:
+
+```ts
+import { createVertzLibraryPlugin } from '@vertz/ui-compiler';
+import { defineConfig } from 'bunup';
+
+export default defineConfig({
+  entry: ['src/index.ts'],
+  dts: true,
+  plugins: [createVertzLibraryPlugin()],
+  external: ['@vertz/ui', '@vertz/ui/internals'],
+});
+```
+
+### Test configuration
+
+In `test-compiler-plugin.ts`, use `compile()` from `@vertz/ui-compiler` for `.tsx` files:
+
+```ts
+import { compile } from '@vertz/ui-compiler';
+import { plugin } from 'bun';
+
+plugin({
+  name: 'vertz-test-compiler',
+  setup(build) {
+    build.onLoad({ filter: /\.tsx$/ }, async (args) => {
+      const source = await Bun.file(args.path).text();
+      const result = compile(source, { filename: args.path, target: 'dom' });
+      return { contents: result.code, loader: 'ts' };
+    });
+  },
+});
+```
+
+### Key points
+
+- **`let` works for reactive state** — the compiler transforms it to signals
+- **JSX attributes are reactive** — `aria-checked={checked ? 'true' : 'false'}` updates when `checked` changes
+- **`ref()` for element references** — when you need to imperatively call methods like `.focus()` or read `.getBoundingClientRect()`
+- **Never call factory APIs** (`Checkbox.Root()`, `Switch.Root()`) when you can build the same structure in JSX
+- **Never use `document.createElement`** — use `<span>`, `<div>`, `<button>` JSX instead
+- **`.tsx` extension required** — only `.tsx` files go through the compiler; `.ts` files do not get JSX or reactive transforms

@@ -190,9 +190,9 @@ describe('Theme Shadcn Walkthrough', () => {
     expect(typeof components.primitives.Dialog).toBe('function');
     expect(typeof components.primitives.Select).toBe('function');
     expect(typeof components.primitives.Tabs).toBe('function');
-    expect(typeof components.primitives.checkbox).toBe('function');
-    expect(typeof components.primitives.switch).toBe('function');
-    expect(typeof components.primitives.progress).toBe('function');
+    expect(typeof components.primitives.Checkbox).toBe('function');
+    expect(typeof components.primitives.Switch).toBe('function');
+    expect(typeof components.primitives.Progress).toBe('function');
     expect(typeof components.primitives.Accordion).toBe('function');
     expect(typeof components.primitives.Tooltip).toBe('function');
   });
