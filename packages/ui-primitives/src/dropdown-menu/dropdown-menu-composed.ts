@@ -135,8 +135,16 @@ function ComposedDropdownMenuRoot({
     ? ((triggerEntry.element.firstElementChild as HTMLElement) ?? triggerEntry.element)
     : null;
 
-  // Create the low-level menu primitive
-  const menu = Menu.Root({ onSelect });
+  // Create the low-level menu primitive with ARIA sync
+  const menu = Menu.Root({
+    onSelect,
+    onOpenChange: (isOpen) => {
+      if (userTrigger) {
+        userTrigger.setAttribute('aria-expanded', String(isOpen));
+        userTrigger.setAttribute('data-state', isOpen ? 'open' : 'closed');
+      }
+    },
+  });
 
   // Apply content class
   if (classes?.content) {
@@ -161,14 +169,6 @@ function ComposedDropdownMenuRoot({
     userTrigger.addEventListener('click', () => {
       menu.trigger.click();
     });
-
-    // Sync ARIA state via MutationObserver
-    const observer = new MutationObserver(() => {
-      const isOpen = menu.trigger.getAttribute('aria-expanded') === 'true';
-      userTrigger.setAttribute('aria-expanded', String(isOpen));
-      userTrigger.setAttribute('data-state', isOpen ? 'open' : 'closed');
-    });
-    observer.observe(menu.trigger, { attributes: true, attributeFilter: ['aria-expanded'] });
 
     wrapper.appendChild(userTrigger);
   }
@@ -215,9 +215,7 @@ function processMenuSlots(
 
     if (classes?.group) group.el.className = classes.group;
 
-    const groupChildren = entry.children.filter(
-      (n): n is HTMLElement => n instanceof HTMLElement,
-    );
+    const groupChildren = entry.children.filter((n): n is HTMLElement => n instanceof HTMLElement);
     processMenuSlots(groupChildren, menu, classes, group);
   }
 
