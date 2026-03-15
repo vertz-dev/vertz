@@ -1,6 +1,6 @@
 import { type Node, type SourceFile, SyntaxKind } from 'ts-morph';
 import type { CompilerDiagnostic, ComponentInfo } from '../types';
-import { findBodyNode } from '../utils';
+import { findBodyNode, isInNestedFunction } from '../utils';
 
 /**
  * Detect JSX expressions outside the return tree in component functions.
@@ -59,26 +59,6 @@ function isInReturnStatement(node: Node, bodyNode: Node): boolean {
   let current = node.getParent();
   while (current && current !== bodyNode) {
     if (current.isKind(SyntaxKind.ReturnStatement)) return true;
-    current = current.getParent();
-  }
-  return false;
-}
-
-/** Check if the node is inside a nested function/method between it and the body. */
-function isInNestedFunction(node: Node, bodyNode: Node): boolean {
-  let current = node.getParent();
-  while (current && current !== bodyNode) {
-    if (
-      current.isKind(SyntaxKind.ArrowFunction) ||
-      current.isKind(SyntaxKind.FunctionExpression) ||
-      current.isKind(SyntaxKind.FunctionDeclaration) ||
-      current.isKind(SyntaxKind.MethodDeclaration) ||
-      current.isKind(SyntaxKind.Constructor) ||
-      current.isKind(SyntaxKind.GetAccessor) ||
-      current.isKind(SyntaxKind.SetAccessor)
-    ) {
-      return true;
-    }
     current = current.getParent();
   }
   return false;

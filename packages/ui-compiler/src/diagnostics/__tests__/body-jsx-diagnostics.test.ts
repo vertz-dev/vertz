@@ -231,6 +231,58 @@ describe('BodyJsxDiagnostics', () => {
 
   // ── ONLY FLAGS OUTERMOST JSX ─────────────────────────────────────
 
+  it('flags JSX fragment in body', () => {
+    const [sf, comp] = firstComponent(`
+      function App() {
+        const el = <><div /><span /></>;
+        return <div>ok</div>;
+      }
+    `);
+    const diags = new BodyJsxDiagnostics().analyze(sf, comp);
+    expect(diags.filter((d) => d.code === 'jsx-outside-tree')).toHaveLength(1);
+  });
+
+  it('flags JSX in a for loop body', () => {
+    const [sf, comp] = firstComponent(`
+      function App() {
+        for (const item of items) {
+          const el = <div />;
+        }
+        return <div>ok</div>;
+      }
+    `);
+    const diags = new BodyJsxDiagnostics().analyze(sf, comp);
+    expect(diags.filter((d) => d.code === 'jsx-outside-tree')).toHaveLength(1);
+  });
+
+  it('flags JSX in try/catch blocks', () => {
+    const [sf, comp] = firstComponent(`
+      function App() {
+        try {
+          const el = <div />;
+        } catch (e) {
+          const fallback = <span />;
+        }
+        return <div>ok</div>;
+      }
+    `);
+    const diags = new BodyJsxDiagnostics().analyze(sf, comp);
+    expect(diags.filter((d) => d.code === 'jsx-outside-tree')).toHaveLength(2);
+  });
+
+  it('flags JSX in a switch case', () => {
+    const [sf, comp] = firstComponent(`
+      function App() {
+        switch (mode) {
+          case 'a': const el = <div />; break;
+        }
+        return <div>ok</div>;
+      }
+    `);
+    const diags = new BodyJsxDiagnostics().analyze(sf, comp);
+    expect(diags.filter((d) => d.code === 'jsx-outside-tree')).toHaveLength(1);
+  });
+
   it('flags only the outermost JSX element, not children', () => {
     const [sf, comp] = firstComponent(`
       function App() {
