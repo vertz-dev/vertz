@@ -3,7 +3,13 @@
  * Uses OIDC with PKCE + nonce. Trusted email (auto-links by verified email).
  */
 
-import type { OAuthProvider, OAuthProviderConfig, OAuthTokens, OAuthUserInfo } from '../types';
+import type {
+  CloudOAuthProviderConfig,
+  OAuthProvider,
+  OAuthProviderConfig,
+  OAuthTokens,
+  OAuthUserInfo,
+} from '../types';
 
 /** OIDC ID token claims from Google. */
 export interface GoogleProfile {
@@ -28,8 +34,24 @@ const AUTHORIZATION_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const DEFAULT_SCOPES = ['openid', 'email', 'profile'];
 
-export function google(config: OAuthProviderConfig): OAuthProvider {
+export function google(config: OAuthProviderConfig | CloudOAuthProviderConfig): OAuthProvider {
   const scopes = config.scopes ?? DEFAULT_SCOPES;
+
+  // Cloud mode — OAuth flows are handled by the cloud proxy
+  if (!('clientId' in config)) {
+    const cloudError = (method: string) =>
+      new Error(`${method}() is not available in cloud mode. OAuth flows are handled by the cloud proxy.`);
+
+    return {
+      id: 'google',
+      name: 'Google',
+      scopes,
+      trustEmail: true,
+      getAuthorizationUrl() { throw cloudError('getAuthorizationUrl'); },
+      async exchangeCode() { throw cloudError('exchangeCode'); },
+      async getUserInfo() { throw cloudError('getUserInfo'); },
+    };
+  }
 
   return {
     id: 'google',

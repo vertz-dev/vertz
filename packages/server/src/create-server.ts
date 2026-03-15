@@ -7,11 +7,16 @@ import {
   type ModelEntry,
 } from '@vertz/db';
 import { initializeAuthTables, validateAuthModels } from './auth/auth-tables';
+import { createCloudJWTVerifier } from './auth/cloud-jwt-verifier';
+import { createAuthProxy } from './auth/cloud-proxy';
+import { resolveCloudAuthContext, validateProjectId } from './auth/cloud-startup';
 import { DbOAuthAccountStore } from './auth/db-oauth-account-store';
 import { DbSessionStore } from './auth/db-session-store';
 import type { AuthDbClient } from './auth/db-types';
 import { DbUserStore } from './auth/db-user-store';
 import { createAuth } from './auth/index';
+import { createJWKSClient } from './auth/jwks-client';
+import { resolveSessionForSSR as createSSRResolver } from './auth/resolve-session-for-ssr';
 import type { AuthConfig, AuthInstance } from './auth/types';
 import type { EntityOperations } from './entity/entity-operations';
 import { EntityRegistry } from './entity/entity-registry';
@@ -54,6 +59,21 @@ export interface ServerInstance extends AppBuilder {
 // Extended config for @vertz/server's createServer
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Cloud config for cloud-managed auth
+// ---------------------------------------------------------------------------
+
+export interface CloudServerConfig {
+  /** Cloud project ID (e.g., "proj_abc123") */
+  projectId: string;
+  /** Cloud base URL — defaults to "https://cloud.vtz.app" */
+  cloudBaseUrl?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Extended config for @vertz/server's createServer
+// ---------------------------------------------------------------------------
+
 export interface ServerConfig extends Omit<AppConfig, '_entityDbFactory' | 'entities'> {
   /** Entity definitions created via entity() from @vertz/server */
   entities?: EntityDefinition[];
@@ -74,6 +94,8 @@ export interface ServerConfig extends Omit<AppConfig, '_entityDbFactory' | 'enti
   _tenantChains?: Map<string, import('./entity/tenant-chain').TenantChain>;
   /** Auth configuration — when combined with db, auto-wires DB-backed stores */
   auth?: AuthConfig;
+  /** Cloud-managed auth — when set, auth is handled by Vertz Cloud proxy */
+  cloud?: CloudServerConfig;
 }
 
 // ---------------------------------------------------------------------------
@@ -161,6 +183,7 @@ function createEntityOps(entityDef: EntityDefinition, db: EntityDbAdapter): Enti
 export function createServer(
   config: ServerConfig & { db: DatabaseClient<Record<string, ModelEntry>>; auth: AuthConfig },
 ): ServerInstance;
+export function createServer(config: ServerConfig & { cloud: CloudServerConfig }): ServerInstance;
 export function createServer(config: ServerConfig): AppBuilder;
 export function createServer(config: ServerConfig): AppBuilder | ServerInstance {
   const allRoutes: EntityRouteEntry[] = [];
@@ -288,6 +311,138 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
     ...config,
     _entityRoutes: allRoutes.length > 0 ? allRoutes : undefined,
   } as AppConfig);
+
+  // ---------------------------------------------------------------------------
+  // Cloud mode branching — bypasses createAuth() entirely (design doc §9)
+  // ---------------------------------------------------------------------------
+  if (config.cloud?.projectId) {
+    const { projectId, cloudBaseUrl = 'https://cloud.vtz.app' } = config.cloud;
+
+    // Warn if both cloud and self-hosted auth are configured
+    if (config.auth) {
+      console.warn(
+        '[vertz] Both cloud.projectId and auth config are set. Cloud mode takes precedence — auth config is ignored.',
+      );
+    }
+
+    // Guard: requestHandler requires /api prefix
+    if (apiPrefix !== '/api') {
+      throw new Error(
+        `requestHandler requires apiPrefix to be '/api' (got '${apiPrefix}'). ` +
+          'Custom API prefixes are not yet supported with cloud auth.',
+      );
+    }
+
+    // 1. Validate project ID format
+    validateProjectId(projectId);
+
+    // 2. Resolve cloud auth context (CI token or developer session)
+    const authContext = resolveCloudAuthContext({ projectId });
+    console.info(`[vertz] Cloud auth resolved: source=${authContext.source}, project=${projectId}`);
+
+    // 3. Create JWKS client
+    const jwksClient = createJWKSClient({
+      url: `${cloudBaseUrl}/auth/v1/${projectId}/.well-known/jwks.json`,
+    });
+
+    // 4. Create cloud JWT verifier
+    const cloudVerifier = createCloudJWTVerifier({
+      jwksClient,
+      issuer: cloudBaseUrl,
+      audience: projectId,
+    });
+
+    // 5. Create auth proxy
+    const cloudProxy = createAuthProxy({
+      projectId,
+      cloudBaseUrl,
+      authToken: authContext.token,
+    });
+
+    // 6. Build cloud auth instance — bypasses createAuth() entirely
+    const cloudError = (method: string) =>
+      new Error(
+        `auth.api.${method}() is not available in cloud mode. ` +
+          'Auth operations are handled by the cloud proxy via /api/auth/* routes.',
+      );
+
+    const cloudAuth: AuthInstance = {
+      handler: cloudProxy,
+      api: {
+        signUp: async () => {
+          throw cloudError('signUp');
+        },
+        signIn: async () => {
+          throw cloudError('signIn');
+        },
+        signOut: async () => {
+          throw cloudError('signOut');
+        },
+        getSession: async () => {
+          throw cloudError('getSession');
+        },
+        refreshSession: async () => {
+          throw cloudError('refreshSession');
+        },
+        listSessions: async () => {
+          throw cloudError('listSessions');
+        },
+        revokeSession: async () => {
+          throw cloudError('revokeSession');
+        },
+        revokeAllSessions: async () => {
+          throw cloudError('revokeAllSessions');
+        },
+      },
+      middleware() {
+        throw new Error(
+          'auth.middleware() is not available in cloud mode. ' +
+            'Use auth.resolveSessionForSSR() for session resolution.',
+        );
+      },
+      initialize: async () => {},
+      dispose: () => {},
+      resolveSessionForSSR: createSSRResolver({
+        cloudVerifier,
+        cookieName: 'vertz.sid',
+      }),
+    };
+
+    // 7. Build ServerInstance
+    const authPrefix = `${apiPrefix}/auth`;
+    const authPrefixSlash = `${authPrefix}/`;
+
+    const serverInstance = app as AppBuilder & {
+      auth: AuthInstance;
+      initialize: () => Promise<void>;
+      readonly requestHandler: (request: Request) => Promise<Response>;
+    };
+
+    serverInstance.auth = cloudAuth;
+    serverInstance.initialize = async () => {};
+
+    let cachedCloudRequestHandler: ((request: Request) => Promise<Response>) | null = null;
+    Object.defineProperty(serverInstance, 'requestHandler', {
+      get() {
+        if (!cachedCloudRequestHandler) {
+          const entityHandler = this.handler;
+          const proxyHandler = this.auth.handler;
+          cachedCloudRequestHandler = (request: Request) => {
+            const pathname = new URL(request.url).pathname;
+            if (pathname === authPrefix || pathname.startsWith(authPrefixSlash)) {
+              return proxyHandler(request);
+            }
+            return entityHandler(request);
+          };
+        }
+        return cachedCloudRequestHandler;
+      },
+      enumerable: true,
+      configurable: false,
+    });
+
+    return serverInstance as ServerInstance;
+  }
 
   // ---------------------------------------------------------------------------
   // Wire auth with DB-backed stores when db + auth are provided

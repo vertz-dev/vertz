@@ -3,7 +3,13 @@
  * Uses PKCE. Untrusted email (always creates new accounts unless manually linked).
  */
 
-import type { OAuthProvider, OAuthProviderConfig, OAuthTokens, OAuthUserInfo } from '../types';
+import type {
+  CloudOAuthProviderConfig,
+  OAuthProvider,
+  OAuthProviderConfig,
+  OAuthTokens,
+  OAuthUserInfo,
+} from '../types';
 
 /** Fields returned by Discord's GET /users/@me API. */
 export interface DiscordProfile {
@@ -31,8 +37,24 @@ const TOKEN_URL = 'https://discord.com/api/oauth2/token';
 const USER_URL = 'https://discord.com/api/users/@me';
 const DEFAULT_SCOPES = ['identify', 'email'];
 
-export function discord(config: OAuthProviderConfig): OAuthProvider {
+export function discord(config: OAuthProviderConfig | CloudOAuthProviderConfig): OAuthProvider {
   const scopes = config.scopes ?? DEFAULT_SCOPES;
+
+  // Cloud mode — OAuth flows are handled by the cloud proxy
+  if (!('clientId' in config)) {
+    const cloudError = (method: string) =>
+      new Error(`${method}() is not available in cloud mode. OAuth flows are handled by the cloud proxy.`);
+
+    return {
+      id: 'discord',
+      name: 'Discord',
+      scopes,
+      trustEmail: false,
+      getAuthorizationUrl() { throw cloudError('getAuthorizationUrl'); },
+      async exchangeCode() { throw cloudError('exchangeCode'); },
+      async getUserInfo() { throw cloudError('getUserInfo'); },
+    };
+  }
 
   return {
     id: 'discord',

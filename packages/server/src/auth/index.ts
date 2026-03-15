@@ -2552,8 +2552,17 @@ export type { WebhookHandlerConfig } from './billing/webhook-handler';
 export { createWebhookHandler } from './billing/webhook-handler';
 export type { Period } from './billing-period';
 export { calculateBillingPeriod } from './billing-period';
+// Cloud auth modules
+export type { CircuitBreaker } from './circuit-breaker';
+export { CircuitBreakerOpenError, createCircuitBreaker } from './circuit-breaker';
 export type { ClosureEntry, ClosureRow, ClosureStore, ParentRef } from './closure-store';
 export { InMemoryClosureStore } from './closure-store';
+export type { CloudJWTVerifier } from './cloud-jwt-verifier';
+export { createCloudJWTVerifier } from './cloud-jwt-verifier';
+export type { CloudProxyLifecycleCallbacks } from './cloud-proxy';
+export { createAuthProxy } from './cloud-proxy';
+export type { CloudAuthContext } from './cloud-startup';
+export { resolveCloudAuthContext, validateProjectId } from './cloud-startup';
 export { DbClosureStore } from './db-closure-store';
 export { DbFlagStore } from './db-flag-store';
 export { DbOAuthAccountStore } from './db-oauth-account-store';
@@ -2591,6 +2600,8 @@ export { InMemoryFlagStore } from './flag-store';
 export { checkFva } from './fva';
 export type { GrandfatheringState, GrandfatheringStore } from './grandfathering-store';
 export { InMemoryGrandfatheringStore } from './grandfathering-store';
+export type { JWKSClient } from './jwks-client';
+export { createJWKSClient } from './jwks-client';
 export { InMemoryMFAStore } from './mfa-store';
 export { InMemoryOAuthAccountStore } from './oauth-account-store';
 // Phase 9: Override Store
@@ -2655,6 +2666,7 @@ export type {
   AuthInstance,
   AuthTokens,
   AuthUser,
+  CloudOAuthProviderConfig,
   CookieConfig,
   EmailPasswordConfig,
   EmailVerificationConfig,
