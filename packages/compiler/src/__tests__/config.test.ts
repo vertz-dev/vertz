@@ -49,4 +49,25 @@ describe('resolveConfig', () => {
     expect(config.strict).toBe(false);
     expect(config.compiler.sourceDir).toBe('src');
   });
+
+  // --- Cloud Config ---
+  it('config includes cloud.projectId when provided', () => {
+    const config = defineConfig({ cloud: { projectId: 'proj_xxx' } });
+    expect(config.cloud?.projectId).toBe('proj_xxx');
+  });
+
+  it('resolveConfig preserves cloud config as-is', () => {
+    const config = resolveConfig({ cloud: { projectId: 'proj_test123' } });
+    expect(config.cloud?.projectId).toBe('proj_test123');
+  });
+
+  it('config.cloud is undefined when no cloud section provided', () => {
+    const config = resolveConfig({});
+    expect(config.cloud).toBeUndefined();
+  });
+
+  it('config.cloud is undefined when resolveConfig called with no arguments', () => {
+    const config = resolveConfig();
+    expect(config.cloud).toBeUndefined();
+  });
 });
