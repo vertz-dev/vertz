@@ -29,6 +29,8 @@ const AccordionClassesContext = createContext<AccordionClasses | undefined>(
 
 interface SlotProps {
   children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 
@@ -48,17 +50,27 @@ function AccordionItem({ value, children }: ItemProps) {
   );
 }
 
-function AccordionTrigger({ children, class: cls }: SlotProps) {
+function AccordionTrigger({ children, className: cls, class: classProp }: SlotProps) {
+  const effectiveCls = cls ?? classProp;
   return (
-    <span data-slot="accordion-trigger" data-class={cls || undefined} style="display: contents">
+    <span
+      data-slot="accordion-trigger"
+      data-class={effectiveCls || undefined}
+      style="display: contents"
+    >
       {children}
     </span>
   );
 }
 
-function AccordionContent({ children, class: cls }: SlotProps) {
+function AccordionContent({ children, className: cls, class: classProp }: SlotProps) {
+  const effectiveCls = cls ?? classProp;
   return (
-    <div data-slot="accordion-content" data-class={cls || undefined} style="display: contents">
+    <div
+      data-slot="accordion-content"
+      data-class={effectiveCls || undefined}
+      style="display: contents"
+    >
       {children}
     </div>
   );

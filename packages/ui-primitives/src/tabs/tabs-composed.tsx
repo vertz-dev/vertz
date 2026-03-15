@@ -29,6 +29,8 @@ const TabsClassesContext = createContext<TabsClasses | undefined>(
 
 interface SlotProps {
   children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 
@@ -52,12 +54,13 @@ function TabsList({ children }: SlotProps) {
   );
 }
 
-function TabsTrigger({ value, children, class: cls }: TriggerProps) {
+function TabsTrigger({ value, children, className: cls, class: classProp }: TriggerProps) {
+  const effectiveCls = cls ?? classProp;
   return (
     <span
       data-slot="tabs-trigger"
       data-value={value}
-      data-class={cls || undefined}
+      data-class={effectiveCls || undefined}
       style="display: contents"
     >
       {children}
@@ -65,12 +68,13 @@ function TabsTrigger({ value, children, class: cls }: TriggerProps) {
   );
 }
 
-function TabsContent({ value, children, class: cls }: ContentProps) {
+function TabsContent({ value, children, className: cls, class: classProp }: ContentProps) {
+  const effectiveCls = cls ?? classProp;
   return (
     <div
       data-slot="tabs-content"
       data-value={value}
-      data-class={cls || undefined}
+      data-class={effectiveCls || undefined}
       style="display: contents"
     >
       {children}

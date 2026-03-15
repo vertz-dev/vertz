@@ -145,8 +145,15 @@ function DialogRoot(options: DialogOptions = {}): DialogElements & { state: Dial
   applyAttrs(content, attrs);
 
   return {
-    trigger, overlay, content, title, description, close,
-    state, show: openDialog, hide: closeDialog,
+    trigger,
+    overlay,
+    content,
+    title,
+    description,
+    close,
+    state,
+    show: openDialog,
+    hide: closeDialog,
   };
 }
 

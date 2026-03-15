@@ -6,16 +6,20 @@ import type { JSX } from '@vertz/ui/jsx-runtime';
 export interface UserNameProps {
   fallback?: string;
   user?: User;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 
 export function UserName({
   fallback = 'Unknown',
   user,
-  class: className,
+  className,
+  class: classProp,
 }: UserNameProps): JSX.Element {
+  const effectiveClass = className ?? classProp;
   if (user) {
-    return <span class={className}>{getUserDisplayName(user, fallback)}</span>;
+    return <span class={effectiveClass}>{getUserDisplayName(user, fallback)}</span>;
   }
 
   const ctx = useContext(AuthContext);
@@ -23,5 +27,5 @@ export function UserName({
     throw new Error('UserName must be used within AuthProvider, or pass a `user` prop');
   }
 
-  return <span class={className}>{getUserDisplayName(ctx.user, fallback)}</span>;
+  return <span class={effectiveClass}>{getUserDisplayName(ctx.user, fallback)}</span>;
 }

@@ -31,6 +31,8 @@ const SelectClassesContext = createContext<SelectClasses | undefined>(
 
 interface SlotProps {
   children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 
@@ -62,12 +64,13 @@ function SelectContent({ children }: SlotProps) {
   );
 }
 
-function SelectItem({ value, children, class: cls }: ItemProps) {
+function SelectItem({ value, children, className: cls, class: classProp }: ItemProps) {
+  const effectiveCls = cls ?? classProp;
   return (
     <div
       data-slot="select-item"
       data-value={value}
-      data-class={cls || undefined}
+      data-class={effectiveCls || undefined}
       style="display: contents"
     >
       {children}

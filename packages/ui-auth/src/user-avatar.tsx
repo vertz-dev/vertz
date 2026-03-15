@@ -8,6 +8,8 @@ export interface UserAvatarProps {
   size?: 'sm' | 'md' | 'lg';
   user?: User;
   fallback?: (() => unknown) | unknown;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 
@@ -15,8 +17,10 @@ export function UserAvatar({
   size,
   user,
   fallback,
-  class: className,
+  className,
+  class: classProp,
 }: UserAvatarProps): JSX.Element {
+  const effectiveClass = className ?? classProp;
   if (user) {
     const src = typeof user.avatarUrl === 'string' ? user.avatarUrl : undefined;
     return (
@@ -25,7 +29,7 @@ export function UserAvatar({
         alt={getUserDisplayName(user)}
         size={size}
         fallback={fallback}
-        class={className}
+        className={effectiveClass}
       />
     );
   }
@@ -39,5 +43,7 @@ export function UserAvatar({
     ctx.user && typeof ctx.user.avatarUrl === 'string' ? ctx.user.avatarUrl : undefined;
   const alt = getUserDisplayName(ctx.user);
 
-  return <Avatar src={avatarUrl} alt={alt} size={size} fallback={fallback} class={className} />;
+  return (
+    <Avatar src={avatarUrl} alt={alt} size={size} fallback={fallback} className={effectiveClass} />
+  );
 }
