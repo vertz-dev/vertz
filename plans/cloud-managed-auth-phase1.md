@@ -2,7 +2,7 @@
 
 **Issue:** [#1321](https://github.com/vertz-dev/vertz/issues/1321)
 **Design Reference:** [Managed Auth Rev 3.4](https://github.com/vertz-dev/backstage/blob/main/plans/cloud/managed-auth.md)
-**Status:** Rev 4 — Addresses DX / Product / Technical reviews on Rev 3
+**Status:** Rev 5 — Final; all three design reviews approved
 
 ---
 
@@ -72,7 +72,7 @@ function createJWKSClient(options: {
 }): JWKSClient;
 ```
 
-**Implementation note:** Directly wraps `jose.createRemoteJWKSet`. No custom HTTP, caching, or single-flight logic — jose handles all of this internally, including caching keys and auto-refreshing on unknown `kid`. The `cacheTtl` default of 10 minutes matches jose's default `cacheMaxAge`. The `refresh()` method maps to jose's `reload()` (which is marked `@ignore` in jose types — document this coupling for future jose upgrades).
+**Implementation note:** Directly wraps `jose.createRemoteJWKSet`. No custom HTTP, caching, or single-flight logic — jose handles all of this internally, including caching keys and auto-refreshing on unknown `kid`. The `cacheTtl` default of 10 minutes matches jose's default `cacheMaxAge`. The `refresh()` method maps to jose's `reload()` (which is marked `@ignore` in jose types — the implementation should check for `reload` existence at runtime via `typeof jwks.reload === 'function'` or use a type assertion, since `@ignore` excludes it from public TypeScript types. Document this coupling for future jose upgrades).
 
 **No custom `lastKnownGood` layer.** jose's built-in caching already serves as last-known-good during the `cooldownDuration` window. Adding a separate fallback layer would be redundant and could mask real key rotation events.
 
@@ -168,6 +168,8 @@ function validateProjectId(projectId: string): void;
 
 **Source labels:** `'developer-session'` for `~/.vertz/auth.json`, `'ci-token'` for `VERTZ_CLOUD_TOKEN` env var. GitHub Actions OIDC exchange (`ACTIONS_ID_TOKEN_REQUEST_URL`) is deferred — Phase 1 does not implement OIDC token exchange. When ready, it will use a distinct `'ci-oidc'` source.
 
+**Startup logging:** `createServer()` logs which auth source was resolved: `[vertz] Cloud auth: using VERTZ_CLOUD_TOKEN` or `[vertz] Cloud auth: using developer session (~/.vertz/auth.json)`. When both sources exist, `VERTZ_CLOUD_TOKEN` takes precedence (CI overrides local session) and a warning is logged: `[vertz] Both VERTZ_CLOUD_TOKEN and ~/.vertz/auth.json found — using VERTZ_CLOUD_TOKEN`.
+
 **Exact error message format** when no auth context is found:
 
 ```
@@ -238,6 +240,8 @@ interface ResolveSessionForSSRConfig {
 
 **Backward compat:** The `jwtSecret` path is retained for self-hosted HS256. It will be removed when self-hosted migrates to RS256 (Non-Goal §9).
 
+**Misconfiguration guard:** If neither `jwtSecret` nor `cloudVerifier` is provided, `resolveSessionForSSR` throws a configuration error at construction time — not silently returning `null` for every request.
+
 ### 9. createServer — Cloud Mode Branching
 
 When `config.cloud?.projectId` is set, `createServer()` takes a separate code path:
@@ -245,7 +249,7 @@ When `config.cloud?.projectId` is set, `createServer()` takes a separate code pa
 1. **Validates cloud auth context** — calls `resolveCloudAuthContext({ projectId })`. Throws prescriptive error if no token found.
 2. **Creates JWKS client** — `createJWKSClient({ url: \`\${cloudBaseUrl}/auth/v1/\${projectId}/.well-known/jwks.json\` })`.
 3. **Creates cloud JWT verifier** — `createCloudJWTVerifier({ jwksClient, issuer: cloudBaseUrl, audience: projectId })`.
-4. **Skips `jwtSecret` requirement** — the existing `createAuth()` validates `jwtSecret` unconditionally. In cloud mode, `createServer()` either: (a) passes the cloud verifier into `createAuth()` which accepts it as an alternative to `jwtSecret`, or (b) constructs the auth handler and `resolveSessionForSSR` directly, bypassing `createAuth()`. Decision deferred to implementation — both approaches are viable, and the acceptance criteria validate the observable behavior either way.
+4. **Skips `jwtSecret` requirement** — the existing `createAuth()` validates `jwtSecret` unconditionally and hard-wires HS256. In cloud mode, `createServer()` bypasses `createAuth()` entirely — it constructs a minimal auth surface with only `resolveSessionForSSR` (using the cloud verifier) and the proxy request handler. This avoids retrofitting cloud mode into `createAuth()`'s JWT signing, dev secret auto-generation, and HS256 assumptions. The acceptance criteria validate the observable behavior.
 5. **Wires cloud proxy** — creates `createAuthProxy({ ... })` as the handler for `/api/auth/*` routes, replacing the local auth handler.
 6. **Provider validation** — skips `clientId`/`clientSecret` validation on providers. Providers in cloud mode are metadata-only (id, name, scopes).
 
@@ -456,7 +460,7 @@ export default defineConfig({
   },
 });
 
-// 2. Simplify providers — remove credentials (cloud manages them)
+// 2. Configure providers — cloud manages credentials
 import { github } from '@vertz/server/auth';
 
 const auth = defineAuth({
@@ -479,7 +483,7 @@ const auth = defineAuth({
 // [vertz] Auth routes proxied to cloud.vtz.app
 ```
 
-The walkthrough test is written as a failing integration test in Phase 1 (RED state) using `VERTZ_CLOUD_TOKEN` and goes green by the end of the implementation.
+The walkthrough test is written as a failing integration test in Phase 1 (RED state) using `VERTZ_CLOUD_TOKEN`. The core flow (config → JWKS → proxy → JWT verification) goes green at the end of Phase 1. The `onUserCreated` callback goes green at the end of Phase 3 when lifecycle callbacks are delivered.
 
 ---
 
@@ -505,7 +509,9 @@ Thinnest vertical slice delivering working cloud auth end-to-end. A developer se
 - `packages/server/src/auth/index.ts` (modify — cloud exports)
 - Integration test: developer walkthrough (RED → GREEN by end of phase)
 
-**Phase 1 limitations:** No circuit breaker — cloud failures result in raw errors (502 for network errors). Added in Phase 2. No lifecycle callbacks. No cookie dev/prod distinction. No provider config types.
+**Phase 1 limitations:** No circuit breaker — cloud failures result in raw errors (502 for network errors). Added in Phase 2. No lifecycle callbacks. No provider config types.
+
+**Cookie security included in Phase 1:** The dev/prod cookie distinction (`Secure` flag omitted in development) is included in Phase 1 despite being a "polish" item, because without it the proxy sets `Secure` cookies that are silently ignored on `http://localhost` — making the entire cloud auth flow non-functional during development.
 
 **Testing approach:** Generate RS256 key pairs with `jose.generateKeyPair('RS256')`. Use `jose.exportJWK` to create mock JWKS responses. Use `Bun.serve()` for mock cloud endpoint. `resolveCloudAuthContext` tests use `sessionPath` override to avoid touching real `~/.vertz/auth.json`.
 
@@ -646,6 +652,18 @@ describe('Feature: Cloud auth E2E — config to verified JWT', () => {
       it('then removes Content-Length header (uses chunked transfer)', () => {});
     });
 
+    describe('When environment is "development"', () => {
+      it('then cookies omit Secure flag (works over HTTP localhost)', () => {});
+    });
+
+    describe('When environment is "production"', () => {
+      it('then cookies include Secure flag', () => {});
+    });
+
+    describe('When proxying any request', () => {
+      it('then includes X-Vertz-Environment header', () => {});
+    });
+
     describe('When request body exceeds maxBodySize (1MB)', () => {
       it('then returns 413 Payload Too Large without proxying', () => {});
     });
@@ -664,6 +682,14 @@ describe('Feature: Cloud auth E2E — config to verified JWT', () => {
       it('then creates auth proxy handler for /api/auth/* routes', () => {});
       it('then does NOT require jwtSecret', () => {});
       it('then does NOT require clientId/clientSecret on providers', () => {});
+      it('then logs which auth source was resolved (env var or session file)', () => {});
+    });
+  });
+
+  describe('Given ServerConfig with cloud.projectId and both auth.json and VERTZ_CLOUD_TOKEN', () => {
+    describe('When createServer() is called', () => {
+      it('then uses VERTZ_CLOUD_TOKEN (CI precedence)', () => {});
+      it('then logs warning about both sources being present', () => {});
     });
   });
 
@@ -803,7 +829,7 @@ Provider factory union types for cloud mode. Lifecycle callbacks. SSR session re
 - `packages/server/src/auth/providers/github.ts` (modify — accept union config, cloud mode stubs)
 - `packages/server/src/auth/providers/google.ts` (modify — accept union config, cloud mode stubs)
 - `packages/server/src/auth/providers/discord.ts` (modify — accept union config, cloud mode stubs)
-- `packages/server/src/auth/cloud-proxy.ts` (modify — lifecycle callbacks, cookie security)
+- `packages/server/src/auth/cloud-proxy.ts` (modify — lifecycle callbacks)
 - `packages/server/src/auth/cloud-proxy.test.ts` (modify — lifecycle + cookie tests)
 - `packages/server/src/auth/resolve-session-for-ssr.ts` (modify — add `cloudVerifier` for RS256)
 - `packages/server/src/auth/resolve-session-for-ssr.test.ts` (modify — RS256 tests)
@@ -848,20 +874,9 @@ describe('Feature: Proxy lifecycle callbacks', () => {
   });
 });
 
-describe('Feature: Cookie security', () => {
-  describe('When environment is "development"', () => {
-    it('then cookies omit Secure flag (works over HTTP localhost)', () => {});
-  });
-
-  describe('When environment is "production"', () => {
-    it('then cookies include Secure flag', () => {});
-  });
-});
-
-describe('Feature: Proxy request headers', () => {
+describe('Feature: Proxy request headers (additional Phase 3 scenarios)', () => {
   describe('When a GET request hits /api/auth/me', () => {
     it('then forwards only whitelisted headers', () => {});
-    it('then includes X-Vertz-Environment header', () => {});
   });
 });
 
@@ -884,6 +899,10 @@ describe('Feature: SSR session resolution in cloud mode', () => {
     describe('When a valid HS256 JWT is in the cookie', () => {
       it('then returns SessionPayload using symmetric verification', () => {});
     });
+  });
+
+  describe('Given resolveSessionForSSR with neither jwtSecret nor cloudVerifier', () => {
+    it('then throws configuration error at construction time', () => {});
   });
 });
 ```
@@ -993,4 +1012,13 @@ describe('Feature: Developer walkthrough', () => {
 - **Technical should-fix: Cookie path** → Documented intentional difference in Phase 4 docs deliverables.
 - **Technical should-fix: createServer overload** → Addressed in §9; exact overload shape deferred to implementation.
 - **Technical nit: Phase 2/3 parallel conflict** → Phase 3 now depends on Phase 1 AND Phase 2 (sequential).
-- **Requires re-review** — structural changes from Rev 3 findings + all Rev 4 refinements.
+
+### Rev 5 Changes (from DX / Product / Technical reviews on Rev 4 — all three approved)
+- **DX + Product should-fix: Auth source logging** → Added startup logging of which auth source was resolved. Warning when both sources present.
+- **Product nit (promoted): Cookie Secure flag in Phase 1** → Moved dev/prod cookie distinction from Phase 3 to Phase 1 — proxy is non-functional on localhost without it.
+- **Product nit: Walkthrough phase clarity** → Clarified that walkthrough core flow goes green at Phase 1; `onUserCreated` goes green at Phase 3.
+- **Technical should-fix: resolveSessionForSSR misconfiguration** → Added guard and acceptance criterion for missing both `jwtSecret` and `cloudVerifier`.
+- **Technical should-fix: createAuth bypass** → §9 now explicitly recommends bypassing `createAuth()` in cloud mode (path b).
+- **Technical should-fix: jose v6 reload() coupling** → Added runtime type check guidance for `@ignore`-marked `reload()` method.
+- **Technical nit: X-Vertz-Environment** → Added to Phase 1 acceptance criteria.
+- **All three reviews approved** — DX, Product, Technical. No blockers.
