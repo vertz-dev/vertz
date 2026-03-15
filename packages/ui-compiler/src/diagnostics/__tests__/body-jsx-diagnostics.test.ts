@@ -32,7 +32,7 @@ describe('BodyJsxDiagnostics', () => {
     const diags = new BodyJsxDiagnostics().analyze(sf, comp);
     expect(diags).toHaveLength(1);
     expect(diags[0]?.code).toBe('jsx-outside-tree');
-    expect(diags[0]?.severity).toBe('error');
+    expect(diags[0]?.severity).toBe('warning');
     expect(diags[0]?.line).toBeGreaterThan(0);
   });
 
@@ -305,7 +305,7 @@ describe('BodyJsxDiagnostics', () => {
     `);
     const bodyJsxDiags = result.diagnostics.filter((d) => d.code === 'jsx-outside-tree');
     expect(bodyJsxDiags).toHaveLength(1);
-    expect(bodyJsxDiags[0]?.severity).toBe('error');
+    expect(bodyJsxDiags[0]?.severity).toBe('warning');
     expect(bodyJsxDiags[0]?.message).toContain('hydration');
   });
 

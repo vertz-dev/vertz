@@ -39,7 +39,7 @@ export class BodyJsxDiagnostics {
       const pos = sourceFile.getLineAndColumnAtPos(node.getStart());
       diagnostics.push({
         code: 'jsx-outside-tree',
-        severity: 'error',
+        severity: 'warning',
         message:
           'JSX outside the return tree creates DOM elements eagerly during hydration, ' +
           'stealing SSR nodes from the render tree. Move this JSX into the return expression, ' +

@@ -20,7 +20,7 @@ There is no legitimate case for body-level JSX. Every use case has a better alte
 
 This feature introduces no new public APIs. It adds:
 
-1. **Compiler diagnostic** (`error` severity, code: `jsx-outside-tree`)
+1. **Compiler diagnostic** (`warning` severity, code: `jsx-outside-tree`) — warning rather than error because `@vertz/ui-primitives` legitimately uses body JSX for imperative DOM construction
 2. **Biome lint rule** (`no-body-jsx.grit`, `warn` severity)
 
 ### Compiler Diagnostic Output
@@ -82,7 +82,7 @@ Defense-in-depth only. The compiler error is the primary defense. The lint rule 
 
 - **Runtime detection** — Checking at runtime whether `__element()` is called outside a tree context adds overhead and complexity. The compiler knows the structure statically.
 - **Special `createElement()` function** — Adding a Vertz-specific imperative element creator just to support body JSX. This would be `document.createElement()` with extra steps.
-- **Warning instead of error** — Body JSX always breaks hydration. There's no "sometimes it's fine" — it should be a hard error.
+- **Error severity** — Initially designed as error, but `@vertz/ui-primitives` legitimately uses body JSX for imperative DOM builders (e.g., `TabsRoot`). Warning severity avoids breaking the build while still surfacing the hydration risk in standard components.
 
 ## Non-Goals
 
