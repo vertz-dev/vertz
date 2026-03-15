@@ -72,26 +72,26 @@ export function IssueDetailPage() {
   };
 
   return (
-    <div class={styles.container}>
-      {issue.loading && <div class={styles.loading}>Loading issue...</div>}
+    <div className={styles.container}>
+      {issue.loading && <div className={styles.loading}>Loading issue...</div>}
 
-      {issue.error && <div class={styles.error}>Failed to load issue. Please try again.</div>}
+      {issue.error && <div className={styles.error}>Failed to load issue. Please try again.</div>}
 
-      {updateError && <div class={styles.error}>{updateError}</div>}
+      {updateError && <div className={styles.error}>{updateError}</div>}
 
       {issue.data && (
-        <div class={styles.layout}>
-          <div class={styles.main}>
-            <div class={styles.identifier}>
+        <div className={styles.layout}>
+          <div className={styles.main}>
+            <div className={styles.identifier}>
               {`${project.data?.key ?? '...'}-${issue.data.number}`}
             </div>
-            <h2 class={styles.title}>{issue.data.title}</h2>
+            <h2 className={styles.title}>{issue.data.title}</h2>
             {issue.data.description ? (
-              <p class={styles.description}>{issue.data.description}</p>
+              <p className={styles.description}>{issue.data.description}</p>
             ) : (
-              <p class={styles.noDescription}>No description provided.</p>
+              <p className={styles.noDescription}>No description provided.</p>
             )}
-            <div class={styles.meta}>
+            <div className={styles.meta}>
               {`Created ${new Date(issue.data.createdAt).toLocaleDateString()}`}
             </div>
 
@@ -104,7 +104,7 @@ export function IssueDetailPage() {
             />
           </div>
 
-          <aside class={styles.sidebar}>
+          <aside className={styles.sidebar}>
             <StatusSelect value={issue.data.status as IssueStatus} onChange={handleStatusChange} />
             <PrioritySelect
               value={issue.data.priority as IssuePriority}

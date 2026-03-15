@@ -52,7 +52,7 @@ export function Panel({ title }: PanelProps) {
   const content = children();
 
   return (
-    <div class={styles.panel}>
+    <div className={styles.panel}>
       <h2>{title}</h2>
       <div>{content}</div>
     </div>
@@ -76,11 +76,11 @@ Use `&&` for show/hide and ternary for either/or:
 export function TaskStatus({ task }: { task: Task }) {
   return (
     <div>
-      {task.status === 'done' && <span class={styles.badge}>Completed</span>}
+      {task.status === 'done' && <span className={styles.badge}>Completed</span>}
 
       {task.priority === 'high'
-        ? <span class={styles.urgent}>Urgent</span>
-        : <span class={styles.normal}>Normal</span>
+        ? <span className={styles.urgent}>Urgent</span>
+        : <span className={styles.normal}>Normal</span>
       }
     </div>
   );

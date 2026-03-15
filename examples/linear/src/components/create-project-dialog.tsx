@@ -56,7 +56,7 @@ export function CreateProjectDialog({ dialog }: CreateProjectDialogProps) {
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: dialog overlay backdrop
     <div
-      class={dialogStyles.overlay}
+      className={dialogStyles.overlay}
       data-state="open"
       role="presentation"
       onClick={(e: MouseEvent) => {
@@ -67,48 +67,52 @@ export function CreateProjectDialog({ dialog }: CreateProjectDialogProps) {
       }}
     >
       <div
-        class={dialogStyles.panel}
+        className={dialogStyles.panel}
         role="dialog"
         aria-modal="true"
         aria-label="New Project"
         data-state="open"
       >
-        <h3 class={dialogStyles.title}>New Project</h3>
+        <h3 className={dialogStyles.title}>New Project</h3>
         <form action={createForm.action} method={createForm.method} onSubmit={createForm.onSubmit}>
-          <div class={formStyles.field}>
-            <label class={labelStyles.base} htmlFor="project-name">
+          <div className={formStyles.field}>
+            <label className={labelStyles.base} htmlFor="project-name">
               Name
             </label>
             <input
-              class={inputStyles.base}
+              className={inputStyles.base}
               id="project-name"
               name="name"
               placeholder="My Project"
             />
-            {createForm.name.error && <span class={formStyles.error}>{createForm.name.error}</span>}
+            {createForm.name.error && (
+              <span className={formStyles.error}>{createForm.name.error}</span>
+            )}
           </div>
 
-          <div class={formStyles.field}>
-            <label class={labelStyles.base} htmlFor="project-key">
+          <div className={formStyles.field}>
+            <label className={labelStyles.base} htmlFor="project-key">
               Key
             </label>
             <input
-              class={inputStyles.base}
+              className={inputStyles.base}
               id="project-key"
               name="key"
               placeholder="PROJ"
               maxLength={5}
               style="text-transform: uppercase"
             />
-            {createForm.key.error && <span class={formStyles.error}>{createForm.key.error}</span>}
+            {createForm.key.error && (
+              <span className={formStyles.error}>{createForm.key.error}</span>
+            )}
           </div>
 
-          <div class={formStyles.field}>
-            <label class={labelStyles.base} htmlFor="project-description">
+          <div className={formStyles.field}>
+            <label className={labelStyles.base} htmlFor="project-description">
               Description
             </label>
             <textarea
-              class={inputStyles.base}
+              className={inputStyles.base}
               id="project-description"
               name="description"
               placeholder="Optional description"
@@ -116,7 +120,7 @@ export function CreateProjectDialog({ dialog }: CreateProjectDialogProps) {
             />
           </div>
 
-          <footer class={dialogStyles.footer}>
+          <footer className={dialogStyles.footer}>
             <Button intent="outline" size="sm" onClick={() => dialog.close(false)}>
               Cancel
             </Button>

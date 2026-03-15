@@ -56,12 +56,12 @@ export function TaskListPage() {
 
   return (
     <div data-testid="task-list-page">
-      <div class={layoutStyles.header}>
+      <div className={layoutStyles.header}>
         <h1 style="font-size: 1.5rem; font-weight: 700">Tasks</h1>
 
         <button
           type="button"
-          class={button({ intent: 'primary', size: 'md' })}
+          className={button({ intent: 'primary', size: 'md' })}
           data-testid="create-task-btn"
           onClick={() => navigate({ to: '/tasks/new' })}
         >
@@ -73,7 +73,7 @@ export function TaskListPage() {
         {filters.map((filter) => (
           <button
             type="button"
-            class={button({
+            className={button({
               intent: statusFilter === filter.value ? 'primary' : 'ghost',
               size: 'sm',
             })}
@@ -96,15 +96,17 @@ export function TaskListPage() {
         data: () => (
           <>
             {filteredTasks.length === 0 && (
-              <div class={emptyStateStyles.container}>
-                <div class={emptyStateStyles.icon}>
+              <div className={emptyStateStyles.container}>
+                <div className={emptyStateStyles.icon}>
                   <InboxIcon size={48} />
                 </div>
-                <h3 class={emptyStateStyles.title}>No tasks found</h3>
-                <p class={emptyStateStyles.description}>Create your first task to get started.</p>
+                <h3 className={emptyStateStyles.title}>No tasks found</h3>
+                <p className={emptyStateStyles.description}>
+                  Create your first task to get started.
+                </p>
                 <button
                   type="button"
-                  class={button({ intent: 'primary', size: 'md' })}
+                  className={button({ intent: 'primary', size: 'md' })}
                   onClick={() => navigate({ to: '/tasks/new' })}
                 >
                   Create Task

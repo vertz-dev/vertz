@@ -13,6 +13,6 @@
     "target": "ES2022",
     "types": ["bun-types", "@cloudflare/workers-types"]
   },
-  "include": ["src", ".vertz/generated"],
-  "exclude": ["src/worker.ts", ".vertz/generated/routes.ts"]
+  "exclude": ["src/worker.ts", ".vertz/generated/routes.ts"],
+  "include": ["src", ".vertz/generated"]
 }

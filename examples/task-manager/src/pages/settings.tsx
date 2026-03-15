@@ -5,7 +5,7 @@
  * - Fully declarative settings page — no effect() needed
  * - useContext() to consume the SettingsContext
  * - Compiler `let` → signal transform for local state (currentTheme, defaultPriority)
- * - Reactive JSX attributes via class={expr}
+ * - Reactive JSX attributes via className={expr}
  * - Compiler conditional transform: {showSaved && <div>...</div>} → __conditional()
  * - Reactive class toggling via JSX expressions
  */
@@ -56,14 +56,14 @@ export function SettingsPage() {
   // ── Page layout with JSX ────────────────────────────
 
   return (
-    <div class={settingsStyles.page} data-testid="settings-page">
-      <h1 class={settingsStyles.title}>Settings</h1>
+    <div className={settingsStyles.page} data-testid="settings-page">
+      <h1 className={settingsStyles.title}>Settings</h1>
 
-      <section class={settingsStyles.section}>
-        <h2 class={settingsStyles.sectionTitle}>Appearance</h2>
-        <div class={settingsStyles.themeGrid}>
+      <section className={settingsStyles.section}>
+        <h2 className={settingsStyles.sectionTitle}>Appearance</h2>
+        <div className={settingsStyles.themeGrid}>
           <div
-            class={`${settingsStyles.themeCard} ${
+            className={`${settingsStyles.themeCard} ${
               currentTheme === 'light'
                 ? settingsStyles.themeCardActive
                 : settingsStyles.themeCardInactive
@@ -74,7 +74,7 @@ export function SettingsPage() {
             onClick={() => selectTheme('light')}
           >
             <div
-              class={settingsStyles.previewBox}
+              className={settingsStyles.previewBox}
               style="background-color: #ffffff; display: flex; align-items: center; justify-content: center"
             >
               <SunIcon size={24} />
@@ -82,7 +82,7 @@ export function SettingsPage() {
             <div style="font-weight: 500">Light</div>
           </div>
           <div
-            class={`${settingsStyles.themeCard} ${
+            className={`${settingsStyles.themeCard} ${
               currentTheme === 'dark'
                 ? settingsStyles.themeCardActive
                 : settingsStyles.themeCardInactive
@@ -93,7 +93,7 @@ export function SettingsPage() {
             onClick={() => selectTheme('dark')}
           >
             <div
-              class={settingsStyles.previewBox}
+              className={settingsStyles.previewBox}
               style="background-color: #111827; color: #ffffff; display: flex; align-items: center; justify-content: center"
             >
               <MoonIcon size={24} />
@@ -102,17 +102,17 @@ export function SettingsPage() {
           </div>
         </div>
         {showSaved && (
-          <div class={settingsStyles.savedMsg} data-testid="saved-message">
+          <div className={settingsStyles.savedMsg} data-testid="saved-message">
             Settings saved!
           </div>
         )}
       </section>
 
-      <section class={settingsStyles.section}>
-        <h2 class={settingsStyles.sectionTitle}>Default Priority</h2>
-        <div class={formStyles.formGroup}>
+      <section className={settingsStyles.section}>
+        <h2 className={settingsStyles.sectionTitle}>Default Priority</h2>
+        <div className={formStyles.formGroup}>
           <select
-            class={formStyles.select}
+            className={formStyles.select}
             data-testid="default-priority-select"
             onChange={(e: Event) => {
               const value = (e.target as HTMLSelectElement).value as

@@ -85,7 +85,7 @@ All UI code must be declarative. No `appendChild`, `innerHTML`, `textContent` as
 
 ```tsx
 // Preferred
-return <div class={styles.panel}>{title}</div>;
+return <div className={styles.panel}>{title}</div>;
 
 // Avoid
 const el = document.createElement('div');
@@ -161,7 +161,7 @@ const styles = css({
 });
 
 // Dynamic one-off layout — inline style is fine
-<div class={styles.panel} style={`margin-top: ${offset}px`}>
+<div className={styles.panel} style={`margin-top: ${offset}px`}>
   {content}
 </div>
 ```

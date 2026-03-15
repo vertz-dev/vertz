@@ -19,13 +19,13 @@ interface CommentItemProps {
 
 export function CommentItem({ comment, authorName, authorAvatarUrl }: CommentItemProps) {
   return (
-    <div class={styles.comment}>
-      <div class={styles.header}>
-        {authorAvatarUrl && <img class={styles.avatar} src={authorAvatarUrl} alt="" />}
-        <span class={styles.author}>{authorName}</span>
-        <span class={styles.date}>{formatRelativeTime(comment.createdAt)}</span>
+    <div className={styles.comment}>
+      <div className={styles.header}>
+        {authorAvatarUrl && <img className={styles.avatar} src={authorAvatarUrl} alt="" />}
+        <span className={styles.author}>{authorName}</span>
+        <span className={styles.date}>{formatRelativeTime(comment.createdAt)}</span>
       </div>
-      <p class={styles.body}>{comment.body}</p>
+      <p className={styles.body}>{comment.body}</p>
     </div>
   );
 }

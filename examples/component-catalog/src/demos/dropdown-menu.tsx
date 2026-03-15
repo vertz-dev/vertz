@@ -6,12 +6,14 @@ const { DropdownMenu } = themeComponents.primitives;
 
 export function DropdownMenuDemo() {
   return (
-    <div class={demoStyles.col}>
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>Basic menu</div>
+    <div className={demoStyles.col}>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Basic menu</div>
         <DropdownMenu>
           <DropdownMenu.Trigger>
-            <Button intent="outline" size="md">Open</Button>
+            <Button intent="outline" size="md">
+              Open
+            </Button>
           </DropdownMenu.Trigger>
           <DropdownMenu.Content>
             <DropdownMenu.Label>My Account</DropdownMenu.Label>

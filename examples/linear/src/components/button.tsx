@@ -12,7 +12,9 @@ const buttonVariants = themeStyles.button;
 interface ButtonProps {
   intent?: 'primary' | 'secondary' | 'destructive' | 'ghost' | 'outline' | 'link';
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'icon' | 'icon-xs' | 'icon-sm' | 'icon-lg';
+  /** @deprecated Use `className` */
   class?: string;
+  className?: string;
   children?: unknown;
   disabled?: boolean;
   type?: 'button' | 'submit' | 'reset';
@@ -22,7 +24,8 @@ interface ButtonProps {
 export function Button({
   intent,
   size,
-  class: className,
+  class: classDeprecated,
+  className,
   children,
   type = 'button',
   ...rest
@@ -30,7 +33,9 @@ export function Button({
   return (
     <button
       type={type}
-      class={[buttonVariants({ intent, size }), className].filter(Boolean).join(' ')}
+      className={[buttonVariants({ intent, size }), className ?? classDeprecated]
+        .filter(Boolean)
+        .join(' ')}
       {...rest}
     >
       {children}

@@ -6,12 +6,14 @@ const { Sheet } = themeComponents.primitives;
 
 export function SheetDemo() {
   return (
-    <div class={demoStyles.col}>
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>Right side (default)</div>
+    <div className={demoStyles.col}>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Right side (default)</div>
         <Sheet>
           <Sheet.Trigger>
-            <Button intent="outline" size="md">Open Sheet</Button>
+            <Button intent="outline" size="md">
+              Open Sheet
+            </Button>
           </Sheet.Trigger>
           <Sheet.Content>
             <Sheet.Title>Edit profile</Sheet.Title>
@@ -26,16 +28,20 @@ export function SheetDemo() {
                 <Input id="sheet-username" name="username" defaultValue="@peduarte" />
               </div>
             </div>
-            <Button intent="primary" size="md">Save changes</Button>
+            <Button intent="primary" size="md">
+              Save changes
+            </Button>
           </Sheet.Content>
         </Sheet>
       </div>
 
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>Left side</div>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Left side</div>
         <Sheet side="left">
           <Sheet.Trigger>
-            <Button intent="outline" size="md">Open Left</Button>
+            <Button intent="outline" size="md">
+              Open Left
+            </Button>
           </Sheet.Trigger>
           <Sheet.Content>
             <Sheet.Title>Navigation</Sheet.Title>

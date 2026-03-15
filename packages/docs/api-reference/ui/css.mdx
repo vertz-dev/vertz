@@ -23,8 +23,8 @@ const styles = css({
 
 function TaskCard() {
   return (
-    <div class={styles.card}>
-      <h2 class={styles.title}>Task</h2>
+    <div className={styles.card}>
+      <h2 className={styles.title}>Task</h2>
     </div>
   );
 }
@@ -104,7 +104,7 @@ const button = variants({
 // button({ intent: 'danger', size: 'sm' }) → 'btn_a1b2c3 danger_a1b2c3 sm_a1b2c3'
 
 function SubmitButton() {
-  return <button class={button({ intent: 'primary', size: 'lg' })}>Save</button>;
+  return <button className={button({ intent: 'primary', size: 'lg' })}>Save</button>;
 }
 ```
 

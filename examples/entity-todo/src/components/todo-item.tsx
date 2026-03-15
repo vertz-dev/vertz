@@ -43,23 +43,23 @@ export function TodoItem({ id, title, completed }: TodoItemProps) {
   };
 
   return (
-    <div class={todoItemStyles.item} data-testid={`todo-item-${id}`}>
+    <div className={todoItemStyles.item} data-testid={`todo-item-${id}`}>
       <input
         type="checkbox"
-        class={todoItemStyles.checkbox}
+        className={todoItemStyles.checkbox}
         checked={completed}
         onChange={handleToggle}
         data-testid={`todo-checkbox-${id}`}
       />
       <span
-        class={completed ? todoItemStyles.labelCompleted : todoItemStyles.label}
+        className={completed ? todoItemStyles.labelCompleted : todoItemStyles.label}
         data-testid={`todo-title-${id}`}
       >
         {title}
       </span>
       <button
         type="button"
-        class={button({ intent: 'ghost', size: 'sm' })}
+        className={button({ intent: 'ghost', size: 'sm' })}
         onClick={() => {
           isConfirmOpen = true;
         }}
@@ -69,26 +69,26 @@ export function TodoItem({ id, title, completed }: TodoItemProps) {
       </button>
 
       <div
-        class={alertDialogStyles.overlay}
+        className={alertDialogStyles.overlay}
         aria-hidden={isConfirmOpen ? 'false' : 'true'}
         style={isConfirmOpen ? '' : 'display: none'}
       />
-      <div class={dialogWrapperStyles.wrapper} style={isConfirmOpen ? '' : 'display: none'}>
+      <div className={dialogWrapperStyles.wrapper} style={isConfirmOpen ? '' : 'display: none'}>
         <div
-          class={alertDialogStyles.panel}
+          className={alertDialogStyles.panel}
           role="alertdialog"
           aria-modal="true"
           aria-hidden={isConfirmOpen ? 'false' : 'true'}
           data-state={isConfirmOpen ? 'open' : 'closed'}
         >
-          <h2 class={alertDialogStyles.title}>Delete todo?</h2>
-          <p class={alertDialogStyles.description}>
+          <h2 className={alertDialogStyles.title}>Delete todo?</h2>
+          <p className={alertDialogStyles.description}>
             This will permanently delete "{title}". This action cannot be undone.
           </p>
-          <div class={alertDialogStyles.footer}>
+          <div className={alertDialogStyles.footer}>
             <button
               type="button"
-              class={button({ intent: 'secondary', size: 'sm' })}
+              className={button({ intent: 'secondary', size: 'sm' })}
               onClick={() => {
                 isConfirmOpen = false;
               }}
@@ -97,7 +97,7 @@ export function TodoItem({ id, title, completed }: TodoItemProps) {
             </button>
             <button
               type="button"
-              class={button({ intent: 'destructive', size: 'sm' })}
+              className={button({ intent: 'destructive', size: 'sm' })}
               onClick={handleDelete}
             >
               Delete

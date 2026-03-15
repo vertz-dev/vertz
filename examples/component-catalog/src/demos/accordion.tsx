@@ -5,16 +5,14 @@ const { Accordion } = themeComponents.primitives;
 
 export function AccordionDemo() {
   return (
-    <div class={demoStyles.col}>
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>Default</div>
+    <div className={demoStyles.col}>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Default</div>
         <div style="width: 100%; max-width: 28rem;">
           <Accordion>
             <Accordion.Item value="item-1">
               <Accordion.Trigger>Is it accessible?</Accordion.Trigger>
-              <Accordion.Content>
-                Yes. It adheres to the WAI-ARIA design pattern.
-              </Accordion.Content>
+              <Accordion.Content>Yes. It adheres to the WAI-ARIA design pattern.</Accordion.Content>
             </Accordion.Item>
             <Accordion.Item value="item-2">
               <Accordion.Trigger>Is it styled?</Accordion.Trigger>

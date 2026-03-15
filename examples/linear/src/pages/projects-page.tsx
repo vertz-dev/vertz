@@ -28,24 +28,24 @@ export function ProjectsPage() {
   };
 
   return (
-    <div class={styles.container}>
-      <header class={styles.header}>
-        <h1 class={styles.title}>Projects</h1>
+    <div className={styles.container}>
+      <header className={styles.header}>
+        <h1 className={styles.title}>Projects</h1>
         <Button intent="primary" size="sm" onClick={handleNewProject}>
           New Project
         </Button>
       </header>
 
-      {projects.loading && <div class={styles.loading}>Loading projects...</div>}
+      {projects.loading && <div className={styles.loading}>Loading projects...</div>}
 
       {!projects.loading && projects.data?.items.length === 0 && (
-        <div class={emptyStateStyles.container} data-testid="projects-empty">
-          <h2 class={emptyStateStyles.title}>No projects yet</h2>
-          <p class={emptyStateStyles.description}>Create your first project to get started.</p>
+        <div className={emptyStateStyles.container} data-testid="projects-empty">
+          <h2 className={emptyStateStyles.title}>No projects yet</h2>
+          <p className={emptyStateStyles.description}>Create your first project to get started.</p>
         </div>
       )}
 
-      <div class={styles.grid}>
+      <div className={styles.grid}>
         {projects.data?.items.map((project) => (
           <Link href={`/projects/${project.id}`} key={project.id}>
             <ProjectCard project={project as Project} />

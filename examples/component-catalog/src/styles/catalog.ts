@@ -2,8 +2,34 @@ import { css } from '@vertz/ui';
 
 export const layoutStyles = css({
   shell: ['flex', { '&': [{ property: 'height', value: '100vh' }] }],
-  sidebar: ['w:64', 'border-r:1', 'border:border', 'pt:4', 'pb:4', 'pl:4', 'pr:1', 'bg:card', 'flex', 'flex-col', { '&': [{ property: 'height', value: '100vh' }, { property: 'overflow', value: 'hidden' }] }],
-  main: ['flex-1', 'p:6', { '&': [{ property: 'height', value: '100vh' }, { property: 'overflow', value: 'hidden' }] }],
+  sidebar: [
+    'w:64',
+    'border-r:1',
+    'border:border',
+    'pt:4',
+    'pb:4',
+    'pl:4',
+    'pr:1',
+    'bg:card',
+    'flex',
+    'flex-col',
+    {
+      '&': [
+        { property: 'height', value: '100vh' },
+        { property: 'overflow', value: 'hidden' },
+      ],
+    },
+  ],
+  main: [
+    'flex-1',
+    'p:6',
+    {
+      '&': [
+        { property: 'height', value: '100vh' },
+        { property: 'overflow', value: 'hidden' },
+      ],
+    },
+  ],
 });
 
 export const scrollStyles = css({
@@ -71,13 +97,7 @@ export const navStyles = css({
 });
 
 export const demoStyles = css({
-  demoBox: [
-    'border:1',
-    'border:border',
-    'rounded:lg',
-    'p:6',
-    'bg:card',
-  ],
+  demoBox: ['border:1', 'border:border', 'rounded:lg', 'p:6', 'bg:card'],
   demoLabel: ['font:lg', 'font:semibold', 'text:foreground', 'mb:4'],
   demoDescription: ['text:sm', 'text:muted-foreground', 'mb:6'],
   section: ['mb:8'],

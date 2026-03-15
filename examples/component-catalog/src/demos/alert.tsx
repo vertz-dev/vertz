@@ -5,9 +5,9 @@ const { Alert: AlertSuite } = themeComponents;
 
 export function AlertDemo() {
   return (
-    <div class={demoStyles.col}>
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>Default</div>
+    <div className={demoStyles.col}>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Default</div>
         <AlertSuite.Alert>
           <AlertSuite.AlertTitle>Heads up!</AlertSuite.AlertTitle>
           <AlertSuite.AlertDescription>
@@ -15,8 +15,8 @@ export function AlertDemo() {
           </AlertSuite.AlertDescription>
         </AlertSuite.Alert>
       </div>
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>Destructive</div>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Destructive</div>
         <AlertSuite.Alert variant="destructive">
           <AlertSuite.AlertTitle>Error</AlertSuite.AlertTitle>
           <AlertSuite.AlertDescription>

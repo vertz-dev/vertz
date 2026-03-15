@@ -148,7 +148,7 @@ let isDisabled = false;
 
 return (
   <button
-    class={isActive ? 'btn-primary' : 'btn-ghost'}
+    className={isActive ? 'btn-primary' : 'btn-ghost'}
     disabled={isDisabled}
     aria-pressed={isActive ? 'true' : 'false'}
     style={isActive ? 'font-weight: bold' : ''}
@@ -159,7 +159,7 @@ return (
 );
 ```
 
-Each attribute updates independently. Changing `isActive` updates `class`, `aria-pressed`, and `style` — but doesn't touch `disabled`.
+Each attribute updates independently. Changing `isActive` updates `className`, `aria-pressed`, and `style` — but doesn't touch `disabled`.
 
 ## Batch updates
 

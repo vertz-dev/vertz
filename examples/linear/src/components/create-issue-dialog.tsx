@@ -72,7 +72,7 @@ export function CreateIssueDialog({ projectId, dialog }: CreateIssueDialogProps)
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: dialog overlay backdrop
     <div
-      class={dialogStyles.overlay}
+      className={dialogStyles.overlay}
       data-state="open"
       role="presentation"
       onClick={(e: MouseEvent) => {
@@ -83,37 +83,37 @@ export function CreateIssueDialog({ projectId, dialog }: CreateIssueDialogProps)
       }}
     >
       <div
-        class={dialogStyles.panel}
+        className={dialogStyles.panel}
         role="dialog"
         aria-modal="true"
         aria-label="New Issue"
         data-state="open"
       >
-        <h3 class={dialogStyles.title}>New Issue</h3>
+        <h3 className={dialogStyles.title}>New Issue</h3>
         <form action={createForm.action} method={createForm.method} onSubmit={createForm.onSubmit}>
           <input type="hidden" name="projectId" value={projectId} />
 
-          <div class={formStyles.field}>
-            <label class={labelStyles.base} htmlFor="issue-title">
+          <div className={formStyles.field}>
+            <label className={labelStyles.base} htmlFor="issue-title">
               Title
             </label>
             <input
-              class={inputStyles.base}
+              className={inputStyles.base}
               id="issue-title"
               name="title"
               placeholder="Issue title"
             />
             {createForm.title.error && (
-              <span class={formStyles.error}>{createForm.title.error}</span>
+              <span className={formStyles.error}>{createForm.title.error}</span>
             )}
           </div>
 
-          <div class={formStyles.field}>
-            <label class={labelStyles.base} htmlFor="issue-description">
+          <div className={formStyles.field}>
+            <label className={labelStyles.base} htmlFor="issue-description">
               Description
             </label>
             <textarea
-              class={inputStyles.base}
+              className={inputStyles.base}
               id="issue-description"
               name="description"
               placeholder="Optional description"
@@ -121,11 +121,11 @@ export function CreateIssueDialog({ projectId, dialog }: CreateIssueDialogProps)
             />
           </div>
 
-          <div class={formStyles.field}>
-            <label class={labelStyles.base} htmlFor="issue-priority">
+          <div className={formStyles.field}>
+            <label className={labelStyles.base} htmlFor="issue-priority">
               Priority
             </label>
-            <select class={formStyles.select} id="issue-priority" name="priority">
+            <select className={formStyles.select} id="issue-priority" name="priority">
               <option value="none">None</option>
               <option value="low">Low</option>
               <option value="medium">Medium</option>
@@ -134,7 +134,7 @@ export function CreateIssueDialog({ projectId, dialog }: CreateIssueDialogProps)
             </select>
           </div>
 
-          <footer class={dialogStyles.footer}>
+          <footer className={dialogStyles.footer}>
             <Button intent="outline" size="sm" onClick={() => dialog.close(false)}>
               Cancel
             </Button>

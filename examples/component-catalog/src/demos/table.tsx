@@ -5,9 +5,9 @@ const { Table: T } = themeComponents;
 
 export function TableDemo() {
   return (
-    <div class={demoStyles.col}>
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>Basic table</div>
+    <div className={demoStyles.col}>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Basic table</div>
         <T.Table>
           <T.TableHeader>
             <T.TableRow>

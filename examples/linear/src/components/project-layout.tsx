@@ -14,12 +14,12 @@ export function ProjectLayout() {
 
   return (
     <div>
-      <header class={styles.header}>
-        <Link href="/projects" class={styles.breadcrumb}>
+      <header className={styles.header}>
+        <Link href="/projects" className={styles.breadcrumb}>
           Projects
         </Link>
-        <span class={styles.separator}>/</span>
-        <h1 class={styles.title}>{project.data?.name ?? 'Loading...'}</h1>
+        <span className={styles.separator}>/</span>
+        <h1 className={styles.title}>{project.data?.name ?? 'Loading...'}</h1>
       </header>
       <Outlet />
     </div>

@@ -6,12 +6,14 @@ const { Popover } = themeComponents.primitives;
 
 export function PopoverDemo() {
   return (
-    <div class={demoStyles.col}>
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>Basic popover</div>
+    <div className={demoStyles.col}>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Basic popover</div>
         <Popover>
           <Popover.Trigger>
-            <Button intent="outline" size="md">Open popover</Button>
+            <Button intent="outline" size="md">
+              Open popover
+            </Button>
           </Popover.Trigger>
           <Popover.Content>
             <div style="padding: 16px; width: 280px;">

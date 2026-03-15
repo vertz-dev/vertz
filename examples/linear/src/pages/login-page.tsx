@@ -17,10 +17,10 @@ const styles = css({
 
 export function LoginPage() {
   return (
-    <div class={styles.container}>
-      <div class={cardStyles.root} style="padding: 2rem; width: 100%; max-width: 24rem">
-        <h1 class={styles.title}>Linear Clone</h1>
-        <p class={styles.subtitle}>Sign in to your workspace</p>
+    <div className={styles.container}>
+      <div className={cardStyles.root} style="padding: 2rem; width: 100%; max-width: 24rem">
+        <h1 className={styles.title}>Linear Clone</h1>
+        <p className={styles.subtitle}>Sign in to your workspace</p>
         <OAuthButton provider="github" />
       </div>
     </div>

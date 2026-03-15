@@ -5,9 +5,9 @@ const { Tabs } = themeComponents.primitives;
 
 export function TabsDemo() {
   return (
-    <div class={demoStyles.col}>
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>Default variant</div>
+    <div className={demoStyles.col}>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Default variant</div>
         <Tabs defaultValue="account">
           <Tabs.List>
             <Tabs.Trigger value="account">Account</Tabs.Trigger>
@@ -26,8 +26,8 @@ export function TabsDemo() {
         </Tabs>
       </div>
 
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>Line variant</div>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Line variant</div>
         <Tabs defaultValue="overview" variant="line">
           <Tabs.List>
             <Tabs.Trigger value="overview">Overview</Tabs.Trigger>

@@ -6,12 +6,14 @@ const { Dialog } = themeComponents.primitives;
 
 export function DialogDemo() {
   return (
-    <div class={demoStyles.col}>
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>Edit profile</div>
+    <div className={demoStyles.col}>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Edit profile</div>
         <Dialog>
           <Dialog.Trigger>
-            <Button intent="outline" size="md">Edit Profile</Button>
+            <Button intent="outline" size="md">
+              Edit Profile
+            </Button>
           </Dialog.Trigger>
           <Dialog.Content>
             <Dialog.Header>
@@ -31,18 +33,24 @@ export function DialogDemo() {
               </div>
             </div>
             <Dialog.Footer>
-              <Button intent="outline" size="md">Cancel</Button>
-              <Button intent="primary" size="md">Save changes</Button>
+              <Button intent="outline" size="md">
+                Cancel
+              </Button>
+              <Button intent="primary" size="md">
+                Save changes
+              </Button>
             </Dialog.Footer>
           </Dialog.Content>
         </Dialog>
       </div>
 
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>Share link</div>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Share link</div>
         <Dialog>
           <Dialog.Trigger>
-            <Button intent="outline" size="md">Share</Button>
+            <Button intent="outline" size="md">
+              Share
+            </Button>
           </Dialog.Trigger>
           <Dialog.Content>
             <Dialog.Header>
@@ -57,17 +65,21 @@ export function DialogDemo() {
               </div>
             </div>
             <Dialog.Footer>
-              <Button intent="secondary" size="md">Close</Button>
+              <Button intent="secondary" size="md">
+                Close
+              </Button>
             </Dialog.Footer>
           </Dialog.Content>
         </Dialog>
       </div>
 
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>Without footer</div>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Without footer</div>
         <Dialog>
           <Dialog.Trigger>
-            <Button intent="outline" size="md">View Details</Button>
+            <Button intent="outline" size="md">
+              View Details
+            </Button>
           </Dialog.Trigger>
           <Dialog.Content>
             <Dialog.Header>

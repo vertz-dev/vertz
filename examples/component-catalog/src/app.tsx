@@ -38,12 +38,12 @@ function Sidebar() {
   }
 
   return (
-    <nav class={layoutStyles.sidebar} aria-label="Component navigation">
-      <div class={navStyles.title}>Components</div>
-      <div class={navStyles.subtitle}>{componentRegistry.length} themed components</div>
-      <div class={scrollStyles.thin} style="flex: 1; min-height: 0; overflow-y: auto;">
+    <nav className={layoutStyles.sidebar} aria-label="Component navigation">
+      <div className={navStyles.title}>Components</div>
+      <div className={navStyles.subtitle}>{componentRegistry.length} themed components</div>
+      <div className={scrollStyles.thin} style="flex: 1; min-height: 0; overflow-y: auto;">
         <div style="display: flex; flex-direction: column; gap: 2px;">
-          <Link href="/" class={navStyles.navItem} activeClass={navStyles.navItemActive}>
+          <Link href="/" className={navStyles.navItem} activeClass={navStyles.navItemActive}>
             Overview
           </Link>
           {categoryOrder.flatMap((cat) => {
@@ -51,11 +51,11 @@ function Sidebar() {
             if (entries.length === 0) return [];
             return [
               <div>
-                <div class={navStyles.categoryTitle}>{categoryLabels[cat]}</div>
+                <div className={navStyles.categoryTitle}>{categoryLabels[cat]}</div>
                 {entries.map((entry) => (
                   <Link
                     href={`/${entry.slug}`}
-                    class={navStyles.navItem}
+                    className={navStyles.navItem}
                     activeClass={navStyles.navItemActive}
                   >
                     {entry.name}
@@ -66,7 +66,7 @@ function Sidebar() {
           })}
         </div>
       </div>
-      <button type="button" class={navStyles.themeToggle} onClick={toggleTheme}>
+      <button type="button" className={navStyles.themeToggle} onClick={toggleTheme}>
         Toggle Theme
       </button>
     </nav>
@@ -78,9 +78,9 @@ export function App() {
     <div>
       <ThemeProvider theme="light">
         <RouterContext.Provider value={appRouter}>
-          <div class={layoutStyles.shell}>
+          <div className={layoutStyles.shell}>
             <Sidebar />
-            <div class={`${layoutStyles.main} ${scrollStyles.thin}`} style="overflow-y: auto;">
+            <div className={`${layoutStyles.main} ${scrollStyles.thin}`} style="overflow-y: auto;">
               <RouterView router={appRouter} fallback={() => <div>Page not found</div>} />
             </div>
           </div>

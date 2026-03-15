@@ -54,40 +54,40 @@ export function WorkspaceShell() {
   };
 
   return (
-    <div class={sidebarStyles.shell}>
-      <aside class={sidebarStyles.sidebar} data-testid="sidebar">
-        <div class={sidebarStyles.brand}>Linear Clone</div>
-        <nav class={sidebarStyles.nav}>
-          <Link href="/projects" class={sidebarStyles.navItem}>
+    <div className={sidebarStyles.shell}>
+      <aside className={sidebarStyles.sidebar} data-testid="sidebar">
+        <div className={sidebarStyles.brand}>Linear Clone</div>
+        <nav className={sidebarStyles.nav}>
+          <Link href="/projects" className={sidebarStyles.navItem}>
             Projects
           </Link>
           {projects.data?.items.map((project) => (
             <Link
               href={`/projects/${project.id}`}
-              class={sidebarStyles.projectLink}
+              className={sidebarStyles.projectLink}
               key={project.id}
             >
               {`${project.key} — ${project.name}`}
             </Link>
           ))}
         </nav>
-        <div class={sidebarStyles.userSection}>
+        <div className={sidebarStyles.userSection}>
           {auth.user?.avatarUrl && (
             <img
-              class={sidebarStyles.avatar}
+              className={sidebarStyles.avatar}
               src={auth.user.avatarUrl}
               alt=""
               data-testid="user-avatar"
             />
           )}
-          <span class={sidebarStyles.userName} data-testid="user-name">
+          <span className={sidebarStyles.userName} data-testid="user-name">
             {auth.user?.name ?? auth.user?.email}
           </span>
           <span data-testid="sign-out">
             <Button
               intent="ghost"
               size="xs"
-              class={sidebarStyles.signOutButton}
+              className={sidebarStyles.signOutButton}
               onClick={handleSignOut}
             >
               Sign out
@@ -95,7 +95,7 @@ export function WorkspaceShell() {
           </span>
         </div>
       </aside>
-      <main class={sidebarStyles.main}>
+      <main className={sidebarStyles.main}>
         <Outlet />
       </main>
     </div>

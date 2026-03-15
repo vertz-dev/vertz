@@ -28,12 +28,15 @@ export function IssueCard({ issue, projectKey }: IssueCardProps) {
   const identifier = projectKey ? `${projectKey}-${issue.number}` : `#${issue.number}`;
 
   return (
-    <div class={styles.card}>
-      <div class={styles.identifier}>{identifier}</div>
-      <div class={styles.title}>{issue.title}</div>
+    <div className={styles.card}>
+      <div className={styles.identifier}>{identifier}</div>
+      <div className={styles.title}>{issue.title}</div>
       {issue.priority !== 'none' && PRIORITY_CONFIG[issue.priority] && (
-        <div class={styles.meta}>
-          <span class={styles.priority} style={`color: ${PRIORITY_CONFIG[issue.priority].color}`}>
+        <div className={styles.meta}>
+          <span
+            className={styles.priority}
+            style={`color: ${PRIORITY_CONFIG[issue.priority].color}`}
+          >
             {PRIORITY_CONFIG[issue.priority].label}
           </span>
         </div>
