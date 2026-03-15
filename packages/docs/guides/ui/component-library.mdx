@@ -461,21 +461,106 @@ const { Alert: A } = components;
 
 ## Factory-based primitives
 
-These components use an imperative factory API — they return DOM elements rather than JSX components. Available via `components.primitives.*` after calling `configureTheme()`.
+These components use an imperative factory API — they return DOM elements rather than JSX compound components. Available via `components.primitives.*` after calling `configureTheme()`.
 
-| Component | Description |
-|-----------|-------------|
-| Checkbox | Toggle control for boolean values |
-| Switch | Toggle between on and off states |
-| RadioGroup | Select one option from a set |
-| Slider | Range input with track and thumb |
-| Toggle | Toggle button with pressed state |
-| Progress | Task completion percentage indicator |
-| Toast | Temporary notification popup |
+<Note>
+These primitives haven't been converted to JSX compound components yet. They work by returning DOM elements that you embed in your JSX tree. JSX versions are planned.
+</Note>
+
+### Checkbox
+
+Toggle control for boolean values.
+
+```tsx
+const { checkbox } = components.primitives;
+
+<label style="display: flex; align-items: center; gap: 8px">
+  {checkbox({ defaultChecked: true })}
+  Accept terms and conditions
+</label>
+```
+
+### Switch
+
+Toggle between on and off states.
+
+```tsx
+const { switch: createSwitch } = components.primitives;
+
+{createSwitch({ defaultChecked: true })}
+```
+
+Supports `size: 'sm'` for compact variant.
+
+### RadioGroup
+
+Select one option from a set.
+
+```tsx
+const { radioGroup } = components.primitives;
+
+const radio = radioGroup({ defaultValue: 'comfortable' });
+radio.Item('default', 'Default');
+radio.Item('comfortable', 'Comfortable');
+radio.Item('compact', 'Compact');
+
+// Use radio.root in your JSX
+{radio.root}
+```
+
+### Slider
+
+Range input with track and thumb.
+
+```tsx
+const { slider } = components.primitives;
+
+{slider({ defaultValue: 50, min: 0, max: 100 }).root}
+```
+
+### Toggle
+
+Toggle button with pressed state.
+
+```tsx
+const { toggle } = components.primitives;
+
+{toggle()}
+```
+
+### Progress
+
+Shows task completion percentage.
+
+```tsx
+const { progress } = components.primitives;
+
+{progress({ defaultValue: 66 }).root}
+```
+
+### Toast
+
+Temporary notification popup.
+
+```tsx
+const { Button } = components;
+const { toast } = components.primitives;
+
+const t = toast({});
+document.body.appendChild(t.region);
+
+<Button
+  intent="outline"
+  size="md"
+  onClick={() => t.announce('Event has been created.')}
+>
+  Show Toast
+</Button>
+```
 
 ## Additional primitives
 
-These components are also available via `components.primitives.*` but are less commonly used:
+These components are available in `@vertz/ui-primitives` and themed via `components.primitives`, but are less commonly used:
 
 | Component | Description |
 |-----------|-------------|
@@ -493,11 +578,21 @@ These components are also available via `components.primitives.*` but are less c
 | ScrollArea | Custom scrollbars |
 | ToggleGroup | Group of toggle buttons |
 
+All are accessible via `components.primitives.*` after calling `configureTheme()`.
+
 ---
 
 ## Headless usage
 
-For custom styling, you can import headless primitives directly from `@vertz/ui-primitives` and apply your own classes. See [Styling](/guides/ui/styling) for details on `css()` and `variants()`.
+For custom styling, import directly from `@vertz/ui-primitives` and apply your own classes:
+
+```tsx
+import { Dialog } from '@vertz/ui-primitives';
+
+const dialog = Dialog.Root({ modal: true });
+```
+
+See [Styling](/guides/ui/styling) for details on `css()` and `variants()`.
 
 ## Theme configuration
 
