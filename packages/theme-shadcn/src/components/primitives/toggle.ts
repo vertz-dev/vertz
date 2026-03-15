@@ -1,16 +1,32 @@
-import type { ToggleOptions } from '@vertz/ui-primitives';
-import { Toggle } from '@vertz/ui-primitives';
+import type { ChildValue } from '@vertz/ui';
+import type { ComposedToggleProps } from '@vertz/ui-primitives';
+import { ComposedToggle, withStyles } from '@vertz/ui-primitives';
 
 interface ToggleStyleClasses {
   readonly root: string;
 }
 
-export function createThemedToggle(
-  styles: ToggleStyleClasses,
-): (options?: ToggleOptions) => HTMLElement {
-  return function themedToggle(options?: ToggleOptions) {
-    const root = Toggle.Root(options);
-    root.classList.add(styles.root);
-    return root;
+// ── Props ──────────────────────────────────────────────────
+
+export interface ToggleRootProps {
+  children?: ChildValue;
+  defaultPressed?: boolean;
+  disabled?: boolean;
+  onPressedChange?: (pressed: boolean) => void;
+}
+
+// ── Component type ─────────────────────────────────────────
+
+export type ThemedToggleComponent = (props: ToggleRootProps) => HTMLElement;
+
+// ── Factory ────────────────────────────────────────────────
+
+export function createThemedToggle(styles: ToggleStyleClasses): ThemedToggleComponent {
+  const StyledToggle = withStyles(ComposedToggle, {
+    root: styles.root,
+  });
+
+  return function ToggleRoot(props: ToggleRootProps): HTMLElement {
+    return StyledToggle(props as ComposedToggleProps);
   };
 }

@@ -825,17 +825,17 @@ describe('createThemedSwitch', () => {
   it('applies theme classes to switch root', async () => {
     const { createThemedSwitch } = await import('../components/primitives/switch');
     const styles = createSwitchStyles();
-    const themedSwitch = createThemedSwitch(styles);
-    const root = themedSwitch();
+    const Switch = createThemedSwitch(styles);
+    const root = Switch({ children: [] });
 
-    expect(root.classList.contains(styles.root)).toBe(true);
+    expect(root.className).toContain(styles.root);
   });
 
   it('preserves primitive behavior — click toggles', async () => {
     const { createThemedSwitch } = await import('../components/primitives/switch');
     const styles = createSwitchStyles();
-    const themedSwitch = createThemedSwitch(styles);
-    const root = themedSwitch();
+    const Switch = createThemedSwitch(styles);
+    const root = Switch({ children: [] });
 
     expect(root.getAttribute('aria-checked')).toBe('false');
     root.click();
@@ -845,34 +845,34 @@ describe('createThemedSwitch', () => {
   it('applies rootSm class when size is sm', async () => {
     const { createThemedSwitch } = await import('../components/primitives/switch');
     const styles = createSwitchStyles();
-    const themedSwitch = createThemedSwitch(styles);
-    const root = themedSwitch({ size: 'sm' });
+    const Switch = createThemedSwitch(styles);
+    const root = Switch({ size: 'sm', children: [] });
 
-    expect(root.classList.contains(styles.rootSm)).toBe(true);
-    expect(root.classList.contains(styles.root)).toBe(false);
+    expect(root.className).toContain(styles.rootSm);
+    expect(root.className).not.toContain(styles.root);
   });
 
   it('creates thumb span with theme class', async () => {
     const { createThemedSwitch } = await import('../components/primitives/switch');
     const styles = createSwitchStyles();
-    const themedSwitch = createThemedSwitch(styles);
-    const root = themedSwitch();
+    const Switch = createThemedSwitch(styles);
+    const root = Switch({ children: [] });
 
-    const thumb = root.querySelector('span');
+    const thumb = root.querySelector('[data-part="thumb"]') as HTMLElement;
     expect(thumb).not.toBeNull();
-    expect(thumb!.classList.contains(styles.thumb)).toBe(true);
+    expect(thumb!.className).toContain(styles.thumb);
   });
 
   it('thumb uses thumbSm class when size is sm', async () => {
     const { createThemedSwitch } = await import('../components/primitives/switch');
     const styles = createSwitchStyles();
-    const themedSwitch = createThemedSwitch(styles);
-    const root = themedSwitch({ size: 'sm' });
+    const Switch = createThemedSwitch(styles);
+    const root = Switch({ size: 'sm', children: [] });
 
-    const thumb = root.querySelector('span');
+    const thumb = root.querySelector('[data-part="thumb"]') as HTMLElement;
     expect(thumb).not.toBeNull();
-    expect(thumb!.classList.contains(styles.thumbSm)).toBe(true);
-    expect(thumb!.classList.contains(styles.thumb)).toBe(false);
+    expect(thumb!.className).toContain(styles.thumbSm);
+    expect(thumb!.className).not.toContain(styles.thumb);
   });
 });
 
@@ -882,21 +882,23 @@ describe('createThemedProgress', () => {
   it('applies theme classes to progress elements', async () => {
     const { createThemedProgress } = await import('../components/primitives/progress');
     const styles = createProgressStyles();
-    const themedProgress = createThemedProgress(styles);
-    const progress = themedProgress();
+    const Progress = createThemedProgress(styles);
+    const root = Progress({});
 
-    expect(progress.root.classList.contains(styles.root)).toBe(true);
-    expect(progress.indicator.classList.contains(styles.indicator)).toBe(true);
+    expect(root.className).toContain(styles.root);
+    const indicator = root.querySelector('[data-part="indicator"]') as HTMLElement;
+    expect(indicator).not.toBeNull();
+    expect(indicator!.className).toContain(styles.indicator);
   });
 
-  it('preserves primitive behavior — setValue', async () => {
+  it('preserves primitive behavior — progress has correct role', async () => {
     const { createThemedProgress } = await import('../components/primitives/progress');
     const styles = createProgressStyles();
-    const themedProgress = createThemedProgress(styles);
-    const progress = themedProgress();
+    const Progress = createThemedProgress(styles);
+    const root = Progress({ defaultValue: 50 });
 
-    progress.setValue(50);
-    expect(progress.state.value.peek()).toBe(50);
+    expect(root.getAttribute('role')).toBe('progressbar');
+    expect(root.getAttribute('aria-valuenow')).toBe('50');
   });
 });
 
@@ -1147,32 +1149,39 @@ describe('createThemedSlider', () => {
     const { createThemedSlider } = await import('../components/primitives/slider');
     const { createSliderStyles } = await import('../styles/slider');
     const styles = createSliderStyles();
-    const themedSlider = createThemedSlider(styles);
-    const slider = themedSlider();
+    const Slider = createThemedSlider(styles);
+    const root = Slider({});
 
-    expect(slider.root.classList.contains(styles.root)).toBe(true);
-    expect(slider.track.classList.contains(styles.track)).toBe(true);
-    expect(slider.thumb.classList.contains(styles.thumb)).toBe(true);
+    expect(root.className).toContain(styles.root);
+    const track = root.querySelector('[data-part="track"]') as HTMLElement;
+    expect(track).not.toBeNull();
+    expect(track!.className).toContain(styles.track);
+    const thumb = root.querySelector('[role="slider"]') as HTMLElement;
+    expect(thumb).not.toBeNull();
+    expect(thumb!.className).toContain(styles.thumb);
   });
 
-  it('preserves primitive behavior — state tracks value', async () => {
+  it('preserves primitive behavior — slider has correct role', async () => {
     const { createThemedSlider } = await import('../components/primitives/slider');
     const { createSliderStyles } = await import('../styles/slider');
     const styles = createSliderStyles();
-    const themedSlider = createThemedSlider(styles);
-    const slider = themedSlider({ defaultValue: 42, min: 0, max: 100 });
+    const Slider = createThemedSlider(styles);
+    const root = Slider({ defaultValue: 42, min: 0, max: 100 });
 
-    expect(slider.state.value.peek()).toBe(42);
+    const thumb = root.querySelector('[role="slider"]') as HTMLElement;
+    expect(thumb).not.toBeNull();
+    expect(thumb!.getAttribute('aria-valuenow')).toBe('42');
   });
 
   it('passes defaultValue option through', async () => {
     const { createThemedSlider } = await import('../components/primitives/slider');
     const { createSliderStyles } = await import('../styles/slider');
     const styles = createSliderStyles();
-    const themedSlider = createThemedSlider(styles);
-    const slider = themedSlider({ defaultValue: 75 });
+    const Slider = createThemedSlider(styles);
+    const root = Slider({ defaultValue: 75 });
 
-    expect(slider.state.value.peek()).toBe(75);
+    const thumb = root.querySelector('[role="slider"]') as HTMLElement;
+    expect(thumb!.getAttribute('aria-valuenow')).toBe('75');
   });
 });
 
@@ -1183,48 +1192,72 @@ describe('createThemedRadioGroup', () => {
     const { createThemedRadioGroup } = await import('../components/primitives/radio-group');
     const { createRadioGroupStyles } = await import('../styles/radio-group');
     const styles = createRadioGroupStyles();
-    const themedRadioGroup = createThemedRadioGroup(styles);
-    const radioGroup = themedRadioGroup();
+    const RadioGroup = createThemedRadioGroup(styles);
+    const root = RadioGroup({
+      children: () => {
+        const a = RadioGroup.Item({ value: 'a', children: ['A'] });
+        return [a];
+      },
+    });
 
-    expect(radioGroup.root.classList.contains(styles.root)).toBe(true);
+    expect(root.className).toContain(styles.root);
   });
 
-  it('Item factory applies theme class', async () => {
+  it('Item applies theme class', async () => {
     const { createThemedRadioGroup } = await import('../components/primitives/radio-group');
     const { createRadioGroupStyles } = await import('../styles/radio-group');
     const styles = createRadioGroupStyles();
-    const themedRadioGroup = createThemedRadioGroup(styles);
-    const radioGroup = themedRadioGroup();
-    const wrapper = radioGroup.Item('option1', 'Option 1');
+    const RadioGroup = createThemedRadioGroup(styles);
+    const root = RadioGroup({
+      children: () => {
+        const a = RadioGroup.Item({ value: 'option1', children: ['Option 1'] });
+        return [a];
+      },
+    });
 
-    // Item returns a wrapper div; the actual radio element with styles.item is the first child
-    const radioEl = wrapper.firstElementChild!;
-    expect(radioEl.classList.contains(styles.item)).toBe(true);
+    const item = root.querySelector('[role="radio"]') as HTMLElement;
+    expect(item).not.toBeNull();
+    expect(item!.className).toContain(styles.item);
   });
 
   it('preserves primitive behavior — clicking item changes value', async () => {
     const { createThemedRadioGroup } = await import('../components/primitives/radio-group');
     const { createRadioGroupStyles } = await import('../styles/radio-group');
     const styles = createRadioGroupStyles();
-    const themedRadioGroup = createThemedRadioGroup(styles);
-    const radioGroup = themedRadioGroup();
-    const wrapper1 = radioGroup.Item('a', 'A');
-    radioGroup.Item('b', 'B');
+    const RadioGroup = createThemedRadioGroup(styles);
+    let lastValue: string | undefined;
+    const root = RadioGroup({
+      onValueChange: (v) => {
+        lastValue = v;
+      },
+      children: () => {
+        const a = RadioGroup.Item({ value: 'a', children: ['A'] });
+        const b = RadioGroup.Item({ value: 'b', children: ['B'] });
+        return [a, b];
+      },
+    });
 
-    // Click the actual radio element inside the wrapper
-    const radioEl = wrapper1.firstElementChild!;
-    expect(radioGroup.state.value.peek()).toBe('');
-    (radioEl as HTMLElement).click();
-    expect(radioGroup.state.value.peek()).toBe('a');
+    const items = root.querySelectorAll('[role="radio"]');
+    (items[0] as HTMLElement).click();
+    expect(lastValue).toBe('a');
   });
 
   it('passes defaultValue option through', async () => {
     const { createThemedRadioGroup } = await import('../components/primitives/radio-group');
     const { createRadioGroupStyles } = await import('../styles/radio-group');
     const styles = createRadioGroupStyles();
-    const themedRadioGroup = createThemedRadioGroup(styles);
-    const radioGroup = themedRadioGroup({ defaultValue: 'b' });
+    const RadioGroup = createThemedRadioGroup(styles);
+    const root = RadioGroup({
+      defaultValue: 'b',
+      children: () => {
+        const a = RadioGroup.Item({ value: 'a', children: ['A'] });
+        const b = RadioGroup.Item({ value: 'b', children: ['B'] });
+        return [a, b];
+      },
+    });
 
-    expect(radioGroup.state.value.peek()).toBe('b');
+    const items = root.querySelectorAll('[role="radio"]');
+    const indB = (items[1] as HTMLElement).querySelector('[data-part="indicator"]') as HTMLElement;
+    expect(indB?.getAttribute('data-state')).toBe('checked');
   });
 });

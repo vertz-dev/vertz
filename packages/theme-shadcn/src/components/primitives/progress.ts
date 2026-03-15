@@ -1,21 +1,32 @@
-import type { ProgressElements, ProgressOptions, ProgressState } from '@vertz/ui-primitives';
-import { Progress } from '@vertz/ui-primitives';
+import type { ChildValue } from '@vertz/ui';
+import type { ComposedProgressProps } from '@vertz/ui-primitives';
+import { ComposedProgress } from '@vertz/ui-primitives';
 
 interface ProgressStyleClasses {
   readonly root: string;
   readonly indicator: string;
 }
 
-export function createThemedProgress(
-  styles: ProgressStyleClasses,
-): (
-  options?: ProgressOptions,
-) => ProgressElements & { state: ProgressState; setValue: (value: number) => void } {
-  return function themedProgress(options?: ProgressOptions) {
-    const result = Progress.Root(options);
-    result.root.classList.add(styles.root);
-    result.root.style.opacity = '1';
-    result.indicator.classList.add(styles.indicator);
-    return result;
+// ── Props ──────────────────────────────────────────────────
+
+export interface ProgressRootProps {
+  children?: ChildValue;
+  defaultValue?: number;
+  min?: number;
+  max?: number;
+}
+
+// ── Component type ─────────────────────────────────────────
+
+export type ThemedProgressComponent = (props: ProgressRootProps) => HTMLElement;
+
+// ── Factory ────────────────────────────────────────────────
+
+export function createThemedProgress(styles: ProgressStyleClasses): ThemedProgressComponent {
+  return function ProgressRoot(props: ProgressRootProps): HTMLElement {
+    return ComposedProgress({
+      ...props,
+      classes: { root: styles.root, indicator: styles.indicator },
+    } as ComposedProgressProps);
   };
 }
