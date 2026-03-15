@@ -1,25 +1,42 @@
-import type { SliderElements, SliderOptions, SliderState } from '@vertz/ui-primitives';
-import { Slider } from '@vertz/ui-primitives';
+import type { ChildValue } from '@vertz/ui';
+import type { ComposedSliderProps } from '@vertz/ui-primitives';
+import { ComposedSlider } from '@vertz/ui-primitives';
 
 interface SliderStyleClasses {
   readonly root: string;
   readonly track: string;
+  readonly range: string;
   readonly thumb: string;
 }
 
-export function createThemedSlider(
-  styles: SliderStyleClasses,
-): (options?: SliderOptions) => SliderElements & { state: SliderState } {
-  return function themedSlider(options?: SliderOptions) {
-    const result = Slider.Root(options);
-    result.root.classList.add(styles.root);
-    result.track.classList.add(styles.track);
-    result.thumb.classList.add(styles.thumb);
-    // Style the fill element
-    const fill = result.track.querySelector('[data-part="fill"]') as HTMLElement | null;
-    if (fill) {
-      fill.style.backgroundColor = 'var(--color-primary)';
-    }
-    return result;
+// ── Props ──────────────────────────────────────────────────
+
+export interface SliderRootProps {
+  children?: ChildValue;
+  defaultValue?: number;
+  min?: number;
+  max?: number;
+  step?: number;
+  disabled?: boolean;
+  onValueChange?: (value: number) => void;
+}
+
+// ── Component type ─────────────────────────────────────────
+
+export type ThemedSliderComponent = (props: SliderRootProps) => HTMLElement;
+
+// ── Factory ────────────────────────────────────────────────
+
+export function createThemedSlider(styles: SliderStyleClasses): ThemedSliderComponent {
+  return function SliderRoot(props: SliderRootProps): HTMLElement {
+    return ComposedSlider({
+      ...props,
+      classes: {
+        root: styles.root,
+        track: styles.track,
+        range: styles.range,
+        thumb: styles.thumb,
+      },
+    } as ComposedSliderProps);
   };
 }

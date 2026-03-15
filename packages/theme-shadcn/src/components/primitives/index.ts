@@ -15,6 +15,7 @@ export { createThemedAlertDialog } from './alert-dialog';
 export { createThemedCalendar } from './calendar';
 export type { ThemedCarouselResult } from './carousel';
 export { createThemedCarousel } from './carousel';
+export type { CheckboxRootProps, ThemedCheckboxComponent } from './checkbox';
 export { createThemedCheckbox } from './checkbox';
 export { createThemedCollapsible } from './collapsible';
 export { createThemedCommand } from './command';
@@ -41,8 +42,13 @@ export type { ThemedNavigationMenuResult } from './navigation-menu';
 export { createThemedNavigationMenu } from './navigation-menu';
 export type { PopoverRootProps, PopoverSlotProps, ThemedPopoverComponent } from './popover';
 export { createThemedPopover } from './popover';
+export type { ProgressRootProps, ThemedProgressComponent } from './progress';
 export { createThemedProgress } from './progress';
-export type { ThemedRadioGroupResult } from './radio-group';
+export type {
+  RadioGroupItemProps,
+  RadioGroupRootProps,
+  ThemedRadioGroupComponent,
+} from './radio-group';
 export { createThemedRadioGroup } from './radio-group';
 export { createThemedResizablePanel } from './resizable-panel';
 export { createThemedScrollArea } from './scroll-area';
@@ -56,8 +62,9 @@ export type {
 export { createThemedSelect } from './select';
 export type { SheetRootProps, SheetSide, SheetSlotProps, ThemedSheetComponent } from './sheet';
 export { createThemedSheet } from './sheet';
+export type { SliderRootProps, ThemedSliderComponent } from './slider';
 export { createThemedSlider } from './slider';
-export type { ThemedSwitchOptions } from './switch';
+export type { ThemedSwitchComponent, ThemedSwitchProps } from './switch';
 export { createThemedSwitch } from './switch';
 export type {
   TabsContentProps,
@@ -69,6 +76,7 @@ export type {
 export { createThemedTabs } from './tabs';
 export type { ThemedToastResult } from './toast';
 export { createThemedToast } from './toast';
+export type { ThemedToggleComponent, ToggleRootProps } from './toggle';
 export { createThemedToggle } from './toggle';
 export { createThemedToggleGroup } from './toggle-group';
 export type { ThemedTooltipComponent, TooltipRootProps, TooltipSlotProps } from './tooltip';

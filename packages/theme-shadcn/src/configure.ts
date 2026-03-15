@@ -1,15 +1,5 @@
 import type { VariantFunction } from '@vertz/ui';
-import type {
-  CheckboxOptions,
-  ProgressElements,
-  ProgressOptions,
-  ProgressState,
-  RadioOptions,
-  SliderElements,
-  SliderOptions,
-  SliderState,
-  ToastOptions,
-} from '@vertz/ui-primitives';
+import type { ToastOptions } from '@vertz/ui-primitives';
 import type { AlertComponents } from './components/alert';
 import { createAlertComponents } from './components/alert';
 import type { AvatarComponents } from './components/avatar';
@@ -36,6 +26,7 @@ import type { ThemedAlertDialogComponent } from './components/primitives/alert-d
 import { createThemedAlertDialog } from './components/primitives/alert-dialog';
 import { createThemedCalendar } from './components/primitives/calendar';
 import { createThemedCarousel } from './components/primitives/carousel';
+import type { ThemedCheckboxComponent } from './components/primitives/checkbox';
 import { createThemedCheckbox } from './components/primitives/checkbox';
 import { createThemedCollapsible } from './components/primitives/collapsible';
 import { createThemedCommand } from './components/primitives/command';
@@ -51,8 +42,9 @@ import { createThemedMenubar } from './components/primitives/menubar';
 import { createThemedNavigationMenu } from './components/primitives/navigation-menu';
 import type { ThemedPopoverComponent } from './components/primitives/popover';
 import { createThemedPopover } from './components/primitives/popover';
+import type { ThemedProgressComponent } from './components/primitives/progress';
 import { createThemedProgress } from './components/primitives/progress';
-import type { ThemedRadioGroupResult } from './components/primitives/radio-group';
+import type { ThemedRadioGroupComponent } from './components/primitives/radio-group';
 import { createThemedRadioGroup } from './components/primitives/radio-group';
 import { createThemedResizablePanel } from './components/primitives/resizable-panel';
 import { createThemedScrollArea } from './components/primitives/scroll-area';
@@ -60,13 +52,15 @@ import type { ThemedSelectComponent } from './components/primitives/select';
 import { createThemedSelect } from './components/primitives/select';
 import type { ThemedSheetComponent } from './components/primitives/sheet';
 import { createThemedSheet } from './components/primitives/sheet';
+import type { ThemedSliderComponent } from './components/primitives/slider';
 import { createThemedSlider } from './components/primitives/slider';
-import type { ThemedSwitchOptions } from './components/primitives/switch';
+import type { ThemedSwitchComponent } from './components/primitives/switch';
 import { createThemedSwitch } from './components/primitives/switch';
 import type { ThemedTabsComponent } from './components/primitives/tabs';
 import { createThemedTabs } from './components/primitives/tabs';
 import type { ThemedToastResult } from './components/primitives/toast';
 import { createThemedToast } from './components/primitives/toast';
+import type { ThemedToggleComponent } from './components/primitives/toggle';
 import { createThemedToggle } from './components/primitives/toggle';
 import { createThemedToggleGroup } from './components/primitives/toggle-group';
 import type { ThemedTooltipComponent } from './components/primitives/tooltip';
@@ -371,24 +365,22 @@ export interface ThemedPrimitives {
   Select: ThemedSelectComponent;
   /** Themed Tabs — composable JSX component with Tabs.List, Tabs.Trigger, Tabs.Content. */
   Tabs: ThemedTabsComponent;
-  /** Themed Checkbox — wraps @vertz/ui-primitives Checkbox with shadcn styles. */
-  checkbox: (options?: CheckboxOptions) => HTMLButtonElement;
-  /** Themed Switch — wraps @vertz/ui-primitives Switch with shadcn styles. */
-  switch: (options?: ThemedSwitchOptions) => HTMLElement;
+  /** Themed Checkbox — composable JSX component wrapping @vertz/ui-primitives Checkbox. */
+  Checkbox: ThemedCheckboxComponent;
+  /** Themed Switch — composable JSX component wrapping @vertz/ui-primitives Switch. */
+  Switch: ThemedSwitchComponent;
   /** Themed Popover — composable JSX component with Popover.Trigger, Popover.Content. */
   Popover: ThemedPopoverComponent;
-  /** Themed Progress — wraps @vertz/ui-primitives Progress with shadcn styles. */
-  progress: (
-    options?: ProgressOptions,
-  ) => ProgressElements & { state: ProgressState; setValue: (value: number) => void };
-  /** Themed RadioGroup — wraps @vertz/ui-primitives Radio with shadcn styles. */
-  radioGroup: (options?: RadioOptions) => ThemedRadioGroupResult;
-  /** Themed Slider — wraps @vertz/ui-primitives Slider with shadcn styles. */
-  slider: (options?: SliderOptions) => SliderElements & { state: SliderState };
+  /** Themed Progress — composable JSX component wrapping @vertz/ui-primitives Progress. */
+  Progress: ThemedProgressComponent;
+  /** Themed RadioGroup — composable JSX component with RadioGroup.Item sub-components. */
+  RadioGroup: ThemedRadioGroupComponent;
+  /** Themed Slider — composable JSX component wrapping @vertz/ui-primitives Slider. */
+  Slider: ThemedSliderComponent;
   /** Themed Accordion — composable JSX component with Accordion.Item, Accordion.Trigger, Accordion.Content. */
   Accordion: ThemedAccordionComponent;
-  /** Themed Toast — wraps @vertz/ui-primitives Toast with shadcn styles. */
-  toast: (options?: ToastOptions) => ThemedToastResult;
+  /** Themed Toast — factory wrapping @vertz/ui-primitives Toast with shadcn styles. */
+  Toast: (options?: ToastOptions) => ThemedToastResult;
   /** Themed Tooltip — composable JSX component with Tooltip.Trigger, Tooltip.Content. */
   Tooltip: ThemedTooltipComponent;
   /** Themed Sheet — composable JSX component with Sheet.Trigger, Sheet.Content, etc. */
@@ -417,8 +409,8 @@ export interface ThemedPrimitives {
   resizablePanel: ReturnType<typeof createThemedResizablePanel>;
   /** Themed ScrollArea — custom scrollbars. */
   scrollArea: ReturnType<typeof createThemedScrollArea>;
-  /** Themed Toggle — toggle button with pressed state. */
-  toggle: ReturnType<typeof createThemedToggle>;
+  /** Themed Toggle — composable JSX component wrapping @vertz/ui-primitives Toggle. */
+  Toggle: ThemedToggleComponent;
   /** Themed ToggleGroup — group of toggle buttons. */
   toggleGroup: ReturnType<typeof createThemedToggleGroup>;
 }
@@ -589,14 +581,14 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
       DropdownMenu: createThemedDropdownMenu(dropdownMenuStyles),
       Select: createThemedSelect(selectStyles),
       Tabs: createThemedTabs(tabsStyles),
-      checkbox: createThemedCheckbox(checkboxStyles),
-      switch: createThemedSwitch(switchStyles),
+      Checkbox: createThemedCheckbox(checkboxStyles),
+      Switch: createThemedSwitch(switchStyles),
       Popover: createThemedPopover(popoverStyles),
-      progress: createThemedProgress(progressStyles),
-      radioGroup: createThemedRadioGroup(radioGroupStyles),
-      slider: createThemedSlider(sliderStyles),
+      Progress: createThemedProgress(progressStyles),
+      RadioGroup: createThemedRadioGroup(radioGroupStyles),
+      Slider: createThemedSlider(sliderStyles),
       Accordion: createThemedAccordion(accordionStyles),
-      toast: createThemedToast(toastStyles),
+      Toast: createThemedToast(toastStyles),
       Tooltip: createThemedTooltip(tooltipStyles),
       Sheet: createThemedSheet(sheetStyles),
       calendar: createThemedCalendar(calendarStyles),
@@ -611,7 +603,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
       navigationMenu: createThemedNavigationMenu(navigationMenuStyles),
       resizablePanel: createThemedResizablePanel(resizablePanelStyles),
       scrollArea: createThemedScrollArea(scrollAreaStyles),
-      toggle: createThemedToggle(toggleStyles),
+      Toggle: createThemedToggle(toggleStyles),
       toggleGroup: createThemedToggleGroup(toggleGroupStyles),
     },
   };

@@ -16,9 +16,19 @@ plugin({
       // Composed primitives are framework-level code — they use JSX for
       // declarative element creation but are NOT user components. Skip
       // reactive transforms (let→signal, computed) that would break them.
-      // Pass through to Bun's native JSX handling.
+      // Transpile JSX only via Bun.Transpiler with the correct JSX source.
       if (args.path.includes('-composed.tsx')) {
-        return { contents: source, loader: 'tsx' };
+        const transpiled = new Bun.Transpiler({
+          loader: 'tsx',
+          autoImportJSX: true,
+          tsconfig: JSON.stringify({
+            compilerOptions: {
+              jsx: 'react-jsx',
+              jsxImportSource: '@vertz/ui',
+            },
+          }),
+        }).transformSync(source);
+        return { contents: transpiled, loader: 'js' };
       }
 
       const result = compile(source, {
