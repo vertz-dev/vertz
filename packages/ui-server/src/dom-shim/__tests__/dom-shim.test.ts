@@ -667,6 +667,96 @@ describe('DOM Shim', () => {
     });
   });
 
+  describe('dataset property', () => {
+    beforeEach(() => {
+      installDomShim();
+    });
+
+    it('should set data-* attribute when assigning dataset property', () => {
+      const el = new SSRElement('div');
+      el.dataset.slot = 'alertdialog-trigger';
+      expect(el.getAttribute('data-slot')).toBe('alertdialog-trigger');
+    });
+
+    it('should read from data-* attribute via dataset property', () => {
+      const el = new SSRElement('div');
+      el.setAttribute('data-slot', 'trigger');
+      expect(el.dataset.slot).toBe('trigger');
+    });
+
+    it('should convert camelCase to kebab-case for attribute name', () => {
+      const el = new SSRElement('div');
+      el.dataset.testValue = 'hello';
+      expect(el.getAttribute('data-test-value')).toBe('hello');
+    });
+
+    it('should convert kebab-case attribute to camelCase for reading', () => {
+      const el = new SSRElement('div');
+      el.setAttribute('data-test-value', 'hello');
+      expect(el.dataset.testValue).toBe('hello');
+    });
+
+    it('should return undefined for unset dataset properties', () => {
+      const el = new SSRElement('div');
+      expect(el.dataset.missing).toBeUndefined();
+    });
+
+    it('should reflect dataset in toVNode output', () => {
+      const el = new SSRElement('div');
+      el.dataset.slot = 'trigger';
+      const vnode = el.toVNode();
+      expect(vnode.attrs['data-slot']).toBe('trigger');
+    });
+
+    it('should support Object.keys() enumeration', () => {
+      const el = new SSRElement('div');
+      el.dataset.slot = 'trigger';
+      el.dataset.testValue = 'hello';
+      const keys = Object.keys(el.dataset);
+      expect(keys).toContain('slot');
+      expect(keys).toContain('testValue');
+      expect(keys).toHaveLength(2);
+    });
+
+    it('should support "in" operator', () => {
+      const el = new SSRElement('div');
+      el.dataset.slot = 'trigger';
+      expect('slot' in el.dataset).toBe(true);
+      expect('missing' in el.dataset).toBe(false);
+    });
+
+    it('should support spread operator', () => {
+      const el = new SSRElement('div');
+      el.dataset.slot = 'trigger';
+      el.dataset.testValue = 'hello';
+      const copy = { ...el.dataset };
+      expect(copy).toEqual({ slot: 'trigger', testValue: 'hello' });
+    });
+
+    it('should coerce numeric values to string', () => {
+      const el = new SSRElement('div');
+      // biome-ignore lint/suspicious/noExplicitAny: testing numeric coercion
+      (el.dataset as any).count = 42;
+      expect(el.getAttribute('data-count')).toBe('42');
+    });
+
+    it('should overwrite existing dataset value', () => {
+      const el = new SSRElement('div');
+      el.dataset.slot = 'a';
+      el.dataset.slot = 'b';
+      expect(el.dataset.slot).toBe('b');
+      expect(el.getAttribute('data-slot')).toBe('b');
+    });
+
+    it('should delete data-* attribute when using delete operator', () => {
+      const el = new SSRElement('div');
+      el.dataset.slot = 'trigger';
+      expect(el.getAttribute('data-slot')).toBe('trigger');
+      delete el.dataset.slot;
+      expect(el.getAttribute('data-slot')).toBeNull();
+    });
+  });
+
   describe('style property', () => {
     beforeEach(() => {
       installDomShim();
