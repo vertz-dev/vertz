@@ -113,7 +113,7 @@ function ComposedPopoverRoot({ children, classes, onOpenChange }: ComposedPopove
       {userTrigger}
       {popover.content}
     </div>
-  ) as HTMLElement;
+  );
 }
 
 // ---------------------------------------------------------------------------

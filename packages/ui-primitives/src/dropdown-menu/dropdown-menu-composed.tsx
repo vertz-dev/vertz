@@ -158,7 +158,7 @@ function ComposedDropdownMenuRoot({ children, classes, onSelect }: ComposedDropd
       {userTrigger}
       {menu.content}
     </div>
-  ) as HTMLElement;
+  );
 }
 
 function processMenuSlots(

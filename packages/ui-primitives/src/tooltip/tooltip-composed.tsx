@@ -95,7 +95,7 @@ function ComposedTooltipRoot({ children, classes, delay }: ComposedTooltipProps)
       {tooltip.trigger}
       {tooltip.content}
     </div>
-  ) as HTMLElement;
+  );
 }
 
 // ---------------------------------------------------------------------------

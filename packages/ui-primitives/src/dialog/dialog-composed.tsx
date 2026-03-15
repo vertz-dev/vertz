@@ -208,7 +208,7 @@ function ComposedDialogRoot({ children, classes, onOpenChange, closeIcon }: Comp
       {dialog.overlay}
       {dialog.content}
     </div>
-  ) as HTMLElement;
+  );
 }
 
 // ---------------------------------------------------------------------------

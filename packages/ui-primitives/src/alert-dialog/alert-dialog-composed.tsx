@@ -234,7 +234,7 @@ function ComposedAlertDialogRoot({
       {alertDialog.overlay}
       {alertDialog.content}
     </div>
-  ) as HTMLElement;
+  );
 }
 
 // ---------------------------------------------------------------------------

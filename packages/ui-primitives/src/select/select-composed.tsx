@@ -148,7 +148,7 @@ function ComposedSelectRoot({
       {select.trigger}
       {select.content}
     </div>
-  ) as HTMLElement;
+  );
 }
 
 function processContentSlots(

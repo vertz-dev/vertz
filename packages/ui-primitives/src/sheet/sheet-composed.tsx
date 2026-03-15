@@ -176,7 +176,7 @@ function ComposedSheetRoot({ children, classes, side, onOpenChange }: ComposedSh
       {sheet.overlay}
       {sheet.content}
     </div>
-  ) as HTMLElement;
+  );
 }
 
 // ---------------------------------------------------------------------------
