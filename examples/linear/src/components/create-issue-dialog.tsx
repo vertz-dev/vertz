@@ -1,14 +1,15 @@
 import type { DialogHandle, FormSchema } from '@vertz/ui';
 import { form } from '@vertz/ui';
-import { issueApi } from '../api/client';
-import type { CreateIssueBody, IssuePriority, IssueStatus } from '../lib/types';
+import type { CreateIssuesInput } from '../api/client';
+import { api } from '../api/client';
+import type { IssuePriority, IssueStatus } from '../lib/types';
 import { dialogStyles, formStyles, inputStyles, labelStyles } from '../styles/components';
 import { Button } from './button';
 
 const VALID_STATUSES: IssueStatus[] = ['backlog', 'todo', 'in_progress', 'done', 'cancelled'];
 const VALID_PRIORITIES: IssuePriority[] = ['urgent', 'high', 'medium', 'low', 'none'];
 
-const createIssueSchema: FormSchema<CreateIssueBody> = {
+const createIssueSchema: FormSchema<CreateIssuesInput> = {
   parse(data: unknown) {
     if (typeof data !== 'object' || data === null) {
       return { ok: false as const, error: new Error('Invalid form data') };
@@ -42,8 +43,9 @@ const createIssueSchema: FormSchema<CreateIssueBody> = {
         projectId: obj.projectId as string,
         title: (obj.title as string).trim(),
         description: obj.description ? String(obj.description).trim() : undefined,
-        status: status as IssueStatus,
-        priority: priority as IssuePriority,
+        status: status as string,
+        priority: priority as string,
+        assigneeId: obj.assigneeId ?? undefined,
       },
     };
   },
@@ -55,7 +57,7 @@ interface CreateIssueDialogProps {
 }
 
 export function CreateIssueDialog({ projectId, dialog }: CreateIssueDialogProps) {
-  const createForm = form(issueApi.create, {
+  const createForm = form(api.issues.create, {
     schema: createIssueSchema,
     initial: {
       projectId,

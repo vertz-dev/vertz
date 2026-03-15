@@ -1,8 +1,9 @@
 import { css, Link, query, useDialogStack } from '@vertz/ui';
-import { projectApi } from '../api/client';
+import { api } from '../api/client';
 import { Button } from '../components/button';
 import { CreateProjectDialog } from '../components/create-project-dialog';
 import { ProjectCard } from '../components/project-card';
+import type { Project } from '../lib/types';
 import { emptyStateStyles } from '../styles/components';
 
 const styles = css({
@@ -14,7 +15,7 @@ const styles = css({
 });
 
 export function ProjectsPage() {
-  const projects = query(projectApi.list());
+  const projects = query(api.projects.list());
   const stack = useDialogStack();
 
   const handleNewProject = async () => {
@@ -47,7 +48,7 @@ export function ProjectsPage() {
       <div class={styles.grid}>
         {projects.data?.items.map((project) => (
           <Link href={`/projects/${project.id}`} key={project.id}>
-            <ProjectCard project={project} />
+            <ProjectCard project={project as Project} />
           </Link>
         ))}
       </div>

@@ -1,6 +1,6 @@
 import type { FormSchema } from '@vertz/ui';
 import { css, form } from '@vertz/ui';
-import { commentApi } from '../api/client';
+import { api } from '../api/client';
 import type { Comment, CreateCommentBody } from '../lib/types';
 import { formStyles, inputStyles } from '../styles/components';
 import { Button } from './button';
@@ -58,7 +58,7 @@ export function CommentSection({
   userMap,
   onCommentAdded,
 }: CommentSectionProps) {
-  const commentForm = form(commentApi.create, {
+  const commentForm = form(api.comments.create, {
     schema: createCommentSchema,
     initial: { issueId, body: '' },
     onSuccess: onCommentAdded,

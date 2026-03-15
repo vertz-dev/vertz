@@ -7,7 +7,7 @@
 
 import { css, Link, Outlet, query } from '@vertz/ui';
 import { useAuth } from '@vertz/ui/auth';
-import { projectApi } from '../api/client';
+import { api } from '../api/client';
 import { Button } from './button';
 
 const sidebarStyles = css({
@@ -47,7 +47,7 @@ const sidebarStyles = css({
 
 export function WorkspaceShell() {
   const auth = useAuth();
-  const projects = query(projectApi.list());
+  const projects = query(api.projects.list());
 
   const handleSignOut = async () => {
     await auth.signOut({ redirectTo: '/login' });

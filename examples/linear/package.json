@@ -4,8 +4,13 @@
   "type": "module",
   "scripts": {
     "dev": "bun run src/dev-server.ts",
+    "codegen": "bun node_modules/@vertz/cli/dist/vertz.js codegen",
     "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "bun run codegen && tsc --noEmit"
+  },
+  "imports": {
+    "#generated": "./.vertz/generated/client.ts",
+    "#generated/types": "./.vertz/generated/types/index.ts"
   },
   "dependencies": {
     "@vertz/db": "workspace:*",
@@ -19,6 +24,8 @@
     "@vertz/ui-server": "workspace:*"
   },
   "devDependencies": {
+    "@vertz/cli": "workspace:*",
+    "@vertz/ui-compiler": "workspace:*",
     "bun-types": "^1.3.9",
     "typescript": "^5.8.0"
   }

@@ -23,7 +23,9 @@ function IndexRedirect() {
   const { navigate } = useRouter();
 
   onMount(() => {
-    navigate({ to: '/projects' });
+    // '/projects' is a nested child route under '/', which the typed router
+    // doesn't include in RoutePattern. Cast to satisfy the type system.
+    navigate({ to: '/projects' as '/' });
   });
 
   return <div />;

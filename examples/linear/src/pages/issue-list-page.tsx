@@ -1,10 +1,11 @@
 import { css, Link, query, useDialogStack, useParams } from '@vertz/ui';
-import { issueApi, projectApi } from '../api/client';
+import { api } from '../api/client';
 import { Button } from '../components/button';
 import { CreateIssueDialog } from '../components/create-issue-dialog';
 import { IssueRow } from '../components/issue-row';
 import { StatusFilter } from '../components/status-filter';
 import { ViewToggle } from '../components/view-toggle';
+import type { Issue } from '../lib/types';
 import { emptyStateStyles } from '../styles/components';
 
 const styles = css({
@@ -17,8 +18,8 @@ const styles = css({
 
 export function IssueListPage() {
   const { projectId } = useParams<'/projects/:projectId'>();
-  const issues = query(issueApi.list(projectId));
-  const project = query(projectApi.get(projectId));
+  const issues = query(api.issues.list({ projectId }));
+  const project = query(api.projects.get(projectId));
   const stack = useDialogStack();
 
   let statusFilter = 'all';
@@ -73,7 +74,7 @@ export function IssueListPage() {
         <div class={styles.list}>
           {filtered.map((issue) => (
             <Link href={`/projects/${projectId}/issues/${issue.id}`} key={issue.id}>
-              <IssueRow issue={issue} projectKey={project.data?.key} />
+              <IssueRow issue={issue as Issue} projectKey={project.data?.key} />
             </Link>
           ))}
         </div>

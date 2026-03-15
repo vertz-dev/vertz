@@ -1,11 +1,11 @@
 import type { DialogHandle, FormSchema } from '@vertz/ui';
 import { form } from '@vertz/ui';
-import { projectApi } from '../api/client';
-import type { CreateProjectBody } from '../lib/types';
+import type { CreateProjectsInput } from '../api/client';
+import { api } from '../api/client';
 import { dialogStyles, formStyles, inputStyles, labelStyles } from '../styles/components';
 import { Button } from './button';
 
-const createProjectSchema: FormSchema<CreateProjectBody> = {
+const createProjectSchema: FormSchema<CreateProjectsInput> = {
   parse(data: unknown) {
     if (typeof data !== 'object' || data === null) {
       return { ok: false as const, error: new Error('Invalid form data') };
@@ -47,7 +47,7 @@ interface CreateProjectDialogProps {
 }
 
 export function CreateProjectDialog({ dialog }: CreateProjectDialogProps) {
-  const createForm = form(projectApi.create, {
+  const createForm = form(api.projects.create, {
     schema: createProjectSchema,
     initial: { name: '', key: '', description: '' },
     onSuccess: () => dialog.close(true),

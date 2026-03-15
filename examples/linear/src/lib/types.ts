@@ -1,3 +1,11 @@
+/**
+ * Hand-written types for the Linear clone UI.
+ *
+ * These provide narrower types than @vertz/codegen generates (enum unions
+ * instead of `string`, `string | null` instead of `unknown`). Once codegen
+ * supports nullable and enum inference, these can be replaced by generated types.
+ */
+
 export interface Project {
   id: string;
   name: string;

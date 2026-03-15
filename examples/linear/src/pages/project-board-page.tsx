@@ -1,5 +1,5 @@
 import { css, query, useDialogStack, useParams } from '@vertz/ui';
-import { issueApi, projectApi } from '../api/client';
+import { api } from '../api/client';
 import { Button } from '../components/button';
 import { CreateIssueDialog } from '../components/create-issue-dialog';
 import { StatusColumn } from '../components/status-column';
@@ -18,8 +18,8 @@ const styles = css({
 
 export function ProjectBoardPage() {
   const { projectId } = useParams<'/projects/:projectId'>();
-  const issues = query(issueApi.list(projectId));
-  const project = query(projectApi.get(projectId));
+  const issues = query(api.issues.list({ projectId }));
+  const project = query(api.projects.get(projectId));
   const stack = useDialogStack();
 
   // Group issues by status — declarative single-expression for compiler reactivity.
@@ -28,7 +28,7 @@ export function ProjectBoardPage() {
   const columns: { status: IssueStatus; label: string; items: Issue[] }[] = STATUSES.map((s) => ({
     status: s.value,
     label: s.label,
-    items: issues.data?.items.filter((i) => i.status === s.value) ?? [],
+    items: (issues.data?.items.filter((i) => i.status === s.value) ?? []) as Issue[],
   }));
 
   const handleNewIssue = async () => {
