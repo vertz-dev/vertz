@@ -39,11 +39,10 @@ function ComposedSwitchRoot({
   disabled,
   onCheckedChange,
 }: ComposedSwitchProps) {
-  const thumb = document.createElement('span');
-  thumb.setAttribute('data-part', 'thumb');
   const initialState = defaultChecked ? 'checked' : 'unchecked';
-  thumb.setAttribute('data-state', initialState);
-  if (classes?.thumb) thumb.className = classes.thumb;
+  const thumb = (
+    <span data-part="thumb" data-state={initialState} class={classes?.thumb} />
+  ) as HTMLSpanElement;
 
   const root = Switch.Root({
     defaultChecked,

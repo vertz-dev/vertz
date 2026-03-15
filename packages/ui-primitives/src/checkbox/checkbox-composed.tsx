@@ -53,18 +53,16 @@ function ComposedCheckboxRoot({
 
   if (classes?.root) root.className = classes.root;
 
-  // Add indicator child
-  const indicator = document.createElement('span');
-  indicator.setAttribute('data-part', 'indicator');
-  const dataState = root.getAttribute('data-state') ?? 'unchecked';
-  indicator.setAttribute('data-state', dataState);
-  if (classes?.indicator) indicator.className = classes.indicator;
+  // Create indicator with JSX
+  const initialState = root.getAttribute('data-state') ?? 'unchecked';
+  const indicator = (
+    <span data-part="indicator" data-state={initialState} class={classes?.indicator} />
+  ) as HTMLSpanElement;
   root.appendChild(indicator);
 
   // Append children (e.g., label text)
   if (children) {
-    const resolved = resolveChildren(children);
-    for (const node of resolved) {
+    for (const node of resolveChildren(children)) {
       root.appendChild(node);
     }
   }

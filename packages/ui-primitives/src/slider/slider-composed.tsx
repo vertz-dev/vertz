@@ -1,7 +1,6 @@
 /**
  * Composed Slider — high-level composable component built on Slider.Root.
- * Returns an HTMLElement for declarative JSX usage. Users needing imperative
- * state access should use the factory API (Slider.Root) instead.
+ * Returns an HTMLElement for declarative JSX usage.
  */
 
 import type { ChildValue } from '@vertz/ui';
