@@ -1,5 +1,19 @@
 # @vertz/theme-shadcn
 
+## 0.2.21
+
+### Patch Changes
+
+- [#1317](https://github.com/vertz-dev/vertz/pull/1317) [`e093f38`](https://github.com/vertz-dev/vertz/commit/e093f38d9e64a42582f508b7d22ed274e1210681) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - `AlertDialog.Action` and `AlertDialog.Cancel` now accept `onClick` and other event handler props. Previously these were silently ignored because `AlertDialogSlotProps` only allowed `children` and `class`.
+
+- [#1316](https://github.com/vertz-dev/vertz/pull/1316) [`4390036`](https://github.com/vertz-dev/vertz/commit/4390036144176fab7aa869ddcde621eece6f904c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Simplify css() nested selector object shape from `{ property: 'x', value: 'y' }` to plain `{ 'x': 'y' }`. Remove RawDeclaration type. Support both direct object and array-with-objects forms for nested selectors.
+
+- [#1330](https://github.com/vertz-dev/vertz/pull/1330) [`aacd22a`](https://github.com/vertz-dev/vertz/commit/aacd22a3ccf72d92ed89381708ca826fcbcda9ae) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - `Input` and `Textarea` now wire `on*` props (e.g. `onInput`, `onChange`, `onFocus`) as event listeners instead of setting them as string attributes. Also adds `onInput` and `onChange` to the shared `ElementEventHandlers` interface.
+
+- Updated dependencies [[`4390036`](https://github.com/vertz-dev/vertz/commit/4390036144176fab7aa869ddcde621eece6f904c), [`a7e37c3`](https://github.com/vertz-dev/vertz/commit/a7e37c3dd29ac75183a085d34b0621d339f8402a)]:
+  - @vertz/ui@0.2.21
+  - @vertz/ui-primitives@0.2.21
+
 ## 0.2.20
 
 ### Patch Changes

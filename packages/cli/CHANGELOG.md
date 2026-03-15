@@ -1,5 +1,20 @@
 # @vertz/cli
 
+## 0.2.21
+
+### Patch Changes
+
+- [#1328](https://github.com/vertz-dev/vertz/pull/1328) [`64d9742`](https://github.com/vertz-dev/vertz/commit/64d974294c9cd072f72c24d05a69743a367bb223) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Read CLI version from package.json instead of hardcoded value; show version in `vertz create` output
+
+- Updated dependencies [[`30737c7`](https://github.com/vertz-dev/vertz/commit/30737c73fcf844878b6b781f3b786fac39e6a7b5), [`5eda52e`](https://github.com/vertz-dev/vertz/commit/5eda52e2a74966eb94dcca5af00cb1f1dd8c2fd7), [`0f7b4bc`](https://github.com/vertz-dev/vertz/commit/0f7b4bc228d6ebf294ab9b7a63087324f003cf86), [`2b462a9`](https://github.com/vertz-dev/vertz/commit/2b462a96eaa747bdd6448763a7d76c0e7a4fee21)]:
+  - @vertz/ui-server@0.2.21
+  - @vertz/create-vertz-app@0.2.21
+  - @vertz/codegen@0.2.21
+  - @vertz/compiler@0.2.21
+  - @vertz/db@0.2.21
+  - @vertz/errors@0.2.21
+  - @vertz/tui@0.2.21
+
 ## 0.2.20
 
 ### Patch Changes

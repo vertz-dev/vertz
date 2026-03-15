@@ -1,6 +1,6 @@
 {
   "name": "create-vertz",
-  "version": "0.2.20",
+  "version": "0.2.21",
   "type": "module",
   "license": "MIT",
   "description": "Create a new Vertz application — delegates to @vertz/create-vertz-app",
