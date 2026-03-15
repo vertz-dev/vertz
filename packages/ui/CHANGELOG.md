@@ -1,5 +1,16 @@
 # @vertz/ui
 
+## 0.2.21
+
+### Patch Changes
+
+- [#1316](https://github.com/vertz-dev/vertz/pull/1316) [`4390036`](https://github.com/vertz-dev/vertz/commit/4390036144176fab7aa869ddcde621eece6f904c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Simplify css() nested selector object shape from `{ property: 'x', value: 'y' }` to plain `{ 'x': 'y' }`. Remove RawDeclaration type. Support both direct object and array-with-objects forms for nested selectors.
+
+- [#1311](https://github.com/vertz-dev/vertz/pull/1311) [`a7e37c3`](https://github.com/vertz-dev/vertz/commit/a7e37c3dd29ac75183a085d34b0621d339f8402a) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - **Breaking:** `DialogStack.open()` now returns `Promise<DialogResult<T>>` instead of `Promise<T>`. Dismissal resolves with `{ ok: false }` instead of rejecting with `DialogDismissedError`. Use `if (result.ok) { result.data }` instead of try/catch.
+
+- Updated dependencies []:
+  - @vertz/fetch@0.2.21
+
 ## 0.2.20
 
 ### Patch Changes

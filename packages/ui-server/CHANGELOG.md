@@ -1,5 +1,20 @@
 # @vertz/ui-server
 
+## 0.2.21
+
+### Patch Changes
+
+- [#1325](https://github.com/vertz-dev/vertz/pull/1325) [`30737c7`](https://github.com/vertz-dev/vertz/commit/30737c73fcf844878b6b781f3b786fac39e6a7b5) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add `dataset` property to SSR DOM shim elements, fixing crashes when components access `el.dataset.*` during SSR
+
+- [#1314](https://github.com/vertz-dev/vertz/pull/1314) [`5eda52e`](https://github.com/vertz-dev/vertz/commit/5eda52e2a74966eb94dcca5af00cb1f1dd8c2fd7) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add automatic restart for stale module graph errors (Phase 3). When a stale-graph error is detected, the server and client now auto-trigger a restart without user interaction. Includes restart loop prevention (max 3 auto-restarts within 10s window) with fallback to the manual "Restart Server" button.
+
+- [#1310](https://github.com/vertz-dev/vertz/pull/1310) [`0f7b4bc`](https://github.com/vertz-dev/vertz/commit/0f7b4bc228d6ebf294ab9b7a63087324f003cf86) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add stale module graph detection and dev server restart mechanism. When Bun's HMR retains stale import bindings after exports are removed or renamed, the error overlay now shows a "Restart Server" button that triggers a soft server restart, clearing the module graph and recovering automatically.
+
+- Updated dependencies [[`4390036`](https://github.com/vertz-dev/vertz/commit/4390036144176fab7aa869ddcde621eece6f904c), [`a7e37c3`](https://github.com/vertz-dev/vertz/commit/a7e37c3dd29ac75183a085d34b0621d339f8402a), [`cac4e45`](https://github.com/vertz-dev/vertz/commit/cac4e452bd12b726c077ce2f48605bbc410a680f)]:
+  - @vertz/ui@0.2.21
+  - @vertz/ui-compiler@0.2.21
+  - @vertz/core@0.2.21
+
 ## 0.2.20
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @vertz/ui-compiler
 
+## 0.2.21
+
+### Patch Changes
+
+- [#1316](https://github.com/vertz-dev/vertz/pull/1316) [`4390036`](https://github.com/vertz-dev/vertz/commit/4390036144176fab7aa869ddcde621eece6f904c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Simplify css() nested selector object shape from `{ property: 'x', value: 'y' }` to plain `{ 'x': 'y' }`. Remove RawDeclaration type. Support both direct object and array-with-objects forms for nested selectors.
+
+- [#1320](https://github.com/vertz-dev/vertz/pull/1320) [`cac4e45`](https://github.com/vertz-dev/vertz/commit/cac4e452bd12b726c077ce2f48605bbc410a680f) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Hyphenated JSX prop names (e.g. `data-testid`, `aria-label`) on custom components are now quoted in compiled output, producing valid JavaScript object literals.
+
+- Updated dependencies [[`4390036`](https://github.com/vertz-dev/vertz/commit/4390036144176fab7aa869ddcde621eece6f904c), [`a7e37c3`](https://github.com/vertz-dev/vertz/commit/a7e37c3dd29ac75183a085d34b0621d339f8402a)]:
+  - @vertz/ui@0.2.21
+
 ## 0.2.20
 
 ### Patch Changes

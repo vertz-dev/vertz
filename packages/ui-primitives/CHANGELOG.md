@@ -1,5 +1,12 @@
 # @vertz/ui-primitives
 
+## 0.2.21
+
+### Patch Changes
+
+- Updated dependencies [[`4390036`](https://github.com/vertz-dev/vertz/commit/4390036144176fab7aa869ddcde621eece6f904c), [`a7e37c3`](https://github.com/vertz-dev/vertz/commit/a7e37c3dd29ac75183a085d34b0621d339f8402a)]:
+  - @vertz/ui@0.2.21
+
 ## 0.2.20
 
 ### Patch Changes
