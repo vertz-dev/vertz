@@ -32,27 +32,27 @@ const STEPS = [
 
 export function SchemaFlow() {
   return (
-    <section class={s.section}>
-      <div class={s.container}>
-        <p class={s.label} style="font-family: var(--font-mono)">
+    <section className={s.section}>
+      <div className={s.container}>
+        <p className={s.label} style="font-family: var(--font-mono)">
           How it works
         </p>
-        <h2 class={s.heading} style="font-family: var(--font-display)">
+        <h2 className={s.heading} style="font-family: var(--font-display)">
           One schema. Three layers. Zero wiring.
         </h2>
 
-        <div class={s.stepList}>
+        <div className={s.stepList}>
           {STEPS.map((step) => (
             <div key={step.label}>
-              <div class={s.stepHeader}>
-                <span class={s.stepLabel} style="font-family: var(--font-mono); color: #3b82f6">
+              <div className={s.stepHeader}>
+                <span className={s.stepLabel} style="font-family: var(--font-mono); color: #3b82f6">
                   {step.label}
                 </span>
-                <span class={s.stepTitle} style="font-family: var(--font-mono)">
+                <span className={s.stepTitle} style="font-family: var(--font-mono)">
                   {step.title}
                 </span>
               </div>
-              <div class={s.codeBlock} style="border-color: #1e1e22">
+              <div className={s.codeBlock} style="border-color: #1e1e22">
                 <TokenLines lines={step.tokens} />
               </div>
             </div>

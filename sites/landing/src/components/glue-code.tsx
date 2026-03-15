@@ -40,41 +40,41 @@ const OLD_STACK = [
 
 export function GlueCode() {
   return (
-    <section class={s.section}>
-      <div class={s.wrapper}>
-        <p class={s.label} style="font-family: var(--font-mono)">
+    <section className={s.section}>
+      <div className={s.wrapper}>
+        <p className={s.label} style="font-family: var(--font-mono)">
           The problem
         </p>
 
-        <div class={s.grid}>
-          <div class={s.gridItem}>
-            <p class={s.columnLabel} style="font-family: var(--font-mono); color: #a1a1aa">
+        <div className={s.grid}>
+          <div className={s.gridItem}>
+            <p className={s.columnLabel} style="font-family: var(--font-mono); color: #a1a1aa">
               The typical stack
             </p>
-            <div class={s.codeBlock} style="border-color: #1e1e22">
+            <div className={s.codeBlock} style="border-color: #1e1e22">
               {OLD_STACK.map((item) => (
                 <div key={item.file} style="font-family: var(--font-mono); color: #8b8b94">
-                  <span class={s.commentColor}>{'// '}</span>
-                  <span class={s.fileColor}>{item.file}</span>
-                  <span class={s.descColor}> — {item.desc}</span>
+                  <span className={s.commentColor}>{'// '}</span>
+                  <span className={s.fileColor}>{item.file}</span>
+                  <span className={s.descColor}> — {item.desc}</span>
                 </div>
               ))}
             </div>
-            <p class={s.caption} style="font-family: var(--font-mono); color: #8b8b94">
+            <p className={s.caption} style="font-family: var(--font-mono); color: #8b8b94">
               5 files. Same shape. Pray they stay in sync.
             </p>
           </div>
 
-          <div class={s.gridItem}>
-            <p class={s.columnLabel} style="font-family: var(--font-mono); color: #3b82f6">
+          <div className={s.gridItem}>
+            <p className={s.columnLabel} style="font-family: var(--font-mono); color: #3b82f6">
               With Vertz
             </p>
-            <div class={s.codeBlock} style="border-color: rgba(59,130,246,0.3)">
+            <div className={s.codeBlock} style="border-color: rgba(59,130,246,0.3)">
               <TokenLines lines={TOKENS_GLUE_SCHEMA} />
               <div style="margin-top: 1.25rem" />
               <TokenLines lines={TOKENS_GLUE_UI} />
             </div>
-            <p class={s.caption} style="font-family: var(--font-mono); color: #3b82f6">
+            <p className={s.caption} style="font-family: var(--font-mono); color: #3b82f6">
               1 schema. Everything else is derived.
             </p>
           </div>

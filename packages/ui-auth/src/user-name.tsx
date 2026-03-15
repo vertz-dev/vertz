@@ -19,7 +19,7 @@ export function UserName({
 }: UserNameProps): JSX.Element {
   const effectiveClass = className ?? classProp;
   if (user) {
-    return <span class={effectiveClass}>{getUserDisplayName(user, fallback)}</span>;
+    return <span className={effectiveClass}>{getUserDisplayName(user, fallback)}</span>;
   }
 
   const ctx = useContext(AuthContext);
@@ -27,5 +27,5 @@ export function UserName({
     throw new Error('UserName must be used within AuthProvider, or pass a `user` prop');
   }
 
-  return <span class={effectiveClass}>{getUserDisplayName(ctx.user, fallback)}</span>;
+  return <span className={effectiveClass}>{getUserDisplayName(ctx.user, fallback)}</span>;
 }

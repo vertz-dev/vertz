@@ -36,7 +36,7 @@ export function Avatar({
     : 'display:none';
 
   return (
-    <div class={effectiveClass} style={containerStyle}>
+    <div className={effectiveClass} style={containerStyle}>
       <img
         src={src}
         alt={alt ?? ''}

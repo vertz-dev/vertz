@@ -68,7 +68,7 @@ function HintedToken({ token }: { token: [string, string, CompactToken[][]] }) {
 
 export function TokenLines({ lines }: { lines: TokenLine[] }) {
   return (
-    <pre class={s.pre}>
+    <pre className={s.pre}>
       <code>
         {lines.map((line) => (
           <span key={line.map((t) => t[1]).join('')}>

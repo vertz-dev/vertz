@@ -54,39 +54,39 @@ const s = css({
 
 export function Hero() {
   return (
-    <section class={s.section}>
-      <div class={s.badge}>
-        <span class={s.badgeDotWrap}>
-          <span class={s.badgeDotPing} style="background: #60a5fa" />
-          <span class={s.badgeDot} style="background: #3b82f6" />
+    <section className={s.section}>
+      <div className={s.badge}>
+        <span className={s.badgeDotWrap}>
+          <span className={s.badgeDotPing} style="background: #60a5fa" />
+          <span className={s.badgeDot} style="background: #3b82f6" />
         </span>
-        <span class={s.badgeText} style="font-family: var(--font-mono)">
+        <span className={s.badgeText} style="font-family: var(--font-mono)">
           Public Beta
         </span>
       </div>
 
       <h1
-        class={s.h1}
+        className={s.h1}
         style="font-family: var(--font-display); font-size: clamp(3rem, 8vw, 6rem); letter-spacing: -0.025em; line-height: 1.1"
       >
-        <span class={s.h1Line}>One command.</span>
-        <span class={s.h1LineFaded}>Full stack. Running.</span>
+        <span className={s.h1Line}>One command.</span>
+        <span className={s.h1LineFaded}>Full stack. Running.</span>
       </h1>
 
-      <p class={s.description}>
+      <p className={s.description}>
         One command. Database, API, and UI — running locally.{' '}
-        <span class={s.descriptionHighlight}>
+        <span className={s.descriptionHighlight}>
           Define your schema once. Everything else is derived. Zero config.
         </span>
       </p>
 
-      <div class={s.ctas}>
+      <div className={s.ctas}>
         <Island component={CopyButton} />
         <a
           href="https://github.com/vertz-dev/vertz"
           target="_blank"
           rel="noopener"
-          class={s.githubLink}
+          className={s.githubLink}
           style="font-family: var(--font-mono)"
         >
           View on GitHub →

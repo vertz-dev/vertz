@@ -60,14 +60,14 @@ export default function CopyButton() {
     <button
       type="button"
       onClick={handleClick}
-      class={s.copyButton}
+      className={s.copyButton}
       style="font-family: var(--font-mono); border-color: #1e1e22; box-shadow: 4px 4px 0 rgba(255,255,255,0.06); transition: all 0.15s"
     >
-      <span class={s.mobileBadge} style={copied ? 'opacity: 1' : 'opacity: 0'}>
+      <span className={s.mobileBadge} style={copied ? 'opacity: 1' : 'opacity: 0'}>
         Copied!
       </span>
-      <span class={s.dollarSign}>$</span> bun create vertz@latest my-app
-      <span class={s.copyPrefix}>
+      <span className={s.dollarSign}>$</span> bun create vertz@latest my-app
+      <span className={s.copyPrefix}>
         <span style="grid-area: 1/1; visibility: hidden; pointer-events: none">
           (click to copy)
         </span>
