@@ -36,41 +36,24 @@ describe('createThemedPopover', () => {
     expect(typeof Popover.Content).toBe('function');
   });
 
-  it('applies theme classes to popover content', async () => {
-    const { createThemedPopover } = await import('../components/primitives/popover');
-    const styles = createPopoverStyles();
-    const Popover = createThemedPopover(styles);
-
-    const trigger = document.createElement('button');
-    trigger.textContent = 'Open';
-    const triggerSlot = Popover.Trigger({ children: trigger });
-    const contentSlot = Popover.Content({ children: 'Hello' });
-
-    const result = Popover({ children: [triggerSlot, contentSlot] });
-    document.body.appendChild(result);
-
-    // Content is portaled to document.body when popover opens
-    const contentId = result.getAttribute('aria-controls')!;
-    expect(contentId).toBeTruthy();
-
-    // Open the popover to trigger portal
-    trigger.click();
-    const portaledContent = document.getElementById(contentId);
-    expect(portaledContent).toBeTruthy();
-  });
-
-  it('returns user trigger when Popover.Trigger is provided', async () => {
+  it('returns a wrapper containing trigger and content', async () => {
     const { createThemedPopover } = await import('../components/primitives/popover');
     const styles = createPopoverStyles();
     const Popover = createThemedPopover(styles);
 
     const btn = document.createElement('button');
     btn.textContent = 'Open';
-    const triggerSlot = Popover.Trigger({ children: btn });
-    const contentSlot = Popover.Content({ children: 'Content' });
 
-    const result = Popover({ children: [triggerSlot, contentSlot] });
-    expect(result).toBe(btn);
+    const result = Popover({
+      children: () => {
+        const t = Popover.Trigger({ children: [btn] });
+        const c = Popover.Content({ children: ['Content'] });
+        return [t, c];
+      },
+    });
+
+    expect(result).toBeInstanceOf(HTMLDivElement);
+    expect(result.contains(btn)).toBe(true);
   });
 
   it('trigger click opens popover via delegate', async () => {
@@ -80,14 +63,21 @@ describe('createThemedPopover', () => {
 
     const btn = document.createElement('button');
     btn.textContent = 'Open';
-    const triggerSlot = Popover.Trigger({ children: btn });
-    const contentSlot = Popover.Content({ children: 'Content' });
 
-    Popover({ children: [triggerSlot, contentSlot] });
+    const result = Popover({
+      children: () => {
+        const t = Popover.Trigger({ children: [btn] });
+        const c = Popover.Content({ children: ['Content'] });
+        return [t, c];
+      },
+    });
+    document.body.appendChild(result);
 
     expect(btn.getAttribute('data-state')).toBe('closed');
     btn.click();
     expect(btn.getAttribute('data-state')).toBe('open');
+
+    document.body.removeChild(result);
   });
 });
 
@@ -751,26 +741,30 @@ describe('createThemedDropdownMenu', () => {
     const styles = createDropdownMenuStyles();
     const DropdownMenu = createThemedDropdownMenu(styles);
 
-    const sep = DropdownMenu.Separator();
+    const sep = DropdownMenu.Separator({});
     expect(sep.dataset.slot).toBe('menu-separator');
   });
 
-  it('returns user trigger with ARIA attributes', async () => {
+  it('returns wrapper containing trigger with ARIA attributes', async () => {
     const { createThemedDropdownMenu } = await import('../components/primitives/dropdown-menu');
     const styles = createDropdownMenuStyles();
     const DropdownMenu = createThemedDropdownMenu(styles);
 
     const btn = document.createElement('button');
     btn.textContent = 'Menu';
-    const triggerSlot = DropdownMenu.Trigger({ children: btn });
-    const contentSlot = DropdownMenu.Content({
-      children: DropdownMenu.Item({ value: 'a', children: 'A' }),
+
+    const result = DropdownMenu({
+      children: () => {
+        const t = DropdownMenu.Trigger({ children: [btn] });
+        const c = DropdownMenu.Content({
+          children: () => [DropdownMenu.Item({ value: 'a', children: ['A'] })],
+        });
+        return [t, c];
+      },
     });
 
-    const result = DropdownMenu({ children: [triggerSlot, contentSlot] });
-
-    // Returns user trigger directly; content is portaled to body
-    expect(result).toBe(btn);
+    expect(result).toBeInstanceOf(HTMLDivElement);
+    expect(result.contains(btn)).toBe(true);
     expect(btn.getAttribute('aria-haspopup')).toBe('menu');
     expect(btn.getAttribute('aria-controls')).toBeTruthy();
   });
@@ -1088,36 +1082,45 @@ describe('createThemedTooltip', () => {
     expect(typeof Tooltip.Content).toBe('function');
   });
 
-  it('moves trigger children into primitive trigger element', async () => {
+  it('returns a wrapper containing the trigger with user children', async () => {
     const { createThemedTooltip } = await import('../components/primitives/tooltip');
     const styles = createTooltipStyles();
     const Tooltip = createThemedTooltip(styles);
 
     const btn = document.createElement('button');
     btn.textContent = 'Hover me';
-    const triggerSlot = Tooltip.Trigger({ children: btn });
-    const contentSlot = Tooltip.Content({ children: 'Tooltip text' });
 
-    const result = Tooltip({ children: [triggerSlot, contentSlot] });
+    const result = Tooltip({
+      children: () => {
+        const t = Tooltip.Trigger({ children: [btn] });
+        const c = Tooltip.Content({ children: ['Tooltip text'] });
+        return [t, c];
+      },
+    });
 
-    // The primitive trigger element contains the user's button
+    expect(result).toBeInstanceOf(HTMLDivElement);
     expect(result.contains(btn)).toBe(true);
   });
 
-  it('returns primitive trigger element', async () => {
+  it('applies theme class to tooltip content element', async () => {
     const { createThemedTooltip } = await import('../components/primitives/tooltip');
     const styles = createTooltipStyles();
     const Tooltip = createThemedTooltip(styles);
 
     const btn = document.createElement('button');
     btn.textContent = 'Hover me';
-    const triggerSlot = Tooltip.Trigger({ children: btn });
-    const contentSlot = Tooltip.Content({ children: 'Info' });
 
-    const result = Tooltip({ children: [triggerSlot, contentSlot] });
-    // Returns the primitive trigger (span with events wired) containing the user's button
-    expect(result).toBeInstanceOf(HTMLElement);
-    expect(result.contains(btn)).toBe(true);
+    const result = Tooltip({
+      children: () => {
+        const t = Tooltip.Trigger({ children: [btn] });
+        const c = Tooltip.Content({ children: ['Info'] });
+        return [t, c];
+      },
+    });
+
+    const contentEl = result.querySelector('[role="tooltip"]') as HTMLElement;
+    expect(contentEl).toBeTruthy();
+    expect(contentEl!.className).toContain(styles.content);
   });
 });
 

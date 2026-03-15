@@ -68,6 +68,8 @@ export type {
   DropdownMenuState,
 } from './dropdown-menu/dropdown-menu';
 export { DropdownMenu } from './dropdown-menu/dropdown-menu';
+export type { ComposedDropdownMenuProps, DropdownMenuClasses } from './dropdown-menu/dropdown-menu-composed';
+export { ComposedDropdownMenu } from './dropdown-menu/dropdown-menu-composed';
 export type { HoverCardElements, HoverCardOptions, HoverCardState } from './hover-card/hover-card';
 export { HoverCard } from './hover-card/hover-card';
 export type { MenuElements, MenuOptions, MenuState } from './menu/menu';
@@ -82,6 +84,8 @@ export type {
 export { NavigationMenu } from './navigation-menu/navigation-menu';
 export type { PopoverElements, PopoverOptions, PopoverState } from './popover/popover';
 export { Popover } from './popover/popover';
+export type { ComposedPopoverProps, PopoverClasses } from './popover/popover-composed';
+export { ComposedPopover } from './popover/popover-composed';
 export type { ProgressElements, ProgressOptions, ProgressState } from './progress/progress';
 export { Progress } from './progress/progress';
 export type { RadioElements, RadioOptions, RadioState } from './radio/radio';
@@ -105,6 +109,8 @@ export type { ComposedSelectProps, SelectClasses } from './select/select-compose
 export { ComposedSelect } from './select/select-composed';
 export type { SheetElements, SheetOptions, SheetSide, SheetState } from './sheet/sheet';
 export { Sheet } from './sheet/sheet';
+export type { ComposedSheetProps, SheetClasses } from './sheet/sheet-composed';
+export { ComposedSheet } from './sheet/sheet-composed';
 export type { SliderElements, SliderOptions, SliderState } from './slider/slider';
 export { Slider } from './slider/slider';
 export type { SwitchOptions } from './switch/switch';
@@ -125,5 +131,7 @@ export type {
 export { ToggleGroup } from './toggle-group/toggle-group';
 export type { TooltipElements, TooltipOptions, TooltipState } from './tooltip/tooltip';
 export { Tooltip } from './tooltip/tooltip';
+export type { ComposedTooltipProps, TooltipClasses } from './tooltip/tooltip-composed';
+export { ComposedTooltip } from './tooltip/tooltip-composed';
 export type { ElementAttrs } from './utils/attrs';
 export type { FloatingOptions } from './utils/floating';
