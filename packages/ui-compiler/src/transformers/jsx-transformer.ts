@@ -1,6 +1,6 @@
 import type MagicString from 'magic-string';
 import { type Node, type SourceFile, SyntaxKind } from 'ts-morph';
-import type { ComponentInfo, JsxExpressionInfo, VariableInfo } from '../types';
+import type { CallbackConstInline, ComponentInfo, JsxExpressionInfo, VariableInfo } from '../types';
 import { findBodyNode, quoteIfNeeded } from '../utils';
 
 /**
@@ -31,6 +31,80 @@ function isLiteralExpression(node: Node): boolean {
  *   "\n  Hello\n"     → "Hello"        (indentation/newlines collapsed)
  *   "\n  A\n  B\n"    → "A B"          (lines joined with single space)
  */
+/**
+ * Inline callback-local reactive const initializers into a getter body.
+ * Replaces const names with their initializer text (read from MagicString,
+ * which already has .value transforms from SignalTransformer), so that
+ * signal reads end up inside the __attr()/__child() getter.
+ *
+ * Example: `isActive ? 'checked' : 'unchecked'` with isActive = `v === selected`
+ * becomes: `(v === selected.value) ? 'checked' : 'unchecked'`
+ */
+function inlineCallbackConsts(
+  exprText: string,
+  inlines: CallbackConstInline[] | undefined,
+  source: MagicString,
+): string {
+  if (!inlines || inlines.length === 0) return exprText;
+
+  // Build name→initText map (read from MagicString which has .value transforms)
+  const initTexts = new Map<string, string>();
+  for (const { name, initStart, initEnd } of inlines) {
+    initTexts.set(name, source.slice(initStart, initEnd));
+  }
+
+  // Fixed-point loop for transitive chains:
+  // e.g., `label` → `(doubled + v)` → `((count.value * 2) + v)`
+  let result = exprText;
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const [name, initText] of initTexts) {
+      const next = replaceIdentifierOutsideStrings(result, name, `(${initText})`);
+      if (next !== result) {
+        result = next;
+        changed = true;
+      }
+    }
+  }
+  return result;
+}
+
+/**
+ * Replace identifier occurrences in a string, skipping matches inside
+ * string literals (single-quoted, double-quoted, or template literals).
+ * Uses word-boundary matching to avoid replacing substrings of longer identifiers.
+ */
+function replaceIdentifierOutsideStrings(
+  text: string,
+  identifier: string,
+  replacement: string,
+): string {
+  // Regex-escape the identifier (handles $ in identifier names)
+  const escaped = identifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const identPattern = new RegExp(`\\b${escaped}\\b`, 'g');
+
+  // Split the text into segments: string literals vs code.
+  // Match single-quoted, double-quoted, and template literal strings.
+  const stringPattern = /'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`/g;
+
+  let result = '';
+  let lastIndex = 0;
+
+  for (let match = stringPattern.exec(text); match !== null; match = stringPattern.exec(text)) {
+    // Process code segment before this string literal
+    const codePart = text.slice(lastIndex, match.index);
+    result += codePart.replace(identPattern, replacement);
+    // Preserve string literal as-is
+    result += match[0];
+    lastIndex = match.index + match[0].length;
+  }
+  // Process remaining code after last string literal
+  result += text.slice(lastIndex).replace(identPattern, replacement);
+
+  return result;
+}
+
 function cleanJsxText(raw: string): string {
   if (!raw.includes('\n') && !raw.includes('\r')) {
     return raw;
@@ -361,7 +435,8 @@ function processAttribute(
       // Check if the expression is reactive via JsxExpressionInfo
       const exprInfo = jsxMap.get(init.getStart());
       if (exprInfo?.reactive) {
-        return `__attr(${elVar}, ${JSON.stringify(attrName)}, () => ${exprText})`;
+        const getterBody = inlineCallbackConsts(exprText, exprInfo.callbackConstInlines, source);
+        return `__attr(${elVar}, ${JSON.stringify(attrName)}, () => ${getterBody})`;
       }
       // Static non-literal: use guarded setAttribute (handles null/false/true correctly)
       return `{ const __v = ${exprText}; if (__v != null && __v !== false) ${elVar}.setAttribute(${JSON.stringify(attrName)}, __v === true ? "" : __v); }`;
@@ -423,7 +498,8 @@ function transformChild(
     // Use __child() for reactive non-literal expressions (wraps in effect for tracking)
     // Use __insert() for static or literal expressions (direct insertion, no effect overhead)
     if (!isLiteralExpression(exprNode) && exprInfo?.reactive) {
-      return `__append(${parentVar}, __child(() => ${exprText}))`;
+      const childBody = inlineCallbackConsts(exprText, exprInfo?.callbackConstInlines, source);
+      return `__append(${parentVar}, __child(() => ${childBody}))`;
     }
     return `__insert(${parentVar}, ${exprText})`;
   }
@@ -728,8 +804,17 @@ function buildListRenderFunction(
 ): string {
   const jsxNode = findJsxInBody(callbackBody);
   if (jsxNode) {
-    // Strip the key prop from the JSX before transforming
     const transformed = transformJsxNode(jsxNode, reactiveNames, jsxMap, source);
+
+    // For block bodies, write the transformed JSX into MagicString so that
+    // source.slice() over the full block preserves intermediate statements
+    // (const declarations, etc.) that precede the return.
+    if (callbackBody.isKind(SyntaxKind.Block)) {
+      source.overwrite(jsxNode.getStart(), jsxNode.getEnd(), transformed);
+      const bodyText = source.slice(callbackBody.getStart(), callbackBody.getEnd());
+      return `(${itemParam}) => ${bodyText}`;
+    }
+
     return `(${itemParam}) => ${transformed}`;
   }
 

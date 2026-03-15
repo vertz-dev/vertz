@@ -123,6 +123,47 @@ function App() {
     });
   });
 
+  describe('block-body .map() callbacks', () => {
+    it('preserves intermediate const declarations in block-body callbacks', () => {
+      const result = compile(
+        `
+function App() {
+  let selected = 'a';
+  const items = ['a', 'b', 'c'];
+  return <div>{items.map((v) => {
+    const isActive = v === selected;
+    return <div data-state={isActive ? 'checked' : 'unchecked'} />;
+  })}</div>;
+}
+        `.trim(),
+      );
+
+      expect(result.code).toContain('__list(');
+      // The const declaration must be preserved in the render function
+      expect(result.code).toContain('const isActive');
+    });
+
+    it('preserves multiple intermediate statements in block-body callbacks', () => {
+      const result = compile(
+        `
+function App() {
+  let selected = 'a';
+  const items = ['a', 'b', 'c'];
+  return <div>{items.map((v) => {
+    const value = v.toLowerCase();
+    const isActive = value === selected;
+    return <div data-state={isActive ? 'checked' : 'unchecked'} />;
+  })}</div>;
+}
+        `.trim(),
+      );
+
+      expect(result.code).toContain('__list(');
+      expect(result.code).toContain('const value');
+      expect(result.code).toContain('const isActive');
+    });
+  });
+
   describe('import generation', () => {
     it('adds __list to internals import', () => {
       const result = compile(
