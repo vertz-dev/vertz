@@ -510,6 +510,8 @@ export function createRouter(routes: CompiledRoute[], initialUrl: string): Route
 
 #### View Transitions Integration
 
+> **Note:** View Transitions have been extracted to a standalone design doc at [`plans/view-transitions.md`](./view-transitions.md) and are now **implemented**. The section below is the original design sketch and may be out of date — refer to the standalone doc for the current API.
+
 View Transitions are opt-in. The `RouteConfig` type gains an optional `viewTransition` field, and `createRouter` accepts a `RouterOptions` that includes global view transition settings.
 
 ```typescript

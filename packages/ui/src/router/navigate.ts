@@ -20,6 +20,8 @@ import { matchRoute } from './define-routes';
 import { executeLoaders } from './loader';
 import type { ExtractParams, RoutePattern } from './params';
 import { prefetchNavData as realPrefetchNavData } from './server-nav';
+import type { ViewTransitionConfig } from './view-transitions';
+import { withViewTransition } from './view-transitions';
 
 export type NavigateSearchValue = string | number | boolean | null | undefined;
 export type NavigateSearch =
@@ -35,6 +37,11 @@ export interface NavigateOptions {
   params?: Record<string, string>;
   /** Search params appended to the final URL. */
   search?: NavigateSearch;
+  /**
+   * Override view transition for this navigation only.
+   * `false` explicitly disables even if route/global config enables transitions.
+   */
+  viewTransition?: boolean | ViewTransitionConfig;
 }
 
 type NavigateOptionsFor<TPath extends string> = string extends TPath
@@ -72,6 +79,14 @@ export interface RouterOptions {
   serverNav?: boolean | { timeout?: number };
   /** @internal — injected for testing. Production uses the real module. */
   _prefetchNavData?: (url: string, options?: { timeout?: number }) => PrefetchHandle;
+  /**
+   * Global view transition setting.
+   * - `true` → all navigations use the default cross-fade
+   * - `ViewTransitionConfig` → all navigations use the config
+   * - Per-route and per-navigation overrides take precedence
+   * - Default: `undefined` (no transitions)
+   */
+  viewTransition?: boolean | ViewTransitionConfig;
 }
 
 /**
@@ -423,7 +438,11 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     }
   }
 
-  async function applyNavigation(url: string): Promise<void> {
+  async function applyNavigation(
+    url: string,
+    preMatch?: RouteMatch | null,
+    transitionConfig?: boolean | ViewTransitionConfig,
+  ): Promise<void> {
     // Abort any in-flight navigation
     if (currentAbort) {
       currentAbort.abort();
@@ -433,8 +452,20 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     const abort = new AbortController();
     currentAbort = abort;
 
-    const match = matchRoute(routes, url);
-    current.value = match;
+    const match = preMatch !== undefined ? preMatch : matchRoute(routes, url);
+
+    // Wrap only the synchronous DOM swap in the view transition.
+    // Loaders run after the transition completes so the new page
+    // skeleton animates in immediately, then data loads reactively.
+    // Only call withViewTransition when transitions are configured
+    // to avoid introducing async overhead on every navigation.
+    if (transitionConfig) {
+      await withViewTransition(() => {
+        current.value = match;
+      }, transitionConfig);
+    } else {
+      current.value = match;
+    }
 
     if (match) {
       visitedUrls.add(normalizeUrl(url));
@@ -473,10 +504,17 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
       await awaitPrefetch(handle);
     }
 
-    // Guard: skip if a newer navigation started while we waited
+    // Guard: skip if a newer navigation started while we waited.
+    // Must precede withViewTransition to avoid capturing a DOM snapshot
+    // and then bailing out inside the callback.
     if (gen !== navigateGen) return;
 
-    await applyNavigation(navUrl);
+    // Resolve transition config: navigate-level > route-level > global
+    const match = matchRoute(routes, navUrl);
+    const transitionConfig =
+      input.viewTransition ?? match?.route.viewTransition ?? options?.viewTransition;
+
+    await applyNavigation(navUrl, match, transitionConfig);
   }
 
   async function revalidate(): Promise<void> {
@@ -497,7 +535,10 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
   const onPopState = () => {
     const popUrl = window.location.pathname + window.location.search;
     startPrefetch(popUrl);
-    applyNavigation(popUrl).catch(() => {
+    // Match route first to resolve per-route transition config
+    const match = matchRoute(routes, popUrl);
+    const transitionConfig = match?.route.viewTransition ?? options?.viewTransition;
+    applyNavigation(popUrl, match, transitionConfig).catch(() => {
       // Error is stored in loaderError signal
     });
   };

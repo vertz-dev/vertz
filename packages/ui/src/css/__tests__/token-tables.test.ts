@@ -257,6 +257,8 @@ describe('token-tables', () => {
       'opacity',
       'inset',
       'z',
+      'vt-name',
+      'view-transition-name',
     ];
 
     for (const prop of essential) {
@@ -264,6 +266,22 @@ describe('token-tables', () => {
         expect(PROPERTY_MAP[prop]).toBeDefined();
       });
     }
+  });
+
+  describe('view-transition-name shorthands', () => {
+    it('vt-name maps to view-transition-name with raw valueType', () => {
+      expect(PROPERTY_MAP['vt-name']).toEqual({
+        properties: ['view-transition-name'],
+        valueType: 'raw',
+      });
+    });
+
+    it('view-transition-name maps to view-transition-name with raw valueType', () => {
+      expect(PROPERTY_MAP['view-transition-name']).toEqual({
+        properties: ['view-transition-name'],
+        valueType: 'raw',
+      });
+    });
   });
 
   describe('KEYWORD_MAP has all essential keywords', () => {

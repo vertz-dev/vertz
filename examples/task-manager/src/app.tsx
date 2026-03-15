@@ -62,30 +62,11 @@ const appGlobals = globalCss({
   },
 });
 
-// ── View Transitions CSS ───────────────────────────────────────
-
-const viewTransitionsCss = `
-::view-transition-old(root) {
-  animation: fade-out 120ms ease-in;
-}
-::view-transition-new(root) {
-  animation: fade-in 200ms ease-out;
-}
-@keyframes fade-out {
-  from { opacity: 1; }
-  to { opacity: 0; }
-}
-@keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-`;
-
 // ── SSR module exports ─────────────────────────────────────
 
 export { getInjectedCSS };
 export const theme = taskManagerTheme;
-export const styles = [themeGlobals.css, appGlobals.css, viewTransitionsCss];
+export const styles = [themeGlobals.css, appGlobals.css];
 
 // ── Sidebar with theme toggle ────────────────────────────────
 
@@ -137,11 +118,7 @@ function Sidebar() {
           }
         }}
       >
-        {settings.theme === 'light' ? (
-          <MoonIcon size={16} />
-        ) : (
-          <SunIcon size={16} />
-        )}
+        {settings.theme === 'light' ? <MoonIcon size={16} /> : <SunIcon size={16} />}
         {settings.theme === 'light' ? 'Dark Mode' : 'Light Mode'}
       </div>
     </nav>
