@@ -202,13 +202,12 @@ function ComposedDialogRoot({ children, classes, onOpenChange, closeIcon }: Comp
     dialog.content.appendChild(closeIcon);
   }
 
-  return (
-    <div style="display: contents">
-      {userTrigger}
-      {dialog.overlay}
-      {dialog.content}
-    </div>
-  ) as HTMLElement;
+  const wrapper = document.createElement('div');
+  wrapper.style.display = 'contents';
+  if (userTrigger) wrapper.appendChild(userTrigger);
+  wrapper.appendChild(dialog.overlay);
+  wrapper.appendChild(dialog.content);
+  return wrapper;
 }
 
 // ---------------------------------------------------------------------------

@@ -108,12 +108,11 @@ function ComposedPopoverRoot({ children, classes, onOpenChange }: ComposedPopove
     }
   }
 
-  return (
-    <div style="display: contents">
-      {userTrigger}
-      {popover.content}
-    </div>
-  ) as HTMLElement;
+  const wrapper = document.createElement('div');
+  wrapper.style.display = 'contents';
+  if (userTrigger) wrapper.appendChild(userTrigger);
+  wrapper.appendChild(popover.content);
+  return wrapper;
 }
 
 // ---------------------------------------------------------------------------
