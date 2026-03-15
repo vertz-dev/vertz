@@ -201,13 +201,12 @@ function ComposedAlertDialogRoot({
     }
   });
 
-  return (
-    <div style="display: contents">
-      {userTrigger}
-      {alertDialog.overlay}
-      {alertDialog.content}
-    </div>
-  ) as HTMLDivElement;
+  const wrapper = document.createElement('div');
+  wrapper.style.display = 'contents';
+  if (userTrigger) wrapper.appendChild(userTrigger);
+  wrapper.appendChild(alertDialog.overlay);
+  wrapper.appendChild(alertDialog.content);
+  return wrapper;
 }
 
 // ---------------------------------------------------------------------------

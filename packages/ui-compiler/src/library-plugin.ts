@@ -13,6 +13,8 @@ export interface VertzLibraryPluginOptions {
   filter?: RegExp;
   /** Compilation target. Defaults to 'dom'. */
   target?: 'dom' | 'tui';
+  /** Files matching this pattern skip reactive/JSX transforms (passed through as plain TSX). */
+  exclude?: RegExp;
 }
 
 /**
@@ -30,6 +32,19 @@ export function createVertzLibraryPlugin(options?: VertzLibraryPluginOptions): B
     setup(build) {
       build.onLoad({ filter }, async (args) => {
         const source = await readFile(args.path, 'utf-8');
+
+        // Skip reactive/JSX transforms for excluded files (e.g., composed primitives).
+        // Transpile JSX via Bun's native transpiler with @vertz/ui runtime.
+        if (options?.exclude?.test(args.path)) {
+          const transpiled = new Bun.Transpiler({
+            loader: 'tsx',
+            autoImportJSX: true,
+            tsconfig: JSON.stringify({
+              compilerOptions: { jsx: 'react-jsx', jsxImportSource: '@vertz/ui' },
+            }),
+          }).transformSync(source);
+          return { contents: transpiled, loader: 'js' as const };
+        }
 
         // ── 1. Hydration transform ─────────────────────────────
         const hydrationS = new MagicString(source);

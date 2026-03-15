@@ -14,6 +14,6 @@ const componentEntries = readdirSync('src', { withFileTypes: true })
 export default defineConfig({
   entry: ['src/index.ts', 'src/utils.ts', ...componentEntries],
   dts: true,
-  plugins: [createVertzLibraryPlugin()],
+  plugins: [createVertzLibraryPlugin({ exclude: /-composed\.tsx$/ })],
   external: ['@vertz/ui', '@vertz/ui/internals'],
 });

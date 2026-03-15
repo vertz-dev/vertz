@@ -170,13 +170,12 @@ function ComposedSheetRoot({ children, classes, side, onOpenChange }: ComposedSh
     if (target) sheet.hide();
   });
 
-  return (
-    <div style="display: contents">
-      {userTrigger}
-      {sheet.overlay}
-      {sheet.content}
-    </div>
-  ) as HTMLDivElement;
+  const wrapper = document.createElement('div');
+  wrapper.style.display = 'contents';
+  if (userTrigger) wrapper.appendChild(userTrigger);
+  wrapper.appendChild(sheet.overlay);
+  wrapper.appendChild(sheet.content);
+  return wrapper;
 }
 
 // ---------------------------------------------------------------------------
