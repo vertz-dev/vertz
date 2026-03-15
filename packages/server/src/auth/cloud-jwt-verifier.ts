@@ -28,7 +28,9 @@ export function createCloudJWTVerifier(options: {
           typeof payload.email !== 'string' ||
           typeof payload.role !== 'string' ||
           typeof payload.jti !== 'string' ||
-          typeof payload.sid !== 'string'
+          typeof payload.sid !== 'string' ||
+          typeof payload.iat !== 'number' ||
+          typeof payload.exp !== 'number'
         ) {
           return null;
         }
@@ -40,8 +42,8 @@ export function createCloudJWTVerifier(options: {
           role: payload.role as string,
           jti: payload.jti as string,
           sid: payload.sid as string,
-          iat: payload.iat!,
-          exp: payload.exp!,
+          iat: payload.iat,
+          exp: payload.exp,
           ...(typeof payload.tenantId === 'string' ? { tenantId: payload.tenantId } : {}),
           ...(payload.claims && typeof payload.claims === 'object'
             ? { claims: payload.claims as Record<string, unknown> }

@@ -64,7 +64,11 @@ function signJWT(
 describe('createCloudJWTVerifier', () => {
   it('returns SessionPayload with sub, email, role, iat, exp for valid JWT', async () => {
     const client = createJWKSClient({ url: jwksUrl });
-    const verifier = createCloudJWTVerifier({ jwksClient: client, issuer: ISSUER, audience: AUDIENCE });
+    const verifier = createCloudJWTVerifier({
+      jwksClient: client,
+      issuer: ISSUER,
+      audience: AUDIENCE,
+    });
 
     const jwt = await signJWT({
       sub: 'user_123',
@@ -76,18 +80,22 @@ describe('createCloudJWTVerifier', () => {
 
     const payload = await verifier.verify(jwt);
     expect(payload).not.toBeNull();
-    expect(payload!.sub).toBe('user_123');
-    expect(payload!.email).toBe('test@example.com');
-    expect(payload!.role).toBe('user');
-    expect(payload!.jti).toBe('jwt_abc');
-    expect(payload!.sid).toBe('sess_abc');
-    expect(typeof payload!.iat).toBe('number');
-    expect(typeof payload!.exp).toBe('number');
+    expect(payload?.sub).toBe('user_123');
+    expect(payload?.email).toBe('test@example.com');
+    expect(payload?.role).toBe('user');
+    expect(payload?.jti).toBe('jwt_abc');
+    expect(payload?.sid).toBe('sess_abc');
+    expect(typeof payload?.iat).toBe('number');
+    expect(typeof payload?.exp).toBe('number');
   });
 
   it('returns null for expired JWT', async () => {
     const client = createJWKSClient({ url: jwksUrl });
-    const verifier = createCloudJWTVerifier({ jwksClient: client, issuer: ISSUER, audience: AUDIENCE });
+    const verifier = createCloudJWTVerifier({
+      jwksClient: client,
+      issuer: ISSUER,
+      audience: AUDIENCE,
+    });
 
     const jwt = await signJWT(
       { sub: 'user_123', email: 'test@example.com', role: 'user', jti: 'jwt_abc', sid: 'sess_abc' },
@@ -103,7 +111,11 @@ describe('createCloudJWTVerifier', () => {
 
   it('returns null for JWT signed with different private key (signature mismatch)', async () => {
     const client = createJWKSClient({ url: jwksUrl });
-    const verifier = createCloudJWTVerifier({ jwksClient: client, issuer: ISSUER, audience: AUDIENCE });
+    const verifier = createCloudJWTVerifier({
+      jwksClient: client,
+      issuer: ISSUER,
+      audience: AUDIENCE,
+    });
 
     const jwt = await signJWT(
       { sub: 'user_123', email: 'test@example.com', role: 'user', jti: 'jwt_abc', sid: 'sess_abc' },
@@ -116,7 +128,11 @@ describe('createCloudJWTVerifier', () => {
 
   it('returns null for JWT with wrong audience (different projectId)', async () => {
     const client = createJWKSClient({ url: jwksUrl });
-    const verifier = createCloudJWTVerifier({ jwksClient: client, issuer: ISSUER, audience: AUDIENCE });
+    const verifier = createCloudJWTVerifier({
+      jwksClient: client,
+      issuer: ISSUER,
+      audience: AUDIENCE,
+    });
 
     const jwt = await signJWT(
       { sub: 'user_123', email: 'test@example.com', role: 'user', jti: 'jwt_abc', sid: 'sess_abc' },
@@ -127,9 +143,67 @@ describe('createCloudJWTVerifier', () => {
     expect(payload).toBeNull();
   });
 
+  it('returns null for JWT missing iat claim', async () => {
+    const client = createJWKSClient({ url: jwksUrl });
+    const verifier = createCloudJWTVerifier({
+      jwksClient: client,
+      issuer: ISSUER,
+      audience: AUDIENCE,
+    });
+
+    // Build JWT manually without iat
+    const jwt = await new jose.SignJWT({
+      sub: 'user_123',
+      email: 'test@example.com',
+      role: 'user',
+      jti: 'jwt_abc',
+      sid: 'sess_abc',
+    })
+      .setProtectedHeader({ alg: 'RS256', kid })
+      .setExpirationTime('1h')
+      // No .setIssuedAt()
+      .setIssuer(ISSUER)
+      .setAudience(AUDIENCE)
+      .sign(privateKey);
+
+    const payload = await verifier.verify(jwt);
+    expect(payload).toBeNull();
+  });
+
+  it('returns null for JWT missing exp claim', async () => {
+    const client = createJWKSClient({ url: jwksUrl });
+    const verifier = createCloudJWTVerifier({
+      jwksClient: client,
+      issuer: ISSUER,
+      audience: AUDIENCE,
+    });
+
+    // Build JWT manually without exp
+    const jwt = await new jose.SignJWT({
+      sub: 'user_123',
+      email: 'test@example.com',
+      role: 'user',
+      jti: 'jwt_abc',
+      sid: 'sess_abc',
+    })
+      .setProtectedHeader({ alg: 'RS256', kid })
+      .setIssuedAt()
+      // No .setExpirationTime()
+      .setIssuer(ISSUER)
+      .setAudience(AUDIENCE)
+      .sign(privateKey);
+
+    const payload = await verifier.verify(jwt);
+    expect(payload).toBeNull();
+  });
+
   it('returns null for JWT missing required claims (sub, email, role)', async () => {
     const client = createJWKSClient({ url: jwksUrl });
-    const verifier = createCloudJWTVerifier({ jwksClient: client, issuer: ISSUER, audience: AUDIENCE });
+    const verifier = createCloudJWTVerifier({
+      jwksClient: client,
+      issuer: ISSUER,
+      audience: AUDIENCE,
+    });
 
     // Missing email and role
     const jwt = await signJWT({ sub: 'user_123', jti: 'jwt_abc', sid: 'sess_abc' });
