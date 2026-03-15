@@ -296,6 +296,16 @@ describe('JsxTransformer', () => {
     expect(result).toContain('() =>');
   });
 
+  it('wraps reactive object literal in parens to avoid arrow-function ambiguity', () => {
+    const result = transform(
+      `function App() {\n  return <div style={{ backgroundColor: bg }}></div>;\n}`,
+      [{ name: 'bg', kind: 'signal', start: 0, end: 0 }],
+    );
+    // Must produce () => ({...}) not () => {...} (labeled statement block)
+    expect(result).toContain('__attr(');
+    expect(result).toContain('() => ({');
+  });
+
   it('uses setAttribute directly for static string style', () => {
     const result = transform(`function App() {\n  return <div style="color: red"></div>;\n}`, []);
     expect(result).toContain('.setAttribute("style", "color: red")');

@@ -436,7 +436,10 @@ function processAttribute(
       const exprInfo = jsxMap.get(init.getStart());
       if (exprInfo?.reactive) {
         const getterBody = inlineCallbackConsts(exprText, exprInfo.callbackConstInlines, source);
-        return `__attr(${elVar}, ${JSON.stringify(attrName)}, () => ${getterBody})`;
+        // Wrap in parens if expression starts with { to avoid arrow-function-object ambiguity:
+        // () => { color: 'red' } is parsed as a labeled statement block, not an object literal.
+        const wrappedBody = getterBody.trimStart().startsWith('{') ? `(${getterBody})` : getterBody;
+        return `__attr(${elVar}, ${JSON.stringify(attrName)}, () => ${wrappedBody})`;
       }
       // Style attribute with non-literal expression: may be object or string at runtime
       if (attrName === 'style') {

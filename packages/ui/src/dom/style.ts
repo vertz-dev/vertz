@@ -59,6 +59,7 @@ const UNITLESS = new Set([
   'strokeMiterlimit',
   'strokeOpacity',
   'strokeWidth',
+  'scale',
 ]);
 
 /**

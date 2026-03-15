@@ -34,6 +34,14 @@ describe('styleObjectToString', () => {
       expect(styleObjectToString({ padding: 0 })).toBe('padding: 0');
       expect(styleObjectToString({ opacity: 0 })).toBe('opacity: 0');
     });
+
+    it('Then appends px for negative numeric values', () => {
+      expect(styleObjectToString({ marginTop: -10 })).toBe('margin-top: -10px');
+    });
+
+    it('Then does NOT append px for scale property', () => {
+      expect(styleObjectToString({ scale: 1.5 })).toBe('scale: 1.5');
+    });
   });
 
   describe('Given vendor-prefixed properties', () => {
