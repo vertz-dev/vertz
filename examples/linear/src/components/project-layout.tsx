@@ -15,7 +15,7 @@ export function ProjectLayout() {
   return (
     <div>
       <header class={styles.header}>
-        <Link href="/projects" className={styles.breadcrumb}>
+        <Link href="/projects" class={styles.breadcrumb}>
           Projects
         </Link>
         <span class={styles.separator}>/</span>

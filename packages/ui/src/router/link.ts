@@ -49,7 +49,12 @@ export interface LinkProps<T extends Record<string, RouteConfigLike> = RouteDefi
   children: string | Node | (() => string | Node);
   /** Class applied when the link's href matches the current path. */
   activeClass?: string;
-  /** Static class name for the anchor element. */
+  /** Static class for the anchor element. */
+  class?: string;
+  /**
+   * Static class name for the anchor element.
+   * @deprecated Use `class` instead. Will be removed in v1.
+   */
   className?: string;
   /** Prefetch strategy. 'hover' triggers server pre-fetch on mouseenter/focus. */
   prefetch?: 'hover';
@@ -77,6 +82,7 @@ export function createLink(
     href,
     children,
     activeClass,
+    class: classProp,
     className,
     prefetch,
   }: LinkProps): HTMLAnchorElement {
@@ -94,9 +100,10 @@ export function createLink(
     };
 
     // Build static props for the anchor element
+    const effectiveClass = classProp ?? className;
     const props: Record<string, string> = { href: safeHref };
-    if (className) {
-      props.class = className;
+    if (effectiveClass) {
+      props.class = effectiveClass;
     }
 
     const el = __element('a', props) as HTMLAnchorElement;
@@ -147,7 +154,13 @@ export function createLink(
  * Reads the router from `RouterContext` automatically — no manual wiring needed.
  * Just use `<Link href="/about">About</Link>` inside a router-provided tree.
  */
-export function Link({ href, children, activeClass, className }: LinkProps): HTMLAnchorElement {
+export function Link({
+  href,
+  children,
+  activeClass,
+  class: classProp,
+  className,
+}: LinkProps): HTMLAnchorElement {
   const router = useContext(RouterContext);
   if (!router) {
     throw new Error('Link must be used within a RouterContext.Provider (via createRouter)');
@@ -164,9 +177,10 @@ export function Link({ href, children, activeClass, className }: LinkProps): HTM
     router.navigate({ to: safeHref });
   };
 
+  const effectiveClass = classProp ?? className;
   const props: Record<string, string> = { href: safeHref };
-  if (className) {
-    props.class = className;
+  if (effectiveClass) {
+    props.class = effectiveClass;
   }
 
   const el = __element('a', props) as HTMLAnchorElement;
