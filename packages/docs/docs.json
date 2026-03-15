@@ -39,13 +39,14 @@
         "groups": [
           {
             "group": "Getting Started",
-            "pages": ["index", "quickstart", "installation", "conventions"]
+            "pages": ["index", "quickstart", "installation", "conventions", "philosophy"]
           },
           {
             "group": "vertz/ui",
             "pages": [
               "guides/ui/overview",
               "guides/ui/components",
+              "guides/ui/component-library",
               "guides/ui/reactivity",
               "guides/ui/styling",
               "guides/ui/routing",
@@ -137,5 +138,43 @@
       }
     ]
   },
+  "redirects": [
+    {
+      "destination": "/quickstart",
+      "source": "/guides/getting-started"
+    },
+    {
+      "destination": "/guides/ui/data-fetching",
+      "source": "/guides/ui/query"
+    },
+    {
+      "destination": "/guides/ui/component-library",
+      "source": "/guides/ui/primitives"
+    },
+    {
+      "destination": "/guides/ui/component-library",
+      "source": "/guides/ui/ui-primitives"
+    },
+    {
+      "destination": "/guides/ui/component-library",
+      "source": "/guides/ui/theme"
+    },
+    {
+      "destination": "/guides/ui/component-library",
+      "source": "/guides/components"
+    },
+    {
+      "destination": "/guides/ui/component-library",
+      "source": "/guides/ui/components-list"
+    },
+    {
+      "destination": "/philosophy",
+      "source": "/vision"
+    },
+    {
+      "destination": "/philosophy",
+      "source": "/manifesto"
+    }
+  ],
   "theme": "mint"
 }
