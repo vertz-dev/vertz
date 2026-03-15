@@ -166,4 +166,34 @@ describe('Composed DropdownMenu', () => {
       expect(menu!.textContent).toContain('Menu Label');
     });
   });
+
+  describe('Given a DropdownMenu with onSelect callback', () => {
+    it('Then fires onSelect when an item is clicked', () => {
+      const selected: string[] = [];
+      const btn = document.createElement('button');
+
+      const root = ComposedDropdownMenu({
+        onSelect: (value) => selected.push(value),
+        children: () => {
+          const t = ComposedDropdownMenu.Trigger({ children: [btn] });
+          const c = ComposedDropdownMenu.Content({
+            children: () => [
+              ComposedDropdownMenu.Item({ value: 'edit', children: ['Edit'] }),
+              ComposedDropdownMenu.Item({ value: 'delete', children: ['Delete'] }),
+            ],
+          });
+          return [t, c];
+        },
+      });
+      container.appendChild(root);
+
+      // Open the menu
+      btn.click();
+
+      // Click the first item
+      const item = root.querySelector('[data-value="edit"]') as HTMLElement;
+      item.click();
+      expect(selected).toEqual(['edit']);
+    });
+  });
 });

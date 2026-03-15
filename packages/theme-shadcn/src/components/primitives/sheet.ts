@@ -1,6 +1,6 @@
 import type { ChildValue } from '@vertz/ui';
-import type { ComposedSheetProps, SheetSide } from '@vertz/ui-primitives';
-import { ComposedSheet, withStyles } from '@vertz/ui-primitives';
+import type { SheetSide } from '@vertz/ui-primitives';
+import { ComposedSheet } from '@vertz/ui-primitives';
 
 export type { SheetSide };
 
@@ -53,15 +53,18 @@ export function createThemedSheet(styles: SheetStyleClasses): ThemedSheetCompone
     const resolvedSide = side ?? 'right';
     const panelClass = styles[PANEL_CLASS_MAP[resolvedSide]];
 
-    const Styled = withStyles(ComposedSheet, {
-      overlay: styles.overlay,
-      content: panelClass,
-      title: styles.title,
-      description: styles.description,
-      close: styles.close,
+    return ComposedSheet({
+      children,
+      side: resolvedSide,
+      onOpenChange,
+      classes: {
+        overlay: styles.overlay,
+        content: panelClass,
+        title: styles.title,
+        description: styles.description,
+        close: styles.close,
+      },
     });
-
-    return Styled({ children, side: resolvedSide, onOpenChange } as ComposedSheetProps);
   }
 
   return Object.assign(SheetRoot, {

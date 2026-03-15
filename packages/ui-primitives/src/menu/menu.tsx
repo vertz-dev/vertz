@@ -16,6 +16,7 @@ import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
 export interface MenuOptions extends ElementAttrs {
   onSelect?: (value: string) => void;
+  onOpenChange?: (open: boolean) => void;
   positioning?: FloatingOptions;
 }
 
@@ -39,7 +40,7 @@ function MenuRoot(options: MenuOptions = {}): MenuElements & {
   Separator: () => HTMLHRElement;
   Label: (text: string) => HTMLDivElement;
 } {
-  const { onSelect, positioning, ...attrs } = options;
+  const { onSelect, onOpenChange, positioning, ...attrs } = options;
   const ids = linkedIds('menu');
   const state: MenuState = {
     open: signal(false),
@@ -62,6 +63,7 @@ function MenuRoot(options: MenuOptions = {}): MenuElements & {
     setHidden(content, false);
     setDataState(trigger, 'open');
     setDataState(content, 'open');
+    onOpenChange?.(true);
 
     if (positioning) {
       const ref = positioning.referenceElement ?? trigger;
@@ -93,6 +95,7 @@ function MenuRoot(options: MenuOptions = {}): MenuElements & {
     setDataState(trigger, 'closed');
     setDataState(content, 'closed');
     setHiddenAnimated(content, true);
+    onOpenChange?.(false);
 
     if (positioning) {
       floatingCleanup?.();

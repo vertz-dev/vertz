@@ -112,4 +112,25 @@ describe('Composed Popover', () => {
       expect(btn.getAttribute('aria-expanded')).toBe('false');
     });
   });
+
+  describe('Given an open Popover', () => {
+    it('Then clicking trigger again closes the popover', () => {
+      const btn = document.createElement('button');
+
+      const root = ComposedPopover({
+        children: () => {
+          const t = ComposedPopover.Trigger({ children: [btn] });
+          const c = ComposedPopover.Content({ children: ['Body'] });
+          return [t, c];
+        },
+      });
+      container.appendChild(root);
+
+      btn.click();
+      expect(btn.getAttribute('data-state')).toBe('open');
+
+      btn.click();
+      expect(btn.getAttribute('data-state')).toBe('closed');
+    });
+  });
 });
