@@ -1,5 +1,6 @@
-import type { SwitchOptions } from '@vertz/ui-primitives';
-import { Switch } from '@vertz/ui-primitives';
+import type { ChildValue } from '@vertz/ui';
+import type { ComposedSwitchProps } from '@vertz/ui-primitives';
+import { ComposedSwitch, withStyles } from '@vertz/ui-primitives';
 
 interface SwitchStyleClasses {
   readonly root: string;
@@ -8,31 +9,35 @@ interface SwitchStyleClasses {
   readonly thumbSm: string;
 }
 
-export interface ThemedSwitchOptions extends SwitchOptions {
+// ── Props ──────────────────────────────────────────────────
+
+export interface ThemedSwitchProps {
+  children?: ChildValue;
+  defaultChecked?: boolean;
+  disabled?: boolean;
+  onCheckedChange?: (checked: boolean) => void;
   size?: 'default' | 'sm';
 }
 
-export function createThemedSwitch(
-  styles: SwitchStyleClasses,
-): (options?: ThemedSwitchOptions) => HTMLElement {
-  return function themedSwitch(options?: ThemedSwitchOptions) {
-    const { size, ...primitiveOptions } = options ?? {};
-    // Create thumb first so we can reference it in the callback
-    const thumb = document.createElement('span');
-    thumb.classList.add(size === 'sm' ? styles.thumbSm : styles.thumb);
+// ── Component type ─────────────────────────────────────────
 
-    const root = Switch.Root({
-      ...primitiveOptions,
-      onCheckedChange: (checked) => {
-        thumb.setAttribute('data-state', checked ? 'checked' : 'unchecked');
-        primitiveOptions.onCheckedChange?.(checked);
-      },
-    });
-    root.classList.add(size === 'sm' ? styles.rootSm : styles.root);
-    // Sync data-state to thumb so CSS can animate it
-    const initialState = root.getAttribute('data-state') ?? 'unchecked';
-    thumb.setAttribute('data-state', initialState);
-    root.appendChild(thumb);
-    return root;
+export type ThemedSwitchComponent = (props: ThemedSwitchProps) => HTMLElement;
+
+// ── Factory ────────────────────────────────────────────────
+
+export function createThemedSwitch(styles: SwitchStyleClasses): ThemedSwitchComponent {
+  const DefaultSwitch = withStyles(ComposedSwitch, {
+    root: styles.root,
+    thumb: styles.thumb,
+  });
+
+  const SmSwitch = withStyles(ComposedSwitch, {
+    root: styles.rootSm,
+    thumb: styles.thumbSm,
+  });
+
+  return function SwitchRoot({ size, ...props }: ThemedSwitchProps): HTMLElement {
+    const Styled = size === 'sm' ? SmSwitch : DefaultSwitch;
+    return Styled(props as ComposedSwitchProps);
   };
 }

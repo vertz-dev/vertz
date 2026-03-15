@@ -26,6 +26,8 @@ export type { CarouselElements, CarouselOptions, CarouselState } from './carouse
 export { Carousel } from './carousel/carousel';
 export type { CheckboxOptions, CheckedState } from './checkbox/checkbox';
 export { Checkbox } from './checkbox/checkbox';
+export type { CheckboxClasses, ComposedCheckboxProps } from './checkbox/checkbox-composed';
+export { ComposedCheckbox } from './checkbox/checkbox-composed';
 export type {
   CollapsibleElements,
   CollapsibleOptions,
@@ -68,7 +70,10 @@ export type {
   DropdownMenuState,
 } from './dropdown-menu/dropdown-menu';
 export { DropdownMenu } from './dropdown-menu/dropdown-menu';
-export type { ComposedDropdownMenuProps, DropdownMenuClasses } from './dropdown-menu/dropdown-menu-composed';
+export type {
+  ComposedDropdownMenuProps,
+  DropdownMenuClasses,
+} from './dropdown-menu/dropdown-menu-composed';
 export { ComposedDropdownMenu } from './dropdown-menu/dropdown-menu-composed';
 export type { HoverCardElements, HoverCardOptions, HoverCardState } from './hover-card/hover-card';
 export { HoverCard } from './hover-card/hover-card';
@@ -88,8 +93,12 @@ export type { ComposedPopoverProps, PopoverClasses } from './popover/popover-com
 export { ComposedPopover } from './popover/popover-composed';
 export type { ProgressElements, ProgressOptions, ProgressState } from './progress/progress';
 export { Progress } from './progress/progress';
+export type { ComposedProgressProps, ProgressClasses } from './progress/progress-composed';
+export { ComposedProgress } from './progress/progress-composed';
 export type { RadioElements, RadioOptions, RadioState } from './radio/radio';
 export { Radio } from './radio/radio';
+export type { ComposedRadioGroupProps, RadioGroupClasses } from './radio/radio-composed';
+export { ComposedRadioGroup } from './radio/radio-composed';
 export type {
   PanelOptions,
   ResizablePanelElements,
@@ -113,8 +122,12 @@ export type { ComposedSheetProps, SheetClasses } from './sheet/sheet-composed';
 export { ComposedSheet } from './sheet/sheet-composed';
 export type { SliderElements, SliderOptions, SliderState } from './slider/slider';
 export { Slider } from './slider/slider';
+export type { ComposedSliderProps, SliderClasses } from './slider/slider-composed';
+export { ComposedSlider } from './slider/slider-composed';
 export type { SwitchOptions } from './switch/switch';
 export { Switch } from './switch/switch';
+export type { ComposedSwitchProps, SwitchClasses } from './switch/switch-composed';
+export { ComposedSwitch } from './switch/switch-composed';
 export type { TabsElements, TabsOptions, TabsState } from './tabs/tabs';
 export { Tabs } from './tabs/tabs';
 export type { ComposedTabsProps, TabsClasses } from './tabs/tabs-composed';
@@ -123,6 +136,8 @@ export type { ToastElements, ToastMessage, ToastOptions, ToastState } from './to
 export { Toast } from './toast/toast';
 export type { ToggleOptions } from './toggle/toggle';
 export { Toggle } from './toggle/toggle';
+export type { ComposedToggleProps, ToggleClasses } from './toggle/toggle-composed';
+export { ComposedToggle } from './toggle/toggle-composed';
 export type {
   ToggleGroupElements,
   ToggleGroupOptions,
