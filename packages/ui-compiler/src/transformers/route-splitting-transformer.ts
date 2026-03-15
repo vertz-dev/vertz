@@ -17,6 +17,7 @@ import type {
   SourceFile,
 } from 'ts-morph';
 import { Project, SyntaxKind, ts } from 'ts-morph';
+import { quoteIfNeeded } from '../utils';
 
 /** Successful transform diagnostic. */
 export interface RouteSplittingDiagnostic {
@@ -373,16 +374,17 @@ function jsxAttrsToObjectLiteral(attrs: Node[]): string {
   for (const attr of attrs) {
     if (attr.isKind(SyntaxKind.JsxAttribute)) {
       const name = attr.getNameNode().getText();
+      const key = quoteIfNeeded(name);
       const initializer = attr.getInitializer();
       if (!initializer) {
         // Boolean attribute: <X disabled /> → { disabled: true }
-        props.push(`${name}: true`);
+        props.push(`${key}: true`);
       } else if (initializer.isKind(SyntaxKind.StringLiteral)) {
-        props.push(`${name}: ${initializer.getText()}`);
+        props.push(`${key}: ${initializer.getText()}`);
       } else if (initializer.isKind(SyntaxKind.JsxExpression)) {
         const expr = initializer.getExpression();
         if (expr) {
-          props.push(`${name}: ${expr.getText()}`);
+          props.push(`${key}: ${expr.getText()}`);
         }
       }
     } else if (attr.isKind(SyntaxKind.JsxSpreadAttribute)) {

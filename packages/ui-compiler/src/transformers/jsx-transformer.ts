@@ -1,7 +1,7 @@
 import type MagicString from 'magic-string';
 import { type Node, type SourceFile, SyntaxKind } from 'ts-morph';
 import type { ComponentInfo, JsxExpressionInfo, VariableInfo } from '../types';
-import { findBodyNode } from '../utils';
+import { findBodyNode, quoteIfNeeded } from '../utils';
 
 /**
  * Check if an AST node is a literal expression (string, number, boolean, null).
@@ -798,10 +798,6 @@ function collectJsxInExpression(
   for (const child of node.getChildren()) {
     collectJsxInExpression(child, reactiveNames, jsxMap, source, formVarNames, results);
   }
-}
-
-function quoteIfNeeded(name: string): string {
-  return /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(name) ? name : JSON.stringify(name);
 }
 
 function buildPropsObject(

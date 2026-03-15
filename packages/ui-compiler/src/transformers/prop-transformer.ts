@@ -1,6 +1,7 @@
 import type MagicString from 'magic-string';
 import { type Node, type SourceFile, SyntaxKind } from 'ts-morph';
 import type { ComponentInfo, JsxExpressionInfo, VariableInfo } from '../types';
+import { quoteIfNeeded } from '../utils';
 
 /**
  * Transform component props: reactive → getter, static → plain value.
@@ -29,7 +30,7 @@ export class PropTransformer {
     for (const attr of attrs) {
       if (!attr.isKind(SyntaxKind.JsxAttribute)) continue;
       const name = attr.getNameNode().getText();
-      const key = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(name) ? name : JSON.stringify(name);
+      const key = quoteIfNeeded(name);
       const init = attr.getInitializer();
 
       if (!init) {
