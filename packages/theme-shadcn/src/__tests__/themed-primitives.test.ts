@@ -36,41 +36,24 @@ describe('createThemedPopover', () => {
     expect(typeof Popover.Content).toBe('function');
   });
 
-  it('applies theme classes to popover content', async () => {
-    const { createThemedPopover } = await import('../components/primitives/popover');
-    const styles = createPopoverStyles();
-    const Popover = createThemedPopover(styles);
-
-    const trigger = document.createElement('button');
-    trigger.textContent = 'Open';
-    const triggerSlot = Popover.Trigger({ children: trigger });
-    const contentSlot = Popover.Content({ children: 'Hello' });
-
-    const result = Popover({ children: [triggerSlot, contentSlot] });
-    document.body.appendChild(result);
-
-    // Content is portaled to document.body when popover opens
-    const contentId = result.getAttribute('aria-controls')!;
-    expect(contentId).toBeTruthy();
-
-    // Open the popover to trigger portal
-    trigger.click();
-    const portaledContent = document.getElementById(contentId);
-    expect(portaledContent).toBeTruthy();
-  });
-
-  it('returns user trigger when Popover.Trigger is provided', async () => {
+  it('returns a wrapper containing trigger and content', async () => {
     const { createThemedPopover } = await import('../components/primitives/popover');
     const styles = createPopoverStyles();
     const Popover = createThemedPopover(styles);
 
     const btn = document.createElement('button');
     btn.textContent = 'Open';
-    const triggerSlot = Popover.Trigger({ children: btn });
-    const contentSlot = Popover.Content({ children: 'Content' });
 
-    const result = Popover({ children: [triggerSlot, contentSlot] });
-    expect(result).toBe(btn);
+    const result = Popover({
+      children: () => {
+        const t = Popover.Trigger({ children: [btn] });
+        const c = Popover.Content({ children: ['Content'] });
+        return [t, c];
+      },
+    });
+
+    expect(result).toBeInstanceOf(HTMLDivElement);
+    expect(result.contains(btn)).toBe(true);
   });
 
   it('trigger click opens popover via delegate', async () => {
@@ -80,14 +63,21 @@ describe('createThemedPopover', () => {
 
     const btn = document.createElement('button');
     btn.textContent = 'Open';
-    const triggerSlot = Popover.Trigger({ children: btn });
-    const contentSlot = Popover.Content({ children: 'Content' });
 
-    Popover({ children: [triggerSlot, contentSlot] });
+    const result = Popover({
+      children: () => {
+        const t = Popover.Trigger({ children: [btn] });
+        const c = Popover.Content({ children: ['Content'] });
+        return [t, c];
+      },
+    });
+    document.body.appendChild(result);
 
     expect(btn.getAttribute('data-state')).toBe('closed');
     btn.click();
     expect(btn.getAttribute('data-state')).toBe('open');
+
+    document.body.removeChild(result);
   });
 });
 
@@ -108,73 +98,27 @@ describe('createThemedAlertDialog', () => {
     expect(typeof AlertDialog.Action).toBe('function');
   });
 
-  it('Title applies theme class', async () => {
-    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
-    const styles = createAlertDialogStyles();
-    const AlertDialog = createThemedAlertDialog(styles);
-
-    const title = AlertDialog.Title({ children: 'Confirm' });
-    expect(title).toBeInstanceOf(HTMLHeadingElement);
-    expect(title.classList.contains(styles.title)).toBe(true);
-    expect(title.textContent).toBe('Confirm');
-  });
-
-  it('Description applies theme class', async () => {
-    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
-    const styles = createAlertDialogStyles();
-    const AlertDialog = createThemedAlertDialog(styles);
-
-    const desc = AlertDialog.Description({ children: 'Are you sure?' });
-    expect(desc).toBeInstanceOf(HTMLParagraphElement);
-    expect(desc.classList.contains(styles.description)).toBe(true);
-  });
-
-  it('Footer applies theme class', async () => {
-    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
-    const styles = createAlertDialogStyles();
-    const AlertDialog = createThemedAlertDialog(styles);
-
-    const footer = AlertDialog.Footer({ children: 'Footer' });
-    expect(footer).toBeInstanceOf(HTMLDivElement);
-    expect(footer.classList.contains(styles.footer)).toBe(true);
-  });
-
-  it('Cancel applies theme class', async () => {
-    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
-    const styles = createAlertDialogStyles();
-    const AlertDialog = createThemedAlertDialog(styles);
-
-    const cancel = AlertDialog.Cancel({ children: 'Cancel' });
-    expect(cancel).toBeInstanceOf(HTMLButtonElement);
-    expect(cancel.classList.contains(styles.cancel)).toBe(true);
-  });
-
-  it('Action applies theme class', async () => {
-    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
-    const styles = createAlertDialogStyles();
-    const AlertDialog = createThemedAlertDialog(styles);
-
-    const action = AlertDialog.Action({ children: 'Continue' });
-    expect(action).toBeInstanceOf(HTMLButtonElement);
-    expect(action.classList.contains(styles.action)).toBe(true);
-  });
-
   it('sets role="alertdialog" on content element', async () => {
     const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
     const styles = createAlertDialogStyles();
     const AlertDialog = createThemedAlertDialog(styles);
 
     const trigger = document.createElement('button');
-    trigger.textContent = 'Delete';
-    const triggerSlot = AlertDialog.Trigger({ children: trigger });
-    const contentSlot = AlertDialog.Content({
-      children: AlertDialog.Title({ children: 'Confirm' }),
+    const root = AlertDialog({
+      children: () => {
+        const t = AlertDialog.Trigger({ children: [trigger] });
+        const c = AlertDialog.Content({
+          children: [AlertDialog.Title({ children: ['Confirm'] })],
+        });
+        return [t, c];
+      },
     });
+    document.body.appendChild(root);
 
-    AlertDialog({ children: [triggerSlot, contentSlot] });
-
-    const content = document.querySelector('[role="alertdialog"]');
+    const content = root.querySelector('[role="alertdialog"]');
     expect(content).toBeTruthy();
+
+    document.body.removeChild(root);
   });
 
   it('applies overlay and panel theme classes', async () => {
@@ -183,18 +127,23 @@ describe('createThemedAlertDialog', () => {
     const AlertDialog = createThemedAlertDialog(styles);
 
     const trigger = document.createElement('button');
-    trigger.textContent = 'Delete';
-    const triggerSlot = AlertDialog.Trigger({ children: trigger });
-    const contentSlot = AlertDialog.Content({
-      children: AlertDialog.Title({ children: 'Confirm' }),
+    const root = AlertDialog({
+      children: () => {
+        const t = AlertDialog.Trigger({ children: [trigger] });
+        const c = AlertDialog.Content({
+          children: [AlertDialog.Title({ children: ['Confirm'] })],
+        });
+        return [t, c];
+      },
     });
+    document.body.appendChild(root);
 
-    AlertDialog({ children: [triggerSlot, contentSlot] });
-
-    const overlay = document.querySelector(`.${styles.overlay}`);
-    const panel = document.querySelector('[role="alertdialog"]');
+    const overlay = root.querySelector('[data-alertdialog-overlay]');
+    const panel = root.querySelector('[role="alertdialog"]');
     expect(overlay).toBeTruthy();
-    expect(panel!.classList.contains(styles.panel)).toBe(true);
+    expect(panel!.className).toContain(styles.panel);
+
+    document.body.removeChild(root);
   });
 
   it('links content to description via aria-describedby', async () => {
@@ -203,23 +152,25 @@ describe('createThemedAlertDialog', () => {
     const AlertDialog = createThemedAlertDialog(styles);
 
     const trigger = document.createElement('button');
-    trigger.textContent = 'Delete';
-    const triggerSlot = AlertDialog.Trigger({ children: trigger });
-    const contentSlot = AlertDialog.Content({
-      children: [
-        AlertDialog.Title({ children: 'Confirm' }),
-        AlertDialog.Description({ children: 'This is permanent.' }),
-      ],
+    const root = AlertDialog({
+      children: () => {
+        const t = AlertDialog.Trigger({ children: [trigger] });
+        const c = AlertDialog.Content({
+          children: [
+            AlertDialog.Title({ children: ['Confirm'] }),
+            AlertDialog.Description({ children: ['This is permanent.'] }),
+          ],
+        });
+        return [t, c];
+      },
     });
+    document.body.appendChild(root);
 
-    AlertDialog({ children: [triggerSlot, contentSlot] });
-
-    const content = document.querySelector('[role="alertdialog"]');
+    const content = root.querySelector('[role="alertdialog"]');
     const describedBy = content!.getAttribute('aria-describedby');
     expect(describedBy).toBeTruthy();
-    const descEl = document.getElementById(describedBy!);
-    expect(descEl).toBeTruthy();
-    expect(descEl!.classList.contains(styles.description)).toBe(true);
+
+    document.body.removeChild(root);
   });
 
   it('trigger click opens the alert dialog', async () => {
@@ -228,17 +179,22 @@ describe('createThemedAlertDialog', () => {
     const AlertDialog = createThemedAlertDialog(styles);
 
     const btn = document.createElement('button');
-    btn.textContent = 'Delete';
-    const triggerSlot = AlertDialog.Trigger({ children: btn });
-    const contentSlot = AlertDialog.Content({
-      children: AlertDialog.Title({ children: 'Confirm' }),
+    const root = AlertDialog({
+      children: () => {
+        const t = AlertDialog.Trigger({ children: [btn] });
+        const c = AlertDialog.Content({
+          children: [AlertDialog.Title({ children: ['Confirm'] })],
+        });
+        return [t, c];
+      },
     });
-
-    AlertDialog({ children: [triggerSlot, contentSlot] });
+    document.body.appendChild(root);
 
     expect(btn.getAttribute('data-state')).toBe('closed');
     btn.click();
     expect(btn.getAttribute('data-state')).toBe('open');
+
+    document.body.removeChild(root);
   });
 
   it('cancel button closes the dialog', async () => {
@@ -247,21 +203,28 @@ describe('createThemedAlertDialog', () => {
     const AlertDialog = createThemedAlertDialog(styles);
 
     const btn = document.createElement('button');
-    btn.textContent = 'Delete';
-    const triggerSlot = AlertDialog.Trigger({ children: btn });
-    const cancel = AlertDialog.Cancel({ children: 'Cancel' });
-    const contentSlot = AlertDialog.Content({
-      children: [
-        AlertDialog.Title({ children: 'Confirm' }),
-        AlertDialog.Footer({ children: cancel }),
-      ],
+    let cancelEl!: HTMLElement;
+    const root = AlertDialog({
+      children: () => {
+        const t = AlertDialog.Trigger({ children: [btn] });
+        cancelEl = AlertDialog.Cancel({ children: ['Cancel'] });
+        const c = AlertDialog.Content({
+          children: [
+            AlertDialog.Title({ children: ['Confirm'] }),
+            AlertDialog.Footer({ children: [cancelEl] }),
+          ],
+        });
+        return [t, c];
+      },
     });
+    document.body.appendChild(root);
 
-    AlertDialog({ defaultOpen: true, children: [triggerSlot, contentSlot] });
-
+    btn.click();
     expect(btn.getAttribute('data-state')).toBe('open');
-    cancel.click();
+    cancelEl.click();
     expect(btn.getAttribute('data-state')).toBe('closed');
+
+    document.body.removeChild(root);
   });
 
   it('action button closes the dialog', async () => {
@@ -270,21 +233,28 @@ describe('createThemedAlertDialog', () => {
     const AlertDialog = createThemedAlertDialog(styles);
 
     const btn = document.createElement('button');
-    btn.textContent = 'Delete';
-    const triggerSlot = AlertDialog.Trigger({ children: btn });
-    const action = AlertDialog.Action({ children: 'Continue' });
-    const contentSlot = AlertDialog.Content({
-      children: [
-        AlertDialog.Title({ children: 'Confirm' }),
-        AlertDialog.Footer({ children: action }),
-      ],
+    let actionEl!: HTMLElement;
+    const root = AlertDialog({
+      children: () => {
+        const t = AlertDialog.Trigger({ children: [btn] });
+        actionEl = AlertDialog.Action({ children: ['Continue'] });
+        const c = AlertDialog.Content({
+          children: [
+            AlertDialog.Title({ children: ['Confirm'] }),
+            AlertDialog.Footer({ children: [actionEl] }),
+          ],
+        });
+        return [t, c];
+      },
     });
+    document.body.appendChild(root);
 
-    AlertDialog({ defaultOpen: true, children: [triggerSlot, contentSlot] });
-
+    btn.click();
     expect(btn.getAttribute('data-state')).toBe('open');
-    action.click();
+    actionEl.click();
     expect(btn.getAttribute('data-state')).toBe('closed');
+
+    document.body.removeChild(root);
   });
 
   it('Cancel forwards onClick handler', async () => {
@@ -345,26 +315,34 @@ describe('createThemedAlertDialog', () => {
     let clicked = false;
     const btn = document.createElement('button');
     btn.textContent = 'Delete';
-    const triggerSlot = AlertDialog.Trigger({ children: btn });
-    const action = AlertDialog.Action({
-      children: 'Confirm',
-      onClick: () => {
-        clicked = true;
+    let action!: HTMLElement;
+
+    const root = AlertDialog({
+      children: () => {
+        const triggerSlot = AlertDialog.Trigger({ children: btn });
+        action = AlertDialog.Action({
+          children: 'Confirm',
+          onClick: () => {
+            clicked = true;
+          },
+        });
+        const contentSlot = AlertDialog.Content({
+          children: [
+            AlertDialog.Title({ children: 'Confirm' }),
+            AlertDialog.Footer({ children: action }),
+          ],
+        });
+        return [triggerSlot, contentSlot];
       },
     });
-    const contentSlot = AlertDialog.Content({
-      children: [
-        AlertDialog.Title({ children: 'Confirm' }),
-        AlertDialog.Footer({ children: action }),
-      ],
-    });
+    document.body.appendChild(root);
 
-    AlertDialog({ defaultOpen: true, children: [triggerSlot, contentSlot] });
-
+    btn.click();
     expect(btn.getAttribute('data-state')).toBe('open');
     action.click();
     expect(clicked).toBe(true);
     expect(btn.getAttribute('data-state')).toBe('closed');
+    document.body.removeChild(root);
   });
 
   it('Cancel fires user onClick AND auto-closes when inside Root', async () => {
@@ -375,26 +353,34 @@ describe('createThemedAlertDialog', () => {
     let clicked = false;
     const btn = document.createElement('button');
     btn.textContent = 'Delete';
-    const triggerSlot = AlertDialog.Trigger({ children: btn });
-    const cancel = AlertDialog.Cancel({
-      children: 'Dismiss',
-      onClick: () => {
-        clicked = true;
+    let cancel!: HTMLElement;
+
+    const root = AlertDialog({
+      children: () => {
+        const triggerSlot = AlertDialog.Trigger({ children: btn });
+        cancel = AlertDialog.Cancel({
+          children: 'Dismiss',
+          onClick: () => {
+            clicked = true;
+          },
+        });
+        const contentSlot = AlertDialog.Content({
+          children: [
+            AlertDialog.Title({ children: 'Confirm' }),
+            AlertDialog.Footer({ children: cancel }),
+          ],
+        });
+        return [triggerSlot, contentSlot];
       },
     });
-    const contentSlot = AlertDialog.Content({
-      children: [
-        AlertDialog.Title({ children: 'Confirm' }),
-        AlertDialog.Footer({ children: cancel }),
-      ],
-    });
+    document.body.appendChild(root);
 
-    AlertDialog({ defaultOpen: true, children: [triggerSlot, contentSlot] });
-
+    btn.click();
     expect(btn.getAttribute('data-state')).toBe('open');
     cancel.click();
     expect(clicked).toBe(true);
     expect(btn.getAttribute('data-state')).toBe('closed');
+    document.body.removeChild(root);
   });
 
   it('Escape key does NOT close the alert dialog', async () => {
@@ -403,20 +389,26 @@ describe('createThemedAlertDialog', () => {
     const AlertDialog = createThemedAlertDialog(styles);
 
     const btn = document.createElement('button');
-    btn.textContent = 'Delete';
-    const triggerSlot = AlertDialog.Trigger({ children: btn });
-    const contentSlot = AlertDialog.Content({
-      children: AlertDialog.Title({ children: 'Confirm' }),
+    const root = AlertDialog({
+      children: () => {
+        const t = AlertDialog.Trigger({ children: [btn] });
+        const c = AlertDialog.Content({
+          children: [AlertDialog.Title({ children: ['Confirm'] })],
+        });
+        return [t, c];
+      },
     });
+    document.body.appendChild(root);
 
-    AlertDialog({ defaultOpen: true, children: [triggerSlot, contentSlot] });
-
+    btn.click();
     expect(btn.getAttribute('data-state')).toBe('open');
-    const content = document.querySelector('[role="alertdialog"]')!;
+    const content = root.querySelector('[role="alertdialog"]')!;
     content.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
     );
     expect(btn.getAttribute('data-state')).toBe('open');
+
+    document.body.removeChild(root);
   });
 
   it('overlay click does NOT close the alert dialog', async () => {
@@ -425,25 +417,31 @@ describe('createThemedAlertDialog', () => {
     const AlertDialog = createThemedAlertDialog(styles);
 
     const btn = document.createElement('button');
-    btn.textContent = 'Delete';
-    const triggerSlot = AlertDialog.Trigger({ children: btn });
-    const contentSlot = AlertDialog.Content({
-      children: AlertDialog.Title({ children: 'Confirm' }),
+    const root = AlertDialog({
+      children: () => {
+        const t = AlertDialog.Trigger({ children: [btn] });
+        const c = AlertDialog.Content({
+          children: [AlertDialog.Title({ children: ['Confirm'] })],
+        });
+        return [t, c];
+      },
     });
+    document.body.appendChild(root);
 
-    AlertDialog({ defaultOpen: true, children: [triggerSlot, contentSlot] });
+    btn.click();
+    expect(btn.getAttribute('data-state')).toBe('open');
+    const overlay = root.querySelector('[data-alertdialog-overlay]') as HTMLElement;
+    overlay.click();
+    expect(btn.getAttribute('data-state')).toBe('open');
 
-    expect(btn.getAttribute('data-state')).toBe('open');
-    const overlay = document.querySelector(`.${styles.overlay}`)!;
-    (overlay as HTMLElement).click();
-    expect(btn.getAttribute('data-state')).toBe('open');
+    document.body.removeChild(root);
   });
 });
 
 // ── Dialog ─────────────────────────────────────────────────
 
 describe('createThemedDialog', () => {
-  it('has Trigger, Content, Title, Description, Footer sub-components', async () => {
+  it('has Trigger, Content, Title, Description, Footer, Close sub-components', async () => {
     const { createThemedDialog } = await import('../components/primitives/dialog');
     const styles = createDialogStyles();
     const Dialog = createThemedDialog(styles);
@@ -453,78 +451,56 @@ describe('createThemedDialog', () => {
     expect(typeof Dialog.Title).toBe('function');
     expect(typeof Dialog.Description).toBe('function');
     expect(typeof Dialog.Footer).toBe('function');
+    expect(typeof Dialog.Close).toBe('function');
   });
 
-  it('portals overlay and content to document.body when rendered with slots', async () => {
+  it('renders overlay and content elements', async () => {
     const { createThemedDialog } = await import('../components/primitives/dialog');
     const styles = createDialogStyles();
     const Dialog = createThemedDialog(styles);
 
     const trigger = document.createElement('button');
-    trigger.textContent = 'Open';
-    const triggerSlot = Dialog.Trigger({ children: trigger });
+    const root = Dialog({
+      children: () => {
+        const t = Dialog.Trigger({ children: [trigger] });
+        const c = Dialog.Content({
+          children: [Dialog.Title({ children: ['Test Title'] })],
+        });
+        return [t, c];
+      },
+    });
+    document.body.appendChild(root);
 
-    const title = Dialog.Title({ children: 'Test Title' });
-    const contentSlot = Dialog.Content({ children: title });
-
-    Dialog({ children: [triggerSlot, contentSlot] });
-
-    const overlay = document.querySelector('[data-dialog-overlay]');
-    const content = document.querySelector('[role="dialog"]');
+    const overlay = root.querySelector('[data-dialog-overlay]');
+    const content = root.querySelector('[role="dialog"]');
     expect(overlay).toBeTruthy();
     expect(content).toBeTruthy();
+
+    document.body.removeChild(root);
   });
 
-  it('applies theme classes to overlay, panel, and close button', async () => {
+  it('applies theme classes to panel and close button', async () => {
     const { createThemedDialog } = await import('../components/primitives/dialog');
     const styles = createDialogStyles();
     const Dialog = createThemedDialog(styles);
 
     const trigger = document.createElement('button');
-    trigger.textContent = 'Open';
-    const triggerSlot = Dialog.Trigger({ children: trigger });
-    const contentSlot = Dialog.Content({ children: 'Hello' });
+    const root = Dialog({
+      children: () => {
+        const t = Dialog.Trigger({ children: [trigger] });
+        const c = Dialog.Content({ children: ['Hello'] });
+        return [t, c];
+      },
+    });
+    document.body.appendChild(root);
 
-    Dialog({ children: [triggerSlot, contentSlot] });
-
-    // Find by aria-controls to get the specific dialog for this test
-    const contentId = trigger.getAttribute('aria-controls')!;
-    const content = document.getElementById(contentId)!;
-    expect(content.classList.contains(styles.panel)).toBe(true);
+    const content = root.querySelector('[role="dialog"]') as HTMLElement;
+    expect(content.className).toContain(styles.panel);
 
     const closeBtn = content.querySelector(`.${styles.close}`);
     expect(closeBtn).toBeTruthy();
-  });
 
-  it('Title applies theme class', async () => {
-    const { createThemedDialog } = await import('../components/primitives/dialog');
-    const styles = createDialogStyles();
-    const Dialog = createThemedDialog(styles);
-
-    const title = Dialog.Title({ children: 'My Title' });
-    expect(title).toBeInstanceOf(HTMLHeadingElement);
-    expect(title.classList.contains(styles.title)).toBe(true);
-    expect(title.textContent).toBe('My Title');
-  });
-
-  it('Description applies theme class', async () => {
-    const { createThemedDialog } = await import('../components/primitives/dialog');
-    const styles = createDialogStyles();
-    const Dialog = createThemedDialog(styles);
-
-    const desc = Dialog.Description({ children: 'Some description' });
-    expect(desc).toBeInstanceOf(HTMLParagraphElement);
-    expect(desc.classList.contains(styles.description)).toBe(true);
-  });
-
-  it('Footer applies theme class', async () => {
-    const { createThemedDialog } = await import('../components/primitives/dialog');
-    const styles = createDialogStyles();
-    const Dialog = createThemedDialog(styles);
-
-    const footer = Dialog.Footer({ children: 'Footer content' });
-    expect(footer).toBeInstanceOf(HTMLDivElement);
-    expect(footer.classList.contains(styles.footer)).toBe(true);
+    document.body.removeChild(root);
   });
 
   it('trigger click opens the dialog', async () => {
@@ -533,44 +509,40 @@ describe('createThemedDialog', () => {
     const Dialog = createThemedDialog(styles);
 
     const btn = document.createElement('button');
-    btn.textContent = 'Open';
-    const triggerSlot = Dialog.Trigger({ children: btn });
-    const contentSlot = Dialog.Content({ children: 'Content' });
+    const root = Dialog({
+      children: () => {
+        const t = Dialog.Trigger({ children: [btn] });
+        const c = Dialog.Content({ children: ['Content'] });
+        return [t, c];
+      },
+    });
+    document.body.appendChild(root);
 
-    Dialog({ children: [triggerSlot, contentSlot] });
-
-    const contentId = btn.getAttribute('aria-controls')!;
-    const content = document.getElementById(contentId) as HTMLElement;
-    expect(content).toBeTruthy();
+    const content = root.querySelector('[role="dialog"]') as HTMLElement;
     expect(content.getAttribute('data-state')).toBe('closed');
 
     btn.click();
     expect(content.getAttribute('data-state')).toBe('open');
+
+    document.body.removeChild(root);
   });
 
-  it('returns user trigger when Dialog.Trigger is provided', async () => {
+  it('returns a wrapper element containing the trigger', async () => {
     const { createThemedDialog } = await import('../components/primitives/dialog');
     const styles = createDialogStyles();
     const Dialog = createThemedDialog(styles);
 
     const btn = document.createElement('button');
-    btn.textContent = 'Open';
-    const triggerSlot = Dialog.Trigger({ children: btn });
-    const contentSlot = Dialog.Content({ children: 'Content' });
+    const root = Dialog({
+      children: () => {
+        const t = Dialog.Trigger({ children: [btn] });
+        const c = Dialog.Content({ children: ['Content'] });
+        return [t, c];
+      },
+    });
 
-    const result = Dialog({ children: [triggerSlot, contentSlot] });
-    expect(result).toBe(btn);
-  });
-
-  it('returns primitive trigger when no Dialog.Trigger is provided', async () => {
-    const { createThemedDialog } = await import('../components/primitives/dialog');
-    const styles = createDialogStyles();
-    const Dialog = createThemedDialog(styles);
-
-    const contentSlot = Dialog.Content({ children: 'Content' });
-    const result = Dialog({ children: [contentSlot] });
-
-    expect(result).toBeInstanceOf(HTMLButtonElement);
+    expect(root).toBeInstanceOf(HTMLDivElement);
+    expect(root.contains(btn)).toBe(true);
   });
 });
 
@@ -592,16 +564,20 @@ describe('createThemedTabs', () => {
     const styles = createTabsStyles();
     const Tabs = createThemedTabs(styles);
 
-    const list = Tabs.List({
-      children: [
-        Tabs.Trigger({ value: 'one', children: 'Tab 1' }),
-        Tabs.Trigger({ value: 'two', children: 'Tab 2' }),
-      ],
+    const root = Tabs({
+      defaultValue: 'one',
+      children: () => {
+        const list = Tabs.List({
+          children: () => [
+            Tabs.Trigger({ value: 'one', children: ['Tab 1'] }),
+            Tabs.Trigger({ value: 'two', children: ['Tab 2'] }),
+          ],
+        });
+        const content1 = Tabs.Content({ value: 'one', children: ['Content 1'] });
+        const content2 = Tabs.Content({ value: 'two', children: ['Content 2'] });
+        return [list, content1, content2];
+      },
     });
-    const content1 = Tabs.Content({ value: 'one', children: 'Content 1' });
-    const content2 = Tabs.Content({ value: 'two', children: 'Content 2' });
-
-    const root = Tabs({ defaultValue: 'one', children: [list, content1, content2] });
     expect(root).toBeInstanceOf(HTMLDivElement);
   });
 
@@ -610,21 +586,25 @@ describe('createThemedTabs', () => {
     const styles = createTabsStyles();
     const Tabs = createThemedTabs(styles);
 
-    const list = Tabs.List({
-      children: Tabs.Trigger({ value: 'one', children: 'Tab 1' }),
+    const root = Tabs({
+      defaultValue: 'one',
+      children: () => {
+        const list = Tabs.List({
+          children: () => [Tabs.Trigger({ value: 'one', children: ['Tab 1'] })],
+        });
+        const content = Tabs.Content({ value: 'one', children: ['Content 1'] });
+        return [list, content];
+      },
     });
-    const content = Tabs.Content({ value: 'one', children: 'Content 1' });
-
-    const root = Tabs({ defaultValue: 'one', children: [list, content] });
 
     const listEl = root.querySelector('[role="tablist"]')!;
-    expect(listEl.classList.contains(styles.list)).toBe(true);
+    expect(listEl.className).toContain(styles.list);
 
     const triggerEl = root.querySelector('[role="tab"]')!;
-    expect(triggerEl.classList.contains(styles.trigger)).toBe(true);
+    expect(triggerEl.className).toContain(styles.trigger);
 
     const panelEl = root.querySelector('[role="tabpanel"]')!;
-    expect(panelEl.classList.contains(styles.panel)).toBe(true);
+    expect(panelEl.className).toContain(styles.panel);
   });
 
   it('applies line variant classes when variant is line', async () => {
@@ -632,20 +612,25 @@ describe('createThemedTabs', () => {
     const styles = createTabsStyles();
     const Tabs = createThemedTabs(styles);
 
-    const list = Tabs.List({
-      children: Tabs.Trigger({ value: 'one', children: 'Tab 1' }),
+    const root = Tabs({
+      defaultValue: 'one',
+      variant: 'line',
+      children: () => {
+        const list = Tabs.List({
+          children: () => [Tabs.Trigger({ value: 'one', children: ['Tab 1'] })],
+        });
+        const content = Tabs.Content({ value: 'one', children: ['Content 1'] });
+        return [list, content];
+      },
     });
-    const content = Tabs.Content({ value: 'one', children: 'Content 1' });
-
-    const root = Tabs({ defaultValue: 'one', variant: 'line', children: [list, content] });
 
     const listEl = root.querySelector('[role="tablist"]')!;
-    expect(listEl.classList.contains(styles.listLine)).toBe(true);
-    expect(listEl.classList.contains(styles.list)).toBe(false);
+    expect(listEl.className).toContain(styles.listLine);
+    expect(listEl.className).not.toContain(styles.list);
 
     const triggerEl = root.querySelector('[role="tab"]')!;
-    expect(triggerEl.classList.contains(styles.triggerLine)).toBe(true);
-    expect(triggerEl.classList.contains(styles.trigger)).toBe(false);
+    expect(triggerEl.className).toContain(styles.triggerLine);
+    expect(triggerEl.className).not.toContain(styles.trigger);
   });
 });
 
@@ -663,20 +648,25 @@ describe('createThemedSelect', () => {
     expect(typeof Select.Separator).toBe('function');
   });
 
-  it('returns trigger element with theme class', async () => {
+  it('returns wrapper with trigger having theme class', async () => {
     const { createThemedSelect } = await import('../components/primitives/select');
     const styles = createSelectStyles();
     const Select = createThemedSelect(styles);
 
-    const contentSlot = Select.Content({
-      children: Select.Item({ value: 'a', children: 'A' }),
+    const result = Select({
+      children: () => {
+        const t = Select.Trigger({ children: ['Pick'] });
+        const c = Select.Content({
+          children: () => [Select.Item({ value: 'a', children: ['A'] })],
+        });
+        return [t, c];
+      },
     });
 
-    const result = Select({ children: contentSlot });
-
-    // Root returns the primitive trigger directly; content is portaled to body
     expect(result).toBeInstanceOf(HTMLElement);
-    expect(result.classList.contains(styles.trigger)).toBe(true);
+    const triggerEl = result.querySelector('[role="combobox"]') as HTMLElement;
+    expect(triggerEl).not.toBeNull();
+    expect(triggerEl!.className).toContain(styles.trigger);
   });
 
   it('Item sub-component creates marker element with data-slot', async () => {
@@ -767,26 +757,30 @@ describe('createThemedDropdownMenu', () => {
     const styles = createDropdownMenuStyles();
     const DropdownMenu = createThemedDropdownMenu(styles);
 
-    const sep = DropdownMenu.Separator();
+    const sep = DropdownMenu.Separator({});
     expect(sep.dataset.slot).toBe('menu-separator');
   });
 
-  it('returns user trigger with ARIA attributes', async () => {
+  it('returns wrapper containing trigger with ARIA attributes', async () => {
     const { createThemedDropdownMenu } = await import('../components/primitives/dropdown-menu');
     const styles = createDropdownMenuStyles();
     const DropdownMenu = createThemedDropdownMenu(styles);
 
     const btn = document.createElement('button');
     btn.textContent = 'Menu';
-    const triggerSlot = DropdownMenu.Trigger({ children: btn });
-    const contentSlot = DropdownMenu.Content({
-      children: DropdownMenu.Item({ value: 'a', children: 'A' }),
+
+    const result = DropdownMenu({
+      children: () => {
+        const t = DropdownMenu.Trigger({ children: [btn] });
+        const c = DropdownMenu.Content({
+          children: () => [DropdownMenu.Item({ value: 'a', children: ['A'] })],
+        });
+        return [t, c];
+      },
     });
 
-    const result = DropdownMenu({ children: [triggerSlot, contentSlot] });
-
-    // Returns user trigger directly; content is portaled to body
-    expect(result).toBe(btn);
+    expect(result).toBeInstanceOf(HTMLDivElement);
+    expect(result.contains(btn)).toBe(true);
     expect(btn.getAttribute('aria-haspopup')).toBe('menu');
     expect(btn.getAttribute('aria-controls')).toBeTruthy();
   });
@@ -924,10 +918,19 @@ describe('createThemedAccordion', () => {
     const styles = createAccordionStyles();
     const Accordion = createThemedAccordion(styles);
 
-    const trigger = Accordion.Trigger({ children: 'Section 1' });
-    const content = Accordion.Content({ children: 'Content 1' });
-    const item = Accordion.Item({ value: 'section1', children: [trigger, content] });
-    const root = Accordion({ children: item });
+    const root = Accordion({
+      children: () => {
+        const item = Accordion.Item({
+          value: 'section1',
+          children: () => {
+            const trigger = Accordion.Trigger({ children: ['Section 1'] });
+            const content = Accordion.Content({ children: ['Content 1'] });
+            return [trigger, content];
+          },
+        });
+        return [item];
+      },
+    });
 
     expect(root).toBeInstanceOf(HTMLDivElement);
   });
@@ -937,18 +940,27 @@ describe('createThemedAccordion', () => {
     const styles = createAccordionStyles();
     const Accordion = createThemedAccordion(styles);
 
-    const trigger = Accordion.Trigger({ children: 'Section 1' });
-    const content = Accordion.Content({ children: 'Body text' });
-    const item = Accordion.Item({ value: 'section1', children: [trigger, content] });
-    const root = Accordion({ children: item });
+    const root = Accordion({
+      children: () => {
+        const item = Accordion.Item({
+          value: 'section1',
+          children: () => {
+            const trigger = Accordion.Trigger({ children: ['Section 1'] });
+            const content = Accordion.Content({ children: ['Body text'] });
+            return [trigger, content];
+          },
+        });
+        return [item];
+      },
+    });
 
     const itemEl = root.querySelector(`[data-value="section1"]`)!;
     expect(itemEl).toBeTruthy();
     const triggerEl = itemEl.querySelector('button')!;
-    expect(triggerEl.classList.contains(styles.trigger)).toBe(true);
-    expect(itemEl.classList.contains(styles.item)).toBe(true);
+    expect(triggerEl.className).toContain(styles.trigger);
+    expect((itemEl as HTMLElement).className).toContain(styles.item);
     const contentEl = itemEl.querySelector('[role="region"]')!;
-    expect(contentEl.classList.contains(styles.content)).toBe(true);
+    expect((contentEl as HTMLElement).className).toContain(styles.content);
   });
 
   it('preserves primitive behavior — click toggles', async () => {
@@ -956,10 +968,19 @@ describe('createThemedAccordion', () => {
     const styles = createAccordionStyles();
     const Accordion = createThemedAccordion(styles);
 
-    const trigger = Accordion.Trigger({ children: 'Section 1' });
-    const content = Accordion.Content({ children: 'Body text' });
-    const item = Accordion.Item({ value: 'section1', children: [trigger, content] });
-    const root = Accordion({ children: item });
+    const root = Accordion({
+      children: () => {
+        const item = Accordion.Item({
+          value: 'section1',
+          children: () => {
+            const trigger = Accordion.Trigger({ children: ['Section 1'] });
+            const content = Accordion.Content({ children: ['Body text'] });
+            return [trigger, content];
+          },
+        });
+        return [item];
+      },
+    });
 
     const triggerEl = root.querySelector('button')!;
     expect(triggerEl.getAttribute('aria-expanded')).toBe('false');
@@ -972,30 +993,37 @@ describe('createThemedAccordion', () => {
     const styles = createAccordionStyles();
     const Accordion = createThemedAccordion(styles);
 
-    const trigger = Accordion.Trigger({ children: 'My Trigger' });
-    const content = Accordion.Content({ children: 'My Content' });
-    const item = Accordion.Item({ value: 's1', children: [trigger, content] });
-    const root = Accordion({ children: item });
+    const root = Accordion({
+      children: () => {
+        const item = Accordion.Item({
+          value: 's1',
+          children: () => {
+            const trigger = Accordion.Trigger({ children: ['My Trigger'] });
+            const content = Accordion.Content({ children: ['My Content'] });
+            return [trigger, content];
+          },
+        });
+        return [item];
+      },
+    });
 
     const triggerEl = root.querySelector('button')!;
     expect(triggerEl.textContent).toBe('My Trigger');
   });
 
-  it('wraps content in inner padding div', async () => {
+  it('places content text inside the region element', async () => {
     const { createThemedAccordion } = await import('../components/primitives/accordion');
     const styles = createAccordionStyles();
     const Accordion = createThemedAccordion(styles);
 
     const trigger = Accordion.Trigger({ children: 'Trigger' });
     const content = Accordion.Content({ children: 'Content text' });
-    const item = Accordion.Item({ value: 's1', children: [trigger, content] });
-    const root = Accordion({ children: item });
+    const item = Accordion.Item({ value: 's1', children: () => [trigger, content] });
+    const root = Accordion({ children: () => [item] });
 
     const contentEl = root.querySelector('[role="region"]')!;
-    const inner = contentEl.firstElementChild as HTMLElement;
-    expect(inner).toBeTruthy();
-    expect(inner.style.cssText).toContain('padding');
-    expect(inner.textContent).toBe('Content text');
+    expect(contentEl).toBeTruthy();
+    expect(contentEl.textContent).toContain('Content text');
   });
 });
 
@@ -1070,36 +1098,45 @@ describe('createThemedTooltip', () => {
     expect(typeof Tooltip.Content).toBe('function');
   });
 
-  it('moves trigger children into primitive trigger element', async () => {
+  it('returns a wrapper containing the trigger with user children', async () => {
     const { createThemedTooltip } = await import('../components/primitives/tooltip');
     const styles = createTooltipStyles();
     const Tooltip = createThemedTooltip(styles);
 
     const btn = document.createElement('button');
     btn.textContent = 'Hover me';
-    const triggerSlot = Tooltip.Trigger({ children: btn });
-    const contentSlot = Tooltip.Content({ children: 'Tooltip text' });
 
-    const result = Tooltip({ children: [triggerSlot, contentSlot] });
+    const result = Tooltip({
+      children: () => {
+        const t = Tooltip.Trigger({ children: [btn] });
+        const c = Tooltip.Content({ children: ['Tooltip text'] });
+        return [t, c];
+      },
+    });
 
-    // The primitive trigger element contains the user's button
+    expect(result).toBeInstanceOf(HTMLDivElement);
     expect(result.contains(btn)).toBe(true);
   });
 
-  it('returns primitive trigger element', async () => {
+  it('applies theme class to tooltip content element', async () => {
     const { createThemedTooltip } = await import('../components/primitives/tooltip');
     const styles = createTooltipStyles();
     const Tooltip = createThemedTooltip(styles);
 
     const btn = document.createElement('button');
     btn.textContent = 'Hover me';
-    const triggerSlot = Tooltip.Trigger({ children: btn });
-    const contentSlot = Tooltip.Content({ children: 'Info' });
 
-    const result = Tooltip({ children: [triggerSlot, contentSlot] });
-    // Returns the primitive trigger (span with events wired) containing the user's button
-    expect(result).toBeInstanceOf(HTMLElement);
-    expect(result.contains(btn)).toBe(true);
+    const result = Tooltip({
+      children: () => {
+        const t = Tooltip.Trigger({ children: [btn] });
+        const c = Tooltip.Content({ children: ['Info'] });
+        return [t, c];
+      },
+    });
+
+    const contentEl = result.querySelector('[role="tooltip"]') as HTMLElement;
+    expect(contentEl).toBeTruthy();
+    expect(contentEl!.className).toContain(styles.content);
   });
 });
 

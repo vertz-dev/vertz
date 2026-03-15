@@ -13,6 +13,14 @@ plugin({
     build.onLoad({ filter: /\.tsx$/ }, async (args) => {
       const source = await Bun.file(args.path).text();
 
+      // Composed primitives are framework-level code — they use JSX for
+      // declarative element creation but are NOT user components. Skip
+      // reactive transforms (let→signal, computed) that would break them.
+      // Pass through to Bun's native JSX handling.
+      if (args.path.includes('-composed.tsx')) {
+        return { contents: source, loader: 'tsx' };
+      }
+
       const result = compile(source, {
         filename: args.path,
         target: 'dom',

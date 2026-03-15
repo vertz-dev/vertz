@@ -111,4 +111,11 @@ describe('Dialog', () => {
     const { content } = Dialog.Root({ modal: false });
     expect(content.getAttribute('aria-modal')).toBeNull();
   });
+
+  it('returns description element with aria-describedby link', () => {
+    const { content, description } = Dialog.Root();
+    expect(description).toBeInstanceOf(HTMLParagraphElement);
+    expect(description.id).toBeTruthy();
+    expect(content.getAttribute('aria-describedby')).toBe(description.id);
+  });
 });

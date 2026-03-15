@@ -1,6 +1,15 @@
-import { describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from 'bun:test';
 import { createThemedSheet } from '../components/primitives/sheet';
 import { createSheetStyles } from '../styles/sheet';
+
+afterEach(() => {
+  for (const el of document.body.querySelectorAll('[data-sheet-overlay], [role="dialog"]')) {
+    el.remove();
+  }
+  for (const el of document.body.querySelectorAll('[data-state]')) {
+    if (el.parentElement === document.body) el.remove();
+  }
+});
 
 describe('sheet styles', () => {
   const sheet = createSheetStyles();
@@ -50,94 +59,160 @@ describe('themed Sheet', () => {
     expect(typeof Sheet.Close).toBe('function');
   });
 
-  it('Title applies theme class', () => {
-    const title = Sheet.Title({ children: 'Sheet Title' });
-    expect(title).toBeInstanceOf(HTMLHeadingElement);
-    expect(title.classList.contains(styles.title)).toBe(true);
+  it('returns a wrapper containing trigger', () => {
+    const btn = document.createElement('button');
+    btn.textContent = 'Open';
+
+    const root = Sheet({
+      children: () => {
+        const t = Sheet.Trigger({ children: [btn] });
+        const c = Sheet.Content({ children: ['Content'] });
+        return [t, c];
+      },
+    });
+
+    expect(root).toBeInstanceOf(HTMLDivElement);
+    expect(root.contains(btn)).toBe(true);
+  });
+
+  it('renders Title and Description with theme classes inside context', () => {
+    const btn = document.createElement('button');
+
+    const root = Sheet({
+      children: () => {
+        const t = Sheet.Trigger({ children: [btn] });
+        const c = Sheet.Content({
+          children: () => {
+            const title = Sheet.Title({ children: ['Sheet Title'] });
+            const desc = Sheet.Description({ children: ['Sheet Description'] });
+            return [title, desc];
+          },
+        });
+        return [t, c];
+      },
+    });
+    document.body.appendChild(root);
+
+    btn.click();
+    const dialog = root.querySelector('[role="dialog"]') as HTMLElement;
+    const title = dialog.querySelector('h2') as HTMLElement;
     expect(title.textContent).toBe('Sheet Title');
+    expect(title.className).toContain(styles.title);
+
+    const desc = dialog.querySelector('p') as HTMLElement;
+    expect(desc.textContent).toBe('Sheet Description');
+    expect(desc.className).toContain(styles.description);
+
+    document.body.removeChild(root);
   });
 
-  it('Description applies theme class', () => {
-    const desc = Sheet.Description({ children: 'Description' });
-    expect(desc).toBeInstanceOf(HTMLParagraphElement);
-    expect(desc.classList.contains(styles.description)).toBe(true);
-  });
+  it('Close button applies theme class and closes the sheet', () => {
+    const btn = document.createElement('button');
+    let closeEl!: HTMLElement;
 
-  it('Close applies theme class', () => {
-    const close = Sheet.Close({ children: 'X' });
-    expect(close).toBeInstanceOf(HTMLButtonElement);
-    expect(close.classList.contains(styles.close)).toBe(true);
+    const root = Sheet({
+      children: () => {
+        const t = Sheet.Trigger({ children: [btn] });
+        const c = Sheet.Content({
+          children: () => {
+            closeEl = Sheet.Close({ children: ['X'] });
+            return [closeEl];
+          },
+        });
+        return [t, c];
+      },
+    });
+    document.body.appendChild(root);
+
+    btn.click();
+    const dialog = root.querySelector('[role="dialog"]') as HTMLElement;
+    expect(dialog.getAttribute('data-state')).toBe('open');
+    expect(closeEl.className).toContain(styles.close);
+
+    closeEl.click();
+    expect(dialog.getAttribute('data-state')).toBe('closed');
+
+    document.body.removeChild(root);
   });
 
   it('defaults to right side with overlay', () => {
     const btn = document.createElement('button');
-    btn.textContent = 'Open';
-    const triggerSlot = Sheet.Trigger({ children: btn });
-    const contentSlot = Sheet.Content({
-      children: Sheet.Title({ children: 'Right Sheet' }),
+
+    const root = Sheet({
+      children: () => {
+        const t = Sheet.Trigger({ children: [btn] });
+        const c = Sheet.Content({
+          children: () => [Sheet.Title({ children: ['Right Sheet'] })],
+        });
+        return [t, c];
+      },
     });
+    document.body.appendChild(root);
 
-    Sheet({ children: [triggerSlot, contentSlot] });
+    const panel = root.querySelector('[role="dialog"]') as HTMLElement;
+    expect(panel.className).toContain(styles.panelRight);
 
-    // The primitive's content gets the panelRight class (default)
-    const panel = document.querySelector(`.${styles.panelRight}`);
-    expect(panel).toBeTruthy();
-
-    const overlay = document.querySelector(`.${styles.overlay}`);
+    const overlay = root.querySelector('[data-sheet-overlay]') as HTMLElement;
     expect(overlay).toBeTruthy();
+    expect(overlay.className).toContain(styles.overlay);
+
+    document.body.removeChild(root);
   });
 
   it('applies left panel class', () => {
     const btn = document.createElement('button');
-    btn.textContent = 'Open';
-    const triggerSlot = Sheet.Trigger({ children: btn });
-    const contentSlot = Sheet.Content({
-      children: Sheet.Title({ children: 'Left Sheet' }),
+
+    const root = Sheet({
+      side: 'left',
+      children: () => {
+        const t = Sheet.Trigger({ children: [btn] });
+        const c = Sheet.Content({ children: ['Content'] });
+        return [t, c];
+      },
     });
+    document.body.appendChild(root);
 
-    Sheet({ side: 'left', children: [triggerSlot, contentSlot] });
+    const panel = root.querySelector('[role="dialog"]') as HTMLElement;
+    expect(panel.className).toContain(styles.panelLeft);
 
-    const panel = document.querySelector(`.${styles.panelLeft}`);
-    expect(panel).toBeTruthy();
+    document.body.removeChild(root);
   });
 
   it('applies top panel class', () => {
     const btn = document.createElement('button');
-    btn.textContent = 'Open';
-    const triggerSlot = Sheet.Trigger({ children: btn });
-    const contentSlot = Sheet.Content({
-      children: Sheet.Title({ children: 'Top Sheet' }),
+
+    const root = Sheet({
+      side: 'top',
+      children: () => {
+        const t = Sheet.Trigger({ children: [btn] });
+        const c = Sheet.Content({ children: ['Content'] });
+        return [t, c];
+      },
     });
+    document.body.appendChild(root);
 
-    Sheet({ side: 'top', children: [triggerSlot, contentSlot] });
+    const panel = root.querySelector('[role="dialog"]') as HTMLElement;
+    expect(panel.className).toContain(styles.panelTop);
 
-    const panel = document.querySelector(`.${styles.panelTop}`);
-    expect(panel).toBeTruthy();
+    document.body.removeChild(root);
   });
 
   it('applies bottom panel class', () => {
     const btn = document.createElement('button');
-    btn.textContent = 'Open';
-    const triggerSlot = Sheet.Trigger({ children: btn });
-    const contentSlot = Sheet.Content({
-      children: Sheet.Title({ children: 'Bottom Sheet' }),
+
+    const root = Sheet({
+      side: 'bottom',
+      children: () => {
+        const t = Sheet.Trigger({ children: [btn] });
+        const c = Sheet.Content({ children: ['Content'] });
+        return [t, c];
+      },
     });
+    document.body.appendChild(root);
 
-    Sheet({ side: 'bottom', children: [triggerSlot, contentSlot] });
+    const panel = root.querySelector('[role="dialog"]') as HTMLElement;
+    expect(panel.className).toContain(styles.panelBottom);
 
-    const panel = document.querySelector(`.${styles.panelBottom}`);
-    expect(panel).toBeTruthy();
-  });
-
-  it('returns user trigger when Sheet.Trigger is provided', () => {
-    const btn = document.createElement('button');
-    btn.textContent = 'Open';
-    const triggerSlot = Sheet.Trigger({ children: btn });
-    const contentSlot = Sheet.Content({
-      children: Sheet.Title({ children: 'Test' }),
-    });
-
-    const result = Sheet({ children: [triggerSlot, contentSlot] });
-    expect(result).toBe(btn);
+    document.body.removeChild(root);
   });
 });
