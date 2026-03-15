@@ -50,8 +50,7 @@ function ComposedToggleRoot({
 
   // Move children into the button
   if (children) {
-    const resolved = resolveChildren(children);
-    for (const node of resolved) {
+    for (const node of resolveChildren(children)) {
       root.appendChild(node);
     }
   }

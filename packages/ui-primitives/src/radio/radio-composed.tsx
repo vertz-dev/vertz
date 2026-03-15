@@ -31,24 +31,20 @@ interface RadioGroupItemProps {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components — structural slot markers
+// Sub-components — structural slot markers (JSX)
 // ---------------------------------------------------------------------------
 
 function RadioGroupItem({ value, disabled, children }: RadioGroupItemProps) {
-  const el = document.createElement('span');
-  el.setAttribute('data-slot', 'radiogroup-item');
-  el.setAttribute('data-value', value);
-  if (disabled) el.setAttribute('data-disabled', 'true');
-  el.style.display = 'contents';
-
-  if (children) {
-    const resolved = resolveChildren(children);
-    for (const node of resolved) {
-      el.appendChild(node);
-    }
-  }
-
-  return el;
+  return (
+    <span
+      data-slot="radiogroup-item"
+      data-value={value}
+      data-disabled={disabled ? 'true' : undefined}
+      style="display: contents"
+    >
+      {children}
+    </span>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -107,12 +103,11 @@ function ComposedRadioGroupRoot({
       item.style.pointerEvents = 'none';
     }
 
-    // Create indicator
-    const indicator = document.createElement('span');
-    indicator.setAttribute('data-part', 'indicator');
+    // Create indicator with JSX
     const dataState = item.getAttribute('data-state') ?? 'unchecked';
-    indicator.setAttribute('data-state', dataState);
-    if (classes?.indicator) indicator.className = classes.indicator;
+    const indicator = (
+      <span data-part="indicator" data-state={dataState} class={classes?.indicator} />
+    ) as HTMLSpanElement;
     indicators.set(value, indicator);
 
     // Clear text, add indicator, then label
@@ -120,9 +115,8 @@ function ComposedRadioGroupRoot({
     item.appendChild(indicator);
 
     if (labelText) {
-      const labelEl = document.createElement('span');
-      labelEl.textContent = labelText;
-      item.appendChild(labelEl);
+      const label = (<span>{labelText}</span>) as HTMLSpanElement;
+      item.appendChild(label);
     }
   }
 

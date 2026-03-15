@@ -1,7 +1,6 @@
 /**
  * Composed Progress — high-level composable component built on Progress.Root.
- * Returns an HTMLElement for declarative JSX usage. Users needing imperative
- * setValue/state access should use the factory API (Progress.Root) instead.
+ * Returns an HTMLElement for declarative JSX usage.
  */
 
 import type { ChildValue } from '@vertz/ui';
