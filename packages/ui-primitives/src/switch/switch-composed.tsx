@@ -1,10 +1,11 @@
 /**
- * Composed Switch — high-level composable component built on Switch.Root.
- * Applies classes to root button and thumb child.
+ * Composed Switch — declarative JSX component with thumb and class distribution.
+ * Builds on the same behavior as Switch.Root but in a fully declarative structure.
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { Switch } from './switch';
+import { uniqueId } from '../utils/id';
+import { isKey, Keys } from '../utils/keyboard';
 
 // ---------------------------------------------------------------------------
 // Class distribution
@@ -30,33 +31,48 @@ export interface ComposedSwitchProps {
 }
 
 // ---------------------------------------------------------------------------
-// Root composed component
+// Component
 // ---------------------------------------------------------------------------
 
 function ComposedSwitchRoot({
   classes,
-  defaultChecked,
-  disabled,
+  defaultChecked = false,
+  disabled = false,
   onCheckedChange,
 }: ComposedSwitchProps) {
-  const initialState = defaultChecked ? 'checked' : 'unchecked';
-  const thumb = (
-    <span data-part="thumb" data-state={initialState} class={classes?.thumb} />
-  ) as HTMLSpanElement;
+  let checked = defaultChecked;
 
-  const root = Switch.Root({
-    defaultChecked,
-    disabled,
-    onCheckedChange: (checked) => {
-      thumb.setAttribute('data-state', checked ? 'checked' : 'unchecked');
-      onCheckedChange?.(checked);
-    },
-  });
+  function toggle() {
+    if (disabled) return;
+    checked = !checked;
+    onCheckedChange?.(checked);
+  }
 
-  if (classes?.root) root.className = classes.root;
-  root.appendChild(thumb);
-
-  return root;
+  return (
+    <button
+      type="button"
+      role="switch"
+      id={uniqueId('switch')}
+      aria-checked={checked ? 'true' : 'false'}
+      data-state={checked ? 'checked' : 'unchecked'}
+      disabled={disabled}
+      aria-disabled={disabled ? 'true' : undefined}
+      class={classes?.root}
+      onClick={toggle}
+      onKeydown={(e: KeyboardEvent) => {
+        if (isKey(e, Keys.Space)) {
+          e.preventDefault();
+          toggle();
+        }
+      }}
+    >
+      <span
+        data-part="thumb"
+        data-state={checked ? 'checked' : 'unchecked'}
+        class={classes?.thumb}
+      />
+    </button>
+  );
 }
 
 // ---------------------------------------------------------------------------

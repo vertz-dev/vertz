@@ -1,11 +1,11 @@
 /**
- * Composed Toggle — high-level composable component built on Toggle.Root.
- * Applies root class and moves children into the toggle button.
+ * Composed Toggle — declarative JSX component with class distribution.
+ * Builds on the same behavior as Toggle.Root but in a fully declarative structure.
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { resolveChildren } from '@vertz/ui';
-import { Toggle } from './toggle';
+import { uniqueId } from '../utils/id';
+import { isKey, Keys } from '../utils/keyboard';
 
 // ---------------------------------------------------------------------------
 // Class distribution
@@ -30,32 +30,44 @@ export interface ComposedToggleProps {
 }
 
 // ---------------------------------------------------------------------------
-// Root composed component
+// Component
 // ---------------------------------------------------------------------------
 
 function ComposedToggleRoot({
   children,
   classes,
-  defaultPressed,
-  disabled,
+  defaultPressed = false,
+  disabled = false,
   onPressedChange,
 }: ComposedToggleProps) {
-  const root = Toggle.Root({
-    defaultPressed,
-    disabled,
-    onPressedChange,
-  });
+  let pressed = defaultPressed;
 
-  if (classes?.root) root.className = classes.root;
-
-  // Move children into the button
-  if (children) {
-    for (const node of resolveChildren(children)) {
-      root.appendChild(node);
-    }
+  function toggle() {
+    if (disabled) return;
+    pressed = !pressed;
+    onPressedChange?.(pressed);
   }
 
-  return root;
+  return (
+    <button
+      type="button"
+      id={uniqueId('toggle')}
+      aria-pressed={pressed ? 'true' : 'false'}
+      data-state={pressed ? 'on' : 'off'}
+      disabled={disabled}
+      aria-disabled={disabled ? 'true' : undefined}
+      class={classes?.root}
+      onClick={toggle}
+      onKeydown={(e: KeyboardEvent) => {
+        if (isKey(e, Keys.Space)) {
+          e.preventDefault();
+          toggle();
+        }
+      }}
+    >
+      {children}
+    </button>
+  );
 }
 
 // ---------------------------------------------------------------------------
