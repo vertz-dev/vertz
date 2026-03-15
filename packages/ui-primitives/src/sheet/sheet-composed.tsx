@@ -40,69 +40,51 @@ interface SlotProps {
 // Sub-components — structural slot markers
 // ---------------------------------------------------------------------------
 
-function SheetTrigger({ children }: SlotProps): HTMLElement {
-  const el = document.createElement('span');
-  el.dataset.slot = 'sheet-trigger';
-  el.style.display = 'contents';
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+function SheetTrigger({ children }: SlotProps) {
+  return (
+    <span data-slot="sheet-trigger" style="display: contents">
+      {children}
+    </span>
+  );
 }
 
-function SheetContent({ children, class: cls }: SlotProps): HTMLElement {
-  const el = document.createElement('div');
-  el.dataset.slot = 'sheet-content';
-  el.style.display = 'contents';
-  if (cls) el.dataset.class = cls;
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+function SheetContent({ children, class: cls }: SlotProps) {
+  return (
+    <div data-slot="sheet-content" data-class={cls || undefined} style="display: contents">
+      {children}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Sub-components — content elements (read classes from context)
 // ---------------------------------------------------------------------------
 
-function SheetTitle({ children, class: cls }: SlotProps): HTMLElement {
+function SheetTitle({ children, class: cls }: SlotProps) {
   const classes = useContext(SheetClassesContext);
-  const el = document.createElement('h2');
   const combined = [classes?.title, cls].filter(Boolean).join(' ');
-  if (combined) el.className = combined;
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+  return <h2 class={combined || undefined}>{children}</h2>;
 }
 
-function SheetDescription({ children, class: cls }: SlotProps): HTMLElement {
+function SheetDescription({ children, class: cls }: SlotProps) {
   const classes = useContext(SheetClassesContext);
-  const el = document.createElement('p');
   const combined = [classes?.description, cls].filter(Boolean).join(' ');
-  if (combined) el.className = combined;
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+  return <p class={combined || undefined}>{children}</p>;
 }
 
-function SheetClose({ children, class: cls }: SlotProps): HTMLElement {
+function SheetClose({ children, class: cls }: SlotProps) {
   const classes = useContext(SheetClassesContext);
-  const el = document.createElement('button');
-  el.type = 'button';
-  el.dataset.slot = 'sheet-close';
   const combined = [classes?.close, cls].filter(Boolean).join(' ');
-  if (combined) el.className = combined;
-  if (children) {
-    for (const node of resolveChildren(children)) {
-      el.appendChild(node);
-    }
-  } else {
-    el.setAttribute('aria-label', 'Close');
-    el.textContent = '\u00D7';
-  }
-  return el;
+  return (
+    <button
+      type="button"
+      data-slot="sheet-close"
+      class={combined || undefined}
+      aria-label={children ? undefined : 'Close'}
+    >
+      {children ?? '\u00D7'}
+    </button>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -118,23 +100,15 @@ export interface ComposedSheetProps {
 
 export type SheetClassKey = keyof SheetClasses;
 
-function ComposedSheetRoot({
-  children,
-  classes,
-  side,
-  onOpenChange,
-}: ComposedSheetProps): HTMLElement {
-  const wrapper = document.createElement('div');
-  wrapper.style.display = 'contents';
-
+function ComposedSheetRoot({ children, classes, side, onOpenChange }: ComposedSheetProps) {
   // Provide classes via context, then resolve children inside the scope
-  let resolvedNodes: Node[];
+  let resolvedNodes: Node[] = [];
   SheetClassesContext.Provider(classes, () => {
     resolvedNodes = resolveChildren(children);
   });
 
   // Scan for structural slots
-  const { slots } = scanSlots(resolvedNodes!);
+  const { slots } = scanSlots(resolvedNodes);
   const triggerEntry = slots.get('sheet-trigger')?.[0];
   const contentEntry = slots.get('sheet-content')?.[0];
 
@@ -181,8 +155,6 @@ function ComposedSheetRoot({
         sheet.show();
       }
     });
-
-    wrapper.appendChild(userTrigger);
   }
 
   // Move content children into the sheet panel
@@ -198,27 +170,30 @@ function ComposedSheetRoot({
     if (target) sheet.hide();
   });
 
-  wrapper.appendChild(sheet.overlay);
-  wrapper.appendChild(sheet.content);
-
-  return wrapper;
+  return (
+    <div style="display: contents">
+      {userTrigger}
+      {sheet.overlay}
+      {sheet.content}
+    </div>
+  ) as HTMLDivElement;
 }
 
 // ---------------------------------------------------------------------------
 // Export as callable with sub-component properties
 // ---------------------------------------------------------------------------
 
-export const ComposedSheet: ((props: ComposedSheetProps) => HTMLElement) & {
-  __classKeys?: SheetClassKey;
-  Trigger: typeof SheetTrigger;
-  Content: typeof SheetContent;
-  Title: typeof SheetTitle;
-  Description: typeof SheetDescription;
-  Close: typeof SheetClose;
-} = Object.assign(ComposedSheetRoot, {
+export const ComposedSheet = Object.assign(ComposedSheetRoot, {
   Trigger: SheetTrigger,
   Content: SheetContent,
   Title: SheetTitle,
   Description: SheetDescription,
   Close: SheetClose,
-});
+}) as ((props: ComposedSheetProps) => HTMLElement) & {
+  __classKeys?: SheetClassKey;
+  Trigger: (props: SlotProps) => HTMLElement;
+  Content: (props: SlotProps) => HTMLElement;
+  Title: (props: SlotProps) => HTMLElement;
+  Description: (props: SlotProps) => HTMLElement;
+  Close: (props: SlotProps) => HTMLElement;
+};

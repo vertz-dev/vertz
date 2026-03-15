@@ -42,64 +42,53 @@ interface GroupProps extends SlotProps {
 // Sub-components — structural slot markers
 // ---------------------------------------------------------------------------
 
-function MenuTrigger({ children }: SlotProps): HTMLElement {
-  const el = document.createElement('span');
-  el.dataset.slot = 'menu-trigger';
-  el.style.display = 'contents';
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+function MenuTrigger({ children }: SlotProps) {
+  return (
+    <span data-slot="menu-trigger" style="display: contents">
+      {children}
+    </span>
+  );
 }
 
-function MenuContent({ children }: SlotProps): HTMLElement {
-  const el = document.createElement('div');
-  el.dataset.slot = 'menu-content';
-  el.style.display = 'contents';
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+function MenuContent({ children }: SlotProps) {
+  return (
+    <div data-slot="menu-content" style="display: contents">
+      {children}
+    </div>
+  );
 }
 
-function MenuItem({ value, children, class: cls }: ItemProps): HTMLElement {
-  const el = document.createElement('div');
-  el.dataset.slot = 'menu-item';
-  el.dataset.value = value;
-  el.style.display = 'contents';
-  if (cls) el.dataset.class = cls;
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+function MenuItem({ value, children, class: cls }: ItemProps) {
+  return (
+    <div
+      data-slot="menu-item"
+      data-value={value}
+      data-class={cls || undefined}
+      style="display: contents"
+    >
+      {children}
+    </div>
+  );
 }
 
-function MenuGroup({ label, children }: GroupProps): HTMLElement {
-  const el = document.createElement('div');
-  el.dataset.slot = 'menu-group';
-  el.dataset.label = label;
-  el.style.display = 'contents';
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+function MenuGroup({ label, children }: GroupProps) {
+  return (
+    <div data-slot="menu-group" data-label={label} style="display: contents">
+      {children}
+    </div>
+  );
 }
 
-function MenuLabel({ children, class: cls }: SlotProps): HTMLElement {
-  const el = document.createElement('div');
-  el.dataset.slot = 'menu-label';
-  el.style.display = 'contents';
-  if (cls) el.dataset.class = cls;
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+function MenuLabel({ children, class: cls }: SlotProps) {
+  return (
+    <div data-slot="menu-label" data-class={cls || undefined} style="display: contents">
+      {children}
+    </div>
+  );
 }
 
-function MenuSeparator(_props: SlotProps): HTMLElement {
-  const el = document.createElement('hr');
-  el.dataset.slot = 'menu-separator';
-  return el;
+function MenuSeparator(_props: SlotProps) {
+  return <hr data-slot="menu-separator" />;
 }
 
 // ---------------------------------------------------------------------------
@@ -114,15 +103,8 @@ export interface ComposedDropdownMenuProps {
 
 export type DropdownMenuClassKey = keyof DropdownMenuClasses;
 
-function ComposedDropdownMenuRoot({
-  children,
-  classes,
-  onSelect,
-}: ComposedDropdownMenuProps): HTMLElement {
-  const wrapper = document.createElement('div');
-  wrapper.style.display = 'contents';
-
-  // Resolve children
+function ComposedDropdownMenuRoot({ children, classes, onSelect }: ComposedDropdownMenuProps) {
+  // Resolve children for slot scanning
   const resolvedNodes = resolveChildren(children);
 
   // Scan for structural slots
@@ -169,13 +151,14 @@ function ComposedDropdownMenuRoot({
     userTrigger.addEventListener('click', () => {
       menu.trigger.click();
     });
-
-    wrapper.appendChild(userTrigger);
   }
 
-  wrapper.appendChild(menu.content);
-
-  return wrapper;
+  return (
+    <div style="display: contents">
+      {userTrigger}
+      {menu.content}
+    </div>
+  ) as HTMLDivElement;
 }
 
 function processMenuSlots(
@@ -244,19 +227,19 @@ function processMenuSlots(
 // Export as callable with sub-component properties
 // ---------------------------------------------------------------------------
 
-export const ComposedDropdownMenu: ((props: ComposedDropdownMenuProps) => HTMLElement) & {
-  __classKeys?: DropdownMenuClassKey;
-  Trigger: typeof MenuTrigger;
-  Content: typeof MenuContent;
-  Item: typeof MenuItem;
-  Group: typeof MenuGroup;
-  Label: typeof MenuLabel;
-  Separator: typeof MenuSeparator;
-} = Object.assign(ComposedDropdownMenuRoot, {
+export const ComposedDropdownMenu = Object.assign(ComposedDropdownMenuRoot, {
   Trigger: MenuTrigger,
   Content: MenuContent,
   Item: MenuItem,
   Group: MenuGroup,
   Label: MenuLabel,
   Separator: MenuSeparator,
-});
+}) as ((props: ComposedDropdownMenuProps) => HTMLElement) & {
+  __classKeys?: DropdownMenuClassKey;
+  Trigger: (props: SlotProps) => HTMLElement;
+  Content: (props: SlotProps) => HTMLElement;
+  Item: (props: ItemProps) => HTMLElement;
+  Group: (props: GroupProps) => HTMLElement;
+  Label: (props: SlotProps) => HTMLElement;
+  Separator: (props: SlotProps) => HTMLElement;
+};

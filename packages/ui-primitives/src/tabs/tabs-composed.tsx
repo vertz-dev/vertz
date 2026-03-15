@@ -44,38 +44,38 @@ interface ContentProps extends SlotProps {
 // Sub-components — structural slot markers
 // ---------------------------------------------------------------------------
 
-function TabsList({ children }: SlotProps): HTMLElement {
-  const el = document.createElement('div');
-  el.dataset.slot = 'tabs-list';
-  el.style.display = 'contents';
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+function TabsList({ children }: SlotProps) {
+  return (
+    <div data-slot="tabs-list" style="display: contents">
+      {children}
+    </div>
+  );
 }
 
-function TabsTrigger({ value, children, class: cls }: TriggerProps): HTMLElement {
-  const el = document.createElement('span');
-  el.dataset.slot = 'tabs-trigger';
-  el.dataset.value = value;
-  el.style.display = 'contents';
-  if (cls) el.dataset.class = cls;
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+function TabsTrigger({ value, children, class: cls }: TriggerProps) {
+  return (
+    <span
+      data-slot="tabs-trigger"
+      data-value={value}
+      data-class={cls || undefined}
+      style="display: contents"
+    >
+      {children}
+    </span>
+  );
 }
 
-function TabsContent({ value, children, class: cls }: ContentProps): HTMLElement {
-  const el = document.createElement('div');
-  el.dataset.slot = 'tabs-content';
-  el.dataset.value = value;
-  el.style.display = 'contents';
-  if (cls) el.dataset.class = cls;
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+function TabsContent({ value, children, class: cls }: ContentProps) {
+  return (
+    <div
+      data-slot="tabs-content"
+      data-value={value}
+      data-class={cls || undefined}
+      style="display: contents"
+    >
+      {children}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -91,20 +91,15 @@ export interface ComposedTabsProps {
 
 export type TabsClassKey = keyof TabsClasses;
 
-function ComposedTabsRoot({
-  children,
-  classes,
-  defaultValue,
-  onValueChange,
-}: ComposedTabsProps): HTMLElement {
+function ComposedTabsRoot({ children, classes, defaultValue, onValueChange }: ComposedTabsProps) {
   // Provide classes via context, then resolve children inside the scope
-  let resolvedNodes: Node[];
+  let resolvedNodes: Node[] = [];
   TabsClassesContext.Provider(classes, () => {
     resolvedNodes = resolveChildren(children);
   });
 
   // Scan for structural slots
-  const { slots } = scanSlots(resolvedNodes!);
+  const { slots } = scanSlots(resolvedNodes);
   const listEntry = slots.get('tabs-list')?.[0];
   const contentEntries = slots.get('tabs-content') ?? [];
 
@@ -159,13 +154,13 @@ function ComposedTabsRoot({
 // Export as callable with sub-component properties
 // ---------------------------------------------------------------------------
 
-export const ComposedTabs: ((props: ComposedTabsProps) => HTMLElement) & {
-  __classKeys?: TabsClassKey;
-  List: typeof TabsList;
-  Trigger: typeof TabsTrigger;
-  Content: typeof TabsContent;
-} = Object.assign(ComposedTabsRoot, {
+export const ComposedTabs = Object.assign(ComposedTabsRoot, {
   List: TabsList,
   Trigger: TabsTrigger,
   Content: TabsContent,
-});
+}) as ((props: ComposedTabsProps) => HTMLElement) & {
+  __classKeys?: TabsClassKey;
+  List: (props: SlotProps) => HTMLElement;
+  Trigger: (props: TriggerProps) => HTMLElement;
+  Content: (props: ContentProps) => HTMLElement;
+};

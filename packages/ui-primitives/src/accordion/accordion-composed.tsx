@@ -40,37 +40,28 @@ interface ItemProps extends SlotProps {
 // Sub-components — structural slot markers
 // ---------------------------------------------------------------------------
 
-function AccordionItem({ value, children }: ItemProps): HTMLElement {
-  const el = document.createElement('div');
-  el.dataset.slot = 'accordion-item';
-  el.dataset.value = value;
-  el.style.display = 'contents';
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+function AccordionItem({ value, children }: ItemProps) {
+  return (
+    <div data-slot="accordion-item" data-value={value} style="display: contents">
+      {children}
+    </div>
+  );
 }
 
-function AccordionTrigger({ children, class: cls }: SlotProps): HTMLElement {
-  const el = document.createElement('span');
-  el.dataset.slot = 'accordion-trigger';
-  el.style.display = 'contents';
-  if (cls) el.dataset.class = cls;
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+function AccordionTrigger({ children, class: cls }: SlotProps) {
+  return (
+    <span data-slot="accordion-trigger" data-class={cls || undefined} style="display: contents">
+      {children}
+    </span>
+  );
 }
 
-function AccordionContent({ children, class: cls }: SlotProps): HTMLElement {
-  const el = document.createElement('div');
-  el.dataset.slot = 'accordion-content';
-  el.style.display = 'contents';
-  if (cls) el.dataset.class = cls;
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+function AccordionContent({ children, class: cls }: SlotProps) {
+  return (
+    <div data-slot="accordion-content" data-class={cls || undefined} style="display: contents">
+      {children}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -93,15 +84,15 @@ function ComposedAccordionRoot({
   type,
   defaultValue,
   onValueChange,
-}: ComposedAccordionProps): HTMLElement {
+}: ComposedAccordionProps) {
   // Provide classes via context, then resolve children inside the scope
-  let resolvedNodes: Node[];
+  let resolvedNodes: Node[] = [];
   AccordionClassesContext.Provider(classes, () => {
     resolvedNodes = resolveChildren(children);
   });
 
   // Scan for item slots
-  const { slots } = scanSlots(resolvedNodes!);
+  const { slots } = scanSlots(resolvedNodes);
   const itemEntries = slots.get('accordion-item') ?? [];
 
   // Create the low-level accordion primitive
@@ -159,13 +150,13 @@ function ComposedAccordionRoot({
 // Export as callable with sub-component properties
 // ---------------------------------------------------------------------------
 
-export const ComposedAccordion: ((props: ComposedAccordionProps) => HTMLElement) & {
-  __classKeys?: AccordionClassKey;
-  Item: typeof AccordionItem;
-  Trigger: typeof AccordionTrigger;
-  Content: typeof AccordionContent;
-} = Object.assign(ComposedAccordionRoot, {
+export const ComposedAccordion = Object.assign(ComposedAccordionRoot, {
   Item: AccordionItem,
   Trigger: AccordionTrigger,
   Content: AccordionContent,
-});
+}) as ((props: ComposedAccordionProps) => HTMLElement) & {
+  __classKeys?: AccordionClassKey;
+  Item: (props: ItemProps) => HTMLElement;
+  Trigger: (props: SlotProps) => HTMLElement;
+  Content: (props: SlotProps) => HTMLElement;
+};

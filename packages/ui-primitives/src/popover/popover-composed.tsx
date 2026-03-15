@@ -29,25 +29,20 @@ interface SlotProps {
 // Sub-components — structural slot markers
 // ---------------------------------------------------------------------------
 
-function PopoverTrigger({ children }: SlotProps): HTMLElement {
-  const el = document.createElement('span');
-  el.dataset.slot = 'popover-trigger';
-  el.style.display = 'contents';
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+function PopoverTrigger({ children }: SlotProps) {
+  return (
+    <span data-slot="popover-trigger" style="display: contents">
+      {children}
+    </span>
+  );
 }
 
-function PopoverContent({ children, class: cls }: SlotProps): HTMLElement {
-  const el = document.createElement('div');
-  el.dataset.slot = 'popover-content';
-  el.style.display = 'contents';
-  if (cls) el.dataset.class = cls;
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+function PopoverContent({ children, class: cls }: SlotProps) {
+  return (
+    <div data-slot="popover-content" data-class={cls || undefined} style="display: contents">
+      {children}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -62,15 +57,8 @@ export interface ComposedPopoverProps {
 
 export type PopoverClassKey = keyof PopoverClasses;
 
-function ComposedPopoverRoot({
-  children,
-  classes,
-  onOpenChange,
-}: ComposedPopoverProps): HTMLElement {
-  const wrapper = document.createElement('div');
-  wrapper.style.display = 'contents';
-
-  // Resolve children
+function ComposedPopoverRoot({ children, classes, onOpenChange }: ComposedPopoverProps) {
+  // Resolve children for slot scanning
   const resolvedNodes = resolveChildren(children);
 
   // Scan for structural slots
@@ -111,8 +99,6 @@ function ComposedPopoverRoot({
     userTrigger.addEventListener('click', () => {
       popover.trigger.click();
     });
-
-    wrapper.appendChild(userTrigger);
   }
 
   // Move content children into the popover's dialog
@@ -122,20 +108,23 @@ function ComposedPopoverRoot({
     }
   }
 
-  wrapper.appendChild(popover.content);
-
-  return wrapper;
+  return (
+    <div style="display: contents">
+      {userTrigger}
+      {popover.content}
+    </div>
+  ) as HTMLDivElement;
 }
 
 // ---------------------------------------------------------------------------
 // Export as callable with sub-component properties
 // ---------------------------------------------------------------------------
 
-export const ComposedPopover: ((props: ComposedPopoverProps) => HTMLElement) & {
-  __classKeys?: PopoverClassKey;
-  Trigger: typeof PopoverTrigger;
-  Content: typeof PopoverContent;
-} = Object.assign(ComposedPopoverRoot, {
+export const ComposedPopover = Object.assign(ComposedPopoverRoot, {
   Trigger: PopoverTrigger,
   Content: PopoverContent,
-});
+}) as ((props: ComposedPopoverProps) => HTMLElement) & {
+  __classKeys?: PopoverClassKey;
+  Trigger: (props: SlotProps) => HTMLElement;
+  Content: (props: SlotProps) => HTMLElement;
+};

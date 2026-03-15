@@ -46,53 +46,45 @@ interface GroupProps extends SlotProps {
 // Sub-components — structural slot markers
 // ---------------------------------------------------------------------------
 
-function SelectTrigger({ children }: SlotProps): HTMLElement {
-  const el = document.createElement('span');
-  el.dataset.slot = 'select-trigger';
-  el.style.display = 'contents';
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+function SelectTrigger({ children }: SlotProps) {
+  return (
+    <span data-slot="select-trigger" style="display: contents">
+      {children}
+    </span>
+  );
 }
 
-function SelectContent({ children }: SlotProps): HTMLElement {
-  const el = document.createElement('div');
-  el.dataset.slot = 'select-content';
-  el.style.display = 'contents';
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+function SelectContent({ children }: SlotProps) {
+  return (
+    <div data-slot="select-content" style="display: contents">
+      {children}
+    </div>
+  );
 }
 
-function SelectItem({ value, children, class: cls }: ItemProps): HTMLElement {
-  const el = document.createElement('div');
-  el.dataset.slot = 'select-item';
-  el.dataset.value = value;
-  el.style.display = 'contents';
-  if (cls) el.dataset.class = cls;
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+function SelectItem({ value, children, class: cls }: ItemProps) {
+  return (
+    <div
+      data-slot="select-item"
+      data-value={value}
+      data-class={cls || undefined}
+      style="display: contents"
+    >
+      {children}
+    </div>
+  );
 }
 
-function SelectGroup({ label, children }: GroupProps): HTMLElement {
-  const el = document.createElement('div');
-  el.dataset.slot = 'select-group';
-  el.dataset.label = label;
-  el.style.display = 'contents';
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+function SelectGroup({ label, children }: GroupProps) {
+  return (
+    <div data-slot="select-group" data-label={label} style="display: contents">
+      {children}
+    </div>
+  );
 }
 
-function SelectSeparator(_props: SlotProps): HTMLElement {
-  const el = document.createElement('hr');
-  el.dataset.slot = 'select-separator';
-  return el;
+function SelectSeparator(_props: SlotProps) {
+  return <hr data-slot="select-separator" />;
 }
 
 // ---------------------------------------------------------------------------
@@ -115,15 +107,15 @@ function ComposedSelectRoot({
   defaultValue,
   placeholder,
   onValueChange,
-}: ComposedSelectProps): HTMLElement {
+}: ComposedSelectProps) {
   // Provide classes via context, then resolve children inside the scope
-  let resolvedNodes: Node[];
+  let resolvedNodes: Node[] = [];
   SelectClassesContext.Provider(classes, () => {
     resolvedNodes = resolveChildren(children);
   });
 
   // Scan for structural slots
-  const { slots } = scanSlots(resolvedNodes!);
+  const { slots } = scanSlots(resolvedNodes);
   const contentEntry = slots.get('select-content')?.[0];
 
   // Create the low-level select primitive
@@ -151,13 +143,12 @@ function ComposedSelectRoot({
     processContentSlots(contentChildren, select, classes);
   }
 
-  // Wrap trigger and content in a container so both are in the DOM
-  const wrapper = document.createElement('div');
-  wrapper.style.display = 'contents';
-  wrapper.appendChild(select.trigger);
-  wrapper.appendChild(select.content);
-
-  return wrapper;
+  return (
+    <div style="display: contents">
+      {select.trigger}
+      {select.content}
+    </div>
+  ) as HTMLDivElement;
 }
 
 function processContentSlots(
@@ -214,17 +205,17 @@ function processContentSlots(
 // Export as callable with sub-component properties
 // ---------------------------------------------------------------------------
 
-export const ComposedSelect: ((props: ComposedSelectProps) => HTMLElement) & {
-  __classKeys?: SelectClassKey;
-  Trigger: typeof SelectTrigger;
-  Content: typeof SelectContent;
-  Item: typeof SelectItem;
-  Group: typeof SelectGroup;
-  Separator: typeof SelectSeparator;
-} = Object.assign(ComposedSelectRoot, {
+export const ComposedSelect = Object.assign(ComposedSelectRoot, {
   Trigger: SelectTrigger,
   Content: SelectContent,
   Item: SelectItem,
   Group: SelectGroup,
   Separator: SelectSeparator,
-});
+}) as ((props: ComposedSelectProps) => HTMLElement) & {
+  __classKeys?: SelectClassKey;
+  Trigger: (props: SlotProps) => HTMLElement;
+  Content: (props: SlotProps) => HTMLElement;
+  Item: (props: ItemProps) => HTMLElement;
+  Group: (props: GroupProps) => HTMLElement;
+  Separator: (props: SlotProps) => HTMLElement;
+};

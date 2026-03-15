@@ -41,99 +41,68 @@ interface SlotProps {
 // Sub-components — structural slot markers
 // ---------------------------------------------------------------------------
 
-function AlertDialogTrigger({ children }: SlotProps): HTMLElement {
-  const el = document.createElement('span');
-  el.dataset.slot = 'alertdialog-trigger';
-  el.style.display = 'contents';
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+function AlertDialogTrigger({ children }: SlotProps) {
+  return (
+    <span data-slot="alertdialog-trigger" style="display: contents">
+      {children}
+    </span>
+  );
 }
 
-function AlertDialogContent({ children, class: cls }: SlotProps): HTMLElement {
-  const el = document.createElement('div');
-  el.dataset.slot = 'alertdialog-content';
-  el.style.display = 'contents';
-  if (cls) el.dataset.class = cls;
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+function AlertDialogContent({ children, class: cls }: SlotProps) {
+  return (
+    <div data-slot="alertdialog-content" data-class={cls || undefined} style="display: contents">
+      {children}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Sub-components — content elements (read classes from context)
 // ---------------------------------------------------------------------------
 
-function AlertDialogTitle({ children, class: cls }: SlotProps): HTMLElement {
+function AlertDialogTitle({ children, class: cls }: SlotProps) {
   const classes = useContext(AlertDialogClassesContext);
-  const el = document.createElement('h2');
   const combined = [classes?.title, cls].filter(Boolean).join(' ');
-  if (combined) el.className = combined;
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+  return <h2 class={combined || undefined}>{children}</h2>;
 }
 
-function AlertDialogDescription({ children, class: cls }: SlotProps): HTMLElement {
+function AlertDialogDescription({ children, class: cls }: SlotProps) {
   const classes = useContext(AlertDialogClassesContext);
-  const el = document.createElement('p');
   const combined = [classes?.description, cls].filter(Boolean).join(' ');
-  if (combined) el.className = combined;
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+  return <p class={combined || undefined}>{children}</p>;
 }
 
-function AlertDialogHeader({ children, class: cls }: SlotProps): HTMLElement {
+function AlertDialogHeader({ children, class: cls }: SlotProps) {
   const classes = useContext(AlertDialogClassesContext);
-  const el = document.createElement('div');
   const combined = [classes?.header, cls].filter(Boolean).join(' ');
-  if (combined) el.className = combined;
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+  return <div class={combined || undefined}>{children}</div>;
 }
 
-function AlertDialogFooter({ children, class: cls }: SlotProps): HTMLElement {
+function AlertDialogFooter({ children, class: cls }: SlotProps) {
   const classes = useContext(AlertDialogClassesContext);
-  const el = document.createElement('div');
   const combined = [classes?.footer, cls].filter(Boolean).join(' ');
-  if (combined) el.className = combined;
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+  return <div class={combined || undefined}>{children}</div>;
 }
 
-function AlertDialogCancel({ children, class: cls }: SlotProps): HTMLElement {
+function AlertDialogCancel({ children, class: cls }: SlotProps) {
   const classes = useContext(AlertDialogClassesContext);
-  const el = document.createElement('button');
-  el.type = 'button';
-  el.dataset.slot = 'alertdialog-cancel';
   const combined = [classes?.cancel, cls].filter(Boolean).join(' ');
-  if (combined) el.className = combined;
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+  return (
+    <button type="button" data-slot="alertdialog-cancel" class={combined || undefined}>
+      {children}
+    </button>
+  );
 }
 
-function AlertDialogAction({ children, class: cls }: SlotProps): HTMLElement {
+function AlertDialogAction({ children, class: cls }: SlotProps) {
   const classes = useContext(AlertDialogClassesContext);
-  const el = document.createElement('button');
-  el.type = 'button';
-  el.dataset.slot = 'alertdialog-action';
   const combined = [classes?.action, cls].filter(Boolean).join(' ');
-  if (combined) el.className = combined;
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+  return (
+    <button type="button" data-slot="alertdialog-action" class={combined || undefined}>
+      {children}
+    </button>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -158,18 +127,15 @@ function ComposedAlertDialogRoot({
   classes,
   onOpenChange,
   onAction,
-}: ComposedAlertDialogProps): HTMLElement {
-  const wrapper = document.createElement('div');
-  wrapper.style.display = 'contents';
-
+}: ComposedAlertDialogProps) {
   // Provide classes via context, then resolve children inside the scope
-  let resolvedNodes: Node[];
+  let resolvedNodes: Node[] = [];
   AlertDialogClassesContext.Provider(classes, () => {
     resolvedNodes = resolveChildren(children);
   });
 
   // Scan for structural slots
-  const { slots } = scanSlots(resolvedNodes!);
+  const { slots } = scanSlots(resolvedNodes);
   const triggerEntry = slots.get('alertdialog-trigger')?.[0];
   const contentEntry = slots.get('alertdialog-content')?.[0];
 
@@ -214,8 +180,6 @@ function ComposedAlertDialogRoot({
         alertDialog.show();
       }
     });
-
-    wrapper.appendChild(userTrigger);
   }
 
   // Move content children into the alert dialog panel
@@ -237,28 +201,20 @@ function ComposedAlertDialogRoot({
     }
   });
 
-  // Portal overlay and content
-  wrapper.appendChild(alertDialog.overlay);
-  wrapper.appendChild(alertDialog.content);
-
-  return wrapper;
+  return (
+    <div style="display: contents">
+      {userTrigger}
+      {alertDialog.overlay}
+      {alertDialog.content}
+    </div>
+  ) as HTMLDivElement;
 }
 
 // ---------------------------------------------------------------------------
 // Export as callable with sub-component properties
 // ---------------------------------------------------------------------------
 
-export const ComposedAlertDialog: ((props: ComposedAlertDialogProps) => HTMLElement) & {
-  __classKeys?: AlertDialogClassKey;
-  Trigger: typeof AlertDialogTrigger;
-  Content: typeof AlertDialogContent;
-  Title: typeof AlertDialogTitle;
-  Description: typeof AlertDialogDescription;
-  Header: typeof AlertDialogHeader;
-  Footer: typeof AlertDialogFooter;
-  Cancel: typeof AlertDialogCancel;
-  Action: typeof AlertDialogAction;
-} = Object.assign(ComposedAlertDialogRoot, {
+export const ComposedAlertDialog = Object.assign(ComposedAlertDialogRoot, {
   Trigger: AlertDialogTrigger,
   Content: AlertDialogContent,
   Title: AlertDialogTitle,
@@ -267,4 +223,14 @@ export const ComposedAlertDialog: ((props: ComposedAlertDialogProps) => HTMLElem
   Footer: AlertDialogFooter,
   Cancel: AlertDialogCancel,
   Action: AlertDialogAction,
-});
+}) as ((props: ComposedAlertDialogProps) => HTMLElement) & {
+  __classKeys?: AlertDialogClassKey;
+  Trigger: (props: SlotProps) => HTMLElement;
+  Content: (props: SlotProps) => HTMLElement;
+  Title: (props: SlotProps) => HTMLElement;
+  Description: (props: SlotProps) => HTMLElement;
+  Header: (props: SlotProps) => HTMLElement;
+  Footer: (props: SlotProps) => HTMLElement;
+  Cancel: (props: SlotProps) => HTMLElement;
+  Action: (props: SlotProps) => HTMLElement;
+};

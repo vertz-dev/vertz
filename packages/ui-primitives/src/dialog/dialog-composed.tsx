@@ -41,91 +41,63 @@ interface SlotProps {
 // Sub-components — structural slot markers
 // ---------------------------------------------------------------------------
 
-function DialogTrigger({ children }: SlotProps): HTMLElement {
-  const el = document.createElement('span');
-  el.dataset.slot = 'dialog-trigger';
-  el.style.display = 'contents';
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+function DialogTrigger({ children }: SlotProps) {
+  return (
+    <span data-slot="dialog-trigger" style="display: contents">
+      {children}
+    </span>
+  );
 }
 
-function DialogContent({ children, class: cls }: SlotProps): HTMLElement {
-  const el = document.createElement('div');
-  el.dataset.slot = 'dialog-content';
-  el.style.display = 'contents';
-  if (cls) el.dataset.class = cls;
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+function DialogContent({ children, class: cls }: SlotProps) {
+  return (
+    <div data-slot="dialog-content" data-class={cls || undefined} style="display: contents">
+      {children}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Sub-components — content elements (read classes from context)
 // ---------------------------------------------------------------------------
 
-function DialogTitle({ children, class: cls }: SlotProps): HTMLElement {
+function DialogTitle({ children, class: cls }: SlotProps) {
   const classes = useContext(DialogClassesContext);
-  const el = document.createElement('h2');
   const combined = [classes?.title, cls].filter(Boolean).join(' ');
-  if (combined) el.className = combined;
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+  return <h2 class={combined || undefined}>{children}</h2>;
 }
 
-function DialogDescription({ children, class: cls }: SlotProps): HTMLElement {
+function DialogDescription({ children, class: cls }: SlotProps) {
   const classes = useContext(DialogClassesContext);
-  const el = document.createElement('p');
   const combined = [classes?.description, cls].filter(Boolean).join(' ');
-  if (combined) el.className = combined;
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+  return <p class={combined || undefined}>{children}</p>;
 }
 
-function DialogHeader({ children, class: cls }: SlotProps): HTMLElement {
+function DialogHeader({ children, class: cls }: SlotProps) {
   const classes = useContext(DialogClassesContext);
-  const el = document.createElement('div');
   const combined = [classes?.header, cls].filter(Boolean).join(' ');
-  if (combined) el.className = combined;
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+  return <div class={combined || undefined}>{children}</div>;
 }
 
-function DialogFooter({ children, class: cls }: SlotProps): HTMLElement {
+function DialogFooter({ children, class: cls }: SlotProps) {
   const classes = useContext(DialogClassesContext);
-  const el = document.createElement('div');
   const combined = [classes?.footer, cls].filter(Boolean).join(' ');
-  if (combined) el.className = combined;
-  for (const node of resolveChildren(children)) {
-    el.appendChild(node);
-  }
-  return el;
+  return <div class={combined || undefined}>{children}</div>;
 }
 
-function DialogClose({ children, class: cls }: SlotProps): HTMLElement {
+function DialogClose({ children, class: cls }: SlotProps) {
   const classes = useContext(DialogClassesContext);
-  const el = document.createElement('button');
-  el.type = 'button';
-  el.dataset.slot = 'dialog-close';
   const combined = [classes?.close, cls].filter(Boolean).join(' ');
-  if (combined) el.className = combined;
-  if (children) {
-    for (const node of resolveChildren(children)) {
-      el.appendChild(node);
-    }
-  } else {
-    el.setAttribute('aria-label', 'Close');
-    el.textContent = '\u00D7'; // × multiplication sign as close fallback
-  }
-  return el;
+  return (
+    <button
+      type="button"
+      data-slot="dialog-close"
+      class={combined || undefined}
+      aria-label={children ? undefined : 'Close'}
+    >
+      {children ?? '\u00D7'}
+    </button>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -139,24 +111,15 @@ export interface ComposedDialogProps {
   closeIcon?: HTMLElement;
 }
 
-function ComposedDialogRoot({
-  children,
-  classes,
-  onOpenChange,
-  closeIcon,
-}: ComposedDialogProps): HTMLElement {
-  // Wrap element to hold everything
-  const wrapper = document.createElement('div');
-  wrapper.style.display = 'contents';
-
+function ComposedDialogRoot({ children, classes, onOpenChange, closeIcon }: ComposedDialogProps) {
   // Provide classes via context, then resolve children inside the scope
-  let resolvedNodes: Node[];
+  let resolvedNodes: Node[] = [];
   DialogClassesContext.Provider(classes, () => {
     resolvedNodes = resolveChildren(children);
   });
 
   // Scan for structural slots
-  const { slots } = scanSlots(resolvedNodes!);
+  const { slots } = scanSlots(resolvedNodes);
   const triggerEntry = slots.get('dialog-trigger')?.[0];
   const contentEntry = slots.get('dialog-content')?.[0];
 
@@ -202,8 +165,6 @@ function ComposedDialogRoot({
         dialog.show();
       }
     });
-
-    wrapper.appendChild(userTrigger);
   }
 
   // Move content children into the dialog panel
@@ -225,11 +186,13 @@ function ComposedDialogRoot({
     dialog.content.appendChild(closeIcon);
   }
 
-  // Portal overlay and content to the wrapper (will be portaled to body in production)
-  wrapper.appendChild(dialog.overlay);
-  wrapper.appendChild(dialog.content);
-
-  return wrapper;
+  return (
+    <div style="display: contents">
+      {userTrigger}
+      {dialog.overlay}
+      {dialog.content}
+    </div>
+  ) as HTMLDivElement;
 }
 
 // ---------------------------------------------------------------------------
@@ -242,16 +205,7 @@ export type DialogClassKey = keyof DialogClasses;
 // Export as callable with sub-component properties
 // ---------------------------------------------------------------------------
 
-export const ComposedDialog: ((props: ComposedDialogProps) => HTMLElement) & {
-  __classKeys?: DialogClassKey;
-  Trigger: typeof DialogTrigger;
-  Content: typeof DialogContent;
-  Title: typeof DialogTitle;
-  Description: typeof DialogDescription;
-  Header: typeof DialogHeader;
-  Footer: typeof DialogFooter;
-  Close: typeof DialogClose;
-} = Object.assign(ComposedDialogRoot, {
+export const ComposedDialog = Object.assign(ComposedDialogRoot, {
   Trigger: DialogTrigger,
   Content: DialogContent,
   Title: DialogTitle,
@@ -259,4 +213,13 @@ export const ComposedDialog: ((props: ComposedDialogProps) => HTMLElement) & {
   Header: DialogHeader,
   Footer: DialogFooter,
   Close: DialogClose,
-});
+}) as ((props: ComposedDialogProps) => HTMLElement) & {
+  __classKeys?: DialogClassKey;
+  Trigger: (props: SlotProps) => HTMLElement;
+  Content: (props: SlotProps) => HTMLElement;
+  Title: (props: SlotProps) => HTMLElement;
+  Description: (props: SlotProps) => HTMLElement;
+  Header: (props: SlotProps) => HTMLElement;
+  Footer: (props: SlotProps) => HTMLElement;
+  Close: (props: SlotProps) => HTMLElement;
+};
