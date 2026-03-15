@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import type { CloudJWTVerifier } from './cloud-jwt-verifier';
-import { resolveSessionForSSR } from './resolve-session-for-ssr';
+import { type ResolveSessionForSSRConfig, resolveSessionForSSR } from './resolve-session-for-ssr';
 import type { SessionPayload } from './types';
 
 // --- Helpers ---
@@ -125,8 +125,21 @@ describe('resolveSessionForSSR config validation', () => {
       expect(() => {
         resolveSessionForSSR({
           cookieName: 'vertz.sid',
-        } as any);
-      }).toThrow();
+        } as ResolveSessionForSSRConfig);
+      }).toThrow('requires either jwtSecret');
+    });
+  });
+
+  describe('Given both jwtSecret and cloudVerifier', () => {
+    it('then throws configuration error at construction time', () => {
+      const verifier = makeMockVerifier(validPayload);
+      expect(() => {
+        resolveSessionForSSR({
+          jwtSecret: 'some-secret',
+          cloudVerifier: verifier,
+          cookieName: 'vertz.sid',
+        });
+      }).toThrow('not both');
     });
   });
 });

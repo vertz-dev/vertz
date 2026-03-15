@@ -193,7 +193,10 @@ export function createAuthProxy(options: {
       delete responseBody!._tokens;
     }
 
-    // Process lifecycle callbacks before stripping _lifecycle
+    // Process lifecycle callbacks before stripping _lifecycle.
+    // Callbacks are fire-and-forget: errors are logged but do NOT prevent
+    // the auth response from reaching the client — the auth operation already
+    // succeeded on the cloud side.
     if (responseBody && lifecycle) {
       const lc = responseBody._lifecycle as
         | {
@@ -209,11 +212,15 @@ export function createAuthProxy(options: {
           | { id: string; email: string; role: string; [key: string]: unknown }
           | undefined;
         if (user) {
-          await lifecycle.onUserCreated({
-            user,
-            provider: lc.provider ?? { id: 'unknown', name: 'Unknown' },
-            profile: lc.rawProfile ?? {},
-          });
+          try {
+            await lifecycle.onUserCreated({
+              user,
+              provider: lc.provider ?? { id: 'unknown', name: 'Unknown' },
+              profile: lc.rawProfile ?? {},
+            });
+          } catch (err) {
+            console.error('[vertz] onUserCreated callback failed:', err);
+          }
         }
       }
 
@@ -223,7 +230,11 @@ export function createAuthProxy(options: {
           | { id: string; email: string; role: string; [key: string]: unknown }
           | undefined;
         if (user) {
-          await lifecycle.onUserAuthenticated(user);
+          try {
+            await lifecycle.onUserAuthenticated(user);
+          } catch (err) {
+            console.error('[vertz] onUserAuthenticated callback failed:', err);
+          }
         }
       }
     }

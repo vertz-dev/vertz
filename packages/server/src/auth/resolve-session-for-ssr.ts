@@ -83,6 +83,9 @@ export function resolveSessionForSSR(
       'resolveSessionForSSR requires either jwtSecret (self-hosted) or cloudVerifier (cloud mode).',
     );
   }
+  if (jwtSecret && cloudVerifier) {
+    throw new Error('resolveSessionForSSR accepts either jwtSecret or cloudVerifier, not both.');
+  }
 
   return async (request: Request): Promise<SSRSessionResult | null> => {
     const cookieHeader = request.headers.get('cookie');
