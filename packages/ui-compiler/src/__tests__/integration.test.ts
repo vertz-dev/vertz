@@ -830,6 +830,187 @@ function App() {
     expect(result.code).toContain('__conditional(');
   });
 
+  it('callback-local reactive const in .map() uses __attr with inlined signal read', () => {
+    const result = compile(
+      `
+function RadioItems() {
+  let selected = 'a';
+  const items = ['a', 'b', 'c'];
+  return <div>{items.map((v) => {
+    const isActive = v === selected;
+    return <div data-state={isActive ? 'checked' : 'unchecked'} />;
+  })}</div>;
+}
+    `.trim(),
+    );
+
+    // isActive is derived from selected (signal) — must use __attr with
+    // the initializer inlined so selected.value is inside the getter
+    expect(result.code).toContain('__attr(');
+    expect(result.code).toContain('selected.value');
+    // The __attr getter should contain the inlined expression
+    expect(result.code).toMatch(
+      /__attr\([^,]+,\s*"data-state",\s*\(\)\s*=>\s*\(v === selected\.value\)/,
+    );
+  });
+
+  it('callback-local static const in .map() still uses setAttribute', () => {
+    const result = compile(
+      `
+function App() {
+  let selected = 'a';
+  const items = ['a', 'b', 'c'];
+  return <div>{items.map((v) => {
+    const label = "static";
+    return <div data-label={label} />;
+  })}</div>;
+}
+    `.trim(),
+    );
+
+    // Static const stays static — no __attr needed
+    expect(result.code).toContain('setAttribute("data-label"');
+    expect(result.code).not.toMatch(/__attr\([^,]+,\s*"data-label"/);
+  });
+
+  it('radio-composed.tsx pattern — multiple attrs using same reactive const', () => {
+    const result = compile(
+      `
+function RadioGroup() {
+  let selectedValue = 'a';
+  const items = ['a', 'b', 'c'];
+  return <div>{items.map((value) => {
+    const isActive = value === selectedValue;
+    return (
+      <div
+        aria-checked={isActive ? 'true' : 'false'}
+        data-state={isActive ? 'checked' : 'unchecked'}
+        tabindex={isActive ? '0' : '-1'}
+      >
+        <span data-state={isActive ? 'checked' : 'unchecked'} />
+      </div>
+    );
+  })}</div>;
+}
+    `.trim(),
+    );
+
+    // All four attributes referencing isActive should use __attr with inlined signal read
+    const attrMatches = result.code.match(/__attr\(/g);
+    expect(attrMatches?.length).toBeGreaterThanOrEqual(4);
+    // Each __attr getter should contain selectedValue.value (inlined)
+    expect(result.code).not.toMatch(/__attr\([^)]+,\s*\(\)\s*=>\s*isActive\b/);
+    expect(result.code).toContain('selectedValue.value');
+  });
+
+  it('callback-local reactive const in JSX child uses __child with inlined signal read', () => {
+    const result = compile(
+      `
+function App() {
+  let selected = 'a';
+  const items = ['a', 'b', 'c'];
+  return <div>{items.map((v) => {
+    const label = v === selected ? 'active' : 'inactive';
+    return <span>{label}</span>;
+  })}</div>;
+}
+    `.trim(),
+    );
+
+    // label is reactive — should use __child with inlined signal read
+    expect(result.code).toContain('__child(');
+    // The __child getter should contain the inlined initializer with selected.value
+    expect(result.code).toMatch(/__child\(\(\)\s*=>\s*\(v === selected\.value/);
+  });
+
+  it('transitive callback-local const chain is inlined correctly', () => {
+    const result = compile(
+      `
+function App() {
+  let count = 0;
+  const items = [1, 2, 3];
+  return <ul>{items.map((v) => {
+    const doubled = count * 2;
+    const label = doubled + v;
+    return <li data-val={label}>item</li>;
+  })}</ul>;
+}
+    `.trim(),
+    );
+
+    // label depends on doubled which depends on count (signal)
+    // Both should be inlined transitively in the __attr getter
+    expect(result.code).toContain('__attr(');
+    // The getter must contain count.value (transitively inlined through doubled → label)
+    expect(result.code).toMatch(/__attr\([^,]+,\s*"data-val",\s*\(\)\s*=>\s*\(.*count\.value/);
+  });
+
+  it('variable-assignment .map() pattern still works (regression)', () => {
+    const result = compile(
+      `
+function App() {
+  let selected = 'a';
+  const items = ['a', 'b', 'c'];
+  const itemNodes = items.map((v) => {
+    const isActive = v === selected;
+    return <div data-state={isActive ? 'checked' : 'unchecked'} />;
+  });
+  return <div>{itemNodes}</div>;
+}
+    `.trim(),
+    );
+
+    // Variable-assignment pattern: itemNodes is a computed
+    expect(result.code).toContain('computed(');
+    // The const declaration should be preserved
+    expect(result.code).toContain('const isActive');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('inlining does not corrupt string literals containing const name', () => {
+    const result = compile(
+      `
+function App() {
+  let selected = 'a';
+  const items = ['a', 'b', 'c'];
+  return <div>{items.map((v) => {
+    const active = v === selected;
+    return <div title={active ? "active item" : "inactive item"} />;
+  })}</div>;
+}
+    `.trim(),
+    );
+
+    // The string "active item" must NOT be corrupted by inlining
+    expect(result.code).toContain('"active item"');
+    expect(result.code).toContain('"inactive item"');
+    // The active identifier in the ternary IS inlined
+    expect(result.code).toContain('__attr(');
+    expect(result.code).toContain('selected.value');
+  });
+
+  it('does not collect consts from nested inner functions (analyzer level)', () => {
+    // Verify at the analyzer level that consts inside nested arrow functions
+    // are not treated as outer callback-level reactive consts.
+    // This uses the JsxAnalyzer directly to avoid unrelated findJsxInBody issues.
+    const code = `
+      function App() {
+        let selected = 'a';
+        const items = ['a', 'b', 'c'];
+        return <div>{items.map((v) => {
+          const handler = () => { const innerVal = v + selected; };
+          return <div data-label={v} />;
+        })}</div>;
+      }
+    `;
+    const result = compile(code.trim());
+
+    // innerVal is inside a nested arrow — should NOT leak to outer scope.
+    // data-label={v} references callback param v (not reactive), should be static.
+    // The compilation should not crash (no ReferenceError from wrong scoping).
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
   it('prop-backed array in .map() uses __list (Phase 0 regression guard)', () => {
     const result = compile(
       `

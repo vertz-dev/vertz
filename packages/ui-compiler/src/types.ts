@@ -120,6 +120,16 @@ export interface ComponentInfo {
   destructuredProps?: DestructuredPropsInfo;
 }
 
+/** Info about a callback-local const to inline in __attr()/__child() getters. */
+export interface CallbackConstInline {
+  /** The const variable name (e.g., 'isActive'). */
+  name: string;
+  /** 0-based start of the initializer expression in source. */
+  initStart: number;
+  /** 0-based end of the initializer expression in source. */
+  initEnd: number;
+}
+
 /** Classification of a JSX expression's reactivity. */
 export interface JsxExpressionInfo {
   /** 0-based start of the expression in source. */
@@ -130,6 +140,14 @@ export interface JsxExpressionInfo {
   reactive: boolean;
   /** Names of reactive variables referenced. */
   deps: string[];
+  /**
+   * Callback-local consts to inline in __attr()/__child() getters.
+   * When present, the JSX transformer replaces these const names with their
+   * initializer text (from MagicString, which has .value transforms) so that
+   * signal reads end up inside the getter — required for __list() render
+   * functions where renderFn is called once per key and DOM elements are reused.
+   */
+  callbackConstInlines?: CallbackConstInline[];
 }
 
 // ─── Reactivity Manifest Types ──────────────────────────────────────

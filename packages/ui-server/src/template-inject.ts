@@ -31,7 +31,7 @@ export function injectIntoTemplate(options: InjectIntoTemplateOptions): string {
   if (template.includes('<!--ssr-outlet-->')) {
     html = template.replace('<!--ssr-outlet-->', appHtml);
   } else {
-    html = template.replace(/(<div[^>]*id="app"[^>]*>)([\s\S]*?)(<\/div>)/, `$1${appHtml}$3`);
+    html = replaceAppDivContent(template, appHtml);
   }
 
   // Inject head tags (e.g., font preloads) before CSS
@@ -64,4 +64,51 @@ export function injectIntoTemplate(options: InjectIntoTemplateOptions): string {
   }
 
   return html;
+}
+
+/**
+ * Replace the content of `<div id="app">...</div>` with new HTML.
+ *
+ * Uses balanced div-tag counting to find the matching closing `</div>`,
+ * handling arbitrarily nested content from pre-rendered SSR templates.
+ * A simple regex with non-greedy `[\s\S]*?` fails because it stops at
+ * the first `</div>` inside nested layout components (e.g., sidebar nav),
+ * orphaning the rest of the old SSR content.
+ */
+function replaceAppDivContent(template: string, appHtml: string): string {
+  const openMatch = template.match(/<div[^>]*id="app"[^>]*>/);
+  if (!openMatch || openMatch.index == null) return template;
+
+  const openTag = openMatch[0];
+  const contentStart = openMatch.index + openTag.length;
+
+  // Walk forward from the opening tag, counting balanced <div>...</div> pairs
+  let depth = 1;
+  let i = contentStart;
+  const len = template.length;
+
+  while (i < len && depth > 0) {
+    if (template[i] === '<') {
+      if (template.startsWith('</div>', i)) {
+        depth--;
+        if (depth === 0) break;
+        i += 6; // skip </div>
+      } else if (template.startsWith('<div', i) && /^<div[\s>]/.test(template.slice(i, i + 5))) {
+        depth++;
+        i += 4; // skip <div
+      } else {
+        i++;
+      }
+    } else {
+      i++;
+    }
+  }
+
+  if (depth !== 0) {
+    // Couldn't find matching </div> — fall back to simple replacement
+    return template;
+  }
+
+  // i points to the '<' of the matching </div>
+  return template.slice(0, contentStart) + appHtml + template.slice(i);
 }

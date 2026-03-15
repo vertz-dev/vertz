@@ -42,6 +42,33 @@ describe('injectIntoTemplate', () => {
     expect(result).not.toContain('<!--ssr-outlet-->');
   });
 
+  it('replaces pre-rendered content inside <div id="app"> with deeply nested divs', () => {
+    // Simulates a real pre-rendered template where </div> tags appear inside
+    // nested layout components (sidebar nav) before the main content area.
+    // The non-greedy regex [\s\S]*? would stop at the first </div> inside
+    // the nav, orphaning the rest of the layout including main-content.
+    const preRenderedTemplate = `<!doctype html>
+<html>
+  <head><title>Test</title></head>
+  <body>
+    <div id="app"><div data-testid="app-root"><div class="shell"><nav><div class="nav-title">App</div><div class="nav-list"><div class="nav-item">Link</div></div></nav><main data-testid="main-content"><p>Old SSR</p></main></div></div></div>
+    <script type="module" src="/assets/entry.js"></script>
+  </body>
+</html>`;
+    const result = injectIntoTemplate({
+      template: preRenderedTemplate,
+      appHtml: '<div data-testid="app-root"><div class="shell"><nav><div class="nav-title">App</div></nav><main data-testid="main-content"><p>New SSR</p></main></div></div>',
+      appCss: '',
+      ssrData: [],
+    });
+    // New SSR content should fully replace old — no orphaned HTML
+    expect(result).toContain('New SSR');
+    expect(result).not.toContain('Old SSR');
+    // Only one main-content should exist
+    const mainCount = (result.match(/data-testid="main-content"/g) || []).length;
+    expect(mainCount).toBe(1);
+  });
+
   it('injects CSS before </head>', () => {
     const css = '<style data-vertz-css>body { margin: 0; }</style>';
     const result = injectIntoTemplate({
