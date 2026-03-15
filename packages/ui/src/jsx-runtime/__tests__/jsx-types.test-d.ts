@@ -32,6 +32,7 @@ void (jsx('p', {}) satisfies HTMLParagraphElement);
 
 // Test with props
 void (jsx('div', { id: 'test', class: 'container' }) satisfies HTMLDivElement);
+void (jsx('div', { id: 'test', className: 'wrapper' }) satisfies HTMLDivElement);
 void (jsx('input', { type: 'text', value: 'hello' }) satisfies HTMLInputElement);
 
 // Test component function - component returns HTMLDivElement so jsx should return HTMLDivElement

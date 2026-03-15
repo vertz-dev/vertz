@@ -37,6 +37,7 @@ export namespace JSX {
   export interface HTMLAttributes {
     [key: string]: unknown;
     children?: unknown;
+    className?: string;
   }
 
   /**
@@ -97,14 +98,21 @@ function jsxImpl(
   const element = svg ? document.createElementNS(SVG_NS, tag) : document.createElement(tag);
 
   // Apply attributes
+  // Resolve className vs class: className takes precedence when both are present
+  const resolvedClass = attrs.className ?? attrs.class;
   for (const [key, value] of Object.entries(attrs)) {
+    if (key === 'className' || key === 'class') {
+      // className/class → DOM class attribute; skip if already handled or null
+      if (key === 'class' && attrs.className != null) continue; // className wins
+      if (resolvedClass != null) {
+        element.setAttribute('class', String(resolvedClass));
+      }
+      continue;
+    }
     if (key.startsWith('on') && typeof value === 'function') {
       // Event handler — addEventListener
       const eventName = key.slice(2).toLowerCase();
       element.addEventListener(eventName, value as EventListener);
-    } else if (key === 'class' && value != null) {
-      // SVGElement.className is read-only (SVGAnimatedString), use setAttribute
-      element.setAttribute('class', String(value));
     } else if (key === 'style' && value != null) {
       element.setAttribute('style', String(value));
     } else if (value === true) {
