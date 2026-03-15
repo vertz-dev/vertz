@@ -153,11 +153,12 @@ function ComposedDropdownMenuRoot({ children, classes, onSelect }: ComposedDropd
     });
   }
 
-  const wrapper = document.createElement('div');
-  wrapper.style.display = 'contents';
-  if (userTrigger) wrapper.appendChild(userTrigger);
-  wrapper.appendChild(menu.content);
-  return wrapper;
+  return (
+    <div style="display: contents">
+      {userTrigger}
+      {menu.content}
+    </div>
+  );
 }
 
 function processMenuSlots(
