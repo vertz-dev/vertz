@@ -1,8 +1,10 @@
 import type { CSSOutput } from '@vertz/ui';
+import type { ElementEventHandlers } from '../event-handlers';
+import { isKnownEventHandler, wireEventHandlers } from '../event-handlers';
 
 type TextareaBlocks = { base: string[] };
 
-export interface TextareaProps {
+export interface TextareaProps extends ElementEventHandlers {
   class?: string;
   name?: string;
   placeholder?: string;
@@ -31,10 +33,11 @@ export function createTextareaComponent(
     if (disabled) el.disabled = true;
     if (value !== undefined) el.value = value;
     if (rows !== undefined) el.rows = rows;
+    wireEventHandlers(el, attrs as ElementEventHandlers);
     for (const [key, val] of Object.entries(attrs)) {
-      if (val !== undefined && val !== null) {
-        el.setAttribute(key, String(val));
-      }
+      if (val === undefined || val === null) continue;
+      if (isKnownEventHandler(key)) continue;
+      el.setAttribute(key, String(val));
     }
     return el;
   };

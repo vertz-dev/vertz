@@ -204,6 +204,45 @@ describe('Input component', () => {
     const el = Input({ value: 'hello' });
     expect(el.value).toBe('hello');
   });
+
+  it('wires onInput as an event listener', () => {
+    let called = false;
+    const el = Input({
+      onInput: () => {
+        called = true;
+      },
+    });
+    el.dispatchEvent(new Event('input'));
+    expect(called).toBe(true);
+  });
+
+  it('wires onChange as an event listener', () => {
+    let called = false;
+    const el = Input({
+      onChange: () => {
+        called = true;
+      },
+    });
+    el.dispatchEvent(new Event('change'));
+    expect(called).toBe(true);
+  });
+
+  it('wires onFocus as an event listener', () => {
+    let called = false;
+    const el = Input({
+      onFocus: () => {
+        called = true;
+      },
+    });
+    el.dispatchEvent(new FocusEvent('focus'));
+    expect(called).toBe(true);
+  });
+
+  it('does not set on* handlers as attributes', () => {
+    const el = Input({ onInput: () => {}, 'aria-label': 'test' });
+    expect(el.getAttribute('oninput')).toBeNull();
+    expect(el.getAttribute('aria-label')).toBe('test');
+  });
 });
 
 describe('Label component', () => {
@@ -353,6 +392,45 @@ describe('Textarea component', () => {
   it('forwards extra HTML attributes', () => {
     const el = Textarea({ 'aria-label': 'description' });
     expect(el.getAttribute('aria-label')).toBe('description');
+  });
+
+  it('wires onInput as an event listener', () => {
+    let called = false;
+    const el = Textarea({
+      onInput: () => {
+        called = true;
+      },
+    });
+    el.dispatchEvent(new Event('input'));
+    expect(called).toBe(true);
+  });
+
+  it('wires onChange as an event listener', () => {
+    let called = false;
+    const el = Textarea({
+      onChange: () => {
+        called = true;
+      },
+    });
+    el.dispatchEvent(new Event('change'));
+    expect(called).toBe(true);
+  });
+
+  it('wires onFocus as an event listener', () => {
+    let called = false;
+    const el = Textarea({
+      onFocus: () => {
+        called = true;
+      },
+    });
+    el.dispatchEvent(new FocusEvent('focus'));
+    expect(called).toBe(true);
+  });
+
+  it('does not set on* handlers as attributes', () => {
+    const el = Textarea({ onInput: () => {}, 'aria-label': 'test' });
+    expect(el.getAttribute('oninput')).toBeNull();
+    expect(el.getAttribute('aria-label')).toBe('test');
   });
 });
 
