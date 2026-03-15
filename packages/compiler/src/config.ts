@@ -26,18 +26,26 @@ export interface CompilerConfig {
   validation: ValidationConfig;
 }
 
+// ── Cloud Config ────────────────────────────────────────────────
+
+export interface CloudConfig {
+  projectId: string;
+}
+
 // ── Vertz Config ────────────────────────────────────────────────
 
 export interface VertzConfig {
   strict?: boolean;
   forceGenerate?: boolean;
   compiler?: Partial<CompilerConfig>;
+  cloud?: CloudConfig;
 }
 
 export interface ResolvedConfig {
   strict: boolean;
   forceGenerate: boolean;
   compiler: CompilerConfig;
+  cloud?: CloudConfig;
 }
 
 export function defineConfig(config: VertzConfig): VertzConfig {
@@ -48,6 +56,7 @@ export function resolveConfig(config?: VertzConfig): ResolvedConfig {
   return {
     strict: config?.strict ?? false,
     forceGenerate: config?.forceGenerate ?? false,
+    ...(config?.cloud ? { cloud: config.cloud } : {}),
     compiler: {
       sourceDir: config?.compiler?.sourceDir ?? 'src',
       outputDir: config?.compiler?.outputDir ?? '.vertz/generated',
