@@ -73,12 +73,12 @@ describe('Link component', () => {
     expect(el.classList.contains('nav-link')).toBe(true);
   });
 
-  test('class prop takes precedence over className', () => {
+  test('className prop takes precedence over class', () => {
     const currentPath = signal('/');
     const navigate = vi.fn();
     const Link = createLink(currentPath, navigate);
 
-    const el = Link({ children: 'Home', class: 'primary', className: 'secondary', href: '/' });
+    const el = Link({ children: 'Home', className: 'primary', class: 'secondary', href: '/' });
 
     expect(el.classList.contains('primary')).toBe(true);
     expect(el.classList.contains('secondary')).toBe(false);
@@ -377,9 +377,9 @@ describe('Link (context-based)', () => {
     expect(el.classList.contains('nav-link')).toBe(true);
   });
 
-  test('class prop takes precedence over className', () => {
+  test('className prop takes precedence over class', () => {
     const el = renderInRouter('/', () =>
-      Link({ children: 'Home', class: 'primary', className: 'secondary', href: '/' }),
+      Link({ children: 'Home', className: 'primary', class: 'secondary', href: '/' }),
     );
     expect(el.classList.contains('primary')).toBe(true);
     expect(el.classList.contains('secondary')).toBe(false);

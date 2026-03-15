@@ -34,22 +34,22 @@ export function TodoForm({ onSuccess }: TodoFormProps = {}) {
       onSubmit={todoForm.onSubmit}
       data-testid="create-todo-form"
     >
-      <div class={styles.row}>
-        <div class={styles.inputWrap}>
+      <div className={styles.row}>
+        <div className={styles.inputWrap}>
           <input
-            class={inputStyles.base}
+            className={inputStyles.base}
             name={todoForm.fields.title}
             type="text"
             placeholder="What needs to be done?"
             data-testid="todo-title-input"
           />
-          <span class={formStyles.error} data-testid="title-error">
+          <span className={formStyles.error} data-testid="title-error">
             {todoForm.title.error}
           </span>
         </div>
         <button
           type="submit"
-          class={button({ intent: 'primary', size: 'md' })}
+          className={button({ intent: 'primary', size: 'md' })}
           data-testid="submit-todo"
           disabled={todoForm.submitting}
         >

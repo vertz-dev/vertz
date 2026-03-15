@@ -8,17 +8,17 @@ export function HomePage() {
 
   return (
     <div>
-      <h1 class={homeStyles.title}>Component Catalog</h1>
-      <p class={homeStyles.subtitle}>
+      <h1 className={homeStyles.title}>Component Catalog</h1>
+      <p className={homeStyles.subtitle}>
         {componentRegistry.length} themed components from @vertz/theme-shadcn
       </p>
-      <div class={homeStyles.grid}>
+      <div className={homeStyles.grid}>
         {categoryOrder.map((cat) => {
           const entries = grouped.get(cat) ?? [];
           return (
             <div
               key={cat}
-              class={homeStyles.categoryCard}
+              className={homeStyles.categoryCard}
               onClick={() => {
                 if (entries.length > 0) {
                   router.navigate({
@@ -27,8 +27,8 @@ export function HomePage() {
                 }
               }}
             >
-              <div class={homeStyles.categoryName}>{categoryLabels[cat]}</div>
-              <div class={homeStyles.categoryCount}>{entries.length} components</div>
+              <div className={homeStyles.categoryName}>{categoryLabels[cat]}</div>
+              <div className={homeStyles.categoryCount}>{entries.length} components</div>
             </div>
           );
         })}

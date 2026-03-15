@@ -7,18 +7,16 @@
  * - variants() for priority badges
  */
 
-import type { Task, TaskPriority, TaskStatus } from "../lib/types";
-import { badge, cardStyles } from "../styles/components";
+import type { Task, TaskPriority, TaskStatus } from '../lib/types';
+import { badge, cardStyles } from '../styles/components';
 
 /** Map priority to badge color. */
-function priorityColor(
-  priority: TaskPriority,
-): "blue" | "green" | "yellow" | "red" {
-  const map: Record<TaskPriority, "blue" | "green" | "yellow" | "red"> = {
-    low: "blue",
-    medium: "yellow",
-    high: "red",
-    urgent: "red",
+function priorityColor(priority: TaskPriority): 'blue' | 'green' | 'yellow' | 'red' {
+  const map: Record<TaskPriority, 'blue' | 'green' | 'yellow' | 'red'> = {
+    low: 'blue',
+    medium: 'yellow',
+    high: 'red',
+    urgent: 'red',
   };
   return map[priority];
 }
@@ -26,19 +24,19 @@ function priorityColor(
 /** Map status to display label. */
 function statusLabel(status: TaskStatus): string {
   const map: Record<TaskStatus, string> = {
-    todo: "To Do",
-    "in-progress": "In Progress",
-    done: "Done",
+    todo: 'To Do',
+    'in-progress': 'In Progress',
+    done: 'Done',
   };
   return map[status];
 }
 
 /** Map status to badge color. */
-function statusColor(status: TaskStatus): "gray" | "blue" | "green" {
-  const map: Record<TaskStatus, "gray" | "blue" | "green"> = {
-    todo: "gray",
-    "in-progress": "blue",
-    done: "green",
+function statusColor(status: TaskStatus): 'gray' | 'blue' | 'green' {
+  const map: Record<TaskStatus, 'gray' | 'blue' | 'green'> = {
+    todo: 'gray',
+    'in-progress': 'blue',
+    done: 'green',
   };
   return map[status];
 }
@@ -56,39 +54,37 @@ export interface TaskCardProps {
 export function TaskCard({ task, onClick }: TaskCardProps) {
   return (
     <article
-      class={cardStyles.root}
+      className={cardStyles.root}
       data-testid={`task-card-${task.id}`}
       role="button"
       tabindex="0"
       style="cursor: pointer; transition: box-shadow 150ms, border-color 150ms"
       onClick={() => onClick(task.id)}
       onKeyDown={(e: KeyboardEvent) => {
-        if (e.key === "Enter" || e.key === " ") {
+        if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           onClick(task.id);
         }
       }}
     >
       <div
-        class={cardStyles.header}
+        className={cardStyles.header}
         style="flex-direction: row; align-items: center; justify-content: space-between"
       >
-        <h3 class={cardStyles.title} style="font-size: 1rem">
+        <h3 className={cardStyles.title} style="font-size: 1rem">
           {task.title}
         </h3>
-        <span class={badge({ color: priorityColor(task.priority) })}>
-          {task.priority}
-        </span>
+        <span className={badge({ color: priorityColor(task.priority) })}>{task.priority}</span>
       </div>
-      <div class={cardStyles.content}>
-        <p class={cardStyles.description}>
+      <div className={cardStyles.content}>
+        <p className={cardStyles.description}>
           {task.description.length > 120
             ? `${task.description.slice(0, 120)}...`
             : task.description}
         </p>
       </div>
-      <div class={cardStyles.footer} style="justify-content: space-between">
-        <span class={badge({ color: statusColor(task.status) })}>
+      <div className={cardStyles.footer} style="justify-content: space-between">
+        <span className={badge({ color: statusColor(task.status) })}>
           {statusLabel(task.status)}
         </span>
         <span style="font-size: 0.75rem; color: var(--color-muted-foreground)">

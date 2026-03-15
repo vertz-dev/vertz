@@ -15,6 +15,8 @@ export interface BreadcrumbItem {
 export interface BreadcrumbProps {
   items: BreadcrumbItem[];
   separator?: string;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 
@@ -22,13 +24,14 @@ export function createBreadcrumbComponent(
   styles: BreadcrumbStyleClasses,
 ): (props: BreadcrumbProps) => HTMLElement {
   return function Breadcrumb(props: BreadcrumbProps) {
-    const { items, separator = '/', class: className } = props;
+    const { items, separator = '/', className, class: classProp } = props;
+    const effectiveClass = className ?? classProp;
 
     const nav = document.createElement('nav');
     nav.setAttribute('aria-label', 'Breadcrumb');
     if (styles.nav) nav.className = styles.nav;
-    if (className) {
-      nav.className = [nav.className, className].filter(Boolean).join(' ');
+    if (effectiveClass) {
+      nav.className = [nav.className, effectiveClass].filter(Boolean).join(' ');
     }
 
     const ol = document.createElement('ol');

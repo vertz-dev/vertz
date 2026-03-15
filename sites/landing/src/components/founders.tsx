@@ -63,7 +63,7 @@ const FOUNDERS: Founder[] = [
 function FounderPhoto({ name }: { name: string }) {
   if (name === 'Vinicius Dacal') {
     return (
-      <div class={s.imgWrap}>
+      <div className={s.imgWrap}>
         <Image
           src="/public/viniciusdacal.jpg"
           alt="Vinicius Dacal"
@@ -76,7 +76,7 @@ function FounderPhoto({ name }: { name: string }) {
     );
   }
   return (
-    <div class={s.imgWrap}>
+    <div className={s.imgWrap}>
       <Image
         src="/public/matheuspoleza.jpg"
         alt="Matheus Poleza"
@@ -93,29 +93,29 @@ export function Founders() {
   return (
     <section
       id="founders"
-      class={s.section}
+      className={s.section}
       style="background: #0e0e11; border-top: 1px solid rgba(255,255,255,0.02)"
     >
-      <div class={s.container}>
-        <p class={s.intro}>
+      <div className={s.container}>
+        <p className={s.intro}>
           We spent years stitching together ORMs, API frameworks, validation libraries, and UI
           toolkits — and watching them drift apart. We built Vertz so the next team doesn't have to.
         </p>
 
-        <div class={s.grid}>
+        <div className={s.grid}>
           {FOUNDERS.map((f) => (
-            <div key={f.name} class={s.card}>
+            <div key={f.name} className={s.card}>
               <FounderPhoto name={f.name} />
-              <p class={s.name}>{f.name}</p>
-              <p class={s.role} style="font-family: var(--font-mono)">
+              <p className={s.name}>{f.name}</p>
+              <p className={s.role} style="font-family: var(--font-mono)">
                 Co-founder
               </p>
-              <p class={s.bio}>{f.bio}</p>
+              <p className={s.bio}>{f.bio}</p>
               <a
                 href={f.x.url}
                 target="_blank"
                 rel="noopener"
-                class={s.socialLink}
+                className={s.socialLink}
                 style="font-family: var(--font-mono)"
               >
                 <TwitterIcon size={16} />

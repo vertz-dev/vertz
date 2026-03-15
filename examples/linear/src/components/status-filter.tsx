@@ -39,11 +39,11 @@ interface StatusFilterProps {
 
 export function StatusFilter({ value, onChange }: StatusFilterProps) {
   return (
-    <div class={styles.container}>
+    <div className={styles.container}>
       {filterStatuses.map((s) => (
         <button
           type="button"
-          class={s.value === value ? styles.active : styles.button}
+          className={s.value === value ? styles.active : styles.button}
           aria-pressed={s.value === value ? 'true' : 'false'}
           onClick={() => onChange(s.value)}
           key={s.value}

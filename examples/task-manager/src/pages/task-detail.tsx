@@ -98,23 +98,23 @@ export function TaskDetailPage() {
       <div data-testid="task-content">
         <button
           type="button"
-          class={button({ intent: 'ghost', size: 'sm' })}
+          className={button({ intent: 'ghost', size: 'sm' })}
           style="margin-bottom: 1rem"
           onClick={() => navigate({ to: '/' })}
         >
           <ArrowLeftIcon size={14} />
           Back to Tasks
         </button>
-        <div class={detailStyles.header}>
-          <div class={detailStyles.titleArea}>
-            <h1 class={detailStyles.title} data-testid="task-title">
+        <div className={detailStyles.header}>
+          <div className={detailStyles.titleArea}>
+            <h1 className={detailStyles.title} data-testid="task-title">
               {task.title}
             </h1>
-            <div class={detailStyles.meta}>
+            <div className={detailStyles.meta}>
               {`Created ${new Date(task.createdAt).toLocaleDateString()} · Updated ${new Date(task.updatedAt).toLocaleDateString()}`}
             </div>
           </div>
-          <div class={detailStyles.actions}>
+          <div className={detailStyles.actions}>
             <ConfirmDialog
               triggerLabel="Delete"
               title="Delete Task"
@@ -131,9 +131,9 @@ export function TaskDetailPage() {
             />
           </div>
         </div>
-        <div class={detailStyles.statusBar} data-testid="status-bar">
+        <div className={detailStyles.statusBar} data-testid="status-bar">
           <span
-            class={badge({
+            className={badge({
               color:
                 task.status === 'done' ? 'green' : task.status === 'in-progress' ? 'blue' : 'gray',
             })}
@@ -148,7 +148,7 @@ export function TaskDetailPage() {
             <button
               type="button"
               key={tr.status}
-              class={button({ intent: 'secondary', size: 'sm' })}
+              className={button({ intent: 'secondary', size: 'sm' })}
               onClick={async () => {
                 const result = await api.tasks.update(taskId, { status: tr.status });
                 if (!result.ok) {
@@ -171,7 +171,7 @@ export function TaskDetailPage() {
               type="button"
               role="tab"
               aria-selected={activeTab === 'details' ? 'true' : 'false'}
-              class={button({
+              className={button({
                 intent: activeTab === 'details' ? 'primary' : 'ghost',
                 size: 'sm',
               })}
@@ -185,7 +185,7 @@ export function TaskDetailPage() {
               type="button"
               role="tab"
               aria-selected={activeTab === 'activity' ? 'true' : 'false'}
-              class={button({
+              className={button({
                 intent: activeTab === 'activity' ? 'primary' : 'ghost',
                 size: 'sm',
               })}
@@ -197,15 +197,15 @@ export function TaskDetailPage() {
             </button>
           </div>
           {activeTab === 'details' && (
-            <div class={detailStyles.section}>
-              <h3 class={detailStyles.sectionTitle}>Description</h3>
-              <div class={detailStyles.description} data-testid="task-description">
+            <div className={detailStyles.section}>
+              <h3 className={detailStyles.sectionTitle}>Description</h3>
+              <div className={detailStyles.description} data-testid="task-description">
                 {task.description}
               </div>
             </div>
           )}
           {activeTab === 'activity' && (
-            <div class={detailStyles.timeline}>
+            <div className={detailStyles.timeline}>
               No activity yet. Status changes and comments will appear here.
             </div>
           )}
@@ -215,7 +215,7 @@ export function TaskDetailPage() {
   });
 
   return (
-    <div class={detailStyles.page} data-testid="task-detail-page">
+    <div className={detailStyles.page} data-testid="task-detail-page">
       {taskContent}
     </div>
   );

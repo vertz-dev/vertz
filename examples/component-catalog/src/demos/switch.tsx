@@ -6,24 +6,24 @@ const { switch: createSwitch } = themeComponents.primitives;
 
 export function SwitchDemo() {
   return (
-    <div class={demoStyles.col}>
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>Default</div>
-        <div class={demoStyles.row}>
+    <div className={demoStyles.col}>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Default</div>
+        <div className={demoStyles.row}>
           {createSwitch({})}
           <Label>Airplane mode</Label>
         </div>
       </div>
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>Checked by default</div>
-        <div class={demoStyles.row}>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Checked by default</div>
+        <div className={demoStyles.row}>
           {createSwitch({ defaultChecked: true })}
           <Label>Dark mode</Label>
         </div>
       </div>
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>Small size</div>
-        <div class={demoStyles.row}>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Small size</div>
+        <div className={demoStyles.row}>
           {createSwitch({ size: 'sm' })}
           <Label>Compact</Label>
         </div>

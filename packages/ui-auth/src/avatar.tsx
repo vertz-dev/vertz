@@ -12,6 +12,8 @@ export interface AvatarProps {
   alt?: string;
   size?: 'sm' | 'md' | 'lg';
   fallback?: (() => unknown) | unknown;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 
@@ -20,8 +22,10 @@ export function Avatar({
   alt,
   size = 'md',
   fallback,
-  class: className,
+  className,
+  class: classProp,
 }: AvatarProps): JSX.Element {
+  const effectiveClass = className ?? classProp;
   let failedSrc = '';
   const sizeConfig = sizes[size] ?? sizes.md;
   const containerStyle = `display:inline-flex;align-items:center;justify-content:center;border-radius:9999px;overflow:hidden;flex-shrink:0;vertical-align:middle;width:${sizeConfig.width};height:${sizeConfig.height}`;
@@ -32,7 +36,7 @@ export function Avatar({
     : 'display:none';
 
   return (
-    <div class={className} style={containerStyle}>
+    <div className={effectiveClass} style={containerStyle}>
       <img
         src={src}
         alt={alt ?? ''}

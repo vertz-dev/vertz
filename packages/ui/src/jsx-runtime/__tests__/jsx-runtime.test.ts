@@ -191,6 +191,28 @@ describe('JSX Runtime (Client)', () => {
     });
   });
 
+  describe('className prop', () => {
+    it('should set DOM class attribute from className', () => {
+      const el = jsx('div', { className: 'wrapper' });
+      expect(el.getAttribute('class')).toBe('wrapper');
+    });
+
+    it('should still set DOM class attribute from deprecated class prop', () => {
+      const el = jsx('div', { class: 'container' });
+      expect(el.getAttribute('class')).toBe('container');
+    });
+
+    it('should give className precedence when both className and class are present', () => {
+      const el = jsx('div', { className: 'primary', class: 'secondary' });
+      expect(el.getAttribute('class')).toBe('primary');
+    });
+
+    it('should not set a literal className attribute on the DOM element', () => {
+      const el = jsx('div', { className: 'test' });
+      expect(el.hasAttribute('className')).toBe(false);
+    });
+  });
+
   describe('edge cases', () => {
     it('should handle empty props object', () => {
       const el = jsx('div', {});

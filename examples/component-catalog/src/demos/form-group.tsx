@@ -5,16 +5,16 @@ const { FormGroup: FormGroupSuite, Label, Input } = themeComponents;
 
 export function FormGroupDemo() {
   return (
-    <div class={demoStyles.col}>
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>Default form group</div>
+    <div className={demoStyles.col}>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Default form group</div>
         <FormGroupSuite.FormGroup>
           <Label>Username</Label>
           <Input name="username" placeholder="Enter username" />
         </FormGroupSuite.FormGroup>
       </div>
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>With error</div>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>With error</div>
         <FormGroupSuite.FormGroup>
           <Label>Email</Label>
           <Input name="email" placeholder="Enter email" />

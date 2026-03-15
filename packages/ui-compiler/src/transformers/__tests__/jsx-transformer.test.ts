@@ -71,7 +71,7 @@ describe('JsxTransformer', () => {
       { name: 'cls', kind: 'signal', start: 0, end: 0 },
     ]);
     expect(result).toContain('__attr(');
-    expect(result).toContain('"className"');
+    expect(result).toContain('"class"');
     expect(result).toContain('() =>');
   });
 

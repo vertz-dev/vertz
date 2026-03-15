@@ -47,41 +47,40 @@ export function TodoListPage() {
   const todosQuery = query(api.todos.list());
 
   return (
-    <div class={pageStyles.container} data-testid="todo-list-page">
+    <div className={pageStyles.container} data-testid="todo-list-page">
       <TodoForm />
 
-      <div class={pageStyles.listContainer} style={todosQuery.revalidating ? 'opacity: 0.6' : ''}>
+      <div
+        className={pageStyles.listContainer}
+        style={todosQuery.revalidating ? 'opacity: 0.6' : ''}
+      >
         {queryMatch(todosQuery, {
           loading: () => (
-            <div data-testid="loading" class={pageStyles.loading}>
+            <div data-testid="loading" className={pageStyles.loading}>
               Loading todos...
             </div>
           ),
           error: (err) => (
-            <div class={pageStyles.error} data-testid="error">
+            <div className={pageStyles.error} data-testid="error">
               {err instanceof Error ? err.message : String(err)}
             </div>
           ),
           data: (response) => (
             <>
               {response.items.length === 0 && (
-                <div class={emptyStateStyles.container}>
-                  <h3 class={emptyStateStyles.heading}>No todos yet</h3>
-                  <p class={emptyStateStyles.description}>
+                <div className={emptyStateStyles.container}>
+                  <h3 className={emptyStateStyles.heading}>No todos yet</h3>
+                  <p className={emptyStateStyles.description}>
                     Add your first todo above to get started.
                   </p>
                 </div>
               )}
-              <div data-testid="todo-list" class={pageStyles.todoList}>
+              <div data-testid="todo-list" className={pageStyles.todoList}>
                 <ListTransition
                   each={response.items}
                   keyFn={(todo: TodosResponse) => todo.id}
                   children={(todo: TodosResponse) => (
-                    <TodoItem
-                      id={todo.id}
-                      title={todo.title}
-                      completed={todo.completed}
-                    />
+                    <TodoItem id={todo.id} title={todo.title} completed={todo.completed} />
                   )}
                 />
               </div>

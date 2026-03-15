@@ -7,7 +7,7 @@ const s = css({
 export function VertzLogo() {
   return (
     <svg
-      class={s.logo}
+      className={s.logo}
       viewBox="0 0 689 272"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"

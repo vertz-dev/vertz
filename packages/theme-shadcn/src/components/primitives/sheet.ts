@@ -32,6 +32,8 @@ export interface SheetRootProps {
 
 export interface SheetSlotProps {
   children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 

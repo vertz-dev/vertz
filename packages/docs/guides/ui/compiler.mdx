@@ -53,7 +53,7 @@ JSX is compiled into direct DOM creation with reactive bindings:
 
 ```tsx
 // You write:
-<div class={styles.card}>{title}</div>
+<div className={styles.card}>{title}</div>
 
 // Compiler outputs:
 const el = document.createElement('div');
@@ -96,12 +96,12 @@ You write idiomatic destructured parameters — the compiler reverses them to pr
 ```tsx
 // You write:
 function TaskCard({ title, completed }: TaskCardProps) {
-  return <div class={completed ? 'done' : ''}>{title}</div>;
+  return <div className={completed ? 'done' : ''}>{title}</div>;
 }
 
 // Compiler outputs:
 function TaskCard(__props: TaskCardProps) {
-  return <div class={__props.completed ? 'done' : ''}>{__props.title}</div>;
+  return <div className={__props.completed ? 'done' : ''}>{__props.title}</div>;
 }
 ```
 

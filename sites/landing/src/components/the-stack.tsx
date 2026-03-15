@@ -95,24 +95,24 @@ const LAYERS = [
 
 export function TheStack() {
   return (
-    <section class={s.section}>
-      <div class={s.container}>
-        <p class={s.label} style="font-family: var(--font-mono)">
+    <section className={s.section}>
+      <div className={s.container}>
+        <p className={s.label} style="font-family: var(--font-mono)">
           The stack
         </p>
-        <h2 class={s.heading} style="font-family: var(--font-display)">
+        <h2 className={s.heading} style="font-family: var(--font-display)">
           One framework. Not fifteen npm installs.
         </h2>
-        <p class={s.subtitle}>Every layer works together because they were built together.</p>
+        <p className={s.subtitle}>Every layer works together because they were built together.</p>
 
-        <div class={s.list}>
+        <div className={s.list}>
           {LAYERS.map((layer) => (
-            <div key={layer.pkg} class={s.row} style="border-bottom: 1px solid #1e1e22">
-              <div class={s.pkg} style={`font-family: var(--font-mono); color: ${layer.color}`}>
+            <div key={layer.pkg} className={s.row} style="border-bottom: 1px solid #1e1e22">
+              <div className={s.pkg} style={`font-family: var(--font-mono); color: ${layer.color}`}>
                 {layer.pkg}
               </div>
-              <div class={s.what}>{layer.what}</div>
-              <div class={s.replaces} style="font-family: var(--font-mono)">
+              <div className={s.what}>{layer.what}</div>
+              <div className={s.replaces} style="font-family: var(--font-mono)">
                 replaces {layer.replaces}
               </div>
             </div>

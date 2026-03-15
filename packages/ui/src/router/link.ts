@@ -49,13 +49,13 @@ export interface LinkProps<T extends Record<string, RouteConfigLike> = RouteDefi
   children: string | Node | (() => string | Node);
   /** Class applied when the link's href matches the current path. */
   activeClass?: string;
-  /** Static class for the anchor element. */
-  class?: string;
-  /**
-   * Static class name for the anchor element.
-   * @deprecated Use `class` instead. Will be removed in v1.
-   */
+  /** Static class name for the anchor element. */
   className?: string;
+  /**
+   * Static class for the anchor element.
+   * @deprecated Use `className` instead.
+   */
+  class?: string;
   /** Prefetch strategy. 'hover' triggers server pre-fetch on mouseenter/focus. */
   prefetch?: 'hover';
 }
@@ -100,7 +100,7 @@ export function createLink(
     };
 
     // Build static props for the anchor element
-    const effectiveClass = classProp ?? className;
+    const effectiveClass = className ?? classProp;
     const props: Record<string, string> = { href: safeHref };
     if (effectiveClass) {
       props.class = effectiveClass;
@@ -177,7 +177,7 @@ export function Link({
     router.navigate({ to: safeHref });
   };
 
-  const effectiveClass = classProp ?? className;
+  const effectiveClass = className ?? classProp;
   const props: Record<string, string> = { href: safeHref };
   if (effectiveClass) {
     props.class = effectiveClass;

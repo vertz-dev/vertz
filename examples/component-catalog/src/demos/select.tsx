@@ -5,9 +5,9 @@ const { Select } = themeComponents.primitives;
 
 export function SelectDemo() {
   return (
-    <div class={demoStyles.col}>
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>Basic select</div>
+    <div className={demoStyles.col}>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Basic select</div>
         <div>
           <Select defaultValue="Select a fruit...">
             <Select.Content>
@@ -19,8 +19,8 @@ export function SelectDemo() {
           </Select>
         </div>
       </div>
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>With groups</div>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>With groups</div>
         <div>
           <Select defaultValue="Select a food...">
             <Select.Content>

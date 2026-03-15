@@ -11,10 +11,10 @@ export function ToastDemo() {
   document.body.appendChild(t.region);
 
   return (
-    <div class={demoStyles.col}>
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>Trigger toast</div>
-        <div class={demoStyles.row}>
+    <div className={demoStyles.col}>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Trigger toast</div>
+        <div className={demoStyles.row}>
           <Button
             intent="outline"
             size="md"

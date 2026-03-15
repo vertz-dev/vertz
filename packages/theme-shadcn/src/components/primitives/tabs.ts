@@ -20,18 +20,24 @@ export interface TabsRootProps {
 
 export interface TabsSlotProps {
   children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 
 export interface TabsTriggerProps {
   value: string;
   children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 
 export interface TabsContentProps {
   value: string;
   children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 

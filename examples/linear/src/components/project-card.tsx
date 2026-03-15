@@ -20,10 +20,10 @@ const styles = css({
 
 export function ProjectCard({ project }: { project: Project }) {
   return (
-    <div class={styles.card}>
-      <div class={styles.name}>{project.name}</div>
-      <div class={styles.key}>{project.key}</div>
-      {project.description && <p class={styles.description}>{project.description}</p>}
+    <div className={styles.card}>
+      <div className={styles.name}>{project.name}</div>
+      <div className={styles.key}>{project.key}</div>
+      {project.description && <p className={styles.description}>{project.description}</p>}
     </div>
   );
 }

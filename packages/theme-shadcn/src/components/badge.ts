@@ -7,6 +7,8 @@ type BadgeVariants = {
 
 export interface BadgeProps {
   color?: string;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
   children?: ChildValue;
 }
@@ -20,9 +22,15 @@ export function createBadgeComponent(
     yellow: 'background-color: oklch(0.75 0.15 85); color: oklch(0.25 0.05 85);',
   };
 
-  return function Badge({ color, class: className, children }: BadgeProps): HTMLSpanElement {
+  return function Badge({
+    color,
+    className,
+    class: classProp,
+    children,
+  }: BadgeProps): HTMLSpanElement {
+    const effectiveClass = className ?? classProp;
     const el = document.createElement('span');
-    el.className = [badgeStyles({ color }), className].filter(Boolean).join(' ');
+    el.className = [badgeStyles({ color }), effectiveClass].filter(Boolean).join(' ');
     const inlineStyle = color ? colorStyles[color] : undefined;
     if (inlineStyle) {
       el.style.cssText = inlineStyle;

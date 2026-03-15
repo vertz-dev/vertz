@@ -13,13 +13,16 @@ const appDef = vertz.moduleDef({ name: 'app' });
 // Router with API route
 // ---------------------------------------------------------------------------
 
-const appRouter = appDef.router({ prefix: '' }).get('/api/health', {
-  handler: async () => {
-    return { status: 'ok' };
-  },
-}).get('/', {
-  handler: async () => {
-    const html = `<!DOCTYPE html>
+const appRouter = appDef
+  .router({ prefix: '' })
+  .get('/api/health', {
+    handler: async () => {
+      return { status: 'ok' };
+    },
+  })
+  .get('/', {
+    handler: async () => {
+      const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <title>Vertz SSR Demo</title>
@@ -35,13 +38,13 @@ const appRouter = appDef.router({ prefix: '' }).get('/api/health', {
 </body>
 </html>`;
 
-    return new Response(html, {
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-      },
-    });
-  },
-});
+      return new Response(html, {
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+        },
+      });
+    },
+  });
 
 // ---------------------------------------------------------------------------
 // Module

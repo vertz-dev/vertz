@@ -5,10 +5,10 @@ const { progress } = themeComponents.primitives;
 
 export function ProgressDemo() {
   return (
-    <div class={demoStyles.col}>
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>Progress bars</div>
-        <div class={demoStyles.col}>
+    <div className={demoStyles.col}>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Progress bars</div>
+        <div className={demoStyles.col}>
           <div>
             <span style="color: var(--color-muted-foreground); font-size: 12px">0%</span>
             {progress({ defaultValue: 0 }).root}

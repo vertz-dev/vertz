@@ -269,7 +269,7 @@ Never use \`appendChild\`, \`innerHTML\`, \`textContent\`, \`document.createElem
 
 \`\`\`tsx
 // RIGHT
-return <div class={styles.panel}>{title}</div>;
+return <div className={styles.panel}>{title}</div>;
 
 // WRONG — no imperative DOM
 const el = document.createElement('div');
@@ -291,7 +291,7 @@ TaskCard({ task, onClick: handleClick });
 \`\`\`tsx
 {isLoading && <div>Loading...</div>}
 
-{error ? <div class={styles.error}>{error.message}</div> : <div>{content}</div>}
+{error ? <div className={styles.error}>{error.message}</div> : <div>{content}</div>}
 
 {tasks.map((task) => (
   <TaskItem key={task.id} task={task} />
@@ -349,8 +349,8 @@ const { AlertDialog } = themeComponents.primitives;
 <Input placeholder="Enter text" />
 
 // WRONG — raw HTML with manual styles
-<button class={button({ intent: 'primary', size: 'md' })}>Submit</button>
-<input class={inputStyles.base} placeholder="Enter text" />
+<button className={button({ intent: 'primary', size: 'md' })}>Submit</button>
+<input className={inputStyles.base} placeholder="Enter text" />
 \`\`\`
 
 ### Available Components
@@ -409,7 +409,7 @@ const styles = css({
   heading: ['font:xl', 'font:bold', 'text:foreground'],
 });
 
-return <div class={styles.container}>...</div>;
+return <div className={styles.container}>...</div>;
 \`\`\`
 
 ### Style Tokens
@@ -774,11 +774,11 @@ export function App() {
   return (
     <div data-testid="app-root">
       <ThemeProvider theme="light">
-        <div class={styles.shell}>
-          <header class={styles.header}>
-            <div class={styles.title}>My Vertz App</div>
+        <div className={styles.shell}>
+          <header className={styles.header}>
+            <div className={styles.title}>My Vertz App</div>
           </header>
-          <main class={styles.main}>
+          <main className={styles.main}>
             <HomePage />
           </main>
         </div>
@@ -912,14 +912,14 @@ function TaskItem({ id, title, completed }: TaskItemProps) {
   };
 
   return (
-    <div class={styles.item}>
+    <div className={styles.item}>
       <input
         type="checkbox"
-        class={styles.checkbox}
+        className={styles.checkbox}
         checked={completed}
         onChange={handleToggle}
       />
-      <span class={completed ? styles.labelDone : styles.label}>
+      <span className={completed ? styles.labelDone : styles.label}>
         {title}
       </span>
       <Button intent="ghost" size="sm" onClick={handleDelete}>Delete</Button>
@@ -935,22 +935,22 @@ export function HomePage() {
   });
 
   return (
-    <div class={styles.container} data-testid="home-page">
-      <h1 class={styles.heading}>Tasks</h1>
+    <div className={styles.container} data-testid="home-page">
+      <h1 className={styles.heading}>Tasks</h1>
 
       <form
-        class={styles.form}
+        className={styles.form}
         action={taskForm.action}
         method={taskForm.method}
         onSubmit={taskForm.onSubmit}
       >
-        <div class={styles.inputWrap}>
+        <div className={styles.inputWrap}>
           <input
             name={taskForm.fields.title}
-            class={styles.input}
+            className={styles.input}
             placeholder="What needs to be done?"
           />
-          <span class={styles.fieldError}>
+          <span className={styles.fieldError}>
             {taskForm.title.error}
           </span>
         </div>
@@ -961,21 +961,21 @@ export function HomePage() {
 
       {queryMatch(tasksQuery, {
         loading: () => (
-          <div class={styles.loading}>Loading tasks...</div>
+          <div className={styles.loading}>Loading tasks...</div>
         ),
         error: (err) => (
-          <div class={styles.error}>
+          <div className={styles.error}>
             {err instanceof Error ? err.message : String(err)}
           </div>
         ),
         data: (response) => (
           <>
             {response.items.length === 0 && (
-              <div class={styles.empty}>
+              <div className={styles.empty}>
                 No tasks yet. Add one above!
               </div>
             )}
-            <div data-testid="task-list" class={styles.list}>
+            <div data-testid="task-list" className={styles.list}>
               <ListTransition
                 each={response.items}
                 keyFn={(task) => task.id}
@@ -989,7 +989,7 @@ export function HomePage() {
               />
             </div>
             {response.items.length > 0 && (
-              <div class={styles.count}>
+              <div className={styles.count}>
                 {response.items.filter((t) => !t.completed).length} remaining
               </div>
             )}

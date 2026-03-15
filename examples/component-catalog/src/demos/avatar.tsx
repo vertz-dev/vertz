@@ -5,10 +5,10 @@ const { Avatar: AvatarSuite } = themeComponents;
 
 export function AvatarDemo() {
   return (
-    <div class={demoStyles.col}>
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>With fallback</div>
-        <div class={demoStyles.row}>
+    <div className={demoStyles.col}>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>With fallback</div>
+        <div className={demoStyles.row}>
           <AvatarSuite.Avatar>
             <AvatarSuite.AvatarFallback>JD</AvatarSuite.AvatarFallback>
           </AvatarSuite.Avatar>

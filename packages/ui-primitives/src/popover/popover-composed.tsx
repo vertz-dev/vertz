@@ -22,6 +22,8 @@ export interface PopoverClasses {
 
 interface SlotProps {
   children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 
@@ -37,9 +39,14 @@ function PopoverTrigger({ children }: SlotProps) {
   );
 }
 
-function PopoverContent({ children, class: cls }: SlotProps) {
+function PopoverContent({ children, className: cls, class: classProp }: SlotProps) {
+  const effectiveCls = cls ?? classProp;
   return (
-    <div data-slot="popover-content" data-class={cls || undefined} style="display: contents">
+    <div
+      data-slot="popover-content"
+      data-class={effectiveCls || undefined}
+      style="display: contents"
+    >
       {children}
     </div>
   );

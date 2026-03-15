@@ -86,12 +86,12 @@ indicator.setAttribute('data-part', 'indicator');
 root.appendChild(indicator);
 
 // RIGHT
-return <div class={styles.panel}>{title}</div>;
+return <div className={styles.panel}>{title}</div>;
 
 // RIGHT — in ui-primitives
 return (
-  <button role="checkbox" class={classes?.root}>
-    <span data-part="indicator" class={classes?.indicator} />
+  <button role="checkbox" className={classes?.root}>
+    <span data-part="indicator" className={classes?.indicator} />
   </button>
 );
 ```
@@ -118,7 +118,7 @@ const card = TaskCard({ task, onClick: handleClick });
 
 <div
   aria-hidden={isOpen ? 'false' : 'true'}
-  class={button({ intent: isActive ? 'primary' : 'ghost', size: 'sm' })}
+  className={button({ intent: isActive ? 'primary' : 'ghost', size: 'sm' })}
   disabled={form.submitting}
 />
 ```
@@ -159,8 +159,8 @@ const { AlertDialog } = themeComponents.primitives;
 <Input placeholder="Enter text" />
 
 // WRONG — raw HTML with manual styles
-<button class={button({ intent: 'primary', size: 'md' })}>Submit</button>
-<input class={inputStyles.base} placeholder="Enter text" />
+<button className={button({ intent: 'primary', size: 'md' })}>Submit</button>
+<input className={inputStyles.base} placeholder="Enter text" />
 ```
 
 ### Available Components

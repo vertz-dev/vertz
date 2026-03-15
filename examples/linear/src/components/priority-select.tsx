@@ -21,12 +21,12 @@ interface PrioritySelectProps {
 
 export function PrioritySelect({ value, onChange }: PrioritySelectProps) {
   return (
-    <div class={styles.container}>
-      <label class={labelStyles.base} htmlFor="issue-priority-select">
+    <div className={styles.container}>
+      <label className={labelStyles.base} htmlFor="issue-priority-select">
         Priority
       </label>
       <select
-        class={formStyles.select}
+        className={formStyles.select}
         id="issue-priority-select"
         value={value}
         onChange={(e: Event) => {

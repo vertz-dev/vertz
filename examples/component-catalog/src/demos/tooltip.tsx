@@ -6,13 +6,15 @@ const { Tooltip } = themeComponents.primitives;
 
 export function TooltipDemo() {
   return (
-    <div class={demoStyles.col}>
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>Basic tooltip</div>
-        <div class={demoStyles.row}>
+    <div className={demoStyles.col}>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Basic tooltip</div>
+        <div className={demoStyles.row}>
           <Tooltip>
             <Tooltip.Trigger>
-              <Button intent="outline" size="md">Hover me</Button>
+              <Button intent="outline" size="md">
+                Hover me
+              </Button>
             </Tooltip.Trigger>
             <Tooltip.Content>
               <p style="margin: 0;">Add to library</p>

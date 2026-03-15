@@ -10,9 +10,9 @@ export function RadioGroupDemo() {
   radio.Item('compact', 'Compact');
 
   return (
-    <div class={demoStyles.col}>
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>Options</div>
+    <div className={demoStyles.col}>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Options</div>
         {radio.root}
       </div>
     </div>

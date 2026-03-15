@@ -30,14 +30,14 @@ export function IssueRow({ issue, projectKey }: IssueRowProps) {
   const identifier = projectKey ? `${projectKey}-${issue.number}` : `#${issue.number}`;
 
   return (
-    <div class={styles.row}>
-      <span class={styles.identifier}>{identifier}</span>
-      <span class={styles.title}>{issue.title}</span>
-      <span class={`${styles.status} ${STATUS_COLORS[issue.status] ?? ''}`}>
+    <div className={styles.row}>
+      <span className={styles.identifier}>{identifier}</span>
+      <span className={styles.title}>{issue.title}</span>
+      <span className={`${styles.status} ${STATUS_COLORS[issue.status] ?? ''}`}>
         {STATUS_LABELS[issue.status] ?? issue.status}
       </span>
       {issue.priority !== 'none' && PRIORITY_CONFIG[issue.priority] && (
-        <span class={styles.priority} style={`color: ${PRIORITY_CONFIG[issue.priority].color}`}>
+        <span className={styles.priority} style={`color: ${PRIORITY_CONFIG[issue.priority].color}`}>
           {PRIORITY_CONFIG[issue.priority].label}
         </span>
       )}

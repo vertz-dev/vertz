@@ -23,18 +23,24 @@ export interface SelectRootProps {
 
 export interface SelectSlotProps {
   children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 
 export interface SelectItemProps {
   value: string;
   children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 
 export interface SelectGroupProps {
   label: string;
   children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 

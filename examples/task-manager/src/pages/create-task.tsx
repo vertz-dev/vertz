@@ -24,8 +24,8 @@ export function CreateTaskPage() {
   const { navigate } = useRouter();
 
   return (
-    <div class={pageStyles.page} data-testid="create-task-page">
-      <h1 class={pageStyles.title}>Create New Task</h1>
+    <div className={pageStyles.page} data-testid="create-task-page">
+      <h1 className={pageStyles.title}>Create New Task</h1>
       <TaskForm onSuccess={() => navigate({ to: '/' })} onCancel={() => navigate({ to: '/' })} />
     </div>
   );

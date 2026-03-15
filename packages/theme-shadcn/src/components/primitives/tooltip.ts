@@ -15,6 +15,8 @@ export interface TooltipRootProps {
 
 export interface TooltipSlotProps {
   children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 

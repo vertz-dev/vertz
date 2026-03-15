@@ -28,35 +28,35 @@ const s = css({
 
 export function Footer() {
   return (
-    <footer class={s.footer} style="border-color: #1e1e22">
-      <div class={s.container} style="font-family: var(--font-mono)">
-        <div class={s.linkGroup}>
+    <footer className={s.footer} style="border-color: #1e1e22">
+      <div className={s.container} style="font-family: var(--font-mono)">
+        <div className={s.linkGroup}>
           <a
             href="https://github.com/vertz-dev/vertz"
             target="_blank"
             rel="noopener"
-            class={s.link}
+            className={s.link}
           >
             GitHub
           </a>
           {/* FLAG:DISCORD - Uncomment when Discord invite is ready
-          <span class={s.separator}>|</span>
-          <a href="https://discord.gg/INVITE_CODE" target="_blank" rel="noopener" class={s.link}>
+          <span className={s.separator}>|</span>
+          <a href="https://discord.gg/INVITE_CODE" target="_blank" rel="noopener" className={s.link}>
             Discord
           </a>
           */}
-          <span class={s.separator}>|</span>
-          <a href="https://x.com/vinicius_dacal" target="_blank" rel="noopener" class={s.link}>
+          <span className={s.separator}>|</span>
+          <a href="https://x.com/vinicius_dacal" target="_blank" rel="noopener" className={s.link}>
             @vinicius_dacal
           </a>
-          <span class={s.separator}>|</span>
-          <a href="https://x.com/matheeuspoleza" target="_blank" rel="noopener" class={s.link}>
+          <span className={s.separator}>|</span>
+          <a href="https://x.com/matheeuspoleza" target="_blank" rel="noopener" className={s.link}>
             @matheeuspoleza
           </a>
         </div>
-        <div class={s.linkGroup}>
+        <div className={s.linkGroup}>
           <span>MIT License</span>
-          <span class={s.separator}>|</span>
+          <span className={s.separator}>|</span>
           <span>Powered by Bun</span>
         </div>
       </div>

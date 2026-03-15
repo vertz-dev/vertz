@@ -33,6 +33,8 @@ const SheetClassesContext = createContext<SheetClasses | undefined>(
 
 interface SlotProps {
   children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 
@@ -48,9 +50,10 @@ function SheetTrigger({ children }: SlotProps) {
   );
 }
 
-function SheetContent({ children, class: cls }: SlotProps) {
+function SheetContent({ children, className: cls, class: classProp }: SlotProps) {
+  const effectiveCls = cls ?? classProp;
   return (
-    <div data-slot="sheet-content" data-class={cls || undefined} style="display: contents">
+    <div data-slot="sheet-content" data-class={effectiveCls || undefined} style="display: contents">
       {children}
     </div>
   );
@@ -60,21 +63,24 @@ function SheetContent({ children, class: cls }: SlotProps) {
 // Sub-components — content elements (read classes from context)
 // ---------------------------------------------------------------------------
 
-function SheetTitle({ children, class: cls }: SlotProps) {
+function SheetTitle({ children, className: cls, class: classProp }: SlotProps) {
+  const effectiveCls = cls ?? classProp;
   const classes = useContext(SheetClassesContext);
-  const combined = [classes?.title, cls].filter(Boolean).join(' ');
+  const combined = [classes?.title, effectiveCls].filter(Boolean).join(' ');
   return <h2 class={combined || undefined}>{children}</h2>;
 }
 
-function SheetDescription({ children, class: cls }: SlotProps) {
+function SheetDescription({ children, className: cls, class: classProp }: SlotProps) {
+  const effectiveCls = cls ?? classProp;
   const classes = useContext(SheetClassesContext);
-  const combined = [classes?.description, cls].filter(Boolean).join(' ');
+  const combined = [classes?.description, effectiveCls].filter(Boolean).join(' ');
   return <p class={combined || undefined}>{children}</p>;
 }
 
-function SheetClose({ children, class: cls }: SlotProps) {
+function SheetClose({ children, className: cls, class: classProp }: SlotProps) {
+  const effectiveCls = cls ?? classProp;
   const classes = useContext(SheetClassesContext);
-  const combined = [classes?.close, cls].filter(Boolean).join(' ');
+  const combined = [classes?.close, effectiveCls].filter(Boolean).join(' ');
   return (
     <button
       type="button"

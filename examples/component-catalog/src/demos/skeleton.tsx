@@ -5,11 +5,11 @@ const { Skeleton: SkeletonSuite } = themeComponents;
 
 export function SkeletonDemo() {
   return (
-    <div class={demoStyles.col}>
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>Card skeleton</div>
-        <div class={demoStyles.col}>
-          <div class={demoStyles.row}>
+    <div className={demoStyles.col}>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Card skeleton</div>
+        <div className={demoStyles.col}>
+          <div className={demoStyles.row}>
             <SkeletonSuite.Skeleton width="40px" height="40px" />
             <div style="display: flex; flex-direction: column; gap: 4px; flex: 1">
               <SkeletonSuite.Skeleton width="200px" height="16px" />

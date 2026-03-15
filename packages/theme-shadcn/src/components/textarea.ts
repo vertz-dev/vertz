@@ -5,6 +5,8 @@ import { isKnownEventHandler, wireEventHandlers } from '../event-handlers';
 type TextareaBlocks = { base: string[] };
 
 export interface TextareaProps extends ElementEventHandlers {
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
   name?: string;
   placeholder?: string;
@@ -18,7 +20,8 @@ export function createTextareaComponent(
   textareaStyles: CSSOutput<TextareaBlocks>,
 ): (props: TextareaProps) => HTMLTextAreaElement {
   return function Textarea({
-    class: className,
+    className,
+    class: classProp,
     name,
     placeholder,
     disabled,
@@ -26,8 +29,9 @@ export function createTextareaComponent(
     rows,
     ...attrs
   }: TextareaProps): HTMLTextAreaElement {
+    const effectiveClass = className ?? classProp;
     const el = document.createElement('textarea');
-    el.className = [textareaStyles.base, className].filter(Boolean).join(' ');
+    el.className = [textareaStyles.base, effectiveClass].filter(Boolean).join(' ');
     if (name !== undefined) el.name = name;
     if (placeholder !== undefined) el.placeholder = placeholder;
     if (disabled) el.disabled = true;

@@ -5,14 +5,14 @@ const { Label, Input } = themeComponents;
 
 export function LabelDemo() {
   return (
-    <div class={demoStyles.col}>
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>Default</div>
+    <div className={demoStyles.col}>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Default</div>
         <Label>Email address</Label>
       </div>
-      <div class={demoStyles.section}>
-        <div class={demoStyles.sectionTitle}>With input</div>
-        <div class={demoStyles.col}>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>With input</div>
+        <div className={demoStyles.col}>
           <Label for="email">Email</Label>
           <Input name="email" placeholder="you@example.com" />
         </div>

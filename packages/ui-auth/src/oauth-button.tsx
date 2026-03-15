@@ -123,7 +123,7 @@ export function OAuthButton({
   return (
     <button
       type="button"
-      class={button({ provider: providerVariant, mode: iconOnly ? 'iconOnly' : 'full' })}
+      className={button({ provider: providerVariant, mode: iconOnly ? 'iconOnly' : 'full' })}
       aria-label={iconOnly ? `Continue with ${providerInfo.name}` : undefined}
       onClick={() => {
         window.location.href = safeAuthUrl;

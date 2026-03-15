@@ -39,10 +39,10 @@ export function IssueListPage() {
   };
 
   return (
-    <div class={styles.container}>
+    <div className={styles.container}>
       <ViewToggle projectId={projectId} />
-      <header class={styles.header}>
-        <h2 class={styles.title}>Issues</h2>
+      <header className={styles.header}>
+        <h2 className={styles.title}>Issues</h2>
         <Button intent="primary" size="sm" onClick={handleNewIssue}>
           New Issue
         </Button>
@@ -55,23 +55,23 @@ export function IssueListPage() {
         }}
       />
 
-      {issues.loading && <div class={styles.loading}>Loading issues...</div>}
+      {issues.loading && <div className={styles.loading}>Loading issues...</div>}
 
       {!issues.loading && issues.data?.items.length === 0 && (
-        <div class={emptyStateStyles.container}>
-          <h3 class={emptyStateStyles.title}>No issues yet</h3>
-          <p class={emptyStateStyles.description}>Create your first issue to get started.</p>
+        <div className={emptyStateStyles.container}>
+          <h3 className={emptyStateStyles.title}>No issues yet</h3>
+          <p className={emptyStateStyles.description}>Create your first issue to get started.</p>
         </div>
       )}
 
       {!issues.loading && filtered && filtered.length === 0 && issues.data?.items.length !== 0 && (
-        <div class={emptyStateStyles.container}>
-          <p class={emptyStateStyles.description}>No issues match the selected filter.</p>
+        <div className={emptyStateStyles.container}>
+          <p className={emptyStateStyles.description}>No issues match the selected filter.</p>
         </div>
       )}
 
       {filtered && filtered.length > 0 && (
-        <div class={styles.list}>
+        <div className={styles.list}>
           {filtered.map((issue) => (
             <Link href={`/projects/${projectId}/issues/${issue.id}`} key={issue.id}>
               <IssueRow issue={issue as Issue} projectKey={project.data?.key} />

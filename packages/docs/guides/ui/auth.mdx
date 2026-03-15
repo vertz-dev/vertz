@@ -416,7 +416,7 @@ const auth = useAuth();
 
 if (auth.error) {
   // auth.error has: code, message, statusCode, retryAfter?
-  return <div class="error">{auth.error.message}</div>;
+  return <div className="error">{auth.error.message}</div>;
 }
 ```
 

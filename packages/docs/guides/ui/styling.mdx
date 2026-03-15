@@ -20,9 +20,9 @@ const styles = css({
 
 export function TaskCard({ task }: TaskCardProps) {
   return (
-    <div class={styles.card}>
-      <h3 class={styles.title}>{task.title}</h3>
-      <span class={styles.meta}>Created {task.createdAt}</span>
+    <div className={styles.card}>
+      <h3 className={styles.title}>{task.title}</h3>
+      <span className={styles.meta}>Created {task.createdAt}</span>
     </div>
   );
 }
@@ -153,16 +153,16 @@ const button = variants({
 Use it in JSX by calling the function with variant values:
 
 ```tsx
-<button class={button({ intent: 'primary', size: 'lg' })}>
+<button className={button({ intent: 'primary', size: 'lg' })}>
   Save
 </button>
 
-<button class={button({ intent: 'ghost', size: 'sm' })}>
+<button className={button({ intent: 'ghost', size: 'sm' })}>
   Cancel
 </button>
 
 {/* Uses defaultVariants when omitted */}
-<button class={button()}>
+<button className={button()}>
   Default
 </button>
 ```
@@ -176,7 +176,7 @@ let isActive = false;
 
 return (
   <button
-    class={button({ intent: isActive ? 'primary' : 'ghost' })}
+    className={button({ intent: isActive ? 'primary' : 'ghost' })}
     onClick={() => { isActive = !isActive; }}
   >
     Toggle

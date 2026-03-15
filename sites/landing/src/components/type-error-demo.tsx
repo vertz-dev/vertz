@@ -53,7 +53,7 @@ const DIFF_ITEMS = TOKENS_DIFF_SCHEMA.map((line, i) => ({
 function DiffCodeBlock() {
   return (
     <div
-      class={s.codeBlock}
+      className={s.codeBlock}
       style="border-color: #1e1e22; font-family: var(--font-mono); line-height: 1.75"
     >
       <pre style="margin: 0">
@@ -112,10 +112,10 @@ const ERROR_UI_ITEMS = TOKENS_ERROR_UI_RENDER[0].map((token) => {
 function ErrorCodeBlock() {
   return (
     <div
-      class={s.codeBlock}
+      className={s.codeBlock}
       style="border-color: rgba(239,68,68,0.3); font-family: var(--font-mono); font-size: 0.8rem; line-height: 1.75"
     >
-      <div class={s.errorLabel}>
+      <div className={s.errorLabel}>
         <span style="color: #ef4444">✗</span> API call
       </div>
       <div>
@@ -129,9 +129,9 @@ function ErrorCodeBlock() {
           </code>
         </pre>
       </div>
-      <div class={s.errorHint}>Property 'title' does not exist. Did you mean 'name'?</div>
+      <div className={s.errorHint}>Property 'title' does not exist. Did you mean 'name'?</div>
 
-      <div class={s.errorSpacer}>
+      <div className={s.errorSpacer}>
         <span style="color: #ef4444">✗</span> UI render
       </div>
       <div>
@@ -155,35 +155,35 @@ function ErrorCodeBlock() {
           </code>
         </pre>
       </div>
-      <div class={s.errorHint}>Property 'title' does not exist on type 'Todo'.</div>
+      <div className={s.errorHint}>Property 'title' does not exist on type 'Todo'.</div>
     </div>
   );
 }
 
 export function TypeErrorDemo() {
   return (
-    <section class={s.section}>
-      <div class={s.wrapper}>
-        <p class={s.sectionLabel} style="font-family: var(--font-mono)">
+    <section className={s.section}>
+      <div className={s.wrapper}>
+        <p className={s.sectionLabel} style="font-family: var(--font-mono)">
           Type safety
         </p>
-        <h2 class={s.heading} style="font-family: var(--font-display)">
+        <h2 className={s.heading} style="font-family: var(--font-display)">
           Rename a field. The compiler catches everything.
         </h2>
-        <p class={s.subtitle}>
+        <p className={s.subtitle}>
           One rename. Every bug found at compile time. Zero runtime surprises.
         </p>
 
-        <div class={s.grid}>
+        <div className={s.grid}>
           <div>
-            <p class={s.columnLabel} style="font-family: var(--font-mono); color: #a1a1aa">
+            <p className={s.columnLabel} style="font-family: var(--font-mono); color: #a1a1aa">
               The change
             </p>
             <DiffCodeBlock />
           </div>
 
           <div>
-            <p class={s.columnLabel} style="font-family: var(--font-mono); color: #ef4444">
+            <p className={s.columnLabel} style="font-family: var(--font-mono); color: #ef4444">
               Compile errors
             </p>
             <ErrorCodeBlock />

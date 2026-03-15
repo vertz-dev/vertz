@@ -20,13 +20,13 @@ interface StatusColumnProps {
 
 export function StatusColumn({ label, issues, projectKey, projectId }: StatusColumnProps) {
   return (
-    <div class={styles.column}>
-      <div class={styles.columnHeader}>
-        <span class={styles.columnTitle}>{label}</span>
-        <span class={styles.columnCount}>{issues.length}</span>
+    <div className={styles.column}>
+      <div className={styles.columnHeader}>
+        <span className={styles.columnTitle}>{label}</span>
+        <span className={styles.columnCount}>{issues.length}</span>
       </div>
-      <div class={styles.columnBody}>
-        {issues.length === 0 && <div class={styles.empty}>No issues</div>}
+      <div className={styles.columnBody}>
+        {issues.length === 0 && <div className={styles.empty}>No issues</div>}
         {issues.map((issue) => (
           <Link href={`/projects/${projectId}/issues/${issue.id}`} key={issue.id}>
             <IssueCard issue={issue} projectKey={projectKey} />

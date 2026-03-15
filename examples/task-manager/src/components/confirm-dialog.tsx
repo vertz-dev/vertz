@@ -51,7 +51,7 @@ export function ConfirmDialog({
     <div>
       <button
         type="button"
-        class={button({ intent: 'destructive', size: 'sm' })}
+        className={button({ intent: 'destructive', size: 'sm' })}
         data-testid="confirm-dialog-trigger"
         onClick={() => {
           isOpen = true;
@@ -60,16 +60,16 @@ export function ConfirmDialog({
         {triggerLabel}
       </button>
       <div
-        class={dialogStyles.overlay}
+        className={dialogStyles.overlay}
         aria-hidden={isOpen ? 'false' : 'true'}
         style={isOpen ? '' : 'display: none'}
         onClick={() => {
           isOpen = false;
         }}
       />
-      <div class={dialogStyles.wrapper} style={isOpen ? '' : 'display: none'}>
+      <div className={dialogStyles.wrapper} style={isOpen ? '' : 'display: none'}>
         <div
-          class={dialogStyles.panel}
+          className={dialogStyles.panel}
           role="dialog"
           aria-modal="true"
           aria-labelledby={titleId}
@@ -77,14 +77,14 @@ export function ConfirmDialog({
           data-state={isOpen ? 'open' : 'closed'}
           data-testid="confirm-dialog-content"
         >
-          <h2 id={titleId} class={dialogStyles.title}>
+          <h2 id={titleId} className={dialogStyles.title}>
             {titleText}
           </h2>
-          <p class={dialogStyles.description}>{description}</p>
-          <div class={dialogStyles.actions}>
+          <p className={dialogStyles.description}>{description}</p>
+          <div className={dialogStyles.actions}>
             <button
               type="button"
-              class={button({ intent: 'secondary', size: 'sm' })}
+              className={button({ intent: 'secondary', size: 'sm' })}
               aria-label="Close"
               onClick={() => {
                 isOpen = false;
@@ -94,7 +94,7 @@ export function ConfirmDialog({
             </button>
             <button
               type="button"
-              class={button({ intent: 'destructive', size: 'sm' })}
+              className={button({ intent: 'destructive', size: 'sm' })}
               data-testid="confirm-action"
               onClick={() => {
                 onConfirm();

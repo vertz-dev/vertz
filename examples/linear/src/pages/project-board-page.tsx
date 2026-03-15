@@ -41,22 +41,22 @@ export function ProjectBoardPage() {
   };
 
   return (
-    <div class={styles.container}>
+    <div className={styles.container}>
       <ViewToggle projectId={projectId} />
-      <header class={styles.header}>
-        <h2 class={styles.title}>Board</h2>
+      <header className={styles.header}>
+        <h2 className={styles.title}>Board</h2>
         <Button intent="primary" size="sm" onClick={handleNewIssue}>
           New Issue
         </Button>
       </header>
 
-      {issues.loading && <div class={styles.loading}>Loading issues...</div>}
+      {issues.loading && <div className={styles.loading}>Loading issues...</div>}
       {issues.error && (
-        <div class={styles.error}>Failed to load issues: {issues.error.message}</div>
+        <div className={styles.error}>Failed to load issues: {issues.error.message}</div>
       )}
 
       {!issues.loading && !issues.error && (
-        <div class={styles.board}>
+        <div className={styles.board}>
           {columns.map((col) => (
             <StatusColumn
               key={col.status}

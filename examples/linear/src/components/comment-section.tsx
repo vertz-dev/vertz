@@ -65,12 +65,12 @@ export function CommentSection({
   });
 
   return (
-    <div class={styles.section}>
-      <h3 class={styles.heading}>Comments</h3>
+    <div className={styles.section}>
+      <h3 className={styles.heading}>Comments</h3>
 
-      {loading && <div class={styles.loading}>Loading comments...</div>}
+      {loading && <div className={styles.loading}>Loading comments...</div>}
 
-      {!loading && comments.length === 0 && <div class={styles.empty}>No comments yet.</div>}
+      {!loading && comments.length === 0 && <div className={styles.empty}>No comments yet.</div>}
 
       {comments.map((comment) => (
         <CommentItem
@@ -85,17 +85,19 @@ export function CommentSection({
         action={commentForm.action}
         method={commentForm.method}
         onSubmit={commentForm.onSubmit}
-        class={styles.form}
+        className={styles.form}
       >
         <textarea
           name="body"
           placeholder="Add a comment..."
-          class={inputStyles.base}
+          className={inputStyles.base}
           style="min-height: 5rem; resize: vertical"
         />
-        {commentForm.body.error && <span class={formStyles.error}>{commentForm.body.error}</span>}
+        {commentForm.body.error && (
+          <span className={formStyles.error}>{commentForm.body.error}</span>
+        )}
         <input type="hidden" name="issueId" value={issueId} />
-        <div class={styles.submitRow}>
+        <div className={styles.submitRow}>
           <Button type="submit" intent="primary" size="sm" disabled={commentForm.submitting.value}>
             {commentForm.submitting ? 'Posting...' : 'Comment'}
           </Button>

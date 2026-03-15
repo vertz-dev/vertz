@@ -27,6 +27,8 @@ export interface DropdownMenuClasses {
 
 interface SlotProps {
   children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 
@@ -58,12 +60,13 @@ function MenuContent({ children }: SlotProps) {
   );
 }
 
-function MenuItem({ value, children, class: cls }: ItemProps) {
+function MenuItem({ value, children, className: cls, class: classProp }: ItemProps) {
+  const effectiveCls = cls ?? classProp;
   return (
     <div
       data-slot="menu-item"
       data-value={value}
-      data-class={cls || undefined}
+      data-class={effectiveCls || undefined}
       style="display: contents"
     >
       {children}
@@ -79,9 +82,10 @@ function MenuGroup({ label, children }: GroupProps) {
   );
 }
 
-function MenuLabel({ children, class: cls }: SlotProps) {
+function MenuLabel({ children, className: cls, class: classProp }: SlotProps) {
+  const effectiveCls = cls ?? classProp;
   return (
-    <div data-slot="menu-label" data-class={cls || undefined} style="display: contents">
+    <div data-slot="menu-label" data-class={effectiveCls || undefined} style="display: contents">
       {children}
     </div>
   );

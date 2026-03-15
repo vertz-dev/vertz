@@ -28,13 +28,13 @@ const s = css({
 export function Nav() {
   return (
     <nav
-      class={s.nav}
+      className={s.nav}
       style="top: 0; left: 0; right: 0; background: rgba(10,10,11,0.8); backdrop-filter: blur(12px); border-bottom: 2px solid rgba(255,255,255,0.04)"
     >
       <Link href="/" className={s.logoWrapper}>
         <VertzLogo />
       </Link>
-      <div class={s.links}>
+      <div className={s.links}>
         <Link href="/manifesto" className={s.link}>
           Manifesto
         </Link>
@@ -42,7 +42,7 @@ export function Nav() {
           href="https://github.com/vertz-dev/vertz"
           target="_blank"
           rel="noopener"
-          class={s.link}
+          className={s.link}
           style="font-family: var(--font-mono)"
         >
           GitHub
@@ -52,13 +52,13 @@ export function Nav() {
           href="https://discord.gg/INVITE_CODE"
           target="_blank"
           rel="noopener"
-          class={s.link}
+          className={s.link}
           style="font-family: var(--font-mono)"
         >
           Discord
         </a>
         */}
-        <a href="https://docs.vertz.dev" class={s.link} style="font-family: var(--font-mono)">
+        <a href="https://docs.vertz.dev" className={s.link} style="font-family: var(--font-mono)">
           Docs
         </a>
       </div>

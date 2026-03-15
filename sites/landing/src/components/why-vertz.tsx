@@ -31,22 +31,22 @@ const FEATURES = [
 
 export function WhyVertz() {
   return (
-    <section class={s.section}>
-      <div class={s.container}>
-        <p class={s.label} style="font-family: var(--font-mono)">
+    <section className={s.section}>
+      <div className={s.container}>
+        <p className={s.label} style="font-family: var(--font-mono)">
           Why Vertz
         </p>
-        <div class={s.grid}>
+        <div className={s.grid}>
           {FEATURES.map((f) => (
             <div
               key={f.title}
-              class={s.card}
+              className={s.card}
               style="background: rgba(17,17,19,0.5); border-color: rgba(30,30,34,0.5)"
             >
-              <h3 class={s.title} style="font-family: var(--font-display)">
+              <h3 className={s.title} style="font-family: var(--font-display)">
                 {f.title}
               </h3>
-              <p class={s.desc}>{f.desc}</p>
+              <p className={s.desc}>{f.desc}</p>
             </div>
           ))}
         </div>

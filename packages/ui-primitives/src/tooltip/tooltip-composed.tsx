@@ -22,6 +22,8 @@ export interface TooltipClasses {
 
 interface SlotProps {
   children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 
@@ -37,9 +39,14 @@ function TooltipTrigger({ children }: SlotProps) {
   );
 }
 
-function TooltipContent({ children, class: cls }: SlotProps) {
+function TooltipContent({ children, className: cls, class: classProp }: SlotProps) {
+  const effectiveCls = cls ?? classProp;
   return (
-    <div data-slot="tooltip-content" data-class={cls || undefined} style="display: contents">
+    <div
+      data-slot="tooltip-content"
+      data-class={effectiveCls || undefined}
+      style="display: contents"
+    >
       {children}
     </div>
   );

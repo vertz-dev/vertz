@@ -78,6 +78,9 @@ export function jsx(tag: Tag, props: Record<string, unknown>): VNode {
   // Filter props to only include serializable attributes
   const serializableAttrs: Record<string, string> = {};
 
+  // Resolve className vs class: className takes precedence
+  const resolvedClass = unwrapSignal(attrs.className) ?? unwrapSignal(attrs.class);
+
   for (const [key, rawValue] of Object.entries(attrs)) {
     // Skip event handlers (onXxx functions) — they don't work in SSR
     if (key.startsWith('on') && typeof rawValue === 'function') {
@@ -87,9 +90,12 @@ export function jsx(tag: Tag, props: Record<string, unknown>): VNode {
     // Unwrap signal-like attribute values
     const value = unwrapSignal(rawValue);
 
-    // Handle class attribute
-    if (key === 'class' && value != null) {
-      serializableAttrs.class = String(value);
+    // Handle className/class → DOM class attribute
+    if (key === 'className' || key === 'class') {
+      if (key === 'class' && attrs.className != null) continue; // className wins
+      if (resolvedClass != null) {
+        serializableAttrs.class = String(resolvedClass);
+      }
       continue;
     }
 

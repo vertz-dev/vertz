@@ -617,6 +617,50 @@ function Card({ className }: { className: string }) {
     expect(result.diagnostics).toHaveLength(0);
   });
 
+  it('maps className to class in setAttribute for static string', () => {
+    const result = compile(
+      `
+function App() {
+  return <div className="wrapper">Content</div>;
+}
+    `.trim(),
+    );
+
+    expect(result.code).toContain('setAttribute("class"');
+    expect(result.code).not.toContain('"className"');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('maps className to class in __attr for reactive expression', () => {
+    const result = compile(
+      `
+function Card({ cls }: { cls: string }) {
+  return <div className={cls}>Content</div>;
+}
+    `.trim(),
+    );
+
+    expect(result.code).toContain('__attr(');
+    expect(result.code).toContain('"class"');
+    expect(result.code).not.toContain('"className"');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('maps className to class in guarded setAttribute for static const', () => {
+    const result = compile(
+      `
+function App() {
+  const cls = "wrapper";
+  return <div className={cls}>Content</div>;
+}
+    `.trim(),
+    );
+
+    expect(result.code).toContain('setAttribute("class"');
+    expect(result.code).not.toContain('"className"');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
   it('applies list reconciliation for prop-backed arrays', () => {
     const result = compile(
       `

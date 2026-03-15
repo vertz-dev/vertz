@@ -7,6 +7,7 @@ const BUILD_ONLY_PROPS = new Set([
   'width',
   'height',
   'alt',
+  'className',
   'class',
   'style',
   'loading',
@@ -24,7 +25,8 @@ export function Image({
   width,
   height,
   alt,
-  class: className,
+  className,
+  class: classProp,
   style,
   loading = 'lazy',
   decoding = 'async',
@@ -56,8 +58,9 @@ export function Image({
   el.setAttribute('loading', resolvedLoading);
   el.setAttribute('decoding', resolvedDecoding);
 
+  const effectiveClass = className ?? classProp;
   if (resolvedFetchpriority) el.setAttribute('fetchpriority', resolvedFetchpriority);
-  if (className) el.setAttribute('class', className);
+  if (effectiveClass) el.setAttribute('class', effectiveClass);
   if (style) el.setAttribute('style', style);
 
   // Pass-through remaining HTML attributes (data-*, aria-*, id, etc.)

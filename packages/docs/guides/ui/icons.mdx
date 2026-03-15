@@ -20,7 +20,7 @@ import { SearchIcon, SettingsIcon, UserIcon } from '@vertz/icons';
 
 export function Toolbar() {
   return (
-    <nav class={styles.toolbar}>
+    <nav className={styles.toolbar}>
       <button><SearchIcon /> Search</button>
       <button><SettingsIcon /> Settings</button>
       <button><UserIcon /> Profile</button>
@@ -38,7 +38,7 @@ Every icon function accepts an optional `IconProps` object:
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
 | `size` | `number` | `16` | Width and height in pixels |
-| `class` | `string` | -- | CSS class name applied to the wrapper `<span>` |
+| `className` | `string` | -- | CSS class name applied to the wrapper `<span>` |
 
 ```tsx
 import { GithubIcon, ExternalLinkIcon } from '@vertz/icons';
@@ -50,7 +50,7 @@ import { GithubIcon, ExternalLinkIcon } from '@vertz/icons';
 <GithubIcon size={24} />
 
 {/* With a CSS class */}
-<ExternalLinkIcon class={styles.icon} />
+<ExternalLinkIcon className={styles.icon} />
 ```
 
 ## Styling icons
@@ -68,12 +68,12 @@ const styles = css({
 
 function StatusMessage({ type, message }: StatusMessageProps) {
   return type === 'error' ? (
-    <div class={styles.error}>
+    <div className={styles.error}>
       <AlertCircleIcon size={20} />
       <span>{message}</span>
     </div>
   ) : (
-    <div class={styles.success}>
+    <div className={styles.success}>
       <CheckCircleIcon size={20} />
       <span>{message}</span>
     </div>

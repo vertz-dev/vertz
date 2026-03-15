@@ -61,14 +61,14 @@ function AppHeader() {
   }
 
   return (
-    <header class={layoutStyles.header}>
+    <header className={layoutStyles.header}>
       <div>
-        <div class={headerStyles.title}>Entity Todo</div>
-        <span class={headerStyles.subtitle}>schema → entity → SDK → UI → SSR</span>
+        <div className={headerStyles.title}>Entity Todo</div>
+        <span className={headerStyles.subtitle}>schema → entity → SDK → UI → SSR</span>
       </div>
       <button
         type="button"
-        class={headerStyles.themeToggle}
+        className={headerStyles.themeToggle}
         data-testid="theme-toggle"
         aria-label={settings.theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
         onClick={toggleTheme}
@@ -88,9 +88,9 @@ export function App() {
     <div data-testid="app-root">
       <SettingsContext.Provider value={settings}>
         <ThemeProvider theme={settings.theme.peek()}>
-          <div class={layoutStyles.shell}>
+          <div className={layoutStyles.shell}>
             <AppHeader />
-            <main class={layoutStyles.main}>
+            <main className={layoutStyles.main}>
               <TodoListPage />
             </main>
           </div>

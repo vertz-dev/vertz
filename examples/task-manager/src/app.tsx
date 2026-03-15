@@ -99,25 +99,25 @@ function Sidebar() {
 
   return (
     <nav
-      class={layoutStyles.sidebar}
+      className={layoutStyles.sidebar}
       aria-label="Main navigation"
       style="display: flex; flex-direction: column"
     >
-      <div class={navStyles.navTitle}>Task Manager</div>
-      <div class={navStyles.navList}>
-        <div class={navStyles.navItem}>
+      <div className={navStyles.navTitle}>Task Manager</div>
+      <div className={navStyles.navList}>
+        <div className={navStyles.navItem}>
           <ListTodoIcon size={16} />
           <Link href="/" activeClass="font-bold">
             All Tasks
           </Link>
         </div>
-        <div class={navStyles.navItem}>
+        <div className={navStyles.navItem}>
           <PlusCircleIcon size={16} />
           <Link href="/tasks/new" activeClass="font-bold">
             Create Task
           </Link>
         </div>
-        <div class={navStyles.navItem}>
+        <div className={navStyles.navItem}>
           <SettingsIcon size={16} />
           <Link href="/settings" activeClass="font-bold">
             Settings
@@ -125,7 +125,7 @@ function Sidebar() {
         </div>
       </div>
       <div
-        class={navStyles.themeToggle}
+        className={navStyles.themeToggle}
         role="button"
         tabindex="0"
         data-testid="theme-toggle"
@@ -137,11 +137,7 @@ function Sidebar() {
           }
         }}
       >
-        {settings.theme === 'light' ? (
-          <MoonIcon size={16} />
-        ) : (
-          <SunIcon size={16} />
-        )}
+        {settings.theme === 'light' ? <MoonIcon size={16} /> : <SunIcon size={16} />}
         {settings.theme === 'light' ? 'Dark Mode' : 'Light Mode'}
       </div>
     </nav>
@@ -166,9 +162,9 @@ export function App() {
       <SettingsContext.Provider value={settings}>
         <RouterContext.Provider value={appRouter}>
           <ThemeProvider theme={settings.theme.peek()}>
-            <div class={layoutStyles.shell}>
+            <div className={layoutStyles.shell}>
               <Sidebar />
-              <main class={layoutStyles.main} data-testid="main-content">
+              <main className={layoutStyles.main} data-testid="main-content">
                 <RouterView
                   router={appRouter}
                   fallback={() => <div data-testid="not-found">Page not found</div>}

@@ -14,12 +14,12 @@ interface StatusSelectProps {
 
 export function StatusSelect({ value, onChange }: StatusSelectProps) {
   return (
-    <div class={styles.container}>
-      <label class={labelStyles.base} htmlFor="issue-status-select">
+    <div className={styles.container}>
+      <label className={labelStyles.base} htmlFor="issue-status-select">
         Status
       </label>
       <select
-        class={formStyles.select}
+        className={formStyles.select}
         id="issue-status-select"
         value={value}
         onChange={(e: Event) => {

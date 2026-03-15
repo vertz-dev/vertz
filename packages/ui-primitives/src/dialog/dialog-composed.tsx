@@ -34,6 +34,8 @@ const DialogClassesContext = createContext<DialogClasses | undefined>(
 
 interface SlotProps {
   children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 
@@ -49,9 +51,14 @@ function DialogTrigger({ children }: SlotProps) {
   );
 }
 
-function DialogContent({ children, class: cls }: SlotProps) {
+function DialogContent({ children, className: cls, class: classProp }: SlotProps) {
+  const effectiveCls = cls ?? classProp;
   return (
-    <div data-slot="dialog-content" data-class={cls || undefined} style="display: contents">
+    <div
+      data-slot="dialog-content"
+      data-class={effectiveCls || undefined}
+      style="display: contents"
+    >
       {children}
     </div>
   );
@@ -61,9 +68,10 @@ function DialogContent({ children, class: cls }: SlotProps) {
 // Sub-components — content elements (read classes from context)
 // ---------------------------------------------------------------------------
 
-function DialogTitle({ children, class: cls }: SlotProps) {
+function DialogTitle({ children, className: cls, class: classProp }: SlotProps) {
+  const effectiveCls = cls ?? classProp;
   const classes = useContext(DialogClassesContext);
-  const combined = [classes?.title, cls].filter(Boolean).join(' ');
+  const combined = [classes?.title, effectiveCls].filter(Boolean).join(' ');
   return (
     <h2 data-slot="dialog-title" class={combined || undefined}>
       {children}
@@ -71,9 +79,10 @@ function DialogTitle({ children, class: cls }: SlotProps) {
   );
 }
 
-function DialogDescription({ children, class: cls }: SlotProps) {
+function DialogDescription({ children, className: cls, class: classProp }: SlotProps) {
+  const effectiveCls = cls ?? classProp;
   const classes = useContext(DialogClassesContext);
-  const combined = [classes?.description, cls].filter(Boolean).join(' ');
+  const combined = [classes?.description, effectiveCls].filter(Boolean).join(' ');
   return (
     <p data-slot="dialog-description" class={combined || undefined}>
       {children}
@@ -81,21 +90,24 @@ function DialogDescription({ children, class: cls }: SlotProps) {
   );
 }
 
-function DialogHeader({ children, class: cls }: SlotProps) {
+function DialogHeader({ children, className: cls, class: classProp }: SlotProps) {
+  const effectiveCls = cls ?? classProp;
   const classes = useContext(DialogClassesContext);
-  const combined = [classes?.header, cls].filter(Boolean).join(' ');
+  const combined = [classes?.header, effectiveCls].filter(Boolean).join(' ');
   return <div class={combined || undefined}>{children}</div>;
 }
 
-function DialogFooter({ children, class: cls }: SlotProps) {
+function DialogFooter({ children, className: cls, class: classProp }: SlotProps) {
+  const effectiveCls = cls ?? classProp;
   const classes = useContext(DialogClassesContext);
-  const combined = [classes?.footer, cls].filter(Boolean).join(' ');
+  const combined = [classes?.footer, effectiveCls].filter(Boolean).join(' ');
   return <div class={combined || undefined}>{children}</div>;
 }
 
-function DialogClose({ children, class: cls }: SlotProps) {
+function DialogClose({ children, className: cls, class: classProp }: SlotProps) {
+  const effectiveCls = cls ?? classProp;
   const classes = useContext(DialogClassesContext);
-  const combined = [classes?.close, cls].filter(Boolean).join(' ');
+  const combined = [classes?.close, effectiveCls].filter(Boolean).join(' ');
   return (
     <button
       type="button"
