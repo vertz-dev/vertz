@@ -262,6 +262,7 @@ function extractStaticProps(
         alt = extractStaticString(value, sourceFile);
         if (alt === null) return null; // Dynamic alt — bail (need it for HTML)
         break;
+      case 'className':
       case 'class':
         if (value) {
           className = extractStaticString(value, sourceFile) ?? undefined;

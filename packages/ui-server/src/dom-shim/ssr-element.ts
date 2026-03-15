@@ -119,10 +119,12 @@ export class SSRElement extends SSRNode {
   }
 
   setAttribute(name: string, value: string): void {
-    if (name === 'class') {
+    // Map className → class (JSX convention → DOM attribute)
+    const attrName = name === 'className' ? 'class' : name;
+    if (attrName === 'class') {
       this._classList = new Set(value.split(/\s+/).filter(Boolean));
     }
-    this.attrs[name] = value;
+    this.attrs[attrName] = value;
   }
 
   getAttribute(name: string): string | null {

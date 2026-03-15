@@ -1,4 +1,6 @@
 export interface ElementAttrs {
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
   id?: string;
   style?: string;
@@ -14,7 +16,8 @@ export interface ElementAttrs {
 export function applyAttrs(el: HTMLElement, attrs: Record<string, unknown>): void {
   for (const [key, value] of Object.entries(attrs)) {
     if (value == null) continue;
-    if (key === 'class') {
+    if (key === 'className' || key === 'class') {
+      // Map className/class → DOM class attribute (merge with existing)
       const existing = el.getAttribute('class');
       el.setAttribute('class', existing ? `${existing} ${String(value)}` : String(value));
     } else if (key === 'style') {

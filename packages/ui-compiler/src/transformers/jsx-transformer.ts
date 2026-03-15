@@ -318,7 +318,9 @@ function processAttribute(
   jsxMap: Map<number, JsxExpressionInfo>,
 ): string | null {
   if (!attr.isKind(SyntaxKind.JsxAttribute)) return null;
-  const attrName = attr.getNameNode().getText();
+  const rawAttrName = attr.getNameNode().getText();
+  // Map className → class for intrinsic elements (DOM attribute name)
+  const attrName = rawAttrName === 'className' ? 'class' : rawAttrName;
   const init = attr.getInitializer();
   if (!init) return null;
 
