@@ -46,7 +46,7 @@ export function GetStarted() {
           class={s.terminal}
           style="border-color: #1e1e22; font-family: var(--font-mono); box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1)"
         >
-          <div class={`${s.terminalLine} ${s.terminalCmd}`}>$ bun create vertz my-app</div>
+          <div class={`${s.terminalLine} ${s.terminalCmd}`}>$ bun create vertz@latest my-app</div>
           <div class={`${s.terminalLine} ${s.terminalCmd}`}>$ cd my-app</div>
           <div class={s.terminalCmd}>$ bun dev</div>
           <div class={s.successLine} style="color: #4ade80">

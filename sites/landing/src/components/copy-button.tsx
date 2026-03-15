@@ -49,7 +49,7 @@ export default function CopyButton() {
   let copied = false;
 
   function handleClick() {
-    navigator.clipboard.writeText('bun create vertz my-app');
+    navigator.clipboard.writeText('bun create vertz@latest my-app');
     copied = true;
     setTimeout(() => {
       copied = false;
@@ -66,7 +66,7 @@ export default function CopyButton() {
       <span class={s.mobileBadge} style={copied ? 'opacity: 1' : 'opacity: 0'}>
         Copied!
       </span>
-      <span class={s.dollarSign}>$</span> bun create vertz my-app
+      <span class={s.dollarSign}>$</span> bun create vertz@latest my-app
       <span class={s.copyPrefix}>
         <span style="grid-area: 1/1; visibility: hidden; pointer-events: none">
           (click to copy)
