@@ -16,7 +16,7 @@ export function createCircuitBreaker(options?: {
   resetTimeout?: number;
 }): CircuitBreaker {
   const threshold = options?.failureThreshold ?? 5;
-  const resetTimeout = options?.resetTimeout ?? 30_000;
+  const resetTimeout = options?.resetTimeout ?? 10_000;
 
   let state: 'closed' | 'open' | 'half-open' = 'closed';
   let consecutiveFailures = 0;

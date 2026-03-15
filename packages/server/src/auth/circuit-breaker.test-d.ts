@@ -16,3 +16,6 @@ expectTypeOf(cb.getState()).toEqualTypeOf<'closed' | 'open' | 'half-open'>();
 
 // reset returns void
 expectTypeOf(cb.reset()).toEqualTypeOf<void>();
+
+// @ts-expect-error -- execute requires a function returning a Promise
+cb.execute('not a function');

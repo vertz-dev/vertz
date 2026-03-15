@@ -407,6 +407,25 @@ describe('createAuthProxy', () => {
     expect(body.error).toBe('invalid_email');
   });
 
+  it('forwards 401 Unauthorized from cloud to client as-is', async () => {
+    mockResponse = {
+      status: 401,
+      body: { error: 'unauthorized', message: 'Invalid credentials' },
+    };
+    const proxy = createProxy();
+
+    const req = new Request(`${cloudBaseUrl}/api/auth/signin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'a@b.com', password: 'wrong' }),
+    });
+
+    const res = await proxy(req);
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body.error).toBe('unauthorized');
+  });
+
   it('does not count 4xx responses as circuit breaker failures', async () => {
     const cb = createCircuitBreaker({ failureThreshold: 2 });
     const proxy = createProxy({ circuitBreaker: cb });
