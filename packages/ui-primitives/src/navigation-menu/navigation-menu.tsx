@@ -19,8 +19,89 @@ export interface NavigationMenuState {
 
 export interface NavigationMenuElements {
   root: HTMLElement;
-  list: HTMLDivElement;
-  viewport: HTMLDivElement;
+  list: HTMLElement;
+  viewport: HTMLElement;
+}
+
+function NavMenuList(
+  triggers: HTMLElement[],
+  orientation: 'horizontal' | 'vertical',
+): HTMLElement {
+  return (
+    <div
+      onKeydown={(event: KeyboardEvent) => {
+        if (isKey(event, Keys.ArrowLeft, Keys.ArrowRight, Keys.Home, Keys.End)) {
+          handleListNavigation(event, triggers, {
+            orientation: orientation === 'horizontal' ? 'horizontal' : 'vertical',
+          });
+        }
+      }}
+    />
+  ) as HTMLElement;
+}
+
+function NavMenuViewport(): HTMLElement {
+  return (<div />) as HTMLElement;
+}
+
+function NavMenuNav(list: HTMLElement, viewport: HTMLElement): HTMLElement {
+  return (
+    <nav>
+      {list}
+      {viewport}
+    </nav>
+  ) as HTMLElement;
+}
+
+function NavMenuItemTrigger(
+  triggerId: string,
+  contentId: string,
+  value: string,
+  label: string | undefined,
+  onClick: () => void,
+  onMouseenter: () => void,
+  onMouseleave: () => void,
+  onKeydown: (event: KeyboardEvent) => void,
+): HTMLElement {
+  return (
+    <button
+      type="button"
+      id={triggerId}
+      aria-controls={contentId}
+      data-value={value}
+      aria-expanded="false"
+      data-state="closed"
+      onClick={onClick}
+      onMouseenter={onMouseenter}
+      onMouseleave={onMouseleave}
+      onKeydown={onKeydown}
+    >
+      {label ?? value}
+    </button>
+  ) as HTMLElement;
+}
+
+function NavMenuItemContent(
+  contentId: string,
+  onMouseenter: () => void,
+  onMouseleave: () => void,
+  onKeydown: (event: KeyboardEvent) => void,
+): HTMLElement {
+  return (
+    <div
+      id={contentId}
+      aria-hidden="true"
+      data-state="closed"
+      style="display: none"
+      onMouseenter={onMouseenter}
+      onMouseleave={onMouseleave}
+      onKeydown={onKeydown}
+    />
+  ) as HTMLElement;
+}
+
+function NavMenuLink(href: string, label: string): HTMLElement {
+  return (<a href={href}>{label}</a>) as HTMLElement;
 }
 
 function NavigationMenuRoot(options: NavigationMenuOptions = {}): NavigationMenuElements & {
@@ -29,15 +110,15 @@ function NavigationMenuRoot(options: NavigationMenuOptions = {}): NavigationMenu
     value: string,
     label?: string,
   ) => {
-    trigger: HTMLButtonElement;
-    content: HTMLDivElement;
+    trigger: HTMLElement;
+    content: HTMLElement;
   };
-  Link: (href: string, label: string) => HTMLAnchorElement;
+  Link: (href: string, label: string) => HTMLElement;
 } {
   const { orientation = 'horizontal', delayOpen = 200, delayClose = 300, ...attrs } = options;
   const state: NavigationMenuState = { activeItem: signal<string | null>(null) };
-  const triggers: HTMLButtonElement[] = [];
-  const items: Map<string, { trigger: HTMLButtonElement; content: HTMLDivElement }> = new Map();
+  const triggers: HTMLElement[] = [];
+  const items: Map<string, { trigger: HTMLElement; content: HTMLElement }> = new Map();
   let openTimeout: ReturnType<typeof setTimeout> | null = null;
   let closeTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -88,117 +169,90 @@ function NavigationMenuRoot(options: NavigationMenuOptions = {}): NavigationMenu
     state.activeItem.value = null;
   }
 
-  const list = (
-    <div
-      onKeydown={(event: KeyboardEvent) => {
-        if (isKey(event, Keys.ArrowLeft, Keys.ArrowRight, Keys.Home, Keys.End)) {
-          handleListNavigation(event, triggers, {
-            orientation: orientation === 'horizontal' ? 'horizontal' : 'vertical',
-          });
-        }
-      }}
-    />
-  ) as HTMLDivElement;
-
-  const viewport = (<div />) as HTMLDivElement;
-
-  const root = (
-    <nav>
-      {list}
-      {viewport}
-    </nav>
-  ) as HTMLElement;
+  const list = NavMenuList(triggers, orientation);
+  const viewport = NavMenuViewport();
+  const root = NavMenuNav(list, viewport);
 
   function Item(
     value: string,
     label?: string,
   ): {
-    trigger: HTMLButtonElement;
-    content: HTMLDivElement;
+    trigger: HTMLElement;
+    content: HTMLElement;
   } {
     const ids = linkedIds('nav-menu');
+    let contentEl: HTMLElement;
 
-    const trigger = (
-      <button
-        type="button"
-        id={ids.triggerId}
-        aria-controls={ids.contentId}
-        data-value={value}
-        aria-expanded="false"
-        data-state="closed"
-        onClick={() => {
-          if (state.activeItem.peek() === value) {
-            closeAll();
-          } else {
-            openItem(value);
-          }
-        }}
-        onMouseenter={() => {
-          cancelTimers();
-          openTimeout = setTimeout(() => {
-            openItem(value);
-            openTimeout = null;
-          }, delayOpen);
-        }}
-        onMouseleave={() => {
-          cancelTimers();
-          closeTimeout = setTimeout(() => {
-            closeAll();
-            closeTimeout = null;
-          }, delayClose);
-        }}
-        onKeydown={(event: KeyboardEvent) => {
-          if (isKey(event, Keys.Enter, Keys.Space)) {
-            event.preventDefault();
-            openItem(value);
-            queueMicrotask(() => focusFirst(content));
-          }
-          if (isKey(event, Keys.Escape)) {
-            event.preventDefault();
-            closeAll();
-          }
-        }}
-      >
-        {label ?? value}
-      </button>
-    ) as HTMLButtonElement;
+    const trigger = NavMenuItemTrigger(
+      ids.triggerId,
+      ids.contentId,
+      value,
+      label,
+      () => {
+        if (state.activeItem.peek() === value) {
+          closeAll();
+        } else {
+          openItem(value);
+        }
+      },
+      () => {
+        cancelTimers();
+        openTimeout = setTimeout(() => {
+          openItem(value);
+          openTimeout = null;
+        }, delayOpen);
+      },
+      () => {
+        cancelTimers();
+        closeTimeout = setTimeout(() => {
+          closeAll();
+          closeTimeout = null;
+        }, delayClose);
+      },
+      (event: KeyboardEvent) => {
+        if (isKey(event, Keys.Enter, Keys.Space)) {
+          event.preventDefault();
+          openItem(value);
+          queueMicrotask(() => focusFirst(contentEl));
+        }
+        if (isKey(event, Keys.Escape)) {
+          event.preventDefault();
+          closeAll();
+        }
+      },
+    );
 
-    const content = (
-      <div
-        id={ids.contentId}
-        aria-hidden="true"
-        data-state="closed"
-        style="display: none"
-        onMouseenter={() => cancelTimers()}
-        onMouseleave={() => {
-          cancelTimers();
-          closeTimeout = setTimeout(() => {
-            closeAll();
-            closeTimeout = null;
-          }, delayClose);
-        }}
-        onKeydown={(event: KeyboardEvent) => {
-          if (isKey(event, Keys.Escape)) {
-            event.preventDefault();
-            event.stopPropagation();
-            closeAll();
-            trigger.focus();
-          }
-        }}
-      />
-    ) as HTMLDivElement;
+    contentEl = NavMenuItemContent(
+      ids.contentId,
+      () => cancelTimers(),
+      () => {
+        cancelTimers();
+        closeTimeout = setTimeout(() => {
+          closeAll();
+          closeTimeout = null;
+        }, delayClose);
+      },
+      (event: KeyboardEvent) => {
+        if (isKey(event, Keys.Escape)) {
+          event.preventDefault();
+          event.stopPropagation();
+          closeAll();
+          trigger.focus();
+        }
+      },
+    );
 
     triggers.push(trigger);
     setRovingTabindex(triggers, 0);
-    items.set(value, { trigger, content });
+    items.set(value, { trigger, content: contentEl });
     list.appendChild(trigger);
-    viewport.appendChild(content);
+    viewport.appendChild(contentEl);
 
-    return { trigger, content };
+    return { trigger, content: contentEl };
   }
 
-  function Link(href: string, label: string): HTMLAnchorElement {
-    const a = (<a href={href}>{label}</a>) as HTMLAnchorElement;
+  function Link(href: string, label: string): HTMLElement {
+    const a = NavMenuLink(href, label);
     list.appendChild(a);
     return a;
   }
@@ -215,10 +269,10 @@ export const NavigationMenu: {
       value: string,
       label?: string,
     ) => {
-      trigger: HTMLButtonElement;
-      content: HTMLDivElement;
+      trigger: HTMLElement;
+      content: HTMLElement;
     };
-    Link: (href: string, label: string) => HTMLAnchorElement;
+    Link: (href: string, label: string) => HTMLElement;
   };
 } = {
   Root: NavigationMenuRoot,

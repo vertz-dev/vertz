@@ -32,12 +32,12 @@ export interface DatePickerElements {
   trigger: HTMLButtonElement;
   content: HTMLDivElement;
   calendar: {
-    root: HTMLDivElement;
-    header: HTMLDivElement;
-    title: HTMLDivElement;
-    prevButton: HTMLButtonElement;
-    nextButton: HTMLButtonElement;
-    grid: HTMLTableElement;
+    root: HTMLElement;
+    header: HTMLElement;
+    title: HTMLElement;
+    prevButton: HTMLElement;
+    nextButton: HTMLElement;
+    grid: HTMLElement;
   };
 }
 

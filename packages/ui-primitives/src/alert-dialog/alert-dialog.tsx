@@ -22,15 +22,81 @@ export interface AlertDialogState {
 }
 
 export interface AlertDialogElements {
-  trigger: HTMLButtonElement;
-  overlay: HTMLDivElement;
-  content: HTMLDivElement;
-  title: HTMLHeadingElement;
-  description: HTMLParagraphElement;
-  cancel: HTMLButtonElement;
-  action: HTMLButtonElement;
+  trigger: HTMLElement;
+  overlay: HTMLElement;
+  content: HTMLElement;
+  title: HTMLElement;
+  description: HTMLElement;
+  cancel: HTMLElement;
+  action: HTMLElement;
   show: () => void;
   hide: () => void;
+}
+
+function AlertDialogTriggerEl(
+  triggerId: string,
+  contentId: string,
+  defaultOpen: boolean,
+  onClick: () => void,
+): HTMLElement {
+  return (
+    <button
+      type="button"
+      id={triggerId}
+      aria-controls={contentId}
+      aria-expanded={defaultOpen ? 'true' : 'false'}
+      data-state={defaultOpen ? 'open' : 'closed'}
+      onClick={onClick}
+    />
+  ) as HTMLElement;
+}
+
+function AlertDialogOverlayEl(defaultOpen: boolean): HTMLElement {
+  return (
+    <div
+      data-alertdialog-overlay=""
+      aria-hidden={defaultOpen ? 'false' : 'true'}
+      data-state={defaultOpen ? 'open' : 'closed'}
+      style={defaultOpen ? '' : 'display: none'}
+    />
+  ) as HTMLElement;
+}
+
+function AlertDialogContentEl(
+  contentId: string,
+  titleId: string,
+  descriptionId: string,
+  defaultOpen: boolean,
+): HTMLElement {
+  return (
+    <div
+      role="alertdialog"
+      id={contentId}
+      aria-modal="true"
+      aria-labelledby={titleId}
+      aria-describedby={descriptionId}
+      aria-hidden={defaultOpen ? 'false' : 'true'}
+      data-state={defaultOpen ? 'open' : 'closed'}
+      style={defaultOpen ? '' : 'display: none'}
+    />
+  ) as HTMLElement;
+}
+
+function AlertDialogTitleEl(titleId: string): HTMLElement {
+  // biome-ignore lint/a11y/useHeadingContent: primitive — consumer provides content
+  return (<h2 id={titleId} />) as HTMLElement;
+}
+
+function AlertDialogDescriptionEl(descriptionId: string): HTMLElement {
+  return (<p id={descriptionId} />) as HTMLElement;
+}
+
+function AlertDialogCancelBtn(onClick: () => void): HTMLElement {
+  return (<button type="button" onClick={onClick} />) as HTMLElement;
+}
+
+function AlertDialogActionBtn(onClick: () => void): HTMLElement {
+  return (<button type="button" onClick={onClick} />) as HTMLElement;
 }
 
 function AlertDialogRoot(
@@ -75,57 +141,24 @@ function AlertDialogRoot(
     onOpenChange?.(false);
   }
 
-  const trigger = (
-    <button
-      type="button"
-      id={ids.triggerId}
-      aria-controls={ids.contentId}
-      aria-expanded={defaultOpen ? 'true' : 'false'}
-      data-state={defaultOpen ? 'open' : 'closed'}
-      onClick={() => {
-        if (!state.open.peek()) show();
-      }}
-    />
-  ) as HTMLButtonElement;
+  const trigger = AlertDialogTriggerEl(ids.triggerId, ids.contentId, defaultOpen, () => {
+    if (!state.open.peek()) show();
+  });
 
-  const overlay = (
-    <div
-      data-alertdialog-overlay=""
-      aria-hidden={defaultOpen ? 'false' : 'true'}
-      data-state={defaultOpen ? 'open' : 'closed'}
-      style={defaultOpen ? '' : 'display: none'}
-    />
-  ) as HTMLDivElement;
+  const overlay = AlertDialogOverlayEl(defaultOpen);
 
-  const content = (
-    <div
-      role="alertdialog"
-      id={ids.contentId}
-      aria-modal="true"
-      aria-labelledby={titleId}
-      aria-describedby={descriptionId}
-      aria-hidden={defaultOpen ? 'false' : 'true'}
-      data-state={defaultOpen ? 'open' : 'closed'}
-      style={defaultOpen ? '' : 'display: none'}
-    />
-  ) as HTMLDivElement;
+  const content = AlertDialogContentEl(ids.contentId, titleId, descriptionId, defaultOpen);
 
-  // biome-ignore lint/a11y/useHeadingContent: primitive — consumer provides content
-  const title = (<h2 id={titleId} />) as HTMLHeadingElement;
+  const title = AlertDialogTitleEl(titleId);
 
-  const description = (<p id={descriptionId} />) as HTMLParagraphElement;
+  const description = AlertDialogDescriptionEl(descriptionId);
 
-  const cancel = (<button type="button" onClick={() => hide()} />) as HTMLButtonElement;
+  const cancel = AlertDialogCancelBtn(() => hide());
 
-  const action = (
-    <button
-      type="button"
-      onClick={() => {
-        onAction?.();
-        hide();
-      }}
-    />
-  ) as HTMLButtonElement;
+  const action = AlertDialogActionBtn(() => {
+    onAction?.();
+    hide();
+  });
 
   if (defaultOpen) {
     restoreFocus = saveFocus();

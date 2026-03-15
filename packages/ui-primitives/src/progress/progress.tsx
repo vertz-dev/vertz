@@ -21,8 +21,8 @@ export interface ProgressState {
 }
 
 export interface ProgressElements {
-  root: HTMLDivElement;
-  indicator: HTMLDivElement;
+  root: HTMLElement;
+  indicator: HTMLElement;
 }
 
 function dataStateFor(pct: number): string {
@@ -31,14 +31,14 @@ function dataStateFor(pct: number): string {
   return 'idle';
 }
 
-function ProgressRoot(options: ProgressOptions = {}) {
-  const { defaultValue = 0, min = 0, max = 100, ...attrs } = options;
-  const state: ProgressState = { value: signal(defaultValue) };
-  const indicatorRef: Ref<HTMLDivElement> = ref();
-
-  const initialPct = ((defaultValue - min) / (max - min)) * 100;
-
-  const root = (
+function ProgressBar(
+  defaultValue: number,
+  min: number,
+  max: number,
+  initialPct: number,
+  indicatorRef: Ref<HTMLElement>,
+): HTMLElement {
+  return (
     <div
       role="progressbar"
       id={uniqueId('progress')}
@@ -49,8 +49,17 @@ function ProgressRoot(options: ProgressOptions = {}) {
     >
       <div ref={indicatorRef} data-part="indicator" style={`width: ${initialPct}%`} />
     </div>
-  ) as HTMLDivElement;
+  ) as HTMLElement;
+}
 
+function ProgressRoot(options: ProgressOptions = {}) {
+  const { defaultValue = 0, min = 0, max = 100, ...attrs } = options;
+  const state: ProgressState = { value: signal(defaultValue) };
+  const indicatorRef: Ref<HTMLElement> = ref();
+
+  const initialPct = ((defaultValue - min) / (max - min)) * 100;
+
+  const root = ProgressBar(defaultValue, min, max, initialPct, indicatorRef);
   const indicator = indicatorRef.current!;
 
   applyAttrs(root, attrs);

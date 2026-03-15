@@ -119,14 +119,17 @@ function AlertDialogCancel({
   const effectiveCls = cls ?? classProp;
   const classes = useContext(AlertDialogClassesContext);
   const combined = [classes?.cancel, effectiveCls].filter(Boolean).join(' ');
-  const el = (
-    <button type="button" data-slot="alertdialog-cancel" class={combined || undefined}>
+  return (
+    <button
+      type="button"
+      data-slot="alertdialog-cancel"
+      class={combined || undefined}
+      onClick={onClick}
+      disabled={disabled}
+    >
       {children}
     </button>
-  ) as HTMLButtonElement;
-  if (onClick) el.addEventListener('click', onClick);
-  if (disabled) el.disabled = true;
-  return el;
+  );
 }
 
 function AlertDialogAction({
@@ -139,14 +142,17 @@ function AlertDialogAction({
   const effectiveCls = cls ?? classProp;
   const classes = useContext(AlertDialogClassesContext);
   const combined = [classes?.action, effectiveCls].filter(Boolean).join(' ');
-  const el = (
-    <button type="button" data-slot="alertdialog-action" class={combined || undefined}>
+  return (
+    <button
+      type="button"
+      data-slot="alertdialog-action"
+      class={combined || undefined}
+      onClick={onClick}
+      disabled={disabled}
+    >
       {children}
     </button>
-  ) as HTMLButtonElement;
-  if (onClick) el.addEventListener('click', onClick);
-  if (disabled) el.disabled = true;
-  return el;
+  );
 }
 
 // ---------------------------------------------------------------------------

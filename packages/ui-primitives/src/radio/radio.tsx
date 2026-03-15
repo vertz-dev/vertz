@@ -22,16 +22,61 @@ export interface RadioState {
 }
 
 export interface RadioElements {
-  root: HTMLDivElement;
+  root: HTMLElement;
+}
+
+function RadioGroup(
+  items: HTMLElement[],
+  itemValues: string[],
+  selectItem: (value: string) => void,
+): HTMLElement {
+  return (
+    <div
+      role="radiogroup"
+      id={uniqueId('radiogroup')}
+      onKeydown={(event: KeyboardEvent) => {
+        const result = handleListNavigation(event, items, { orientation: 'vertical' });
+        if (result) {
+          const idx = items.indexOf(result);
+          if (idx >= 0) {
+            const val = itemValues[idx];
+            if (val !== undefined) selectItem(val);
+          }
+        }
+      }}
+    />
+  ) as HTMLElement;
+}
+
+function RadioItem(
+  value: string,
+  label: string | undefined,
+  isActive: boolean,
+  selectItem: (value: string) => void,
+): HTMLElement {
+  return (
+    <div
+      role="radio"
+      id={uniqueId('radio')}
+      data-value={value}
+      aria-checked={isActive ? 'true' : 'false'}
+      data-state={isActive ? 'checked' : 'unchecked'}
+      onClick={() => {
+        selectItem(value);
+      }}
+    >
+      {label ?? value}
+    </div>
+  ) as HTMLElement;
 }
 
 function RadioRoot(options: RadioOptions = {}): RadioElements & {
   state: RadioState;
-  Item: (value: string, label?: string) => HTMLDivElement;
+  Item: (value: string, label?: string) => HTMLElement;
 } {
   const { defaultValue = '', onValueChange, ...attrs } = options;
   const state: RadioState = { value: signal(defaultValue) };
-  const items: HTMLDivElement[] = [];
+  const items: HTMLElement[] = [];
   const itemValues: string[] = [];
 
   function selectItem(value: string): void {
@@ -47,41 +92,15 @@ function RadioRoot(options: RadioOptions = {}): RadioElements & {
     onValueChange?.(value);
   }
 
-  const root = (
-    <div
-      role="radiogroup"
-      id={uniqueId('radiogroup')}
-      onKeydown={(event: KeyboardEvent) => {
-        const result = handleListNavigation(event, items, { orientation: 'vertical' });
-        if (result) {
-          const idx = items.indexOf(result as HTMLDivElement);
-          if (idx >= 0) {
-            const val = itemValues[idx];
-            if (val !== undefined) selectItem(val);
-          }
-        }
-      }}
-    />
-  ) as HTMLDivElement;
+  const root = RadioGroup(items, itemValues, selectItem);
 
-  function Item(value: string, label?: string): HTMLDivElement {
+  function Item(value: string, label?: string): HTMLElement {
     const isActive = value === state.value.peek();
 
-    const item = (
-      <div
-        role="radio"
-        id={uniqueId('radio')}
-        data-value={value}
-        aria-checked={isActive ? 'true' : 'false'}
-        data-state={isActive ? 'checked' : 'unchecked'}
-        onClick={() => {
-          selectItem(value);
-          item.focus();
-        }}
-      >
-        {label ?? value}
-      </div>
-    ) as HTMLDivElement;
+    const item = RadioItem(value, label, isActive, selectItem);
+    item.addEventListener('click', () => {
+      item.focus();
+    });
 
     items.push(item);
     itemValues.push(value);
@@ -100,7 +119,7 @@ function RadioRoot(options: RadioOptions = {}): RadioElements & {
 export const Radio: {
   Root: (options?: RadioOptions) => RadioElements & {
     state: RadioState;
-    Item: (value: string, label?: string) => HTMLDivElement;
+    Item: (value: string, label?: string) => HTMLElement;
   };
 } = {
   Root: RadioRoot,

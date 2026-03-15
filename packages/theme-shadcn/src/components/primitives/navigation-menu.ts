@@ -16,8 +16,8 @@ interface NavigationMenuStyleClasses {
 
 export interface ThemedNavigationMenuResult extends NavigationMenuElements {
   state: NavigationMenuState;
-  Item: (value: string, label?: string) => { trigger: HTMLButtonElement; content: HTMLDivElement };
-  Link: (href: string, label: string) => HTMLAnchorElement;
+  Item: (value: string, label?: string) => { trigger: HTMLElement; content: HTMLElement };
+  Link: (href: string, label: string) => HTMLElement;
 }
 
 export function createThemedNavigationMenu(
