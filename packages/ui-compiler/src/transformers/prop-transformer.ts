@@ -1,6 +1,7 @@
 import type MagicString from 'magic-string';
 import { type Node, type SourceFile, SyntaxKind } from 'ts-morph';
 import type { ComponentInfo, JsxExpressionInfo, VariableInfo } from '../types';
+import { quoteIfNeeded } from '../utils';
 
 /**
  * Transform component props: reactive → getter, static → plain value.
@@ -29,15 +30,16 @@ export class PropTransformer {
     for (const attr of attrs) {
       if (!attr.isKind(SyntaxKind.JsxAttribute)) continue;
       const name = attr.getNameNode().getText();
+      const key = quoteIfNeeded(name);
       const init = attr.getInitializer();
 
       if (!init) {
-        props.push(`${name}: true`);
+        props.push(`${key}: true`);
         continue;
       }
 
       if (init.isKind(SyntaxKind.StringLiteral)) {
-        props.push(`${name}: ${init.getText()}`);
+        props.push(`${key}: ${init.getText()}`);
         continue;
       }
 
@@ -47,9 +49,9 @@ export class PropTransformer {
         const exprText = exprNode?.getText() ?? '';
 
         if (exprInfo?.reactive) {
-          props.push(`get ${name}() { return ${exprText}; }`);
+          props.push(`get ${key}() { return ${exprText}; }`);
         } else {
-          props.push(`${name}: ${exprText}`);
+          props.push(`${key}: ${exprText}`);
         }
       }
     }

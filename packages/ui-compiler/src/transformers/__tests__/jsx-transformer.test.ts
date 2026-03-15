@@ -238,4 +238,44 @@ describe('JsxTransformer', () => {
     expect(internalsImport).toContain('__append');
     expect(internalsImport).toContain('__staticText');
   });
+
+  it('quotes hyphenated prop names on custom components', () => {
+    const result = transform(
+      `function App() {\n  return <Button data-testid="sign-out">Sign out</Button>;\n}`,
+      [],
+    );
+    expect(result).toContain('"data-testid"');
+    expect(result).not.toContain('data-testid:');
+  });
+
+  it('quotes aria-* props on custom components', () => {
+    const result = transform(
+      `function App() {\n  return <Panel aria-label="main panel" />;\n}`,
+      [],
+    );
+    expect(result).toContain('"aria-label"');
+  });
+
+  it('quotes hyphenated boolean props on custom components', () => {
+    const result = transform(`function App() {\n  return <Widget data-active />;\n}`, []);
+    expect(result).toContain('"data-active": true');
+  });
+
+  it('quotes hyphenated reactive props on custom components', () => {
+    const result = transform(`function App() {\n  return <Card data-visible={isVisible} />;\n}`, [
+      { name: 'isVisible', kind: 'signal', start: 0, end: 0 },
+    ]);
+    expect(result).toContain('get "data-visible"()');
+  });
+
+  it('does not quote simple identifier props on custom components', () => {
+    const result = transform(
+      `function App() {\n  return <Button disabled={true} label="hello" />;\n}`,
+      [],
+    );
+    expect(result).toContain('disabled:');
+    expect(result).toContain('label:');
+    expect(result).not.toContain('"disabled"');
+    expect(result).not.toContain('"label"');
+  });
 });
