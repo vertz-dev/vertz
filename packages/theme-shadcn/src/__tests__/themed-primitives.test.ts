@@ -315,26 +315,34 @@ describe('createThemedAlertDialog', () => {
     let clicked = false;
     const btn = document.createElement('button');
     btn.textContent = 'Delete';
-    const triggerSlot = AlertDialog.Trigger({ children: btn });
-    const action = AlertDialog.Action({
-      children: 'Confirm',
-      onClick: () => {
-        clicked = true;
+    let action!: HTMLElement;
+
+    const root = AlertDialog({
+      children: () => {
+        const triggerSlot = AlertDialog.Trigger({ children: btn });
+        action = AlertDialog.Action({
+          children: 'Confirm',
+          onClick: () => {
+            clicked = true;
+          },
+        });
+        const contentSlot = AlertDialog.Content({
+          children: [
+            AlertDialog.Title({ children: 'Confirm' }),
+            AlertDialog.Footer({ children: action }),
+          ],
+        });
+        return [triggerSlot, contentSlot];
       },
     });
-    const contentSlot = AlertDialog.Content({
-      children: [
-        AlertDialog.Title({ children: 'Confirm' }),
-        AlertDialog.Footer({ children: action }),
-      ],
-    });
+    document.body.appendChild(root);
 
-    AlertDialog({ defaultOpen: true, children: [triggerSlot, contentSlot] });
-
+    btn.click();
     expect(btn.getAttribute('data-state')).toBe('open');
     action.click();
     expect(clicked).toBe(true);
     expect(btn.getAttribute('data-state')).toBe('closed');
+    document.body.removeChild(root);
   });
 
   it('Cancel fires user onClick AND auto-closes when inside Root', async () => {
@@ -345,26 +353,34 @@ describe('createThemedAlertDialog', () => {
     let clicked = false;
     const btn = document.createElement('button');
     btn.textContent = 'Delete';
-    const triggerSlot = AlertDialog.Trigger({ children: btn });
-    const cancel = AlertDialog.Cancel({
-      children: 'Dismiss',
-      onClick: () => {
-        clicked = true;
+    let cancel!: HTMLElement;
+
+    const root = AlertDialog({
+      children: () => {
+        const triggerSlot = AlertDialog.Trigger({ children: btn });
+        cancel = AlertDialog.Cancel({
+          children: 'Dismiss',
+          onClick: () => {
+            clicked = true;
+          },
+        });
+        const contentSlot = AlertDialog.Content({
+          children: [
+            AlertDialog.Title({ children: 'Confirm' }),
+            AlertDialog.Footer({ children: cancel }),
+          ],
+        });
+        return [triggerSlot, contentSlot];
       },
     });
-    const contentSlot = AlertDialog.Content({
-      children: [
-        AlertDialog.Title({ children: 'Confirm' }),
-        AlertDialog.Footer({ children: cancel }),
-      ],
-    });
+    document.body.appendChild(root);
 
-    AlertDialog({ defaultOpen: true, children: [triggerSlot, contentSlot] });
-
+    btn.click();
     expect(btn.getAttribute('data-state')).toBe('open');
     cancel.click();
     expect(clicked).toBe(true);
     expect(btn.getAttribute('data-state')).toBe('closed');
+    document.body.removeChild(root);
   });
 
   it('Escape key does NOT close the alert dialog', async () => {

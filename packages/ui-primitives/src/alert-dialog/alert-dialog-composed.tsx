@@ -37,6 +37,11 @@ interface SlotProps {
   class?: string;
 }
 
+interface ButtonSlotProps extends SlotProps {
+  onClick?: () => void;
+  disabled?: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Sub-components — structural slot markers
 // ---------------------------------------------------------------------------
@@ -93,24 +98,30 @@ function AlertDialogFooter({ children, class: cls }: SlotProps) {
   return <div class={combined || undefined}>{children}</div>;
 }
 
-function AlertDialogCancel({ children, class: cls }: SlotProps) {
+function AlertDialogCancel({ children, class: cls, onClick, disabled }: ButtonSlotProps) {
   const classes = useContext(AlertDialogClassesContext);
   const combined = [classes?.cancel, cls].filter(Boolean).join(' ');
-  return (
+  const el = (
     <button type="button" data-slot="alertdialog-cancel" class={combined || undefined}>
       {children}
     </button>
-  );
+  ) as HTMLButtonElement;
+  if (onClick) el.addEventListener('click', onClick);
+  if (disabled) el.disabled = true;
+  return el;
 }
 
-function AlertDialogAction({ children, class: cls }: SlotProps) {
+function AlertDialogAction({ children, class: cls, onClick, disabled }: ButtonSlotProps) {
   const classes = useContext(AlertDialogClassesContext);
   const combined = [classes?.action, cls].filter(Boolean).join(' ');
-  return (
+  const el = (
     <button type="button" data-slot="alertdialog-action" class={combined || undefined}>
       {children}
     </button>
-  );
+  ) as HTMLButtonElement;
+  if (onClick) el.addEventListener('click', onClick);
+  if (disabled) el.disabled = true;
+  return el;
 }
 
 // ---------------------------------------------------------------------------
@@ -246,6 +257,6 @@ export const ComposedAlertDialog = Object.assign(ComposedAlertDialogRoot, {
   Description: (props: SlotProps) => HTMLElement;
   Header: (props: SlotProps) => HTMLElement;
   Footer: (props: SlotProps) => HTMLElement;
-  Cancel: (props: SlotProps) => HTMLElement;
-  Action: (props: SlotProps) => HTMLElement;
+  Cancel: (props: ButtonSlotProps) => HTMLElement;
+  Action: (props: ButtonSlotProps) => HTMLElement;
 };

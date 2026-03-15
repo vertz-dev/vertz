@@ -25,6 +25,11 @@ export interface AlertDialogSlotProps {
   class?: string;
 }
 
+export interface AlertDialogButtonSlotProps extends AlertDialogSlotProps {
+  onClick?: () => void;
+  disabled?: boolean;
+}
+
 // ── Component type ─────────────────────────────────────────
 
 export interface ThemedAlertDialogComponent {
@@ -34,8 +39,8 @@ export interface ThemedAlertDialogComponent {
   Title: (props: AlertDialogSlotProps) => HTMLElement;
   Description: (props: AlertDialogSlotProps) => HTMLElement;
   Footer: (props: AlertDialogSlotProps) => HTMLElement;
-  Cancel: (props: AlertDialogSlotProps) => HTMLElement;
-  Action: (props: AlertDialogSlotProps) => HTMLElement;
+  Cancel: (props: AlertDialogButtonSlotProps) => HTMLElement;
+  Action: (props: AlertDialogButtonSlotProps) => HTMLElement;
 }
 
 // ── Factory ────────────────────────────────────────────────
