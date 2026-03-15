@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { CodegenConfig, CodegenIR } from '@vertz/codegen';
 import { Command } from 'commander';
 import { createJiti } from 'jiti';
@@ -18,20 +20,22 @@ import { generateAction } from './commands/generate';
 import { loadDbContext } from './commands/load-db-context';
 import { startAction } from './commands/start';
 
+const pkg = JSON.parse(readFileSync(resolve(import.meta.dirname, '../package.json'), 'utf-8'));
+
 export function createCLI(): Command {
   const program = new Command();
 
   program
     .name('vertz')
     .description('Vertz CLI — build, check, and serve your Vertz app')
-    .version('0.1.0');
+    .version(pkg.version);
 
   // Create command - scaffold a new Vertz project
   program
     .command('create <name>')
     .description('Scaffold a new Vertz project')
     .action(async (name: string) => {
-      const result = await createAction({ projectName: name });
+      const result = await createAction({ projectName: name, version: pkg.version });
       if (!result.ok) {
         console.error(result.error.message);
         process.exit(1);

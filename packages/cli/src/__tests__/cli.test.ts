@@ -12,9 +12,12 @@ describe('createCLI', () => {
     expect(program.name()).toBe('vertz');
   });
 
-  it('sets a version', () => {
+  it('reads version from package.json (not hardcoded)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const pkg = JSON.parse(readFileSync(resolve(import.meta.dir, '../../package.json'), 'utf-8'));
     const program = createCLI();
-    expect(program.version()).toBe('0.1.0');
+    expect(program.version()).toBe(pkg.version);
   });
 
   it('registers check command', () => {

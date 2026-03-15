@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'bun:test';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { createAction } from '../create';
@@ -18,12 +18,36 @@ describe('createAction', () => {
     }
   });
 
+  it('includes the package version in the creating message', async () => {
+    const originalCwd = process.cwd();
+    process.chdir(testDir);
+
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as Mock<
+      (...args: unknown[]) => unknown
+    >;
+
+    const pkg = JSON.parse(
+      await fs.readFile(path.resolve(import.meta.dir, '../../../package.json'), 'utf-8'),
+    );
+
+    await createAction({ projectName: 'version-test-app', version: pkg.version });
+
+    const creatingMsg = logSpy.mock.calls.find(
+      (call) => typeof call[0] === 'string' && call[0].startsWith('Creating Vertz app:'),
+    );
+    expect(creatingMsg).toBeDefined();
+    expect(creatingMsg?.[0]).toContain(`(v${pkg.version})`);
+
+    logSpy.mockRestore();
+    process.chdir(originalCwd);
+  });
+
   it('creates a new full-stack Vertz project', async () => {
     const originalCwd = process.cwd();
 
     process.chdir(testDir);
 
-    const result = await createAction({ projectName: 'my-test-app' });
+    const result = await createAction({ projectName: 'my-test-app', version: '0.0.0' });
 
     expect(result.ok).toBe(true);
 
@@ -55,7 +79,7 @@ describe('createAction', () => {
     const originalCwd = process.cwd();
     process.chdir(testDir);
 
-    const result = await createAction({});
+    const result = await createAction({ version: '0.0.0' });
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -69,7 +93,7 @@ describe('createAction', () => {
     const originalCwd = process.cwd();
     process.chdir(testDir);
 
-    const result = await createAction({ projectName: 'Invalid_Project_Name!' });
+    const result = await createAction({ projectName: 'Invalid_Project_Name!', version: '0.0.0' });
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -85,7 +109,7 @@ describe('createAction', () => {
 
     await fs.mkdir(path.join(testDir, 'existing-app'));
 
-    const result = await createAction({ projectName: 'existing-app' });
+    const result = await createAction({ projectName: 'existing-app', version: '0.0.0' });
 
     expect(result.ok).toBe(false);
     if (!result.ok) {

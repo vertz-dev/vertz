@@ -3,10 +3,11 @@ import { err, ok, type Result } from '@vertz/errors';
 
 export interface CreateOptions {
   projectName?: string;
+  version: string;
 }
 
 export async function createAction(options: CreateOptions): Promise<Result<void, Error>> {
-  const { projectName } = options;
+  const { projectName, version } = options;
 
   // Validate project name
   if (!projectName) {
@@ -22,7 +23,7 @@ export async function createAction(options: CreateOptions): Promise<Result<void,
   try {
     const resolved = await resolveOptions({ projectName });
 
-    console.log(`Creating Vertz app: ${resolved.projectName}`);
+    console.log(`Creating Vertz app: ${resolved.projectName} (v${version})`);
 
     const targetDir = process.cwd();
     await scaffold(targetDir, resolved);
