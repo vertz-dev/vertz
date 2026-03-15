@@ -1,8 +1,8 @@
 import { css, Link, Outlet, query, useParams } from '@vertz/ui';
-import { projectApi } from '../api/client';
+import { api } from '../api/client';
 
 const styles = css({
-  header: ['flex', 'items:center', 'gap:2', 'mb:6'],
+  header: ['flex', 'items:center', 'gap:2', 'mb:4'],
   breadcrumb: ['text:sm', 'text:muted-foreground'],
   separator: ['text:sm', 'text:muted-foreground'],
   title: ['font:xl', 'font:bold', 'text:foreground'],
@@ -10,7 +10,7 @@ const styles = css({
 
 export function ProjectLayout() {
   const { projectId } = useParams<'/projects/:projectId'>();
-  const project = query(projectApi.get(projectId));
+  const project = query(api.projects.get(projectId));
 
   return (
     <div>
@@ -21,7 +21,7 @@ export function ProjectLayout() {
         <span class={styles.separator}>/</span>
         <h1 class={styles.title}>{project.data?.name ?? 'Loading...'}</h1>
       </header>
-      {Outlet()}
+      <Outlet />
     </div>
   );
 }

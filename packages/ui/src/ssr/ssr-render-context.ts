@@ -58,13 +58,17 @@ export interface SSRRenderContext {
 }
 
 /** Auth state injected into SSRRenderContext by the server. */
-export type SSRAuth =
+export type SSRAuth = (
   | {
       status: 'authenticated';
       user: { id: string; email: string; role: string; [key: string]: unknown };
       expiresAt: number;
     }
-  | { status: 'unauthenticated' };
+  | { status: 'unauthenticated' }
+) & {
+  /** OAuth provider metadata for SSR rendering of login buttons. */
+  providers?: { id: string; name: string; authUrl: string }[];
+};
 
 type SSRContextResolver = () => SSRRenderContext | undefined;
 

@@ -1,20 +1,9 @@
 import { css } from '@vertz/ui';
 import type { IssuePriority } from '../lib/types';
+import { formStyles, labelStyles } from '../styles/components';
 
 const styles = css({
   container: ['flex', 'flex-col', 'gap:1'],
-  label: ['text:xs', 'font:medium', 'text:muted-foreground'],
-  select: [
-    'bg:background',
-    'border:1',
-    'border:border',
-    'rounded:md',
-    'px:3',
-    'py:1.5',
-    'text:sm',
-    'text:foreground',
-    'cursor:pointer',
-  ],
 });
 
 const priorityOptions: { value: IssuePriority; label: string }[] = [
@@ -33,11 +22,11 @@ interface PrioritySelectProps {
 export function PrioritySelect({ value, onChange }: PrioritySelectProps) {
   return (
     <div class={styles.container}>
-      <label class={styles.label} htmlFor="issue-priority-select">
+      <label class={labelStyles.base} htmlFor="issue-priority-select">
         Priority
       </label>
       <select
-        class={styles.select}
+        class={formStyles.select}
         id="issue-priority-select"
         value={value}
         onChange={(e: Event) => {

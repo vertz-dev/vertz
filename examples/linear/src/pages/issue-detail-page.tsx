@@ -1,5 +1,5 @@
 import { css, query, useParams } from '@vertz/ui';
-import { commentApi, issueApi, projectApi, userApi } from '../api/client';
+import { api } from '../api/client';
 import { CommentSection } from '../components/comment-section';
 import { PrioritySelect } from '../components/priority-select';
 import { StatusSelect } from '../components/status-select';
@@ -11,20 +11,31 @@ const styles = css({
   error: ['text:sm', 'text:destructive', 'py:8'],
   layout: ['flex', 'gap:8'],
   main: ['flex-1'],
-  identifier: ['text:sm', 'text:muted-foreground', 'font:mono', 'mb:2'],
+  identifier: ['text:sm', 'text:muted-foreground', 'mb:2'],
   title: ['font:xl', 'font:bold', 'text:foreground', 'mb:4'],
   description: ['text:sm', 'text:foreground', 'leading:relaxed'],
   noDescription: ['text:sm', 'text:muted-foreground', 'italic'],
-  sidebar: ['w:56', 'shrink:0', 'flex', 'flex-col', 'gap:4'],
+  sidebar: [
+    'w:56',
+    'shrink-0',
+    'flex',
+    'flex-col',
+    'gap:4',
+    'bg:card',
+    'rounded:lg',
+    'border:1',
+    'border:border',
+    'p:4',
+  ],
   meta: ['text:xs', 'text:muted-foreground', 'mt:6'],
 });
 
 export function IssueDetailPage() {
   const { projectId, issueId } = useParams<'/projects/:projectId/issues/:issueId'>();
-  const issue = query(issueApi.get(issueId));
-  const project = query(projectApi.get(projectId));
-  const comments = query(commentApi.list(issueId));
-  const users = query(userApi.list());
+  const issue = query(api.issues.get(issueId));
+  const project = query(api.projects.get(projectId));
+  const comments = query(api.comments.list({ issueId }));
+  const users = query(api.users.list());
 
   let updateError = '';
 
@@ -33,12 +44,15 @@ export function IssueDetailPage() {
   // and re-evaluates when users.data loads.
   const userMap: Record<string, { name: string; avatarUrl: string | null }> = users.data?.items
     ? Object.fromEntries(
-        users.data.items.map((u) => [u.id, { name: u.name, avatarUrl: u.avatarUrl }]),
+        users.data.items.map((u) => [
+          u.id,
+          { name: u.name, avatarUrl: u.avatarUrl as string | null },
+        ]),
       )
     : {};
 
   const handleStatusChange = async (status: IssueStatus) => {
-    const res = await issueApi.update(issueId, { status });
+    const res = await api.issues.update(issueId, { status });
     if (!res.ok) {
       updateError = 'Failed to update status';
       return;
@@ -48,7 +62,7 @@ export function IssueDetailPage() {
   };
 
   const handlePriorityChange = async (priority: IssuePriority) => {
-    const res = await issueApi.update(issueId, { priority });
+    const res = await api.issues.update(issueId, { priority });
     if (!res.ok) {
       updateError = 'Failed to update priority';
       return;
@@ -91,8 +105,11 @@ export function IssueDetailPage() {
           </div>
 
           <aside class={styles.sidebar}>
-            <StatusSelect value={issue.data.status} onChange={handleStatusChange} />
-            <PrioritySelect value={issue.data.priority} onChange={handlePriorityChange} />
+            <StatusSelect value={issue.data.status as IssueStatus} onChange={handleStatusChange} />
+            <PrioritySelect
+              value={issue.data.priority as IssuePriority}
+              onChange={handlePriorityChange}
+            />
           </aside>
         </div>
       )}

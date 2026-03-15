@@ -5,6 +5,27 @@ description: "Generated typed client from entity definitions"
 
 Vertz generates a fully typed SDK from your entity and service definitions. The SDK is a thin layer over an HTTP client — every method returns typed `Result` values, integrates with `query()` and `form()`, and provides deterministic cache keys for the UI layer.
 
+## Always use FetchClient or the generated SDK
+
+<Warning>
+Never use raw `fetch()` for API calls in your UI code. Always use `FetchClient` (or the generated SDK which uses it internally).
+
+During SSR, Vertz intercepts `fetch()` calls to route API requests through the in-memory handler — no HTTP round-trip. `FetchClient` is designed for this: it passes relative URLs as strings (not `Request` objects) so the SSR fetch proxy can intercept them. Raw `fetch()` bypasses proper error handling, retry logic, and SSR integration.
+</Warning>
+
+If codegen is not set up yet, create a `FetchClient` instance directly:
+
+```ts
+import { FetchClient, createDescriptor } from '@vertz/fetch';
+
+const client = new FetchClient({ baseURL: '/api' });
+
+export const taskApi = {
+  list: () => createDescriptor('GET', '/tasks', () => client.get('/tasks')),
+  get: (id: string) => createDescriptor('GET', `/tasks/${id}`, () => client.get(`/tasks/${id}`)),
+};
+```
+
 ## How it works
 
 <Steps>

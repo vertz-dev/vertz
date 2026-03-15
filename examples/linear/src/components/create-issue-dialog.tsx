@@ -1,74 +1,15 @@
-import type { FormSchema } from '@vertz/ui';
-import { css, form } from '@vertz/ui';
-import { issueApi } from '../api/client';
-import type { CreateIssueBody, IssuePriority, IssueStatus } from '../lib/types';
-
-const styles = css({
-  overlay: ['fixed', 'inset:0', 'bg:black/50', 'flex', 'items:center', 'justify:center', 'z:50'],
-  dialog: ['bg:card', 'rounded:lg', 'border:1', 'border:border', 'p:6', 'w:96', 'max-w:full'],
-  title: ['font:lg', 'font:semibold', 'text:foreground', 'mb:4'],
-  field: ['flex', 'flex-col', 'gap:1', 'mb:4'],
-  label: ['text:sm', 'font:medium', 'text:foreground'],
-  input: [
-    'bg:background',
-    'border:1',
-    'border:border',
-    'rounded:md',
-    'px:3',
-    'py:2',
-    'text:sm',
-    'text:foreground',
-  ],
-  textarea: [
-    'bg:background',
-    'border:1',
-    'border:border',
-    'rounded:md',
-    'px:3',
-    'py:2',
-    'text:sm',
-    'text:foreground',
-    'min-h:20',
-  ],
-  select: [
-    'bg:background',
-    'border:1',
-    'border:border',
-    'rounded:md',
-    'px:3',
-    'py:2',
-    'text:sm',
-    'text:foreground',
-  ],
-  error: ['text:xs', 'text:destructive'],
-  footer: ['flex', 'justify:end', 'gap:2', 'mt:6'],
-  cancelBtn: [
-    'px:4',
-    'py:2',
-    'text:sm',
-    'rounded:md',
-    'bg:transparent',
-    'text:muted-foreground',
-    'border:1',
-    'border:border',
-    'cursor:pointer',
-  ],
-  submitBtn: [
-    'px:4',
-    'py:2',
-    'text:sm',
-    'rounded:md',
-    'bg:primary.600',
-    'text:white',
-    'border:0',
-    'cursor:pointer',
-  ],
-});
+import type { DialogHandle, FormSchema } from '@vertz/ui';
+import { form } from '@vertz/ui';
+import type { CreateIssuesInput } from '../api/client';
+import { api } from '../api/client';
+import type { IssuePriority, IssueStatus } from '../lib/types';
+import { dialogStyles, formStyles, inputStyles, labelStyles } from '../styles/components';
+import { Button } from './button';
 
 const VALID_STATUSES: IssueStatus[] = ['backlog', 'todo', 'in_progress', 'done', 'cancelled'];
 const VALID_PRIORITIES: IssuePriority[] = ['urgent', 'high', 'medium', 'low', 'none'];
 
-const createIssueSchema: FormSchema<CreateIssueBody> = {
+const createIssueSchema: FormSchema<CreateIssuesInput> = {
   parse(data: unknown) {
     if (typeof data !== 'object' || data === null) {
       return { ok: false as const, error: new Error('Invalid form data') };
@@ -102,8 +43,9 @@ const createIssueSchema: FormSchema<CreateIssueBody> = {
         projectId: obj.projectId as string,
         title: (obj.title as string).trim(),
         description: obj.description ? String(obj.description).trim() : undefined,
-        status: status as IssueStatus,
-        priority: priority as IssuePriority,
+        status: status as string,
+        priority: priority as string,
+        assigneeId: obj.assigneeId ?? undefined,
       },
     };
   },
@@ -111,12 +53,11 @@ const createIssueSchema: FormSchema<CreateIssueBody> = {
 
 interface CreateIssueDialogProps {
   projectId: string;
-  onClose: () => void;
-  onSuccess: () => void;
+  dialog: DialogHandle<boolean>;
 }
 
-export function CreateIssueDialog({ projectId, onClose, onSuccess }: CreateIssueDialogProps) {
-  const createForm = form(issueApi.create, {
+export function CreateIssueDialog({ projectId, dialog }: CreateIssueDialogProps) {
+  const createForm = form(api.issues.create, {
     schema: createIssueSchema,
     initial: {
       projectId,
@@ -125,49 +66,66 @@ export function CreateIssueDialog({ projectId, onClose, onSuccess }: CreateIssue
       status: 'backlog',
       priority: 'none',
     },
-    onSuccess,
+    onSuccess: () => dialog.close(true),
   });
 
   return (
-    <div class={styles.overlay}>
+    // biome-ignore lint/a11y/noStaticElementInteractions: dialog overlay backdrop
+    <div
+      class={dialogStyles.overlay}
+      data-state="open"
+      role="presentation"
+      onClick={(e: MouseEvent) => {
+        if (e.target === e.currentTarget) dialog.close(false);
+      }}
+      onKeyDown={(e: KeyboardEvent) => {
+        if (e.key === 'Escape') dialog.close(false);
+      }}
+    >
       <div
-        class={styles.dialog}
+        class={dialogStyles.panel}
         role="dialog"
         aria-modal="true"
         aria-label="New Issue"
-        onKeyDown={(e: KeyboardEvent) => {
-          if (e.key === 'Escape') onClose();
-        }}
+        data-state="open"
       >
-        <h3 class={styles.title}>New Issue</h3>
+        <h3 class={dialogStyles.title}>New Issue</h3>
         <form action={createForm.action} method={createForm.method} onSubmit={createForm.onSubmit}>
           <input type="hidden" name="projectId" value={projectId} />
 
-          <div class={styles.field}>
-            <label class={styles.label} htmlFor="issue-title">
+          <div class={formStyles.field}>
+            <label class={labelStyles.base} htmlFor="issue-title">
               Title
             </label>
-            <input class={styles.input} id="issue-title" name="title" placeholder="Issue title" />
-            {createForm.title.error && <span class={styles.error}>{createForm.title.error}</span>}
+            <input
+              class={inputStyles.base}
+              id="issue-title"
+              name="title"
+              placeholder="Issue title"
+            />
+            {createForm.title.error && (
+              <span class={formStyles.error}>{createForm.title.error}</span>
+            )}
           </div>
 
-          <div class={styles.field}>
-            <label class={styles.label} htmlFor="issue-description">
+          <div class={formStyles.field}>
+            <label class={labelStyles.base} htmlFor="issue-description">
               Description
             </label>
             <textarea
-              class={styles.textarea}
+              class={inputStyles.base}
               id="issue-description"
               name="description"
               placeholder="Optional description"
+              style="min-height: 5rem; resize: vertical"
             />
           </div>
 
-          <div class={styles.field}>
-            <label class={styles.label} htmlFor="issue-priority">
+          <div class={formStyles.field}>
+            <label class={labelStyles.base} htmlFor="issue-priority">
               Priority
             </label>
-            <select class={styles.select} id="issue-priority" name="priority">
+            <select class={formStyles.select} id="issue-priority" name="priority">
               <option value="none">None</option>
               <option value="low">Low</option>
               <option value="medium">Medium</option>
@@ -176,13 +134,13 @@ export function CreateIssueDialog({ projectId, onClose, onSuccess }: CreateIssue
             </select>
           </div>
 
-          <footer class={styles.footer}>
-            <button type="button" class={styles.cancelBtn} onClick={onClose}>
+          <footer class={dialogStyles.footer}>
+            <Button intent="outline" size="sm" onClick={() => dialog.close(false)}>
               Cancel
-            </button>
-            <button type="submit" class={styles.submitBtn} disabled={createForm.submitting}>
+            </Button>
+            <Button type="submit" intent="primary" size="sm" disabled={createForm.submitting.value}>
               {createForm.submitting ? 'Creating...' : 'Create Issue'}
-            </button>
+            </Button>
           </footer>
         </form>
       </div>

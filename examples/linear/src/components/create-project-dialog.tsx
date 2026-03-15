@@ -1,61 +1,11 @@
-import type { FormSchema } from '@vertz/ui';
-import { css, form } from '@vertz/ui';
-import { projectApi } from '../api/client';
-import type { CreateProjectBody } from '../lib/types';
+import type { DialogHandle, FormSchema } from '@vertz/ui';
+import { form } from '@vertz/ui';
+import type { CreateProjectsInput } from '../api/client';
+import { api } from '../api/client';
+import { dialogStyles, formStyles, inputStyles, labelStyles } from '../styles/components';
+import { Button } from './button';
 
-const styles = css({
-  overlay: ['fixed', 'inset:0', 'bg:black/50', 'flex', 'items:center', 'justify:center', 'z:50'],
-  dialog: ['bg:card', 'rounded:lg', 'border:1', 'border:border', 'p:6', 'w:96', 'max-w:full'],
-  title: ['font:lg', 'font:semibold', 'text:foreground', 'mb:4'],
-  field: ['flex', 'flex-col', 'gap:1', 'mb:4'],
-  label: ['text:sm', 'font:medium', 'text:foreground'],
-  input: [
-    'bg:background',
-    'border:1',
-    'border:border',
-    'rounded:md',
-    'px:3',
-    'py:2',
-    'text:sm',
-    'text:foreground',
-  ],
-  textarea: [
-    'bg:background',
-    'border:1',
-    'border:border',
-    'rounded:md',
-    'px:3',
-    'py:2',
-    'text:sm',
-    'text:foreground',
-    'min-h:20',
-  ],
-  error: ['text:xs', 'text:destructive'],
-  footer: ['flex', 'justify:end', 'gap:2', 'mt:6'],
-  cancelBtn: [
-    'px:4',
-    'py:2',
-    'text:sm',
-    'rounded:md',
-    'bg:transparent',
-    'text:muted-foreground',
-    'border:1',
-    'border:border',
-    'cursor:pointer',
-  ],
-  submitBtn: [
-    'px:4',
-    'py:2',
-    'text:sm',
-    'rounded:md',
-    'bg:primary.600',
-    'text:white',
-    'border:0',
-    'cursor:pointer',
-  ],
-});
-
-const createProjectSchema: FormSchema<CreateProjectBody> = {
+const createProjectSchema: FormSchema<CreateProjectsInput> = {
   parse(data: unknown) {
     if (typeof data !== 'object' || data === null) {
       return { ok: false as const, error: new Error('Invalid form data') };
@@ -93,72 +43,86 @@ const createProjectSchema: FormSchema<CreateProjectBody> = {
 };
 
 interface CreateProjectDialogProps {
-  onClose: () => void;
-  onSuccess: () => void;
+  dialog: DialogHandle<boolean>;
 }
 
-export function CreateProjectDialog({ onClose, onSuccess }: CreateProjectDialogProps) {
-  const createForm = form(projectApi.create, {
+export function CreateProjectDialog({ dialog }: CreateProjectDialogProps) {
+  const createForm = form(api.projects.create, {
     schema: createProjectSchema,
     initial: { name: '', key: '', description: '' },
-    onSuccess,
+    onSuccess: () => dialog.close(true),
   });
 
   return (
-    <div class={styles.overlay}>
+    // biome-ignore lint/a11y/noStaticElementInteractions: dialog overlay backdrop
+    <div
+      class={dialogStyles.overlay}
+      data-state="open"
+      role="presentation"
+      onClick={(e: MouseEvent) => {
+        if (e.target === e.currentTarget) dialog.close(false);
+      }}
+      onKeyDown={(e: KeyboardEvent) => {
+        if (e.key === 'Escape') dialog.close(false);
+      }}
+    >
       <div
-        class={styles.dialog}
+        class={dialogStyles.panel}
         role="dialog"
         aria-modal="true"
         aria-label="New Project"
-        onKeyDown={(e: KeyboardEvent) => {
-          if (e.key === 'Escape') onClose();
-        }}
+        data-state="open"
       >
-        <h3 class={styles.title}>New Project</h3>
+        <h3 class={dialogStyles.title}>New Project</h3>
         <form action={createForm.action} method={createForm.method} onSubmit={createForm.onSubmit}>
-          <div class={styles.field}>
-            <label class={styles.label} htmlFor="project-name">
+          <div class={formStyles.field}>
+            <label class={labelStyles.base} htmlFor="project-name">
               Name
             </label>
-            <input class={styles.input} id="project-name" name="name" placeholder="My Project" />
-            {createForm.name.error && <span class={styles.error}>{createForm.name.error}</span>}
+            <input
+              class={inputStyles.base}
+              id="project-name"
+              name="name"
+              placeholder="My Project"
+            />
+            {createForm.name.error && <span class={formStyles.error}>{createForm.name.error}</span>}
           </div>
 
-          <div class={styles.field}>
-            <label class={styles.label} htmlFor="project-key">
+          <div class={formStyles.field}>
+            <label class={labelStyles.base} htmlFor="project-key">
               Key
             </label>
             <input
-              class={styles.input}
+              class={inputStyles.base}
               id="project-key"
               name="key"
               placeholder="PROJ"
               maxLength={5}
               style="text-transform: uppercase"
             />
-            {createForm.key.error && <span class={styles.error}>{createForm.key.error}</span>}
+            {createForm.key.error && <span class={formStyles.error}>{createForm.key.error}</span>}
           </div>
 
-          <div class={styles.field}>
-            <label class={styles.label} htmlFor="project-description">
+          <div class={formStyles.field}>
+            <label class={labelStyles.base} htmlFor="project-description">
               Description
             </label>
             <textarea
-              class={styles.textarea}
+              class={inputStyles.base}
               id="project-description"
               name="description"
               placeholder="Optional description"
+              style="min-height: 5rem; resize: vertical"
             />
           </div>
 
-          <footer class={styles.footer}>
-            <button type="button" class={styles.cancelBtn} onClick={onClose}>
+          <footer class={dialogStyles.footer}>
+            <Button intent="outline" size="sm" onClick={() => dialog.close(false)}>
               Cancel
-            </button>
-            <button type="submit" class={styles.submitBtn} disabled={createForm.submitting}>
+            </Button>
+            <Button type="submit" intent="primary" size="sm" disabled={createForm.submitting.value}>
               {createForm.submitting ? 'Creating...' : 'Create Project'}
-            </button>
+            </Button>
           </footer>
         </form>
       </div>

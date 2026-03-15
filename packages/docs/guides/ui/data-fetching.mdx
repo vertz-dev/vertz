@@ -235,3 +235,26 @@ Entity data is stored in a normalized `EntityStore`. When a mutation fires:
 4. On server error, the layer is rolled back (UI reverts to server truth)
 
 This is automatic for all CRUD operations (`create`, `update`, `delete`) on generated SDK methods.
+
+## SSR data loading
+
+`query()` automatically resolves data during SSR so the page arrives with content — no loading flash:
+
+1. **Pass 1 (discovery)** — The server renders your app, triggering `query()` calls. Each query registers its fetch promise.
+2. **Await** — The server waits for all queries to resolve (default 300ms timeout per query).
+3. **Pass 2 (render)** — The server renders again with cached data. Queries serve from cache, so `loading` is `false`.
+4. **Hydration** — The client picks up the streamed data from `window.__VERTZ_SSR_DATA__` and skips the initial fetch.
+
+<Warning>
+SSR data loading requires your API calls to use `FetchClient` (or the generated SDK). During SSR, Vertz installs a fetch proxy that routes relative API URLs (e.g., `/api/tasks`) through the in-memory request handler — no HTTP round-trip needed. If you use raw `fetch()` instead, the query will fail during SSR and the page will render with a loading state, causing a visible flash when the client-side fetch completes.
+</Warning>
+
+### Configuration
+
+```tsx
+// Per-query timeout (default: 300ms)
+const tasks = query(api.tasks.list(), { ssrTimeout: 500 });
+
+// Disable SSR for a specific query
+const liveData = query(api.metrics.current(), { ssrTimeout: 0 });
+```

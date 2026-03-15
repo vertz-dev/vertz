@@ -1,4 +1,5 @@
 import { css } from '@vertz/ui';
+import { PRIORITY_CONFIG, STATUS_COLORS, STATUS_LABELS } from '../lib/issue-config';
 import type { Issue } from '../lib/types';
 
 const styles = css({
@@ -11,36 +12,14 @@ const styles = css({
     'border-b:1',
     'border:border',
     'cursor:pointer',
+    'transition:colors',
+    'hover:bg:accent',
   ],
-  identifier: ['text:xs', 'text:muted-foreground', 'font:mono', 'w:20', 'shrink:0'],
-  title: ['text:sm', 'text:foreground', 'flex-1', 'truncate'],
-  status: ['text:xs', 'px:2', 'py:0.5', 'rounded:full', 'shrink:0'],
-  priority: ['text:xs', 'shrink:0', 'font:medium'],
+  identifier: ['text:xs', 'text:muted-foreground', 'w:20', 'shrink-0'],
+  title: ['text:sm', 'text:foreground', 'flex-1', 'overflow-hidden', 'whitespace-nowrap'],
+  status: ['text:xs', 'px:2', 'py:0.5', 'rounded:full', 'shrink-0'],
+  priority: ['text:xs', 'shrink-0', 'font:medium'],
 });
-
-const statusColors: Record<string, string> = {
-  backlog: 'bg:muted text:muted-foreground',
-  todo: 'bg:secondary text:foreground',
-  in_progress: 'bg:accent text:accent-foreground',
-  done: 'bg:primary text:primary-foreground',
-  cancelled: 'bg:muted text:muted-foreground',
-};
-
-const statusLabels: Record<string, string> = {
-  backlog: 'Backlog',
-  todo: 'Todo',
-  in_progress: 'In Progress',
-  done: 'Done',
-  cancelled: 'Cancelled',
-};
-
-const priorityConfig: Record<string, { label: string; color: string }> = {
-  urgent: { label: 'Urgent', color: '#ef4444' },
-  high: { label: 'High', color: '#f97316' },
-  medium: { label: 'Medium', color: '#eab308' },
-  low: { label: 'Low', color: '#3b82f6' },
-  none: { label: '', color: '' },
-};
 
 interface IssueRowProps {
   issue: Issue;
@@ -54,12 +33,12 @@ export function IssueRow({ issue, projectKey }: IssueRowProps) {
     <div class={styles.row}>
       <span class={styles.identifier}>{identifier}</span>
       <span class={styles.title}>{issue.title}</span>
-      <span class={`${styles.status} ${statusColors[issue.status] ?? ''}`}>
-        {statusLabels[issue.status] ?? issue.status}
+      <span class={`${styles.status} ${STATUS_COLORS[issue.status] ?? ''}`}>
+        {STATUS_LABELS[issue.status] ?? issue.status}
       </span>
-      {issue.priority !== 'none' && priorityConfig[issue.priority] && (
-        <span class={styles.priority} style={`color: ${priorityConfig[issue.priority].color}`}>
-          {priorityConfig[issue.priority].label}
+      {issue.priority !== 'none' && PRIORITY_CONFIG[issue.priority] && (
+        <span class={styles.priority} style={`color: ${PRIORITY_CONFIG[issue.priority].color}`}>
+          {PRIORITY_CONFIG[issue.priority].label}
         </span>
       )}
     </div>

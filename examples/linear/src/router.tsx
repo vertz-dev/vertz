@@ -15,6 +15,7 @@ import { ProjectLayout } from './components/project-layout';
 import { IssueDetailPage } from './pages/issue-detail-page';
 import { IssueListPage } from './pages/issue-list-page';
 import { LoginPage } from './pages/login-page';
+import { ProjectBoardPage } from './pages/project-board-page';
 import { ProjectsPage } from './pages/projects-page';
 
 /** Redirect `/` → `/projects` so the layout route always has a matched child. */
@@ -22,7 +23,9 @@ function IndexRedirect() {
   const { navigate } = useRouter();
 
   onMount(() => {
-    navigate({ to: '/projects' });
+    // '/projects' is a nested child route under '/', which the typed router
+    // doesn't include in RoutePattern. Cast to satisfy the type system.
+    navigate({ to: '/projects' as '/' });
   });
 
   return <div />;
@@ -48,13 +51,16 @@ export const routes = defineRoutes({
         component: () => <ProjectsPage />,
       },
       '/projects/:projectId': {
-        component: () => ProjectLayout(),
+        component: () => <ProjectLayout />,
         children: {
           '/': {
-            component: () => IssueListPage(),
+            component: () => <IssueListPage />,
+          },
+          '/board': {
+            component: () => <ProjectBoardPage />,
           },
           '/issues/:issueId': {
-            component: () => IssueDetailPage(),
+            component: () => <IssueDetailPage />,
           },
         },
       },

@@ -1448,6 +1448,24 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
             }
           }
 
+          // Fetch OAuth providers for SSR so login buttons render server-side.
+          // Also inject into client HTML so hydration matches SSR output.
+          if (ssrAuth && apiHandler) {
+            try {
+              const origin = `http://${host}:${server?.port}`;
+              const provRes = await apiHandler(
+                new Request(`${origin}${skipSSRPaths[0]}auth/providers`),
+              );
+              if (provRes.ok) {
+                const providers = await provRes.json();
+                ssrAuth.providers = providers;
+                sessionScript += `\n<script>window.__VERTZ_PROVIDERS__=${safeSerialize(providers)};</script>`;
+              }
+            } catch {
+              // Silent — providers will load client-side
+            }
+          }
+
           const doRender = async () => {
             logger.log('ssr', 'render-start', { url: pathname });
             const ssrStart = performance.now();

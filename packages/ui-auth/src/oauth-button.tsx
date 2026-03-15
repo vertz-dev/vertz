@@ -1,3 +1,6 @@
+import type { IconProps } from '@vertz/icons';
+import { AppleIcon, GithubIcon, TwitterIcon } from '@vertz/icons';
+import { variants } from '@vertz/ui';
 import type { OAuthProviderInfo } from '@vertz/ui/auth';
 import { getProviderIcon, useAuth } from '@vertz/ui/auth';
 import type { JSX } from '@vertz/ui/jsx-runtime';
@@ -12,6 +15,78 @@ function isSafeUrl(url: string): boolean {
   }
   return true;
 }
+
+/**
+ * For providers not in @vertz/icons (Google, Discord, Microsoft),
+ * render the branded SVG from provider-icons.ts the same way @vertz/icons does.
+ */
+function brandedIcon(providerId: string, size: number): HTMLSpanElement {
+  const span = document.createElement('span');
+  span.style.cssText = `display: inline-flex; align-items: center; width: ${size}px; height: ${size}px; flex-shrink: 0`;
+  span.innerHTML = getProviderIcon(providerId, size);
+  return span;
+}
+
+/** Map provider ID → icon component (from @vertz/icons) or null for branded SVGs. */
+const ICON_COMPONENTS: Record<string, ((props?: IconProps) => HTMLSpanElement) | undefined> = {
+  github: GithubIcon,
+  apple: AppleIcon,
+  twitter: TwitterIcon,
+};
+
+function renderProviderIcon(providerId: string, size: number): HTMLSpanElement {
+  const IconComponent = ICON_COMPONENTS[providerId];
+  if (IconComponent) {
+    return IconComponent({ size });
+  }
+  // Google, Discord, Microsoft, and unknown providers use branded SVGs
+  return brandedIcon(providerId, size);
+}
+
+const button = variants({
+  base: [
+    'flex',
+    'items:center',
+    'justify:center',
+    'gap:3',
+    'py:2.5',
+    'rounded:lg',
+    'text:sm',
+    'font:medium',
+    'cursor:pointer',
+    'border:1',
+    'w:full',
+    'transition:colors',
+  ],
+  variants: {
+    provider: {
+      github: ['bg:foreground', 'text:background', 'border:foreground'],
+      google: ['bg:background', 'text:foreground', 'border:border'],
+      discord: ['bg:primary.600', 'text:white', 'border:primary.600'],
+      apple: ['bg:foreground', 'text:background', 'border:foreground'],
+      microsoft: ['bg:foreground', 'text:background', 'border:foreground'],
+      twitter: ['bg:foreground', 'text:background', 'border:foreground'],
+      default: ['bg:foreground', 'text:background', 'border:foreground'],
+    },
+    mode: {
+      full: ['px:5'],
+      iconOnly: ['px:2.5'],
+    },
+  },
+  defaultVariants: { provider: 'default', mode: 'full' },
+});
+
+/** Known provider keys for variant lookup. */
+const KNOWN_PROVIDERS = new Set(['github', 'google', 'discord', 'apple', 'microsoft', 'twitter']);
+
+type ProviderVariant =
+  | 'github'
+  | 'google'
+  | 'discord'
+  | 'apple'
+  | 'microsoft'
+  | 'twitter'
+  | 'default';
 
 export interface OAuthButtonProps {
   provider: string;
@@ -31,21 +106,30 @@ export function OAuthButton({
 
   const providerInfo = (providers as OAuthProviderInfo[]).find((p) => p.id === provider);
 
-  if (!providerInfo) {
-    return <span />;
-  }
+  const safeAuthUrl = providerInfo
+    ? isSafeUrl(providerInfo.authUrl)
+      ? providerInfo.authUrl
+      : '#'
+    : '#';
 
-  const safeAuthUrl = isSafeUrl(providerInfo.authUrl) ? providerInfo.authUrl : '#';
+  const providerVariant: ProviderVariant = KNOWN_PROVIDERS.has(provider)
+    ? (provider as ProviderVariant)
+    : 'default';
+
+  if (!providerInfo) {
+    return (<span />) as JSX.Element;
+  }
 
   return (
     <button
       type="button"
+      class={button({ provider: providerVariant, mode: iconOnly ? 'iconOnly' : 'full' })}
       aria-label={iconOnly ? `Continue with ${providerInfo.name}` : undefined}
       onClick={() => {
         window.location.href = safeAuthUrl;
       }}
     >
-      <span innerHTML={getProviderIcon(provider, 20)} />
+      {renderProviderIcon(provider, 20)}
       {!iconOnly && <span>{label ?? `Continue with ${providerInfo.name}`}</span>}
     </button>
   );

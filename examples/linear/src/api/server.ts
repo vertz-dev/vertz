@@ -13,7 +13,7 @@ import { issues } from './entities/issues.entity';
 import { projects } from './entities/projects.entity';
 import { users } from './entities/users.entity';
 
-const APP_URL = process.env.APP_URL ?? 'http://localhost:3000';
+const APP_URL = process.env.APP_URL ?? 'http://localhost:3001';
 
 export const app = createServer({
   basePath: '/api',
@@ -25,8 +25,8 @@ export const app = createServer({
     jwtSecret: process.env.JWT_SECRET ?? 'linear-clone-dev-secret-at-least-32-chars!!',
     providers: [
       github({
-        clientId: process.env.GITHUB_CLIENT_ID!,
-        clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+        clientId: process.env.GITHUB_CLIENT_ID ?? '',
+        clientSecret: process.env.GITHUB_CLIENT_SECRET ?? '',
         redirectUrl: `${APP_URL}/api/auth/oauth/github/callback`,
       }),
     ],
