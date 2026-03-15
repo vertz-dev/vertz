@@ -4,6 +4,7 @@ import { ComponentAnalyzer } from './analyzers/component-analyzer';
 import { JsxAnalyzer } from './analyzers/jsx-analyzer';
 import { MutationAnalyzer } from './analyzers/mutation-analyzer';
 import { ReactivityAnalyzer } from './analyzers/reactivity-analyzer';
+import { BodyJsxDiagnostics } from './diagnostics/body-jsx-diagnostics';
 import { MutationDiagnostics } from './diagnostics/mutation-diagnostics';
 import { PropsDestructuringDiagnostics } from './diagnostics/props-destructuring';
 import { SSRSafetyDiagnostics } from './diagnostics/ssr-safety-diagnostics';
@@ -129,6 +130,9 @@ export function compile(
 
     const ssrDiags = new SSRSafetyDiagnostics();
     allDiagnostics.push(...ssrDiags.analyze(sourceFile, component));
+
+    const bodyJsxDiags = new BodyJsxDiagnostics();
+    allDiagnostics.push(...bodyJsxDiags.analyze(sourceFile, component));
   }
 
   // Props destructuring diagnostics (across all components)
