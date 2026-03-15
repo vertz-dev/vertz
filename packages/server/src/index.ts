@@ -84,6 +84,8 @@ export type {
   ClosureStore,
   CloudAuthContext,
   CloudJWTVerifier,
+  CloudOAuthProviderConfig,
+  CloudProxyLifecycleCallbacks,
   ComputeAccessSetConfig,
   ConsumeResult,
   CookieConfig,

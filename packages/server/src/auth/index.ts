@@ -2559,6 +2559,7 @@ export type { ClosureEntry, ClosureRow, ClosureStore, ParentRef } from './closur
 export { InMemoryClosureStore } from './closure-store';
 export type { CloudJWTVerifier } from './cloud-jwt-verifier';
 export { createCloudJWTVerifier } from './cloud-jwt-verifier';
+export type { CloudProxyLifecycleCallbacks } from './cloud-proxy';
 export { createAuthProxy } from './cloud-proxy';
 export type { CloudAuthContext } from './cloud-startup';
 export { resolveCloudAuthContext, validateProjectId } from './cloud-startup';
@@ -2665,6 +2666,7 @@ export type {
   AuthInstance,
   AuthTokens,
   AuthUser,
+  CloudOAuthProviderConfig,
   CookieConfig,
   EmailPasswordConfig,
   EmailVerificationConfig,

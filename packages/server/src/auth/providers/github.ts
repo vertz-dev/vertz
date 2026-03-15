@@ -3,7 +3,13 @@
  * No PKCE support. Untrusted email (always creates new accounts unless manually linked).
  */
 
-import type { OAuthProvider, OAuthProviderConfig, OAuthTokens, OAuthUserInfo } from '../types';
+import type {
+  CloudOAuthProviderConfig,
+  OAuthProvider,
+  OAuthProviderConfig,
+  OAuthTokens,
+  OAuthUserInfo,
+} from '../types';
 
 /** Fields returned by GitHub's GET /user API. */
 export interface GithubProfile {
@@ -48,8 +54,24 @@ const USER_URL = 'https://api.github.com/user';
 const EMAILS_URL = 'https://api.github.com/user/emails';
 const DEFAULT_SCOPES = ['read:user', 'user:email'];
 
-export function github(config: OAuthProviderConfig): OAuthProvider {
+export function github(config: OAuthProviderConfig | CloudOAuthProviderConfig): OAuthProvider {
   const scopes = config.scopes ?? DEFAULT_SCOPES;
+
+  // Cloud mode — OAuth flows are handled by the cloud proxy
+  if (!('clientId' in config)) {
+    const cloudError = (method: string) =>
+      new Error(`${method}() is not available in cloud mode. OAuth flows are handled by the cloud proxy.`);
+
+    return {
+      id: 'github',
+      name: 'GitHub',
+      scopes,
+      trustEmail: false,
+      getAuthorizationUrl() { throw cloudError('getAuthorizationUrl'); },
+      async exchangeCode() { throw cloudError('exchangeCode'); },
+      async getUserInfo() { throw cloudError('getUserInfo'); },
+    };
+  }
 
   return {
     id: 'github',

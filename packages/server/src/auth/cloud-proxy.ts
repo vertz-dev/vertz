@@ -1,5 +1,21 @@
 import { type CircuitBreaker, CircuitBreakerOpenError } from './circuit-breaker';
 
+export interface CloudProxyLifecycleCallbacks {
+  /** Fired when cloud indicates a new user was created (_lifecycle.isNewUser). */
+  onUserCreated?: (payload: {
+    user: { id: string; email: string; role: string; [key: string]: unknown };
+    provider: { id: string; name: string };
+    profile: Record<string, unknown>;
+  }) => Promise<void>;
+  /** Fired on every successful auth response that includes _tokens. */
+  onUserAuthenticated?: (user: {
+    id: string;
+    email: string;
+    role: string;
+    [key: string]: unknown;
+  }) => Promise<void>;
+}
+
 /** Carries a 5xx response through the circuit breaker's error path. */
 class CloudUpstreamError extends Error {
   constructor(
@@ -25,6 +41,7 @@ export function createAuthProxy(options: {
   circuitBreaker?: CircuitBreaker;
   fetchTimeout?: number;
   maxBodySize?: number;
+  lifecycle?: CloudProxyLifecycleCallbacks;
 }): (request: Request) => Promise<Response> {
   const {
     projectId,
@@ -34,6 +51,7 @@ export function createAuthProxy(options: {
     circuitBreaker,
     fetchTimeout = 10_000,
     maxBodySize = 1_048_576,
+    lifecycle,
   } = options;
 
   const isProduction = environment !== 'development';
@@ -175,7 +193,42 @@ export function createAuthProxy(options: {
       delete responseBody!._tokens;
     }
 
-    // Strip _lifecycle from response body (Phase 3 will process it)
+    // Process lifecycle callbacks before stripping _lifecycle
+    if (responseBody && lifecycle) {
+      const lc = responseBody._lifecycle as
+        | {
+            isNewUser?: boolean;
+            provider?: { id: string; name: string };
+            rawProfile?: Record<string, unknown>;
+          }
+        | undefined;
+
+      // Fire onUserCreated when cloud reports a new user
+      if (lc?.isNewUser && lifecycle.onUserCreated) {
+        const user = responseBody.user as
+          | { id: string; email: string; role: string; [key: string]: unknown }
+          | undefined;
+        if (user) {
+          await lifecycle.onUserCreated({
+            user,
+            provider: lc.provider ?? { id: 'unknown', name: 'Unknown' },
+            profile: lc.rawProfile ?? {},
+          });
+        }
+      }
+
+      // Fire onUserAuthenticated on every successful auth response with tokens
+      if (tokens && lifecycle.onUserAuthenticated) {
+        const user = responseBody.user as
+          | { id: string; email: string; role: string; [key: string]: unknown }
+          | undefined;
+        if (user) {
+          await lifecycle.onUserAuthenticated(user);
+        }
+      }
+    }
+
+    // Strip _lifecycle from response body
     if (responseBody && '_lifecycle' in responseBody) {
       delete responseBody._lifecycle;
     }

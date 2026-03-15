@@ -166,6 +166,11 @@ export interface OAuthProviderConfig {
   scopes?: string[];
 }
 
+/** Cloud mode provider config — credentials managed by Vertz Cloud. */
+export interface CloudOAuthProviderConfig {
+  scopes?: string[];
+}
+
 export interface OAuthTokens {
   accessToken: string;
   refreshToken?: string;

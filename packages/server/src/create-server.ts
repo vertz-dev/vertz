@@ -16,6 +16,7 @@ import type { AuthDbClient } from './auth/db-types';
 import { DbUserStore } from './auth/db-user-store';
 import { createAuth } from './auth/index';
 import { createJWKSClient } from './auth/jwks-client';
+import { resolveSessionForSSR as createSSRResolver } from './auth/resolve-session-for-ssr';
 import type { AuthConfig, AuthInstance } from './auth/types';
 import type { EntityOperations } from './entity/entity-operations';
 import { EntityRegistry } from './entity/entity-registry';
@@ -401,39 +402,10 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
       },
       initialize: async () => {},
       dispose: () => {},
-      async resolveSessionForSSR(request: Request) {
-        const cookieHeader = request.headers.get('cookie');
-        if (!cookieHeader) return null;
-
-        const cookieName = 'vertz.sid';
-        const cookieEntry = cookieHeader
-          .split(';')
-          .find((c) => c.trim().startsWith(`${cookieName}=`));
-        if (!cookieEntry) return null;
-
-        const token = cookieEntry.trim().slice(`${cookieName}=`.length);
-        if (!token) return null;
-
-        const payload = await cloudVerifier.verify(token);
-        if (!payload) return null;
-
-        const user: { id: string; email: string; role: string; [key: string]: unknown } = {
-          id: payload.sub,
-          email: payload.email,
-          role: payload.role,
-        };
-
-        if (payload.tenantId) {
-          user.tenantId = payload.tenantId;
-        }
-
-        return {
-          session: {
-            user,
-            expiresAt: payload.exp * 1000,
-          },
-        };
-      },
+      resolveSessionForSSR: createSSRResolver({
+        cloudVerifier,
+        cookieName: 'vertz.sid',
+      }),
     };
 
     // 7. Build ServerInstance

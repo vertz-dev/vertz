@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import { createCircuitBreaker } from './circuit-breaker';
-import { createAuthProxy } from './cloud-proxy';
+import { type CloudProxyLifecycleCallbacks, createAuthProxy } from './cloud-proxy';
 
 let mockCloudServer: ReturnType<typeof Bun.serve>;
 let cloudBaseUrl: string;
@@ -488,6 +488,135 @@ describe('createAuthProxy', () => {
     }
 
     expect(cb.getState()).toBe('open');
+  });
+
+  // --- Lifecycle callbacks ---
+
+  it('fires onUserCreated when _lifecycle.isNewUser is true', async () => {
+    let createdPayload: unknown = null;
+    const callbacks: CloudProxyLifecycleCallbacks = {
+      onUserCreated: async (payload) => {
+        createdPayload = payload;
+      },
+    };
+    mockResponse = {
+      status: 200,
+      body: {
+        user: { id: 'u1', email: 'new@test.com', role: 'member' },
+        _lifecycle: {
+          isNewUser: true,
+          provider: { id: 'github', name: 'GitHub' },
+          rawProfile: { login: 'octocat' },
+        },
+        _tokens: { jwt: 'j', refreshToken: 'r' },
+      },
+    };
+    const proxy = createProxy({ lifecycle: callbacks });
+    const req = new Request(`${cloudBaseUrl}/api/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+
+    await proxy(req);
+
+    expect(createdPayload).not.toBeNull();
+    expect((createdPayload as any).user.id).toBe('u1');
+    expect((createdPayload as any).provider.id).toBe('github');
+    expect((createdPayload as any).profile.login).toBe('octocat');
+  });
+
+  it('does not fire onUserCreated when _lifecycle.isNewUser is false', async () => {
+    let called = false;
+    const callbacks: CloudProxyLifecycleCallbacks = {
+      onUserCreated: async () => {
+        called = true;
+      },
+    };
+    mockResponse = {
+      status: 200,
+      body: {
+        user: { id: 'u1' },
+        _lifecycle: { isNewUser: false },
+        _tokens: { jwt: 'j', refreshToken: 'r' },
+      },
+    };
+    const proxy = createProxy({ lifecycle: callbacks });
+    const req = new Request(`${cloudBaseUrl}/api/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+
+    await proxy(req);
+    expect(called).toBe(false);
+  });
+
+  it('fires onUserAuthenticated on every successful auth response with _tokens', async () => {
+    let authUser: unknown = null;
+    const callbacks: CloudProxyLifecycleCallbacks = {
+      onUserAuthenticated: async (user) => {
+        authUser = user;
+      },
+    };
+    mockResponse = {
+      status: 200,
+      body: {
+        user: { id: 'u2', email: 'auth@test.com', role: 'admin' },
+        _tokens: { jwt: 'j', refreshToken: 'r' },
+      },
+    };
+    const proxy = createProxy({ lifecycle: callbacks });
+    const req = new Request(`${cloudBaseUrl}/api/auth/signin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+
+    await proxy(req);
+
+    expect(authUser).not.toBeNull();
+    expect((authUser as any).id).toBe('u2');
+    expect((authUser as any).email).toBe('auth@test.com');
+  });
+
+  it('does not fire onUserAuthenticated when no _tokens in response', async () => {
+    let called = false;
+    const callbacks: CloudProxyLifecycleCallbacks = {
+      onUserAuthenticated: async () => {
+        called = true;
+      },
+    };
+    mockResponse = { status: 200, body: { user: { id: 'u1' } } };
+    const proxy = createProxy({ lifecycle: callbacks });
+    const req = new Request(`${cloudBaseUrl}/api/auth/me`, { method: 'GET' });
+
+    await proxy(req);
+    expect(called).toBe(false);
+  });
+
+  it('strips _lifecycle from response even when lifecycle callbacks fire', async () => {
+    const callbacks: CloudProxyLifecycleCallbacks = {
+      onUserCreated: async () => {},
+    };
+    mockResponse = {
+      status: 200,
+      body: {
+        user: { id: 'u1' },
+        _lifecycle: { isNewUser: true, provider: { id: 'github', name: 'GitHub' }, rawProfile: {} },
+        _tokens: { jwt: 'j', refreshToken: 'r' },
+      },
+    };
+    const proxy = createProxy({ lifecycle: callbacks });
+    const req = new Request(`${cloudBaseUrl}/api/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+
+    const res = await proxy(req);
+    const body = await res.json();
+    expect(body._lifecycle).toBeUndefined();
   });
 
   it('counts network errors as circuit breaker failures', async () => {
