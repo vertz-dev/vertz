@@ -5,6 +5,66 @@ import { SSRNode } from './ssr-node';
 import { SSRTextNode } from './ssr-text-node';
 
 /**
+ * Convert camelCase to kebab-case: "testValue" → "test-value"
+ */
+function camelToKebab(str: string): string {
+  return str.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
+}
+
+/**
+ * Convert kebab-case to camelCase: "test-value" → "testValue"
+ */
+function kebabToCamel(str: string): string {
+  return str.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+}
+
+/**
+ * Proxy-based DOMStringMap shim for el.dataset
+ */
+function createDatasetProxy(element: SSRElement): DOMStringMap {
+  return new Proxy({} as DOMStringMap, {
+    set(_target, prop, value) {
+      if (typeof prop === 'string') {
+        element.setAttribute(`data-${camelToKebab(prop)}`, String(value));
+      }
+      return true;
+    },
+    get(_target, prop) {
+      if (typeof prop === 'string') {
+        return element.getAttribute(`data-${camelToKebab(prop)}`) ?? undefined;
+      }
+      return undefined;
+    },
+    has(_target, prop) {
+      if (typeof prop === 'string') {
+        return element.getAttribute(`data-${camelToKebab(prop)}`) !== null;
+      }
+      return false;
+    },
+    deleteProperty(_target, prop) {
+      if (typeof prop === 'string') {
+        element.removeAttribute(`data-${camelToKebab(prop)}`);
+      }
+      return true;
+    },
+    ownKeys() {
+      return Object.keys(element.attrs)
+        .filter((k) => k.startsWith('data-'))
+        .map((k) => kebabToCamel(k.slice(5)));
+    },
+    getOwnPropertyDescriptor(_target, prop) {
+      if (typeof prop === 'string') {
+        const val = element.getAttribute(`data-${camelToKebab(prop)}`);
+        if (val !== null) {
+          return { configurable: true, enumerable: true, value: val };
+        }
+      }
+      return undefined;
+    },
+  });
+}
+
+/**
  * Proxy-based CSSStyleDeclaration shim
  */
 // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
@@ -49,11 +109,13 @@ export class SSRElement extends SSRNode {
   _innerHTML: string | null = null;
   // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
   style: { display: string; [key: string]: any };
+  dataset: DOMStringMap;
 
   constructor(tag: string) {
     super();
     this.tag = tag;
     this.style = createStyleProxy(this);
+    this.dataset = createDatasetProxy(this);
   }
 
   setAttribute(name: string, value: string): void {
