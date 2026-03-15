@@ -71,6 +71,35 @@ describe('wireEventHandlers', () => {
     expect(isKnownEventHandler('data-testid')).toBe(false);
   });
 
+  it('wires onInput as an input listener', () => {
+    const el = document.createElement('input');
+    let fired = false;
+    wireEventHandlers(el, {
+      onInput: () => {
+        fired = true;
+      },
+    });
+    el.dispatchEvent(new Event('input'));
+    expect(fired).toBe(true);
+  });
+
+  it('wires onChange as a change listener', () => {
+    const el = document.createElement('input');
+    let fired = false;
+    wireEventHandlers(el, {
+      onChange: () => {
+        fired = true;
+      },
+    });
+    el.dispatchEvent(new Event('change'));
+    expect(fired).toBe(true);
+  });
+
+  it('recognizes onInput and onChange as known event handlers', () => {
+    expect(isKnownEventHandler('onInput')).toBe(true);
+    expect(isKnownEventHandler('onChange')).toBe(true);
+  });
+
   it('wires multiple handlers at once', () => {
     const el = document.createElement('button');
     let clicked = false;

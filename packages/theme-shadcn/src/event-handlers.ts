@@ -17,6 +17,8 @@ export interface ElementEventHandlers {
   onKeyUp?: (event: KeyboardEvent) => void;
   onPointerDown?: (event: PointerEvent) => void;
   onPointerUp?: (event: PointerEvent) => void;
+  onInput?: (event: InputEvent) => void;
+  onChange?: (event: Event) => void;
 }
 
 /**
@@ -36,6 +38,8 @@ const EVENT_HANDLER_KEYS: ReadonlySet<string> = new Set<keyof ElementEventHandle
   'onKeyUp',
   'onPointerDown',
   'onPointerUp',
+  'onInput',
+  'onChange',
 ]);
 
 /**

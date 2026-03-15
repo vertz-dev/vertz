@@ -1,8 +1,10 @@
 import type { CSSOutput } from '@vertz/ui';
+import type { ElementEventHandlers } from '../event-handlers';
+import { isKnownEventHandler, wireEventHandlers } from '../event-handlers';
 
 type InputBlocks = { base: string[] };
 
-export interface InputProps {
+export interface InputProps extends ElementEventHandlers {
   class?: string;
   name?: string;
   placeholder?: string;
@@ -31,10 +33,11 @@ export function createInputComponent(
     if (type !== undefined) el.type = type;
     if (disabled) el.disabled = true;
     if (value !== undefined) el.value = value;
+    wireEventHandlers(el, attrs as ElementEventHandlers);
     for (const [key, val] of Object.entries(attrs)) {
-      if (val !== undefined && val !== null) {
-        el.setAttribute(key, String(val));
-      }
+      if (val === undefined || val === null) continue;
+      if (isKnownEventHandler(key)) continue;
+      el.setAttribute(key, String(val));
     }
     return el;
   };
