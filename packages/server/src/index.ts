@@ -77,9 +77,13 @@ export type {
   BillingEventType,
   // Phase 8: Plans & Wallet types
   BillingPeriod,
+  // Cloud auth types
+  CircuitBreaker,
   ClosureEntry,
   ClosureRow,
   ClosureStore,
+  CloudAuthContext,
+  CloudJWTVerifier,
   ComputeAccessSetConfig,
   ConsumeResult,
   CookieConfig,
@@ -101,6 +105,7 @@ export type {
   FlagStore,
   GrandfatheringState,
   GrandfatheringStore,
+  JWKSClient,
   LimitDef,
   LimitOverride,
   LimitOverrideDef,
@@ -180,7 +185,11 @@ export {
   createAccessContext,
   createAccessEventBroadcaster,
   createAuth,
+  // Cloud auth
+  createAuthProxy,
   createBillingEventEmitter,
+  createCloudJWTVerifier,
+  createJWKSClient,
   createPlanManager,
   createStripeBillingAdapter,
   createWebhookHandler,
@@ -216,17 +225,19 @@ export {
   InMemoryUserStore,
   InMemoryWalletStore,
   initializeAuthTables,
+  resolveCloudAuthContext,
   rules,
   validateAuthModels,
   validateOverrides,
   validatePassword,
+  validateProjectId,
   verifyPassword,
 } from './auth';
 // Content descriptors
 export type { ContentDescriptor } from './content';
 export { content, isContentDescriptor } from './content';
 // Server — wraps core's createServer with entity route generation
-export type { ServerConfig, ServerInstance } from './create-server';
+export type { CloudServerConfig, ServerConfig, ServerInstance } from './create-server';
 export { createServer } from './create-server';
 // Entity API
 export type {

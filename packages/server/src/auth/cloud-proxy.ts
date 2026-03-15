@@ -1,15 +1,4 @@
 import type { CircuitBreaker } from './circuit-breaker';
-import type { SessionPayload } from './types';
-
-export interface OnUserCreatedPayload {
-  user: { id: string; email: string };
-  isNewUser: boolean;
-  rawProfile?: Record<string, unknown>;
-}
-
-export interface AuthCallbackContext {
-  db: unknown;
-}
 
 export function createAuthProxy(options: {
   projectId: string;
@@ -19,8 +8,6 @@ export function createAuthProxy(options: {
   circuitBreaker?: CircuitBreaker;
   fetchTimeout?: number;
   maxBodySize?: number;
-  onUserCreated?: (payload: OnUserCreatedPayload, ctx: AuthCallbackContext) => Promise<void>;
-  onUserAuthenticated?: (payload: SessionPayload) => Promise<void>;
 }): (request: Request) => Promise<Response> {
   const {
     projectId,
@@ -39,10 +26,13 @@ export function createAuthProxy(options: {
     // Body size check
     const contentLength = request.headers.get('content-length');
     if (contentLength && parseInt(contentLength, 10) > maxBodySize) {
-      return new Response(JSON.stringify({ error: 'payload_too_large', message: 'Payload Too Large' }), {
-        status: 413,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({ error: 'payload_too_large', message: 'Payload Too Large' }),
+        {
+          status: 413,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
     }
 
     // Read body (if present) and check size
@@ -50,10 +40,13 @@ export function createAuthProxy(options: {
     if (request.method !== 'GET' && request.method !== 'HEAD') {
       body = await request.text();
       if (body.length > maxBodySize) {
-        return new Response(JSON.stringify({ error: 'payload_too_large', message: 'Payload Too Large' }), {
-          status: 413,
-          headers: { 'Content-Type': 'application/json' },
-        });
+        return new Response(
+          JSON.stringify({ error: 'payload_too_large', message: 'Payload Too Large' }),
+          {
+            status: 413,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        );
       }
     }
 
@@ -87,10 +80,13 @@ export function createAuthProxy(options: {
         signal: AbortSignal.timeout(fetchTimeout),
       });
     } catch {
-      return new Response(JSON.stringify({ error: 'bad_gateway', message: 'Cloud auth service unavailable' }), {
-        status: 502,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({ error: 'bad_gateway', message: 'Cloud auth service unavailable' }),
+        {
+          status: 502,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
     }
 
     // Try to parse as JSON for token/lifecycle extraction

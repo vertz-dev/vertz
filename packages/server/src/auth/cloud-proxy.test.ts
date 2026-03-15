@@ -3,7 +3,13 @@ import { createAuthProxy } from './cloud-proxy';
 
 let mockCloudServer: ReturnType<typeof Bun.serve>;
 let cloudBaseUrl: string;
-let lastRequest: { headers: Record<string, string>; body: string | null; url: string; method: string } | null;
+let lastRequest: {
+  headers: Record<string, string>;
+  body: string | null;
+  url: string;
+  search: string;
+  method: string;
+} | null;
 let mockResponse: { status: number; body: unknown; headers?: Record<string, string> };
 
 beforeAll(() => {
@@ -11,11 +17,15 @@ beforeAll(() => {
     port: 0,
     async fetch(req) {
       const headers: Record<string, string> = {};
-      req.headers.forEach((v, k) => { headers[k] = v; });
+      req.headers.forEach((v, k) => {
+        headers[k] = v;
+      });
+      const parsedUrl = new URL(req.url);
       lastRequest = {
         headers,
         body: req.method !== 'GET' ? await req.text() : null,
-        url: new URL(req.url).pathname,
+        url: parsedUrl.pathname,
+        search: parsedUrl.search,
         method: req.method,
       };
 
@@ -25,7 +35,9 @@ beforeAll(() => {
       };
 
       return new Response(
-        typeof mockResponse.body === 'string' ? mockResponse.body : JSON.stringify(mockResponse.body),
+        typeof mockResponse.body === 'string'
+          ? mockResponse.body
+          : JSON.stringify(mockResponse.body),
         { status: mockResponse.status, headers: responseHeaders },
       );
     },
@@ -106,8 +118,8 @@ describe('createAuthProxy', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Cookie': 'vertz.sid=abc',
-        'Accept': 'application/json',
+        Cookie: 'vertz.sid=abc',
+        Accept: 'application/json',
         'User-Agent': 'TestBot/1.0',
         'X-Custom-Header': 'should-be-stripped',
         'X-Forwarded-For': '1.2.3.4',
@@ -310,7 +322,11 @@ describe('createAuthProxy', () => {
   // --- Non-JSON passthrough ---
 
   it('passes through non-JSON responses without crashing', async () => {
-    mockResponse = { status: 200, body: '<html>Error</html>', headers: { 'Content-Type': 'text/html' } };
+    mockResponse = {
+      status: 200,
+      body: '<html>Error</html>',
+      headers: { 'Content-Type': 'text/html' },
+    };
     const proxy = createProxy();
 
     const req = new Request(`${cloudBaseUrl}/api/auth/signup`, {
@@ -323,6 +339,53 @@ describe('createAuthProxy', () => {
     expect(res.status).toBe(200);
     const text = await res.text();
     expect(text).toContain('<html>');
+  });
+
+  // --- _lifecycle stripping ---
+
+  it('strips _lifecycle from response body', async () => {
+    mockResponse = {
+      status: 200,
+      body: { user: { id: 'u1' }, _lifecycle: { isNewUser: true } },
+    };
+    const proxy = createProxy();
+    const req = new Request(`${cloudBaseUrl}/api/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const res = await proxy(req);
+    const body = await res.json();
+    expect(body._lifecycle).toBeUndefined();
+    expect(body.user.id).toBe('u1');
+  });
+
+  // --- Host header ---
+
+  it('sets Host header to cloud endpoint host, not client Host', async () => {
+    mockResponse = { status: 200, body: {} };
+    const proxy = createProxy();
+    const req = new Request(`${cloudBaseUrl}/api/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Host: 'my-local-app.dev' },
+      body: JSON.stringify({}),
+    });
+    await proxy(req);
+    const cloudHost = new URL(cloudBaseUrl).host;
+    expect(lastRequest!.headers['host']).toBe(cloudHost);
+  });
+
+  // --- Query string preservation ---
+
+  it('preserves query parameters in proxied URL', async () => {
+    mockResponse = { status: 200, body: {} };
+    const proxy = createProxy();
+    const req = new Request(`${cloudBaseUrl}/api/auth/oauth/callback?code=abc123&state=xyz`, {
+      method: 'GET',
+    });
+    await proxy(req);
+    expect(lastRequest!.url).toBe('/auth/v1/oauth/callback');
+    expect(lastRequest!.search).toBe('?code=abc123&state=xyz');
   });
 
   // --- 4xx forwarding ---

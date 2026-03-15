@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 export interface CloudAuthContext {
   token: string;
@@ -39,7 +39,7 @@ export function resolveCloudAuthContext(options: {
         throw new Error('missing token');
       }
 
-      if (data.expiresAt && data.expiresAt < Date.now()) {
+      if (typeof data.expiresAt === 'number' && data.expiresAt < Date.now()) {
         throw new Error('expired');
       }
 

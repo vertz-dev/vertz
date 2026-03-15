@@ -22,9 +22,8 @@ export function createJWKSClient(options: {
     async refresh() {
       // jose's reload() is marked @ignore in types but exists at runtime.
       // It invalidates the cache so the next getKey call re-fetches.
-      const jwksAny = jwks as unknown as { reload?: () => void };
-      if (typeof jwksAny.reload === 'function') {
-        jwksAny.reload();
+      if ('reload' in jwks && typeof (jwks as { reload: unknown }).reload === 'function') {
+        (jwks as { reload: () => void }).reload();
       }
     },
   };

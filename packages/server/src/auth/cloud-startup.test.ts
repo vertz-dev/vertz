@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { resolveCloudAuthContext, validateProjectId } from './cloud-startup';
 
 // --- Project ID Validation ---
@@ -49,7 +49,10 @@ describe('resolveCloudAuthContext', () => {
 
   it('returns { token, source: "developer-session" } when auth.json exists with valid token', () => {
     const sessionPath = join(tempDir, 'auth.json');
-    writeFileSync(sessionPath, JSON.stringify({ token: 'vtk_dev_token_123', expiresAt: Date.now() + 3600_000 }));
+    writeFileSync(
+      sessionPath,
+      JSON.stringify({ token: 'vtk_dev_token_123', expiresAt: Date.now() + 3600_000 }),
+    );
 
     const result = resolveCloudAuthContext({ projectId: 'proj_test', sessionPath });
     expect(result.token).toBe('vtk_dev_token_123');
@@ -58,7 +61,10 @@ describe('resolveCloudAuthContext', () => {
 
   it('throws with "session expired or corrupted" when auth.json exists but is expired', () => {
     const sessionPath = join(tempDir, 'auth.json');
-    writeFileSync(sessionPath, JSON.stringify({ token: 'vtk_expired', expiresAt: Date.now() - 1000 }));
+    writeFileSync(
+      sessionPath,
+      JSON.stringify({ token: 'vtk_expired', expiresAt: Date.now() - 1000 }),
+    );
 
     expect(() => resolveCloudAuthContext({ projectId: 'proj_test', sessionPath })).toThrow(
       /session expired or corrupted/i,
@@ -76,9 +82,14 @@ describe('resolveCloudAuthContext', () => {
 
   it('includes "vertz login" command in expired session error', () => {
     const sessionPath = join(tempDir, 'auth.json');
-    writeFileSync(sessionPath, JSON.stringify({ token: 'vtk_expired', expiresAt: Date.now() - 1000 }));
+    writeFileSync(
+      sessionPath,
+      JSON.stringify({ token: 'vtk_expired', expiresAt: Date.now() - 1000 }),
+    );
 
-    expect(() => resolveCloudAuthContext({ projectId: 'proj_test', sessionPath })).toThrow(/vertz login/);
+    expect(() => resolveCloudAuthContext({ projectId: 'proj_test', sessionPath })).toThrow(
+      /vertz login/,
+    );
   });
 
   it('returns { token, source: "ci-token" } when VERTZ_CLOUD_TOKEN env var is set', () => {
@@ -92,7 +103,10 @@ describe('resolveCloudAuthContext', () => {
 
   it('prefers VERTZ_CLOUD_TOKEN over auth.json when both exist (CI takes precedence)', () => {
     const sessionPath = join(tempDir, 'auth.json');
-    writeFileSync(sessionPath, JSON.stringify({ token: 'vtk_dev_session', expiresAt: Date.now() + 3600_000 }));
+    writeFileSync(
+      sessionPath,
+      JSON.stringify({ token: 'vtk_dev_session', expiresAt: Date.now() + 3600_000 }),
+    );
     process.env.VERTZ_CLOUD_TOKEN = 'vtk_ci_override';
 
     const result = resolveCloudAuthContext({ projectId: 'proj_test', sessionPath });
@@ -111,13 +125,17 @@ describe('resolveCloudAuthContext', () => {
   it('error message includes "vertz login" command', () => {
     const sessionPath = join(tempDir, 'nonexistent-auth.json');
 
-    expect(() => resolveCloudAuthContext({ projectId: 'proj_test', sessionPath })).toThrow(/vertz login/);
+    expect(() => resolveCloudAuthContext({ projectId: 'proj_test', sessionPath })).toThrow(
+      /vertz login/,
+    );
   });
 
   it('error message includes VERTZ_CLOUD_TOKEN env var', () => {
     const sessionPath = join(tempDir, 'nonexistent-auth.json');
 
-    expect(() => resolveCloudAuthContext({ projectId: 'proj_test', sessionPath })).toThrow(/VERTZ_CLOUD_TOKEN/);
+    expect(() => resolveCloudAuthContext({ projectId: 'proj_test', sessionPath })).toThrow(
+      /VERTZ_CLOUD_TOKEN/,
+    );
   });
 
   it('error message includes session file path', () => {
@@ -125,6 +143,29 @@ describe('resolveCloudAuthContext', () => {
 
     expect(() => resolveCloudAuthContext({ projectId: 'proj_test', sessionPath })).toThrow(
       new RegExp(sessionPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+    );
+  });
+
+  it('treats string expiresAt as non-expired (type guard rejects non-number)', () => {
+    const sessionPath = join(tempDir, 'auth.json');
+    // String timestamp that would be NaN < Date.now() → false if not type-guarded
+    writeFileSync(
+      sessionPath,
+      JSON.stringify({ token: 'vtk_string_exp', expiresAt: '2020-01-01T00:00:00Z' }),
+    );
+
+    // With the type guard, a non-number expiresAt is skipped (treated as no expiry)
+    const result = resolveCloudAuthContext({ projectId: 'proj_test', sessionPath });
+    expect(result.token).toBe('vtk_string_exp');
+    expect(result.source).toBe('developer-session');
+  });
+
+  it('throws when auth.json has valid JSON but missing token field', () => {
+    const sessionPath = join(tempDir, 'auth.json');
+    writeFileSync(sessionPath, JSON.stringify({ expiresAt: Date.now() + 3600_000 }));
+
+    expect(() => resolveCloudAuthContext({ projectId: 'proj_test', sessionPath })).toThrow(
+      /session expired or corrupted/i,
     );
   });
 });

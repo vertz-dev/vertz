@@ -96,6 +96,61 @@ describe('createJWKSClient', () => {
     await expect(jose.jwtVerify(jwt, client.getKey)).rejects.toThrow();
   });
 
+  it('throws when JWKS endpoint is unreachable and no cached keys exist', async () => {
+    const client = createJWKSClient({ url: 'http://127.0.0.1:1/.well-known/jwks.json' });
+
+    const jwt = await new jose.SignJWT({ sub: 'user_1' })
+      .setProtectedHeader({ alg: 'RS256', kid })
+      .setIssuedAt()
+      .setExpirationTime('1h')
+      .sign(privateKey);
+
+    await expect(jose.jwtVerify(jwt, client.getKey)).rejects.toThrow();
+  });
+
+  it('resolves key after refresh when a new kid appears on the JWKS endpoint', async () => {
+    // Generate a second key pair
+    const kp2 = await jose.generateKeyPair('RS256');
+    const pubJwk2 = await jose.exportJWK(kp2.publicKey);
+    const kid2 = 'test-key-2';
+    pubJwk2.kid = kid2;
+    pubJwk2.use = 'sig';
+    pubJwk2.alg = 'RS256';
+
+    // Server that initially only has key 1, then adds key 2 after rotation
+    let serveRotated = false;
+    const rotatingServer = Bun.serve({
+      port: 0,
+      fetch() {
+        const keys = serveRotated ? [publicJwk, pubJwk2] : [publicJwk];
+        return new Response(JSON.stringify({ keys }), {
+          headers: { 'Content-Type': 'application/json' },
+        });
+      },
+    });
+
+    const client = createJWKSClient({
+      url: `http://localhost:${rotatingServer.port}/.well-known/jwks.json`,
+    });
+
+    // JWT signed with key 2 — should fail initially (kid2 not in JWKS)
+    const jwt = await new jose.SignJWT({ sub: 'user_rotated' })
+      .setProtectedHeader({ alg: 'RS256', kid: kid2 })
+      .setIssuedAt()
+      .setExpirationTime('1h')
+      .sign(kp2.privateKey);
+
+    // Add key 2 to the JWKS endpoint
+    serveRotated = true;
+    await client.refresh();
+
+    // Now verification should succeed
+    const { payload } = await jose.jwtVerify(jwt, client.getKey);
+    expect(payload.sub).toBe('user_rotated');
+
+    rotatingServer.stop();
+  });
+
   it('forces a re-fetch on next verification after refresh() is called', async () => {
     const client = createJWKSClient({ url: jwksUrl, cacheTtl: 600_000 });
     requestCount = 0;
