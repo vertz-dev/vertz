@@ -22,6 +22,8 @@ export interface AlertDialogRootProps {
 
 export interface AlertDialogSlotProps {
   children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 

@@ -19,23 +19,31 @@ export interface DropdownMenuRootProps {
 
 export interface DropdownMenuSlotProps {
   children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 
 export interface DropdownMenuItemProps {
   value: string;
   children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 
 export interface DropdownMenuGroupProps {
   label: string;
   children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 
 export interface DropdownMenuLabelProps {
   children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 

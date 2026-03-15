@@ -12,6 +12,8 @@ export interface PaginationProps {
   totalPages: number;
   onPageChange: (page: number) => void;
   siblingCount?: number;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 
@@ -19,12 +21,20 @@ export function createPaginationComponent(
   styles: PaginationStyleClasses,
 ): (props: PaginationProps) => HTMLElement {
   return function Pagination(props: PaginationProps) {
-    const { currentPage, totalPages, onPageChange, siblingCount = 1, class: className } = props;
+    const {
+      currentPage,
+      totalPages,
+      onPageChange,
+      siblingCount = 1,
+      className,
+      class: classProp,
+    } = props;
+    const effectiveClass = className ?? classProp;
 
     const nav = document.createElement('nav');
     nav.setAttribute('aria-label', 'Pagination');
     if (styles.nav) nav.classList.add(styles.nav);
-    if (className) nav.classList.add(className);
+    if (effectiveClass) nav.classList.add(effectiveClass);
 
     const ul = document.createElement('ul');
     ul.classList.add(styles.list);

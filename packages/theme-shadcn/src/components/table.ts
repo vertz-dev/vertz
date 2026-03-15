@@ -13,6 +13,8 @@ type TableBlocks = {
 };
 
 export interface TableProps {
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
   children?: ChildValue;
 }
@@ -29,14 +31,15 @@ export interface TableComponents {
 }
 
 export function createTableComponents(tableStyles: CSSOutput<TableBlocks>): TableComponents {
-  function Table({ class: className, children }: TableProps): HTMLDivElement {
+  function Table({ className, class: classProp, children }: TableProps): HTMLDivElement {
+    const effectiveClass = className ?? classProp;
     const wrapper = document.createElement('div');
     wrapper.style.position = 'relative';
     wrapper.style.width = '100%';
     wrapper.style.overflowX = 'auto';
     const table = document.createElement('table');
     table.style.borderCollapse = 'collapse';
-    table.className = [tableStyles.root, className].filter(Boolean).join(' ');
+    table.className = [tableStyles.root, effectiveClass].filter(Boolean).join(' ');
     for (const node of resolveChildren(children)) {
       table.appendChild(node);
     }
@@ -44,64 +47,87 @@ export function createTableComponents(tableStyles: CSSOutput<TableBlocks>): Tabl
     return wrapper;
   }
 
-  function TableHeader({ class: className, children }: TableProps): HTMLTableSectionElement {
+  function TableHeader({
+    className,
+    class: classProp,
+    children,
+  }: TableProps): HTMLTableSectionElement {
+    const effectiveClass = className ?? classProp;
     const el = document.createElement('thead');
-    el.className = [tableStyles.header, className].filter(Boolean).join(' ');
+    el.className = [tableStyles.header, effectiveClass].filter(Boolean).join(' ');
     for (const node of resolveChildren(children)) {
       el.appendChild(node);
     }
     return el;
   }
 
-  function TableBody({ class: className, children }: TableProps): HTMLTableSectionElement {
+  function TableBody({
+    className,
+    class: classProp,
+    children,
+  }: TableProps): HTMLTableSectionElement {
+    const effectiveClass = className ?? classProp;
     const el = document.createElement('tbody');
-    el.className = [tableStyles.body, className].filter(Boolean).join(' ');
+    el.className = [tableStyles.body, effectiveClass].filter(Boolean).join(' ');
     for (const node of resolveChildren(children)) {
       el.appendChild(node);
     }
     return el;
   }
 
-  function TableRow({ class: className, children }: TableProps): HTMLTableRowElement {
+  function TableRow({ className, class: classProp, children }: TableProps): HTMLTableRowElement {
+    const effectiveClass = className ?? classProp;
     const el = document.createElement('tr');
-    el.className = [tableStyles.row, className].filter(Boolean).join(' ');
+    el.className = [tableStyles.row, effectiveClass].filter(Boolean).join(' ');
     for (const node of resolveChildren(children)) {
       el.appendChild(node);
     }
     return el;
   }
 
-  function TableHead({ class: className, children }: TableProps): HTMLTableCellElement {
+  function TableHead({ className, class: classProp, children }: TableProps): HTMLTableCellElement {
+    const effectiveClass = className ?? classProp;
     const el = document.createElement('th');
     el.scope = 'col';
-    el.className = [tableStyles.head, className].filter(Boolean).join(' ');
+    el.className = [tableStyles.head, effectiveClass].filter(Boolean).join(' ');
     for (const node of resolveChildren(children)) {
       el.appendChild(node);
     }
     return el;
   }
 
-  function TableCell({ class: className, children }: TableProps): HTMLTableCellElement {
+  function TableCell({ className, class: classProp, children }: TableProps): HTMLTableCellElement {
+    const effectiveClass = className ?? classProp;
     const el = document.createElement('td');
-    el.className = [tableStyles.cell, className].filter(Boolean).join(' ');
+    el.className = [tableStyles.cell, effectiveClass].filter(Boolean).join(' ');
     for (const node of resolveChildren(children)) {
       el.appendChild(node);
     }
     return el;
   }
 
-  function TableCaption({ class: className, children }: TableProps): HTMLTableCaptionElement {
+  function TableCaption({
+    className,
+    class: classProp,
+    children,
+  }: TableProps): HTMLTableCaptionElement {
+    const effectiveClass = className ?? classProp;
     const el = document.createElement('caption');
-    el.className = [tableStyles.caption, className].filter(Boolean).join(' ');
+    el.className = [tableStyles.caption, effectiveClass].filter(Boolean).join(' ');
     for (const node of resolveChildren(children)) {
       el.appendChild(node);
     }
     return el;
   }
 
-  function TableFooter({ class: className, children }: TableProps): HTMLTableSectionElement {
+  function TableFooter({
+    className,
+    class: classProp,
+    children,
+  }: TableProps): HTMLTableSectionElement {
+    const effectiveClass = className ?? classProp;
     const el = document.createElement('tfoot');
-    el.className = [tableStyles.footer, className].filter(Boolean).join(' ');
+    el.className = [tableStyles.footer, effectiveClass].filter(Boolean).join(' ');
     for (const node of resolveChildren(children)) {
       el.appendChild(node);
     }

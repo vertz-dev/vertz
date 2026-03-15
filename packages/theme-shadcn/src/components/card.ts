@@ -12,6 +12,8 @@ type CardBlocks = {
 };
 
 export interface CardProps {
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
   children?: ChildValue;
 }
@@ -27,63 +29,74 @@ export interface CardComponents {
 }
 
 export function createCardComponents(cardStyles: CSSOutput<CardBlocks>): CardComponents {
-  function Card({ class: className, children }: CardProps): HTMLDivElement {
+  function Card({ className, class: classProp, children }: CardProps): HTMLDivElement {
+    const effectiveClass = className ?? classProp;
     const el = document.createElement('div');
-    el.className = [cardStyles.root, className].filter(Boolean).join(' ');
+    el.className = [cardStyles.root, effectiveClass].filter(Boolean).join(' ');
     for (const node of resolveChildren(children)) {
       el.appendChild(node);
     }
     return el;
   }
 
-  function CardHeader({ class: className, children }: CardProps): HTMLDivElement {
+  function CardHeader({ className, class: classProp, children }: CardProps): HTMLDivElement {
+    const effectiveClass = className ?? classProp;
     const el = document.createElement('div');
-    el.className = [cardStyles.header, className].filter(Boolean).join(' ');
+    el.className = [cardStyles.header, effectiveClass].filter(Boolean).join(' ');
     for (const node of resolveChildren(children)) {
       el.appendChild(node);
     }
     return el;
   }
 
-  function CardTitle({ class: className, children }: CardProps): HTMLHeadingElement {
+  function CardTitle({ className, class: classProp, children }: CardProps): HTMLHeadingElement {
+    const effectiveClass = className ?? classProp;
     const el = document.createElement('h3');
-    el.className = [cardStyles.title, className].filter(Boolean).join(' ');
+    el.className = [cardStyles.title, effectiveClass].filter(Boolean).join(' ');
     for (const node of resolveChildren(children)) {
       el.appendChild(node);
     }
     return el;
   }
 
-  function CardDescription({ class: className, children }: CardProps): HTMLParagraphElement {
+  function CardDescription({
+    className,
+    class: classProp,
+    children,
+  }: CardProps): HTMLParagraphElement {
+    const effectiveClass = className ?? classProp;
     const el = document.createElement('p');
-    el.className = [cardStyles.description, className].filter(Boolean).join(' ');
+    el.className = [cardStyles.description, effectiveClass].filter(Boolean).join(' ');
     for (const node of resolveChildren(children)) {
       el.appendChild(node);
     }
     return el;
   }
 
-  function CardContent({ class: className, children }: CardProps): HTMLDivElement {
+  function CardContent({ className, class: classProp, children }: CardProps): HTMLDivElement {
+    const effectiveClass = className ?? classProp;
     const el = document.createElement('div');
-    el.className = [cardStyles.content, className].filter(Boolean).join(' ');
+    el.className = [cardStyles.content, effectiveClass].filter(Boolean).join(' ');
     for (const node of resolveChildren(children)) {
       el.appendChild(node);
     }
     return el;
   }
 
-  function CardFooter({ class: className, children }: CardProps): HTMLDivElement {
+  function CardFooter({ className, class: classProp, children }: CardProps): HTMLDivElement {
+    const effectiveClass = className ?? classProp;
     const el = document.createElement('div');
-    el.className = [cardStyles.footer, className].filter(Boolean).join(' ');
+    el.className = [cardStyles.footer, effectiveClass].filter(Boolean).join(' ');
     for (const node of resolveChildren(children)) {
       el.appendChild(node);
     }
     return el;
   }
 
-  function CardAction({ class: className, children }: CardProps): HTMLDivElement {
+  function CardAction({ className, class: classProp, children }: CardProps): HTMLDivElement {
+    const effectiveClass = className ?? classProp;
     const el = document.createElement('div');
-    el.className = [cardStyles.action, className].filter(Boolean).join(' ');
+    el.className = [cardStyles.action, effectiveClass].filter(Boolean).join(' ');
     for (const node of resolveChildren(children)) {
       el.appendChild(node);
     }

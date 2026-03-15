@@ -18,12 +18,16 @@ export interface AccordionRootProps {
 
 export interface AccordionSlotProps {
   children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 
 export interface AccordionItemProps {
   value: string;
   children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 

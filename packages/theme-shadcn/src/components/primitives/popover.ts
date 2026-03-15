@@ -15,6 +15,8 @@ export interface PopoverRootProps {
 
 export interface PopoverSlotProps {
   children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 

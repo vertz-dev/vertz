@@ -21,6 +21,8 @@ export interface DialogRootProps {
 
 export interface DialogSlotProps {
   children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 

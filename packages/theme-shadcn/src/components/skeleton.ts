@@ -5,6 +5,8 @@ type SkeletonBlocks = {
 };
 
 export interface SkeletonProps {
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
   width?: string;
   height?: string;
@@ -17,9 +19,15 @@ export interface SkeletonComponents {
 export function createSkeletonComponents(
   skeletonStyles: CSSOutput<SkeletonBlocks>,
 ): SkeletonComponents {
-  function Skeleton({ class: className, width, height }: SkeletonProps = {}): HTMLDivElement {
+  function Skeleton({
+    className,
+    class: classProp,
+    width,
+    height,
+  }: SkeletonProps = {}): HTMLDivElement {
+    const effectiveClass = className ?? classProp;
     const el = document.createElement('div');
-    el.className = [skeletonStyles.base, className].filter(Boolean).join(' ');
+    el.className = [skeletonStyles.base, effectiveClass].filter(Boolean).join(' ');
     el.setAttribute('aria-hidden', 'true');
     if (width) el.style.width = width;
     if (height) el.style.height = height;

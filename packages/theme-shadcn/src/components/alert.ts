@@ -10,6 +10,8 @@ type AlertBlocks = {
 
 export interface AlertProps {
   variant?: 'default' | 'destructive';
+  className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
   children?: ChildValue;
 }
@@ -21,14 +23,15 @@ export interface AlertComponents {
 }
 
 export function createAlertComponents(alertStyles: CSSOutput<AlertBlocks>): AlertComponents {
-  function Alert({ variant, class: className, children }: AlertProps): HTMLDivElement {
+  function Alert({ variant, className, class: classProp, children }: AlertProps): HTMLDivElement {
+    const effectiveClass = className ?? classProp;
     const el = document.createElement('div');
     const classes = [alertStyles.root];
     if (variant === 'destructive') {
       classes.push(alertStyles.destructive);
     }
-    if (className) {
-      classes.push(className);
+    if (effectiveClass) {
+      classes.push(effectiveClass);
     }
     el.className = classes.join(' ');
     el.setAttribute('role', 'alert');
@@ -38,18 +41,20 @@ export function createAlertComponents(alertStyles: CSSOutput<AlertBlocks>): Aler
     return el;
   }
 
-  function AlertTitle({ class: className, children }: AlertProps): HTMLHeadingElement {
+  function AlertTitle({ className, class: classProp, children }: AlertProps): HTMLHeadingElement {
+    const effectiveClass = className ?? classProp;
     const el = document.createElement('h5');
-    el.className = [alertStyles.title, className].filter(Boolean).join(' ');
+    el.className = [alertStyles.title, effectiveClass].filter(Boolean).join(' ');
     for (const node of resolveChildren(children)) {
       el.appendChild(node);
     }
     return el;
   }
 
-  function AlertDescription({ class: className, children }: AlertProps): HTMLDivElement {
+  function AlertDescription({ className, class: classProp, children }: AlertProps): HTMLDivElement {
+    const effectiveClass = className ?? classProp;
     const el = document.createElement('div');
-    el.className = [alertStyles.description, className].filter(Boolean).join(' ');
+    el.className = [alertStyles.description, effectiveClass].filter(Boolean).join(' ');
     for (const node of resolveChildren(children)) {
       el.appendChild(node);
     }
