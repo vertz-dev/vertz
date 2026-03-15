@@ -143,11 +143,12 @@ function ComposedSelectRoot({
     processContentSlots(contentChildren, select, classes);
   }
 
-  const wrapper = document.createElement('div');
-  wrapper.style.display = 'contents';
-  wrapper.appendChild(select.trigger);
-  wrapper.appendChild(select.content);
-  return wrapper;
+  return (
+    <div style="display: contents">
+      {select.trigger}
+      {select.content}
+    </div>
+  ) as HTMLElement;
 }
 
 function processContentSlots(

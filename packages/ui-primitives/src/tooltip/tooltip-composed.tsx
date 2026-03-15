@@ -90,11 +90,12 @@ function ComposedTooltipRoot({ children, classes, delay }: ComposedTooltipProps)
     }
   }
 
-  const wrapper = document.createElement('div');
-  wrapper.style.display = 'contents';
-  wrapper.appendChild(tooltip.trigger);
-  wrapper.appendChild(tooltip.content);
-  return wrapper;
+  return (
+    <div style="display: contents">
+      {tooltip.trigger}
+      {tooltip.content}
+    </div>
+  ) as HTMLElement;
 }
 
 // ---------------------------------------------------------------------------
