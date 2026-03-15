@@ -1,4 +1,4 @@
-import type { CheckboxOptions } from '@vertz/ui-primitives';
+import type { CheckboxOptions, CheckedState } from '@vertz/ui-primitives';
 import { Checkbox } from '@vertz/ui-primitives';
 
 interface CheckboxStyleClasses {
@@ -24,31 +24,32 @@ function createCheckIcon(): SVGSVGElement {
   return svg;
 }
 
+function dataStateForChecked(checked: CheckedState): string {
+  if (checked === 'mixed') return 'indeterminate';
+  return checked ? 'checked' : 'unchecked';
+}
+
 export function createThemedCheckbox(
   styles: CheckboxStyleClasses,
 ): (options?: CheckboxOptions) => HTMLButtonElement {
   return function themedCheckbox(options?: CheckboxOptions) {
-    const root = Checkbox.Root(options);
-    root.classList.add(styles.root);
-
-    // Create indicator element with checkmark icon
+    // Create indicator first so we can reference it in the callback
     const indicator = document.createElement('span');
     indicator.classList.add(styles.indicator);
+
+    const root = Checkbox.Root({
+      ...options,
+      onCheckedChange: (checked) => {
+        indicator.setAttribute('data-state', dataStateForChecked(checked));
+        options?.onCheckedChange?.(checked);
+      },
+    });
+    root.classList.add(styles.root);
+
     const dataState = root.getAttribute('data-state') ?? 'unchecked';
     indicator.setAttribute('data-state', dataState);
     indicator.appendChild(createCheckIcon());
     root.appendChild(indicator);
-
-    // Sync indicator data-state when checkbox state changes
-    const observer = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        if (mutation.attributeName === 'data-state') {
-          const newState = root.getAttribute('data-state') ?? 'unchecked';
-          indicator.setAttribute('data-state', newState);
-        }
-      }
-    });
-    observer.observe(root, { attributes: true, attributeFilter: ['data-state'] });
 
     return root;
   };

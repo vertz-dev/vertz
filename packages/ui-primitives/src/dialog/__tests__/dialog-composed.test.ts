@@ -62,7 +62,12 @@ describe('Composed Dialog', () => {
         container.appendChild(root);
 
         const panel = root.querySelector('[role="dialog"]') as HTMLElement;
-        expect(panel!.getAttribute('aria-labelledby')).toBeTruthy();
+        const labelledBy = panel!.getAttribute('aria-labelledby');
+        expect(labelledBy).toBeTruthy();
+        // The referenced element must exist in the DOM
+        const titleEl = root.querySelector(`#${labelledBy}`);
+        expect(titleEl).not.toBeNull();
+        expect(titleEl!.textContent).toBe('Dialog Title');
       });
 
       it('Then sets aria-describedby pointing to the description', () => {
@@ -70,7 +75,12 @@ describe('Composed Dialog', () => {
         container.appendChild(root);
 
         const panel = root.querySelector('[role="dialog"]') as HTMLElement;
-        expect(panel!.getAttribute('aria-describedby')).toBeTruthy();
+        const describedBy = panel!.getAttribute('aria-describedby');
+        expect(describedBy).toBeTruthy();
+        // The referenced element must exist in the DOM
+        const descEl = root.querySelector(`#${describedBy}`);
+        expect(descEl).not.toBeNull();
+        expect(descEl!.textContent).toBe('Dialog Description');
       });
     });
 

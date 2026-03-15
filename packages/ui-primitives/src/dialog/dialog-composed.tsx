@@ -64,13 +64,21 @@ function DialogContent({ children, class: cls }: SlotProps) {
 function DialogTitle({ children, class: cls }: SlotProps) {
   const classes = useContext(DialogClassesContext);
   const combined = [classes?.title, cls].filter(Boolean).join(' ');
-  return <h2 class={combined || undefined}>{children}</h2>;
+  return (
+    <h2 data-slot="dialog-title" class={combined || undefined}>
+      {children}
+    </h2>
+  );
 }
 
 function DialogDescription({ children, class: cls }: SlotProps) {
   const classes = useContext(DialogClassesContext);
   const combined = [classes?.description, cls].filter(Boolean).join(' ');
-  return <p class={combined || undefined}>{children}</p>;
+  return (
+    <p data-slot="dialog-description" class={combined || undefined}>
+      {children}
+    </p>
+  );
 }
 
 function DialogHeader({ children, class: cls }: SlotProps) {
@@ -173,6 +181,14 @@ function ComposedDialogRoot({ children, classes, onOpenChange, closeIcon }: Comp
       dialog.content.appendChild(node);
     }
   }
+
+  // Sync ARIA IDs: the primitive sets aria-labelledby/aria-describedby on content
+  // pointing to its internal title/description elements. The composed sub-components
+  // create new elements, so we must set matching IDs on them.
+  const titleEl = dialog.content.querySelector('[data-slot="dialog-title"]');
+  if (titleEl) titleEl.id = dialog.title.id;
+  const descEl = dialog.content.querySelector('[data-slot="dialog-description"]');
+  if (descEl) descEl.id = dialog.description.id;
 
   // Wire close buttons via event delegation (handles nested close buttons)
   dialog.content.addEventListener('click', (e) => {

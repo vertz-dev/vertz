@@ -64,13 +64,21 @@ function AlertDialogContent({ children, class: cls }: SlotProps) {
 function AlertDialogTitle({ children, class: cls }: SlotProps) {
   const classes = useContext(AlertDialogClassesContext);
   const combined = [classes?.title, cls].filter(Boolean).join(' ');
-  return <h2 class={combined || undefined}>{children}</h2>;
+  return (
+    <h2 data-slot="alertdialog-title" class={combined || undefined}>
+      {children}
+    </h2>
+  );
 }
 
 function AlertDialogDescription({ children, class: cls }: SlotProps) {
   const classes = useContext(AlertDialogClassesContext);
   const combined = [classes?.description, cls].filter(Boolean).join(' ');
-  return <p class={combined || undefined}>{children}</p>;
+  return (
+    <p data-slot="alertdialog-description" class={combined || undefined}>
+      {children}
+    </p>
+  );
 }
 
 function AlertDialogHeader({ children, class: cls }: SlotProps) {
@@ -188,6 +196,14 @@ function ComposedAlertDialogRoot({
       alertDialog.content.appendChild(node);
     }
   }
+
+  // Sync ARIA IDs: the primitive sets aria-labelledby/aria-describedby on content
+  // pointing to its internal title/description elements. The composed sub-components
+  // create new elements, so we must set matching IDs on them.
+  const titleEl = alertDialog.content.querySelector('[data-slot="alertdialog-title"]');
+  if (titleEl) titleEl.id = alertDialog.title.id;
+  const descEl = alertDialog.content.querySelector('[data-slot="alertdialog-description"]');
+  if (descEl) descEl.id = alertDialog.description.id;
 
   // Wire cancel buttons via event delegation
   alertDialog.content.addEventListener('click', (e) => {

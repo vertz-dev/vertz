@@ -32,7 +32,17 @@ export function createThemedRadioGroup(
   styles: RadioGroupStyleClasses,
 ): (options?: RadioOptions) => ThemedRadioGroupResult {
   return function themedRadioGroup(options?: RadioOptions): ThemedRadioGroupResult {
-    const result = Radio.Root(options);
+    const indicators = new Map<string, HTMLSpanElement>();
+
+    const result = Radio.Root({
+      ...options,
+      onValueChange: (value) => {
+        for (const [itemValue, indicator] of indicators) {
+          indicator.setAttribute('data-state', itemValue === value ? 'checked' : 'unchecked');
+        }
+        options?.onValueChange?.(value);
+      },
+    });
     result.root.classList.add(styles.root);
     const originalItem = result.Item;
 
@@ -57,17 +67,7 @@ export function createThemedRadioGroup(
         indicator.setAttribute('data-state', dataState);
         indicator.appendChild(createCircleIcon());
         item.appendChild(indicator);
-
-        // Sync indicator data-state
-        const observer = new MutationObserver((mutations) => {
-          for (const mutation of mutations) {
-            if (mutation.attributeName === 'data-state') {
-              const newState = item.getAttribute('data-state') ?? 'unchecked';
-              indicator.setAttribute('data-state', newState);
-            }
-          }
-        });
-        observer.observe(item, { attributes: true, attributeFilter: ['data-state'] });
+        indicators.set(value, indicator);
 
         // Wrap in a row: [radio circle] [label text]
         const wrapper = document.createElement('div');
