@@ -1,12 +1,12 @@
 /**
- * Composed Checkbox — high-level composable component built on Checkbox.Root.
- * Applies classes to root button and indicator child.
+ * Composed Checkbox — declarative JSX component with indicator and class distribution.
+ * Builds on the same behavior as Checkbox.Root but in a fully declarative structure.
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { resolveChildren } from '@vertz/ui';
+import { uniqueId } from '../utils/id';
+import { isKey, Keys } from '../utils/keyboard';
 import type { CheckedState } from './checkbox';
-import { Checkbox } from './checkbox';
 
 // ---------------------------------------------------------------------------
 // Class distribution
@@ -32,47 +32,60 @@ export interface ComposedCheckboxProps {
 }
 
 // ---------------------------------------------------------------------------
-// Root composed component
+// Helpers
+// ---------------------------------------------------------------------------
+
+function dataStateFor(checked: CheckedState): string {
+  if (checked === 'mixed') return 'indeterminate';
+  return checked ? 'checked' : 'unchecked';
+}
+
+function ariaCheckedFor(checked: CheckedState): string {
+  if (checked === 'mixed') return 'mixed';
+  return String(checked);
+}
+
+// ---------------------------------------------------------------------------
+// Component
 // ---------------------------------------------------------------------------
 
 function ComposedCheckboxRoot({
   children,
   classes,
-  defaultChecked,
-  disabled,
+  defaultChecked = false,
+  disabled = false,
   onCheckedChange,
 }: ComposedCheckboxProps) {
-  const root = Checkbox.Root({
-    defaultChecked,
-    disabled,
-    onCheckedChange: (checked) => {
-      indicator.setAttribute('data-state', dataStateFor(checked));
-      onCheckedChange?.(checked);
-    },
-  });
+  let checked: CheckedState = defaultChecked;
 
-  if (classes?.root) root.className = classes.root;
-
-  // Create indicator with JSX
-  const initialState = root.getAttribute('data-state') ?? 'unchecked';
-  const indicator = (
-    <span data-part="indicator" data-state={initialState} class={classes?.indicator} />
-  ) as HTMLSpanElement;
-  root.appendChild(indicator);
-
-  // Append children (e.g., label text)
-  if (children) {
-    for (const node of resolveChildren(children)) {
-      root.appendChild(node);
-    }
+  function toggle() {
+    if (disabled) return;
+    checked = checked === 'mixed' ? true : !checked;
+    onCheckedChange?.(checked);
   }
 
-  return root;
-}
-
-function dataStateFor(checked: CheckedState): string {
-  if (checked === 'mixed') return 'indeterminate';
-  return checked ? 'checked' : 'unchecked';
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      id={uniqueId('checkbox')}
+      aria-checked={ariaCheckedFor(checked)}
+      data-state={dataStateFor(checked)}
+      disabled={disabled}
+      aria-disabled={disabled ? 'true' : undefined}
+      class={classes?.root}
+      onClick={toggle}
+      onKeydown={(e: KeyboardEvent) => {
+        if (isKey(e, Keys.Space)) {
+          e.preventDefault();
+          toggle();
+        }
+      }}
+    >
+      <span data-part="indicator" data-state={dataStateFor(checked)} class={classes?.indicator} />
+      {children}
+    </button>
+  );
 }
 
 // ---------------------------------------------------------------------------

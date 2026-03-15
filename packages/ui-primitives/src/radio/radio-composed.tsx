@@ -1,12 +1,13 @@
 /**
- * Composed RadioGroup — high-level composable component built on Radio.Root.
- * Uses slot scanning for RadioGroup.Item sub-components.
+ * Composed RadioGroup — declarative JSX component with slot scanning and class distribution.
+ * Builds on the same behavior as Radio.Root but in a fully declarative structure.
  */
 
 import type { ChildValue } from '@vertz/ui';
 import { resolveChildren } from '@vertz/ui';
 import { scanSlots } from '../composed/scan-slots';
-import { Radio } from './radio';
+import { uniqueId } from '../utils/id';
+import { isKey, Keys } from '../utils/keyboard';
 
 // ---------------------------------------------------------------------------
 // Class distribution
@@ -61,69 +62,102 @@ export interface ComposedRadioGroupProps {
 function ComposedRadioGroupRoot({
   children,
   classes,
-  defaultValue,
+  defaultValue = '',
   onValueChange,
 }: ComposedRadioGroupProps) {
-  // Track indicators for state sync
-  const indicators = new Map<string, HTMLSpanElement>();
-
   // Resolve children for slot scanning
   const resolvedNodes = resolveChildren(children);
-
-  // Scan for item slots
   const { slots } = scanSlots(resolvedNodes);
   const itemEntries = slots.get('radiogroup-item') ?? [];
 
-  // Create the low-level radio primitive
-  const radio = Radio.Root({
-    defaultValue,
-    onValueChange: (value) => {
-      for (const [itemValue, indicator] of indicators) {
-        indicator.setAttribute('data-state', itemValue === value ? 'checked' : 'unchecked');
-      }
-      onValueChange?.(value);
-    },
-  });
+  // State + item tracking
+  let selectedValue = defaultValue;
+  const itemEls: HTMLDivElement[] = [];
 
-  // Bridge: for each scanned slot, call the primitive's Item()
-  for (const entry of itemEntries) {
+  function selectItem(value: string, focusEl?: HTMLElement): void {
+    selectedValue = value;
+    // Update all items
+    for (const el of itemEls) {
+      const itemValue = el.getAttribute('data-value') ?? '';
+      const isActive = itemValue === value;
+      el.setAttribute('aria-checked', isActive ? 'true' : 'false');
+      el.setAttribute('data-state', isActive ? 'checked' : 'unchecked');
+      el.setAttribute('tabindex', isActive ? '0' : '-1');
+      // Update indicator
+      const indicator = el.querySelector('[data-part="indicator"]');
+      if (indicator) {
+        indicator.setAttribute('data-state', isActive ? 'checked' : 'unchecked');
+      }
+    }
+    if (focusEl) focusEl.focus();
+    onValueChange?.(value);
+  }
+
+  // Build item elements from scanned slots
+  const itemNodes = itemEntries.map((entry) => {
     const value = entry.attrs.value ?? '';
     const isDisabled = 'disabled' in entry.attrs;
     const labelText = entry.children.map((n) => n.textContent ?? '').join('');
+    const isActive = value === selectedValue;
 
-    // Create the primitive radio item
-    const item = radio.Item(value, labelText);
+    const item = (
+      <div
+        role="radio"
+        id={uniqueId('radio')}
+        data-value={value}
+        aria-checked={isActive ? 'true' : 'false'}
+        data-state={isActive ? 'checked' : 'unchecked'}
+        tabindex={isActive ? '0' : '-1'}
+        aria-disabled={isDisabled ? 'true' : undefined}
+        class={classes?.item}
+        style={isDisabled ? 'pointer-events: none' : undefined}
+        onClick={() => {
+          if (!isDisabled) selectItem(value, item);
+        }}
+      >
+        <span
+          data-part="indicator"
+          data-state={isActive ? 'checked' : 'unchecked'}
+          class={classes?.indicator}
+        />
+        {labelText && <span>{labelText}</span>}
+      </div>
+    ) as HTMLDivElement;
 
-    // Apply item class
-    if (classes?.item) item.classList.add(classes.item);
+    itemEls.push(item);
+    return item;
+  });
 
-    // Handle disabled
-    if (isDisabled) {
-      item.setAttribute('aria-disabled', 'true');
-      item.style.pointerEvents = 'none';
-    }
+  return (
+    <div
+      role="radiogroup"
+      id={uniqueId('radiogroup')}
+      class={classes?.root}
+      onKeydown={(event: KeyboardEvent) => {
+        const currentIdx = itemEls.findIndex((el) => el === document.activeElement);
+        if (currentIdx < 0) return;
 
-    // Create indicator with JSX
-    const dataState = item.getAttribute('data-state') ?? 'unchecked';
-    const indicator = (
-      <span data-part="indicator" data-state={dataState} class={classes?.indicator} />
-    ) as HTMLSpanElement;
-    indicators.set(value, indicator);
+        let nextIdx = -1;
+        if (isKey(event, Keys.ArrowDown, Keys.ArrowRight)) {
+          event.preventDefault();
+          nextIdx = (currentIdx + 1) % itemEls.length;
+        } else if (isKey(event, Keys.ArrowUp, Keys.ArrowLeft)) {
+          event.preventDefault();
+          nextIdx = (currentIdx - 1 + itemEls.length) % itemEls.length;
+        }
 
-    // Clear text, add indicator, then label
-    item.textContent = '';
-    item.appendChild(indicator);
-
-    if (labelText) {
-      const label = (<span>{labelText}</span>) as HTMLSpanElement;
-      item.appendChild(label);
-    }
-  }
-
-  // Apply root class
-  if (classes?.root) radio.root.className = classes.root;
-
-  return radio.root;
+        if (nextIdx >= 0) {
+          const nextEl = itemEls[nextIdx];
+          const nextValue = nextEl?.getAttribute('data-value') ?? '';
+          if (nextEl && !nextEl.hasAttribute('aria-disabled')) {
+            selectItem(nextValue, nextEl);
+          }
+        }
+      }}
+    >
+      {itemNodes}
+    </div>
+  ) as HTMLDivElement;
 }
 
 // ---------------------------------------------------------------------------
