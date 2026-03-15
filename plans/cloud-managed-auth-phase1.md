@@ -2,7 +2,7 @@
 
 **Issue:** [#1321](https://github.com/vertz-dev/vertz/issues/1321)
 **Design Reference:** [Managed Auth Rev 3.4](https://github.com/vertz-dev/backstage/blob/main/plans/cloud/managed-auth.md)
-**Status:** Rev 2 — Updated after DX / Product / Technical reviews
+**Status:** Rev 3 — Asymmetric-only JWT + vertical slice restructuring
 
 ---
 
@@ -113,7 +113,7 @@ function createAuthProxy(options: {
 
 **Cookie security in development:** When `environment === 'development'`, the `Secure` flag is omitted from `Set-Cookie` headers so cookies work over HTTP on localhost.
 
-**Error forwarding:** Cloud 4xx/5xx responses (that aren't circuit-breaker-level failures) are forwarded to the client as-is. Only network errors and timeouts count as circuit breaker failures.
+**Error forwarding:** Cloud 4xx responses are forwarded to the client as-is and do NOT count as circuit breaker failures. Cloud 5xx responses are forwarded to the client but DO count as circuit breaker failures (the cloud is unhealthy). Network errors and timeouts also count as circuit breaker failures.
 
 **Response body handling:** `JSON.parse` of cloud response is wrapped in try/catch — non-JSON responses are passed through unchanged.
 
@@ -180,6 +180,23 @@ function github(config: OAuthProviderConfig | CloudOAuthProviderConfig): OAuthPr
 
 **Runtime:** When `cloud.projectId` is set, the server ignores provider-level `clientId`/`clientSecret` (cloud handles the exchange). When absent, the server validates that `clientId`/`clientSecret` are provided at startup — preserving "if it builds, it works" for self-hosted.
 
+### 8. SSR Session Resolution in Cloud Mode
+
+```typescript
+// packages/server/src/auth/resolve-session-for-ssr.ts — modify existing
+// Currently uses jwtSecret + HS256. Updated to accept a JWTVerifyGetKey for RS256.
+
+interface ResolveSessionForSSRConfig {
+  // Existing: jwtSecret + jwtAlgorithm (deprecated — will be removed in self-hosted RS256 migration)
+  jwtSecret?: string;
+  jwtAlgorithm?: string;
+  // New: cloud mode uses JWKS-based key resolver
+  verifyKey?: JWTVerifyGetKey;
+}
+```
+
+**Cloud mode:** When `verifyKey` is provided (from the JWKS client), `resolveSessionForSSR` uses RS256 public key verification via jose's `jwtVerify`. The `jwtSecret` path is retained temporarily for backward compat with self-hosted HS256, but will be removed when self-hosted migrates to RS256 (see Non-Goal §9).
+
 ---
 
 ## Manifesto Alignment
@@ -196,7 +213,7 @@ function github(config: OAuthProviderConfig | CloudOAuthProviderConfig): OAuthPr
 
 ### Tradeoffs
 
-- **Asymmetric JWT only for cloud** — Self-hosted keeps symmetric HS256. Adding RS256 everywhere would force key management complexity on self-hosted users. Cloud users get RS256 automatically.
+- **RS256 everywhere (asymmetric-only)** — Both cloud and self-hosted use RS256 asymmetric key pairs. No symmetric HS256 secrets. The public key can be safely exposed (JWKS endpoints, edge workers, SSR, third-party verification) without compromising signing authority. Self-hosted key management is a follow-up (Non-Goal §9), but the verification path is unified now.
 - **Proxy over redirect** — Auth routes proxy server-to-server instead of redirecting the browser. This keeps cookies on the developer's domain and allows lifecycle callbacks to run locally. Adds latency on auth operations but keeps the security model simple.
 - **No offline fallback for auth** — When the circuit breaker trips, auth operations fail with 503. We don't cache sessions or serve stale auth. This is intentional: stale auth data is a security risk.
 
@@ -205,6 +222,7 @@ function github(config: OAuthProviderConfig | CloudOAuthProviderConfig): OAuthPr
 - **Per-provider cloud config** — `github({ cloud: true })` was considered but rejected. It creates ambiguity and mixed modes that are hard to reason about.
 - **Cloud JWT signing locally** — Exposing the private key to the developer's server was rejected. If the key leaks, all sessions are compromised. Asymmetric means the private key never leaves cloud.
 - **Better Auth / third-party wrapping** — Vertz builds its own auth. Cloud mode is a first-party extension, not a wrapper around an external service.
+- **Symmetric JWT secrets (HS256)** — Rejected for all modes. Symmetric secrets can't be safely exposed for verification by SSR, edge workers, or third parties. RS256 key pairs are the universal approach.
 
 ---
 
@@ -218,6 +236,7 @@ function github(config: OAuthProviderConfig | CloudOAuthProviderConfig): OAuthPr
 6. **Token refresh through cloud** — Refresh flow requires cloud session store integration. Phase 2.
 7. **Session management in cloud mode** — `listSessions`, `revokeSession`, `revokeAllSessions` require cloud session store integration. In Phase 1, these routes are proxied to cloud like all other `/api/auth/*` routes, but the cloud-side session store is not built yet. Phase 2 delivers the cloud session store + these endpoints. For Phase 1, the proxy forwards these routes to cloud — if cloud returns a 501 (not implemented), that response is forwarded as-is.
 8. **Rules serialization** — Moved out of this Phase 1 scope. `serializeRule` has no consumer until the deploy pipeline (Phase 2). Will be implemented alongside edge permission enforcement.
+9. **Self-hosted RS256 key management** — Self-hosted mode will migrate from HS256 (`jwtSecret`) to RS256 (local key pair generation, local JWKS endpoint). This is a follow-up issue. This design doc prepares the verification path (unified RS256 via `JWTVerifyGetKey`) but does not implement self-hosted key generation or remove `jwtSecret`.
 
 ### Platform API Dependencies
 
@@ -259,9 +278,13 @@ VertzConfig.cloud.projectId: string
     → .getKey: JWTVerifyGetKey (jose-compatible key resolver)
   → createCloudJWTVerifier(jwksClient) → CloudJWTVerifier
     → .verify(token: string) → Promise<SessionPayload | null>
+      → SessionPayload flows to resolveSessionForSSR (via verifyKey)
+      → SessionPayload flows to request context (ctx.session)
+      → SessionPayload flows to onUserAuthenticated callback
   → createCircuitBreaker() → CircuitBreaker
     → .execute<T>(fn) → Promise<T>   // T flows through unchanged
   → createAuthProxy({ projectId, authToken, circuitBreaker }) → RequestHandler
+    → RequestHandler registered on /api/auth/* routes in createServer()
 
 OAuthProviderConfig | CloudOAuthProviderConfig
   → github(config) → OAuthProvider   // factory detects config shape
@@ -269,7 +292,7 @@ OAuthProviderConfig | CloudOAuthProviderConfig
   → self-hosted: clientId + clientSecret required (type-enforced)
 ```
 
-No dead generics. The only generic is `CircuitBreaker.execute<T>` which flows from the callback return type to the caller.
+No dead generics. The only generic is `CircuitBreaker.execute<T>` which flows from the callback return type to the caller. `SessionPayload` flows from verifier → SSR resolution → request context → developer callbacks.
 
 ---
 
@@ -279,23 +302,22 @@ No dead generics. The only generic is `CircuitBreaker.execute<T>` which flows fr
 describe('Feature: Cloud-managed auth end-to-end', () => {
   describe('Given a server with cloud.projectId configured', () => {
     describe('When starting up with valid developer session', () => {
-      it('Then initializes JWKS client targeting cloud endpoint', () => {
+      it('then initializes JWKS client targeting cloud endpoint', () => {
         const config = defineConfig({ cloud: { projectId: 'proj_test123' } });
         // Server creates JWKS client for https://cloud.vtz.app/auth/v1/proj_test123/.well-known/jwks.json
-        // No jwtSecret required
         // No clientId/clientSecret required on providers
       });
     });
 
     describe('When starting up without developer session or CI token', () => {
-      it('Then throws with prescriptive error message including vertz login command', () => {});
+      it('then throws with prescriptive error message including vertz login command', () => {});
     });
   });
 
   describe('Given a cloud JWT signed with RS256', () => {
     // Full roundtrip: generate RS256 key pair → sign JWT → serve public key via mock JWKS → verify
     describe('When verifying through the full JWKS → verifier chain', () => {
-      it('Then returns SessionPayload with user claims', () => {
+      it('then returns SessionPayload with user claims', () => {
         // 1. jose.generateKeyPair('RS256') → { publicKey, privateKey }
         // 2. Sign JWT with privateKey, include kid in header
         // 3. Mock JWKS endpoint serves publicKey as JWK
@@ -318,24 +340,31 @@ describe('Feature: Cloud-managed auth end-to-end', () => {
 
   describe('Given cloud mode is inactive (no cloud config)', () => {
     describe('When creating auth', () => {
-      it('Then requires jwtSecret for JWT strategy', () => {});
-      it('Then uses HS256 verification for sessions', () => {});
-      it('Then providers require clientId and clientSecret', () => {
+      it('then providers require clientId and clientSecret', () => {
         // OAuthProviderConfig type enforces required fields
         // @ts-expect-error — clientId required in self-hosted mode
         const provider: OAuthProviderConfig = { scopes: ['read:user'] };
       });
+      it('then auth routes are handled locally (no proxy)', () => {});
     });
   });
 
   describe('Given cloud auth proxy is active', () => {
     describe('When POST /api/auth/signup hits the proxy', () => {
-      it('Then cloud receives the request with X-Vertz-Project header', () => {});
-      it('Then cookies are set on the developers domain from cloud response', () => {});
+      it('then cloud receives the request with X-Vertz-Project header', () => {});
+      it('then cookies are set on the developers domain from cloud response', () => {});
     });
 
     describe('When cloud returns a 400 Bad Request', () => {
-      it('Then the 400 is forwarded to the client as-is', () => {});
+      it('then the 400 is forwarded to the client as-is', () => {});
+    });
+  });
+
+  describe('Given cloud JWT verified via JWKS during SSR', () => {
+    describe('When resolveSessionForSSR uses the cloud verifier', () => {
+      it('then returns SessionPayload using RS256 public key verification', () => {});
+      // @ts-expect-error — verifyKey is JWTVerifyGetKey, not a string secret
+      resolveSessionForSSR({ verifyKey: 'not-a-function' });
     });
   });
 });
@@ -343,381 +372,482 @@ describe('Feature: Cloud-managed auth end-to-end', () => {
 
 ---
 
+## Developer Walkthrough
+
+A developer adding cloud auth to an existing Vertz app:
+
+```typescript
+// 1. Add cloud config — vertz.config.ts
+import { defineConfig } from '@vertz/compiler';
+
+export default defineConfig({
+  cloud: {
+    projectId: 'proj_abc123', // from Vertz Cloud dashboard
+  },
+});
+
+// 2. Simplify providers — remove credentials (cloud manages them)
+import { github } from '@vertz/server/auth';
+
+const auth = defineAuth({
+  providers: [
+    github({ scopes: ['read:user'] }), // no clientId/clientSecret needed
+  ],
+  onUserCreated: async (payload, ctx) => {
+    // Still runs locally — create tenant, send welcome email, etc.
+    await ctx.db.insert(users).values({ id: payload.user.id, email: payload.user.email });
+  },
+});
+
+// 3. SSR works automatically — resolveSessionForSSR uses JWKS public key
+// No jwtSecret needed. Cloud JWT verified via RS256.
+
+// 4. Start the server — cloud mode auto-detected from config
+// $ vertz dev
+// [vertz] Cloud mode active (proj_abc123)
+// [vertz] JWKS client initialized: cloud.vtz.app/auth/v1/proj_abc123/.well-known/jwks.json
+// [vertz] Auth routes proxied to cloud.vtz.app
+```
+
+The walkthrough test is written as a failing integration test in Phase 1 (RED state) and goes green by the end of the implementation.
+
+---
+
 ## Implementation Plan
 
-### Phase 1: Circuit Breaker
+### Phase 1: Cloud Auth E2E — Config to Verified JWT
 
-Standalone utility with no external dependencies. Fully testable in isolation.
+**Dependencies:** None
+
+Thinnest vertical slice delivering working cloud auth end-to-end. A developer sets `cloud.projectId`, starts the server, and auth routes proxy to cloud with JWT verification working.
+
+**Files:**
+- `packages/compiler/src/config.ts` (modify — add `CloudConfig` type and `cloud?` to `VertzConfig`)
+- `packages/server/src/auth/jwks-client.ts` (new)
+- `packages/server/src/auth/jwks-client.test.ts` (new)
+- `packages/server/src/auth/cloud-jwt-verifier.ts` (new)
+- `packages/server/src/auth/cloud-jwt-verifier.test.ts` (new)
+- `packages/server/src/auth/cloud-startup.ts` (new)
+- `packages/server/src/auth/cloud-startup.test.ts` (new)
+- `packages/server/src/auth/cloud-proxy.ts` (new — minimal: forwards requests, sets cookies, no circuit breaker yet)
+- `packages/server/src/auth/cloud-proxy.test.ts` (new)
+- `packages/server/src/create-server.ts` (modify — cloud mode wiring)
+- `packages/server/src/auth/index.ts` (modify — cloud exports)
+- Integration test: developer walkthrough (RED → GREEN by end of phase)
+
+**Testing approach:** Generate RS256 key pairs with `jose.generateKeyPair('RS256')`. Use `jose.exportJWK` to create mock JWKS responses. Use `Bun.serve()` for mock cloud endpoint.
+
+**Acceptance Criteria:**
+```typescript
+describe('Feature: Cloud auth E2E — config to verified JWT', () => {
+  // --- Cloud Config ---
+  describe('Given defineConfig({ cloud: { projectId: "proj_xxx" } })', () => {
+    it('then config includes cloud.projectId', () => {});
+    it('then resolveConfig preserves cloud config as-is', () => {});
+  });
+
+  describe('Given defineConfig({}) with no cloud section', () => {
+    it('then config.cloud is undefined', () => {});
+  });
+
+  // --- Project ID Validation ---
+  describe('Given a valid projectId matching proj_<alphanum>', () => {
+    it('then validateProjectId does not throw', () => {});
+  });
+
+  describe('Given projectId without proj_ prefix', () => {
+    it('then throws with format error including expected pattern', () => {});
+  });
+
+  describe('Given empty string projectId', () => {
+    it('then throws with format error', () => {});
+  });
+
+  // --- Cloud Auth Context ---
+  describe('Given ~/.vertz/auth.json exists with valid token', () => {
+    describe('When resolveCloudAuthContext() is called', () => {
+      it('then returns { token, source: "developer-session" }', () => {});
+    });
+  });
+
+  describe('Given ~/.vertz/auth.json exists but is expired/malformed', () => {
+    describe('When resolveCloudAuthContext() is called', () => {
+      it('then throws with "session expired or corrupted" message', () => {});
+      it('then includes "vertz login" command in error', () => {});
+    });
+  });
+
+  describe('Given VERTZ_CLOUD_TOKEN env var is set (no auth.json)', () => {
+    describe('When resolveCloudAuthContext() is called', () => {
+      it('then returns { token, source: "ci-oidc" }', () => {});
+    });
+  });
+
+  describe('Given both auth.json and VERTZ_CLOUD_TOKEN exist', () => {
+    describe('When resolveCloudAuthContext() is called', () => {
+      it('then prefers VERTZ_CLOUD_TOKEN (CI takes precedence)', () => {});
+    });
+  });
+
+  describe('Given no auth.json, no VERTZ_CLOUD_TOKEN, no ACTIONS_ID_TOKEN_REQUEST_URL', () => {
+    describe('When resolveCloudAuthContext() is called', () => {
+      it('then throws with prescriptive error listing all 3 options', () => {});
+      it('then error message includes "vertz login" command', () => {});
+      it('then error message includes VERTZ_CLOUD_TOKEN env var', () => {});
+      it('then error message includes session file path', () => {});
+    });
+  });
+
+  // --- JWKS Client ---
+  describe('Given a JWKS endpoint URL serving an RS256 public key', () => {
+    describe('When getKey is used with jwtVerify for a matching kid', () => {
+      it('then resolves the CryptoKey for verification', () => {});
+    });
+
+    describe('When getKey is called within cache TTL', () => {
+      it('then returns cached key without additional HTTP request', () => {});
+    });
+
+    describe('When a JWT has an unknown kid', () => {
+      it('then jose triggers auto-refresh of the JWKS', () => {});
+      it('then resolves if the key is found after refresh', () => {});
+      it('then rejects if kid still not found after refresh', () => {});
+    });
+
+    describe('When the JWKS fetch fails and lastKnownGood keys exist', () => {
+      it('then falls back to last known good keys', () => {});
+    });
+
+    describe('When the JWKS fetch fails and no previous keys exist', () => {
+      it('then throws an error', () => {});
+    });
+
+    describe('When refresh() is called explicitly', () => {
+      it('then forces a re-fetch of the JWKS', () => {});
+    });
+  });
+
+  // --- Cloud JWT Verifier ---
+  describe('Given a valid RS256-signed JWT', () => {
+    describe('When verify() is called', () => {
+      it('then returns SessionPayload with sub, email, role, iat, exp', () => {});
+    });
+  });
+
+  describe('Given an expired JWT', () => {
+    describe('When verify() is called', () => {
+      it('then returns null', () => {});
+    });
+  });
+
+  describe('Given a JWT signed with a different private key', () => {
+    describe('When verify() is called', () => {
+      it('then returns null (signature mismatch)', () => {});
+    });
+  });
+
+  describe('Given a JWT missing required claims (sub, email, role)', () => {
+    describe('When verify() is called', () => {
+      it('then returns null', () => {});
+    });
+  });
+
+  // --- Minimal Proxy ---
+  describe('Given cloud mode is active', () => {
+    describe('When a POST request hits /api/auth/signup', () => {
+      it('then proxies to {cloudBaseUrl}/auth/v1/signup', () => {});
+      it('then includes X-Vertz-Project header with projectId', () => {});
+      it('then includes Authorization: Bearer header with auth token', () => {});
+      it('then forwards Content-Type header and request body', () => {});
+    });
+
+    describe('When cloud returns _tokens in response body', () => {
+      it('then sets vertz.sid cookie (HttpOnly, SameSite=Lax)', () => {});
+      it('then sets vertz.ref cookie (HttpOnly, SameSite=Lax, Path=/api/auth)', () => {});
+      it('then strips _tokens from response body sent to client', () => {});
+    });
+  });
+
+  // --- createServer() Integration ---
+  describe('Given ServerConfig with cloud.projectId and valid auth context', () => {
+    describe('When createServer() is called', () => {
+      it('then resolves cloud auth context from env/session file', () => {});
+      it('then creates JWKS client targeting cloud.vtz.app/{projectId}', () => {});
+      it('then creates cloud JWT verifier using the JWKS client', () => {});
+      it('then creates auth proxy handler for /api/auth/* routes', () => {});
+      it('then does NOT require clientId/clientSecret on providers', () => {});
+    });
+  });
+
+  describe('Given ServerConfig with cloud.projectId but no auth context', () => {
+    describe('When createServer() is called', () => {
+      it('then throws startup error with prescriptive message', () => {});
+    });
+  });
+});
+```
+
+### Phase 2: Resilience + Error Handling
+
+**Dependencies:** Phase 1
+
+Circuit breaker for cloud proxy resilience. Error forwarding for 4xx/5xx responses.
 
 **Files:**
 - `packages/server/src/auth/circuit-breaker.ts` (new)
 - `packages/server/src/auth/circuit-breaker.test.ts` (new)
+- `packages/server/src/auth/circuit-breaker.test-d.ts` (new — type flow for `execute<T>`)
+- `packages/server/src/auth/cloud-proxy.ts` (modify — integrate circuit breaker, add error handling)
+- `packages/server/src/auth/cloud-proxy.test.ts` (modify — error handling tests)
 
 **Acceptance Criteria:**
 ```typescript
 describe('Feature: Circuit breaker', () => {
   describe('Given a closed circuit', () => {
     describe('When execute() is called with a successful function', () => {
-      it('Then returns the function result', () => {});
-      it('Then state remains closed', () => {});
+      it('then returns the function result', () => {});
+      it('then state remains closed', () => {});
     });
   });
 
   describe('Given failureThreshold consecutive failures (default: 5)', () => {
     describe('When execute() is called again', () => {
-      it('Then circuit opens — rejects immediately without calling fn', () => {});
-      it('Then getState() returns open', () => {});
-      it('Then rejection error includes "circuit open" message', () => {});
+      it('then circuit opens — rejects immediately without calling fn', () => {});
+      it('then getState() returns open', () => {});
+      it('then rejection error includes "circuit open" message', () => {});
     });
   });
 
   describe('Given an open circuit', () => {
     describe('When execute() is called before resetTimeout', () => {
-      it('Then rejects immediately (fail-fast)', () => {});
+      it('then rejects immediately (fail-fast)', () => {});
     });
 
     describe('When resetTimeout elapses', () => {
-      it('Then getState() returns half-open', () => {});
-      it('Then allows exactly one probe request', () => {});
-      it('Then concurrent requests during probe still fail-fast', () => {});
+      it('then getState() returns half-open', () => {});
+      it('then allows exactly one probe request', () => {});
+      it('then concurrent requests during probe still fail-fast', () => {});
     });
 
     describe('When the half-open probe succeeds', () => {
-      it('Then circuit closes — normal operation resumes', () => {});
-      it('Then failure count resets to 0', () => {});
+      it('then circuit closes — normal operation resumes', () => {});
+      it('then failure count resets to 0', () => {});
     });
 
     describe('When the half-open probe fails', () => {
-      it('Then circuit re-opens and resetTimeout restarts', () => {});
+      it('then circuit re-opens and resetTimeout restarts', () => {});
     });
   });
 
   describe('Given a custom failureThreshold of 3', () => {
-    it('Then circuit opens after 3 consecutive failures', () => {});
+    it('then circuit opens after 3 consecutive failures', () => {});
   });
 
   describe('Given intermittent failures (success resets count)', () => {
-    it('Then a success between failures resets the consecutive count', () => {});
+    it('then a success between failures resets the consecutive count', () => {});
   });
 
   describe('Given reset() is called on an open circuit', () => {
-    it('Then circuit closes and counters reset', () => {});
+    it('then circuit closes and counters reset', () => {});
+  });
+});
+
+describe('Feature: Proxy error handling with circuit breaker', () => {
+  describe('When cloud returns 400 Bad Request', () => {
+    it('then forwards 400 response to client as-is', () => {});
+    it('then does NOT count as circuit breaker failure', () => {});
+  });
+
+  describe('When cloud returns 401 Unauthorized', () => {
+    it('then forwards 401 response to client as-is', () => {});
+  });
+
+  describe('When cloud returns 500 Internal Server Error', () => {
+    it('then forwards 500 response to client', () => {});
+    it('then counts as circuit breaker failure', () => {});
+  });
+
+  describe('When cloud fetch throws (network error/timeout)', () => {
+    it('then counts as circuit breaker failure', () => {});
+    it('then returns 502 Bad Gateway', () => {});
+  });
+
+  describe('When circuit breaker is open', () => {
+    it('then returns 503 Service Unavailable without calling cloud', () => {});
+    it('then response body includes "Auth service temporarily unavailable"', () => {});
+  });
+
+  describe('When cloud returns non-JSON response (HTML error page)', () => {
+    it('then passes through raw response without crashing', () => {});
+  });
+
+  describe('When Host header is sent to cloud', () => {
+    it('then Host is set to cloud endpoint host, not forwarded from client', () => {});
   });
 });
 ```
 
-### Phase 2: JWKS Client + Cloud JWT Verifier
-
-Thin wrapper over jose's `createRemoteJWKSet` + RS256 JWT verification.
-
-**Files:**
-- `packages/server/src/auth/jwks-client.ts` (new)
-- `packages/server/src/auth/jwks-client.test.ts` (new)
-- `packages/server/src/auth/cloud-jwt-verifier.ts` (new)
-- `packages/server/src/auth/cloud-jwt-verifier.test.ts` (new)
-
-**Testing approach:** Generate RS256 key pairs with `jose.generateKeyPair('RS256')`. Use `jose.exportJWK` to create mock JWKS responses. Serve via `Bun.serve()` in test or mock `fetch`.
-
-**Acceptance Criteria:**
+**Type flow test (`circuit-breaker.test-d.ts`):**
 ```typescript
-describe('Feature: JWKS client', () => {
-  describe('Given a JWKS endpoint URL serving an RS256 public key', () => {
-    describe('When getKey is used with jwtVerify for a matching kid', () => {
-      it('Then resolves the CryptoKey for verification', () => {});
-    });
+import { expectTypeOf } from 'expect-type';
+import { createCircuitBreaker } from './circuit-breaker';
 
-    describe('When getKey is called within cache TTL (cacheMaxAge)', () => {
-      it('Then returns cached key without additional HTTP request', () => {});
-    });
+const cb = createCircuitBreaker();
 
-    describe('When a JWT has an unknown kid', () => {
-      it('Then jose triggers auto-refresh of the JWKS', () => {});
-      it('Then resolves if the key is found after refresh', () => {});
-      it('Then rejects if kid still not found after refresh', () => {});
-    });
+// T flows from callback return type to execute() return type
+const result = await cb.execute(() => Promise.resolve(42));
+expectTypeOf(result).toEqualTypeOf<number>();
 
-    describe('When the JWKS fetch fails and lastKnownGood keys exist', () => {
-      it('Then falls back to last known good keys', () => {});
-    });
+const strResult = await cb.execute(() => Promise.resolve('hello'));
+expectTypeOf(strResult).toEqualTypeOf<string>();
 
-    describe('When the JWKS fetch fails and no previous keys exist', () => {
-      it('Then throws an error', () => {});
-    });
-
-    describe('When refresh() is called explicitly', () => {
-      it('Then forces a re-fetch of the JWKS', () => {});
-    });
-  });
-});
-
-describe('Feature: Cloud JWT verifier', () => {
-  // Full RS256 roundtrip test setup:
-  // 1. jose.generateKeyPair('RS256') → { publicKey, privateKey }
-  // 2. Sign JWT with privateKey using jose.SignJWT, include kid in header
-  // 3. Serve publicKey as JWK via mock JWKS endpoint
-  // 4. createJWKSClient → createCloudJWTVerifier → verify
-
-  describe('Given a valid RS256-signed JWT', () => {
-    describe('When verify() is called', () => {
-      it('Then returns SessionPayload with sub, email, role, iat, exp', () => {});
-    });
-  });
-
-  describe('Given an expired JWT', () => {
-    describe('When verify() is called', () => {
-      it('Then returns null', () => {});
-    });
-  });
-
-  describe('Given a JWT signed with a different private key', () => {
-    describe('When verify() is called', () => {
-      it('Then returns null (signature mismatch)', () => {});
-    });
-  });
-
-  describe('Given a JWT with unknown kid that appears after JWKS refresh', () => {
-    describe('When verify() is called', () => {
-      it('Then succeeds after auto-refresh finds the key', () => {});
-    });
-  });
-
-  describe('Given a JWT missing required claims (sub, email, role)', () => {
-    describe('When verify() is called', () => {
-      it('Then returns null', () => {});
-    });
-  });
-});
+// @ts-expect-error — execute requires a function returning a Promise
+cb.execute('not a function');
 ```
 
-### Phase 3: Cloud Config + Startup Validation
+### Phase 3: Provider Config + Lifecycle + SSR
 
-Add `cloud` to config types, implement startup validation, resolve developer auth context.
+**Dependencies:** Phase 1
 
-**Files:**
-- `packages/compiler/src/config.ts` (modify — add `CloudConfig` type and `cloud?` to `VertzConfig`)
-- `packages/server/src/auth/cloud-startup.ts` (new)
-- `packages/server/src/auth/cloud-startup.test.ts` (new)
-
-**Acceptance Criteria:**
-```typescript
-describe('Feature: Cloud config', () => {
-  describe('Given defineConfig({ cloud: { projectId: "proj_xxx" } })', () => {
-    it('Then config includes cloud.projectId', () => {});
-    it('Then resolveConfig preserves cloud config as-is', () => {});
-  });
-
-  describe('Given defineConfig({}) with no cloud section', () => {
-    it('Then config.cloud is undefined', () => {});
-    it('Then resolveConfig returns cloud as undefined', () => {});
-  });
-});
-
-describe('Feature: Project ID validation', () => {
-  describe('Given a valid projectId matching proj_<alphanum>', () => {
-    it('Then validateProjectId does not throw', () => {});
-  });
-
-  describe('Given projectId without proj_ prefix', () => {
-    it('Then throws with format error including expected pattern', () => {});
-  });
-
-  describe('Given empty string projectId', () => {
-    it('Then throws with format error', () => {});
-  });
-});
-
-describe('Feature: Cloud auth context resolution', () => {
-  describe('Given ~/.vertz/auth.json exists with valid token', () => {
-    describe('When resolveCloudAuthContext() is called', () => {
-      it('Then returns { token: "<token>", source: "developer-session" }', () => {});
-    });
-  });
-
-  describe('Given ~/.vertz/auth.json exists but is expired/malformed', () => {
-    describe('When resolveCloudAuthContext() is called', () => {
-      it('Then throws with "session expired or corrupted" message', () => {});
-      it('Then includes "vertz login" command in error', () => {});
-    });
-  });
-
-  describe('Given VERTZ_CLOUD_TOKEN env var is set (no auth.json)', () => {
-    describe('When resolveCloudAuthContext() is called', () => {
-      it('Then returns { token: "<env-value>", source: "ci-oidc" }', () => {});
-    });
-  });
-
-  describe('Given both auth.json and VERTZ_CLOUD_TOKEN exist', () => {
-    describe('When resolveCloudAuthContext() is called', () => {
-      it('Then prefers VERTZ_CLOUD_TOKEN (CI takes precedence)', () => {});
-    });
-  });
-
-  describe('Given no auth.json, no VERTZ_CLOUD_TOKEN, no ACTIONS_ID_TOKEN_REQUEST_URL', () => {
-    describe('When resolveCloudAuthContext() is called', () => {
-      it('Then throws with prescriptive error listing all 3 options', () => {});
-      it('Then error message includes "vertz login" command', () => {});
-      it('Then error message includes VERTZ_CLOUD_TOKEN env var', () => {});
-      it('Then error message includes session file path', () => {});
-    });
-  });
-});
-```
-
-### Phase 4: Auth Route Proxy + Provider Config
-
-The main cloud integration: proxy auth routes to cloud, handle cookies, lifecycle callbacks, error forwarding. Update provider config types for cloud mode.
+Provider factory union types for cloud mode. Lifecycle callbacks. SSR session resolution with RS256 public key verification.
 
 **Files:**
-- `packages/server/src/auth/cloud-proxy.ts` (new)
-- `packages/server/src/auth/cloud-proxy.test.ts` (new)
 - `packages/server/src/auth/types.ts` (modify — add `CloudOAuthProviderConfig`)
 - `packages/server/src/auth/providers/github.ts` (modify — accept union config)
 - `packages/server/src/auth/providers/google.ts` (modify — accept union config)
 - `packages/server/src/auth/providers/discord.ts` (modify — accept union config)
-
-**Testing approach:** Use `Bun.serve()` to spin up a mock cloud endpoint in tests. Verify headers, cookies, body manipulation, error forwarding.
+- `packages/server/src/auth/cloud-proxy.ts` (modify — lifecycle callbacks, cookie security)
+- `packages/server/src/auth/cloud-proxy.test.ts` (modify — lifecycle + cookie tests)
+- `packages/server/src/auth/resolve-session-for-ssr.ts` (modify — add `verifyKey` for RS256)
+- `packages/server/src/auth/resolve-session-for-ssr.test.ts` (modify — RS256 tests)
 
 **Acceptance Criteria:**
 ```typescript
-describe('Feature: Auth route proxy', () => {
-  describe('Given cloud mode is active', () => {
-    describe('When a POST request hits /api/auth/signup', () => {
-      it('Then proxies to {cloudBaseUrl}/auth/v1/signup', () => {});
-      it('Then includes X-Vertz-Project header with projectId', () => {});
-      it('Then includes X-Vertz-Environment header', () => {});
-      it('Then includes Authorization: Bearer header with auth token', () => {});
-      it('Then forwards Content-Type header and request body', () => {});
-    });
-
-    describe('When a GET request hits /api/auth/me', () => {
-      it('Then forwards Cookie header from original request', () => {});
-      it('Then forwards X-Forwarded-For header', () => {});
-    });
-
-    describe('When cloud returns _tokens in response body', () => {
-      it('Then sets vertz.sid cookie (HttpOnly, SameSite=Lax)', () => {});
-      it('Then sets vertz.ref cookie (HttpOnly, SameSite=Lax, Path=/api/auth)', () => {});
-      it('Then strips _tokens from response body sent to client', () => {});
-    });
-
-    describe('When environment is "development"', () => {
-      it('Then cookies omit Secure flag (works over HTTP localhost)', () => {});
-    });
-
-    describe('When environment is "production"', () => {
-      it('Then cookies include Secure flag', () => {});
-    });
-
-    describe('When cloud returns _lifecycle.isNewUser', () => {
-      it('Then fires onUserCreated callback with user data', () => {});
-      it('Then strips _lifecycle from response body', () => {});
-    });
-
-    describe('When cloud returns _lifecycle.rawProfile', () => {
-      it('Then includes raw profile in onUserCreated payload', () => {});
-    });
-
-    describe('When onUserAuthenticated callback is provided', () => {
-      it('Then fires on every successful auth response', () => {});
-    });
-
-    describe('When cloud returns 400 Bad Request', () => {
-      it('Then forwards 400 response to client as-is', () => {});
-      it('Then does NOT count as circuit breaker failure', () => {});
-    });
-
-    describe('When cloud returns 401 Unauthorized', () => {
-      it('Then forwards 401 response to client as-is', () => {});
-    });
-
-    describe('When cloud returns 500 Internal Server Error', () => {
-      it('Then forwards 500 response to client', () => {});
-      it('Then counts as circuit breaker failure', () => {});
-    });
-
-    describe('When cloud fetch throws (network error/timeout)', () => {
-      it('Then counts as circuit breaker failure', () => {});
-      it('Then returns 502 Bad Gateway', () => {});
-    });
-
-    describe('When circuit breaker is open', () => {
-      it('Then returns 503 Service Unavailable without calling cloud', () => {});
-      it('Then response body includes "Auth service temporarily unavailable"', () => {});
-    });
-
-    describe('When cloud returns non-JSON response (HTML error page)', () => {
-      it('Then passes through raw response without crashing', () => {});
-    });
-
-    describe('When Host header is sent to cloud', () => {
-      it('Then Host is set to cloud endpoint host, not forwarded from client', () => {});
-    });
-  });
-});
-
 describe('Feature: Provider config types', () => {
   describe('Given OAuthProviderConfig (self-hosted)', () => {
-    it('Then clientId is required', () => {});
-    it('Then clientSecret is required', () => {});
+    it('then clientId is required', () => {});
+    it('then clientSecret is required', () => {});
   });
 
   describe('Given CloudOAuthProviderConfig (cloud mode)', () => {
-    it('Then clientId is not required', () => {});
-    it('Then clientSecret is not required', () => {});
-    it('Then scopes is optional', () => {});
+    it('then clientId is not required', () => {});
+    it('then clientSecret is not required', () => {});
+    it('then scopes is optional', () => {});
   });
 
   describe('Given github() factory in cloud mode', () => {
-    it('Then accepts CloudOAuthProviderConfig without credentials', () => {});
+    it('then accepts CloudOAuthProviderConfig without credentials', () => {});
   });
 
   describe('Given github() factory in self-hosted mode', () => {
-    it('Then requires OAuthProviderConfig with credentials', () => {});
+    it('then requires OAuthProviderConfig with credentials', () => {});
+  });
+});
+
+describe('Feature: Proxy lifecycle callbacks', () => {
+  describe('When cloud returns _lifecycle.isNewUser', () => {
+    it('then fires onUserCreated callback with user data', () => {});
+    it('then strips _lifecycle from response body', () => {});
+  });
+
+  describe('When cloud returns _lifecycle.rawProfile', () => {
+    it('then includes raw profile in onUserCreated payload', () => {});
+  });
+
+  describe('When onUserAuthenticated callback is provided', () => {
+    it('then fires on every successful auth response', () => {});
+  });
+});
+
+describe('Feature: Cookie security', () => {
+  describe('When environment is "development"', () => {
+    it('then cookies omit Secure flag (works over HTTP localhost)', () => {});
+  });
+
+  describe('When environment is "production"', () => {
+    it('then cookies include Secure flag', () => {});
+  });
+});
+
+describe('Feature: Proxy request headers', () => {
+  describe('When a GET request hits /api/auth/me', () => {
+    it('then forwards Cookie header from original request', () => {});
+    it('then forwards X-Forwarded-For header', () => {});
+    it('then includes X-Vertz-Environment header', () => {});
+  });
+});
+
+describe('Feature: SSR session resolution in cloud mode', () => {
+  describe('Given resolveSessionForSSR with verifyKey (RS256 JWKS)', () => {
+    describe('When a valid RS256 JWT is in the cookie', () => {
+      it('then returns SessionPayload using public key verification', () => {});
+    });
+
+    describe('When an expired RS256 JWT is in the cookie', () => {
+      it('then returns null', () => {});
+    });
+
+    describe('When no cookie is present', () => {
+      it('then returns null', () => {});
+    });
+  });
+
+  describe('Given resolveSessionForSSR with jwtSecret (backward compat)', () => {
+    describe('When a valid HS256 JWT is in the cookie', () => {
+      it('then returns SessionPayload using symmetric verification', () => {});
+    });
   });
 });
 ```
 
-### Phase 5: Integration + Exports
+### Phase 4: Integration Tests + Documentation
 
-Wire everything together in `createServer()`, update exports, backward compatibility verification.
+**Dependencies:** Phases 1, 2, 3
+
+Full E2E integration tests, developer walkthrough verification, documentation updates.
 
 **Files:**
-- `packages/server/src/auth/index.ts` (modify — add cloud exports)
-- `packages/server/src/create-server.ts` (modify — cloud mode wiring)
-- Integration tests
+- Integration test suite (full E2E — developer walkthrough passing)
+- `packages/docs/` (Mintlify — cloud auth guide, config reference, migration notes)
+- Changeset
 
 **Acceptance Criteria:**
 ```typescript
-describe('Feature: Cloud mode integration', () => {
+describe('Feature: Cloud mode full integration', () => {
   describe('Given ServerConfig with cloud.projectId and valid auth context', () => {
-    describe('When createServer() is called', () => {
-      it('Then resolves cloud auth context from env/session file', () => {});
-      it('Then creates JWKS client targeting cloud.vtz.app/{projectId}', () => {});
-      it('Then creates cloud JWT verifier using the JWKS client', () => {});
-      it('Then creates circuit breaker with default thresholds', () => {});
-      it('Then creates auth proxy handler for /api/auth/* routes', () => {});
-      it('Then does NOT require jwtSecret in auth config', () => {});
-      it('Then does NOT require clientId/clientSecret on providers', () => {});
-    });
-  });
-
-  describe('Given ServerConfig with cloud.projectId but no auth context', () => {
-    describe('When createServer() is called', () => {
-      it('Then throws startup error with prescriptive message', () => {});
+    describe('When the full auth flow runs end-to-end', () => {
+      it('then signup proxies to cloud, cookies set, JWT verifiable', () => {});
+      it('then signin proxies to cloud, session payload returned', () => {});
+      it('then SSR resolves session via JWKS public key', () => {});
+      it('then circuit breaker trips after consecutive cloud failures', () => {});
+      it('then lifecycle callbacks fire on new user creation', () => {});
     });
   });
 
   describe('Given ServerConfig without cloud config (backward compat)', () => {
     describe('When createServer() is called', () => {
-      it('Then requires jwtSecret for JWT session strategy', () => {});
-      it('Then uses HS256 symmetric verification', () => {});
-      it('Then requires clientId and clientSecret on OAuth providers', () => {});
-      it('Then no circuit breaker or JWKS client is created', () => {});
-      it('Then auth routes are handled locally (no proxy)', () => {});
+      it('then requires clientId and clientSecret on OAuth providers', () => {});
+      it('then no circuit breaker or JWKS client is created', () => {});
+      it('then auth routes are handled locally (no proxy)', () => {});
     });
   });
 });
+
+describe('Feature: Developer walkthrough', () => {
+  it('then developer sets cloud.projectId in vertz.config.ts', () => {});
+  it('then providers accept scopes-only config', () => {});
+  it('then server starts with cloud mode active', () => {});
+  it('then auth routes proxy to cloud.vtz.app', () => {});
+  it('then SSR session resolution works without jwtSecret', () => {});
+});
 ```
+
+**Documentation deliverables:**
+- Cloud Auth quickstart guide (packages/docs/)
+- `cloud` config reference in defineConfig()
+- Provider config changes (CloudOAuthProviderConfig)
+- SSR session resolution in cloud mode
+- Migration notes: self-hosted → cloud
 
 ---
 
@@ -726,17 +856,28 @@ describe('Feature: Cloud mode integration', () => {
 ### DX Review — Approved (Rev 1)
 - should-fix: Config location ambiguity → **Addressed:** Added explicit config flow documentation in API Surface §1
 - should-fix: `OAuthProviderConfig` unconditional optionality → **Addressed:** Introduced `CloudOAuthProviderConfig` union — self-hosted keeps required fields
-- should-fix: Startup error message format → **Addressed:** Exact error messages specified in API Surface §7
+- should-fix: Startup error message format → **Addressed:** Exact error messages specified in API Surface §6
 
 ### Product/Scope Review — Changes Requested (Rev 1)
 - **blocker:** Session management in cloud mode unaddressed → **Addressed:** Added as Non-Goal §7 — proxy forwards routes, cloud returns 501 if not ready
 - should-fix: `OAuthProviderConfig` type safety → **Addressed:** Same as DX finding — union types
 - should-fix: Rules serialization has no consumer → **Addressed:** Moved to Non-Goal §8 — will ship with deploy pipeline
-- should-fix: Missing proxy error forwarding tests → **Addressed:** Added 4xx/5xx forwarding tests in Phase 4
+- should-fix: Missing proxy error forwarding tests → **Addressed:** Added 4xx/5xx forwarding tests in Phase 2
 - should-fix: Platform API dependency status → **Addressed:** Added "Platform API Dependencies" table in Non-Goals
-- should-fix: Vague backward compat test → **Addressed:** Phase 5 now has 5 specific backward compat assertions
+- should-fix: Vague backward compat test → **Addressed:** Phase 4 now has specific backward compat assertions
 
 ### Technical Review — Approved (Rev 1)
 - should-fix: Use `createRemoteJWKSet` from jose → **Addressed:** JWKS client now wraps jose with thin lastKnownGood layer
 - should-fix: Rules serialization keep as typed mapper → **Addressed:** Moved out of scope (Non-Goal §8)
-- should-fix: Cookie `Secure` flag in dev → **Addressed:** Added dev/prod cookie tests in Phase 4
+- should-fix: Cookie `Secure` flag in dev → **Addressed:** Added dev/prod cookie tests in Phase 3
+
+### Rev 3 Changes (from code review of Rev 2)
+- **Asymmetric-only JWT:** Removed HS256/jwtSecret for all modes. RS256 key pairs everywhere. Self-hosted RS256 key management tracked as Non-Goal §9 (follow-up).
+- **Vertical slice restructuring:** Phases reorganized from internals-first to E2E slices. Phase 1 now delivers working cloud auth end-to-end.
+- **5xx contradiction resolved:** API Surface and Phase 2 acceptance criteria now agree — 5xx counts as circuit breaker failure.
+- **Developer walkthrough added:** New section with concrete code example.
+- **SSR gap addressed:** New API Surface §8 covers `resolveSessionForSSR` with `verifyKey` for RS256.
+- **Documentation phase added:** Phase 4 includes `packages/docs/` updates.
+- **`.test-d.ts` added:** Phase 2 includes type flow test for `CircuitBreaker.execute<T>`.
+- **Phase interdependencies marked:** Each phase header states dependencies.
+- **Requires re-review** — structural changes invalidate prior sign-offs.
