@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
+import { createCircuitBreaker } from './circuit-breaker';
 import { createAuthProxy } from './cloud-proxy';
 
 let mockCloudServer: ReturnType<typeof Bun.serve>;
@@ -404,5 +405,111 @@ describe('createAuthProxy', () => {
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toBe('invalid_email');
+  });
+
+  it('does not count 4xx responses as circuit breaker failures', async () => {
+    const cb = createCircuitBreaker({ failureThreshold: 2 });
+    const proxy = createProxy({ circuitBreaker: cb });
+
+    // Send 3 requests that get 400 from cloud
+    for (let i = 0; i < 3; i++) {
+      mockResponse = { status: 400, body: { error: 'bad_request' } };
+      const req = new Request(`${cloudBaseUrl}/api/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const res = await proxy(req);
+      expect(res.status).toBe(400);
+    }
+
+    // Circuit should still be closed
+    expect(cb.getState()).toBe('closed');
+  });
+
+  // --- Circuit breaker integration ---
+
+  it('returns 503 when circuit breaker is open', async () => {
+    const cb = createCircuitBreaker({ failureThreshold: 1 });
+    // Trip the circuit breaker by forcing a 500
+    mockResponse = { status: 500, body: { error: 'internal_error' } };
+    const proxy = createProxy({ circuitBreaker: cb });
+
+    const req1 = new Request(`${cloudBaseUrl}/api/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    await proxy(req1);
+
+    expect(cb.getState()).toBe('open');
+
+    // Next request should get 503
+    const req2 = new Request(`${cloudBaseUrl}/api/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const res = await proxy(req2);
+    expect(res.status).toBe(503);
+    const body = await res.json();
+    expect(body.error).toBe('auth_service_unavailable');
+  });
+
+  it('forwards 5xx responses AND counts them as circuit breaker failures', async () => {
+    const cb = createCircuitBreaker({ failureThreshold: 3 });
+    const proxy = createProxy({ circuitBreaker: cb });
+
+    // 500 from cloud — should be forwarded AND counted
+    mockResponse = { status: 500, body: { error: 'internal_error', message: 'Server Error' } };
+    const req = new Request(`${cloudBaseUrl}/api/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const res = await proxy(req);
+
+    // Response forwarded with original status
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe('internal_error');
+
+    // Circuit breaker counted the failure (not open yet — threshold is 3)
+    expect(cb.getState()).toBe('closed');
+
+    // 2 more 500s should trip the breaker
+    for (let i = 0; i < 2; i++) {
+      const r = new Request(`${cloudBaseUrl}/api/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      await proxy(r);
+    }
+
+    expect(cb.getState()).toBe('open');
+  });
+
+  it('counts network errors as circuit breaker failures', async () => {
+    const cb = createCircuitBreaker({ failureThreshold: 1 });
+    // Point to a server that immediately closes connections
+    const proxy = createAuthProxy({
+      projectId: 'proj_test123',
+      cloudBaseUrl: 'http://127.0.0.1:1',
+      environment: 'production',
+      authToken: 'vtk_test_token',
+      circuitBreaker: cb,
+      fetchTimeout: 100,
+    });
+
+    const req = new Request('http://localhost/api/auth/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const res = await proxy(req);
+
+    expect(res.status).toBe(502);
+    expect(cb.getState()).toBe('open');
   });
 });

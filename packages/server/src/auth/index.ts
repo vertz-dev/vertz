@@ -2554,6 +2554,7 @@ export type { Period } from './billing-period';
 export { calculateBillingPeriod } from './billing-period';
 // Cloud auth modules
 export type { CircuitBreaker } from './circuit-breaker';
+export { CircuitBreakerOpenError, createCircuitBreaker } from './circuit-breaker';
 export type { ClosureEntry, ClosureRow, ClosureStore, ParentRef } from './closure-store';
 export { InMemoryClosureStore } from './closure-store';
 export type { CloudJWTVerifier } from './cloud-jwt-verifier';

@@ -1,4 +1,21 @@
-import type { CircuitBreaker } from './circuit-breaker';
+import { type CircuitBreaker, CircuitBreakerOpenError } from './circuit-breaker';
+
+/** Carries a 5xx response through the circuit breaker's error path. */
+class CloudUpstreamError extends Error {
+  constructor(
+    readonly status: number,
+    readonly responseText: string,
+    readonly responseHeaders: Headers,
+  ) {
+    super(`Cloud upstream error: ${status}`);
+  }
+}
+
+interface FetchResult {
+  status: number;
+  text: string;
+  headers: Headers;
+}
 
 export function createAuthProxy(options: {
   projectId: string;
@@ -14,6 +31,7 @@ export function createAuthProxy(options: {
     cloudBaseUrl = 'https://cloud.vtz.app',
     environment = process.env.NODE_ENV ?? 'development',
     authToken,
+    circuitBreaker,
     fetchTimeout = 10_000,
     maxBodySize = 1_048_576,
   } = options;
@@ -70,41 +88,70 @@ export function createAuthProxy(options: {
     const cloudHost = new URL(cloudBaseUrl).host;
     headers.set('Host', cloudHost);
 
-    // Proxy the request
-    let cloudResponse: Response;
-    try {
-      cloudResponse = await fetch(cloudUrl, {
+    // Proxy the request — with optional circuit breaker
+    let fetchResult: FetchResult;
+
+    const doFetch = async (): Promise<FetchResult> => {
+      const res = await fetch(cloudUrl, {
         method: request.method,
         headers,
         body,
         signal: AbortSignal.timeout(fetchTimeout),
       });
-    } catch {
-      return new Response(
-        JSON.stringify({ error: 'bad_gateway', message: 'Cloud auth service unavailable' }),
-        {
-          status: 502,
-          headers: { 'Content-Type': 'application/json' },
-        },
-      );
+      const text = await res.text();
+      const resHeaders = new Headers(res.headers);
+
+      // 5xx → throw so circuit breaker counts it as failure
+      if (res.status >= 500) {
+        throw new CloudUpstreamError(res.status, text, resHeaders);
+      }
+
+      return { status: res.status, text, headers: resHeaders };
+    };
+
+    try {
+      fetchResult = circuitBreaker ? await circuitBreaker.execute(doFetch) : await doFetch();
+    } catch (error) {
+      if (error instanceof CircuitBreakerOpenError) {
+        return new Response(
+          JSON.stringify({
+            error: 'auth_service_unavailable',
+            message: 'Auth service temporarily unavailable',
+          }),
+          { status: 503, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+
+      if (error instanceof CloudUpstreamError) {
+        // 5xx — counted as failure, now forward the response
+        fetchResult = {
+          status: error.status,
+          text: error.responseText,
+          headers: error.responseHeaders,
+        };
+      } else {
+        // Network error / timeout
+        return new Response(
+          JSON.stringify({ error: 'bad_gateway', message: 'Cloud auth service unavailable' }),
+          { status: 502, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
     }
 
     // Try to parse as JSON for token/lifecycle extraction
-    const responseText = await cloudResponse.text();
     let responseBody: Record<string, unknown> | null = null;
     try {
-      responseBody = JSON.parse(responseText);
+      responseBody = JSON.parse(fetchResult.text);
     } catch {
       // Non-JSON response — pass through unchanged
-      const responseHeaders = new Headers(cloudResponse.headers);
-      return new Response(responseText, {
-        status: cloudResponse.status,
-        headers: responseHeaders,
+      return new Response(fetchResult.text, {
+        status: fetchResult.status,
+        headers: fetchResult.headers,
       });
     }
 
     // Extract _tokens and set cookies
-    const responseHeaders = new Headers(cloudResponse.headers);
+    const responseHeaders = fetchResult.headers;
     const tokens = responseBody?._tokens as { jwt?: string; refreshToken?: string } | undefined;
 
     if (tokens) {
@@ -138,7 +185,7 @@ export function createAuthProxy(options: {
 
     const finalBody = JSON.stringify(responseBody);
     return new Response(finalBody, {
-      status: cloudResponse.status,
+      status: fetchResult.status,
       headers: responseHeaders,
     });
   };

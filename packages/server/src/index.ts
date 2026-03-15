@@ -173,6 +173,8 @@ export {
   AuthorizationError,
   // DB-backed auth stores
   authModels,
+  // Cloud auth
+  CircuitBreakerOpenError,
   calculateBillingPeriod,
   checkAddOnCompatibility,
   checkFva,
@@ -185,9 +187,9 @@ export {
   createAccessContext,
   createAccessEventBroadcaster,
   createAuth,
-  // Cloud auth
   createAuthProxy,
   createBillingEventEmitter,
+  createCircuitBreaker,
   createCloudJWTVerifier,
   createJWKSClient,
   createPlanManager,
