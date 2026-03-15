@@ -800,6 +800,10 @@ function collectJsxInExpression(
   }
 }
 
+function quoteIfNeeded(name: string): string {
+  return /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(name) ? name : JSON.stringify(name);
+}
+
 function buildPropsObject(
   element: Node,
   jsxMap: Map<number, JsxExpressionInfo>,
@@ -819,14 +823,15 @@ function buildPropsObject(
   const props: string[] = [];
   for (const attr of attrs) {
     const name = attr.getNameNode().getText();
+    const key = quoteIfNeeded(name);
     const init = attr.getInitializer();
     if (!init) {
-      props.push(`${name}: true`);
+      props.push(`${key}: true`);
       continue;
     }
 
     if (init.isKind(SyntaxKind.StringLiteral)) {
-      props.push(`${name}: ${init.getText()}`);
+      props.push(`${key}: ${init.getText()}`);
       continue;
     }
 
@@ -838,9 +843,9 @@ function buildPropsObject(
         : '';
 
       if (exprNode && !isLiteralExpression(exprNode)) {
-        props.push(`get ${name}() { return ${exprText}; }`);
+        props.push(`get ${key}() { return ${exprText}; }`);
       } else {
-        props.push(`${name}: ${exprText}`);
+        props.push(`${key}: ${exprText}`);
       }
     }
   }
