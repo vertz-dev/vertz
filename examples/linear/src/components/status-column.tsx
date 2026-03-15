@@ -3,7 +3,7 @@ import type { Issue } from '../lib/types';
 import { IssueCard } from './issue-card';
 
 const styles = css({
-  column: ['flex', 'flex-col', 'min-w:64', 'w:64', 'shrink:0'],
+  column: ['flex', 'flex-col', 'min-w:64', 'w:64', 'shrink-0'],
   columnHeader: ['flex', 'items:center', 'gap:2', 'px:2', 'py:2', 'mb:2'],
   columnTitle: ['text:xs', 'font:semibold', 'text:muted-foreground', 'uppercase', 'tracking:wide'],
   columnCount: ['text:xs', 'text:muted-foreground', 'bg:muted', 'rounded:full', 'px:2', 'py:0.5'],

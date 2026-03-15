@@ -1,21 +1,10 @@
 import { css } from '@vertz/ui';
 import { STATUSES } from '../lib/issue-config';
 import type { IssueStatus } from '../lib/types';
+import { formStyles, labelStyles } from '../styles/components';
 
 const styles = css({
   container: ['flex', 'flex-col', 'gap:1'],
-  label: ['text:xs', 'font:medium', 'text:muted-foreground'],
-  select: [
-    'bg:background',
-    'border:1',
-    'border:border',
-    'rounded:md',
-    'px:3',
-    'py:1.5',
-    'text:sm',
-    'text:foreground',
-    'cursor:pointer',
-  ],
 });
 
 interface StatusSelectProps {
@@ -26,11 +15,11 @@ interface StatusSelectProps {
 export function StatusSelect({ value, onChange }: StatusSelectProps) {
   return (
     <div class={styles.container}>
-      <label class={styles.label} htmlFor="issue-status-select">
+      <label class={labelStyles.base} htmlFor="issue-status-select">
         Status
       </label>
       <select
-        class={styles.select}
+        class={formStyles.select}
         id="issue-status-select"
         value={value}
         onChange={(e: Event) => {

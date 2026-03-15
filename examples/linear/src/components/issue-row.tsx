@@ -12,11 +12,13 @@ const styles = css({
     'border-b:1',
     'border:border',
     'cursor:pointer',
+    'transition:colors',
+    'hover:bg:accent',
   ],
-  identifier: ['text:xs', 'text:muted-foreground', 'font:mono', 'w:20', 'shrink:0'],
-  title: ['text:sm', 'text:foreground', 'flex-1', 'truncate'],
-  status: ['text:xs', 'px:2', 'py:0.5', 'rounded:full', 'shrink:0'],
-  priority: ['text:xs', 'shrink:0', 'font:medium'],
+  identifier: ['text:xs', 'text:muted-foreground', 'w:20', 'shrink-0'],
+  title: ['text:sm', 'text:foreground', 'flex-1', 'overflow-hidden', 'whitespace-nowrap'],
+  status: ['text:xs', 'px:2', 'py:0.5', 'rounded:full', 'shrink-0'],
+  priority: ['text:xs', 'shrink-0', 'font:medium'],
 });
 
 interface IssueRowProps {

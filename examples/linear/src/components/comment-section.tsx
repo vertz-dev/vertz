@@ -2,38 +2,17 @@ import type { FormSchema } from '@vertz/ui';
 import { css, form } from '@vertz/ui';
 import { commentApi } from '../api/client';
 import type { Comment, CreateCommentBody } from '../lib/types';
+import { formStyles, inputStyles } from '../styles/components';
+import { Button } from './button';
 import { CommentItem } from './comment-item';
 
 const styles = css({
   section: ['mt:8', 'border-t:1', 'border:border', 'pt:6'],
-  heading: ['font:md', 'font:semibold', 'text:foreground', 'mb:4', 'm:0'],
+  heading: ['font:base', 'font:semibold', 'text:foreground', 'mb:4', 'm:0'],
   loading: ['text:sm', 'text:muted-foreground', 'py:4'],
   empty: ['text:sm', 'text:muted-foreground', 'py:4'],
   form: ['mt:4', 'flex', 'flex-col', 'gap:2'],
-  textarea: [
-    'bg:background',
-    'border:1',
-    'border:border',
-    'rounded:md',
-    'px:3',
-    'py:2',
-    'text:sm',
-    'text:foreground',
-    'min-h:20',
-    'resize:vertical',
-  ],
-  error: ['text:xs', 'text:destructive'],
-  submit: [
-    'self:end',
-    'px:4',
-    'py:2',
-    'text:sm',
-    'rounded:md',
-    'bg:primary.600',
-    'text:white',
-    'border:0',
-    'cursor:pointer',
-  ],
+  submitRow: ['flex', 'justify:end'],
 });
 
 const createCommentSchema: FormSchema<CreateCommentBody> = {
@@ -108,12 +87,19 @@ export function CommentSection({
         onSubmit={commentForm.onSubmit}
         class={styles.form}
       >
-        <textarea name="body" placeholder="Add a comment..." class={styles.textarea} />
-        {commentForm.body.error && <span class={styles.error}>{commentForm.body.error}</span>}
+        <textarea
+          name="body"
+          placeholder="Add a comment..."
+          class={inputStyles.base}
+          style="min-height: 5rem; resize: vertical"
+        />
+        {commentForm.body.error && <span class={formStyles.error}>{commentForm.body.error}</span>}
         <input type="hidden" name="issueId" value={issueId} />
-        <button type="submit" disabled={commentForm.submitting} class={styles.submit}>
-          {commentForm.submitting ? 'Posting...' : 'Comment'}
-        </button>
+        <div class={styles.submitRow}>
+          <Button type="submit" intent="primary" size="sm" disabled={commentForm.submitting.value}>
+            {commentForm.submitting ? 'Posting...' : 'Comment'}
+          </Button>
+        </div>
       </form>
     </div>
   );

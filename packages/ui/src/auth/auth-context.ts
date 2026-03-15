@@ -104,7 +104,13 @@ export function AuthProvider({
   const userSignal = signal<User | null>(null);
   const statusSignal = signal<AuthStatus>('idle');
   const errorSignal = signal<AuthClientError | null>(null);
-  const providersSignal = signal<OAuthProviderInfo[]>([]);
+  // Hydrate providers from SSR-injected global to match SSR output,
+  // then refresh from API to pick up any changes.
+  const ssrProviders =
+    isBrowser() && '__VERTZ_PROVIDERS__' in window
+      ? (window.__VERTZ_PROVIDERS__ as OAuthProviderInfo[])
+      : [];
+  const providersSignal = signal<OAuthProviderInfo[]>(ssrProviders);
 
   // Fetch providers once on mount (fire-and-forget, silent failure)
   // Only in browser — SSR doesn't need provider metadata.
@@ -461,6 +467,9 @@ export function AuthProvider({
         statusSignal.value = 'authenticated';
       } else {
         statusSignal.value = 'unauthenticated';
+      }
+      if (ssrCtx.ssrAuth.providers) {
+        providersSignal.value = ssrCtx.ssrAuth.providers;
       }
     }
     // If ssrAuth is undefined: session resolver not configured.

@@ -2,7 +2,17 @@ import { css, Link } from '@vertz/ui';
 
 const styles = css({
   container: ['flex', 'gap:1', 'mb:4'],
-  tab: ['px:3', 'py:1', 'text:sm', 'rounded:md', 'text:muted-foreground', 'cursor:pointer'],
+  tab: [
+    'px:3',
+    'py:1',
+    'text:sm',
+    'rounded:md',
+    'text:muted-foreground',
+    'cursor:pointer',
+    'transition:colors',
+    'hover:text:foreground',
+    'hover:bg:muted',
+  ],
   activeTab: [
     'px:3',
     'py:1',

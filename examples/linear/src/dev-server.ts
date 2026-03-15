@@ -8,7 +8,7 @@
 import { createBunDevServer } from '@vertz/ui-server/bun-dev-server';
 import { app } from './api/server';
 
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.PORT) || 3001;
 
 // Initialize auth tables (creates auth_users, oauth_accounts, sessions tables)
 await app.initialize();
@@ -21,6 +21,7 @@ const devServer = createBunDevServer({
   title: 'Linear Clone',
   sessionResolver: app.auth.resolveSessionForSSR,
   apiHandler: app.requestHandler,
+  headTags: `<script>document.documentElement.setAttribute('data-theme','dark')</script>`,
 });
 
 console.log(`

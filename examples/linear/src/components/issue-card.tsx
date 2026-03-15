@@ -3,8 +3,17 @@ import { PRIORITY_CONFIG } from '../lib/issue-config';
 import type { Issue } from '../lib/types';
 
 const styles = css({
-  card: ['bg:card', 'border:1', 'border:border', 'rounded:md', 'p:3', 'cursor:pointer'],
-  identifier: ['text:xs', 'text:muted-foreground', 'font:mono', 'mb:1'],
+  card: [
+    'bg:card',
+    'border:1',
+    'border:border',
+    'rounded:md',
+    'p:3',
+    'cursor:pointer',
+    'transition:colors',
+    'hover:bg:accent',
+  ],
+  identifier: ['text:xs', 'text:muted-foreground', 'mb:1'],
   title: ['text:sm', 'text:foreground', 'font:medium'],
   meta: ['flex', 'items:center', 'gap:2', 'mt:2'],
   priority: ['text:xs', 'font:medium'],

@@ -92,7 +92,7 @@ export function __list<T>(
   const outerScope = pushScope();
   let isFirstRun = true;
   domEffect(() => {
-    const newItems = getItems();
+    const newItems = getItems() ?? [];
 
     if (isFirstRun && isHydrationRun) {
       isFirstRun = false;

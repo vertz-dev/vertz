@@ -13,6 +13,9 @@ const styles = css({
     'cursor:pointer',
     'bg:transparent',
     'text:muted-foreground',
+    'transition:colors',
+    'hover:bg:accent',
+    'hover:text:foreground',
   ],
   active: [
     'px:3',

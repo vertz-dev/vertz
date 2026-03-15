@@ -6,6 +6,7 @@ export default defineConfig({
   dts: true,
   plugins: [createVertzLibraryPlugin()],
   external: [
+    '@vertz/icons',
     '@vertz/ui',
     '@vertz/ui/internals',
     '@vertz/ui/auth',

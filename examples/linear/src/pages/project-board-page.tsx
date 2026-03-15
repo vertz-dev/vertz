@@ -1,5 +1,6 @@
-import { css, query, useParams } from '@vertz/ui';
+import { css, query, useDialogStack, useParams } from '@vertz/ui';
 import { issueApi, projectApi } from '../api/client';
+import { Button } from '../components/button';
 import { CreateIssueDialog } from '../components/create-issue-dialog';
 import { StatusColumn } from '../components/status-column';
 import { ViewToggle } from '../components/view-toggle';
@@ -10,17 +11,7 @@ const styles = css({
   container: ['p:6'],
   header: ['flex', 'items:center', 'justify:between', 'mb:4'],
   title: ['font:lg', 'font:semibold', 'text:foreground'],
-  newBtn: [
-    'px:4',
-    'py:2',
-    'text:sm',
-    'rounded:md',
-    'bg:primary.600',
-    'text:white',
-    'border:0',
-    'cursor:pointer',
-  ],
-  board: ['flex', 'gap:4', 'overflow-x:auto', 'pb:4'],
+  board: ['flex', 'gap:4', 'pb:4', 'overflow-hidden'],
   loading: ['text:sm', 'text:muted-foreground', 'py:8', 'text:center'],
   error: ['text:sm', 'text:destructive', 'py:8', 'text:center'],
 });
@@ -29,8 +20,7 @@ export function ProjectBoardPage() {
   const { projectId } = useParams<'/projects/:projectId'>();
   const issues = query(issueApi.list(projectId));
   const project = query(projectApi.get(projectId));
-
-  let showCreateDialog = false;
+  const stack = useDialogStack();
 
   // Group issues by status — declarative single-expression for compiler reactivity.
   // collectDeps() walks into the .map() callback body and finds issues.data,
@@ -41,20 +31,23 @@ export function ProjectBoardPage() {
     items: issues.data?.items.filter((i) => i.status === s.value) ?? [],
   }));
 
+  const handleNewIssue = async () => {
+    try {
+      const created = await stack.open(CreateIssueDialog, { projectId });
+      if (created) issues.refetch();
+    } catch {
+      // Dialog dismissed — no action needed
+    }
+  };
+
   return (
     <div class={styles.container}>
       <ViewToggle projectId={projectId} />
       <header class={styles.header}>
         <h2 class={styles.title}>Board</h2>
-        <button
-          type="button"
-          class={styles.newBtn}
-          onClick={() => {
-            showCreateDialog = true;
-          }}
-        >
+        <Button intent="primary" size="sm" onClick={handleNewIssue}>
           New Issue
-        </button>
+        </Button>
       </header>
 
       {issues.loading && <div class={styles.loading}>Loading issues...</div>}
@@ -74,19 +67,6 @@ export function ProjectBoardPage() {
             />
           ))}
         </div>
-      )}
-
-      {showCreateDialog && (
-        <CreateIssueDialog
-          projectId={projectId}
-          onClose={() => {
-            showCreateDialog = false;
-          }}
-          onSuccess={() => {
-            showCreateDialog = false;
-            issues.refetch();
-          }}
-        />
       )}
     </div>
   );
