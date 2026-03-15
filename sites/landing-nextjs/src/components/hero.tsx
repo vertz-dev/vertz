@@ -8,8 +8,14 @@ export function Hero() {
       {/* Badge */}
       <div className="flex items-center gap-2 mb-8">
         <span className="relative flex h-2.5 w-2.5">
-          <span className="absolute inline-flex h-full w-full rounded-full opacity-40" style={{ background: '#60a5fa' }} />
-          <span className="relative inline-flex rounded-full h-2.5 w-2.5" style={{ background: '#3b82f6' }} />
+          <span
+            className="absolute inline-flex h-full w-full rounded-full opacity-40"
+            style={{ background: '#60a5fa' }}
+          />
+          <span
+            className="relative inline-flex rounded-full h-2.5 w-2.5"
+            style={{ background: '#3b82f6' }}
+          />
         </span>
         <span className="text-xs tracking-widest uppercase text-gray-500 font-[family-name:var(--font-mono)]">
           Public Beta
@@ -53,7 +59,7 @@ function CopyButton() {
   const [copied, setCopied] = useState(false);
 
   function handleClick() {
-    navigator.clipboard.writeText('bun create vertz my-app');
+    navigator.clipboard.writeText('bun create vertz@latest my-app');
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -70,7 +76,7 @@ function CopyButton() {
         transition: 'all 0.15s',
       }}
     >
-      <span className="text-gray-500">$</span> bun create vertz my-app
+      <span className="text-gray-500">$</span> bun create vertz@latest my-app
       <span className="text-xs text-gray-500">{copied ? 'Copied!' : '(click to copy)'}</span>
     </button>
   );
