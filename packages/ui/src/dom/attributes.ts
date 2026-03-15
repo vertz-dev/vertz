@@ -1,5 +1,6 @@
 import { domEffect } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
+import { styleObjectToString } from './style';
 
 /**
  * Create a reactive attribute binding.
@@ -12,7 +13,7 @@ import type { DisposeFn } from '../runtime/signal-types';
 export function __attr(
   el: HTMLElement,
   name: string,
-  fn: () => string | boolean | null | undefined,
+  fn: () => string | boolean | Record<string, string | number> | null | undefined,
 ): DisposeFn {
   return domEffect(() => {
     const value = fn();
@@ -20,8 +21,10 @@ export function __attr(
       el.removeAttribute(name);
     } else if (value === true) {
       el.setAttribute(name, '');
+    } else if (name === 'style' && typeof value === 'object') {
+      el.setAttribute(name, styleObjectToString(value as Record<string, string | number>));
     } else {
-      el.setAttribute(name, value);
+      el.setAttribute(name, value as string);
     }
   });
 }

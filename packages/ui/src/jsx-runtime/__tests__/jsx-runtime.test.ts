@@ -96,6 +96,16 @@ describe('JSX Runtime (Client)', () => {
       expect(el.getAttribute('style')).toBe('color: red; font-size: 16px');
     });
 
+    it('should handle style attribute as object with camelCase properties', () => {
+      const el = jsx('div', { style: { backgroundColor: 'red', marginTop: '1rem' } });
+      expect(el.getAttribute('style')).toBe('background-color: red; margin-top: 1rem');
+    });
+
+    it('should auto-append px for numeric style values', () => {
+      const el = jsx('div', { style: { width: 200, opacity: 0.5 } });
+      expect(el.getAttribute('style')).toBe('width: 200px; opacity: 0.5');
+    });
+
     it('should skip null and undefined attributes', () => {
       const el = jsx('div', { id: null, class: undefined, title: 'test' });
       expect(el.hasAttribute('id')).toBe(false);

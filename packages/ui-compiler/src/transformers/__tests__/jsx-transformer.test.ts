@@ -268,6 +268,40 @@ describe('JsxTransformer', () => {
     expect(result).toContain('get "data-visible"()');
   });
 
+  it('imports __styleStr from internals when style object is used', () => {
+    const result = compile(
+      `function App() {\n  const s = { color: 'red' };\n  return <div style={s}></div>;\n}`,
+    );
+    const internalsImport = result.code
+      .split('\n')
+      .find((line) => line.includes("from '@vertz/ui/internals'"));
+    expect(internalsImport).toBeDefined();
+    expect(internalsImport).toContain('__styleStr');
+  });
+
+  it('wraps static style object expression with __styleStr', () => {
+    const result = transform(`function App() {\n  return <div style={myStyles}></div>;\n}`, [
+      { name: 'myStyles', kind: 'static', start: 0, end: 0 },
+    ]);
+    expect(result).toContain('__styleStr');
+    expect(result).toContain('"style"');
+  });
+
+  it('uses __attr for reactive style expression', () => {
+    const result = transform(`function App() {\n  return <div style={dynamicStyle}></div>;\n}`, [
+      { name: 'dynamicStyle', kind: 'signal', start: 0, end: 0 },
+    ]);
+    expect(result).toContain('__attr(');
+    expect(result).toContain('"style"');
+    expect(result).toContain('() =>');
+  });
+
+  it('uses setAttribute directly for static string style', () => {
+    const result = transform(`function App() {\n  return <div style="color: red"></div>;\n}`, []);
+    expect(result).toContain('.setAttribute("style", "color: red")');
+    expect(result).not.toContain('__styleStr');
+  });
+
   it('does not quote simple identifier props on custom components', () => {
     const result = transform(
       `function App() {\n  return <Button disabled={true} label="hello" />;\n}`,

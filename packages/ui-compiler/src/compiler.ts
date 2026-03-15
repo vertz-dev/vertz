@@ -175,6 +175,7 @@ const DOM_HELPERS = [
   '__show',
   '__classList',
   '__staticText',
+  '__styleStr',
 ] as const;
 
 /** Scan transformed output for DOM helper function calls and add them to usedFeatures. */

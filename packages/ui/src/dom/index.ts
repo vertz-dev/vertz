@@ -7,4 +7,5 @@ export { __child, __element, __text } from './element';
 export { __on } from './events';
 export { clearChildren, insertBefore, removeNode } from './insert';
 export { __list } from './list';
+export { __styleStr, styleObjectToString } from './style';
 export { isSVGTag, SVG_NS } from './svg-tags';
