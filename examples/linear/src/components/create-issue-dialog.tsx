@@ -2,12 +2,9 @@ import type { DialogHandle, FormSchema } from '@vertz/ui';
 import { form } from '@vertz/ui';
 import type { CreateIssuesInput } from '../api/client';
 import { api } from '../api/client';
-import type { IssuePriority, IssueStatus } from '../lib/types';
+import { PRIORITIES, STATUSES } from '../lib/issue-config';
 import { dialogStyles, formStyles, inputStyles, labelStyles } from '../styles/components';
 import { Button } from './button';
-
-const VALID_STATUSES: IssueStatus[] = ['backlog', 'todo', 'in_progress', 'done', 'cancelled'];
-const VALID_PRIORITIES: IssuePriority[] = ['urgent', 'high', 'medium', 'low', 'none'];
 
 const createIssueSchema: FormSchema<CreateIssuesInput> = {
   parse(data: unknown) {
@@ -22,12 +19,12 @@ const createIssueSchema: FormSchema<CreateIssuesInput> = {
     }
 
     const status = (obj.status as string) || 'backlog';
-    if (!VALID_STATUSES.includes(status as IssueStatus)) {
+    if (!STATUSES.some((s) => s.value === status)) {
       errors.status = 'Invalid status';
     }
 
     const priority = (obj.priority as string) || 'none';
-    if (!VALID_PRIORITIES.includes(priority as IssuePriority)) {
+    if (!PRIORITIES.some((p) => p.value === priority)) {
       errors.priority = 'Invalid priority';
     }
 
@@ -126,11 +123,11 @@ export function CreateIssueDialog({ projectId, dialog }: CreateIssueDialogProps)
               Priority
             </label>
             <select className={formStyles.select} id="issue-priority" name="priority">
-              <option value="none">None</option>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="urgent">Urgent</option>
+              {PRIORITIES.map((p) => (
+                <option key={p.value} value={p.value}>
+                  {p.label}
+                </option>
+              ))}
             </select>
           </div>
 
