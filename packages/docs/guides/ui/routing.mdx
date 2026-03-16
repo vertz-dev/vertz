@@ -229,6 +229,33 @@ export function AdminLayout() {
 }
 ```
 
+## Pre-rendering (SSG)
+
+Routes can be pre-rendered to static HTML at build time. Add `prerender: true` for static routes, or `generateParams` for dynamic routes:
+
+```tsx
+defineRoutes({
+  '/about': {
+    component: () => AboutPage(),
+    prerender: true,
+  },
+  '/blog/:slug': {
+    component: () => BlogPost(),
+    loader: async (ctx) => fetchPost(ctx.params.slug),
+    generateParams: async () => {
+      const posts = await db.select().from(postsTable);
+      return posts.map((post) => ({ slug: post.slug }));
+    },
+  },
+  '/dashboard': {
+    component: () => Dashboard(),
+    prerender: false, // requires runtime data
+  },
+});
+```
+
+When you run `vertz build`, routes with `prerender: true` or `generateParams` are rendered to `dist/client/<path>/index.html`. See the [SSG guide](/guides/deploy/ssg) for details.
+
 ## Lazy-loaded routes
 
 Return a dynamic import from `component` for code splitting:
