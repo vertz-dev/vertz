@@ -1,5 +1,6 @@
 import { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { SEED_TENANT_ID } from './schema';
 import { seedDatabase } from './seed';
 
 function createTestDb(): Database {
@@ -8,6 +9,7 @@ function createTestDb(): Database {
 
   db.exec(`CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL DEFAULT '',
     name TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
     avatar_url TEXT,
@@ -17,6 +19,7 @@ function createTestDb(): Database {
 
   db.exec(`CREATE TABLE IF NOT EXISTS projects (
     id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL DEFAULT '',
     name TEXT NOT NULL,
     key TEXT NOT NULL UNIQUE,
     description TEXT,
@@ -27,6 +30,7 @@ function createTestDb(): Database {
 
   db.exec(`CREATE TABLE IF NOT EXISTS issues (
     id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL DEFAULT '',
     project_id TEXT NOT NULL REFERENCES projects(id),
     number INTEGER NOT NULL,
     title TEXT NOT NULL,
@@ -42,6 +46,7 @@ function createTestDb(): Database {
 
   db.exec(`CREATE TABLE IF NOT EXISTS comments (
     id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL DEFAULT '',
     issue_id TEXT NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
     body TEXT NOT NULL,
     author_id TEXT NOT NULL REFERENCES users(id),
@@ -132,6 +137,17 @@ describe('seedDatabase', () => {
         // All timestamps should be different (staggered)
         const unique = new Set(timestamps.map((t) => t.created_at));
         expect(unique.size).toBe(10);
+      });
+
+      it('Then all seed records have the seed tenant ID', () => {
+        seedDatabase(db);
+
+        for (const table of ['users', 'projects', 'issues', 'comments']) {
+          const rows = db
+            .query(`SELECT tenant_id FROM ${table} WHERE tenant_id != ?`)
+            .all(SEED_TENANT_ID) as { tenant_id: string }[];
+          expect(rows).toHaveLength(0);
+        }
       });
     });
   });

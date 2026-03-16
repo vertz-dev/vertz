@@ -22,8 +22,10 @@ function createBunD1(dbPath: string) {
   sqlite.exec('PRAGMA foreign_keys=ON');
 
   // Auto-create app tables (dev only — production uses migrations)
+  // NOTE: If upgrading from a pre-tenant DB, delete data/linear.db and restart.
   sqlite.exec(`CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL DEFAULT '',
     name TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
     avatar_url TEXT,
@@ -33,6 +35,7 @@ function createBunD1(dbPath: string) {
 
   sqlite.exec(`CREATE TABLE IF NOT EXISTS projects (
     id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL DEFAULT '',
     name TEXT NOT NULL,
     key TEXT NOT NULL UNIQUE,
     description TEXT,
@@ -43,6 +46,7 @@ function createBunD1(dbPath: string) {
 
   sqlite.exec(`CREATE TABLE IF NOT EXISTS issues (
     id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL DEFAULT '',
     project_id TEXT NOT NULL REFERENCES projects(id),
     number INTEGER NOT NULL,
     title TEXT NOT NULL,
@@ -58,6 +62,7 @@ function createBunD1(dbPath: string) {
 
   sqlite.exec(`CREATE TABLE IF NOT EXISTS comments (
     id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL DEFAULT '',
     issue_id TEXT NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
     body TEXT NOT NULL,
     author_id TEXT NOT NULL REFERENCES users(id),
