@@ -1,15 +1,19 @@
 /**
- * Composed DropdownMenu — high-level composable component built on Menu.Root.
- * Sub-components self-wire via context. No slot scanning.
- * Uses context override for groups: Group provides a sub-context where
- * _createItem delegates to group.Item() instead of menu.Item().
+ * Composed DropdownMenu — fully declarative JSX implementation.
+ * Sub-components self-wire via context. No factory delegation.
+ *
+ * Phase 9 of the primitives JSX migration (PR #1363).
  */
 
 import type { ChildValue } from '@vertz/ui';
 import { createContext, resolveChildren, useContext } from '@vertz/ui';
 import { _tryOnCleanup } from '@vertz/ui/internals';
-import { Menu } from '../menu/menu';
+import { setDataState, setExpanded, setHidden, setHiddenAnimated } from '../utils/aria';
+import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
+import { createFloatingPosition } from '../utils/floating';
+import { linkedIds } from '../utils/id';
+import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
 // ---------------------------------------------------------------------------
 // Class distribution
@@ -28,12 +32,14 @@ export interface DropdownMenuClasses {
 // ---------------------------------------------------------------------------
 
 interface DropdownMenuContextValue {
-  menu: ReturnType<typeof Menu.Root>;
   classes?: DropdownMenuClasses;
-  /** @internal — registers the user trigger for ARIA sync */
+  onSelect?: (value: string) => void;
+  /** @internal — registers the user trigger element for ARIA sync */
   _registerTrigger: (el: HTMLElement) => void;
-  /** Factory to create an item — overridden by Group sub-context */
-  _createItem: (value: string, label?: string) => HTMLDivElement;
+  /** @internal — registers content children for the root to place in the menu panel */
+  _registerContent: (children: Node[]) => void;
+  /** @internal — registers an item element for keyboard navigation */
+  _registerItem: (el: HTMLDivElement) => void;
   /** @internal — duplicate sub-component detection */
   _triggerClaimed: boolean;
   _contentClaimed: boolean;
@@ -75,6 +81,31 @@ interface GroupProps extends SlotProps {
 }
 
 // ---------------------------------------------------------------------------
+// Element builder — outside component body to avoid computed() wrapping
+// ---------------------------------------------------------------------------
+
+function buildMenuItemEl(
+  value: string,
+  itemClass: string,
+  children: Node[],
+  onItemClick: () => void,
+): HTMLDivElement {
+  return (
+    <div
+      role="menuitem"
+      data-value={value}
+      tabindex="-1"
+      class={itemClass || undefined}
+      onClick={() => {
+        onItemClick();
+      }}
+    >
+      {...children}
+    </div>
+  ) as HTMLDivElement;
+}
+
+// ---------------------------------------------------------------------------
 // Sub-components — self-wiring via context
 // ---------------------------------------------------------------------------
 
@@ -84,27 +115,19 @@ function MenuTrigger({ children }: SlotProps) {
     console.warn('Duplicate <DropdownMenu.Trigger> detected – only the first is used');
   }
   ctx._triggerClaimed = true;
-  const { menu, _registerTrigger } = ctx;
+  const { _registerTrigger } = ctx;
 
   // Resolve children to find the user's trigger element
   const resolved = resolveChildren(children);
   const userTrigger = resolved.find((n): n is HTMLElement => n instanceof HTMLElement) ?? null;
 
   if (userTrigger) {
-    // Wire ARIA attributes on the user's element
+    // Wire initial ARIA attributes on the user's element
     userTrigger.setAttribute('aria-haspopup', 'menu');
-    userTrigger.setAttribute('aria-controls', menu.content.id);
     userTrigger.setAttribute('aria-expanded', 'false');
     userTrigger.setAttribute('data-state', 'closed');
 
-    // Delegate click to the primitive's trigger
-    const handleClick = () => {
-      menu.trigger.click();
-    };
-    userTrigger.addEventListener('click', handleClick);
-    _tryOnCleanup(() => userTrigger.removeEventListener('click', handleClick));
-
-    // Register for ARIA sync on state changes
+    // Register for ARIA sync + click wiring in root
     _registerTrigger(userTrigger);
   }
 
@@ -117,73 +140,108 @@ function MenuContent({ children }: SlotProps) {
     console.warn('Duplicate <DropdownMenu.Content> detected – only the first is used');
   }
   ctx._contentClaimed = true;
-  const { menu } = ctx;
 
-  // Resolve children (Items, Groups, Labels, Separators) for registration side effects
-  resolveChildren(children);
+  // Resolve children (Items, Groups, Labels, Separators) — this triggers registrations
+  const resolved = resolveChildren(children);
 
-  return menu.content;
+  // Register the resolved content nodes with root
+  ctx._registerContent(resolved);
+
+  // Return a placeholder — root builds the actual content panel
+  return (<span style="display: none" />) as HTMLElement;
 }
 
 function MenuItem({ value, children, className: cls, class: classProp }: ItemProps) {
-  const { _createItem, classes } = useDropdownMenuContext('Item');
+  const ctx = useDropdownMenuContext('Item');
   const effectiveCls = cls ?? classProp;
 
-  // Extract label from children
+  // Build the class combining theme + per-instance
+  const itemClass = [ctx.classes?.item, effectiveCls].filter(Boolean).join(' ');
+
+  // Resolve children
   const resolved = resolveChildren(children);
-  const label = resolved
-    .map((n) => n.textContent ?? '')
-    .join('')
-    .trim();
 
-  const item = _createItem(value, label || undefined);
-
-  // Apply item class
-  const itemClass = [classes?.item, effectiveCls].filter(Boolean).join(' ');
-  if (itemClass) item.className = itemClass;
-
-  return item;
-}
-
-function MenuGroup({ label, children }: GroupProps) {
-  const ctx = useDropdownMenuContext('Group');
-  const group = ctx.menu.Group(label);
-
-  if (ctx.classes?.group) group.el.className = ctx.classes.group;
-
-  // Override _createItem in sub-context so nested Items use group.Item()
-  DropdownMenuContext.Provider({ ...ctx, _createItem: (v, l) => group.Item(v, l) }, () => {
-    resolveChildren(children);
+  // Build item element via standalone helper
+  const onSelect = ctx.onSelect;
+  const el = buildMenuItemEl(value, itemClass, resolved, () => {
+    onSelect?.(value);
   });
 
-  return group.el;
+  // Register item with root for keyboard navigation
+  ctx._registerItem(el);
+
+  return el;
+}
+
+function MenuGroup({ label, children, className: cls, class: classProp }: GroupProps) {
+  const ctx = useDropdownMenuContext('Group');
+  const effectiveCls = cls ?? classProp;
+
+  const groupClass = [ctx.classes?.group, effectiveCls].filter(Boolean).join(' ');
+
+  // Resolve children inside context — items still register to root's items array
+  const resolved = resolveChildren(children);
+
+  return (
+    <div role="group" aria-label={label} class={groupClass || undefined}>
+      {...resolved}
+    </div>
+  ) as HTMLDivElement;
 }
 
 function MenuLabel({ children, className: cls, class: classProp }: SlotProps) {
-  const { menu, classes } = useDropdownMenuContext('Label');
+  const { classes } = useDropdownMenuContext('Label');
   const effectiveCls = cls ?? classProp;
 
-  // Extract text from children
-  const resolved = resolveChildren(children);
-  const text = resolved
-    .map((n) => n.textContent ?? '')
-    .join('')
-    .trim();
-
-  const labelEl = menu.Label(text);
-
-  // Apply label class
   const labelClass = [classes?.label, effectiveCls].filter(Boolean).join(' ');
-  if (labelClass) labelEl.className = labelClass;
 
-  return labelEl;
+  return (
+    <div role="none" class={labelClass || undefined}>
+      {children}
+    </div>
+  ) as HTMLDivElement;
 }
 
-function MenuSeparator(_props: SlotProps) {
-  const { menu, classes } = useDropdownMenuContext('Separator');
-  const sep = menu.Separator();
-  if (classes?.separator) sep.className = classes.separator;
-  return sep;
+function MenuSeparator({ className: cls, class: classProp }: SlotProps) {
+  const { classes } = useDropdownMenuContext('Separator');
+  const effectiveCls = cls ?? classProp;
+
+  const sepClass = [classes?.separator, effectiveCls].filter(Boolean).join(' ');
+
+  return (<hr role="separator" class={sepClass || undefined} />) as HTMLHRElement;
+}
+
+// ---------------------------------------------------------------------------
+// Context value builder — outside component body to avoid computed() wrapping
+// ---------------------------------------------------------------------------
+
+function buildCtxValue(
+  reg: {
+    userTrigger: HTMLElement | null;
+    contentChildren: Node[];
+    items: HTMLDivElement[];
+  },
+  classes: DropdownMenuClasses | undefined,
+  onSelect: ((value: string) => void) | undefined,
+): DropdownMenuContextValue {
+  return {
+    classes,
+    onSelect,
+    _registerTrigger: (el: HTMLElement) => {
+      reg.userTrigger = el;
+    },
+    _registerContent: (children: Node[]) => {
+      for (let i = 0; i < children.length; i++) {
+        const child = children[i];
+        if (child) reg.contentChildren.push(child);
+      }
+    },
+    _registerItem: (el: HTMLDivElement) => {
+      reg.items.push(el);
+    },
+    _triggerClaimed: false,
+    _contentClaimed: false,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -207,48 +265,248 @@ function ComposedDropdownMenuRoot({
   onOpenChange,
   positioning,
 }: ComposedDropdownMenuProps) {
-  // Track the user's trigger element for ARIA sync
-  let userTrigger: HTMLElement | null = null;
+  const ids = linkedIds('menu');
 
-  // Create the low-level menu primitive with ARIA sync
-  const menu = Menu.Root({
-    onSelect,
-    positioning,
-    onOpenChange: (isOpen) => {
-      if (userTrigger) {
-        userTrigger.setAttribute('aria-expanded', String(isOpen));
-        userTrigger.setAttribute('data-state', isOpen ? 'open' : 'closed');
-      }
-      onOpenChange?.(isOpen);
-    },
-  });
-
-  // Apply content class
-  if (classes?.content) {
-    menu.content.className = classes.content;
-  }
-
-  const ctxValue: DropdownMenuContextValue = {
-    menu,
-    classes,
-    _registerTrigger: (el: HTMLElement) => {
-      userTrigger = el;
-    },
-    _createItem: (value, label) => menu.Item(value, label),
-    _triggerClaimed: false,
-    _contentClaimed: false,
+  // Plain object for registration storage — NOT let variables (compiler would signalize)
+  const reg: {
+    userTrigger: HTMLElement | null;
+    contentChildren: Node[];
+    items: HTMLDivElement[];
+  } = {
+    userTrigger: null,
+    contentChildren: [],
+    items: [],
   };
 
-  // Resolve children for registration side effects
-  let resolvedNodes: Node[] = [];
+  // State as plain object — not reactive, mutated by closures
+  // Cleanup functions stored here too (NOT `let` — compiler would signalize)
+  const state: {
+    isOpen: boolean;
+    activeIndex: number;
+    floatingCleanup: (() => void) | null;
+    dismissCleanup: (() => void) | null;
+    resolvedNodes: Node[];
+  } = {
+    isOpen: false,
+    activeIndex: -1,
+    floatingCleanup: null,
+    dismissCleanup: null,
+    resolvedNodes: [],
+  };
+
+  // Build context value via helper to avoid compiler computed() wrapping
+  const ctxValue = buildCtxValue(reg, classes, onSelect);
+
+  // Phase 1: resolve children to collect registrations
   DropdownMenuContext.Provider(ctxValue, () => {
-    resolvedNodes = resolveChildren(children);
+    state.resolvedNodes = resolveChildren(children);
   });
+
+  // --- Build the content panel ---
+
+  const contentPanel = (
+    <div
+      role="menu"
+      tabindex="-1"
+      id={ids.contentId}
+      aria-hidden="true"
+      data-state="closed"
+      style="display: none"
+      class={classes?.content || undefined}
+    >
+      {...reg.contentChildren}
+    </div>
+  ) as HTMLDivElement;
+
+  // --- State management functions ---
+
+  function updateActiveItem(index: number): void {
+    for (let i = 0; i < reg.items.length; i++) {
+      reg.items[i]?.setAttribute('tabindex', i === index ? '0' : '-1');
+    }
+  }
+
+  function handleClickOutside(event: MouseEvent): void {
+    const target = event.target as Node;
+    if (reg.userTrigger?.contains(target)) return;
+    if (contentPanel.contains(target)) return;
+    close();
+  }
+
+  function open(activateFirst = false): void {
+    state.isOpen = true;
+    state.activeIndex = -1;
+
+    setHidden(contentPanel, false);
+    setDataState(contentPanel, 'open');
+
+    if (reg.userTrigger) {
+      setExpanded(reg.userTrigger, true);
+      setDataState(reg.userTrigger, 'open');
+    }
+
+    onOpenChange?.(true);
+
+    if (positioning) {
+      const ref = positioning.referenceElement ?? reg.userTrigger ?? contentPanel;
+      const result = createFloatingPosition(ref, contentPanel, positioning);
+      state.floatingCleanup = result.cleanup;
+      state.dismissCleanup = createDismiss({
+        onDismiss: close,
+        insideElements: [ref, contentPanel, ...(reg.userTrigger ? [reg.userTrigger] : [])],
+        escapeKey: false,
+      });
+    } else {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    if (activateFirst && reg.items.length > 0) {
+      state.activeIndex = 0;
+      updateActiveItem(0);
+      reg.items[0]?.focus();
+    } else {
+      updateActiveItem(-1);
+      contentPanel.focus();
+    }
+  }
+
+  function close(): void {
+    state.isOpen = false;
+
+    setHiddenAnimated(contentPanel, true);
+    setDataState(contentPanel, 'closed');
+
+    if (reg.userTrigger) {
+      setExpanded(reg.userTrigger, false);
+      setDataState(reg.userTrigger, 'closed');
+    }
+
+    onOpenChange?.(false);
+
+    if (positioning) {
+      state.floatingCleanup?.();
+      state.floatingCleanup = null;
+      state.dismissCleanup?.();
+      state.dismissCleanup = null;
+    } else {
+      document.removeEventListener('mousedown', handleClickOutside);
+    }
+
+    reg.userTrigger?.focus();
+  }
+
+  function toggle(): void {
+    if (state.isOpen) {
+      close();
+    } else {
+      open();
+    }
+  }
+
+  // --- Wire keyboard handler on content panel ---
+
+  const handleContentKeydown = (event: KeyboardEvent) => {
+    if (isKey(event, Keys.Escape)) {
+      event.preventDefault();
+      close();
+      return;
+    }
+
+    if (isKey(event, Keys.Enter, Keys.Space)) {
+      event.preventDefault();
+      const active = reg.items[state.activeIndex];
+      if (active) {
+        const val = active.getAttribute('data-value');
+        if (val !== null) {
+          onSelect?.(val);
+          close();
+        }
+      }
+      return;
+    }
+
+    if (state.activeIndex === -1) {
+      if (isKey(event, Keys.ArrowDown)) {
+        event.preventDefault();
+        state.activeIndex = 0;
+        updateActiveItem(0);
+        reg.items[0]?.focus();
+        return;
+      }
+      if (isKey(event, Keys.ArrowUp)) {
+        event.preventDefault();
+        const last = reg.items.length - 1;
+        state.activeIndex = last;
+        updateActiveItem(last);
+        reg.items[last]?.focus();
+        return;
+      }
+    }
+
+    const result = handleListNavigation(event, reg.items, { orientation: 'vertical' });
+    if (result) {
+      const idx = reg.items.indexOf(result as HTMLDivElement);
+      if (idx >= 0) {
+        state.activeIndex = idx;
+        updateActiveItem(idx);
+      }
+      return;
+    }
+
+    // Type-ahead: single character search
+    if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      const char = event.key.toLowerCase();
+      const match = reg.items.find((item) => item.textContent?.toLowerCase().startsWith(char));
+      if (match) {
+        const idx = reg.items.indexOf(match);
+        state.activeIndex = idx;
+        updateActiveItem(idx);
+        match.focus();
+      }
+    }
+  };
+
+  contentPanel.addEventListener('keydown', handleContentKeydown);
+  _tryOnCleanup(() => contentPanel.removeEventListener('keydown', handleContentKeydown));
+
+  // --- Wire item click → close via event delegation ---
+  const handleContentClick = (event: Event) => {
+    const target = (event.target as HTMLElement).closest('[role="menuitem"]');
+    if (target) {
+      close();
+    }
+  };
+  contentPanel.addEventListener('click', handleContentClick);
+  _tryOnCleanup(() => contentPanel.removeEventListener('click', handleContentClick));
+
+  // --- Wire the user trigger ---
+
+  if (reg.userTrigger) {
+    reg.userTrigger.setAttribute('aria-controls', ids.contentId);
+
+    const handleTriggerClick = () => {
+      toggle();
+    };
+    reg.userTrigger.addEventListener('click', handleTriggerClick);
+    _tryOnCleanup(() => reg.userTrigger?.removeEventListener('click', handleTriggerClick));
+
+    // Keyboard: ArrowDown/Enter/Space opens with first item focused
+    const handleTriggerKeydown = (event: KeyboardEvent) => {
+      if (isKey(event, Keys.ArrowDown, Keys.Enter, Keys.Space)) {
+        event.preventDefault();
+        if (!state.isOpen) {
+          open(true);
+        }
+      }
+    };
+    reg.userTrigger.addEventListener('keydown', handleTriggerKeydown);
+    _tryOnCleanup(() => reg.userTrigger?.removeEventListener('keydown', handleTriggerKeydown));
+  }
 
   return (
     <div style="display: contents">
-      {...resolvedNodes}
-      {menu.content}
+      {...state.resolvedNodes}
+      {contentPanel}
     </div>
   );
 }

@@ -1,14 +1,24 @@
 /**
- * Composed Select — high-level composable component built on Select.Root.
- * Sub-components self-wire via context. No slot scanning.
- * Uses context override for groups: Group provides a sub-context where
- * _createItem delegates to group.Item() instead of select.Item().
+ * Composed Select — high-level composable component with fully declarative JSX.
+ * Sub-components self-wire via context. No factory dependency.
+ *
+ * Compiler constraints applied:
+ * - `const reg` object for registration (not `let` — avoids signal transforms)
+ * - `buildSelectCtx()` helper outside component for context value construction
+ * - `buildItemEl()` outside component body to avoid computed() on JSX returns
+ * - `for` loops instead of `.map()` at top level
+ * - Content panel as separate JSX variable for event delegation cleanup
  */
 
 import type { ChildValue } from '@vertz/ui';
 import { createContext, resolveChildren, useContext } from '@vertz/ui';
+import { _tryOnCleanup } from '@vertz/ui/internals';
+import { setHiddenAnimated } from '../utils/aria';
+import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
-import { Select } from './select';
+import { createFloatingPosition } from '../utils/floating';
+import { linkedIds } from '../utils/id';
+import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
 // ---------------------------------------------------------------------------
 // Class types
@@ -24,14 +34,35 @@ export interface SelectClasses {
 }
 
 // ---------------------------------------------------------------------------
+// Registration types
+// ---------------------------------------------------------------------------
+
+interface ItemRegistration {
+  el: HTMLDivElement;
+  value: string;
+}
+
+interface SelectReg {
+  items: ItemRegistration[];
+  contentChildren: Node[];
+  contentClass: string | undefined;
+  floatingCleanup: (() => void) | null;
+  dismissCleanup: (() => void) | null;
+  selectedValue: string;
+  isOpen: boolean;
+  activeIndex: number;
+}
+
+// ---------------------------------------------------------------------------
 // Context
 // ---------------------------------------------------------------------------
 
 interface SelectContextValue {
-  select: ReturnType<typeof Select.Root>;
   classes?: SelectClasses;
-  /** Factory to create an item — overridden by Group sub-context */
-  _createItem: (value: string, label?: string) => HTMLDivElement;
+  /** Register an item element + value for keyboard nav */
+  _registerItem: (el: HTMLDivElement, value: string) => void;
+  /** Register the content's children and class */
+  _registerContent: (contentChildren: Node[], cls?: string) => void;
   /** @internal — duplicate sub-component detection */
   _triggerClaimed: boolean;
   _contentClaimed: boolean;
@@ -73,12 +104,75 @@ interface GroupProps extends SlotProps {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components — self-wiring via context
+// Helper: create reg object outside component body
+// (avoids compiler wrapping object literal in computed())
 // ---------------------------------------------------------------------------
 
-// Inline SVG strings for icons (same pattern as @vertz/icons renderIcon)
-const CHEVRON_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+function createSelectReg(defaultValue: string): SelectReg {
+  return {
+    items: [],
+    contentChildren: [],
+    contentClass: undefined,
+    floatingCleanup: null,
+    dismissCleanup: null,
+    selectedValue: defaultValue,
+    isOpen: false,
+    activeIndex: -1,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Helper: build context value outside component body
+// (avoids compiler wrapping object literal in computed())
+// ---------------------------------------------------------------------------
+
+function buildSelectCtx(
+  classes: SelectClasses | undefined,
+  registerItem: (el: HTMLDivElement, value: string) => void,
+  registerContent: (contentChildren: Node[], cls?: string) => void,
+): SelectContextValue {
+  return {
+    classes,
+    _registerItem: registerItem,
+    _registerContent: registerContent,
+    _triggerClaimed: false,
+    _contentClaimed: false,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Helper: build item element outside component body
+// (avoids compiler classifying JSX return as computed())
+// ---------------------------------------------------------------------------
+
+function buildItemEl(
+  value: string,
+  isSelected: boolean,
+  label: string,
+  itemClass: string,
+  indicatorClass: string | undefined,
+): HTMLDivElement {
+  const el = (
+    <div
+      role="option"
+      data-value={value}
+      tabindex="-1"
+      aria-selected={isSelected ? 'true' : 'false'}
+      data-state={isSelected ? 'active' : 'inactive'}
+    >
+      {label}
+      <span data-part="indicator" style="display: none" class={indicatorClass || undefined} />
+    </div>
+  ) as HTMLDivElement;
+
+  if (itemClass) el.className = itemClass;
+
+  return el;
+}
+
+// ---------------------------------------------------------------------------
+// Sub-components — self-wiring via context
+// ---------------------------------------------------------------------------
 
 function SelectTrigger(_props: SlotProps) {
   const ctx = useSelectContext('Trigger');
@@ -86,19 +180,8 @@ function SelectTrigger(_props: SlotProps) {
     console.warn('Duplicate <Select.Trigger> detected – only the first is used');
   }
   ctx._triggerClaimed = true;
-  const { select } = ctx;
-
-  // Add chevron indicator to the trigger
-  const chevron = (
-    <span
-      data-part="chevron"
-      style="display: inline-flex; align-items: center; opacity: 0.5; flex-shrink: 0"
-    />
-  ) as HTMLSpanElement;
-  chevron.innerHTML = CHEVRON_SVG;
-  select.trigger.appendChild(chevron);
-
-  return select.trigger;
+  // Return nothing — Root builds the actual trigger element
+  return (<span style="display: none" />) as HTMLElement;
 }
 
 function SelectContent({ children }: SlotProps) {
@@ -107,19 +190,17 @@ function SelectContent({ children }: SlotProps) {
     console.warn('Duplicate <Select.Content> detected – only the first is used');
   }
   ctx._contentClaimed = true;
-  const { select } = ctx;
 
   // Resolve children (Items, Groups, Separators) for their registration side effects
-  resolveChildren(children);
+  const resolved = resolveChildren(children);
+  ctx._registerContent(resolved);
 
-  return select.content;
+  // Return nothing — Root builds the actual content element
+  return (<span style="display: none" />) as HTMLElement;
 }
 
-const CHECK_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
-
 function SelectItem({ value, children, className: cls, class: classProp }: ItemProps) {
-  const { _createItem, classes } = useSelectContext('Item');
+  const ctx = useSelectContext('Item');
   const effectiveCls = cls ?? classProp;
 
   // Extract label from children
@@ -129,41 +210,46 @@ function SelectItem({ value, children, className: cls, class: classProp }: ItemP
     .join('')
     .trim();
 
-  const item = _createItem(value, label || undefined);
+  const itemClass = [ctx.classes?.item, effectiveCls].filter(Boolean).join(' ');
 
-  // Apply item class
-  const itemClass = [classes?.item, effectiveCls].filter(Boolean).join(' ');
-  if (itemClass) item.className = itemClass;
+  // Build element using standalone helper to avoid computed() wrapping
+  // Click handler wired by Root after items are collected
+  const el = buildItemEl(
+    value,
+    false, // selection state set by Root after all items are registered
+    label || value,
+    itemClass,
+    ctx.classes?.itemIndicator,
+  );
 
-  // Add check indicator (hidden by default, shown via CSS when aria-selected="true")
-  const indicator = (
-    <span data-part="indicator" style="display: none" class={classes?.itemIndicator || undefined} />
-  ) as HTMLSpanElement;
-  indicator.innerHTML = CHECK_SVG;
-  item.appendChild(indicator);
+  ctx._registerItem(el, value);
 
-  return item;
+  return el;
 }
 
-function SelectGroup({ label, children }: GroupProps) {
+function SelectGroup({ label, children, className: cls, class: classProp }: GroupProps) {
   const ctx = useSelectContext('Group');
-  const group = ctx.select.Group(label);
+  const effectiveCls = cls ?? classProp;
+  const groupClass = [ctx.classes?.group, effectiveCls].filter(Boolean).join(' ');
 
-  if (ctx.classes?.group) group.el.className = ctx.classes.group;
+  // Resolve children within context so nested Items register themselves
+  const resolved = resolveChildren(children);
 
-  // Override _createItem in sub-context so nested Items use group.Item()
-  SelectContext.Provider({ ...ctx, _createItem: (v, l) => group.Item(v, l) }, () => {
-    resolveChildren(children);
-  });
+  const el = (
+    <div role="group" aria-label={label} class={groupClass || undefined}>
+      {...resolved}
+    </div>
+  ) as HTMLDivElement;
 
-  return group.el;
+  return el;
 }
 
-function SelectSeparator(_props: SlotProps) {
-  const { select, classes } = useSelectContext('Separator');
-  const sep = select.Separator();
-  if (classes?.separator) sep.className = classes.separator;
-  return sep;
+function SelectSeparator({ className: cls, class: classProp }: SlotProps) {
+  const { classes } = useSelectContext('Separator');
+  const effectiveCls = cls ?? classProp;
+  const sepClass = [classes?.separator, effectiveCls].filter(Boolean).join(' ');
+
+  return (<hr role="separator" class={sepClass || undefined} />) as HTMLHRElement;
 }
 
 // ---------------------------------------------------------------------------
@@ -184,45 +270,282 @@ export type SelectClassKey = keyof SelectClasses;
 function ComposedSelectRoot({
   children,
   classes,
-  defaultValue,
-  placeholder,
+  defaultValue = '',
+  placeholder = '',
   onValueChange,
   positioning,
 }: ComposedSelectProps) {
-  const select = Select.Root({
-    defaultValue,
-    placeholder,
-    onValueChange,
-    positioning,
-  });
+  const ids = linkedIds('select');
 
-  // Apply trigger class
-  if (classes?.trigger) {
-    select.trigger.className = classes.trigger;
+  // Plain reg object — NOT `let` variables (compiler would transform to signals)
+  // Created via helper function to avoid compiler wrapping object literal in computed()
+  const reg = createSelectReg(defaultValue);
+
+  // --- Helper functions that close over reg ---
+
+  function updateActiveItem(index: number): void {
+    for (let i = 0; i < reg.items.length; i++) {
+      const item = reg.items[i];
+      if (item) {
+        item.el.setAttribute('tabindex', i === index ? '0' : '-1');
+      }
+    }
   }
 
-  // Apply content class
-  if (classes?.content) {
-    select.content.className = classes.content;
+  function selectItem(value: string): void {
+    reg.selectedValue = value;
+    for (let i = 0; i < reg.items.length; i++) {
+      const item = reg.items[i];
+      if (!item) continue;
+      const isActive = item.value === value;
+      item.el.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      item.el.setAttribute('data-state', isActive ? 'active' : 'inactive');
+      if (isActive) {
+        triggerText.textContent = item.el.textContent ?? value;
+      }
+    }
+    onValueChange?.(value);
+    close();
   }
 
-  const ctxValue: SelectContextValue = {
-    select,
+  function open(): void {
+    reg.isOpen = true;
+    trigger.setAttribute('aria-expanded', 'true');
+    trigger.setAttribute('data-state', 'open');
+    contentPanel.setAttribute('aria-hidden', 'false');
+    contentPanel.setAttribute('data-state', 'open');
+    contentPanel.style.display = '';
+
+    if (positioning) {
+      const result = createFloatingPosition(trigger, contentPanel, positioning);
+      reg.floatingCleanup = result.cleanup;
+      reg.dismissCleanup = createDismiss({
+        onDismiss: close,
+        insideElements: [trigger, contentPanel],
+        escapeKey: false,
+      });
+    } else {
+      const rect = trigger.getBoundingClientRect();
+      const side = window.innerHeight - rect.bottom >= rect.top ? 'bottom' : 'top';
+      contentPanel.setAttribute('data-side', side);
+    }
+
+    // Focus selected item or content
+    let selectedIdx = -1;
+    for (let i = 0; i < reg.items.length; i++) {
+      if (reg.items[i]?.value === reg.selectedValue) {
+        selectedIdx = i;
+        break;
+      }
+    }
+    if (selectedIdx >= 0) {
+      reg.activeIndex = selectedIdx;
+      updateActiveItem(selectedIdx);
+      reg.items[selectedIdx]?.el.focus();
+    } else {
+      reg.activeIndex = -1;
+      updateActiveItem(-1);
+      contentPanel.focus();
+    }
+  }
+
+  function close(): void {
+    reg.isOpen = false;
+    trigger.setAttribute('aria-expanded', 'false');
+    trigger.setAttribute('data-state', 'closed');
+    contentPanel.setAttribute('data-state', 'closed');
+    contentPanel.setAttribute('aria-hidden', 'true');
+    setHiddenAnimated(contentPanel, true);
+    reg.floatingCleanup?.();
+    reg.floatingCleanup = null;
+    reg.dismissCleanup?.();
+    reg.dismissCleanup = null;
+    trigger.focus();
+  }
+
+  // --- Build context and resolve children (Phase 1) ---
+
+  const ctxValue = buildSelectCtx(
     classes,
-    _createItem: (value, label) => select.Item(value, label),
-    _triggerClaimed: false,
-    _contentClaimed: false,
-  };
+    (el: HTMLDivElement, value: string) => {
+      reg.items.push({ el, value });
+    },
+    (contentChildren: Node[], cls?: string) => {
+      reg.contentChildren = contentChildren;
+      reg.contentClass = cls;
+    },
+  );
 
-  // Resolve children for registration side effects
   SelectContext.Provider(ctxValue, () => {
     resolveChildren(children);
   });
 
+  // --- Wire item click handlers now that selectItem is defined ---
+
+  for (let i = 0; i < reg.items.length; i++) {
+    const item = reg.items[i];
+    if (!item) continue;
+    const itemValue = item.value;
+    const handleItemClick = () => {
+      selectItem(itemValue);
+    };
+    item.el.addEventListener('click', handleItemClick);
+    _tryOnCleanup(() => item.el.removeEventListener('click', handleItemClick));
+  }
+
+  // --- Set initial selection state on items ---
+
+  if (defaultValue) {
+    for (let i = 0; i < reg.items.length; i++) {
+      const item = reg.items[i];
+      if (!item) continue;
+      const isSelected = item.value === defaultValue;
+      item.el.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+      item.el.setAttribute('data-state', isSelected ? 'active' : 'inactive');
+    }
+  }
+
+  // --- Build trigger ---
+
+  const triggerText = (
+    <span data-part="value">{defaultValue || placeholder}</span>
+  ) as HTMLSpanElement;
+
+  // Set trigger text to selected item's label if defaultValue matches
+  if (defaultValue) {
+    for (let i = 0; i < reg.items.length; i++) {
+      const item = reg.items[i];
+      if (item && item.value === defaultValue) {
+        triggerText.textContent = item.el.textContent ?? defaultValue;
+        break;
+      }
+    }
+  }
+
+  const chevron = (<span data-part="chevron" />) as HTMLSpanElement;
+
+  const trigger = (
+    <button
+      type="button"
+      role="combobox"
+      id={ids.triggerId}
+      aria-controls={ids.contentId}
+      aria-haspopup="listbox"
+      aria-expanded="false"
+      data-state="closed"
+      class={classes?.trigger || undefined}
+      onClick={() => {
+        if (reg.isOpen) {
+          close();
+        } else {
+          open();
+        }
+      }}
+      onKeydown={(event: KeyboardEvent) => {
+        if (isKey(event, Keys.ArrowDown, Keys.ArrowUp, Keys.Enter, Keys.Space)) {
+          event.preventDefault();
+          if (!reg.isOpen) {
+            open();
+          }
+        }
+      }}
+    >
+      {triggerText}
+      {chevron}
+    </button>
+  ) as HTMLButtonElement;
+
+  // --- Build content panel ---
+
+  const contentPanel = (
+    <div
+      role="listbox"
+      tabindex="-1"
+      id={ids.contentId}
+      aria-hidden="true"
+      data-state="closed"
+      style="display: none"
+      class={classes?.content || undefined}
+    >
+      {...reg.contentChildren}
+    </div>
+  ) as HTMLDivElement;
+
+  // Wire keyboard handlers via addEventListener for cleanup
+  const handleContentKeydown = (event: KeyboardEvent) => {
+    if (isKey(event, Keys.Escape)) {
+      event.preventDefault();
+      close();
+      return;
+    }
+
+    if (isKey(event, Keys.Enter, Keys.Space)) {
+      event.preventDefault();
+      const active = reg.items[reg.activeIndex];
+      if (active) {
+        selectItem(active.value);
+      }
+      return;
+    }
+
+    if (reg.activeIndex === -1) {
+      if (isKey(event, Keys.ArrowDown)) {
+        event.preventDefault();
+        reg.activeIndex = 0;
+        updateActiveItem(0);
+        reg.items[0]?.el.focus();
+        return;
+      }
+      if (isKey(event, Keys.ArrowUp)) {
+        event.preventDefault();
+        const last = reg.items.length - 1;
+        reg.activeIndex = last;
+        updateActiveItem(last);
+        reg.items[last]?.el.focus();
+        return;
+      }
+    }
+
+    const itemEls: HTMLElement[] = [];
+    for (let i = 0; i < reg.items.length; i++) {
+      const item = reg.items[i];
+      if (item) itemEls.push(item.el);
+    }
+
+    const result = handleListNavigation(event, itemEls, { orientation: 'vertical' });
+    if (result) {
+      for (let i = 0; i < reg.items.length; i++) {
+        if (reg.items[i]?.el === result) {
+          reg.activeIndex = i;
+          updateActiveItem(i);
+          break;
+        }
+      }
+      return;
+    }
+
+    // Type-ahead: single-char search
+    if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      const char = event.key.toLowerCase();
+      for (let i = 0; i < reg.items.length; i++) {
+        const item = reg.items[i];
+        if (item?.el.textContent?.toLowerCase().startsWith(char)) {
+          reg.activeIndex = i;
+          updateActiveItem(i);
+          item.el.focus();
+          break;
+        }
+      }
+    }
+  };
+
+  contentPanel.addEventListener('keydown', handleContentKeydown);
+  _tryOnCleanup(() => contentPanel.removeEventListener('keydown', handleContentKeydown));
+
   return (
     <div style="display: contents">
-      {select.trigger}
-      {select.content}
+      {trigger}
+      {contentPanel}
     </div>
   );
 }

@@ -5,6 +5,7 @@
 import { ComposedAccordion } from '../../accordion/accordion-composed';
 import { ComposedAlertDialog } from '../../alert-dialog/alert-dialog-composed';
 import { ComposedDialog } from '../../dialog/dialog-composed';
+import { ComposedDropdownMenu } from '../../dropdown-menu/dropdown-menu-composed';
 import { ComposedSelect } from '../../select/select-composed';
 import { ComposedTabs } from '../../tabs/tabs-composed';
 import { withStyles } from '../with-styles';
@@ -147,3 +148,24 @@ StyledTabs.List({ children: [] });
 StyledTabs.Trigger({ value: 'tab1', children: [] });
 StyledTabs.Content({ value: 'tab1', children: [] });
 StyledTabs({ children: [] });
+
+// ── Positive: DropdownMenu class keys compile ──
+
+withStyles(ComposedDropdownMenu, {
+  content: 'a',
+  item: 'b',
+  group: 'c',
+  label: 'd',
+  separator: 'e',
+});
+
+// Extra key 'trigger' on DropdownMenu is rejected (trigger is not a class key)
+withStyles(ComposedDropdownMenu, {
+  content: 'a',
+  item: 'b',
+  group: 'c',
+  label: 'd',
+  separator: 'e',
+  // @ts-expect-error — 'trigger' does not exist on DropdownMenu class keys
+  trigger: 'f',
+});

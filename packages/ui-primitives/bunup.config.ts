@@ -14,13 +14,6 @@ const componentEntries = readdirSync('src', { withFileTypes: true })
 export default defineConfig({
   entry: ['src/index.ts', 'src/utils.ts', ...componentEntries],
   dts: true,
-  plugins: [
-    createVertzLibraryPlugin({
-      // Batch-1 composed primitives (PR #1323) still use imperative patterns.
-      // Skip reactive transforms for them; transpile JSX only.
-      exclude:
-        /(accordion|alert-dialog|dialog|dropdown-menu|popover|select|sheet|tabs|tooltip)-composed\.tsx$/,
-    }),
-  ],
+  plugins: [createVertzLibraryPlugin()],
   external: ['@vertz/ui', '@vertz/ui/internals'],
 });
