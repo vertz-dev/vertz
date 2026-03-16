@@ -1,31 +1,17 @@
 // ---------------------------------------------------------------------------
 // @vertz/db -- Primary developer-facing API
 //
-// Dialect-specific adapters/drivers are in sub-paths:
-//   @vertz/db/sqlite   — createSqliteAdapter, createSqliteDriver
-//   @vertz/db/postgres  — createPostgresDriver
-//   @vertz/db/d1        — createD1Adapter, createD1Driver
+// One API for all backends: createDb() with dialect + path/d1/url.
 //
-// SQL builders          -> @vertz/db/sql
-// Internal utilities    -> @vertz/db/internals
-// Plugin system         -> @vertz/db/plugin
+// Sub-paths:
+//   @vertz/db/postgres  — createPostgresDriver
+//   @vertz/db/sql       — SQL builders
+//   @vertz/db/internals — Internal utilities
+//   @vertz/db/plugin    — Plugin system
 // ---------------------------------------------------------------------------
 
-export type {
-  D1AdapterOptions,
-  D1DatabaseBinding,
-  D1PreparedStatement,
-} from './adapters/d1-adapter';
-export { createD1Adapter, createD1Driver } from './adapters/d1-adapter';
 // Database bridge adapter (dialect-agnostic — used by @vertz/server)
 export { createDatabaseBridgeAdapter } from './adapters/database-bridge-adapter';
-// Dialect-specific types — re-exported so sub-path type resolution (via dist/index.d.ts)
-// sees a single PhantomType symbol. Runtime functions live only in @vertz/db/sqlite.
-export type {
-  createSqliteAdapter,
-  createSqliteDriver,
-  SqliteAdapterOptions,
-} from './adapters/sqlite-adapter';
 // CLI / Migrations
 export type {
   BaselineOptions,
