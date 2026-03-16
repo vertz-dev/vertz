@@ -53,7 +53,10 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
         '&[data-state="open"]': [animationDecl('vz-fade-in 100ms ease-out forwards')],
       },
       {
-        '&[data-state="closed"]': [animationDecl('vz-fade-out 100ms ease-out forwards')],
+        '&[data-state="closed"]': [
+          animationDecl('vz-fade-out 100ms ease-out forwards'),
+          { 'pointer-events': 'none' },
+        ],
       },
     ],
     sheetPanelLeft: [

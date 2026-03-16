@@ -311,7 +311,7 @@ function ComposedSheetRoot({
         data-sheet-overlay=""
         aria-hidden={isOpen ? 'false' : 'true'}
         data-state={isOpen ? 'open' : 'closed'}
-        style={isOpen ? '' : 'display: none'}
+        style={isOpen ? '' : 'display: none; pointer-events: none'}
         class={classes?.overlay || undefined}
         onClick={() => close()}
       />

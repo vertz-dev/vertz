@@ -45,6 +45,10 @@ describe('sheet styles', () => {
     expect(sheet.css).toContain('vz-slide-out-to-left');
     expect(sheet.css).toContain('vz-slide-out-to-right');
   });
+
+  it('overlay CSS includes pointer-events:none when data-state is closed', () => {
+    expect(sheet.css).toContain('pointer-events');
+  });
 });
 
 describe('themed Sheet', () => {
