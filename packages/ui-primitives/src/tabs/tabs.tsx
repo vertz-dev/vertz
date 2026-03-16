@@ -165,6 +165,7 @@ function TabsRoot(options: TabsOptions = {}): TabsElements & {
     return { trigger: trig, panel };
   }
 
+  /** Remove manually-added event listeners. JSX-wired handlers are cleaned up by DOM removal. */
   function destroy(): void {
     for (const cleanup of cleanups) cleanup();
     cleanups.length = 0;

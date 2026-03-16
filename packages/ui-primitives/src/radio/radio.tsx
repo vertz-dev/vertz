@@ -115,6 +115,7 @@ function RadioRoot(options: RadioOptions = {}): RadioElements & {
     return item;
   }
 
+  /** Remove manually-added event listeners. JSX-wired handlers are cleaned up by DOM removal. */
   function destroy(): void {
     for (const cleanup of cleanups) cleanup();
     cleanups.length = 0;

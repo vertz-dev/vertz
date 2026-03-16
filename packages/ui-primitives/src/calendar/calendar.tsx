@@ -383,6 +383,7 @@ function CalendarRoot(options: CalendarOptions = {}): CalendarElements & {
 
   const root = CalendarRootEl(header, grid);
 
+  /** Remove manually-added event listeners. JSX-wired handlers are cleaned up by DOM removal. */
   function destroy(): void {
     cleanupGridListeners();
   }
