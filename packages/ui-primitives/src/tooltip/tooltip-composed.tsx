@@ -142,14 +142,16 @@ function ComposedTooltipRoot({
     _contentClaimed: false,
   };
 
-  // Phase 1: resolve children to collect registrations
+  // Phase 1: resolve children to collect registrations, then resolve content
+  // children while still inside the Provider so sub-components can access context
   let resolvedNodes: Node[] = [];
+  let contentNodes: Node[] = [];
   TooltipContext.Provider(ctxValue, () => {
     resolvedNodes = resolveChildren(children);
+    contentNodes = resolveChildren(reg.contentChildren);
   });
 
   // Phase 2: build tooltip content element
-  const contentNodes = resolveChildren(reg.contentChildren);
   const combined = [classes?.content, reg.contentCls].filter(Boolean).join(' ');
 
   const tooltipEl = (
