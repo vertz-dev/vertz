@@ -211,6 +211,102 @@ describe('createDb with local SQLite (path option)', () => {
   });
 
   // ---------------------------------------------------------------------------
+  // autoUpdate timestamp columns
+  // ---------------------------------------------------------------------------
+
+  describe('Given a schema with autoUpdate timestamp column', () => {
+    const contactsTable = d.table('contacts', {
+      id: d.uuid().primary({ generate: 'cuid' }),
+      name: d.text(),
+      createdAt: d.timestamp().default('now').readOnly(),
+      updatedAt: d.timestamp().autoUpdate(),
+    });
+    const contactsModel = d.model(contactsTable);
+
+    describe('When creating and updating a record', () => {
+      it('Then auto-generates updatedAt on INSERT and UPDATE', async () => {
+        const db = createDb({
+          models: { contacts: contactsModel },
+          dialect: 'sqlite',
+          path: ':memory:',
+          migrations: { autoApply: true },
+        });
+
+        const created = await db.contacts.create({ data: { name: 'Alice' } });
+        expect(created.ok).toBe(true);
+        if (!created.ok) throw new Error('create failed');
+        expect(created.data.updatedAt).toBeInstanceOf(Date);
+
+        const updated = await db.contacts.update({
+          where: { id: created.data.id },
+          data: { name: 'Bob' },
+        });
+        expect(updated.ok).toBe(true);
+        if (!updated.ok) throw new Error('update failed');
+        expect(updated.data.updatedAt).toBeInstanceOf(Date);
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // close() and isHealthy()
+  // ---------------------------------------------------------------------------
+
+  describe('Given an in-memory SQLite database', () => {
+    describe('When calling close and isHealthy', () => {
+      it('Then isHealthy returns true before close and false after', async () => {
+        const db = createDb({
+          models: { todos: todosModel },
+          dialect: 'sqlite',
+          path: ':memory:',
+          migrations: { autoApply: true },
+        });
+
+        // Trigger lazy migration so driver is initialized
+        await db.todos.list({});
+
+        expect(await db.isHealthy()).toBe(true);
+
+        await db.close();
+
+        expect(await db.isHealthy()).toBe(false);
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // DDL default values (number, string, boolean)
+  // ---------------------------------------------------------------------------
+
+  describe('Given a schema with various default value types', () => {
+    const configTable = d.table('config', {
+      id: d.uuid().primary({ generate: 'cuid' }),
+      label: d.text().default('untitled'),
+      priority: d.integer().default(0),
+      enabled: d.boolean().default(true),
+    });
+    const configModel = d.model(configTable);
+
+    describe('When creating a record with no data beyond required fields', () => {
+      it('Then applies string, number, and boolean defaults', async () => {
+        const db = createDb({
+          models: { config: configModel },
+          dialect: 'sqlite',
+          path: ':memory:',
+          migrations: { autoApply: true },
+        });
+
+        const created = await db.config.create({ data: {} });
+        expect(created.ok).toBe(true);
+        if (!created.ok) throw new Error('create failed');
+        expect(created.data.label).toBe('untitled');
+        expect(created.data.priority).toBe(0);
+        expect(created.data.enabled).toBe(true);
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // Value conversion (boolean + Date)
   // ---------------------------------------------------------------------------
 
