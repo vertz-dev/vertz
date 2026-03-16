@@ -18,9 +18,9 @@ export default defineConfig({
     createVertzLibraryPlugin({
       // Batch-1 composed primitives (PR #1323) still use imperative patterns.
       // Skip reactive transforms for them; transpile JSX only.
-      // Converted to declarative JSX: tooltip, popover, dialog
+      // Converted to declarative JSX: tooltip, popover, dialog, alert-dialog
       exclude:
-        /(accordion|alert-dialog|dropdown-menu|select|sheet|tabs)-composed\.tsx$/,
+        /(accordion|dropdown-menu|select|sheet|tabs)-composed\.tsx$/,
     }),
   ],
   external: ['@vertz/ui', '@vertz/ui/internals'],
