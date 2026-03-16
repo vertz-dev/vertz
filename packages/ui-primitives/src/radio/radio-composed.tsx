@@ -158,25 +158,35 @@ function ComposedRadioGroupRoot({
         const currentIdx = itemRefs.findIndex((r) => r.current === document.activeElement);
         if (currentIdx < 0) return;
 
-        let direction = 0;
+        const len = itemRefs.length;
+        let nextIdx = -1;
+
         if (isKey(event, Keys.ArrowDown, Keys.ArrowRight)) {
           event.preventDefault();
-          direction = 1;
+          nextIdx = (currentIdx + 1) % len;
         } else if (isKey(event, Keys.ArrowUp, Keys.ArrowLeft)) {
           event.preventDefault();
-          direction = -1;
+          nextIdx = (currentIdx - 1 + len) % len;
+        } else if (isKey(event, Keys.Home)) {
+          event.preventDefault();
+          nextIdx = 0;
+        } else if (isKey(event, Keys.End)) {
+          event.preventDefault();
+          nextIdx = len - 1;
         }
 
-        if (direction !== 0) {
-          const len = itemRefs.length;
-          let nextIdx = (currentIdx + direction + len) % len;
-          // Skip disabled items, stop if we loop back to the current item
-          while (nextIdx !== currentIdx && registrations[nextIdx]?.disabled) {
-            nextIdx = (nextIdx + direction + len) % len;
-          }
-          if (nextIdx !== currentIdx) {
-            selectItem(itemValues[nextIdx] ?? '', nextIdx);
-          }
+        if (nextIdx < 0) return;
+
+        // Skip disabled items: scan forward for Home/ArrowDown/Right, backward for End/ArrowUp/Left
+        const direction = isKey(event, Keys.End, Keys.ArrowUp, Keys.ArrowLeft) ? -1 : 1;
+        const startIdx = nextIdx;
+        while (registrations[nextIdx]?.disabled) {
+          nextIdx = (nextIdx + direction + len) % len;
+          if (nextIdx === startIdx) return; // all disabled
+        }
+
+        if (nextIdx !== currentIdx) {
+          selectItem(itemValues[nextIdx] ?? '', nextIdx);
         }
       }}
     >
