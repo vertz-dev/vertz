@@ -73,6 +73,7 @@ function RadioItem(
 function RadioRoot(options: RadioOptions = {}): RadioElements & {
   state: RadioState;
   Item: (value: string, label?: string) => HTMLElement;
+  destroy: () => void;
 } {
   const { defaultValue = '', onValueChange, ...attrs } = options;
   const state: RadioState = { value: signal(defaultValue) };
@@ -93,14 +94,17 @@ function RadioRoot(options: RadioOptions = {}): RadioElements & {
   }
 
   const root = RadioGroup(items, itemValues, selectItem);
+  const cleanups: (() => void)[] = [];
 
   function Item(value: string, label?: string): HTMLElement {
     const isActive = value === state.value.peek();
 
     const item = RadioItem(value, label, isActive, selectItem);
-    item.addEventListener('click', () => {
+    const handleClick = () => {
       item.focus();
-    });
+    };
+    item.addEventListener('click', handleClick);
+    cleanups.push(() => item.removeEventListener('click', handleClick));
 
     items.push(item);
     itemValues.push(value);
@@ -111,15 +115,21 @@ function RadioRoot(options: RadioOptions = {}): RadioElements & {
     return item;
   }
 
+  function destroy(): void {
+    for (const cleanup of cleanups) cleanup();
+    cleanups.length = 0;
+  }
+
   applyAttrs(root, attrs);
 
-  return { root, state, Item };
+  return { root, state, Item, destroy };
 }
 
 export const Radio: {
   Root: (options?: RadioOptions) => RadioElements & {
     state: RadioState;
     Item: (value: string, label?: string) => HTMLElement;
+    destroy: () => void;
   };
 } = {
   Root: RadioRoot,

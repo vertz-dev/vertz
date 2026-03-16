@@ -158,18 +158,23 @@ function ComposedRadioGroupRoot({
         const currentIdx = itemRefs.findIndex((r) => r.current === document.activeElement);
         if (currentIdx < 0) return;
 
-        let nextIdx = -1;
+        let direction = 0;
         if (isKey(event, Keys.ArrowDown, Keys.ArrowRight)) {
           event.preventDefault();
-          nextIdx = (currentIdx + 1) % itemRefs.length;
+          direction = 1;
         } else if (isKey(event, Keys.ArrowUp, Keys.ArrowLeft)) {
           event.preventDefault();
-          nextIdx = (currentIdx - 1 + itemRefs.length) % itemRefs.length;
+          direction = -1;
         }
 
-        if (nextIdx >= 0) {
-          const nextRef = itemRefs[nextIdx];
-          if (nextRef?.current && !nextRef.current.hasAttribute('aria-disabled')) {
+        if (direction !== 0) {
+          const len = itemRefs.length;
+          let nextIdx = (currentIdx + direction + len) % len;
+          // Skip disabled items, stop if we loop back to the current item
+          while (nextIdx !== currentIdx && registrations[nextIdx]?.disabled) {
+            nextIdx = (nextIdx + direction + len) % len;
+          }
+          if (nextIdx !== currentIdx) {
             selectItem(itemValues[nextIdx] ?? '', nextIdx);
           }
         }

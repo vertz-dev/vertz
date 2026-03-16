@@ -106,7 +106,10 @@ function CalendarRootEl(header: HTMLElement, grid: HTMLElement): HTMLElement {
   ) as HTMLElement;
 }
 
-function CalendarRoot(options: CalendarOptions = {}): CalendarElements & { state: CalendarState } {
+function CalendarRoot(options: CalendarOptions = {}): CalendarElements & {
+  state: CalendarState;
+  destroy: () => void;
+} {
   const {
     mode: modeOpt,
     defaultValue,
@@ -195,7 +198,15 @@ function CalendarRoot(options: CalendarOptions = {}): CalendarElements & { state
     onValueChange?.(state.value.peek());
   }
 
+  const gridCleanups: (() => void)[] = [];
+
+  function cleanupGridListeners(): void {
+    for (const cleanup of gridCleanups) cleanup();
+    gridCleanups.length = 0;
+  }
+
   function buildGrid(): void {
+    cleanupGridListeners();
     grid.innerHTML = '';
     const display = state.displayMonth.peek();
     const year = display.getFullYear();
@@ -272,10 +283,12 @@ function CalendarRoot(options: CalendarOptions = {}): CalendarElements & { state
           }
         }
 
-        btn.addEventListener('click', () => {
+        const handleClick = () => {
           selectDate(cellDate);
           rebuildGrid();
-        });
+        };
+        btn.addEventListener('click', handleClick);
+        gridCleanups.push(() => btn.removeEventListener('click', handleClick));
 
         td.appendChild(btn);
         tr.appendChild(td);
@@ -370,13 +383,20 @@ function CalendarRoot(options: CalendarOptions = {}): CalendarElements & { state
 
   const root = CalendarRootEl(header, grid);
 
+  function destroy(): void {
+    cleanupGridListeners();
+  }
+
   applyAttrs(root, attrs);
 
-  return { root, header, title, prevButton, nextButton, grid, state };
+  return { root, header, title, prevButton, nextButton, grid, state, destroy };
 }
 
 export const Calendar: {
-  Root: (options?: CalendarOptions) => CalendarElements & { state: CalendarState };
+  Root: (options?: CalendarOptions) => CalendarElements & {
+    state: CalendarState;
+    destroy: () => void;
+  };
 } = {
   Root: CalendarRoot,
 };

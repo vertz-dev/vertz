@@ -146,4 +146,63 @@ describe('Composed RadioGroup', () => {
       });
     });
   });
+
+  describe('Given a RadioGroup with a disabled item in the middle', () => {
+    function createGroup() {
+      const root = ComposedRadioGroup({
+        defaultValue: 'a',
+        children: () => {
+          ComposedRadioGroup.Item({ value: 'a', children: ['Alpha'] });
+          ComposedRadioGroup.Item({ value: 'b', disabled: true, children: ['Beta'] });
+          ComposedRadioGroup.Item({ value: 'c', children: ['Charlie'] });
+          return [];
+        },
+      });
+      container.appendChild(root);
+      return root;
+    }
+
+    describe('When ArrowDown is pressed from the item before the disabled item', () => {
+      it('Then skips the disabled item and focuses the next enabled item', () => {
+        const root = createGroup();
+        const items = root.querySelectorAll('[role="radio"]');
+        (items[0] as HTMLElement).focus();
+
+        root.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        expect(document.activeElement).toBe(items[2]);
+      });
+    });
+
+    describe('When ArrowUp is pressed from the item after the disabled item', () => {
+      it('Then skips the disabled item and focuses the previous enabled item', () => {
+        const root = createGroup();
+        const items = root.querySelectorAll('[role="radio"]');
+        (items[2] as HTMLElement).focus();
+
+        root.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+        expect(document.activeElement).toBe(items[0]);
+      });
+    });
+
+    describe('When ArrowDown wraps past the last item with disabled items', () => {
+      it('Then wraps and skips disabled items', () => {
+        const root = ComposedRadioGroup({
+          defaultValue: 'a',
+          children: () => {
+            ComposedRadioGroup.Item({ value: 'a', children: ['Alpha'] });
+            ComposedRadioGroup.Item({ value: 'b', disabled: true, children: ['Beta'] });
+            return [];
+          },
+        });
+        container.appendChild(root);
+        const items = root.querySelectorAll('[role="radio"]');
+
+        // Focus first item (a), press ArrowDown — b is disabled, wraps to a
+        (items[0] as HTMLElement).focus();
+        root.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        // Should stay on 'a' since 'b' is disabled and wrap lands back on 'a'
+        expect(document.activeElement).toBe(items[0]);
+      });
+    });
+  });
 });

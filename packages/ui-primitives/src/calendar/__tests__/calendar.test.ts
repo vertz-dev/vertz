@@ -237,4 +237,42 @@ describe('Calendar', () => {
     const dayTexts = Array.from(headers).map((th) => th.textContent);
     expect(dayTexts).toEqual(['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']);
   });
+
+  describe('Given a Calendar with day buttons', () => {
+    describe('When destroy() is called', () => {
+      it('Then removes click event listeners from day buttons', () => {
+        const { root, grid, destroy } = Calendar.Root({
+          defaultMonth: new Date(2024, 5, 1),
+        });
+        container.appendChild(root);
+
+        const buttons = grid.querySelectorAll('td button');
+        const spies = Array.from(buttons).map((btn) => vi.spyOn(btn, 'removeEventListener'));
+
+        destroy();
+
+        for (const spy of spies) {
+          expect(spy).toHaveBeenCalledWith('click', expect.any(Function));
+        }
+      });
+    });
+
+    describe('When navigating to a new month', () => {
+      it('Then cleans up old day button listeners before rebuilding', () => {
+        const { root, grid, nextButton } = Calendar.Root({
+          defaultMonth: new Date(2024, 5, 1),
+        });
+        container.appendChild(root);
+
+        const oldButtons = grid.querySelectorAll('td button');
+        const spies = Array.from(oldButtons).map((btn) => vi.spyOn(btn, 'removeEventListener'));
+
+        nextButton.click();
+
+        for (const spy of spies) {
+          expect(spy).toHaveBeenCalledWith('click', expect.any(Function));
+        }
+      });
+    });
+  });
 });

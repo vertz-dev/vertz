@@ -121,4 +121,23 @@ describe('Tabs', () => {
     list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
     expect(document.activeElement).toBe(t1);
   });
+
+  describe('Given Tabs with multiple tabs', () => {
+    describe('When destroy() is called', () => {
+      it('Then removes click event listeners from triggers', () => {
+        const { root, Tab, destroy } = Tabs.Root({ defaultValue: 'tab1' });
+        container.appendChild(root);
+        const { trigger: t1 } = Tab('tab1', 'Tab 1');
+        const { trigger: t2 } = Tab('tab2', 'Tab 2');
+
+        const spy1 = vi.spyOn(t1, 'removeEventListener');
+        const spy2 = vi.spyOn(t2, 'removeEventListener');
+
+        destroy();
+
+        expect(spy1).toHaveBeenCalledWith('click', expect.any(Function));
+        expect(spy2).toHaveBeenCalledWith('click', expect.any(Function));
+      });
+    });
+  });
 });
