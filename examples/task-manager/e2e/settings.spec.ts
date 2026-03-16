@@ -49,14 +49,20 @@ test.describe('Settings', () => {
     await page.goto('/settings');
     await expect(page.getByTestId('settings-page')).toBeVisible();
 
+    // Wait for JS chunks to load and hydration to complete — the <select>
+    // is SSR-rendered (visible immediately), but the onChange handler is
+    // only attached after hydration. Without this, selectOption can fire
+    // before the handler exists and flashSaved() never runs.
+    await page.waitForLoadState('networkidle');
+
     const select = page.getByTestId('default-priority-select');
-    await expect(select).toBeVisible({ timeout: 10000 });
+    await expect(select).toBeVisible();
 
     // Change priority to "high"
     await select.selectOption('high');
     await expect(select).toHaveValue('high');
 
-    // Saved message should appear (may take a moment for the save + re-render)
-    await expect(page.getByTestId('saved-message')).toBeVisible({ timeout: 10000 });
+    // Saved message should appear
+    await expect(page.getByTestId('saved-message')).toBeVisible();
   });
 });
