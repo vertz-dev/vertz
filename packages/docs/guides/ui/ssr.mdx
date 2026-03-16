@@ -169,3 +169,43 @@ With `serverNav` enabled:
 4. Client receives data before rendering the new page
 
 This gives SPA navigation the data freshness of server rendering.
+
+## How hydration works
+
+When the client calls `mount()`, it finds server-rendered HTML already in the DOM. Instead of throwing it away and re-creating everything, hydration **walks the existing DOM** and adopts each node — attaching event handlers and reactive effects to what's already there.
+
+### Cursor-based claiming
+
+Hydration uses a global cursor that tracks position in the DOM tree. As your component tree executes on the client, each element or text node **claims** the corresponding SSR node at the cursor position:
+
+```
+SSR HTML: <div><h1>Hello</h1><button>Click</button></div>
+
+Client execution:
+  claim <div>       → adopts SSR <div>, cursor moves to first child
+    claim <h1>      → adopts SSR <h1>, cursor moves to next sibling
+    claim <button>  → adopts SSR <button>, attaches onClick handler
+```
+
+The cursor moves forward through siblings. When entering a child element, the current position is pushed onto a stack. When exiting, the position is restored — like a depth-first tree walk.
+
+### Tolerant claiming
+
+Claim functions are **tolerant** — if no matching node is found, they return `null` and the framework creates the element from scratch (CSR fallback). This means minor SSR/client mismatches don't crash the page.
+
+Claim functions are also **transactional** — a failed claim restores the cursor to its position before the attempt. This prevents a failed claim from corrupting the cursor and breaking all subsequent claims in the same tree.
+
+```
+claim <span>   → no <span> in SSR → cursor restored → returns null
+claim <div>    → still finds <div> because cursor wasn't corrupted
+```
+
+This is important for compound components that may attempt to claim nodes that only exist in certain rendering paths.
+
+### Fallback behavior
+
+If hydration can't adopt the SSR DOM at all (structure is too different), `mount()` falls back to full client-side rendering. The SSR HTML is replaced entirely. This is a last resort — in practice, the tolerant claiming handles most mismatches gracefully.
+
+### Debugging hydration
+
+Set `window.__VERTZ_HYDRATION_DEBUG__ = true` before calling `mount()` to enable cursor movement logging in the browser console. This shows exactly which nodes are claimed, skipped, or missed — useful for diagnosing why an element isn't interactive after page load.
