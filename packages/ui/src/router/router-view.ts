@@ -173,6 +173,16 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
             });
           } else {
             __append(container, result);
+            // Safety fallback: if hydration suppressed __append and the node
+            // wasn't claimed from SSR (mismatch), fall back to CSR append.
+            // Guard on getIsHydrating() — outside hydration __append works
+            // normally and contains() may not exist (SSR shim).
+            if (getIsHydrating() && !container.contains(result)) {
+              while (container.firstChild) {
+                container.removeChild(container.firstChild);
+              }
+              container.appendChild(result);
+            }
           }
         });
 
