@@ -126,6 +126,7 @@ function AlertDialogRoot(
   }
 
   function hide(): void {
+    if (!state.open.peek()) return;
     state.open.value = false;
     setExpanded(trigger, false);
     setDataState(trigger, 'closed');

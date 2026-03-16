@@ -228,4 +228,21 @@ describe('AlertDialog', () => {
     cancel.click();
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
+
+  it('hide() is idempotent — calling twice only fires onOpenChange(false) once', () => {
+    const onOpenChange = vi.fn();
+    const { trigger, content, cancel, show, hide } = AlertDialog.Root({ onOpenChange });
+    content.appendChild(cancel);
+    container.appendChild(trigger);
+    container.appendChild(content);
+
+    show();
+    onOpenChange.mockClear();
+
+    hide();
+    hide(); // second call should be a no-op
+
+    expect(onOpenChange).toHaveBeenCalledTimes(1);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
 });
