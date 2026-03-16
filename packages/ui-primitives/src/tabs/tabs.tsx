@@ -106,6 +106,7 @@ function TabsRoot(options: TabsOptions = {}): TabsElements & {
     trigger: HTMLElement;
     panel: HTMLElement;
   };
+  destroy: () => void;
 } {
   const { defaultValue = '', orientation = 'horizontal', onValueChange, ...attrs } = options;
   const state: TabsState = { value: signal(defaultValue) };
@@ -133,20 +134,20 @@ function TabsRoot(options: TabsOptions = {}): TabsElements & {
 
   const list = TabList(orientation, triggers, tabValues, selectTab);
   const root = TabsContainer(list);
+  const cleanups: (() => void)[] = [];
 
-  function Tab(
-    value: string,
-    label?: string,
-  ): { trigger: HTMLElement; panel: HTMLElement } {
+  function Tab(value: string, label?: string): { trigger: HTMLElement; panel: HTMLElement } {
     const baseId = uniqueId('tab');
     const triggerId = `${baseId}-trigger`;
     const panelId = `${baseId}-panel`;
     const isActive = value === state.value.peek();
 
     const trig = TabTrigger(triggerId, panelId, value, label, isActive, selectTab);
-    trig.addEventListener('click', () => {
+    const handleClick = () => {
       trig.focus();
-    });
+    };
+    trig.addEventListener('click', handleClick);
+    cleanups.push(() => trig.removeEventListener('click', handleClick));
 
     const panel = TabPanel(panelId, triggerId, isActive);
 
@@ -164,9 +165,15 @@ function TabsRoot(options: TabsOptions = {}): TabsElements & {
     return { trigger: trig, panel };
   }
 
+  /** Remove manually-added event listeners. JSX-wired handlers are cleaned up by DOM removal. */
+  function destroy(): void {
+    for (const cleanup of cleanups) cleanup();
+    cleanups.length = 0;
+  }
+
   applyAttrs(root, attrs);
 
-  return { root, list, state, Tab };
+  return { root, list, state, Tab, destroy };
 }
 
 export const Tabs: {
@@ -179,6 +186,7 @@ export const Tabs: {
       trigger: HTMLElement;
       panel: HTMLElement;
     };
+    destroy: () => void;
   };
 } = {
   Root: TabsRoot,

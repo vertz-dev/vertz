@@ -86,4 +86,23 @@ describe('Radio', () => {
     expect(item1.getAttribute('data-state')).toBe('checked');
     expect(item2.getAttribute('data-state')).toBe('unchecked');
   });
+
+  describe('Given a Radio group with items', () => {
+    describe('When destroy() is called', () => {
+      it('Then removes click event listeners from items', () => {
+        const { root, Item, destroy } = Radio.Root();
+        container.appendChild(root);
+        const item1 = Item('opt1', 'Option 1');
+        const item2 = Item('opt2', 'Option 2');
+
+        const spy1 = vi.spyOn(item1, 'removeEventListener');
+        const spy2 = vi.spyOn(item2, 'removeEventListener');
+
+        destroy();
+
+        expect(spy1).toHaveBeenCalledWith('click', expect.any(Function));
+        expect(spy2).toHaveBeenCalledWith('click', expect.any(Function));
+      });
+    });
+  });
 });
