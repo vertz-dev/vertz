@@ -228,6 +228,45 @@ describe('Composed RadioGroup', () => {
     });
   });
 
+  describe('Given a RadioGroup with enabled and disabled items', () => {
+    function createGroup() {
+      const root = ComposedRadioGroup({
+        defaultValue: 'b',
+        children: () => {
+          ComposedRadioGroup.Item({ value: 'a', disabled: true, children: ['Alpha'] });
+          ComposedRadioGroup.Item({ value: 'b', children: ['Beta'] });
+          ComposedRadioGroup.Item({ value: 'c', disabled: true, children: ['Charlie'] });
+          ComposedRadioGroup.Item({ value: 'd', children: ['Delta'] });
+          return [];
+        },
+      });
+      container.appendChild(root);
+      return root;
+    }
+
+    describe('When Home is pressed', () => {
+      it('Then focuses the first enabled item, skipping disabled ones', () => {
+        const root = createGroup();
+        const items = root.querySelectorAll('[role="radio"]');
+        (items[3] as HTMLElement).focus();
+
+        root.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+        expect(document.activeElement).toBe(items[1]);
+      });
+    });
+
+    describe('When End is pressed', () => {
+      it('Then focuses the last enabled item, skipping disabled ones', () => {
+        const root = createGroup();
+        const items = root.querySelectorAll('[role="radio"]');
+        (items[1] as HTMLElement).focus();
+
+        root.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+        expect(document.activeElement).toBe(items[3]);
+      });
+    });
+  });
+
   describe('Given a RadioGroup where all items are disabled', () => {
     describe('When ArrowDown is pressed', () => {
       it('Then focus stays on the current item', () => {
@@ -245,6 +284,44 @@ describe('Composed RadioGroup', () => {
         (items[0] as HTMLElement).focus();
 
         root.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        expect(document.activeElement).toBe(items[0]);
+      });
+    });
+
+    describe('When Home is pressed', () => {
+      it('Then focus stays on the current item', () => {
+        const root = ComposedRadioGroup({
+          defaultValue: 'a',
+          children: () => {
+            ComposedRadioGroup.Item({ value: 'a', disabled: true, children: ['Alpha'] });
+            ComposedRadioGroup.Item({ value: 'b', disabled: true, children: ['Beta'] });
+            return [];
+          },
+        });
+        container.appendChild(root);
+        const items = root.querySelectorAll('[role="radio"]');
+        (items[0] as HTMLElement).focus();
+
+        root.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+        expect(document.activeElement).toBe(items[0]);
+      });
+    });
+
+    describe('When End is pressed', () => {
+      it('Then focus stays on the current item', () => {
+        const root = ComposedRadioGroup({
+          defaultValue: 'a',
+          children: () => {
+            ComposedRadioGroup.Item({ value: 'a', disabled: true, children: ['Alpha'] });
+            ComposedRadioGroup.Item({ value: 'b', disabled: true, children: ['Beta'] });
+            return [];
+          },
+        });
+        container.appendChild(root);
+        const items = root.querySelectorAll('[role="radio"]');
+        (items[0] as HTMLElement).focus();
+
+        root.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
         expect(document.activeElement).toBe(items[0]);
       });
     });
