@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
+import { popScope, pushScope, runCleanups } from '@vertz/ui/internals';
 import { ComposedDropdownMenu } from '../dropdown-menu-composed';
 
 describe('Composed DropdownMenu', () => {
@@ -194,6 +195,32 @@ describe('Composed DropdownMenu', () => {
       const item = root.querySelector('[data-value="edit"]') as HTMLElement;
       item.click();
       expect(selected).toEqual(['edit']);
+    });
+  });
+
+  describe('Given a DropdownMenu rendered inside a disposal scope', () => {
+    describe('When the disposal scope cleanups are run', () => {
+      it('Then removeEventListener is called for the trigger click handler', () => {
+        const scope = pushScope();
+        const btn = document.createElement('button');
+
+        const root = ComposedDropdownMenu({
+          children: () => {
+            const t = ComposedDropdownMenu.Trigger({ children: [btn] });
+            const c = ComposedDropdownMenu.Content({
+              children: () => [ComposedDropdownMenu.Item({ value: 'a', children: ['A'] })],
+            });
+            return [t, c];
+          },
+        });
+        container.appendChild(root);
+        popScope();
+
+        const spy = vi.spyOn(btn, 'removeEventListener');
+        runCleanups(scope);
+
+        expect(spy).toHaveBeenCalledWith('click', expect.any(Function));
+      });
     });
   });
 });

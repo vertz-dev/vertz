@@ -5,6 +5,7 @@
 
 import type { ChildValue } from '@vertz/ui';
 import { createContext, resolveChildren, useContext } from '@vertz/ui';
+import { _tryOnCleanup } from '@vertz/ui/internals';
 import { scanSlots } from '../composed/scan-slots';
 import { AlertDialog } from './alert-dialog';
 
@@ -227,11 +228,13 @@ function ComposedAlertDialogRoot({
     userTrigger.setAttribute('aria-expanded', 'false');
     userTrigger.setAttribute('data-state', 'closed');
 
-    userTrigger.addEventListener('click', () => {
+    const handleTriggerClick = () => {
       if (!alertDialog.state.open.peek()) {
         alertDialog.show();
       }
-    });
+    };
+    userTrigger.addEventListener('click', handleTriggerClick);
+    _tryOnCleanup(() => userTrigger.removeEventListener('click', handleTriggerClick));
   }
 
   // Move content children into the alert dialog panel
@@ -250,7 +253,7 @@ function ComposedAlertDialogRoot({
   if (descEl) descEl.id = alertDialog.description.id;
 
   // Wire cancel and action buttons via event delegation
-  alertDialog.content.addEventListener('click', (e) => {
+  const handleContentClick = (e: Event) => {
     const cancelTarget = (e.target as HTMLElement).closest('[data-slot="alertdialog-cancel"]');
     if (cancelTarget) alertDialog.hide();
 
@@ -259,7 +262,9 @@ function ComposedAlertDialogRoot({
       onAction?.();
       alertDialog.hide();
     }
-  });
+  };
+  alertDialog.content.addEventListener('click', handleContentClick);
+  _tryOnCleanup(() => alertDialog.content.removeEventListener('click', handleContentClick));
 
   return (
     <div style="display: contents">

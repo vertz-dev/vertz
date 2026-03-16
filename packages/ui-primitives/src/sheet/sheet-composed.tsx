@@ -6,6 +6,7 @@
 
 import type { ChildValue } from '@vertz/ui';
 import { createContext, resolveChildren, useContext } from '@vertz/ui';
+import { _tryOnCleanup } from '@vertz/ui/internals';
 import { scanSlots } from '../composed/scan-slots';
 import type { SheetSide } from './sheet';
 import { Sheet } from './sheet';
@@ -154,13 +155,15 @@ function ComposedSheetRoot({ children, classes, side, onOpenChange }: ComposedSh
     userTrigger.setAttribute('aria-expanded', 'false');
     userTrigger.setAttribute('data-state', 'closed');
 
-    userTrigger.addEventListener('click', () => {
+    const handleTriggerClick = () => {
       if (sheet.state.open.peek()) {
         sheet.hide();
       } else {
         sheet.show();
       }
-    });
+    };
+    userTrigger.addEventListener('click', handleTriggerClick);
+    _tryOnCleanup(() => userTrigger.removeEventListener('click', handleTriggerClick));
   }
 
   // Move content children into the sheet panel
@@ -171,10 +174,12 @@ function ComposedSheetRoot({ children, classes, side, onOpenChange }: ComposedSh
   }
 
   // Wire close buttons via event delegation
-  sheet.content.addEventListener('click', (e) => {
+  const handleContentClick = (e: Event) => {
     const target = (e.target as HTMLElement).closest('[data-slot="sheet-close"]');
     if (target) sheet.hide();
-  });
+  };
+  sheet.content.addEventListener('click', handleContentClick);
+  _tryOnCleanup(() => sheet.content.removeEventListener('click', handleContentClick));
 
   return (
     <div style="display: contents">

@@ -5,6 +5,7 @@
 
 import type { ChildValue } from '@vertz/ui';
 import { resolveChildren } from '@vertz/ui';
+import { _tryOnCleanup } from '@vertz/ui/internals';
 import { scanSlots } from '../composed/scan-slots';
 import { Popover } from './popover';
 
@@ -103,9 +104,11 @@ function ComposedPopoverRoot({ children, classes, onOpenChange }: ComposedPopove
     userTrigger.setAttribute('aria-expanded', 'false');
     userTrigger.setAttribute('data-state', 'closed');
 
-    userTrigger.addEventListener('click', () => {
+    const handleTriggerClick = () => {
       popover.trigger.click();
-    });
+    };
+    userTrigger.addEventListener('click', handleTriggerClick);
+    _tryOnCleanup(() => userTrigger.removeEventListener('click', handleTriggerClick));
   }
 
   // Move content children into the popover's dialog

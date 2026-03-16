@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
+import { popScope, pushScope, runCleanups } from '@vertz/ui/internals';
 import { ComposedAlertDialog } from '../alert-dialog-composed';
 
 function createAlertDialogTree(classes?: Record<string, string>) {
@@ -243,6 +244,51 @@ describe('Composed AlertDialog', () => {
 
       expect(onAction).toHaveBeenCalledTimes(1);
       expect(onClick).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('Given an AlertDialog rendered inside a disposal scope', () => {
+    describe('When the disposal scope cleanups are run', () => {
+      it('Then removeEventListener is called for the trigger click handler', () => {
+        const scope = pushScope();
+        const triggerBtn = document.createElement('button');
+
+        const root = ComposedAlertDialog({
+          children: () => {
+            const triggerEl = ComposedAlertDialog.Trigger({ children: [triggerBtn] });
+            const contentEl = ComposedAlertDialog.Content({ children: [] });
+            return [triggerEl, contentEl];
+          },
+        });
+        container.appendChild(root);
+        popScope();
+
+        const spy = vi.spyOn(triggerBtn, 'removeEventListener');
+        runCleanups(scope);
+
+        expect(spy).toHaveBeenCalledWith('click', expect.any(Function));
+      });
+
+      it('Then removeEventListener is called for the content delegation handler', () => {
+        const scope = pushScope();
+        const triggerBtn = document.createElement('button');
+
+        const root = ComposedAlertDialog({
+          children: () => {
+            const triggerEl = ComposedAlertDialog.Trigger({ children: [triggerBtn] });
+            const contentEl = ComposedAlertDialog.Content({ children: [] });
+            return [triggerEl, contentEl];
+          },
+        });
+        container.appendChild(root);
+        popScope();
+
+        const panel = root.querySelector('[role="alertdialog"]') as HTMLElement;
+        const spy = vi.spyOn(panel, 'removeEventListener');
+        runCleanups(scope);
+
+        expect(spy).toHaveBeenCalledWith('click', expect.any(Function));
+      });
     });
   });
 });

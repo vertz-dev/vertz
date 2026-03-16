@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
+import { popScope, pushScope, runCleanups } from '@vertz/ui/internals';
 import { ComposedSheet } from '../sheet-composed';
 
 describe('Composed Sheet', () => {
@@ -156,6 +157,51 @@ describe('Composed Sheet', () => {
 
       closeEl.click();
       expect(dialog!.getAttribute('data-state')).toBe('closed');
+    });
+  });
+
+  describe('Given a Sheet rendered inside a disposal scope', () => {
+    describe('When the disposal scope cleanups are run', () => {
+      it('Then removeEventListener is called for the trigger click handler', () => {
+        const scope = pushScope();
+        const btn = document.createElement('button');
+
+        const root = ComposedSheet({
+          children: () => {
+            const t = ComposedSheet.Trigger({ children: [btn] });
+            const c = ComposedSheet.Content({ children: ['Body'] });
+            return [t, c];
+          },
+        });
+        container.appendChild(root);
+        popScope();
+
+        const spy = vi.spyOn(btn, 'removeEventListener');
+        runCleanups(scope);
+
+        expect(spy).toHaveBeenCalledWith('click', expect.any(Function));
+      });
+
+      it('Then removeEventListener is called for the content delegation handler', () => {
+        const scope = pushScope();
+        const btn = document.createElement('button');
+
+        const root = ComposedSheet({
+          children: () => {
+            const t = ComposedSheet.Trigger({ children: [btn] });
+            const c = ComposedSheet.Content({ children: ['Body'] });
+            return [t, c];
+          },
+        });
+        container.appendChild(root);
+        popScope();
+
+        const panel = root.querySelector('[role="dialog"]') as HTMLElement;
+        const spy = vi.spyOn(panel, 'removeEventListener');
+        runCleanups(scope);
+
+        expect(spy).toHaveBeenCalledWith('click', expect.any(Function));
+      });
     });
   });
 });

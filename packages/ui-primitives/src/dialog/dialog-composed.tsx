@@ -6,6 +6,7 @@
 
 import type { ChildValue } from '@vertz/ui';
 import { createContext, resolveChildren, useContext } from '@vertz/ui';
+import { _tryOnCleanup } from '@vertz/ui/internals';
 import { scanSlots } from '../composed/scan-slots';
 import { Dialog } from './dialog';
 
@@ -178,13 +179,15 @@ function ComposedDialogRoot({ children, classes, onOpenChange, closeIcon }: Comp
     userTrigger.setAttribute('aria-expanded', 'false');
     userTrigger.setAttribute('data-state', 'closed');
 
-    userTrigger.addEventListener('click', () => {
+    const handleTriggerClick = () => {
       if (dialog.state.open.peek()) {
         dialog.hide();
       } else {
         dialog.show();
       }
-    });
+    };
+    userTrigger.addEventListener('click', handleTriggerClick);
+    _tryOnCleanup(() => userTrigger.removeEventListener('click', handleTriggerClick));
   }
 
   // Move content children into the dialog panel
@@ -203,14 +206,18 @@ function ComposedDialogRoot({ children, classes, onOpenChange, closeIcon }: Comp
   if (descEl) descEl.id = dialog.description.id;
 
   // Wire close buttons via event delegation (handles nested close buttons)
-  dialog.content.addEventListener('click', (e) => {
+  const handleContentClick = (e: Event) => {
     const target = (e.target as HTMLElement).closest('[data-slot="dialog-close"]');
     if (target) dialog.hide();
-  });
+  };
+  dialog.content.addEventListener('click', handleContentClick);
+  _tryOnCleanup(() => dialog.content.removeEventListener('click', handleContentClick));
 
   // Add close icon if provided, or use the default close button from the primitive
   if (closeIcon) {
-    closeIcon.addEventListener('click', () => dialog.hide());
+    const handleCloseIconClick = () => dialog.hide();
+    closeIcon.addEventListener('click', handleCloseIconClick);
+    _tryOnCleanup(() => closeIcon.removeEventListener('click', handleCloseIconClick));
     dialog.content.appendChild(closeIcon);
   }
 
