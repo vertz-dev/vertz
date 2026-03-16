@@ -93,7 +93,7 @@ export type { ProgressElements, ProgressOptions, ProgressState } from './progres
 export { Progress } from './progress/progress';
 export type { ComposedProgressProps, ProgressClasses } from './progress/progress-composed';
 export { ComposedProgress } from './progress/progress-composed';
-export type { RadioElements, RadioOptions, RadioState } from './radio/radio';
+export type { RadioElements, RadioItemOptions, RadioOptions, RadioState } from './radio/radio';
 export { Radio } from './radio/radio';
 export type { ComposedRadioGroupProps, RadioGroupClasses } from './radio/radio-composed';
 export { ComposedRadioGroup } from './radio/radio-composed';

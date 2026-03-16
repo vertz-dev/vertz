@@ -5,7 +5,7 @@
 
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
-import { setChecked, setDataState } from '../utils/aria';
+import { setChecked, setDataState, setDisabled } from '../utils/aria';
 import type { ElementAttrs } from '../utils/attrs';
 import { applyAttrs } from '../utils/attrs';
 import { setRovingTabindex } from '../utils/focus';
@@ -48,13 +48,18 @@ function RadioGroup(
   ) as HTMLElement;
 }
 
+export interface RadioItemOptions {
+  disabled?: boolean;
+}
+
 function RadioItem(
   value: string,
   label: string | undefined,
   isActive: boolean,
+  disabled: boolean,
   selectItem: (value: string) => void,
 ): HTMLElement {
-  return (
+  const el = (
     <div
       role="radio"
       id={uniqueId('radio')}
@@ -62,17 +67,24 @@ function RadioItem(
       aria-checked={isActive ? 'true' : 'false'}
       data-state={isActive ? 'checked' : 'unchecked'}
       onClick={() => {
-        selectItem(value);
+        if (!disabled) selectItem(value);
       }}
     >
       {label ?? value}
     </div>
   ) as HTMLElement;
+
+  if (disabled) {
+    setDisabled(el, true);
+    el.setAttribute('data-disabled', '');
+  }
+
+  return el;
 }
 
 function RadioRoot(options: RadioOptions = {}): RadioElements & {
   state: RadioState;
-  Item: (value: string, label?: string) => HTMLElement;
+  Item: (value: string, label?: string, itemOptions?: RadioItemOptions) => HTMLElement;
   destroy: () => void;
 } {
   const { defaultValue = '', onValueChange, ...attrs } = options;
@@ -96,12 +108,13 @@ function RadioRoot(options: RadioOptions = {}): RadioElements & {
   const root = RadioGroup(items, itemValues, selectItem);
   const cleanups: (() => void)[] = [];
 
-  function Item(value: string, label?: string): HTMLElement {
+  function Item(value: string, label?: string, itemOptions?: RadioItemOptions): HTMLElement {
     const isActive = value === state.value.peek();
+    const disabled = itemOptions?.disabled ?? false;
 
-    const item = RadioItem(value, label, isActive, selectItem);
+    const item = RadioItem(value, label, isActive, disabled, selectItem);
     const handleClick = () => {
-      item.focus();
+      if (!disabled) item.focus();
     };
     item.addEventListener('click', handleClick);
     cleanups.push(() => item.removeEventListener('click', handleClick));
@@ -129,7 +142,7 @@ function RadioRoot(options: RadioOptions = {}): RadioElements & {
 export const Radio: {
   Root: (options?: RadioOptions) => RadioElements & {
     state: RadioState;
-    Item: (value: string, label?: string) => HTMLElement;
+    Item: (value: string, label?: string, itemOptions?: RadioItemOptions) => HTMLElement;
     destroy: () => void;
   };
 } = {
