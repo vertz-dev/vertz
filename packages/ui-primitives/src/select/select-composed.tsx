@@ -27,6 +27,7 @@ export interface SelectClasses {
   trigger?: string;
   content?: string;
   item?: string;
+  itemIndicator?: string;
   group?: string;
   separator?: string;
 }

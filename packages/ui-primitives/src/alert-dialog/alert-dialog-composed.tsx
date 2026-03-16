@@ -351,11 +351,16 @@ function ComposedAlertDialogRoot({
 
   // Wire cancel/action delegation on the content panel (explicit for cleanup)
   const handleContentClick = (e: Event) => {
-    const cancelTarget = (e.target as HTMLElement).closest('[data-slot="alertdialog-cancel"]');
-    if (cancelTarget) close();
+    const target = e.target as HTMLElement;
 
-    const actionTarget = (e.target as HTMLElement).closest('[data-slot="alertdialog-action"]');
-    if (actionTarget) close();
+    if (target.closest('[data-slot="alertdialog-cancel"]')) {
+      close();
+      return;
+    }
+
+    if (target.closest('[data-slot="alertdialog-action"]')) {
+      close();
+    }
   };
   contentPanel.addEventListener('click', handleContentClick);
   _tryOnCleanup(() => contentPanel.removeEventListener('click', handleContentClick));

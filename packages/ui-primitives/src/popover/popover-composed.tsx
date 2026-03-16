@@ -6,6 +6,9 @@
 import type { ChildValue, Ref } from '@vertz/ui';
 import { createContext, ref, resolveChildren, useContext } from '@vertz/ui';
 import { _tryOnCleanup } from '@vertz/ui/internals';
+import { createDismiss } from '../utils/dismiss';
+import type { FloatingOptions } from '../utils/floating';
+import { createFloatingPosition } from '../utils/floating';
 import { focusFirst, saveFocus } from '../utils/focus';
 import { linkedIds } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
@@ -101,6 +104,7 @@ export interface ComposedPopoverProps {
   children?: ChildValue;
   classes?: PopoverClasses;
   onOpenChange?: (open: boolean) => void;
+  positioning?: FloatingOptions;
 }
 
 export type PopoverClassKey = keyof PopoverClasses;
@@ -119,7 +123,7 @@ function buildPopoverCtx(
   };
 }
 
-function ComposedPopoverRoot({ children, classes, onOpenChange }: ComposedPopoverProps) {
+function ComposedPopoverRoot({ children, classes, onOpenChange, positioning }: ComposedPopoverProps) {
   const ids = linkedIds('popover');
 
   // Registration storage — plain object so the compiler doesn't signal-transform it
@@ -127,7 +131,15 @@ function ComposedPopoverRoot({ children, classes, onOpenChange }: ComposedPopove
     triggerEl: HTMLElement | null;
     contentChildren: ChildValue;
     contentCls: string | undefined;
-  } = { triggerEl: null, contentChildren: undefined, contentCls: undefined };
+    floatingCleanup: (() => void) | null;
+    dismissCleanup: (() => void) | null;
+  } = {
+    triggerEl: null,
+    contentChildren: undefined,
+    contentCls: undefined,
+    floatingCleanup: null,
+    dismissCleanup: null,
+  };
 
   const ctxValue = buildPopoverCtx(
     (el) => {
@@ -161,6 +173,15 @@ function ComposedPopoverRoot({ children, classes, onOpenChange }: ComposedPopove
     restoreFocus = saveFocus();
     const contentEl = contentRef.current;
     if (contentEl) {
+      if (positioning && reg.triggerEl) {
+        const result = createFloatingPosition(reg.triggerEl, contentEl, positioning);
+        reg.floatingCleanup = result.cleanup;
+        reg.dismissCleanup = createDismiss({
+          onDismiss: close,
+          insideElements: [reg.triggerEl, contentEl],
+          escapeKey: false,
+        });
+      }
       queueMicrotask(() => focusFirst(contentEl));
     }
     onOpenChange?.(true);
@@ -172,6 +193,10 @@ function ComposedPopoverRoot({ children, classes, onOpenChange }: ComposedPopove
       reg.triggerEl.setAttribute('aria-expanded', 'false');
       reg.triggerEl.setAttribute('data-state', 'closed');
     }
+    reg.floatingCleanup?.();
+    reg.floatingCleanup = null;
+    reg.dismissCleanup?.();
+    reg.dismissCleanup = null;
     restoreFocus?.();
     restoreFocus = null;
     onOpenChange?.(false);
