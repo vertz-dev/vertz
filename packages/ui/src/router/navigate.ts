@@ -242,7 +242,14 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
       registerRoutesForDiscovery(ctx);
       const m = matchRoute(routes, ctx.url);
       if (m && !ctx.matchedRoutePatterns) {
-        ctx.matchedRoutePatterns = m.matched.map((entry) => entry.route.pattern);
+        // Build full paths by accumulating parent prefixes via joinPatterns.
+        const fullPaths: string[] = [];
+        let prefix = '';
+        for (const entry of m.matched) {
+          prefix = joinPatterns(prefix, entry.route.pattern);
+          fullPaths.push(prefix);
+        }
+        ctx.matchedRoutePatterns = fullPaths;
       }
       return m;
     }

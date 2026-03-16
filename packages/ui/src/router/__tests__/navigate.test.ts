@@ -1119,6 +1119,51 @@ describe('createRouter SSR', () => {
     // Just verify it doesn't crash — no context to inspect
     expect(router.current.value).not.toBeNull();
   });
+
+  test('SSR router matchedRoutePatterns uses full paths for nested routes', () => {
+    const ctx = enableTestSSR(createTestSSRContext('/dashboard/settings'));
+    const routes = defineRoutes({
+      '/dashboard': {
+        component: () => document.createElement('div'),
+        children: {
+          '/settings': { component: () => document.createElement('div') },
+          '/profile': { component: () => document.createElement('div') },
+        },
+      },
+    });
+    const router = createRouter(routes);
+
+    // Trigger match
+    router.current.value;
+
+    expect(ctx.matchedRoutePatterns).toEqual(['/dashboard', '/dashboard/settings']);
+  });
+
+  test('SSR router matchedRoutePatterns uses full paths for deeply nested routes', () => {
+    const ctx = enableTestSSR(createTestSSRContext('/app/teams/t1/members'));
+    const routes = defineRoutes({
+      '/app': {
+        component: () => document.createElement('div'),
+        children: {
+          '/teams/:teamId': {
+            component: () => document.createElement('div'),
+            children: {
+              '/members': { component: () => document.createElement('div') },
+            },
+          },
+        },
+      },
+    });
+    const router = createRouter(routes);
+
+    router.current.value;
+
+    expect(ctx.matchedRoutePatterns).toEqual([
+      '/app',
+      '/app/teams/:teamId',
+      '/app/teams/:teamId/members',
+    ]);
+  });
 });
 
 describe('createRouter viewTransition', () => {

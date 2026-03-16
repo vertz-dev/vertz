@@ -103,7 +103,7 @@ describe('generateRouteChunkManifest', () => {
     expect(manifest.routes['/']).toEqual(['/static/assets/chunk-a.js']);
   });
 
-  test('extracts nested routes with children blocks', () => {
+  test('extracts nested routes with full-path keys', () => {
     // Simulates bundled output with nested children containing braces
     const entryContent = `
       Q({
@@ -124,7 +124,63 @@ describe('generateRouteChunkManifest', () => {
     const manifest = generateRouteChunkManifest(entryContent, '/assets');
 
     expect(manifest.routes['/dashboard']).toEqual(['/assets/chunk-layout.js']);
-    expect(manifest.routes['/settings']).toEqual(['/assets/chunk-settings.js']);
-    expect(manifest.routes['/profile']).toEqual(['/assets/chunk-profile.js']);
+    expect(manifest.routes['/dashboard/settings']).toEqual(['/assets/chunk-settings.js']);
+    expect(manifest.routes['/dashboard/profile']).toEqual(['/assets/chunk-profile.js']);
+  });
+
+  test('avoids collision when same child key exists under different parents', () => {
+    const entryContent = `
+      Q({
+        "/teams/:teamId": {
+          component: () => import("./chunk-team-layout.js").then((m) => ({ default: () => m.TeamLayout() })),
+          children: {
+            "/settings": {
+              component: () => import("./chunk-team-settings.js").then((m) => ({ default: () => m.TeamSettings() }))
+            }
+          }
+        },
+        "/org/:orgId": {
+          component: () => import("./chunk-org-layout.js").then((m) => ({ default: () => m.OrgLayout() })),
+          children: {
+            "/settings": {
+              component: () => import("./chunk-org-settings.js").then((m) => ({ default: () => m.OrgSettings() }))
+            }
+          }
+        }
+      });
+    `;
+
+    const manifest = generateRouteChunkManifest(entryContent, '/assets');
+
+    expect(manifest.routes['/teams/:teamId']).toEqual(['/assets/chunk-team-layout.js']);
+    expect(manifest.routes['/teams/:teamId/settings']).toEqual(['/assets/chunk-team-settings.js']);
+    expect(manifest.routes['/org/:orgId']).toEqual(['/assets/chunk-org-layout.js']);
+    expect(manifest.routes['/org/:orgId/settings']).toEqual(['/assets/chunk-org-settings.js']);
+  });
+
+  test('handles deeply nested routes (3 levels)', () => {
+    const entryContent = `
+      Q({
+        "/app": {
+          component: () => import("./chunk-app.js").then((m) => ({ default: () => m.AppLayout() })),
+          children: {
+            "/teams/:teamId": {
+              component: () => import("./chunk-team.js").then((m) => ({ default: () => m.TeamLayout() })),
+              children: {
+                "/members": {
+                  component: () => import("./chunk-members.js").then((m) => ({ default: () => m.MembersPage() }))
+                }
+              }
+            }
+          }
+        }
+      });
+    `;
+
+    const manifest = generateRouteChunkManifest(entryContent, '/assets');
+
+    expect(manifest.routes['/app']).toEqual(['/assets/chunk-app.js']);
+    expect(manifest.routes['/app/teams/:teamId']).toEqual(['/assets/chunk-team.js']);
+    expect(manifest.routes['/app/teams/:teamId/members']).toEqual(['/assets/chunk-members.js']);
   });
 });
