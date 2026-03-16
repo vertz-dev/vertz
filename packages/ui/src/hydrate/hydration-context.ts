@@ -12,6 +12,25 @@ let isHydrating = false;
 let currentNode: Node | null = null;
 const cursorStack: (Node | null)[] = [];
 
+// Deferred effect queue — effects registered during hydration are queued
+// and flushed synchronously at endHydration(). This avoids wasted first
+// runs (SSR content is already correct) while the hydration walk proceeds.
+let deferredEffects: (() => void)[] | null = null;
+
+/**
+ * Queue an effect to be run when endHydration() is called.
+ * Returns true if the effect was queued (hydration is active),
+ * false if it should be run immediately (not hydrating).
+ *
+ * Checks both `isHydrating` and the queue — `pauseHydration()`
+ * sets `isHydrating = false` so __child() effects run immediately.
+ */
+export function queueDeferredEffect(run: () => void): boolean {
+  if (!isHydrating || deferredEffects === null) return false;
+  deferredEffects.push(run);
+  return true;
+}
+
 // Claim verification (dev-mode only)
 let hydrationRoot: Element | null = null;
 let claimedNodes: WeakSet<Node> | null = null;
@@ -44,6 +63,7 @@ export function startHydration(root: Element): void {
   isHydrating = true;
   currentNode = root.firstChild;
   cursorStack.length = 0;
+  deferredEffects = [];
   if (isDebug()) {
     hydrationRoot = root;
     claimedNodes = new WeakSet();
@@ -82,6 +102,16 @@ export function endHydration(): void {
   isHydrating = false;
   currentNode = null;
   cursorStack.length = 0;
+
+  // Flush deferred effects synchronously — establishes dependency tracking
+  // so reactive updates work immediately after hydration ends.
+  const effects = deferredEffects;
+  deferredEffects = null;
+  if (effects) {
+    for (const run of effects) {
+      run();
+    }
+  }
 }
 
 /**

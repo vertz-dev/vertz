@@ -7,7 +7,7 @@ import {
   pauseHydration,
   resumeHydration,
 } from '../hydrate/hydration-context';
-import { domEffect } from '../runtime/signal';
+import { deferredDomEffect, domEffect } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
 import { getAdapter, isRenderNode } from './adapter';
 import { isSVGTag, normalizeSVGAttr, SVG_NS } from './svg-tags';
@@ -65,7 +65,7 @@ export function __text(fn: () => string): DisposableText {
     const claimed = claimText();
     if (claimed) {
       const node = claimed as DisposableText;
-      node.dispose = domEffect(() => {
+      node.dispose = deferredDomEffect(() => {
         node.data = fn();
       });
       return node;
