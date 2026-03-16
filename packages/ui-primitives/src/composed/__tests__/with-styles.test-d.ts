@@ -130,7 +130,8 @@ withStyles(ComposedSelect, {
   item: 'c',
   itemIndicator: 'd',
   group: 'e',
-  separator: 'f',
+  label: 'f',
+  separator: 'g',
 });
 
 // @ts-expect-error — missing required keys for Select
