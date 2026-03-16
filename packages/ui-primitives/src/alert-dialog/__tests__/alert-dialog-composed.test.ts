@@ -307,6 +307,19 @@ describe('Composed AlertDialog', () => {
     });
   });
 
+  describe('Given an AlertDialog with Header sub-component', () => {
+    it('Then Header wraps title and description with applied class', () => {
+      const { root } = createAlertDialogTree({ header: 'test-header' });
+      container.appendChild(root);
+
+      // Find the header div inside the alertdialog content
+      const panel = root.querySelector('[role="alertdialog"]') as HTMLElement;
+      const titleEl = panel!.querySelector('[data-slot="alertdialog-title"]')!;
+      const headerDiv = titleEl.parentElement!;
+      expect(headerDiv.className).toBe('test-header');
+    });
+  });
+
   describe('Given an AlertDialog.Trigger rendered outside AlertDialog', () => {
     describe('When the component mounts', () => {
       it('Then throws an error', () => {

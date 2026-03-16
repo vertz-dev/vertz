@@ -127,8 +127,9 @@ withStyles(ComposedSelect, {
   trigger: 'a',
   content: 'b',
   item: 'c',
-  group: 'd',
-  separator: 'e',
+  itemIndicator: 'd',
+  group: 'e',
+  separator: 'f',
 });
 
 // @ts-expect-error — missing required keys for Select

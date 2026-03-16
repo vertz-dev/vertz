@@ -62,6 +62,7 @@ export function createThemedSelect(styles: SelectStyleClasses): ThemedSelectComp
     trigger: styles.trigger,
     content: styles.content,
     item: styles.item,
+    itemIndicator: styles.itemIndicator,
     group: styles.group,
     separator: styles.separator,
   });

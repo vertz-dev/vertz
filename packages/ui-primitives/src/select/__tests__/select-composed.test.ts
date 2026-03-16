@@ -154,6 +154,111 @@ describe('Composed Select', () => {
     });
   });
 
+  describe('Given a Select with items', () => {
+    it('Then each item contains an indicator element with data-part="indicator"', () => {
+      const root = ComposedSelect({
+        children: () => {
+          const t = ComposedSelect.Trigger({ children: ['Pick'] });
+          const c = ComposedSelect.Content({
+            children: () => {
+              const i1 = ComposedSelect.Item({ value: 'a', children: ['Alpha'] });
+              return [i1];
+            },
+          });
+          return [t, c];
+        },
+      });
+      container.appendChild(root);
+
+      const option = root.querySelector('[role="option"]') as HTMLElement;
+      const indicator = option!.querySelector('[data-part="indicator"]');
+      expect(indicator).not.toBeNull();
+    });
+
+    it('Then the indicator is hidden by default on unselected items', () => {
+      const root = ComposedSelect({
+        children: () => {
+          const t = ComposedSelect.Trigger({ children: ['Pick'] });
+          const c = ComposedSelect.Content({
+            children: () => {
+              const i1 = ComposedSelect.Item({ value: 'a', children: ['Alpha'] });
+              return [i1];
+            },
+          });
+          return [t, c];
+        },
+      });
+      container.appendChild(root);
+
+      const option = root.querySelector('[role="option"]') as HTMLElement;
+      expect(option!.getAttribute('aria-selected')).toBe('false');
+
+      const indicator = option!.querySelector('[data-part="indicator"]') as HTMLElement;
+      expect(indicator!.style.display).toBe('none');
+    });
+
+    it('Then the selected item has aria-selected="true"', () => {
+      const root = ComposedSelect({
+        defaultValue: 'a',
+        children: () => {
+          const t = ComposedSelect.Trigger({ children: ['Pick'] });
+          const c = ComposedSelect.Content({
+            children: () => {
+              const i1 = ComposedSelect.Item({ value: 'a', children: ['Alpha'] });
+              const i2 = ComposedSelect.Item({ value: 'b', children: ['Beta'] });
+              return [i1, i2];
+            },
+          });
+          return [t, c];
+        },
+      });
+      container.appendChild(root);
+
+      const options = root.querySelectorAll('[role="option"]');
+      expect((options[0] as HTMLElement).getAttribute('aria-selected')).toBe('true');
+      expect((options[1] as HTMLElement).getAttribute('aria-selected')).toBe('false');
+    });
+
+    it('Then applies itemIndicator class to the indicator element', () => {
+      const root = ComposedSelect({
+        classes: { itemIndicator: 'check-indicator' },
+        children: () => {
+          const t = ComposedSelect.Trigger({ children: ['Pick'] });
+          const c = ComposedSelect.Content({
+            children: () => {
+              const i1 = ComposedSelect.Item({ value: 'a', children: ['Alpha'] });
+              return [i1];
+            },
+          });
+          return [t, c];
+        },
+      });
+      container.appendChild(root);
+
+      const indicator = root.querySelector('[data-part="indicator"]') as HTMLElement;
+      expect(indicator!.className).toContain('check-indicator');
+    });
+  });
+
+  describe('Given a Select trigger', () => {
+    it('Then the trigger contains a chevron element with data-part="chevron"', () => {
+      const root = ComposedSelect({
+        children: () => {
+          const t = ComposedSelect.Trigger({ children: ['Pick'] });
+          const c = ComposedSelect.Content({
+            children: () => [ComposedSelect.Item({ value: 'a', children: ['A'] })],
+          });
+          return [t, c];
+        },
+      });
+      container.appendChild(root);
+
+      const trigger = root.querySelector('[role="combobox"]') as HTMLElement;
+      const chevron = trigger!.querySelector('[data-part="chevron"]');
+      expect(chevron).not.toBeNull();
+    });
+  });
+
   describe('Given a Select.Trigger rendered outside Select', () => {
     describe('When the component mounts', () => {
       it('Then throws an error', () => {

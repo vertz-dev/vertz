@@ -18,6 +18,7 @@ export interface SelectClasses {
   trigger?: string;
   content?: string;
   item?: string;
+  itemIndicator?: string;
   group?: string;
   separator?: string;
 }
@@ -75,6 +76,10 @@ interface GroupProps extends SlotProps {
 // Sub-components — self-wiring via context
 // ---------------------------------------------------------------------------
 
+// Inline SVG strings for icons (same pattern as @vertz/icons renderIcon)
+const CHEVRON_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+
 function SelectTrigger(_props: SlotProps) {
   const ctx = useSelectContext('Trigger');
   if (ctx._triggerClaimed) {
@@ -82,7 +87,17 @@ function SelectTrigger(_props: SlotProps) {
   }
   ctx._triggerClaimed = true;
   const { select } = ctx;
-  // Select has its own combobox trigger; children are informational only
+
+  // Add chevron indicator to the trigger
+  const chevron = (
+    <span
+      data-part="chevron"
+      style="display: inline-flex; align-items: center; opacity: 0.5; flex-shrink: 0"
+    />
+  ) as HTMLSpanElement;
+  chevron.innerHTML = CHEVRON_SVG;
+  select.trigger.appendChild(chevron);
+
   return select.trigger;
 }
 
@@ -100,6 +115,9 @@ function SelectContent({ children }: SlotProps) {
   return select.content;
 }
 
+const CHECK_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+
 function SelectItem({ value, children, className: cls, class: classProp }: ItemProps) {
   const { _createItem, classes } = useSelectContext('Item');
   const effectiveCls = cls ?? classProp;
@@ -116,6 +134,13 @@ function SelectItem({ value, children, className: cls, class: classProp }: ItemP
   // Apply item class
   const itemClass = [classes?.item, effectiveCls].filter(Boolean).join(' ');
   if (itemClass) item.className = itemClass;
+
+  // Add check indicator (hidden by default, shown via CSS when aria-selected="true")
+  const indicator = (
+    <span data-part="indicator" style="display: none" class={classes?.itemIndicator || undefined} />
+  ) as HTMLSpanElement;
+  indicator.innerHTML = CHECK_SVG;
+  item.appendChild(indicator);
 
   return item;
 }

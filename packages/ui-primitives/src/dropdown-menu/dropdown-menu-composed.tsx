@@ -194,6 +194,7 @@ export interface ComposedDropdownMenuProps {
   children?: ChildValue;
   classes?: DropdownMenuClasses;
   onSelect?: (value: string) => void;
+  onOpenChange?: (open: boolean) => void;
   positioning?: FloatingOptions;
 }
 
@@ -203,6 +204,7 @@ function ComposedDropdownMenuRoot({
   children,
   classes,
   onSelect,
+  onOpenChange,
   positioning,
 }: ComposedDropdownMenuProps) {
   // Track the user's trigger element for ARIA sync
@@ -217,6 +219,7 @@ function ComposedDropdownMenuRoot({
         userTrigger.setAttribute('aria-expanded', String(isOpen));
         userTrigger.setAttribute('data-state', isOpen ? 'open' : 'closed');
       }
+      onOpenChange?.(isOpen);
     },
   });
 
