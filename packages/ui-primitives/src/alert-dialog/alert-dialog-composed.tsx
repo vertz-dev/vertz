@@ -249,7 +249,7 @@ function ComposedAlertDialogRoot({
   const descEl = alertDialog.content.querySelector('[data-slot="alertdialog-description"]');
   if (descEl) descEl.id = alertDialog.description.id;
 
-  // Wire cancel buttons via event delegation
+  // Wire cancel and action buttons via event delegation
   alertDialog.content.addEventListener('click', (e) => {
     const cancelTarget = (e.target as HTMLElement).closest('[data-slot="alertdialog-cancel"]');
     if (cancelTarget) alertDialog.hide();
