@@ -279,20 +279,27 @@ function ComposedDropdownMenuRoot({
   };
 
   // State as plain object — not reactive, mutated by closures
-  const state: { isOpen: boolean; activeIndex: number } = {
+  // Cleanup functions stored here too (NOT `let` — compiler would signalize)
+  const state: {
+    isOpen: boolean;
+    activeIndex: number;
+    floatingCleanup: (() => void) | null;
+    dismissCleanup: (() => void) | null;
+    resolvedNodes: Node[];
+  } = {
     isOpen: false,
     activeIndex: -1,
+    floatingCleanup: null,
+    dismissCleanup: null,
+    resolvedNodes: [],
   };
-  let floatingCleanup: (() => void) | null = null;
-  let dismissCleanup: (() => void) | null = null;
 
   // Build context value via helper to avoid compiler computed() wrapping
   const ctxValue = buildCtxValue(reg, classes, onSelect);
 
   // Phase 1: resolve children to collect registrations
-  let resolvedNodes: Node[] = [];
   DropdownMenuContext.Provider(ctxValue, () => {
-    resolvedNodes = resolveChildren(children);
+    state.resolvedNodes = resolveChildren(children);
   });
 
   // --- Build the content panel ---
@@ -343,8 +350,8 @@ function ComposedDropdownMenuRoot({
     if (positioning) {
       const ref = positioning.referenceElement ?? reg.userTrigger ?? contentPanel;
       const result = createFloatingPosition(ref, contentPanel, positioning);
-      floatingCleanup = result.cleanup;
-      dismissCleanup = createDismiss({
+      state.floatingCleanup = result.cleanup;
+      state.dismissCleanup = createDismiss({
         onDismiss: close,
         insideElements: [ref, contentPanel, ...(reg.userTrigger ? [reg.userTrigger] : [])],
         escapeKey: false,
@@ -377,10 +384,10 @@ function ComposedDropdownMenuRoot({
     onOpenChange?.(false);
 
     if (positioning) {
-      floatingCleanup?.();
-      floatingCleanup = null;
-      dismissCleanup?.();
-      dismissCleanup = null;
+      state.floatingCleanup?.();
+      state.floatingCleanup = null;
+      state.dismissCleanup?.();
+      state.dismissCleanup = null;
     } else {
       document.removeEventListener('mousedown', handleClickOutside);
     }
@@ -482,11 +489,23 @@ function ComposedDropdownMenuRoot({
     };
     reg.userTrigger.addEventListener('click', handleTriggerClick);
     _tryOnCleanup(() => reg.userTrigger?.removeEventListener('click', handleTriggerClick));
+
+    // Keyboard: ArrowDown/Enter/Space opens with first item focused
+    const handleTriggerKeydown = (event: KeyboardEvent) => {
+      if (isKey(event, Keys.ArrowDown, Keys.Enter, Keys.Space)) {
+        event.preventDefault();
+        if (!state.isOpen) {
+          open(true);
+        }
+      }
+    };
+    reg.userTrigger.addEventListener('keydown', handleTriggerKeydown);
+    _tryOnCleanup(() => reg.userTrigger?.removeEventListener('keydown', handleTriggerKeydown));
   }
 
   return (
     <div style="display: contents">
-      {...resolvedNodes}
+      {...state.resolvedNodes}
       {contentPanel}
     </div>
   );

@@ -13,6 +13,7 @@
 import type { ChildValue } from '@vertz/ui';
 import { createContext, resolveChildren, useContext } from '@vertz/ui';
 import { _tryOnCleanup } from '@vertz/ui/internals';
+import { setHiddenAnimated } from '../utils/aria';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
@@ -150,7 +151,6 @@ function buildItemEl(
   label: string,
   itemClass: string,
   indicatorClass: string | undefined,
-  onItemClick: () => void,
 ): HTMLDivElement {
   const el = (
     <div
@@ -159,9 +159,6 @@ function buildItemEl(
       tabindex="-1"
       aria-selected={isSelected ? 'true' : 'false'}
       data-state={isSelected ? 'active' : 'inactive'}
-      onClick={() => {
-        onItemClick();
-      }}
     >
       {label}
       <span data-part="indicator" style="display: none" class={indicatorClass || undefined} />
@@ -216,14 +213,13 @@ function SelectItem({ value, children, className: cls, class: classProp }: ItemP
   const itemClass = [ctx.classes?.item, effectiveCls].filter(Boolean).join(' ');
 
   // Build element using standalone helper to avoid computed() wrapping
-  // The actual click handler will be wired by Root after items are collected
+  // Click handler wired by Root after items are collected
   const el = buildItemEl(
     value,
     false, // selection state set by Root after all items are registered
     label || value,
     itemClass,
     ctx.classes?.itemIndicator,
-    () => {}, // placeholder — Root wires the real handler
   );
 
   ctx._registerItem(el, value);
@@ -359,7 +355,7 @@ function ComposedSelectRoot({
     trigger.setAttribute('data-state', 'closed');
     contentPanel.setAttribute('data-state', 'closed');
     contentPanel.setAttribute('aria-hidden', 'true');
-    contentPanel.style.display = 'none';
+    setHiddenAnimated(contentPanel, true);
     reg.floatingCleanup?.();
     reg.floatingCleanup = null;
     reg.dismissCleanup?.();
@@ -390,9 +386,11 @@ function ComposedSelectRoot({
     const item = reg.items[i];
     if (!item) continue;
     const itemValue = item.value;
-    item.el.addEventListener('click', () => {
+    const handleItemClick = () => {
       selectItem(itemValue);
-    });
+    };
+    item.el.addEventListener('click', handleItemClick);
+    _tryOnCleanup(() => item.el.removeEventListener('click', handleItemClick));
   }
 
   // --- Set initial selection state on items ---
