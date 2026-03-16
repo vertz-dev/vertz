@@ -254,9 +254,8 @@ function ComposedTabsRoot({
   );
 
   // Phase 1: resolve children to collect registrations
-  let resolvedNodes: Node[] = [];
   TabsContext.Provider(ctxValue, () => {
-    resolvedNodes = resolveChildren(children);
+    resolveChildren(children);
   });
 
   // Phase 2: build trigger and panel elements.
