@@ -175,6 +175,50 @@ describe('Composed Select', () => {
       expect(indicator).not.toBeNull();
     });
 
+    it('Then the indicator is hidden by default on unselected items', () => {
+      const root = ComposedSelect({
+        children: () => {
+          const t = ComposedSelect.Trigger({ children: ['Pick'] });
+          const c = ComposedSelect.Content({
+            children: () => {
+              const i1 = ComposedSelect.Item({ value: 'a', children: ['Alpha'] });
+              return [i1];
+            },
+          });
+          return [t, c];
+        },
+      });
+      container.appendChild(root);
+
+      const option = root.querySelector('[role="option"]') as HTMLElement;
+      expect(option!.getAttribute('aria-selected')).toBe('false');
+
+      const indicator = option!.querySelector('[data-part="indicator"]') as HTMLElement;
+      expect(indicator!.style.display).toBe('none');
+    });
+
+    it('Then the selected item has aria-selected="true"', () => {
+      const root = ComposedSelect({
+        defaultValue: 'a',
+        children: () => {
+          const t = ComposedSelect.Trigger({ children: ['Pick'] });
+          const c = ComposedSelect.Content({
+            children: () => {
+              const i1 = ComposedSelect.Item({ value: 'a', children: ['Alpha'] });
+              const i2 = ComposedSelect.Item({ value: 'b', children: ['Beta'] });
+              return [i1, i2];
+            },
+          });
+          return [t, c];
+        },
+      });
+      container.appendChild(root);
+
+      const options = root.querySelectorAll('[role="option"]');
+      expect((options[0] as HTMLElement).getAttribute('aria-selected')).toBe('true');
+      expect((options[1] as HTMLElement).getAttribute('aria-selected')).toBe('false');
+    });
+
     it('Then applies itemIndicator class to the indicator element', () => {
       const root = ComposedSelect({
         classes: { itemIndicator: 'check-indicator' },

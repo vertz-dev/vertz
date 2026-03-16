@@ -76,7 +76,7 @@ interface GroupProps extends SlotProps {
 // Sub-components — self-wiring via context
 // ---------------------------------------------------------------------------
 
-// Inline chevron-down SVG (Lucide ChevronDown icon, 14×14)
+// Inline SVG strings for icons (same pattern as @vertz/icons renderIcon)
 const CHEVRON_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
 
@@ -89,9 +89,12 @@ function SelectTrigger(_props: SlotProps) {
   const { select } = ctx;
 
   // Add chevron indicator to the trigger
-  const chevron = document.createElement('span');
-  chevron.setAttribute('data-part', 'chevron');
-  chevron.style.cssText = 'display: inline-flex; align-items: center; opacity: 0.5; flex-shrink: 0';
+  const chevron = (
+    <span
+      data-part="chevron"
+      style="display: inline-flex; align-items: center; opacity: 0.5; flex-shrink: 0"
+    />
+  ) as HTMLSpanElement;
   chevron.innerHTML = CHEVRON_SVG;
   select.trigger.appendChild(chevron);
 
@@ -112,7 +115,6 @@ function SelectContent({ children }: SlotProps) {
   return select.content;
 }
 
-// Inline check SVG (Lucide Check icon, 14×14)
 const CHECK_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
 
@@ -133,10 +135,10 @@ function SelectItem({ value, children, className: cls, class: classProp }: ItemP
   const itemClass = [classes?.item, effectiveCls].filter(Boolean).join(' ');
   if (itemClass) item.className = itemClass;
 
-  // Add check indicator
-  const indicator = document.createElement('span');
-  indicator.setAttribute('data-part', 'indicator');
-  if (classes?.itemIndicator) indicator.className = classes.itemIndicator;
+  // Add check indicator (hidden by default, shown via CSS when aria-selected="true")
+  const indicator = (
+    <span data-part="indicator" style="display: none" class={classes?.itemIndicator || undefined} />
+  ) as HTMLSpanElement;
   indicator.innerHTML = CHECK_SVG;
   item.appendChild(indicator);
 
