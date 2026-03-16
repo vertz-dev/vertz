@@ -1,3 +1,4 @@
+import { __styleStr } from '@vertz/ui/internals';
 import { rawHtml, type VNode } from '../types';
 import { SSRComment } from './ssr-comment';
 import { SSRDocumentFragment } from './ssr-fragment';
@@ -118,13 +119,22 @@ export class SSRElement extends SSRNode {
     this.dataset = createDatasetProxy(this);
   }
 
-  setAttribute(name: string, value: string): void {
+  // biome-ignore lint/suspicious/noExplicitAny: accepts string or style object
+  setAttribute(name: string, value: string | Record<string, any>): void {
+    if (name === 'style' && typeof value === 'object' && value !== null) {
+      // Convert object to CSS string and populate the style proxy's internal map
+      this.attrs.style = __styleStr(value as Record<string, string | number>);
+      for (const [k, v] of Object.entries(value)) {
+        if (v != null) this.style[k] = String(v);
+      }
+      return;
+    }
     // Map className → class (JSX convention → DOM attribute)
     const attrName = name === 'className' ? 'class' : name;
     if (attrName === 'class') {
-      this._classList = new Set(value.split(/\s+/).filter(Boolean));
+      this._classList = new Set((value as string).split(/\s+/).filter(Boolean));
     }
-    this.attrs[attrName] = value;
+    this.attrs[attrName] = value as string;
   }
 
   getAttribute(name: string): string | null {

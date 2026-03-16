@@ -13,7 +13,9 @@
  */
 
 import type { Ref } from '../component/refs';
+import { styleObjectToString } from '../dom/style';
 import { isSVGTag, normalizeSVGAttr, SVG_NS } from '../dom/svg-tags';
+import type { CSSProperties } from './css-properties';
 
 /**
  * JSX namespace - required for TypeScript's react-jsx mode
@@ -38,6 +40,7 @@ export namespace JSX {
     [key: string]: unknown;
     children?: unknown;
     className?: string;
+    style?: string | CSSProperties;
   }
 
   /**
@@ -114,7 +117,12 @@ function jsxImpl(
       const eventName = key.slice(2).toLowerCase();
       element.addEventListener(eventName, value as EventListener);
     } else if (key === 'style' && value != null) {
-      element.setAttribute('style', String(value));
+      element.setAttribute(
+        'style',
+        typeof value === 'object' && !Array.isArray(value)
+          ? styleObjectToString(value as Record<string, string | number>)
+          : String(value),
+      );
     } else if (value === true) {
       // Boolean attribute (e.g. checked, disabled)
       element.setAttribute(key, '');

@@ -783,4 +783,28 @@ describe('DOM Shim', () => {
       expect(styleAttr).toContain('background-color: blue');
     });
   });
+
+  describe('setAttribute with style objects', () => {
+    it('should convert object style to CSS string', () => {
+      const el = new SSRElement('div');
+      // biome-ignore lint/suspicious/noExplicitAny: testing object style support
+      (el as any).setAttribute('style', { backgroundColor: 'red', marginTop: '1rem' });
+      expect(el.attrs.style).toBe('background-color: red; margin-top: 1rem');
+    });
+
+    it('should handle string style unchanged', () => {
+      const el = new SSRElement('div');
+      el.setAttribute('style', 'color: red');
+      expect(el.attrs.style).toBe('color: red');
+    });
+
+    it('should handle object style followed by el.style.display = none', () => {
+      const el = new SSRElement('div');
+      // biome-ignore lint/suspicious/noExplicitAny: testing object style support
+      (el as any).setAttribute('style', { backgroundColor: 'red' });
+      el.style.display = 'none';
+      expect(el.attrs.style).toContain('background-color: red');
+      expect(el.attrs.style).toContain('display: none');
+    });
+  });
 });

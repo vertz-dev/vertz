@@ -36,6 +36,22 @@ describe('__attr', () => {
     disabled.value = null;
     expect(el.hasAttribute('disabled')).toBe(false);
   });
+
+  it('converts object style values to CSS strings', () => {
+    const el = document.createElement('div');
+    const bg = signal('red');
+    __attr(el, 'style', () => ({ backgroundColor: bg.value }));
+    expect(el.getAttribute('style')).toBe('background-color: red');
+    bg.value = 'blue';
+    expect(el.getAttribute('style')).toBe('background-color: blue');
+  });
+
+  it('handles string style values unchanged', () => {
+    const el = document.createElement('div');
+    const color = signal('red');
+    __attr(el, 'style', () => `color: ${color.value}`);
+    expect(el.getAttribute('style')).toBe('color: red');
+  });
 });
 
 describe('__show', () => {

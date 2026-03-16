@@ -12,6 +12,7 @@
  * - Fragment          — document fragment
  */
 
+import { styleObjectToString } from './dom/style';
 import { isSVGTag, normalizeSVGAttr, SVG_NS } from './dom/svg-tags';
 
 type Tag = string | ((props: Record<string, unknown>) => Node | Node[] | null);
@@ -56,8 +57,13 @@ export function jsx(tag: Tag, props: Record<string, unknown>): Node | Node[] | n
       el.addEventListener(event, value as EventListener);
     } else if (key === 'class') {
       if (value != null) el.setAttribute('class', String(value));
-    } else if (key === 'style' && typeof value === 'string') {
-      el.setAttribute('style', value);
+    } else if (key === 'style' && value != null) {
+      el.setAttribute(
+        'style',
+        typeof value === 'object' && !Array.isArray(value)
+          ? styleObjectToString(value as Record<string, string | number>)
+          : String(value),
+      );
     } else if (value === true) {
       // Boolean attribute (e.g., selected, disabled)
       el.setAttribute(key, '');

@@ -436,7 +436,14 @@ function processAttribute(
       const exprInfo = jsxMap.get(init.getStart());
       if (exprInfo?.reactive) {
         const getterBody = inlineCallbackConsts(exprText, exprInfo.callbackConstInlines, source);
-        return `__attr(${elVar}, ${JSON.stringify(attrName)}, () => ${getterBody})`;
+        // Wrap in parens if expression starts with { to avoid arrow-function-object ambiguity:
+        // () => { color: 'red' } is parsed as a labeled statement block, not an object literal.
+        const wrappedBody = getterBody.trimStart().startsWith('{') ? `(${getterBody})` : getterBody;
+        return `__attr(${elVar}, ${JSON.stringify(attrName)}, () => ${wrappedBody})`;
+      }
+      // Style attribute with non-literal expression: may be object or string at runtime
+      if (attrName === 'style') {
+        return `{ const __v = ${exprText}; if (__v != null && __v !== false) ${elVar}.setAttribute("style", typeof __v === "object" ? __styleStr(__v) : __v === true ? "" : String(__v)); }`;
       }
       // Static non-literal: use guarded setAttribute (handles null/false/true correctly)
       return `{ const __v = ${exprText}; if (__v != null && __v !== false) ${elVar}.setAttribute(${JSON.stringify(attrName)}, __v === true ? "" : __v); }`;
@@ -445,6 +452,9 @@ function processAttribute(
     // HTML attributes (disabled, checked, etc.) are not set when falsy.
     // setAttribute stringifies all values, so disabled={false} would produce
     // disabled="false" which still disables the element per HTML spec.
+    if (attrName === 'style') {
+      return `{ const __v = ${exprText}; if (__v != null && __v !== false) ${elVar}.setAttribute("style", typeof __v === "object" ? __styleStr(__v) : __v === true ? "" : String(__v)); }`;
+    }
     return `{ const __v = ${exprText}; if (__v != null && __v !== false) ${elVar}.setAttribute(${JSON.stringify(attrName)}, __v === true ? "" : __v); }`;
   }
 
