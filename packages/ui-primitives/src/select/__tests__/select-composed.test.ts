@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 import { ComposedSelect } from '../select-composed';
 
 describe('Composed Select', () => {
@@ -123,6 +123,50 @@ describe('Composed Select', () => {
       option!.click();
 
       expect(values).toEqual(['a']);
+    });
+  });
+
+  describe('Given a Select.Trigger rendered outside Select', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedSelect.Trigger({ children: ['Orphan'] });
+        }).toThrow('<Select.Trigger> must be used inside <Select>');
+      });
+    });
+  });
+
+  describe('Given a Select.Content rendered outside Select', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedSelect.Content({ children: ['Orphan'] });
+        }).toThrow('<Select.Content> must be used inside <Select>');
+      });
+    });
+  });
+
+  describe('Given a Select with duplicate Content sub-components', () => {
+    it('Then warns about the duplicate', () => {
+      const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      ComposedSelect({
+        children: () => {
+          const t = ComposedSelect.Trigger({ children: ['Pick'] });
+          const c1 = ComposedSelect.Content({
+            children: () => [ComposedSelect.Item({ value: 'a', children: ['A'] })],
+          });
+          const c2 = ComposedSelect.Content({
+            children: () => [ComposedSelect.Item({ value: 'b', children: ['B'] })],
+          });
+          return [t, c1, c2];
+        },
+      });
+
+      expect(spy).toHaveBeenCalledWith(
+        'Duplicate <Select.Content> detected – only the first is used',
+      );
+      spy.mockRestore();
     });
   });
 

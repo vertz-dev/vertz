@@ -263,14 +263,33 @@ describe('createThemedAlertDialog', () => {
     const AlertDialog = createThemedAlertDialog(styles);
 
     let called = false;
-    const cancel = AlertDialog.Cancel({
-      children: 'Cancel',
-      onClick: () => {
-        called = true;
+    const btn = document.createElement('button');
+    let cancelEl!: HTMLElement;
+
+    const root = AlertDialog({
+      children: () => {
+        const t = AlertDialog.Trigger({ children: [btn] });
+        cancelEl = AlertDialog.Cancel({
+          children: 'Cancel',
+          onClick: () => {
+            called = true;
+          },
+        });
+        const c = AlertDialog.Content({
+          children: [
+            AlertDialog.Title({ children: ['Confirm'] }),
+            AlertDialog.Footer({ children: [cancelEl] }),
+          ],
+        });
+        return [t, c];
       },
     });
-    cancel.click();
+    document.body.appendChild(root);
+
+    btn.click();
+    cancelEl.click();
     expect(called).toBe(true);
+    document.body.removeChild(root);
   });
 
   it('Action forwards onClick handler', async () => {
@@ -279,14 +298,33 @@ describe('createThemedAlertDialog', () => {
     const AlertDialog = createThemedAlertDialog(styles);
 
     let called = false;
-    const action = AlertDialog.Action({
-      children: 'Delete',
-      onClick: () => {
-        called = true;
+    const btn = document.createElement('button');
+    let actionEl!: HTMLElement;
+
+    const root = AlertDialog({
+      children: () => {
+        const t = AlertDialog.Trigger({ children: [btn] });
+        actionEl = AlertDialog.Action({
+          children: 'Delete',
+          onClick: () => {
+            called = true;
+          },
+        });
+        const c = AlertDialog.Content({
+          children: [
+            AlertDialog.Title({ children: ['Confirm'] }),
+            AlertDialog.Footer({ children: [actionEl] }),
+          ],
+        });
+        return [t, c];
       },
     });
-    action.click();
+    document.body.appendChild(root);
+
+    btn.click();
+    actionEl.click();
     expect(called).toBe(true);
+    document.body.removeChild(root);
   });
 
   it('Action disabled={true} disables the button', async () => {
@@ -294,8 +332,26 @@ describe('createThemedAlertDialog', () => {
     const styles = createAlertDialogStyles();
     const AlertDialog = createThemedAlertDialog(styles);
 
-    const action = AlertDialog.Action({ children: 'Delete', disabled: true });
-    expect(action.disabled).toBe(true);
+    const btn = document.createElement('button');
+    let actionEl!: HTMLButtonElement;
+
+    const root = AlertDialog({
+      children: () => {
+        const t = AlertDialog.Trigger({ children: [btn] });
+        actionEl = AlertDialog.Action({ children: 'Delete', disabled: true }) as HTMLButtonElement;
+        const c = AlertDialog.Content({
+          children: [
+            AlertDialog.Title({ children: ['Confirm'] }),
+            AlertDialog.Footer({ children: [actionEl] }),
+          ],
+        });
+        return [t, c];
+      },
+    });
+    document.body.appendChild(root);
+
+    expect(actionEl.disabled).toBe(true);
+    document.body.removeChild(root);
   });
 
   it('Action disabled={false} does not disable the button', async () => {
@@ -303,8 +359,26 @@ describe('createThemedAlertDialog', () => {
     const styles = createAlertDialogStyles();
     const AlertDialog = createThemedAlertDialog(styles);
 
-    const action = AlertDialog.Action({ children: 'Delete', disabled: false });
-    expect(action.disabled).toBe(false);
+    const btn = document.createElement('button');
+    let actionEl!: HTMLButtonElement;
+
+    const root = AlertDialog({
+      children: () => {
+        const t = AlertDialog.Trigger({ children: [btn] });
+        actionEl = AlertDialog.Action({ children: 'Delete', disabled: false }) as HTMLButtonElement;
+        const c = AlertDialog.Content({
+          children: [
+            AlertDialog.Title({ children: ['Confirm'] }),
+            AlertDialog.Footer({ children: [actionEl] }),
+          ],
+        });
+        return [t, c];
+      },
+    });
+    document.body.appendChild(root);
+
+    expect(actionEl.disabled).toBe(false);
+    document.body.removeChild(root);
   });
 
   it('Action fires user onClick AND auto-closes when inside Root', async () => {
@@ -669,37 +743,78 @@ describe('createThemedSelect', () => {
     expect(triggerEl!.className).toContain(styles.trigger);
   });
 
-  it('Item sub-component creates marker element with data-slot', async () => {
+  it('Item sub-component creates option element inside root', async () => {
     const { createThemedSelect } = await import('../components/primitives/select');
     const styles = createSelectStyles();
     const Select = createThemedSelect(styles);
 
-    const item = Select.Item({ value: 'opt1', children: 'Option 1' });
-    expect(item.dataset.slot).toBe('select-item');
-    expect(item.dataset.value).toBe('opt1');
-  });
-
-  it('Group sub-component creates marker element with data-slot and data-label', async () => {
-    const { createThemedSelect } = await import('../components/primitives/select');
-    const styles = createSelectStyles();
-    const Select = createThemedSelect(styles);
-
-    const group = Select.Group({
-      label: 'Fruits',
-      children: Select.Item({ value: 'apple', children: 'Apple' }),
+    const root = Select({
+      children: () => {
+        const t = Select.Trigger({ children: ['Pick'] });
+        const c = Select.Content({
+          children: () => [Select.Item({ value: 'opt1', children: ['Option 1'] })],
+        });
+        return [t, c];
+      },
     });
+    document.body.appendChild(root);
 
-    expect(group.dataset.slot).toBe('select-group');
-    expect(group.dataset.label).toBe('Fruits');
+    const option = root.querySelector('[role="option"]') as HTMLElement;
+    expect(option).not.toBeNull();
+    expect(option!.getAttribute('data-value')).toBe('opt1');
+    document.body.removeChild(root);
   });
 
-  it('Separator sub-component creates marker element', async () => {
+  it('Group sub-component creates group element with aria-label inside root', async () => {
     const { createThemedSelect } = await import('../components/primitives/select');
     const styles = createSelectStyles();
     const Select = createThemedSelect(styles);
 
-    const sep = Select.Separator({});
-    expect(sep.dataset.slot).toBe('select-separator');
+    const root = Select({
+      children: () => {
+        const t = Select.Trigger({ children: ['Pick'] });
+        const c = Select.Content({
+          children: () => [
+            Select.Group({
+              label: 'Fruits',
+              children: () => [Select.Item({ value: 'apple', children: ['Apple'] })],
+            }),
+          ],
+        });
+        return [t, c];
+      },
+    });
+    document.body.appendChild(root);
+
+    const group = root.querySelector('[role="group"]') as HTMLElement;
+    expect(group).not.toBeNull();
+    expect(group!.getAttribute('aria-label')).toBe('Fruits');
+    document.body.removeChild(root);
+  });
+
+  it('Separator sub-component creates separator element inside root', async () => {
+    const { createThemedSelect } = await import('../components/primitives/select');
+    const styles = createSelectStyles();
+    const Select = createThemedSelect(styles);
+
+    const root = Select({
+      children: () => {
+        const t = Select.Trigger({ children: ['Pick'] });
+        const c = Select.Content({
+          children: () => [
+            Select.Item({ value: 'a', children: ['A'] }),
+            Select.Separator({}),
+            Select.Item({ value: 'b', children: ['B'] }),
+          ],
+        });
+        return [t, c];
+      },
+    });
+    document.body.appendChild(root);
+
+    const sep = root.querySelector('[role="separator"]') as HTMLElement;
+    expect(sep).not.toBeNull();
+    document.body.removeChild(root);
   });
 });
 
@@ -719,46 +834,103 @@ describe('createThemedDropdownMenu', () => {
     expect(typeof DropdownMenu.Separator).toBe('function');
   });
 
-  it('Item sub-component creates marker with data-slot', async () => {
+  it('Item sub-component creates menuitem element inside root', async () => {
     const { createThemedDropdownMenu } = await import('../components/primitives/dropdown-menu');
     const styles = createDropdownMenuStyles();
     const DropdownMenu = createThemedDropdownMenu(styles);
 
-    const item = DropdownMenu.Item({ value: 'edit', children: 'Edit' });
-    expect(item.dataset.slot).toBe('menu-item');
-    expect(item.dataset.value).toBe('edit');
-  });
-
-  it('Group sub-component creates marker with data-slot and data-label', async () => {
-    const { createThemedDropdownMenu } = await import('../components/primitives/dropdown-menu');
-    const styles = createDropdownMenuStyles();
-    const DropdownMenu = createThemedDropdownMenu(styles);
-
-    const group = DropdownMenu.Group({
-      label: 'Actions',
-      children: DropdownMenu.Item({ value: 'copy', children: 'Copy' }),
+    const btn = document.createElement('button');
+    const root = DropdownMenu({
+      children: () => {
+        const t = DropdownMenu.Trigger({ children: [btn] });
+        const c = DropdownMenu.Content({
+          children: () => [DropdownMenu.Item({ value: 'edit', children: ['Edit'] })],
+        });
+        return [t, c];
+      },
     });
-    expect(group.dataset.slot).toBe('menu-group');
-    expect(group.dataset.label).toBe('Actions');
+    document.body.appendChild(root);
+
+    const item = root.querySelector('[role="menuitem"]') as HTMLElement;
+    expect(item).not.toBeNull();
+    expect(item!.getAttribute('data-value')).toBe('edit');
+    document.body.removeChild(root);
   });
 
-  it('Label sub-component creates marker with data-slot', async () => {
+  it('Group sub-component creates group element with aria-label inside root', async () => {
     const { createThemedDropdownMenu } = await import('../components/primitives/dropdown-menu');
     const styles = createDropdownMenuStyles();
     const DropdownMenu = createThemedDropdownMenu(styles);
 
-    const label = DropdownMenu.Label({ children: 'My Account' });
-    expect(label.dataset.slot).toBe('menu-label');
-    expect(label.textContent).toBe('My Account');
+    const btn = document.createElement('button');
+    const root = DropdownMenu({
+      children: () => {
+        const t = DropdownMenu.Trigger({ children: [btn] });
+        const c = DropdownMenu.Content({
+          children: () => [
+            DropdownMenu.Group({
+              label: 'Actions',
+              children: () => [DropdownMenu.Item({ value: 'copy', children: ['Copy'] })],
+            }),
+          ],
+        });
+        return [t, c];
+      },
+    });
+    document.body.appendChild(root);
+
+    const group = root.querySelector('[role="group"]') as HTMLElement;
+    expect(group).not.toBeNull();
+    expect(group!.getAttribute('aria-label')).toBe('Actions');
+    document.body.removeChild(root);
   });
 
-  it('Separator sub-component creates marker with data-slot', async () => {
+  it('Label sub-component creates label element inside root', async () => {
     const { createThemedDropdownMenu } = await import('../components/primitives/dropdown-menu');
     const styles = createDropdownMenuStyles();
     const DropdownMenu = createThemedDropdownMenu(styles);
 
-    const sep = DropdownMenu.Separator({});
-    expect(sep.dataset.slot).toBe('menu-separator');
+    const btn = document.createElement('button');
+    const root = DropdownMenu({
+      children: () => {
+        const t = DropdownMenu.Trigger({ children: [btn] });
+        const c = DropdownMenu.Content({
+          children: () => [DropdownMenu.Label({ children: ['My Account'] })],
+        });
+        return [t, c];
+      },
+    });
+    document.body.appendChild(root);
+
+    const menu = root.querySelector('[role="menu"]') as HTMLElement;
+    expect(menu!.textContent).toContain('My Account');
+    document.body.removeChild(root);
+  });
+
+  it('Separator sub-component creates separator element inside root', async () => {
+    const { createThemedDropdownMenu } = await import('../components/primitives/dropdown-menu');
+    const styles = createDropdownMenuStyles();
+    const DropdownMenu = createThemedDropdownMenu(styles);
+
+    const btn = document.createElement('button');
+    const root = DropdownMenu({
+      children: () => {
+        const t = DropdownMenu.Trigger({ children: [btn] });
+        const c = DropdownMenu.Content({
+          children: () => [
+            DropdownMenu.Item({ value: 'a', children: ['A'] }),
+            DropdownMenu.Separator({}),
+            DropdownMenu.Item({ value: 'b', children: ['B'] }),
+          ],
+        });
+        return [t, c];
+      },
+    });
+    document.body.appendChild(root);
+
+    const sep = root.querySelector('[role="separator"]') as HTMLElement;
+    expect(sep).not.toBeNull();
+    document.body.removeChild(root);
   });
 
   it('returns wrapper containing trigger with ARIA attributes', async () => {
@@ -1018,10 +1190,19 @@ describe('createThemedAccordion', () => {
     const styles = createAccordionStyles();
     const Accordion = createThemedAccordion(styles);
 
-    const trigger = Accordion.Trigger({ children: 'Trigger' });
-    const content = Accordion.Content({ children: 'Content text' });
-    const item = Accordion.Item({ value: 's1', children: () => [trigger, content] });
-    const root = Accordion({ children: () => [item] });
+    const root = Accordion({
+      children: () => {
+        const item = Accordion.Item({
+          value: 's1',
+          children: () => {
+            const trigger = Accordion.Trigger({ children: ['Trigger'] });
+            const content = Accordion.Content({ children: ['Content text'] });
+            return [trigger, content];
+          },
+        });
+        return [item];
+      },
+    });
 
     const contentEl = root.querySelector('[role="region"]')!;
     expect(contentEl).toBeTruthy();

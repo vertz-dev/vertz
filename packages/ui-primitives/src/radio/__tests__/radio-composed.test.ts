@@ -15,7 +15,7 @@ describe('Composed RadioGroup', () => {
 
   describe('Given a ComposedRadioGroup with Item sub-components', () => {
     describe('When rendered', () => {
-      it('Then creates a radiogroup with items from scanned slots', () => {
+      it('Then creates a radiogroup with items', () => {
         const root = ComposedRadioGroup({
           children: () => {
             const a = ComposedRadioGroup.Item({ value: 'a', children: ['Alpha'] });
@@ -116,6 +116,16 @@ describe('Composed RadioGroup', () => {
         (items[1] as HTMLElement).click();
         expect(ind0?.getAttribute('data-state')).toBe('unchecked');
         expect(ind1?.getAttribute('data-state')).toBe('checked');
+      });
+    });
+  });
+
+  describe('Given a RadioGroup.Item rendered outside RadioGroup', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedRadioGroup.Item({ value: 'orphan', children: ['Orphan'] });
+        }).toThrow('<RadioGroup.Item> must be used inside <RadioGroup>');
       });
     });
   });

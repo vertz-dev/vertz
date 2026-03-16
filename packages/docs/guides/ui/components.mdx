@@ -200,3 +200,74 @@ export function Analytics({ pageId }: { pageId: string }) {
 ```
 
 `onMount` runs after the component's DOM is inserted. The optional cleanup function runs when the component is removed.
+
+## Compound components
+
+Compound components are groups of related components designed to work together — like `Card` with `CardHeader`, `CardContent`, and `CardFooter`, or `Dialog` with `Dialog.Trigger` and `Dialog.Content`.
+
+### Render children in order
+
+Compound components should render children in the order the developer provides them. Don't inspect or reorganize children into "correct" slots:
+
+```tsx
+import { children } from 'vertz/ui';
+
+// Wrong — scanning children to enforce a specific order
+export function Card() {
+  const content = children();
+  const resolved = content();
+  // Sorting or filtering children by type to reorder them
+  // is fragile and causes hydration mismatches
+  return <div>{sortBySlot(resolved)}</div>;
+}
+
+// Right — render children as-is
+export function Card() {
+  const content = children();
+
+  return (
+    <div className={styles.card}>
+      {content}
+    </div>
+  );
+}
+```
+
+If a developer puts `CardFooter` before `CardContent`, they'll see the footer first — that's their responsibility, not the component's. Reordering children adds complexity and can cause issues with hydration, where the client-side DOM structure must match what the server rendered.
+
+### Use props for structure, not child inspection
+
+When a component genuinely needs to control layout, use explicit props instead of scanning children:
+
+```tsx
+import { children } from 'vertz/ui';
+
+interface PageLayoutProps {
+  sidebar: () => JSX.Element;
+  header: () => JSX.Element;
+}
+
+export function PageLayout({ sidebar, header }: PageLayoutProps) {
+  const content = children();
+
+  return (
+    <div className={styles.layout}>
+      <aside>{sidebar()}</aside>
+      <div>
+        <header>{header()}</header>
+        <main>{content}</main>
+      </div>
+    </div>
+  );
+}
+
+// Usage
+<PageLayout
+  sidebar={() => <NavMenu />}
+  header={() => <TopBar />}
+>
+  <DashboardContent />
+</PageLayout>
+```
+
+This makes the API explicit and avoids the fragility of child-type detection.

@@ -1,11 +1,11 @@
 /**
  * Composed Accordion — high-level composable component built on Accordion.Root.
- * Handles slot scanning, trigger/content wiring, and class distribution.
+ * Sub-components self-wire via context. No slot scanning.
+ * Uses nested contexts: AccordionContext for the root, AccordionItemContext for each item.
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { resolveChildren } from '@vertz/ui';
-import { scanSlots } from '../composed/scan-slots';
+import { createContext, resolveChildren, useContext } from '@vertz/ui';
 import { Accordion } from './accordion';
 
 // ---------------------------------------------------------------------------
@@ -16,6 +16,53 @@ export interface AccordionClasses {
   item?: string;
   trigger?: string;
   content?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Contexts
+// ---------------------------------------------------------------------------
+
+interface AccordionContextValue {
+  accordion: ReturnType<typeof Accordion.Root>;
+  classes?: AccordionClasses;
+}
+
+interface AccordionItemContextValue {
+  trigger: HTMLButtonElement;
+  content: HTMLDivElement;
+  classes?: AccordionClasses;
+}
+
+const AccordionContext = createContext<AccordionContextValue | undefined>(
+  undefined,
+  '@vertz/ui-primitives::AccordionContext',
+);
+
+const AccordionItemContext = createContext<AccordionItemContextValue | undefined>(
+  undefined,
+  '@vertz/ui-primitives::AccordionItemContext',
+);
+
+function useAccordionContext(componentName: string): AccordionContextValue {
+  const ctx = useContext(AccordionContext);
+  if (!ctx) {
+    throw new Error(
+      `<Accordion.${componentName}> must be used inside <Accordion>. ` +
+        'Ensure it is a direct or nested child of the Accordion root component.',
+    );
+  }
+  return ctx;
+}
+
+function useAccordionItemContext(componentName: string): AccordionItemContextValue {
+  const ctx = useContext(AccordionItemContext);
+  if (!ctx) {
+    throw new Error(
+      `<Accordion.${componentName}> must be used inside <Accordion.Item>. ` +
+        'Ensure it is a direct or nested child of an Accordion Item component.',
+    );
+  }
+  return ctx;
 }
 
 // ---------------------------------------------------------------------------
@@ -34,41 +81,56 @@ interface ItemProps extends SlotProps {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components — structural slot markers
+// Sub-components — self-wiring via context
 // ---------------------------------------------------------------------------
 
 function AccordionItem({ value, children }: ItemProps) {
-  return (
-    <div data-slot="accordion-item" data-value={value} style="display: contents">
-      {children}
-    </div>
-  );
+  const { accordion, classes } = useAccordionContext('Item');
+  const { item, trigger, content } = accordion.Item(value);
+
+  // Apply item class
+  if (classes?.item) item.className = classes.item;
+
+  // Provide item context for Trigger and Content sub-components
+  AccordionItemContext.Provider({ trigger, content, classes }, () => {
+    resolveChildren(children);
+  });
+
+  return item;
 }
 
 function AccordionTrigger({ children, className: cls, class: classProp }: SlotProps) {
+  const { trigger, classes } = useAccordionItemContext('Trigger');
   const effectiveCls = cls ?? classProp;
-  return (
-    <span
-      data-slot="accordion-trigger"
-      data-class={effectiveCls || undefined}
-      style="display: contents"
-    >
-      {children}
-    </span>
-  );
+
+  // Apply trigger class
+  const triggerClass = [classes?.trigger, effectiveCls].filter(Boolean).join(' ');
+  if (triggerClass) trigger.className = triggerClass;
+
+  // Move children into the primitive trigger
+  const resolved = resolveChildren(children);
+  for (const node of resolved) {
+    trigger.appendChild(node);
+  }
+
+  return trigger;
 }
 
 function AccordionContent({ children, className: cls, class: classProp }: SlotProps) {
+  const { content, classes } = useAccordionItemContext('Content');
   const effectiveCls = cls ?? classProp;
-  return (
-    <div
-      data-slot="accordion-content"
-      data-class={effectiveCls || undefined}
-      style="display: contents"
-    >
-      {children}
-    </div>
-  );
+
+  // Apply content class
+  const contentClass = [classes?.content, effectiveCls].filter(Boolean).join(' ');
+  if (contentClass) content.className = contentClass;
+
+  // Move children into the primitive content
+  const resolved = resolveChildren(children);
+  for (const node of resolved) {
+    content.appendChild(node);
+  }
+
+  return content;
 }
 
 // ---------------------------------------------------------------------------
@@ -92,60 +154,22 @@ function ComposedAccordionRoot({
   defaultValue,
   onValueChange,
 }: ComposedAccordionProps) {
-  // Resolve children to scan for structural slots
-  const resolvedNodes = resolveChildren(children);
-
-  // Scan for item slots
-  const { slots } = scanSlots(resolvedNodes);
-  const itemEntries = slots.get('accordion-item') ?? [];
-
-  // Create the low-level accordion primitive
   const accordion = Accordion.Root({
     multiple: type === 'multiple',
     defaultValue,
     onValueChange,
   });
 
-  // Process each accordion item
-  for (const itemEntry of itemEntries) {
-    const value = itemEntry.attrs.value;
-    if (!value) continue;
+  const ctxValue: AccordionContextValue = {
+    accordion,
+    classes,
+  };
 
-    const { item, trigger, content } = accordion.Item(value);
-
-    // Apply item class
-    if (classes?.item) item.className = classes.item;
-
-    // Scan item's children for trigger and content sub-slots
-    const itemChildren = itemEntry.children.filter(
-      (n): n is HTMLElement => n instanceof HTMLElement,
-    );
-    const itemSlots = scanSlots(itemChildren);
-
-    // Process trigger
-    const triggerEntry = itemSlots.slots.get('accordion-trigger')?.[0];
-    if (triggerEntry) {
-      const triggerClass = [classes?.trigger, triggerEntry.attrs.class].filter(Boolean).join(' ');
-      if (triggerClass) trigger.className = triggerClass;
-
-      // Move trigger children into the primitive trigger
-      for (const node of triggerEntry.children) {
-        trigger.appendChild(node);
-      }
-    }
-
-    // Process content
-    const contentEntry = itemSlots.slots.get('accordion-content')?.[0];
-    if (contentEntry) {
-      const contentClass = [classes?.content, contentEntry.attrs.class].filter(Boolean).join(' ');
-      if (contentClass) content.className = contentClass;
-
-      // Move content children into the primitive content
-      for (const node of contentEntry.children) {
-        content.appendChild(node);
-      }
-    }
-  }
+  // Resolve children for registration side effects
+  // Items call accordion.Item() which appends to accordion.root
+  AccordionContext.Provider(ctxValue, () => {
+    resolveChildren(children);
+  });
 
   return accordion.root;
 }

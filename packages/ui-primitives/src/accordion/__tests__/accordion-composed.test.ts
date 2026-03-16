@@ -136,6 +136,36 @@ describe('Composed Accordion', () => {
     });
   });
 
+  describe('Given an Accordion.Item rendered outside Accordion', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedAccordion.Item({ value: 'orphan', children: ['Orphan'] });
+        }).toThrow('<Accordion.Item> must be used inside <Accordion>');
+      });
+    });
+  });
+
+  describe('Given an Accordion.Trigger rendered outside Accordion.Item', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedAccordion.Trigger({ children: ['Orphan'] });
+        }).toThrow('<Accordion.Trigger> must be used inside <Accordion.Item>');
+      });
+    });
+  });
+
+  describe('Given an Accordion.Content rendered outside Accordion.Item', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedAccordion.Content({ children: ['Orphan'] });
+        }).toThrow('<Accordion.Content> must be used inside <Accordion.Item>');
+      });
+    });
+  });
+
   describe('Given Accordion trigger text from children', () => {
     it('Then moves children into the primitive trigger button', () => {
       const root = ComposedAccordion({

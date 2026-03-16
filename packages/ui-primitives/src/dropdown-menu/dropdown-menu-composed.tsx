@@ -1,13 +1,13 @@
 /**
  * Composed DropdownMenu — high-level composable component built on Menu.Root.
- * Handles slot scanning, trigger wiring, item/group/separator processing,
- * and class distribution.
+ * Sub-components self-wire via context. No slot scanning.
+ * Uses context override for groups: Group provides a sub-context where
+ * _createItem delegates to group.Item() instead of menu.Item().
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { resolveChildren } from '@vertz/ui';
+import { createContext, resolveChildren, useContext } from '@vertz/ui';
 import { _tryOnCleanup } from '@vertz/ui/internals';
-import { scanSlots } from '../composed/scan-slots';
 import { Menu } from '../menu/menu';
 
 // ---------------------------------------------------------------------------
@@ -20,6 +20,38 @@ export interface DropdownMenuClasses {
   group?: string;
   label?: string;
   separator?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Context
+// ---------------------------------------------------------------------------
+
+interface DropdownMenuContextValue {
+  menu: ReturnType<typeof Menu.Root>;
+  classes?: DropdownMenuClasses;
+  /** @internal — registers the user trigger for ARIA sync */
+  _registerTrigger: (el: HTMLElement) => void;
+  /** Factory to create an item — overridden by Group sub-context */
+  _createItem: (value: string, label?: string) => HTMLDivElement;
+  /** @internal — duplicate sub-component detection */
+  _triggerClaimed: boolean;
+  _contentClaimed: boolean;
+}
+
+const DropdownMenuContext = createContext<DropdownMenuContextValue | undefined>(
+  undefined,
+  '@vertz/ui-primitives::DropdownMenuContext',
+);
+
+function useDropdownMenuContext(componentName: string): DropdownMenuContextValue {
+  const ctx = useContext(DropdownMenuContext);
+  if (!ctx) {
+    throw new Error(
+      `<DropdownMenu.${componentName}> must be used inside <DropdownMenu>. ` +
+        'Ensure it is a direct or nested child of the DropdownMenu root component.',
+    );
+  }
+  return ctx;
 }
 
 // ---------------------------------------------------------------------------
@@ -42,58 +74,115 @@ interface GroupProps extends SlotProps {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components — structural slot markers
+// Sub-components — self-wiring via context
 // ---------------------------------------------------------------------------
 
 function MenuTrigger({ children }: SlotProps) {
-  return (
-    <span data-slot="menu-trigger" style="display: contents">
-      {children}
-    </span>
-  );
+  const ctx = useDropdownMenuContext('Trigger');
+  if (ctx._triggerClaimed) {
+    console.warn('Duplicate <DropdownMenu.Trigger> detected – only the first is used');
+  }
+  ctx._triggerClaimed = true;
+  const { menu, _registerTrigger } = ctx;
+
+  // Resolve children to find the user's trigger element
+  const resolved = resolveChildren(children);
+  const userTrigger = resolved.find((n): n is HTMLElement => n instanceof HTMLElement) ?? null;
+
+  if (userTrigger) {
+    // Wire ARIA attributes on the user's element
+    userTrigger.setAttribute('aria-haspopup', 'menu');
+    userTrigger.setAttribute('aria-controls', menu.content.id);
+    userTrigger.setAttribute('aria-expanded', 'false');
+    userTrigger.setAttribute('data-state', 'closed');
+
+    // Delegate click to the primitive's trigger
+    const handleClick = () => {
+      menu.trigger.click();
+    };
+    userTrigger.addEventListener('click', handleClick);
+    _tryOnCleanup(() => userTrigger.removeEventListener('click', handleClick));
+
+    // Register for ARIA sync on state changes
+    _registerTrigger(userTrigger);
+  }
+
+  return (<span style="display: contents">{...resolved}</span>) as HTMLElement;
 }
 
 function MenuContent({ children }: SlotProps) {
-  return (
-    <div data-slot="menu-content" style="display: contents">
-      {children}
-    </div>
-  );
+  const ctx = useDropdownMenuContext('Content');
+  if (ctx._contentClaimed) {
+    console.warn('Duplicate <DropdownMenu.Content> detected – only the first is used');
+  }
+  ctx._contentClaimed = true;
+  const { menu } = ctx;
+
+  // Resolve children (Items, Groups, Labels, Separators) for registration side effects
+  resolveChildren(children);
+
+  return menu.content;
 }
 
 function MenuItem({ value, children, className: cls, class: classProp }: ItemProps) {
+  const { _createItem, classes } = useDropdownMenuContext('Item');
   const effectiveCls = cls ?? classProp;
-  return (
-    <div
-      data-slot="menu-item"
-      data-value={value}
-      data-class={effectiveCls || undefined}
-      style="display: contents"
-    >
-      {children}
-    </div>
-  );
+
+  // Extract label from children
+  const resolved = resolveChildren(children);
+  const label = resolved
+    .map((n) => n.textContent ?? '')
+    .join('')
+    .trim();
+
+  const item = _createItem(value, label || undefined);
+
+  // Apply item class
+  const itemClass = [classes?.item, effectiveCls].filter(Boolean).join(' ');
+  if (itemClass) item.className = itemClass;
+
+  return item;
 }
 
 function MenuGroup({ label, children }: GroupProps) {
-  return (
-    <div data-slot="menu-group" data-label={label} style="display: contents">
-      {children}
-    </div>
-  );
+  const ctx = useDropdownMenuContext('Group');
+  const group = ctx.menu.Group(label);
+
+  if (ctx.classes?.group) group.el.className = ctx.classes.group;
+
+  // Override _createItem in sub-context so nested Items use group.Item()
+  DropdownMenuContext.Provider({ ...ctx, _createItem: (v, l) => group.Item(v, l) }, () => {
+    resolveChildren(children);
+  });
+
+  return group.el;
 }
 
 function MenuLabel({ children, className: cls, class: classProp }: SlotProps) {
+  const { menu, classes } = useDropdownMenuContext('Label');
   const effectiveCls = cls ?? classProp;
-  return (
-    <div data-slot="menu-label" data-class={effectiveCls || undefined} style="display: contents">
-      {children}
-    </div>
-  );
+
+  // Extract text from children
+  const resolved = resolveChildren(children);
+  const text = resolved
+    .map((n) => n.textContent ?? '')
+    .join('')
+    .trim();
+
+  const labelEl = menu.Label(text);
+
+  // Apply label class
+  const labelClass = [classes?.label, effectiveCls].filter(Boolean).join(' ');
+  if (labelClass) labelEl.className = labelClass;
+
+  return labelEl;
 }
 
 function MenuSeparator(_props: SlotProps) {
-  return <hr data-slot="menu-separator" />;
+  const { menu, classes } = useDropdownMenuContext('Separator');
+  const sep = menu.Separator();
+  if (classes?.separator) sep.className = classes.separator;
+  return sep;
 }
 
 // ---------------------------------------------------------------------------
@@ -109,18 +198,8 @@ export interface ComposedDropdownMenuProps {
 export type DropdownMenuClassKey = keyof DropdownMenuClasses;
 
 function ComposedDropdownMenuRoot({ children, classes, onSelect }: ComposedDropdownMenuProps) {
-  // Resolve children for slot scanning
-  const resolvedNodes = resolveChildren(children);
-
-  // Scan for structural slots
-  const { slots } = scanSlots(resolvedNodes);
-  const triggerEntry = slots.get('menu-trigger')?.[0];
-  const contentEntry = slots.get('menu-content')?.[0];
-
-  // Extract user trigger element
-  const userTrigger = triggerEntry
-    ? ((triggerEntry.element.firstElementChild as HTMLElement) ?? triggerEntry.element)
-    : null;
+  // Track the user's trigger element for ARIA sync
+  let userTrigger: HTMLElement | null = null;
 
   // Create the low-level menu primitive with ARIA sync
   const menu = Menu.Root({
@@ -138,96 +217,29 @@ function ComposedDropdownMenuRoot({ children, classes, onSelect }: ComposedDropd
     menu.content.className = classes.content;
   }
 
-  // Process content children: items, groups, labels, separators
-  if (contentEntry) {
-    const contentChildren = contentEntry.children.filter(
-      (n): n is HTMLElement => n instanceof HTMLElement,
-    );
-    processMenuSlots(contentChildren, menu, classes);
-  }
+  const ctxValue: DropdownMenuContextValue = {
+    menu,
+    classes,
+    _registerTrigger: (el: HTMLElement) => {
+      userTrigger = el;
+    },
+    _createItem: (value, label) => menu.Item(value, label),
+    _triggerClaimed: false,
+    _contentClaimed: false,
+  };
 
-  // Wire the user's trigger
-  if (userTrigger) {
-    userTrigger.setAttribute('aria-haspopup', 'menu');
-    userTrigger.setAttribute('aria-controls', menu.content.id);
-    userTrigger.setAttribute('aria-expanded', 'false');
-    userTrigger.setAttribute('data-state', 'closed');
-
-    const handleTriggerClick = () => {
-      menu.trigger.click();
-    };
-    userTrigger.addEventListener('click', handleTriggerClick);
-    _tryOnCleanup(() => userTrigger.removeEventListener('click', handleTriggerClick));
-  }
+  // Resolve children for registration side effects
+  let resolvedNodes: Node[] = [];
+  DropdownMenuContext.Provider(ctxValue, () => {
+    resolvedNodes = resolveChildren(children);
+  });
 
   return (
     <div style="display: contents">
-      {userTrigger}
+      {...resolvedNodes}
       {menu.content}
     </div>
   );
-}
-
-function processMenuSlots(
-  nodes: HTMLElement[],
-  menu: ReturnType<typeof Menu.Root>,
-  classes: DropdownMenuClasses | undefined,
-  groupFactory?: ReturnType<typeof Menu.Root>['Group'] extends (label: string) => infer R
-    ? R
-    : never,
-): void {
-  const { slots } = scanSlots(nodes);
-
-  // Process items
-  const itemEntries = slots.get('menu-item') ?? [];
-  for (const entry of itemEntries) {
-    const value = entry.attrs.value;
-    if (!value) continue;
-
-    const label = entry.children
-      .map((n) => n.textContent ?? '')
-      .join('')
-      .trim();
-
-    const item = groupFactory
-      ? groupFactory.Item(value, label || undefined)
-      : menu.Item(value, label || undefined);
-
-    const itemClass = [classes?.item, entry.attrs.class].filter(Boolean).join(' ');
-    if (itemClass) item.className = itemClass;
-  }
-
-  // Process groups
-  const groupEntries = slots.get('menu-group') ?? [];
-  for (const entry of groupEntries) {
-    const label = entry.attrs.label ?? '';
-    const group = menu.Group(label);
-
-    if (classes?.group) group.el.className = classes.group;
-
-    const groupChildren = entry.children.filter((n): n is HTMLElement => n instanceof HTMLElement);
-    processMenuSlots(groupChildren, menu, classes, group);
-  }
-
-  // Process labels
-  const labelEntries = slots.get('menu-label') ?? [];
-  for (const entry of labelEntries) {
-    const text = entry.children
-      .map((n) => n.textContent ?? '')
-      .join('')
-      .trim();
-    const labelEl = menu.Label(text);
-
-    const labelClass = [classes?.label, entry.attrs.class].filter(Boolean).join(' ');
-    if (labelClass) labelEl.className = labelClass;
-  }
-
-  // Process separators
-  const separatorEntries = slots.get('menu-separator') ?? [];
-  for (const _entry of separatorEntries) {
-    const sep = menu.Separator();
-    if (classes?.separator) sep.className = classes.separator;
-  }
 }
 
 // ---------------------------------------------------------------------------

@@ -91,6 +91,26 @@ describe('Composed DropdownMenu', () => {
     });
   });
 
+  describe('Given a DropdownMenu.Trigger rendered outside DropdownMenu', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedDropdownMenu.Trigger({ children: ['Orphan'] });
+        }).toThrow('<DropdownMenu.Trigger> must be used inside <DropdownMenu>');
+      });
+    });
+  });
+
+  describe('Given a DropdownMenu.Content rendered outside DropdownMenu', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedDropdownMenu.Content({ children: ['Orphan'] });
+        }).toThrow('<DropdownMenu.Content> must be used inside <DropdownMenu>');
+      });
+    });
+  });
+
   describe('Given a DropdownMenu with groups', () => {
     it('Then creates groups with items', () => {
       const btn = document.createElement('button');
@@ -195,6 +215,31 @@ describe('Composed DropdownMenu', () => {
       const item = root.querySelector('[data-value="edit"]') as HTMLElement;
       item.click();
       expect(selected).toEqual(['edit']);
+    });
+  });
+
+  describe('Given a DropdownMenu with duplicate Content sub-components', () => {
+    it('Then warns about the duplicate', () => {
+      const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const btn = document.createElement('button');
+
+      ComposedDropdownMenu({
+        children: () => {
+          const t = ComposedDropdownMenu.Trigger({ children: [btn] });
+          const c1 = ComposedDropdownMenu.Content({
+            children: () => [ComposedDropdownMenu.Item({ value: 'a', children: ['A'] })],
+          });
+          const c2 = ComposedDropdownMenu.Content({
+            children: () => [ComposedDropdownMenu.Item({ value: 'b', children: ['B'] })],
+          });
+          return [t, c1, c2];
+        },
+      });
+
+      expect(spy).toHaveBeenCalledWith(
+        'Duplicate <DropdownMenu.Content> detected – only the first is used',
+      );
+      spy.mockRestore();
     });
   });
 

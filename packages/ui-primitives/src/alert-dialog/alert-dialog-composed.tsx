@@ -1,16 +1,17 @@
 /**
  * Composed AlertDialog — high-level composable component built on AlertDialog.Root.
- * Like Dialog composed, but blocks Escape/overlay dismiss and adds Cancel/Action slots.
+ * Sub-components self-wire via context. No slot scanning.
+ * Unlike Dialog, blocks Escape/overlay dismiss and adds Cancel/Action slots.
  */
 
 import type { ChildValue } from '@vertz/ui';
 import { createContext, resolveChildren, useContext } from '@vertz/ui';
 import { _tryOnCleanup } from '@vertz/ui/internals';
-import { scanSlots } from '../composed/scan-slots';
+import type { AlertDialogElements, AlertDialogState } from './alert-dialog';
 import { AlertDialog } from './alert-dialog';
 
 // ---------------------------------------------------------------------------
-// Class distribution context
+// Class distribution
 // ---------------------------------------------------------------------------
 
 export interface AlertDialogClasses {
@@ -24,10 +25,36 @@ export interface AlertDialogClasses {
   footer?: string;
 }
 
-const AlertDialogClassesContext = createContext<AlertDialogClasses | undefined>(
+// ---------------------------------------------------------------------------
+// Context
+// ---------------------------------------------------------------------------
+
+interface AlertDialogContextValue {
+  alertDialog: AlertDialogElements & { state: AlertDialogState };
+  classes?: AlertDialogClasses;
+  onAction?: () => void;
+  /** @internal — registers the user trigger for ARIA sync */
+  _registerTrigger: (el: HTMLElement) => void;
+  /** @internal — duplicate sub-component detection */
+  _triggerClaimed: boolean;
+  _contentClaimed: boolean;
+}
+
+const AlertDialogContext = createContext<AlertDialogContextValue | undefined>(
   undefined,
-  '@vertz/ui-primitives::AlertDialogClassesContext',
+  '@vertz/ui-primitives::AlertDialogContext',
 );
+
+function useAlertDialogContext(componentName: string): AlertDialogContextValue {
+  const ctx = useContext(AlertDialogContext);
+  if (!ctx) {
+    throw new Error(
+      `<AlertDialog.${componentName}> must be used inside <AlertDialog>. ` +
+        'Ensure it is a direct or nested child of the AlertDialog root component.',
+    );
+  }
+  return ctx;
+}
 
 // ---------------------------------------------------------------------------
 // Sub-component props
@@ -46,28 +73,92 @@ interface ButtonSlotProps extends SlotProps {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components — structural slot markers
+// Sub-components — self-wiring via context
 // ---------------------------------------------------------------------------
 
 function AlertDialogTrigger({ children }: SlotProps) {
-  return (
-    <span data-slot="alertdialog-trigger" style="display: contents">
-      {children}
-    </span>
-  );
+  const ctx = useAlertDialogContext('Trigger');
+  if (ctx._triggerClaimed) {
+    console.warn('Duplicate <AlertDialog.Trigger> detected – only the first is used');
+  }
+  ctx._triggerClaimed = true;
+  const { alertDialog, _registerTrigger } = ctx;
+
+  // Resolve children to find the user's trigger element
+  const resolved = resolveChildren(children);
+  const userTrigger = resolved.find((n): n is HTMLElement => n instanceof HTMLElement) ?? null;
+
+  if (userTrigger) {
+    // Wire ARIA attributes on the user's element
+    userTrigger.setAttribute('aria-haspopup', 'dialog');
+    userTrigger.setAttribute('aria-controls', alertDialog.content.id);
+    userTrigger.setAttribute('aria-expanded', 'false');
+    userTrigger.setAttribute('data-state', 'closed');
+
+    // AlertDialog trigger only opens (never closes on click)
+    const handleClick = () => {
+      if (!alertDialog.state.open.peek()) {
+        alertDialog.show();
+      }
+    };
+    userTrigger.addEventListener('click', handleClick);
+    _tryOnCleanup(() => userTrigger.removeEventListener('click', handleClick));
+
+    // Register for ARIA sync on state changes
+    _registerTrigger(userTrigger);
+  }
+
+  return <span style="display: contents">{...resolved}</span>;
 }
 
 function AlertDialogContent({ children, className: cls, class: classProp }: SlotProps) {
+  const ctx = useAlertDialogContext('Content');
+  if (ctx._contentClaimed) {
+    console.warn('Duplicate <AlertDialog.Content> detected – only the first is used');
+  }
+  ctx._contentClaimed = true;
+  const { alertDialog, classes } = ctx;
   const effectiveCls = cls ?? classProp;
-  return (
-    <div
-      data-slot="alertdialog-content"
-      data-class={effectiveCls || undefined}
-      style="display: contents"
-    >
-      {children}
-    </div>
-  );
+
+  // Apply theme + per-instance classes to the primitive's content element
+  const combined = [classes?.content, effectiveCls].filter(Boolean).join(' ');
+  if (combined) {
+    alertDialog.content.className = combined;
+  }
+
+  // Apply overlay class
+  if (classes?.overlay) {
+    alertDialog.overlay.className = classes.overlay;
+  }
+
+  // Populate the primitive's content element with user children
+  const resolved = resolveChildren(children);
+  for (const node of resolved) {
+    alertDialog.content.appendChild(node);
+  }
+
+  // Sync ARIA IDs: find title/description elements and set their IDs
+  const titleEl = alertDialog.content.querySelector('[data-slot="alertdialog-title"]');
+  if (titleEl) titleEl.id = alertDialog.title.id;
+  const descEl = alertDialog.content.querySelector('[data-slot="alertdialog-description"]');
+  if (descEl) descEl.id = alertDialog.description.id;
+
+  // Wire cancel and action buttons via event delegation
+  const handleContentClick = (e: Event) => {
+    const cancelTarget = (e.target as HTMLElement).closest('[data-slot="alertdialog-cancel"]');
+    if (cancelTarget) alertDialog.hide();
+
+    const actionTarget = (e.target as HTMLElement).closest('[data-slot="alertdialog-action"]');
+    if (actionTarget) {
+      // onAction is read from the context at delegation time
+      // The Action sub-component's own onClick is fired by the browser natively
+      alertDialog.hide();
+    }
+  };
+  alertDialog.content.addEventListener('click', handleContentClick);
+  _tryOnCleanup(() => alertDialog.content.removeEventListener('click', handleContentClick));
+
+  return alertDialog.content;
 }
 
 // ---------------------------------------------------------------------------
@@ -76,7 +167,7 @@ function AlertDialogContent({ children, className: cls, class: classProp }: Slot
 
 function AlertDialogTitle({ children, className: cls, class: classProp }: SlotProps) {
   const effectiveCls = cls ?? classProp;
-  const classes = useContext(AlertDialogClassesContext);
+  const { classes } = useAlertDialogContext('Title');
   const combined = [classes?.title, effectiveCls].filter(Boolean).join(' ');
   return (
     <h2 data-slot="alertdialog-title" class={combined || undefined}>
@@ -87,7 +178,7 @@ function AlertDialogTitle({ children, className: cls, class: classProp }: SlotPr
 
 function AlertDialogDescription({ children, className: cls, class: classProp }: SlotProps) {
   const effectiveCls = cls ?? classProp;
-  const classes = useContext(AlertDialogClassesContext);
+  const { classes } = useAlertDialogContext('Description');
   const combined = [classes?.description, effectiveCls].filter(Boolean).join(' ');
   return (
     <p data-slot="alertdialog-description" class={combined || undefined}>
@@ -98,14 +189,14 @@ function AlertDialogDescription({ children, className: cls, class: classProp }: 
 
 function AlertDialogHeader({ children, className: cls, class: classProp }: SlotProps) {
   const effectiveCls = cls ?? classProp;
-  const classes = useContext(AlertDialogClassesContext);
+  const { classes } = useAlertDialogContext('Header');
   const combined = [classes?.header, effectiveCls].filter(Boolean).join(' ');
   return <div class={combined || undefined}>{children}</div>;
 }
 
 function AlertDialogFooter({ children, className: cls, class: classProp }: SlotProps) {
   const effectiveCls = cls ?? classProp;
-  const classes = useContext(AlertDialogClassesContext);
+  const { classes } = useAlertDialogContext('Footer');
   const combined = [classes?.footer, effectiveCls].filter(Boolean).join(' ');
   return <div class={combined || undefined}>{children}</div>;
 }
@@ -118,7 +209,7 @@ function AlertDialogCancel({
   disabled,
 }: ButtonSlotProps) {
   const effectiveCls = cls ?? classProp;
-  const classes = useContext(AlertDialogClassesContext);
+  const { classes } = useAlertDialogContext('Cancel');
   const combined = [classes?.cancel, effectiveCls].filter(Boolean).join(' ');
   return (
     <button
@@ -141,14 +232,17 @@ function AlertDialogAction({
   disabled,
 }: ButtonSlotProps) {
   const effectiveCls = cls ?? classProp;
-  const classes = useContext(AlertDialogClassesContext);
+  const { classes, onAction } = useAlertDialogContext('Action');
   const combined = [classes?.action, effectiveCls].filter(Boolean).join(' ');
   return (
     <button
       type="button"
       data-slot="alertdialog-action"
       class={combined || undefined}
-      onClick={onClick}
+      onClick={() => {
+        onClick?.();
+        onAction?.();
+      }}
       disabled={disabled}
     >
       {children}
@@ -179,26 +273,10 @@ function ComposedAlertDialogRoot({
   onOpenChange,
   onAction,
 }: ComposedAlertDialogProps) {
-  // Provide classes via context, then resolve children inside the scope
-  let resolvedNodes: Node[] = [];
-  AlertDialogClassesContext.Provider(classes, () => {
-    resolvedNodes = resolveChildren(children);
-  });
+  // Track the user's trigger element for ARIA sync
+  let userTrigger: HTMLElement | null = null;
 
-  // Scan for structural slots
-  const { slots } = scanSlots(resolvedNodes);
-  const triggerEntry = slots.get('alertdialog-trigger')?.[0];
-  const contentEntry = slots.get('alertdialog-content')?.[0];
-
-  // Extract user trigger element (needed before AlertDialog.Root to wrap onOpenChange)
-  const userTrigger = triggerEntry
-    ? ((triggerEntry.element.firstElementChild as HTMLElement) ?? triggerEntry.element)
-    : null;
-
-  // Create the low-level alert dialog primitive, wrapping onOpenChange to sync trigger ARIA.
-  // Note: onAction is NOT passed here — it is wired exclusively via event delegation below
-  // (on [data-slot="alertdialog-action"]). Passing it to the primitive would create a
-  // duplicate invocation path if the primitive's internal action button were ever appended.
+  // Create the low-level alert dialog primitive with ARIA sync on state changes
   const alertDialog = AlertDialog.Root({
     onOpenChange: (isOpen) => {
       if (userTrigger) {
@@ -209,66 +287,26 @@ function ComposedAlertDialogRoot({
     },
   });
 
-  // Apply overlay class
-  if (classes?.overlay) {
-    alertDialog.overlay.className = classes.overlay;
-  }
-
-  // Apply content class (from classes prop + per-instance class)
-  const contentInstanceClass = contentEntry?.attrs.class;
-  const contentClassCombined = [classes?.content, contentInstanceClass].filter(Boolean).join(' ');
-  if (contentClassCombined) {
-    alertDialog.content.className = contentClassCombined;
-  }
-
-  // Wire the user's trigger: ARIA attributes + click handler
-  if (userTrigger) {
-    userTrigger.setAttribute('aria-haspopup', 'dialog');
-    userTrigger.setAttribute('aria-controls', alertDialog.content.id);
-    userTrigger.setAttribute('aria-expanded', 'false');
-    userTrigger.setAttribute('data-state', 'closed');
-
-    const handleTriggerClick = () => {
-      if (!alertDialog.state.open.peek()) {
-        alertDialog.show();
-      }
-    };
-    userTrigger.addEventListener('click', handleTriggerClick);
-    _tryOnCleanup(() => userTrigger.removeEventListener('click', handleTriggerClick));
-  }
-
-  // Move content children into the alert dialog panel
-  if (contentEntry) {
-    for (const node of contentEntry.children) {
-      alertDialog.content.appendChild(node);
-    }
-  }
-
-  // Sync ARIA IDs: the primitive sets aria-labelledby/aria-describedby on content
-  // pointing to its internal title/description elements. The composed sub-components
-  // create new elements, so we must set matching IDs on them.
-  const titleEl = alertDialog.content.querySelector('[data-slot="alertdialog-title"]');
-  if (titleEl) titleEl.id = alertDialog.title.id;
-  const descEl = alertDialog.content.querySelector('[data-slot="alertdialog-description"]');
-  if (descEl) descEl.id = alertDialog.description.id;
-
-  // Wire cancel and action buttons via event delegation
-  const handleContentClick = (e: Event) => {
-    const cancelTarget = (e.target as HTMLElement).closest('[data-slot="alertdialog-cancel"]');
-    if (cancelTarget) alertDialog.hide();
-
-    const actionTarget = (e.target as HTMLElement).closest('[data-slot="alertdialog-action"]');
-    if (actionTarget) {
-      onAction?.();
-      alertDialog.hide();
-    }
+  const ctxValue: AlertDialogContextValue = {
+    alertDialog,
+    classes,
+    onAction,
+    _registerTrigger: (el: HTMLElement) => {
+      userTrigger = el;
+    },
+    _triggerClaimed: false,
+    _contentClaimed: false,
   };
-  alertDialog.content.addEventListener('click', handleContentClick);
-  _tryOnCleanup(() => alertDialog.content.removeEventListener('click', handleContentClick));
+
+  // Provide primitive + classes via context, then resolve children
+  let resolvedNodes: Node[] = [];
+  AlertDialogContext.Provider(ctxValue, () => {
+    resolvedNodes = resolveChildren(children);
+  });
 
   return (
     <div style="display: contents">
-      {userTrigger}
+      {...resolvedNodes}
       {alertDialog.overlay}
       {alertDialog.content}
     </div>

@@ -1,11 +1,11 @@
 /**
  * Composed Tooltip — high-level composable component built on Tooltip.Root.
- * Handles slot scanning, trigger wiring, and class distribution.
+ * Sub-components self-wire via context. No slot scanning.
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { resolveChildren } from '@vertz/ui';
-import { scanSlots } from '../composed/scan-slots';
+import { createContext, resolveChildren, useContext } from '@vertz/ui';
+import type { TooltipElements, TooltipState } from './tooltip';
 import { Tooltip } from './tooltip';
 
 // ---------------------------------------------------------------------------
@@ -14,6 +14,34 @@ import { Tooltip } from './tooltip';
 
 export interface TooltipClasses {
   content?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Context
+// ---------------------------------------------------------------------------
+
+interface TooltipContextValue {
+  tooltip: TooltipElements & { state: TooltipState };
+  classes?: TooltipClasses;
+  /** @internal — duplicate sub-component detection */
+  _triggerClaimed: boolean;
+  _contentClaimed: boolean;
+}
+
+const TooltipContext = createContext<TooltipContextValue | undefined>(
+  undefined,
+  '@vertz/ui-primitives::TooltipContext',
+);
+
+function useTooltipContext(componentName: string): TooltipContextValue {
+  const ctx = useContext(TooltipContext);
+  if (!ctx) {
+    throw new Error(
+      `<Tooltip.${componentName}> must be used inside <Tooltip>. ` +
+        'Ensure it is a direct or nested child of the Tooltip root component.',
+    );
+  }
+  return ctx;
 }
 
 // ---------------------------------------------------------------------------
@@ -28,28 +56,48 @@ interface SlotProps {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components — structural slot markers
+// Sub-components — self-wiring via context
 // ---------------------------------------------------------------------------
 
 function TooltipTrigger({ children }: SlotProps) {
-  return (
-    <span data-slot="tooltip-trigger" style="display: contents">
-      {children}
-    </span>
-  );
+  const ctx = useTooltipContext('Trigger');
+  if (ctx._triggerClaimed) {
+    console.warn('Duplicate <Tooltip.Trigger> detected – only the first is used');
+  }
+  ctx._triggerClaimed = true;
+  const { tooltip } = ctx;
+
+  // Populate the primitive's trigger element with user children
+  const resolved = resolveChildren(children);
+  for (const node of resolved) {
+    tooltip.trigger.appendChild(node);
+  }
+
+  return tooltip.trigger;
 }
 
 function TooltipContent({ children, className: cls, class: classProp }: SlotProps) {
+  const ctx = useTooltipContext('Content');
+  if (ctx._contentClaimed) {
+    console.warn('Duplicate <Tooltip.Content> detected – only the first is used');
+  }
+  ctx._contentClaimed = true;
+  const { tooltip, classes } = ctx;
   const effectiveCls = cls ?? classProp;
-  return (
-    <div
-      data-slot="tooltip-content"
-      data-class={effectiveCls || undefined}
-      style="display: contents"
-    >
-      {children}
-    </div>
-  );
+
+  // Apply theme + per-instance classes to the primitive's content element
+  const combined = [classes?.content, effectiveCls].filter(Boolean).join(' ');
+  if (combined) {
+    tooltip.content.className = combined;
+  }
+
+  // Populate the primitive's content element with user children
+  const resolved = resolveChildren(children);
+  for (const node of resolved) {
+    tooltip.content.appendChild(node);
+  }
+
+  return tooltip.content;
 }
 
 // ---------------------------------------------------------------------------
@@ -65,44 +113,20 @@ export interface ComposedTooltipProps {
 export type TooltipClassKey = keyof TooltipClasses;
 
 function ComposedTooltipRoot({ children, classes, delay }: ComposedTooltipProps) {
-  // Resolve children for slot scanning
-  const resolvedNodes = resolveChildren(children);
-
-  // Scan for structural slots
-  const { slots } = scanSlots(resolvedNodes);
-  const triggerEntry = slots.get('tooltip-trigger')?.[0];
-  const contentEntry = slots.get('tooltip-content')?.[0];
-
   // Create the low-level tooltip primitive
   const tooltip = Tooltip.Root({ delay });
 
-  // Apply content class
-  const contentInstanceClass = contentEntry?.attrs.class;
-  const contentClassCombined = [classes?.content, contentInstanceClass].filter(Boolean).join(' ');
-  if (contentClassCombined) {
-    tooltip.content.className = contentClassCombined;
-  }
-
-  // Move trigger children into the tooltip's trigger element
-  if (triggerEntry) {
-    for (const node of triggerEntry.children) {
-      tooltip.trigger.appendChild(node);
-    }
-  }
-
-  // Move content children into the tooltip's content element
-  if (contentEntry) {
-    for (const node of contentEntry.children) {
-      tooltip.content.appendChild(node);
-    }
-  }
-
-  return (
-    <div style="display: contents">
-      {tooltip.trigger}
-      {tooltip.content}
-    </div>
+  // Provide primitive + classes via context, then resolve children
+  // Sub-components (Trigger, Content) read context and self-wire
+  let resolvedNodes: Node[] = [];
+  TooltipContext.Provider(
+    { tooltip, classes, _triggerClaimed: false, _contentClaimed: false },
+    () => {
+      resolvedNodes = resolveChildren(children);
+    },
   );
+
+  return <div style="display: contents">{...resolvedNodes}</div>;
 }
 
 // ---------------------------------------------------------------------------

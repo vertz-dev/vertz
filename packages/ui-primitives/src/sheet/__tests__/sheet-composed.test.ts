@@ -160,6 +160,47 @@ describe('Composed Sheet', () => {
     });
   });
 
+  describe('Given a Sheet.Trigger rendered outside Sheet', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedSheet.Trigger({ children: ['Orphan'] });
+        }).toThrow('<Sheet.Trigger> must be used inside <Sheet>');
+      });
+    });
+  });
+
+  describe('Given a Sheet.Content rendered outside Sheet', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedSheet.Content({ children: ['Orphan'] });
+        }).toThrow('<Sheet.Content> must be used inside <Sheet>');
+      });
+    });
+  });
+
+  describe('Given a Sheet with duplicate Content sub-components', () => {
+    it('Then warns about the duplicate', () => {
+      const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const btn = document.createElement('button');
+
+      ComposedSheet({
+        children: () => {
+          const t = ComposedSheet.Trigger({ children: [btn] });
+          const c1 = ComposedSheet.Content({ children: ['Body 1'] });
+          const c2 = ComposedSheet.Content({ children: ['Body 2'] });
+          return [t, c1, c2];
+        },
+      });
+
+      expect(spy).toHaveBeenCalledWith(
+        'Duplicate <Sheet.Content> detected – only the first is used',
+      );
+      spy.mockRestore();
+    });
+  });
+
   describe('Given a Sheet rendered inside a disposal scope', () => {
     describe('When the disposal scope cleanups are run', () => {
       it('Then removeEventListener is called for the trigger click handler', () => {
