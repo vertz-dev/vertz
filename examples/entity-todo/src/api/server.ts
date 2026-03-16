@@ -1,16 +1,14 @@
 import { createServer } from '@vertz/server';
 import { webhooks } from './actions/webhooks/webhooks.service';
-import { createTodosDb } from './db';
+import { db } from './db';
 import { todos } from './entities/todos/todos.entity';
 import { env } from './env';
-
-const todosDbAdapter = createTodosDb();
 
 const app = createServer({
   basePath: '/api',
   entities: [todos],
   services: [webhooks],
-  db: todosDbAdapter,
+  db,
 });
 
 export default app;
