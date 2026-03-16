@@ -1,5 +1,5 @@
 import { __append, __element, __enterChildren, __exitChildren } from '../dom/element';
-import { getIsHydrating } from '../hydrate/hydration-context';
+import { endHydration, getIsHydrating, startHydration } from '../hydrate/hydration-context';
 import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
 import { domEffect, signal } from '../runtime/signal';
 import type { DisposeFn, Signal } from '../runtime/signal-types';
@@ -95,6 +95,10 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
       runCleanups(pageCleanups);
 
       const doRender = () => {
+        // Capture hydration state before consuming it — needed by the
+        // async callback to decide whether to re-enter hydration mode.
+        const wasHydrating = isFirstHydrationRender;
+
         if (!isFirstHydrationRender) {
           while (container.firstChild) {
             container.removeChild(container.firstChild);
@@ -117,16 +121,55 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
         const levels = buildLevels(newMatched);
         const rootFactory = buildInsideOutFactory(newMatched, levels, 0, router);
 
+        let asyncRoute = false;
         RouterContext.Provider(router, () => {
           const result = rootFactory();
 
           if (result instanceof Promise) {
+            asyncRoute = true;
+            // Pop the scope from pushScope() above — nothing useful was
+            // captured since the component returned a Promise instead of
+            // rendering synchronously.
+            popScope();
             result.then((mod) => {
               if (gen !== renderGen) return;
-              RouterContext.Provider(router, () => {
-                const node = (mod as { default: () => Node }).default();
-                container.appendChild(node);
-              });
+
+              let node!: Node;
+              pageCleanups = pushScope();
+
+              if (wasHydrating) {
+                // Re-enter hydration scoped to this container so the
+                // lazy component claims SSR nodes via __element()
+                // instead of creating new ones.
+                startHydration(container);
+                try {
+                  RouterContext.Provider(router, () => {
+                    node = (mod as { default: () => Node }).default();
+                    __append(container, node);
+                  });
+                } finally {
+                  endHydration();
+                }
+                // Safety fallback: if the component's root wasn't claimed
+                // (SSR/client tree mismatch), fall back to CSR append.
+                if (!container.contains(node)) {
+                  while (container.firstChild) {
+                    container.removeChild(container.firstChild);
+                  }
+                  container.appendChild(node);
+                }
+              } else {
+                // CSR: clear existing content and append the new component.
+                while (container.firstChild) {
+                  container.removeChild(container.firstChild);
+                }
+                RouterContext.Provider(router, () => {
+                  node = (mod as { default: () => Node }).default();
+                  container.appendChild(node);
+                });
+              }
+
+              popScope();
             });
           } else {
             __append(container, result);
@@ -134,7 +177,9 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
         });
 
         prevLevels = levels;
-        popScope();
+        if (!asyncRoute) {
+          popScope();
+        }
       };
 
       doRender();

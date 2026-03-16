@@ -43,6 +43,13 @@ export interface SSRRenderContext {
   discoveredRoutes?: string[];
 
   /**
+   * Route patterns that matched the current URL during SSR.
+   * The full matched chain from root to leaf (e.g., ['/app', '/app/settings']).
+   * Used by the SSR handler to inject per-route modulepreload tags.
+   */
+  matchedRoutePatterns?: string[];
+
+  /**
    * Auth state resolved by the server (e.g. from session cookie).
    * Set by ssrRenderToString() before Pass 1 so AuthProvider can
    * hydrate status/user synchronously during SSR.

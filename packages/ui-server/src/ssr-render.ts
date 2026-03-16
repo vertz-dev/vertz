@@ -85,6 +85,8 @@ export interface SSRRenderResult {
   headTags: string;
   /** Route patterns discovered by createRouter() during SSR (for build-time pre-rendering). */
   discoveredRoutes?: string[];
+  /** Route patterns that matched the current URL (for per-route modulepreload). */
+  matchedRoutePatterns?: string[];
   /** Set when ProtectedRoute writes a redirect during SSR. Server should return 302. */
   redirect?: { to: string };
 }
@@ -292,6 +294,7 @@ export async function ssrRenderToString(
         ssrData,
         headTags: themePreloadTags,
         discoveredRoutes: ctx.discoveredRoutes,
+        matchedRoutePatterns: ctx.matchedRoutePatterns,
       };
     } finally {
       clearGlobalSSRTimeout();

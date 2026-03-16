@@ -8,7 +8,7 @@
 
 import { type Context, createContext, useContext } from '../component/context';
 import { __append, __element, __enterChildren, __exitChildren } from '../dom/element';
-import { getIsHydrating } from '../hydrate/hydration-context';
+import { endHydration, getIsHydrating, startHydration } from '../hydrate/hydration-context';
 import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
 import { domEffect } from '../runtime/signal';
 import type { DisposeFn, Signal } from '../runtime/signal-types';
@@ -58,6 +58,10 @@ export function Outlet(): HTMLElement {
     untrack(() => {
       runCleanups(childCleanups);
 
+      // Capture hydration state before consuming it — needed by the
+      // async callback to decide whether to re-enter hydration mode.
+      const wasHydrating = isFirstHydrationRender;
+
       if (isFirstHydrationRender) {
         isFirstHydrationRender = false;
       } else {
@@ -78,13 +82,42 @@ export function Outlet(): HTMLElement {
           result.then((mod) => {
             // Guard against stale resolution from rapid navigation.
             if (gen !== renderGen) return;
-            // Re-enter a disposal scope so the async component's
-            // cleanups are captured and run on the next swap.
+
+            let node!: Node;
             childCleanups = pushScope();
-            RouterContext.Provider(router, () => {
-              const node = (mod as { default: () => Node }).default();
-              __append(container, node);
-            });
+
+            if (wasHydrating) {
+              // Re-enter hydration scoped to this container so the
+              // lazy component claims SSR nodes via __element()
+              // instead of creating new ones.
+              startHydration(container);
+              try {
+                RouterContext.Provider(router, () => {
+                  node = (mod as { default: () => Node }).default();
+                  __append(container, node);
+                });
+              } finally {
+                endHydration();
+              }
+              // Safety fallback: if the component's root wasn't claimed
+              // (SSR/client tree mismatch), fall back to CSR append.
+              if (!container.contains(node)) {
+                while (container.firstChild) {
+                  container.removeChild(container.firstChild);
+                }
+                container.appendChild(node);
+              }
+            } else {
+              // CSR: clear existing content and append the new component.
+              while (container.firstChild) {
+                container.removeChild(container.firstChild);
+              }
+              RouterContext.Provider(router, () => {
+                node = (mod as { default: () => Node }).default();
+                __append(container, node);
+              });
+            }
+
             popScope();
           });
         } else {

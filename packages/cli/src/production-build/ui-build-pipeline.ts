@@ -143,6 +143,21 @@ export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
       console.log(`  CSS: ${css}`);
     }
 
+    // ── 1b. Route chunk manifest ────────────────────────────────────
+    // Parse the built entry file to map route patterns → chunk filenames.
+    // The SSR handler uses this to inject per-route modulepreload tags.
+    if (clientJsPath && chunkPaths.length > 0) {
+      const { generateRouteChunkManifest } = await import('./route-chunk-manifest');
+      const entryFilePath = resolve(distClient, clientJsPath.replace(/^\//, ''));
+      const entryContent = readFileSync(entryFilePath, 'utf-8');
+      const manifest = generateRouteChunkManifest(entryContent, '/assets');
+      if (Object.keys(manifest.routes).length > 0) {
+        const manifestPath = resolve(distClient, 'route-chunk-manifest.json');
+        writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+        console.log(`  Route manifest: ${Object.keys(manifest.routes).length} route(s)`);
+      }
+    }
+
     // ── 2. CSS extraction ─────────────────────────────────────────
     let extractedCss = '';
     for (const [, extraction] of fileExtractions) {

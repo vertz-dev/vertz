@@ -237,21 +237,36 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
       }
     }
 
+    /** Match and record the matched route patterns for per-route modulepreload. */
+    function matchForSSR(ctx: NonNullable<typeof ssrCtx>): RouteMatch | null {
+      registerRoutesForDiscovery(ctx);
+      const m = matchRoute(routes, ctx.url);
+      if (m && !ctx.matchedRoutePatterns) {
+        // Build full paths by accumulating parent prefixes via joinPatterns.
+        const fullPaths: string[] = [];
+        let prefix = '';
+        for (const entry of m.matched) {
+          prefix = joinPatterns(prefix, entry.route.pattern);
+          fullPaths.push(prefix);
+        }
+        ctx.matchedRoutePatterns = fullPaths;
+      }
+      return m;
+    }
+
     return {
       current: {
         get value(): RouteMatch | null {
           const ctx = getSSRContext();
           if (ctx) {
-            registerRoutesForDiscovery(ctx);
-            return matchRoute(routes, ctx.url);
+            return matchForSSR(ctx);
           }
           return fallbackMatch;
         },
         peek(): RouteMatch | null {
           const ctx = getSSRContext();
           if (ctx) {
-            registerRoutesForDiscovery(ctx);
-            return matchRoute(routes, ctx.url);
+            return matchForSSR(ctx);
           }
           return fallbackMatch;
         },

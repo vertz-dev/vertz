@@ -533,6 +533,93 @@ describe('createSSRHandler', () => {
     });
   });
 
+  describe('routeChunkManifest', () => {
+    it('injects only matched route modulepreload tags when manifest provided', async () => {
+      const { createRouter, defineRoutes, RouterView } = await import('@vertz/ui');
+      const routedModule: SSRModule = {
+        default: () => {
+          const routes = defineRoutes({
+            '/': {
+              component: () => {
+                const el = document.createElement('div');
+                el.textContent = 'Home';
+                return el;
+              },
+            },
+            '/about': {
+              component: () => {
+                const el = document.createElement('div');
+                el.textContent = 'About';
+                return el;
+              },
+            },
+          });
+          const router = createRouter(routes, '/');
+          return RouterView({ router });
+        },
+      };
+
+      const handler = createSSRHandler({
+        module: routedModule,
+        template,
+        routeChunkManifest: {
+          routes: {
+            '/': ['/assets/chunk-home.js'],
+            '/about': ['/assets/chunk-about.js'],
+          },
+        },
+        // Also provide static modulepreload as fallback baseline
+        modulepreload: [
+          '/assets/chunk-home.js',
+          '/assets/chunk-about.js',
+          '/assets/chunk-settings.js',
+        ],
+      });
+
+      const response = await handler(new Request('http://localhost/'));
+      const html = await response.text();
+
+      // Should have only the matched route's chunk, not all chunks
+      expect(html).toContain('<link rel="modulepreload" href="/assets/chunk-home.js">');
+      expect(html).not.toContain('chunk-about.js');
+      expect(html).not.toContain('chunk-settings.js');
+    });
+
+    it('falls back to static modulepreload when no manifest provided', async () => {
+      const handler = createSSRHandler({
+        module: simpleModule,
+        template,
+        modulepreload: ['/assets/chunk-a.js', '/assets/chunk-b.js'],
+      });
+
+      const response = await handler(new Request('http://localhost/'));
+      const html = await response.text();
+
+      // Both static chunks should be present
+      expect(html).toContain('<link rel="modulepreload" href="/assets/chunk-a.js">');
+      expect(html).toContain('<link rel="modulepreload" href="/assets/chunk-b.js">');
+    });
+
+    it('falls back to static modulepreload when manifest has no match for route', async () => {
+      const handler = createSSRHandler({
+        module: simpleModule,
+        template,
+        routeChunkManifest: {
+          routes: {
+            '/other': ['/assets/chunk-other.js'],
+          },
+        },
+        modulepreload: ['/assets/chunk-fallback.js'],
+      });
+
+      const response = await handler(new Request('http://localhost/'));
+      const html = await response.text();
+
+      // No match in manifest for '/' — should use static fallback
+      expect(html).toContain('<link rel="modulepreload" href="/assets/chunk-fallback.js">');
+    });
+  });
+
   describe('SSR redirect', () => {
     const protectedModule: SSRModule = {
       default: () => {
