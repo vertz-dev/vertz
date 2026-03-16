@@ -102,8 +102,7 @@ d.text()
   .sensitive()              // Excluded when select: { not: 'sensitive' }
   .autoUpdate()             // Read-only + auto-updated on every write
   .check('length(name) > 0')  // SQL CHECK constraint
-  .references('users')      // FK to users.id
-  .references('users', 'email')  // FK to users.email
+  // Foreign keys: use d.ref.one() in d.model() — see Relations section below
 ```
 
 ### ID Generation

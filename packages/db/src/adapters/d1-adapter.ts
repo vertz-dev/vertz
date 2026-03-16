@@ -25,7 +25,7 @@ export interface D1PreparedStatement {
 }
 
 export interface D1AdapterOptions<T extends ColumnRecord> {
-  /** The table schema definition */
+  /** A single table schema definition. One adapter instance = one table. */
   schema: TableDef<T>;
   /** D1 database binding from Cloudflare env */
   d1: D1DatabaseBinding;
@@ -88,7 +88,12 @@ export class D1Adapter<T extends ColumnRecord> extends BaseSqlAdapter<T> {
 // ---------------------------------------------------------------------------
 
 /**
- * Create a D1 EntityDbAdapter from a schema and D1 binding.
+ * Create a D1 EntityDbAdapter for a single table schema and D1 binding.
+ *
+ * This adapter manages one entity (table) per instance — pass a single
+ * `TableDef` as the `schema` option. For multi-table applications, use
+ * `createDb()` from `@vertz/db` instead, which accepts a `models` record
+ * with multiple entries.
  *
  * NOTE: For production D1 deployments, migrations should be run via
  * `wrangler d1 migrations apply` during deployment, NOT at runtime.

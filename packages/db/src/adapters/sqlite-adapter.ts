@@ -20,7 +20,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ---------------------------------------------------------------------------
 
 export interface SqliteAdapterOptions<T extends ColumnRecord> {
-  /** The table schema definition */
+  /** A single table schema definition. One adapter instance = one table. */
   schema: TableDef<T>;
   /** Path to the SQLite database file */
   dbPath?: string;
@@ -127,7 +127,12 @@ export class SqliteAdapter<T extends ColumnRecord> extends BaseSqlAdapter<T> {
 // ---------------------------------------------------------------------------
 
 /**
- * Create a SQLite EntityDbAdapter from a schema.
+ * Create a SQLite EntityDbAdapter for a single table schema.
+ *
+ * This adapter manages one entity (table) per instance — pass a single
+ * `TableDef` as the `schema` option. For multi-table applications, use
+ * `createDb()` from `@vertz/db` instead, which accepts a `models` record
+ * with multiple entries.
  */
 export async function createSqliteAdapter<T extends ColumnRecord>(
   options: SqliteAdapterOptions<T>,
