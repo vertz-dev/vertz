@@ -1,15 +1,15 @@
 /**
  * Composed Select — high-level composable component built on Select.Root.
- * Handles slot scanning, item wiring, and class distribution via context.
+ * Handles slot scanning, item wiring, and class distribution.
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, resolveChildren } from '@vertz/ui';
+import { resolveChildren } from '@vertz/ui';
 import { scanSlots } from '../composed/scan-slots';
 import { Select } from './select';
 
 // ---------------------------------------------------------------------------
-// Class distribution context
+// Class types
 // ---------------------------------------------------------------------------
 
 export interface SelectClasses {
@@ -19,11 +19,6 @@ export interface SelectClasses {
   group?: string;
   separator?: string;
 }
-
-const SelectClassesContext = createContext<SelectClasses | undefined>(
-  undefined,
-  '@vertz/ui-primitives::SelectClassesContext',
-);
 
 // ---------------------------------------------------------------------------
 // Sub-component props
@@ -111,11 +106,8 @@ function ComposedSelectRoot({
   placeholder,
   onValueChange,
 }: ComposedSelectProps) {
-  // Provide classes via context, then resolve children inside the scope
-  let resolvedNodes: Node[] = [];
-  SelectClassesContext.Provider(classes, () => {
-    resolvedNodes = resolveChildren(children);
-  });
+  // Resolve children to scan for structural slots
+  const resolvedNodes = resolveChildren(children);
 
   // Scan for structural slots
   const { slots } = scanSlots(resolvedNodes);
