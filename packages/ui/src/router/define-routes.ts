@@ -38,6 +38,8 @@ export interface RouteConfig<
   children?: RouteDefinitionMap;
   /** Whether to pre-render this route at build time (default: true for static routes). */
   prerender?: boolean;
+  /** Generate param combinations for pre-rendering dynamic routes at build time. */
+  generateParams?: () => Array<Record<string, string>> | Promise<Array<Record<string, string>>>;
   /** Per-route view transition config. Overrides global RouterOptions.viewTransition. */
   viewTransition?: boolean | ViewTransitionConfig;
 }
@@ -67,6 +69,7 @@ export interface RouteConfigLike {
   searchParams?: SearchParamSchema<unknown>;
   children?: Record<string, RouteConfigLike>;
   prerender?: boolean;
+  generateParams?: () => Array<Record<string, string>> | Promise<Array<Record<string, string>>>;
   viewTransition?: boolean | ViewTransitionConfig;
 }
 
@@ -105,6 +108,8 @@ export interface CompiledRoute {
   children?: CompiledRoute[];
   /** Whether to pre-render this route at build time (default: true for static routes). */
   prerender?: boolean;
+  /** Generate param combinations for pre-rendering dynamic routes at build time. */
+  generateParams?: () => Array<Record<string, string>> | Promise<Array<Record<string, string>>>;
   /** Per-route view transition config. */
   viewTransition?: boolean | ViewTransitionConfig;
 }
@@ -153,6 +158,7 @@ export function defineRoutes<const T extends Record<string, RouteConfigLike>>(
     const compiled: CompiledRoute = {
       component: config.component,
       errorComponent: config.errorComponent,
+      generateParams: config.generateParams,
       loader: config.loader as CompiledRoute['loader'],
       params: config.params,
       pattern,

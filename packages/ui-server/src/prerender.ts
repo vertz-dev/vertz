@@ -125,6 +125,61 @@ export function stripScriptsFromStaticHTML(html: string): string {
   return result;
 }
 
+/**
+ * Collect all paths that should be pre-rendered from compiled routes.
+ *
+ * Walks the route tree and collects:
+ * - Static routes with `prerender: true`
+ * - Dynamic routes with `generateParams` (expanded to concrete paths)
+ * - Skips routes with `prerender: false`
+ * - Routes without `prerender` or `generateParams` are not collected
+ */
+export async function collectPrerenderPaths(
+  routes: CompiledRoute[],
+  prefix = '',
+): Promise<string[]> {
+  const paths: string[] = [];
+
+  for (const route of routes) {
+    const fullPattern = joinPatterns(prefix, route.pattern);
+    const optedOut = route.prerender === false;
+
+    // Collect this route's paths (unless opted out)
+    if (!optedOut) {
+      if (route.generateParams) {
+        // Dynamic route with generateParams — expand to concrete paths
+        const paramSets = await route.generateParams();
+        for (const params of paramSets) {
+          let path = fullPattern;
+          for (const [key, value] of Object.entries(params)) {
+            path = path.replaceAll(`:${key}`, value);
+          }
+          // Validate all params were replaced
+          const unreplaced = path.match(/:(\w+)/);
+          if (unreplaced) {
+            throw new Error(
+              `generateParams for "${fullPattern}" returned params missing key "${unreplaced[1]}"`,
+            );
+          }
+          paths.push(path);
+        }
+      } else if (route.prerender === true) {
+        // Static route with explicit prerender: true
+        paths.push(fullPattern);
+      }
+    }
+
+    // Always recurse into children — parent prerender: false only affects the parent,
+    // not its children (a layout route may opt out while its pages opt in)
+    if (route.children) {
+      const childPaths = await collectPrerenderPaths(route.children, fullPattern);
+      paths.push(...childPaths);
+    }
+  }
+
+  return paths;
+}
+
 /** Find a compiled route by pattern (recursive through children). */
 function findCompiledRoute(
   routes: CompiledRoute[],

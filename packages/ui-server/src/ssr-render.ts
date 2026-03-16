@@ -5,7 +5,7 @@
  * real TypeScript functions that can be imported directly.
  */
 
-import { compileTheme, type FontFallbackMetrics, type Theme } from '@vertz/ui';
+import { type CompiledRoute, compileTheme, type FontFallbackMetrics, type Theme } from '@vertz/ui';
 import type { SSRRenderContext } from '@vertz/ui/internals';
 import { EntityStore, MemoryCache, QueryEnvelopeStore } from '@vertz/ui/internals';
 import { installDomShim, toVNode } from './dom-shim';
@@ -75,6 +75,8 @@ export interface SSRModule {
    * SSR renderer. Export `getInjectedCSS` from @vertz/ui in the app entry.
    */
   getInjectedCSS?: () => string[];
+  /** Compiled routes exported from the app for build-time SSG with generateParams. */
+  routes?: CompiledRoute[];
 }
 
 export interface SSRRenderResult {

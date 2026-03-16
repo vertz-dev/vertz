@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 import { createRouter, defineRoutes } from '@vertz/ui';
 import { installDomShim } from '../dom-shim';
-import { discoverRoutes, filterPrerenderableRoutes, prerenderRoutes } from '../prerender';
+import {
+  collectPrerenderPaths,
+  discoverRoutes,
+  filterPrerenderableRoutes,
+  prerenderRoutes,
+} from '../prerender';
 
 installDomShim();
 
@@ -108,6 +113,161 @@ describe('filterPrerenderableRoutes', () => {
     const result = filterPrerenderableRoutes(['/', '/about', '/pricing']);
 
     expect(result).toEqual(['/', '/about', '/pricing']);
+  });
+});
+
+describe('collectPrerenderPaths', () => {
+  it('collects static routes with prerender: true', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': { component: () => document.createElement('div'), prerender: true },
+      '/dashboard': { component: () => document.createElement('div'), prerender: false },
+    });
+
+    const paths = await collectPrerenderPaths(routes);
+
+    expect(paths).toContain('/about');
+    expect(paths).not.toContain('/');
+    expect(paths).not.toContain('/dashboard');
+  });
+
+  it('expands dynamic routes via generateParams', async () => {
+    const routes = defineRoutes({
+      '/blog/:slug': {
+        component: () => document.createElement('div'),
+        generateParams: () => [{ slug: 'hello' }, { slug: 'world' }],
+      },
+    });
+
+    const paths = await collectPrerenderPaths(routes);
+
+    expect(paths).toContain('/blog/hello');
+    expect(paths).toContain('/blog/world');
+    expect(paths).not.toContain('/blog/:slug');
+  });
+
+  it('supports async generateParams', async () => {
+    const routes = defineRoutes({
+      '/posts/:id': {
+        component: () => document.createElement('div'),
+        generateParams: async () => [{ id: '1' }, { id: '2' }],
+      },
+    });
+
+    const paths = await collectPrerenderPaths(routes);
+
+    expect(paths).toEqual(['/posts/1', '/posts/2']);
+  });
+
+  it('handles nested routes with generateParams on child', async () => {
+    const routes = defineRoutes({
+      '/docs': {
+        component: () => document.createElement('div'),
+        prerender: true,
+        children: {
+          '/': { component: () => document.createElement('div'), prerender: true },
+          '/:slug': {
+            component: () => document.createElement('div'),
+            generateParams: () => [{ slug: 'intro' }],
+          },
+        },
+      },
+    });
+
+    const paths = await collectPrerenderPaths(routes);
+
+    expect(paths).toContain('/docs');
+    expect(paths).toContain('/docs/intro');
+  });
+
+  it('returns empty array when no routes have prerender or generateParams', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': { component: () => document.createElement('div') },
+    });
+
+    const paths = await collectPrerenderPaths(routes);
+
+    expect(paths).toEqual([]);
+  });
+
+  it('skips routes with prerender: false even if they have generateParams', async () => {
+    const routes = defineRoutes({
+      '/blog/:slug': {
+        component: () => document.createElement('div'),
+        prerender: false,
+        generateParams: () => [{ slug: 'hello' }],
+      },
+    });
+
+    const paths = await collectPrerenderPaths(routes);
+
+    expect(paths).toEqual([]);
+  });
+
+  it('still traverses children when parent has prerender: false', async () => {
+    const routes = defineRoutes({
+      '/app': {
+        component: () => document.createElement('div'),
+        prerender: false,
+        children: {
+          '/blog/:slug': {
+            component: () => document.createElement('div'),
+            generateParams: () => [{ slug: 'hello' }],
+          },
+          '/about': {
+            component: () => document.createElement('div'),
+            prerender: true,
+          },
+        },
+      },
+    });
+
+    const paths = await collectPrerenderPaths(routes);
+
+    expect(paths).toContain('/app/blog/hello');
+    expect(paths).toContain('/app/about');
+    expect(paths).not.toContain('/app');
+  });
+
+  it('expands multiple params in a single route pattern', async () => {
+    const routes = defineRoutes({
+      '/users/:userId/posts/:postId': {
+        component: () => document.createElement('div'),
+        generateParams: () => [
+          { userId: 'alice', postId: '1' },
+          { userId: 'bob', postId: '2' },
+        ],
+      },
+    });
+
+    const paths = await collectPrerenderPaths(routes);
+
+    expect(paths).toEqual(['/users/alice/posts/1', '/users/bob/posts/2']);
+  });
+
+  it('throws when generateParams returns incomplete params', async () => {
+    const routes = defineRoutes({
+      '/users/:userId/posts/:postId': {
+        component: () => document.createElement('div'),
+        generateParams: () => [{ userId: 'alice' }],
+      },
+    });
+
+    await expect(collectPrerenderPaths(routes)).rejects.toThrow(/postId/);
+  });
+
+  it('throws when generateParams rejects', async () => {
+    const routes = defineRoutes({
+      '/blog/:slug': {
+        component: () => document.createElement('div'),
+        generateParams: async () => {
+          throw new Error('CMS unavailable');
+        },
+      },
+    });
+
+    await expect(collectPrerenderPaths(routes)).rejects.toThrow('CMS unavailable');
   });
 });
 

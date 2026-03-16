@@ -8,6 +8,7 @@
 
 export type { PrerenderOptions, PrerenderResult } from '../prerender';
 export {
+  collectPrerenderPaths,
   discoverRoutes,
   filterPrerenderableRoutes,
   prerenderRoutes,
