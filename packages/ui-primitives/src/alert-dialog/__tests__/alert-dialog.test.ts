@@ -229,6 +229,27 @@ describe('AlertDialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it('show() is idempotent — calling twice only fires onOpenChange(true) once', () => {
+    const onOpenChange = vi.fn();
+    const { trigger, content, cancel, show } = AlertDialog.Root({ onOpenChange });
+    content.appendChild(cancel);
+    container.appendChild(trigger);
+    container.appendChild(content);
+
+    show();
+    show(); // second call should be a no-op
+
+    expect(onOpenChange).toHaveBeenCalledTimes(1);
+    expect(onOpenChange).toHaveBeenCalledWith(true);
+  });
+
+  it('show() is a no-op on an already-open dialog (defaultOpen)', () => {
+    const onOpenChange = vi.fn();
+    AlertDialog.Root({ defaultOpen: true, onOpenChange }).show();
+
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
   it('hide() is a no-op on a never-opened dialog', () => {
     const onOpenChange = vi.fn();
     AlertDialog.Root({ onOpenChange }).hide();

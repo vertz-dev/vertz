@@ -96,11 +96,8 @@ function AlertDialogTrigger({ children }: SlotProps) {
     userTrigger.setAttribute('data-state', 'closed');
 
     // AlertDialog trigger only opens (never closes on click)
-    const handleClick = () => {
-      if (!alertDialog.state.open.peek()) {
-        alertDialog.show();
-      }
-    };
+    // show() is idempotent — safe to call when already open
+    const handleClick = () => alertDialog.show();
     userTrigger.addEventListener('click', handleClick);
     _tryOnCleanup(() => userTrigger.removeEventListener('click', handleClick));
 

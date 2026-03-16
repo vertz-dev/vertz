@@ -111,6 +111,7 @@ function AlertDialogRoot(
   let removeTrap: (() => void) | null = null;
 
   function show(): void {
+    if (state.open.peek()) return;
     state.open.value = true;
     setExpanded(trigger, true);
     setHidden(overlay, false);
@@ -142,9 +143,8 @@ function AlertDialogRoot(
     onOpenChange?.(false);
   }
 
-  const trigger = AlertDialogTriggerEl(ids.triggerId, ids.contentId, defaultOpen, () => {
-    if (!state.open.peek()) show();
-  });
+  // show() is idempotent — safe to call when already open
+  const trigger = AlertDialogTriggerEl(ids.triggerId, ids.contentId, defaultOpen, show);
 
   const overlay = AlertDialogOverlayEl(defaultOpen);
 
