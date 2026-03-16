@@ -1,4 +1,4 @@
-import { domEffect } from '../runtime/signal';
+import { deferredDomEffect } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
 import { styleObjectToString } from './style';
 
@@ -9,13 +9,17 @@ import { styleObjectToString } from './style';
  *
  * Compiler output target for reactive attribute expressions.
  * Returns a dispose function to stop the reactive binding.
+ *
+ * Uses deferredDomEffect so the first run is skipped during hydration
+ * (SSR attributes are already correct). Dependency tracking is
+ * established when endHydration() flushes the deferred queue.
  */
 export function __attr(
   el: HTMLElement,
   name: string,
   fn: () => string | boolean | Record<string, string | number> | null | undefined,
 ): DisposeFn {
-  return domEffect(() => {
+  return deferredDomEffect(() => {
     const value = fn();
     if (value == null || value === false) {
       el.removeAttribute(name);
@@ -40,7 +44,7 @@ export function __attr(
 export function __show(el: HTMLElement, fn: () => boolean): DisposeFn {
   // Capture the original display value so we can restore it
   const originalDisplay = el.style.display;
-  return domEffect(() => {
+  return deferredDomEffect(() => {
     el.style.display = fn() ? originalDisplay : 'none';
   });
 }
@@ -57,7 +61,7 @@ export function __classList(el: HTMLElement, classMap: Record<string, () => bool
   const disposers: DisposeFn[] = [];
   for (const [className, fn] of Object.entries(classMap)) {
     disposers.push(
-      domEffect(() => {
+      deferredDomEffect(() => {
         if (fn()) {
           el.classList.add(className);
         } else {

@@ -1,4 +1,5 @@
 import { type ContextScope, getContextScope, setContextScope } from '../component/context';
+import { queueDeferredEffect } from '../hydrate/hydration-context';
 import { getSSRContext } from '../ssr/ssr-render-context';
 import { _tryOnCleanup } from './disposal';
 import { batch, scheduleNotify } from './scheduler';
@@ -270,6 +271,40 @@ export function domEffect(fn: () => void): DisposeFn {
 
   const eff = new EffectImpl(fn);
   eff._run();
+  const dispose = () => eff._dispose();
+  _tryOnCleanup(dispose);
+  return dispose;
+}
+
+/**
+ * Like domEffect, but defers the first run during hydration.
+ *
+ * Use for effects where SSR content is already correct and the first run
+ * is wasted work (e.g., __text setting node.data to the same value,
+ * __attr setting attributes to the same values). The effect is queued
+ * and flushed synchronously at endHydration(), establishing dependency
+ * tracking so reactive updates work immediately after.
+ *
+ * NOT suitable for effects that do structural DOM work during hydration
+ * (e.g., __conditional claiming SSR nodes, __list populating node maps).
+ * Those must use regular domEffect.
+ */
+export function deferredDomEffect(fn: () => void): DisposeFn {
+  if (isSSR()) {
+    fn();
+    return () => {};
+  }
+
+  const eff = new EffectImpl(fn);
+
+  const deferred = queueDeferredEffect(() => {
+    if (!eff._disposed) eff._run();
+  });
+
+  if (!deferred) {
+    eff._run();
+  }
+
   const dispose = () => eff._dispose();
   _tryOnCleanup(dispose);
   return dispose;

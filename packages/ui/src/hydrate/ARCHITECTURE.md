@@ -38,14 +38,14 @@ or **manipulates the stack**:
 |---|---|---|
 | `__element(tag)` | `claimElement(tag)` → returns matching element | **Advances** to nextSibling |
 | `__staticText(text)` | `claimText()` → returns text node | **Advances** to nextSibling |
-| `__text(fn)` | `claimText()` + attach effect | **Advances** to nextSibling |
+| `__text(fn)` | `claimText()` + `deferredDomEffect` (deferred until `endHydration` flush) | **Advances** to nextSibling |
 | `__child(fn)` | `claimElement('span')` + **pause** hydration + CSR render inside + **resume** | **Advances** past span; inner content is CSR |
 | `__insert(parent, value)` | **Resolves** functions/arrays, claims text for primitives | **Advances** only for text claims |
 | `__append(parent, child)` | **No-op** (child already in DOM) | None |
 | `__enterChildren(el)` | `enterChildren(el)` | **Pushes** cursor to stack, cursor = el.firstChild |
 | `__exitChildren()` | `exitChildren()` | **Pops** cursor from stack |
 | `__on(el, event, handler)` | `addEventListener` (same as CSR) | None |
-| `__attr(el, name, fn)` | `domEffect` (same as CSR) | None |
+| `__attr(el, name, fn)` | `deferredDomEffect` (deferred until `endHydration` flush) | None |
 | `__conditional(...)` | `claimComment()` + run active branch | **Advances** past anchor + branch nodes |
 | `__list(...)` | First run: claim all item nodes via renderFn | **Advances** past all items |
 
