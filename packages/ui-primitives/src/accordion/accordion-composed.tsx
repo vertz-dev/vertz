@@ -137,24 +137,26 @@ function AccordionItem({ value, children }: ItemProps) {
     contentClass: undefined,
   };
 
-  const itemCtx = buildAccordionItemCtx(
+  const itemCtx: AccordionItemContextValue = {
     value,
     triggerId,
     contentId,
-    ctx.classes,
-    (triggerChildren, triggerClass) => {
+    classes: ctx.classes,
+    _registerTrigger: (triggerChildren, triggerClass) => {
       if (itemReg.triggerChildren === undefined) {
         itemReg.triggerChildren = triggerChildren;
         itemReg.triggerClass = triggerClass;
       }
     },
-    (contentChildren, contentClass) => {
+    _registerContent: (contentChildren, contentClass) => {
       if (itemReg.contentChildren === undefined) {
         itemReg.contentChildren = contentChildren;
         itemReg.contentClass = contentClass;
       }
     },
-  );
+    _triggerClaimed: false,
+    _contentClaimed: false,
+  };
 
   // Resolve children (Trigger, Content) to collect their registrations
   AccordionItemContext.Provider(itemCtx, () => {
@@ -282,39 +284,6 @@ export interface ComposedAccordionProps {
 
 export type AccordionClassKey = keyof AccordionClasses;
 
-// Helper to build context value — avoids compiler wrapping object literal in computed().
-function buildAccordionCtx(
-  classes: AccordionClasses | undefined,
-  registerItem: (reg: ItemRegistration) => void,
-): AccordionContextValue {
-  return {
-    classes,
-    _registerItem: registerItem,
-    _itemsClaimed: new Set(),
-  };
-}
-
-// Helper to build item context value — avoids compiler wrapping object literal in computed().
-function buildAccordionItemCtx(
-  value: string,
-  triggerId: string,
-  contentId: string,
-  classes: AccordionClasses | undefined,
-  registerTrigger: (children: ChildValue, cls?: string) => void,
-  registerContent: (children: ChildValue, cls?: string) => void,
-): AccordionItemContextValue {
-  return {
-    value,
-    triggerId,
-    contentId,
-    classes,
-    _registerTrigger: registerTrigger,
-    _registerContent: registerContent,
-    _triggerClaimed: false,
-    _contentClaimed: false,
-  };
-}
-
 function ComposedAccordionRoot({
   children,
   classes,
@@ -330,12 +299,16 @@ function ComposedAccordionRoot({
     itemMap: Map<string, ItemRegistration>;
   } = { items: [], itemMap: new Map() };
 
-  const ctxValue = buildAccordionCtx(classes, (itemReg) => {
-    if (!reg.itemMap.has(itemReg.value)) {
-      reg.items.push(itemReg);
-      reg.itemMap.set(itemReg.value, itemReg);
-    }
-  });
+  const ctxValue: AccordionContextValue = {
+    classes,
+    _registerItem: (itemReg) => {
+      if (!reg.itemMap.has(itemReg.value)) {
+        reg.items.push(itemReg);
+        reg.itemMap.set(itemReg.value, itemReg);
+      }
+    },
+    _itemsClaimed: new Set(),
+  };
 
   // Phase 1: resolve children to collect item registrations
   AccordionContext.Provider(ctxValue, () => {

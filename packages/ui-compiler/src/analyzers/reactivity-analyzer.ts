@@ -49,6 +49,7 @@ export class ReactivityAnalyzer {
         deps: string[];
         propertyAccesses: Map<string, Set<string>>;
         isFunctionDef: boolean;
+        isStructuralLiteral: boolean;
       }
     >();
     const signalApiVars = new Map<string, SignalApiConfig>(); // Track variables assigned from signal APIs
@@ -122,6 +123,7 @@ export class ReactivityAnalyzer {
                     deps: [],
                     propertyAccesses: new Map(),
                     isFunctionDef: false,
+                    isStructuralLiteral: false,
                   });
                 }
               }
@@ -146,6 +148,7 @@ export class ReactivityAnalyzer {
                 deps,
                 propertyAccesses: propAccesses,
                 isFunctionDef: false,
+                isStructuralLiteral: false,
               };
               consts.set(bindingName, entry);
               destructuredFromMap.set(bindingName, syntheticName);
@@ -159,6 +162,7 @@ export class ReactivityAnalyzer {
                 deps,
                 propertyAccesses,
                 isFunctionDef: false,
+                isStructuralLiteral: false,
               };
               if (isLet) {
                 lets.set(bindingName, entry);
@@ -178,6 +182,11 @@ export class ReactivityAnalyzer {
         const isFunctionDef =
           unwrappedInit?.isKind(SyntaxKind.ArrowFunction) === true ||
           unwrappedInit?.isKind(SyntaxKind.FunctionExpression) === true;
+        // Object/array literals are one-time structural constructions — they should
+        // never be wrapped in computed(). Like function defs, they are stable references.
+        const isStructuralLiteral =
+          unwrappedInit?.isKind(SyntaxKind.ObjectLiteralExpression) === true ||
+          unwrappedInit?.isKind(SyntaxKind.ArrayLiteralExpression) === true;
         const { refs: deps, propertyAccesses } = init
           ? collectDeps(init)
           : { refs: [] as string[], propertyAccesses: new Map<string, Set<string>>() };
@@ -187,6 +196,7 @@ export class ReactivityAnalyzer {
           deps,
           propertyAccesses,
           isFunctionDef,
+          isStructuralLiteral,
         };
 
         // Check if this is assigned from a signal API call or reactive source API call.
@@ -275,7 +285,7 @@ export class ReactivityAnalyzer {
       for (const [name, info] of consts) {
         if (computeds.has(name)) continue;
         if (signalApiVars.has(name)) continue;
-        if (info.isFunctionDef) continue;
+        if (info.isFunctionDef || info.isStructuralLiteral) continue;
         const dependsOnReactive = info.deps.some((dep) => {
           if (signals.has(dep) || computeds.has(dep) || reactiveSourceVars.has(dep)) return true;
           const apiConfig = signalApiVars.get(dep);

@@ -717,4 +717,75 @@ describe('ReactivityAnalyzer', () => {
     // Derived from signal property → computed
     expect(findVar(result?.variables, 'isAllowed')?.kind).toBe('computed');
   });
+
+  // ─── Object/array literal classification (#1387) ──────────────
+
+  it('classifies object literal referencing a reactive source as static', () => {
+    const [result] = analyze(`
+      function Comp({ classes }) {
+        const ctx = { classes, name: 'test', register: () => {} };
+        return <div>{ctx.name}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'ctx')?.kind).toBe('static');
+  });
+
+  it('classifies object literal referencing a signal as static', () => {
+    const [result] = analyze(`
+      function Comp() {
+        let count = 0;
+        const handlers = { increment: () => { count++; }, get: () => count };
+        return <div onClick={handlers.increment}>{count}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'handlers')?.kind).toBe('static');
+  });
+
+  it('classifies array literal referencing a reactive source as static', () => {
+    const [result] = analyze(`
+      function Comp({ items }) {
+        const list = [items, 'extra'];
+        return <div>{list}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'list')?.kind).toBe('static');
+  });
+
+  it('classifies object literal referencing a signal via function call as static', () => {
+    const [result] = analyze(`
+      function buildCtx(classes, register) {
+        return { classes, register, _claimed: false };
+      }
+      function Comp({ classes }) {
+        const ctx = buildCtx(classes, (el) => {});
+        return <div>{ctx._claimed}</div>;
+      }
+    `);
+    // The call expression result still becomes computed (function call, not literal),
+    // but the object literal inside buildCtx is static
+    expect(findVar(result?.variables, 'ctx')?.kind).toBe('computed');
+  });
+
+  it('classifies object literal with nested reactive references as static', () => {
+    const [result] = analyze(`
+      import { useContext } from '@vertz/ui';
+      function Comp() {
+        const theme = useContext(ThemeCtx);
+        const config = { theme, extra: 42 };
+        return <div>{config.extra}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'config')?.kind).toBe('static');
+  });
+
+  it('classifies array literal with signal elements as static', () => {
+    const [result] = analyze(`
+      function Comp() {
+        let count = 0;
+        const arr = [count, count * 2];
+        return <div>{arr}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'arr')?.kind).toBe('static');
+  });
 });

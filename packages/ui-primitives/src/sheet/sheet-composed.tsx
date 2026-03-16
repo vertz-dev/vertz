@@ -156,27 +156,12 @@ export interface ComposedSheetProps {
 
 export type SheetClassKey = keyof SheetClasses;
 
-// Helper to build the context value — avoids compiler wrapping an object
-// literal in computed(), which breaks the block-vs-object-literal ambiguity.
-function buildSheetCtx(
-  titleId: string,
-  descriptionId: string,
-  classes: SheetClasses | undefined,
-  registerTrigger: (el: HTMLElement) => void,
-  registerContent: (children: ChildValue, cls?: string) => void,
-): SheetContextValue {
-  return {
-    titleId,
-    descriptionId,
-    classes,
-    _registerTrigger: registerTrigger,
-    _registerContent: registerContent,
-    _triggerClaimed: false,
-    _contentClaimed: false,
-  };
-}
-
-function ComposedSheetRoot({ children, classes, side = 'right', onOpenChange }: ComposedSheetProps) {
+function ComposedSheetRoot({
+  children,
+  classes,
+  side = 'right',
+  onOpenChange,
+}: ComposedSheetProps) {
   const ids = linkedIds('sheet');
   const titleId = `${ids.contentId}-title`;
   const descriptionId = `${ids.contentId}-description`;
@@ -189,14 +174,14 @@ function ComposedSheetRoot({ children, classes, side = 'right', onOpenChange }: 
     contentRegistered: boolean;
   } = { triggerEl: null, contentNodes: [], contentCls: undefined, contentRegistered: false };
 
-  const ctxValue = buildSheetCtx(
+  const ctxValue: SheetContextValue = {
     titleId,
     descriptionId,
     classes,
-    (el) => {
+    _registerTrigger: (el) => {
       reg.triggerEl = el;
     },
-    (contentChildren, cls) => {
+    _registerContent: (contentChildren, cls) => {
       if (!reg.contentRegistered) {
         reg.contentRegistered = true;
         // Resolve content children immediately while still inside the Provider scope
@@ -205,7 +190,9 @@ function ComposedSheetRoot({ children, classes, side = 'right', onOpenChange }: 
         reg.contentCls = cls;
       }
     },
-  );
+    _triggerClaimed: false,
+    _contentClaimed: false,
+  };
 
   // Phase 1: resolve children to collect registrations
   let resolvedNodes: Node[] = [];

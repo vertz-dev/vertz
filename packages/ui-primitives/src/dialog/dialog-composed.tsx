@@ -175,26 +175,6 @@ export interface ComposedDialogProps {
 
 export type DialogClassKey = keyof DialogClasses;
 
-// Helper to build the context value — avoids compiler wrapping an object
-// literal in computed(), which breaks the block-vs-object-literal ambiguity.
-function buildDialogCtx(
-  titleId: string,
-  descriptionId: string,
-  classes: DialogClasses | undefined,
-  registerTrigger: (el: HTMLElement) => void,
-  registerContent: (children: ChildValue, cls?: string) => void,
-): DialogContextValue {
-  return {
-    titleId,
-    descriptionId,
-    classes,
-    _registerTrigger: registerTrigger,
-    _registerContent: registerContent,
-    _triggerClaimed: false,
-    _contentClaimed: false,
-  };
-}
-
 function ComposedDialogRoot({ children, classes, onOpenChange, closeIcon }: ComposedDialogProps) {
   const ids = linkedIds('dialog');
   const titleId = `${ids.contentId}-title`;
@@ -207,20 +187,22 @@ function ComposedDialogRoot({ children, classes, onOpenChange, closeIcon }: Comp
     contentCls: string | undefined;
   } = { triggerEl: null, contentChildren: undefined, contentCls: undefined };
 
-  const ctxValue = buildDialogCtx(
+  const ctxValue: DialogContextValue = {
     titleId,
     descriptionId,
     classes,
-    (el) => {
+    _registerTrigger: (el) => {
       reg.triggerEl = el;
     },
-    (contentChildren, cls) => {
+    _registerContent: (contentChildren, cls) => {
       if (reg.contentChildren === undefined) {
         reg.contentChildren = contentChildren;
         reg.contentCls = cls;
       }
     },
-  );
+    _triggerClaimed: false,
+    _contentClaimed: false,
+  };
 
   // Phase 1: resolve children to collect registrations
   let resolvedNodes: Node[] = [];

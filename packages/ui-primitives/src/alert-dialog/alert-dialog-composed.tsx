@@ -223,28 +223,6 @@ export interface ComposedAlertDialogProps {
 
 export type AlertDialogClassKey = keyof AlertDialogClasses;
 
-// Helper to build the context value — avoids compiler wrapping an object
-// literal in computed(), which breaks the block-vs-object-literal ambiguity.
-function buildAlertDialogCtx(
-  titleId: string,
-  descriptionId: string,
-  classes: AlertDialogClasses | undefined,
-  onAction: (() => void) | undefined,
-  registerTrigger: (el: HTMLElement) => void,
-  registerContent: (children: ChildValue, cls?: string) => void,
-): AlertDialogContextValue {
-  return {
-    titleId,
-    descriptionId,
-    classes,
-    onAction,
-    _registerTrigger: registerTrigger,
-    _registerContent: registerContent,
-    _triggerClaimed: false,
-    _contentClaimed: false,
-  };
-}
-
 function ComposedAlertDialogRoot({
   children,
   classes,
@@ -262,21 +240,23 @@ function ComposedAlertDialogRoot({
     contentCls: string | undefined;
   } = { triggerEl: null, contentChildren: undefined, contentCls: undefined };
 
-  const ctxValue = buildAlertDialogCtx(
+  const ctxValue: AlertDialogContextValue = {
     titleId,
     descriptionId,
     classes,
     onAction,
-    (el) => {
+    _registerTrigger: (el) => {
       reg.triggerEl = el;
     },
-    (contentChildren, cls) => {
+    _registerContent: (contentChildren, cls) => {
       if (reg.contentChildren === undefined) {
         reg.contentChildren = contentChildren;
         reg.contentCls = cls;
       }
     },
-  );
+    _triggerClaimed: false,
+    _contentClaimed: false,
+  };
 
   // Phase 1: resolve children to collect registrations
   let resolvedNodes: Node[] = [];

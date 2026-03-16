@@ -110,24 +110,6 @@ export interface ComposedTooltipProps {
 
 export type TooltipClassKey = keyof TooltipClasses;
 
-// Helper to build the context value — avoids compiler wrapping an object
-// literal in computed(), which breaks the block-vs-object-literal ambiguity.
-function buildTooltipCtx(
-  contentId: string,
-  classes: TooltipClasses | undefined,
-  registerTrigger: (el: HTMLElement) => void,
-  registerContent: (children: ChildValue, cls?: string) => void,
-): TooltipContextValue {
-  return {
-    contentId,
-    classes,
-    _registerTrigger: registerTrigger,
-    _registerContent: registerContent,
-    _triggerClaimed: false,
-    _contentClaimed: false,
-  };
-}
-
 function ComposedTooltipRoot({
   children,
   classes,
@@ -144,19 +126,21 @@ function ComposedTooltipRoot({
     floatingCleanup: (() => void) | null;
   } = { triggerEl: null, contentChildren: undefined, contentCls: undefined, floatingCleanup: null };
 
-  const ctxValue = buildTooltipCtx(
+  const ctxValue: TooltipContextValue = {
     contentId,
     classes,
-    (el) => {
+    _registerTrigger: (el) => {
       reg.triggerEl = el;
     },
-    (contentChildren, cls) => {
+    _registerContent: (contentChildren, cls) => {
       if (reg.contentChildren === undefined) {
         reg.contentChildren = contentChildren;
         reg.contentCls = cls;
       }
     },
-  );
+    _triggerClaimed: false,
+    _contentClaimed: false,
+  };
 
   // Phase 1: resolve children to collect registrations
   let resolvedNodes: Node[] = [];

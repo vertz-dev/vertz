@@ -198,21 +198,6 @@ export interface ComposedTabsProps {
 
 export type TabsClassKey = keyof TabsClasses;
 
-// Helper to build context value — avoids compiler wrapping object literal in computed().
-function buildTabsCtx(
-  classes: TabsClasses | undefined,
-  registerTrigger: (value: string, children: ChildValue, cls?: string) => void,
-  registerContent: (value: string, children: ChildValue, cls?: string) => void,
-): TabsContextValue {
-  return {
-    classes,
-    _registerTrigger: registerTrigger,
-    _registerContent: registerContent,
-    _triggersClaimed: new Set(),
-    _contentsClaimed: new Set(),
-  };
-}
-
 function ComposedTabsRoot({
   children,
   classes,
@@ -226,9 +211,9 @@ function ComposedTabsRoot({
     tabMap: Map<string, TabRegistration>;
   } = { tabs: [], tabMap: new Map() };
 
-  const ctxValue = buildTabsCtx(
+  const ctxValue: TabsContextValue = {
     classes,
-    (value, triggerChildren, triggerClass) => {
+    _registerTrigger: (value, triggerChildren, triggerClass) => {
       if (!reg.tabMap.has(value)) {
         const baseId = uniqueId('tab');
         const entry: TabRegistration = {
@@ -244,14 +229,16 @@ function ComposedTabsRoot({
         reg.tabMap.set(value, entry);
       }
     },
-    (value, panelChildren, panelClass) => {
+    _registerContent: (value, panelChildren, panelClass) => {
       const entry = reg.tabMap.get(value);
       if (entry && entry.panelChildren === undefined) {
         entry.panelChildren = panelChildren;
         entry.panelClass = panelClass;
       }
     },
-  );
+    _triggersClaimed: new Set(),
+    _contentsClaimed: new Set(),
+  };
 
   // Phase 1: resolve children to collect registrations
   TabsContext.Provider(ctxValue, () => {

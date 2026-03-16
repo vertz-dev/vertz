@@ -212,39 +212,6 @@ function MenuSeparator({ className: cls, class: classProp }: SlotProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Context value builder — outside component body to avoid computed() wrapping
-// ---------------------------------------------------------------------------
-
-function buildCtxValue(
-  reg: {
-    userTrigger: HTMLElement | null;
-    contentChildren: Node[];
-    items: HTMLDivElement[];
-  },
-  classes: DropdownMenuClasses | undefined,
-  onSelect: ((value: string) => void) | undefined,
-): DropdownMenuContextValue {
-  return {
-    classes,
-    onSelect,
-    _registerTrigger: (el: HTMLElement) => {
-      reg.userTrigger = el;
-    },
-    _registerContent: (children: Node[]) => {
-      for (let i = 0; i < children.length; i++) {
-        const child = children[i];
-        if (child) reg.contentChildren.push(child);
-      }
-    },
-    _registerItem: (el: HTMLDivElement) => {
-      reg.items.push(el);
-    },
-    _triggerClaimed: false,
-    _contentClaimed: false,
-  };
-}
-
-// ---------------------------------------------------------------------------
 // Root composed component
 // ---------------------------------------------------------------------------
 
@@ -294,8 +261,23 @@ function ComposedDropdownMenuRoot({
     resolvedNodes: [],
   };
 
-  // Build context value via helper to avoid compiler computed() wrapping
-  const ctxValue = buildCtxValue(reg, classes, onSelect);
+  const ctxValue: DropdownMenuContextValue = {
+    classes,
+    onSelect,
+    _registerTrigger: (el: HTMLElement) => {
+      reg.userTrigger = el;
+    },
+    _registerContent: (children: Node[]) => {
+      children.forEach((child) => {
+        reg.contentChildren.push(child);
+      });
+    },
+    _registerItem: (el: HTMLDivElement) => {
+      reg.items.push(el);
+    },
+    _triggerClaimed: false,
+    _contentClaimed: false,
+  };
 
   // Phase 1: resolve children to collect registrations
   DropdownMenuContext.Provider(ctxValue, () => {
@@ -321,9 +303,9 @@ function ComposedDropdownMenuRoot({
   // --- State management functions ---
 
   function updateActiveItem(index: number): void {
-    for (let i = 0; i < reg.items.length; i++) {
-      reg.items[i]?.setAttribute('tabindex', i === index ? '0' : '-1');
-    }
+    reg.items.forEach((item, i) => {
+      item.setAttribute('tabindex', i === index ? '0' : '-1');
+    });
   }
 
   function handleClickOutside(event: MouseEvent): void {
