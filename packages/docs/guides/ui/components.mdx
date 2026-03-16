@@ -210,20 +210,15 @@ Compound components are groups of related components designed to work together �
 Compound components should render children in the order the developer provides them. Don't inspect or reorganize children into "correct" slots:
 
 ```tsx
-// Wrong — inspecting children to rearrange them
-export function Card() {
-  const kids = children();
-  const header = kids.filter(isCardHeader);
-  const body = kids.filter(isCardBody);
-  const footer = kids.filter(isCardFooter);
+import { children } from 'vertz/ui';
 
-  return (
-    <div>
-      {header}
-      {body}
-      {footer}
-    </div>
-  );
+// Wrong — scanning children to enforce a specific order
+export function Card() {
+  const content = children();
+  const resolved = content();
+  // Sorting or filtering children by type to reorder them
+  // is fragile and causes hydration mismatches
+  return <div>{sortBySlot(resolved)}</div>;
 }
 
 // Right — render children as-is
@@ -245,6 +240,8 @@ If a developer puts `CardFooter` before `CardContent`, they'll see the footer fi
 When a component genuinely needs to control layout, use explicit props instead of scanning children:
 
 ```tsx
+import { children } from 'vertz/ui';
+
 interface PageLayoutProps {
   sidebar: () => JSX.Element;
   header: () => JSX.Element;

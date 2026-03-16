@@ -182,12 +182,16 @@ Hydration uses a global cursor that tracks position in the DOM tree. As your com
 SSR HTML: <div><h1>Hello</h1><button>Click</button></div>
 
 Client execution:
-  claim <div>       → adopts SSR <div>, cursor moves to first child
-    claim <h1>      → adopts SSR <h1>, cursor moves to next sibling
-    claim <button>  → adopts SSR <button>, attaches onClick handler
+  claim <div>         → adopts SSR <div>, cursor advances to next sibling
+  enter children      → pushes cursor to stack, cursor = <div>'s first child
+    claim <h1>        → adopts SSR <h1>, cursor advances to <button>
+    claim <button>    → adopts SSR <button>, attaches onClick handler
+  exit children       → pops cursor from stack
 ```
 
-The cursor moves forward through siblings. When entering a child element, the current position is pushed onto a stack. When exiting, the position is restored — like a depth-first tree walk.
+Claiming an element advances the cursor to the next sibling. Entering a child element pushes the current cursor position onto a stack and moves to the element's first child. Exiting pops the stack — like a depth-first tree walk.
+
+When scanning for a match, `claimElement` skips past non-matching elements and text nodes to find the expected tag further in the sibling list. This makes it tolerant of browser-injected nodes (extensions, whitespace). `claimText` is more conservative — it stops at element nodes without consuming them, preventing it from stealing an element that a subsequent claim expects.
 
 ### Tolerant claiming
 
@@ -204,8 +208,10 @@ This is important for compound components that may attempt to claim nodes that o
 
 ### Fallback behavior
 
-If hydration can't adopt the SSR DOM at all (structure is too different), `mount()` falls back to full client-side rendering. The SSR HTML is replaced entirely. This is a last resort — in practice, the tolerant claiming handles most mismatches gracefully.
+If an unhandled exception occurs during hydration, `mount()` falls back to full client-side rendering — clearing the SSR HTML and re-creating the DOM from scratch. This is a last resort. In practice, tolerant claiming handles individual mismatches silently by creating missing nodes from scratch without interrupting the rest of the tree.
 
 ### Debugging hydration
 
-Set `window.__VERTZ_HYDRATION_DEBUG__ = true` before calling `mount()` to enable cursor movement logging in the browser console. This shows exactly which nodes are claimed, skipped, or missed — useful for diagnosing why an element isn't interactive after page load.
+In development, hydration automatically logs warnings when claims fail or SSR nodes are left unclaimed after hydration finishes. These unclaimed-node warnings from `endHydration()` are often the first signal that something is mismatched.
+
+For production or browser-only debugging, set `window.__VERTZ_HYDRATION_DEBUG__ = true` before calling `mount()` to enable detailed cursor movement logging in the console. This shows exactly which nodes are claimed, skipped, or missed — useful for diagnosing why an element isn't interactive after page load.
