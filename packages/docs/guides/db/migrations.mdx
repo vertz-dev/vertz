@@ -5,6 +5,60 @@ description: "Automatic schema migrations during development, explicit migration
 
 Vertz handles migrations by diffing your TypeScript schema against the database. During development, migrations run automatically when you save a schema file — no commands needed. For production, you generate migration files and apply them explicitly.
 
+## Getting started
+
+<Steps>
+  <Step title="Define your schema">
+    Create a `.schema.ts` file with your table definitions using the `d` builder. See the [schema guide](/guides/db/schema) for details.
+  </Step>
+  <Step title="Start the dev server">
+    Run `vertz dev`. The dev server watches your schema files and applies migrations automatically when you save.
+  </Step>
+  <Step title="Generate migration files before deploying">
+    When you're ready to deploy, run `vertz db migrate` to create a migration file, then `vertz db deploy` in production to apply it.
+  </Step>
+</Steps>
+
+## Command comparison
+
+| Command | Creates migration file? | Applies to DB? | Use when |
+|---------|:-:|:-:|----------|
+| `vertz dev` | No | Yes (auto) | Local development — schema changes apply on save |
+| `vertz db push` | No | Yes | Quick one-off schema sync without a migration file |
+| `vertz db migrate` | Yes | Yes | Generating a reviewable migration file for production |
+| `vertz db deploy` | No | Yes (pending only) | Production deployments — applies committed migration files |
+| `autoMigrate()` | No | Yes | Programmatic dev setup (test suites, scripts). **SQLite only.** |
+
+- **`vertz dev`** — the default for local development. No commands to remember.
+- **`vertz db push`** — useful when you want to apply changes outside the dev server without generating a migration file (e.g., CI test databases).
+- **`vertz db migrate`** — generates a numbered `.sql` file in your migrations directory and applies it. Commit this file to version control.
+- **`vertz db deploy`** — reads migration files from disk and applies any that haven't been applied yet. Never generates new files. Safe for production.
+- **`autoMigrate()`** — a programmatic API for test setup or custom scripts. It diffs the schema snapshot and applies changes directly. Currently supports SQLite only — Postgres users should use `vertz db push` or `migrateDev()` instead.
+
+## File structure
+
+After running `vertz db migrate`, your project will have:
+
+```
+my-app/
+├── migrations/
+│   ├── 0000_initial.sql              # First migration (raw SQL)
+│   ├── 0001_add-priority-to-tasks.sql
+│   ├── _journal.json                 # Migration metadata & checksums
+│   └── _snapshot.json                # Current schema snapshot
+├── src/
+│   └── tasks.schema.ts               # Your schema definitions
+└── vertz.config.ts
+```
+
+| File | Purpose |
+|------|---------|
+| `migrations/*.sql` | Numbered migration files containing DDL statements. Commit these. |
+| `migrations/_journal.json` | Tracks which migrations exist, their checksums, and creation timestamps. Commit this. |
+| `migrations/_snapshot.json` | The current schema state used for diffing. Commit this. |
+
+The migrations directory defaults to `./migrations/` and can be changed via `migrationsDir` in `vertz.config.ts`.
+
 ## Development workflow
 
 During `vertz dev`, schema changes are detected and applied automatically:
@@ -65,7 +119,7 @@ vertz db deploy
 vertz db status
 ```
 
-Shows which migrations have been applied and which are pending.
+Shows which migrations have been applied and which are pending. Also detects schema drift — differences between the expected schema and the actual database state.
 
 ### Baseline
 
@@ -102,5 +156,53 @@ await migrateDeploy({
 const status = await migrateStatus({
   queryFn: db.queryFn,
   migrationsDir: './migrations',
+});
+```
+
+## Troubleshooting
+
+### Snapshot out of sync
+
+**Symptom:** `vertz db migrate` generates unexpected changes (re-adding columns that already exist, or dropping columns you didn't remove).
+
+**Cause:** The `_snapshot.json` file doesn't match the actual database state. This can happen if you applied schema changes manually or edited the database outside the migration system.
+
+**Fix:**
+1. Run `vertz db status` to see what the system thinks the current state is.
+2. If the database is correct and the snapshot is wrong, run `vertz db push` to sync the snapshot to match your current schema, then run `vertz db migrate` to generate a clean migration.
+3. If the database is wrong, run `vertz db reset` (development only) to rebuild from migration files.
+
+### Migration fails to apply
+
+**Symptom:** `vertz db deploy` or `vertz db migrate` fails with a SQL error.
+
+**Fix:**
+1. Read the error — it usually points to a specific SQL statement (e.g., column already exists, constraint violation).
+2. If the migration was partially applied, check `vertz db status` to see which migrations succeeded.
+3. Fix the failing migration SQL file manually, then re-run `vertz db deploy`.
+4. If the database is in an inconsistent state in development, `vertz db reset` will drop everything and re-apply all migrations from scratch.
+
+<Warning>`vertz db reset` drops all tables and data. Never use in production.</Warning>
+
+### Concurrent schema edits
+
+**Symptom:** Two developers edit the schema at the same time and both run `vertz db migrate`. The second migration may conflict with the first.
+
+**Fix:**
+1. The journal system detects sequence number collisions. If two migrations share the same number, `vertz db migrate` will warn you.
+2. Pull the latest migrations from version control, resolve any conflicts in the SQL files and `_journal.json`, then re-run `vertz db migrate`.
+
+### autoMigrate not available for Postgres
+
+`autoMigrate()` only supports SQLite. If you need programmatic migration for Postgres in test setup or scripts, use `migrateDev()` or `push()` from `vertz/db` instead:
+
+```ts
+import { push } from 'vertz/db';
+
+await push({
+  queryFn: db.queryFn,
+  currentSnapshot: db.snapshot,
+  previousSnapshot: loadFromFile(),
+  dialect: 'postgres',
 });
 ```
