@@ -101,7 +101,7 @@
           },
           {
             "group": "Deployment",
-            "pages": ["guides/deploy/static-sites", "guides/deploy/og-images"]
+            "pages": ["guides/deploy/static-sites", "guides/deploy/ssg", "guides/deploy/og-images"]
           }
         ],
         "tab": "Guides"

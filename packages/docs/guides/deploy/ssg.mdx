@@ -1,0 +1,214 @@
+---
+title: Static Site Generation (SSG)
+description: "Pre-render routes at build time with generateParams and prerender"
+---
+
+Vertz can pre-render routes to static HTML at build time. Static pages load instantly — no server-side rendering per request, no JavaScript needed for content-only pages.
+
+## How it works
+
+When you run `vertz build`, the build pipeline:
+
+1. Builds client and server bundles
+2. Discovers all routes from your app
+3. Collects pre-renderable paths (static routes + `generateParams` expansions)
+4. Renders each path to a complete HTML file
+5. Writes them to `dist/client/<path>/index.html`
+
+Pages with interactive components (hydration markers) keep their client JS. Purely static pages have all `<script>` tags stripped — zero JavaScript shipped.
+
+## Mark routes for pre-rendering
+
+Add `prerender: true` to any static route:
+
+```tsx
+import { defineRoutes } from 'vertz/ui';
+
+const routes = defineRoutes({
+  '/': {
+    component: () => HomePage(),
+    prerender: true,
+  },
+  '/about': {
+    component: () => AboutPage(),
+    prerender: true,
+  },
+  '/dashboard': {
+    component: () => Dashboard(),
+    prerender: false, // requires runtime data — skip
+  },
+});
+```
+
+Routes without `prerender` are not pre-rendered. Routes with `prerender: false` are explicitly skipped.
+
+## Dynamic routes with `generateParams`
+
+For routes with `:param` segments, provide a `generateParams` function that returns all param combinations to pre-render:
+
+```tsx
+const routes = defineRoutes({
+  '/blog/:slug': {
+    component: () => BlogPost(),
+    loader: async (ctx) => fetchPost(ctx.params.slug),
+    generateParams: async () => [
+      { slug: 'intro-to-vertz' },
+      { slug: 'reactive-signals' },
+      { slug: 'type-safe-routing' },
+    ],
+  },
+});
+```
+
+At build time, this expands to three pages:
+- `dist/client/blog/intro-to-vertz/index.html`
+- `dist/client/blog/reactive-signals/index.html`
+- `dist/client/blog/type-safe-routing/index.html`
+
+A route with `generateParams` is implicitly pre-rendered — you don't need `prerender: true`.
+
+### Fetching params from a data source
+
+`generateParams` can be async. Fetch slugs from a database, CMS, or API:
+
+```tsx
+const routes = defineRoutes({
+  '/blog/:slug': {
+    component: () => BlogPost(),
+    loader: async (ctx) => fetchPost(ctx.params.slug),
+    generateParams: async () => {
+      const posts = await db.select().from(postsTable);
+      return posts.map((post) => ({ slug: post.slug }));
+    },
+  },
+});
+```
+
+### Multiple params
+
+For routes with multiple dynamic segments, return objects with all param keys:
+
+```tsx
+const routes = defineRoutes({
+  '/docs/:section/:page': {
+    component: () => DocsPage(),
+    generateParams: async () => [
+      { section: 'guides', page: 'quickstart' },
+      { section: 'guides', page: 'routing' },
+      { section: 'api', page: 'router' },
+    ],
+  },
+});
+```
+
+If a param key is missing from a returned object, the build fails with a clear error message telling you which key was missing.
+
+## Export routes from your app
+
+For `vertz build` to discover `generateParams`, export your routes from `app.tsx`:
+
+```tsx
+// src/app.tsx
+import { getInjectedCSS } from 'vertz/ui';
+import { routes } from './router';
+
+export { getInjectedCSS };
+export { routes };
+
+export function App() {
+  // ...
+}
+```
+
+The build pipeline imports the server bundle and reads the `routes` export to collect pre-render paths.
+
+## Nested routes
+
+Parent and child routes are independent for pre-rendering. A parent with `prerender: false` does not prevent its children from being pre-rendered:
+
+```tsx
+const routes = defineRoutes({
+  '/admin': {
+    component: () => AdminLayout(),
+    prerender: false, // layout needs auth — skip
+    children: {
+      '/help': {
+        component: () => AdminHelpPage(),
+        prerender: true, // but help page is static
+      },
+    },
+  },
+});
+```
+
+## Build output
+
+After `vertz build`, pre-rendered pages are in `dist/client/`:
+
+```
+dist/client/
+├── index.html                      # / (if prerender: true)
+├── about/
+│   └── index.html                  # /about
+├── blog/
+│   ├── intro-to-vertz/
+│   │   └── index.html              # /blog/intro-to-vertz
+│   └── reactive-signals/
+│       └── index.html              # /blog/reactive-signals
+├── assets/
+│   ├── entry-client-[hash].js      # Client bundle
+│   └── vertz.css                   # Extracted CSS
+└── _shell.html                     # HTML template (for SSR fallback)
+```
+
+The build console shows what was pre-rendered:
+
+```
+📄 Pre-rendering routes...
+  Discovered 5 route(s): /, /about, /blog/:slug, /dashboard, /admin/help
+  Pre-rendering 4 route(s) (2 static, 2 from generateParams)...
+  ✓ / → dist/client/index.html
+  ✓ /about → dist/client/about/index.html
+  ✓ /blog/intro-to-vertz → dist/client/blog/intro-to-vertz/index.html
+  ✓ /blog/reactive-signals → dist/client/blog/reactive-signals/index.html
+```
+
+## When to use SSG vs SSR
+
+| | SSG (`prerender: true`) | SSR (default) |
+|---|---|---|
+| **Rendered** | Once, at build time | Every request |
+| **Data** | Build-time only | Per-request (fresh) |
+| **Performance** | Instant — served from CDN | Server render + data fetch |
+| **Use case** | Blog posts, docs, landing pages | Dashboards, auth-gated pages |
+
+You can mix both in the same app. Pre-render your marketing pages and blog, while keeping your dashboard as SSR.
+
+## Troubleshooting
+
+### "Pre-render failed for /path"
+
+The route's component or loader threw during build-time rendering. Common causes:
+- The loader depends on runtime-only data (auth, cookies, request headers)
+- A component accesses `window` or `document` unconditionally
+
+Fix: Add `prerender: false` to the route, or guard browser-only code:
+
+```tsx
+if (typeof window !== 'undefined') {
+  // browser-only code
+}
+```
+
+### "generateParams returned params missing key"
+
+The objects returned by `generateParams` don't include all `:param` segments in the route pattern. Check that every dynamic segment has a matching key in each returned object.
+
+<CardGroup cols={2}>
+  <Card title="Static Sites" icon="globe" href="/guides/deploy/static-sites">
+    Deploy a static Vertz site to Cloudflare Workers
+  </Card>
+  <Card title="SSR" icon="server" href="/guides/ui/ssr">
+    Server-side rendering for dynamic apps
+  </Card>
+</CardGroup>
