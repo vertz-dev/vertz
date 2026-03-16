@@ -76,9 +76,13 @@
     "uuid": "^13.0.0"
   },
   "peerDependencies": {
+    "better-sqlite3": "^12.0.0",
     "postgres": "^3.4.8"
   },
   "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    },
     "postgres": {
       "optional": true
     }

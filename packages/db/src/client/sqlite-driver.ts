@@ -195,6 +195,55 @@ interface LocalSqliteDatabase {
 }
 
 // ---------------------------------------------------------------------------
+// resolveLocalSqliteDatabase — resolve bun:sqlite or better-sqlite3
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve a local SQLite database using bun:sqlite or better-sqlite3.
+ *
+ * Tries bun:sqlite first (Bun runtime), then falls back to better-sqlite3 (Node.js).
+ * If both fail, throws a descriptive error with both failure reasons.
+ *
+ * @param dbPath - Path to SQLite file, or ':memory:' for in-memory
+ * @param requireFn - Optional require function for testing (defaults to global require)
+ * @returns A LocalSqliteDatabase instance
+ */
+export function resolveLocalSqliteDatabase(
+  dbPath: string,
+  requireFn: (mod: string) => unknown = require,
+): LocalSqliteDatabase {
+  let bunSqliteError: unknown;
+
+  try {
+    // Try bun:sqlite first (Bun runtime)
+    const mod = requireFn('bun:sqlite') as { Database: new (path: string) => LocalSqliteDatabase };
+    return new mod.Database(dbPath);
+  } catch (e) {
+    bunSqliteError = e;
+  }
+
+  try {
+    // Fall back to better-sqlite3 (Node.js runtime)
+    const Database = requireFn('better-sqlite3') as new (path: string) => LocalSqliteDatabase;
+    return new Database(dbPath);
+  } catch (betterSqliteError) {
+    const bunMsg =
+      bunSqliteError instanceof Error ? bunSqliteError.message : String(bunSqliteError);
+    const betterMsg =
+      betterSqliteError instanceof Error ? betterSqliteError.message : String(betterSqliteError);
+
+    throw new Error(
+      `Failed to initialize SQLite database at "${dbPath}".\n` +
+        `  bun:sqlite error: ${bunMsg}\n` +
+        `  better-sqlite3 error: ${betterMsg}\n\n` +
+        'To fix this, either:\n' +
+        '  1. Use the Bun runtime (which includes bun:sqlite), or\n' +
+        '  2. Install better-sqlite3: npm install better-sqlite3',
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // createLocalSqliteDriver — factory for bun:sqlite / better-sqlite3
 // ---------------------------------------------------------------------------
 
@@ -222,17 +271,7 @@ export function createLocalSqliteDriver(
     }
   }
 
-  let db: LocalSqliteDatabase;
-
-  try {
-    // Try bun:sqlite first (Bun runtime)
-    const { Database } = require('bun:sqlite');
-    db = new Database(dbPath) as LocalSqliteDatabase;
-  } catch {
-    // Fall back to better-sqlite3 (Node.js runtime)
-    const Database = require('better-sqlite3');
-    db = new Database(dbPath) as LocalSqliteDatabase;
-  }
+  const db = resolveLocalSqliteDatabase(dbPath);
 
   // Enable WAL mode for file-based paths (not :memory:)
   if (dbPath !== ':memory:') {
