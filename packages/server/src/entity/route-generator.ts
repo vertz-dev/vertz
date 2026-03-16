@@ -12,6 +12,7 @@ import type { EntityDefinition, EntityRelationsConfig } from './types';
 import {
   type ExposeValidationConfig,
   MAX_CURSOR_LENGTH,
+  MAX_LIMIT,
   parseVertzQL,
   type VertzQLIncludeEntry,
   validateVertzQL,
@@ -158,21 +159,20 @@ export function generateEntityRoutes(
 
   // --- LIST ---
   if (def.access.list !== undefined) {
+    const list405Handler = async () =>
+      jsonResponse(
+        {
+          error: {
+            code: 'MethodNotAllowed',
+            message: `Operation "list" is disabled for ${def.name}`,
+          },
+        },
+        405,
+      );
+
     if (def.access.list === false) {
-      routes.push({
-        method: 'GET',
-        path: basePath,
-        handler: async () =>
-          jsonResponse(
-            {
-              error: {
-                code: 'MethodNotAllowed',
-                message: `Operation "list" is disabled for ${def.name}`,
-              },
-            },
-            405,
-          ),
-      });
+      routes.push({ method: 'GET', path: basePath, handler: list405Handler });
+      routes.push({ method: 'POST', path: `${basePath}/query`, handler: list405Handler });
     } else {
       routes.push({
         method: 'GET',
@@ -273,7 +273,10 @@ export function generateEntityRoutes(
           const parsed = {
             where: body.where as Record<string, unknown> | undefined,
             orderBy: body.orderBy as Record<string, 'asc' | 'desc'> | undefined,
-            limit: typeof body.limit === 'number' ? body.limit : undefined,
+            limit:
+              typeof body.limit === 'number'
+                ? Math.max(0, Math.min(body.limit, MAX_LIMIT))
+                : undefined,
             after: typeof body.after === 'string' ? body.after : undefined,
             select: body.select as Record<string, true> | undefined,
             include: body.include as Record<string, true | VertzQLIncludeEntry> | undefined,

@@ -1599,4 +1599,75 @@ describe('Feature: Expose descriptor runtime evaluation', () => {
       });
     });
   });
+
+  describe('Given POST /query with limit exceeding MAX_LIMIT', () => {
+    describe('When the body contains limit: 999999', () => {
+      it('Then clamps the limit to MAX_LIMIT (1000)', async () => {
+        const items = Array.from({ length: 5 }, (_, i) => ({
+          id: `id-${i}`,
+          email: `u${i}@b.com`,
+          name: `User ${i}`,
+          passwordHash: 'h',
+          role: 'viewer',
+        }));
+        const db = createMockDb(items);
+        const def = buildEntityDef();
+        const registry = new EntityRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+        const queryRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users/query');
+
+        const resp = await queryRoute!.handler({
+          userId: 'u1',
+          tenantId: null,
+          roles: [],
+          params: {},
+          body: { limit: 999999 },
+          query: {},
+          headers: {},
+        });
+        const body = await resp.json();
+
+        expect(resp.status).toBe(200);
+        // The limit in response metadata should be clamped to MAX_LIMIT, not 999999
+        expect(body.limit).toBeLessThanOrEqual(1000);
+      });
+    });
+  });
+
+  describe('Given access.list === false', () => {
+    describe('When POST /query is called', () => {
+      it('Then returns 405 MethodNotAllowed', async () => {
+        const def = buildEntityDef({
+          access: {
+            list: false,
+            get: () => true,
+            create: () => true,
+            update: () => true,
+            delete: () => true,
+          },
+        });
+        const db = createMockDb();
+        const registry = new EntityRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+
+        const queryRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users/query');
+        expect(queryRoute).toBeDefined();
+
+        const resp = await queryRoute!.handler({
+          userId: 'u1',
+          tenantId: null,
+          roles: [],
+          params: {},
+          body: {},
+          query: {},
+          headers: {},
+        });
+
+        expect(resp.status).toBe(405);
+        const body = await resp.json();
+        expect(body.error.code).toBe('MethodNotAllowed');
+        expect(body.error.message).toContain('list');
+      });
+    });
+  });
 });
