@@ -6,7 +6,6 @@
 
 import type { ChildValue } from '@vertz/ui';
 import { createContext, resolveChildren, useContext } from '@vertz/ui';
-import { _tryOnCleanup } from '@vertz/ui/internals';
 import { setDataState, setExpanded, setHidden, setHiddenAnimated } from '../utils/aria';
 import { uniqueId } from '../utils/id';
 import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
@@ -207,67 +206,62 @@ function AccordionContent({ children, className: cls, class: classProp }: SlotPr
 }
 
 // ---------------------------------------------------------------------------
-// Element builders — standalone functions outside the Root component body so
-// the Vertz compiler does not classify their return values as computed().
+// Element builder — standalone function outside the Root component body so
+// the Vertz compiler does not classify its return values as computed().
+//
+// Uses nested JSX so that elements are created in DOM order:
+//   item div → button (trigger) → div (content)
+// This is critical for hydration (#1406): the hydration cursor claims
+// elements in sibling order, so the creation order must match the SSR
+// DOM structure. Previously, separate builders created trigger/content
+// BEFORE the item wrapper, causing buildContentEl's __element("div") to
+// claim the SSR accordion root div and corrupt it with display:none.
 // ---------------------------------------------------------------------------
 
-function buildTriggerEl(
+function buildItem(
   item: ItemRegistration,
   classes: AccordionClasses | undefined,
   isOpen: boolean,
-): HTMLButtonElement {
+  onTriggerClick: () => void,
+): { itemEl: HTMLDivElement; triggerEl: HTMLButtonElement; contentEl: HTMLDivElement } {
   const triggerClass = [classes?.trigger, item.triggerClass].filter(Boolean).join(' ');
-  const resolved = resolveChildren(item.triggerChildren);
-  return (
-    <button
-      type="button"
-      id={item.triggerId}
-      aria-controls={item.contentId}
-      data-value={item.value}
-      aria-expanded={isOpen ? 'true' : 'false'}
-      data-state={isOpen ? 'open' : 'closed'}
-      class={triggerClass || undefined}
-    >
-      {...resolved}
-    </button>
-  ) as HTMLButtonElement;
-}
-
-function buildContentEl(
-  item: ItemRegistration,
-  classes: AccordionClasses | undefined,
-  isOpen: boolean,
-): HTMLDivElement {
   const contentClass = [classes?.content, item.contentClass].filter(Boolean).join(' ');
-  const resolved = resolveChildren(item.contentChildren);
-  return (
-    <div
-      role="region"
-      id={item.contentId}
-      aria-labelledby={item.triggerId}
-      aria-hidden={isOpen ? 'false' : 'true'}
-      data-state={isOpen ? 'open' : 'closed'}
-      style={isOpen ? '' : 'display: none'}
-      class={contentClass || undefined}
-    >
-      {...resolved}
-    </div>
-  ) as HTMLDivElement;
-}
-
-function buildItemEl(
-  item: ItemRegistration,
-  classes: AccordionClasses | undefined,
-  triggerEl: HTMLButtonElement,
-  contentEl: HTMLDivElement,
-): HTMLDivElement {
   const itemClass = classes?.item || undefined;
-  return (
+  const resolvedTrigger = resolveChildren(item.triggerChildren);
+  const resolvedContent = resolveChildren(item.contentChildren);
+
+  const itemEl = (
     <div data-value={item.value} class={itemClass}>
-      {triggerEl}
-      {contentEl}
+      <button
+        type="button"
+        id={item.triggerId}
+        aria-controls={item.contentId}
+        data-value={item.value}
+        aria-expanded={isOpen ? 'true' : 'false'}
+        data-state={isOpen ? 'open' : 'closed'}
+        class={triggerClass || undefined}
+        onClick={onTriggerClick}
+      >
+        {...resolvedTrigger}
+      </button>
+      <div
+        role="region"
+        id={item.contentId}
+        aria-labelledby={item.triggerId}
+        aria-hidden={isOpen ? 'false' : 'true'}
+        data-state={isOpen ? 'open' : 'closed'}
+        style={isOpen ? '' : 'display: none'}
+        class={contentClass || undefined}
+      >
+        {...resolvedContent}
+      </div>
     </div>
   ) as HTMLDivElement;
+
+  const triggerEl = itemEl.querySelector(`#${item.triggerId}`) as HTMLButtonElement;
+  const contentEl = itemEl.querySelector(`#${item.contentId}`) as HTMLDivElement;
+
+  return { itemEl, triggerEl, contentEl };
 }
 
 // ---------------------------------------------------------------------------
@@ -315,22 +309,14 @@ function ComposedAccordionRoot({
     resolveChildren(children);
   });
 
-  // Phase 2: build trigger, content, and item elements.
-  // Use plain arrays with a loop — the compiler only transforms top-level
-  // `const` assignments; variables inside loop bodies are not analyzed.
+  // Phase 2: build items inside the root JSX return.
+  // Items are built inside the root element via .map() so that during
+  // hydration, the cursor is correctly positioned inside the root and
+  // claims elements in DOM order (root → item → trigger → content).
+  // See #1406: previously, items were built before the root, causing
+  // buildContentEl's __element("div") to claim the SSR root div.
   const triggerEls: HTMLButtonElement[] = [];
   const contentEls: HTMLDivElement[] = [];
-  const itemEls: HTMLDivElement[] = [];
-
-  for (const item of reg.items) {
-    const isOpen = defaultValue.includes(item.value);
-    const triggerEl = buildTriggerEl(item, classes, isOpen);
-    const contentEl = buildContentEl(item, classes, isOpen);
-    const itemEl = buildItemEl(item, classes, triggerEl, contentEl);
-    triggerEls.push(triggerEl);
-    contentEls.push(contentEl);
-    itemEls.push(itemEl);
-  }
 
   // let for reactive state — compiler transforms to signal
   let openValues: string[] = [...defaultValue];
@@ -384,27 +370,6 @@ function ComposedAccordionRoot({
     }
   }
 
-  // Wire click handlers on each trigger (explicit for cleanup)
-  for (let i = 0; i < triggerEls.length; i++) {
-    const triggerEl = triggerEls[i]!;
-    const itemValue = reg.items[i]!.value;
-    const handleClick = () => toggleItem(itemValue);
-    triggerEl.addEventListener('click', handleClick);
-    _tryOnCleanup(() => triggerEl.removeEventListener('click', handleClick));
-  }
-
-  // Initialize open heights for initially-open items
-  for (let i = 0; i < reg.items.length; i++) {
-    const item = reg.items[i]!;
-    if (defaultValue.includes(item.value)) {
-      const contentEl = contentEls[i]!;
-      requestAnimationFrame(() => {
-        const height = contentEl.scrollHeight;
-        contentEl.style.setProperty('--accordion-content-height', `${height}px`);
-      });
-    }
-  }
-
   const handleKeydown = (event: KeyboardEvent) => {
     if (isKey(event, Keys.ArrowUp, Keys.ArrowDown, Keys.Home, Keys.End)) {
       handleListNavigation(event, triggerEls, { orientation: 'vertical' });
@@ -413,7 +378,25 @@ function ComposedAccordionRoot({
 
   return (
     <div data-orientation="vertical" onKeydown={handleKeydown}>
-      {...itemEls}
+      {reg.items.map((item) => {
+        const isOpen = defaultValue.includes(item.value);
+        const { itemEl, triggerEl, contentEl } = buildItem(item, classes, isOpen, () =>
+          toggleItem(item.value),
+        );
+        triggerEls.push(triggerEl);
+        contentEls.push(contentEl);
+
+        if (isOpen) {
+          requestAnimationFrame(() => {
+            contentEl.style.setProperty(
+              '--accordion-content-height',
+              `${contentEl.scrollHeight}px`,
+            );
+          });
+        }
+
+        return itemEl;
+      })}
     </div>
   );
 }
