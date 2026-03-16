@@ -1,7 +1,7 @@
 import { demoStyles } from '../styles/catalog';
 import { themeComponents } from '../styles/theme';
 
-const { progress } = themeComponents.primitives;
+const { Progress } = themeComponents.primitives;
 
 export function ProgressDemo() {
   return (
@@ -11,19 +11,19 @@ export function ProgressDemo() {
         <div className={demoStyles.col}>
           <div>
             <span style="color: var(--color-muted-foreground); font-size: 12px">0%</span>
-            {progress({ defaultValue: 0 }).root}
+            <Progress defaultValue={0} />
           </div>
           <div>
             <span style="color: var(--color-muted-foreground); font-size: 12px">33%</span>
-            {progress({ defaultValue: 33 }).root}
+            <Progress defaultValue={33} />
           </div>
           <div>
             <span style="color: var(--color-muted-foreground); font-size: 12px">66%</span>
-            {progress({ defaultValue: 66 }).root}
+            <Progress defaultValue={66} />
           </div>
           <div>
             <span style="color: var(--color-muted-foreground); font-size: 12px">100%</span>
-            {progress({ defaultValue: 100 }).root}
+            <Progress defaultValue={100} />
           </div>
         </div>
       </div>
