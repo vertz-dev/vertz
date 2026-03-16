@@ -204,10 +204,13 @@ function ComposedDialogRoot({ children, classes, onOpenChange, closeIcon }: Comp
     _contentClaimed: false,
   };
 
-  // Phase 1: resolve children to collect registrations
+  // Phase 1: resolve children to collect registrations, then resolve content
+  // children while still inside the Provider so sub-components can access context
   let resolvedNodes: Node[] = [];
+  let contentNodes: Node[] = [];
   DialogContext.Provider(ctxValue, () => {
     resolvedNodes = resolveChildren(children);
+    contentNodes = resolveChildren(reg.contentChildren);
   });
 
   // Phase 2: reactive state — compiler transforms `let` to signal
@@ -269,8 +272,6 @@ function ComposedDialogRoot({ children, classes, onOpenChange, closeIcon }: Comp
     _tryOnCleanup(() => closeIcon.removeEventListener('click', handleCloseIconClick));
   }
 
-  // Resolve content children
-  const contentNodes = resolveChildren(reg.contentChildren);
   const combined = [classes?.content, reg.contentCls].filter(Boolean).join(' ');
 
   // Create content panel first so we can wire the close-delegation handler
