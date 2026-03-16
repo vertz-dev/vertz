@@ -1,15 +1,15 @@
 /**
  * Composed Accordion — high-level composable component built on Accordion.Root.
- * Handles slot scanning, trigger/content wiring, and class distribution via context.
+ * Handles slot scanning, trigger/content wiring, and class distribution.
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, resolveChildren } from '@vertz/ui';
+import { resolveChildren } from '@vertz/ui';
 import { scanSlots } from '../composed/scan-slots';
 import { Accordion } from './accordion';
 
 // ---------------------------------------------------------------------------
-// Class distribution context
+// Class types
 // ---------------------------------------------------------------------------
 
 export interface AccordionClasses {
@@ -17,11 +17,6 @@ export interface AccordionClasses {
   trigger?: string;
   content?: string;
 }
-
-const AccordionClassesContext = createContext<AccordionClasses | undefined>(
-  undefined,
-  '@vertz/ui-primitives::AccordionClassesContext',
-);
 
 // ---------------------------------------------------------------------------
 // Sub-component props
@@ -97,11 +92,8 @@ function ComposedAccordionRoot({
   defaultValue,
   onValueChange,
 }: ComposedAccordionProps) {
-  // Provide classes via context, then resolve children inside the scope
-  let resolvedNodes: Node[] = [];
-  AccordionClassesContext.Provider(classes, () => {
-    resolvedNodes = resolveChildren(children);
-  });
+  // Resolve children to scan for structural slots
+  const resolvedNodes = resolveChildren(children);
 
   // Scan for item slots
   const { slots } = scanSlots(resolvedNodes);

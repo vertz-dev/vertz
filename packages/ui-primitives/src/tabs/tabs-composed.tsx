@@ -1,15 +1,15 @@
 /**
  * Composed Tabs — high-level composable component built on top of Tabs.Root.
- * Handles slot scanning, trigger/panel wiring, and class distribution via context.
+ * Handles slot scanning, trigger/panel wiring, and class distribution.
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, resolveChildren } from '@vertz/ui';
+import { resolveChildren } from '@vertz/ui';
 import { scanSlots } from '../composed/scan-slots';
 import { Tabs } from './tabs';
 
 // ---------------------------------------------------------------------------
-// Class distribution context
+// Class types
 // ---------------------------------------------------------------------------
 
 export interface TabsClasses {
@@ -17,11 +17,6 @@ export interface TabsClasses {
   trigger?: string;
   panel?: string;
 }
-
-const TabsClassesContext = createContext<TabsClasses | undefined>(
-  undefined,
-  '@vertz/ui-primitives::TabsClassesContext',
-);
 
 // ---------------------------------------------------------------------------
 // Sub-component props
@@ -96,11 +91,8 @@ export interface ComposedTabsProps {
 export type TabsClassKey = keyof TabsClasses;
 
 function ComposedTabsRoot({ children, classes, defaultValue, onValueChange }: ComposedTabsProps) {
-  // Provide classes via context, then resolve children inside the scope
-  let resolvedNodes: Node[] = [];
-  TabsClassesContext.Provider(classes, () => {
-    resolvedNodes = resolveChildren(children);
-  });
+  // Resolve children to scan for structural slots
+  const resolvedNodes = resolveChildren(children);
 
   // Scan for structural slots
   const { slots } = scanSlots(resolvedNodes);
