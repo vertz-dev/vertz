@@ -2640,10 +2640,14 @@ export type {
   FvaRule,
   PublicRule,
   RoleRule,
+  SerializableEntity,
+  SerializedAccessDefinitions,
+  SerializedEntityRules,
+  SerializedRule,
   UserMarker,
   WhereRule,
 } from './rules';
-export { rules } from './rules';
+export { rules, serializeAccessDefinitions, serializeEntityRules, serializeRule } from './rules';
 // Re-export store implementations
 export { InMemorySessionStore } from './session-store';
 // Phase 8: Plans & Wallet
