@@ -1017,4 +1017,276 @@ describe('RouterView', () => {
     expect(pageCleanedUp).toBe(true);
     router.dispose();
   });
+
+  test('hydration with lazy route claims SSR nodes instead of recreating (#1347)', async () => {
+    // Simulate SSR-rendered DOM:
+    // <div> (RouterView container)
+    //   <div data-testid="page">SSR Content</div> (route component)
+    // </div>
+    const root = document.createElement('div');
+    root.innerHTML = '<div><div data-testid="page">SSR Content</div></div>';
+
+    const routerViewContainer = root.firstChild as HTMLElement;
+    const ssrPageNode = routerViewContainer.firstChild as HTMLElement;
+    expect(routerViewContainer.children.length).toBe(1);
+
+    startHydration(root);
+
+    const routes = defineRoutes({
+      '/': {
+        component: () =>
+          Promise.resolve({
+            default: () => {
+              // Use __element like a real compiled component — claims SSR node during hydration
+              const el = __element('div');
+              el.setAttribute('data-testid', 'page');
+              return el;
+            },
+          }),
+      },
+    });
+    const router = createRouter(routes, '/');
+    let view: HTMLElement;
+    RouterContext.Provider(router, () => {
+      view = RouterView({ router });
+    });
+
+    endHydration();
+
+    // Before promise resolves, SSR content should still be present
+    expect(view!.children.length).toBe(1);
+
+    // After promise resolves, the lazy component should claim the SSR node
+    await new Promise((r) => setTimeout(r, 0));
+
+    // Must have exactly 1 child — NOT 2
+    expect(view!.children.length).toBe(1);
+    // The SSR node should be preserved (same DOM reference, not recreated)
+    expect(view!.firstChild).toBe(ssrPageNode);
+    router.dispose();
+  });
+
+  test('CSR-only lazy route works without hydration context', async () => {
+    // No SSR DOM, no hydration — pure client-side render with lazy route
+    const routes = defineRoutes({
+      '/': {
+        component: () =>
+          Promise.resolve({
+            default: () => {
+              const el = document.createElement('div');
+              el.textContent = 'Lazy CSR';
+              return el;
+            },
+          }),
+      },
+    });
+    const router = createRouter(routes, '/');
+    let view: HTMLElement;
+    RouterContext.Provider(router, () => {
+      view = RouterView({ router });
+    });
+
+    // Container should be empty before Promise resolves
+    expect(view!.children.length).toBe(0);
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(view!.children.length).toBe(1);
+    expect(view!.textContent).toBe('Lazy CSR');
+    router.dispose();
+  });
+
+  test('hydration re-entry falls back to CSR on SSR/client mismatch', async () => {
+    // SSR rendered a <div>, but client component creates a <span>
+    const root = document.createElement('div');
+    root.innerHTML = '<div><div data-testid="ssr">SSR</div></div>';
+
+    startHydration(root);
+
+    const routes = defineRoutes({
+      '/': {
+        component: () =>
+          Promise.resolve({
+            default: () => {
+              // Client creates a <span> — won't match the SSR <div>
+              const el = __element('span');
+              el.textContent = 'CSR Mismatch';
+              return el;
+            },
+          }),
+      },
+    });
+    const router = createRouter(routes, '/');
+    let view: HTMLElement;
+    RouterContext.Provider(router, () => {
+      view = RouterView({ router });
+    });
+
+    endHydration();
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    // Should have 1 child (the fallback-appended <span>), not duplicates
+    expect(view!.children.length).toBe(1);
+    expect(view!.firstChild!.nodeName).toBe('SPAN');
+    expect(view!.textContent).toBe('CSR Mismatch');
+    router.dispose();
+  });
+
+  test('stale lazy resolution discarded during pending hydration re-entry', async () => {
+    // Start on /slow (lazy), navigate to /fast (sync) before lazy resolves
+    const root = document.createElement('div');
+    root.innerHTML = '<div><div>Slow SSR</div></div>';
+
+    startHydration(root);
+
+    let resolveSlowRoute: (value: { default: () => Node }) => void;
+    const routes = defineRoutes({
+      '/slow': {
+        component: () =>
+          new Promise<{ default: () => Node }>((resolve) => {
+            resolveSlowRoute = resolve;
+          }),
+      },
+      '/fast': {
+        component: () => {
+          const el = document.createElement('div');
+          el.textContent = 'Fast Page';
+          return el;
+        },
+      },
+    });
+    const router = createRouter(routes, '/slow');
+    let view: HTMLElement;
+    RouterContext.Provider(router, () => {
+      view = RouterView({ router });
+    });
+
+    endHydration();
+
+    // Navigate away before the lazy route resolves
+    await router.navigate({ to: '/fast' });
+    expect(view!.textContent).toBe('Fast Page');
+
+    // Now resolve the stale lazy route — it should be discarded (gen guard)
+    resolveSlowRoute!({
+      default: () => {
+        const el = document.createElement('div');
+        el.textContent = 'Stale Slow Page';
+        return el;
+      },
+    });
+    await new Promise((r) => setTimeout(r, 0));
+
+    // Still showing Fast Page, not the stale resolution
+    expect(view!.textContent).toBe('Fast Page');
+    router.dispose();
+  });
+
+  test('nested lazy parent + lazy child both re-enter hydration', async () => {
+    // SSR rendered: layout > outlet > child
+    const root = document.createElement('div');
+    root.innerHTML =
+      '<div>' +
+      '<div class="layout">' +
+      '<div>' + // Outlet container
+      '<div>Child SSR</div>' +
+      '</div>' +
+      '</div>' +
+      '</div>';
+
+    const routerViewContainer = root.firstChild as HTMLElement;
+    const layoutDiv = routerViewContainer.firstChild as HTMLElement;
+    const outletContainer = layoutDiv.firstChild as HTMLElement;
+    const ssrChildNode = outletContainer.firstChild as HTMLElement;
+
+    startHydration(root);
+
+    const routes = defineRoutes({
+      '/app': {
+        component: () =>
+          Promise.resolve({
+            default: () => {
+              const layout = __element('div');
+              __enterChildren(layout);
+              const outlet = Outlet();
+              __exitChildren();
+              return layout;
+            },
+          }),
+        children: {
+          '/page': {
+            component: () =>
+              Promise.resolve({
+                default: () => {
+                  return __element('div');
+                },
+              }),
+          },
+        },
+      },
+    });
+    const router = createRouter(routes, '/app/page');
+    let view: HTMLElement;
+    RouterContext.Provider(router, () => {
+      view = RouterView({ router });
+    });
+
+    endHydration();
+
+    // Wait for both lazy routes to resolve
+    await new Promise((r) => setTimeout(r, 10));
+
+    // The layout should have claimed the SSR node
+    expect(view!.children.length).toBe(1);
+    // The child should be present inside the outlet
+    expect(view!.querySelector('div > div > div')).not.toBeNull();
+    router.dispose();
+  });
+
+  test('navigation works after lazy route hydration re-entry', async () => {
+    const root = document.createElement('div');
+    root.innerHTML = '<div><div data-testid="home">Home SSR</div></div>';
+
+    startHydration(root);
+
+    const routes = defineRoutes({
+      '/': {
+        component: () =>
+          Promise.resolve({
+            default: () => {
+              const el = __element('div');
+              el.setAttribute('data-testid', 'home');
+              return el;
+            },
+          }),
+      },
+      '/other': {
+        component: () => {
+          const el = document.createElement('div');
+          el.setAttribute('data-testid', 'other');
+          el.textContent = 'Other Page';
+          return el;
+        },
+      },
+    });
+    const router = createRouter(routes, '/');
+    let view: HTMLElement;
+    RouterContext.Provider(router, () => {
+      view = RouterView({ router });
+    });
+
+    endHydration();
+
+    // Wait for lazy route to hydrate
+    await new Promise((r) => setTimeout(r, 0));
+    expect(view!.children.length).toBe(1);
+
+    // Navigate to sync route
+    router.navigate({ to: '/other' });
+    expect(view!.children.length).toBe(1);
+    expect(view!.querySelector('[data-testid="other"]')).not.toBeNull();
+    expect(view!.textContent).toBe('Other Page');
+    router.dispose();
+  });
 });

@@ -47,6 +47,11 @@ export interface SSRHandlerOptions {
   fallbackMetrics?: Record<string, FontFallbackMetrics>;
   /** Paths to inject as `<link rel="modulepreload">` in `<head>`. */
   modulepreload?: string[];
+  /**
+   * Route chunk manifest for per-route modulepreload injection.
+   * When provided, only chunks for the matched route are preloaded instead of all chunks.
+   */
+  routeChunkManifest?: { routes: Record<string, string[]> };
   /** Cache-Control header for HTML responses. Omit or undefined = no header (safe default). */
   cacheControl?: string;
   /**
@@ -112,6 +117,7 @@ export function createSSRHandler(
     nonce,
     fallbackMetrics,
     modulepreload,
+    routeChunkManifest,
     cacheControl,
     sessionResolver,
   } = options;
@@ -190,6 +196,7 @@ export function createSSRHandler(
       fallbackMetrics,
       linkHeader,
       modulepreloadTags,
+      routeChunkManifest,
       cacheControl,
       sessionScript,
       ssrAuth,
@@ -240,7 +247,8 @@ async function handleHTMLRequest(
   nonce?: string,
   fallbackMetrics?: Record<string, FontFallbackMetrics>,
   linkHeader?: string,
-  modulepreloadTags?: string,
+  staticModulepreloadTags?: string,
+  routeChunkManifest?: { routes: Record<string, string[]> },
   cacheControl?: string,
   sessionScript?: string,
   ssrAuth?: SSRAuth,
@@ -254,6 +262,25 @@ async function handleHTMLRequest(
         status: 302,
         headers: { Location: result.redirect.to },
       });
+    }
+
+    // Per-route modulepreload: if a manifest is available and SSR reported
+    // matched patterns, inject only the chunks for those routes.
+    // Falls back to the static (all-chunks) tags when no manifest or no match.
+    let modulepreloadTags = staticModulepreloadTags;
+    if (routeChunkManifest && result.matchedRoutePatterns?.length) {
+      const chunkPaths = new Set<string>();
+      for (const pattern of result.matchedRoutePatterns) {
+        const chunks = routeChunkManifest.routes[pattern];
+        if (chunks) {
+          for (const chunk of chunks) {
+            chunkPaths.add(chunk);
+          }
+        }
+      }
+      if (chunkPaths.size > 0) {
+        modulepreloadTags = buildModulepreloadTags([...chunkPaths]);
+      }
     }
 
     // Combine head tags: font preloads + modulepreload links

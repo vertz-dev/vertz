@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { onMount } from '../../component/lifecycle';
+import { __element } from '../../dom/element';
+import { endHydration, startHydration } from '../../hydrate/hydration-context';
 import { signal } from '../../runtime/signal';
 import type { Router } from '../navigate';
 import { Outlet, OutletContext } from '../outlet';
@@ -94,5 +96,49 @@ describe('Outlet', () => {
     // Changing the external signal should NOT re-trigger Outlet's domEffect
     externalSignal.value = 'updated';
     expect(renderCount).toBe(1);
+  });
+
+  test('hydration with lazy child claims SSR nodes instead of recreating (#1347)', async () => {
+    // Simulate SSR-rendered DOM:
+    // <div> (Outlet container)
+    //   <div data-testid="child">SSR Child</div>
+    // </div>
+    const root = document.createElement('div');
+    root.innerHTML = '<div><div data-testid="child">SSR Child</div></div>';
+
+    const outletContainer = root.firstChild as HTMLElement;
+    const ssrChildNode = outletContainer.firstChild as HTMLElement;
+    expect(outletContainer.children.length).toBe(1);
+
+    startHydration(root);
+
+    const childComponent = signal<(() => Node | Promise<{ default: () => Node }>) | undefined>(() =>
+      Promise.resolve({
+        default: () => {
+          // Use __element like a real compiled component — claims SSR node during hydration
+          const el = __element('div');
+          el.setAttribute('data-testid', 'child');
+          return el;
+        },
+      }),
+    );
+
+    let outlet: HTMLElement;
+    OutletContext.Provider({ childComponent, router: mockRouter }, () => {
+      outlet = Outlet();
+    });
+
+    endHydration();
+
+    // Before promise resolves, SSR content should still be present
+    expect(outlet!.children.length).toBe(1);
+
+    // After promise resolves, the lazy component should claim the SSR node
+    await new Promise((r) => setTimeout(r, 0));
+
+    // Must have exactly 1 child — NOT 2
+    expect(outlet!.children.length).toBe(1);
+    // The SSR node should be preserved (same DOM reference, not recreated)
+    expect(outlet!.firstChild).toBe(ssrChildNode);
   });
 });
