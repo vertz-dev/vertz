@@ -50,24 +50,16 @@ export function handleListNavigation(
 
   if (isKey(event, prevKey)) {
     event.preventDefault();
-    if (currentIndex <= 0) {
-      nextIndex = loop ? items.length - 1 : 0;
-    } else {
-      nextIndex = currentIndex - 1;
-    }
+    nextIndex = findEnabled(items, currentIndex, -1, loop);
   } else if (isKey(event, nextKey)) {
     event.preventDefault();
-    if (currentIndex >= items.length - 1) {
-      nextIndex = loop ? 0 : items.length - 1;
-    } else {
-      nextIndex = currentIndex + 1;
-    }
+    nextIndex = findEnabled(items, currentIndex, 1, loop);
   } else if (isKey(event, Keys.Home)) {
     event.preventDefault();
-    nextIndex = 0;
+    nextIndex = findEnabledFrom(items, 0, 1);
   } else if (isKey(event, Keys.End)) {
     event.preventDefault();
-    nextIndex = items.length - 1;
+    nextIndex = findEnabledFrom(items, items.length - 1, -1);
   }
 
   const target = items[nextIndex];
@@ -77,6 +69,43 @@ export function handleListNavigation(
   }
 
   return null;
+}
+
+function isDisabled(el: HTMLElement): boolean {
+  return el.getAttribute('aria-disabled') === 'true';
+}
+
+function findEnabled(
+  items: HTMLElement[],
+  current: number,
+  direction: 1 | -1,
+  loop: boolean,
+): number {
+  const len = items.length;
+  let candidate = current;
+  for (let i = 0; i < len; i++) {
+    candidate += direction;
+    if (loop) {
+      candidate = ((candidate % len) + len) % len;
+    } else if (candidate < 0 || candidate >= len) {
+      return -1;
+    }
+    const el = items[candidate];
+    if (el && !isDisabled(el)) return candidate;
+  }
+  return -1;
+}
+
+function findEnabledFrom(items: HTMLElement[], start: number, direction: 1 | -1): number {
+  const len = items.length;
+  let candidate = start;
+  for (let i = 0; i < len; i++) {
+    if (candidate < 0 || candidate >= len) return -1;
+    const el = items[candidate];
+    if (el && !isDisabled(el)) return candidate;
+    candidate += direction;
+  }
+  return -1;
 }
 
 /**
