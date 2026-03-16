@@ -115,6 +115,7 @@ export function resumeHydration(): void {
  */
 export function claimElement(tag: string): HTMLElement | null {
   const upperTag = tag.toUpperCase();
+  const savedNode = currentNode;
 
   while (currentNode) {
     // Match: element with the expected tag
@@ -144,7 +145,8 @@ export function claimElement(tag: string): HTMLElement | null {
     currentNode = currentNode.nextSibling;
   }
 
-  // No match found
+  // No match found — restore cursor so subsequent claims are not corrupted
+  currentNode = savedNode;
   if (isDebug()) {
     console.warn(
       `[hydrate] Expected <${tag}> but no matching SSR node found. Creating new element.`,
@@ -159,6 +161,8 @@ export function claimElement(tag: string): HTMLElement | null {
  * Returns null if no text node is found among remaining siblings.
  */
 export function claimText(): Text | null {
+  const savedNode = currentNode;
+
   while (currentNode) {
     if (currentNode.nodeType === Node.TEXT_NODE) {
       const text = currentNode as Text;
@@ -184,6 +188,8 @@ export function claimText(): Text | null {
     currentNode = currentNode.nextSibling;
   }
 
+  // No match found — restore cursor so subsequent claims are not corrupted
+  currentNode = savedNode;
   if (isDebug()) {
     console.warn('[hydrate] Expected text node but no matching SSR node found.');
   }
@@ -196,6 +202,8 @@ export function claimText(): Text | null {
  * Returns null if no comment node is found among remaining siblings.
  */
 export function claimComment(): Comment | null {
+  const savedNode = currentNode;
+
   while (currentNode) {
     if (currentNode.nodeType === Node.COMMENT_NODE) {
       const comment = currentNode as Comment;
@@ -208,6 +216,8 @@ export function claimComment(): Comment | null {
     currentNode = currentNode.nextSibling;
   }
 
+  // No match found — restore cursor so subsequent claims are not corrupted
+  currentNode = savedNode;
   if (isDebug()) {
     console.warn('[hydrate] Expected comment node but no matching SSR node found.');
   }
