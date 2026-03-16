@@ -436,6 +436,229 @@ describe('hydration-context', () => {
     });
   });
 
+  describe('claim cursor restoration on failure', () => {
+    it('claimElement restores cursor when no matching tag is found', () => {
+      const root = document.createElement('div');
+      root.innerHTML = '<div id="target"></div><p></p>';
+      startHydration(root);
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+
+      // Try to claim a <span> — doesn't exist. Should fail without corrupting cursor.
+      const span = claimElement('span');
+      expect(span).toBeNull();
+
+      // Cursor should still be at <div id="target"> — NOT exhausted to null.
+      const div = claimElement('div');
+      expect(div).not.toBeNull();
+      expect(div?.id).toBe('target');
+
+      warnSpy.mockRestore();
+      debugSpy.mockRestore();
+    });
+
+    it('claimElement restores cursor after scanning past non-matching elements', () => {
+      const root = document.createElement('div');
+      root.innerHTML = '<div></div><p></p><section></section>';
+      startHydration(root);
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+
+      // Try to claim a <span> — not present. claimElement scans all siblings.
+      const span = claimElement('span');
+      expect(span).toBeNull();
+
+      // Cursor should be restored — all three elements still claimable.
+      const div = claimElement('div');
+      expect(div).not.toBeNull();
+      expect(div?.tagName).toBe('DIV');
+
+      warnSpy.mockRestore();
+      debugSpy.mockRestore();
+    });
+
+    it('claimText restores cursor when comment nodes precede an element', () => {
+      const root = document.createElement('div');
+      root.appendChild(document.createComment('anchor'));
+      root.appendChild(document.createElement('span'));
+      startHydration(root);
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      // Try to claim text — only comment + element exist. Should fail without corruption.
+      const text = claimText();
+      expect(text).toBeNull();
+
+      // Comment should still be claimable (cursor restored before the comment)
+      const comment = claimComment();
+      expect(comment).not.toBeNull();
+      expect(comment?.data).toBe('anchor');
+
+      warnSpy.mockRestore();
+    });
+
+    it('claimComment restores cursor when no comment node is found', () => {
+      const root = document.createElement('div');
+      root.innerHTML = '<span></span><p></p>';
+      startHydration(root);
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+
+      // Try to claim a comment — doesn't exist. Should fail without corrupting cursor.
+      const comment = claimComment();
+      expect(comment).toBeNull();
+
+      // Cursor should still be at <span> — NOT exhausted to null.
+      const span = claimElement('span');
+      expect(span).not.toBeNull();
+      expect(span?.tagName).toBe('SPAN');
+
+      warnSpy.mockRestore();
+      debugSpy.mockRestore();
+    });
+
+    it('failed claims inside enterChildren/exitChildren do not corrupt parent cursor', () => {
+      // Simulates the composed primitive pattern:
+      // Parent has <div role="radiogroup"><div role="radio">...</div></div>
+      // Child component tries to claim <span> inside the radiogroup (for slot markers)
+      // The failed claim should not break the parent's ability to claim subsequent elements.
+      const root = document.createElement('div');
+      root.innerHTML = '<div role="radiogroup"><div role="radio"></div></div><footer></footer>';
+      startHydration(root);
+
+      const radiogroup = claimElement('div')!;
+      expect(radiogroup).not.toBeNull();
+      enterChildren(radiogroup);
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+
+      // Slot marker tries to claim <span> inside radiogroup — only <div role="radio"> exists
+      const span = claimElement('span');
+      expect(span).toBeNull();
+
+      // The <div role="radio"> should still be claimable after the failed span claim
+      const radio = claimElement('div');
+      expect(radio).not.toBeNull();
+      expect(radio?.getAttribute('role')).toBe('radio');
+
+      exitChildren();
+
+      // Parent-level cursor should be intact — <footer> is claimable
+      const footer = claimElement('footer');
+      expect(footer).not.toBeNull();
+      expect(footer?.tagName).toBe('FOOTER');
+
+      warnSpy.mockRestore();
+      debugSpy.mockRestore();
+    });
+  });
+
+  describe('slot scanning pattern during hydration', () => {
+    it('resolveChildren + failed claims do not corrupt cursor for the return JSX', () => {
+      // This simulates the composed primitive pattern:
+      // 1. SSR produces: <div role="radiogroup"><div role="radio">A</div><div role="radio">B</div></div>
+      // 2. During hydration, resolveChildren creates slot marker <span> elements
+      // 3. Slot markers try claimElement('span') — fails (SSR has <div>)
+      // 4. After slot scanning, the return JSX claims the actual <div role="radiogroup">
+      //
+      // Before the fix, step 3 exhausted the cursor, making step 4 fail.
+      const root = document.createElement('div');
+      root.innerHTML =
+        '<div role="radiogroup">' +
+        '<div role="radio">A</div>' +
+        '<div role="radio">B</div>' +
+        '</div>';
+      startHydration(root);
+
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      // Step 1: Simulate resolveChildren — children thunk creates slot markers
+      // Each slot marker calls __element('span') → claimElement('span') → fails
+      const marker1 = claimElement('span');
+      expect(marker1).toBeNull(); // No <span> in SSR — correct
+      const marker2 = claimElement('span');
+      expect(marker2).toBeNull(); // No <span> in SSR — correct
+
+      // Step 2: After slot scanning, the return JSX claims the actual structure
+      const radiogroup = claimElement('div');
+      expect(radiogroup).not.toBeNull();
+      expect(radiogroup?.getAttribute('role')).toBe('radiogroup');
+
+      // Step 3: Enter children and claim radio items
+      enterChildren(radiogroup!);
+
+      const radio1 = claimElement('div');
+      expect(radio1).not.toBeNull();
+      expect(radio1?.getAttribute('role')).toBe('radio');
+      expect(radio1?.textContent).toBe('A');
+
+      const radio2 = claimElement('div');
+      expect(radio2).not.toBeNull();
+      expect(radio2?.getAttribute('role')).toBe('radio');
+      expect(radio2?.textContent).toBe('B');
+
+      exitChildren();
+
+      debugSpy.mockRestore();
+      warnSpy.mockRestore();
+    });
+
+    it('nested failed claims with enterChildren/exitChildren preserve cursor stack', () => {
+      // Simulates a more complex scenario: composed component inside another component.
+      // Parent SSR: <main><div role="tablist">...</div><footer>...</footer></main>
+      // The tab component's slot resolution creates failed <span> claims inside <main>.
+      const root = document.createElement('div');
+      root.innerHTML =
+        '<main>' +
+        '<div role="tablist"><button role="tab">Tab 1</button></div>' +
+        '<div role="tabpanel">Content 1</div>' +
+        '</main>' +
+        '<footer></footer>';
+      startHydration(root);
+
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      // Claim <main>
+      const main = claimElement('main');
+      expect(main).not.toBeNull();
+      enterChildren(main!);
+
+      // Simulate slot marker resolution — creates <span> markers that fail to claim
+      expect(claimElement('span')).toBeNull();
+      expect(claimElement('span')).toBeNull();
+
+      // After failed claims, the actual tablist structure should still be claimable
+      const tablist = claimElement('div');
+      expect(tablist).not.toBeNull();
+      expect(tablist?.getAttribute('role')).toBe('tablist');
+
+      enterChildren(tablist!);
+      const tab = claimElement('button');
+      expect(tab).not.toBeNull();
+      expect(tab?.getAttribute('role')).toBe('tab');
+      exitChildren();
+
+      const panel = claimElement('div');
+      expect(panel).not.toBeNull();
+      expect(panel?.getAttribute('role')).toBe('tabpanel');
+
+      exitChildren(); // exit <main>
+
+      // Parent-level cursor should be intact — <footer> is claimable
+      const footer = claimElement('footer');
+      expect(footer).not.toBeNull();
+
+      debugSpy.mockRestore();
+      warnSpy.mockRestore();
+    });
+  });
+
   describe('concurrent hydration guard', () => {
     it('throws if startHydration is called while already hydrating', () => {
       const root1 = document.createElement('div');
