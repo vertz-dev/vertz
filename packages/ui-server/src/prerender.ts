@@ -142,26 +142,35 @@ export async function collectPrerenderPaths(
 
   for (const route of routes) {
     const fullPattern = joinPatterns(prefix, route.pattern);
+    const optedOut = route.prerender === false;
 
-    // Skip explicitly opted-out routes
-    if (route.prerender === false) continue;
-
-    if (route.generateParams) {
-      // Dynamic route with generateParams — expand to concrete paths
-      const paramSets = await route.generateParams();
-      for (const params of paramSets) {
-        let path = fullPattern;
-        for (const [key, value] of Object.entries(params)) {
-          path = path.replace(`:${key}`, value);
+    // Collect this route's paths (unless opted out)
+    if (!optedOut) {
+      if (route.generateParams) {
+        // Dynamic route with generateParams — expand to concrete paths
+        const paramSets = await route.generateParams();
+        for (const params of paramSets) {
+          let path = fullPattern;
+          for (const [key, value] of Object.entries(params)) {
+            path = path.replaceAll(`:${key}`, value);
+          }
+          // Validate all params were replaced
+          const unreplaced = path.match(/:(\w+)/);
+          if (unreplaced) {
+            throw new Error(
+              `generateParams for "${fullPattern}" returned params missing key "${unreplaced[1]}"`,
+            );
+          }
+          paths.push(path);
         }
-        paths.push(path);
+      } else if (route.prerender === true) {
+        // Static route with explicit prerender: true
+        paths.push(fullPattern);
       }
-    } else if (route.prerender === true) {
-      // Static route with explicit prerender: true
-      paths.push(fullPattern);
     }
 
-    // Recurse into children
+    // Always recurse into children — parent prerender: false only affects the parent,
+    // not its children (a layout route may opt out while its pages opt in)
     if (route.children) {
       const childPaths = await collectPrerenderPaths(route.children, fullPattern);
       paths.push(...childPaths);

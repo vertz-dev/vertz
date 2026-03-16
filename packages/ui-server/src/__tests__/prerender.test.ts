@@ -204,6 +204,71 @@ describe('collectPrerenderPaths', () => {
 
     expect(paths).toEqual([]);
   });
+
+  it('still traverses children when parent has prerender: false', async () => {
+    const routes = defineRoutes({
+      '/app': {
+        component: () => document.createElement('div'),
+        prerender: false,
+        children: {
+          '/blog/:slug': {
+            component: () => document.createElement('div'),
+            generateParams: () => [{ slug: 'hello' }],
+          },
+          '/about': {
+            component: () => document.createElement('div'),
+            prerender: true,
+          },
+        },
+      },
+    });
+
+    const paths = await collectPrerenderPaths(routes);
+
+    expect(paths).toContain('/app/blog/hello');
+    expect(paths).toContain('/app/about');
+    expect(paths).not.toContain('/app');
+  });
+
+  it('expands multiple params in a single route pattern', async () => {
+    const routes = defineRoutes({
+      '/users/:userId/posts/:postId': {
+        component: () => document.createElement('div'),
+        generateParams: () => [
+          { userId: 'alice', postId: '1' },
+          { userId: 'bob', postId: '2' },
+        ],
+      },
+    });
+
+    const paths = await collectPrerenderPaths(routes);
+
+    expect(paths).toEqual(['/users/alice/posts/1', '/users/bob/posts/2']);
+  });
+
+  it('throws when generateParams returns incomplete params', async () => {
+    const routes = defineRoutes({
+      '/users/:userId/posts/:postId': {
+        component: () => document.createElement('div'),
+        generateParams: () => [{ userId: 'alice' }],
+      },
+    });
+
+    await expect(collectPrerenderPaths(routes)).rejects.toThrow(/postId/);
+  });
+
+  it('throws when generateParams rejects', async () => {
+    const routes = defineRoutes({
+      '/blog/:slug': {
+        component: () => document.createElement('div'),
+        generateParams: async () => {
+          throw new Error('CMS unavailable');
+        },
+      },
+    });
+
+    await expect(collectPrerenderPaths(routes)).rejects.toThrow('CMS unavailable');
+  });
 });
 
 describe('prerenderRoutes', () => {
