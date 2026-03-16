@@ -201,6 +201,48 @@ describe('Composed Sheet', () => {
     });
   });
 
+  describe('Given a Sheet with closed overlay', () => {
+    describe('When the sheet is initially rendered (closed)', () => {
+      it('Then the overlay has pointer-events none so it does not block clicks', () => {
+        const btn = document.createElement('button');
+
+        const root = ComposedSheet({
+          children: () => {
+            const t = ComposedSheet.Trigger({ children: [btn] });
+            const c = ComposedSheet.Content({ children: ['Body'] });
+            return [t, c];
+          },
+        });
+        container.appendChild(root);
+
+        const overlay = root.querySelector('[data-sheet-overlay]') as HTMLElement;
+        expect(overlay.style.pointerEvents).toBe('none');
+      });
+    });
+
+    describe('When the sheet is opened then closed', () => {
+      it('Then the overlay pointer-events revert to none', () => {
+        const btn = document.createElement('button');
+
+        const root = ComposedSheet({
+          children: () => {
+            const t = ComposedSheet.Trigger({ children: [btn] });
+            const c = ComposedSheet.Content({ children: ['Body'] });
+            return [t, c];
+          },
+        });
+        container.appendChild(root);
+
+        btn.click();
+        const overlay = root.querySelector('[data-sheet-overlay]') as HTMLElement;
+        expect(overlay.style.pointerEvents).not.toBe('none');
+
+        overlay.click();
+        expect(overlay.style.pointerEvents).toBe('none');
+      });
+    });
+  });
+
   describe('Given a Sheet rendered inside a disposal scope', () => {
     describe('When the disposal scope cleanups are run', () => {
       it('Then removeEventListener is called for the trigger click handler', () => {
