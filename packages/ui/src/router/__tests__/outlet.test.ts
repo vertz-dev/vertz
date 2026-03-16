@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { onMount } from '../../component/lifecycle';
+import { endHydration, startHydration } from '../../hydrate/hydration-context';
 import { signal } from '../../runtime/signal';
 import type { Router } from '../navigate';
 import { Outlet, OutletContext } from '../outlet';
@@ -94,5 +95,47 @@ describe('Outlet', () => {
     // Changing the external signal should NOT re-trigger Outlet's domEffect
     externalSignal.value = 'updated';
     expect(renderCount).toBe(1);
+  });
+
+  test('hydration with lazy child does not produce duplicate elements (#1347)', async () => {
+    // Simulate SSR-rendered DOM:
+    // <div> (Outlet container)
+    //   <div data-testid="child">SSR Child</div>
+    // </div>
+    const root = document.createElement('div');
+    root.innerHTML = '<div><div data-testid="child">SSR Child</div></div>';
+
+    const outletContainer = root.firstChild as HTMLElement;
+    expect(outletContainer.children.length).toBe(1);
+
+    startHydration(root);
+
+    const childComponent = signal<(() => Node | Promise<{ default: () => Node }>) | undefined>(() =>
+      Promise.resolve({
+        default: () => {
+          const el = document.createElement('div');
+          el.setAttribute('data-testid', 'child');
+          el.textContent = 'CSR Child';
+          return el;
+        },
+      }),
+    );
+
+    let outlet: HTMLElement;
+    OutletContext.Provider({ childComponent, router: mockRouter }, () => {
+      outlet = Outlet();
+    });
+
+    endHydration();
+
+    // Before promise resolves, SSR content should still be present
+    expect(outlet!.children.length).toBe(1);
+
+    // After promise resolves, the lazy component replaces SSR content
+    await new Promise((r) => setTimeout(r, 0));
+
+    // Must have exactly 1 child — NOT 2 (the bug was SSR + CSR both present)
+    expect(outlet!.children.length).toBe(1);
+    expect(outlet!.textContent).toBe('CSR Child');
   });
 });

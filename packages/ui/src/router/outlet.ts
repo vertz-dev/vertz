@@ -78,6 +78,14 @@ export function Outlet(): HTMLElement {
           result.then((mod) => {
             // Guard against stale resolution from rapid navigation.
             if (gen !== renderGen) return;
+            // Clear any existing content before appending the lazy-loaded
+            // component. During hydration the container still holds SSR
+            // children (the initial render skips clearing). Without this,
+            // the resolved component is appended alongside the SSR content,
+            // producing duplicate route elements.
+            while (container.firstChild) {
+              container.removeChild(container.firstChild);
+            }
             // Re-enter a disposal scope so the async component's
             // cleanups are captured and run on the next swap.
             childCleanups = pushScope();

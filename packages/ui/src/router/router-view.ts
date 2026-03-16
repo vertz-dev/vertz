@@ -117,16 +117,34 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
         const levels = buildLevels(newMatched);
         const rootFactory = buildInsideOutFactory(newMatched, levels, 0, router);
 
+        let asyncRoute = false;
         RouterContext.Provider(router, () => {
           const result = rootFactory();
 
           if (result instanceof Promise) {
+            asyncRoute = true;
+            // Pop the scope from pushScope() above — nothing useful was
+            // captured since the component returned a Promise instead of
+            // rendering synchronously.
+            popScope();
             result.then((mod) => {
               if (gen !== renderGen) return;
+              // Clear any existing content before appending the lazy-loaded
+              // component. During hydration the container still holds SSR
+              // children (the initial render skips clearing). Without this,
+              // the resolved component is appended alongside the SSR content,
+              // producing duplicate route elements.
+              while (container.firstChild) {
+                container.removeChild(container.firstChild);
+              }
+              // Re-enter a disposal scope so the async component's
+              // cleanups are captured and run on the next navigation.
+              pageCleanups = pushScope();
               RouterContext.Provider(router, () => {
                 const node = (mod as { default: () => Node }).default();
                 container.appendChild(node);
               });
+              popScope();
             });
           } else {
             __append(container, result);
@@ -134,7 +152,9 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
         });
 
         prevLevels = levels;
-        popScope();
+        if (!asyncRoute) {
+          popScope();
+        }
       };
 
       doRender();

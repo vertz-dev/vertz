@@ -1017,4 +1017,50 @@ describe('RouterView', () => {
     expect(pageCleanedUp).toBe(true);
     router.dispose();
   });
+
+  test('hydration with lazy route does not produce duplicate elements (#1347)', async () => {
+    // Simulate SSR-rendered DOM:
+    // <div> (RouterView container)
+    //   <div data-testid="page">SSR Content</div> (route component)
+    // </div>
+    const root = document.createElement('div');
+    root.innerHTML = '<div><div data-testid="page">SSR Content</div></div>';
+
+    const routerViewContainer = root.firstChild as HTMLElement;
+    expect(routerViewContainer.children.length).toBe(1);
+
+    startHydration(root);
+
+    const routes = defineRoutes({
+      '/': {
+        component: () =>
+          Promise.resolve({
+            default: () => {
+              const el = document.createElement('div');
+              el.setAttribute('data-testid', 'page');
+              el.textContent = 'CSR Content';
+              return el;
+            },
+          }),
+      },
+    });
+    const router = createRouter(routes, '/');
+    let view: HTMLElement;
+    RouterContext.Provider(router, () => {
+      view = RouterView({ router });
+    });
+
+    endHydration();
+
+    // Before promise resolves, SSR content should still be present
+    expect(view!.children.length).toBe(1);
+
+    // After promise resolves, the lazy component replaces SSR content
+    await new Promise((r) => setTimeout(r, 0));
+
+    // Must have exactly 1 child — NOT 2 (the bug was SSR + CSR both present)
+    expect(view!.children.length).toBe(1);
+    expect(view!.textContent).toBe('CSR Content');
+    router.dispose();
+  });
 });
