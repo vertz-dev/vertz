@@ -81,17 +81,19 @@ Each test creates a **unique user** (via a timestamped email), so tests don't in
 
 ```ts
 // src/api/seed.ts
-import type { Database } from 'bun:sqlite';
+import { db } from './db';
 
-export function seedDatabase(sqlite: Database) {
+export async function seedDatabase() {
   // Only seed if the table is empty
-  const count = sqlite.query('SELECT COUNT(*) as c FROM projects').get() as { c: number };
-  if (count.c > 0) return;
+  const result = await db.projects.count();
+  if (result.ok && result.data > 0) return;
 
-  sqlite.exec(`INSERT INTO projects (id, name, key) VALUES
-    ('proj-1', 'Engineering', 'ENG'),
-    ('proj-2', 'Design', 'DES')
-  `);
+  await db.projects.createMany({
+    data: [
+      { id: 'proj-1', name: 'Engineering', key: 'ENG' },
+      { id: 'proj-2', name: 'Design', key: 'DES' },
+    ],
+  });
 }
 ```
 
