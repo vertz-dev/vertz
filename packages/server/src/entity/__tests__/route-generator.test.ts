@@ -1628,8 +1628,59 @@ describe('Feature: Expose descriptor runtime evaluation', () => {
         const body = await resp.json();
 
         expect(resp.status).toBe(200);
-        // The limit in response metadata should be clamped to MAX_LIMIT, not 999999
-        expect(body.limit).toBeLessThanOrEqual(1000);
+        expect(body.limit).toBe(1000);
+      });
+    });
+
+    describe('When the body contains limit: NaN', () => {
+      it('Then treats it as no limit (uses default)', async () => {
+        const db = createMockDb([
+          { id: '1', email: 'a@b.com', name: 'A', passwordHash: 'h', role: 'viewer' },
+        ]);
+        const def = buildEntityDef();
+        const registry = new EntityRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+        const queryRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users/query');
+
+        const resp = await queryRoute!.handler({
+          userId: 'u1',
+          tenantId: null,
+          roles: [],
+          params: {},
+          body: { limit: Number.NaN },
+          query: {},
+          headers: {},
+        });
+        const body = await resp.json();
+
+        expect(resp.status).toBe(200);
+        expect(body.limit).toBe(20); // default limit
+      });
+    });
+
+    describe('When the body contains a negative limit', () => {
+      it('Then clamps to 0', async () => {
+        const db = createMockDb([
+          { id: '1', email: 'a@b.com', name: 'A', passwordHash: 'h', role: 'viewer' },
+        ]);
+        const def = buildEntityDef();
+        const registry = new EntityRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+        const queryRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users/query');
+
+        const resp = await queryRoute!.handler({
+          userId: 'u1',
+          tenantId: null,
+          roles: [],
+          params: {},
+          body: { limit: -5 },
+          query: {},
+          headers: {},
+        });
+        const body = await resp.json();
+
+        expect(resp.status).toBe(200);
+        expect(body.items).toHaveLength(0);
       });
     });
   });
@@ -1650,10 +1701,13 @@ describe('Feature: Expose descriptor runtime evaluation', () => {
         const registry = new EntityRegistry();
         const routes = generateEntityRoutes(def, registry, db);
 
-        const queryRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users/query');
-        expect(queryRoute).toBeDefined();
+        // Only one POST /query route should exist (the 405 handler)
+        const queryRoutes = routes.filter(
+          (r) => r.method === 'POST' && r.path === '/api/users/query',
+        );
+        expect(queryRoutes).toHaveLength(1);
 
-        const resp = await queryRoute!.handler({
+        const resp = await queryRoutes[0].handler({
           userId: 'u1',
           tenantId: null,
           roles: [],
@@ -1668,6 +1722,25 @@ describe('Feature: Expose descriptor runtime evaluation', () => {
         expect(body.error.code).toBe('MethodNotAllowed');
         expect(body.error.message).toContain('list');
       });
+    });
+  });
+
+  describe('Given access.list === undefined', () => {
+    it('Then POST /query route is not registered', () => {
+      const def = buildEntityDef({
+        access: {
+          get: () => true,
+          create: () => true,
+          update: () => true,
+          delete: () => true,
+        },
+      });
+      const db = createMockDb();
+      const registry = new EntityRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const queryRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users/query');
+      expect(queryRoute).toBeUndefined();
     });
   });
 });
