@@ -1,3 +1,5 @@
+export type { AuthClient, AuthClientConfig, AuthClientResult, AuthCookie } from './auth-client';
+export { createAuthClient } from './auth-client';
 export type {
   RequestOptions,
   RouteMapEntry,

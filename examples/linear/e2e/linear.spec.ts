@@ -1,76 +1,24 @@
 import { expect, test } from '@playwright/test';
+import { createAuthClient } from '@vertz/testing';
 
 /** The default seed tenant — must match SEED_TENANT_ID in schema.ts. */
 const SEED_TENANT_ID = 'tenant-acme';
 
-/** Extract Set-Cookie headers into Playwright-compatible cookie objects. */
-function extractCookies(res: Response, baseURL: string) {
-  const cookies: { name: string; value: string; domain: string; path: string }[] = [];
-  const url = new URL(baseURL);
-
-  for (const header of res.headers.getSetCookie()) {
-    const [nameValue] = header.split(';');
-    const eqIdx = nameValue.indexOf('=');
-    if (eqIdx > 0) {
-      cookies.push({
-        name: nameValue.slice(0, eqIdx),
-        value: nameValue.slice(eqIdx + 1),
-        domain: url.hostname,
-        path: '/',
-      });
-    }
-  }
-
-  return cookies;
-}
-
-/**
- * Signs up a test user, then switches to the seed tenant so all entity
- * operations are tenant-scoped. Returns cookies with tenantId in the JWT.
- */
-async function authenticate(baseURL: string) {
-  const email = `e2e-${Date.now()}@test.local`;
-  const password = 'TestPassword123!';
-
-  // 1. Sign up — session has no tenantId yet
-  const signupRes = await fetch(`${baseURL}/api/auth/signup`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-VTZ-Request': '1' },
-    body: JSON.stringify({ email, password }),
-  });
-
-  if (!signupRes.ok) {
-    const body = await signupRes.text();
-    throw new Error(`Auth signup failed: ${signupRes.status} ${body}`);
-  }
-
-  const signupCookies = extractCookies(signupRes, baseURL);
-
-  // 2. Switch to seed tenant — session now includes tenantId in JWT
-  const cookieHeader = signupCookies.map((c) => `${c.name}=${c.value}`).join('; ');
-  const switchRes = await fetch(`${baseURL}/api/auth/switch-tenant`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-VTZ-Request': '1',
-      Cookie: cookieHeader,
-    },
-    body: JSON.stringify({ tenantId: SEED_TENANT_ID }),
-  });
-
-  if (!switchRes.ok) {
-    const body = await switchRes.text();
-    throw new Error(`Switch tenant failed: ${switchRes.status} ${body}`);
-  }
-
-  // Use cookies from switch-tenant (they contain the updated JWT with tenantId)
-  return extractCookies(switchRes, baseURL);
-}
-
 test.describe('Linear Clone', () => {
   test.beforeEach(async ({ context, baseURL }) => {
     const url = baseURL ?? 'http://localhost:3001';
-    const cookies = await authenticate(url);
+    const client = createAuthClient({ baseURL: url });
+
+    const { cookies: signupCookies } = await client.signup({
+      email: `e2e-${Date.now()}@test.local`,
+      password: 'TestPassword123!',
+    });
+
+    const { cookies } = await client.switchTenant({
+      tenantId: SEED_TENANT_ID,
+      cookies: signupCookies,
+    });
+
     await context.addCookies(cookies);
   });
 
