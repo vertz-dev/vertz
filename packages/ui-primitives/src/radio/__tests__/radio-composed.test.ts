@@ -15,7 +15,7 @@ describe('Composed RadioGroup', () => {
 
   describe('Given a ComposedRadioGroup with Item sub-components', () => {
     describe('When rendered', () => {
-      it('Then creates a radiogroup with items from scanned slots', () => {
+      it('Then creates a radiogroup with items', () => {
         const root = ComposedRadioGroup({
           children: () => {
             const a = ComposedRadioGroup.Item({ value: 'a', children: ['Alpha'] });

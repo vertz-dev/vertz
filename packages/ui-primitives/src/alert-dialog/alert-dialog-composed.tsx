@@ -35,6 +35,9 @@ interface AlertDialogContextValue {
   onAction?: () => void;
   /** @internal — registers the user trigger for ARIA sync */
   _registerTrigger: (el: HTMLElement) => void;
+  /** @internal — duplicate sub-component detection */
+  _triggerClaimed: boolean;
+  _contentClaimed: boolean;
 }
 
 const AlertDialogContext = createContext<AlertDialogContextValue | undefined>(
@@ -74,7 +77,12 @@ interface ButtonSlotProps extends SlotProps {
 // ---------------------------------------------------------------------------
 
 function AlertDialogTrigger({ children }: SlotProps) {
-  const { alertDialog, _registerTrigger } = useAlertDialogContext('Trigger');
+  const ctx = useAlertDialogContext('Trigger');
+  if (ctx._triggerClaimed) {
+    console.warn('Duplicate <AlertDialog.Trigger> detected – only the first is used');
+  }
+  ctx._triggerClaimed = true;
+  const { alertDialog, _registerTrigger } = ctx;
 
   // Resolve children to find the user's trigger element
   const resolved = resolveChildren(children);
@@ -104,7 +112,12 @@ function AlertDialogTrigger({ children }: SlotProps) {
 }
 
 function AlertDialogContent({ children, className: cls, class: classProp }: SlotProps) {
-  const { alertDialog, classes } = useAlertDialogContext('Content');
+  const ctx = useAlertDialogContext('Content');
+  if (ctx._contentClaimed) {
+    console.warn('Duplicate <AlertDialog.Content> detected – only the first is used');
+  }
+  ctx._contentClaimed = true;
+  const { alertDialog, classes } = ctx;
   const effectiveCls = cls ?? classProp;
 
   // Apply theme + per-instance classes to the primitive's content element
@@ -281,6 +294,8 @@ function ComposedAlertDialogRoot({
     _registerTrigger: (el: HTMLElement) => {
       userTrigger = el;
     },
+    _triggerClaimed: false,
+    _contentClaimed: false,
   };
 
   // Provide primitive + classes via context, then resolve children

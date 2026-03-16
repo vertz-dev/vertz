@@ -218,6 +218,31 @@ describe('Composed DropdownMenu', () => {
     });
   });
 
+  describe('Given a DropdownMenu with duplicate Content sub-components', () => {
+    it('Then warns about the duplicate', () => {
+      const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const btn = document.createElement('button');
+
+      ComposedDropdownMenu({
+        children: () => {
+          const t = ComposedDropdownMenu.Trigger({ children: [btn] });
+          const c1 = ComposedDropdownMenu.Content({
+            children: () => [ComposedDropdownMenu.Item({ value: 'a', children: ['A'] })],
+          });
+          const c2 = ComposedDropdownMenu.Content({
+            children: () => [ComposedDropdownMenu.Item({ value: 'b', children: ['B'] })],
+          });
+          return [t, c1, c2];
+        },
+      });
+
+      expect(spy).toHaveBeenCalledWith(
+        'Duplicate <DropdownMenu.Content> detected – only the first is used',
+      );
+      spy.mockRestore();
+    });
+  });
+
   describe('Given a DropdownMenu rendered inside a disposal scope', () => {
     describe('When the disposal scope cleanups are run', () => {
       it('Then removeEventListener is called for the trigger click handler', () => {

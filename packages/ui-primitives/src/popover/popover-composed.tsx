@@ -24,9 +24,11 @@ export interface PopoverClasses {
 interface PopoverContextValue {
   popover: PopoverElements & { state: PopoverState };
   classes?: PopoverClasses;
-  onOpenChange?: (open: boolean) => void;
   /** @internal — registers the user trigger for ARIA sync */
   _registerTrigger: (el: HTMLElement) => void;
+  /** @internal — duplicate sub-component detection */
+  _triggerClaimed: boolean;
+  _contentClaimed: boolean;
 }
 
 const PopoverContext = createContext<PopoverContextValue | undefined>(
@@ -61,7 +63,12 @@ interface SlotProps {
 // ---------------------------------------------------------------------------
 
 function PopoverTrigger({ children }: SlotProps) {
-  const { popover, _registerTrigger } = usePopoverContext('Trigger');
+  const ctx = usePopoverContext('Trigger');
+  if (ctx._triggerClaimed) {
+    console.warn('Duplicate <Popover.Trigger> detected – only the first is used');
+  }
+  ctx._triggerClaimed = true;
+  const { popover, _registerTrigger } = ctx;
 
   // Resolve children to find the user's trigger element
   const resolved = resolveChildren(children);
@@ -89,7 +96,12 @@ function PopoverTrigger({ children }: SlotProps) {
 }
 
 function PopoverContent({ children, className: cls, class: classProp }: SlotProps) {
-  const { popover, classes } = usePopoverContext('Content');
+  const ctx = usePopoverContext('Content');
+  if (ctx._contentClaimed) {
+    console.warn('Duplicate <Popover.Content> detected – only the first is used');
+  }
+  ctx._contentClaimed = true;
+  const { popover, classes } = ctx;
   const effectiveCls = cls ?? classProp;
 
   // Apply theme + per-instance classes to the primitive's content element
@@ -137,10 +149,11 @@ function ComposedPopoverRoot({ children, classes, onOpenChange }: ComposedPopove
   const ctxValue: PopoverContextValue = {
     popover,
     classes,
-    onOpenChange,
     _registerTrigger: (el: HTMLElement) => {
       userTrigger = el;
     },
+    _triggerClaimed: false,
+    _contentClaimed: false,
   };
 
   // Provide primitive + classes via context, then resolve children

@@ -30,6 +30,9 @@ interface SheetContextValue {
   classes?: SheetClasses;
   /** @internal — registers the user trigger for ARIA sync */
   _registerTrigger: (el: HTMLElement) => void;
+  /** @internal — duplicate sub-component detection */
+  _triggerClaimed: boolean;
+  _contentClaimed: boolean;
 }
 
 const SheetContext = createContext<SheetContextValue | undefined>(
@@ -64,7 +67,12 @@ interface SlotProps {
 // ---------------------------------------------------------------------------
 
 function SheetTrigger({ children }: SlotProps) {
-  const { sheet, _registerTrigger } = useSheetContext('Trigger');
+  const ctx = useSheetContext('Trigger');
+  if (ctx._triggerClaimed) {
+    console.warn('Duplicate <Sheet.Trigger> detected – only the first is used');
+  }
+  ctx._triggerClaimed = true;
+  const { sheet, _registerTrigger } = ctx;
 
   // Resolve children to find the user's trigger element
   const resolved = resolveChildren(children);
@@ -96,7 +104,12 @@ function SheetTrigger({ children }: SlotProps) {
 }
 
 function SheetContent({ children, className: cls, class: classProp }: SlotProps) {
-  const { sheet, classes } = useSheetContext('Content');
+  const ctx = useSheetContext('Content');
+  if (ctx._contentClaimed) {
+    console.warn('Duplicate <Sheet.Content> detected – only the first is used');
+  }
+  ctx._contentClaimed = true;
+  const { sheet, classes } = ctx;
   const effectiveCls = cls ?? classProp;
 
   // Apply theme + per-instance classes to the primitive's content element
@@ -196,6 +209,8 @@ function ComposedSheetRoot({ children, classes, side, onOpenChange }: ComposedSh
     _registerTrigger: (el: HTMLElement) => {
       userTrigger = el;
     },
+    _triggerClaimed: false,
+    _contentClaimed: false,
   };
 
   // Provide primitive + classes via context, then resolve children

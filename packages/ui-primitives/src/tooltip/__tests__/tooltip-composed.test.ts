@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 import { ComposedTooltip } from '../tooltip-composed';
 
 describe('Composed Tooltip', () => {
@@ -110,6 +110,46 @@ describe('Composed Tooltip', () => {
           ComposedTooltip.Content({ children: ['Orphan'] });
         }).toThrow('<Tooltip.Content> must be used inside <Tooltip>');
       });
+    });
+  });
+
+  describe('Given a Tooltip with duplicate Trigger sub-components', () => {
+    it('Then warns about the duplicate', () => {
+      const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      ComposedTooltip({
+        children: () => {
+          const t1 = ComposedTooltip.Trigger({ children: ['First'] });
+          const t2 = ComposedTooltip.Trigger({ children: ['Second'] });
+          const c = ComposedTooltip.Content({ children: ['Tip'] });
+          return [t1, t2, c];
+        },
+      });
+
+      expect(spy).toHaveBeenCalledWith(
+        'Duplicate <Tooltip.Trigger> detected – only the first is used',
+      );
+      spy.mockRestore();
+    });
+  });
+
+  describe('Given a Tooltip with duplicate Content sub-components', () => {
+    it('Then warns about the duplicate', () => {
+      const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      ComposedTooltip({
+        children: () => {
+          const t = ComposedTooltip.Trigger({ children: ['Hover'] });
+          const c1 = ComposedTooltip.Content({ children: ['Tip 1'] });
+          const c2 = ComposedTooltip.Content({ children: ['Tip 2'] });
+          return [t, c1, c2];
+        },
+      });
+
+      expect(spy).toHaveBeenCalledWith(
+        'Duplicate <Tooltip.Content> detected – only the first is used',
+      );
+      spy.mockRestore();
     });
   });
 });

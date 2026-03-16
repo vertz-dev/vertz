@@ -267,6 +267,27 @@ describe('Composed AlertDialog', () => {
     });
   });
 
+  describe('Given an AlertDialog with duplicate Content sub-components', () => {
+    it('Then warns about the duplicate', () => {
+      const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const btn = document.createElement('button');
+
+      ComposedAlertDialog({
+        children: () => {
+          const t = ComposedAlertDialog.Trigger({ children: [btn] });
+          const c1 = ComposedAlertDialog.Content({ children: ['Body 1'] });
+          const c2 = ComposedAlertDialog.Content({ children: ['Body 2'] });
+          return [t, c1, c2];
+        },
+      });
+
+      expect(spy).toHaveBeenCalledWith(
+        'Duplicate <AlertDialog.Content> detected – only the first is used',
+      );
+      spy.mockRestore();
+    });
+  });
+
   describe('Given an AlertDialog rendered inside a disposal scope', () => {
     describe('When the disposal scope cleanups are run', () => {
       it('Then removeEventListener is called for the trigger click handler', () => {

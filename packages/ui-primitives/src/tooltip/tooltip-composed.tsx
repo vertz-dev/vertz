@@ -23,6 +23,9 @@ export interface TooltipClasses {
 interface TooltipContextValue {
   tooltip: TooltipElements & { state: TooltipState };
   classes?: TooltipClasses;
+  /** @internal — duplicate sub-component detection */
+  _triggerClaimed: boolean;
+  _contentClaimed: boolean;
 }
 
 const TooltipContext = createContext<TooltipContextValue | undefined>(
@@ -57,7 +60,12 @@ interface SlotProps {
 // ---------------------------------------------------------------------------
 
 function TooltipTrigger({ children }: SlotProps) {
-  const { tooltip } = useTooltipContext('Trigger');
+  const ctx = useTooltipContext('Trigger');
+  if (ctx._triggerClaimed) {
+    console.warn('Duplicate <Tooltip.Trigger> detected – only the first is used');
+  }
+  ctx._triggerClaimed = true;
+  const { tooltip } = ctx;
 
   // Populate the primitive's trigger element with user children
   const resolved = resolveChildren(children);
@@ -69,7 +77,12 @@ function TooltipTrigger({ children }: SlotProps) {
 }
 
 function TooltipContent({ children, className: cls, class: classProp }: SlotProps) {
-  const { tooltip, classes } = useTooltipContext('Content');
+  const ctx = useTooltipContext('Content');
+  if (ctx._contentClaimed) {
+    console.warn('Duplicate <Tooltip.Content> detected – only the first is used');
+  }
+  ctx._contentClaimed = true;
+  const { tooltip, classes } = ctx;
   const effectiveCls = cls ?? classProp;
 
   // Apply theme + per-instance classes to the primitive's content element
@@ -106,9 +119,12 @@ function ComposedTooltipRoot({ children, classes, delay }: ComposedTooltipProps)
   // Provide primitive + classes via context, then resolve children
   // Sub-components (Trigger, Content) read context and self-wire
   let resolvedNodes: Node[] = [];
-  TooltipContext.Provider({ tooltip, classes }, () => {
-    resolvedNodes = resolveChildren(children);
-  });
+  TooltipContext.Provider(
+    { tooltip, classes, _triggerClaimed: false, _contentClaimed: false },
+    () => {
+      resolvedNodes = resolveChildren(children);
+    },
+  );
 
   return <div style="display: contents">{...resolvedNodes}</div>;
 }

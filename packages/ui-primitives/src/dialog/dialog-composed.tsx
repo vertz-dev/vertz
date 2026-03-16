@@ -30,9 +30,11 @@ export interface DialogClasses {
 interface DialogContextValue {
   dialog: DialogElements & { state: DialogState };
   classes?: DialogClasses;
-  onOpenChange?: (open: boolean) => void;
   /** @internal — registers the user trigger for ARIA sync */
   _registerTrigger: (el: HTMLElement) => void;
+  /** @internal — duplicate sub-component detection */
+  _triggerClaimed: boolean;
+  _contentClaimed: boolean;
 }
 
 const DialogContext = createContext<DialogContextValue | undefined>(
@@ -67,7 +69,12 @@ interface SlotProps {
 // ---------------------------------------------------------------------------
 
 function DialogTrigger({ children }: SlotProps) {
-  const { dialog, _registerTrigger } = useDialogContext('Trigger');
+  const ctx = useDialogContext('Trigger');
+  if (ctx._triggerClaimed) {
+    console.warn('Duplicate <Dialog.Trigger> detected – only the first is used');
+  }
+  ctx._triggerClaimed = true;
+  const { dialog, _registerTrigger } = ctx;
 
   // Resolve children to find the user's trigger element
   const resolved = resolveChildren(children);
@@ -99,7 +106,12 @@ function DialogTrigger({ children }: SlotProps) {
 }
 
 function DialogContent({ children, className: cls, class: classProp }: SlotProps) {
-  const { dialog, classes } = useDialogContext('Content');
+  const ctx = useDialogContext('Content');
+  if (ctx._contentClaimed) {
+    console.warn('Duplicate <Dialog.Content> detected – only the first is used');
+  }
+  ctx._contentClaimed = true;
+  const { dialog, classes } = ctx;
   const effectiveCls = cls ?? classProp;
 
   // Apply theme + per-instance classes to the primitive's content element
@@ -229,10 +241,11 @@ function ComposedDialogRoot({ children, classes, onOpenChange, closeIcon }: Comp
   const ctxValue: DialogContextValue = {
     dialog,
     classes,
-    onOpenChange,
     _registerTrigger: (el: HTMLElement) => {
       userTrigger = el;
     },
+    _triggerClaimed: false,
+    _contentClaimed: false,
   };
 
   // Provide primitive + classes via context, then resolve children

@@ -33,6 +33,9 @@ interface DropdownMenuContextValue {
   _registerTrigger: (el: HTMLElement) => void;
   /** Factory to create an item — overridden by Group sub-context */
   _createItem: (value: string, label?: string) => HTMLDivElement;
+  /** @internal — duplicate sub-component detection */
+  _triggerClaimed: boolean;
+  _contentClaimed: boolean;
 }
 
 const DropdownMenuContext = createContext<DropdownMenuContextValue | undefined>(
@@ -75,7 +78,12 @@ interface GroupProps extends SlotProps {
 // ---------------------------------------------------------------------------
 
 function MenuTrigger({ children }: SlotProps) {
-  const { menu, _registerTrigger } = useDropdownMenuContext('Trigger');
+  const ctx = useDropdownMenuContext('Trigger');
+  if (ctx._triggerClaimed) {
+    console.warn('Duplicate <DropdownMenu.Trigger> detected – only the first is used');
+  }
+  ctx._triggerClaimed = true;
+  const { menu, _registerTrigger } = ctx;
 
   // Resolve children to find the user's trigger element
   const resolved = resolveChildren(children);
@@ -103,7 +111,12 @@ function MenuTrigger({ children }: SlotProps) {
 }
 
 function MenuContent({ children }: SlotProps) {
-  const { menu } = useDropdownMenuContext('Content');
+  const ctx = useDropdownMenuContext('Content');
+  if (ctx._contentClaimed) {
+    console.warn('Duplicate <DropdownMenu.Content> detected – only the first is used');
+  }
+  ctx._contentClaimed = true;
+  const { menu } = ctx;
 
   // Resolve children (Items, Groups, Labels, Separators) for registration side effects
   resolveChildren(children);
@@ -132,23 +145,15 @@ function MenuItem({ value, children, className: cls, class: classProp }: ItemPro
 }
 
 function MenuGroup({ label, children }: GroupProps) {
-  const { menu, classes, _registerTrigger } = useDropdownMenuContext('Group');
-  const group = menu.Group(label);
+  const ctx = useDropdownMenuContext('Group');
+  const group = ctx.menu.Group(label);
 
-  if (classes?.group) group.el.className = classes.group;
+  if (ctx.classes?.group) group.el.className = ctx.classes.group;
 
   // Override _createItem in sub-context so nested Items use group.Item()
-  DropdownMenuContext.Provider(
-    {
-      menu,
-      classes,
-      _registerTrigger,
-      _createItem: (v, l) => group.Item(v, l),
-    },
-    () => {
-      resolveChildren(children);
-    },
-  );
+  DropdownMenuContext.Provider({ ...ctx, _createItem: (v, l) => group.Item(v, l) }, () => {
+    resolveChildren(children);
+  });
 
   return group.el;
 }
@@ -219,6 +224,8 @@ function ComposedDropdownMenuRoot({ children, classes, onSelect }: ComposedDropd
       userTrigger = el;
     },
     _createItem: (value, label) => menu.Item(value, label),
+    _triggerClaimed: false,
+    _contentClaimed: false,
   };
 
   // Resolve children for registration side effects

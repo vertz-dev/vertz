@@ -30,6 +30,9 @@ interface SelectContextValue {
   classes?: SelectClasses;
   /** Factory to create an item — overridden by Group sub-context */
   _createItem: (value: string, label?: string) => HTMLDivElement;
+  /** @internal — duplicate sub-component detection */
+  _triggerClaimed: boolean;
+  _contentClaimed: boolean;
 }
 
 const SelectContext = createContext<SelectContextValue | undefined>(
@@ -72,13 +75,23 @@ interface GroupProps extends SlotProps {
 // ---------------------------------------------------------------------------
 
 function SelectTrigger(_props: SlotProps) {
-  const { select } = useSelectContext('Trigger');
+  const ctx = useSelectContext('Trigger');
+  if (ctx._triggerClaimed) {
+    console.warn('Duplicate <Select.Trigger> detected – only the first is used');
+  }
+  ctx._triggerClaimed = true;
+  const { select } = ctx;
   // Select has its own combobox trigger; children are informational only
   return select.trigger;
 }
 
 function SelectContent({ children }: SlotProps) {
-  const { select } = useSelectContext('Content');
+  const ctx = useSelectContext('Content');
+  if (ctx._contentClaimed) {
+    console.warn('Duplicate <Select.Content> detected – only the first is used');
+  }
+  ctx._contentClaimed = true;
+  const { select } = ctx;
 
   // Resolve children (Items, Groups, Separators) for their registration side effects
   resolveChildren(children);
@@ -107,13 +120,13 @@ function SelectItem({ value, children, className: cls, class: classProp }: ItemP
 }
 
 function SelectGroup({ label, children }: GroupProps) {
-  const { select, classes } = useSelectContext('Group');
-  const group = select.Group(label);
+  const ctx = useSelectContext('Group');
+  const group = ctx.select.Group(label);
 
-  if (classes?.group) group.el.className = classes.group;
+  if (ctx.classes?.group) group.el.className = ctx.classes.group;
 
   // Override _createItem in sub-context so nested Items use group.Item()
-  SelectContext.Provider({ select, classes, _createItem: (v, l) => group.Item(v, l) }, () => {
+  SelectContext.Provider({ ...ctx, _createItem: (v, l) => group.Item(v, l) }, () => {
     resolveChildren(children);
   });
 
@@ -168,6 +181,8 @@ function ComposedSelectRoot({
     select,
     classes,
     _createItem: (value, label) => select.Item(value, label),
+    _triggerClaimed: false,
+    _contentClaimed: false,
   };
 
   // Resolve children for registration side effects
