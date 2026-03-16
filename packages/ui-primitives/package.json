@@ -48,7 +48,5 @@
   "engines": {
     "node": ">=22"
   },
-  "sideEffects": [
-    "./dist/shared/*.js"
-  ]
+  "sideEffects": false
 }
