@@ -288,9 +288,11 @@
         "typescript": "^5.7.0",
       },
       "peerDependencies": {
+        "better-sqlite3": "^12.0.0",
         "postgres": "^3.4.8",
       },
       "optionalPeers": [
+        "better-sqlite3",
         "postgres",
       ],
     },

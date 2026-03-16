@@ -3,7 +3,7 @@ import { existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { TableSchemaRegistry } from '../sqlite-driver';
-import { createLocalSqliteDriver } from '../sqlite-driver';
+import { createLocalSqliteDriver, resolveLocalSqliteDatabase } from '../sqlite-driver';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -151,6 +151,79 @@ describe('createLocalSqliteDriver', () => {
         expect(result).toEqual([{ id: 1, active: 1 }]);
 
         await driver.close();
+      });
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveLocalSqliteDatabase — error handling
+// ---------------------------------------------------------------------------
+
+describe('resolveLocalSqliteDatabase', () => {
+  describe('Given both bun:sqlite and better-sqlite3 are unavailable', () => {
+    describe('When resolving the database', () => {
+      it('Then throws an error mentioning both backends and the db path', () => {
+        const bunError = new Error('bun:sqlite not available');
+        const betterError = new Error('Could not locate the bindings file');
+
+        const failingRequire = (_mod: string) => {
+          throw _mod === 'bun:sqlite' ? bunError : betterError;
+        };
+
+        expect(() => resolveLocalSqliteDatabase(':memory:', failingRequire)).toThrow(
+          /Failed to initialize SQLite/,
+        );
+        expect(() => resolveLocalSqliteDatabase(':memory:', failingRequire)).toThrow(/bun:sqlite/);
+        expect(() => resolveLocalSqliteDatabase(':memory:', failingRequire)).toThrow(
+          /better-sqlite3/,
+        );
+      });
+
+      it('Then includes the database path in the error', () => {
+        const failingRequire = (_mod: string) => {
+          throw new Error('not available');
+        };
+
+        expect(() => resolveLocalSqliteDatabase('/app/data/notes.db', failingRequire)).toThrow(
+          '/app/data/notes.db',
+        );
+      });
+    });
+  });
+
+  describe('Given bun:sqlite succeeds', () => {
+    describe('When resolving the database', () => {
+      it('Then returns the database from bun:sqlite', () => {
+        const mockDb = { prepare: () => {}, exec: () => {}, close: () => {} };
+        function MockDatabase() {
+          return mockDb;
+        }
+        const mockRequire = (mod: string) => {
+          if (mod === 'bun:sqlite') return { Database: MockDatabase };
+          throw new Error('should not reach better-sqlite3');
+        };
+
+        const db = resolveLocalSqliteDatabase(':memory:', mockRequire);
+        expect(db).toBe(mockDb);
+      });
+    });
+  });
+
+  describe('Given bun:sqlite fails but better-sqlite3 succeeds', () => {
+    describe('When resolving the database', () => {
+      it('Then returns the database from better-sqlite3', () => {
+        const mockDb = { prepare: () => {}, exec: () => {}, close: () => {} };
+        function MockDatabase() {
+          return mockDb;
+        }
+        const mockRequire = (mod: string) => {
+          if (mod === 'bun:sqlite') throw new Error('not available');
+          return MockDatabase;
+        };
+
+        const db = resolveLocalSqliteDatabase(':memory:', mockRequire);
+        expect(db).toBe(mockDb);
       });
     });
   });

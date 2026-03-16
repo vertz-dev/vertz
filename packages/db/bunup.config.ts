@@ -67,5 +67,6 @@ export default defineConfig({
   format: ['esm'],
   dts: { inferTypes: true },
   clean: true,
+  external: ['better-sqlite3'],
   onSuccess: stripDeadRequireImports,
 });
