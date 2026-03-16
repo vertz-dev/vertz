@@ -75,6 +75,52 @@ describe('Composed Tooltip', () => {
       expect(triggerWrapper).not.toBeNull();
       expect(triggerWrapper!.getAttribute('aria-describedby')).toBe(tooltip!.id);
     });
+
+    it('Then sets aria-describedby on the user child HTMLElement (#1370)', () => {
+      const btn = document.createElement('button');
+      btn.textContent = 'Hover me';
+
+      const root = ComposedTooltip({
+        children: () => {
+          const t = ComposedTooltip.Trigger({ children: [btn] });
+          const c = ComposedTooltip.Content({ children: ['Tip'] });
+          return [t, c];
+        },
+      });
+      container.appendChild(root);
+
+      const tooltip = root.querySelector('[role="tooltip"]') as HTMLElement;
+      expect(btn.getAttribute('aria-describedby')).toBe(tooltip!.id);
+    });
+  });
+
+  describe('Given a Tooltip with positioning prop (#1334)', () => {
+    it('Then forwards positioning to the primitive so floating-ui activates on open', async () => {
+      const btn = document.createElement('button');
+
+      const root = ComposedTooltip({
+        delay: 0,
+        positioning: { placement: 'bottom', portal: true },
+        children: () => {
+          const t = ComposedTooltip.Trigger({ children: [btn] });
+          const c = ComposedTooltip.Content({ children: ['Tip'] });
+          return [t, c];
+        },
+      });
+      container.appendChild(root);
+
+      // Hover to open the tooltip
+      const triggerEl = root.querySelector('[aria-describedby]') as HTMLElement;
+      triggerEl!.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+
+      // Wait for delay (0ms) + setTimeout tick
+      await new Promise((r) => setTimeout(r, 10));
+
+      // When positioning with portal: true is active, content is moved to document.body
+      const tooltip = document.body.querySelector('[role="tooltip"]') as HTMLElement;
+      expect(tooltip).not.toBeNull();
+      expect(tooltip!.parentElement).toBe(document.body);
+    });
   });
 
   describe('Given a Tooltip content with children', () => {

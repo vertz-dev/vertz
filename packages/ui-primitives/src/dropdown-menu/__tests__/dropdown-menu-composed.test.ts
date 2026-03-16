@@ -91,6 +91,32 @@ describe('Composed DropdownMenu', () => {
     });
   });
 
+  describe('Given a DropdownMenu with positioning prop (#1334)', () => {
+    it('Then forwards positioning to the primitive so floating-ui activates on open', () => {
+      const btn = document.createElement('button');
+
+      const root = ComposedDropdownMenu({
+        positioning: { placement: 'bottom-start', portal: true },
+        children: () => {
+          const t = ComposedDropdownMenu.Trigger({ children: [btn] });
+          const c = ComposedDropdownMenu.Content({
+            children: () => [ComposedDropdownMenu.Item({ value: 'a', children: ['A'] })],
+          });
+          return [t, c];
+        },
+      });
+      container.appendChild(root);
+
+      // Open the menu
+      btn.click();
+
+      // When positioning with portal: true is active, content is moved to document.body
+      const menu = document.body.querySelector('[role="menu"]') as HTMLElement;
+      expect(menu).not.toBeNull();
+      expect(menu!.parentElement).toBe(document.body);
+    });
+  });
+
   describe('Given a DropdownMenu.Trigger rendered outside DropdownMenu', () => {
     describe('When the component mounts', () => {
       it('Then throws an error', () => {
