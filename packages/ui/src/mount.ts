@@ -1,7 +1,7 @@
 import { injectCSS } from './css/css';
 import type { Theme } from './css/theme';
 import { compileTheme } from './css/theme';
-import { endHydration, startHydration } from './hydrate/hydration-context';
+import { discardDeferredEffects, endHydration, startHydration } from './hydrate/hydration-context';
 import { popScope, pushScope, runCleanups } from './runtime/disposal';
 
 /**
@@ -102,7 +102,10 @@ export function mount<AppFn extends () => Element | DocumentFragment>(
       mountedRoots.set(root, handle);
       return handle;
     } catch (e) {
-      // Bail out: hydration failed, fall back to full CSR
+      // Bail out: hydration failed, fall back to full CSR.
+      // Discard deferred effects first — they reference DOM nodes from the
+      // broken hydration tree that are about to be destroyed.
+      discardDeferredEffects();
       endHydration();
       popScope();
       runCleanups(scope);

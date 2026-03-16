@@ -1,5 +1,10 @@
-import { afterEach, describe, expect, it } from 'bun:test';
-import { endHydration, startHydration } from '../../hydrate/hydration-context';
+import { afterEach, describe, expect, it, vi } from 'bun:test';
+import {
+  endHydration,
+  pauseHydration,
+  resumeHydration,
+  startHydration,
+} from '../../hydrate/hydration-context';
 import { deferredDomEffect, signal } from '../../runtime/signal';
 import { __attr } from '../attributes';
 import { __child, __text } from '../element';
@@ -205,6 +210,55 @@ describe('deferred effects during hydration', () => {
       expect(wrapper.textContent).toBe('csr-content');
 
       endHydration();
+    });
+
+    it('__attr runs synchronously inside pauseHydration region', () => {
+      const root = document.createElement('div');
+      const btn = document.createElement('button');
+      root.appendChild(btn);
+      startHydration(root);
+
+      // Simulate the __child pattern: pause hydration, then call __attr
+      pauseHydration();
+      let effectRuns = 0;
+      const disabled = signal(true);
+      __attr(btn, 'disabled', () => {
+        effectRuns++;
+        return disabled.value ? '' : null;
+      });
+      resumeHydration();
+
+      // __attr ran synchronously (pauseHydration prevents deferral)
+      expect(effectRuns).toBe(1);
+      expect(btn.getAttribute('disabled')).toBe('');
+
+      endHydration();
+    });
+  });
+
+  describe('flush resilience', () => {
+    it('continues flushing after a throwing effect', () => {
+      const root = document.createElement('div');
+      startHydration(root);
+
+      const order: number[] = [];
+      deferredDomEffect(() => {
+        order.push(1);
+      });
+      deferredDomEffect(() => {
+        throw new Error('boom');
+      });
+      deferredDomEffect(() => {
+        order.push(3);
+      });
+
+      // Suppress expected console.error
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      endHydration();
+      spy.mockRestore();
+
+      // Effect 1 and 3 should have run despite effect 2 throwing
+      expect(order).toEqual([1, 3]);
     });
   });
 });
