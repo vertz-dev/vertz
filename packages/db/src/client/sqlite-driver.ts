@@ -4,8 +4,10 @@
  * Provides a DbDriver interface that wraps D1's prepare/bind/all/run API.
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
 import type { DbDriver } from './driver';
-import { fromSqliteValue } from './sqlite-value-converter';
+import { fromSqliteValue, toSqliteValue } from './sqlite-value-converter';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -169,6 +171,112 @@ export function createSqliteDriver(
     close: async () => {
       // D1 doesn't require explicit closing
       // This is a no-op for compatibility with DbDriver interface
+    },
+    isHealthy: async () => {
+      try {
+        await query('SELECT 1');
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Local SQLite database interface (bun:sqlite / better-sqlite3)
+// ---------------------------------------------------------------------------
+
+interface LocalSqliteDatabase {
+  prepare(sql: string): {
+    all(...params: unknown[]): Record<string, unknown>[];
+    run(...params: unknown[]): { changes: number };
+  };
+  exec(sql: string): void;
+  close(): void;
+}
+
+// ---------------------------------------------------------------------------
+// createLocalSqliteDriver — factory for bun:sqlite / better-sqlite3
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a SQLite driver from a local file path using bun:sqlite or better-sqlite3.
+ *
+ * @param dbPath - Path to SQLite file, or ':memory:' for in-memory
+ * @param tableSchema - Optional table schema registry for value conversion
+ * @returns A SqliteDriver with query, execute, close, and isHealthy methods
+ */
+export function createLocalSqliteDriver(
+  dbPath: string,
+  tableSchema?: TableSchemaRegistry,
+): SqliteDriver {
+  // Auto-create parent directories for file-based paths
+  if (dbPath !== ':memory:') {
+    const dir = path.dirname(dbPath);
+    if (dir && dir !== '.' && !fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  }
+
+  let db: LocalSqliteDatabase;
+
+  try {
+    // Try bun:sqlite first (Bun runtime)
+    const { Database } = require('bun:sqlite');
+    db = new Database(dbPath) as LocalSqliteDatabase;
+  } catch {
+    // Fall back to better-sqlite3 (Node.js runtime)
+    const Database = require('better-sqlite3');
+    db = new Database(dbPath) as LocalSqliteDatabase;
+  }
+
+  // Enable WAL mode for file-based paths (not :memory:)
+  if (dbPath !== ':memory:') {
+    db.exec('PRAGMA journal_mode = WAL');
+  }
+
+  const convertParams = (params?: unknown[]): unknown[] | undefined => {
+    if (!params) return params;
+    return params.map(toSqliteValue);
+  };
+
+  const convertRow = <T>(row: Record<string, unknown>, sql: string): T => {
+    if (!tableSchema) return row as T;
+
+    const tableName = extractTableName(sql);
+    if (!tableName) return row as T;
+
+    const schema = tableSchema.get(tableName);
+    if (!schema) return row as T;
+
+    const converted: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(row)) {
+      const columnType = schema[key];
+      converted[key] = columnType ? fromSqliteValue(value, columnType) : value;
+    }
+    return converted as T;
+  };
+
+  const query = async <T>(sql: string, params?: unknown[]): Promise<T[]> => {
+    const stmt = db.prepare(sql);
+    const convertedParams = convertParams(params);
+    const rows = convertedParams ? stmt.all(...convertedParams) : stmt.all();
+    return rows.map((row) => convertRow<T>(row as Record<string, unknown>, sql));
+  };
+
+  const execute = async (sql: string, params?: unknown[]): Promise<{ rowsAffected: number }> => {
+    const stmt = db.prepare(sql);
+    const convertedParams = convertParams(params);
+    const result = convertedParams ? stmt.run(...convertedParams) : stmt.run();
+    return { rowsAffected: result.changes };
+  };
+
+  return {
+    query,
+    execute,
+    close: async () => {
+      db.close();
     },
     isHealthy: async () => {
       try {
