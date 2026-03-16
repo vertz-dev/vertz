@@ -235,7 +235,7 @@ export class BuildOrchestrator {
         target: this.getEsbuildTarget(),
         minify: this.config.minify,
         sourcemap: this.config.sourcemap,
-        external: ['@vertz/*', '@anthropic-ai/sdk'],
+        external: ['@vertz/*', 'vertz', '@anthropic-ai/sdk'],
         logLevel: 'info',
         metafile: true, // Enable metafile for analysis
       });
