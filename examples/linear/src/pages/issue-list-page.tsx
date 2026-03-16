@@ -5,7 +5,7 @@ import { CreateIssueDialog } from '../components/create-issue-dialog';
 import { IssueRow } from '../components/issue-row';
 import { StatusFilter } from '../components/status-filter';
 import { ViewToggle } from '../components/view-toggle';
-import type { Issue } from '../lib/types';
+import type { Issue, IssuePriority, IssueStatus } from '../lib/types';
 import { emptyStateStyles } from '../styles/components';
 
 const styles = css({
@@ -29,6 +29,21 @@ export function IssueListPage() {
     statusFilter === 'all'
       ? issues.data?.items
       : issues.data?.items.filter((i) => i.status === statusFilter);
+
+  const handleStatusChange = async (issueId: string, status: IssueStatus) => {
+    const res = await api.issues.update(issueId, { status });
+    if (!res.ok) {
+      console.error('Failed to update status');
+    }
+    // MutationEventBus auto-triggers query revalidation
+  };
+
+  const handlePriorityChange = async (issueId: string, priority: IssuePriority) => {
+    const res = await api.issues.update(issueId, { priority });
+    if (!res.ok) {
+      console.error('Failed to update priority');
+    }
+  };
 
   const handleNewIssue = async () => {
     try {
@@ -82,7 +97,12 @@ export function IssueListPage() {
         <div className={styles.list}>
           {filtered.map((issue) => (
             <Link href={`/projects/${projectId}/issues/${issue.id}`} key={issue.id}>
-              <IssueRow issue={issue as Issue} projectKey={project.data?.key} />
+              <IssueRow
+                issue={issue as Issue}
+                projectKey={project.data?.key}
+                onStatusChange={handleStatusChange}
+                onPriorityChange={handlePriorityChange}
+              />
             </Link>
           ))}
         </div>
