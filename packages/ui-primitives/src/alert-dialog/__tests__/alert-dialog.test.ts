@@ -229,6 +229,13 @@ describe('AlertDialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it('hide() is a no-op on a never-opened dialog', () => {
+    const onOpenChange = vi.fn();
+    AlertDialog.Root({ onOpenChange }).hide();
+
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
   it('hide() is idempotent — calling twice only fires onOpenChange(false) once', () => {
     const onOpenChange = vi.fn();
     const { trigger, content, cancel, show, hide } = AlertDialog.Root({ onOpenChange });
