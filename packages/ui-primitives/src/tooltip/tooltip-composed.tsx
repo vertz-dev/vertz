@@ -5,6 +5,7 @@
 
 import type { ChildValue } from '@vertz/ui';
 import { createContext, resolveChildren, useContext } from '@vertz/ui';
+import type { FloatingOptions } from '../utils/floating';
 import type { TooltipElements, TooltipState } from './tooltip';
 import { Tooltip } from './tooltip';
 
@@ -73,6 +74,13 @@ function TooltipTrigger({ children }: SlotProps) {
     tooltip.trigger.appendChild(node);
   }
 
+  // Wire aria-describedby on the user's interactive element (consistent with other composed triggers)
+  const userTrigger = resolved.find((n): n is HTMLElement => n instanceof HTMLElement) ?? null;
+  if (userTrigger) {
+    const contentId = tooltip.content.id;
+    userTrigger.setAttribute('aria-describedby', contentId);
+  }
+
   return tooltip.trigger;
 }
 
@@ -108,13 +116,14 @@ export interface ComposedTooltipProps {
   children?: ChildValue;
   classes?: TooltipClasses;
   delay?: number;
+  positioning?: FloatingOptions;
 }
 
 export type TooltipClassKey = keyof TooltipClasses;
 
-function ComposedTooltipRoot({ children, classes, delay }: ComposedTooltipProps) {
+function ComposedTooltipRoot({ children, classes, delay, positioning }: ComposedTooltipProps) {
   // Create the low-level tooltip primitive
-  const tooltip = Tooltip.Root({ delay });
+  const tooltip = Tooltip.Root({ delay, positioning });
 
   // Provide primitive + classes via context, then resolve children
   // Sub-components (Trigger, Content) read context and self-wire

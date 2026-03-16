@@ -126,6 +126,34 @@ describe('Composed Select', () => {
     });
   });
 
+  describe('Given a Select with positioning prop (#1334)', () => {
+    it('Then forwards positioning to the primitive so floating-ui activates on open', () => {
+      const root = ComposedSelect({
+        positioning: { placement: 'bottom-start', portal: true },
+        children: () => {
+          const t = ComposedSelect.Trigger({ children: ['Pick one'] });
+          const c = ComposedSelect.Content({
+            children: () => {
+              const i1 = ComposedSelect.Item({ value: 'a', children: ['Alpha'] });
+              return [i1];
+            },
+          });
+          return [t, c];
+        },
+      });
+      container.appendChild(root);
+
+      // Open the select
+      const trigger = root.querySelector('[role="combobox"]') as HTMLElement;
+      trigger!.click();
+
+      // When positioning with portal: true is active, content is moved to document.body
+      const listbox = document.body.querySelector('[role="listbox"]') as HTMLElement;
+      expect(listbox).not.toBeNull();
+      expect(listbox!.parentElement).toBe(document.body);
+    });
+  });
+
   describe('Given a Select.Trigger rendered outside Select', () => {
     describe('When the component mounts', () => {
       it('Then throws an error', () => {

@@ -7,6 +7,7 @@
 
 import type { ChildValue } from '@vertz/ui';
 import { createContext, resolveChildren, useContext } from '@vertz/ui';
+import type { FloatingOptions } from '../utils/floating';
 import { Select } from './select';
 
 // ---------------------------------------------------------------------------
@@ -150,6 +151,7 @@ export interface ComposedSelectProps {
   defaultValue?: string;
   placeholder?: string;
   onValueChange?: (value: string) => void;
+  positioning?: FloatingOptions;
 }
 
 export type SelectClassKey = keyof SelectClasses;
@@ -160,11 +162,13 @@ function ComposedSelectRoot({
   defaultValue,
   placeholder,
   onValueChange,
+  positioning,
 }: ComposedSelectProps) {
   const select = Select.Root({
     defaultValue,
     placeholder,
     onValueChange,
+    positioning,
   });
 
   // Apply trigger class

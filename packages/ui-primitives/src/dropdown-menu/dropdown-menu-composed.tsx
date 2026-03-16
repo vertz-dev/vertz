@@ -9,6 +9,7 @@ import type { ChildValue } from '@vertz/ui';
 import { createContext, resolveChildren, useContext } from '@vertz/ui';
 import { _tryOnCleanup } from '@vertz/ui/internals';
 import { Menu } from '../menu/menu';
+import type { FloatingOptions } from '../utils/floating';
 
 // ---------------------------------------------------------------------------
 // Class distribution
@@ -193,17 +194,24 @@ export interface ComposedDropdownMenuProps {
   children?: ChildValue;
   classes?: DropdownMenuClasses;
   onSelect?: (value: string) => void;
+  positioning?: FloatingOptions;
 }
 
 export type DropdownMenuClassKey = keyof DropdownMenuClasses;
 
-function ComposedDropdownMenuRoot({ children, classes, onSelect }: ComposedDropdownMenuProps) {
+function ComposedDropdownMenuRoot({
+  children,
+  classes,
+  onSelect,
+  positioning,
+}: ComposedDropdownMenuProps) {
   // Track the user's trigger element for ARIA sync
   let userTrigger: HTMLElement | null = null;
 
   // Create the low-level menu primitive with ARIA sync
   const menu = Menu.Root({
     onSelect,
+    positioning,
     onOpenChange: (isOpen) => {
       if (userTrigger) {
         userTrigger.setAttribute('aria-expanded', String(isOpen));

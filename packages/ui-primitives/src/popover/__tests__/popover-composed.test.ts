@@ -135,6 +135,30 @@ describe('Composed Popover', () => {
     });
   });
 
+  describe('Given a Popover with positioning prop (#1334)', () => {
+    it('Then forwards positioning to the primitive so floating-ui activates on open', () => {
+      const btn = document.createElement('button');
+
+      const root = ComposedPopover({
+        positioning: { placement: 'bottom-start', portal: true },
+        children: () => {
+          const t = ComposedPopover.Trigger({ children: [btn] });
+          const c = ComposedPopover.Content({ children: ['Body'] });
+          return [t, c];
+        },
+      });
+      container.appendChild(root);
+
+      // Open the popover
+      btn.click();
+
+      // When positioning with portal: true is active, content is moved to document.body
+      const dialog = document.body.querySelector('[role="dialog"]') as HTMLElement;
+      expect(dialog).not.toBeNull();
+      expect(dialog!.parentElement).toBe(document.body);
+    });
+  });
+
   describe('Given a Popover.Trigger rendered outside Popover', () => {
     describe('When the component mounts', () => {
       it('Then throws an error', () => {
