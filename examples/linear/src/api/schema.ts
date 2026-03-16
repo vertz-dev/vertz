@@ -1,11 +1,16 @@
 import { d } from '@vertz/db';
 
+// Default tenant ID — all seed data and new signups belong to this tenant.
+// In a real app you'd have a tenants table and a membership flow.
+export const SEED_TENANT_ID = 'tenant-acme';
+
 // ---------------------------------------------------------------------------
 // Users — developer-owned table, populated via onUserCreated callback
 // ---------------------------------------------------------------------------
 
 export const usersTable = d.table('users', {
   id: d.text().primary(),
+  tenantId: d.text().default(''),
   name: d.text(),
   email: d.text().unique(),
   avatarUrl: d.text().nullable(),
@@ -21,6 +26,7 @@ export const usersModel = d.model(usersTable);
 
 export const projectsTable = d.table('projects', {
   id: d.uuid().primary({ generate: 'uuid' }),
+  tenantId: d.text().default(''),
   name: d.text(),
   key: d.text().unique(),
   description: d.text().nullable(),
@@ -37,6 +43,7 @@ export const projectsModel = d.model(projectsTable);
 
 export const issuesTable = d.table('issues', {
   id: d.uuid().primary({ generate: 'uuid' }),
+  tenantId: d.text().default(''),
   projectId: d.uuid(),
   number: d.integer().default(0),
   title: d.text(),
@@ -57,6 +64,7 @@ export const issuesModel = d.model(issuesTable);
 
 export const commentsTable = d.table('comments', {
   id: d.uuid().primary({ generate: 'uuid' }),
+  tenantId: d.text().default(''),
   issueId: d.uuid(),
   body: d.text(),
   authorId: d.text().default(''),
