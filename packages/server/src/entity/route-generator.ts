@@ -12,6 +12,7 @@ import type { EntityDefinition, EntityRelationsConfig } from './types';
 import {
   type ExposeValidationConfig,
   MAX_CURSOR_LENGTH,
+  MAX_LIMIT,
   parseVertzQL,
   type VertzQLIncludeEntry,
   validateVertzQL,
@@ -159,20 +160,18 @@ export function generateEntityRoutes(
   // --- LIST ---
   if (def.access.list !== undefined) {
     if (def.access.list === false) {
-      routes.push({
-        method: 'GET',
-        path: basePath,
-        handler: async () =>
-          jsonResponse(
-            {
-              error: {
-                code: 'MethodNotAllowed',
-                message: `Operation "list" is disabled for ${def.name}`,
-              },
+      const list405Handler = async () =>
+        jsonResponse(
+          {
+            error: {
+              code: 'MethodNotAllowed',
+              message: `Operation "list" is disabled for ${def.name}`,
             },
-            405,
-          ),
-      });
+          },
+          405,
+        );
+      routes.push({ method: 'GET', path: basePath, handler: list405Handler });
+      routes.push({ method: 'POST', path: `${basePath}/query`, handler: list405Handler });
     } else {
       routes.push({
         method: 'GET',
@@ -238,98 +237,104 @@ export function generateEntityRoutes(
           }
         },
       });
-    }
 
-    // --- POST query fallback (for large queries that don't fit in URL) ---
-    routes.push({
-      method: 'POST',
-      path: `${basePath}/query`,
-      handler: async (ctx) => {
-        try {
-          const entityCtx = makeEntityCtx(ctx);
-          const body = (ctx.body ?? {}) as Record<string, unknown>;
+      // --- POST query fallback (for large queries that don't fit in URL) ---
+      routes.push({
+        method: 'POST',
+        path: `${basePath}/query`,
+        handler: async (ctx) => {
+          try {
+            const entityCtx = makeEntityCtx(ctx);
+            const body = (ctx.body ?? {}) as Record<string, unknown>;
 
-          // Validate cursor type and length before processing
-          if (body.after !== undefined) {
-            if (typeof body.after !== 'string') {
-              return jsonResponse(
-                { error: { code: 'BadRequest', message: 'cursor must be a string' } },
-                400,
-              );
-            }
-            if (body.after.length > MAX_CURSOR_LENGTH) {
-              return jsonResponse(
-                {
-                  error: {
-                    code: 'BadRequest',
-                    message: `cursor exceeds maximum length of ${MAX_CURSOR_LENGTH}`,
+            // Validate cursor type and length before processing
+            if (body.after !== undefined) {
+              if (typeof body.after !== 'string') {
+                return jsonResponse(
+                  { error: { code: 'BadRequest', message: 'cursor must be a string' } },
+                  400,
+                );
+              }
+              if (body.after.length > MAX_CURSOR_LENGTH) {
+                return jsonResponse(
+                  {
+                    error: {
+                      code: 'BadRequest',
+                      message: `cursor exceeds maximum length of ${MAX_CURSOR_LENGTH}`,
+                    },
                   },
-                },
+                  400,
+                );
+              }
+            }
+
+            const parsed = {
+              where: body.where as Record<string, unknown> | undefined,
+              orderBy: body.orderBy as Record<string, 'asc' | 'desc'> | undefined,
+              limit:
+                typeof body.limit === 'number' && Number.isFinite(body.limit)
+                  ? Math.max(0, Math.min(body.limit, MAX_LIMIT))
+                  : undefined,
+              after: typeof body.after === 'string' ? body.after : undefined,
+              select: body.select as Record<string, true> | undefined,
+              include: body.include as Record<string, true | VertzQLIncludeEntry> | undefined,
+            };
+
+            // Pre-evaluate expose descriptors once per request
+            const evaluated = exposeEvalConfig
+              ? await evaluateExposeDescriptors(exposeEvalConfig, entityCtx)
+              : null;
+
+            const relationsConfig = (def.expose?.include ?? {}) as EntityRelationsConfig;
+            const validation = validateVertzQL(
+              parsed,
+              def.model.table,
+              relationsConfig,
+              exposeValidation,
+              evaluated ?? undefined,
+            );
+            if (!validation.ok) {
+              return jsonResponse(
+                { error: { code: 'BadRequest', message: validation.error } },
                 400,
               );
             }
-          }
 
-          const parsed = {
-            where: body.where as Record<string, unknown> | undefined,
-            orderBy: body.orderBy as Record<string, 'asc' | 'desc'> | undefined,
-            limit: typeof body.limit === 'number' ? body.limit : undefined,
-            after: typeof body.after === 'string' ? body.after : undefined,
-            select: body.select as Record<string, true> | undefined,
-            include: body.include as Record<string, true | VertzQLIncludeEntry> | undefined,
-          };
+            const options: ListOptions = {
+              where: parsed.where,
+              orderBy: parsed.orderBy,
+              limit: parsed.limit,
+              after: parsed.after,
+              include: parsed.include,
+            };
+            const result = await crudHandlers.list(entityCtx, options);
+            if (!result.ok) {
+              const { status, body: errBody } = entityErrorHandler(result.error);
+              return jsonResponse(errBody, status);
+            }
 
-          // Pre-evaluate expose descriptors once per request
-          const evaluated = exposeEvalConfig
-            ? await evaluateExposeDescriptors(exposeEvalConfig, entityCtx)
-            : null;
+            // Apply nulling for descriptor-guarded fields
+            if (evaluated && evaluated.nulledFields.size > 0 && result.data.body.items) {
+              result.data.body.items = result.data.body.items.map((row) =>
+                applyNulling(row as Record<string, unknown>, evaluated.nulledFields),
+              );
+            }
 
-          const relationsConfig = (def.expose?.include ?? {}) as EntityRelationsConfig;
-          const validation = validateVertzQL(
-            parsed,
-            def.model.table,
-            relationsConfig,
-            exposeValidation,
-            evaluated ?? undefined,
-          );
-          if (!validation.ok) {
-            return jsonResponse({ error: { code: 'BadRequest', message: validation.error } }, 400);
-          }
+            // Apply select narrowing if requested
+            if (parsed.select && result.data.body.items) {
+              result.data.body.items = result.data.body.items.map((row) =>
+                applySelect(parsed.select, row as Record<string, unknown>),
+              );
+            }
 
-          const options: ListOptions = {
-            where: parsed.where,
-            orderBy: parsed.orderBy,
-            limit: parsed.limit,
-            after: parsed.after,
-            include: parsed.include,
-          };
-          const result = await crudHandlers.list(entityCtx, options);
-          if (!result.ok) {
-            const { status, body: errBody } = entityErrorHandler(result.error);
+            return jsonResponse(result.data.body, result.data.status);
+          } catch (error) {
+            const { status, body: errBody } = entityErrorHandler(error);
             return jsonResponse(errBody, status);
           }
-
-          // Apply nulling for descriptor-guarded fields
-          if (evaluated && evaluated.nulledFields.size > 0 && result.data.body.items) {
-            result.data.body.items = result.data.body.items.map((row) =>
-              applyNulling(row as Record<string, unknown>, evaluated.nulledFields),
-            );
-          }
-
-          // Apply select narrowing if requested
-          if (parsed.select && result.data.body.items) {
-            result.data.body.items = result.data.body.items.map((row) =>
-              applySelect(parsed.select, row as Record<string, unknown>),
-            );
-          }
-
-          return jsonResponse(result.data.body, result.data.status);
-        } catch (error) {
-          const { status, body: errBody } = entityErrorHandler(error);
-          return jsonResponse(errBody, status);
-        }
-      },
-    });
+        },
+      });
+    }
   }
 
   // --- GET ---
