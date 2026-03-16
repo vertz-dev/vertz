@@ -36,25 +36,13 @@
       "types": "./dist/diagnostic/index.d.ts",
       "import": "./dist/diagnostic/index.js"
     },
-    "./core": {
-      "types": "./dist/core/index.d.ts",
-      "import": "./dist/core/index.js"
-    },
     "./schema-derive": {
       "types": "./dist/schema-derive/index.d.ts",
       "import": "./dist/schema-derive/index.js"
     },
-    "./sqlite": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/sqlite/index.js"
-    },
     "./postgres": {
       "types": "./dist/index.d.ts",
       "import": "./dist/postgres/index.js"
-    },
-    "./d1": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/d1/index.js"
     }
   },
   "files": [

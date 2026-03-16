@@ -102,8 +102,7 @@ d.text()
   .sensitive()              // Excluded when select: { not: 'sensitive' }
   .autoUpdate()             // Read-only + auto-updated on every write
   .check('length(name) > 0')  // SQL CHECK constraint
-  .references('users')      // FK to users.id
-  .references('users', 'email')  // FK to users.email
+  // Foreign keys: use d.ref.one() in d.model() — see Relations section below
 ```
 
 ### ID Generation
@@ -620,18 +619,16 @@ await autoMigrate({
 });
 ```
 
-When using `createDbProvider`, auto-migration runs automatically in non-production environments:
+When using `createDb` with local SQLite, auto-migration creates tables on first query:
 
 ```typescript
-import { createDbProvider } from '@vertz/db/core';
+import { createDb, d } from '@vertz/db';
 
-const dbProvider = createDbProvider({
-  url: process.env.DATABASE_URL!,
-  models: { users: { table: users, relations: {} } },
-  migrations: {
-    autoApply: true, // explicit opt-in (defaults to NODE_ENV !== 'production')
-    snapshotPath: '.vertz/schema-snapshot.json',
-  },
+const db = createDb({
+  models: { users: usersModel },
+  dialect: 'sqlite',
+  path: '.vertz/data/app.db',
+  migrations: { autoApply: true },
 });
 ```
 
@@ -655,22 +652,13 @@ class KVSnapshotStorage implements SnapshotStorage {
   }
 }
 
-// Pass to autoMigrate or createDbProvider
+// Pass to autoMigrate
 await autoMigrate({
   currentSchema,
   snapshotPath: 'schema-snapshot',
   dialect: 'sqlite',
   db: queryFn,
   storage: new KVSnapshotStorage(env.SNAPSHOTS),
-});
-
-// Or via the provider
-const dbProvider = createDbProvider({
-  url: env.DATABASE_URL,
-  models,
-  migrations: {
-    storage: new KVSnapshotStorage(env.SNAPSHOTS),
-  },
 });
 ```
 

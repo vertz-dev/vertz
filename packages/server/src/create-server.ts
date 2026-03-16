@@ -3,6 +3,7 @@ import { createServer as coreCreateServer } from '@vertz/core';
 import {
   createDatabaseBridgeAdapter,
   type DatabaseClient,
+  type DatabaseInternals,
   type EntityDbAdapter,
   type ModelEntry,
 } from '@vertz/db';
@@ -32,6 +33,19 @@ import type { ServiceDefinition } from './service/types';
 // ---------------------------------------------------------------------------
 
 /**
+ * Structural match for any DatabaseClient regardless of model types.
+ *
+ * DatabaseClient's mapped type `{ [K in keyof TModels]: ModelDelegate<TModels[K]> }`
+ * is invariant in TModels, which prevents `DatabaseClient<{ todos: ModelDef<...> }>`
+ * from being assignable to `DatabaseClient<Record<string, ModelEntry>>`.
+ * This interface captures only what createServer actually accesses.
+ */
+interface DatabaseClientLike {
+  readonly _internals: DatabaseInternals<Record<string, ModelEntry>>;
+  [key: string]: unknown;
+}
+
+/**
  * Detects whether the provided db object is a DatabaseClient (query builder)
  * rather than a plain EntityDbAdapter.
  *
@@ -39,8 +53,8 @@ import type { ServiceDefinition } from './service/types';
  * that an EntityDbAdapter does not.
  */
 function isDatabaseClient(
-  db: DatabaseClient<Record<string, ModelEntry>> | EntityDbAdapter,
-): db is DatabaseClient<Record<string, ModelEntry>> {
+  db: DatabaseClientLike | EntityDbAdapter,
+): db is DatabaseClientLike {
   return db !== null && typeof db === 'object' && '_internals' in db;
 }
 
@@ -85,7 +99,7 @@ export interface ServerConfig extends Omit<AppConfig, '_entityDbFactory' | 'enti
    * - A DatabaseClient from createDb() (recommended — auto-bridged per entity)
    * - An EntityDbAdapter (deprecated — simple adapter with get/list/create/update/delete)
    */
-  db?: DatabaseClient<Record<string, ModelEntry>> | EntityDbAdapter;
+  db?: DatabaseClientLike | EntityDbAdapter;
   /** @internal Factory to create a DB adapter for each entity. Prefer `db` instead. */
   _entityDbFactory?: (entityDef: EntityDefinition) => EntityDbAdapter;
   /** @internal Resolves parent IDs for indirect tenant chain traversal. For testing only. */
@@ -181,7 +195,7 @@ function createEntityOps(entityDef: EntityDefinition, db: EntityDbAdapter): Enti
  * - Returns ServerInstance with `.auth` and `.initialize()`
  */
 export function createServer(
-  config: ServerConfig & { db: DatabaseClient<Record<string, ModelEntry>>; auth: AuthConfig },
+  config: ServerConfig & { db: DatabaseClientLike; auth: AuthConfig },
 ): ServerInstance;
 export function createServer(config: ServerConfig & { cloud: CloudServerConfig }): ServerInstance;
 export function createServer(config: ServerConfig): AppBuilder;

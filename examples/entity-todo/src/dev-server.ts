@@ -12,16 +12,10 @@
 
 import { createServer } from '@vertz/server';
 import { createBunDevServer } from '@vertz/ui-server/bun-dev-server';
-import { createTodosDb } from './api/db';
+import { db } from './api/db';
 import { todos } from './api/entities/todos/todos.entity';
 
 const PORT = Number(process.env.PORT) || 3000;
-
-// ============================================================================
-// Database Setup (SQLite for local dev)
-// ============================================================================
-
-const todosDbAdapter = createTodosDb();
 
 // ============================================================================
 // API Server Setup
@@ -30,7 +24,7 @@ const todosDbAdapter = createTodosDb();
 const app = createServer({
   basePath: '/api',
   entities: [todos],
-  db: todosDbAdapter,
+  db,
 });
 
 // ============================================================================

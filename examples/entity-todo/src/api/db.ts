@@ -1,21 +1,15 @@
 /**
  * SQLite database setup for entity-todo.
  *
- * Uses createSqliteAdapter from @vertz/db/sqlite - no manual SQL/CRUD boilerplate.
+ * Uses createDb from @vertz/db with local SQLite path — no manual SQL/CRUD boilerplate.
  */
 
-import { createSqliteAdapter } from '@vertz/db/sqlite';
-import { todosTable } from './schema';
+import { createDb } from '@vertz/db';
+import { todosModel } from './schema';
 
-export const db = await createSqliteAdapter({
-  schema: todosTable,
+export const db = createDb({
+  models: { todos: todosModel },
+  dialect: 'sqlite',
+  path: '.vertz/data/app.db',
   migrations: { autoApply: true },
 });
-
-/**
- * Create the todos database adapter.
- * For backward compatibility - returns the same adapter instance.
- */
-export function createTodosDb() {
-  return db;
-}

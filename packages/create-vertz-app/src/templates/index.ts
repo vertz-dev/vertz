@@ -691,14 +691,16 @@ export const tasksModel = d.model(tasksTable);
 }
 
 /**
- * src/api/db.ts — createSqliteAdapter with autoApply migrations
+ * src/api/db.ts — createDb with local SQLite and autoApply migrations
  */
 export function dbTemplate(): string {
-  return `import { createSqliteAdapter } from 'vertz/db/sqlite';
-import { tasksTable } from './schema';
+  return `import { createDb } from 'vertz/db';
+import { tasksModel } from './schema';
 
-export const db = await createSqliteAdapter({
-  schema: tasksTable,
+export const db = createDb({
+  models: { tasks: tasksModel },
+  dialect: 'sqlite',
+  path: '.vertz/data/app.db',
   migrations: { autoApply: true },
 });
 `;

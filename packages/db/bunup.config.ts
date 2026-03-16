@@ -24,8 +24,7 @@ async function stripDeadRequireImports() {
     join(distDir, 'internals.js'),
     join(distDir, 'plugin', 'index.js'),
     join(distDir, 'diagnostic', 'index.js'),
-    join(distDir, 'd1', 'index.js'),
-    // postgres/index.js and sqlite/index.js genuinely need __require — skip
+    // postgres/index.js genuinely needs __require — skip
   ];
 
   for (const filePath of entryFiles) {
@@ -63,9 +62,7 @@ export default defineConfig({
     'src/internals.ts',
     'src/plugin/index.ts',
     'src/diagnostic/index.ts',
-    'src/sqlite/index.ts',
     'src/postgres/index.ts',
-    'src/d1/index.ts',
   ],
   format: ['esm'],
   dts: { inferTypes: true },

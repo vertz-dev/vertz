@@ -5,6 +5,7 @@ import * as agg from '../query/aggregate';
 import * as crud from '../query/crud';
 import { executeQuery, type QueryFn } from '../query/executor';
 import { type IncludeSpec, loadRelations, type TableRegistryEntry } from '../query/relation-loader';
+import type { ColumnMetadata } from '../schema/column';
 import type {
   FilterType,
   FindResult,
@@ -20,6 +21,7 @@ import type { SqlFragment } from '../sql/tagged';
 import type { PostgresDriver } from './postgres-driver';
 import {
   buildTableSchema,
+  createLocalSqliteDriver,
   createSqliteDriver,
   type D1Database,
   type SqliteDriver,
@@ -140,17 +142,10 @@ export interface PoolConfig {
 // createDb options
 // ---------------------------------------------------------------------------
 
-export interface CreateDbOptions<TModels extends Record<string, ModelEntry>> {
+/** Common options shared by all dialect variants. */
+interface CreateDbBaseOptions<TModels extends Record<string, ModelEntry>> {
   /** Model registry mapping logical names to table definitions + relations. */
   readonly models: TModels;
-  /** Database dialect to use. Defaults to 'postgres' if not specified. */
-  readonly dialect?: 'postgres' | 'sqlite';
-  /** D1 database binding (required when dialect is 'sqlite'). */
-  readonly d1?: D1Database;
-  /** PostgreSQL connection URL. */
-  readonly url?: string;
-  /** Connection pool configuration. */
-  readonly pool?: PoolConfig;
   /** Column name casing strategy. */
   readonly casing?: 'snake_case' | 'camelCase';
   /**
@@ -169,6 +164,49 @@ export interface CreateDbOptions<TModels extends Record<string, ModelEntry>> {
    */
   readonly _queryFn?: QueryFn;
 }
+
+/** Options for PostgreSQL dialect (default). */
+interface CreateDbPostgresOptions<TModels extends Record<string, ModelEntry>>
+  extends CreateDbBaseOptions<TModels> {
+  readonly dialect?: 'postgres';
+  /** PostgreSQL connection URL. */
+  readonly url?: string;
+  /** Connection pool configuration. */
+  readonly pool?: PoolConfig;
+  readonly d1?: never;
+  readonly path?: never;
+  readonly migrations?: never;
+}
+
+/** Options for SQLite dialect with local file path. */
+interface CreateDbSqlitePathOptions<TModels extends Record<string, ModelEntry>>
+  extends CreateDbBaseOptions<TModels> {
+  readonly dialect: 'sqlite';
+  /** Path to SQLite database file, or ':memory:' for in-memory. */
+  readonly path: string;
+  /** Auto-apply migrations (CREATE TABLE IF NOT EXISTS) on startup. */
+  readonly migrations?: { readonly autoApply?: boolean };
+  readonly d1?: never;
+  readonly url?: never;
+  readonly pool?: never;
+}
+
+/** Options for SQLite dialect with Cloudflare D1 binding. */
+interface CreateDbSqliteD1Options<TModels extends Record<string, ModelEntry>>
+  extends CreateDbBaseOptions<TModels> {
+  readonly dialect: 'sqlite';
+  /** D1 database binding (Cloudflare Workers). */
+  readonly d1: D1Database;
+  readonly path?: never;
+  readonly url?: never;
+  readonly pool?: never;
+  readonly migrations?: never;
+}
+
+export type CreateDbOptions<TModels extends Record<string, ModelEntry>> =
+  | CreateDbPostgresOptions<TModels>
+  | CreateDbSqlitePathOptions<TModels>
+  | CreateDbSqliteD1Options<TModels>;
 
 // ---------------------------------------------------------------------------
 // Query result
@@ -840,12 +878,23 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
   }
 
   // Validate dialect-specific options
+  const hasPath = 'path' in options && options.path;
+  if (hasPath && dialect !== 'sqlite') {
+    throw new Error('"path" is only valid with dialect: "sqlite"');
+  }
   if (dialect === 'sqlite') {
-    if (!options.d1) {
-      throw new Error('SQLite dialect requires a D1 binding');
-    }
     if (options.url) {
-      throw new Error('SQLite dialect uses D1, not a connection URL');
+      throw new Error(
+        'SQLite dialect uses "path" (local file) or "d1" (D1 binding) — "url" is for postgres',
+      );
+    }
+    if (options.d1 && hasPath) {
+      throw new Error('Cannot use both "path" and "d1" — pick one SQLite backend');
+    }
+    if (!options.d1 && !hasPath) {
+      throw new Error(
+        'SQLite dialect requires either a "path" (local file) or "d1" (Cloudflare D1 binding)',
+      );
     }
   }
 
@@ -892,7 +941,7 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
       return options._queryFn;
     }
 
-    // Handle SQLite dialect
+    // Handle SQLite dialect with D1 binding
     if (dialect === 'sqlite' && options.d1) {
       // Build table schema registry for value conversion
       const tableSchema = buildTableSchema(models);
@@ -901,6 +950,64 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
       // Return a query function that wraps the SQLite driver
       // SQLite driver returns rows[], but QueryFn expects { rows, rowCount }
       return async <T>(sqlStr: string, params: readonly unknown[]) => {
+        if (!sqliteDriver) {
+          throw new Error('SQLite driver not initialized');
+        }
+        const rows = await sqliteDriver.query<T>(sqlStr, params as unknown[]);
+        return { rows, rowCount: rows.length };
+      };
+    }
+
+    // Handle SQLite dialect with local file path
+    if (dialect === 'sqlite' && hasPath) {
+      const sqlitePathOpts = options as CreateDbSqlitePathOptions<TModels>;
+      const tableSchema = buildTableSchema(models);
+      sqliteDriver = createLocalSqliteDriver(sqlitePathOpts.path, tableSchema);
+
+      // Lazy migration init — runs CREATE TABLE IF NOT EXISTS before first query
+      let migrationDone = !sqlitePathOpts.migrations?.autoApply;
+      let migrationPromise: Promise<void> | null = null;
+
+      const ensureMigrated = async () => {
+        if (migrationDone) return;
+        if (migrationPromise) return migrationPromise;
+        migrationPromise = (async () => {
+          const { camelToSnake } = await import('../sql/casing');
+          for (const entry of Object.values(models)) {
+            const table = entry.table;
+            const cols: string[] = [];
+            for (const [colName, colBuilder] of Object.entries(table._columns)) {
+              const meta = (colBuilder as { _meta: ColumnMetadata })._meta;
+              const snakeName = camelToSnake(colName);
+              const sqlType = dialectObj.mapColumnType(meta.sqlType);
+              let def = `"${snakeName}" ${sqlType}`;
+              if (meta.primary) def += ' PRIMARY KEY';
+              if (meta.unique && !meta.primary) def += ' UNIQUE';
+              if (!meta.nullable && !meta.primary) def += ' NOT NULL';
+              if (meta.hasDefault && meta.defaultValue !== undefined) {
+                if (meta.defaultValue === 'now') def += ` DEFAULT (${dialectObj.now()})`;
+                else if (typeof meta.defaultValue === 'string')
+                  def += ` DEFAULT '${meta.defaultValue.replace(/'/g, "''")}'`;
+                else if (typeof meta.defaultValue === 'number')
+                  def += ` DEFAULT ${meta.defaultValue}`;
+                else if (typeof meta.defaultValue === 'boolean')
+                  def += ` DEFAULT ${meta.defaultValue ? 1 : 0}`;
+              } else if (meta.isAutoUpdate) {
+                // autoUpdate timestamps need a DEFAULT for the initial INSERT
+                def += ` DEFAULT (${dialectObj.now()})`;
+              }
+              cols.push(def);
+            }
+            const ddl = `CREATE TABLE IF NOT EXISTS "${table._name}" (\n  ${cols.join(',\n  ')}\n)`;
+            await sqliteDriver!.execute(ddl);
+          }
+          migrationDone = true;
+        })();
+        return migrationPromise;
+      };
+
+      return async <T>(sqlStr: string, params: readonly unknown[]) => {
+        await ensureMigrated();
         if (!sqliteDriver) {
           throw new Error('SQLite driver not initialized');
         }

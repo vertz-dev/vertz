@@ -744,7 +744,9 @@ describe('createDb SQLite dialect validation', () => {
         },
         dialect: 'sqlite',
       });
-    }).toThrow('SQLite dialect requires a D1 binding');
+    }).toThrow(
+      'SQLite dialect requires either a "path" (local file) or "d1" (Cloudflare D1 binding)',
+    );
   });
 
   it('throws when SQLite dialect is used with a connection URL', () => {
@@ -765,7 +767,7 @@ describe('createDb SQLite dialect validation', () => {
         dialect: 'sqlite',
         d1: mockD1,
       });
-    }).toThrow('SQLite dialect uses D1, not a connection URL');
+    }).toThrow('"url" is for postgres');
   });
 });
 
