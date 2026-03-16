@@ -1,71 +1,45 @@
 import { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { SEED_TENANT_ID } from './schema';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createDb } from '@vertz/db';
+import { commentsModel, issuesModel, projectsModel, SEED_TENANT_ID, usersModel } from './schema';
 import { seedDatabase } from './seed';
-
-function createTestDb(): Database {
-  const db = new Database(':memory:');
-  db.exec('PRAGMA foreign_keys=ON');
-
-  db.exec(`CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,
-    tenant_id TEXT NOT NULL DEFAULT '',
-    name TEXT NOT NULL,
-    email TEXT NOT NULL UNIQUE,
-    avatar_url TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  )`);
-
-  db.exec(`CREATE TABLE IF NOT EXISTS projects (
-    id TEXT PRIMARY KEY,
-    tenant_id TEXT NOT NULL DEFAULT '',
-    name TEXT NOT NULL,
-    key TEXT NOT NULL UNIQUE,
-    description TEXT,
-    created_by TEXT NOT NULL DEFAULT '',
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  )`);
-
-  db.exec(`CREATE TABLE IF NOT EXISTS issues (
-    id TEXT PRIMARY KEY,
-    tenant_id TEXT NOT NULL DEFAULT '',
-    project_id TEXT NOT NULL REFERENCES projects(id),
-    number INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    description TEXT,
-    status TEXT NOT NULL DEFAULT 'backlog',
-    priority TEXT NOT NULL DEFAULT 'none',
-    assignee_id TEXT REFERENCES users(id),
-    created_by TEXT NOT NULL DEFAULT '',
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE(project_id, number)
-  )`);
-
-  db.exec(`CREATE TABLE IF NOT EXISTS comments (
-    id TEXT PRIMARY KEY,
-    tenant_id TEXT NOT NULL DEFAULT '',
-    issue_id TEXT NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
-    body TEXT NOT NULL,
-    author_id TEXT NOT NULL REFERENCES users(id),
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  )`);
-
-  return db;
-}
 
 describe('seedDatabase', () => {
   let db: Database;
+  let tmpDir: string;
 
-  beforeEach(() => {
-    db = createTestDb();
+  beforeEach(async () => {
+    // Create tables via autoMigrate (same path as production db.ts)
+    tmpDir = mkdtempSync(join(tmpdir(), 'seed-test-'));
+    const dbPath = join(tmpDir, 'test.db');
+
+    const client = createDb({
+      models: {
+        users: usersModel,
+        projects: projectsModel,
+        issues: issuesModel,
+        comments: commentsModel,
+      },
+      dialect: 'sqlite',
+      path: dbPath,
+      migrations: { autoApply: true },
+    });
+
+    // Trigger lazy migration to create tables
+    await client.projects.count();
+    await client.close();
+
+    // Open raw bun:sqlite for seeding and verification
+    db = new Database(dbPath);
+    db.exec('PRAGMA foreign_keys=ON');
   });
 
   afterEach(() => {
     db.close();
+    rmSync(tmpDir, { recursive: true, force: true });
   });
 
   describe('Given a fresh database', () => {
