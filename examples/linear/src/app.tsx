@@ -9,14 +9,20 @@
  */
 
 import {
+  ANIMATION_DURATION,
+  ANIMATION_EASING,
   createDialogStack,
   DialogStackContext,
+  fadeOut,
   getInjectedCSS,
   globalCss,
   isBrowser,
   RouterContext,
   RouterView,
+  slideInFromTop,
   ThemeProvider,
+  zoomIn,
+  zoomOut,
 } from '@vertz/ui';
 import { AuthProvider } from '@vertz/ui/auth';
 import { appRouter } from './router';
@@ -26,6 +32,25 @@ const appGlobals = globalCss({
   a: {
     textDecoration: 'none',
     color: 'inherit',
+  },
+});
+
+// ── Presence animation globals ─────────────────────────────
+// ListTransition and Presence set data-presence="enter"/"exit" on elements.
+// These rules drive the CSS animations for those states.
+
+void globalCss({
+  '[data-presence="enter"]': {
+    animation: `${slideInFromTop} ${ANIMATION_DURATION} ${ANIMATION_EASING}`,
+  },
+  '[data-presence="exit"]': {
+    animation: `${fadeOut} ${ANIMATION_DURATION} ${ANIMATION_EASING}`,
+  },
+  '[data-dialog-presence="enter"]': {
+    animation: `${zoomIn} 200ms ${ANIMATION_EASING}`,
+  },
+  '[data-dialog-presence="exit"]': {
+    animation: `${zoomOut} 150ms ${ANIMATION_EASING}`,
   },
 });
 

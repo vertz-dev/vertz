@@ -22,6 +22,7 @@ export const app = createServer({
   db: db as any,
   auth: {
     session: { strategy: 'jwt', ttl: '15m', refreshTtl: '7d', cookie: { secure: false } },
+    emailPassword: {},
     jwtSecret: process.env.JWT_SECRET ?? 'linear-clone-dev-secret-at-least-32-chars!!',
     providers: [
       github({
@@ -34,7 +35,8 @@ export const app = createServer({
     oauthSuccessRedirect: '/projects',
     oauthErrorRedirect: '/login',
 
-    // Bridge auth → entity: populate the developer's users table from GitHub profile
+    // Bridge auth → entity: populate the developer's users table from GitHub profile.
+    // Also handles email/password signups (for dev/E2E testing).
     onUserCreated: async (payload, ctx) => {
       if (payload.provider) {
         const profile = payload.profile as Record<string, unknown>;
@@ -43,6 +45,13 @@ export const app = createServer({
           email: payload.user.email,
           name: (profile.name as string) ?? (profile.login as string),
           avatarUrl: profile.avatar_url as string,
+        });
+      } else {
+        await ctx.entities.users.create({
+          id: payload.user.id,
+          email: payload.user.email,
+          name: payload.user.email.split('@')[0],
+          avatarUrl: null,
         });
       }
     },
