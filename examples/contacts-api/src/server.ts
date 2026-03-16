@@ -1,12 +1,14 @@
-import { createSqliteAdapter } from '@vertz/db/sqlite';
+import { createDb } from '@vertz/db';
 import { createServer } from '@vertz/server';
 import { contacts } from './entities';
-import { contactsTable } from './schema';
+import { contactsModel } from './schema';
 
 const PORT = Number(process.env.PORT) || 3000;
 
-const db = await createSqliteAdapter({
-  schema: contactsTable,
+const db = createDb({
+  models: { contacts: contactsModel },
+  dialect: 'sqlite',
+  path: '.vertz/data/app.db',
   migrations: { autoApply: true },
 });
 

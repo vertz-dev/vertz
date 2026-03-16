@@ -57,6 +57,7 @@ export {
 // Client
 export type {
   CreateDbOptions,
+  D1Database,
   DatabaseClient,
   DatabaseInternals,
   DbDriver,

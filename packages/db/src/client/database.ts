@@ -986,6 +986,7 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
                     hasDefault?: boolean;
                     defaultValue?: unknown;
                     generate?: string;
+                    isAutoUpdate?: boolean;
                   };
                 }
               )._meta;
@@ -1003,6 +1004,9 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
                   def += ` DEFAULT ${meta.defaultValue}`;
                 else if (typeof meta.defaultValue === 'boolean')
                   def += ` DEFAULT ${meta.defaultValue ? 1 : 0}`;
+              } else if (meta.isAutoUpdate) {
+                // autoUpdate timestamps need a DEFAULT for the initial INSERT
+                def += ` DEFAULT (${dialectObj.now()})`;
               }
               cols.push(def);
             }

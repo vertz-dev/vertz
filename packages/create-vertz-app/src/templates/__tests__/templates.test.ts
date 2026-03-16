@@ -201,9 +201,11 @@ describe('templates', () => {
   });
 
   describe('dbTemplate', () => {
-    it('uses createSqliteAdapter', () => {
+    it('uses createDb with local SQLite path', () => {
       const result = dbTemplate();
-      expect(result).toContain('createSqliteAdapter');
+      expect(result).toContain('createDb');
+      expect(result).toContain("dialect: 'sqlite'");
+      expect(result).toContain('path:');
       expect(result).toContain('autoApply: true');
     });
   });

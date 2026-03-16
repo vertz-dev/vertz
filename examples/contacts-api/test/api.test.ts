@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { createSqliteAdapter } from '@vertz/db/sqlite';
+import { createDb } from '@vertz/db';
 import { createServer } from '@vertz/server';
 import { contacts } from '../src/entities';
-import { contactsTable } from '../src/schema';
+import { contactsModel } from '../src/schema';
 
-let db: Awaited<ReturnType<typeof createSqliteAdapter>>;
 let app: ReturnType<typeof createServer>;
 
-beforeEach(async () => {
-  db = await createSqliteAdapter({
-    schema: contactsTable,
-    dbPath: ':memory:',
+beforeEach(() => {
+  const db = createDb({
+    models: { contacts: contactsModel },
+    dialect: 'sqlite',
+    path: ':memory:',
     migrations: { autoApply: true },
   });
 

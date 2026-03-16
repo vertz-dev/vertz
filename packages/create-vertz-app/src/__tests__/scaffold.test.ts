@@ -242,11 +242,13 @@ describe('scaffold', () => {
       expect(content).toContain('d.model(tasksTable)');
     });
 
-    it('generates src/api/db.ts with createSqliteAdapter', async () => {
+    it('generates src/api/db.ts with createDb and local SQLite path', async () => {
       await scaffold(tempDir, defaultOptions);
 
       const content = await fs.readFile(projectPath('src', 'api', 'db.ts'), 'utf-8');
-      expect(content).toContain('createSqliteAdapter');
+      expect(content).toContain('createDb');
+      expect(content).toContain("dialect: 'sqlite'");
+      expect(content).toContain('path:');
       expect(content).toContain('autoApply: true');
     });
 
