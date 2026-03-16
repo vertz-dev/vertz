@@ -273,5 +273,5 @@ I need input on [specific decision]:
 If you're unsure whether something is a blocker or within scope:
 
 1. Check the design doc first
-2. Check project conventions (RULES.md, API_CONVENTIONS.md)
+2. Check project conventions (`.claude/rules/`, API_CONVENTIONS.md)
 3. If still unclear, **escalate to CTO/PM** instead of guessing
