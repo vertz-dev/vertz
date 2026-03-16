@@ -116,3 +116,110 @@ export const rules = {
   /** Declarative user markers — resolved at evaluation time */
   user: userMarkers as { readonly id: UserMarker; readonly tenantId: UserMarker },
 };
+
+// ============================================================================
+// Serialized types — JSON-friendly representations
+// ============================================================================
+
+import type { AccessDefinition } from './define-access';
+
+export type SerializedRule =
+  | { type: 'public' }
+  | { type: 'authenticated' }
+  | { type: 'role'; roles: string[] }
+  | { type: 'entitlement'; value: string }
+  | { type: 'where'; conditions: Record<string, unknown> }
+  | { type: 'all'; rules: SerializedRule[] }
+  | { type: 'any'; rules: SerializedRule[] }
+  | { type: 'fva'; maxAge: number }
+  | { type: 'deny' };
+
+export type SerializedAccessDefinitions = {
+  roles: Record<string, string[]>;
+};
+
+export type SerializedEntityRules = Record<string, Partial<Record<string, SerializedRule>>>;
+
+// ============================================================================
+// Serialization functions
+// ============================================================================
+
+/** Serialize a single AccessRule to its JSON-friendly representation. */
+export function serializeRule(rule: AccessRule): SerializedRule {
+  switch (rule.type) {
+    case 'public':
+      return { type: 'public' };
+    case 'authenticated':
+      return { type: 'authenticated' };
+    case 'role':
+      return { type: 'role', roles: [...rule.roles] };
+    case 'entitlement':
+      return { type: 'entitlement', value: rule.entitlement };
+    case 'where':
+      return { type: 'where', conditions: structuredClone(rule.conditions) };
+    case 'all':
+      return { type: 'all', rules: rule.rules.map(serializeRule) };
+    case 'any':
+      return { type: 'any', rules: rule.rules.map(serializeRule) };
+    case 'fva':
+      return { type: 'fva', maxAge: rule.maxAge };
+    default: {
+      const _exhaustive: never = rule;
+      throw new Error(`Unknown rule type: ${(_exhaustive as { type: string }).type}`);
+    }
+  }
+}
+
+/**
+ * Serialize a defineAccess() config into role → entitlement mappings.
+ * Inverts the entitlement → roles mapping to produce role → entitlements.
+ */
+export function serializeAccessDefinitions(
+  accessDef: AccessDefinition,
+): SerializedAccessDefinitions {
+  const roleToEntitlements: Record<string, string[]> = {};
+
+  for (const [entName, entDef] of Object.entries(accessDef.entitlements)) {
+    for (const role of entDef.roles) {
+      if (!roleToEntitlements[role]) {
+        roleToEntitlements[role] = [];
+      }
+      roleToEntitlements[role].push(entName);
+    }
+  }
+
+  return { roles: roleToEntitlements };
+}
+
+/** Minimal shape needed from EntityDefinition for serialization. */
+export interface SerializableEntity {
+  readonly name: string;
+  readonly access: Partial<Record<string, false | AccessRule | ((...args: never) => unknown)>>;
+}
+
+/**
+ * Serialize entity access rules into JSON-friendly format.
+ * Skips callback-based rules (not serializable).
+ * Converts `false` (deny) to `{ type: 'deny' }`.
+ */
+export function serializeEntityRules(
+  entities: readonly SerializableEntity[],
+): SerializedEntityRules {
+  const result: SerializedEntityRules = {};
+
+  for (const entity of entities) {
+    const serializedOps: Partial<Record<string, SerializedRule>> = {};
+
+    for (const [op, rule] of Object.entries(entity.access ?? {})) {
+      if (rule === false) {
+        serializedOps[op] = { type: 'deny' };
+      } else if (typeof rule !== 'function' && rule && typeof rule === 'object' && 'type' in rule) {
+        serializedOps[op] = serializeRule(rule as AccessRule);
+      }
+    }
+
+    result[entity.name] = serializedOps;
+  }
+
+  return result;
+}
