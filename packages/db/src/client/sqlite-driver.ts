@@ -4,8 +4,6 @@
  * Provides a DbDriver interface that wraps D1's prepare/bind/all/run API.
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
 import type { DbDriver } from './driver';
 import { fromSqliteValue, toSqliteValue } from './sqlite-value-converter';
 
@@ -211,6 +209,11 @@ export function createLocalSqliteDriver(
   dbPath: string,
   tableSchema?: TableSchemaRegistry,
 ): SqliteDriver {
+  // Lazy-require node:fs and node:path to avoid crashing Cloudflare Workers
+  // (this function is only called for local SQLite, never on Workers)
+  const fs = require('node:fs') as typeof import('node:fs');
+  const path = require('node:path') as typeof import('node:path');
+
   // Auto-create parent directories for file-based paths
   if (dbPath !== ':memory:') {
     const dir = path.dirname(dbPath);

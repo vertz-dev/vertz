@@ -47,10 +47,11 @@ describe('createDb with local SQLite (path option)', () => {
     describe('When calling createDb', () => {
       it('Then throws a descriptive error', () => {
         expect(() =>
+          // @ts-expect-error — testing runtime validation of missing path/d1
           createDb({
             models: { todos: todosModel },
             dialect: 'sqlite',
-          } as any),
+          }),
         ).toThrow(
           'SQLite dialect requires either a "path" (local file) or "d1" (Cloudflare D1 binding)',
         );
@@ -66,8 +67,9 @@ describe('createDb with local SQLite (path option)', () => {
             models: { todos: todosModel },
             dialect: 'sqlite',
             path: ':memory:',
-            d1: {} as any,
-          } as any),
+            // @ts-expect-error — testing runtime validation of path + d1
+            d1: {},
+          }),
         ).toThrow('Cannot use both "path" and "d1"');
       });
     });
@@ -77,11 +79,12 @@ describe('createDb with local SQLite (path option)', () => {
     describe('When calling createDb', () => {
       it('Then throws dialect mismatch error', () => {
         expect(() =>
+          // @ts-expect-error — testing runtime validation of path on postgres
           createDb({
             models: { todos: todosModel },
             dialect: 'postgres',
             path: ':memory:',
-          } as any),
+          }),
         ).toThrow('"path" is only valid with dialect: "sqlite"');
       });
     });
@@ -91,11 +94,12 @@ describe('createDb with local SQLite (path option)', () => {
     describe('When calling createDb', () => {
       it('Then throws an error pointing to path or d1', () => {
         expect(() =>
+          // @ts-expect-error — testing runtime validation of url on sqlite
           createDb({
             models: { todos: todosModel },
             dialect: 'sqlite',
             url: 'postgres://localhost',
-          } as any),
+          }),
         ).toThrow('"url" is for postgres');
       });
     });

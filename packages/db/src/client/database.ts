@@ -5,6 +5,7 @@ import * as agg from '../query/aggregate';
 import * as crud from '../query/crud';
 import { executeQuery, type QueryFn } from '../query/executor';
 import { type IncludeSpec, loadRelations, type TableRegistryEntry } from '../query/relation-loader';
+import type { ColumnMetadata } from '../schema/column';
 import type {
   FilterType,
   FindResult,
@@ -976,20 +977,7 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
             const table = entry.table;
             const cols: string[] = [];
             for (const [colName, colBuilder] of Object.entries(table._columns)) {
-              const meta = (
-                colBuilder as {
-                  _meta: {
-                    sqlType: string;
-                    primary?: boolean;
-                    unique?: boolean;
-                    nullable?: boolean;
-                    hasDefault?: boolean;
-                    defaultValue?: unknown;
-                    generate?: string;
-                    isAutoUpdate?: boolean;
-                  };
-                }
-              )._meta;
+              const meta = (colBuilder as { _meta: ColumnMetadata })._meta;
               const snakeName = camelToSnake(colName);
               const sqlType = dialectObj.mapColumnType(meta.sqlType);
               let def = `"${snakeName}" ${sqlType}`;
