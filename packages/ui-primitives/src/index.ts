@@ -149,4 +149,5 @@ export { Tooltip } from './tooltip/tooltip';
 export type { ComposedTooltipProps, TooltipClasses } from './tooltip/tooltip-composed';
 export { ComposedTooltip } from './tooltip/tooltip-composed';
 export type { ElementAttrs } from './utils/attrs';
+export type { ElementEventHandlers } from './utils/event-handlers';
 export type { FloatingOptions } from './utils/floating';

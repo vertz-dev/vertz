@@ -1,6 +1,6 @@
 import type { CSSOutput } from '@vertz/ui';
-import type { ElementEventHandlers } from '../event-handlers';
-import { isKnownEventHandler, wireEventHandlers } from '../event-handlers';
+import type { ElementEventHandlers } from '@vertz/ui-primitives';
+import { applyProps } from '@vertz/ui-primitives/utils';
 
 type TextareaBlocks = { base: string[] };
 
@@ -37,12 +37,7 @@ export function createTextareaComponent(
     if (disabled) el.disabled = true;
     if (value !== undefined) el.value = value;
     if (rows !== undefined) el.rows = rows;
-    wireEventHandlers(el, attrs as ElementEventHandlers);
-    for (const [key, val] of Object.entries(attrs)) {
-      if (val === undefined || val === null) continue;
-      if (isKnownEventHandler(key)) continue;
-      el.setAttribute(key, String(val));
-    }
+    applyProps(el, attrs);
     return el;
   };
 }

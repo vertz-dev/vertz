@@ -1,7 +1,7 @@
 import type { ChildValue, VariantFunction } from '@vertz/ui';
 import { resolveChildren } from '@vertz/ui';
-import type { ElementEventHandlers } from '../event-handlers';
-import { isKnownEventHandler, wireEventHandlers } from '../event-handlers';
+import type { ElementEventHandlers } from '@vertz/ui-primitives';
+import { applyProps } from '@vertz/ui-primitives/utils';
 
 type ButtonVariants = {
   intent: Record<string, string[]>;
@@ -38,12 +38,7 @@ export function createButtonComponent(
     el.type = type ?? 'button';
     el.className = [buttonStyles({ intent, size }), effectiveClass].filter(Boolean).join(' ');
     if (disabled) el.disabled = true;
-    wireEventHandlers(el, rest as ElementEventHandlers);
-    for (const [key, value] of Object.entries(rest)) {
-      if (value === undefined || value === null) continue;
-      if (isKnownEventHandler(key)) continue;
-      el.setAttribute(key, String(value));
-    }
+    applyProps(el, rest);
     for (const node of resolveChildren(children)) {
       el.appendChild(node);
     }
