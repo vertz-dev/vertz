@@ -117,9 +117,6 @@ function ComposedRadioGroupRoot({
   }
 
   // Build items — inline signal refs so the compiler emits reactive __attr() calls.
-  // Using intermediate `const isActive = value === selectedValue` would be cleaner,
-  // but the compiler doesn't track derived consts as reactive inside .map() callbacks
-  // yet (see #1342). Once that's fixed, this can be simplified.
   const itemNodes = registrations.map((reg, i) => {
     const { value, disabled: isDisabled, labelText } = reg;
 

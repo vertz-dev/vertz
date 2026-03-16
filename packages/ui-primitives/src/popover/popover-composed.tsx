@@ -109,20 +109,6 @@ export interface ComposedPopoverProps {
 
 export type PopoverClassKey = keyof PopoverClasses;
 
-// Helper to build the context value — avoids compiler wrapping an object
-// literal in computed(), which breaks the block-vs-object-literal ambiguity.
-function buildPopoverCtx(
-  registerTrigger: (el: HTMLElement) => void,
-  registerContent: (children: ChildValue, cls?: string) => void,
-): PopoverContextValue {
-  return {
-    _registerTrigger: registerTrigger,
-    _registerContent: registerContent,
-    _triggerClaimed: false,
-    _contentClaimed: false,
-  };
-}
-
 function ComposedPopoverRoot({
   children,
   classes,
@@ -146,17 +132,19 @@ function ComposedPopoverRoot({
     dismissCleanup: null,
   };
 
-  const ctxValue = buildPopoverCtx(
-    (el) => {
+  const ctxValue: PopoverContextValue = {
+    _registerTrigger: (el) => {
       reg.triggerEl = el;
     },
-    (contentChildren, cls) => {
+    _registerContent: (contentChildren, cls) => {
       if (reg.contentChildren === undefined) {
         reg.contentChildren = contentChildren;
         reg.contentCls = cls;
       }
     },
-  );
+    _triggerClaimed: false,
+    _contentClaimed: false,
+  };
 
   // Phase 1: resolve children to collect registrations
   let resolvedNodes: Node[] = [];

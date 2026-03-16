@@ -1,13 +1,6 @@
 /**
  * Composed Select — high-level composable component with fully declarative JSX.
  * Sub-components self-wire via context. No factory dependency.
- *
- * Compiler constraints applied:
- * - `const reg` object for registration (not `let` — avoids signal transforms)
- * - `buildSelectCtx()` helper outside component for context value construction
- * - `buildItemEl()` outside component body to avoid computed() on JSX returns
- * - `for` loops instead of `.map()` at top level
- * - Content panel as separate JSX variable for event delegation cleanup
  */
 
 import type { ChildValue } from '@vertz/ui';
@@ -105,73 +98,6 @@ interface GroupProps extends SlotProps {
 }
 
 // ---------------------------------------------------------------------------
-// Helper: create reg object outside component body
-// (avoids compiler wrapping object literal in computed())
-// ---------------------------------------------------------------------------
-
-function createSelectReg(defaultValue: string): SelectReg {
-  return {
-    items: [],
-    contentChildren: [],
-    contentClass: undefined,
-    floatingCleanup: null,
-    dismissCleanup: null,
-    selectedValue: defaultValue,
-    isOpen: false,
-    activeIndex: -1,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Helper: build context value outside component body
-// (avoids compiler wrapping object literal in computed())
-// ---------------------------------------------------------------------------
-
-function buildSelectCtx(
-  classes: SelectClasses | undefined,
-  registerItem: (el: HTMLDivElement, value: string) => void,
-  registerContent: (contentChildren: Node[], cls?: string) => void,
-): SelectContextValue {
-  return {
-    classes,
-    _registerItem: registerItem,
-    _registerContent: registerContent,
-    _triggerClaimed: false,
-    _contentClaimed: false,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Helper: build item element outside component body
-// (avoids compiler classifying JSX return as computed())
-// ---------------------------------------------------------------------------
-
-function buildItemEl(
-  value: string,
-  isSelected: boolean,
-  label: string,
-  itemClass: string,
-  indicatorClass: string | undefined,
-): HTMLDivElement {
-  const el = (
-    <div
-      role="option"
-      data-value={value}
-      tabindex="-1"
-      aria-selected={isSelected ? 'true' : 'false'}
-      data-state={isSelected ? 'active' : 'inactive'}
-    >
-      {label}
-      <span data-part="indicator" style="display: none" class={indicatorClass || undefined} />
-    </div>
-  ) as HTMLDivElement;
-
-  if (itemClass) el.className = itemClass;
-
-  return el;
-}
-
-// ---------------------------------------------------------------------------
 // Sub-components — self-wiring via context
 // ---------------------------------------------------------------------------
 
@@ -212,16 +138,21 @@ function SelectItem({ value, children, className: cls, class: classProp }: ItemP
     .trim();
 
   const itemClass = [ctx.classes?.item, effectiveCls].filter(Boolean).join(' ');
+  const displayLabel = label || value;
 
-  // Build element using standalone helper to avoid computed() wrapping
   // Click handler wired by Root after items are collected
-  const el = buildItemEl(
-    value,
-    false, // selection state set by Root after all items are registered
-    label || value,
-    itemClass,
-    ctx.classes?.itemIndicator,
-  );
+  const el = (
+    <div role="option" data-value={value} tabindex="-1" aria-selected="false" data-state="inactive">
+      {displayLabel}
+      <span
+        data-part="indicator"
+        style="display: none"
+        class={ctx.classes?.itemIndicator || undefined}
+      />
+    </div>
+  ) as HTMLDivElement;
+
+  if (itemClass) el.className = itemClass;
 
   ctx._registerItem(el, value);
 
@@ -284,32 +215,35 @@ function ComposedSelectRoot({
   const ids = linkedIds('select');
 
   // Plain reg object — NOT `let` variables (compiler would transform to signals)
-  // Created via helper function to avoid compiler wrapping object literal in computed()
-  const reg = createSelectReg(defaultValue);
+  const reg: SelectReg = {
+    items: [],
+    contentChildren: [],
+    contentClass: undefined,
+    floatingCleanup: null,
+    dismissCleanup: null,
+    selectedValue: defaultValue,
+    isOpen: false,
+    activeIndex: -1,
+  };
 
   // --- Helper functions that close over reg ---
 
   function updateActiveItem(index: number): void {
-    for (let i = 0; i < reg.items.length; i++) {
-      const item = reg.items[i];
-      if (item) {
-        item.el.setAttribute('tabindex', i === index ? '0' : '-1');
-      }
-    }
+    reg.items.forEach((item, i) => {
+      item.el.setAttribute('tabindex', i === index ? '0' : '-1');
+    });
   }
 
   function selectItem(value: string): void {
     reg.selectedValue = value;
-    for (let i = 0; i < reg.items.length; i++) {
-      const item = reg.items[i];
-      if (!item) continue;
+    reg.items.forEach((item) => {
       const isActive = item.value === value;
       item.el.setAttribute('aria-selected', isActive ? 'true' : 'false');
       item.el.setAttribute('data-state', isActive ? 'active' : 'inactive');
       if (isActive) {
         triggerText.textContent = item.el.textContent ?? value;
       }
-    }
+    });
     onValueChange?.(value);
     close();
   }
@@ -337,13 +271,7 @@ function ComposedSelectRoot({
     }
 
     // Focus selected item or content
-    let selectedIdx = -1;
-    for (let i = 0; i < reg.items.length; i++) {
-      if (reg.items[i]?.value === reg.selectedValue) {
-        selectedIdx = i;
-        break;
-      }
-    }
+    const selectedIdx = reg.items.findIndex((item) => item.value === reg.selectedValue);
     if (selectedIdx >= 0) {
       reg.activeIndex = selectedIdx;
       updateActiveItem(selectedIdx);
@@ -371,16 +299,18 @@ function ComposedSelectRoot({
 
   // --- Build context and resolve children (Phase 1) ---
 
-  const ctxValue = buildSelectCtx(
+  const ctxValue: SelectContextValue = {
     classes,
-    (el: HTMLDivElement, value: string) => {
+    _registerItem: (el: HTMLDivElement, value: string) => {
       reg.items.push({ el, value });
     },
-    (contentChildren: Node[], cls?: string) => {
+    _registerContent: (contentChildren: Node[], cls?: string) => {
       reg.contentChildren = contentChildren;
       reg.contentClass = cls;
     },
-  );
+    _triggerClaimed: false,
+    _contentClaimed: false,
+  };
 
   SelectContext.Provider(ctxValue, () => {
     resolveChildren(children);
@@ -388,27 +318,22 @@ function ComposedSelectRoot({
 
   // --- Wire item click handlers now that selectItem is defined ---
 
-  for (let i = 0; i < reg.items.length; i++) {
-    const item = reg.items[i];
-    if (!item) continue;
-    const itemValue = item.value;
+  reg.items.forEach((item) => {
     const handleItemClick = () => {
-      selectItem(itemValue);
+      selectItem(item.value);
     };
     item.el.addEventListener('click', handleItemClick);
     _tryOnCleanup(() => item.el.removeEventListener('click', handleItemClick));
-  }
+  });
 
   // --- Set initial selection state on items ---
 
   if (defaultValue) {
-    for (let i = 0; i < reg.items.length; i++) {
-      const item = reg.items[i];
-      if (!item) continue;
+    reg.items.forEach((item) => {
       const isSelected = item.value === defaultValue;
       item.el.setAttribute('aria-selected', isSelected ? 'true' : 'false');
       item.el.setAttribute('data-state', isSelected ? 'active' : 'inactive');
-    }
+    });
   }
 
   // --- Build trigger ---
@@ -419,12 +344,9 @@ function ComposedSelectRoot({
 
   // Set trigger text to selected item's label if defaultValue matches
   if (defaultValue) {
-    for (let i = 0; i < reg.items.length; i++) {
-      const item = reg.items[i];
-      if (item && item.value === defaultValue) {
-        triggerText.textContent = item.el.textContent ?? defaultValue;
-        break;
-      }
+    const match = reg.items.find((item) => item.value === defaultValue);
+    if (match) {
+      triggerText.textContent = match.el.textContent ?? defaultValue;
     }
   }
 
@@ -512,20 +434,14 @@ function ComposedSelectRoot({
       }
     }
 
-    const itemEls: HTMLElement[] = [];
-    for (let i = 0; i < reg.items.length; i++) {
-      const item = reg.items[i];
-      if (item) itemEls.push(item.el);
-    }
+    const itemEls = reg.items.map((item) => item.el);
 
     const result = handleListNavigation(event, itemEls, { orientation: 'vertical' });
     if (result) {
-      for (let i = 0; i < reg.items.length; i++) {
-        if (reg.items[i]?.el === result) {
-          reg.activeIndex = i;
-          updateActiveItem(i);
-          break;
-        }
+      const idx = reg.items.findIndex((item) => item.el === result);
+      if (idx >= 0) {
+        reg.activeIndex = idx;
+        updateActiveItem(idx);
       }
       return;
     }
@@ -533,14 +449,13 @@ function ComposedSelectRoot({
     // Type-ahead: single-char search
     if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
       const char = event.key.toLowerCase();
-      for (let i = 0; i < reg.items.length; i++) {
-        const item = reg.items[i];
-        if (item?.el.textContent?.toLowerCase().startsWith(char)) {
-          reg.activeIndex = i;
-          updateActiveItem(i);
-          item.el.focus();
-          break;
-        }
+      const idx = reg.items.findIndex((item) =>
+        item.el.textContent?.toLowerCase().startsWith(char),
+      );
+      if (idx >= 0) {
+        reg.activeIndex = idx;
+        updateActiveItem(idx);
+        reg.items[idx]!.el.focus();
       }
     }
   };
