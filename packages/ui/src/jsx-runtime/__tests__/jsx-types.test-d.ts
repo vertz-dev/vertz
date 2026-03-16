@@ -58,7 +58,7 @@ void (jsx(Outlet, {}) satisfies HTMLElement);
 
 // --- Category C: Transparent return wrappers ---
 
-// Suspense returns HTMLElement | SVGElement | DocumentFragment (JSX.Element)
+// Suspense returns HTMLElement (JSX.Element)
 import { Suspense } from '../../component/suspense';
 
 void jsx(Suspense, {
@@ -66,12 +66,20 @@ void jsx(Suspense, {
   fallback: () => jsx('div', {}),
 });
 
-// ErrorBoundary returns HTMLElement | SVGElement | DocumentFragment (JSX.Element)
+// ErrorBoundary returns HTMLElement (JSX.Element)
 import { ErrorBoundary } from '../../component/error-boundary';
 
 void jsx(ErrorBoundary, {
   children: () => jsx('div', {}),
   fallback: (_e: Error, _r: () => void) => jsx('div', {}),
+});
+
+// Presence returns DocumentFragment — component overload supports this
+import { Presence } from '../../component/presence';
+
+void jsx(Presence, {
+  when: true,
+  children: () => jsx('div', {}),
 });
 
 // --- Negative tests: components returning wrong types should NOT compile ---

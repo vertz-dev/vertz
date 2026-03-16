@@ -32,7 +32,7 @@ function TabList(
   triggers: HTMLElement[],
   tabValues: string[],
   selectTab: (value: string) => void,
-): HTMLElement {
+) {
   return (
     <div
       role="tablist"
@@ -50,7 +50,7 @@ function TabList(
         }
       }}
     />
-  ) as HTMLElement;
+  );
 }
 
 function TabTrigger(
@@ -60,7 +60,7 @@ function TabTrigger(
   label: string | undefined,
   isActive: boolean,
   selectTab: (value: string) => void,
-): HTMLElement {
+) {
   return (
     <button
       type="button"
@@ -76,14 +76,14 @@ function TabTrigger(
     >
       {label ?? value}
     </button>
-  ) as HTMLElement;
+  );
 }
 
-function TabsContainer(list: HTMLElement): HTMLElement {
-  return (<div>{list}</div>) as HTMLElement;
+function TabsContainer(list: HTMLElement) {
+  return <div>{list}</div>;
 }
 
-function TabPanel(panelId: string, triggerId: string, isActive: boolean): HTMLElement {
+function TabPanel(panelId: string, triggerId: string, isActive: boolean) {
   return (
     <div
       role="tabpanel"
@@ -94,7 +94,7 @@ function TabPanel(panelId: string, triggerId: string, isActive: boolean): HTMLEl
       data-state={isActive ? 'active' : 'inactive'}
       style={isActive ? '' : 'display: none'}
     />
-  ) as HTMLElement;
+  );
 }
 
 function TabsRoot(options: TabsOptions = {}): TabsElements & {

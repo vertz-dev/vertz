@@ -29,7 +29,7 @@ function RadioGroup(
   items: HTMLElement[],
   itemValues: string[],
   selectItem: (value: string) => void,
-): HTMLElement {
+) {
   return (
     <div
       role="radiogroup"
@@ -45,7 +45,7 @@ function RadioGroup(
         }
       }}
     />
-  ) as HTMLElement;
+  );
 }
 
 function RadioItem(
@@ -53,7 +53,7 @@ function RadioItem(
   label: string | undefined,
   isActive: boolean,
   selectItem: (value: string) => void,
-): HTMLElement {
+) {
   return (
     <div
       role="radio"
@@ -67,7 +67,7 @@ function RadioItem(
     >
       {label ?? value}
     </div>
-  ) as HTMLElement;
+  );
 }
 
 function RadioRoot(options: RadioOptions = {}): RadioElements & {

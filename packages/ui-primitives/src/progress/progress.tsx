@@ -37,7 +37,7 @@ function ProgressBar(
   max: number,
   initialPct: number,
   indicatorRef: Ref<HTMLElement>,
-): HTMLElement {
+) {
   return (
     <div
       role="progressbar"
@@ -49,7 +49,7 @@ function ProgressBar(
     >
       <div ref={indicatorRef} data-part="indicator" style={`width: ${initialPct}%`} />
     </div>
-  ) as HTMLElement;
+  );
 }
 
 function ProgressRoot(options: ProgressOptions = {}) {

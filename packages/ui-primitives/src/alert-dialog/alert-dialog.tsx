@@ -38,7 +38,7 @@ function AlertDialogTriggerEl(
   contentId: string,
   defaultOpen: boolean,
   onClick: () => void,
-): HTMLElement {
+) {
   return (
     <button
       type="button"
@@ -48,10 +48,10 @@ function AlertDialogTriggerEl(
       data-state={defaultOpen ? 'open' : 'closed'}
       onClick={onClick}
     />
-  ) as HTMLElement;
+  );
 }
 
-function AlertDialogOverlayEl(defaultOpen: boolean): HTMLElement {
+function AlertDialogOverlayEl(defaultOpen: boolean) {
   return (
     <div
       data-alertdialog-overlay=""
@@ -59,7 +59,7 @@ function AlertDialogOverlayEl(defaultOpen: boolean): HTMLElement {
       data-state={defaultOpen ? 'open' : 'closed'}
       style={defaultOpen ? '' : 'display: none'}
     />
-  ) as HTMLElement;
+  );
 }
 
 function AlertDialogContentEl(
@@ -67,7 +67,7 @@ function AlertDialogContentEl(
   titleId: string,
   descriptionId: string,
   defaultOpen: boolean,
-): HTMLElement {
+) {
   return (
     <div
       role="alertdialog"
@@ -79,24 +79,24 @@ function AlertDialogContentEl(
       data-state={defaultOpen ? 'open' : 'closed'}
       style={defaultOpen ? '' : 'display: none'}
     />
-  ) as HTMLElement;
+  );
 }
 
-function AlertDialogTitleEl(titleId: string): HTMLElement {
+function AlertDialogTitleEl(titleId: string) {
   // biome-ignore lint/a11y/useHeadingContent: primitive — consumer provides content
-  return (<h2 id={titleId} />) as HTMLElement;
+  return <h2 id={titleId} />;
 }
 
-function AlertDialogDescriptionEl(descriptionId: string): HTMLElement {
-  return (<p id={descriptionId} />) as HTMLElement;
+function AlertDialogDescriptionEl(descriptionId: string) {
+  return <p id={descriptionId} />;
 }
 
-function AlertDialogCancelBtn(onClick: () => void): HTMLElement {
-  return (<button type="button" onClick={onClick} />) as HTMLElement;
+function AlertDialogCancelBtn(onClick: () => void) {
+  return <button type="button" onClick={onClick} />;
 }
 
-function AlertDialogActionBtn(onClick: () => void): HTMLElement {
-  return (<button type="button" onClick={onClick} />) as HTMLElement;
+function AlertDialogActionBtn(onClick: () => void) {
+  return <button type="button" onClick={onClick} />;
 }
 
 function AlertDialogRoot(

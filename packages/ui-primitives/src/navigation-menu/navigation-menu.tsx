@@ -26,7 +26,7 @@ export interface NavigationMenuElements {
 function NavMenuList(
   triggers: HTMLElement[],
   orientation: 'horizontal' | 'vertical',
-): HTMLElement {
+) {
   return (
     <div
       onKeydown={(event: KeyboardEvent) => {
@@ -37,20 +37,20 @@ function NavMenuList(
         }
       }}
     />
-  ) as HTMLElement;
+  );
 }
 
-function NavMenuViewport(): HTMLElement {
-  return (<div />) as HTMLElement;
+function NavMenuViewport() {
+  return <div />;
 }
 
-function NavMenuNav(list: HTMLElement, viewport: HTMLElement): HTMLElement {
+function NavMenuNav(list: HTMLElement, viewport: HTMLElement) {
   return (
     <nav>
       {list}
       {viewport}
     </nav>
-  ) as HTMLElement;
+  );
 }
 
 function NavMenuItemTrigger(
@@ -62,7 +62,7 @@ function NavMenuItemTrigger(
   onMouseenter: () => void,
   onMouseleave: () => void,
   onKeydown: (event: KeyboardEvent) => void,
-): HTMLElement {
+) {
   return (
     <button
       type="button"
@@ -78,7 +78,7 @@ function NavMenuItemTrigger(
     >
       {label ?? value}
     </button>
-  ) as HTMLElement;
+  );
 }
 
 function NavMenuItemContent(
@@ -86,7 +86,7 @@ function NavMenuItemContent(
   onMouseenter: () => void,
   onMouseleave: () => void,
   onKeydown: (event: KeyboardEvent) => void,
-): HTMLElement {
+) {
   return (
     <div
       id={contentId}
@@ -97,11 +97,11 @@ function NavMenuItemContent(
       onMouseleave={onMouseleave}
       onKeydown={onKeydown}
     />
-  ) as HTMLElement;
+  );
 }
 
-function NavMenuLink(href: string, label: string): HTMLElement {
-  return (<a href={href}>{label}</a>) as HTMLElement;
+function NavMenuLink(href: string, label: string) {
+  return <a href={href}>{label}</a>;
 }
 
 function NavigationMenuRoot(options: NavigationMenuOptions = {}): NavigationMenuElements & {

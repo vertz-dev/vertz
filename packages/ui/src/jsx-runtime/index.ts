@@ -25,12 +25,12 @@ export namespace JSX {
   /**
    * The return type of JSX expressions
    */
-  export type Element = HTMLElement | SVGElement | DocumentFragment;
+  export type Element = HTMLElement;
 
   /**
    * Component function type
    */
-  export type JSXComponent = (props: Record<string, unknown>) => Element;
+  export type JSXComponent = (props: Record<string, unknown>) => Element | DocumentFragment;
 
   /**
    * Base type for any HTML element attributes.
@@ -164,7 +164,8 @@ export function jsx<K extends keyof HTMLElementTagNameMap>(
 export function jsx(tag: string, props: Record<string, unknown> | null | undefined): HTMLElement;
 
 // Overload 3: Function components - returns the component's return type
-export function jsx<P extends Record<string, unknown>, R extends JSX.Element>(
+// Constraint is wider than JSX.Element to support components returning DocumentFragment (Presence, ListTransition)
+export function jsx<P extends Record<string, unknown>, R extends HTMLElement | DocumentFragment>(
   tag: (props: P) => R,
   props: P,
 ): R;
@@ -190,7 +191,7 @@ export function jsxs<K extends keyof HTMLElementTagNameMap>(
   props: Record<string, unknown> | null | undefined,
 ): HTMLElementTagNameMap[K];
 export function jsxs(tag: string, props: Record<string, unknown> | null | undefined): HTMLElement;
-export function jsxs<P extends Record<string, unknown>, R extends JSX.Element>(
+export function jsxs<P extends Record<string, unknown>, R extends HTMLElement | DocumentFragment>(
   tag: (props: P) => R,
   props: P,
 ): R;
@@ -220,7 +221,7 @@ export function jsxDEV<K extends keyof HTMLElementTagNameMap>(
   props: Record<string, unknown> | null | undefined,
 ): HTMLElementTagNameMap[K];
 export function jsxDEV(tag: string, props: Record<string, unknown> | null | undefined): HTMLElement;
-export function jsxDEV<P extends Record<string, unknown>, R extends JSX.Element>(
+export function jsxDEV<P extends Record<string, unknown>, R extends HTMLElement | DocumentFragment>(
   tag: (props: P) => R,
   props: P,
 ): R;

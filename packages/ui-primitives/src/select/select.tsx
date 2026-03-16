@@ -126,7 +126,7 @@ function SelectRoot(options: SelectOptions = {}): SelectElements & {
     trigger.focus();
   }
 
-  const triggerText = (<span data-part="value">{defaultValue || placeholder}</span>) as HTMLElement;
+  const triggerText = <span data-part="value">{defaultValue || placeholder}</span>;
 
   const trigger = (
     <button

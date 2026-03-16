@@ -71,39 +71,39 @@ function addMonths(date: Date, months: number): Date {
   return result;
 }
 
-function CalendarTitleEl(): HTMLElement {
-  return (<div />) as HTMLElement;
+function CalendarTitleEl() {
+  return <div />;
 }
 
-function CalendarNavButton(onClick: () => void): HTMLElement {
-  return (<button type="button" onClick={onClick} />) as HTMLElement;
+function CalendarNavButton(onClick: () => void) {
+  return <button type="button" onClick={onClick} />;
 }
 
 function CalendarHeaderEl(
   prevButton: HTMLElement,
   title: HTMLElement,
   nextButton: HTMLElement,
-): HTMLElement {
+) {
   return (
     <div>
       {prevButton}
       {title}
       {nextButton}
     </div>
-  ) as HTMLElement;
+  );
 }
 
-function CalendarGridEl(onKeydown: (event: KeyboardEvent) => void): HTMLElement {
-  return (<table role="grid" onKeydown={onKeydown} />) as HTMLElement;
+function CalendarGridEl(onKeydown: (event: KeyboardEvent) => void) {
+  return <table role="grid" onKeydown={onKeydown} />;
 }
 
-function CalendarRootEl(header: HTMLElement, grid: HTMLElement): HTMLElement {
+function CalendarRootEl(header: HTMLElement, grid: HTMLElement) {
   return (
     <div>
       {header}
       {grid}
     </div>
-  ) as HTMLElement;
+  );
 }
 
 function CalendarRoot(options: CalendarOptions = {}): CalendarElements & { state: CalendarState } {

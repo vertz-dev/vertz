@@ -1,7 +1,7 @@
 import { type AsyncErrorHandler, getCurrentErrorHandler } from './error-boundary-context';
 
-/** DOM element types accepted by JSX (mirrors JSX.Element). */
-type JsxElement = HTMLElement | SVGElement | DocumentFragment;
+/** DOM element types returned by standard JSX expressions (mirrors JSX.Element). */
+type JsxElement = HTMLElement;
 
 /** Props for the Suspense component. */
 export interface SuspenseProps {

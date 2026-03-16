@@ -28,7 +28,7 @@ export interface TooltipElements {
   content: HTMLElement;
 }
 
-function TooltipTrigger(show: () => void, hide: () => void): HTMLElement {
+function TooltipTrigger(show: () => void, hide: () => void) {
   return (
     <span
       onMouseenter={show}
@@ -41,10 +41,10 @@ function TooltipTrigger(show: () => void, hide: () => void): HTMLElement {
         }
       }}
     />
-  ) as HTMLElement;
+  );
 }
 
-function TooltipContent(contentId: string): HTMLElement {
+function TooltipContent(contentId: string) {
   return (
     <div
       role="tooltip"
@@ -53,7 +53,7 @@ function TooltipContent(contentId: string): HTMLElement {
       data-state="closed"
       style="display: none"
     />
-  ) as HTMLElement;
+  );
 }
 
 function TooltipRoot(options: TooltipOptions = {}): TooltipElements & { state: TooltipState } {
