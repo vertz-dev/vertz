@@ -2,13 +2,10 @@ import { demoStyles } from '../styles/catalog';
 import { themeComponents } from '../styles/theme';
 
 const { Button } = themeComponents;
-const { toast } = themeComponents.primitives;
+const { Toast } = themeComponents.primitives;
 
 export function ToastDemo() {
-  const t = toast({});
-
-  // Append toast region to body so fixed positioning works correctly
-  document.body.appendChild(t.region);
+  const t = Toast({});
 
   return (
     <div className={demoStyles.col}>
@@ -26,6 +23,7 @@ export function ToastDemo() {
           </Button>
         </div>
       </div>
+      {t.region}
     </div>
   );
 }
