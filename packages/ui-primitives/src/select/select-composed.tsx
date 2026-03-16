@@ -30,6 +30,7 @@ export interface SelectClasses {
   item?: string;
   itemIndicator?: string;
   group?: string;
+  label?: string;
   separator?: string;
 }
 
@@ -235,8 +236,13 @@ function SelectGroup({ label, children, className: cls, class: classProp }: Grou
   // Resolve children within context so nested Items register themselves
   const resolved = resolveChildren(children);
 
+  const labelClass = ctx.classes?.label;
+
   const el = (
     <div role="group" aria-label={label} class={groupClass || undefined}>
+      <div data-part="group-label" role="none" class={labelClass || undefined}>
+        {label}
+      </div>
       {...resolved}
     </div>
   ) as HTMLDivElement;

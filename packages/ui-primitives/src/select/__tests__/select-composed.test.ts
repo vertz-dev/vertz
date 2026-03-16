@@ -332,6 +332,35 @@ describe('Composed Select', () => {
       const option = group!.querySelector('[role="option"]') as HTMLElement;
       expect(option).not.toBeNull();
     });
+
+    it('Then renders a visible label element inside the group', () => {
+      const root = ComposedSelect({
+        classes: { label: 'styled-label' },
+        children: () => {
+          const t = ComposedSelect.Trigger({ children: ['Pick'] });
+          const c = ComposedSelect.Content({
+            children: () => {
+              const g = ComposedSelect.Group({
+                label: 'Fruits',
+                children: () => {
+                  const i1 = ComposedSelect.Item({ value: 'apple', children: ['Apple'] });
+                  return [i1];
+                },
+              });
+              return [g];
+            },
+          });
+          return [t, c];
+        },
+      });
+      container.appendChild(root);
+
+      const group = root.querySelector('[role="group"]') as HTMLElement;
+      const labelEl = group!.querySelector('[data-part="group-label"]') as HTMLElement;
+      expect(labelEl).not.toBeNull();
+      expect(labelEl!.textContent).toBe('Fruits');
+      expect(labelEl!.className).toContain('styled-label');
+    });
   });
 
   describe('Given a Select with separator', () => {
