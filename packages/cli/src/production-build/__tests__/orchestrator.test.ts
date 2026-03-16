@@ -310,6 +310,24 @@ describe('BuildOrchestrator', () => {
     });
   });
 
+  describe('esbuild externals', () => {
+    it('should externalize vertz meta-package imports', async () => {
+      const esbuild = await import('esbuild');
+      const mockBuild = esbuild.build as Mock;
+
+      orchestrator = new BuildOrchestrator({
+        ...defaultConfig,
+        typecheck: false,
+      });
+
+      await orchestrator.build();
+
+      expect(mockBuild).toHaveBeenCalled();
+      const buildOptions = mockBuild.mock.calls[0][0];
+      expect(buildOptions.external).toContain('vertz');
+    });
+  });
+
   describe('build duration', () => {
     it('should record build duration', async () => {
       orchestrator = new BuildOrchestrator({
