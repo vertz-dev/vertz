@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
+import { popScope, pushScope, runCleanups } from '@vertz/ui/internals';
 import { ComposedDialog } from '../dialog-composed';
 
 /**
@@ -218,6 +219,78 @@ describe('Composed Dialog', () => {
 
       closeEl.click();
       expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+  });
+
+  describe('Given a Dialog rendered inside a disposal scope', () => {
+    describe('When the disposal scope cleanups are run', () => {
+      it('Then removeEventListener is called for the trigger click handler', () => {
+        const scope = pushScope();
+        const triggerBtn = document.createElement('button');
+
+        const root = ComposedDialog({
+          children: () => {
+            const triggerEl = ComposedDialog.Trigger({ children: [triggerBtn] });
+            const contentEl = ComposedDialog.Content({ children: [] });
+            return [triggerEl, contentEl];
+          },
+        });
+        container.appendChild(root);
+        popScope();
+
+        const spy = vi.spyOn(triggerBtn, 'removeEventListener');
+        runCleanups(scope);
+
+        expect(spy).toHaveBeenCalledWith('click', expect.any(Function));
+      });
+
+      it('Then removeEventListener is called for the content delegation handler', () => {
+        const scope = pushScope();
+        const triggerBtn = document.createElement('button');
+
+        const root = ComposedDialog({
+          children: () => {
+            const triggerEl = ComposedDialog.Trigger({ children: [triggerBtn] });
+            const contentEl = ComposedDialog.Content({ children: [] });
+            return [triggerEl, contentEl];
+          },
+        });
+        container.appendChild(root);
+        popScope();
+
+        const panel = root.querySelector('[role="dialog"]') as HTMLElement;
+        const spy = vi.spyOn(panel, 'removeEventListener');
+        runCleanups(scope);
+
+        expect(spy).toHaveBeenCalledWith('click', expect.any(Function));
+      });
+    });
+  });
+
+  describe('Given a Dialog with a closeIcon rendered inside a disposal scope', () => {
+    describe('When the disposal scope cleanups are run', () => {
+      it('Then removeEventListener is called for the closeIcon click handler', () => {
+        const scope = pushScope();
+        const triggerBtn = document.createElement('button');
+        const closeIcon = document.createElement('span');
+        closeIcon.textContent = 'X';
+
+        const root = ComposedDialog({
+          children: () => {
+            const triggerEl = ComposedDialog.Trigger({ children: [triggerBtn] });
+            const contentEl = ComposedDialog.Content({ children: [] });
+            return [triggerEl, contentEl];
+          },
+          closeIcon,
+        });
+        container.appendChild(root);
+        popScope();
+
+        const spy = vi.spyOn(closeIcon, 'removeEventListener');
+        runCleanups(scope);
+
+        expect(spy).toHaveBeenCalledWith('click', expect.any(Function));
+      });
     });
   });
 });

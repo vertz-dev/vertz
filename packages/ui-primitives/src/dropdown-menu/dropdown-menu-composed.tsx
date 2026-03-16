@@ -6,6 +6,7 @@
 
 import type { ChildValue } from '@vertz/ui';
 import { resolveChildren } from '@vertz/ui';
+import { _tryOnCleanup } from '@vertz/ui/internals';
 import { scanSlots } from '../composed/scan-slots';
 import { Menu } from '../menu/menu';
 
@@ -152,9 +153,11 @@ function ComposedDropdownMenuRoot({ children, classes, onSelect }: ComposedDropd
     userTrigger.setAttribute('aria-expanded', 'false');
     userTrigger.setAttribute('data-state', 'closed');
 
-    userTrigger.addEventListener('click', () => {
+    const handleTriggerClick = () => {
       menu.trigger.click();
-    });
+    };
+    userTrigger.addEventListener('click', handleTriggerClick);
+    _tryOnCleanup(() => userTrigger.removeEventListener('click', handleTriggerClick));
   }
 
   return (
