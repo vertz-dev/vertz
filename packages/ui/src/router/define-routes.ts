@@ -4,6 +4,7 @@
 
 import { matchPath } from './matcher';
 import type { ExtractParams } from './params';
+import type { ViewTransitionConfig } from './view-transitions';
 
 /** Schema interface for parsing and validating values (search params, path params). */
 export interface SearchParamSchema<T> {
@@ -37,6 +38,8 @@ export interface RouteConfig<
   children?: RouteDefinitionMap;
   /** Whether to pre-render this route at build time (default: true for static routes). */
   prerender?: boolean;
+  /** Per-route view transition config. Overrides global RouterOptions.viewTransition. */
+  viewTransition?: boolean | ViewTransitionConfig;
 }
 
 /** A map of path patterns to route configs (user input format). */
@@ -64,6 +67,7 @@ export interface RouteConfigLike {
   searchParams?: SearchParamSchema<unknown>;
   children?: Record<string, RouteConfigLike>;
   prerender?: boolean;
+  viewTransition?: boolean | ViewTransitionConfig;
 }
 
 /**
@@ -101,6 +105,8 @@ export interface CompiledRoute {
   children?: CompiledRoute[];
   /** Whether to pre-render this route at build time (default: true for static routes). */
   prerender?: boolean;
+  /** Per-route view transition config. */
+  viewTransition?: boolean | ViewTransitionConfig;
 }
 
 /** A single matched route entry in the matched chain. */
@@ -152,6 +158,7 @@ export function defineRoutes<const T extends Record<string, RouteConfigLike>>(
       pattern,
       prerender: config.prerender,
       searchParams: config.searchParams,
+      viewTransition: config.viewTransition,
     };
 
     if (config.children) {

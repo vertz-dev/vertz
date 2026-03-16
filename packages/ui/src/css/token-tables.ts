@@ -104,6 +104,10 @@ export const PROPERTY_MAP: Record<string, PropertyMapping> = {
   inset: { properties: ['inset'], valueType: 'raw' },
   z: { properties: ['z-index'], valueType: 'raw' },
 
+  // View Transitions
+  'vt-name': { properties: ['view-transition-name'], valueType: 'raw' },
+  'view-transition-name': { properties: ['view-transition-name'], valueType: 'raw' },
+
   // Content
   content: { properties: ['content'], valueType: 'content' },
 };

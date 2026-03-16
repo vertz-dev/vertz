@@ -59,7 +59,7 @@ export const routes = defineRoutes({
  * createRouter auto-detects the initial URL from window.location (browser)
  * or SSR context — no manual detection needed.
  */
-export const appRouter = createRouter(routes, { serverNav: true });
+export const appRouter = createRouter(routes, { serverNav: true, viewTransition: true });
 
 /**
  * Create the Link component factory, bound to the router's current path.

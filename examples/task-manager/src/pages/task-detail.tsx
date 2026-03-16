@@ -95,7 +95,7 @@ export function TaskDetailPage() {
       </div>
     ),
     data: (task) => (
-      <div data-testid="task-content">
+      <div data-testid="task-content" style={`view-transition-name: task-${taskId}`}>
         <button
           type="button"
           className={button({ intent: 'ghost', size: 'sm' })}

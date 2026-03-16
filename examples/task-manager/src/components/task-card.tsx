@@ -58,7 +58,7 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
       data-testid={`task-card-${task.id}`}
       role="button"
       tabindex="0"
-      style="cursor: pointer; transition: box-shadow 150ms, border-color 150ms"
+      style={`cursor: pointer; transition: box-shadow 150ms, border-color 150ms; view-transition-name: task-${task.id}`}
       onClick={() => onClick(task.id)}
       onKeyDown={(e: KeyboardEvent) => {
         if (e.key === 'Enter' || e.key === ' ') {
