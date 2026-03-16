@@ -24,6 +24,14 @@ export const STATUS_COLORS: Record<IssueStatus, string> = {
   cancelled: 'bg:muted text:muted-foreground',
 };
 
+export const PRIORITIES: { value: IssuePriority; label: string }[] = [
+  { value: 'none', label: 'None' },
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+  { value: 'urgent', label: 'Urgent' },
+];
+
 export const PRIORITY_CONFIG: Record<IssuePriority, { label: string; color: string }> = {
   urgent: { label: 'Urgent', color: '#ef4444' },
   high: { label: 'High', color: '#f97316' },

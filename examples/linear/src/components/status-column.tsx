@@ -1,5 +1,5 @@
 import { css, Link } from '@vertz/ui';
-import type { Issue } from '../lib/types';
+import type { Issue, IssuePriority, IssueStatus } from '../lib/types';
 import { IssueCard } from './issue-card';
 
 const styles = css({
@@ -16,9 +16,18 @@ interface StatusColumnProps {
   issues: Issue[];
   projectKey?: string;
   projectId: string;
+  onStatusChange?: (issueId: string, status: IssueStatus) => void;
+  onPriorityChange?: (issueId: string, priority: IssuePriority) => void;
 }
 
-export function StatusColumn({ label, issues, projectKey, projectId }: StatusColumnProps) {
+export function StatusColumn({
+  label,
+  issues,
+  projectKey,
+  projectId,
+  onStatusChange,
+  onPriorityChange,
+}: StatusColumnProps) {
   return (
     <div className={styles.column}>
       <div className={styles.columnHeader}>
@@ -29,7 +38,12 @@ export function StatusColumn({ label, issues, projectKey, projectId }: StatusCol
         {issues.length === 0 && <div className={styles.empty}>No issues</div>}
         {issues.map((issue) => (
           <Link href={`/projects/${projectId}/issues/${issue.id}`} key={issue.id}>
-            <IssueCard issue={issue} projectKey={projectKey} />
+            <IssueCard
+              issue={issue}
+              projectKey={projectKey}
+              onStatusChange={onStatusChange}
+              onPriorityChange={onPriorityChange}
+            />
           </Link>
         ))}
       </div>

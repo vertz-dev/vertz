@@ -1,9 +1,11 @@
-import { css, query, useParams } from '@vertz/ui';
+import { css, query, useDialogStack, useParams } from '@vertz/ui';
 import { api } from '../api/client';
+import { Button } from '../components/button';
 import { CommentSection } from '../components/comment-section';
+import { EditIssueDialog } from '../components/edit-issue-dialog';
 import { PrioritySelect } from '../components/priority-select';
 import { StatusSelect } from '../components/status-select';
-import type { IssuePriority, IssueStatus } from '../lib/types';
+import type { Issue, IssuePriority, IssueStatus } from '../lib/types';
 
 const styles = css({
   container: ['p:6'],
@@ -12,7 +14,8 @@ const styles = css({
   layout: ['flex', 'gap:8'],
   main: ['flex-1'],
   identifier: ['text:sm', 'text:muted-foreground', 'mb:2'],
-  title: ['font:xl', 'font:bold', 'text:foreground', 'mb:4'],
+  titleRow: ['flex', 'items:center', 'gap:3', 'mb:4'],
+  title: ['font:xl', 'font:bold', 'text:foreground'],
   description: ['text:sm', 'text:foreground', 'leading:relaxed'],
   noDescription: ['text:sm', 'text:muted-foreground', 'italic'],
   sidebar: [
@@ -36,6 +39,7 @@ export function IssueDetailPage() {
   const project = query(api.projects.get(projectId));
   const comments = query(api.comments.list({ issueId }));
   const users = query(api.users.list());
+  const stack = useDialogStack();
 
   let updateError = '';
 
@@ -71,6 +75,18 @@ export function IssueDetailPage() {
     issue.refetch();
   };
 
+  const handleEdit = async () => {
+    if (!issue.data) return;
+    try {
+      const updated = await stack.open(EditIssueDialog, {
+        issue: issue.data as Issue,
+      });
+      if (updated) issue.refetch();
+    } catch {
+      // Dialog dismissed — no action needed
+    }
+  };
+
   return (
     <div className={styles.container}>
       {issue.loading && <div className={styles.loading}>Loading issue...</div>}
@@ -85,7 +101,12 @@ export function IssueDetailPage() {
             <div className={styles.identifier}>
               {`${project.data?.key ?? '...'}-${issue.data.number}`}
             </div>
-            <h2 className={styles.title}>{issue.data.title}</h2>
+            <div className={styles.titleRow}>
+              <h2 className={styles.title}>{issue.data.title}</h2>
+              <Button intent="outline" size="sm" onClick={handleEdit}>
+                Edit
+              </Button>
+            </div>
             {issue.data.description ? (
               <p className={styles.description}>{issue.data.description}</p>
             ) : (
