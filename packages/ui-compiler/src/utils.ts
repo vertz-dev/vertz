@@ -18,3 +18,23 @@ export function findBodyNode(sourceFile: SourceFile, component: ComponentInfo): 
   }
   return null;
 }
+
+/** Check if the node is inside a nested function/method between it and the boundary node. */
+export function isInNestedFunction(node: Node, boundaryNode: Node): boolean {
+  let current = node.getParent();
+  while (current && current !== boundaryNode) {
+    if (
+      current.isKind(SyntaxKind.ArrowFunction) ||
+      current.isKind(SyntaxKind.FunctionExpression) ||
+      current.isKind(SyntaxKind.FunctionDeclaration) ||
+      current.isKind(SyntaxKind.MethodDeclaration) ||
+      current.isKind(SyntaxKind.Constructor) ||
+      current.isKind(SyntaxKind.GetAccessor) ||
+      current.isKind(SyntaxKind.SetAccessor)
+    ) {
+      return true;
+    }
+    current = current.getParent();
+  }
+  return false;
+}

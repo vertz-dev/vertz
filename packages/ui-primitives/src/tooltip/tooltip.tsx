@@ -25,7 +25,35 @@ export interface TooltipState {
 
 export interface TooltipElements {
   trigger: HTMLElement;
-  content: HTMLDivElement;
+  content: HTMLElement;
+}
+
+function TooltipTrigger(show: () => void, hide: () => void): HTMLElement {
+  return (
+    <span
+      onMouseenter={show}
+      onMouseleave={hide}
+      onFocus={show}
+      onBlur={hide}
+      onKeydown={(event: KeyboardEvent) => {
+        if (isKey(event, Keys.Escape)) {
+          hide();
+        }
+      }}
+    />
+  ) as HTMLElement;
+}
+
+function TooltipContent(contentId: string): HTMLElement {
+  return (
+    <div
+      role="tooltip"
+      id={contentId}
+      aria-hidden="true"
+      data-state="closed"
+      style="display: none"
+    />
+  ) as HTMLElement;
 }
 
 function TooltipRoot(options: TooltipOptions = {}): TooltipElements & { state: TooltipState } {
@@ -34,6 +62,8 @@ function TooltipRoot(options: TooltipOptions = {}): TooltipElements & { state: T
   const state: TooltipState = { open: signal(false) };
   let showTimeout: ReturnType<typeof setTimeout> | null = null;
   let floatingCleanup: (() => void) | null = null;
+
+  const content = TooltipContent(contentId);
 
   function show(): void {
     if (showTimeout !== null) return;
@@ -69,31 +99,8 @@ function TooltipRoot(options: TooltipOptions = {}): TooltipElements & { state: T
     onOpenChange?.(false);
   }
 
-  const trigger = (
-    <span
-      onMouseenter={show}
-      onMouseleave={hide}
-      onFocus={show}
-      onBlur={hide}
-      onKeydown={(event: KeyboardEvent) => {
-        if (isKey(event, Keys.Escape)) {
-          hide();
-        }
-      }}
-    />
-  ) as HTMLElement;
-
+  const trigger = TooltipTrigger(show, hide);
   setDescribedBy(trigger, contentId);
-
-  const content = (
-    <div
-      role="tooltip"
-      id={contentId}
-      aria-hidden="true"
-      data-state="closed"
-      style="display: none"
-    />
-  ) as HTMLDivElement;
 
   applyAttrs(trigger, attrs);
 

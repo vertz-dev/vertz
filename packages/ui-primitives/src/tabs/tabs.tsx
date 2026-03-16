@@ -23,8 +23,78 @@ export interface TabsState {
 }
 
 export interface TabsElements {
-  root: HTMLDivElement;
-  list: HTMLDivElement;
+  root: HTMLElement;
+  list: HTMLElement;
+}
+
+function TabList(
+  orientation: 'horizontal' | 'vertical',
+  triggers: HTMLElement[],
+  tabValues: string[],
+  selectTab: (value: string) => void,
+): HTMLElement {
+  return (
+    <div
+      role="tablist"
+      aria-orientation={orientation === 'vertical' ? 'vertical' : undefined}
+      onKeydown={(event: KeyboardEvent) => {
+        const result = handleListNavigation(event, triggers, {
+          orientation,
+        });
+        if (result) {
+          const idx = triggers.indexOf(result);
+          if (idx >= 0) {
+            const val = tabValues[idx];
+            if (val !== undefined) selectTab(val);
+          }
+        }
+      }}
+    />
+  ) as HTMLElement;
+}
+
+function TabTrigger(
+  triggerId: string,
+  panelId: string,
+  value: string,
+  label: string | undefined,
+  isActive: boolean,
+  selectTab: (value: string) => void,
+): HTMLElement {
+  return (
+    <button
+      type="button"
+      role="tab"
+      id={triggerId}
+      aria-controls={panelId}
+      data-value={value}
+      aria-selected={isActive ? 'true' : 'false'}
+      data-state={isActive ? 'active' : 'inactive'}
+      onClick={() => {
+        selectTab(value);
+      }}
+    >
+      {label ?? value}
+    </button>
+  ) as HTMLElement;
+}
+
+function TabsContainer(list: HTMLElement): HTMLElement {
+  return (<div>{list}</div>) as HTMLElement;
+}
+
+function TabPanel(panelId: string, triggerId: string, isActive: boolean): HTMLElement {
+  return (
+    <div
+      role="tabpanel"
+      id={panelId}
+      aria-labelledby={triggerId}
+      tabindex="0"
+      aria-hidden={isActive ? 'false' : 'true'}
+      data-state={isActive ? 'active' : 'inactive'}
+      style={isActive ? '' : 'display: none'}
+    />
+  ) as HTMLElement;
 }
 
 function TabsRoot(options: TabsOptions = {}): TabsElements & {
@@ -33,14 +103,14 @@ function TabsRoot(options: TabsOptions = {}): TabsElements & {
     value: string,
     label?: string,
   ) => {
-    trigger: HTMLButtonElement;
-    panel: HTMLDivElement;
+    trigger: HTMLElement;
+    panel: HTMLElement;
   };
 } {
   const { defaultValue = '', orientation = 'horizontal', onValueChange, ...attrs } = options;
   const state: TabsState = { value: signal(defaultValue) };
-  const triggers: HTMLButtonElement[] = [];
-  const panels: HTMLDivElement[] = [];
+  const triggers: HTMLElement[] = [];
+  const panels: HTMLElement[] = [];
   const tabValues: string[] = [];
 
   function selectTab(value: string): void {
@@ -61,65 +131,24 @@ function TabsRoot(options: TabsOptions = {}): TabsElements & {
     onValueChange?.(value);
   }
 
-  const list = (
-    <div
-      role="tablist"
-      aria-orientation={orientation === 'vertical' ? 'vertical' : undefined}
-      onKeydown={(event: KeyboardEvent) => {
-        const result = handleListNavigation(event, triggers, {
-          orientation,
-        });
-        if (result) {
-          const idx = triggers.indexOf(result as HTMLButtonElement);
-          if (idx >= 0) {
-            const val = tabValues[idx];
-            if (val !== undefined) selectTab(val);
-          }
-        }
-      }}
-    />
-  ) as HTMLDivElement;
-
-  const root = (<div>{list}</div>) as HTMLDivElement;
+  const list = TabList(orientation, triggers, tabValues, selectTab);
+  const root = TabsContainer(list);
 
   function Tab(
     value: string,
     label?: string,
-  ): { trigger: HTMLButtonElement; panel: HTMLDivElement } {
+  ): { trigger: HTMLElement; panel: HTMLElement } {
     const baseId = uniqueId('tab');
     const triggerId = `${baseId}-trigger`;
     const panelId = `${baseId}-panel`;
     const isActive = value === state.value.peek();
 
-    const trig = (
-      <button
-        type="button"
-        role="tab"
-        id={triggerId}
-        aria-controls={panelId}
-        data-value={value}
-        aria-selected={isActive ? 'true' : 'false'}
-        data-state={isActive ? 'active' : 'inactive'}
-        onClick={() => {
-          selectTab(value);
-          trig.focus();
-        }}
-      >
-        {label ?? value}
-      </button>
-    ) as HTMLButtonElement;
+    const trig = TabTrigger(triggerId, panelId, value, label, isActive, selectTab);
+    trig.addEventListener('click', () => {
+      trig.focus();
+    });
 
-    const panel = (
-      <div
-        role="tabpanel"
-        id={panelId}
-        aria-labelledby={triggerId}
-        tabindex="0"
-        aria-hidden={isActive ? 'false' : 'true'}
-        data-state={isActive ? 'active' : 'inactive'}
-        style={isActive ? '' : 'display: none'}
-      />
-    ) as HTMLDivElement;
+    const panel = TabPanel(panelId, triggerId, isActive);
 
     triggers.push(trig);
     panels.push(panel);
@@ -147,8 +176,8 @@ export const Tabs: {
       value: string,
       label?: string,
     ) => {
-      trigger: HTMLButtonElement;
-      panel: HTMLDivElement;
+      trigger: HTMLElement;
+      panel: HTMLElement;
     };
   };
 } = {

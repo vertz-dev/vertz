@@ -39,12 +39,12 @@ export interface CalendarState {
 }
 
 export interface CalendarElements {
-  root: HTMLDivElement;
-  header: HTMLDivElement;
-  title: HTMLDivElement;
-  prevButton: HTMLButtonElement;
-  nextButton: HTMLButtonElement;
-  grid: HTMLTableElement;
+  root: HTMLElement;
+  header: HTMLElement;
+  title: HTMLElement;
+  prevButton: HTMLElement;
+  nextButton: HTMLElement;
+  grid: HTMLElement;
 }
 
 function getDaysInMonth(year: number, month: number): number {
@@ -69,6 +69,41 @@ function addMonths(date: Date, months: number): Date {
   const result = new Date(date);
   result.setMonth(result.getMonth() + months);
   return result;
+}
+
+function CalendarTitleEl(): HTMLElement {
+  return (<div />) as HTMLElement;
+}
+
+function CalendarNavButton(onClick: () => void): HTMLElement {
+  return (<button type="button" onClick={onClick} />) as HTMLElement;
+}
+
+function CalendarHeaderEl(
+  prevButton: HTMLElement,
+  title: HTMLElement,
+  nextButton: HTMLElement,
+): HTMLElement {
+  return (
+    <div>
+      {prevButton}
+      {title}
+      {nextButton}
+    </div>
+  ) as HTMLElement;
+}
+
+function CalendarGridEl(onKeydown: (event: KeyboardEvent) => void): HTMLElement {
+  return (<table role="grid" onKeydown={onKeydown} />) as HTMLElement;
+}
+
+function CalendarRootEl(header: HTMLElement, grid: HTMLElement): HTMLElement {
+  return (
+    <div>
+      {header}
+      {grid}
+    </div>
+  ) as HTMLElement;
 }
 
 function CalendarRoot(options: CalendarOptions = {}): CalendarElements & { state: CalendarState } {
@@ -263,97 +298,77 @@ function CalendarRoot(options: CalendarOptions = {}): CalendarElements & { state
     rebuildGrid();
   }
 
-  const title = (<div />) as HTMLDivElement;
+  const title = CalendarTitleEl();
 
-  const prevButton = (
-    <button type="button" onClick={() => navigateMonth(-1)} />
-  ) as HTMLButtonElement;
+  const prevButton = CalendarNavButton(() => navigateMonth(-1));
 
-  const nextButton = (
-    <button type="button" onClick={() => navigateMonth(1)} />
-  ) as HTMLButtonElement;
+  const nextButton = CalendarNavButton(() => navigateMonth(1));
 
-  const header = (
-    <div>
-      {prevButton}
-      {title}
-      {nextButton}
-    </div>
-  ) as HTMLDivElement;
+  const header = CalendarHeaderEl(prevButton, title, nextButton);
 
-  const grid = (
-    <table
-      role="grid"
-      onKeydown={(event: KeyboardEvent) => {
-        const active = document.activeElement as HTMLElement | null;
-        if (!active || active.tagName !== 'BUTTON') return;
+  const grid = CalendarGridEl((event: KeyboardEvent) => {
+    const active = document.activeElement as HTMLElement | null;
+    if (!active || active.tagName !== 'BUTTON') return;
 
-        const dateStr = active.getAttribute('data-date');
-        if (!dateStr) return;
+    const dateStr = active.getAttribute('data-date');
+    if (!dateStr) return;
 
-        const focused = new Date(`${dateStr}T00:00:00`);
-        let next: Date | null = null;
+    const focused = new Date(`${dateStr}T00:00:00`);
+    let next: Date | null = null;
 
-        if (event.key === 'ArrowLeft') {
-          event.preventDefault();
-          next = addDays(focused, -1);
-        } else if (event.key === 'ArrowRight') {
-          event.preventDefault();
-          next = addDays(focused, 1);
-        } else if (event.key === 'ArrowUp') {
-          event.preventDefault();
-          next = addDays(focused, -7);
-        } else if (event.key === 'ArrowDown') {
-          event.preventDefault();
-          next = addDays(focused, 7);
-        } else if (event.key === 'Home') {
-          event.preventDefault();
-          const dayOfWeek = (focused.getDay() - weekStartsOn + 7) % 7;
-          next = addDays(focused, -dayOfWeek);
-        } else if (event.key === 'End') {
-          event.preventDefault();
-          const dayOfWeek = (focused.getDay() - weekStartsOn + 7) % 7;
-          next = addDays(focused, 6 - dayOfWeek);
-        } else if (event.key === 'PageUp') {
-          event.preventDefault();
-          next = event.shiftKey ? addMonths(focused, -12) : addMonths(focused, -1);
-        } else if (event.key === 'PageDown') {
-          event.preventDefault();
-          next = event.shiftKey ? addMonths(focused, 12) : addMonths(focused, 1);
-        } else if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          selectDate(focused);
-          rebuildGrid();
-          return;
-        }
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      next = addDays(focused, -1);
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      next = addDays(focused, 1);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      next = addDays(focused, -7);
+    } else if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      next = addDays(focused, 7);
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      const dayOfWeek = (focused.getDay() - weekStartsOn + 7) % 7;
+      next = addDays(focused, -dayOfWeek);
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      const dayOfWeek = (focused.getDay() - weekStartsOn + 7) % 7;
+      next = addDays(focused, 6 - dayOfWeek);
+    } else if (event.key === 'PageUp') {
+      event.preventDefault();
+      next = event.shiftKey ? addMonths(focused, -12) : addMonths(focused, -1);
+    } else if (event.key === 'PageDown') {
+      event.preventDefault();
+      next = event.shiftKey ? addMonths(focused, 12) : addMonths(focused, 1);
+    } else if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      selectDate(focused);
+      rebuildGrid();
+      return;
+    }
 
-        if (next) {
-          state.focusedDate.value = next;
-          if (
-            next.getMonth() !== state.displayMonth.peek().getMonth() ||
-            next.getFullYear() !== state.displayMonth.peek().getFullYear()
-          ) {
-            state.displayMonth.value = new Date(next.getFullYear(), next.getMonth(), 1);
-            onMonthChange?.(state.displayMonth.peek());
-            rebuildGrid();
-          }
-          const dateKey = next.toISOString().split('T')[0];
-          const btn = grid.querySelector(`button[data-date="${dateKey}"]`) as HTMLElement | null;
-          btn?.focus();
-        }
-      }}
-    />
-  ) as HTMLTableElement;
+    if (next) {
+      state.focusedDate.value = next;
+      if (
+        next.getMonth() !== state.displayMonth.peek().getMonth() ||
+        next.getFullYear() !== state.displayMonth.peek().getFullYear()
+      ) {
+        state.displayMonth.value = new Date(next.getFullYear(), next.getMonth(), 1);
+        onMonthChange?.(state.displayMonth.peek());
+        rebuildGrid();
+      }
+      const dateKey = next.toISOString().split('T')[0];
+      const btn = grid.querySelector(`button[data-date="${dateKey}"]`) as HTMLElement | null;
+      btn?.focus();
+    }
+  });
 
   updateTitle();
   buildGrid();
 
-  const root = (
-    <div>
-      {header}
-      {grid}
-    </div>
-  ) as HTMLDivElement;
+  const root = CalendarRootEl(header, grid);
 
   applyAttrs(root, attrs);
 
