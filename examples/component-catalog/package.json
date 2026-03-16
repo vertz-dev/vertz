@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun node_modules/@vertz/cli/dist/vertz.js dev",
+    "dev": "bun node_modules/@vertz/cli/dist/vertz.js dev --port 8000",
     "build": "bun node_modules/@vertz/cli/dist/vertz.js build",
     "typecheck": "tsc --noEmit"
   },
