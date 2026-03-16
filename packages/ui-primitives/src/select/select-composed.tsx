@@ -149,6 +149,7 @@ function buildItemEl(
   isSelected: boolean,
   label: string,
   itemClass: string,
+  indicatorClass: string | undefined,
   onItemClick: () => void,
 ): HTMLDivElement {
   const el = (
@@ -163,6 +164,7 @@ function buildItemEl(
       }}
     >
       {label}
+      <span data-part="indicator" style="display: none" class={indicatorClass || undefined} />
     </div>
   ) as HTMLDivElement;
 
@@ -220,6 +222,7 @@ function SelectItem({ value, children, className: cls, class: classProp }: ItemP
     false, // selection state set by Root after all items are registered
     label || value,
     itemClass,
+    ctx.classes?.itemIndicator,
     () => {}, // placeholder — Root wires the real handler
   );
 
@@ -421,6 +424,8 @@ function ComposedSelectRoot({
     }
   }
 
+  const chevron = (<span data-part="chevron" />) as HTMLSpanElement;
+
   const trigger = (
     <button
       type="button"
@@ -448,6 +453,7 @@ function ComposedSelectRoot({
       }}
     >
       {triggerText}
+      {chevron}
     </button>
   ) as HTMLButtonElement;
 

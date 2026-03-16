@@ -123,7 +123,12 @@ function buildPopoverCtx(
   };
 }
 
-function ComposedPopoverRoot({ children, classes, onOpenChange, positioning }: ComposedPopoverProps) {
+function ComposedPopoverRoot({
+  children,
+  classes,
+  onOpenChange,
+  positioning,
+}: ComposedPopoverProps) {
   const ids = linkedIds('popover');
 
   // Registration storage — plain object so the compiler doesn't signal-transform it

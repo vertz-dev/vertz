@@ -118,7 +118,7 @@ function AlertDialogTitle({ children, className: cls, class: classProp }: SlotPr
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.title, effectiveCls].filter(Boolean).join(' ');
   return (
-    <h2 id={ctx.titleId} class={combined || undefined}>
+    <h2 id={ctx.titleId} data-slot="alertdialog-title" class={combined || undefined}>
       {children}
     </h2>
   );
@@ -129,7 +129,7 @@ function AlertDialogDescription({ children, className: cls, class: classProp }: 
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.description, effectiveCls].filter(Boolean).join(' ');
   return (
-    <p id={ctx.descriptionId} class={combined || undefined}>
+    <p id={ctx.descriptionId} data-slot="alertdialog-description" class={combined || undefined}>
       {children}
     </p>
   );
@@ -139,14 +139,20 @@ function AlertDialogHeader({ children, className: cls, class: classProp }: SlotP
   const { classes } = useAlertDialogContext('Header');
   const effectiveCls = cls ?? classProp;
   const combined = [classes?.header, effectiveCls].filter(Boolean).join(' ');
-  return <div class={combined || undefined}>{children}</div>;
+  const resolved = resolveChildren(children);
+  const el = (<div class={combined || undefined} />) as HTMLDivElement;
+  for (const node of resolved) {
+    el.appendChild(node);
+  }
+  return el;
 }
 
 function AlertDialogFooter({ children, className: cls, class: classProp }: SlotProps) {
   const { classes } = useAlertDialogContext('Footer');
   const effectiveCls = cls ?? classProp;
   const combined = [classes?.footer, effectiveCls].filter(Boolean).join(' ');
-  return <div class={combined || undefined}>{children}</div>;
+  const resolved = resolveChildren(children);
+  return <div class={combined || undefined}>{...resolved}</div>;
 }
 
 function AlertDialogCancel({
