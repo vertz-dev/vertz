@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { defineAccess } from '../define-access';
-import {
-  rules,
-  serializeAccessDefinitions,
-  serializeEntityRules,
-  serializeRule,
-} from '../rules';
+import type { SerializableEntity } from '../rules';
+import { rules, serializeAccessDefinitions, serializeEntityRules, serializeRule } from '../rules';
 
 // ============================================================================
 // Feature: rules.* serialization
@@ -36,9 +32,9 @@ describe('Feature: rules.* serialization', () => {
 
   describe('Given a RoleRule', () => {
     describe('When serializing', () => {
-      it('Then produces { type: "role", names: [...] }', () => {
+      it('Then produces { type: "role", roles: [...] }', () => {
         const result = serializeRule(rules.role('admin', 'owner'));
-        expect(result).toEqual({ type: 'role', names: ['admin', 'owner'] });
+        expect(result).toEqual({ type: 'role', roles: ['admin', 'owner'] });
       });
     });
   });
@@ -99,6 +95,15 @@ describe('Feature: rules.* serialization', () => {
     });
   });
 
+  describe('Given an empty AllRule', () => {
+    describe('When serializing', () => {
+      it('Then produces { type: "all", rules: [] }', () => {
+        const result = serializeRule(rules.all());
+        expect(result).toEqual({ type: 'all', rules: [] });
+      });
+    });
+  });
+
   describe('Given an AnyRule', () => {
     describe('When serializing', () => {
       it('Then produces { type: "any", rules: [...] } with nested serialized rules', () => {
@@ -108,10 +113,19 @@ describe('Feature: rules.* serialization', () => {
         expect(result).toEqual({
           type: 'any',
           rules: [
-            { type: 'role', names: ['admin'] },
+            { type: 'role', roles: ['admin'] },
             { type: 'entitlement', value: 'task:delete' },
           ],
         });
+      });
+    });
+  });
+
+  describe('Given an empty AnyRule', () => {
+    describe('When serializing', () => {
+      it('Then produces { type: "any", rules: [] }', () => {
+        const result = serializeRule(rules.any());
+        expect(result).toEqual({ type: 'any', rules: [] });
       });
     });
   });
@@ -141,7 +155,7 @@ describe('Feature: rules.* serialization', () => {
             {
               type: 'any',
               rules: [
-                { type: 'role', names: ['admin'] },
+                { type: 'role', roles: ['admin'] },
                 { type: 'where', conditions: { createdBy: { __marker: 'user.id' } } },
               ],
             },
@@ -239,9 +253,8 @@ describe('Feature: rules.* serialization', () => {
   describe('Given entity definitions with declarative rules', () => {
     describe('When calling serializeEntityRules()', () => {
       it('Then serializes all rule types per operation', () => {
-        const entities = [
+        const entities: SerializableEntity[] = [
           {
-            kind: 'entity' as const,
             name: 'tasks',
             access: {
               list: rules.authenticated(),
@@ -255,7 +268,7 @@ describe('Feature: rules.* serialization', () => {
           },
         ];
 
-        const result = serializeEntityRules(entities as any);
+        const result = serializeEntityRules(entities);
         expect(result).toEqual({
           tasks: {
             list: { type: 'authenticated' },
@@ -277,9 +290,8 @@ describe('Feature: rules.* serialization', () => {
   describe('Given entity definitions with false (deny) rules', () => {
     describe('When calling serializeEntityRules()', () => {
       it('Then serializes false as { type: "deny" }', () => {
-        const entities = [
+        const entities: SerializableEntity[] = [
           {
-            kind: 'entity' as const,
             name: 'system-config',
             access: {
               list: rules.public,
@@ -288,7 +300,7 @@ describe('Feature: rules.* serialization', () => {
           },
         ];
 
-        const result = serializeEntityRules(entities as any);
+        const result = serializeEntityRules(entities);
         expect(result).toEqual({
           'system-config': {
             list: { type: 'public' },
@@ -302,18 +314,17 @@ describe('Feature: rules.* serialization', () => {
   describe('Given entity definitions with callback rules', () => {
     describe('When calling serializeEntityRules()', () => {
       it('Then skips callback rules (not serializable)', () => {
-        const entities = [
+        const entities: SerializableEntity[] = [
           {
-            kind: 'entity' as const,
             name: 'posts',
             access: {
               list: rules.authenticated(),
-              update: (ctx: any) => ctx.authenticated(),
+              update: () => true,
             },
           },
         ];
 
-        const result = serializeEntityRules(entities as any);
+        const result = serializeEntityRules(entities);
         expect(result).toEqual({
           posts: {
             list: { type: 'authenticated' },
@@ -326,16 +337,14 @@ describe('Feature: rules.* serialization', () => {
   describe('Given multiple entity definitions', () => {
     describe('When calling serializeEntityRules()', () => {
       it('Then produces entries for each entity', () => {
-        const entities = [
+        const entities: SerializableEntity[] = [
           {
-            kind: 'entity' as const,
             name: 'projects',
             access: {
               list: rules.authenticated(),
             },
           },
           {
-            kind: 'entity' as const,
             name: 'tasks',
             access: {
               list: rules.entitlement('task:list'),
@@ -344,7 +353,7 @@ describe('Feature: rules.* serialization', () => {
           },
         ];
 
-        const result = serializeEntityRules(entities as any);
+        const result = serializeEntityRules(entities);
         expect(result).toEqual({
           projects: {
             list: { type: 'authenticated' },
@@ -361,17 +370,29 @@ describe('Feature: rules.* serialization', () => {
   describe('Given entity definitions with no access rules', () => {
     describe('When calling serializeEntityRules()', () => {
       it('Then produces an empty rules object for that entity', () => {
-        const entities = [
+        const entities: SerializableEntity[] = [
           {
-            kind: 'entity' as const,
             name: 'logs',
             access: {},
           },
         ];
 
-        const result = serializeEntityRules(entities as any);
+        const result = serializeEntityRules(entities);
         expect(result).toEqual({
           logs: {},
+        });
+      });
+    });
+  });
+
+  describe('Given entity definitions with undefined access', () => {
+    describe('When calling serializeEntityRules()', () => {
+      it('Then handles gracefully with empty rules', () => {
+        const entities = [{ name: 'bare' }] as unknown as SerializableEntity[];
+
+        const result = serializeEntityRules(entities);
+        expect(result).toEqual({
+          bare: {},
         });
       });
     });
@@ -380,9 +401,8 @@ describe('Feature: rules.* serialization', () => {
   describe('Given the serialized entity rules', () => {
     describe('When JSON.stringify → JSON.parse round-tripped', () => {
       it('Then output is identical', () => {
-        const entities = [
+        const entities: SerializableEntity[] = [
           {
-            kind: 'entity' as const,
             name: 'tasks',
             access: {
               list: rules.authenticated(),
@@ -394,7 +414,7 @@ describe('Feature: rules.* serialization', () => {
           },
         ];
 
-        const result = serializeEntityRules(entities as any);
+        const result = serializeEntityRules(entities);
         const roundTripped = JSON.parse(JSON.stringify(result));
         expect(roundTripped).toEqual(result);
       });
