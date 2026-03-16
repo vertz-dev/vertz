@@ -198,6 +198,11 @@ describe('templates', () => {
       expect(result).toContain("d.table('tasks'");
       expect(result).toContain('d.model(tasksTable)');
     });
+
+    it('requires non-empty title with min(1)', () => {
+      const result = schemaTemplate();
+      expect(result).toContain('d.text().min(1)');
+    });
   });
 
   describe('dbTemplate', () => {

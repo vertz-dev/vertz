@@ -680,7 +680,7 @@ export function schemaTemplate(): string {
 
 export const tasksTable = d.table('tasks', {
   id: d.uuid().primary(),
-  title: d.text(),
+  title: d.text().min(1),
   completed: d.boolean().default(false),
   createdAt: d.timestamp().default('now').readOnly(),
   updatedAt: d.timestamp().autoUpdate().readOnly(),
