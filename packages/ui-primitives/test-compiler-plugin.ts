@@ -12,8 +12,9 @@ plugin({
   setup(build) {
     // Batch-1 composed primitives (PR #1323) still use imperative patterns.
     // Skip reactive transforms for them; transpile JSX only.
+    // Converted to declarative JSX: tooltip
     const batch1Composed =
-      /(accordion|alert-dialog|dialog|dropdown-menu|popover|select|sheet|tabs|tooltip)-composed\.tsx$/;
+      /(accordion|alert-dialog|dialog|dropdown-menu|popover|select|sheet|tabs)-composed\.tsx$/;
 
     build.onLoad({ filter: /\.tsx$/ }, async (args) => {
       const source = await Bun.file(args.path).text();

@@ -1,13 +1,12 @@
 /**
- * Composed Tooltip — high-level composable component built on Tooltip.Root.
- * Sub-components self-wire via context. No slot scanning.
+ * Composed Tooltip — fully declarative JSX component with delay and ARIA.
+ * Sub-components self-wire via context. No factory wrapping.
  */
 
 import type { ChildValue } from '@vertz/ui';
 import { createContext, resolveChildren, useContext } from '@vertz/ui';
-import type { FloatingOptions } from '../utils/floating';
-import type { TooltipElements, TooltipState } from './tooltip';
-import { Tooltip } from './tooltip';
+import { uniqueId } from '../utils/id';
+import { isKey, Keys } from '../utils/keyboard';
 
 // ---------------------------------------------------------------------------
 // Class distribution
@@ -22,8 +21,10 @@ export interface TooltipClasses {
 // ---------------------------------------------------------------------------
 
 interface TooltipContextValue {
-  tooltip: TooltipElements & { state: TooltipState };
+  contentId: string;
   classes?: TooltipClasses;
+  show: () => void;
+  hide: () => void;
   /** @internal — duplicate sub-component detection */
   _triggerClaimed: boolean;
   _contentClaimed: boolean;
@@ -66,22 +67,23 @@ function TooltipTrigger({ children }: SlotProps) {
     console.warn('Duplicate <Tooltip.Trigger> detected – only the first is used');
   }
   ctx._triggerClaimed = true;
-  const { tooltip } = ctx;
 
-  // Populate the primitive's trigger element with user children
-  const resolved = resolveChildren(children);
-  for (const node of resolved) {
-    tooltip.trigger.appendChild(node);
-  }
-
-  // Wire aria-describedby on the user's interactive element (consistent with other composed triggers)
-  const userTrigger = resolved.find((n): n is HTMLElement => n instanceof HTMLElement) ?? null;
-  if (userTrigger) {
-    const contentId = tooltip.content.id;
-    userTrigger.setAttribute('aria-describedby', contentId);
-  }
-
-  return tooltip.trigger;
+  return (
+    <span
+      aria-describedby={ctx.contentId}
+      onMouseenter={ctx.show}
+      onMouseleave={ctx.hide}
+      onFocus={ctx.show}
+      onBlur={ctx.hide}
+      onKeydown={(event: KeyboardEvent) => {
+        if (isKey(event, Keys.Escape)) {
+          ctx.hide();
+        }
+      }}
+    >
+      {children}
+    </span>
+  );
 }
 
 function TooltipContent({ children, className: cls, class: classProp }: SlotProps) {
@@ -90,22 +92,21 @@ function TooltipContent({ children, className: cls, class: classProp }: SlotProp
     console.warn('Duplicate <Tooltip.Content> detected – only the first is used');
   }
   ctx._contentClaimed = true;
-  const { tooltip, classes } = ctx;
   const effectiveCls = cls ?? classProp;
+  const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
-  // Apply theme + per-instance classes to the primitive's content element
-  const combined = [classes?.content, effectiveCls].filter(Boolean).join(' ');
-  if (combined) {
-    tooltip.content.className = combined;
-  }
-
-  // Populate the primitive's content element with user children
-  const resolved = resolveChildren(children);
-  for (const node of resolved) {
-    tooltip.content.appendChild(node);
-  }
-
-  return tooltip.content;
+  return (
+    <div
+      role="tooltip"
+      id={ctx.contentId}
+      aria-hidden="true"
+      data-state="closed"
+      style="display: none"
+      class={combined || undefined}
+    >
+      {children}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -116,24 +117,57 @@ export interface ComposedTooltipProps {
   children?: ChildValue;
   classes?: TooltipClasses;
   delay?: number;
-  positioning?: FloatingOptions;
 }
 
 export type TooltipClassKey = keyof TooltipClasses;
 
-function ComposedTooltipRoot({ children, classes, delay, positioning }: ComposedTooltipProps) {
-  // Create the low-level tooltip primitive
-  const tooltip = Tooltip.Root({ delay, positioning });
+// Helper to build the context value — avoids compiler wrapping an object
+// literal in computed(), which breaks the block-vs-object-literal ambiguity.
+function buildTooltipCtx(
+  contentId: string,
+  classes: TooltipClasses | undefined,
+  show: () => void,
+  hide: () => void,
+): TooltipContextValue {
+  return {
+    contentId,
+    classes,
+    show,
+    hide,
+    _triggerClaimed: false,
+    _contentClaimed: false,
+  };
+}
 
-  // Provide primitive + classes via context, then resolve children
-  // Sub-components (Trigger, Content) read context and self-wire
+function ComposedTooltipRoot({ children, classes, delay = 300 }: ComposedTooltipProps) {
+  const contentId = uniqueId('tooltip');
+
+  // Delay timer for show (non-reactive, plain mutable)
+  let showTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  function show(): void {
+    if (showTimeout !== null) return;
+    showTimeout = setTimeout(() => {
+      showTimeout = null;
+    }, delay);
+  }
+
+  function hide(): void {
+    if (showTimeout !== null) {
+      clearTimeout(showTimeout);
+      showTimeout = null;
+    }
+  }
+
+  // Build context value via helper to avoid compiler computed() wrapping
+  const ctxValue = buildTooltipCtx(contentId, classes, show, hide);
+
+  // Provide context, then resolve children
+  // Sub-components (Trigger, Content) read context and render their own JSX
   let resolvedNodes: Node[] = [];
-  TooltipContext.Provider(
-    { tooltip, classes, _triggerClaimed: false, _contentClaimed: false },
-    () => {
-      resolvedNodes = resolveChildren(children);
-    },
-  );
+  TooltipContext.Provider(ctxValue, () => {
+    resolvedNodes = resolveChildren(children);
+  });
 
   return <div style="display: contents">{...resolvedNodes}</div>;
 }
