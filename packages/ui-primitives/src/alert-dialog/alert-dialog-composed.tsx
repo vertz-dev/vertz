@@ -96,11 +96,8 @@ function AlertDialogTrigger({ children }: SlotProps) {
     userTrigger.setAttribute('data-state', 'closed');
 
     // AlertDialog trigger only opens (never closes on click)
-    const handleClick = () => {
-      if (!alertDialog.state.open.peek()) {
-        alertDialog.show();
-      }
-    };
+    // show() is idempotent — safe to call when already open
+    const handleClick = () => alertDialog.show();
     userTrigger.addEventListener('click', handleClick);
     _tryOnCleanup(() => userTrigger.removeEventListener('click', handleClick));
 
@@ -145,13 +142,14 @@ function AlertDialogContent({ children, className: cls, class: classProp }: Slot
 
   // Wire cancel and action buttons via event delegation
   const handleContentClick = (e: Event) => {
-    const cancelTarget = (e.target as HTMLElement).closest('[data-slot="alertdialog-cancel"]');
-    if (cancelTarget) alertDialog.hide();
+    const target = e.target as HTMLElement;
 
-    const actionTarget = (e.target as HTMLElement).closest('[data-slot="alertdialog-action"]');
-    if (actionTarget) {
-      // onAction is read from the context at delegation time
-      // The Action sub-component's own onClick is fired by the browser natively
+    if (target.closest('[data-slot="alertdialog-cancel"]')) {
+      alertDialog.hide();
+      return;
+    }
+
+    if (target.closest('[data-slot="alertdialog-action"]')) {
       alertDialog.hide();
     }
   };

@@ -247,6 +247,66 @@ describe('Composed AlertDialog', () => {
     });
   });
 
+  describe('Given an AlertDialog with Cancel and Action buttons', () => {
+    describe('When Cancel is clicked', () => {
+      it('Then does NOT invoke onAction', () => {
+        const onAction = vi.fn();
+        const triggerBtn = document.createElement('button');
+        let cancelEl!: HTMLElement;
+
+        const root = ComposedAlertDialog({
+          children: () => {
+            const triggerEl = ComposedAlertDialog.Trigger({ children: [triggerBtn] });
+            cancelEl = ComposedAlertDialog.Cancel({ children: ['Cancel'] });
+            const actionEl = ComposedAlertDialog.Action({ children: ['Delete'] });
+            const footerEl = ComposedAlertDialog.Footer({ children: [cancelEl, actionEl] });
+            const contentEl = ComposedAlertDialog.Content({ children: [footerEl] });
+            return [triggerEl, contentEl];
+          },
+          onAction,
+        });
+        container.appendChild(root);
+
+        triggerBtn.click();
+        cancelEl.click();
+
+        expect(onAction).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('When Cancel is inside a wrapper with action data-slot (malformed DOM)', () => {
+      it('Then the cancel branch short-circuits and hide() is called exactly once', () => {
+        const onOpenChange = vi.fn();
+        const triggerBtn = document.createElement('button');
+        let cancelEl!: HTMLElement;
+
+        const root = ComposedAlertDialog({
+          children: () => {
+            const triggerEl = ComposedAlertDialog.Trigger({ children: [triggerBtn] });
+            cancelEl = ComposedAlertDialog.Cancel({ children: ['Cancel'] });
+            // Wrap cancel in a div with action data-slot to trigger both closest matches
+            const wrapper = document.createElement('div');
+            wrapper.setAttribute('data-slot', 'alertdialog-action');
+            wrapper.appendChild(cancelEl);
+            const contentEl = ComposedAlertDialog.Content({ children: [wrapper] });
+            return [triggerEl, contentEl];
+          },
+          onOpenChange,
+        });
+        container.appendChild(root);
+
+        triggerBtn.click();
+        onOpenChange.mockClear();
+
+        cancelEl.click();
+
+        // Cancel branch should fire exactly once; action branch should NOT also fire
+        expect(onOpenChange).toHaveBeenCalledTimes(1);
+        expect(onOpenChange).toHaveBeenCalledWith(false);
+      });
+    });
+  });
+
   describe('Given an AlertDialog.Trigger rendered outside AlertDialog', () => {
     describe('When the component mounts', () => {
       it('Then throws an error', () => {
