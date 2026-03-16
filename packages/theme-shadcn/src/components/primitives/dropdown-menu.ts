@@ -14,6 +14,7 @@ interface DropdownMenuStyleClasses {
 
 export interface DropdownMenuRootProps {
   onSelect?: (value: string) => void;
+  onOpenChange?: (open: boolean) => void;
   children?: ChildValue;
 }
 
@@ -72,8 +73,12 @@ export function createThemedDropdownMenu(
     separator: styles.separator,
   });
 
-  function DropdownMenuRoot({ children, onSelect }: DropdownMenuRootProps): HTMLElement {
-    return Styled({ children, onSelect } as ComposedDropdownMenuProps);
+  function DropdownMenuRoot({
+    children,
+    onSelect,
+    onOpenChange,
+  }: DropdownMenuRootProps): HTMLElement {
+    return Styled({ children, onSelect, onOpenChange } as ComposedDropdownMenuProps);
   }
 
   return Object.assign(DropdownMenuRoot, {

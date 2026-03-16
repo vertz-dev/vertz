@@ -154,6 +154,67 @@ describe('Composed Select', () => {
     });
   });
 
+  describe('Given a Select with items', () => {
+    it('Then each item contains an indicator element with data-part="indicator"', () => {
+      const root = ComposedSelect({
+        children: () => {
+          const t = ComposedSelect.Trigger({ children: ['Pick'] });
+          const c = ComposedSelect.Content({
+            children: () => {
+              const i1 = ComposedSelect.Item({ value: 'a', children: ['Alpha'] });
+              return [i1];
+            },
+          });
+          return [t, c];
+        },
+      });
+      container.appendChild(root);
+
+      const option = root.querySelector('[role="option"]') as HTMLElement;
+      const indicator = option!.querySelector('[data-part="indicator"]');
+      expect(indicator).not.toBeNull();
+    });
+
+    it('Then applies itemIndicator class to the indicator element', () => {
+      const root = ComposedSelect({
+        classes: { itemIndicator: 'check-indicator' },
+        children: () => {
+          const t = ComposedSelect.Trigger({ children: ['Pick'] });
+          const c = ComposedSelect.Content({
+            children: () => {
+              const i1 = ComposedSelect.Item({ value: 'a', children: ['Alpha'] });
+              return [i1];
+            },
+          });
+          return [t, c];
+        },
+      });
+      container.appendChild(root);
+
+      const indicator = root.querySelector('[data-part="indicator"]') as HTMLElement;
+      expect(indicator!.className).toContain('check-indicator');
+    });
+  });
+
+  describe('Given a Select trigger', () => {
+    it('Then the trigger contains a chevron element with data-part="chevron"', () => {
+      const root = ComposedSelect({
+        children: () => {
+          const t = ComposedSelect.Trigger({ children: ['Pick'] });
+          const c = ComposedSelect.Content({
+            children: () => [ComposedSelect.Item({ value: 'a', children: ['A'] })],
+          });
+          return [t, c];
+        },
+      });
+      container.appendChild(root);
+
+      const trigger = root.querySelector('[role="combobox"]') as HTMLElement;
+      const chevron = trigger!.querySelector('[data-part="chevron"]');
+      expect(chevron).not.toBeNull();
+    });
+  });
+
   describe('Given a Select.Trigger rendered outside Select', () => {
     describe('When the component mounts', () => {
       it('Then throws an error', () => {

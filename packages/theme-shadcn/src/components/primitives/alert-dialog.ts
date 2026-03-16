@@ -38,6 +38,7 @@ export interface ThemedAlertDialogComponent {
   (props: AlertDialogRootProps): HTMLElement;
   Trigger: (props: AlertDialogSlotProps) => HTMLElement;
   Content: (props: AlertDialogSlotProps) => HTMLElement;
+  Header: (props: AlertDialogSlotProps) => HTMLElement;
   Title: (props: AlertDialogSlotProps) => HTMLElement;
   Description: (props: AlertDialogSlotProps) => HTMLElement;
   Footer: (props: AlertDialogSlotProps) => HTMLElement;
@@ -76,6 +77,7 @@ export function createThemedAlertDialog(
   return Object.assign(AlertDialogRoot, {
     Trigger: StyledAlertDialog.Trigger,
     Content: StyledAlertDialog.Content,
+    Header: StyledAlertDialog.Header,
     Title: StyledAlertDialog.Title,
     Description: StyledAlertDialog.Description,
     Footer: StyledAlertDialog.Footer,

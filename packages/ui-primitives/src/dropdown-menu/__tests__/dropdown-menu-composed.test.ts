@@ -244,6 +244,33 @@ describe('Composed DropdownMenu', () => {
     });
   });
 
+  describe('Given a DropdownMenu with onOpenChange callback', () => {
+    it('Then calls onOpenChange when the menu opens and closes', () => {
+      const onOpenChange = vi.fn();
+      const btn = document.createElement('button');
+
+      const root = ComposedDropdownMenu({
+        onOpenChange,
+        children: () => {
+          const t = ComposedDropdownMenu.Trigger({ children: [btn] });
+          const c = ComposedDropdownMenu.Content({
+            children: () => [ComposedDropdownMenu.Item({ value: 'a', children: ['A'] })],
+          });
+          return [t, c];
+        },
+      });
+      container.appendChild(root);
+
+      btn.click();
+      expect(onOpenChange).toHaveBeenCalledWith(true);
+
+      // Press Escape to close
+      const menu = root.querySelector('[role="menu"]') as HTMLElement;
+      menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+  });
+
   describe('Given a DropdownMenu with duplicate Content sub-components', () => {
     it('Then warns about the duplicate', () => {
       const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
