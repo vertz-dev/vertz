@@ -102,6 +102,10 @@
           {
             "group": "Deployment",
             "pages": ["guides/deploy/static-sites", "guides/deploy/ssg", "guides/deploy/og-images"]
+          },
+          {
+            "group": "Testing",
+            "pages": ["guides/testing"]
           }
         ],
         "tab": "Guides"
