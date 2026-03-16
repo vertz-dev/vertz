@@ -220,5 +220,29 @@ describe('Composed AlertDialog', () => {
 
       expect(onAction).toHaveBeenCalledTimes(1);
     });
+
+    it('Then fires onAction exactly once even when Action has its own onClick', () => {
+      const onAction = vi.fn();
+      const onClick = vi.fn();
+      const triggerBtn = document.createElement('button');
+      let actionEl!: HTMLElement;
+
+      const root = ComposedAlertDialog({
+        children: () => {
+          const triggerEl = ComposedAlertDialog.Trigger({ children: [triggerBtn] });
+          actionEl = ComposedAlertDialog.Action({ children: ['Confirm'], onClick });
+          const contentEl = ComposedAlertDialog.Content({ children: [actionEl] });
+          return [triggerEl, contentEl];
+        },
+        onAction,
+      });
+      container.appendChild(root);
+
+      triggerBtn.click();
+      actionEl.click();
+
+      expect(onAction).toHaveBeenCalledTimes(1);
+      expect(onClick).toHaveBeenCalledTimes(1);
+    });
   });
 });

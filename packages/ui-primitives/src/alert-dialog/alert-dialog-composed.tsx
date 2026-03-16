@@ -194,7 +194,10 @@ function ComposedAlertDialogRoot({
     ? ((triggerEntry.element.firstElementChild as HTMLElement) ?? triggerEntry.element)
     : null;
 
-  // Create the low-level alert dialog primitive, wrapping onOpenChange to sync trigger ARIA
+  // Create the low-level alert dialog primitive, wrapping onOpenChange to sync trigger ARIA.
+  // Note: onAction is NOT passed here — it is wired exclusively via event delegation below
+  // (on [data-slot="alertdialog-action"]). Passing it to the primitive would create a
+  // duplicate invocation path if the primitive's internal action button were ever appended.
   const alertDialog = AlertDialog.Root({
     onOpenChange: (isOpen) => {
       if (userTrigger) {
@@ -203,7 +206,6 @@ function ComposedAlertDialogRoot({
       }
       onOpenChange?.(isOpen);
     },
-    onAction,
   });
 
   // Apply overlay class
@@ -247,7 +249,7 @@ function ComposedAlertDialogRoot({
   const descEl = alertDialog.content.querySelector('[data-slot="alertdialog-description"]');
   if (descEl) descEl.id = alertDialog.description.id;
 
-  // Wire cancel buttons via event delegation
+  // Wire cancel and action buttons via event delegation
   alertDialog.content.addEventListener('click', (e) => {
     const cancelTarget = (e.target as HTMLElement).closest('[data-slot="alertdialog-cancel"]');
     if (cancelTarget) alertDialog.hide();
