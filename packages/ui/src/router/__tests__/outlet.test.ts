@@ -141,4 +141,88 @@ describe('Outlet', () => {
     // The SSR node should be preserved (same DOM reference, not recreated)
     expect(outlet!.firstChild).toBe(ssrChildNode);
   });
+
+  test('sync child with mismatched tag during hydration re-entry appears in DOM (#1368)', () => {
+    // Simulate SSR-rendered DOM:
+    // <div> (outlet container)
+    //   <div data-testid="child">SSR Child</div>
+    const root = document.createElement('div');
+    root.innerHTML = '<div><div data-testid="child">SSR Child</div></div>';
+
+    startHydration(root);
+
+    // Sync child creates a <span> — mismatches SSR's <div>
+    const childComponent = signal<(() => Node) | undefined>(() => {
+      const el = __element('span');
+      el.textContent = 'Client Child';
+      return el;
+    });
+
+    let outlet: HTMLElement;
+    OutletContext.Provider({ childComponent, router: mockRouter }, () => {
+      outlet = Outlet();
+    });
+
+    endHydration();
+
+    // The <span> should be in the DOM despite the mismatch
+    expect(outlet!.children.length).toBe(1);
+    expect(outlet!.firstChild!.nodeName).toBe('SPAN');
+    expect(outlet!.textContent).toBe('Client Child');
+  });
+
+  test('sync child using document.createElement during hydration re-entry is appended (#1368)', () => {
+    // Non-compiled component uses document.createElement instead of __element
+    const root = document.createElement('div');
+    root.innerHTML = '<div><div>SSR Content</div></div>';
+
+    startHydration(root);
+
+    const childComponent = signal<(() => Node) | undefined>(() => {
+      // Non-compiled component — doesn't use __element at all
+      const el = document.createElement('p');
+      el.textContent = 'Non-compiled';
+      return el;
+    });
+
+    let outlet: HTMLElement;
+    OutletContext.Provider({ childComponent, router: mockRouter }, () => {
+      outlet = Outlet();
+    });
+
+    endHydration();
+
+    expect(outlet!.children.length).toBe(1);
+    expect(outlet!.firstChild!.nodeName).toBe('P');
+    expect(outlet!.textContent).toBe('Non-compiled');
+  });
+
+  test('sync child that claims SSR node during hydration is not double-appended (#1368)', () => {
+    // When the tag matches, the SSR node is claimed — no duplicate append
+    const root = document.createElement('div');
+    root.innerHTML = '<div><div data-testid="child">SSR Child</div></div>';
+
+    const outletContainer = root.firstChild as HTMLElement;
+    const ssrChildNode = outletContainer.firstChild as HTMLElement;
+
+    startHydration(root);
+
+    const childComponent = signal<(() => Node) | undefined>(() => {
+      // Sync child claims the SSR <div> — tags match
+      const el = __element('div');
+      el.setAttribute('data-testid', 'child');
+      return el;
+    });
+
+    let outlet: HTMLElement;
+    OutletContext.Provider({ childComponent, router: mockRouter }, () => {
+      outlet = Outlet();
+    });
+
+    endHydration();
+
+    // The claimed SSR node should still be the only child (no duplication)
+    expect(outlet!.children.length).toBe(1);
+    expect(outlet!.firstChild).toBe(ssrChildNode);
+  });
 });

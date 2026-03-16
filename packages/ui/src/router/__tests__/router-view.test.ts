@@ -1289,4 +1289,35 @@ describe('RouterView', () => {
     expect(view!.textContent).toBe('Other Page');
     router.dispose();
   });
+
+  test('sync route with mismatched tag during hydration appears in DOM (#1368)', () => {
+    // SSR rendered a <div>, but the sync route creates a <span>
+    const root = document.createElement('div');
+    root.innerHTML = '<div><div data-testid="ssr">SSR</div></div>';
+
+    startHydration(root);
+
+    const routes = defineRoutes({
+      '/': {
+        component: () => {
+          const el = __element('span');
+          el.textContent = 'CSR Mismatch';
+          return el;
+        },
+      },
+    });
+    const router = createRouter(routes, '/');
+    let view: HTMLElement;
+    RouterContext.Provider(router, () => {
+      view = RouterView({ router });
+    });
+
+    endHydration();
+
+    // The <span> should be in the DOM despite the mismatch
+    expect(view!.children.length).toBe(1);
+    expect(view!.firstChild!.nodeName).toBe('SPAN');
+    expect(view!.textContent).toBe('CSR Mismatch');
+    router.dispose();
+  });
 });
