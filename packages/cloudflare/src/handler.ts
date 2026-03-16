@@ -93,6 +93,19 @@ export interface CloudflareHandlerConfig {
    * with TTL-based revalidation. Only applies to SSR routes (not API).
    */
   cache?: CacheConfig;
+
+  /**
+   * Middleware hook called before SSR rendering on non-API routes.
+   *
+   * Return a `Response` to short-circuit (e.g., redirect to `/login`).
+   * Return `undefined`/`void` to proceed with normal SSR rendering.
+   *
+   * Receives the incoming `Request` and the Worker `env` bindings.
+   */
+  beforeRender?: (
+    request: Request,
+    env: unknown,
+  ) => Response | undefined | Promise<Response | undefined> | Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -251,6 +264,7 @@ function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWork
     securityHeaders,
     imageOptimizer: imageOptimizerHandler,
     cache: cacheConfig,
+    beforeRender,
   } = config;
   const cacheTtl = cacheConfig?.ttl ?? 3600;
   const swr = cacheConfig?.staleWhileRevalidate !== false;
@@ -367,6 +381,14 @@ function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWork
         } catch (error) {
           console.error('Unhandled error in worker:', error);
           return applyHeaders(new Response('Internal Server Error', { status: 500 }), nonce);
+        }
+      }
+
+      // beforeRender middleware — runs before SSR on non-API routes
+      if (beforeRender) {
+        const earlyResponse = await beforeRender(request, env);
+        if (earlyResponse) {
+          return applyHeaders(earlyResponse, nonce);
         }
       }
 

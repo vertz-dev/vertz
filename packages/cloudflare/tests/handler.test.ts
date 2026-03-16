@@ -822,3 +822,181 @@ describe('createHandler (image optimizer integration)', () => {
     expect(apiHandler).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// beforeRender middleware hook
+// ---------------------------------------------------------------------------
+
+describe('createHandler (beforeRender hook)', () => {
+  const mockEnv = { DB: {} };
+  const mockCtx = {} as ExecutionContext;
+
+  it('short-circuits SSR when beforeRender returns a Response', async () => {
+    const ssrHandler = mock().mockResolvedValue(
+      new Response('<html>SSR</html>', {
+        headers: { 'Content-Type': 'text/html' },
+      }),
+    );
+    const redirectResponse = new Response(null, {
+      status: 302,
+      headers: { Location: '/login' },
+    });
+
+    const worker = createHandler({
+      app: () => mockApp(),
+      basePath: '/api',
+      ssr: ssrHandler,
+      beforeRender: async () => redirectResponse,
+    });
+
+    const response = await worker.fetch(new Request('https://example.com/'), mockEnv, mockCtx);
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get('Location')).toBe('/login');
+    expect(ssrHandler).not.toHaveBeenCalled();
+  });
+
+  it('proceeds with SSR when beforeRender returns undefined', async () => {
+    const ssrHandler = mock().mockResolvedValue(
+      new Response('<html>SSR</html>', {
+        headers: { 'Content-Type': 'text/html' },
+      }),
+    );
+
+    const worker = createHandler({
+      app: () => mockApp(),
+      basePath: '/api',
+      ssr: ssrHandler,
+      beforeRender: async () => undefined,
+    });
+
+    const response = await worker.fetch(new Request('https://example.com/'), mockEnv, mockCtx);
+
+    expect(ssrHandler).toHaveBeenCalled();
+    expect(await response.text()).toBe('<html>SSR</html>');
+  });
+
+  it('proceeds normally when no beforeRender hook is provided (backward compat)', async () => {
+    const ssrHandler = mock().mockResolvedValue(
+      new Response('<html>SSR</html>', {
+        headers: { 'Content-Type': 'text/html' },
+      }),
+    );
+
+    const worker = createHandler({
+      app: () => mockApp(),
+      basePath: '/api',
+      ssr: ssrHandler,
+    });
+
+    const response = await worker.fetch(new Request('https://example.com/'), mockEnv, mockCtx);
+
+    expect(ssrHandler).toHaveBeenCalled();
+    expect(await response.text()).toBe('<html>SSR</html>');
+  });
+
+  it('passes request and env to the beforeRender hook', async () => {
+    const beforeRender = mock().mockResolvedValue(undefined);
+    const env = { DB: {}, AUTH_SECRET: 'secret' };
+
+    const worker = createHandler({
+      app: () => mockApp(),
+      basePath: '/api',
+      ssr: () => Promise.resolve(new Response('<html></html>')),
+      beforeRender,
+    });
+
+    const request = new Request('https://example.com/dashboard');
+    await worker.fetch(request, env, mockCtx);
+
+    expect(beforeRender).toHaveBeenCalledWith(request, env);
+  });
+
+  it('short-circuits even when no SSR handler is configured (non-SSR routes)', async () => {
+    const redirectResponse = new Response(null, {
+      status: 302,
+      headers: { Location: '/login' },
+    });
+
+    const worker = createHandler({
+      app: () => mockApp(),
+      basePath: '/api',
+      beforeRender: async () => redirectResponse,
+    });
+
+    const response = await worker.fetch(
+      new Request('https://example.com/dashboard'),
+      mockEnv,
+      mockCtx,
+    );
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get('Location')).toBe('/login');
+  });
+
+  it('applies security headers to the beforeRender response', async () => {
+    const worker = createHandler({
+      app: () => mockApp(),
+      basePath: '/api',
+      securityHeaders: true,
+      beforeRender: async () => new Response('Redirecting', { status: 302 }),
+    });
+
+    const response = await worker.fetch(new Request('https://example.com/'), mockEnv, mockCtx);
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
+    expect(response.headers.get('X-Frame-Options')).toBe('DENY');
+  });
+
+  it('does not run beforeRender for API routes', async () => {
+    const apiHandler = mock().mockResolvedValue(new Response('{"ok":true}'));
+    const beforeRender = mock().mockResolvedValue(
+      new Response(null, { status: 302, headers: { Location: '/login' } }),
+    );
+
+    const worker = createHandler({
+      app: () => mockApp(apiHandler),
+      basePath: '/api',
+      beforeRender,
+    });
+
+    const response = await worker.fetch(
+      new Request('https://example.com/api/todos'),
+      mockEnv,
+      mockCtx,
+    );
+
+    expect(apiHandler).toHaveBeenCalled();
+    expect(beforeRender).not.toHaveBeenCalled();
+    expect(await response.text()).toBe('{"ok":true}');
+  });
+
+  it('does not run beforeRender for image optimizer routes', async () => {
+    const beforeRender = mock().mockResolvedValue(
+      new Response(null, { status: 302, headers: { Location: '/login' } }),
+    );
+    const optimizerHandler = mock().mockResolvedValue(
+      new Response('optimized-image', {
+        headers: { 'Content-Type': 'image/webp' },
+      }),
+    );
+
+    const worker = createHandler({
+      app: () => mockApp(),
+      basePath: '/api',
+      imageOptimizer: optimizerHandler,
+      beforeRender,
+    });
+
+    const response = await worker.fetch(
+      new Request('https://example.com/_vertz/image?url=https%3A%2F%2Fcdn.example.com%2Fx.jpg'),
+      mockEnv,
+      mockCtx,
+    );
+
+    expect(optimizerHandler).toHaveBeenCalled();
+    expect(beforeRender).not.toHaveBeenCalled();
+    expect(response.headers.get('Content-Type')).toBe('image/webp');
+  });
+});
