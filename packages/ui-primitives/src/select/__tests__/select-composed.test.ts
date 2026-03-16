@@ -126,6 +126,26 @@ describe('Composed Select', () => {
     });
   });
 
+  describe('Given a Select.Trigger rendered outside Select', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedSelect.Trigger({ children: ['Orphan'] });
+        }).toThrow('<Select.Trigger> must be used inside <Select>');
+      });
+    });
+  });
+
+  describe('Given a Select.Content rendered outside Select', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedSelect.Content({ children: ['Orphan'] });
+        }).toThrow('<Select.Content> must be used inside <Select>');
+      });
+    });
+  });
+
   describe('Given a Select with groups', () => {
     it('Then creates groups with items', () => {
       const root = ComposedSelect({

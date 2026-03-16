@@ -1,11 +1,11 @@
 /**
- * Composed RadioGroup — declarative JSX component with slot scanning and class distribution.
- * Builds on the same behavior as Radio.Root but in a fully declarative structure.
+ * Composed RadioGroup — declarative JSX component with context-based registration
+ * and class distribution. Builds on the same behavior as Radio.Root but in a fully
+ * declarative structure.
  */
 
 import type { ChildValue, Ref } from '@vertz/ui';
-import { ref, resolveChildren } from '@vertz/ui';
-import { scanSlots } from '../composed/scan-slots';
+import { createContext, ref, resolveChildren, useContext } from '@vertz/ui';
 import { uniqueId } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
@@ -22,6 +22,31 @@ export interface RadioGroupClasses {
 export type RadioGroupClassKey = keyof RadioGroupClasses;
 
 // ---------------------------------------------------------------------------
+// Context
+// ---------------------------------------------------------------------------
+
+interface RadioGroupContextValue {
+  /** @internal — registers an item for the radio group */
+  _registerItem: (value: string, disabled: boolean, labelText: string) => void;
+}
+
+const RadioGroupContext = createContext<RadioGroupContextValue | undefined>(
+  undefined,
+  '@vertz/ui-primitives::RadioGroupContext',
+);
+
+function useRadioGroupContext(componentName: string): RadioGroupContextValue {
+  const ctx = useContext(RadioGroupContext);
+  if (!ctx) {
+    throw new Error(
+      `<RadioGroup.${componentName}> must be used inside <RadioGroup>. ` +
+        'Ensure it is a direct or nested child of the RadioGroup root component.',
+    );
+  }
+  return ctx;
+}
+
+// ---------------------------------------------------------------------------
 // Sub-component props
 // ---------------------------------------------------------------------------
 
@@ -32,20 +57,19 @@ interface RadioGroupItemProps {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components — structural slot markers (JSX)
+// Sub-components — registration via context
 // ---------------------------------------------------------------------------
 
 function RadioGroupItem({ value, disabled, children }: RadioGroupItemProps) {
-  return (
-    <span
-      data-slot="radiogroup-item"
-      data-value={value}
-      data-disabled={disabled ? 'true' : undefined}
-      style="display: contents"
-    >
-      {children}
-    </span>
-  );
+  const { _registerItem } = useRadioGroupContext('Item');
+
+  // Resolve children to extract label text
+  const resolved = resolveChildren(children);
+  const labelText = resolved.map((n) => n.textContent ?? '').join('');
+
+  _registerItem(value, disabled ?? false, labelText);
+
+  return (<span style="display: contents" />) as HTMLElement;
 }
 
 // ---------------------------------------------------------------------------
@@ -65,16 +89,26 @@ function ComposedRadioGroupRoot({
   defaultValue = '',
   onValueChange,
 }: ComposedRadioGroupProps) {
-  const resolvedNodes = resolveChildren(children);
-  const { slots } = scanSlots(resolvedNodes);
-  const itemEntries = slots.get('radiogroup-item') ?? [];
+  // Collect item registrations
+  const registrations: { value: string; disabled: boolean; labelText: string }[] = [];
+
+  const ctxValue: RadioGroupContextValue = {
+    _registerItem: (value, disabled, labelText) => {
+      registrations.push({ value, disabled, labelText });
+    },
+  };
+
+  // Resolve children to collect registrations
+  RadioGroupContext.Provider(ctxValue, () => {
+    resolveChildren(children);
+  });
 
   // Reactive state — compiler transforms `let` to signal
   let selectedValue = defaultValue;
 
   // Refs for keyboard navigation (focus management)
-  const itemRefs: Ref<HTMLDivElement>[] = itemEntries.map(() => ref());
-  const itemValues: string[] = itemEntries.map((e) => e.attrs.value ?? '');
+  const itemRefs: Ref<HTMLDivElement>[] = registrations.map(() => ref());
+  const itemValues: string[] = registrations.map((r) => r.value);
 
   function selectItem(value: string, focusIdx?: number): void {
     selectedValue = value;
@@ -86,10 +120,8 @@ function ComposedRadioGroupRoot({
   // Using intermediate `const isActive = value === selectedValue` would be cleaner,
   // but the compiler doesn't track derived consts as reactive inside .map() callbacks
   // yet (see #1342). Once that's fixed, this can be simplified.
-  const itemNodes = itemEntries.map((entry, i) => {
-    const value = entry.attrs.value ?? '';
-    const isDisabled = 'disabled' in entry.attrs;
-    const labelText = entry.children.map((n) => n.textContent ?? '').join('');
+  const itemNodes = registrations.map((reg, i) => {
+    const { value, disabled: isDisabled, labelText } = reg;
 
     return (
       <div

@@ -1,11 +1,12 @@
 /**
  * Composed Select — high-level composable component built on Select.Root.
- * Handles slot scanning, item wiring, and class distribution.
+ * Sub-components self-wire via context. No slot scanning.
+ * Uses context override for groups: Group provides a sub-context where
+ * _createItem delegates to group.Item() instead of select.Item().
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { resolveChildren } from '@vertz/ui';
-import { scanSlots } from '../composed/scan-slots';
+import { createContext, resolveChildren, useContext } from '@vertz/ui';
 import { Select } from './select';
 
 // ---------------------------------------------------------------------------
@@ -18,6 +19,33 @@ export interface SelectClasses {
   item?: string;
   group?: string;
   separator?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Context
+// ---------------------------------------------------------------------------
+
+interface SelectContextValue {
+  select: ReturnType<typeof Select.Root>;
+  classes?: SelectClasses;
+  /** Factory to create an item — overridden by Group sub-context */
+  _createItem: (value: string, label?: string) => HTMLDivElement;
+}
+
+const SelectContext = createContext<SelectContextValue | undefined>(
+  undefined,
+  '@vertz/ui-primitives::SelectContext',
+);
+
+function useSelectContext(componentName: string): SelectContextValue {
+  const ctx = useContext(SelectContext);
+  if (!ctx) {
+    throw new Error(
+      `<Select.${componentName}> must be used inside <Select>. ` +
+        'Ensure it is a direct or nested child of the Select root component.',
+    );
+  }
+  return ctx;
 }
 
 // ---------------------------------------------------------------------------
@@ -40,49 +68,63 @@ interface GroupProps extends SlotProps {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components — structural slot markers
+// Sub-components — self-wiring via context
 // ---------------------------------------------------------------------------
 
-function SelectTrigger({ children }: SlotProps) {
-  return (
-    <span data-slot="select-trigger" style="display: contents">
-      {children}
-    </span>
-  );
+function SelectTrigger(_props: SlotProps) {
+  const { select } = useSelectContext('Trigger');
+  // Select has its own combobox trigger; children are informational only
+  return select.trigger;
 }
 
 function SelectContent({ children }: SlotProps) {
-  return (
-    <div data-slot="select-content" style="display: contents">
-      {children}
-    </div>
-  );
+  const { select } = useSelectContext('Content');
+
+  // Resolve children (Items, Groups, Separators) for their registration side effects
+  resolveChildren(children);
+
+  return select.content;
 }
 
 function SelectItem({ value, children, className: cls, class: classProp }: ItemProps) {
+  const { _createItem, classes } = useSelectContext('Item');
   const effectiveCls = cls ?? classProp;
-  return (
-    <div
-      data-slot="select-item"
-      data-value={value}
-      data-class={effectiveCls || undefined}
-      style="display: contents"
-    >
-      {children}
-    </div>
-  );
+
+  // Extract label from children
+  const resolved = resolveChildren(children);
+  const label = resolved
+    .map((n) => n.textContent ?? '')
+    .join('')
+    .trim();
+
+  const item = _createItem(value, label || undefined);
+
+  // Apply item class
+  const itemClass = [classes?.item, effectiveCls].filter(Boolean).join(' ');
+  if (itemClass) item.className = itemClass;
+
+  return item;
 }
 
 function SelectGroup({ label, children }: GroupProps) {
-  return (
-    <div data-slot="select-group" data-label={label} style="display: contents">
-      {children}
-    </div>
-  );
+  const { select, classes } = useSelectContext('Group');
+  const group = select.Group(label);
+
+  if (classes?.group) group.el.className = classes.group;
+
+  // Override _createItem in sub-context so nested Items use group.Item()
+  SelectContext.Provider({ select, classes, _createItem: (v, l) => group.Item(v, l) }, () => {
+    resolveChildren(children);
+  });
+
+  return group.el;
 }
 
 function SelectSeparator(_props: SlotProps) {
-  return <hr data-slot="select-separator" />;
+  const { select, classes } = useSelectContext('Separator');
+  const sep = select.Separator();
+  if (classes?.separator) sep.className = classes.separator;
+  return sep;
 }
 
 // ---------------------------------------------------------------------------
@@ -106,14 +148,6 @@ function ComposedSelectRoot({
   placeholder,
   onValueChange,
 }: ComposedSelectProps) {
-  // Resolve children to scan for structural slots
-  const resolvedNodes = resolveChildren(children);
-
-  // Scan for structural slots
-  const { slots } = scanSlots(resolvedNodes);
-  const contentEntry = slots.get('select-content')?.[0];
-
-  // Create the low-level select primitive
   const select = Select.Root({
     defaultValue,
     placeholder,
@@ -130,13 +164,16 @@ function ComposedSelectRoot({
     select.content.className = classes.content;
   }
 
-  // Process content children: items, groups, separators
-  if (contentEntry) {
-    const contentChildren = contentEntry.children.filter(
-      (n): n is HTMLElement => n instanceof HTMLElement,
-    );
-    processContentSlots(contentChildren, select, classes);
-  }
+  const ctxValue: SelectContextValue = {
+    select,
+    classes,
+    _createItem: (value, label) => select.Item(value, label),
+  };
+
+  // Resolve children for registration side effects
+  SelectContext.Provider(ctxValue, () => {
+    resolveChildren(children);
+  });
 
   return (
     <div style="display: contents">
@@ -144,56 +181,6 @@ function ComposedSelectRoot({
       {select.content}
     </div>
   );
-}
-
-function processContentSlots(
-  nodes: HTMLElement[],
-  select: ReturnType<typeof Select.Root>,
-  classes: SelectClasses | undefined,
-  groupFactory?: ReturnType<typeof Select.Root>['Group'] extends (label: string) => infer R
-    ? R
-    : never,
-): void {
-  const { slots } = scanSlots(nodes);
-
-  // Process items
-  const itemEntries = slots.get('select-item') ?? [];
-  for (const entry of itemEntries) {
-    const value = entry.attrs.value;
-    if (!value) continue;
-
-    const label = entry.children
-      .map((n) => n.textContent ?? '')
-      .join('')
-      .trim();
-
-    const item = groupFactory
-      ? groupFactory.Item(value, label || undefined)
-      : select.Item(value, label || undefined);
-
-    const itemClass = [classes?.item, entry.attrs.class].filter(Boolean).join(' ');
-    if (itemClass) item.className = itemClass;
-  }
-
-  // Process groups
-  const groupEntries = slots.get('select-group') ?? [];
-  for (const entry of groupEntries) {
-    const label = entry.attrs.label ?? '';
-    const group = select.Group(label);
-
-    if (classes?.group) group.el.className = classes.group;
-
-    // Process items inside the group
-    const groupChildren = entry.children.filter((n): n is HTMLElement => n instanceof HTMLElement);
-    processContentSlots(groupChildren, select, classes, group);
-  }
-
-  // Process separators
-  const separatorEntries = slots.get('select-separator') ?? [];
-  for (const _entry of separatorEntries) {
-    const sep = select.Separator();
-    if (classes?.separator) sep.className = classes.separator;
-  }
 }
 
 // ---------------------------------------------------------------------------

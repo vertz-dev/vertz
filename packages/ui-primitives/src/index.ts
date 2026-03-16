@@ -42,8 +42,6 @@ export type {
 export { Combobox } from './combobox/combobox';
 export type { CommandElements, CommandOptions, CommandState } from './command/command';
 export { Command } from './command/command';
-export type { ScanResult, SlotEntry } from './composed/scan-slots';
-export { scanSlots } from './composed/scan-slots';
 // Composed utilities
 export type { ClassesOf, ComposedPrimitive, StyledPrimitive } from './composed/with-styles';
 export { withStyles } from './composed/with-styles';

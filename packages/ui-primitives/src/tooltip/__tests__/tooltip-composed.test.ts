@@ -92,4 +92,24 @@ describe('Composed Tooltip', () => {
       expect(tooltip!.textContent).toBe('Help text');
     });
   });
+
+  describe('Given a Tooltip.Trigger rendered outside Tooltip', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedTooltip.Trigger({ children: ['Orphan'] });
+        }).toThrow('<Tooltip.Trigger> must be used inside <Tooltip>');
+      });
+    });
+  });
+
+  describe('Given a Tooltip.Content rendered outside Tooltip', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedTooltip.Content({ children: ['Orphan'] });
+        }).toThrow('<Tooltip.Content> must be used inside <Tooltip>');
+      });
+    });
+  });
 });

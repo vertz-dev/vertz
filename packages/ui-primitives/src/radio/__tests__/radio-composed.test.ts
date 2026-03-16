@@ -120,6 +120,16 @@ describe('Composed RadioGroup', () => {
     });
   });
 
+  describe('Given a RadioGroup.Item rendered outside RadioGroup', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedRadioGroup.Item({ value: 'orphan', children: ['Orphan'] });
+        }).toThrow('<RadioGroup.Item> must be used inside <RadioGroup>');
+      });
+    });
+  });
+
   describe('Given a RadioGroup.Item with disabled attribute', () => {
     describe('When rendered', () => {
       it('Then marks the item as aria-disabled', () => {

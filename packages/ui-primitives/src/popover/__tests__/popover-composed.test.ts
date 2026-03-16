@@ -135,6 +135,26 @@ describe('Composed Popover', () => {
     });
   });
 
+  describe('Given a Popover.Trigger rendered outside Popover', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedPopover.Trigger({ children: ['Orphan'] });
+        }).toThrow('<Popover.Trigger> must be used inside <Popover>');
+      });
+    });
+  });
+
+  describe('Given a Popover.Content rendered outside Popover', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedPopover.Content({ children: ['Orphan'] });
+        }).toThrow('<Popover.Content> must be used inside <Popover>');
+      });
+    });
+  });
+
   describe('Given a Popover rendered inside a disposal scope', () => {
     describe('When the disposal scope cleanups are run', () => {
       it('Then removeEventListener is called for the trigger click handler', () => {

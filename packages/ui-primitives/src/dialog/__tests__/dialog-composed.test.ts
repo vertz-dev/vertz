@@ -267,6 +267,26 @@ describe('Composed Dialog', () => {
     });
   });
 
+  describe('Given a Dialog.Trigger rendered outside Dialog', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedDialog.Trigger({ children: ['Orphan'] });
+        }).toThrow('<Dialog.Trigger> must be used inside <Dialog>');
+      });
+    });
+  });
+
+  describe('Given a Dialog.Content rendered outside Dialog', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedDialog.Content({ children: ['Orphan'] });
+        }).toThrow('<Dialog.Content> must be used inside <Dialog>');
+      });
+    });
+  });
+
   describe('Given a Dialog with a closeIcon rendered inside a disposal scope', () => {
     describe('When the disposal scope cleanups are run', () => {
       it('Then removeEventListener is called for the closeIcon click handler', () => {

@@ -160,6 +160,26 @@ describe('Composed Sheet', () => {
     });
   });
 
+  describe('Given a Sheet.Trigger rendered outside Sheet', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedSheet.Trigger({ children: ['Orphan'] });
+        }).toThrow('<Sheet.Trigger> must be used inside <Sheet>');
+      });
+    });
+  });
+
+  describe('Given a Sheet.Content rendered outside Sheet', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedSheet.Content({ children: ['Orphan'] });
+        }).toThrow('<Sheet.Content> must be used inside <Sheet>');
+      });
+    });
+  });
+
   describe('Given a Sheet rendered inside a disposal scope', () => {
     describe('When the disposal scope cleanups are run', () => {
       it('Then removeEventListener is called for the trigger click handler', () => {

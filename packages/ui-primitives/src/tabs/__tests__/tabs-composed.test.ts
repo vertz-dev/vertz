@@ -136,6 +136,36 @@ describe('Composed Tabs', () => {
     });
   });
 
+  describe('Given a Tabs.List rendered outside Tabs', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedTabs.List({ children: ['Orphan'] });
+        }).toThrow('<Tabs.List> must be used inside <Tabs>');
+      });
+    });
+  });
+
+  describe('Given a Tabs.Trigger rendered outside Tabs', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedTabs.Trigger({ value: 'orphan', children: ['Orphan'] });
+        }).toThrow('<Tabs.Trigger> must be used inside <Tabs>');
+      });
+    });
+  });
+
+  describe('Given a Tabs.Content rendered outside Tabs', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedTabs.Content({ value: 'orphan', children: ['Orphan'] });
+        }).toThrow('<Tabs.Content> must be used inside <Tabs>');
+      });
+    });
+  });
+
   describe('Given Tabs trigger children', () => {
     describe('When rendered', () => {
       it('Then trigger text comes from children, not value', () => {

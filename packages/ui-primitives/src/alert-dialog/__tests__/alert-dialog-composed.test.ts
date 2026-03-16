@@ -247,6 +247,26 @@ describe('Composed AlertDialog', () => {
     });
   });
 
+  describe('Given an AlertDialog.Trigger rendered outside AlertDialog', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedAlertDialog.Trigger({ children: ['Orphan'] });
+        }).toThrow('<AlertDialog.Trigger> must be used inside <AlertDialog>');
+      });
+    });
+  });
+
+  describe('Given an AlertDialog.Content rendered outside AlertDialog', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedAlertDialog.Content({ children: ['Orphan'] });
+        }).toThrow('<AlertDialog.Content> must be used inside <AlertDialog>');
+      });
+    });
+  });
+
   describe('Given an AlertDialog rendered inside a disposal scope', () => {
     describe('When the disposal scope cleanups are run', () => {
       it('Then removeEventListener is called for the trigger click handler', () => {

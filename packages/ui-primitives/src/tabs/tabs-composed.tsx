@@ -1,11 +1,10 @@
 /**
  * Composed Tabs — high-level composable component built on top of Tabs.Root.
- * Handles slot scanning, trigger/panel wiring, and class distribution.
+ * Sub-components self-wire via context. No slot scanning.
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { resolveChildren } from '@vertz/ui';
-import { scanSlots } from '../composed/scan-slots';
+import { createContext, resolveChildren, useContext } from '@vertz/ui';
 import { Tabs } from './tabs';
 
 // ---------------------------------------------------------------------------
@@ -16,6 +15,33 @@ export interface TabsClasses {
   list?: string;
   trigger?: string;
   panel?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Context
+// ---------------------------------------------------------------------------
+
+interface TabsContextValue {
+  tabs: ReturnType<typeof Tabs.Root>;
+  classes?: TabsClasses;
+  /** @internal — stores panel elements keyed by value for Content lookup */
+  _panels: Map<string, HTMLElement>;
+}
+
+const TabsContext = createContext<TabsContextValue | undefined>(
+  undefined,
+  '@vertz/ui-primitives::TabsContext',
+);
+
+function useTabsContext(componentName: string): TabsContextValue {
+  const ctx = useContext(TabsContext);
+  if (!ctx) {
+    throw new Error(
+      `<Tabs.${componentName}> must be used inside <Tabs>. ` +
+        'Ensure it is a direct or nested child of the Tabs root component.',
+    );
+  }
+  return ctx;
 }
 
 // ---------------------------------------------------------------------------
@@ -38,43 +64,63 @@ interface ContentProps extends SlotProps {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components — structural slot markers
+// Sub-components — self-wiring via context
 // ---------------------------------------------------------------------------
 
 function TabsList({ children }: SlotProps) {
-  return (
-    <div data-slot="tabs-list" style="display: contents">
-      {children}
-    </div>
-  );
+  const { tabs, classes } = useTabsContext('List');
+
+  if (classes?.list) {
+    tabs.list.className = classes.list;
+  }
+
+  // Resolve children (Triggers) for their registration side effects
+  resolveChildren(children);
+
+  return tabs.list;
 }
 
 function TabsTrigger({ value, children, className: cls, class: classProp }: TriggerProps) {
+  const { tabs, classes, _panels } = useTabsContext('Trigger');
   const effectiveCls = cls ?? classProp;
-  return (
-    <span
-      data-slot="tabs-trigger"
-      data-value={value}
-      data-class={effectiveCls || undefined}
-      style="display: contents"
-    >
-      {children}
-    </span>
-  );
+
+  const { trigger, panel } = tabs.Tab(value);
+
+  // Apply trigger class
+  const triggerClass = [classes?.trigger, effectiveCls].filter(Boolean).join(' ');
+  if (triggerClass) trigger.className = triggerClass;
+
+  // Move children into the primitive trigger
+  trigger.textContent = '';
+  const resolved = resolveChildren(children);
+  for (const node of resolved) {
+    trigger.appendChild(node);
+  }
+
+  // Store panel reference for Content lookup
+  _panels.set(value, panel);
+
+  return trigger;
 }
 
 function TabsContent({ value, children, className: cls, class: classProp }: ContentProps) {
+  const { classes, _panels } = useTabsContext('Content');
   const effectiveCls = cls ?? classProp;
-  return (
-    <div
-      data-slot="tabs-content"
-      data-value={value}
-      data-class={effectiveCls || undefined}
-      style="display: contents"
-    >
-      {children}
-    </div>
-  );
+
+  const panel = _panels.get(value);
+  if (!panel) return (<div style="display: contents" />) as HTMLElement;
+
+  // Apply panel class
+  const panelClass = [classes?.panel, effectiveCls].filter(Boolean).join(' ');
+  if (panelClass) panel.className = panelClass;
+
+  // Move children into the primitive panel
+  const resolved = resolveChildren(children);
+  for (const node of resolved) {
+    panel.appendChild(node);
+  }
+
+  return panel;
 }
 
 // ---------------------------------------------------------------------------
@@ -91,57 +137,19 @@ export interface ComposedTabsProps {
 export type TabsClassKey = keyof TabsClasses;
 
 function ComposedTabsRoot({ children, classes, defaultValue, onValueChange }: ComposedTabsProps) {
-  // Resolve children to scan for structural slots
-  const resolvedNodes = resolveChildren(children);
-
-  // Scan for structural slots
-  const { slots } = scanSlots(resolvedNodes);
-  const listEntry = slots.get('tabs-list')?.[0];
-  const contentEntries = slots.get('tabs-content') ?? [];
-
-  // Create the low-level tabs primitive
   const tabs = Tabs.Root({ defaultValue, onValueChange });
 
-  // Apply list class
-  if (classes?.list) {
-    tabs.list.className = classes.list;
-  }
+  const ctxValue: TabsContextValue = {
+    tabs,
+    classes,
+    _panels: new Map(),
+  };
 
-  // Process triggers from the list slot
-  if (listEntry) {
-    const triggerSlots = scanSlots(
-      listEntry.children.filter((n): n is HTMLElement => n instanceof HTMLElement),
-    );
-    const triggerEntries = triggerSlots.slots.get('tabs-trigger') ?? [];
-
-    for (const triggerEntry of triggerEntries) {
-      const value = triggerEntry.attrs.value;
-      if (!value) continue;
-
-      const { trigger, panel } = tabs.Tab(value);
-
-      // Apply trigger class
-      const triggerClass = [classes?.trigger, triggerEntry.attrs.class].filter(Boolean).join(' ');
-      if (triggerClass) trigger.className = triggerClass;
-
-      // Move trigger children into the primitive trigger
-      trigger.textContent = '';
-      for (const node of triggerEntry.children) {
-        trigger.appendChild(node);
-      }
-
-      // Find matching content entry and move its children into the panel
-      const contentEntry = contentEntries.find((ce) => ce.attrs.value === value);
-      if (contentEntry) {
-        const panelClass = [classes?.panel, contentEntry.attrs.class].filter(Boolean).join(' ');
-        if (panelClass) panel.className = panelClass;
-
-        for (const node of contentEntry.children) {
-          panel.appendChild(node);
-        }
-      }
-    }
-  }
+  // Resolve children for registration side effects
+  // Triggers call tabs.Tab() which appends to tabs.list and tabs.root
+  TabsContext.Provider(ctxValue, () => {
+    resolveChildren(children);
+  });
 
   return tabs.root;
 }

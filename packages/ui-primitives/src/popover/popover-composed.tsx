@@ -1,12 +1,12 @@
 /**
  * Composed Popover — high-level composable component built on Popover.Root.
- * Handles slot scanning, trigger wiring, ARIA sync, and class distribution.
+ * Sub-components self-wire via context. No slot scanning.
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { resolveChildren } from '@vertz/ui';
+import { createContext, resolveChildren, useContext } from '@vertz/ui';
 import { _tryOnCleanup } from '@vertz/ui/internals';
-import { scanSlots } from '../composed/scan-slots';
+import type { PopoverElements, PopoverState } from './popover';
 import { Popover } from './popover';
 
 // ---------------------------------------------------------------------------
@@ -15,6 +15,34 @@ import { Popover } from './popover';
 
 export interface PopoverClasses {
   content?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Context
+// ---------------------------------------------------------------------------
+
+interface PopoverContextValue {
+  popover: PopoverElements & { state: PopoverState };
+  classes?: PopoverClasses;
+  onOpenChange?: (open: boolean) => void;
+  /** @internal — registers the user trigger for ARIA sync */
+  _registerTrigger: (el: HTMLElement) => void;
+}
+
+const PopoverContext = createContext<PopoverContextValue | undefined>(
+  undefined,
+  '@vertz/ui-primitives::PopoverContext',
+);
+
+function usePopoverContext(componentName: string): PopoverContextValue {
+  const ctx = useContext(PopoverContext);
+  if (!ctx) {
+    throw new Error(
+      `<Popover.${componentName}> must be used inside <Popover>. ` +
+        'Ensure it is a direct or nested child of the Popover root component.',
+    );
+  }
+  return ctx;
 }
 
 // ---------------------------------------------------------------------------
@@ -29,28 +57,54 @@ interface SlotProps {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components — structural slot markers
+// Sub-components — self-wiring via context
 // ---------------------------------------------------------------------------
 
 function PopoverTrigger({ children }: SlotProps) {
-  return (
-    <span data-slot="popover-trigger" style="display: contents">
-      {children}
-    </span>
-  );
+  const { popover, _registerTrigger } = usePopoverContext('Trigger');
+
+  // Resolve children to find the user's trigger element
+  const resolved = resolveChildren(children);
+  const userTrigger = resolved.find((n): n is HTMLElement => n instanceof HTMLElement) ?? null;
+
+  if (userTrigger) {
+    // Wire ARIA attributes on the user's element
+    userTrigger.setAttribute('aria-haspopup', 'dialog');
+    userTrigger.setAttribute('aria-controls', popover.content.id);
+    userTrigger.setAttribute('aria-expanded', 'false');
+    userTrigger.setAttribute('data-state', 'closed');
+
+    // Delegate click to the primitive's trigger
+    const handleClick = () => {
+      popover.trigger.click();
+    };
+    userTrigger.addEventListener('click', handleClick);
+    _tryOnCleanup(() => userTrigger.removeEventListener('click', handleClick));
+
+    // Register for ARIA sync on state changes
+    _registerTrigger(userTrigger);
+  }
+
+  return <span style="display: contents">{...resolved}</span>;
 }
 
 function PopoverContent({ children, className: cls, class: classProp }: SlotProps) {
+  const { popover, classes } = usePopoverContext('Content');
   const effectiveCls = cls ?? classProp;
-  return (
-    <div
-      data-slot="popover-content"
-      data-class={effectiveCls || undefined}
-      style="display: contents"
-    >
-      {children}
-    </div>
-  );
+
+  // Apply theme + per-instance classes to the primitive's content element
+  const combined = [classes?.content, effectiveCls].filter(Boolean).join(' ');
+  if (combined) {
+    popover.content.className = combined;
+  }
+
+  // Populate the primitive's content element with user children
+  const resolved = resolveChildren(children);
+  for (const node of resolved) {
+    popover.content.appendChild(node);
+  }
+
+  return popover.content;
 }
 
 // ---------------------------------------------------------------------------
@@ -66,20 +120,10 @@ export interface ComposedPopoverProps {
 export type PopoverClassKey = keyof PopoverClasses;
 
 function ComposedPopoverRoot({ children, classes, onOpenChange }: ComposedPopoverProps) {
-  // Resolve children for slot scanning
-  const resolvedNodes = resolveChildren(children);
+  // Track the user's trigger element for ARIA sync
+  let userTrigger: HTMLElement | null = null;
 
-  // Scan for structural slots
-  const { slots } = scanSlots(resolvedNodes);
-  const triggerEntry = slots.get('popover-trigger')?.[0];
-  const contentEntry = slots.get('popover-content')?.[0];
-
-  // Extract user trigger element
-  const userTrigger = triggerEntry
-    ? ((triggerEntry.element.firstElementChild as HTMLElement) ?? triggerEntry.element)
-    : null;
-
-  // Create the low-level popover primitive with ARIA sync
+  // Create the low-level popover primitive with ARIA sync on state changes
   const popover = Popover.Root({
     onOpenChange: (isOpen) => {
       if (userTrigger) {
@@ -90,40 +134,23 @@ function ComposedPopoverRoot({ children, classes, onOpenChange }: ComposedPopove
     },
   });
 
-  // Apply content class
-  const contentInstanceClass = contentEntry?.attrs.class;
-  const contentClassCombined = [classes?.content, contentInstanceClass].filter(Boolean).join(' ');
-  if (contentClassCombined) {
-    popover.content.className = contentClassCombined;
-  }
+  const ctxValue: PopoverContextValue = {
+    popover,
+    classes,
+    onOpenChange,
+    _registerTrigger: (el: HTMLElement) => {
+      userTrigger = el;
+    },
+  };
 
-  // Wire the user's trigger
-  if (userTrigger) {
-    userTrigger.setAttribute('aria-haspopup', 'dialog');
-    userTrigger.setAttribute('aria-controls', popover.content.id);
-    userTrigger.setAttribute('aria-expanded', 'false');
-    userTrigger.setAttribute('data-state', 'closed');
+  // Provide primitive + classes via context, then resolve children
+  // Sub-components (Trigger, Content) read context and self-wire
+  let resolvedNodes: Node[] = [];
+  PopoverContext.Provider(ctxValue, () => {
+    resolvedNodes = resolveChildren(children);
+  });
 
-    const handleTriggerClick = () => {
-      popover.trigger.click();
-    };
-    userTrigger.addEventListener('click', handleTriggerClick);
-    _tryOnCleanup(() => userTrigger.removeEventListener('click', handleTriggerClick));
-  }
-
-  // Move content children into the popover's dialog
-  if (contentEntry) {
-    for (const node of contentEntry.children) {
-      popover.content.appendChild(node);
-    }
-  }
-
-  return (
-    <div style="display: contents">
-      {userTrigger}
-      {popover.content}
-    </div>
-  );
+  return <div style="display: contents">{...resolvedNodes}</div>;
 }
 
 // ---------------------------------------------------------------------------

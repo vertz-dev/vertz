@@ -91,6 +91,26 @@ describe('Composed DropdownMenu', () => {
     });
   });
 
+  describe('Given a DropdownMenu.Trigger rendered outside DropdownMenu', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedDropdownMenu.Trigger({ children: ['Orphan'] });
+        }).toThrow('<DropdownMenu.Trigger> must be used inside <DropdownMenu>');
+      });
+    });
+  });
+
+  describe('Given a DropdownMenu.Content rendered outside DropdownMenu', () => {
+    describe('When the component mounts', () => {
+      it('Then throws an error', () => {
+        expect(() => {
+          ComposedDropdownMenu.Content({ children: ['Orphan'] });
+        }).toThrow('<DropdownMenu.Content> must be used inside <DropdownMenu>');
+      });
+    });
+  });
+
   describe('Given a DropdownMenu with groups', () => {
     it('Then creates groups with items', () => {
       const btn = document.createElement('button');
