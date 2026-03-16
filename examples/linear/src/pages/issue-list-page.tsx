@@ -3,9 +3,10 @@ import { api } from '../api/client';
 import { Button } from '../components/button';
 import { CreateIssueDialog } from '../components/create-issue-dialog';
 import { IssueRow } from '../components/issue-row';
+import { IssueListSkeleton } from '../components/loading-skeleton';
 import { StatusFilter } from '../components/status-filter';
 import { ViewToggle } from '../components/view-toggle';
-import type { Issue, IssuePriority, IssueStatus } from '../lib/types';
+import type { Issue } from '../lib/types';
 import { emptyStateStyles } from '../styles/components';
 
 const styles = css({
@@ -13,7 +14,6 @@ const styles = css({
   header: ['flex', 'items:center', 'justify:between', 'mb:4'],
   title: ['font:lg', 'font:semibold', 'text:foreground'],
   list: ['border:1', 'border:border', 'rounded:lg', 'overflow-hidden'],
-  loading: ['text:sm', 'text:muted-foreground', 'py:8', 'text:center'],
   error: ['text:sm', 'text:destructive', 'py:8', 'text:center'],
 });
 
@@ -29,21 +29,6 @@ export function IssueListPage() {
     statusFilter === 'all'
       ? issues.data?.items
       : issues.data?.items.filter((i) => i.status === statusFilter);
-
-  const handleStatusChange = async (issueId: string, status: IssueStatus) => {
-    const res = await api.issues.update(issueId, { status });
-    if (!res.ok) {
-      console.error('Failed to update status');
-    }
-    // MutationEventBus auto-triggers query revalidation
-  };
-
-  const handlePriorityChange = async (issueId: string, priority: IssuePriority) => {
-    const res = await api.issues.update(issueId, { priority });
-    if (!res.ok) {
-      console.error('Failed to update priority');
-    }
-  };
 
   const handleNewIssue = async () => {
     try {
@@ -71,13 +56,13 @@ export function IssueListPage() {
         }}
       />
 
-      {issues.loading && <div className={styles.loading}>Loading issues...</div>}
+      {issues.loading && <IssueListSkeleton />}
       {issues.error && (
         <div className={styles.error}>Failed to load issues: {issues.error.message}</div>
       )}
 
       {!issues.loading && !issues.error && issues.data?.items.length === 0 && (
-        <div className={emptyStateStyles.container}>
+        <div className={emptyStateStyles.container} data-testid="issues-empty">
           <h3 className={emptyStateStyles.title}>No issues yet</h3>
           <p className={emptyStateStyles.description}>Create your first issue to get started.</p>
         </div>
@@ -88,7 +73,7 @@ export function IssueListPage() {
         filtered &&
         filtered.length === 0 &&
         issues.data?.items.length !== 0 && (
-          <div className={emptyStateStyles.container}>
+          <div className={emptyStateStyles.container} data-testid="filter-empty">
             <p className={emptyStateStyles.description}>No issues match the selected filter.</p>
           </div>
         )}
@@ -97,12 +82,7 @@ export function IssueListPage() {
         <div className={styles.list}>
           {filtered.map((issue) => (
             <Link href={`/projects/${projectId}/issues/${issue.id}`} key={issue.id}>
-              <IssueRow
-                issue={issue as Issue}
-                projectKey={project.data?.key}
-                onStatusChange={handleStatusChange}
-                onPriorityChange={handlePriorityChange}
-              />
+              <IssueRow issue={issue as Issue} projectKey={project.data?.key} />
             </Link>
           ))}
         </div>

@@ -1,5 +1,5 @@
-import { css, Link } from '@vertz/ui';
-import type { Issue, IssuePriority, IssueStatus } from '../lib/types';
+import { css, Link, ListTransition } from '@vertz/ui';
+import type { Issue } from '../lib/types';
 import { IssueCard } from './issue-card';
 
 const styles = css({
@@ -16,36 +16,29 @@ interface StatusColumnProps {
   issues: Issue[];
   projectKey?: string;
   projectId: string;
-  onStatusChange?: (issueId: string, status: IssueStatus) => void;
-  onPriorityChange?: (issueId: string, priority: IssuePriority) => void;
 }
 
-export function StatusColumn({
-  label,
-  issues,
-  projectKey,
-  projectId,
-  onStatusChange,
-  onPriorityChange,
-}: StatusColumnProps) {
+export function StatusColumn({ label, issues, projectKey, projectId }: StatusColumnProps) {
   return (
-    <div className={styles.column}>
+    <div
+      className={styles.column}
+      data-testid={`column-${label.toLowerCase().replace(/\s+/g, '_')}`}
+    >
       <div className={styles.columnHeader}>
         <span className={styles.columnTitle}>{label}</span>
         <span className={styles.columnCount}>{issues.length}</span>
       </div>
       <div className={styles.columnBody}>
         {issues.length === 0 && <div className={styles.empty}>No issues</div>}
-        {issues.map((issue) => (
-          <Link href={`/projects/${projectId}/issues/${issue.id}`} key={issue.id}>
-            <IssueCard
-              issue={issue}
-              projectKey={projectKey}
-              onStatusChange={onStatusChange}
-              onPriorityChange={onPriorityChange}
-            />
-          </Link>
-        ))}
+        <ListTransition
+          each={issues}
+          keyFn={(issue: Issue) => issue.id}
+          children={(issue: Issue) => (
+            <Link href={`/projects/${projectId}/issues/${issue.id}`}>
+              <IssueCard issue={issue} projectKey={projectKey} />
+            </Link>
+          )}
+        />
       </div>
     </div>
   );

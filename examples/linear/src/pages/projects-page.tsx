@@ -2,6 +2,7 @@ import { css, Link, query, useDialogStack } from '@vertz/ui';
 import { api } from '../api/client';
 import { Button } from '../components/button';
 import { CreateProjectDialog } from '../components/create-project-dialog';
+import { ProjectGridSkeleton } from '../components/loading-skeleton';
 import { ProjectCard } from '../components/project-card';
 import type { Project } from '../lib/types';
 import { emptyStateStyles } from '../styles/components';
@@ -11,7 +12,6 @@ const styles = css({
   header: ['flex', 'items:center', 'justify:between', 'mb:6'],
   title: ['font:xl', 'font:bold', 'text:foreground'],
   grid: ['grid', 'grid-cols:1', 'gap:3'],
-  loading: ['text:sm', 'text:muted-foreground', 'py:8', 'text:center'],
 });
 
 export function ProjectsPage() {
@@ -36,7 +36,7 @@ export function ProjectsPage() {
         </Button>
       </header>
 
-      {projects.loading && <div className={styles.loading}>Loading projects...</div>}
+      {projects.loading && <ProjectGridSkeleton />}
 
       {!projects.loading && projects.data?.items.length === 0 && (
         <div className={emptyStateStyles.container} data-testid="projects-empty">

@@ -21,6 +21,7 @@ export function StatusSelect({ value, onChange }: StatusSelectProps) {
       <select
         className={formStyles.select}
         id="issue-status-select"
+        data-testid="status-select"
         value={value}
         onChange={(e: Event) => {
           onChange((e.target as HTMLSelectElement).value as IssueStatus);

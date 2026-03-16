@@ -65,33 +65,41 @@ export function CommentSection({
   });
 
   return (
-    <div className={styles.section}>
+    <div className={styles.section} data-testid="comment-section">
       <h3 className={styles.heading}>Comments</h3>
 
       {loading && <div className={styles.loading}>Loading comments...</div>}
 
-      {!loading && comments.length === 0 && <div className={styles.empty}>No comments yet.</div>}
+      {!loading && comments.length === 0 && (
+        <div className={styles.empty} data-testid="comments-empty">
+          No comments yet. Be the first to comment.
+        </div>
+      )}
 
-      {comments.map((comment) => (
-        <CommentItem
-          key={comment.id}
-          comment={comment}
-          authorName={userMap[comment.authorId]?.name ?? 'Unknown'}
-          authorAvatarUrl={userMap[comment.authorId]?.avatarUrl ?? null}
-        />
-      ))}
+      <div data-testid="comment-list">
+        {comments.map((comment) => (
+          <CommentItem
+            key={comment.id}
+            comment={comment}
+            authorName={userMap[comment.authorId]?.name ?? 'Unknown'}
+            authorAvatarUrl={userMap[comment.authorId]?.avatarUrl ?? null}
+          />
+        ))}
+      </div>
 
       <form
         action={commentForm.action}
         method={commentForm.method}
         onSubmit={commentForm.onSubmit}
         className={styles.form}
+        data-testid="comment-form"
       >
         <textarea
           name="body"
           placeholder="Add a comment..."
           className={inputStyles.base}
           style="min-height: 5rem; resize: vertical"
+          data-testid="comment-input"
         />
         {commentForm.body.error && (
           <span className={formStyles.error}>{commentForm.body.error}</span>
