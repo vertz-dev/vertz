@@ -46,14 +46,14 @@ _tryOnCleanup(() => userTrigger.removeEventListener('click', handleTriggerClick)
 
 ## Approach
 
-Use `onCleanup()` from `@vertz/ui/internals` (already a dependency of `@vertz/ui-primitives`) to register `removeEventListener` calls for every `addEventListener` in composed Root functions.
+Use `_tryOnCleanup()` from `@vertz/ui/internals` (already a dependency of `@vertz/ui-primitives`) to register `removeEventListener` calls for every `addEventListener` in composed Root functions.
 
 ### Pattern
 
 For each `addEventListener` call:
 1. Extract the anonymous handler into a named `const`
 2. Call `addEventListener` with the named handler
-3. Call `onCleanup(() => el.removeEventListener(event, handler))`
+3. Call `_tryOnCleanup(() => el.removeEventListener(event, handler))`
 
 ### Why `_tryOnCleanup` and not `onCleanup`
 
