@@ -210,6 +210,24 @@ describe('defineRoutes with prerender', () => {
     expect(routes[0]?.children?.[0]?.prerender).toBeUndefined();
     expect(routes[0]?.children?.[1]?.prerender).toBe(false);
   });
+
+  test('propagates generateParams to CompiledRoute', () => {
+    const gen = () => [{ slug: 'hello' }, { slug: 'world' }];
+    const routes = defineRoutes({
+      '/blog/:slug': {
+        component: () => document.createElement('div'),
+        generateParams: gen,
+      },
+    });
+    expect(routes[0]?.generateParams).toBe(gen);
+  });
+
+  test('generateParams is undefined when not provided', () => {
+    const routes = defineRoutes({
+      '/about': { component: () => document.createElement('div'), prerender: true },
+    });
+    expect(routes[0]?.generateParams).toBeUndefined();
+  });
 });
 
 describe('matchRoute with params schema', () => {

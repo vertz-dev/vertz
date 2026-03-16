@@ -281,6 +281,7 @@ ${modulepreloadLinks}
     console.log('📄 Pre-rendering routes...');
 
     const {
+      collectPrerenderPaths,
       discoverRoutes,
       filterPrerenderableRoutes,
       prerenderRoutes,
@@ -320,9 +321,27 @@ ${modulepreloadLinks}
     } else {
       console.log(`  Discovered ${allPatterns.length} route(s): ${allPatterns.join(', ')}`);
 
-      // Filter to pre-renderable routes
-      const prerenderableRoutes = filterPrerenderableRoutes(allPatterns);
-      console.log(`  Pre-rendering ${prerenderableRoutes.length} static route(s)...`);
+      // Collect pre-renderable paths:
+      // 1. Static routes (no :param) that aren't opted out
+      const staticRoutes = filterPrerenderableRoutes(allPatterns);
+      // 2. Dynamic routes expanded via generateParams (from exported routes)
+      let dynamicRoutes: string[] = [];
+      if (ssrModule.routes) {
+        dynamicRoutes = await collectPrerenderPaths(ssrModule.routes);
+        // Remove paths already covered by static discovery
+        dynamicRoutes = dynamicRoutes.filter((p) => !staticRoutes.includes(p));
+      }
+
+      const prerenderableRoutes = [...staticRoutes, ...dynamicRoutes];
+      const staticCount = staticRoutes.length;
+      const dynamicCount = dynamicRoutes.length;
+      if (dynamicCount > 0) {
+        console.log(
+          `  Pre-rendering ${prerenderableRoutes.length} route(s) (${staticCount} static, ${dynamicCount} from generateParams)...`,
+        );
+      } else {
+        console.log(`  Pre-rendering ${prerenderableRoutes.length} static route(s)...`);
+      }
 
       if (prerenderableRoutes.length > 0) {
         // Pre-render each route
