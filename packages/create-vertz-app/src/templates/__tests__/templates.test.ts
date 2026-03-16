@@ -328,10 +328,13 @@ describe('templates', () => {
       expect(result).toContain('api.tasks.update');
     });
 
-    it('uses confirm dialog for delete', () => {
+    it('uses AlertDialog for delete confirmation', () => {
       const result = homePageTemplate();
       expect(result).toContain('api.tasks.delete');
-      expect(result).toContain('confirm(');
+      expect(result).toContain('AlertDialog');
+      expect(result).toContain('AlertDialog.Trigger');
+      expect(result).toContain('AlertDialog.Action');
+      expect(result).not.toContain('confirm(');
     });
 
     it('shows remaining task count', () => {
@@ -339,6 +342,11 @@ describe('templates', () => {
       expect(result).toContain('remaining');
       expect(result).toContain('.filter');
       expect(result).toContain('!t.completed');
+    });
+
+    it('has hover state on task items', () => {
+      const result = homePageTemplate();
+      expect(result).toContain('hover:bg:accent');
     });
 
     it('uses ListTransition for animated list', () => {

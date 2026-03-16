@@ -846,6 +846,7 @@ import { api } from '../client';
 import { themeComponents } from '../styles/theme';
 
 const { Button } = themeComponents;
+const { AlertDialog } = themeComponents.primitives;
 
 // Global CSS for list item enter/exit animations
 void globalCss({
@@ -886,6 +887,8 @@ const styles = css({
     'border:1',
     'border:border',
     'bg:card',
+    'hover:bg:accent',
+    'transition:colors',
   ],
   checkbox: ['w:4', 'h:4', 'cursor:pointer', 'rounded:sm'],
   label: ['flex-1', 'text:sm', 'text:foreground'],
@@ -908,9 +911,7 @@ function TaskItem({ id, title, completed }: TaskItemProps) {
   };
 
   const handleDelete = async () => {
-    if (confirm(\`Delete "\${title}"?\`)) {
-      await api.tasks.delete(id);
-    }
+    await api.tasks.delete(id);
   };
 
   return (
@@ -924,7 +925,21 @@ function TaskItem({ id, title, completed }: TaskItemProps) {
       <span className={completed ? styles.labelDone : styles.label}>
         {title}
       </span>
-      <Button intent="ghost" size="sm" onClick={handleDelete}>Delete</Button>
+      <AlertDialog onAction={handleDelete}>
+        <AlertDialog.Trigger>
+          <Button intent="ghost" size="sm">Delete</Button>
+        </AlertDialog.Trigger>
+        <AlertDialog.Content>
+          <AlertDialog.Title>Delete task?</AlertDialog.Title>
+          <AlertDialog.Description>
+            This action cannot be undone.
+          </AlertDialog.Description>
+          <AlertDialog.Footer>
+            <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+            <AlertDialog.Action>Delete</AlertDialog.Action>
+          </AlertDialog.Footer>
+        </AlertDialog.Content>
+      </AlertDialog>
     </div>
   );
 }
