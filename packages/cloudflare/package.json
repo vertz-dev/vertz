@@ -18,6 +18,10 @@
     "./image": {
       "types": "./dist/image-optimizer.d.ts",
       "import": "./dist/image-optimizer.js"
+    },
+    "./tpr": {
+      "types": "./dist/tpr.d.ts",
+      "import": "./dist/tpr.js"
     }
   },
   "scripts": {
