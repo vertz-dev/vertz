@@ -23,15 +23,18 @@ export {
   setValueRange,
   toggleExpanded,
 } from './utils/aria';
-
+// Attribute forwarding
+export type { ElementAttrs } from './utils/attrs';
+export { applyAttrs } from './utils/attrs';
 // Dismiss (click-outside + Escape)
 export type { DismissOptions } from './utils/dismiss';
 export { createDismiss } from './utils/dismiss';
-
+// Event handler wiring
+export type { ElementEventHandlers } from './utils/event-handlers';
+export { isKnownEventHandler, wireEventHandlers } from './utils/event-handlers';
 // Floating positioning (wraps @floating-ui/dom)
 export type { FloatingOptions, FloatingResult } from './utils/floating';
 export { createFloatingPosition, virtualElement } from './utils/floating';
-
 // Focus management
 export {
   focusFirst,
@@ -40,9 +43,10 @@ export {
   setRovingTabindex,
   trapFocus,
 } from './utils/focus';
-
 // ID generation
 export { linkedIds, resetIdCounter, uniqueId } from './utils/id';
-
 // Keyboard handling
 export { handleActivation, handleListNavigation, isKey, Keys } from './utils/keyboard';
+
+// Combined props (events + attributes)
+export { applyProps } from './utils/props';

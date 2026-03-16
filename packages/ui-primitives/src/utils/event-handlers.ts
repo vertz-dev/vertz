@@ -43,13 +43,6 @@ const EVENT_HANDLER_KEYS: ReadonlySet<string> = new Set<keyof ElementEventHandle
 ]);
 
 /**
- * Wire typed event handler props onto a DOM element.
- *
- * Only handlers from the known {@link EVENT_HANDLER_KEYS} set are wired.
- * Converts camelCase prop names to lowercase DOM event names
- * (e.g. `onClick` → `click`, `onKeyDown` → `keydown`).
- */
-/**
  * Check if a prop key is a known event handler.
  * Used by components that need to separate event handlers from HTML attributes.
  */
@@ -57,6 +50,13 @@ export function isKnownEventHandler(key: string): boolean {
   return EVENT_HANDLER_KEYS.has(key);
 }
 
+/**
+ * Wire typed event handler props onto a DOM element.
+ *
+ * Only handlers from the known {@link EVENT_HANDLER_KEYS} set are wired.
+ * Converts camelCase prop names to lowercase DOM event names
+ * (e.g. `onClick` → `click`, `onKeyDown` → `keydown`).
+ */
 export function wireEventHandlers(el: HTMLElement, handlers: ElementEventHandlers): void {
   for (const [key, value] of Object.entries(handlers)) {
     if (!value || !EVENT_HANDLER_KEYS.has(key)) continue;
