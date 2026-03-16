@@ -14,6 +14,7 @@ const styles = css({
   title: ['font:lg', 'font:semibold', 'text:foreground'],
   list: ['border:1', 'border:border', 'rounded:lg', 'overflow-hidden'],
   loading: ['text:sm', 'text:muted-foreground', 'py:8', 'text:center'],
+  error: ['text:sm', 'text:destructive', 'py:8', 'text:center'],
 });
 
 export function IssueListPage() {
@@ -56,19 +57,26 @@ export function IssueListPage() {
       />
 
       {issues.loading && <div className={styles.loading}>Loading issues...</div>}
+      {issues.error && (
+        <div className={styles.error}>Failed to load issues: {issues.error.message}</div>
+      )}
 
-      {!issues.loading && issues.data?.items.length === 0 && (
+      {!issues.loading && !issues.error && issues.data?.items.length === 0 && (
         <div className={emptyStateStyles.container}>
           <h3 className={emptyStateStyles.title}>No issues yet</h3>
           <p className={emptyStateStyles.description}>Create your first issue to get started.</p>
         </div>
       )}
 
-      {!issues.loading && filtered && filtered.length === 0 && issues.data?.items.length !== 0 && (
-        <div className={emptyStateStyles.container}>
-          <p className={emptyStateStyles.description}>No issues match the selected filter.</p>
-        </div>
-      )}
+      {!issues.loading &&
+        !issues.error &&
+        filtered &&
+        filtered.length === 0 &&
+        issues.data?.items.length !== 0 && (
+          <div className={emptyStateStyles.container}>
+            <p className={emptyStateStyles.description}>No issues match the selected filter.</p>
+          </div>
+        )}
 
       {filtered && filtered.length > 0 && (
         <div className={styles.list}>
