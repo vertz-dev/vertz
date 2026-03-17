@@ -178,6 +178,11 @@ export type {
   ToggleGroupState,
 } from './toggle-group/toggle-group';
 export { ToggleGroup } from './toggle-group/toggle-group';
+export type {
+  ComposedToggleGroupProps,
+  ToggleGroupClasses,
+} from './toggle-group/toggle-group-composed';
+export { ComposedToggleGroup } from './toggle-group/toggle-group-composed';
 export type { TooltipElements, TooltipOptions, TooltipState } from './tooltip/tooltip';
 export { Tooltip } from './tooltip/tooltip';
 export type { ComposedTooltipProps, TooltipClasses } from './tooltip/tooltip-composed';

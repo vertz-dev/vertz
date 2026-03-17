@@ -340,6 +340,7 @@ export const ScrollArea: ThemeComponentMap['ScrollArea'] = /* #__PURE__ */ creat
   'ScrollArea',
 ) as ThemeComponentMap['ScrollArea'];
 
-export const toggleGroup: ThemeComponentMap['toggleGroup'] = /* #__PURE__ */ createPrimitiveProxy(
-  'toggleGroup',
-) as ThemeComponentMap['toggleGroup'];
+export const ToggleGroup: ThemeComponentMap['ToggleGroup'] = /* #__PURE__ */ createCompoundProxy(
+  'ToggleGroup',
+  ['Item'],
+) as ThemeComponentMap['ToggleGroup'];

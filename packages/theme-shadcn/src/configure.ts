@@ -72,6 +72,7 @@ import type { ThemedToastResult } from './components/primitives/toast';
 import { createThemedToast } from './components/primitives/toast';
 import type { ThemedToggleComponent } from './components/primitives/toggle';
 import { createThemedToggle } from './components/primitives/toggle';
+import type { ThemedToggleGroupComponent } from './components/primitives/toggle-group';
 import { createThemedToggleGroup } from './components/primitives/toggle-group';
 import type { ThemedTooltipComponent } from './components/primitives/tooltip';
 import { createThemedTooltip } from './components/primitives/tooltip';
@@ -421,8 +422,8 @@ export interface ThemedPrimitives {
   ScrollArea: ThemedScrollAreaComponent;
   /** Themed Toggle — composable JSX component wrapping @vertz/ui-primitives Toggle. */
   Toggle: ThemedToggleComponent;
-  /** Themed ToggleGroup — group of toggle buttons. */
-  toggleGroup: ReturnType<typeof createThemedToggleGroup>;
+  /** Themed ToggleGroup — composable JSX component with ToggleGroup.Item sub-components. */
+  ToggleGroup: ThemedToggleGroupComponent;
 }
 
 /** Component functions returned by configureTheme(). */
@@ -614,7 +615,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
       resizablePanel: createThemedResizablePanel(resizablePanelStyles),
       ScrollArea: createThemedScrollArea(scrollAreaStyles),
       Toggle: createThemedToggle(toggleStyles),
-      toggleGroup: createThemedToggleGroup(toggleGroupStyles),
+      ToggleGroup: createThemedToggleGroup(toggleGroupStyles),
     },
   };
 

@@ -116,6 +116,11 @@ export type { ThemedToastResult } from './toast';
 export { createThemedToast } from './toast';
 export type { ThemedToggleComponent, ToggleRootProps } from './toggle';
 export { createThemedToggle } from './toggle';
+export type {
+  ThemedToggleGroupComponent,
+  ToggleGroupItemProps,
+  ToggleGroupRootProps,
+} from './toggle-group';
 export { createThemedToggleGroup } from './toggle-group';
 export type { ThemedTooltipComponent, TooltipRootProps, TooltipSlotProps } from './tooltip';
 export { createThemedTooltip } from './tooltip';

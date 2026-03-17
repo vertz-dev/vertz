@@ -56,6 +56,7 @@ import type { ThemedSliderComponent } from './components/primitives/slider';
 import type { ThemedSwitchComponent } from './components/primitives/switch';
 import type { ThemedTabsComponent } from './components/primitives/tabs';
 import type { ThemedToggleComponent } from './components/primitives/toggle';
+import type { ThemedToggleGroupComponent } from './components/primitives/toggle-group';
 import type { ThemedTooltipComponent } from './components/primitives/tooltip';
 import type { SeparatorProps } from './components/separator';
 import type { SkeletonComponents } from './components/skeleton';
@@ -120,6 +121,6 @@ declare module '@vertz/ui/components' {
     NavigationMenu: ThemedNavigationMenuComponent;
     resizablePanel: ThemedPrimitives['resizablePanel'];
     ScrollArea: ThemedPrimitives['ScrollArea'];
-    toggleGroup: ThemedPrimitives['toggleGroup'];
+    ToggleGroup: ThemedToggleGroupComponent;
   }
 }
