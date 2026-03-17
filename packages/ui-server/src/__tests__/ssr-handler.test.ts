@@ -1,10 +1,45 @@
 import { describe, expect, it } from 'bun:test';
 import { defineTheme } from '@vertz/ui';
+import type { AuthSdk } from '@vertz/ui/auth';
 import { AuthProvider } from '@vertz/ui/auth';
 import { ProtectedRoute } from '@vertz/ui-auth';
 import { registerSSRQuery } from '../ssr-context';
 import { createSSRHandler } from '../ssr-handler';
 import type { SSRModule } from '../ssr-render';
+
+/** Inline ok() helper to avoid @vertz/fetch dependency. */
+function ok<T>(data: T) {
+  return { ok: true as const, data };
+}
+
+function createMockAuthSdk(): AuthSdk {
+  const noop = Object.assign(
+    async () =>
+      ok({
+        user: { id: '1', email: 'test@test.com', role: 'user' },
+        expiresAt: Date.now() + 60_000,
+      }),
+    { url: '/api/auth/signin', method: 'POST' },
+  );
+  return {
+    signIn: noop,
+    signUp: Object.assign(
+      async () =>
+        ok({
+          user: { id: '1', email: 'test@test.com', role: 'user' },
+          expiresAt: Date.now() + 60_000,
+        }),
+      { url: '/api/auth/signup', method: 'POST' },
+    ),
+    signOut: async () => ok({ ok: true }),
+    refresh: async () =>
+      ok({
+        user: { id: '1', email: 'test@test.com', role: 'user' },
+        expiresAt: Date.now() + 60_000,
+      }),
+    providers: async () => ok([]),
+  };
+}
 
 const simpleModule: SSRModule = {
   default: () => {
@@ -625,6 +660,7 @@ describe('createSSRHandler', () => {
       default: () => {
         const container = document.createElement('div');
         AuthProvider({
+          auth: createMockAuthSdk(),
           children: () => {
             const result = ProtectedRoute({
               loginPath: '/login',

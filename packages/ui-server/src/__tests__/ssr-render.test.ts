@@ -7,6 +7,7 @@ import {
   RouterContext,
   RouterView,
 } from '@vertz/ui';
+import type { AuthSdk } from '@vertz/ui/auth';
 import { AuthProvider, useAuth } from '@vertz/ui/auth';
 import { getSSRContext } from '@vertz/ui/internals';
 import { ProtectedRoute } from '@vertz/ui-auth';
@@ -14,9 +15,43 @@ import { installDomShim } from '../dom-shim';
 import { registerSSRQuery } from '../ssr-context';
 import { ssrDiscoverQueries, ssrRenderToString, ssrStreamNavQueries } from '../ssr-render';
 
+/** Inline ok() helper to avoid @vertz/fetch dependency. */
+function ok<T>(data: T) {
+  return { ok: true as const, data };
+}
+
 // Install DOM shim for tests that create routers outside SSR context.
 // In production, ensureDomShim() runs at startup; tests need it too.
 installDomShim();
+
+function createMockAuthSdk(): AuthSdk {
+  const noop = Object.assign(
+    async () =>
+      ok({
+        user: { id: '1', email: 'test@test.com', role: 'user' },
+        expiresAt: Date.now() + 60_000,
+      }),
+    { url: '/api/auth/signin', method: 'POST' },
+  );
+  return {
+    signIn: noop,
+    signUp: Object.assign(
+      async () =>
+        ok({
+          user: { id: '1', email: 'test@test.com', role: 'user' },
+          expiresAt: Date.now() + 60_000,
+        }),
+      { url: '/api/auth/signup', method: 'POST' },
+    ),
+    signOut: async () => ok({ ok: true }),
+    refresh: async () =>
+      ok({
+        user: { id: '1', email: 'test@test.com', role: 'user' },
+        expiresAt: Date.now() + 60_000,
+      }),
+    providers: async () => ok([]),
+  };
+}
 
 describe('ssrRenderToString', () => {
   it('returns { html, css, ssrData } shape', async () => {
@@ -947,6 +982,7 @@ describe('AuthProvider SSR hydration', () => {
         default: () => {
           const container = document.createElement('div');
           AuthProvider({
+            auth: createMockAuthSdk(),
             children: () => {
               const auth = useAuth();
               capturedStatus = auth.status;
@@ -976,6 +1012,7 @@ describe('AuthProvider SSR hydration', () => {
         default: () => {
           const container = document.createElement('div');
           AuthProvider({
+            auth: createMockAuthSdk(),
             children: () => {
               const auth = useAuth();
               capturedStatus = auth.status;
@@ -1004,6 +1041,7 @@ describe('AuthProvider SSR hydration', () => {
         default: () => {
           const container = document.createElement('div');
           AuthProvider({
+            auth: createMockAuthSdk(),
             children: () => {
               const auth = useAuth();
               capturedStatus = auth.status;
@@ -1029,6 +1067,7 @@ describe('ProtectedRoute SSR redirect', () => {
         default: () => {
           const container = document.createElement('div');
           AuthProvider({
+            auth: createMockAuthSdk(),
             children: () => {
               const result = ProtectedRoute({
                 loginPath: '/login',
@@ -1064,6 +1103,7 @@ describe('ProtectedRoute SSR redirect', () => {
         default: () => {
           const container = document.createElement('div');
           AuthProvider({
+            auth: createMockAuthSdk(),
             children: () => {
               const result = ProtectedRoute({
                 children: () => {
@@ -1095,6 +1135,7 @@ describe('ProtectedRoute SSR redirect', () => {
         default: () => {
           const container = document.createElement('div');
           AuthProvider({
+            auth: createMockAuthSdk(),
             children: () => {
               const result = ProtectedRoute({
                 children: () => {
@@ -1124,6 +1165,7 @@ describe('ProtectedRoute SSR redirect', () => {
         default: () => {
           const container = document.createElement('div');
           AuthProvider({
+            auth: createMockAuthSdk(),
             children: () => {
               const result = ProtectedRoute({
                 loginPath: '/login',
@@ -1158,6 +1200,7 @@ describe('ProtectedRoute SSR redirect', () => {
         default: () => {
           const container = document.createElement('div');
           AuthProvider({
+            auth: createMockAuthSdk(),
             children: () => {
               const result = ProtectedRoute({
                 loginPath: '/auth/signin',
@@ -1191,6 +1234,7 @@ describe('ProtectedRoute SSR redirect', () => {
         default: () => {
           const container = document.createElement('div');
           AuthProvider({
+            auth: createMockAuthSdk(),
             children: () => {
               const result = ProtectedRoute({
                 loginPath: '/login',
@@ -1224,6 +1268,7 @@ describe('ProtectedRoute SSR redirect', () => {
         default: () => {
           const container = document.createElement('div');
           AuthProvider({
+            auth: createMockAuthSdk(),
             children: () => {
               // No ProtectedRoute — just normal content
               container.textContent = 'Public page';
@@ -1250,6 +1295,7 @@ describe('ProtectedRoute SSR redirect', () => {
         default: () => {
           const container = document.createElement('div');
           AuthProvider({
+            auth: createMockAuthSdk(),
             children: () => {
               const result = ProtectedRoute({
                 children: () => {
@@ -1282,6 +1328,7 @@ describe('ProtectedRoute SSR redirect', () => {
         default: () => {
           const container = document.createElement('div');
           AuthProvider({
+            auth: createMockAuthSdk(),
             children: () => {
               // Outer ProtectedRoute
               const outer = ProtectedRoute({
