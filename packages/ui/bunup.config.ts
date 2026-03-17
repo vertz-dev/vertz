@@ -11,6 +11,7 @@ export default defineConfig({
     'src/css/public.ts',
     'src/auth/public.ts',
     'src/jsx-runtime/index.ts',
+    'src/components/index.ts',
   ],
   dts: true,
 });

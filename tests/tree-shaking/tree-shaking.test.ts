@@ -88,6 +88,11 @@ const PACKAGES: { name: string; singleImport: string; distEntry: string }[] = [
     singleImport: `import { configureThemeBase } from '@vertz/theme-shadcn/base'; console.log(configureThemeBase);`,
     distEntry: 'packages/theme-shadcn/dist/index.js',
   },
+  {
+    name: '@vertz/ui/components',
+    singleImport: `import { Button } from '@vertz/ui/components'; console.log(Button);`,
+    distEntry: 'packages/ui/dist/src/components/index.js',
+  },
 ];
 
 /**
@@ -102,6 +107,7 @@ const SUBPATH_ALIASES: Record<string, string> = {
   '@vertz/core/internals': 'packages/core/dist/internals.js',
   '@vertz/db/sql': 'packages/db/dist/sql/index.js',
   '@vertz/theme-shadcn/base': 'packages/theme-shadcn/dist/base.js',
+  '@vertz/ui/components': 'packages/ui/dist/src/components/index.js',
 };
 
 const aliases: Record<string, string> = {

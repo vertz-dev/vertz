@@ -56,6 +56,10 @@
       "types": "./dist/src/auth/public.d.ts",
       "import": "./dist/src/auth/public.js"
     },
+    "./components": {
+      "types": "./dist/src/components/index.d.ts",
+      "import": "./dist/src/components/index.js"
+    },
     "./reactivity.json": "./reactivity.json"
   },
   "files": [
