@@ -309,9 +309,10 @@ export const Command: ThemeComponentMap['Command'] = /* #__PURE__ */ createCompo
   ['Input', 'List', 'Empty', 'Item', 'Group', 'Separator'],
 ) as ThemeComponentMap['Command'];
 
-export const datePicker: ThemeComponentMap['datePicker'] = /* #__PURE__ */ createPrimitiveProxy(
-  'datePicker',
-) as ThemeComponentMap['datePicker'];
+export const DatePicker: ThemeComponentMap['DatePicker'] = /* #__PURE__ */ createCompoundProxy(
+  'DatePicker',
+  ['Trigger', 'Content'],
+) as ThemeComponentMap['DatePicker'];
 
 export const HoverCard: ThemeComponentMap['HoverCard'] = /* #__PURE__ */ createCompoundProxy(
   'HoverCard',
