@@ -9,6 +9,9 @@ export type {
 } from './configure';
 export { configureTheme } from './configure';
 
+// Ensure @vertz/ui/components is loaded for module augmentation below
+import type {} from '@vertz/ui/components';
+
 // ---------------------------------------------------------------------------
 // Module augmentation for @vertz/ui/components
 //
