@@ -7,7 +7,15 @@
 
 import { createDb } from '@vertz/db';
 import { authModels } from '@vertz/server';
-import { commentsModel, issuesModel, projectsModel, usersModel, workspacesModel } from './schema';
+import {
+  commentsModel,
+  issueLabelsModel,
+  issuesModel,
+  labelsModel,
+  projectsModel,
+  usersModel,
+  workspacesModel,
+} from './schema';
 import { seedDatabase } from './seed';
 
 const DB_PATH = './data/linear.db';
@@ -20,6 +28,8 @@ export const db = createDb({
     projects: projectsModel,
     issues: issuesModel,
     comments: commentsModel,
+    labels: labelsModel,
+    issueLabels: issueLabelsModel,
   },
   dialect: 'sqlite',
   path: DB_PATH,

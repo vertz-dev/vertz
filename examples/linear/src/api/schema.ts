@@ -88,6 +88,41 @@ export const issuesModel = d.model(issuesTable, {
 });
 
 // ---------------------------------------------------------------------------
+// Labels — per-project categorization for issues
+// ---------------------------------------------------------------------------
+
+export const labelsTable = d.table('labels', {
+  id: d.uuid().primary({ generate: 'uuid' }),
+  workspaceId: d.text().default(''),
+  projectId: d.uuid(),
+  name: d.text(),
+  color: d.text(),
+  createdAt: d.timestamp().default('now').readOnly(),
+  updatedAt: d.timestamp().autoUpdate(),
+});
+
+export const labelsModel = d.model(labelsTable, {
+  project: d.ref.one(() => projectsTable, 'projectId'),
+});
+
+// ---------------------------------------------------------------------------
+// Issue Labels — join table for many-to-many (issues ↔ labels)
+// ---------------------------------------------------------------------------
+
+export const issueLabelsTable = d.table('issue_labels', {
+  id: d.uuid().primary({ generate: 'uuid' }),
+  workspaceId: d.text().default(''),
+  issueId: d.uuid(),
+  labelId: d.uuid(),
+  createdAt: d.timestamp().default('now').readOnly(),
+});
+
+export const issueLabelsModel = d.model(issueLabelsTable, {
+  issue: d.ref.one(() => issuesTable, 'issueId'),
+  label: d.ref.one(() => labelsTable, 'labelId'),
+});
+
+// ---------------------------------------------------------------------------
 // Comments — indirectly scoped via issue → project → workspace
 // ---------------------------------------------------------------------------
 

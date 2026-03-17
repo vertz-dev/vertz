@@ -32,6 +32,17 @@ export const PRIORITIES: { value: IssuePriority; label: string }[] = [
   { value: 'urgent', label: 'Urgent' },
 ];
 
+export const LABEL_COLORS: { name: string; value: string }[] = [
+  { name: 'Red', value: '#ef4444' },
+  { name: 'Orange', value: '#f97316' },
+  { name: 'Yellow', value: '#eab308' },
+  { name: 'Green', value: '#22c55e' },
+  { name: 'Blue', value: '#3b82f6' },
+  { name: 'Purple', value: '#a855f7' },
+  { name: 'Pink', value: '#ec4899' },
+  { name: 'Teal', value: '#14b8a6' },
+];
+
 export const PRIORITY_CONFIG: Record<IssuePriority, { label: string; color: string }> = {
   urgent: { label: 'Urgent', color: '#ef4444' },
   high: { label: 'High', color: '#f97316' },

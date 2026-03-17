@@ -2,15 +2,18 @@ import { css, query, useDialogStack, useParams } from '@vertz/ui';
 import { Button } from '@vertz/ui/components';
 import { api } from '../api/client';
 import { CreateIssueDialog } from '../components/create-issue-dialog';
+import { LabelFilter } from '../components/label-filter';
 import { BoardSkeleton } from '../components/loading-skeleton';
+import { ManageLabelsDialog } from '../components/manage-labels-dialog';
 import { StatusColumn } from '../components/status-column';
 import { ViewToggle } from '../components/view-toggle';
 import { STATUSES } from '../lib/issue-config';
-import type { Issue, IssueStatus } from '../lib/types';
+import type { Issue, IssueLabel, IssueStatus, Label } from '../lib/types';
 
 const styles = css({
   container: ['p:6'],
   header: ['flex', 'items:center', 'justify:between', 'mb:4'],
+  headerActions: ['flex', 'gap:2'],
   title: ['font:lg', 'font:semibold', 'text:foreground'],
   board: ['flex', 'gap:4', 'pb:4', 'overflow-hidden'],
   error: ['text:sm', 'text:destructive', 'py:8', 'text:center'],
@@ -20,20 +23,35 @@ export function ProjectBoardPage() {
   const { projectId } = useParams<'/projects/:projectId'>();
   const issues = query(api.issues.list({ projectId }));
   const project = query(api.projects.get(projectId));
+  const labelsQuery = query(api.labels.list({ projectId }));
+  const issueLabelsQuery = query(api.issueLabels.list());
   const stack = useDialogStack();
 
-  // Group issues by status — declarative single-expression for compiler reactivity.
-  // collectDeps() walks into the .map() callback body and finds issues.data,
-  // so the compiler correctly classifies `columns` as computed.
-  const columns: { status: IssueStatus; label: string; items: Issue[] }[] = STATUSES.map((s) => ({
-    status: s.value,
-    label: s.label,
-    items: (issues.data?.items.filter((i) => i.status === s.value) ?? []) as Issue[],
-  }));
+  let selectedLabelIds: string[] = [];
+
+  // Filter issues by selected labels, then group by status
+  const columns: { status: IssueStatus; label: string; items: Issue[] }[] = STATUSES.map((s) => {
+    let items = (issues.data?.items.filter((i) => i.status === s.value) ?? []) as Issue[];
+    if (selectedLabelIds.length > 0) {
+      const allIssueLabels = (issueLabelsQuery.data?.items ?? []) as IssueLabel[];
+      items = items.filter((issue) => {
+        const issueLabelIds = allIssueLabels
+          .filter((il) => il.issueId === issue.id)
+          .map((il) => il.labelId);
+        return selectedLabelIds.some((id) => issueLabelIds.includes(id));
+      });
+    }
+    return { status: s.value, label: s.label, items };
+  });
 
   const handleNewIssue = async () => {
     const result = await stack.open(CreateIssueDialog, { projectId });
     if (result.ok && result.data) issues.refetch();
+  };
+
+  const handleManageLabels = async () => {
+    await stack.open(ManageLabelsDialog, { projectId });
+    labelsQuery.refetch();
   };
 
   return (
@@ -41,10 +59,23 @@ export function ProjectBoardPage() {
       <ViewToggle projectId={projectId} />
       <header className={styles.header}>
         <h2 className={styles.title}>Board</h2>
-        <Button intent="primary" size="sm" onClick={handleNewIssue}>
-          New Issue
-        </Button>
+        <div className={styles.headerActions}>
+          <Button intent="outline" size="sm" onClick={handleManageLabels}>
+            Labels
+          </Button>
+          <Button intent="primary" size="sm" onClick={handleNewIssue}>
+            New Issue
+          </Button>
+        </div>
       </header>
+
+      <LabelFilter
+        labels={(labelsQuery.data?.items ?? []) as Label[]}
+        selected={selectedLabelIds}
+        onChange={(ids) => {
+          selectedLabelIds = ids;
+        }}
+      />
 
       {issues.loading && <BoardSkeleton />}
       {issues.error && (
@@ -60,6 +91,8 @@ export function ProjectBoardPage() {
               issues={col.items}
               projectKey={project.data?.key}
               projectId={projectId}
+              allLabels={(labelsQuery.data?.items ?? []) as Label[]}
+              issueLabels={(issueLabelsQuery.data?.items ?? []) as IssueLabel[]}
             />
           ))}
         </div>

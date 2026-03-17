@@ -11,7 +11,9 @@ import type { DatabaseClient } from '@vertz/db';
 import { isOk, unwrap } from '@vertz/schema';
 import {
   type commentsModel,
+  type issueLabelsModel,
   type issuesModel,
+  type labelsModel,
   type projectsModel,
   SEED_WORKSPACE_ID,
   type usersModel,
@@ -24,6 +26,8 @@ type SeedModels = {
   projects: typeof projectsModel;
   issues: typeof issuesModel;
   comments: typeof commentsModel;
+  labels: typeof labelsModel;
+  issueLabels: typeof issueLabelsModel;
 };
 
 export async function seedDatabase(db: DatabaseClient<SeedModels>) {
@@ -322,6 +326,57 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
           body: 'Migration system working. Need to add rollback support before closing.',
           authorId: 'seed-alice',
         },
+      ],
+    }),
+  );
+
+  // --- Labels (5 per project) ---
+  const labelDefs = [
+    { name: 'Bug', color: '#ef4444' },
+    { name: 'Feature', color: '#3b82f6' },
+    { name: 'Improvement', color: '#22c55e' },
+    { name: 'Documentation', color: '#a855f7' },
+    { name: 'Urgent', color: '#f97316' },
+  ];
+
+  const projects = ['proj-eng', 'proj-des', 'proj-doc'];
+  const labelData: {
+    id: string;
+    workspaceId: string;
+    projectId: string;
+    name: string;
+    color: string;
+  }[] = [];
+
+  for (const proj of projects) {
+    const suffix = proj.replace('proj-', '');
+    for (let i = 0; i < labelDefs.length; i++) {
+      labelData.push({
+        id: `lbl-${suffix}-${i + 1}`,
+        workspaceId: W,
+        projectId: proj,
+        name: labelDefs[i].name,
+        color: labelDefs[i].color,
+      });
+    }
+  }
+
+  unwrap(await db.labels.createMany({ data: labelData }));
+
+  // --- Issue Labels (assign some labels to issues) ---
+  unwrap(
+    await db.issueLabels.createMany({
+      data: [
+        { id: 'il-1', workspaceId: W, issueId: 'iss-1', labelId: 'lbl-eng-2' },
+        { id: 'il-2', workspaceId: W, issueId: 'iss-2', labelId: 'lbl-eng-2' },
+        { id: 'il-3', workspaceId: W, issueId: 'iss-3', labelId: 'lbl-eng-3' },
+        { id: 'il-4', workspaceId: W, issueId: 'iss-4', labelId: 'lbl-eng-1' },
+        { id: 'il-5', workspaceId: W, issueId: 'iss-4', labelId: 'lbl-eng-5' },
+        { id: 'il-6', workspaceId: W, issueId: 'iss-6', labelId: 'lbl-eng-3' },
+        { id: 'il-7', workspaceId: W, issueId: 'iss-7', labelId: 'lbl-des-2' },
+        { id: 'il-8', workspaceId: W, issueId: 'iss-8', labelId: 'lbl-des-4' },
+        { id: 'il-9', workspaceId: W, issueId: 'iss-10', labelId: 'lbl-doc-4' },
+        { id: 'il-10', workspaceId: W, issueId: 'iss-11', labelId: 'lbl-doc-4' },
       ],
     }),
   );

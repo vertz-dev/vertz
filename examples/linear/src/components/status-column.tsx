@@ -1,5 +1,5 @@
 import { css, Link, ListTransition } from '@vertz/ui';
-import type { Issue } from '../lib/types';
+import type { Issue, IssueLabel, Label } from '../lib/types';
 import { IssueCard } from './issue-card';
 
 const styles = css({
@@ -16,9 +16,24 @@ interface StatusColumnProps {
   issues: Issue[];
   projectKey?: string;
   projectId: string;
+  allLabels?: Label[];
+  issueLabels?: IssueLabel[];
 }
 
-export function StatusColumn({ label, issues, projectKey, projectId }: StatusColumnProps) {
+export function StatusColumn({
+  label,
+  issues,
+  projectKey,
+  projectId,
+  allLabels,
+  issueLabels,
+}: StatusColumnProps) {
+  const getLabelsForIssue = (issueId: string): Label[] => {
+    if (!allLabels || !issueLabels) return [];
+    const labelIds = issueLabels.filter((il) => il.issueId === issueId).map((il) => il.labelId);
+    return allLabels.filter((l) => labelIds.includes(l.id));
+  };
+
   return (
     <div
       className={styles.column}
@@ -35,7 +50,11 @@ export function StatusColumn({ label, issues, projectKey, projectId }: StatusCol
           keyFn={(issue: Issue) => issue.id}
           children={(issue: Issue) => (
             <Link href={`/projects/${projectId}/issues/${issue.id}`}>
-              <IssueCard issue={issue} projectKey={projectKey} />
+              <IssueCard
+                issue={issue}
+                projectKey={projectKey}
+                labels={getLabelsForIssue(issue.id)}
+              />
             </Link>
           )}
         />
