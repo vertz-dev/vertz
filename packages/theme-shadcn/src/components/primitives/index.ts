@@ -24,7 +24,12 @@ export { createThemedContextMenu } from './context-menu';
 export { createThemedDatePicker } from './date-picker';
 export type { DialogRootProps, DialogSlotProps, ThemedDialogComponent } from './dialog';
 export { createThemedDialog } from './dialog';
-export type { DrawerSide, ThemedDrawerOptions } from './drawer';
+export type {
+  DrawerRootProps,
+  DrawerSide,
+  DrawerSlotProps,
+  ThemedDrawerComponent,
+} from './drawer';
 export { createThemedDrawer } from './drawer';
 export type {
   DropdownMenuGroupProps,

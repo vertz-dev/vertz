@@ -35,6 +35,7 @@ import { createThemedContextMenu } from './components/primitives/context-menu';
 import { createThemedDatePicker } from './components/primitives/date-picker';
 import type { ThemedDialogComponent } from './components/primitives/dialog';
 import { createThemedDialog } from './components/primitives/dialog';
+import type { ThemedDrawerComponent } from './components/primitives/drawer';
 import { createThemedDrawer } from './components/primitives/drawer';
 import type { ThemedDropdownMenuComponent } from './components/primitives/dropdown-menu';
 import { createThemedDropdownMenu } from './components/primitives/dropdown-menu';
@@ -398,8 +399,8 @@ export interface ThemedPrimitives {
   contextMenu: ReturnType<typeof createThemedContextMenu>;
   /** Themed DatePicker — date picker composing Calendar + Popover. */
   datePicker: ReturnType<typeof createThemedDatePicker>;
-  /** Themed Drawer — bottom/side panel wrapping Dialog. */
-  drawer: ReturnType<typeof createThemedDrawer>;
+  /** Themed Drawer — composable JSX component with Drawer.Trigger, Drawer.Content, Drawer.Handle, etc. */
+  Drawer: ThemedDrawerComponent;
   /** Themed HoverCard — hover-triggered interactive card. */
   hoverCard: ReturnType<typeof createThemedHoverCard>;
   /** Themed Menubar — horizontal menu bar with dropdowns. */
@@ -598,7 +599,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
       command: createThemedCommand(commandStyles),
       contextMenu: createThemedContextMenu(contextMenuStyles),
       datePicker: createThemedDatePicker(datePickerStyles),
-      drawer: createThemedDrawer(drawerStyles),
+      Drawer: createThemedDrawer(drawerStyles),
       hoverCard: createThemedHoverCard(hoverCardStyles),
       menubar: createThemedMenubar(menubarStyles),
       navigationMenu: createThemedNavigationMenu(navigationMenuStyles),
