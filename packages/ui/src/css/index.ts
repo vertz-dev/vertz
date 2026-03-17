@@ -59,7 +59,24 @@ export {
   TokenResolveError,
 } from './token-resolver';
 // Shared token tables — single source of truth for all CSS token resolution
-export type { CSSDeclarationEntry, PropertyMapping } from './token-tables';
+export type {
+  AlignmentValue,
+  ColorNamespace,
+  ContentValue,
+  CSSColorKeyword,
+  CSSDeclarationEntry,
+  FontSizeValue,
+  FontWeightValue,
+  Keyword,
+  LineHeightValue,
+  PropertyMapping,
+  PropertyName,
+  PseudoPrefix,
+  RadiusValue,
+  ShadowValue,
+  SizeKeyword,
+  SpacingValue,
+} from './token-tables';
 export {
   ALIGNMENT_MAP,
   COLOR_NAMESPACES,
@@ -79,5 +96,6 @@ export {
   SIZE_KEYWORDS,
   SPACING_SCALE,
 } from './token-tables';
+export type { UtilityClass } from './utility-types';
 export type { VariantFunction, VariantProps, VariantsConfig } from './variants';
 export { variants } from './variants';

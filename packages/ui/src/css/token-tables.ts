@@ -9,6 +9,10 @@
  *
  * DO NOT duplicate these tables elsewhere. If you need a new token,
  * add it here and all consumers will pick it up automatically.
+ *
+ * TYPE SYNC: When adding or removing entries from any map/scale/set below,
+ * also update the corresponding exported union type immediately above
+ * the runtime constant. The types and runtime values must stay in sync.
  */
 
 // ─── Property Map ──────────────────────────────────────────────
@@ -32,6 +36,58 @@ export interface PropertyMapping {
     | 'content'
     | 'raw';
 }
+
+/** All property shorthand names. */
+export type PropertyName =
+  | 'p'
+  | 'px'
+  | 'py'
+  | 'pt'
+  | 'pr'
+  | 'pb'
+  | 'pl'
+  | 'm'
+  | 'mx'
+  | 'my'
+  | 'mt'
+  | 'mr'
+  | 'mb'
+  | 'ml'
+  | 'w'
+  | 'h'
+  | 'min-w'
+  | 'max-w'
+  | 'min-h'
+  | 'max-h'
+  | 'bg'
+  | 'text'
+  | 'border'
+  | 'border-r'
+  | 'border-l'
+  | 'border-t'
+  | 'border-b'
+  | 'rounded'
+  | 'shadow'
+  | 'gap'
+  | 'items'
+  | 'justify'
+  | 'grid-cols'
+  | 'font'
+  | 'weight'
+  | 'leading'
+  | 'tracking'
+  | 'decoration'
+  | 'list'
+  | 'ring'
+  | 'cursor'
+  | 'transition'
+  | 'resize'
+  | 'opacity'
+  | 'inset'
+  | 'z'
+  | 'vt-name'
+  | 'view-transition-name'
+  | 'content';
 
 export const PROPERTY_MAP: Record<string, PropertyMapping> = {
   // Padding
@@ -120,6 +176,35 @@ export interface CSSDeclarationEntry {
   value: string;
 }
 
+/** All keyword names. */
+export type Keyword =
+  | 'flex'
+  | 'grid'
+  | 'block'
+  | 'inline'
+  | 'hidden'
+  | 'inline-flex'
+  | 'flex-1'
+  | 'flex-col'
+  | 'flex-row'
+  | 'flex-wrap'
+  | 'flex-nowrap'
+  | 'fixed'
+  | 'absolute'
+  | 'relative'
+  | 'sticky'
+  | 'uppercase'
+  | 'lowercase'
+  | 'capitalize'
+  | 'outline-none'
+  | 'overflow-hidden'
+  | 'select-none'
+  | 'pointer-events-none'
+  | 'whitespace-nowrap'
+  | 'shrink-0'
+  | 'italic'
+  | 'not-italic';
+
 /** Keyword map -- single keywords that resolve to one or more declarations. */
 export const KEYWORD_MAP: Record<string, CSSDeclarationEntry[]> = {
   // Display
@@ -184,6 +269,44 @@ export const DISPLAY_MAP: Record<string, string> = {
 
 // ─── Value Scales ──────────────────────────────────────────────
 
+/** Spacing scale values. */
+export type SpacingValue =
+  | '0'
+  | '0.5'
+  | '1'
+  | '1.5'
+  | '2'
+  | '2.5'
+  | '3'
+  | '3.5'
+  | '4'
+  | '5'
+  | '6'
+  | '7'
+  | '8'
+  | '9'
+  | '10'
+  | '11'
+  | '12'
+  | '14'
+  | '16'
+  | '20'
+  | '24'
+  | '28'
+  | '32'
+  | '36'
+  | '40'
+  | '44'
+  | '48'
+  | '52'
+  | '56'
+  | '60'
+  | '64'
+  | '72'
+  | '80'
+  | '96'
+  | 'auto';
+
 /** Spacing scale: number -> rem. 1=0.25rem, 2=0.5rem, 4=1rem, 8=2rem, etc. */
 export const SPACING_SCALE: Record<string, string> = {
   '0': '0',
@@ -223,6 +346,9 @@ export const SPACING_SCALE: Record<string, string> = {
   auto: 'auto',
 };
 
+/** Border radius values. */
+export type RadiusValue = 'none' | 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | 'full';
+
 /** Border radius scale — matches Tailwind v4 / shadcn. */
 export const RADIUS_SCALE: Record<string, string> = {
   none: '0',
@@ -236,6 +362,9 @@ export const RADIUS_SCALE: Record<string, string> = {
   full: '9999px',
 };
 
+/** Shadow scale values. */
+export type ShadowValue = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'none';
+
 /** Shadow scale. */
 export const SHADOW_SCALE: Record<string, string> = {
   xs: '0 1px 1px 0 rgb(0 0 0 / 0.03)',
@@ -246,6 +375,9 @@ export const SHADOW_SCALE: Record<string, string> = {
   '2xl': '0 25px 50px -12px rgb(0 0 0 / 0.25)',
   none: 'none',
 };
+
+/** Font size scale values. */
+export type FontSizeValue = 'xs' | 'sm' | 'base' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl';
 
 /** Font size scale. */
 export const FONT_SIZE_SCALE: Record<string, string> = {
@@ -260,6 +392,18 @@ export const FONT_SIZE_SCALE: Record<string, string> = {
   '5xl': '3rem',
 };
 
+/** Font weight scale values. */
+export type FontWeightValue =
+  | 'thin'
+  | 'extralight'
+  | 'light'
+  | 'normal'
+  | 'medium'
+  | 'semibold'
+  | 'bold'
+  | 'extrabold'
+  | 'black';
+
 /** Font weight scale. */
 export const FONT_WEIGHT_SCALE: Record<string, string> = {
   thin: '100',
@@ -273,6 +417,9 @@ export const FONT_WEIGHT_SCALE: Record<string, string> = {
   black: '900',
 };
 
+/** Line height scale values. */
+export type LineHeightValue = 'none' | 'tight' | 'snug' | 'normal' | 'relaxed' | 'loose';
+
 /** Line height scale. */
 export const LINE_HEIGHT_SCALE: Record<string, string> = {
   none: '1',
@@ -282,6 +429,17 @@ export const LINE_HEIGHT_SCALE: Record<string, string> = {
   relaxed: '1.625',
   loose: '2',
 };
+
+/** Alignment values. */
+export type AlignmentValue =
+  | 'start'
+  | 'end'
+  | 'center'
+  | 'between'
+  | 'around'
+  | 'evenly'
+  | 'stretch'
+  | 'baseline';
 
 /** Alignment value map. */
 export const ALIGNMENT_MAP: Record<string, string> = {
@@ -294,6 +452,27 @@ export const ALIGNMENT_MAP: Record<string, string> = {
   stretch: 'stretch',
   baseline: 'baseline',
 };
+
+/** Size keyword values. */
+export type SizeKeyword =
+  | 'full'
+  | 'svw'
+  | 'dvw'
+  | 'min'
+  | 'max'
+  | 'fit'
+  | 'auto'
+  | 'xs'
+  | 'sm'
+  | 'md'
+  | 'lg'
+  | 'xl'
+  | '2xl'
+  | '3xl'
+  | '4xl'
+  | '5xl'
+  | '6xl'
+  | '7xl';
 
 /** Size keywords for width/height. */
 export const SIZE_KEYWORDS: Record<string, string> = {
@@ -321,8 +500,36 @@ export const SIZE_KEYWORDS: Record<string, string> = {
 /** Height-axis property shorthands that should use vh units. */
 export const HEIGHT_AXIS_PROPERTIES: ReadonlySet<string> = new Set(['h', 'min-h', 'max-h']);
 
+/** Color token namespace names. */
+export type ColorNamespace =
+  | 'primary'
+  | 'secondary'
+  | 'accent'
+  | 'background'
+  | 'foreground'
+  | 'muted'
+  | 'surface'
+  | 'destructive'
+  | 'danger'
+  | 'success'
+  | 'warning'
+  | 'info'
+  | 'border'
+  | 'ring'
+  | 'input'
+  | 'card'
+  | 'popover'
+  | 'gray'
+  | 'primary-foreground'
+  | 'secondary-foreground'
+  | 'accent-foreground'
+  | 'destructive-foreground'
+  | 'muted-foreground'
+  | 'card-foreground'
+  | 'popover-foreground';
+
 /** Known color token namespaces -- values that resolve to CSS custom properties. */
-export const COLOR_NAMESPACES: ReadonlySet<string> = new Set([
+export const COLOR_NAMESPACES: ReadonlySet<string> = new Set<string>([
   'primary',
   'secondary',
   'accent',
@@ -350,8 +557,18 @@ export const COLOR_NAMESPACES: ReadonlySet<string> = new Set([
   'popover-foreground',
 ]);
 
+/** CSS color keyword names. */
+export type CSSColorKeyword =
+  | 'transparent'
+  | 'inherit'
+  | 'currentColor'
+  | 'initial'
+  | 'unset'
+  | 'white'
+  | 'black';
+
 /** CSS color keywords that pass through without token resolution. */
-export const CSS_COLOR_KEYWORDS: ReadonlySet<string> = new Set([
+export const CSS_COLOR_KEYWORDS: ReadonlySet<string> = new Set<string>([
   'transparent',
   'inherit',
   'currentColor',
@@ -361,6 +578,9 @@ export const CSS_COLOR_KEYWORDS: ReadonlySet<string> = new Set([
   'black',
 ]);
 
+/** Content keyword values. */
+export type ContentValue = 'empty' | 'none';
+
 /** Content keywords. */
 export const CONTENT_MAP: Record<string, string> = {
   empty: "''",
@@ -369,8 +589,18 @@ export const CONTENT_MAP: Record<string, string> = {
 
 // ─── Pseudo Selectors ──────────────────────────────────────────
 
+/** Pseudo prefix names. */
+export type PseudoPrefix =
+  | 'hover'
+  | 'focus'
+  | 'focus-visible'
+  | 'active'
+  | 'disabled'
+  | 'first'
+  | 'last';
+
 /** Supported pseudo-state prefixes. */
-export const PSEUDO_PREFIXES: ReadonlySet<string> = new Set([
+export const PSEUDO_PREFIXES: ReadonlySet<string> = new Set<string>([
   'hover',
   'focus',
   'focus-visible',

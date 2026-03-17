@@ -32,29 +32,36 @@ import { generateClassName } from './class-generator';
 import { parseShorthand } from './shorthand-parser';
 import type { CSSDeclaration } from './token-resolver';
 import { resolveToken } from './token-resolver';
+import type { UtilityClass } from './utility-types';
 
 /**
- * A value within a nested selector array: shorthand string or CSS declarations map.
+ * A value within a nested selector array: utility class string or CSS declarations map.
  *
- * Use a string for design token shorthands: 'p:4', 'bg:primary'
+ * Use a utility string for design token shorthands: 'p:4', 'bg:primary'
  * Use Record<string, string> for raw CSS: { 'flex-direction': 'row' }
  */
-export type StyleValue = string | Record<string, string>;
+export type StyleValue = UtilityClass | Record<string, string>;
 
 /**
- * A style entry: shorthand string or nested selectors map.
+ * A style entry: utility class string or nested selectors map.
  *
  * Nested selector values can be:
  * - Array form: ['text:foreground', { 'background-color': 'red' }]
  * - Direct object: { 'flex-direction': 'row', 'align-items': 'center' }
  */
-export type StyleEntry = string | Record<string, StyleValue[] | Record<string, string>>;
+export type StyleEntry = UtilityClass | Record<string, StyleValue[] | Record<string, string>>;
 
 /** Input to css(): a record of named style blocks. */
 export type CSSInput = Record<string, StyleEntry[]>;
 
-/** Output of css(): block names as top-level properties, plus non-enumerable `css`. */
-export type CSSOutput<T extends CSSInput = CSSInput> = {
+/**
+ * Output of css(): block names as top-level properties, plus non-enumerable `css`.
+ *
+ * The generic constraint uses `Record<string, unknown[]>` instead of `CSSInput`
+ * because CSSOutput only uses the keys of T (to map them to string class names).
+ * This allows theme component types to use `string[]` block values for simplicity.
+ */
+export type CSSOutput<T extends Record<string, unknown[]> = CSSInput> = {
   readonly [K in keyof T & string]: string;
 } & { readonly css: string };
 

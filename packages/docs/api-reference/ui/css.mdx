@@ -74,6 +74,32 @@ const styles = css({
 });
 ```
 
+### Type-safe utility strings
+
+Style entry strings are type-checked against the `UtilityClass` union type. Invalid utility class names produce TypeScript errors and editors provide autocomplete for valid options.
+
+```tsx
+// ✅ Valid — full autocomplete
+const styles = css({
+  card: ['p:4', 'bg:primary', 'rounded:lg'],
+});
+
+// ❌ Type error — 'bgg' is not a valid property
+const bad = css({
+  card: ['bgg:primary'], // Error!
+});
+```
+
+**Property groups with validated values:** spacing (`p`, `m`, `gap`, etc.), color (`bg`), radius (`rounded`), shadow, alignment (`items`, `justify`), font weight (`weight`), line height (`leading`), content.
+
+**Multi-mode properties:** `text` (font-size, text-align, or color), `font` (size or weight), `border` (width or color), `ring` (width or color), `list` (style or position).
+
+**Raw properties (any value accepted):** `cursor`, `transition`, `resize`, `opacity`, `inset`, `z`, `tracking`, `decoration`, `grid-cols`, `border-r/l/t/b`, `vt-name`, `view-transition-name`.
+
+**Pseudo-prefixed:** Validates the prefix (`hover`, `focus`, `active`, etc.) and property name. Example: `'hover:bg:primary.700'`.
+
+The `UtilityClass` type is exported from `@vertz/ui/css` for use in custom type definitions.
+
 ---
 
 ## variants()
