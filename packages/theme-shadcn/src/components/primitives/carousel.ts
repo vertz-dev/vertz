@@ -1,5 +1,6 @@
-import type { CarouselElements, CarouselOptions, CarouselState } from '@vertz/ui-primitives';
-import { Carousel } from '@vertz/ui-primitives';
+import type { ChildValue } from '@vertz/ui';
+import type { ComposedCarouselProps } from '@vertz/ui-primitives';
+import { ComposedCarousel, withStyles } from '@vertz/ui-primitives';
 
 interface CarouselStyleClasses {
   readonly root: string;
@@ -9,40 +10,62 @@ interface CarouselStyleClasses {
   readonly nextButton: string;
 }
 
-export interface ThemedCarouselResult extends CarouselElements {
-  state: CarouselState;
-  Slide: () => HTMLDivElement;
-  goTo: (index: number) => void;
-  goNext: () => void;
-  goPrev: () => void;
+// ── Props ──────────────────────────────────────────────────
+
+export interface CarouselRootProps {
+  orientation?: 'horizontal' | 'vertical';
+  loop?: boolean;
+  defaultIndex?: number;
+  onSlideChange?: (index: number) => void;
+  children?: ChildValue;
 }
 
-export function createThemedCarousel(
-  styles: CarouselStyleClasses,
-): (options?: CarouselOptions) => ThemedCarouselResult {
-  return function themedCarousel(options?: CarouselOptions): ThemedCarouselResult {
-    const result = Carousel.Root(options);
-    const originalSlide = result.Slide;
+export interface CarouselSlotProps {
+  children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
+  class?: string;
+}
 
-    result.root.classList.add(styles.root);
-    result.viewport.classList.add(styles.viewport);
-    result.prevButton.classList.add(styles.prevButton);
-    result.nextButton.classList.add(styles.nextButton);
+// ── Component type ─────────────────────────────────────────
 
-    return {
-      root: result.root,
-      viewport: result.viewport,
-      prevButton: result.prevButton,
-      nextButton: result.nextButton,
-      state: result.state,
-      goTo: result.goTo,
-      goNext: result.goNext,
-      goPrev: result.goPrev,
-      Slide: () => {
-        const slide = originalSlide();
-        slide.classList.add(styles.slide);
-        return slide;
-      },
-    };
-  };
+export interface ThemedCarouselComponent {
+  (props: CarouselRootProps): HTMLElement;
+  Slide: (props: CarouselSlotProps) => HTMLElement;
+  Previous: (props: CarouselSlotProps) => HTMLElement;
+  Next: (props: CarouselSlotProps) => HTMLElement;
+}
+
+// ── Factory ────────────────────────────────────────────────
+
+export function createThemedCarousel(styles: CarouselStyleClasses): ThemedCarouselComponent {
+  const StyledCarousel = withStyles(ComposedCarousel, {
+    root: styles.root,
+    viewport: styles.viewport,
+    slide: styles.slide,
+    prevButton: styles.prevButton,
+    nextButton: styles.nextButton,
+  });
+
+  function CarouselRoot({
+    orientation,
+    loop,
+    defaultIndex,
+    onSlideChange,
+    children,
+  }: CarouselRootProps): HTMLElement {
+    return StyledCarousel({
+      children,
+      orientation,
+      loop,
+      defaultIndex,
+      onSlideChange,
+    } as ComposedCarouselProps);
+  }
+
+  return Object.assign(CarouselRoot, {
+    Slide: ComposedCarousel.Slide,
+    Previous: ComposedCarousel.Previous,
+    Next: ComposedCarousel.Next,
+  }) as ThemedCarouselComponent;
 }

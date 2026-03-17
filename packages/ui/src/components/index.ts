@@ -258,6 +258,11 @@ export const Drawer: ThemeComponentMap['Drawer'] = /* #__PURE__ */ createCompoun
   'Handle',
 ]) as ThemeComponentMap['Drawer'];
 
+export const Carousel: ThemeComponentMap['Carousel'] = /* #__PURE__ */ createCompoundProxy(
+  'Carousel',
+  ['Slide', 'Previous', 'Next'],
+) as ThemeComponentMap['Carousel'];
+
 // ---------------------------------------------------------------------------
 // Simple primitives (just callable, no sub-components)
 // ---------------------------------------------------------------------------
@@ -293,10 +298,6 @@ export const Toast: ThemeComponentMap['Toast'] = /* #__PURE__ */ createPrimitive
 // ---------------------------------------------------------------------------
 // Factory primitives (lowercase names, delegated directly)
 // ---------------------------------------------------------------------------
-
-export const carousel: ThemeComponentMap['carousel'] = /* #__PURE__ */ createPrimitiveProxy(
-  'carousel',
-) as ThemeComponentMap['carousel'];
 
 export const collapsible: ThemeComponentMap['collapsible'] = /* #__PURE__ */ createPrimitiveProxy(
   'collapsible',
