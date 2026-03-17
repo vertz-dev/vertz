@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun run codegen && bun run src/dev-server.ts",
-    "build": "bun run codegen",
+    "build": "bun node_modules/@vertz/cli/dist/vertz.js build",
     "codegen": "bun node_modules/@vertz/cli/dist/vertz.js codegen",
     "test": "bun test",
     "typecheck": "bun run codegen && tsc --noEmit",
