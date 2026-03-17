@@ -19,7 +19,14 @@ export type { CheckboxRootProps, ThemedCheckboxComponent } from './checkbox';
 export { createThemedCheckbox } from './checkbox';
 export { createThemedCollapsible } from './collapsible';
 export { createThemedCommand } from './command';
-export type { ThemedContextMenuResult } from './context-menu';
+export type {
+  ContextMenuGroupProps,
+  ContextMenuItemProps,
+  ContextMenuLabelProps,
+  ContextMenuRootProps,
+  ContextMenuSlotProps,
+  ThemedContextMenuComponent,
+} from './context-menu';
 export { createThemedContextMenu } from './context-menu';
 export { createThemedDatePicker } from './date-picker';
 export type { DialogRootProps, DialogSlotProps, ThemedDialogComponent } from './dialog';

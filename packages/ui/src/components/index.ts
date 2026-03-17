@@ -235,6 +235,11 @@ export const Tooltip: ThemeComponentMap['Tooltip'] = /* #__PURE__ */ createCompo
   ['Trigger', 'Content'],
 ) as ThemeComponentMap['Tooltip'];
 
+export const ContextMenu: ThemeComponentMap['ContextMenu'] = /* #__PURE__ */ createCompoundProxy(
+  'ContextMenu',
+  ['Trigger', 'Content', 'Item', 'Group', 'Label', 'Separator'],
+) as ThemeComponentMap['ContextMenu'];
+
 export const Sheet: ThemeComponentMap['Sheet'] = /* #__PURE__ */ createCompoundProxy('Sheet', [
   'Trigger',
   'Content',
@@ -300,10 +305,6 @@ export const collapsible: ThemeComponentMap['collapsible'] = /* #__PURE__ */ cre
 export const command: ThemeComponentMap['command'] = /* #__PURE__ */ createPrimitiveProxy(
   'command',
 ) as ThemeComponentMap['command'];
-
-export const contextMenu: ThemeComponentMap['contextMenu'] = /* #__PURE__ */ createPrimitiveProxy(
-  'contextMenu',
-) as ThemeComponentMap['contextMenu'];
 
 export const datePicker: ThemeComponentMap['datePicker'] = /* #__PURE__ */ createPrimitiveProxy(
   'datePicker',

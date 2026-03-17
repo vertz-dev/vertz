@@ -54,6 +54,11 @@ export type {
 } from './context-menu/context-menu';
 export { ContextMenu } from './context-menu/context-menu';
 export type {
+  ComposedContextMenuProps,
+  ContextMenuClasses,
+} from './context-menu/context-menu-composed';
+export { ComposedContextMenu } from './context-menu/context-menu-composed';
+export type {
   DatePickerElements,
   DatePickerOptions,
   DatePickerState,
