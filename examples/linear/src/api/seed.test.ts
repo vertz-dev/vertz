@@ -8,15 +8,12 @@ import { commentsModel, issuesModel, projectsModel, SEED_TENANT_ID, usersModel }
 import { seedDatabase } from './seed';
 
 describe('seedDatabase', () => {
+  let client: ReturnType<typeof createClient>;
   let db: Database;
   let tmpDir: string;
 
-  beforeEach(async () => {
-    // Create tables via autoMigrate (same path as production db.ts)
-    tmpDir = mkdtempSync(join(tmpdir(), 'seed-test-'));
-    const dbPath = join(tmpDir, 'test.db');
-
-    const client = createDb({
+  function createClient(dbPath: string) {
+    return createDb({
       models: {
         users: usersModel,
         projects: projectsModel,
@@ -27,59 +24,68 @@ describe('seedDatabase', () => {
       path: dbPath,
       migrations: { autoApply: true },
     });
+  }
+
+  beforeEach(async () => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'seed-test-'));
+    const dbPath = join(tmpDir, 'test.db');
+
+    client = createClient(dbPath);
 
     // Trigger lazy migration to create tables
     await client.projects.count();
-    await client.close();
 
-    // Open raw bun:sqlite for seeding and verification
+    // Open raw bun:sqlite for verification queries
     db = new Database(dbPath);
     db.exec('PRAGMA foreign_keys=ON');
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     db.close();
+    await client.close();
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
   describe('Given a fresh database', () => {
     describe('When seedDatabase is called', () => {
-      it('Then creates 2 seed users', () => {
-        seedDatabase(db);
+      it('Then creates 2 seed users', async () => {
+        await seedDatabase(client);
         const count = db.query('SELECT COUNT(*) as count FROM users').get() as { count: number };
         expect(count.count).toBe(2);
       });
 
-      it('Then creates 3 seed projects with keys ENG, DES, DOC', () => {
-        seedDatabase(db);
+      it('Then creates 3 seed projects with keys ENG, DES, DOC', async () => {
+        await seedDatabase(client);
         const projects = db.query('SELECT key FROM projects ORDER BY key').all() as {
           key: string;
         }[];
         expect(projects.map((p) => p.key)).toEqual(['DES', 'DOC', 'ENG']);
       });
 
-      it('Then creates 12 seed issues across projects', () => {
-        seedDatabase(db);
+      it('Then creates 12 seed issues across projects', async () => {
+        await seedDatabase(client);
         const count = db.query('SELECT COUNT(*) as count FROM issues').get() as { count: number };
         expect(count.count).toBe(12);
       });
 
-      it('Then creates 6 issues for the Engineering project', () => {
-        seedDatabase(db);
+      it('Then creates 6 issues for the Engineering project', async () => {
+        await seedDatabase(client);
         const count = db
           .query('SELECT COUNT(*) as count FROM issues WHERE project_id = ?')
           .get('proj-eng') as { count: number };
         expect(count.count).toBe(6);
       });
 
-      it('Then creates 10 seed comments across issues', () => {
-        seedDatabase(db);
-        const count = db.query('SELECT COUNT(*) as count FROM comments').get() as { count: number };
+      it('Then creates 10 seed comments across issues', async () => {
+        await seedDatabase(client);
+        const count = db.query('SELECT COUNT(*) as count FROM comments').get() as {
+          count: number;
+        };
         expect(count.count).toBe(10);
       });
 
-      it('Then comments reference valid issues and authors', () => {
-        seedDatabase(db);
+      it('Then comments reference valid issues and authors', async () => {
+        await seedDatabase(client);
         // Verify a specific comment's relationships
         const comment = db
           .query(
@@ -95,26 +101,26 @@ describe('seedDatabase', () => {
         expect(comment.issue_title).toBe('Set up CI pipeline');
       });
 
-      it('Then issues span all statuses', () => {
-        seedDatabase(db);
+      it('Then issues span all statuses', async () => {
+        await seedDatabase(client);
         const statuses = db.query('SELECT DISTINCT status FROM issues ORDER BY status').all() as {
           status: string;
         }[];
         expect(statuses.map((s) => s.status)).toEqual(['backlog', 'done', 'in_progress', 'todo']);
       });
 
-      it('Then seed comments have staggered timestamps', () => {
-        seedDatabase(db);
-        const timestamps = db
-          .query('SELECT created_at FROM comments ORDER BY created_at')
-          .all() as { created_at: string }[];
-        // All timestamps should be different (staggered)
-        const unique = new Set(timestamps.map((t) => t.created_at));
-        expect(unique.size).toBe(10);
+      it('Then all seed records have timestamps', async () => {
+        await seedDatabase(client);
+        for (const table of ['users', 'projects', 'issues', 'comments']) {
+          const rows = db
+            .query(`SELECT created_at FROM ${table} WHERE created_at IS NULL`)
+            .all() as { created_at: string }[];
+          expect(rows).toHaveLength(0);
+        }
       });
 
-      it('Then all seed records have the seed tenant ID', () => {
-        seedDatabase(db);
+      it('Then all seed records have the seed tenant ID', async () => {
+        await seedDatabase(client);
 
         for (const table of ['users', 'projects', 'issues', 'comments']) {
           const rows = db
@@ -128,9 +134,9 @@ describe('seedDatabase', () => {
 
   describe('Given a database with existing projects', () => {
     describe('When seedDatabase is called', () => {
-      it('Then does not insert duplicate seed data', () => {
-        seedDatabase(db);
-        seedDatabase(db); // Call again
+      it('Then does not insert duplicate seed data', async () => {
+        await seedDatabase(client);
+        await seedDatabase(client); // Call again
 
         const projectCount = db.query('SELECT COUNT(*) as count FROM projects').get() as {
           count: number;

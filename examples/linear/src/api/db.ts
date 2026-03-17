@@ -5,9 +5,7 @@
  * tables from the schema model definitions. No hand-written DDL.
  */
 
-import { Database } from 'bun:sqlite';
 import { createDb } from '@vertz/db';
-import { isOk } from '@vertz/schema';
 import { authModels } from '@vertz/server';
 import { commentsModel, issuesModel, projectsModel, usersModel } from './schema';
 import { seedDatabase } from './seed';
@@ -28,10 +26,5 @@ export const db = createDb({
 });
 
 // First query triggers autoMigrate (creates tables from model definitions).
-// Then seed if the database is empty.
-const result = await db.projects.count();
-if (isOk(result) && result.data === 0) {
-  const sqlite = new Database(DB_PATH);
-  seedDatabase(sqlite);
-  sqlite.close();
-}
+// seedDatabase checks if the database is empty and seeds if needed.
+await seedDatabase(db);
