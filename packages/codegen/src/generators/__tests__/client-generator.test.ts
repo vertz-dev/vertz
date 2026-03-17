@@ -247,6 +247,29 @@ describe('ClientGenerator', () => {
       expect(clientFile?.content).not.toContain('optimistic');
     });
 
+    it('passes credentials include to FetchClient by default', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'user',
+          operations: [
+            {
+              kind: 'list',
+              method: 'GET',
+              path: '/user',
+              operationId: 'listUser',
+              outputSchema: 'UserResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const clientFile = files.find((f) => f.path === 'client.ts');
+
+      expect(clientFile?.content).toContain("credentials: 'include'");
+    });
+
     it('includes ClientOptions with headers and timeoutMs', () => {
       const ir = createBasicIR([]);
 
