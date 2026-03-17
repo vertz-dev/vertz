@@ -161,6 +161,10 @@ export type { RouterViewProps } from './router/router-view';
 export { RouterView } from './router/router-view';
 export { parseSearchParams, useSearchParams } from './router/search-params';
 
+// Theme registry
+export type { RegisterThemeInput } from './theme/registry';
+export { registerTheme } from './theme/registry';
+
 // Reactivity runtime
 export { DisposalScopeError } from './runtime/disposal';
 export { batch } from './runtime/scheduler';
