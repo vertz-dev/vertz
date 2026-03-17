@@ -241,4 +241,41 @@ const usersModel = d.model(usersTable, {
 
 The `tenant` option references a relation name — not a column. This keeps tenant scoping at the relation level where it belongs, and the type system constrains the value to valid relation keys.
 
-Models with a `tenant` declaration are automatically filtered by the current tenant context at query time. The framework also follows relation chains for indirect scoping — if `tasks` belongs to `projects` which belongs to `organizations`, and only `projects` declares the tenant, tasks are scoped transitively.
+### Direct vs indirect scoping
+
+Models with a `tenant` declaration are **directly scoped** — they are automatically filtered by the current tenant context at query time.
+
+Models without a `tenant` declaration but reachable via relation chains from a directly-scoped model are **indirectly scoped**. The framework follows relations transitively:
+
+```ts
+// Directly scoped — declares { tenant: 'org' }
+const projectsModel = d.model(projectsTable, {
+  org: d.ref.one(() => orgsTable, 'orgId'),
+}, { tenant: 'org' });
+
+// Indirectly scoped — project → org chain provides tenant context
+const tasksModel = d.model(tasksTable, {
+  project: d.ref.one(() => projectsTable, 'projectId'),
+});
+
+// Indirectly scoped — task → project → org chain
+const commentsModel = d.model(commentsTable, {
+  task: d.ref.one(() => tasksTable, 'taskId'),
+});
+```
+
+### Shared tables
+
+Tables that should be accessible across all tenants (system-wide config, feature flags, etc.) can opt out of tenant scoping with `.shared()`:
+
+```ts
+const featureFlags = d.table('feature_flags', {
+  id: d.uuid().primary(),
+  name: d.text().unique(),
+  enabled: d.boolean().default(false),
+}).shared();
+
+const flagsModel = d.model(featureFlags);
+```
+
+Shared tables are never filtered by tenant context, regardless of their relations.

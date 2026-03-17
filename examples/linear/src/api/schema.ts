@@ -1,8 +1,20 @@
 import { d } from '@vertz/db';
 
 // Default tenant ID — all seed data and new signups belong to this tenant.
-// In a real app you'd have a tenants table and a membership flow.
 export const SEED_TENANT_ID = 'tenant-acme';
+
+// ---------------------------------------------------------------------------
+// Tenants — tenant root table for multi-tenancy scoping
+// ---------------------------------------------------------------------------
+
+export const tenantsTable = d.table('tenants', {
+  id: d.text().primary(),
+  name: d.text(),
+  createdAt: d.timestamp().default('now').readOnly(),
+  updatedAt: d.timestamp().autoUpdate(),
+});
+
+export const tenantsModel = d.model(tenantsTable);
 
 // ---------------------------------------------------------------------------
 // Users — developer-owned table, populated via onUserCreated callback
@@ -18,7 +30,13 @@ export const usersTable = d.table('users', {
   updatedAt: d.timestamp().autoUpdate(),
 });
 
-export const usersModel = d.model(usersTable);
+export const usersModel = d.model(
+  usersTable,
+  {
+    tenant: d.ref.one(() => tenantsTable, 'tenantId'),
+  },
+  { tenant: 'tenant' },
+);
 
 // ---------------------------------------------------------------------------
 // Projects
@@ -35,10 +53,17 @@ export const projectsTable = d.table('projects', {
   updatedAt: d.timestamp().autoUpdate(),
 });
 
-export const projectsModel = d.model(projectsTable);
+export const projectsModel = d.model(
+  projectsTable,
+  {
+    tenant: d.ref.one(() => tenantsTable, 'tenantId'),
+    creator: d.ref.one(() => usersTable, 'createdBy'),
+  },
+  { tenant: 'tenant' },
+);
 
 // ---------------------------------------------------------------------------
-// Issues
+// Issues — indirectly scoped via project → tenant
 // ---------------------------------------------------------------------------
 
 export const issuesTable = d.table('issues', {
@@ -56,10 +81,13 @@ export const issuesTable = d.table('issues', {
   updatedAt: d.timestamp().autoUpdate(),
 });
 
-export const issuesModel = d.model(issuesTable);
+export const issuesModel = d.model(issuesTable, {
+  project: d.ref.one(() => projectsTable, 'projectId'),
+  assignee: d.ref.one(() => usersTable, 'assigneeId'),
+});
 
 // ---------------------------------------------------------------------------
-// Comments
+// Comments — indirectly scoped via issue → project → tenant
 // ---------------------------------------------------------------------------
 
 export const commentsTable = d.table('comments', {
@@ -72,4 +100,7 @@ export const commentsTable = d.table('comments', {
   updatedAt: d.timestamp().autoUpdate(),
 });
 
-export const commentsModel = d.model(commentsTable);
+export const commentsModel = d.model(commentsTable, {
+  issue: d.ref.one(() => issuesTable, 'issueId'),
+  author: d.ref.one(() => usersTable, 'authorId'),
+});

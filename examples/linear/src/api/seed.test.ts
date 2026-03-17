@@ -4,7 +4,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createDb } from '@vertz/db';
 import { unwrap } from '@vertz/schema';
-import { commentsModel, issuesModel, projectsModel, SEED_TENANT_ID, usersModel } from './schema';
+import {
+  commentsModel,
+  issuesModel,
+  projectsModel,
+  SEED_TENANT_ID,
+  tenantsModel,
+  usersModel,
+} from './schema';
 import { seedDatabase } from './seed';
 
 describe('seedDatabase', () => {
@@ -14,6 +21,7 @@ describe('seedDatabase', () => {
   function createClient(dbPath: string) {
     return createDb({
       models: {
+        tenants: tenantsModel,
         users: usersModel,
         projects: projectsModel,
         issues: issuesModel,
@@ -42,6 +50,14 @@ describe('seedDatabase', () => {
 
   describe('Given a fresh database', () => {
     describe('When seedDatabase is called', () => {
+      it('Then creates the seed tenant record', async () => {
+        await seedDatabase(client);
+        const tenant = unwrap(await client.tenants.get({ where: { id: SEED_TENANT_ID } }));
+        expect(tenant).toBeDefined();
+        expect(tenant!.id).toBe(SEED_TENANT_ID);
+        expect(tenant!.name).toBe('Acme Corp');
+      });
+
       it('Then creates 2 seed users', async () => {
         await seedDatabase(client);
         const count = unwrap(await client.users.count());

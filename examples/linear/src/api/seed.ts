@@ -14,10 +14,12 @@ import {
   type issuesModel,
   type projectsModel,
   SEED_TENANT_ID,
+  type tenantsModel,
   type usersModel,
 } from './schema';
 
 type SeedModels = {
+  tenants: typeof tenantsModel;
   users: typeof usersModel;
   projects: typeof projectsModel;
   issues: typeof issuesModel;
@@ -29,6 +31,13 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
   if (isOk(result) && result.data > 0) return;
 
   const T = SEED_TENANT_ID;
+
+  // --- Tenant ---
+  unwrap(
+    await db.tenants.create({
+      data: { id: T, name: 'Acme Corp' },
+    }),
+  );
 
   // --- Users ---
   // Seed users are inserted directly for development.
