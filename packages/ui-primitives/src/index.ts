@@ -140,6 +140,12 @@ export type {
   ScrollAreaState,
 } from './scroll-area/scroll-area';
 export { ScrollArea } from './scroll-area/scroll-area';
+export type {
+  ComposedScrollAreaProps,
+  ScrollAreaClasses,
+  ScrollAreaClassKey,
+} from './scroll-area/scroll-area-composed';
+export { ComposedScrollArea } from './scroll-area/scroll-area-composed';
 export type { SelectElements, SelectOptions, SelectState } from './select/select';
 export { Select } from './select/select';
 export type { ComposedSelectProps, SelectClasses } from './select/select-composed';

@@ -34,41 +34,73 @@ describe('scroll-area styles', () => {
 });
 
 describe('themed ScrollArea', () => {
-  it('applies style classes to elements', async () => {
-    const { createThemedScrollArea } = await import('../components/primitives/scroll-area');
-    const styles = createScrollAreaStyles();
-    const themedScrollArea = createThemedScrollArea(styles);
-    const result = themedScrollArea({ orientation: 'both' });
+  const styles = createScrollAreaStyles();
 
-    expect(result.root.classList.contains(styles.root)).toBe(true);
-    expect(result.viewport.classList.contains(styles.viewport)).toBe(true);
-    expect(result.scrollbarY.classList.contains(styles.scrollbar)).toBe(true);
-    expect(result.thumbY.classList.contains(styles.thumb)).toBe(true);
-    expect(result.scrollbarX.classList.contains(styles.scrollbar)).toBe(true);
-    expect(result.thumbX.classList.contains(styles.thumb)).toBe(true);
+  it('applies style classes to scroll-area elements', async () => {
+    const { createThemedScrollArea } = await import('../components/primitives/scroll-area');
+    const ScrollArea = createThemedScrollArea(styles);
+    const root = ScrollArea({ orientation: 'both' });
+
+    expect(root.className).toContain(styles.root);
+
+    const viewport = root.querySelector('[data-part="scroll-area-viewport"]') as HTMLElement;
+    expect(viewport.className).toContain(styles.viewport);
+
+    const scrollbars = root.querySelectorAll('[data-part="scroll-area-scrollbar"]');
+    for (const scrollbar of scrollbars) {
+      expect((scrollbar as HTMLElement).className).toContain(styles.scrollbar);
+    }
+
+    const thumbs = root.querySelectorAll('[data-part="scroll-area-thumb"]');
+    for (const thumb of thumbs) {
+      expect((thumb as HTMLElement).className).toContain(styles.thumb);
+    }
   });
 
-  it('passes options through to primitive', async () => {
+  it('passes orientation through to primitive', async () => {
     const { createThemedScrollArea } = await import('../components/primitives/scroll-area');
-    const styles = createScrollAreaStyles();
-    const themedScrollArea = createThemedScrollArea(styles);
-    const result = themedScrollArea({ orientation: 'horizontal' });
+    const ScrollArea = createThemedScrollArea(styles);
+    const root = ScrollArea({ orientation: 'horizontal' });
 
-    expect(result.scrollbarX.parentElement).toBe(result.root);
-    expect(result.scrollbarY.parentElement).toBeNull();
+    const scrollbars = root.querySelectorAll('[data-part="scroll-area-scrollbar"]');
+    expect(scrollbars.length).toBe(1);
+    expect(scrollbars[0].getAttribute('data-orientation')).toBe('horizontal');
   });
 
-  it('returns all expected elements and state', async () => {
+  it('renders root with viewport and content', async () => {
     const { createThemedScrollArea } = await import('../components/primitives/scroll-area');
-    const styles = createScrollAreaStyles();
-    const themedScrollArea = createThemedScrollArea(styles);
-    const result = themedScrollArea();
+    const ScrollArea = createThemedScrollArea(styles);
+    const root = ScrollArea({});
 
-    expect(result.root).toBeInstanceOf(HTMLDivElement);
-    expect(result.viewport).toBeInstanceOf(HTMLDivElement);
-    expect(result.content).toBeInstanceOf(HTMLDivElement);
-    expect(result.state.scrollTop).toBeDefined();
-    expect(result.state.scrollLeft).toBeDefined();
-    expect(typeof result.update).toBe('function');
+    expect(root).toBeInstanceOf(HTMLDivElement);
+
+    const viewport = root.querySelector('[data-part="scroll-area-viewport"]') as HTMLElement;
+    expect(viewport).toBeInstanceOf(HTMLDivElement);
+
+    const content = root.querySelector('[data-part="scroll-area-content"]') as HTMLElement;
+    expect(content).toBeInstanceOf(HTMLDivElement);
+  });
+
+  it('renders scrollbar with thumb inside', async () => {
+    const { createThemedScrollArea } = await import('../components/primitives/scroll-area');
+    const ScrollArea = createThemedScrollArea(styles);
+    const root = ScrollArea({});
+
+    const scrollbar = root.querySelector('[data-part="scroll-area-scrollbar"]') as HTMLElement;
+    expect(scrollbar).not.toBeNull();
+    expect(scrollbar.getAttribute('aria-hidden')).toBe('true');
+
+    const thumb = scrollbar.querySelector('[data-part="scroll-area-thumb"]') as HTMLElement;
+    expect(thumb).not.toBeNull();
+  });
+
+  it('defaults to vertical orientation', async () => {
+    const { createThemedScrollArea } = await import('../components/primitives/scroll-area');
+    const ScrollArea = createThemedScrollArea(styles);
+    const root = ScrollArea({});
+
+    const scrollbars = root.querySelectorAll('[data-part="scroll-area-scrollbar"]');
+    expect(scrollbars.length).toBe(1);
+    expect(scrollbars[0].getAttribute('data-orientation')).toBe('vertical');
   });
 });

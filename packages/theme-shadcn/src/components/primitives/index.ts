@@ -88,6 +88,7 @@ export type {
 } from './radio-group';
 export { createThemedRadioGroup } from './radio-group';
 export { createThemedResizablePanel } from './resizable-panel';
+export type { ScrollAreaRootProps, ThemedScrollAreaComponent } from './scroll-area';
 export { createThemedScrollArea } from './scroll-area';
 export type {
   SelectGroupProps,
