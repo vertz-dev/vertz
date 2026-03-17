@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'bun:test';
+import { createPrivateKey, createPublicKey } from 'node:crypto';
 import * as jose from 'jose';
 import type { AccessWsData } from '../access-event-broadcaster';
 import { createAccessEventBroadcaster } from '../access-event-broadcaster';
+import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';
 
 function createMockServer() {
   const upgraded: Array<{ data: AccessWsData }> = [];
@@ -31,12 +33,12 @@ function createMockWs(config: MockWsConfig) {
   };
 }
 
-const TEST_SECRET = 'test-secret-for-broadcaster-tests-minimum-32chars';
+const testPublicKey = createPublicKey(TEST_PUBLIC_KEY);
 
 describe('createAccessEventBroadcaster', () => {
   it('returns broadcaster with all required methods', () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: TEST_SECRET,
+      publicKey: testPublicKey,
     });
 
     expect(typeof broadcaster.handleUpgrade).toBe('function');
@@ -53,7 +55,7 @@ describe('createAccessEventBroadcaster', () => {
 
   it('handleUpgrade returns false for non-matching path', async () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: TEST_SECRET,
+      publicKey: testPublicKey,
     });
     const server = createMockServer();
     const request = new Request('http://localhost/api/other');
@@ -65,7 +67,7 @@ describe('createAccessEventBroadcaster', () => {
 
   it('handleUpgrade returns false for missing cookie', async () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: TEST_SECRET,
+      publicKey: testPublicKey,
     });
     const server = createMockServer();
     const request = new Request('http://localhost/api/auth/access-events');
@@ -76,7 +78,7 @@ describe('createAccessEventBroadcaster', () => {
 
   it('handleUpgrade calls server.upgrade with correct data for valid JWT', async () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: TEST_SECRET,
+      publicKey: testPublicKey,
     });
     const server = createMockServer();
 
@@ -88,10 +90,10 @@ describe('createAccessEventBroadcaster', () => {
       jti: 'token-1',
       sid: 'session-1',
     })
-      .setProtectedHeader({ alg: 'HS256' })
+      .setProtectedHeader({ alg: 'RS256' })
       .setIssuedAt()
       .setExpirationTime('1h')
-      .sign(new TextEncoder().encode(TEST_SECRET));
+      .sign(createPrivateKey(TEST_PRIVATE_KEY));
 
     const request = new Request('http://localhost/api/auth/access-events', {
       headers: { cookie: `vertz.sid=${jwt}` },
@@ -105,7 +107,7 @@ describe('createAccessEventBroadcaster', () => {
 
   it('broadcastFlagToggle sends to all connections with matching orgId', () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: TEST_SECRET,
+      publicKey: testPublicKey,
     });
 
     const ws1 = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
@@ -131,7 +133,7 @@ describe('createAccessEventBroadcaster', () => {
 
   it('broadcastLimitUpdate sends correct payload', () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: TEST_SECRET,
+      publicKey: testPublicKey,
     });
 
     const ws = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
@@ -150,7 +152,7 @@ describe('createAccessEventBroadcaster', () => {
 
   it('broadcastRoleChange sends to connections with matching userId', () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: TEST_SECRET,
+      publicKey: testPublicKey,
     });
 
     const ws1 = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
@@ -174,7 +176,7 @@ describe('createAccessEventBroadcaster', () => {
 
   it('broadcastPlanChange sends to all connections for affected org', () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: TEST_SECRET,
+      publicKey: testPublicKey,
     });
 
     const ws1 = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
@@ -195,7 +197,7 @@ describe('createAccessEventBroadcaster', () => {
 
   it('getConnectionCount returns correct count', () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: TEST_SECRET,
+      publicKey: testPublicKey,
     });
 
     expect(broadcaster.getConnectionCount).toBe(0);
@@ -212,7 +214,7 @@ describe('createAccessEventBroadcaster', () => {
 
   it('connection cleanup on close', () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: TEST_SECRET,
+      publicKey: testPublicKey,
     });
 
     const ws1 = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
@@ -233,7 +235,7 @@ describe('createAccessEventBroadcaster', () => {
 
   it('websocket.message ignores pong responses silently', () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: TEST_SECRET,
+      publicKey: testPublicKey,
     });
 
     const ws = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
@@ -246,7 +248,7 @@ describe('createAccessEventBroadcaster', () => {
 
   it('websocket.message ignores non-pong messages', () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: TEST_SECRET,
+      publicKey: testPublicKey,
     });
 
     const ws = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
@@ -260,7 +262,7 @@ describe('createAccessEventBroadcaster', () => {
 
   it('handleUpgrade returns false for invalid JWT', async () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: TEST_SECRET,
+      publicKey: testPublicKey,
     });
     const server = createMockServer();
 
@@ -275,7 +277,7 @@ describe('createAccessEventBroadcaster', () => {
 
   it('handleUpgrade extracts cookie from multiple cookies', async () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: TEST_SECRET,
+      publicKey: testPublicKey,
     });
     const server = createMockServer();
 
@@ -286,10 +288,10 @@ describe('createAccessEventBroadcaster', () => {
       jti: 'token-2',
       sid: 'session-2',
     })
-      .setProtectedHeader({ alg: 'HS256' })
+      .setProtectedHeader({ alg: 'RS256' })
       .setIssuedAt()
       .setExpirationTime('1h')
-      .sign(new TextEncoder().encode(TEST_SECRET));
+      .sign(createPrivateKey(TEST_PRIVATE_KEY));
 
     const request = new Request('http://localhost/api/auth/access-events', {
       headers: { cookie: `other=value; vertz.sid=${jwt}; another=test` },
@@ -302,7 +304,7 @@ describe('createAccessEventBroadcaster', () => {
 
   it('handleUpgrade with custom path', async () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: TEST_SECRET,
+      publicKey: testPublicKey,
       path: '/custom/ws',
     });
     const server = createMockServer();
@@ -319,10 +321,10 @@ describe('createAccessEventBroadcaster', () => {
       jti: 'token-1',
       sid: 'session-1',
     })
-      .setProtectedHeader({ alg: 'HS256' })
+      .setProtectedHeader({ alg: 'RS256' })
       .setIssuedAt()
       .setExpirationTime('1h')
-      .sign(new TextEncoder().encode(TEST_SECRET));
+      .sign(createPrivateKey(TEST_PRIVATE_KEY));
 
     const req2 = new Request('http://localhost/custom/ws', {
       headers: { cookie: `vertz.sid=${jwt}` },
@@ -332,7 +334,7 @@ describe('createAccessEventBroadcaster', () => {
 
   it('handleUpgrade with custom cookie name', async () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: TEST_SECRET,
+      publicKey: testPublicKey,
       cookieName: 'my-session',
     });
     const server = createMockServer();
@@ -344,10 +346,10 @@ describe('createAccessEventBroadcaster', () => {
       jti: 'token-1',
       sid: 'session-1',
     })
-      .setProtectedHeader({ alg: 'HS256' })
+      .setProtectedHeader({ alg: 'RS256' })
       .setIssuedAt()
       .setExpirationTime('1h')
-      .sign(new TextEncoder().encode(TEST_SECRET));
+      .sign(createPrivateKey(TEST_PRIVATE_KEY));
 
     // Wrong cookie name
     const req1 = new Request('http://localhost/api/auth/access-events', {
@@ -364,7 +366,7 @@ describe('createAccessEventBroadcaster', () => {
 
   it('broadcastToOrg is no-op when no connections for org', () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: TEST_SECRET,
+      publicKey: testPublicKey,
     });
 
     // No connections — should not throw
@@ -373,7 +375,7 @@ describe('createAccessEventBroadcaster', () => {
 
   it('broadcastToUser is no-op when no connections for user', () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: TEST_SECRET,
+      publicKey: testPublicKey,
     });
 
     // No connections — should not throw
@@ -382,7 +384,7 @@ describe('createAccessEventBroadcaster', () => {
 
   it('closing last connection for org removes org entry', () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: TEST_SECRET,
+      publicKey: testPublicKey,
     });
 
     const ws = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
@@ -400,7 +402,7 @@ describe('createAccessEventBroadcaster', () => {
 describe('plan event broadcasts', () => {
   it('broadcastPlanAssigned sends plan:assigned event to org connections', () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: TEST_SECRET,
+      publicKey: testPublicKey,
     });
 
     const ws1 = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
@@ -421,7 +423,7 @@ describe('plan event broadcasts', () => {
 
   it('broadcastAddonAttached sends addon_attached event to org connections', () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: TEST_SECRET,
+      publicKey: testPublicKey,
     });
 
     const ws = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
@@ -438,7 +440,7 @@ describe('plan event broadcasts', () => {
 
   it('broadcastAddonDetached sends addon_detached event to org connections', () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: TEST_SECRET,
+      publicKey: testPublicKey,
     });
 
     const ws = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
@@ -455,7 +457,7 @@ describe('plan event broadcasts', () => {
 
   it('broadcastLimitReset sends limit_reset event to org connections', () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: TEST_SECRET,
+      publicKey: testPublicKey,
     });
 
     const ws = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });
@@ -473,7 +475,7 @@ describe('plan event broadcasts', () => {
 
   it('new event types do not reach connections for other orgs', () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: TEST_SECRET,
+      publicKey: testPublicKey,
     });
 
     const ws1 = createMockWs({ data: { userId: 'user-1', orgId: 'org-1' } });

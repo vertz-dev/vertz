@@ -5,8 +5,15 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { generateKeyPairSync } from 'node:crypto';
 import type { AuthConfig, AuthInstance } from '@vertz/server';
 import { createAuth } from '@vertz/server';
+
+const { publicKey: TEST_PUBLIC_KEY, privateKey: TEST_PRIVATE_KEY } = generateKeyPairSync('rsa', {
+  modulusLength: 2048,
+  publicKeyEncoding: { type: 'spki', format: 'pem' },
+  privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+});
 
 function createTestAuth(overrides?: Partial<AuthConfig>): {
   auth: AuthInstance;
@@ -22,7 +29,8 @@ function createTestAuth(overrides?: Partial<AuthConfig>): {
       ttl: '60s',
       refreshTtl: '7d',
     },
-    jwtSecret: 'integration-test-secret-at-least-32-chars',
+    privateKey: TEST_PRIVATE_KEY as string,
+    publicKey: TEST_PUBLIC_KEY as string,
     isProduction: false,
     emailVerification: {
       enabled: true,

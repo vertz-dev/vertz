@@ -93,10 +93,14 @@ const auth = createAuth({
 });
 ```
 
-### JWT secret
+### RSA key pair
 
-- **Production:** You must provide `jwtSecret`. The auth system throws if it's missing.
-- **Development:** A secret is auto-generated and saved to `.vertz/jwt-secret`. Add `.vertz/` to your `.gitignore`.
+All JWT operations use RS256 asymmetric keys.
+
+- **Production:** You must provide `privateKey` and `publicKey` (PEM strings). The auth system throws if they're missing.
+- **Development:** A key pair is auto-generated and saved to `.vertz/jwt-private.pem` and `.vertz/jwt-public.pem`. Add `.vertz/` to your `.gitignore`.
+
+The public key is served at `GET /api/auth/.well-known/jwks.json` for external verification.
 
 ## Server-side API
 

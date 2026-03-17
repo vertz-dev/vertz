@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { createAuth } from '../index';
 import type { AuthInstance } from '../types';
+import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';
 
 function createTestAuth(opts?: { tokenTtl?: string; revokeSessionsOnReset?: boolean }) {
   const sentEmails: { email: string; token: string }[] = [];
@@ -8,7 +9,8 @@ function createTestAuth(opts?: { tokenTtl?: string; revokeSessionsOnReset?: bool
   const auth = createAuth({
     session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
     emailPassword: { enabled: true },
-    jwtSecret: 'test-secret-for-password-reset-testing-1234567890',
+    privateKey: TEST_PRIVATE_KEY,
+    publicKey: TEST_PUBLIC_KEY,
     isProduction: false,
     passwordReset: {
       enabled: true,
@@ -273,7 +275,8 @@ describe('Password Reset Routes', () => {
     auth = createAuth({
       session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
       emailPassword: { enabled: true },
-      jwtSecret: 'test-secret-for-password-reset-testing-1234567890',
+      privateKey: TEST_PRIVATE_KEY,
+      publicKey: TEST_PUBLIC_KEY,
       isProduction: false,
     });
 
@@ -289,7 +292,8 @@ describe('Password Reset Routes', () => {
     auth = createAuth({
       session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
       emailPassword: { enabled: true },
-      jwtSecret: 'test-secret-for-password-reset-testing-1234567890',
+      privateKey: TEST_PRIVATE_KEY,
+      publicKey: TEST_PUBLIC_KEY,
       isProduction: false,
     });
 

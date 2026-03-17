@@ -6,16 +6,15 @@
  * this is a hydration hint, not an authorization gate.
  */
 
+import type { KeyObject } from 'node:crypto';
 import type { AccessCheckData, AccessSet } from './access-set';
 import type { CloudJWTVerifier } from './cloud-jwt-verifier';
 import { verifyJWT } from './jwt';
 import type { AclClaim, SessionPayload } from './types';
 
 export interface ResolveSessionForSSRConfig {
-  /** Symmetric secret for HS256 verification (self-hosted mode). */
-  jwtSecret?: string;
-  /** Algorithm for symmetric verification — defaults to 'HS256'. */
-  jwtAlgorithm?: string;
+  /** RSA public key for RS256 verification (self-hosted mode). */
+  publicKey?: KeyObject;
   /** Cloud JWT verifier for RS256 verification (cloud mode). */
   cloudVerifier?: CloudJWTVerifier;
   cookieName: string;
@@ -75,16 +74,16 @@ function extractAccessSet(acl: AclClaim): AccessSet | null {
 export function resolveSessionForSSR(
   config: ResolveSessionForSSRConfig,
 ): (request: Request) => Promise<SSRSessionResult | null> {
-  const { jwtSecret, jwtAlgorithm = 'HS256', cloudVerifier, cookieName } = config;
+  const { publicKey, cloudVerifier, cookieName } = config;
 
   // Validate: exactly one verification method must be provided
-  if (!jwtSecret && !cloudVerifier) {
+  if (!publicKey && !cloudVerifier) {
     throw new Error(
-      'resolveSessionForSSR requires either jwtSecret (self-hosted) or cloudVerifier (cloud mode).',
+      'resolveSessionForSSR requires either publicKey (self-hosted) or cloudVerifier (cloud mode).',
     );
   }
-  if (jwtSecret && cloudVerifier) {
-    throw new Error('resolveSessionForSSR accepts either jwtSecret or cloudVerifier, not both.');
+  if (publicKey && cloudVerifier) {
+    throw new Error('resolveSessionForSSR accepts either publicKey or cloudVerifier, not both.');
   }
 
   return async (request: Request): Promise<SSRSessionResult | null> => {
@@ -97,12 +96,12 @@ export function resolveSessionForSSR(
     const token = cookieEntry.trim().slice(`${cookieName}=`.length);
     if (!token) return null;
 
-    // Verify JWT — cloud verifier (RS256) or symmetric (HS256)
+    // Verify JWT — cloud verifier (RS256 via JWKS) or local public key (RS256)
     let payload: SessionPayload | null;
     if (cloudVerifier) {
       payload = await cloudVerifier.verify(token);
     } else {
-      payload = await verifyJWT(token, jwtSecret!, jwtAlgorithm);
+      payload = await verifyJWT(token, publicKey!);
     }
     if (!payload) return null;
 

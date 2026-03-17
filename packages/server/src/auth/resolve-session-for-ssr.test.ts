@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'bun:test';
+import { createPublicKey } from 'node:crypto';
 import type { CloudJWTVerifier } from './cloud-jwt-verifier';
 import { type ResolveSessionForSSRConfig, resolveSessionForSSR } from './resolve-session-for-ssr';
 import type { SessionPayload } from './types';
+import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './__tests__/test-keys';
 
 // --- Helpers ---
 
@@ -102,40 +104,38 @@ describe('resolveSessionForSSR with cloudVerifier', () => {
   });
 });
 
-describe('resolveSessionForSSR with jwtSecret (backward compat)', () => {
-  describe('Given resolveSessionForSSR with jwtSecret', () => {
-    it('then verifies using symmetric HS256', async () => {
-      // Use the existing verifyJWT path
+describe('resolveSessionForSSR with publicKey', () => {
+  describe('Given resolveSessionForSSR with publicKey', () => {
+    it('then verifies using RS256', async () => {
       const resolve = resolveSessionForSSR({
-        jwtSecret: 'test-secret-at-least-32-chars-long!',
-        jwtAlgorithm: 'HS256',
+        publicKey: createPublicKey(TEST_PUBLIC_KEY),
         cookieName: 'vertz.sid',
       });
 
-      // Without a real HS256 token, this should return null (verification fails)
-      const result = await resolve(makeRequest('vertz.sid=invalid.hs256.token'));
+      // Without a real RS256 token, this should return null (verification fails)
+      const result = await resolve(makeRequest('vertz.sid=invalid.rs256.token'));
       expect(result).toBeNull();
     });
   });
 });
 
 describe('resolveSessionForSSR config validation', () => {
-  describe('Given neither jwtSecret nor cloudVerifier', () => {
+  describe('Given neither publicKey nor cloudVerifier', () => {
     it('then throws configuration error at construction time', () => {
       expect(() => {
         resolveSessionForSSR({
           cookieName: 'vertz.sid',
         } as ResolveSessionForSSRConfig);
-      }).toThrow('requires either jwtSecret');
+      }).toThrow('requires either publicKey');
     });
   });
 
-  describe('Given both jwtSecret and cloudVerifier', () => {
+  describe('Given both publicKey and cloudVerifier', () => {
     it('then throws configuration error at construction time', () => {
       const verifier = makeMockVerifier(validPayload);
       expect(() => {
         resolveSessionForSSR({
-          jwtSecret: 'some-secret',
+          publicKey: createPublicKey(TEST_PUBLIC_KEY),
           cloudVerifier: verifier,
           cookieName: 'vertz.sid',
         });

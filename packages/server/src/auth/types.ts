@@ -323,22 +323,24 @@ export interface PasswordResetStore {
 export interface AuthConfig {
   session: SessionConfig;
   emailPassword?: EmailPasswordConfig;
-  jwtSecret?: string; // For JWT signing - required for JWT strategy
-  jwtAlgorithm?: 'HS256' | 'HS384' | 'HS512';
+  /** RSA private key in PKCS#8 PEM format for JWT signing. Required in production. */
+  privateKey?: string;
+  /** RSA public key in SPKI PEM format for JWT verification. Required in production. */
+  publicKey?: string;
   /** Custom claims function for JWT payload */
   claims?: (user: AuthUser) => Record<string, unknown>;
   /**
    * Whether the app runs in production mode.
-   * Controls security enforcement (JWT secret requirement, CSRF validation).
+   * Controls security enforcement (key pair requirement, CSRF validation).
    * Defaults to true when process.env is unavailable (secure-by-default for edge runtimes).
    */
   isProduction?: boolean;
   /**
-   * Directory to persist auto-generated dev JWT secret.
+   * Directory to persist auto-generated dev RSA key pair.
    * Defaults to `.vertz` in the current working directory.
-   * Only used in non-production mode when jwtSecret is not provided.
+   * Only used in non-production mode when keys are not provided.
    */
-  devSecretPath?: string;
+  devKeyPath?: string;
   /** Pluggable session store — defaults to InMemorySessionStore */
   sessionStore?: SessionStore;
   /** Pluggable rate limit store — defaults to InMemoryRateLimitStore */

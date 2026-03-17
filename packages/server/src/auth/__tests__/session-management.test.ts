@@ -5,6 +5,7 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { createAuth } from '../index';
 import type { AuthConfig, AuthInstance, SessionInfo } from '../types';
+import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';
 
 function createTestAuth(overrides?: Partial<AuthConfig>): AuthInstance {
   return createAuth({
@@ -13,7 +14,8 @@ function createTestAuth(overrides?: Partial<AuthConfig>): AuthInstance {
       ttl: '60s',
       refreshTtl: '7d',
     },
-    jwtSecret: 'session-mgmt-test-secret-at-least-32-chars',
+    privateKey: TEST_PRIVATE_KEY,
+    publicKey: TEST_PUBLIC_KEY,
     isProduction: false,
     ...overrides,
   });

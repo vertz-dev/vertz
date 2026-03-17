@@ -1,7 +1,8 @@
 /**
- * JWT utilities — creation and verification
+ * JWT utilities — creation and verification using RS256 asymmetric keys
  */
 
+import type { KeyObject } from 'node:crypto';
 import * as jose from 'jose';
 import type { AuthUser, SessionPayload } from './types';
 
@@ -22,9 +23,8 @@ export function parseDuration(duration: string | number): number {
 
 export async function createJWT(
   user: AuthUser,
-  secret: string,
+  privateKey: KeyObject,
   ttl: number,
-  algorithm: string,
   customClaims?: (user: AuthUser) => Record<string, unknown>,
 ): Promise<string> {
   const claims = customClaims ? customClaims(user) : {};
@@ -35,22 +35,21 @@ export async function createJWT(
     role: user.role,
     ...claims,
   })
-    .setProtectedHeader({ alg: algorithm })
+    .setProtectedHeader({ alg: 'RS256' })
     .setIssuedAt()
     .setExpirationTime(`${Math.floor(ttl / 1000)}s`)
-    .sign(new TextEncoder().encode(secret));
+    .sign(privateKey);
 
   return jwt;
 }
 
 export async function verifyJWT(
   token: string,
-  secret: string,
-  algorithm: string,
+  publicKey: KeyObject,
 ): Promise<SessionPayload | null> {
   try {
-    const { payload } = await jose.jwtVerify(token, new TextEncoder().encode(secret), {
-      algorithms: [algorithm],
+    const { payload } = await jose.jwtVerify(token, publicKey, {
+      algorithms: ['RS256'],
     });
     // Runtime validation: ensure required Phase 2 claims are present
     if (

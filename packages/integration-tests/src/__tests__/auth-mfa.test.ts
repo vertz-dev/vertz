@@ -4,8 +4,16 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { generateKeyPairSync } from 'node:crypto';
 import type { AuthConfig, AuthInstance } from '@vertz/server';
 import { checkFva, createAuth, InMemoryMFAStore } from '@vertz/server';
+
+const { publicKey: TEST_PUBLIC_KEY, privateKey: TEST_PRIVATE_KEY } = generateKeyPairSync('rsa', {
+  modulusLength: 2048,
+  publicKeyEncoding: { type: 'spki', format: 'pem' },
+  privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+});
+
 // TOTP code generation — internal import for test verification only
 // (In a real app, the user would use an authenticator app)
 import { generateTotpCode } from '../../../server/src/auth/totp';
@@ -17,7 +25,8 @@ function createTestAuth(overrides?: Partial<AuthConfig>): AuthInstance {
       ttl: '60s',
       refreshTtl: '7d',
     },
-    jwtSecret: 'mfa-integration-test-secret-at-least-32-chars',
+    privateKey: TEST_PRIVATE_KEY as string,
+    publicKey: TEST_PUBLIC_KEY as string,
     isProduction: false,
     mfa: { enabled: true, issuer: 'VertzTest' },
     oauthEncryptionKey: 'mfa-integration-encryption-key-32-chars!!!',

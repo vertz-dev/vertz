@@ -4,6 +4,7 @@
  */
 
 import { beforeEach, describe, expect, it } from 'bun:test';
+import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from '../../auth/__tests__/test-keys';
 import { createAuth, hashPassword, validatePassword, verifyPassword } from '../../auth/index';
 import type { AuthConfig } from '../auth/types';
 
@@ -101,7 +102,8 @@ describe('Auth Module', () => {
         emailPassword: {
           enabled: true,
         },
-        jwtSecret: 'test-secret-key-for-testing',
+        privateKey: TEST_PRIVATE_KEY,
+        publicKey: TEST_PUBLIC_KEY,
       };
     });
 

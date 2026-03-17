@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'bun:test';
 import { createAuth } from '../index';
+import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';
 
 // Helper to create an auth instance in production mode
 function createProductionAuth() {
   return createAuth({
     session: { strategy: 'jwt', ttl: '7d' },
-    jwtSecret: 'test-secret-at-least-32-chars-long!!',
+    privateKey: TEST_PRIVATE_KEY,
+    publicKey: TEST_PUBLIC_KEY,
     isProduction: true,
   });
 }
@@ -14,7 +16,8 @@ function createProductionAuth() {
 function createDevAuth() {
   return createAuth({
     session: { strategy: 'jwt', ttl: '7d' },
-    jwtSecret: 'test-secret-at-least-32-chars-long!!',
+    privateKey: TEST_PRIVATE_KEY,
+    publicKey: TEST_PUBLIC_KEY,
     isProduction: false,
   });
 }

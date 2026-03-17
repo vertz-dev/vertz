@@ -78,7 +78,7 @@ afterEach(() => {
 
 describe('createServer — cloud mode branching', () => {
   describe('Given cloud.projectId is set and VERTZ_CLOUD_TOKEN is available', () => {
-    it('then returns a ServerInstance without requiring jwtSecret or auth config', () => {
+    it('then returns a ServerInstance without requiring key pair or auth config', () => {
       process.env.VERTZ_CLOUD_TOKEN = 'vtk_ci_token';
 
       const server = createServer({
@@ -181,7 +181,7 @@ describe('createServer — cloud mode branching', () => {
     it('then does NOT require clientId/clientSecret on providers', () => {
       process.env.VERTZ_CLOUD_TOKEN = 'vtk_ci_token';
 
-      // Cloud mode — no providers needed, no jwtSecret needed
+      // Cloud mode — no providers needed, no key pair needed
       const server = createServer({
         cloud: { projectId: 'proj_cstest', cloudBaseUrl },
       });
@@ -218,7 +218,8 @@ describe('createServer — cloud mode branching', () => {
         cloud: { projectId: 'proj_cstest', cloudBaseUrl },
         auth: {
           session: { strategy: 'jwt', ttl: '1h' },
-          jwtSecret: 'should-be-ignored',
+          privateKey: 'should-be-ignored',
+          publicKey: 'should-be-ignored',
         },
       });
 

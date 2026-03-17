@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { createAuth } from '../index';
 import { generateTotpCode } from '../totp';
 import type { AuthConfig, AuthInstance } from '../types';
+import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';
 
 function createTestAuth(overrides?: Partial<AuthConfig>): AuthInstance {
   return createAuth({
@@ -14,7 +15,8 @@ function createTestAuth(overrides?: Partial<AuthConfig>): AuthInstance {
       ttl: '60s',
       refreshTtl: '7d',
     },
-    jwtSecret: 'mfa-challenge-test-secret-at-least-32-chars',
+    privateKey: TEST_PRIVATE_KEY,
+    publicKey: TEST_PUBLIC_KEY,
     isProduction: false,
     mfa: { enabled: true, issuer: 'TestApp' },
     oauthEncryptionKey: 'mfa-encryption-key-at-least-32-chars-long!!',

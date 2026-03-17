@@ -3,12 +3,12 @@
  */
 
 import { describe, expect, it } from 'bun:test';
+import { createPrivateKey, createPublicKey } from 'node:crypto';
 import { createJWT } from '../jwt';
 import { resolveSessionForSSR } from '../resolve-session-for-ssr';
 import type { AuthUser } from '../types';
+import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';
 
-const TEST_SECRET = 'jwt-test-secret-at-least-32-characters-long';
-const TEST_ALGORITHM = 'HS256';
 const COOKIE_NAME = 'vertz.sid';
 
 const testUser: AuthUser = {
@@ -30,7 +30,7 @@ function createRequest(cookieHeader?: string): Request {
 async function createValidJWT(
   customClaims?: (user: AuthUser) => Record<string, unknown>,
 ): Promise<string> {
-  return createJWT(testUser, TEST_SECRET, 60_000, TEST_ALGORITHM, (user) => ({
+  return createJWT(testUser, createPrivateKey(TEST_PRIVATE_KEY), 60_000, (user) => ({
     jti: 'jti-test',
     sid: 'sid-test',
     ...customClaims?.(user),
@@ -39,8 +39,7 @@ async function createValidJWT(
 
 function createResolver() {
   return resolveSessionForSSR({
-    jwtSecret: TEST_SECRET,
-    jwtAlgorithm: TEST_ALGORITHM,
+    publicKey: createPublicKey(TEST_PUBLIC_KEY),
     cookieName: COOKIE_NAME,
   });
 }
@@ -115,7 +114,7 @@ describe('resolveSessionForSSR', () => {
     describe('When resolveSessionForSSR is called', () => {
       it('Then returns null', async () => {
         // Create JWT with 1ms TTL and wait for expiration
-        const jwt = await createJWT(testUser, TEST_SECRET, 1, TEST_ALGORITHM, () => ({
+        const jwt = await createJWT(testUser, createPrivateKey(TEST_PRIVATE_KEY), 1, () => ({
           jti: 'jti-expired',
           sid: 'sid-expired',
         }));
@@ -244,8 +243,7 @@ describe('resolveSessionForSSR', () => {
       const jwt = await createValidJWT();
       const request = createRequest(`custom.sid=${jwt}`);
       const resolver = resolveSessionForSSR({
-        jwtSecret: TEST_SECRET,
-        jwtAlgorithm: TEST_ALGORITHM,
+        publicKey: createPublicKey(TEST_PUBLIC_KEY),
         cookieName: 'custom.sid',
       });
 

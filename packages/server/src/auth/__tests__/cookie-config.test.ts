@@ -3,10 +3,11 @@ import { existsSync, rmSync } from 'node:fs';
 import { buildOAuthStateCookie } from '../cookies';
 import { createAuth } from '../index';
 import type { AuthConfig } from '../types';
+import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';
 
 /**
  * Minimal valid auth config for testing cookie validation.
- * Uses a dev secret since most tests run in non-production mode.
+ * Uses a dev key pair since most tests run in non-production mode.
  */
 function baseConfig(overrides?: Partial<AuthConfig>): AuthConfig {
   return {
@@ -15,7 +16,8 @@ function baseConfig(overrides?: Partial<AuthConfig>): AuthConfig {
       ttl: '1h',
       ...overrides?.session,
     },
-    jwtSecret: 'test-secret-at-least-32-characters-long',
+    privateKey: TEST_PRIVATE_KEY,
+    publicKey: TEST_PUBLIC_KEY,
     isProduction: false,
     ...overrides,
   };
@@ -138,51 +140,52 @@ describe('cookie config security validations', () => {
   });
 });
 
-describe('JWT secret handling', () => {
-  const testSecretDir = '/tmp/vertz-test-jwt-secret';
+describe('RSA key pair handling', () => {
+  const testKeyDir = '/tmp/vertz-test-jwt-keys';
 
   beforeEach(() => {
-    if (existsSync(testSecretDir)) {
-      rmSync(testSecretDir, { recursive: true });
+    if (existsSync(testKeyDir)) {
+      rmSync(testKeyDir, { recursive: true });
     }
   });
 
   afterEach(() => {
-    if (existsSync(testSecretDir)) {
-      rmSync(testSecretDir, { recursive: true });
+    if (existsSync(testKeyDir)) {
+      rmSync(testKeyDir, { recursive: true });
     }
   });
 
-  it('throws when jwtSecret is missing in production', () => {
+  it('throws when RSA key pair is missing in production', () => {
     expect(() =>
       createAuth({
         session: { strategy: 'jwt', ttl: '1h' },
         isProduction: true,
       }),
-    ).toThrow('jwtSecret is required in production');
+    ).toThrow('RSA key pair is required in production');
   });
 
-  it('auto-generates and persists a dev secret when jwtSecret is missing in dev mode', () => {
+  it('auto-generates and persists dev keys when key pair is missing in dev mode', () => {
     const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
 
-    // Should not throw — generates a secret automatically
+    // Should not throw — generates keys automatically
     expect(() =>
       createAuth({
         session: { strategy: 'jwt', ttl: '1h' },
         isProduction: false,
-        devSecretPath: testSecretDir,
+        devKeyPath: testKeyDir,
       }),
     ).not.toThrow();
 
-    // Should have persisted the secret
-    expect(existsSync(`${testSecretDir}/jwt-secret`)).toBe(true);
+    // Should have persisted the keys
+    expect(existsSync(`${testKeyDir}/jwt-private.pem`)).toBe(true);
+    expect(existsSync(`${testKeyDir}/jwt-public.pem`)).toBe(true);
 
     warnSpy.mockRestore();
     logSpy.mockRestore();
   });
 
-  it('reuses persisted dev secret across createAuth calls', () => {
+  it('reuses persisted dev keys across createAuth calls', () => {
     const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
 
@@ -190,7 +193,7 @@ describe('JWT secret handling', () => {
     createAuth({
       session: { strategy: 'jwt', ttl: '1h' },
       isProduction: false,
-      devSecretPath: testSecretDir,
+      devKeyPath: testKeyDir,
     });
 
     // Second call reads from file (no "Generated" message)
@@ -198,7 +201,7 @@ describe('JWT secret handling', () => {
     createAuth({
       session: { strategy: 'jwt', ttl: '1h' },
       isProduction: false,
-      devSecretPath: testSecretDir,
+      devKeyPath: testKeyDir,
     });
 
     warnSpy.mockRestore();

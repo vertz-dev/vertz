@@ -10,6 +10,7 @@ import type {
   SignUpInput,
   TokenInput,
 } from '../types';
+import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';
 
 /**
  * Tests for HTTP handler edge cases — error paths, 404 routes, middleware,
@@ -20,7 +21,8 @@ function createTestAuth() {
   const auth = createAuth({
     session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
     emailPassword: { enabled: true },
-    jwtSecret: 'test-secret-for-handler-edge-cases-testing-1234567890',
+    privateKey: TEST_PRIVATE_KEY,
+    publicKey: TEST_PUBLIC_KEY,
     isProduction: false,
   });
   return auth;
@@ -31,7 +33,8 @@ function createTestAuthWithEmailVerification() {
   const auth = createAuth({
     session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
     emailPassword: { enabled: true },
-    jwtSecret: 'test-secret-for-handler-edge-cases-testing-1234567890',
+    privateKey: TEST_PRIVATE_KEY,
+    publicKey: TEST_PUBLIC_KEY,
     isProduction: false,
     emailVerification: {
       enabled: true,
@@ -418,7 +421,8 @@ describe('Email Verification Handler Edge Cases', () => {
     auth = createAuth({
       session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
       emailPassword: { enabled: true },
-      jwtSecret: 'test-secret-for-handler-edge-cases-testing-1234567890',
+      privateKey: TEST_PRIVATE_KEY,
+      publicKey: TEST_PUBLIC_KEY,
       isProduction: false,
       passwordReset: {
         enabled: true,
@@ -536,7 +540,8 @@ describe('MFA Handler — Not Authenticated', () => {
     auth = createAuth({
       session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
       emailPassword: { enabled: true },
-      jwtSecret: 'test-secret-for-handler-edge-cases-testing-1234567890',
+      privateKey: TEST_PRIVATE_KEY,
+      publicKey: TEST_PUBLIC_KEY,
       isProduction: false,
       mfa: { enabled: true, issuer: 'TestApp' },
       oauthEncryptionKey: 'mfa-encryption-key-at-least-32-chars-long!!',

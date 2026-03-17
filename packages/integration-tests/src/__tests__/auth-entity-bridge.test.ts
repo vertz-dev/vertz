@@ -5,6 +5,7 @@
  */
 
 import { describe, expect, it } from 'bun:test';
+import { generateKeyPairSync } from 'node:crypto';
 import type {
   AuthCallbackContext,
   AuthConfig,
@@ -14,6 +15,12 @@ import type {
   OnUserCreatedPayload,
 } from '@vertz/server';
 import { createAuth, InMemoryOAuthAccountStore, InMemoryUserStore } from '@vertz/server';
+
+const { publicKey: TEST_PUBLIC_KEY, privateKey: TEST_PRIVATE_KEY } = generateKeyPairSync('rsa', {
+  modulusLength: 2048,
+  publicKeyEncoding: { type: 'spki', format: 'pem' },
+  privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -51,7 +58,8 @@ function createMockProvider(overrides?: Partial<OAuthProvider>): OAuthProvider {
 function createTestAuth(overrides?: Partial<AuthConfig>): AuthInstance {
   return createAuth({
     session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
-    jwtSecret: 'auth-entity-bridge-test-secret-at-least-32!!',
+    privateKey: TEST_PRIVATE_KEY as string,
+    publicKey: TEST_PUBLIC_KEY as string,
     isProduction: false,
     oauthEncryptionKey: 'test-oauth-encryption-key-at-least-32!',
     ...overrides,

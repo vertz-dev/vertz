@@ -5,6 +5,7 @@
  * (flag toggles, limit updates, role changes, plan changes) to affected clients.
  */
 
+import type { KeyObject } from 'node:crypto';
 import { verifyJWT } from './jwt';
 
 // ============================================================================
@@ -34,8 +35,8 @@ export interface AccessWsData {
 }
 
 export interface AccessEventBroadcasterConfig {
-  jwtSecret: string;
-  jwtAlgorithm?: string;
+  /** RSA public key for JWT verification. */
+  publicKey: KeyObject;
   /** WebSocket upgrade path. Defaults to '/api/auth/access-events'. */
   path?: string;
   /** Cookie name for session JWT. Defaults to 'vertz.sid'. */
@@ -86,12 +87,7 @@ interface BunWebSocket<T> {
 export function createAccessEventBroadcaster(
   config: AccessEventBroadcasterConfig,
 ): AccessEventBroadcaster {
-  const {
-    jwtSecret,
-    jwtAlgorithm = 'HS256',
-    path = '/api/auth/access-events',
-    cookieName = 'vertz.sid',
-  } = config;
+  const { publicKey, path = '/api/auth/access-events', cookieName = 'vertz.sid' } = config;
 
   // Connection tracking: orgId -> Set<ws>, userId -> Set<ws>
   const connectionsByOrg = new Map<string, Set<BunWebSocket<AccessWsData>>>();
@@ -193,7 +189,7 @@ export function createAccessEventBroadcaster(
     if (!token) return false;
 
     try {
-      const payload = await verifyJWT(token, jwtSecret, jwtAlgorithm);
+      const payload = await verifyJWT(token, publicKey);
       if (!payload || !payload.sub) return false;
 
       // Extract orgId from JWT claims — look for org, orgId, or default to ''
