@@ -22,6 +22,8 @@ export type { ButtonOptions } from './button/button';
 export { Button } from './button/button';
 export type { CalendarElements, CalendarOptions, CalendarState } from './calendar/calendar';
 export { Calendar } from './calendar/calendar';
+export type { CalendarClasses, ComposedCalendarProps } from './calendar/calendar-composed';
+export { ComposedCalendar } from './calendar/calendar-composed';
 export type { CarouselElements, CarouselOptions, CarouselState } from './carousel/carousel';
 export { Carousel } from './carousel/carousel';
 export type { CheckboxOptions, CheckedState } from './checkbox/checkbox';

@@ -35,6 +35,7 @@ import type { LabelProps } from './components/label';
 import type { PaginationComponents } from './components/pagination';
 import type { ThemedAccordionComponent } from './components/primitives/accordion';
 import type { ThemedAlertDialogComponent } from './components/primitives/alert-dialog';
+import type { ThemedCalendarComponent } from './components/primitives/calendar';
 import type { ThemedCheckboxComponent } from './components/primitives/checkbox';
 import type { ThemedDialogComponent } from './components/primitives/dialog';
 import type { ThemedDropdownMenuComponent } from './components/primitives/dropdown-menu';
@@ -87,6 +88,7 @@ declare module '@vertz/ui/components' {
     Sheet: ThemedSheetComponent;
 
     // Simple primitives (callable only)
+    Calendar: ThemedCalendarComponent;
     Checkbox: ThemedCheckboxComponent;
     Switch: ThemedSwitchComponent;
     Progress: ThemedProgressComponent;
@@ -95,7 +97,6 @@ declare module '@vertz/ui/components' {
     Toast: ThemedPrimitives['Toast'];
 
     // Factory primitives (lowercase)
-    calendar: ThemedPrimitives['calendar'];
     carousel: ThemedPrimitives['carousel'];
     collapsible: ThemedPrimitives['collapsible'];
     command: ThemedPrimitives['command'];
