@@ -290,3 +290,51 @@ describe('formatBanner', () => {
     expect(banner).not.toContain('/api');
   });
 });
+
+describe('importServerModule — initialize', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = join(tmpdir(), `vertz-test-init-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(tmpDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('extracts initialize when default export has an initialize function', async () => {
+    const serverPath = join(tmpDir, 'server-with-init.ts');
+    writeFileSync(
+      serverPath,
+      `
+      let initialized = false;
+      const app = {
+        handler: async (req: Request) => new Response('ok'),
+        initialize: async () => { initialized = true; },
+      };
+      export default app;
+    `,
+    );
+
+    const mod = await importServerModule(serverPath);
+
+    expect(mod.initialize).toBeDefined();
+    expect(typeof mod.initialize).toBe('function');
+  });
+
+  it('returns undefined initialize when not present', async () => {
+    const serverPath = join(tmpDir, 'server-no-init.ts');
+    writeFileSync(
+      serverPath,
+      `
+      const app = { handler: async (req: Request) => new Response('ok') };
+      export default app;
+    `,
+    );
+
+    const mod = await importServerModule(serverPath);
+
+    expect(mod.initialize).toBeUndefined();
+  });
+});

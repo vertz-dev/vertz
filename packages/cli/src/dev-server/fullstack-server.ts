@@ -8,6 +8,7 @@ import { createProcessManager } from './process-manager';
 interface ServerModule {
   handler: (request: Request) => Promise<Response>;
   sessionResolver?: (request: Request) => Promise<unknown>;
+  initialize?: () => Promise<void>;
 }
 
 export type DevMode =
@@ -115,7 +116,13 @@ export async function importServerModule(serverEntry: string): Promise<ServerMod
       .resolveSessionForSSR;
   }
 
-  return { ...(mod as ServerModule), sessionResolver };
+  // Auto-wire initialize if available (duck-type check)
+  let initialize: (() => Promise<void>) | undefined;
+  if ('initialize' in mod && typeof (mod as Record<string, unknown>).initialize === 'function') {
+    initialize = (mod as { initialize: () => Promise<void> }).initialize;
+  }
+
+  return { ...(mod as ServerModule), sessionResolver, initialize };
 }
 
 /**
@@ -168,6 +175,11 @@ export async function startDevServer(options: StartDevServerOptions): Promise<vo
     const serverMod = await importServerModule(mode.serverEntry);
     apiHandler = serverMod.handler;
     sessionResolver = serverMod.sessionResolver;
+
+    // Auto-call initialize() when available (e.g. auth table setup)
+    if (serverMod.initialize) {
+      await serverMod.initialize();
+    }
   }
 
   const uiEntry = `./${relative(detected.projectRoot, mode.uiEntry)}`;
