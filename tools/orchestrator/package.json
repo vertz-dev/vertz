@@ -1,0 +1,11 @@
+{
+  "name": "vertz-orchestrator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/orchestrator.ts",
+    "dry-run": "bun run src/orchestrator.ts --dry-run",
+    "status": "bun run src/orchestrator.ts --status"
+  }
+}
