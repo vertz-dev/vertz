@@ -208,6 +208,100 @@ describe('d.tenant() removed', () => {
   });
 });
 
+describe('string validation constraints', () => {
+  it('.min(n) stores _minLength in metadata', () => {
+    const col = d.text().min(3);
+    expect(col._meta._minLength).toBe(3);
+  });
+
+  it('.max(n) stores _maxLength in metadata', () => {
+    const col = d.text().max(100);
+    expect(col._meta._maxLength).toBe(100);
+  });
+
+  it('.regex(pattern) stores _regex in metadata', () => {
+    const col = d.text().regex(/^[A-Z]+$/);
+    expect(col._meta._regex).toEqual(/^[A-Z]+$/);
+  });
+
+  it('chaining min, max, regex preserves all constraint metadata', () => {
+    const col = d
+      .text()
+      .min(1)
+      .max(5)
+      .regex(/^[A-Z0-9]+$/i);
+    expect(col._meta._minLength).toBe(1);
+    expect(col._meta._maxLength).toBe(5);
+    expect(col._meta._regex).toEqual(/^[A-Z0-9]+$/i);
+  });
+
+  it('constraints survive chaining with standard builders', () => {
+    const col = d.text().min(1).max(10).unique().nullable();
+    expect(col._meta._minLength).toBe(1);
+    expect(col._meta._maxLength).toBe(10);
+    expect(col._meta.unique).toBe(true);
+    expect(col._meta.nullable).toBe(true);
+  });
+
+  it('d.varchar() supports .min()', () => {
+    const col = d.varchar(255).min(1);
+    expect(col._meta._minLength).toBe(1);
+    expect(col._meta.length).toBe(255);
+  });
+
+  it('d.email() supports .min() and .max()', () => {
+    const col = d.email().min(5).max(255);
+    expect(col._meta._minLength).toBe(5);
+    expect(col._meta._maxLength).toBe(255);
+    expect(col._meta.format).toBe('email');
+  });
+
+  it('constraint builders are immutable (do not mutate original)', () => {
+    const original = d.text();
+    const withMin = original.min(3);
+    expect(original._meta._minLength).toBeUndefined();
+    expect(withMin._meta._minLength).toBe(3);
+  });
+});
+
+describe('numeric validation constraints', () => {
+  it('.min(n) stores _minValue in metadata', () => {
+    const col = d.integer().min(0);
+    expect(col._meta._minValue).toBe(0);
+  });
+
+  it('.max(n) stores _maxValue in metadata', () => {
+    const col = d.integer().max(100);
+    expect(col._meta._maxValue).toBe(100);
+  });
+
+  it('chaining min and max preserves both', () => {
+    const col = d.integer().min(0).max(100);
+    expect(col._meta._minValue).toBe(0);
+    expect(col._meta._maxValue).toBe(100);
+  });
+
+  it('d.real() supports .min() and .max()', () => {
+    const col = d.real().min(0).max(5);
+    expect(col._meta._minValue).toBe(0);
+    expect(col._meta._maxValue).toBe(5);
+  });
+
+  it('d.doublePrecision() supports .min() and .max()', () => {
+    const col = d.doublePrecision().min(-1).max(1);
+    expect(col._meta._minValue).toBe(-1);
+    expect(col._meta._maxValue).toBe(1);
+  });
+
+  it('constraints survive chaining with standard builders', () => {
+    const col = d.integer().min(0).max(100).unique().nullable();
+    expect(col._meta._minValue).toBe(0);
+    expect(col._meta._maxValue).toBe(100);
+    expect(col._meta.unique).toBe(true);
+    expect(col._meta.nullable).toBe(true);
+  });
+});
+
 describe('builder immutability', () => {
   it('chainable builders return new instances (do not mutate original)', () => {
     const original = d.text();

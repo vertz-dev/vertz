@@ -1,5 +1,5 @@
 import type { SchemaAny } from '@vertz/schema';
-import { s } from '@vertz/schema';
+import { NumberSchema, StringSchema, s } from '@vertz/schema';
 import type { ColumnMetadata } from '../schema/column';
 
 /**
@@ -16,6 +16,9 @@ export function columnToSchema(meta: ColumnMetadata): SchemaAny {
   } else {
     schema = mapSqlType(meta);
   }
+
+  // Apply application-level validation constraints
+  schema = applyConstraints(schema, meta);
 
   if (meta.nullable) {
     schema = schema.nullable();
@@ -62,6 +65,36 @@ function mapSqlType(meta: ColumnMetadata): SchemaAny {
     default:
       throw new TypeError(`Unknown column type: ${meta.sqlType}`);
   }
+}
+
+function applyConstraints(schema: SchemaAny, meta: ColumnMetadata): SchemaAny {
+  let result = schema;
+
+  // String constraints
+  if (result instanceof StringSchema) {
+    if (meta._minLength != null) {
+      result = (result as StringSchema).min(meta._minLength);
+    }
+    // _maxLength overrides varchar length for validation
+    if (meta._maxLength != null) {
+      result = (result as StringSchema).max(meta._maxLength);
+    }
+    if (meta._regex != null) {
+      result = (result as StringSchema).regex(meta._regex);
+    }
+  }
+
+  // Numeric constraints
+  if (result instanceof NumberSchema) {
+    if (meta._minValue != null) {
+      result = (result as NumberSchema).min(meta._minValue);
+    }
+    if (meta._maxValue != null) {
+      result = (result as NumberSchema).max(meta._maxValue);
+    }
+  }
+
+  return result;
 }
 
 function mapEnum(meta: ColumnMetadata): SchemaAny {
