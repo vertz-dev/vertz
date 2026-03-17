@@ -92,7 +92,8 @@
               "guides/db/overview",
               "guides/db/schema",
               "guides/db/queries",
-              "guides/db/migrations"
+              "guides/db/migrations",
+              "guides/db/seeding"
             ]
           },
           {
