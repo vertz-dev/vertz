@@ -243,6 +243,16 @@ export const Sheet: ThemeComponentMap['Sheet'] = /* #__PURE__ */ createCompoundP
   'Close',
 ]) as ThemeComponentMap['Sheet'];
 
+export const Drawer: ThemeComponentMap['Drawer'] = /* #__PURE__ */ createCompoundProxy('Drawer', [
+  'Trigger',
+  'Content',
+  'Header',
+  'Title',
+  'Description',
+  'Footer',
+  'Handle',
+]) as ThemeComponentMap['Drawer'];
+
 // ---------------------------------------------------------------------------
 // Simple primitives (just callable, no sub-components)
 // ---------------------------------------------------------------------------
@@ -298,10 +308,6 @@ export const contextMenu: ThemeComponentMap['contextMenu'] = /* #__PURE__ */ cre
 export const datePicker: ThemeComponentMap['datePicker'] = /* #__PURE__ */ createPrimitiveProxy(
   'datePicker',
 ) as ThemeComponentMap['datePicker'];
-
-export const drawer: ThemeComponentMap['drawer'] = /* #__PURE__ */ createPrimitiveProxy(
-  'drawer',
-) as ThemeComponentMap['drawer'];
 
 export const hoverCard: ThemeComponentMap['hoverCard'] = /* #__PURE__ */ createPrimitiveProxy(
   'hoverCard',

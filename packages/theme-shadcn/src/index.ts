@@ -38,6 +38,7 @@ import type { ThemedAlertDialogComponent } from './components/primitives/alert-d
 import type { ThemedCalendarComponent } from './components/primitives/calendar';
 import type { ThemedCheckboxComponent } from './components/primitives/checkbox';
 import type { ThemedDialogComponent } from './components/primitives/dialog';
+import type { ThemedDrawerComponent } from './components/primitives/drawer';
 import type { ThemedDropdownMenuComponent } from './components/primitives/dropdown-menu';
 import type { ThemedPopoverComponent } from './components/primitives/popover';
 import type { ThemedProgressComponent } from './components/primitives/progress';
@@ -86,6 +87,7 @@ declare module '@vertz/ui/components' {
     Accordion: ThemedAccordionComponent;
     Tooltip: ThemedTooltipComponent;
     Sheet: ThemedSheetComponent;
+    Drawer: ThemedDrawerComponent;
 
     // Simple primitives (callable only)
     Calendar: ThemedCalendarComponent;
@@ -102,7 +104,6 @@ declare module '@vertz/ui/components' {
     command: ThemedPrimitives['command'];
     contextMenu: ThemedPrimitives['contextMenu'];
     datePicker: ThemedPrimitives['datePicker'];
-    drawer: ThemedPrimitives['drawer'];
     hoverCard: ThemedPrimitives['hoverCard'];
     menubar: ThemedPrimitives['menubar'];
     navigationMenu: ThemedPrimitives['navigationMenu'];

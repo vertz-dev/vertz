@@ -8,8 +8,10 @@ type DrawerBlocks = {
   panelRight: StyleEntry[];
   panelTop: StyleEntry[];
   panelBottom: StyleEntry[];
+  header: StyleEntry[];
   title: StyleEntry[];
   description: StyleEntry[];
+  footer: StyleEntry[];
   handle: StyleEntry[];
   close: StyleEntry[];
 };
@@ -120,8 +122,22 @@ export function createDrawerStyles(): CSSOutput<DrawerBlocks> {
         '&[data-state="closed"]': [animationDecl('vz-slide-out-to-bottom 300ms ease-out forwards')],
       },
     ],
+    drawerHeader: ['flex', 'flex-col', 'gap:1.5'],
     drawerTitle: ['text:lg', 'font:semibold', 'leading:none', 'tracking:tight'],
     drawerDescription: ['text:sm', 'text:muted-foreground'],
+    drawerFooter: [
+      'flex',
+      'gap:2',
+      {
+        '&': {
+          'flex-direction': 'column-reverse',
+        },
+        '@media (min-width: 640px)': {
+          'flex-direction': 'row',
+          'justify-content': 'flex-end',
+        },
+      },
+    ],
     drawerHandle: [
       {
         '&': {
@@ -151,8 +167,10 @@ export function createDrawerStyles(): CSSOutput<DrawerBlocks> {
     panelRight: s.drawerPanelRight,
     panelTop: s.drawerPanelTop,
     panelBottom: s.drawerPanelBottom,
+    header: s.drawerHeader,
     title: s.drawerTitle,
     description: s.drawerDescription,
+    footer: s.drawerFooter,
     handle: s.drawerHandle,
     close: s.drawerClose,
     css: s.css,

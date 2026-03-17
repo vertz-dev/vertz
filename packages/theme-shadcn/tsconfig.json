@@ -2,6 +2,8 @@
   "compilerOptions": {
     "exactOptionalPropertyTypes": false,
     "isolatedDeclarations": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "@vertz/ui",
     "noUncheckedIndexedAccess": true,
     "outDir": "dist",
     "rootDir": "src"

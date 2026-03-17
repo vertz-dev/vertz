@@ -1,6 +1,15 @@
-import { describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from 'bun:test';
 import { createThemedDrawer } from '../components/primitives/drawer';
 import { createDrawerStyles } from '../styles/drawer';
+
+afterEach(() => {
+  for (const el of document.body.querySelectorAll('[data-sheet-overlay], [role="dialog"]')) {
+    el.remove();
+  }
+  for (const el of document.body.querySelectorAll('[data-state]')) {
+    if (el.parentElement === document.body) el.remove();
+  }
+});
 
 describe('drawer styles', () => {
   const drawer = createDrawerStyles();
@@ -13,9 +22,11 @@ describe('drawer styles', () => {
     expect(typeof drawer.panelBottom).toBe('string');
   });
 
-  it('has title, description, handle, and close blocks', () => {
+  it('has header, title, description, footer, handle, and close blocks', () => {
+    expect(typeof drawer.header).toBe('string');
     expect(typeof drawer.title).toBe('string');
     expect(typeof drawer.description).toBe('string');
+    expect(typeof drawer.footer).toBe('string');
     expect(typeof drawer.handle).toBe('string');
     expect(typeof drawer.close).toBe('string');
   });
@@ -26,8 +37,10 @@ describe('drawer styles', () => {
     expect(drawer.panelRight.length).toBeGreaterThan(0);
     expect(drawer.panelTop.length).toBeGreaterThan(0);
     expect(drawer.panelBottom.length).toBeGreaterThan(0);
+    expect(drawer.header.length).toBeGreaterThan(0);
     expect(drawer.title.length).toBeGreaterThan(0);
     expect(drawer.description.length).toBeGreaterThan(0);
+    expect(drawer.footer.length).toBeGreaterThan(0);
     expect(drawer.handle.length).toBeGreaterThan(0);
     expect(drawer.close.length).toBeGreaterThan(0);
   });
@@ -35,52 +48,239 @@ describe('drawer styles', () => {
 
 describe('themed Drawer', () => {
   const styles = createDrawerStyles();
-  const drawer = createThemedDrawer(styles);
+  const Drawer = createThemedDrawer(styles);
+
+  it('has sub-components', () => {
+    expect(typeof Drawer.Trigger).toBe('function');
+    expect(typeof Drawer.Content).toBe('function');
+    expect(typeof Drawer.Header).toBe('function');
+    expect(typeof Drawer.Title).toBe('function');
+    expect(typeof Drawer.Description).toBe('function');
+    expect(typeof Drawer.Footer).toBe('function');
+    expect(typeof Drawer.Handle).toBe('function');
+  });
+
+  it('returns a wrapper containing trigger', () => {
+    const btn = document.createElement('button');
+    btn.textContent = 'Open';
+
+    const root = Drawer({
+      children: () => {
+        const t = Drawer.Trigger({ children: [btn] });
+        const c = Drawer.Content({ children: ['Content'] });
+        return [t, c];
+      },
+    });
+
+    expect(root).toBeInstanceOf(HTMLDivElement);
+    expect(root.contains(btn)).toBe(true);
+  });
 
   it('defaults to bottom side', () => {
-    const result = drawer();
-    expect(result.content.className).toContain(styles.panelBottom);
+    const btn = document.createElement('button');
+
+    const root = Drawer({
+      children: () => {
+        const t = Drawer.Trigger({ children: [btn] });
+        const c = Drawer.Content({ children: ['Content'] });
+        return [t, c];
+      },
+    });
+    document.body.appendChild(root);
+
+    const panel = root.querySelector('[role="dialog"]') as HTMLElement;
+    expect(panel.className).toContain(styles.panelBottom);
+
+    document.body.removeChild(root);
   });
 
   it('applies left panel class', () => {
-    const result = drawer({ side: 'left' });
-    expect(result.content.className).toContain(styles.panelLeft);
+    const btn = document.createElement('button');
+
+    const root = Drawer({
+      side: 'left',
+      children: () => {
+        const t = Drawer.Trigger({ children: [btn] });
+        const c = Drawer.Content({ children: ['Content'] });
+        return [t, c];
+      },
+    });
+    document.body.appendChild(root);
+
+    const panel = root.querySelector('[role="dialog"]') as HTMLElement;
+    expect(panel.className).toContain(styles.panelLeft);
+
+    document.body.removeChild(root);
   });
 
   it('applies right panel class', () => {
-    const result = drawer({ side: 'right' });
-    expect(result.content.className).toContain(styles.panelRight);
+    const btn = document.createElement('button');
+
+    const root = Drawer({
+      side: 'right',
+      children: () => {
+        const t = Drawer.Trigger({ children: [btn] });
+        const c = Drawer.Content({ children: ['Content'] });
+        return [t, c];
+      },
+    });
+    document.body.appendChild(root);
+
+    const panel = root.querySelector('[role="dialog"]') as HTMLElement;
+    expect(panel.className).toContain(styles.panelRight);
+
+    document.body.removeChild(root);
   });
 
   it('applies top panel class', () => {
-    const result = drawer({ side: 'top' });
-    expect(result.content.className).toContain(styles.panelTop);
+    const btn = document.createElement('button');
+
+    const root = Drawer({
+      side: 'top',
+      children: () => {
+        const t = Drawer.Trigger({ children: [btn] });
+        const c = Drawer.Content({ children: ['Content'] });
+        return [t, c];
+      },
+    });
+    document.body.appendChild(root);
+
+    const panel = root.querySelector('[role="dialog"]') as HTMLElement;
+    expect(panel.className).toContain(styles.panelTop);
+
+    document.body.removeChild(root);
   });
 
-  it('applies bottom panel class', () => {
-    const result = drawer({ side: 'bottom' });
-    expect(result.content.className).toContain(styles.panelBottom);
+  it('renders Title and Description with theme classes inside context', () => {
+    const btn = document.createElement('button');
+
+    const root = Drawer({
+      children: () => {
+        const t = Drawer.Trigger({ children: [btn] });
+        const c = Drawer.Content({
+          children: () => {
+            const title = Drawer.Title({ children: ['Drawer Title'] });
+            const desc = Drawer.Description({ children: ['Drawer Description'] });
+            return [title, desc];
+          },
+        });
+        return [t, c];
+      },
+    });
+    document.body.appendChild(root);
+
+    btn.click();
+    const dialog = root.querySelector('[role="dialog"]') as HTMLElement;
+    const title = dialog.querySelector('h2') as HTMLElement;
+    expect(title.textContent).toBe('Drawer Title');
+    expect(title.className).toContain(styles.title);
+
+    const desc = dialog.querySelector('p') as HTMLElement;
+    expect(desc.textContent).toBe('Drawer Description');
+    expect(desc.className).toContain(styles.description);
+
+    document.body.removeChild(root);
   });
 
-  it('has handle element with handle class', () => {
-    const result = drawer();
-    expect(result.handle).toBeInstanceOf(HTMLDivElement);
-    expect(result.handle.className).toContain(styles.handle);
-    expect(result.content.firstChild).toBe(result.handle);
+  it('renders Handle with theme class', () => {
+    const btn = document.createElement('button');
+
+    const root = Drawer({
+      children: () => {
+        const t = Drawer.Trigger({ children: [btn] });
+        const c = Drawer.Content({
+          children: () => {
+            const handle = Drawer.Handle({});
+            return [handle];
+          },
+        });
+        return [t, c];
+      },
+    });
+    document.body.appendChild(root);
+
+    btn.click();
+    const dialog = root.querySelector('[role="dialog"]') as HTMLElement;
+    const handle = dialog.querySelector('[data-slot="drawer-handle"]') as HTMLElement;
+    expect(handle).toBeTruthy();
+    expect(handle.className).toContain(styles.handle);
+
+    document.body.removeChild(root);
   });
 
-  it('has description with aria-describedby link', () => {
-    const result = drawer();
-    expect(result.description).toBeInstanceOf(HTMLParagraphElement);
-    expect(result.description.className).toContain(styles.description);
-    expect(result.description.id).toBe(`${result.content.id}-description`);
-    expect(result.content.getAttribute('aria-describedby')).toBe(result.description.id);
+  it('renders Header with theme class', () => {
+    const btn = document.createElement('button');
+
+    const root = Drawer({
+      children: () => {
+        const t = Drawer.Trigger({ children: [btn] });
+        const c = Drawer.Content({
+          children: () => {
+            const header = Drawer.Header({
+              children: () => {
+                const title = Drawer.Title({ children: ['Title'] });
+                return [title];
+              },
+            });
+            return [header];
+          },
+        });
+        return [t, c];
+      },
+    });
+    document.body.appendChild(root);
+
+    btn.click();
+    const dialog = root.querySelector('[role="dialog"]') as HTMLElement;
+    const header = dialog.querySelector('[data-slot="drawer-header"]') as HTMLElement;
+    expect(header).toBeTruthy();
+    expect(header.className).toContain(styles.header);
+
+    document.body.removeChild(root);
   });
 
-  it('applies overlay, title, and close classes', () => {
-    const result = drawer();
-    expect(result.overlay.className).toContain(styles.overlay);
-    expect(result.title.className).toContain(styles.title);
-    expect(result.close.className).toContain(styles.close);
+  it('renders Footer with theme class', () => {
+    const btn = document.createElement('button');
+
+    const root = Drawer({
+      children: () => {
+        const t = Drawer.Trigger({ children: [btn] });
+        const c = Drawer.Content({
+          children: () => {
+            const footer = Drawer.Footer({ children: ['Footer content'] });
+            return [footer];
+          },
+        });
+        return [t, c];
+      },
+    });
+    document.body.appendChild(root);
+
+    btn.click();
+    const dialog = root.querySelector('[role="dialog"]') as HTMLElement;
+    const footer = dialog.querySelector('[data-slot="drawer-footer"]') as HTMLElement;
+    expect(footer).toBeTruthy();
+    expect(footer.className).toContain(styles.footer);
+
+    document.body.removeChild(root);
+  });
+
+  it('overlay has theme class', () => {
+    const btn = document.createElement('button');
+
+    const root = Drawer({
+      children: () => {
+        const t = Drawer.Trigger({ children: [btn] });
+        const c = Drawer.Content({ children: ['Content'] });
+        return [t, c];
+      },
+    });
+    document.body.appendChild(root);
+
+    const overlay = root.querySelector('[data-sheet-overlay]') as HTMLElement;
+    expect(overlay).toBeTruthy();
+    expect(overlay.className).toContain(styles.overlay);
+
+    document.body.removeChild(root);
   });
 });
