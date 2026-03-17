@@ -1,8 +1,5 @@
+import { Label, Switch } from '@vertz/ui/components';
 import { demoStyles } from '../styles/catalog';
-import { themeComponents } from '../styles/theme';
-
-const { Label } = themeComponents;
-const { Switch } = themeComponents.primitives;
 
 export function SwitchDemo() {
   return (

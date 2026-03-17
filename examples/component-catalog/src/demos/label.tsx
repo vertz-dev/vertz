@@ -1,7 +1,5 @@
+import { Input, Label } from '@vertz/ui/components';
 import { demoStyles } from '../styles/catalog';
-import { themeComponents } from '../styles/theme';
-
-const { Label, Input } = themeComponents;
 
 export function LabelDemo() {
   return (

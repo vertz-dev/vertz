@@ -1,7 +1,5 @@
+import { Button } from '@vertz/ui/components';
 import { demoStyles } from '../styles/catalog';
-import { themeComponents } from '../styles/theme';
-
-const { Button } = themeComponents;
 
 export function ButtonDemo() {
   return (

@@ -1,7 +1,5 @@
+import { Slider } from '@vertz/ui/components';
 import { demoStyles } from '../styles/catalog';
-import { themeComponents } from '../styles/theme';
-
-const { Slider } = themeComponents.primitives;
 
 export function SliderDemo() {
   let steppedValue = 25;

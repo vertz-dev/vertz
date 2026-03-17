@@ -1,7 +1,5 @@
+import { Avatar as AvatarSuite } from '@vertz/ui/components';
 import { demoStyles } from '../styles/catalog';
-import { themeComponents } from '../styles/theme';
-
-const { Avatar: AvatarSuite } = themeComponents;
 
 export function AvatarDemo() {
   return (

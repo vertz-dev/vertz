@@ -1,7 +1,5 @@
+import { RadioGroup } from '@vertz/ui/components';
 import { demoStyles } from '../styles/catalog';
-import { themeComponents } from '../styles/theme';
-
-const { RadioGroup } = themeComponents.primitives;
 
 export function RadioGroupDemo() {
   return (

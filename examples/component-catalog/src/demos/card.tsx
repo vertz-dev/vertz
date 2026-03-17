@@ -1,7 +1,5 @@
+import { Button, Card as CardSuite } from '@vertz/ui/components';
 import { demoStyles } from '../styles/catalog';
-import { themeComponents } from '../styles/theme';
-
-const { Card: CardSuite, Button } = themeComponents;
 
 export function CardDemo() {
   return (
