@@ -21,6 +21,13 @@ export interface ColumnMetadata {
   readonly enumValues?: readonly string[];
   readonly validator?: JsonbValidator<unknown>;
   readonly generate?: 'cuid' | 'uuid' | 'nanoid';
+
+  // Application-level validation constraints (not stored in migration snapshots)
+  readonly _minLength?: number;
+  readonly _maxLength?: number;
+  readonly _regex?: RegExp;
+  readonly _minValue?: number;
+  readonly _maxValue?: number;
 }
 
 /** Phantom symbol to carry the TypeScript type without a runtime value. */
@@ -65,6 +72,114 @@ export interface ColumnBuilder<TType, TMeta extends ColumnMetadata = ColumnMetad
     }
   >;
   check(sql: string): ColumnBuilder<TType, Omit<TMeta, 'check'> & { readonly check: string }>;
+}
+
+// ---------------------------------------------------------------------------
+// Specialized column builders with validation constraint methods
+// ---------------------------------------------------------------------------
+
+/** String column builder — adds .min(), .max(), .regex() for string-type columns. */
+export interface StringColumnBuilder<TType, TMeta extends ColumnMetadata = ColumnMetadata>
+  extends ColumnBuilder<TType, TMeta> {
+  min(n: number): StringColumnBuilder<TType, TMeta>;
+  max(n: number): StringColumnBuilder<TType, TMeta>;
+  regex(pattern: RegExp): StringColumnBuilder<TType, TMeta>;
+
+  // Redeclare base methods to preserve StringColumnBuilder return type through chaining
+  primary(options?: {
+    generate?: 'cuid' | 'uuid' | 'nanoid';
+    generated?: boolean;
+  }): StringColumnBuilder<
+    TType,
+    Omit<TMeta, 'primary' | 'hasDefault' | 'generate'> & {
+      readonly primary: true;
+      readonly hasDefault: true;
+      readonly generate?: 'cuid' | 'uuid' | 'nanoid';
+    }
+  >;
+  unique(): StringColumnBuilder<TType, Omit<TMeta, 'unique'> & { readonly unique: true }>;
+  nullable(): StringColumnBuilder<
+    TType | null,
+    Omit<TMeta, 'nullable'> & { readonly nullable: true }
+  >;
+  default(
+    value: TType | 'now',
+  ): StringColumnBuilder<
+    TType,
+    Omit<TMeta, 'hasDefault'> & { readonly hasDefault: true; readonly defaultValue: TType | 'now' }
+  >;
+  is<TFlag extends string>(
+    flag: TFlag,
+  ): StringColumnBuilder<
+    TType,
+    Omit<TMeta, '_annotations'> & {
+      readonly _annotations: TMeta['_annotations'] & { readonly [K in TFlag]: true };
+    }
+  >;
+  readOnly(): StringColumnBuilder<TType, Omit<TMeta, 'isReadOnly'> & { readonly isReadOnly: true }>;
+  autoUpdate(): StringColumnBuilder<
+    TType,
+    Omit<TMeta, 'isAutoUpdate' | 'isReadOnly' | 'hasDefault'> & {
+      readonly isAutoUpdate: true;
+      readonly isReadOnly: true;
+      readonly hasDefault: true;
+    }
+  >;
+  check(sql: string): StringColumnBuilder<TType, Omit<TMeta, 'check'> & { readonly check: string }>;
+}
+
+/** Numeric column builder — adds .min(), .max() for numeric-type columns. */
+export interface NumericColumnBuilder<TType, TMeta extends ColumnMetadata = ColumnMetadata>
+  extends ColumnBuilder<TType, TMeta> {
+  min(n: number): NumericColumnBuilder<TType, TMeta>;
+  max(n: number): NumericColumnBuilder<TType, TMeta>;
+
+  // Redeclare base methods to preserve NumericColumnBuilder return type through chaining
+  primary(options?: {
+    generate?: 'cuid' | 'uuid' | 'nanoid';
+    generated?: boolean;
+  }): NumericColumnBuilder<
+    TType,
+    Omit<TMeta, 'primary' | 'hasDefault' | 'generate'> & {
+      readonly primary: true;
+      readonly hasDefault: true;
+      readonly generate?: 'cuid' | 'uuid' | 'nanoid';
+    }
+  >;
+  unique(): NumericColumnBuilder<TType, Omit<TMeta, 'unique'> & { readonly unique: true }>;
+  nullable(): NumericColumnBuilder<
+    TType | null,
+    Omit<TMeta, 'nullable'> & { readonly nullable: true }
+  >;
+  default(
+    value: TType | 'now',
+  ): NumericColumnBuilder<
+    TType,
+    Omit<TMeta, 'hasDefault'> & { readonly hasDefault: true; readonly defaultValue: TType | 'now' }
+  >;
+  is<TFlag extends string>(
+    flag: TFlag,
+  ): NumericColumnBuilder<
+    TType,
+    Omit<TMeta, '_annotations'> & {
+      readonly _annotations: TMeta['_annotations'] & { readonly [K in TFlag]: true };
+    }
+  >;
+  readOnly(): NumericColumnBuilder<
+    TType,
+    Omit<TMeta, 'isReadOnly'> & { readonly isReadOnly: true }
+  >;
+  autoUpdate(): NumericColumnBuilder<
+    TType,
+    Omit<TMeta, 'isAutoUpdate' | 'isReadOnly' | 'hasDefault'> & {
+      readonly isAutoUpdate: true;
+      readonly isReadOnly: true;
+      readonly hasDefault: true;
+    }
+  >;
+  check(
+    sql: string,
+  ): NumericColumnBuilder<TType, Omit<TMeta, 'check'> & { readonly check: string }>;
 }
 
 export type InferColumnType<C> = C extends ColumnBuilder<infer T, ColumnMetadata> ? T : never;
@@ -113,15 +228,38 @@ export type FormatMeta<TSqlType extends string, TFormat extends string> = Defaul
   readonly format: TFormat;
 };
 
+/**
+ * Internal runtime shape for column builders. Includes constraint methods
+ * so TypeScript recognizes them inside the implementation. The public API uses
+ * StringColumnBuilder / NumericColumnBuilder / ColumnBuilder to scope visibility.
+ */
+interface ColumnBuilderImpl {
+  readonly _meta: ColumnMetadata;
+  primary(options?: {
+    generate?: 'cuid' | 'uuid' | 'nanoid';
+    generated?: boolean;
+  }): ColumnBuilderImpl;
+  unique(): ColumnBuilderImpl;
+  nullable(): ColumnBuilderImpl;
+  default(value: unknown): ColumnBuilderImpl;
+  is(flag: string): ColumnBuilderImpl;
+  readOnly(): ColumnBuilderImpl;
+  autoUpdate(): ColumnBuilderImpl;
+  check(sql: string): ColumnBuilderImpl;
+  min(n: number): ColumnBuilderImpl;
+  max(n: number): ColumnBuilderImpl;
+  regex(pattern: RegExp): ColumnBuilderImpl;
+}
+
 function cloneWith(
-  source: ColumnBuilder<unknown, ColumnMetadata>,
+  source: ColumnBuilderImpl,
   metaOverrides: Record<string, unknown>,
-): ColumnBuilder<unknown, ColumnMetadata> {
+): ColumnBuilderImpl {
   return createColumnWithMeta({ ...source._meta, ...metaOverrides });
 }
 
-function createColumnWithMeta(meta: ColumnMetadata): ColumnBuilder<unknown, ColumnMetadata> {
-  const col: ColumnBuilder<unknown, ColumnMetadata> = {
+function createColumnWithMeta(meta: ColumnMetadata): ColumnBuilderImpl {
+  const col: ColumnBuilderImpl = {
     _meta: meta,
     primary(options?: { generate?: 'cuid' | 'uuid' | 'nanoid'; generated?: boolean }) {
       const meta: Record<string, unknown> = { primary: true, hasDefault: true };
@@ -130,47 +268,54 @@ function createColumnWithMeta(meta: ColumnMetadata): ColumnBuilder<unknown, Colu
       } else if (this._meta.sqlType === 'uuid' && options?.generated !== false) {
         meta.generate = 'uuid';
       }
-      return cloneWith(this, meta) as ReturnType<ColumnBuilder<unknown, ColumnMetadata>['primary']>;
+      return cloneWith(this, meta);
     },
     unique() {
-      return cloneWith(this, { unique: true }) as ReturnType<
-        ColumnBuilder<unknown, ColumnMetadata>['unique']
-      >;
+      return cloneWith(this, { unique: true });
     },
     nullable() {
-      return cloneWith(this, { nullable: true }) as ReturnType<
-        ColumnBuilder<unknown, ColumnMetadata>['nullable']
-      >;
+      return cloneWith(this, { nullable: true });
     },
     default(value: unknown) {
-      return cloneWith(this, { hasDefault: true, defaultValue: value }) as ReturnType<
-        ColumnBuilder<unknown, ColumnMetadata>['default']
-      >;
+      return cloneWith(this, { hasDefault: true, defaultValue: value });
     },
     is(flag: string) {
       return createColumnWithMeta({
         ...this._meta,
         _annotations: { ...this._meta._annotations, [flag]: true as const },
-      }) as ReturnType<ColumnBuilder<unknown, ColumnMetadata>['is']>;
+      });
     },
     readOnly() {
-      return cloneWith(this, { isReadOnly: true }) as ReturnType<
-        ColumnBuilder<unknown, ColumnMetadata>['readOnly']
-      >;
+      return cloneWith(this, { isReadOnly: true });
     },
     autoUpdate() {
       return cloneWith(this, {
         isAutoUpdate: true,
         isReadOnly: true,
         hasDefault: true,
-      }) as ReturnType<ColumnBuilder<unknown, ColumnMetadata>['autoUpdate']>;
+      });
     },
     check(sql: string) {
-      return cloneWith(this, { check: sql }) as ReturnType<
-        ColumnBuilder<unknown, ColumnMetadata>['check']
-      >;
+      return cloneWith(this, { check: sql });
     },
-  } as ColumnBuilder<unknown, ColumnMetadata>;
+    min(n: number) {
+      const sqlType = this._meta.sqlType;
+      if (sqlType === 'text' || sqlType === 'varchar') {
+        return cloneWith(this, { _minLength: n });
+      }
+      return cloneWith(this, { _minValue: n });
+    },
+    max(n: number) {
+      const sqlType = this._meta.sqlType;
+      if (sqlType === 'text' || sqlType === 'varchar') {
+        return cloneWith(this, { _maxLength: n });
+      }
+      return cloneWith(this, { _maxValue: n });
+    },
+    regex(pattern: RegExp) {
+      return cloneWith(this, { _regex: pattern });
+    },
+  };
   return col;
 }
 
@@ -195,7 +340,7 @@ export function createColumn<TType, TMeta extends ColumnMetadata>(
   return createColumnWithMeta({
     ...defaultMeta(sqlType),
     ...extra,
-  }) as ColumnBuilder<TType, TMeta>;
+  }) as unknown as ColumnBuilder<TType, TMeta>;
 }
 
 export type SerialMeta = {
@@ -221,5 +366,5 @@ export function createSerialColumn(): ColumnBuilder<number, SerialMeta> {
     isReadOnly: false,
     isAutoUpdate: false,
     check: null,
-  }) as ColumnBuilder<number, SerialMeta>;
+  }) as unknown as ColumnBuilder<number, SerialMeta>;
 }

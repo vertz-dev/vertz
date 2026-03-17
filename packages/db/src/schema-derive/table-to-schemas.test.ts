@@ -412,6 +412,144 @@ describe('tableToSchemas', () => {
     });
   });
 
+  // -------------------------------------------------------------------------
+  // Validation constraints
+  // -------------------------------------------------------------------------
+
+  describe('string validation constraints', () => {
+    const constrained = d.table('constrained', {
+      id: d.uuid().primary(),
+      key: d
+        .text()
+        .min(1)
+        .max(5)
+        .regex(/^[A-Z0-9]+$/i),
+      title: d.text().min(1),
+    });
+
+    it('rejects empty string below min length', () => {
+      const { createBody } = tableToSchemas(constrained);
+      const result = createBody.safeParse({ key: '', title: 'Test' });
+      expect(result.ok).toBe(false);
+    });
+
+    it('rejects string exceeding max length', () => {
+      const { createBody } = tableToSchemas(constrained);
+      const result = createBody.safeParse({ key: 'ABCDEF', title: 'Test' });
+      expect(result.ok).toBe(false);
+    });
+
+    it('rejects string not matching regex', () => {
+      const { createBody } = tableToSchemas(constrained);
+      const result = createBody.safeParse({ key: 'AB!', title: 'Test' });
+      expect(result.ok).toBe(false);
+    });
+
+    it('accepts valid string matching all constraints', () => {
+      const { createBody } = tableToSchemas(constrained);
+      const result = createBody.safeParse({ key: 'ABC', title: 'Test' });
+      expect(result.ok).toBe(true);
+    });
+
+    it('rejects empty title below min length', () => {
+      const { createBody } = tableToSchemas(constrained);
+      const result = createBody.safeParse({ key: 'ABC', title: '' });
+      expect(result.ok).toBe(false);
+    });
+  });
+
+  describe('numeric validation constraints', () => {
+    const metrics = d.table('metrics', {
+      id: d.uuid().primary(),
+      score: d.integer().min(0).max(100),
+      rating: d.real().min(0).max(5),
+    });
+
+    it('rejects value below min', () => {
+      const { createBody } = tableToSchemas(metrics);
+      const result = createBody.safeParse({ score: -1, rating: 3.0 });
+      expect(result.ok).toBe(false);
+    });
+
+    it('rejects value above max', () => {
+      const { createBody } = tableToSchemas(metrics);
+      const result = createBody.safeParse({ score: 101, rating: 3.0 });
+      expect(result.ok).toBe(false);
+    });
+
+    it('accepts values within range', () => {
+      const { createBody } = tableToSchemas(metrics);
+      const result = createBody.safeParse({ score: 50, rating: 3.0 });
+      expect(result.ok).toBe(true);
+    });
+
+    it('rejects rating below min', () => {
+      const { createBody } = tableToSchemas(metrics);
+      const result = createBody.safeParse({ score: 50, rating: -0.1 });
+      expect(result.ok).toBe(false);
+    });
+
+    it('rejects rating above max', () => {
+      const { createBody } = tableToSchemas(metrics);
+      const result = createBody.safeParse({ score: 50, rating: 5.1 });
+      expect(result.ok).toBe(false);
+    });
+
+    it('accepts boundary values (inclusive min/max)', () => {
+      const { createBody } = tableToSchemas(metrics);
+      const result = createBody.safeParse({ score: 0, rating: 5 });
+      expect(result.ok).toBe(true);
+    });
+  });
+
+  describe('varchar with explicit constraints', () => {
+    it('uses _minLength from explicit .min() on varchar', () => {
+      const tbl = d.table('t', {
+        id: d.uuid().primary(),
+        code: d.varchar(255).min(1),
+      });
+      const { createBody } = tableToSchemas(tbl);
+      expect(createBody.safeParse({ code: '' }).ok).toBe(false);
+      expect(createBody.safeParse({ code: 'A' }).ok).toBe(true);
+    });
+
+    it('uses _maxLength when explicitly set, overriding varchar length for validation', () => {
+      const tbl = d.table('t', {
+        id: d.uuid().primary(),
+        code: d.varchar(255).max(5),
+      });
+      const { createBody } = tableToSchemas(tbl);
+      expect(createBody.safeParse({ code: 'ABCDEF' }).ok).toBe(false);
+      expect(createBody.safeParse({ code: 'ABC' }).ok).toBe(true);
+    });
+  });
+
+  describe('email with constraints', () => {
+    const withEmail = d.table('with_email', {
+      id: d.uuid().primary(),
+      email: d.email().min(5).max(100),
+    });
+
+    it('rejects email shorter than min length', () => {
+      const { createBody } = tableToSchemas(withEmail);
+      const result = createBody.safeParse({ email: 'a@b' });
+      expect(result.ok).toBe(false);
+    });
+
+    it('accepts email meeting min length', () => {
+      const { createBody } = tableToSchemas(withEmail);
+      const result = createBody.safeParse({ email: 'a@b.c' });
+      expect(result.ok).toBe(true);
+    });
+
+    it('rejects email exceeding max length', () => {
+      const { createBody } = tableToSchemas(withEmail);
+      const longEmail = `${'a'.repeat(90)}@example.com`;
+      const result = createBody.safeParse({ email: longEmail });
+      expect(result.ok).toBe(false);
+    });
+  });
+
   describe('unknown column type', () => {
     it('throws on unrecognized sqlType', () => {
       const weirdTable = d.table('weird', {

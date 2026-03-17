@@ -196,6 +196,83 @@ describe('type-level negative tests', () => {
   });
 });
 
+describe('validation constraint type scoping', () => {
+  it('d.text() supports .min(), .max(), .regex()', () => {
+    d.text().min(1);
+    d.text().max(100);
+    d.text().regex(/^[a-z]+$/);
+    d.text().min(1).max(10).regex(/abc/);
+  });
+
+  it('d.varchar() supports .min(), .max(), .regex()', () => {
+    d.varchar(255).min(1);
+    d.varchar(255).max(100);
+    d.varchar(255).regex(/^[a-z]+$/);
+  });
+
+  it('d.email() supports .min() and .max()', () => {
+    d.email().min(5).max(255);
+  });
+
+  it('d.integer() supports .min() and .max()', () => {
+    d.integer().min(0);
+    d.integer().max(100);
+    d.integer().min(0).max(100);
+  });
+
+  it('d.real() supports .min() and .max()', () => {
+    d.real().min(0).max(5);
+  });
+
+  it('d.doublePrecision() supports .min() and .max()', () => {
+    d.doublePrecision().min(-1).max(1);
+  });
+
+  it('d.boolean() does NOT support .min() or .regex()', () => {
+    // @ts-expect-error — boolean has no min
+    d.boolean().min(1);
+    // @ts-expect-error — boolean has no regex
+    d.boolean().regex(/abc/);
+  });
+
+  it('d.integer() does NOT support .regex()', () => {
+    // @ts-expect-error — integer has no regex
+    d.integer().regex(/abc/);
+  });
+
+  it('d.timestamp() does NOT support .min()', () => {
+    // @ts-expect-error — timestamp has no min
+    d.timestamp().min(1);
+  });
+
+  it('d.uuid() does NOT support .min()', () => {
+    // @ts-expect-error — uuid has no min
+    d.uuid().min(1);
+  });
+
+  it('constraint methods survive chaining with base methods', () => {
+    // text: min -> unique -> max must compile
+    d.text().min(1).unique().max(5);
+    // text: unique -> min must compile
+    d.text().unique().min(1);
+    // integer: min -> unique -> max must compile
+    d.integer().min(0).unique().max(100);
+    // text: nullable -> regex must compile
+    d.text().nullable().regex(/abc/);
+  });
+
+  it('type inference is preserved with constraint methods', () => {
+    const col = d.text().min(1).max(10);
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, string>>;
+
+    const col2 = d.integer().min(0).max(100);
+    type _t2 = Expect<Equal<InferColumnType<typeof col2>, number>>;
+
+    const col3 = d.text().min(1).nullable();
+    type _t3 = Expect<Equal<InferColumnType<typeof col3>, string | null>>;
+  });
+});
+
 describe('metadata type-level tracking', () => {
   it('.primary() sets primary to true in metadata type', () => {
     const col = d.uuid().primary();

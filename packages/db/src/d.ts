@@ -5,7 +5,9 @@ import type {
   EnumMeta,
   FormatMeta,
   JsonbValidator,
+  NumericColumnBuilder,
   SerialMeta,
+  StringColumnBuilder,
   VarcharMeta,
 } from './schema/column';
 import { createColumn, createSerialColumn } from './schema/column';
@@ -26,19 +28,21 @@ interface EnumSchemaLike<T extends readonly string[]> {
 
 export const d: {
   uuid(): ColumnBuilder<string, DefaultMeta<'uuid'>>;
-  text(): ColumnBuilder<string, DefaultMeta<'text'>>;
-  varchar<TLength extends number>(length: TLength): ColumnBuilder<string, VarcharMeta<TLength>>;
-  email(): ColumnBuilder<string, FormatMeta<'text', 'email'>>;
+  text(): StringColumnBuilder<string, DefaultMeta<'text'>>;
+  varchar<TLength extends number>(
+    length: TLength,
+  ): StringColumnBuilder<string, VarcharMeta<TLength>>;
+  email(): StringColumnBuilder<string, FormatMeta<'text', 'email'>>;
   boolean(): ColumnBuilder<boolean, DefaultMeta<'boolean'>>;
-  integer(): ColumnBuilder<number, DefaultMeta<'integer'>>;
+  integer(): NumericColumnBuilder<number, DefaultMeta<'integer'>>;
   bigint(): ColumnBuilder<bigint, DefaultMeta<'bigint'>>;
   decimal<TPrecision extends number, TScale extends number>(
     precision: TPrecision,
     scale: TScale,
   ): ColumnBuilder<string, DecimalMeta<TPrecision, TScale>>;
-  real(): ColumnBuilder<number, DefaultMeta<'real'>>;
-  doublePrecision(): ColumnBuilder<number, DefaultMeta<'double precision'>>;
-  serial(): ColumnBuilder<number, SerialMeta>;
+  real(): NumericColumnBuilder<number, DefaultMeta<'real'>>;
+  doublePrecision(): NumericColumnBuilder<number, DefaultMeta<'double precision'>>;
+  serial(): NumericColumnBuilder<number, SerialMeta>;
   timestamp(): ColumnBuilder<Date, DefaultMeta<'timestamp with time zone'>>;
   date(): ColumnBuilder<string, DefaultMeta<'date'>>;
   time(): ColumnBuilder<string, DefaultMeta<'time'>>;
@@ -91,20 +95,40 @@ export const d: {
   ): ModelDef<TTable, TRelations>;
 } = {
   uuid: () => createColumn<string, DefaultMeta<'uuid'>>('uuid'),
-  text: () => createColumn<string, DefaultMeta<'text'>>('text'),
+  text: () =>
+    createColumn<string, DefaultMeta<'text'>>('text') as unknown as StringColumnBuilder<
+      string,
+      DefaultMeta<'text'>
+    >,
   varchar: <TLength extends number>(length: TLength) =>
-    createColumn<string, VarcharMeta<TLength>>('varchar', { length }),
-  email: () => createColumn<string, FormatMeta<'text', 'email'>>('text', { format: 'email' }),
+    createColumn<string, VarcharMeta<TLength>>('varchar', {
+      length,
+    }) as unknown as StringColumnBuilder<string, VarcharMeta<TLength>>,
+  email: () =>
+    createColumn<string, FormatMeta<'text', 'email'>>('text', {
+      format: 'email',
+    }) as unknown as StringColumnBuilder<string, FormatMeta<'text', 'email'>>,
   boolean: () => createColumn<boolean, DefaultMeta<'boolean'>>('boolean'),
-  integer: () => createColumn<number, DefaultMeta<'integer'>>('integer'),
+  integer: () =>
+    createColumn<number, DefaultMeta<'integer'>>('integer') as unknown as NumericColumnBuilder<
+      number,
+      DefaultMeta<'integer'>
+    >,
   bigint: () => createColumn<bigint, DefaultMeta<'bigint'>>('bigint'),
   decimal: <TPrecision extends number, TScale extends number>(
     precision: TPrecision,
     scale: TScale,
   ) => createColumn<string, DecimalMeta<TPrecision, TScale>>('decimal', { precision, scale }),
-  real: () => createColumn<number, DefaultMeta<'real'>>('real'),
-  doublePrecision: () => createColumn<number, DefaultMeta<'double precision'>>('double precision'),
-  serial: () => createSerialColumn(),
+  real: () =>
+    createColumn<number, DefaultMeta<'real'>>('real') as unknown as NumericColumnBuilder<
+      number,
+      DefaultMeta<'real'>
+    >,
+  doublePrecision: () =>
+    createColumn<number, DefaultMeta<'double precision'>>(
+      'double precision',
+    ) as unknown as NumericColumnBuilder<number, DefaultMeta<'double precision'>>,
+  serial: () => createSerialColumn() as unknown as NumericColumnBuilder<number, SerialMeta>,
   timestamp: () =>
     createColumn<Date, DefaultMeta<'timestamp with time zone'>>('timestamp with time zone'),
   date: () => createColumn<string, DefaultMeta<'date'>>('date'),

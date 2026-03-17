@@ -124,6 +124,8 @@ export type {
   FormatMeta,
   InferColumnType,
   JsonbValidator,
+  NumericColumnBuilder,
+  StringColumnBuilder,
   VarcharMeta,
 } from './schema/column';
 export { defineAnnotations } from './schema/define-annotations';
