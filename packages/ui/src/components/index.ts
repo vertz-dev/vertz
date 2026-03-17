@@ -303,9 +303,10 @@ export const collapsible: ThemeComponentMap['collapsible'] = /* #__PURE__ */ cre
   'collapsible',
 ) as ThemeComponentMap['collapsible'];
 
-export const command: ThemeComponentMap['command'] = /* #__PURE__ */ createPrimitiveProxy(
-  'command',
-) as ThemeComponentMap['command'];
+export const Command: ThemeComponentMap['Command'] = /* #__PURE__ */ createCompoundProxy(
+  'Command',
+  ['Input', 'List', 'Empty', 'Item', 'Group', 'Separator'],
+) as ThemeComponentMap['Command'];
 
 export const datePicker: ThemeComponentMap['datePicker'] = /* #__PURE__ */ createPrimitiveProxy(
   'datePicker',

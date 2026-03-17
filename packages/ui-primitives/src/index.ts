@@ -46,6 +46,8 @@ export type {
 export { Combobox } from './combobox/combobox';
 export type { CommandElements, CommandOptions, CommandState } from './command/command';
 export { Command } from './command/command';
+export type { CommandClasses, ComposedCommandProps } from './command/command-composed';
+export { ComposedCommand } from './command/command-composed';
 // Composed utilities
 export type { ClassesOf, ComposedPrimitive, StyledPrimitive } from './composed/with-styles';
 export { withStyles } from './composed/with-styles';

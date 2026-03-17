@@ -57,88 +57,200 @@ describe('themed Command', () => {
 
   it('applies root class to root element', async () => {
     const { createThemedCommand } = await import('../components/primitives/command');
-    const themedCommand = createThemedCommand(styles);
-    const result = themedCommand();
+    const { ComposedCommand } = await import('@vertz/ui-primitives');
+    const Command = createThemedCommand(styles);
 
-    expect(result.root.classList.contains(styles.root)).toBe(true);
+    const root = Command({
+      children: () => {
+        const input = ComposedCommand.Input({});
+        const list = ComposedCommand.List({ children: [] });
+        return [input, list];
+      },
+    });
+
+    expect(root.className).toContain(styles.root);
   });
 
   it('applies input class to input element', async () => {
     const { createThemedCommand } = await import('../components/primitives/command');
-    const themedCommand = createThemedCommand(styles);
-    const result = themedCommand();
+    const { ComposedCommand } = await import('@vertz/ui-primitives');
+    const Command = createThemedCommand(styles);
 
-    expect(result.input.classList.contains(styles.input)).toBe(true);
+    const root = Command({
+      children: () => {
+        const input = ComposedCommand.Input({});
+        const list = ComposedCommand.List({ children: [] });
+        return [input, list];
+      },
+    });
+
+    const input = root.querySelector('[role="combobox"]') as HTMLElement;
+    expect(input.className).toContain(styles.input);
   });
 
   it('applies list class to list element', async () => {
     const { createThemedCommand } = await import('../components/primitives/command');
-    const themedCommand = createThemedCommand(styles);
-    const result = themedCommand();
+    const { ComposedCommand } = await import('@vertz/ui-primitives');
+    const Command = createThemedCommand(styles);
 
-    expect(result.list.classList.contains(styles.list)).toBe(true);
+    const root = Command({
+      children: () => {
+        const input = ComposedCommand.Input({});
+        const list = ComposedCommand.List({ children: [] });
+        return [input, list];
+      },
+    });
+
+    const list = root.querySelector('[role="listbox"]') as HTMLElement;
+    expect(list.className).toContain(styles.list);
   });
 
   it('applies empty class to empty element', async () => {
     const { createThemedCommand } = await import('../components/primitives/command');
-    const themedCommand = createThemedCommand(styles);
-    const result = themedCommand();
+    const { ComposedCommand } = await import('@vertz/ui-primitives');
+    const Command = createThemedCommand(styles);
 
-    expect(result.empty.classList.contains(styles.empty)).toBe(true);
+    const root = Command({
+      children: () => {
+        const input = ComposedCommand.Input({});
+        const list = ComposedCommand.List({
+          children: () => {
+            const empty = ComposedCommand.Empty({ children: ['No results'] });
+            return [empty];
+          },
+        });
+        return [input, list];
+      },
+    });
+
+    const empty = root.querySelector('[data-part="command-empty"]') as HTMLElement;
+    expect(empty.className).toContain(styles.empty);
   });
 
   it('applies item class to created items', async () => {
     const { createThemedCommand } = await import('../components/primitives/command');
-    const themedCommand = createThemedCommand(styles);
-    const result = themedCommand();
-    const item = result.Item('apple', 'Apple');
+    const { ComposedCommand } = await import('@vertz/ui-primitives');
+    const Command = createThemedCommand(styles);
 
-    expect(item.classList.contains(styles.item)).toBe(true);
+    const root = Command({
+      children: () => {
+        const input = ComposedCommand.Input({});
+        const list = ComposedCommand.List({
+          children: () => {
+            const item = ComposedCommand.Item({ value: 'apple', children: ['Apple'] });
+            return [item];
+          },
+        });
+        return [input, list];
+      },
+    });
+
+    const item = root.querySelector('[role="option"]') as HTMLElement;
+    expect(item.className).toContain(styles.item);
   });
 
   it('applies group and groupHeading classes', async () => {
     const { createThemedCommand } = await import('../components/primitives/command');
-    const themedCommand = createThemedCommand(styles);
-    const result = themedCommand();
-    const group = result.Group('Fruits');
+    const { ComposedCommand } = await import('@vertz/ui-primitives');
+    const Command = createThemedCommand(styles);
 
-    expect(group.el.classList.contains(styles.group)).toBe(true);
-    const labelId = group.el.getAttribute('aria-labelledby') ?? '';
-    const heading = group.el.querySelector(`#${labelId}`);
-    expect(heading?.classList.contains(styles.groupHeading)).toBe(true);
+    const root = Command({
+      children: () => {
+        const input = ComposedCommand.Input({});
+        const list = ComposedCommand.List({
+          children: () => {
+            const group = ComposedCommand.Group({
+              label: 'Fruits',
+              children: () => [ComposedCommand.Item({ value: 'apple', children: ['Apple'] })],
+            });
+            return [group];
+          },
+        });
+        return [input, list];
+      },
+    });
+
+    const group = root.querySelector('[role="group"]') as HTMLElement;
+    expect(group.className).toContain(styles.group);
+
+    const labelId = group.getAttribute('aria-labelledby') ?? '';
+    const heading = group.querySelector(`#${labelId}`) as HTMLElement;
+    expect(heading.className).toContain(styles.groupHeading);
   });
 
   it('applies separator class', async () => {
     const { createThemedCommand } = await import('../components/primitives/command');
-    const themedCommand = createThemedCommand(styles);
-    const result = themedCommand();
-    const sep = result.Separator();
+    const { ComposedCommand } = await import('@vertz/ui-primitives');
+    const Command = createThemedCommand(styles);
 
-    expect(sep.classList.contains(styles.separator)).toBe(true);
+    const root = Command({
+      children: () => {
+        const input = ComposedCommand.Input({});
+        const list = ComposedCommand.List({
+          children: () => {
+            const sep = ComposedCommand.Separator({});
+            return [sep];
+          },
+        });
+        return [input, list];
+      },
+    });
+
+    const sep = root.querySelector('[role="separator"]') as HTMLElement;
+    expect(sep.className).toContain(styles.separator);
   });
 
   it('passes options through to primitive', async () => {
     const onSelect = vi.fn();
     const { createThemedCommand } = await import('../components/primitives/command');
-    const themedCommand = createThemedCommand(styles);
-    const result = themedCommand({ onSelect, placeholder: 'Search...' });
+    const { ComposedCommand } = await import('@vertz/ui-primitives');
+    const Command = createThemedCommand(styles);
 
-    expect(result.input.placeholder).toBe('Search...');
-    const item = result.Item('apple', 'Apple');
+    const root = Command({
+      onSelect,
+      placeholder: 'Search...',
+      children: () => {
+        const input = ComposedCommand.Input({});
+        const list = ComposedCommand.List({
+          children: () => [ComposedCommand.Item({ value: 'apple', children: ['Apple'] })],
+        });
+        return [input, list];
+      },
+    });
+
+    const input = root.querySelector('[role="combobox"]') as HTMLInputElement;
+    expect(input.placeholder).toBe('Search...');
+
+    const item = root.querySelector('[data-value="apple"]') as HTMLElement;
     item.click();
     expect(onSelect).toHaveBeenCalledWith('apple');
   });
 
   it('preserves primitive behavior — filtering', async () => {
     const { createThemedCommand } = await import('../components/primitives/command');
-    const themedCommand = createThemedCommand(styles);
-    const result = themedCommand();
-    const apple = result.Item('apple', 'Apple');
-    const banana = result.Item('banana', 'Banana');
+    const { ComposedCommand } = await import('@vertz/ui-primitives');
+    const Command = createThemedCommand(styles);
 
-    result.input.value = 'app';
-    result.input.dispatchEvent(new Event('input', { bubbles: true }));
+    const root = Command({
+      children: () => {
+        const input = ComposedCommand.Input({});
+        const list = ComposedCommand.List({
+          children: () => {
+            const apple = ComposedCommand.Item({ value: 'apple', children: ['Apple'] });
+            const banana = ComposedCommand.Item({ value: 'banana', children: ['Banana'] });
+            return [apple, banana];
+          },
+        });
+        return [input, list];
+      },
+    });
 
+    const input = root.querySelector('[role="combobox"]') as HTMLInputElement;
+    input.value = 'app';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+
+    const apple = root.querySelector('[data-value="apple"]') as HTMLElement;
+    const banana = root.querySelector('[data-value="banana"]') as HTMLElement;
     expect(apple.getAttribute('aria-hidden')).toBe('false');
     expect(banana.getAttribute('aria-hidden')).toBe('true');
   });
