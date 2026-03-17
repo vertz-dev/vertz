@@ -243,6 +243,9 @@ export { content, isContentDescriptor } from './content';
 // Server — wraps core's createServer with entity route generation
 export type { CloudServerConfig, ServerConfig, ServerInstance } from './create-server';
 export { createServer } from './create-server';
+// Config helpers — identity functions for extractable, type-safe config
+export { defineAuth } from './define-auth';
+export { defineEntities } from './define-entities';
 // Entity API
 export type {
   AccessRule,
