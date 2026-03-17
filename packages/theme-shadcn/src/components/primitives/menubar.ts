@@ -1,5 +1,6 @@
-import type { MenubarElements, MenubarOptions, MenubarState } from '@vertz/ui-primitives';
-import { Menubar } from '@vertz/ui-primitives';
+import type { ChildValue } from '@vertz/ui';
+import type { ComposedMenubarProps } from '@vertz/ui-primitives';
+import { ComposedMenubar, withStyles } from '@vertz/ui-primitives';
 
 interface MenubarStyleClasses {
   readonly root: string;
@@ -10,78 +11,85 @@ interface MenubarStyleClasses {
   readonly label: string;
 }
 
-export interface ThemedMenubarResult extends MenubarElements {
-  state: MenubarState;
-  Menu: (
-    value: string,
-    label?: string,
-  ) => {
-    trigger: HTMLButtonElement;
-    content: HTMLDivElement;
-    Item: (value: string, label?: string) => HTMLDivElement;
-    Group: (label: string) => {
-      el: HTMLDivElement;
-      Item: (value: string, label?: string) => HTMLDivElement;
-    };
-    Separator: () => HTMLHRElement;
-  };
+// ── Props ──────────────────────────────────────────────────
+
+export interface MenubarRootProps {
+  onSelect?: (value: string) => void;
+  children?: ChildValue;
 }
 
-export function createThemedMenubar(
-  styles: MenubarStyleClasses,
-): (options?: MenubarOptions) => ThemedMenubarResult {
-  return function themedMenubar(options?: MenubarOptions): ThemedMenubarResult {
-    const result = Menubar.Root(options);
-    result.root.classList.add(styles.root);
+export interface MenubarMenuProps {
+  value: string;
+  children?: ChildValue;
+}
 
-    function themedMenu(
-      value: string,
-      label?: string,
-    ): {
-      trigger: HTMLButtonElement;
-      content: HTMLDivElement;
-      Item: (value: string, label?: string) => HTMLDivElement;
-      Group: (label: string) => {
-        el: HTMLDivElement;
-        Item: (value: string, label?: string) => HTMLDivElement;
-      };
-      Separator: () => HTMLHRElement;
-    } {
-      const menu = result.Menu(value, label);
-      menu.trigger.classList.add(styles.trigger);
-      menu.content.classList.add(styles.content);
+export interface MenubarSlotProps {
+  children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
+  class?: string;
+}
 
-      return {
-        trigger: menu.trigger,
-        content: menu.content,
-        Item: (val: string, itemLabel?: string) => {
-          const item = menu.Item(val, itemLabel);
-          item.classList.add(styles.item);
-          return item;
-        },
-        Group: (groupLabel: string) => {
-          const group = menu.Group(groupLabel);
-          return {
-            el: group.el,
-            Item: (val: string, itemLabel?: string) => {
-              const item = group.Item(val, itemLabel);
-              item.classList.add(styles.item);
-              return item;
-            },
-          };
-        },
-        Separator: () => {
-          const sep = menu.Separator();
-          sep.classList.add(styles.separator);
-          return sep;
-        },
-      };
-    }
+export interface MenubarItemProps {
+  value: string;
+  children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
+  class?: string;
+}
 
-    return {
-      root: result.root,
-      state: result.state,
-      Menu: themedMenu,
-    };
-  };
+export interface MenubarGroupProps {
+  label: string;
+  children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
+  class?: string;
+}
+
+export interface MenubarLabelProps {
+  children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
+  class?: string;
+}
+
+// ── Component type ─────────────────────────────────────────
+
+export interface ThemedMenubarComponent {
+  (props: MenubarRootProps): HTMLElement;
+  Menu: (props: MenubarMenuProps) => HTMLElement;
+  Trigger: (props: MenubarSlotProps) => HTMLElement;
+  Content: (props: MenubarSlotProps) => HTMLElement;
+  Item: (props: MenubarItemProps) => HTMLElement;
+  Group: (props: MenubarGroupProps) => HTMLElement;
+  Label: (props: MenubarLabelProps) => HTMLElement;
+  Separator: (props: MenubarSlotProps) => HTMLElement;
+}
+
+// ── Factory ────────────────────────────────────────────────
+
+export function createThemedMenubar(styles: MenubarStyleClasses): ThemedMenubarComponent {
+  const Styled = withStyles(ComposedMenubar, {
+    root: styles.root,
+    trigger: styles.trigger,
+    content: styles.content,
+    item: styles.item,
+    group: '',
+    label: styles.label,
+    separator: styles.separator,
+  });
+
+  function MenubarRoot({ children, onSelect }: MenubarRootProps): HTMLElement {
+    return Styled({ children, onSelect } as ComposedMenubarProps);
+  }
+
+  return Object.assign(MenubarRoot, {
+    Menu: ComposedMenubar.Menu,
+    Trigger: ComposedMenubar.Trigger,
+    Content: ComposedMenubar.Content,
+    Item: ComposedMenubar.Item,
+    Group: ComposedMenubar.Group,
+    Label: ComposedMenubar.Label,
+    Separator: ComposedMenubar.Separator,
+  }) as ThemedMenubarComponent;
 }

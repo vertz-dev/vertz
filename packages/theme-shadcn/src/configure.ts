@@ -42,6 +42,7 @@ import { createThemedDrawer } from './components/primitives/drawer';
 import type { ThemedDropdownMenuComponent } from './components/primitives/dropdown-menu';
 import { createThemedDropdownMenu } from './components/primitives/dropdown-menu';
 import { createThemedHoverCard } from './components/primitives/hover-card';
+import type { ThemedMenubarComponent } from './components/primitives/menubar';
 import { createThemedMenubar } from './components/primitives/menubar';
 import { createThemedNavigationMenu } from './components/primitives/navigation-menu';
 import type { ThemedPopoverComponent } from './components/primitives/popover';
@@ -405,8 +406,8 @@ export interface ThemedPrimitives {
   Drawer: ThemedDrawerComponent;
   /** Themed HoverCard — hover-triggered interactive card. */
   hoverCard: ReturnType<typeof createThemedHoverCard>;
-  /** Themed Menubar — horizontal menu bar with dropdowns. */
-  menubar: ReturnType<typeof createThemedMenubar>;
+  /** Themed Menubar — composable JSX component with Menubar.Menu, Menubar.Trigger, Menubar.Content, etc. */
+  Menubar: ThemedMenubarComponent;
   /** Themed NavigationMenu — site navigation with hover dropdowns. */
   navigationMenu: ReturnType<typeof createThemedNavigationMenu>;
   /** Themed ResizablePanel — resizable panel layout with drag handles. */
@@ -603,7 +604,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
       datePicker: createThemedDatePicker(datePickerStyles),
       Drawer: createThemedDrawer(drawerStyles),
       hoverCard: createThemedHoverCard(hoverCardStyles),
-      menubar: createThemedMenubar(menubarStyles),
+      Menubar: createThemedMenubar(menubarStyles),
       navigationMenu: createThemedNavigationMenu(navigationMenuStyles),
       resizablePanel: createThemedResizablePanel(resizablePanelStyles),
       scrollArea: createThemedScrollArea(scrollAreaStyles),
