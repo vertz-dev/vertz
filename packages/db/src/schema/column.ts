@@ -58,9 +58,10 @@ export interface ColumnBuilder<TType, TMeta extends ColumnMetadata = ColumnMetad
   readOnly(): ColumnBuilder<TType, Omit<TMeta, 'isReadOnly'> & { readonly isReadOnly: true }>;
   autoUpdate(): ColumnBuilder<
     TType,
-    Omit<TMeta, 'isAutoUpdate' | 'isReadOnly'> & {
+    Omit<TMeta, 'isAutoUpdate' | 'isReadOnly' | 'hasDefault'> & {
       readonly isAutoUpdate: true;
       readonly isReadOnly: true;
+      readonly hasDefault: true;
     }
   >;
   check(sql: string): ColumnBuilder<TType, Omit<TMeta, 'check'> & { readonly check: string }>;
@@ -158,9 +159,11 @@ function createColumnWithMeta(meta: ColumnMetadata): ColumnBuilder<unknown, Colu
       >;
     },
     autoUpdate() {
-      return cloneWith(this, { isAutoUpdate: true, isReadOnly: true }) as ReturnType<
-        ColumnBuilder<unknown, ColumnMetadata>['autoUpdate']
-      >;
+      return cloneWith(this, {
+        isAutoUpdate: true,
+        isReadOnly: true,
+        hasDefault: true,
+      }) as ReturnType<ColumnBuilder<unknown, ColumnMetadata>['autoUpdate']>;
     },
     check(sql: string) {
       return cloneWith(this, { check: sql }) as ReturnType<
