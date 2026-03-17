@@ -1,9 +1,9 @@
 import type { FormSchema } from '@vertz/ui';
 import { css, form } from '@vertz/ui';
+import { Button } from '@vertz/ui/components';
 import { api } from '../api/client';
 import type { Comment, CreateCommentBody } from '../lib/types';
 import { formStyles, inputStyles } from '../styles/components';
-import { Button } from './button';
 import { CommentItem } from './comment-item';
 
 const styles = css({

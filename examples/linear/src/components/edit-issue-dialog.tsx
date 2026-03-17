@@ -1,11 +1,11 @@
 import type { DialogHandle } from '@vertz/ui';
 import { css } from '@vertz/ui';
+import { Button } from '@vertz/ui/components';
 import { api } from '../api/client';
 import { editIssueSchema } from '../lib/edit-issue-schema';
 import { PRIORITIES, STATUSES } from '../lib/issue-config';
 import type { Issue } from '../lib/types';
 import { dialogStyles, formStyles, inputStyles, labelStyles } from '../styles/components';
-import { Button } from './button';
 
 const styles = css({
   formError: ['text:sm', 'text:destructive', 'mb:4'],
