@@ -35,8 +35,14 @@ import { css } from './css';
 
 // ─── Types ──────────────────────────────────────────────────────
 
-/** A record of variant names to their possible values (each value maps to style entries). */
-type VariantDefinitions = Record<string, Record<string, StyleEntry[]>>;
+/**
+ * A record of variant names to their possible values (each value maps to style entries).
+ *
+ * Uses `unknown[]` for the style array type to allow both `StyleEntry[]` (constrained)
+ * and `string[]` (legacy theme component types). Only the keys (variant names and
+ * option names) are used for type inference; style values are handled at runtime.
+ */
+type VariantDefinitions = Record<string, Record<string, unknown[]>>;
 
 /** Extract the variant props type from a variant definitions object. */
 export type VariantProps<V extends VariantDefinitions> = {

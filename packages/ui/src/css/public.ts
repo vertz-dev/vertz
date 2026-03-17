@@ -33,5 +33,6 @@ export type {
 export { compileTheme, defineTheme } from './theme';
 export type { ThemeProviderProps } from './theme-provider';
 export { ThemeProvider } from './theme-provider';
+export type { UtilityClass } from './utility-types';
 export type { VariantFunction, VariantProps, VariantsConfig } from './variants';
 export { variants } from './variants';

@@ -6,6 +6,7 @@
  * checked by `tsc --noEmit` (typecheck), not by vitest at runtime.
  */
 
+import type { StyleEntry } from '../css';
 import type { VariantProps, VariantsConfig } from '../variants';
 import { variants } from '../variants';
 
@@ -56,12 +57,12 @@ void _badVariant;
 
 type ButtonVariants = {
   intent: {
-    primary: string[];
-    secondary: string[];
+    primary: StyleEntry[];
+    secondary: StyleEntry[];
   };
   size: {
-    sm: string[];
-    md: string[];
+    sm: StyleEntry[];
+    md: StyleEntry[];
   };
 };
 
@@ -106,8 +107,8 @@ void _withCompound;
 
 // defaultVariants must reference valid variant names and values
 const _validConfig: VariantsConfig<{
-  intent: { primary: string[]; secondary: string[] };
-  size: { sm: string[]; md: string[] };
+  intent: { primary: StyleEntry[]; secondary: StyleEntry[] };
+  size: { sm: StyleEntry[]; md: StyleEntry[] };
 }> = {
   base: ['p:4'],
   variants: {
