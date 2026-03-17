@@ -11,7 +11,7 @@ describe('EntitySdkGenerator', () => {
       modules: [],
       schemas: [],
       entities,
-      auth: { schemes: [] },
+      auth: { schemes: [], operations: [] },
     };
   }
 

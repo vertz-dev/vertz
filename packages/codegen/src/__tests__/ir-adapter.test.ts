@@ -187,6 +187,88 @@ describe('adaptIR', () => {
     });
   });
 
+  describe('Auth operations', () => {
+    it('returns empty operations when no auth is configured', () => {
+      const appIR = makeAppIR({});
+      const result = adaptIR(appIR);
+
+      expect(result.auth.operations).toEqual([]);
+    });
+
+    it('returns empty operations when auth has no features', () => {
+      const appIR = makeAppIR({ auth: { features: [] } });
+      const result = adaptIR(appIR);
+
+      expect(result.auth.operations).toEqual([]);
+    });
+
+    it('includes core operations when any auth feature is configured', () => {
+      const appIR = makeAppIR({ auth: { features: ['emailPassword'] } });
+      const result = adaptIR(appIR);
+
+      const opIds = result.auth.operations.map((o) => o.operationId);
+      expect(opIds).toContain('signOut');
+      expect(opIds).toContain('session');
+      expect(opIds).toContain('refresh');
+    });
+
+    it('includes signIn and signUp for emailPassword feature', () => {
+      const appIR = makeAppIR({ auth: { features: ['emailPassword'] } });
+      const result = adaptIR(appIR);
+
+      const opIds = result.auth.operations.map((o) => o.operationId);
+      expect(opIds).toContain('signIn');
+      expect(opIds).toContain('signUp');
+
+      const signIn = result.auth.operations.find((o) => o.operationId === 'signIn');
+      expect(signIn?.method).toBe('POST');
+      expect(signIn?.path).toBe('/signin');
+      expect(signIn?.hasBody).toBe(true);
+    });
+
+    it('includes switchTenant for tenant feature', () => {
+      const appIR = makeAppIR({ auth: { features: ['tenant'] } });
+      const result = adaptIR(appIR);
+
+      const opIds = result.auth.operations.map((o) => o.operationId);
+      expect(opIds).toContain('switchTenant');
+      expect(opIds).not.toContain('signIn');
+
+      const switchTenant = result.auth.operations.find((o) => o.operationId === 'switchTenant');
+      expect(switchTenant?.method).toBe('POST');
+      expect(switchTenant?.path).toBe('/switch-tenant');
+      expect(switchTenant?.hasBody).toBe(true);
+    });
+
+    it('includes providers for providers feature', () => {
+      const appIR = makeAppIR({ auth: { features: ['providers'] } });
+      const result = adaptIR(appIR);
+
+      const opIds = result.auth.operations.map((o) => o.operationId);
+      expect(opIds).toContain('providers');
+
+      const providers = result.auth.operations.find((o) => o.operationId === 'providers');
+      expect(providers?.method).toBe('GET');
+      expect(providers?.hasBody).toBe(false);
+    });
+
+    it('combines all features', () => {
+      const appIR = makeAppIR({
+        auth: { features: ['emailPassword', 'tenant', 'providers'] },
+      });
+      const result = adaptIR(appIR);
+
+      const opIds = result.auth.operations.map((o) => o.operationId);
+      expect(opIds).toContain('signIn');
+      expect(opIds).toContain('signUp');
+      expect(opIds).toContain('switchTenant');
+      expect(opIds).toContain('providers');
+      expect(opIds).toContain('signOut');
+      expect(opIds).toContain('session');
+      expect(opIds).toContain('refresh');
+    });
+  });
+
   describe('Access data', () => {
     it('passes access data through when present', () => {
       const appIR = makeAppIR({

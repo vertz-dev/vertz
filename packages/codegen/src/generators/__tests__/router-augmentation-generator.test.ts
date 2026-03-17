@@ -14,7 +14,7 @@ const tscBin = require.resolve('typescript/bin/tsc');
 
 function createEmptyIR(): CodegenIR {
   return {
-    auth: { schemes: [] },
+    auth: { schemes: [], operations: [] },
     basePath: '/api',
     entities: [],
     modules: [],

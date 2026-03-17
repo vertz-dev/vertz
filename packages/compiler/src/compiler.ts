@@ -5,6 +5,8 @@ import type { AccessAnalyzerResult } from './analyzers/access-analyzer';
 import { AccessAnalyzer } from './analyzers/access-analyzer';
 import type { AppAnalyzerResult } from './analyzers/app-analyzer';
 import { AppAnalyzer } from './analyzers/app-analyzer';
+import type { AuthAnalyzerResult } from './analyzers/auth-analyzer';
+import { AuthAnalyzer } from './analyzers/auth-analyzer';
 import type { Analyzer } from './analyzers/base-analyzer';
 import type { DatabaseAnalyzerResult } from './analyzers/database-analyzer';
 import { DatabaseAnalyzer } from './analyzers/database-analyzer';
@@ -58,6 +60,7 @@ export interface CompilerDependencies {
     entity: Analyzer<EntityAnalyzerResult>;
     database: Analyzer<DatabaseAnalyzerResult>;
     access: Analyzer<AccessAnalyzerResult>;
+    auth: Analyzer<AuthAnalyzerResult>;
     dependencyGraph: Analyzer<DependencyGraphResult>;
   };
   validators: Validator[];
@@ -89,6 +92,7 @@ export class Compiler {
     const entityResult = await analyzers.entity.analyze();
     const databaseResult = await analyzers.database.analyze();
     const accessResult = await analyzers.access.analyze();
+    const authResult = await analyzers.auth.analyze();
     const depGraphResult = await analyzers.dependencyGraph.analyze();
 
     ir.env = envResult.env;
@@ -99,6 +103,7 @@ export class Compiler {
     ir.entities = entityResult.entities;
     ir.databases = databaseResult.databases;
     ir.access = accessResult.access;
+    ir.auth = authResult.auth;
     ir.dependencyGraph = depGraphResult.graph;
 
     // Collect diagnostics from all analyzers
@@ -111,6 +116,7 @@ export class Compiler {
       ...analyzers.entity.getDiagnostics(),
       ...analyzers.database.getDiagnostics(),
       ...analyzers.access.getDiagnostics(),
+      ...analyzers.auth.getDiagnostics(),
       ...analyzers.dependencyGraph.getDiagnostics(),
     );
 
@@ -170,6 +176,7 @@ export function createCompiler(config?: VertzConfig): Compiler {
       entity: new EntityAnalyzer(project, resolved),
       database: new DatabaseAnalyzer(project, resolved),
       access: new AccessAnalyzer(project, resolved),
+      auth: new AuthAnalyzer(project, resolved),
       dependencyGraph: new DependencyGraphAnalyzer(project, resolved),
     },
     validators: [

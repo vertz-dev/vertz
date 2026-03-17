@@ -79,6 +79,18 @@ export interface OperationSchemaRefs {
 
 export interface CodegenAuth {
   schemes: CodegenAuthScheme[];
+  operations: CodegenAuthOperation[];
+}
+
+export interface CodegenAuthOperation {
+  /** e.g., 'signIn', 'signUp', 'signOut', 'switchTenant' */
+  operationId: string;
+  /** HTTP method */
+  method: 'GET' | 'POST';
+  /** URL path relative to auth basePath, e.g., '/signin' */
+  path: string;
+  /** Whether this operation accepts a request body (form-compatible via SdkMethodWithMeta) */
+  hasBody: boolean;
 }
 
 export type CodegenAuthScheme =

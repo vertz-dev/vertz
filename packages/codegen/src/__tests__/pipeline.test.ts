@@ -26,7 +26,7 @@ function makeIR(overrides: Partial<CodegenIR> = {}): CodegenIR {
         actions: [],
       },
     ],
-    auth: { schemes: [] },
+    auth: { schemes: [], operations: [] },
     ...overrides,
   };
 }

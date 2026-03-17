@@ -1,5 +1,6 @@
-import type { AppIR, InlineSchemaRef } from '@vertz/compiler';
+import type { AppIR, AuthFeature, InlineSchemaRef } from '@vertz/compiler';
 import type {
+  CodegenAuthOperation,
   CodegenEntityOperation,
   CodegenExposeField,
   CodegenExposeRelation,
@@ -284,13 +285,53 @@ export function adaptIR(appIR: AppIR): CodegenIR {
       }
     : undefined;
 
+  const authOperations = buildAuthOperations(appIR.auth?.features ?? []);
+
   return {
     basePath: appIR.app.basePath,
     version: appIR.app.version,
     modules: [],
     schemas: allSchemas,
     entities,
-    auth: { schemes: [] },
+    auth: { schemes: [], operations: authOperations },
     access,
   };
+}
+
+/**
+ * Maps auth feature flags to the concrete HTTP operations they expose.
+ * Core operations (signOut, session, refresh) are always included when
+ * any auth feature is configured.
+ */
+function buildAuthOperations(features: AuthFeature[]): CodegenAuthOperation[] {
+  if (features.length === 0) return [];
+
+  // Core operations — always available when auth is configured
+  const ops: CodegenAuthOperation[] = [
+    { operationId: 'signOut', method: 'POST', path: '/signout', hasBody: false },
+    { operationId: 'session', method: 'GET', path: '/session', hasBody: false },
+    { operationId: 'refresh', method: 'POST', path: '/refresh', hasBody: false },
+  ];
+
+  if (features.includes('emailPassword')) {
+    ops.push(
+      { operationId: 'signIn', method: 'POST', path: '/signin', hasBody: true },
+      { operationId: 'signUp', method: 'POST', path: '/signup', hasBody: true },
+    );
+  }
+
+  if (features.includes('tenant')) {
+    ops.push({
+      operationId: 'switchTenant',
+      method: 'POST',
+      path: '/switch-tenant',
+      hasBody: true,
+    });
+  }
+
+  if (features.includes('providers')) {
+    ops.push({ operationId: 'providers', method: 'GET', path: '/providers', hasBody: false });
+  }
+
+  return ops;
 }
