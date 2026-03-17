@@ -299,9 +299,10 @@ export const Toast: ThemeComponentMap['Toast'] = /* #__PURE__ */ createPrimitive
 // Factory primitives (lowercase names, delegated directly)
 // ---------------------------------------------------------------------------
 
-export const collapsible: ThemeComponentMap['collapsible'] = /* #__PURE__ */ createPrimitiveProxy(
-  'collapsible',
-) as ThemeComponentMap['collapsible'];
+export const Collapsible: ThemeComponentMap['Collapsible'] = /* #__PURE__ */ createCompoundProxy(
+  'Collapsible',
+  ['Trigger', 'Content'],
+) as ThemeComponentMap['Collapsible'];
 
 export const Command: ThemeComponentMap['Command'] = /* #__PURE__ */ createCompoundProxy(
   'Command',

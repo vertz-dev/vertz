@@ -30,6 +30,7 @@ import type { ThemedCarouselComponent } from './components/primitives/carousel';
 import { createThemedCarousel } from './components/primitives/carousel';
 import type { ThemedCheckboxComponent } from './components/primitives/checkbox';
 import { createThemedCheckbox } from './components/primitives/checkbox';
+import type { ThemedCollapsibleComponent } from './components/primitives/collapsible';
 import { createThemedCollapsible } from './components/primitives/collapsible';
 import type { ThemedCommandComponent } from './components/primitives/command';
 import { createThemedCommand } from './components/primitives/command';
@@ -397,7 +398,7 @@ export interface ThemedPrimitives {
   /** Themed Carousel — composable JSX component with Carousel.Slide, Carousel.Previous, Carousel.Next. */
   Carousel: ThemedCarouselComponent;
   /** Themed Collapsible — expandable/collapsible content section. */
-  collapsible: ReturnType<typeof createThemedCollapsible>;
+  Collapsible: ThemedCollapsibleComponent;
   /** Themed Command — composable JSX component with Command.Input, Command.List, Command.Item, Command.Group, etc. */
   Command: ThemedCommandComponent;
   /** Themed ContextMenu — composable JSX component with ContextMenu.Trigger, ContextMenu.Content, etc. */
@@ -600,7 +601,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
       Sheet: createThemedSheet(sheetStyles),
       Calendar: createThemedCalendar(calendarStyles),
       Carousel: createThemedCarousel(carouselStyles),
-      collapsible: createThemedCollapsible(collapsibleStyles),
+      Collapsible: createThemedCollapsible(collapsibleStyles),
       Command: createThemedCommand(commandStyles),
       ContextMenu: createThemedContextMenu(contextMenuStyles),
       datePicker: createThemedDatePicker(datePickerStyles),
