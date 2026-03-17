@@ -16,23 +16,29 @@ Most apps only import from `@vertz/theme-shadcn`.
 
 ## Setup
 
-Call `configureTheme()` once in your app to get styled components:
+Call `configureTheme()` once and register it with `registerTheme()`:
 
 ```tsx
+// src/styles/theme.ts
 import { configureTheme } from '@vertz/theme-shadcn';
+import { registerTheme } from '@vertz/ui';
 
-const { components } = configureTheme({ palette: 'zinc', radius: 'md' });
+const config = configureTheme({ palette: 'zinc', radius: 'md' });
+registerTheme(config);
 
-// Direct components — simple styled elements
-const { Button, Input, Label, Card, Badge, Alert, Avatar, Table } = components;
+export const appTheme = config.theme;
+export const themeGlobals = config.globals;
+```
 
-// Primitive components — themed wrappers around @vertz/ui-primitives
-const { Dialog, Select, Tabs, Accordion, Sheet, Popover, Tooltip } = components.primitives;
+Then import components from `@vertz/ui/components` anywhere in your app:
+
+```tsx
+import { Button, Input, Dialog, Select } from '@vertz/ui/components';
 ```
 
 <Note>
-**Direct components** (`components.Button`, `components.Card`, etc.) are simple styled wrappers.
-**Primitive components** (`components.primitives.Dialog`, etc.) are themed wrappers around `@vertz/ui-primitives` with compound sub-components (e.g., `Dialog.Trigger`, `Dialog.Content`).
+**Direct components** (`Button`, `Card`, etc.) are simple styled wrappers.
+**Primitive components** (`Dialog`, `Select`, etc.) are themed wrappers around `@vertz/ui-primitives` with compound sub-components (e.g., `Dialog.Trigger`, `Dialog.Content`).
 </Note>
 
 ---
@@ -44,7 +50,7 @@ const { Dialog, Select, Tabs, Accordion, Sheet, Popover, Tooltip } = components.
 Triggers an action or event. Supports intents and sizes.
 
 ```tsx
-const { Button } = components;
+import { Button } from '@vertz/ui/components';
 
 <Button intent="primary" size="md">Save</Button>
 <Button intent="outline" size="sm">Cancel</Button>
@@ -59,7 +65,7 @@ Intents: `primary`, `secondary`, `outline`, `ghost`, `destructive`, `link`. Size
 Text input field for forms.
 
 ```tsx
-const { Input } = components;
+import { Input } from '@vertz/ui/components';
 
 <Input placeholder="Enter your email..." />
 <Input type="password" placeholder="Password" />
@@ -71,7 +77,7 @@ const { Input } = components;
 Multi-line text input.
 
 ```tsx
-const { Textarea } = components;
+import { Textarea } from '@vertz/ui/components';
 
 <Textarea placeholder="Write a message..." />
 ```
@@ -81,7 +87,7 @@ const { Textarea } = components;
 Accessible label for form controls.
 
 ```tsx
-const { Label } = components;
+import { Label } from '@vertz/ui/components';
 
 <Label for="email">Email</Label>
 <Input id="email" name="email" placeholder="you@example.com" />
@@ -92,13 +98,13 @@ const { Label } = components;
 Groups form controls with error display.
 
 ```tsx
-const { FormGroup: FormGroupSuite, Label, Input } = components;
+import { FormGroup, Label, Input } from '@vertz/ui/components';
 
-<FormGroupSuite.FormGroup>
+<FormGroup.FormGroup>
   <Label>Email</Label>
   <Input name="email" placeholder="Enter email" />
-  <FormGroupSuite.FormError>Please enter a valid email address</FormGroupSuite.FormError>
-</FormGroupSuite.FormGroup>
+  <FormGroup.FormError>Please enter a valid email address</FormGroup.FormError>
+</FormGroup.FormGroup>
 ```
 
 ### Select
@@ -106,7 +112,7 @@ const { FormGroup: FormGroupSuite, Label, Input } = components;
 Dropdown selection control.
 
 ```tsx
-const { Select } = components.primitives;
+import { Select } from '@vertz/ui/components';
 
 <Select defaultValue="Select a fruit...">
   <Select.Content>
@@ -131,21 +137,21 @@ const { Select } = components.primitives;
 Container with header, content, and footer.
 
 ```tsx
-const { Card: C, Button } = components;
+import { Card, Button } from '@vertz/ui/components';
 
-<C.Card>
-  <C.CardHeader>
-    <C.CardTitle>Card Title</C.CardTitle>
-    <C.CardDescription>Card description goes here.</C.CardDescription>
-  </C.CardHeader>
-  <C.CardContent>
+<Card.Card>
+  <Card.CardHeader>
+    <Card.CardTitle>Card Title</Card.CardTitle>
+    <Card.CardDescription>Card description goes here.</Card.CardDescription>
+  </Card.CardHeader>
+  <Card.CardContent>
     This is the card content area.
-  </C.CardContent>
-  <C.CardFooter>
+  </Card.CardContent>
+  <Card.CardFooter>
     <Button intent="outline" size="sm">Cancel</Button>
     <Button intent="primary" size="sm">Save</Button>
-  </C.CardFooter>
-</C.Card>
+  </Card.CardFooter>
+</Card.Card>
 ```
 
 ### Separator
@@ -153,7 +159,7 @@ const { Card: C, Button } = components;
 Visual divider between content.
 
 ```tsx
-const { Separator } = components;
+import { Separator } from '@vertz/ui/components';
 
 <Separator />
 ```
@@ -163,7 +169,7 @@ const { Separator } = components;
 Expandable/collapsible content sections.
 
 ```tsx
-const { Accordion } = components.primitives;
+import { Accordion } from '@vertz/ui/components';
 
 <Accordion>
   <Accordion.Item value="item-1">
@@ -182,7 +188,7 @@ const { Accordion } = components.primitives;
 Tabbed content organization.
 
 ```tsx
-const { Tabs } = components.primitives;
+import { Tabs } from '@vertz/ui/components';
 
 <Tabs defaultValue="account">
   <Tabs.List>
@@ -205,7 +211,7 @@ Supports `variant="line"` for an underline tab style.
 Small status or count indicator.
 
 ```tsx
-const { Badge } = components;
+import { Badge } from '@vertz/ui/components';
 
 <Badge color="blue">New</Badge>
 <Badge color="green">Active</Badge>
@@ -219,11 +225,11 @@ const { Badge } = components;
 User profile image with fallback.
 
 ```tsx
-const { Avatar: A } = components;
+import { Avatar } from '@vertz/ui/components';
 
-<A.Avatar>
-  <A.AvatarFallback>JD</A.AvatarFallback>
-</A.Avatar>
+<Avatar.Avatar>
+  <Avatar.AvatarFallback>JD</Avatar.AvatarFallback>
+</Avatar.Avatar>
 ```
 
 ### Table
@@ -231,24 +237,24 @@ const { Avatar: A } = components;
 Tabular data display.
 
 ```tsx
-const { Table: T } = components;
+import { Table } from '@vertz/ui/components';
 
-<T.Table>
-  <T.TableHeader>
-    <T.TableRow>
-      <T.TableHead>Name</T.TableHead>
-      <T.TableHead>Status</T.TableHead>
-      <T.TableHead>Role</T.TableHead>
-    </T.TableRow>
-  </T.TableHeader>
-  <T.TableBody>
-    <T.TableRow>
-      <T.TableCell>Alice Johnson</T.TableCell>
-      <T.TableCell>Active</T.TableCell>
-      <T.TableCell>Admin</T.TableCell>
-    </T.TableRow>
-  </T.TableBody>
-</T.Table>
+<Table.Table>
+  <Table.TableHeader>
+    <Table.TableRow>
+      <Table.TableHead>Name</Table.TableHead>
+      <Table.TableHead>Status</Table.TableHead>
+      <Table.TableHead>Role</Table.TableHead>
+    </Table.TableRow>
+  </Table.TableHeader>
+  <Table.TableBody>
+    <Table.TableRow>
+      <Table.TableCell>Alice Johnson</Table.TableCell>
+      <Table.TableCell>Active</Table.TableCell>
+      <Table.TableCell>Admin</Table.TableCell>
+    </Table.TableRow>
+  </Table.TableBody>
+</Table.Table>
 ```
 
 ### Skeleton
@@ -256,10 +262,10 @@ const { Table: T } = components;
 Loading placeholder with pulse animation.
 
 ```tsx
-const { Skeleton: S } = components;
+import { Skeleton } from '@vertz/ui/components';
 
-<S.Skeleton width="200px" height="16px" />
-<S.Skeleton width="150px" height="16px" />
+<Skeleton.Skeleton width="200px" height="16px" />
+<Skeleton.Skeleton width="150px" height="16px" />
 ```
 
 ---
@@ -271,8 +277,8 @@ const { Skeleton: S } = components;
 Modal dialog with backdrop.
 
 ```tsx
-const { Button } = components;
-const { Dialog } = components.primitives;
+import { Button } from '@vertz/ui/components';
+import { Dialog } from '@vertz/ui/components';
 
 <Dialog>
   <Dialog.Trigger>
@@ -297,8 +303,8 @@ const { Dialog } = components.primitives;
 Confirmation dialog requiring action.
 
 ```tsx
-const { Button } = components;
-const { AlertDialog } = components.primitives;
+import { Button } from '@vertz/ui/components';
+import { AlertDialog } from '@vertz/ui/components';
 
 <AlertDialog>
   <AlertDialog.Trigger>
@@ -322,8 +328,8 @@ const { AlertDialog } = components.primitives;
 Side panel that slides in from edge.
 
 ```tsx
-const { Button } = components;
-const { Sheet } = components.primitives;
+import { Button } from '@vertz/ui/components';
+import { Sheet } from '@vertz/ui/components';
 
 <Sheet>
   <Sheet.Trigger>
@@ -344,8 +350,8 @@ Supports `side="left"`, `side="right"` (default), `side="top"`, `side="bottom"`.
 Floating content anchored to trigger.
 
 ```tsx
-const { Button } = components;
-const { Popover } = components.primitives;
+import { Button } from '@vertz/ui/components';
+import { Popover } from '@vertz/ui/components';
 
 <Popover>
   <Popover.Trigger>
@@ -365,8 +371,8 @@ const { Popover } = components.primitives;
 Brief info on hover or focus.
 
 ```tsx
-const { Button } = components;
-const { Tooltip } = components.primitives;
+import { Button } from '@vertz/ui/components';
+import { Tooltip } from '@vertz/ui/components';
 
 <Tooltip>
   <Tooltip.Trigger>
@@ -385,7 +391,7 @@ const { Tooltip } = components.primitives;
 Navigation breadcrumb trail.
 
 ```tsx
-const { Breadcrumb } = components;
+import { Breadcrumb } from '@vertz/ui/components';
 
 <Breadcrumb items={[
   { label: 'Home', href: '/' },
@@ -401,7 +407,7 @@ The last item renders as the current page (no link). Supports a custom `separato
 Page navigation controls.
 
 ```tsx
-const { Pagination } = components;
+import { Pagination } from '@vertz/ui/components';
 
 <Pagination
   currentPage={2}
@@ -417,8 +423,8 @@ Supports `siblingCount` to control how many page numbers show around the current
 Menu triggered by a button click.
 
 ```tsx
-const { Button } = components;
-const { DropdownMenu } = components.primitives;
+import { Button } from '@vertz/ui/components';
+import { DropdownMenu } from '@vertz/ui/components';
 
 <DropdownMenu>
   <DropdownMenu.Trigger>
@@ -444,24 +450,24 @@ const { DropdownMenu } = components.primitives;
 Inline alert messages.
 
 ```tsx
-const { Alert: A } = components;
+import { Alert } from '@vertz/ui/components';
 
-<A.Alert>
-  <A.AlertTitle>Heads up!</A.AlertTitle>
-  <A.AlertDescription>You can add components using the CLI.</A.AlertDescription>
-</A.Alert>
+<Alert.Alert>
+  <Alert.AlertTitle>Heads up!</Alert.AlertTitle>
+  <Alert.AlertDescription>You can add components using the CLI.</Alert.AlertDescription>
+</Alert.Alert>
 
 <A.Alert variant="destructive">
-  <A.AlertTitle>Error</A.AlertTitle>
-  <A.AlertDescription>Your session has expired.</A.AlertDescription>
-</A.Alert>
+  <Alert.AlertTitle>Error</Alert.AlertTitle>
+  <Alert.AlertDescription>Your session has expired.</Alert.AlertDescription>
+</Alert.Alert>
 ```
 
 ---
 
 ## Factory-based primitives
 
-These components use an imperative factory API — they return DOM elements rather than JSX compound components. Available via `components.primitives.*` after calling `configureTheme()`.
+These components use an imperative factory API — they return DOM elements rather than JSX compound components. Import them from `@vertz/ui/components`.
 
 <Note>
 These primitives haven't been converted to JSX compound components yet. They work by returning DOM elements that you embed in your JSX tree. JSX versions are planned.
@@ -472,10 +478,10 @@ These primitives haven't been converted to JSX compound components yet. They wor
 Toggle control for boolean values.
 
 ```tsx
-const { checkbox } = components.primitives;
+import { Checkbox } from '@vertz/ui/components';
 
 <label style="display: flex; align-items: center; gap: 8px">
-  {checkbox({ defaultChecked: true })}
+  {Checkbox({ defaultChecked: true })}
   Accept terms and conditions
 </label>
 ```
@@ -485,9 +491,9 @@ const { checkbox } = components.primitives;
 Toggle between on and off states.
 
 ```tsx
-const { switch: createSwitch } = components.primitives;
+import { Switch } from '@vertz/ui/components';
 
-{createSwitch({ defaultChecked: true })}
+{Switch({ defaultChecked: true })}
 ```
 
 Supports `size: 'sm'` for compact variant.
@@ -497,9 +503,9 @@ Supports `size: 'sm'` for compact variant.
 Select one option from a set.
 
 ```tsx
-const { radioGroup } = components.primitives;
+import { RadioGroup } from '@vertz/ui/components';
 
-const radio = radioGroup({ defaultValue: 'comfortable' });
+const radio = RadioGroup({ defaultValue: 'comfortable' });
 radio.Item('default', 'Default');
 radio.Item('comfortable', 'Comfortable');
 radio.Item('compact', 'Compact');
@@ -513,9 +519,9 @@ radio.Item('compact', 'Compact');
 Range input with track and thumb.
 
 ```tsx
-const { slider } = components.primitives;
+import { Slider } from '@vertz/ui/components';
 
-{slider({ defaultValue: 50, min: 0, max: 100 }).root}
+{Slider({ defaultValue: 50, min: 0, max: 100 }).root}
 ```
 
 ### Toggle
@@ -523,9 +529,9 @@ const { slider } = components.primitives;
 Toggle button with pressed state.
 
 ```tsx
-const { toggle } = components.primitives;
+import { Toggle } from '@vertz/ui/components';
 
-{toggle()}
+{Toggle()}
 ```
 
 ### Progress
@@ -533,9 +539,9 @@ const { toggle } = components.primitives;
 Shows task completion percentage.
 
 ```tsx
-const { progress } = components.primitives;
+import { Progress } from '@vertz/ui/components';
 
-{progress({ defaultValue: 66 }).root}
+{Progress({ defaultValue: 66 }).root}
 ```
 
 ### Toast
@@ -543,10 +549,10 @@ const { progress } = components.primitives;
 Temporary notification popup.
 
 ```tsx
-const { Button } = components;
-const { toast } = components.primitives;
+import { Button } from '@vertz/ui/components';
+import { Toast } from '@vertz/ui/components';
 
-const t = toast({});
+const t = Toast({});
 document.body.appendChild(t.region);
 
 <Button
@@ -560,7 +566,7 @@ document.body.appendChild(t.region);
 
 ## Additional primitives
 
-These components are available in `@vertz/ui-primitives` and themed via `components.primitives`, but are less commonly used:
+These components are available via `@vertz/ui/components`, but are less commonly used:
 
 | Component | Description |
 |-----------|-------------|
@@ -578,7 +584,7 @@ These components are available in `@vertz/ui-primitives` and themed via `compone
 | ScrollArea | Custom scrollbars |
 | ToggleGroup | Group of toggle buttons |
 
-All are accessible via `components.primitives.*` after calling `configureTheme()`.
+All are importable from `@vertz/ui/components` after registering a theme with `registerTheme()`.
 
 ---
 
@@ -599,13 +605,13 @@ See [Styling](/guides/ui/styling) for details on `css()` and `variants()`.
 `configureTheme()` accepts palette and radius options:
 
 ```tsx
-const { components, styles, theme, globals } = configureTheme({
+const config = configureTheme({
   palette: 'zinc',  // zinc, slate, stone, gray, neutral
   radius: 'md',     // none, sm, md, lg, full
 });
 ```
 
-- `components` — Ready-to-use themed component functions
-- `styles` — Pre-built style objects for manual styling
-- `theme` — Resolved CSS variables
-- `globals` — Global CSS string to inject
+- `config.theme` — Resolved CSS variables
+- `config.globals` — Global CSS string to inject
+- `config.styles` — Pre-built style objects for manual styling
+- `config.components` — Used internally by `registerTheme()` — import components from `@vertz/ui/components` instead

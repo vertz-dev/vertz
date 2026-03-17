@@ -129,30 +129,31 @@ When a themed component exists, use it instead of raw HTML elements with manual 
 
 ### Setup
 
-Use `configureTheme()` (not `configureThemeBase`) and export components:
+Use `configureTheme()` + `registerTheme()` to register the theme globally:
 
 ```tsx
 // src/styles/theme.ts
 import { configureTheme } from '@vertz/theme-shadcn';
+import { registerTheme } from '@vertz/ui';
 
-const { theme, globals, styles, components } = configureTheme({
+const config = configureTheme({
   palette: 'zinc',
   radius: 'md',
 });
 
-export const appTheme = theme;
-export const themeGlobals = globals;
-export const themeStyles = styles;
-export const themeComponents = components;
+registerTheme(config);
+
+export const appTheme = config.theme;
+export const themeGlobals = config.globals;
+export const themeStyles = config.styles;
 ```
 
 ### Using Components
 
-```tsx
-import { themeComponents } from '../styles/theme';
+Import components from `@vertz/ui/components` — the centralized entrypoint:
 
-const { Button, Input } = themeComponents;
-const { AlertDialog } = themeComponents.primitives;
+```tsx
+import { Button, Input, AlertDialog } from '@vertz/ui/components';
 
 // RIGHT — use theme components
 <Button intent="primary" size="md">Submit</Button>
@@ -165,9 +166,9 @@ const { AlertDialog } = themeComponents.primitives;
 
 ### Available Components
 
-**Direct** (from `themeComponents`): `Button`, `Input`, `Label`, `Badge`, `Textarea`, `Card` suite, `Table` suite, `Avatar` suite, `FormGroup` suite
+**Direct**: `Button`, `Input`, `Label`, `Badge`, `Textarea`, `Card` suite, `Table` suite, `Avatar` suite, `FormGroup` suite
 
-**Primitives** (from `themeComponents.primitives`): `AlertDialog`, `Dialog`, `Tabs`, `Select`, `DropdownMenu`, `Popover`, `Sheet`, `Tooltip`, `Accordion` — all with sub-components (`.Trigger`, `.Content`, `.Footer`, etc.)
+**Primitives**: `AlertDialog`, `Dialog`, `Tabs`, `Select`, `DropdownMenu`, `Popover`, `Sheet`, `Tooltip`, `Accordion` — all with sub-components (`.Trigger`, `.Content`, `.Footer`, etc.)
 
 ### When to Use `css()` Instead
 
@@ -178,8 +179,7 @@ Use `css()` for layout-specific styles that don't correspond to a theme componen
 ### Composable `<AlertDialog>` for inline confirmations
 
 ```tsx
-const { Button } = themeComponents;
-const { AlertDialog } = themeComponents.primitives;
+import { Button, AlertDialog } from '@vertz/ui/components';
 
 <AlertDialog>
   <AlertDialog.Trigger>
