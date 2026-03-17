@@ -74,6 +74,12 @@ export type {
   DatePickerState,
 } from './date-picker/date-picker';
 export { DatePicker } from './date-picker/date-picker';
+export type {
+  ComposedDatePickerProps,
+  DatePickerClasses,
+  DatePickerClassKey,
+} from './date-picker/date-picker-composed';
+export { ComposedDatePicker } from './date-picker/date-picker-composed';
 export type { DialogElements, DialogOptions, DialogState } from './dialog/dialog';
 export { Dialog } from './dialog/dialog';
 // Composed primitives

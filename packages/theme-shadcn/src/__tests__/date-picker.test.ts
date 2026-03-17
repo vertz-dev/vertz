@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it, vi } from 'bun:test';
 import { createThemedDatePicker } from '../components/primitives/date-picker';
+import { createCalendarStyles } from '../styles/calendar';
 import { createDatePickerStyles } from '../styles/date-picker';
 
 describe('date-picker styles', () => {
@@ -23,20 +24,68 @@ describe('date-picker styles', () => {
 
 describe('themed DatePicker', () => {
   const styles = createDatePickerStyles();
-  const datePicker = createThemedDatePicker(styles);
+  const calendarStyles = createCalendarStyles();
 
-  it('applies trigger class', () => {
-    const result = datePicker();
-    expect(result.trigger.className).toContain(styles.trigger);
+  it('applies trigger class to trigger button', () => {
+    const DatePicker = createThemedDatePicker(styles, calendarStyles);
+    const root = DatePicker({ defaultMonth: new Date(2025, 5, 1) });
+    document.body.appendChild(root);
+
+    const trigger = root.querySelector('button') as HTMLButtonElement;
+    expect(trigger.className).toContain(styles.trigger);
+
+    document.body.removeChild(root);
   });
 
-  it('applies content class', () => {
-    const result = datePicker();
-    expect(result.content.className).toContain(styles.content);
+  it('applies content class to popover content', () => {
+    const DatePicker = createThemedDatePicker(styles, calendarStyles);
+    const root = DatePicker({ defaultMonth: new Date(2025, 5, 1) });
+    document.body.appendChild(root);
+
+    const content = root.querySelector('[role="dialog"]') as HTMLElement;
+    expect(content.className).toContain(styles.content);
+
+    document.body.removeChild(root);
   });
 
-  it('contains calendar grid', () => {
-    const result = datePicker();
-    expect(result.calendar.grid.getAttribute('role')).toBe('grid');
+  it('contains calendar grid inside popover', () => {
+    const DatePicker = createThemedDatePicker(styles, calendarStyles);
+    const root = DatePicker({ defaultMonth: new Date(2025, 5, 1) });
+    document.body.appendChild(root);
+
+    const grid = root.querySelector('[role="grid"]');
+    expect(grid).not.toBeNull();
+
+    document.body.removeChild(root);
+  });
+
+  it('has Trigger and Content sub-components', () => {
+    const DatePicker = createThemedDatePicker(styles, calendarStyles);
+    expect(typeof DatePicker.Trigger).toBe('function');
+    expect(typeof DatePicker.Content).toBe('function');
+  });
+
+  it('calls onOpenChange when trigger is clicked', () => {
+    const onOpenChange = vi.fn();
+    const DatePicker = createThemedDatePicker(styles, calendarStyles);
+    const root = DatePicker({ onOpenChange, defaultMonth: new Date(2025, 5, 1) });
+    document.body.appendChild(root);
+
+    const trigger = root.querySelector('button') as HTMLButtonElement;
+    trigger.click();
+    expect(onOpenChange).toHaveBeenCalledWith(true);
+
+    document.body.removeChild(root);
+  });
+
+  it('shows default placeholder text', () => {
+    const DatePicker = createThemedDatePicker(styles, calendarStyles);
+    const root = DatePicker({ defaultMonth: new Date(2025, 5, 1) });
+    document.body.appendChild(root);
+
+    const trigger = root.querySelector('button') as HTMLButtonElement;
+    expect(trigger.textContent).toBe('Pick a date');
+
+    document.body.removeChild(root);
   });
 });

@@ -41,6 +41,7 @@ import type { ThemedCheckboxComponent } from './components/primitives/checkbox';
 import type { ThemedCollapsibleComponent } from './components/primitives/collapsible';
 import type { ThemedCommandComponent } from './components/primitives/command';
 import type { ThemedContextMenuComponent } from './components/primitives/context-menu';
+import type { ThemedDatePickerComponent } from './components/primitives/date-picker';
 import type { ThemedDialogComponent } from './components/primitives/dialog';
 import type { ThemedDrawerComponent } from './components/primitives/drawer';
 import type { ThemedDropdownMenuComponent } from './components/primitives/dropdown-menu';
@@ -115,7 +116,7 @@ declare module '@vertz/ui/components' {
 
     // Compound primitives — continued
     Collapsible: ThemedCollapsibleComponent;
-    datePicker: ThemedPrimitives['datePicker'];
+    DatePicker: ThemedDatePickerComponent;
     HoverCard: ThemedHoverCardComponent;
     NavigationMenu: ThemedNavigationMenuComponent;
     resizablePanel: ThemedPrimitives['resizablePanel'];

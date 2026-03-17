@@ -33,6 +33,11 @@ export type {
   ThemedContextMenuComponent,
 } from './context-menu';
 export { createThemedContextMenu } from './context-menu';
+export type {
+  DatePickerRootProps,
+  DatePickerSlotProps,
+  ThemedDatePickerComponent,
+} from './date-picker';
 export { createThemedDatePicker } from './date-picker';
 export type { DialogRootProps, DialogSlotProps, ThemedDialogComponent } from './dialog';
 export { createThemedDialog } from './dialog';
