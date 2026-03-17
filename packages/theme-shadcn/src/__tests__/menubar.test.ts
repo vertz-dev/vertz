@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 import { createMenubarStyles } from '../styles/menubar';
 
 describe('menubar styles', () => {
@@ -40,73 +40,206 @@ describe('menubar styles', () => {
   });
 });
 
-describe('themed Menubar', () => {
-  it('applies root class to menubar element', async () => {
-    const { createThemedMenubar } = await import('../components/primitives/menubar');
-    const styles = createMenubarStyles();
-    const themedMenubar = createThemedMenubar(styles);
-    const mb = themedMenubar();
+describe('themed Menubar (JSX component)', () => {
+  let container: HTMLDivElement;
 
-    expect(mb.root.classList.contains(styles.root)).toBe(true);
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
   });
 
-  it('applies trigger and content classes to menu', async () => {
-    const { createThemedMenubar } = await import('../components/primitives/menubar');
-    const styles = createMenubarStyles();
-    const themedMenubar = createThemedMenubar(styles);
-    const mb = themedMenubar();
-    const menu = mb.Menu('file', 'File');
+  afterEach(() => {
+    document.body.removeChild(container);
+  });
 
-    expect(menu.trigger.classList.contains(styles.trigger)).toBe(true);
-    expect(menu.content.classList.contains(styles.content)).toBe(true);
+  it('applies root class to menubar element', async () => {
+    const { createThemedMenubar } = await import('../components/primitives/menubar');
+    const { ComposedMenubar } = await import('@vertz/ui-primitives');
+    const styles = createMenubarStyles();
+    const Menubar = createThemedMenubar(styles);
+
+    const root = Menubar({
+      children: () => {
+        const menu = ComposedMenubar.Menu({
+          value: 'file',
+          children: () => {
+            const t = ComposedMenubar.Trigger({ children: ['File'] });
+            const c = ComposedMenubar.Content({
+              children: () => [ComposedMenubar.Item({ value: 'new', children: ['New'] })],
+            });
+            return [t, c];
+          },
+        });
+        return [menu];
+      },
+    });
+    container.appendChild(root);
+
+    expect(root.className).toContain(styles.root);
+  });
+
+  it('applies trigger and content classes via composed primitives', async () => {
+    const { createThemedMenubar } = await import('../components/primitives/menubar');
+    const { ComposedMenubar } = await import('@vertz/ui-primitives');
+    const styles = createMenubarStyles();
+    const Menubar = createThemedMenubar(styles);
+
+    const root = Menubar({
+      children: () => {
+        const menu = ComposedMenubar.Menu({
+          value: 'file',
+          children: () => {
+            const t = ComposedMenubar.Trigger({ children: ['File'] });
+            const c = ComposedMenubar.Content({
+              children: () => [ComposedMenubar.Item({ value: 'new', children: ['New'] })],
+            });
+            return [t, c];
+          },
+        });
+        return [menu];
+      },
+    });
+    container.appendChild(root);
+
+    const trigger = root.querySelector('[aria-haspopup="menu"]') as HTMLElement;
+    expect(trigger.className).toContain(styles.trigger);
+
+    const content = root.querySelector('[role="menu"]') as HTMLElement;
+    expect(content.className).toContain(styles.content);
   });
 
   it('applies item class to items', async () => {
     const { createThemedMenubar } = await import('../components/primitives/menubar');
+    const { ComposedMenubar } = await import('@vertz/ui-primitives');
     const styles = createMenubarStyles();
-    const themedMenubar = createThemedMenubar(styles);
-    const mb = themedMenubar();
-    const menu = mb.Menu('file', 'File');
-    const item = menu.Item('new', 'New');
+    const Menubar = createThemedMenubar(styles);
 
-    expect(item.classList.contains(styles.item)).toBe(true);
+    const root = Menubar({
+      children: () => {
+        const menu = ComposedMenubar.Menu({
+          value: 'file',
+          children: () => {
+            const t = ComposedMenubar.Trigger({ children: ['File'] });
+            const c = ComposedMenubar.Content({
+              children: () => [ComposedMenubar.Item({ value: 'new', children: ['New'] })],
+            });
+            return [t, c];
+          },
+        });
+        return [menu];
+      },
+    });
+    container.appendChild(root);
+
+    const item = root.querySelector('[data-value="new"]') as HTMLElement;
+    expect(item.className).toContain(styles.item);
   });
 
   it('applies separator class', async () => {
     const { createThemedMenubar } = await import('../components/primitives/menubar');
+    const { ComposedMenubar } = await import('@vertz/ui-primitives');
     const styles = createMenubarStyles();
-    const themedMenubar = createThemedMenubar(styles);
-    const mb = themedMenubar();
-    const menu = mb.Menu('file', 'File');
-    const sep = menu.Separator();
+    const Menubar = createThemedMenubar(styles);
 
-    expect(sep.classList.contains(styles.separator)).toBe(true);
+    const root = Menubar({
+      children: () => {
+        const menu = ComposedMenubar.Menu({
+          value: 'file',
+          children: () => {
+            const t = ComposedMenubar.Trigger({ children: ['File'] });
+            const c = ComposedMenubar.Content({
+              children: () => {
+                const i1 = ComposedMenubar.Item({ value: 'new', children: ['New'] });
+                const sep = ComposedMenubar.Separator({});
+                return [i1, sep];
+              },
+            });
+            return [t, c];
+          },
+        });
+        return [menu];
+      },
+    });
+    container.appendChild(root);
+
+    const separator = root.querySelector('[role="separator"]') as HTMLElement;
+    expect(separator.className).toContain(styles.separator);
   });
 
   it('preserves primitive behavior — click toggles menu', async () => {
     const { createThemedMenubar } = await import('../components/primitives/menubar');
+    const { ComposedMenubar } = await import('@vertz/ui-primitives');
     const styles = createMenubarStyles();
-    const themedMenubar = createThemedMenubar(styles);
-    const mb = themedMenubar();
-    const menu = mb.Menu('file', 'File');
-    menu.Item('new', 'New');
+    const Menubar = createThemedMenubar(styles);
 
-    expect(mb.state.activeMenu.peek()).toBeNull();
-    menu.trigger.click();
-    expect(mb.state.activeMenu.peek()).toBe('file');
+    const root = Menubar({
+      children: () => {
+        const menu = ComposedMenubar.Menu({
+          value: 'file',
+          children: () => {
+            const t = ComposedMenubar.Trigger({ children: ['File'] });
+            const c = ComposedMenubar.Content({
+              children: () => [ComposedMenubar.Item({ value: 'new', children: ['New'] })],
+            });
+            return [t, c];
+          },
+        });
+        return [menu];
+      },
+    });
+    container.appendChild(root);
+
+    const trigger = root.querySelector('[aria-haspopup="menu"]') as HTMLElement;
+    const content = root.querySelector('[role="menu"]') as HTMLElement;
+
+    expect(content.getAttribute('data-state')).toBe('closed');
+    trigger.click();
+    expect(content.getAttribute('data-state')).toBe('open');
   });
 
   it('passes options through to primitive', async () => {
     const { createThemedMenubar } = await import('../components/primitives/menubar');
+    const { ComposedMenubar } = await import('@vertz/ui-primitives');
     const styles = createMenubarStyles();
     const onSelect = vi.fn();
-    const themedMenubar = createThemedMenubar(styles);
-    const mb = themedMenubar({ onSelect });
-    const menu = mb.Menu('file', 'File');
-    const item = menu.Item('new', 'New');
+    const Menubar = createThemedMenubar(styles);
 
-    menu.trigger.click();
+    const root = Menubar({
+      onSelect,
+      children: () => {
+        const menu = ComposedMenubar.Menu({
+          value: 'file',
+          children: () => {
+            const t = ComposedMenubar.Trigger({ children: ['File'] });
+            const c = ComposedMenubar.Content({
+              children: () => [ComposedMenubar.Item({ value: 'new', children: ['New'] })],
+            });
+            return [t, c];
+          },
+        });
+        return [menu];
+      },
+    });
+    container.appendChild(root);
+
+    const trigger = root.querySelector('[aria-haspopup="menu"]') as HTMLElement;
+    trigger.click();
+    const item = root.querySelector('[data-value="new"]') as HTMLElement;
     item.click();
     expect(onSelect).toHaveBeenCalledWith('new');
+  });
+
+  it('exposes sub-components from ComposedMenubar', async () => {
+    const { createThemedMenubar } = await import('../components/primitives/menubar');
+    const styles = createMenubarStyles();
+    const Menubar = createThemedMenubar(styles);
+
+    expect(typeof Menubar.Menu).toBe('function');
+    expect(typeof Menubar.Trigger).toBe('function');
+    expect(typeof Menubar.Content).toBe('function');
+    expect(typeof Menubar.Item).toBe('function');
+    expect(typeof Menubar.Group).toBe('function');
+    expect(typeof Menubar.Label).toBe('function');
+    expect(typeof Menubar.Separator).toBe('function');
   });
 });

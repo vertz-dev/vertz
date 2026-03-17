@@ -88,6 +88,8 @@ export type { MenuElements, MenuOptions, MenuState } from './menu/menu';
 export { Menu } from './menu/menu';
 export type { MenubarElements, MenubarOptions, MenubarState } from './menubar/menubar';
 export { Menubar } from './menubar/menubar';
+export type { ComposedMenubarProps, MenubarClasses } from './menubar/menubar-composed';
+export { ComposedMenubar } from './menubar/menubar-composed';
 export type {
   NavigationMenuElements,
   NavigationMenuOptions,

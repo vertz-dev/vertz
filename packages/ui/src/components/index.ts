@@ -315,9 +315,10 @@ export const hoverCard: ThemeComponentMap['hoverCard'] = /* #__PURE__ */ createP
   'hoverCard',
 ) as ThemeComponentMap['hoverCard'];
 
-export const menubar: ThemeComponentMap['menubar'] = /* #__PURE__ */ createPrimitiveProxy(
-  'menubar',
-) as ThemeComponentMap['menubar'];
+export const Menubar: ThemeComponentMap['Menubar'] = /* #__PURE__ */ createCompoundProxy(
+  'Menubar',
+  ['Menu', 'Trigger', 'Content', 'Item', 'Group', 'Label', 'Separator'],
+) as ThemeComponentMap['Menubar'];
 
 export const navigationMenu: ThemeComponentMap['navigationMenu'] =
   /* #__PURE__ */ createPrimitiveProxy('navigationMenu') as ThemeComponentMap['navigationMenu'];

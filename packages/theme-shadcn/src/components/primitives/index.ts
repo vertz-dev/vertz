@@ -48,7 +48,15 @@ export type {
 } from './dropdown-menu';
 export { createThemedDropdownMenu } from './dropdown-menu';
 export { createThemedHoverCard } from './hover-card';
-export type { ThemedMenubarResult } from './menubar';
+export type {
+  MenubarGroupProps,
+  MenubarItemProps,
+  MenubarLabelProps,
+  MenubarMenuProps,
+  MenubarRootProps,
+  MenubarSlotProps,
+  ThemedMenubarComponent,
+} from './menubar';
 export { createThemedMenubar } from './menubar';
 export type { ThemedNavigationMenuResult } from './navigation-menu';
 export { createThemedNavigationMenu } from './navigation-menu';
