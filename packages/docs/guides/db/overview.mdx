@@ -96,7 +96,7 @@ export function createD1Db(d1: D1Database) {
 |--------|-----------|---------------|--------------|
 | `dialect` | `'postgres'` (default) | `'sqlite'` | `'sqlite'` |
 | Connection | `url: string` | `path: string` | `d1: D1Database` |
-| Migrations | CLI (`vertz db migrate`) | `migrations: { autoApply: true }` | Not available (`autoApply` is disallowed for D1 — use wrangler migrations) |
+| Migrations | CLI (`vertz db migrate`) | `migrations: { autoApply: true }` | Manual (wrangler) |
 | Transactions | `db.transaction()` | `db.transaction()` | Not supported (use `D1Database.batch()`) |
 
 <Note>
