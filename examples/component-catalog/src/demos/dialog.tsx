@@ -1,8 +1,5 @@
+import { Button, Dialog, Input, Label } from '@vertz/ui/components';
 import { demoStyles } from '../styles/catalog';
-import { themeComponents } from '../styles/theme';
-
-const { Button, Input, Label } = themeComponents;
-const { Dialog } = themeComponents.primitives;
 
 export function DialogDemo() {
   return (

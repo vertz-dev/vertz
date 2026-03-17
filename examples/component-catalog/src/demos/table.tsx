@@ -1,7 +1,5 @@
+import { Table as T } from '@vertz/ui/components';
 import { demoStyles } from '../styles/catalog';
-import { themeComponents } from '../styles/theme';
-
-const { Table: T } = themeComponents;
 
 export function TableDemo() {
   return (

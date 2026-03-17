@@ -1,8 +1,5 @@
+import { Button, DropdownMenu } from '@vertz/ui/components';
 import { demoStyles } from '../styles/catalog';
-import { themeComponents } from '../styles/theme';
-
-const { Button } = themeComponents;
-const { DropdownMenu } = themeComponents.primitives;
 
 export function DropdownMenuDemo() {
   return (

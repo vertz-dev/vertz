@@ -1,7 +1,5 @@
+import { Toggle } from '@vertz/ui/components';
 import { demoStyles } from '../styles/catalog';
-import { themeComponents } from '../styles/theme';
-
-const { Toggle } = themeComponents.primitives;
 
 export function ToggleDemo() {
   return (

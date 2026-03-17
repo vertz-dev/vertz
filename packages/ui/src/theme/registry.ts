@@ -1,8 +1,7 @@
 /** Input type for registerTheme(). Compatible with configureTheme() output. */
 export interface RegisterThemeInput {
   components: {
-    primitives?: Record<string, unknown>;
-    [key: string]: unknown;
+    primitives?: object;
   };
 }
 

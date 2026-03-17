@@ -1,7 +1,5 @@
+import { Badge } from '@vertz/ui/components';
 import { demoStyles } from '../styles/catalog';
-import { themeComponents } from '../styles/theme';
-
-const { Badge } = themeComponents;
 
 export function BadgeDemo() {
   return (

@@ -1,7 +1,5 @@
+import { Tabs } from '@vertz/ui/components';
 import { demoStyles } from '../styles/catalog';
-import { themeComponents } from '../styles/theme';
-
-const { Tabs } = themeComponents.primitives;
 
 export function TabsDemo() {
   return (

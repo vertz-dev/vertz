@@ -1,8 +1,5 @@
+import { Button, Input, Label, Popover } from '@vertz/ui/components';
 import { demoStyles } from '../styles/catalog';
-import { themeComponents } from '../styles/theme';
-
-const { Button, Input, Label } = themeComponents;
-const { Popover } = themeComponents.primitives;
 
 export function PopoverDemo() {
   return (

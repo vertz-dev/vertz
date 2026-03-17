@@ -1,7 +1,5 @@
+import { Checkbox } from '@vertz/ui/components';
 import { demoStyles } from '../styles/catalog';
-import { themeComponents } from '../styles/theme';
-
-const { Checkbox } = themeComponents.primitives;
 
 export function CheckboxDemo() {
   return (

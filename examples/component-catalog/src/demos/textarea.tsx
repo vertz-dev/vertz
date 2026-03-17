@@ -1,7 +1,5 @@
+import { Textarea } from '@vertz/ui/components';
 import { demoStyles } from '../styles/catalog';
-import { themeComponents } from '../styles/theme';
-
-const { Textarea } = themeComponents;
 
 export function TextareaDemo() {
   return (

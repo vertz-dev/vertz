@@ -1,8 +1,5 @@
+import { Button, Input, Label, Sheet } from '@vertz/ui/components';
 import { demoStyles } from '../styles/catalog';
-import { themeComponents } from '../styles/theme';
-
-const { Button, Label, Input } = themeComponents;
-const { Sheet } = themeComponents.primitives;
 
 export function SheetDemo() {
   return (

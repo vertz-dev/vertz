@@ -1,7 +1,5 @@
+import { Skeleton as SkeletonSuite } from '@vertz/ui/components';
 import { demoStyles } from '../styles/catalog';
-import { themeComponents } from '../styles/theme';
-
-const { Skeleton: SkeletonSuite } = themeComponents;
 
 export function SkeletonDemo() {
   return (
