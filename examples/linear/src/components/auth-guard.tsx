@@ -7,8 +7,8 @@
 
 import { css, Link, Outlet, query } from '@vertz/ui';
 import { useAuth } from '@vertz/ui/auth';
+import { Button } from '@vertz/ui/components';
 import { api } from '../api/client';
-import { Button } from './button';
 
 const sidebarStyles = css({
   shell: ['flex', 'min-h:screen', 'bg:background'],

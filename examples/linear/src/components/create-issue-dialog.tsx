@@ -1,9 +1,9 @@
 import type { DialogHandle } from '@vertz/ui';
 import { form } from '@vertz/ui';
+import { Button } from '@vertz/ui/components';
 import { api } from '../api/client';
 import { PRIORITIES } from '../lib/issue-config';
 import { dialogStyles, formStyles, inputStyles, labelStyles } from '../styles/components';
-import { Button } from './button';
 
 interface CreateIssueDialogProps {
   projectId: string;

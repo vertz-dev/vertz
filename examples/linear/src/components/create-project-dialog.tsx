@@ -1,10 +1,10 @@
 import { s } from '@vertz/schema';
 import type { DialogHandle } from '@vertz/ui';
 import { form } from '@vertz/ui';
+import { Button } from '@vertz/ui/components';
 import { createProjectsInputSchema } from '#generated/schemas';
 import { api } from '../api/client';
 import { dialogStyles, formStyles, inputStyles, labelStyles } from '../styles/components';
-import { Button } from './button';
 
 const createProjectSchema = createProjectsInputSchema.extend({
   key: s

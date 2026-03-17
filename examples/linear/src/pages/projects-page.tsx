@@ -1,6 +1,6 @@
 import { css, Link, query, useDialogStack } from '@vertz/ui';
+import { Button } from '@vertz/ui/components';
 import { api } from '../api/client';
-import { Button } from '../components/button';
 import { CreateProjectDialog } from '../components/create-project-dialog';
 import { ProjectGridSkeleton } from '../components/loading-skeleton';
 import { ProjectCard } from '../components/project-card';
