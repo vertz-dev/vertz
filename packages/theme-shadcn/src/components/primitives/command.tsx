@@ -1,5 +1,4 @@
 import type { ChildValue } from '@vertz/ui';
-import type { ComposedCommandProps } from '@vertz/ui-primitives';
 import { ComposedCommand, withStyles } from '@vertz/ui-primitives';
 
 interface CommandStyleClasses {
@@ -86,7 +85,7 @@ export function createThemedCommand(styles: CommandStyleClasses): ThemedCommandC
       onSelect,
       onInputChange,
       placeholder,
-    } as ComposedCommandProps);
+    });
   }
 
   return Object.assign(CommandRoot, {
@@ -96,5 +95,5 @@ export function createThemedCommand(styles: CommandStyleClasses): ThemedCommandC
     Item: ComposedCommand.Item,
     Group: ComposedCommand.Group,
     Separator: ComposedCommand.Separator,
-  }) as ThemedCommandComponent;
+  });
 }

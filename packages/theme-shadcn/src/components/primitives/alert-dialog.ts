@@ -1,5 +1,4 @@
 import type { ChildValue } from '@vertz/ui';
-import type { ComposedAlertDialogProps } from '@vertz/ui-primitives';
 import { ComposedAlertDialog, withStyles } from '@vertz/ui-primitives';
 
 interface AlertDialogStyleClasses {
@@ -71,7 +70,7 @@ export function createThemedAlertDialog(
       children,
       onOpenChange,
       onAction,
-    } as ComposedAlertDialogProps);
+    });
   }
 
   return Object.assign(AlertDialogRoot, {
@@ -83,5 +82,5 @@ export function createThemedAlertDialog(
     Footer: StyledAlertDialog.Footer,
     Cancel: StyledAlertDialog.Cancel,
     Action: StyledAlertDialog.Action,
-  }) as ThemedAlertDialogComponent;
+  });
 }

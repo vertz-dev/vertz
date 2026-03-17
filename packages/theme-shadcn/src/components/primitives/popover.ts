@@ -1,5 +1,4 @@
 import type { ChildValue } from '@vertz/ui';
-import type { ComposedPopoverProps } from '@vertz/ui-primitives';
 import { ComposedPopover, withStyles } from '@vertz/ui-primitives';
 
 interface PopoverStyleClasses {
@@ -36,11 +35,11 @@ export function createThemedPopover(styles: PopoverStyleClasses): ThemedPopoverC
   });
 
   function PopoverRoot({ children, onOpenChange }: PopoverRootProps): HTMLElement {
-    return StyledPopover({ children, onOpenChange } as ComposedPopoverProps);
+    return StyledPopover({ children, onOpenChange });
   }
 
   return Object.assign(PopoverRoot, {
     Trigger: ComposedPopover.Trigger,
     Content: ComposedPopover.Content,
-  }) as ThemedPopoverComponent;
+  });
 }

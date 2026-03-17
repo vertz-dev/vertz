@@ -45,6 +45,6 @@ export function createThemedCalendar(styles: CalendarStyleClasses): ThemedCalend
   });
 
   return function CalendarRoot(props: CalendarRootProps): HTMLElement {
-    return StyledCalendar(props as ComposedCalendarProps);
+    return StyledCalendar(props);
   };
 }

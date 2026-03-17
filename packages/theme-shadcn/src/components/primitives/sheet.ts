@@ -75,5 +75,5 @@ export function createThemedSheet(styles: SheetStyleClasses): ThemedSheetCompone
     Title: ComposedSheet.Title,
     Description: ComposedSheet.Description,
     Close: ComposedSheet.Close,
-  }) as ThemedSheetComponent;
+  });
 }

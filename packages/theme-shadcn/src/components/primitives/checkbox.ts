@@ -1,5 +1,5 @@
 import type { ChildValue } from '@vertz/ui';
-import type { CheckedState, ComposedCheckboxProps } from '@vertz/ui-primitives';
+import type { CheckedState } from '@vertz/ui-primitives';
 import { ComposedCheckbox, withStyles } from '@vertz/ui-primitives';
 
 interface CheckboxStyleClasses {
@@ -29,6 +29,6 @@ export function createThemedCheckbox(styles: CheckboxStyleClasses): ThemedCheckb
   });
 
   return function CheckboxRoot(props: CheckboxRootProps): HTMLElement {
-    return StyledCheckbox(props as ComposedCheckboxProps);
+    return StyledCheckbox(props);
   };
 }

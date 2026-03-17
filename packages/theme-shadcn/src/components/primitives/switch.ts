@@ -1,5 +1,4 @@
 import type { ChildValue } from '@vertz/ui';
-import type { ComposedSwitchProps } from '@vertz/ui-primitives';
 import { ComposedSwitch, withStyles } from '@vertz/ui-primitives';
 
 interface SwitchStyleClasses {
@@ -38,6 +37,6 @@ export function createThemedSwitch(styles: SwitchStyleClasses): ThemedSwitchComp
 
   return function SwitchRoot({ size, ...props }: ThemedSwitchProps): HTMLElement {
     const Styled = size === 'sm' ? SmSwitch : DefaultSwitch;
-    return Styled(props as ComposedSwitchProps);
+    return Styled(props);
   };
 }

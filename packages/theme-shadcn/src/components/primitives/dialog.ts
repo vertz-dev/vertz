@@ -1,5 +1,4 @@
 import type { ChildValue } from '@vertz/ui';
-import type { ComposedDialogProps } from '@vertz/ui-primitives';
 import { ComposedDialog, withStyles } from '@vertz/ui-primitives';
 
 interface DialogStyleClasses {
@@ -65,7 +64,7 @@ export function createThemedDialog(styles: DialogStyleClasses): ThemedDialogComp
       children,
       onOpenChange,
       closeIcon,
-    } as ComposedDialogProps);
+    });
   }
 
   return Object.assign(DialogRoot, {
@@ -76,5 +75,5 @@ export function createThemedDialog(styles: DialogStyleClasses): ThemedDialogComp
     Description: StyledDialog.Description,
     Footer: StyledDialog.Footer,
     Close: StyledDialog.Close,
-  }) as ThemedDialogComponent;
+  });
 }

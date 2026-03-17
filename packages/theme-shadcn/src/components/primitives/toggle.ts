@@ -1,5 +1,4 @@
 import type { ChildValue } from '@vertz/ui';
-import type { ComposedToggleProps } from '@vertz/ui-primitives';
 import { ComposedToggle, withStyles } from '@vertz/ui-primitives';
 
 interface ToggleStyleClasses {
@@ -27,6 +26,6 @@ export function createThemedToggle(styles: ToggleStyleClasses): ThemedToggleComp
   });
 
   return function ToggleRoot(props: ToggleRootProps): HTMLElement {
-    return StyledToggle(props as ComposedToggleProps);
+    return StyledToggle(props);
   };
 }

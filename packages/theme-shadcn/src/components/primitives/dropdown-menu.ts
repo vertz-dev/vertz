@@ -1,5 +1,4 @@
 import type { ChildValue } from '@vertz/ui';
-import type { ComposedDropdownMenuProps } from '@vertz/ui-primitives';
 import { ComposedDropdownMenu, withStyles } from '@vertz/ui-primitives';
 
 interface DropdownMenuStyleClasses {
@@ -78,7 +77,7 @@ export function createThemedDropdownMenu(
     onSelect,
     onOpenChange,
   }: DropdownMenuRootProps): HTMLElement {
-    return Styled({ children, onSelect, onOpenChange } as ComposedDropdownMenuProps);
+    return Styled({ children, onSelect, onOpenChange });
   }
 
   return Object.assign(DropdownMenuRoot, {
@@ -88,5 +87,5 @@ export function createThemedDropdownMenu(
     Group: ComposedDropdownMenu.Group,
     Label: ComposedDropdownMenu.Label,
     Separator: ComposedDropdownMenu.Separator,
-  }) as ThemedDropdownMenuComponent;
+  });
 }

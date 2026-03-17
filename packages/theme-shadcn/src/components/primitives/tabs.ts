@@ -1,5 +1,4 @@
 import type { ChildValue } from '@vertz/ui';
-import type { ComposedTabsProps } from '@vertz/ui-primitives';
 import { ComposedTabs, withStyles } from '@vertz/ui-primitives';
 
 interface TabsStyleClasses {
@@ -68,12 +67,12 @@ export function createThemedTabs(styles: TabsStyleClasses): ThemedTabsComponent 
 
   function TabsRoot({ defaultValue, variant, children }: TabsRootProps): HTMLElement {
     const Styled = variant === 'line' ? LineTabs : DefaultTabs;
-    return Styled({ children, defaultValue } as ComposedTabsProps);
+    return Styled({ children, defaultValue });
   }
 
   return Object.assign(TabsRoot, {
     List: ComposedTabs.List,
     Trigger: ComposedTabs.Trigger,
     Content: ComposedTabs.Content,
-  }) as ThemedTabsComponent;
+  });
 }

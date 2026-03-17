@@ -1,5 +1,4 @@
 import type { ChildValue } from '@vertz/ui';
-import type { ComposedAccordionProps } from '@vertz/ui-primitives';
 import { ComposedAccordion, withStyles } from '@vertz/ui-primitives';
 
 interface AccordionStyleClasses {
@@ -50,12 +49,12 @@ export function createThemedAccordion(styles: AccordionStyleClasses): ThemedAcco
   });
 
   function AccordionRoot({ type, defaultValue, children }: AccordionRootProps): HTMLElement {
-    return StyledAccordion({ children, type, defaultValue } as ComposedAccordionProps);
+    return StyledAccordion({ children, type, defaultValue });
   }
 
   return Object.assign(AccordionRoot, {
     Item: ComposedAccordion.Item,
     Trigger: ComposedAccordion.Trigger,
     Content: ComposedAccordion.Content,
-  }) as ThemedAccordionComponent;
+  });
 }

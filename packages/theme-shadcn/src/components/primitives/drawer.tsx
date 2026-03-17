@@ -79,6 +79,7 @@ export function createThemedDrawer(styles: DrawerStyleClasses): ThemedDrawerComp
     const effectiveCls = cls ?? classProp;
     const combined = [styles.header, effectiveCls].filter(Boolean).join(' ');
     const resolved = resolveChildren(children);
+    // SAFETY: JSX returns Element (HTMLElement | SVGElement) but <div> is always HTMLElement
     return (
       <div data-slot="drawer-header" class={combined}>
         {...resolved}
@@ -90,6 +91,7 @@ export function createThemedDrawer(styles: DrawerStyleClasses): ThemedDrawerComp
     const effectiveCls = cls ?? classProp;
     const combined = [styles.footer, effectiveCls].filter(Boolean).join(' ');
     const resolved = resolveChildren(children);
+    // SAFETY: JSX returns Element (HTMLElement | SVGElement) but <div> is always HTMLElement
     return (
       <div data-slot="drawer-footer" class={combined}>
         {...resolved}
@@ -100,6 +102,7 @@ export function createThemedDrawer(styles: DrawerStyleClasses): ThemedDrawerComp
   function DrawerHandle({ className: cls, class: classProp }: DrawerSlotProps) {
     const effectiveCls = cls ?? classProp;
     const combined = [styles.handle, effectiveCls].filter(Boolean).join(' ');
+    // SAFETY: JSX returns Element (HTMLElement | SVGElement) but <div> is always HTMLElement
     return (<div data-slot="drawer-handle" class={combined} />) as HTMLElement;
   }
 
@@ -111,5 +114,5 @@ export function createThemedDrawer(styles: DrawerStyleClasses): ThemedDrawerComp
     Description: ComposedSheet.Description,
     Footer: DrawerFooter,
     Handle: DrawerHandle,
-  }) as ThemedDrawerComponent;
+  });
 }
