@@ -1,0 +1,22 @@
+// Prevent try/catch around error-as-value APIs.
+// APIs like stack.open() and dialogs.open() return Result types — errors
+// are values, not exceptions. Wrapping them in try/catch silently ignores
+// the error path. Use `if (result.ok)` instead.
+or {
+  `try { $body } catch { $_ }` as $try where {
+    $body <: contains `$_obj.open($_args)`,
+    register_diagnostic(span=$try, message="Do not wrap error-as-value APIs in try/catch. APIs like stack.open() return Result types — use `if (result.ok)` instead of try/catch.", severity="warn")
+  },
+  `try { $body } catch ($e) { $_ }` as $try where {
+    $body <: contains `$_obj.open($_args)`,
+    register_diagnostic(span=$try, message="Do not wrap error-as-value APIs in try/catch. APIs like stack.open() return Result types — use `if (result.ok)` instead of try/catch.", severity="warn")
+  },
+  `try { $body } catch { $_ } finally { $_ }` as $try where {
+    $body <: contains `$_obj.open($_args)`,
+    register_diagnostic(span=$try, message="Do not wrap error-as-value APIs in try/catch. APIs like stack.open() return Result types — use `if (result.ok)` instead of try/catch.", severity="warn")
+  },
+  `try { $body } catch ($e) { $_ } finally { $_ }` as $try where {
+    $body <: contains `$_obj.open($_args)`,
+    register_diagnostic(span=$try, message="Do not wrap error-as-value APIs in try/catch. APIs like stack.open() return Result types — use `if (result.ok)` instead of try/catch.", severity="warn")
+  }
+}
