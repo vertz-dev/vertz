@@ -19,12 +19,8 @@ export function ProjectsPage() {
   const stack = useDialogStack();
 
   const handleNewProject = async () => {
-    try {
-      const created = await stack.open(CreateProjectDialog, {});
-      if (created) projects.refetch();
-    } catch {
-      // Dialog dismissed — no action needed
-    }
+    const result = await stack.open(CreateProjectDialog, {});
+    if (result.ok && result.data) projects.refetch();
   };
 
   return (
