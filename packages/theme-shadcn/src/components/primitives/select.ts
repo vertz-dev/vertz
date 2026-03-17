@@ -1,5 +1,4 @@
 import type { ChildValue } from '@vertz/ui';
-import type { ComposedSelectProps } from '@vertz/ui-primitives';
 import { ComposedSelect, withStyles } from '@vertz/ui-primitives';
 
 interface SelectStyleClasses {
@@ -79,7 +78,7 @@ export function createThemedSelect(styles: SelectStyleClasses): ThemedSelectComp
       defaultValue,
       placeholder,
       onValueChange,
-    } as ComposedSelectProps);
+    });
   }
 
   return Object.assign(SelectRoot, {
@@ -88,5 +87,5 @@ export function createThemedSelect(styles: SelectStyleClasses): ThemedSelectComp
     Item: ComposedSelect.Item,
     Group: ComposedSelect.Group,
     Separator: ComposedSelect.Separator,
-  }) as ThemedSelectComponent;
+  });
 }

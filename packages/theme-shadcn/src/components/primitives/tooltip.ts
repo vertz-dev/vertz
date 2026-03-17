@@ -1,5 +1,4 @@
 import type { ChildValue } from '@vertz/ui';
-import type { ComposedTooltipProps } from '@vertz/ui-primitives';
 import { ComposedTooltip, withStyles } from '@vertz/ui-primitives';
 
 interface TooltipStyleClasses {
@@ -36,11 +35,11 @@ export function createThemedTooltip(styles: TooltipStyleClasses): ThemedTooltipC
   });
 
   function TooltipRoot({ children, delay }: TooltipRootProps): HTMLElement {
-    return StyledTooltip({ children, delay } as ComposedTooltipProps);
+    return StyledTooltip({ children, delay });
   }
 
   return Object.assign(TooltipRoot, {
     Trigger: ComposedTooltip.Trigger,
     Content: ComposedTooltip.Content,
-  }) as ThemedTooltipComponent;
+  });
 }

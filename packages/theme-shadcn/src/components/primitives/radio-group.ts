@@ -1,5 +1,4 @@
 import type { ChildValue } from '@vertz/ui';
-import type { ComposedRadioGroupProps } from '@vertz/ui-primitives';
 import { ComposedRadioGroup, withStyles } from '@vertz/ui-primitives';
 
 interface RadioGroupStyleClasses {
@@ -39,10 +38,10 @@ export function createThemedRadioGroup(styles: RadioGroupStyleClasses): ThemedRa
   });
 
   function RadioGroupRoot(props: RadioGroupRootProps): HTMLElement {
-    return StyledRadioGroup(props as ComposedRadioGroupProps);
+    return StyledRadioGroup(props);
   }
 
   return Object.assign(RadioGroupRoot, {
     Item: ComposedRadioGroup.Item,
-  }) as ThemedRadioGroupComponent;
+  });
 }

@@ -1,5 +1,4 @@
 import type { ChildValue } from '@vertz/ui';
-import type { ComposedNavigationMenuProps } from '@vertz/ui-primitives';
 import { ComposedNavigationMenu, withStyles } from '@vertz/ui-primitives';
 
 interface NavigationMenuStyleClasses {
@@ -83,7 +82,7 @@ export function createThemedNavigationMenu(
       orientation,
       delayOpen,
       delayClose,
-    } as ComposedNavigationMenuProps);
+    });
   }
 
   return Object.assign(NavigationMenuRoot, {
@@ -93,5 +92,5 @@ export function createThemedNavigationMenu(
     Content: ComposedNavigationMenu.Content,
     Link: ComposedNavigationMenu.Link,
     Viewport: ComposedNavigationMenu.Viewport,
-  }) as ThemedNavigationMenuComponent;
+  });
 }

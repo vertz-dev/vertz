@@ -1,5 +1,4 @@
 import type { ChildValue } from '@vertz/ui';
-import type { ComposedMenubarProps } from '@vertz/ui-primitives';
 import { ComposedMenubar, withStyles } from '@vertz/ui-primitives';
 
 interface MenubarStyleClasses {
@@ -80,7 +79,7 @@ export function createThemedMenubar(styles: MenubarStyleClasses): ThemedMenubarC
   });
 
   function MenubarRoot({ children, onSelect }: MenubarRootProps): HTMLElement {
-    return Styled({ children, onSelect } as ComposedMenubarProps);
+    return Styled({ children, onSelect });
   }
 
   return Object.assign(MenubarRoot, {
@@ -91,5 +90,5 @@ export function createThemedMenubar(styles: MenubarStyleClasses): ThemedMenubarC
     Group: ComposedMenubar.Group,
     Label: ComposedMenubar.Label,
     Separator: ComposedMenubar.Separator,
-  }) as ThemedMenubarComponent;
+  });
 }

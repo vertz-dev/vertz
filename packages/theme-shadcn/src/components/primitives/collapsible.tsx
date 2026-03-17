@@ -54,5 +54,5 @@ export function createThemedCollapsible(
   return Object.assign(CollapsibleRoot, {
     Trigger: ComposedCollapsible.Trigger,
     Content: ComposedCollapsible.Content,
-  }) as ThemedCollapsibleComponent;
+  });
 }

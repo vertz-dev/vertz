@@ -1,5 +1,4 @@
 import type { ChildValue } from '@vertz/ui';
-import type { ComposedProgressProps } from '@vertz/ui-primitives';
 import { ComposedProgress } from '@vertz/ui-primitives';
 
 interface ProgressStyleClasses {
@@ -27,6 +26,6 @@ export function createThemedProgress(styles: ProgressStyleClasses): ThemedProgre
     return ComposedProgress({
       ...props,
       classes: { root: styles.root, indicator: styles.indicator },
-    } as ComposedProgressProps);
+    });
   };
 }

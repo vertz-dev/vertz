@@ -1,5 +1,4 @@
 import type { ChildValue } from '@vertz/ui';
-import type { ComposedSliderProps } from '@vertz/ui-primitives';
 import { ComposedSlider } from '@vertz/ui-primitives';
 
 interface SliderStyleClasses {
@@ -37,6 +36,6 @@ export function createThemedSlider(styles: SliderStyleClasses): ThemedSliderComp
         range: styles.range,
         thumb: styles.thumb,
       },
-    } as ComposedSliderProps);
+    });
   };
 }

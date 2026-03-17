@@ -1,5 +1,4 @@
 import type { ChildValue } from '@vertz/ui';
-import type { ComposedCarouselProps } from '@vertz/ui-primitives';
 import { ComposedCarousel, withStyles } from '@vertz/ui-primitives';
 
 interface CarouselStyleClasses {
@@ -60,12 +59,12 @@ export function createThemedCarousel(styles: CarouselStyleClasses): ThemedCarous
       loop,
       defaultIndex,
       onSlideChange,
-    } as ComposedCarouselProps);
+    });
   }
 
   return Object.assign(CarouselRoot, {
     Slide: ComposedCarousel.Slide,
     Previous: ComposedCarousel.Previous,
     Next: ComposedCarousel.Next,
-  }) as ThemedCarouselComponent;
+  });
 }

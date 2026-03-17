@@ -1,5 +1,4 @@
 import type { ChildValue } from '@vertz/ui';
-import type { ComposedContextMenuProps } from '@vertz/ui-primitives';
 import { ComposedContextMenu, withStyles } from '@vertz/ui-primitives';
 
 interface ContextMenuStyleClasses {
@@ -73,7 +72,7 @@ export function createThemedContextMenu(
   });
 
   function ContextMenuRoot({ children, onSelect }: ContextMenuRootProps): HTMLElement {
-    return Styled({ children, onSelect } as ComposedContextMenuProps);
+    return Styled({ children, onSelect });
   }
 
   return Object.assign(ContextMenuRoot, {
@@ -83,5 +82,5 @@ export function createThemedContextMenu(
     Group: ComposedContextMenu.Group,
     Label: ComposedContextMenu.Label,
     Separator: ComposedContextMenu.Separator,
-  }) as ThemedContextMenuComponent;
+  });
 }
