@@ -81,6 +81,7 @@ export class FetchClient {
           headers,
           body: serializedBody,
           signal,
+          credentials: this.config.credentials,
         });
 
         if (options?.body !== undefined) {
@@ -101,6 +102,7 @@ export class FetchClient {
               headers: authedRequest.headers,
               body: serializedBody,
               signal: authedRequest.signal,
+              credentials: this.config.credentials,
             })
           : await this.fetchFn(authedRequest);
 
@@ -226,6 +228,7 @@ export class FetchClient {
       headers,
       body: serializedBody,
       signal,
+      credentials: this.config.credentials,
     });
 
     const authedRequest = await this.applyAuth(request);
@@ -238,6 +241,7 @@ export class FetchClient {
           headers: authedRequest.headers,
           body: serializedBody,
           signal: authedRequest.signal,
+          credentials: this.config.credentials,
         })
       : await this.fetchFn(authedRequest);
 

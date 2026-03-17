@@ -842,6 +842,58 @@ describe('FetchClient parse and validation errors', () => {
   });
 });
 
+describe('FetchClient credentials', () => {
+  it('passes credentials to fetch for relative URL requests', async () => {
+    const mockFetch = mock().mockResolvedValue(
+      new Response(JSON.stringify({ id: 1 }), { status: 200 }),
+    );
+
+    const client = new FetchClient({
+      baseURL: '/api',
+      credentials: 'include',
+      fetch: mockFetch,
+    });
+
+    await client.get('/users');
+
+    const [, initArg] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(initArg.credentials).toBe('include');
+  });
+
+  it('passes credentials to fetch for absolute URL requests', async () => {
+    const mockFetch = mock().mockResolvedValue(
+      new Response(JSON.stringify({ id: 1 }), { status: 200 }),
+    );
+
+    const client = new FetchClient({
+      baseURL: 'http://localhost:3000',
+      credentials: 'include',
+      fetch: mockFetch,
+    });
+
+    await client.get('/users');
+
+    const [request] = mockFetch.mock.calls[0] as [Request];
+    expect(request.credentials).toBe('include');
+  });
+
+  it('does not set credentials when not configured', async () => {
+    const mockFetch = mock().mockResolvedValue(
+      new Response(JSON.stringify({ id: 1 }), { status: 200 }),
+    );
+
+    const client = new FetchClient({
+      baseURL: '/api',
+      fetch: mockFetch,
+    });
+
+    await client.get('/users');
+
+    const [, initArg] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(initArg.credentials).toBeUndefined();
+  });
+});
+
 describe('FetchClient relative URL handling', () => {
   it('passes relative URL string to fetch instead of Request object', async () => {
     const mockFetch = mock().mockResolvedValue(

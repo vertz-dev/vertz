@@ -101,7 +101,7 @@ export class ClientGenerator implements Generator {
 
       if (entities.length > 0) {
         lines.push(
-          `  const client = new FetchClient({ baseURL: ${baseURLDefault}, headers: options.headers, timeoutMs: options.timeoutMs });`,
+          `  const client = new FetchClient({ baseURL: ${baseURLDefault}, headers: options.headers, timeoutMs: options.timeoutMs, credentials: 'include' });`,
         );
         if (hasMutations) {
           lines.push(
