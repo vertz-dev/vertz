@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun run src/dev-server.ts",
+    "dev": "bun run codegen && bun run src/dev-server.ts",
+    "build": "bun run codegen",
     "codegen": "bun node_modules/@vertz/cli/dist/vertz.js codegen",
     "test": "bun test",
     "typecheck": "bun run codegen && tsc --noEmit",

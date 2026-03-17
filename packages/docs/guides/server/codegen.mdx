@@ -1,14 +1,125 @@
 ---
 title: Code Generation
-description: "Type-safe entitlements and RLS policy generation from your defineAccess() configuration"
+description: "Generate type-safe client SDKs, entitlement types, and RLS policies from your server configuration"
 ---
 
-Vertz's code generator reads your `defineAccess()` configuration at build time and produces:
+Vertz's code generator analyzes your server configuration at build time and produces:
 
-1. **`access.d.ts`** — TypeScript declarations that make `ctx.can('typo')` a compile error
-2. **`rls-policies.sql`** (opt-in) — PostgreSQL Row-Level Security policies from `rules.where()` conditions
+1. **Client SDK** — typed RPC client with per-entity CRUD methods and auth operations
+2. **Entity types** — TypeScript types derived from your entity schemas
+3. **`access.d.ts`** — TypeScript declarations that make `ctx.can('typo')` a compile error
+4. **`rls-policies.sql`** (opt-in) — PostgreSQL Row-Level Security policies from `rules.where()` conditions
 
-The type declarations are generated automatically. RLS policies require explicit opt-in via config.
+## Client SDK generation
+
+The primary codegen output is a typed client SDK that gives you end-to-end type safety from entity schemas to query results.
+
+### Configuration
+
+Add a `vertz.config.ts` at your project root:
+
+```ts
+// vertz.config.ts
+
+/** @type {import('@vertz/compiler').VertzConfig} */
+export default {
+  compiler: {
+    entryFile: 'src/api/server.ts',
+  },
+};
+
+/** @type {import('@vertz/codegen').CodegenConfig} */
+export const codegen = {
+  generators: ['typescript'],
+};
+```
+
+### Running codegen
+
+There are three ways to run the code generator:
+
+**1. Via `vertz dev` (recommended)** — codegen runs automatically on startup and re-runs when schema files change:
+
+```bash
+bunx vertz dev
+```
+
+**2. Via `vertz codegen`** — run codegen manually:
+
+```bash
+bunx vertz codegen
+```
+
+**3. As a build step** — chain codegen before your build or dev scripts:
+
+```json
+{
+  "scripts": {
+    "dev": "bun run codegen && bun run src/dev-server.ts",
+    "build": "bun run codegen",
+    "codegen": "bunx vertz codegen"
+  }
+}
+```
+
+<Note>
+  If your app uses a custom dev server (calling `createBunDevServer` directly instead of `vertz dev`), you must run codegen explicitly before starting the server. The `vertz dev` unified command handles this automatically.
+</Note>
+
+### Generated output
+
+Codegen writes files to `.vertz/generated/`:
+
+```
+.vertz/generated/
+  client.ts          # Main SDK entry — import via #generated
+  types/
+    index.ts         # Entity types (create/update inputs, row types)
+  openapi.json       # OpenAPI spec
+  access.d.ts        # Entitlement type declarations
+```
+
+### Using the generated client
+
+Import the generated client via the `#generated` import alias (configured in `package.json`):
+
+```ts
+import { client } from '#generated';
+
+// Typed entity operations
+const tasks = await client.tasks.list();
+const task = await client.tasks.get({ id: '123' });
+await client.tasks.create({ title: 'New task' });
+
+// Auth operations
+const session = await client.auth.session();
+```
+
+The `#generated` alias maps to `.vertz/generated/client.ts`. Scaffolded apps include this in `package.json`:
+
+```json
+{
+  "imports": {
+    "#generated": "./.vertz/generated/client.ts",
+    "#generated/types": "./.vertz/generated/types/index.ts"
+  }
+}
+```
+
+### Including generated types in tsconfig
+
+Make sure `.vertz/generated` is included in your TypeScript config:
+
+```json
+{
+  "compilerOptions": {
+    "strict": true
+  },
+  "include": ["src", ".vertz/generated"]
+}
+```
+
+Scaffolded apps include this by default.
 
 ## Type-safe entitlements
 
