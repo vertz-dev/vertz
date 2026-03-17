@@ -28,7 +28,7 @@ export type {
   DenialMeta,
   DenialReason,
 } from './access-set-types';
-export type { AuthContextValue, AuthProviderProps } from './auth-context';
+export type { AuthContextValue, AuthProviderProps, AuthSdk, AuthSdkMethod } from './auth-context';
 export { AuthContext, AuthProvider, useAuth } from './auth-context';
 // --- Authentication (new) ---
 export type {

@@ -25,6 +25,7 @@ import {
   zoomOut,
 } from '@vertz/ui';
 import { AuthProvider } from '@vertz/ui/auth';
+import { api } from './api/client';
 import { appRouter } from './router';
 import { linearTheme, themeGlobals } from './styles/theme';
 
@@ -95,7 +96,7 @@ export function App() {
   const dialogStack = createDialogStack(dialogContainer);
 
   return (
-    <AuthProvider basePath="/api/auth">
+    <AuthProvider auth={api.auth}>
       <RouterContext.Provider value={appRouter}>
         <ThemeProvider theme="dark">
           <DialogStackContext.Provider value={dialogStack}>

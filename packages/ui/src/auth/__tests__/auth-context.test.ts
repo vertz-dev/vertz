@@ -1,12 +1,59 @@
-import { describe, expect, it, spyOn } from 'bun:test';
+import { describe, expect, it, mock, spyOn } from 'bun:test';
+import { err, ok } from '@vertz/fetch';
 import { createContext, useContext } from '../../component/context';
 import type { Router } from '../../router/navigate';
 import { RouterContext } from '../../router/router-context';
 import { AccessContext } from '../access-context';
 import * as accessEventClientModule from '../access-event-client';
 import type { AccessSet } from '../access-set-types';
-import type { AuthContextValue } from '../auth-context';
+import type { AuthContextValue, AuthSdk } from '../auth-context';
 import { AuthContext, AuthProvider, useAuth } from '../auth-context';
+import type { AuthResponse, SignInInput, SignUpInput } from '../auth-types';
+
+// --- Mock AuthSdk factory ---
+
+function createMockAuthSdk(overrides?: Partial<AuthSdk>): AuthSdk {
+  const defaultSignIn = Object.assign(
+    mock(async (_body: SignInInput) =>
+      ok<AuthResponse, Error>({
+        user: { id: '1', email: 'a@b.com', role: 'user' },
+        expiresAt: Date.now() + 60_000,
+      }),
+    ),
+    { url: '/api/auth/signin', method: 'POST' },
+  );
+
+  const defaultSignUp = Object.assign(
+    mock(async (_body: SignUpInput) =>
+      ok<AuthResponse, Error>({
+        user: { id: '1', email: 'a@b.com', role: 'user' },
+        expiresAt: Date.now() + 60_000,
+      }),
+    ),
+    { url: '/api/auth/signup', method: 'POST' },
+  );
+
+  const defaultSignOut = mock(async () => ok<unknown, Error>({ ok: true }));
+
+  const defaultRefresh = mock(async () =>
+    ok<AuthResponse, Error>({
+      user: { id: '1', email: 'a@b.com', role: 'user' },
+      expiresAt: Date.now() + 60_000,
+    }),
+  );
+
+  const defaultProviders = mock(async () =>
+    ok<{ id: string; name: string; authUrl: string }[], Error>([]),
+  );
+
+  return {
+    signIn: overrides?.signIn ?? defaultSignIn,
+    signUp: overrides?.signUp ?? defaultSignUp,
+    signOut: overrides?.signOut ?? defaultSignOut,
+    refresh: overrides?.refresh ?? defaultRefresh,
+    providers: overrides?.providers ?? defaultProviders,
+  };
+}
 
 /** Create a minimal fake window object for SSR hydration tests. */
 function createFakeWindow(session?: {
@@ -42,10 +89,13 @@ function createMockRouter(): Router & { navigateCalls: Array<{ to: string; repla
 }
 
 /** Capture useAuth() result inside AuthProvider. */
-function captureAuth(options?: { basePath?: string; accessControl?: boolean }) {
+function captureAuth(options?: { auth?: AuthSdk; basePath?: string; accessControl?: boolean }) {
+  const sdk = options?.auth ?? createMockAuthSdk();
   let auth: ReturnType<typeof useAuth> | undefined;
   AuthProvider({
-    ...options,
+    auth: sdk,
+    basePath: options?.basePath,
+    accessControl: options?.accessControl,
     children: () => {
       auth = useAuth();
     },
@@ -55,14 +105,21 @@ function captureAuth(options?: { basePath?: string; accessControl?: boolean }) {
 }
 
 /** Capture useAuth() result inside AuthProvider wrapped with RouterContext. */
-function captureAuthWithRouter(options?: { basePath?: string; accessControl?: boolean }) {
+function captureAuthWithRouter(options?: {
+  auth?: AuthSdk;
+  basePath?: string;
+  accessControl?: boolean;
+}) {
+  const sdk = options?.auth ?? createMockAuthSdk();
   const mockRouter = createMockRouter();
   let auth: ReturnType<typeof useAuth> | undefined;
   RouterContext.Provider({
     value: mockRouter,
     children: () =>
       AuthProvider({
-        ...options,
+        auth: sdk,
+        basePath: options?.basePath,
+        accessControl: options?.accessControl,
         children: () => {
           auth = useAuth();
         },
@@ -118,11 +175,63 @@ describe('AuthProvider', () => {
     expect(auth.signUp.meta.bodySchema).toBeDefined();
   });
 
-  it('uses custom basePath for method urls', () => {
-    const auth = captureAuth({ basePath: '/custom/auth' });
+  it('uses SDK urls for method endpoints', () => {
+    const sdk = createMockAuthSdk();
+    // Override URLs on the SDK methods
+    const customSignIn = Object.assign(sdk.signIn, {
+      url: '/custom/auth/signin',
+      method: 'POST',
+    });
+    const customSignUp = Object.assign(sdk.signUp, {
+      url: '/custom/auth/signup',
+      method: 'POST',
+    });
+    const customSdk = { ...sdk, signIn: customSignIn, signUp: customSignUp };
+
+    const auth = captureAuth({ auth: customSdk });
 
     expect(auth.signIn.url).toBe('/custom/auth/signin');
     expect(auth.signUp.url).toBe('/custom/auth/signup');
+  });
+
+  it('delegates signIn to the SDK method', async () => {
+    const signInFn = mock(async (body: SignInInput) =>
+      ok<AuthResponse, Error>({
+        user: { id: '1', email: body.email, role: 'user' },
+        expiresAt: Date.now() + 60_000,
+      }),
+    );
+    const sdkSignIn = Object.assign(signInFn, {
+      url: '/api/auth/signin',
+      method: 'POST',
+    });
+    const sdk = createMockAuthSdk({ signIn: sdkSignIn });
+
+    const auth = captureAuth({ auth: sdk });
+    await auth.signIn({ email: 'a@b.com', password: 'pass' });
+
+    expect(signInFn).toHaveBeenCalledTimes(1);
+    expect(signInFn).toHaveBeenCalledWith({ email: 'a@b.com', password: 'pass' });
+  });
+
+  it('delegates signUp to the SDK method', async () => {
+    const signUpFn = mock(async (body: SignUpInput) =>
+      ok<AuthResponse, Error>({
+        user: { id: '1', email: body.email, role: 'user' },
+        expiresAt: Date.now() + 60_000,
+      }),
+    );
+    const sdkSignUp = Object.assign(signUpFn, {
+      url: '/api/auth/signup',
+      method: 'POST',
+    });
+    const sdk = createMockAuthSdk({ signUp: sdkSignUp });
+
+    const auth = captureAuth({ auth: sdk });
+    await auth.signUp({ email: 'a@b.com', password: 'pass1234' });
+
+    expect(signUpFn).toHaveBeenCalledTimes(1);
+    expect(signUpFn).toHaveBeenCalledWith({ email: 'a@b.com', password: 'pass1234' });
   });
 
   describe('signUp', () => {
@@ -131,35 +240,42 @@ describe('AuthProvider', () => {
         user: { id: '1', email: 'a@b.com', role: 'user' },
         expiresAt: Date.now() + 60_000,
       };
-      const fetchSpy = spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-        new Response(JSON.stringify(responseData), { status: 200 }),
-      );
+      const sdk = createMockAuthSdk({
+        signUp: Object.assign(
+          mock(async () => ok<AuthResponse, Error>(responseData)),
+          { url: '/api/auth/signup', method: 'POST' },
+        ),
+      });
 
-      const auth = captureAuth();
+      const auth = captureAuth({ auth: sdk });
       const result = await auth.signUp({ email: 'a@b.com', password: 'pass123' });
 
       expect(result.ok).toBe(true);
       expect(auth.status).toBe('authenticated');
       expect(auth.user).toEqual(responseData.user);
-
-      fetchSpy.mockRestore();
     });
 
     it('transitions to error on failure', async () => {
-      const fetchSpy = spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-        new Response(JSON.stringify({ code: 'USER_EXISTS', message: 'Email taken' }), {
-          status: 409,
-        }),
-      );
+      const sdk = createMockAuthSdk({
+        signUp: Object.assign(
+          mock(async () =>
+            err<AuthResponse, Error>(
+              Object.assign(new Error('Email taken'), {
+                code: 'USER_EXISTS' as const,
+                statusCode: 409,
+              }),
+            ),
+          ),
+          { url: '/api/auth/signup', method: 'POST' },
+        ),
+      });
 
-      const auth = captureAuth();
+      const auth = captureAuth({ auth: sdk });
       const result = await auth.signUp({ email: 'a@b.com', password: 'pass123' });
 
       expect(result.ok).toBe(false);
       expect(auth.status).toBe('error');
       expect(auth.error?.code).toBe('USER_EXISTS');
-
-      fetchSpy.mockRestore();
     });
   });
 
@@ -169,11 +285,14 @@ describe('AuthProvider', () => {
         user: { id: '1', email: 'a@b.com', role: 'user' },
         expiresAt: Date.now() + 60_000,
       };
-      const fetchSpy = spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-        new Response(JSON.stringify(responseData), { status: 200 }),
-      );
+      const sdk = createMockAuthSdk({
+        signIn: Object.assign(
+          mock(async () => ok<AuthResponse, Error>(responseData)),
+          { url: '/api/auth/signin', method: 'POST' },
+        ),
+      });
 
-      const auth = captureAuth();
+      const auth = captureAuth({ auth: sdk });
       const result = await auth.signIn({ email: 'a@b.com', password: 'pass123' });
 
       expect(result.ok).toBe(true);
@@ -181,18 +300,24 @@ describe('AuthProvider', () => {
       expect(auth.user).toEqual(responseData.user);
       expect(auth.isAuthenticated).toBe(true);
       expect(auth.error).toBeNull();
-
-      fetchSpy.mockRestore();
     });
 
     it('transitions to error on failure', async () => {
-      const fetchSpy = spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-        new Response(JSON.stringify({ code: 'INVALID_CREDENTIALS', message: 'Wrong password' }), {
-          status: 401,
-        }),
-      );
+      const sdk = createMockAuthSdk({
+        signIn: Object.assign(
+          mock(async () =>
+            err<AuthResponse, Error>(
+              Object.assign(new Error('Wrong password'), {
+                code: 'INVALID_CREDENTIALS' as const,
+                statusCode: 401,
+              }),
+            ),
+          ),
+          { url: '/api/auth/signin', method: 'POST' },
+        ),
+      });
 
-      const auth = captureAuth();
+      const auth = captureAuth({ auth: sdk });
       const result = await auth.signIn({ email: 'a@b.com', password: 'wrong' });
 
       expect(result.ok).toBe(false);
@@ -200,28 +325,32 @@ describe('AuthProvider', () => {
       expect(auth.error).toBeDefined();
       expect(auth.error?.code).toBe('INVALID_CREDENTIALS');
       expect(auth.user).toBeNull();
-
-      fetchSpy.mockRestore();
     });
 
     it('recovers from error state on new signIn attempt', async () => {
-      const fetchSpy = spyOn(globalThis, 'fetch')
-        .mockResolvedValueOnce(
-          new Response(JSON.stringify({ code: 'INVALID_CREDENTIALS', message: 'Wrong' }), {
-            status: 401,
-          }),
-        )
-        .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
+      let callCount = 0;
+      const sdk = createMockAuthSdk({
+        signIn: Object.assign(
+          mock(async () => {
+            callCount++;
+            if (callCount === 1) {
+              return err<AuthResponse, Error>(
+                Object.assign(new Error('Wrong'), {
+                  code: 'INVALID_CREDENTIALS' as const,
+                  statusCode: 401,
+                }),
+              );
+            }
+            return ok<AuthResponse, Error>({
               user: { id: '1', email: 'a@b.com', role: 'user' },
               expiresAt: Date.now() + 60_000,
-            }),
-            { status: 200 },
-          ),
-        );
+            });
+          }),
+          { url: '/api/auth/signin', method: 'POST' },
+        ),
+      });
 
-      const auth = captureAuth();
+      const auth = captureAuth({ auth: sdk });
 
       await auth.signIn({ email: 'a@b.com', password: 'wrong' });
       expect(auth.status).toBe('error');
@@ -229,42 +358,36 @@ describe('AuthProvider', () => {
       await auth.signIn({ email: 'a@b.com', password: 'correct' });
       expect(auth.status).toBe('authenticated');
       expect(auth.error).toBeNull();
-
-      fetchSpy.mockRestore();
     });
 
-    it('transitions to mfa_required when server returns MFA_REQUIRED', async () => {
-      const fetchSpy = spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-        new Response(JSON.stringify({ code: 'MFA_REQUIRED', message: 'MFA verification needed' }), {
-          status: 403,
-        }),
-      );
+    it('transitions to mfa_required when SDK returns MFA_REQUIRED', async () => {
+      const sdk = createMockAuthSdk({
+        signIn: Object.assign(
+          mock(async () =>
+            err<AuthResponse, Error>(
+              Object.assign(new Error('MFA verification needed'), {
+                code: 'MFA_REQUIRED' as const,
+                statusCode: 403,
+              }),
+            ),
+          ),
+          { url: '/api/auth/signin', method: 'POST' },
+        ),
+      });
 
-      const auth = captureAuth();
+      const auth = captureAuth({ auth: sdk });
       await auth.signIn({ email: 'a@b.com', password: 'pass123' });
 
       expect(auth.status).toBe('mfa_required');
       expect(auth.error).toBeNull();
-
-      fetchSpy.mockRestore();
     });
   });
 
   describe('signOut', () => {
     it('transitions to unauthenticated and clears user', async () => {
-      const fetchSpy = spyOn(globalThis, 'fetch')
-        .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              user: { id: '1', email: 'a@b.com', role: 'user' },
-              expiresAt: Date.now() + 60_000,
-            }),
-            { status: 200 },
-          ),
-        )
-        .mockResolvedValueOnce(new Response(null, { status: 200 }));
+      const sdk = createMockAuthSdk();
 
-      const auth = captureAuth();
+      const auth = captureAuth({ auth: sdk });
       await auth.signIn({ email: 'a@b.com', password: 'pass' });
       expect(auth.status).toBe('authenticated');
 
@@ -272,50 +395,22 @@ describe('AuthProvider', () => {
       expect(auth.status).toBe('unauthenticated');
       expect(auth.user).toBeNull();
       expect(auth.error).toBeNull();
-
-      fetchSpy.mockRestore();
     });
 
-    it('sends signout request with CSRF header', async () => {
-      const fetchSpy = spyOn(globalThis, 'fetch')
-        .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              user: { id: '1', email: 'a@b.com', role: 'user' },
-              expiresAt: Date.now() + 60_000,
-            }),
-            { status: 200 },
-          ),
-        )
-        .mockResolvedValueOnce(new Response(null, { status: 200 }));
+    it('delegates signOut to the SDK method', async () => {
+      const signOutFn = mock(async () => ok<unknown, Error>({ ok: true }));
+      const sdk = createMockAuthSdk({ signOut: signOutFn });
 
-      const auth = captureAuth();
+      const auth = captureAuth({ auth: sdk });
       await auth.signIn({ email: 'a@b.com', password: 'pass' });
       await auth.signOut();
 
-      const [url, init] = fetchSpy.mock.calls[1] as [string, RequestInit];
-      expect(url).toBe('/api/auth/signout');
-      expect(init.method).toBe('POST');
-      expect(init.credentials).toBe('include');
-      expect((init.headers as Record<string, string>)['X-VTZ-Request']).toBe('1');
-
-      fetchSpy.mockRestore();
+      expect(signOutFn).toHaveBeenCalledTimes(1);
     });
 
     it('navigates to redirectTo path after clearing state', async () => {
-      const fetchSpy = spyOn(globalThis, 'fetch')
-        .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              user: { id: '1', email: 'a@b.com', role: 'user' },
-              expiresAt: Date.now() + 60_000,
-            }),
-            { status: 200 },
-          ),
-        )
-        .mockResolvedValueOnce(new Response(null, { status: 200 }));
-
-      const { auth, mockRouter } = captureAuthWithRouter();
+      const sdk = createMockAuthSdk();
+      const { auth, mockRouter } = captureAuthWithRouter({ auth: sdk });
       await auth.signIn({ email: 'a@b.com', password: 'pass' });
       await auth.signOut({ redirectTo: '/login' });
 
@@ -323,48 +418,23 @@ describe('AuthProvider', () => {
       expect(auth.user).toBeNull();
       expect(mockRouter.navigateCalls).toHaveLength(1);
       expect(mockRouter.navigateCalls[0]).toEqual({ to: '/login', replace: true });
-
-      fetchSpy.mockRestore();
     });
 
     it('does not navigate when signOut called without options', async () => {
-      const fetchSpy = spyOn(globalThis, 'fetch')
-        .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              user: { id: '1', email: 'a@b.com', role: 'user' },
-              expiresAt: Date.now() + 60_000,
-            }),
-            { status: 200 },
-          ),
-        )
-        .mockResolvedValueOnce(new Response(null, { status: 200 }));
-
-      const { auth, mockRouter } = captureAuthWithRouter();
+      const sdk = createMockAuthSdk();
+      const { auth, mockRouter } = captureAuthWithRouter({ auth: sdk });
       await auth.signIn({ email: 'a@b.com', password: 'pass' });
       await auth.signOut();
 
       expect(auth.status).toBe('unauthenticated');
       expect(mockRouter.navigateCalls).toHaveLength(0);
-
-      fetchSpy.mockRestore();
     });
 
     it('skips navigation and warns when no router in tree', async () => {
-      const fetchSpy = spyOn(globalThis, 'fetch')
-        .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              user: { id: '1', email: 'a@b.com', role: 'user' },
-              expiresAt: Date.now() + 60_000,
-            }),
-            { status: 200 },
-          ),
-        )
-        .mockResolvedValueOnce(new Response(null, { status: 200 }));
       const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
 
-      const auth = captureAuth(); // no router wrapper
+      const sdk = createMockAuthSdk();
+      const auth = captureAuth({ auth: sdk }); // no router wrapper
       await auth.signIn({ email: 'a@b.com', password: 'pass' });
       await auth.signOut({ redirectTo: '/login' });
 
@@ -374,77 +444,44 @@ describe('AuthProvider', () => {
       );
 
       warnSpy.mockRestore();
-      fetchSpy.mockRestore();
     });
 
     it('does not navigate when redirectTo is empty string', async () => {
-      const fetchSpy = spyOn(globalThis, 'fetch')
-        .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              user: { id: '1', email: 'a@b.com', role: 'user' },
-              expiresAt: Date.now() + 60_000,
-            }),
-            { status: 200 },
-          ),
-        )
-        .mockResolvedValueOnce(new Response(null, { status: 200 }));
-
-      const { auth, mockRouter } = captureAuthWithRouter();
+      const sdk = createMockAuthSdk();
+      const { auth, mockRouter } = captureAuthWithRouter({ auth: sdk });
       await auth.signIn({ email: 'a@b.com', password: 'pass' });
       await auth.signOut({ redirectTo: '' });
 
       expect(auth.status).toBe('unauthenticated');
       expect(mockRouter.navigateCalls).toHaveLength(0);
-
-      fetchSpy.mockRestore();
     });
 
-    it('still navigates when network call fails', async () => {
-      const fetchSpy = spyOn(globalThis, 'fetch')
-        .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              user: { id: '1', email: 'a@b.com', role: 'user' },
-              expiresAt: Date.now() + 60_000,
-            }),
-            { status: 200 },
-          ),
-        )
-        .mockRejectedValueOnce(new Error('Network error'));
-
-      const { auth, mockRouter } = captureAuthWithRouter();
+    it('still navigates when SDK signOut throws', async () => {
+      const sdk = createMockAuthSdk({
+        signOut: mock(async () => {
+          throw new Error('Network error');
+        }),
+      });
+      const { auth, mockRouter } = captureAuthWithRouter({ auth: sdk });
       await auth.signIn({ email: 'a@b.com', password: 'pass' });
       await auth.signOut({ redirectTo: '/login' });
 
       expect(auth.status).toBe('unauthenticated');
       expect(mockRouter.navigateCalls).toHaveLength(1);
       expect(mockRouter.navigateCalls[0]).toEqual({ to: '/login', replace: true });
-
-      fetchSpy.mockRestore();
     });
 
     it('does not reject when navigation throws', async () => {
-      const fetchSpy = spyOn(globalThis, 'fetch')
-        .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              user: { id: '1', email: 'a@b.com', role: 'user' },
-              expiresAt: Date.now() + 60_000,
-            }),
-            { status: 200 },
-          ),
-        )
-        .mockResolvedValueOnce(new Response(null, { status: 200 }));
-
       const mockRouter = createMockRouter();
       mockRouter.navigate = () => Promise.reject(new Error('Navigation failed'));
 
+      const sdk = createMockAuthSdk();
       let auth: ReturnType<typeof useAuth> | undefined;
       RouterContext.Provider({
         value: mockRouter,
         children: () =>
           AuthProvider({
+            auth: sdk,
             children: () => {
               auth = useAuth();
             },
@@ -459,31 +496,21 @@ describe('AuthProvider', () => {
 
       // biome-ignore lint/style/noNonNullAssertion: test helper always assigns
       expect(auth!.status).toBe('unauthenticated');
-
-      fetchSpy.mockRestore();
     });
 
-    it('clears local state even if network call fails', async () => {
-      const fetchSpy = spyOn(globalThis, 'fetch')
-        .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              user: { id: '1', email: 'a@b.com', role: 'user' },
-              expiresAt: Date.now() + 60_000,
-            }),
-            { status: 200 },
-          ),
-        )
-        .mockRejectedValueOnce(new Error('Network error'));
+    it('clears local state even if SDK signOut throws', async () => {
+      const sdk = createMockAuthSdk({
+        signOut: mock(async () => {
+          throw new Error('Network error');
+        }),
+      });
 
-      const auth = captureAuth();
+      const auth = captureAuth({ auth: sdk });
       await auth.signIn({ email: 'a@b.com', password: 'pass' });
       await auth.signOut();
 
       expect(auth.status).toBe('unauthenticated');
       expect(auth.user).toBeNull();
-
-      fetchSpy.mockRestore();
     });
   });
 
@@ -493,76 +520,83 @@ describe('AuthProvider', () => {
         user: { id: '1', email: 'a@b.com', role: 'user' },
         expiresAt: Date.now() + 60_000,
       };
-      const fetchSpy = spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-        new Response(JSON.stringify(responseData), { status: 200 }),
-      );
+      const sdk = createMockAuthSdk({
+        refresh: mock(async () => ok<AuthResponse, Error>(responseData)),
+      });
 
-      const auth = captureAuth();
+      const auth = captureAuth({ auth: sdk });
       await auth.refresh();
 
       expect(auth.status).toBe('authenticated');
       expect(auth.user).toEqual(responseData.user);
-
-      fetchSpy.mockRestore();
     });
 
     it('transitions to unauthenticated on failed refresh', async () => {
-      const fetchSpy = spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-        new Response(null, { status: 401 }),
-      );
+      const sdk = createMockAuthSdk({
+        refresh: mock(async () =>
+          err<AuthResponse, Error>(Object.assign(new Error('Unauthorized'), { statusCode: 401 })),
+        ),
+      });
 
-      const auth = captureAuth();
+      const auth = captureAuth({ auth: sdk });
       await auth.refresh();
 
       expect(auth.status).toBe('unauthenticated');
       expect(auth.user).toBeNull();
-
-      fetchSpy.mockRestore();
     });
 
     it('transitions to unauthenticated on network failure', async () => {
-      const fetchSpy = spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('offline'));
+      const sdk = createMockAuthSdk({
+        refresh: mock(async () => {
+          throw new Error('offline');
+        }),
+      });
 
-      const auth = captureAuth();
+      const auth = captureAuth({ auth: sdk });
       await auth.refresh();
 
       expect(auth.status).toBe('unauthenticated');
-
-      fetchSpy.mockRestore();
     });
 
     it('deduplicates concurrent refresh calls', async () => {
-      const responseData = {
-        user: { id: '1', email: 'a@b.com', role: 'user' },
-        expiresAt: Date.now() + 60_000,
-      };
-      const fetchSpy = spyOn(globalThis, 'fetch').mockResolvedValue(
-        new Response(JSON.stringify(responseData), { status: 200 }),
+      const refreshFn = mock(async () =>
+        ok<AuthResponse, Error>({
+          user: { id: '1', email: 'a@b.com', role: 'user' },
+          expiresAt: Date.now() + 60_000,
+        }),
       );
+      const sdk = createMockAuthSdk({ refresh: refreshFn });
 
-      const auth = captureAuth();
+      const auth = captureAuth({ auth: sdk });
 
       // Fire two concurrent refreshes
       const [r1, r2] = await Promise.all([auth.refresh(), auth.refresh()]);
 
-      // Both should resolve, but only one fetch should have been made
+      // Both should resolve, but only one SDK call should have been made
       expect(r1).toBeUndefined();
       expect(r2).toBeUndefined();
-      expect(fetchSpy.mock.calls.length).toBe(1);
-
-      fetchSpy.mockRestore();
+      expect(refreshFn).toHaveBeenCalledTimes(1);
     });
 
     it('clears error on failed refresh', async () => {
-      const fetchSpy = spyOn(globalThis, 'fetch')
-        .mockResolvedValueOnce(
-          new Response(JSON.stringify({ code: 'INVALID_CREDENTIALS', message: 'Wrong' }), {
-            status: 401,
-          }),
-        )
-        .mockResolvedValueOnce(new Response(null, { status: 401 }));
+      const sdk = createMockAuthSdk({
+        signIn: Object.assign(
+          mock(async () =>
+            err<AuthResponse, Error>(
+              Object.assign(new Error('Wrong'), {
+                code: 'INVALID_CREDENTIALS' as const,
+                statusCode: 401,
+              }),
+            ),
+          ),
+          { url: '/api/auth/signin', method: 'POST' },
+        ),
+        refresh: mock(async () =>
+          err<AuthResponse, Error>(Object.assign(new Error('Unauthorized'), { statusCode: 401 })),
+        ),
+      });
 
-      const auth = captureAuth();
+      const auth = captureAuth({ auth: sdk });
 
       // First: signIn fails → error state
       await auth.signIn({ email: 'a@b.com', password: 'wrong' });
@@ -573,8 +607,6 @@ describe('AuthProvider', () => {
       await auth.refresh();
       expect(auth.status).toBe('unauthenticated');
       expect(auth.error).toBeNull();
-
-      fetchSpy.mockRestore();
     });
 
     it('provides mfaChallenge as SdkMethodWithMeta', () => {
@@ -590,17 +622,27 @@ describe('AuthProvider', () => {
         user: { id: '1', email: 'a@b.com', role: 'user' },
         expiresAt: Date.now() + 3_600_000,
       };
-      const fetchSpy = spyOn(globalThis, 'fetch')
-        // signIn → MFA_REQUIRED
-        .mockResolvedValueOnce(
-          new Response(JSON.stringify({ code: 'MFA_REQUIRED', message: 'MFA needed' }), {
-            status: 403,
-          }),
-        )
-        // mfaChallenge → success
-        .mockResolvedValueOnce(new Response(JSON.stringify(responseData), { status: 200 }));
+      // MFA challenge still uses direct fetch (not SDK)
+      const fetchSpy = spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+        new Response(JSON.stringify(responseData), { status: 200 }),
+      );
 
-      const auth = captureAuth();
+      // signIn returns MFA_REQUIRED
+      const sdk = createMockAuthSdk({
+        signIn: Object.assign(
+          mock(async () =>
+            err<AuthResponse, Error>(
+              Object.assign(new Error('MFA needed'), {
+                code: 'MFA_REQUIRED' as const,
+                statusCode: 403,
+              }),
+            ),
+          ),
+          { url: '/api/auth/signin', method: 'POST' },
+        ),
+      });
+
+      const auth = captureAuth({ auth: sdk });
       await auth.signIn({ email: 'a@b.com', password: 'pass123' });
       expect(auth.status).toBe('mfa_required');
 
@@ -613,21 +655,29 @@ describe('AuthProvider', () => {
     });
 
     it('mfaChallenge transitions to error on invalid code', async () => {
-      const fetchSpy = spyOn(globalThis, 'fetch')
-        // signIn → MFA_REQUIRED
-        .mockResolvedValueOnce(
-          new Response(JSON.stringify({ code: 'MFA_REQUIRED', message: 'MFA needed' }), {
-            status: 403,
-          }),
-        )
-        // mfaChallenge → invalid code
-        .mockResolvedValueOnce(
-          new Response(JSON.stringify({ code: 'INVALID_MFA_CODE', message: 'Invalid code' }), {
-            status: 401,
-          }),
-        );
+      // MFA challenge still uses direct fetch (not SDK)
+      const fetchSpy = spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+        new Response(JSON.stringify({ code: 'INVALID_MFA_CODE', message: 'Invalid code' }), {
+          status: 401,
+        }),
+      );
 
-      const auth = captureAuth();
+      // signIn returns MFA_REQUIRED
+      const sdk = createMockAuthSdk({
+        signIn: Object.assign(
+          mock(async () =>
+            err<AuthResponse, Error>(
+              Object.assign(new Error('MFA needed'), {
+                code: 'MFA_REQUIRED' as const,
+                statusCode: 403,
+              }),
+            ),
+          ),
+          { url: '/api/auth/signin', method: 'POST' },
+        ),
+      });
+
+      const auth = captureAuth({ auth: sdk });
       await auth.signIn({ email: 'a@b.com', password: 'pass123' });
       expect(auth.status).toBe('mfa_required');
 
@@ -690,24 +740,22 @@ describe('AuthProvider', () => {
     it('schedules proactive token refresh after successful signIn', async () => {
       // Use a far-future expiresAt so the timer doesn't fire during the test
       const expiresAt = Date.now() + 3_600_000; // 1 hour
-      const fetchSpy = spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            user: { id: '1', email: 'a@b.com', role: 'user' },
-            expiresAt,
-          }),
-          { status: 200 },
-        ),
+      const signInFn = mock(async () =>
+        ok<AuthResponse, Error>({
+          user: { id: '1', email: 'a@b.com', role: 'user' },
+          expiresAt,
+        }),
       );
+      const sdk = createMockAuthSdk({
+        signIn: Object.assign(signInFn, { url: '/api/auth/signin', method: 'POST' }),
+      });
 
-      const auth = captureAuth();
+      const auth = captureAuth({ auth: sdk });
       await auth.signIn({ email: 'a@b.com', password: 'pass123' });
 
       expect(auth.status).toBe('authenticated');
-      // Only the signIn fetch should have been called (timer won't fire for ~1 hour)
-      expect(fetchSpy.mock.calls.length).toBe(1);
-
-      fetchSpy.mockRestore();
+      // Only the signIn call should have been made (timer won't fire for ~1 hour)
+      expect(signInFn).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -771,7 +819,9 @@ describe('AuthProvider', () => {
       setWindow(fakeWindow);
 
       let accessCtx: { accessSet: AccessSet | null; loading: boolean } | undefined;
+      const sdk = createMockAuthSdk();
       AuthProvider({
+        auth: sdk,
         accessControl: true,
         children: () => {
           useAuth();
@@ -798,17 +848,12 @@ describe('AuthProvider', () => {
       const fakeWindow = createFakeWindow(session);
       setWindow(fakeWindow);
 
-      const fetchSpy = spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-        new Response(null, { status: 200 }),
-      );
-
       const auth = captureAuth();
       expect(auth.status).toBe('authenticated');
 
       await auth.signOut();
       expect(fakeWindow.__VERTZ_SESSION__).toBeUndefined();
 
-      fetchSpy.mockRestore();
       restoreWindow();
     });
   });
@@ -819,75 +864,58 @@ describe('AuthProvider', () => {
       expect(auth.providers).toEqual([]);
     });
 
-    it('fetches providers from /api/auth/providers on mount', async () => {
+    it('fetches providers from SDK on mount', async () => {
       const providerData = [
         { id: 'github', name: 'GitHub', authUrl: '/api/auth/oauth/github' },
         { id: 'google', name: 'Google', authUrl: '/api/auth/oauth/google' },
       ];
 
-      const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(async () => {
-        return new Response(JSON.stringify(providerData), { status: 200 });
-      });
+      const providersFn = mock(async () => ok(providerData));
+      const sdk = createMockAuthSdk({ providers: providersFn });
 
-      const auth = captureAuth();
+      const auth = captureAuth({ auth: sdk });
 
       // Wait for deferred fetch (setTimeout(0) + promise resolution)
       await new Promise((r) => setTimeout(r, 50));
 
       expect(auth.providers).toEqual(providerData);
-      // Verify at least one call targeted the providers endpoint
-      const providerCalls = fetchSpy.mock.calls.filter(
-        (c) => typeof c[0] === 'string' && (c[0] as string).includes('/providers'),
-      );
-      expect(providerCalls.length).toBeGreaterThanOrEqual(1);
-      const [url] = providerCalls[0] as [string];
-      expect(url).toBe('/api/auth/providers');
-
-      fetchSpy.mockRestore();
+      expect(providersFn).toHaveBeenCalledTimes(1);
     });
 
-    it('stays empty on fetch failure (silent failure)', async () => {
-      const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(async () => {
-        throw new Error('Network error');
+    it('stays empty on SDK failure (silent failure)', async () => {
+      const sdk = createMockAuthSdk({
+        providers: mock(async () => {
+          throw new Error('Network error');
+        }),
       });
 
-      const auth = captureAuth();
+      const auth = captureAuth({ auth: sdk });
 
       // Wait for deferred fetch
       await new Promise((r) => setTimeout(r, 50));
 
       expect(auth.providers).toEqual([]);
-
-      fetchSpy.mockRestore();
     });
 
-    it('uses custom basePath for providers endpoint', async () => {
-      const providerData = [{ id: 'github', name: 'GitHub', authUrl: '/custom/auth/oauth/github' }];
+    it('stays empty when providers not on SDK', async () => {
+      const sdk = createMockAuthSdk();
+      sdk.providers = undefined;
 
-      const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(async () => {
-        return new Response(JSON.stringify(providerData), { status: 200 });
-      });
-
-      captureAuth({ basePath: '/custom/auth' });
+      const auth = captureAuth({ auth: sdk });
 
       // Wait for deferred fetch
       await new Promise((r) => setTimeout(r, 50));
 
-      const providerCalls = fetchSpy.mock.calls.filter(
-        (c) => typeof c[0] === 'string' && (c[0] as string).includes('/providers'),
-      );
-      expect(providerCalls.length).toBe(1);
-      const [url] = providerCalls[0] as [string];
-      expect(url).toBe('/custom/auth/providers');
-
-      fetchSpy.mockRestore();
+      expect(auth.providers).toEqual([]);
     });
   });
 
   describe('accessControl integration', () => {
     it('provides AccessContext when accessControl is true', () => {
       let accessCtx: unknown;
+      const sdk = createMockAuthSdk();
       AuthProvider({
+        auth: sdk,
         accessControl: true,
         children: () => {
           accessCtx = useContext(AccessContext);
@@ -901,7 +929,9 @@ describe('AuthProvider', () => {
 
     it('does not provide AccessContext when accessControl is not set', () => {
       let accessCtx: unknown;
+      const sdk = createMockAuthSdk();
       AuthProvider({
+        auth: sdk,
         children: () => {
           accessCtx = useContext(AccessContext);
         },
@@ -911,32 +941,23 @@ describe('AuthProvider', () => {
     });
 
     it('fetches access set after successful signIn', async () => {
-      const authResponse = {
-        user: { id: '1', email: 'a@b.com', role: 'user' },
-        expiresAt: Date.now() + 3_600_000,
-      };
       const accessSetData = {
         entitlements: { 'task:read': { allowed: true, reasons: [] } },
       };
 
       const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
         const urlStr = typeof url === 'string' ? url : (url as Request).url;
-        if (urlStr.includes('/signin')) {
-          return new Response(JSON.stringify(authResponse), { status: 200 });
-        }
         if (urlStr.includes('/access-set')) {
           return new Response(JSON.stringify(accessSetData), { status: 200 });
         }
-        if (urlStr.includes('/providers')) {
-          return new Response('[]', { status: 200 });
-        }
-        // Deferred refresh from setTimeout(0) — return 401 (no session)
-        return new Response('', { status: 401 });
+        return new Response('{}', { status: 200 });
       });
 
+      const sdk = createMockAuthSdk();
       let auth: ReturnType<typeof useAuth> | undefined;
 
       AuthProvider({
+        auth: sdk,
         accessControl: true,
         children: () => {
           auth = useAuth();
@@ -972,7 +993,9 @@ describe('AuthProvider', () => {
         dispose: () => {},
       });
 
+      const sdk = createMockAuthSdk();
       AuthProvider({
+        auth: sdk,
         accessControl: true,
         accessEvents: true,
         children: () => {
@@ -993,7 +1016,9 @@ describe('AuthProvider', () => {
         dispose: () => {},
       });
 
+      const sdk = createMockAuthSdk();
       AuthProvider({
+        auth: sdk,
         accessControl: true,
         accessEvents: false,
         children: () => {
@@ -1013,7 +1038,9 @@ describe('AuthProvider', () => {
         dispose: () => {},
       });
 
+      const sdk = createMockAuthSdk();
       AuthProvider({
+        auth: sdk,
         accessEvents: true,
         children: () => {
           useAuth();
@@ -1052,7 +1079,9 @@ describe('AuthProvider', () => {
         new Response(JSON.stringify(accessSetData), { status: 200 }),
       );
 
+      const sdk = createMockAuthSdk();
       AuthProvider({
+        auth: sdk,
         accessControl: true,
         accessEvents: true,
         flagEntitlementMap: { 'project:export': ['export-v2'] },
@@ -1063,7 +1092,6 @@ describe('AuthProvider', () => {
 
       expect(capturedOnEvent).toBeDefined();
 
-      // Exercise the onEvent callback to cover lines 338-340
       capturedOnEvent?.({ type: 'access:flag_toggled', flag: 'export-v2', enabled: false });
 
       createSpy.mockRestore();
@@ -1084,7 +1112,9 @@ describe('AuthProvider', () => {
         };
       });
 
+      const sdk = createMockAuthSdk();
       AuthProvider({
+        auth: sdk,
         accessControl: true,
         accessEvents: true,
         children: () => {
@@ -1092,7 +1122,6 @@ describe('AuthProvider', () => {
         },
       });
 
-      // Exercise limit_updated to cover inline update path
       capturedOnEvent?.({
         type: 'access:limit_updated',
         entitlement: 'project:create',
@@ -1122,7 +1151,9 @@ describe('AuthProvider', () => {
         new Response(JSON.stringify({}), { status: 200 }),
       );
 
+      const sdk = createMockAuthSdk();
       AuthProvider({
+        auth: sdk,
         accessControl: true,
         accessEvents: true,
         children: () => {
@@ -1130,10 +1161,7 @@ describe('AuthProvider', () => {
         },
       });
 
-      // Fire role_changed event — exercises lines 342-346 (setTimeout + fetchAccessSet)
       capturedOnEvent?.({ type: 'access:role_changed' });
-
-      // Fire plan_changed too — same code path
       capturedOnEvent?.({ type: 'access:plan_changed' });
 
       createSpy.mockRestore();
@@ -1158,7 +1186,9 @@ describe('AuthProvider', () => {
         new Response(JSON.stringify({}), { status: 200 }),
       );
 
+      const sdk = createMockAuthSdk();
       AuthProvider({
+        auth: sdk,
         accessControl: true,
         accessEvents: true,
         children: () => {
@@ -1167,7 +1197,6 @@ describe('AuthProvider', () => {
       });
 
       expect(capturedOnReconnect).toBeDefined();
-      // Fire onReconnect — exercises line 351
       capturedOnReconnect?.();
 
       createSpy.mockRestore();
@@ -1188,7 +1217,9 @@ describe('AuthProvider', () => {
         };
       });
 
+      const sdk = createMockAuthSdk();
       AuthProvider({
+        auth: sdk,
         accessControl: true,
         accessEvents: true,
         accessEventsUrl: 'wss://custom.example.com/ws',
@@ -1203,21 +1234,15 @@ describe('AuthProvider', () => {
     });
 
     it('clears access set on signOut', async () => {
-      const authResponse = {
-        user: { id: '1', email: 'a@b.com', role: 'user' },
-        expiresAt: Date.now() + 3_600_000,
-      };
       const accessSetData = {
         entitlements: { 'task:read': { allowed: true, reasons: [] } },
       };
 
-      const fetchSpy = spyOn(globalThis, 'fetch')
-        // signIn
-        .mockResolvedValueOnce(new Response(JSON.stringify(authResponse), { status: 200 }))
-        // access set fetch
-        .mockResolvedValueOnce(new Response(JSON.stringify(accessSetData), { status: 200 }))
-        // signOut
-        .mockResolvedValueOnce(new Response(null, { status: 200 }));
+      const fetchSpy = spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response(JSON.stringify(accessSetData), { status: 200 }),
+      );
+
+      const sdk = createMockAuthSdk();
 
       // biome-ignore lint/style/noNonNullAssertion: test helper always assigns
       let auth: ReturnType<typeof useAuth> = undefined!;
@@ -1225,10 +1250,10 @@ describe('AuthProvider', () => {
       let accessCtx: { accessSet: AccessSet | null; loading: boolean } = undefined!;
 
       AuthProvider({
+        auth: sdk,
         accessControl: true,
         children: () => {
           auth = useAuth();
-          // useContext returns getter-wrapped — reads signal.value via getters
           accessCtx = useContext(AccessContext) as {
             accessSet: AccessSet | null;
             loading: boolean;
