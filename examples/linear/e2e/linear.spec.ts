@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { createClient } from '#generated';
 
-/** The default seed tenant — must match SEED_TENANT_ID in schema.ts. */
-const SEED_TENANT_ID = 'tenant-acme';
+/** The default seed workspace — must match SEED_WORKSPACE_ID in schema.ts. */
+const SEED_WORKSPACE_ID = 'ws-acme';
 
 /**
  * Signs up a test user, then switches to the seed tenant so all entity
@@ -19,8 +19,8 @@ async function authenticate(baseURL: string) {
     throw new Error(`Auth signup failed: ${signupResult.error.message}`);
   }
 
-  // 2. Switch to seed tenant — session now includes tenantId in JWT
-  const switchResult = await api.auth.switchTenant({ tenantId: SEED_TENANT_ID });
+  // 2. Switch to seed workspace — session now includes tenantId in JWT
+  const switchResult = await api.auth.switchTenant({ tenantId: SEED_WORKSPACE_ID });
   if (!switchResult.ok) {
     throw new Error(`Switch tenant failed: ${switchResult.error.message}`);
   }

@@ -1,5 +1,5 @@
 import { defineAuth, github } from '@vertz/server';
-import { SEED_TENANT_ID } from './schema';
+import { SEED_WORKSPACE_ID } from './schema';
 
 const APP_URL = process.env.APP_URL ?? 'http://localhost:3001';
 
@@ -18,11 +18,11 @@ export const auth = defineAuth({
   oauthErrorRedirect: '/login',
 
   // Tenant switching — enables POST /api/auth/switch-tenant.
-  // In a real app verifyMembership would check a tenant_members table.
-  // Here we auto-assign every user to the default seed tenant.
+  // In a real app verifyMembership would check a workspace_members table.
+  // Here we auto-assign every user to the default seed workspace.
   tenant: {
     verifyMembership: async (_userId, tenantId) => {
-      return tenantId === SEED_TENANT_ID;
+      return tenantId === SEED_WORKSPACE_ID;
     },
   },
 
@@ -34,7 +34,7 @@ export const auth = defineAuth({
       const profile = payload.profile as Record<string, unknown>;
       await ctx.entities.users.create({
         id: payload.user.id,
-        tenantId: SEED_TENANT_ID,
+        tenantId: SEED_WORKSPACE_ID,
         email: payload.user.email,
         name: (profile.name as string) ?? (profile.login as string),
         avatarUrl: profile.avatar_url as string,
@@ -42,7 +42,7 @@ export const auth = defineAuth({
     } else {
       await ctx.entities.users.create({
         id: payload.user.id,
-        tenantId: SEED_TENANT_ID,
+        tenantId: SEED_WORKSPACE_ID,
         email: payload.user.email,
         name: payload.user.email.split('@')[0],
         avatarUrl: null,

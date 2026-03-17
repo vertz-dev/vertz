@@ -4,7 +4,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createDb } from '@vertz/db';
 import { unwrap } from '@vertz/schema';
-import { commentsModel, issuesModel, projectsModel, SEED_TENANT_ID, usersModel } from './schema';
+import {
+  commentsModel,
+  issuesModel,
+  projectsModel,
+  SEED_WORKSPACE_ID,
+  usersModel,
+  workspacesModel,
+} from './schema';
 import { seedDatabase } from './seed';
 
 describe('seedDatabase', () => {
@@ -14,6 +21,7 @@ describe('seedDatabase', () => {
   function createClient(dbPath: string) {
     return createDb({
       models: {
+        workspaces: workspacesModel,
         users: usersModel,
         projects: projectsModel,
         issues: issuesModel,
@@ -42,6 +50,14 @@ describe('seedDatabase', () => {
 
   describe('Given a fresh database', () => {
     describe('When seedDatabase is called', () => {
+      it('Then creates the seed workspace record', async () => {
+        await seedDatabase(client);
+        const workspace = unwrap(await client.workspaces.get({ where: { id: SEED_WORKSPACE_ID } }));
+        expect(workspace).toBeDefined();
+        expect(workspace?.id).toBe(SEED_WORKSPACE_ID);
+        expect(workspace?.name).toBe('Acme Corp');
+      });
+
       it('Then creates 2 seed users', async () => {
         await seedDatabase(client);
         const count = unwrap(await client.users.count());
@@ -110,13 +126,13 @@ describe('seedDatabase', () => {
         expect(comments.every((c) => c.createdAt instanceof Date)).toBe(true);
       });
 
-      it('Then all seed records have the seed tenant ID', async () => {
+      it('Then all seed records have the seed workspace ID as tenant_id', async () => {
         await seedDatabase(client);
         for (const countResult of [
-          await client.users.count({ where: { tenantId: { ne: SEED_TENANT_ID } } }),
-          await client.projects.count({ where: { tenantId: { ne: SEED_TENANT_ID } } }),
-          await client.issues.count({ where: { tenantId: { ne: SEED_TENANT_ID } } }),
-          await client.comments.count({ where: { tenantId: { ne: SEED_TENANT_ID } } }),
+          await client.users.count({ where: { tenantId: { ne: SEED_WORKSPACE_ID } } }),
+          await client.projects.count({ where: { tenantId: { ne: SEED_WORKSPACE_ID } } }),
+          await client.issues.count({ where: { tenantId: { ne: SEED_WORKSPACE_ID } } }),
+          await client.comments.count({ where: { tenantId: { ne: SEED_WORKSPACE_ID } } }),
         ]) {
           expect(unwrap(countResult)).toBe(0);
         }

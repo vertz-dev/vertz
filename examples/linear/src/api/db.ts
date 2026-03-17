@@ -7,7 +7,7 @@
 
 import { createDb } from '@vertz/db';
 import { authModels } from '@vertz/server';
-import { commentsModel, issuesModel, projectsModel, usersModel } from './schema';
+import { commentsModel, issuesModel, projectsModel, usersModel, workspacesModel } from './schema';
 import { seedDatabase } from './seed';
 
 const DB_PATH = './data/linear.db';
@@ -15,6 +15,7 @@ const DB_PATH = './data/linear.db';
 export const db = createDb({
   models: {
     ...authModels,
+    workspaces: workspacesModel,
     users: usersModel,
     projects: projectsModel,
     issues: issuesModel,
