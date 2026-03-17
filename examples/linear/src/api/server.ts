@@ -14,7 +14,6 @@ import { entities } from './entities';
 export const app = createServer({
   basePath: '/api',
   entities,
-  // biome-ignore lint/suspicious/noExplicitAny: DatabaseClient model variance
-  db: db as any,
+  db,
   auth,
 });
