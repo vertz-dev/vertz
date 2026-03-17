@@ -17,6 +17,11 @@ export type { CarouselRootProps, CarouselSlotProps, ThemedCarouselComponent } fr
 export { createThemedCarousel } from './carousel';
 export type { CheckboxRootProps, ThemedCheckboxComponent } from './checkbox';
 export { createThemedCheckbox } from './checkbox';
+export type {
+  CollapsibleRootProps,
+  CollapsibleSlotProps,
+  ThemedCollapsibleComponent,
+} from './collapsible';
 export { createThemedCollapsible } from './collapsible';
 export { createThemedCommand } from './command';
 export type {

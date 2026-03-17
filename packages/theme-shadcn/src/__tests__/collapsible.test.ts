@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it, vi } from 'bun:test';
+import { ComposedCollapsible } from '@vertz/ui-primitives';
 import { createThemedCollapsible } from '../components/primitives/collapsible';
 import { createCollapsibleStyles } from '../styles/collapsible';
 
@@ -21,25 +22,74 @@ describe('collapsible styles', () => {
 
 describe('themed Collapsible', () => {
   const styles = createCollapsibleStyles();
-  const collapsible = createThemedCollapsible(styles);
 
   it('applies content class to content element', () => {
-    const result = collapsible();
-    expect(result.content.className).toContain(styles.content);
+    const Collapsible = createThemedCollapsible(styles);
+    const root = Collapsible({
+      children: () => {
+        const trigger = ComposedCollapsible.Trigger({ children: ['Toggle'] });
+        const content = ComposedCollapsible.Content({ children: ['Body'] });
+        return [trigger, content];
+      },
+    });
+
+    const content = root.querySelector('[data-part="collapsible-content"]') as HTMLElement;
+    expect(content.className).toContain(styles.content);
   });
 
   it('passes options through to primitive', () => {
-    const result = collapsible({ defaultOpen: true });
-    expect(result.state.open.peek()).toBe(true);
-    expect(result.trigger.getAttribute('aria-expanded')).toBe('true');
+    const Collapsible = createThemedCollapsible(styles);
+    const root = Collapsible({
+      defaultOpen: true,
+      children: () => {
+        const trigger = ComposedCollapsible.Trigger({ children: ['Toggle'] });
+        const content = ComposedCollapsible.Content({ children: ['Body'] });
+        return [trigger, content];
+      },
+    });
+
+    const trigger = root.querySelector('button') as HTMLButtonElement;
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
   });
 
-  it('returns root, trigger, content, and state', () => {
-    const result = collapsible();
-    expect(result.root).toBeInstanceOf(HTMLDivElement);
-    expect(result.trigger).toBeInstanceOf(HTMLButtonElement);
-    expect(result.content).toBeInstanceOf(HTMLDivElement);
-    expect(result.state.open).toBeDefined();
-    expect(result.state.disabled).toBeDefined();
+  it('renders root with trigger and content', () => {
+    const Collapsible = createThemedCollapsible(styles);
+    const root = Collapsible({
+      children: () => {
+        const trigger = ComposedCollapsible.Trigger({ children: ['Toggle'] });
+        const content = ComposedCollapsible.Content({ children: ['Body'] });
+        return [trigger, content];
+      },
+    });
+
+    expect(root).toBeInstanceOf(HTMLDivElement);
+    expect(root.querySelector('button')).toBeInstanceOf(HTMLButtonElement);
+    expect(root.querySelector('[data-part="collapsible-content"]')).toBeInstanceOf(HTMLDivElement);
+  });
+
+  it('has Trigger and Content sub-components', () => {
+    const Collapsible = createThemedCollapsible(styles);
+    expect(typeof Collapsible.Trigger).toBe('function');
+    expect(typeof Collapsible.Content).toBe('function');
+  });
+
+  it('calls onOpenChange on toggle', () => {
+    const onOpenChange = vi.fn();
+    const Collapsible = createThemedCollapsible(styles);
+    const root = Collapsible({
+      onOpenChange,
+      children: () => {
+        const trigger = ComposedCollapsible.Trigger({ children: ['Toggle'] });
+        const content = ComposedCollapsible.Content({ children: ['Body'] });
+        return [trigger, content];
+      },
+    });
+    document.body.appendChild(root);
+
+    const trigger = root.querySelector('button') as HTMLButtonElement;
+    trigger.click();
+    expect(onOpenChange).toHaveBeenCalledWith(true);
+
+    document.body.removeChild(root);
   });
 });

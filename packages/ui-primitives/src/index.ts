@@ -39,6 +39,12 @@ export type {
 } from './collapsible/collapsible';
 export { Collapsible } from './collapsible/collapsible';
 export type {
+  CollapsibleClasses,
+  CollapsibleClassKey,
+  ComposedCollapsibleProps,
+} from './collapsible/collapsible-composed';
+export { ComposedCollapsible } from './collapsible/collapsible-composed';
+export type {
   ComboboxElements,
   ComboboxOptions,
   ComboboxState,
