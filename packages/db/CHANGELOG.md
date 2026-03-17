@@ -1,5 +1,19 @@
 # @vertz/db
 
+## 0.2.21
+
+### Patch Changes
+
+- [#1437](https://github.com/vertz-dev/vertz/pull/1437) [`a897b19`](https://github.com/vertz-dev/vertz/commit/a897b19b36f0851e373f4dce31298c52c11328c7) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(db): externalize better-sqlite3 and improve SQLite fallback error messages
+
+  - Externalize `better-sqlite3` from the bundle to prevent hardcoded build-machine paths in the dist (fixes Electrobun and other bundled runtimes)
+  - Move `better-sqlite3` to optional `peerDependencies` (same pattern as `postgres`)
+  - Extract `resolveLocalSqliteDatabase()` with proper error handling — when both `bun:sqlite` and `better-sqlite3` fail, the error now includes both failure reasons and actionable guidance
+
+- Updated dependencies []:
+  - @vertz/errors@0.2.21
+  - @vertz/schema@0.2.21
+
 ## 0.2.20
 
 ### Patch Changes
