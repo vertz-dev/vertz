@@ -6,7 +6,9 @@ import { createDb } from '@vertz/db';
 import { unwrap } from '@vertz/schema';
 import {
   commentsModel,
+  issueLabelsModel,
   issuesModel,
+  labelsModel,
   projectsModel,
   SEED_WORKSPACE_ID,
   usersModel,
@@ -26,6 +28,8 @@ describe('seedDatabase', () => {
         projects: projectsModel,
         issues: issuesModel,
         comments: commentsModel,
+        labels: labelsModel,
+        issueLabels: issueLabelsModel,
       },
       dialect: 'sqlite',
       path: dbPath,
@@ -102,6 +106,36 @@ describe('seedDatabase', () => {
         expect(issue.title).toBe('Set up CI pipeline');
       });
 
+      it('Then creates 5 labels per project (15 total)', async () => {
+        await seedDatabase(client);
+        const count = unwrap(await client.labels.count());
+        expect(count).toBe(15);
+      });
+
+      it('Then creates 5 labels for the Engineering project', async () => {
+        await seedDatabase(client);
+        const count = unwrap(await client.labels.count({ where: { projectId: 'proj-eng' } }));
+        expect(count).toBe(5);
+      });
+
+      it('Then labels have distinct colors within each project', async () => {
+        await seedDatabase(client);
+        const labels = unwrap(
+          await client.labels.list({
+            where: { projectId: 'proj-eng' },
+            select: { color: true },
+          }),
+        );
+        const colors = labels.map((l) => l.color);
+        expect(new Set(colors).size).toBe(5);
+      });
+
+      it('Then assigns labels to some issues via issue_labels', async () => {
+        await seedDatabase(client);
+        const count = unwrap(await client.issueLabels.count());
+        expect(count).toBeGreaterThan(0);
+      });
+
       it('Then issues span all statuses', async () => {
         await seedDatabase(client);
         const issues = unwrap(
@@ -149,10 +183,12 @@ describe('seedDatabase', () => {
         const projectCount = unwrap(await client.projects.count());
         const issueCount = unwrap(await client.issues.count());
         const commentCount = unwrap(await client.comments.count());
+        const labelCount = unwrap(await client.labels.count());
 
         expect(projectCount).toBe(3);
         expect(issueCount).toBe(12);
         expect(commentCount).toBe(10);
+        expect(labelCount).toBe(15);
       });
     });
   });

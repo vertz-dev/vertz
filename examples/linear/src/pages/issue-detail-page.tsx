@@ -1,10 +1,11 @@
 import { css, query, useParams } from '@vertz/ui';
 import { api } from '../api/client';
 import { CommentSection } from '../components/comment-section';
+import { LabelPicker } from '../components/label-picker';
 import { IssueDetailSkeleton } from '../components/loading-skeleton';
 import { PrioritySelect } from '../components/priority-select';
 import { StatusSelect } from '../components/status-select';
-import type { IssuePriority, IssueStatus } from '../lib/types';
+import type { IssueLabel, IssuePriority, IssueStatus, Label } from '../lib/types';
 
 const styles = css({
   container: ['p:6'],
@@ -36,6 +37,8 @@ export function IssueDetailPage() {
   const project = query(api.projects.get(projectId));
   const comments = query(api.comments.list({ issueId }));
   const users = query(api.users.list());
+  const labelsQuery = query(api.labels.list({ projectId }));
+  const issueLabelsQuery = query(api.issueLabels.list({ issueId }));
 
   let updateError = '';
 
@@ -58,7 +61,6 @@ export function IssueDetailPage() {
       return;
     }
     updateError = '';
-    issue.refetch();
   };
 
   const handlePriorityChange = async (priority: IssuePriority) => {
@@ -68,7 +70,14 @@ export function IssueDetailPage() {
       return;
     }
     updateError = '';
-    issue.refetch();
+  };
+
+  const handleAddLabel = async (labelId: string) => {
+    await api.issueLabels.create({ issueId, labelId });
+  };
+
+  const handleRemoveLabel = async (issueLabelId: string) => {
+    await api.issueLabels.delete(issueLabelId);
   };
 
   return (
@@ -100,7 +109,7 @@ export function IssueDetailPage() {
               loading={comments.loading}
               issueId={issueId}
               userMap={userMap}
-              onCommentAdded={() => comments.refetch()}
+              onCommentAdded={() => {}}
             />
           </div>
 
@@ -109,6 +118,12 @@ export function IssueDetailPage() {
             <PrioritySelect
               value={issue.data.priority as IssuePriority}
               onChange={handlePriorityChange}
+            />
+            <LabelPicker
+              labels={(labelsQuery.data?.items ?? []) as Label[]}
+              issueLabels={(issueLabelsQuery.data?.items ?? []) as IssueLabel[]}
+              onAdd={handleAddLabel}
+              onRemove={handleRemoveLabel}
             />
           </aside>
         </div>

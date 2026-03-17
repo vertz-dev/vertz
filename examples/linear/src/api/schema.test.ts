@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'bun:test';
-import { commentsModel, issuesModel, projectsModel, usersModel, workspacesModel } from './schema';
+import {
+  commentsModel,
+  issueLabelsModel,
+  issuesModel,
+  labelsModel,
+  projectsModel,
+  usersModel,
+  workspacesModel,
+} from './schema';
 
 describe('Schema relations', () => {
   describe('Given the workspaces model', () => {
@@ -57,6 +65,36 @@ describe('Schema relations', () => {
 
     it('Then it is indirectly scoped (no direct tenant declaration)', () => {
       expect(issuesModel._tenant).toBeNull();
+    });
+  });
+
+  describe('Given the labels model', () => {
+    it('Then it has a project relation via projectId', () => {
+      expect(labelsModel.relations.project).toBeDefined();
+      expect(labelsModel.relations.project._type).toBe('one');
+      expect(labelsModel.relations.project._foreignKey).toBe('projectId');
+    });
+
+    it('Then it is indirectly scoped (no direct tenant declaration)', () => {
+      expect(labelsModel._tenant).toBeNull();
+    });
+  });
+
+  describe('Given the issueLabels model', () => {
+    it('Then it has an issue relation via issueId', () => {
+      expect(issueLabelsModel.relations.issue).toBeDefined();
+      expect(issueLabelsModel.relations.issue._type).toBe('one');
+      expect(issueLabelsModel.relations.issue._foreignKey).toBe('issueId');
+    });
+
+    it('Then it has a label relation via labelId', () => {
+      expect(issueLabelsModel.relations.label).toBeDefined();
+      expect(issueLabelsModel.relations.label._type).toBe('one');
+      expect(issueLabelsModel.relations.label._foreignKey).toBe('labelId');
+    });
+
+    it('Then it is indirectly scoped (no direct tenant declaration)', () => {
+      expect(issueLabelsModel._tenant).toBeNull();
     });
   });
 

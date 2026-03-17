@@ -1,6 +1,7 @@
 import { css } from '@vertz/ui';
 import { PRIORITY_CONFIG } from '../lib/issue-config';
-import type { Issue } from '../lib/types';
+import type { Issue, Label } from '../lib/types';
+import { LabelBadge } from './label-badge';
 
 const styles = css({
   card: [
@@ -17,14 +18,16 @@ const styles = css({
   title: ['text:sm', 'text:foreground', 'font:medium'],
   meta: ['flex', 'items:center', 'gap:2', 'mt:2'],
   priority: ['text:xs', 'font:medium'],
+  labels: ['flex', 'flex-wrap', 'gap:1', 'mt:2'],
 });
 
 interface IssueCardProps {
   issue: Issue;
   projectKey?: string;
+  labels?: Label[];
 }
 
-export function IssueCard({ issue, projectKey }: IssueCardProps) {
+export function IssueCard({ issue, projectKey, labels }: IssueCardProps) {
   const identifier = projectKey ? `${projectKey}-${issue.number}` : `#${issue.number}`;
 
   return (
@@ -41,6 +44,13 @@ export function IssueCard({ issue, projectKey }: IssueCardProps) {
           >
             {PRIORITY_CONFIG[issue.priority].label}
           </span>
+        </div>
+      )}
+      {labels && labels.length > 0 && (
+        <div className={styles.labels}>
+          {labels.map((label) => (
+            <LabelBadge key={label.id} name={label.name} color={label.color} />
+          ))}
         </div>
       )}
     </div>

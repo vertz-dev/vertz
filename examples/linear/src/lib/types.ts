@@ -57,6 +57,22 @@ export interface User {
   updatedAt: string;
 }
 
+export interface Label {
+  id: string;
+  projectId: string;
+  name: string;
+  color: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IssueLabel {
+  id: string;
+  issueId: string;
+  labelId: string;
+  createdAt: string;
+}
+
 export interface Comment {
   id: string;
   issueId: string;
