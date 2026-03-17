@@ -47,6 +47,11 @@ export type {
   ThemedDropdownMenuComponent,
 } from './dropdown-menu';
 export { createThemedDropdownMenu } from './dropdown-menu';
+export type {
+  HoverCardRootProps,
+  HoverCardSlotProps,
+  ThemedHoverCardComponent,
+} from './hover-card';
 export { createThemedHoverCard } from './hover-card';
 export type {
   MenubarGroupProps,

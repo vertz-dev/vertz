@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it, vi } from 'bun:test';
+import { ComposedHoverCard } from '@vertz/ui-primitives';
 import { createThemedHoverCard } from '../components/primitives/hover-card';
 import { createHoverCardStyles } from '../styles/hover-card';
 
@@ -18,21 +19,77 @@ describe('hover-card styles', () => {
 
 describe('themed HoverCard', () => {
   const styles = createHoverCardStyles();
-  const hoverCard = createThemedHoverCard(styles);
 
   it('applies content class', () => {
-    const result = hoverCard();
-    expect(result.content.className).toContain(styles.content);
+    const HoverCard = createThemedHoverCard(styles);
+    const root = HoverCard({
+      children: () => {
+        const trigger = ComposedHoverCard.Trigger({
+          children: [document.createElement('button')],
+        });
+        const content = ComposedHoverCard.Content({ children: ['Body'] });
+        return [trigger, content];
+      },
+    });
+
+    const dialog = root.querySelector('[role="dialog"]') as HTMLElement;
+    expect(dialog.className).toContain(styles.content);
   });
 
-  it('returns trigger and content elements', () => {
-    const result = hoverCard();
-    expect(result.trigger).toBeInstanceOf(HTMLElement);
-    expect(result.content).toBeInstanceOf(HTMLDivElement);
+  it('renders trigger and content', () => {
+    const HoverCard = createThemedHoverCard(styles);
+    const root = HoverCard({
+      children: () => {
+        const trigger = ComposedHoverCard.Trigger({
+          children: [document.createElement('button')],
+        });
+        const content = ComposedHoverCard.Content({ children: ['Body'] });
+        return [trigger, content];
+      },
+    });
+
+    expect(root.querySelector('[role="dialog"]')).toBeInstanceOf(HTMLDivElement);
   });
 
-  it('preserves primitive state', () => {
-    const result = hoverCard();
-    expect(result.state.open.peek()).toBe(false);
+  it('content is initially hidden', () => {
+    const HoverCard = createThemedHoverCard(styles);
+    const root = HoverCard({
+      children: () => {
+        const trigger = ComposedHoverCard.Trigger({
+          children: [document.createElement('button')],
+        });
+        const content = ComposedHoverCard.Content({ children: ['Body'] });
+        return [trigger, content];
+      },
+    });
+
+    const dialog = root.querySelector('[role="dialog"]') as HTMLElement;
+    expect(dialog.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('has Trigger and Content sub-components', () => {
+    const HoverCard = createThemedHoverCard(styles);
+    expect(typeof HoverCard.Trigger).toBe('function');
+    expect(typeof HoverCard.Content).toBe('function');
+  });
+
+  it('calls onOpenChange on focus trigger', () => {
+    const onOpenChange = vi.fn();
+    const HoverCard = createThemedHoverCard(styles);
+    const btn = document.createElement('button');
+    const root = HoverCard({
+      onOpenChange,
+      children: () => {
+        const trigger = ComposedHoverCard.Trigger({ children: [btn] });
+        const content = ComposedHoverCard.Content({ children: ['Body'] });
+        return [trigger, content];
+      },
+    });
+    document.body.appendChild(root);
+
+    btn.dispatchEvent(new FocusEvent('focus'));
+    expect(onOpenChange).toHaveBeenCalledWith(true);
+
+    document.body.removeChild(root);
   });
 });
