@@ -48,76 +48,164 @@ describe('createThemedNavigationMenu', () => {
 
   it('applies root, list, and viewport classes', async () => {
     const { createThemedNavigationMenu } = await import('../components/primitives/navigation-menu');
+    const { ComposedNavigationMenu } = await import('@vertz/ui-primitives');
     const styles = createNavigationMenuStyles();
-    const themedNav = createThemedNavigationMenu(styles);
-    const nav = themedNav();
+    const NavigationMenu = createThemedNavigationMenu(styles);
 
-    expect(nav.root.classList.contains(styles.root)).toBe(true);
-    expect(nav.list.classList.contains(styles.list)).toBe(true);
-    expect(nav.viewport.classList.contains(styles.viewport)).toBe(true);
+    const root = NavigationMenu({
+      children: () => {
+        const list = ComposedNavigationMenu.List({ children: [] });
+        const viewport = ComposedNavigationMenu.Viewport({});
+        return [list, viewport];
+      },
+    });
+    container.appendChild(root);
+
+    expect(root.classList.contains(styles.root)).toBe(true);
+    const listEl = root.querySelector('[data-part="nav-list"]') as HTMLElement;
+    expect(listEl.classList.contains(styles.list)).toBe(true);
+    const viewportEl = root.querySelector('[data-part="nav-viewport"]') as HTMLElement;
+    expect(viewportEl.classList.contains(styles.viewport)).toBe(true);
   });
 
-  it('Item factory applies trigger and content classes', async () => {
+  it('applies trigger and content classes to items', async () => {
     const { createThemedNavigationMenu } = await import('../components/primitives/navigation-menu');
+    const { ComposedNavigationMenu } = await import('@vertz/ui-primitives');
     const styles = createNavigationMenuStyles();
-    const themedNav = createThemedNavigationMenu(styles);
-    const nav = themedNav();
-    container.appendChild(nav.root);
-    const { trigger, content } = nav.Item('products', 'Products');
+    const NavigationMenu = createThemedNavigationMenu(styles);
 
+    const root = NavigationMenu({
+      children: () => {
+        const list = ComposedNavigationMenu.List({
+          children: () => {
+            const item = ComposedNavigationMenu.Item({
+              value: 'products',
+              children: () => {
+                const trigger = ComposedNavigationMenu.Trigger({ children: ['Products'] });
+                const content = ComposedNavigationMenu.Content({ children: ['Products content'] });
+                return [trigger, content];
+              },
+            });
+            return [item];
+          },
+        });
+        const viewport = ComposedNavigationMenu.Viewport({});
+        return [list, viewport];
+      },
+    });
+    container.appendChild(root);
+
+    const trigger = root.querySelector('button[data-value="products"]') as HTMLElement;
     expect(trigger.classList.contains(styles.trigger)).toBe(true);
-    expect(content.classList.contains(styles.content)).toBe(true);
+    const contentEl = root.querySelector('[data-part="nav-content"]') as HTMLElement;
+    expect(contentEl.classList.contains(styles.content)).toBe(true);
   });
 
-  it('Link factory applies link class', async () => {
+  it('applies link class', async () => {
     const { createThemedNavigationMenu } = await import('../components/primitives/navigation-menu');
+    const { ComposedNavigationMenu } = await import('@vertz/ui-primitives');
     const styles = createNavigationMenuStyles();
-    const themedNav = createThemedNavigationMenu(styles);
-    const nav = themedNav();
-    container.appendChild(nav.root);
-    const link = nav.Link('/about', 'About');
+    const NavigationMenu = createThemedNavigationMenu(styles);
 
-    expect(link.classList.contains(styles.link)).toBe(true);
+    const root = NavigationMenu({
+      children: () => {
+        const list = ComposedNavigationMenu.List({
+          children: () => {
+            const link = ComposedNavigationMenu.Link({ href: '/about', children: ['About'] });
+            return [link];
+          },
+        });
+        const viewport = ComposedNavigationMenu.Viewport({});
+        return [list, viewport];
+      },
+    });
+    container.appendChild(root);
+
+    const linkEl = root.querySelector('a[href="/about"]') as HTMLElement;
+    expect(linkEl.classList.contains(styles.link)).toBe(true);
   });
 
   it('preserves primitive behavior — click opens content', async () => {
     const { createThemedNavigationMenu } = await import('../components/primitives/navigation-menu');
+    const { ComposedNavigationMenu } = await import('@vertz/ui-primitives');
     const styles = createNavigationMenuStyles();
-    const themedNav = createThemedNavigationMenu(styles);
-    const nav = themedNav();
-    container.appendChild(nav.root);
-    const { trigger } = nav.Item('products', 'Products');
+    const NavigationMenu = createThemedNavigationMenu(styles);
 
-    expect(nav.state.activeItem.peek()).toBeNull();
+    const root = NavigationMenu({
+      children: () => {
+        const list = ComposedNavigationMenu.List({
+          children: () => {
+            const item = ComposedNavigationMenu.Item({
+              value: 'products',
+              children: () => {
+                const trigger = ComposedNavigationMenu.Trigger({ children: ['Products'] });
+                const content = ComposedNavigationMenu.Content({ children: ['Products content'] });
+                return [trigger, content];
+              },
+            });
+            return [item];
+          },
+        });
+        const viewport = ComposedNavigationMenu.Viewport({});
+        return [list, viewport];
+      },
+    });
+    container.appendChild(root);
+
+    const trigger = root.querySelector('button[data-value="products"]') as HTMLElement;
     trigger.click();
-    expect(nav.state.activeItem.peek()).toBe('products');
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    expect(trigger.getAttribute('data-state')).toBe('open');
   });
 
   it('passes options through to primitive', async () => {
     const { createThemedNavigationMenu } = await import('../components/primitives/navigation-menu');
+    const { ComposedNavigationMenu } = await import('@vertz/ui-primitives');
     const styles = createNavigationMenuStyles();
-    const themedNav = createThemedNavigationMenu(styles);
-    const nav = themedNav({ delayOpen: 100 });
-    container.appendChild(nav.root);
-    const { trigger, content } = nav.Item('products', 'Products');
+    const NavigationMenu = createThemedNavigationMenu(styles);
+
+    const root = NavigationMenu({
+      delayOpen: 100,
+      children: () => {
+        const list = ComposedNavigationMenu.List({
+          children: () => {
+            const item = ComposedNavigationMenu.Item({
+              value: 'products',
+              children: () => {
+                const trigger = ComposedNavigationMenu.Trigger({ children: ['Products'] });
+                const content = ComposedNavigationMenu.Content({ children: ['Products content'] });
+                return [trigger, content];
+              },
+            });
+            return [item];
+          },
+        });
+        const viewport = ComposedNavigationMenu.Viewport({});
+        return [list, viewport];
+      },
+    });
+    container.appendChild(root);
+
+    const trigger = root.querySelector('button[data-value="products"]') as HTMLElement;
+    const contentEl = root.querySelector('[data-part="nav-content"]') as HTMLElement;
 
     trigger.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
     vi.advanceTimersByTime(100);
 
-    expect(content.getAttribute('aria-hidden')).toBe('false');
+    expect(contentEl.getAttribute('aria-hidden')).toBe('false');
   });
 
-  it('returns root, list, viewport, state, Item, and Link', async () => {
+  it('has callable root with sub-component properties', async () => {
     const { createThemedNavigationMenu } = await import('../components/primitives/navigation-menu');
     const styles = createNavigationMenuStyles();
-    const themedNav = createThemedNavigationMenu(styles);
-    const nav = themedNav();
+    const NavigationMenu = createThemedNavigationMenu(styles);
 
-    expect(nav.root).toBeInstanceOf(HTMLElement);
-    expect(nav.list).toBeInstanceOf(HTMLDivElement);
-    expect(nav.viewport).toBeInstanceOf(HTMLDivElement);
-    expect(nav.state.activeItem).toBeDefined();
-    expect(typeof nav.Item).toBe('function');
-    expect(typeof nav.Link).toBe('function');
+    expect(typeof NavigationMenu).toBe('function');
+    expect(typeof NavigationMenu.List).toBe('function');
+    expect(typeof NavigationMenu.Item).toBe('function');
+    expect(typeof NavigationMenu.Trigger).toBe('function');
+    expect(typeof NavigationMenu.Content).toBe('function');
+    expect(typeof NavigationMenu.Link).toBe('function');
+    expect(typeof NavigationMenu.Viewport).toBe('function');
   });
 });

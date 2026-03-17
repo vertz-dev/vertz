@@ -96,6 +96,11 @@ export type {
   NavigationMenuState,
 } from './navigation-menu/navigation-menu';
 export { NavigationMenu } from './navigation-menu/navigation-menu';
+export type {
+  ComposedNavigationMenuProps,
+  NavigationMenuClasses,
+} from './navigation-menu/navigation-menu-composed';
+export { ComposedNavigationMenu } from './navigation-menu/navigation-menu-composed';
 export type { PopoverElements, PopoverOptions, PopoverState } from './popover/popover';
 export { Popover } from './popover/popover';
 export type { ComposedPopoverProps, PopoverClasses } from './popover/popover-composed';
