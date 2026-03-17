@@ -8,7 +8,7 @@ function makeIR(entities: CodegenEntityModule[]): CodegenIR {
     modules: [],
     schemas: [],
     entities,
-    auth: { schemes: [] },
+    auth: { schemes: [], operations: [] },
   };
 }
 

@@ -11,7 +11,7 @@ describe('ClientGenerator', () => {
       modules: [],
       schemas: [],
       entities,
-      auth: { schemes: [] },
+      auth: { schemes: [], operations: [] },
     };
   }
 
@@ -425,6 +425,117 @@ describe('ClientGenerator', () => {
       const clientFile = files.find((f) => f.path === 'client.ts');
 
       expect(clientFile?.content).not.toContain('registerRelationSchema');
+    });
+  });
+
+  describe('auth integration', () => {
+    function createAuthIR(
+      entities: CodegenEntityModule[] = [],
+      authOperations: CodegenIR['auth']['operations'] = [],
+    ): CodegenIR {
+      return {
+        basePath: '/api',
+        modules: [],
+        schemas: [],
+        entities,
+        auth: { schemes: [], operations: authOperations },
+      };
+    }
+
+    it('imports createAuthSdk when auth operations exist', () => {
+      const ir = createAuthIR(
+        [],
+        [{ operationId: 'session', method: 'GET', path: '/session', hasBody: false }],
+      );
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const clientFile = files.find((f) => f.path === 'client.ts');
+
+      expect(clientFile?.content).toContain("import { createAuthSdk } from './auth'");
+    });
+
+    it('does not import createAuthSdk when no auth operations', () => {
+      const ir = createAuthIR();
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const clientFile = files.find((f) => f.path === 'client.ts');
+
+      expect(clientFile?.content).not.toContain('createAuthSdk');
+    });
+
+    it('includes auth in createClient return object', () => {
+      const ir = createAuthIR(
+        [],
+        [
+          { operationId: 'signIn', method: 'POST', path: '/signin', hasBody: true },
+          { operationId: 'session', method: 'GET', path: '/session', hasBody: false },
+        ],
+      );
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const clientFile = files.find((f) => f.path === 'client.ts');
+
+      expect(clientFile?.content).toContain('const auth = createAuthSdk(');
+      expect(clientFile?.content).toContain('auth,');
+    });
+
+    it('works with both entities and auth', () => {
+      const ir = createAuthIR(
+        [
+          {
+            entityName: 'task',
+            operations: [
+              {
+                kind: 'list',
+                method: 'GET',
+                path: '/task',
+                operationId: 'listTask',
+                outputSchema: 'TaskResponse',
+              },
+            ],
+            actions: [],
+          },
+        ],
+        [
+          { operationId: 'signIn', method: 'POST', path: '/signin', hasBody: true },
+          { operationId: 'session', method: 'GET', path: '/session', hasBody: false },
+        ],
+      );
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const clientFile = files.find((f) => f.path === 'client.ts');
+
+      expect(clientFile?.content).toContain("import { createTaskSdk } from './entities/task'");
+      expect(clientFile?.content).toContain("import { createAuthSdk } from './auth'");
+      expect(clientFile?.content).toContain('task: createTaskSdk(client)');
+      expect(clientFile?.content).toContain('auth,');
+    });
+
+    it('passes auth basePath with /auth suffix', () => {
+      const ir = createAuthIR(
+        [],
+        [{ operationId: 'session', method: 'GET', path: '/session', hasBody: false }],
+      );
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const clientFile = files.find((f) => f.path === 'client.ts');
+
+      expect(clientFile?.content).toContain('/auth');
+      expect(clientFile?.content).toContain('createAuthSdk({ basePath:');
+    });
+
+    it('generates valid client with auth-only (no entities)', () => {
+      const ir = createAuthIR(
+        [],
+        [{ operationId: 'session', method: 'GET', path: '/session', hasBody: false }],
+      );
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const clientFile = files.find((f) => f.path === 'client.ts');
+
+      expect(clientFile?.content).toContain('export function createClient');
+      expect(clientFile?.content).toContain('auth,');
+      expect(clientFile?.content).not.toContain('FetchClient');
     });
   });
 });

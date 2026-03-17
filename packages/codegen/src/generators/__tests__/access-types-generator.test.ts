@@ -4,7 +4,7 @@ import { AccessTypesGenerator } from '../access-types-generator';
 
 function createEmptyIR(): CodegenIR {
   return {
-    auth: { schemes: [] },
+    auth: { schemes: [], operations: [] },
     basePath: '/api',
     entities: [],
     modules: [],

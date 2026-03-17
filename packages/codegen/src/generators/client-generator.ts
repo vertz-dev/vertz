@@ -24,6 +24,7 @@ export class ClientGenerator implements Generator {
 
   private generateClient(ir: CodegenIR): GeneratedFile {
     const entities = ir.entities ?? [];
+    const hasAuth = ir.auth.operations.length > 0;
     const hasMutations = entities.some((e) =>
       e.operations.some(
         (op) => op.kind === 'create' || op.kind === 'update' || op.kind === 'delete',
@@ -54,8 +55,17 @@ export class ClientGenerator implements Generator {
         const pascal = toPascalCase(entity.entityName);
         lines.push(`import { create${pascal}Sdk } from './entities/${entity.entityName}';`);
       }
-      lines.push('');
+    }
 
+    if (hasAuth) {
+      lines.push("import { createAuthSdk } from './auth';");
+    }
+
+    if (entities.length > 0 || hasAuth) {
+      lines.push('');
+    }
+
+    if (entities.length > 0) {
       // Emit registerRelationSchema calls
       if (hasRelations) {
         for (const entry of manifest) {
@@ -86,15 +96,25 @@ export class ClientGenerator implements Generator {
 
     lines.push('export function createClient(options: ClientOptions = {}) {');
 
-    if (entities.length > 0) {
-      lines.push(
-        `  const client = new FetchClient({ baseURL: options.baseURL ?? '/api', headers: options.headers, timeoutMs: options.timeoutMs });`,
-      );
-      if (hasMutations) {
+    if (entities.length > 0 || hasAuth) {
+      const baseURLDefault = "options.baseURL ?? '/api'";
+
+      if (entities.length > 0) {
         lines.push(
-          '  const optimistic = options.optimistic !== false ? (options.optimistic ?? createOptimisticHandler(getEntityStore())) : undefined;',
+          `  const client = new FetchClient({ baseURL: ${baseURLDefault}, headers: options.headers, timeoutMs: options.timeoutMs });`,
         );
+        if (hasMutations) {
+          lines.push(
+            '  const optimistic = options.optimistic !== false ? (options.optimistic ?? createOptimisticHandler(getEntityStore())) : undefined;',
+          );
+        }
       }
+
+      if (hasAuth) {
+        const authBasePath = `\`\${${baseURLDefault}}/auth\``;
+        lines.push(`  const auth = createAuthSdk({ basePath: ${authBasePath} });`);
+      }
+
       lines.push('  return {');
       for (const entity of entities) {
         const pascal = toPascalCase(entity.entityName);
@@ -107,6 +127,9 @@ export class ClientGenerator implements Generator {
         } else {
           lines.push(`    ${camel}: create${pascal}Sdk(client),`);
         }
+      }
+      if (hasAuth) {
+        lines.push('    auth,');
       }
       lines.push('  };');
     } else {

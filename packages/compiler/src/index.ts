@@ -163,6 +163,8 @@ export type {
   AccessWhereCondition,
   AppDefinition,
   AppIR,
+  AuthFeature,
+  AuthIR,
   DatabaseIR,
   DependencyEdge,
   DependencyEdgeKind,

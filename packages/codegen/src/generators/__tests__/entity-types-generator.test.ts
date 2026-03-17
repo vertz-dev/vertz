@@ -11,7 +11,7 @@ describe('EntityTypesGenerator', () => {
       modules: [],
       schemas: [],
       entities,
-      auth: { schemes: [] },
+      auth: { schemes: [], operations: [] },
     };
   }
 

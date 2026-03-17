@@ -19,9 +19,25 @@ export interface AppIR {
   entities: EntityIR[];
   databases: DatabaseIR[];
   access?: AccessIR;
+  auth?: AuthIR;
   dependencyGraph: DependencyGraphIR;
   diagnostics: Diagnostic[];
 }
+
+// ── Auth ────────────────────────────────────────────────────────
+
+export interface AuthIR {
+  /** Which auth features are configured in createServer({ auth }). */
+  features: AuthFeature[];
+}
+
+export type AuthFeature =
+  | 'emailPassword'
+  | 'tenant'
+  | 'providers'
+  | 'mfa'
+  | 'emailVerification'
+  | 'passwordReset';
 
 // ── Access ────────────────────────────────────────────────────────
 

@@ -4,6 +4,7 @@ import type { AppIR } from '@vertz/compiler';
 import type { ResolvedCodegenConfig } from './config';
 import { formatWithBiome } from './format';
 import { AccessTypesGenerator } from './generators/access-types-generator';
+import { AuthSdkGenerator } from './generators/auth-sdk-generator';
 import { ClientGenerator } from './generators/client-generator';
 import { EntitySchemaGenerator } from './generators/entity-schema-generator';
 import { EntitySchemaManifestGenerator } from './generators/entity-schema-manifest-generator';
@@ -63,6 +64,10 @@ function runTypescriptGenerator(ir: CodegenIR, _config: ResolvedCodegenConfig): 
   // Entity schema manifest (entity-schema.json) — always generated
   const entitySchemaManifestGen = new EntitySchemaManifestGenerator();
   files.push(...entitySchemaManifestGen.generate(ir, generatorConfig));
+
+  // Auth SDK (auth.ts) — only emits when auth operations exist
+  const authSdkGen = new AuthSdkGenerator();
+  files.push(...authSdkGen.generate(ir, generatorConfig));
 
   // RLS policies (rls-policies.sql) — opt-in via typescript.rls
   if (_config.typescript?.rls) {

@@ -23,7 +23,7 @@ function makeIR(): CodegenIR {
     ],
     schemas: [],
     entities: [],
-    auth: { schemes: [] },
+    auth: { schemes: [], operations: [] },
   };
 }
 

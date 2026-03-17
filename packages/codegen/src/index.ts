@@ -13,6 +13,7 @@ export {
 export { formatWithBiome } from './format';
 export type { GenerateResult } from './generate';
 export { generate, mergeImportsToPackageJson } from './generate';
+export { AuthSdkGenerator } from './generators/auth-sdk-generator';
 export { ClientGenerator } from './generators/client-generator';
 export { EntitySchemaGenerator } from './generators/entity-schema-generator';
 export type {
@@ -34,6 +35,7 @@ export type { CodegenPipeline } from './pipeline';
 export { createCodegenPipeline } from './pipeline';
 export type {
   CodegenAuth,
+  CodegenAuthOperation,
   CodegenAuthScheme,
   CodegenEntityAction,
   CodegenEntityModule,
