@@ -334,8 +334,11 @@ export const NavigationMenu: ThemeComponentMap['NavigationMenu'] =
     'Viewport',
   ]) as ThemeComponentMap['NavigationMenu'];
 
-export const resizablePanel: ThemeComponentMap['resizablePanel'] =
-  /* #__PURE__ */ createPrimitiveProxy('resizablePanel') as ThemeComponentMap['resizablePanel'];
+export const ResizablePanel: ThemeComponentMap['ResizablePanel'] =
+  /* #__PURE__ */ createCompoundProxy('ResizablePanel', [
+    'Panel',
+    'Handle',
+  ]) as ThemeComponentMap['ResizablePanel'];
 
 export const ScrollArea: ThemeComponentMap['ScrollArea'] = /* #__PURE__ */ createPrimitiveProxy(
   'ScrollArea',
