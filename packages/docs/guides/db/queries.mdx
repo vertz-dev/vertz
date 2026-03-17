@@ -10,13 +10,22 @@ The database client provides typed CRUD operations derived from your schema. Eve
 ```ts
 import { createDb } from 'vertz/db';
 
+// PostgreSQL
 const db = createDb({
   url: process.env.DATABASE_URL!,
   models: { users: usersModel, tasks: tasksModel },
 });
+
+// SQLite (local file or in-memory)
+const db = createDb({
+  dialect: 'sqlite',
+  path: '.vertz/data/app.db', // or ':memory:'
+  models: { users: usersModel, tasks: tasksModel },
+  migrations: { autoApply: true },
+});
 ```
 
-Each model becomes a property on `db` with typed query methods.
+Each model becomes a property on `db` with typed query methods. The query API is identical across all dialects — only the `createDb()` options differ.
 
 ## Read operations
 
@@ -282,8 +291,16 @@ Parameters are automatically escaped — no SQL injection risk.
 
 ## Database support
 
-| Database | Import | Notes |
-|----------|--------|-------|
-| PostgreSQL | `vertz/db` | Default dialect, full feature support |
-| SQLite | `vertz/db/sqlite` | Development and embedded use |
-| Cloudflare D1 | `vertz/db/d1` | Edge deployment |
+All databases use the same import and `createDb()` API:
+
+| Database | Dialect | Connection option | Notes |
+|----------|---------|-------------------|-------|
+| PostgreSQL | `'postgres'` (default) | `url: string` | Full feature support |
+| SQLite | `'sqlite'` | `path: string` | Development, embedded, and local use |
+| Cloudflare D1 | `'sqlite'` | `d1: D1Database` | Edge deployment |
+
+```ts
+import { createDb } from 'vertz/db';
+```
+
+See the [overview](/guides/db/overview#database-support) for setup examples for each dialect.

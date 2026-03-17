@@ -35,7 +35,7 @@ const usersTable = d.table('users', {
 
 const usersModel = d.model(usersTable);
 
-// Create client
+// Create client — PostgreSQL
 const db = createDb({
   url: process.env.DATABASE_URL!,
   models: { users: usersModel },
@@ -53,6 +53,55 @@ const admins = await db.users.list({
 ```
 
 Types flow from the schema definition. `db.users.create()` only accepts fields from the table definition, and the return type includes all non-hidden columns.
+
+## Database support
+
+All databases use the same `createDb()` API — the only difference is the options you pass:
+
+<CodeGroup>
+```ts PostgreSQL
+import { createDb } from 'vertz/db';
+
+const db = createDb({
+  url: process.env.DATABASE_URL!,
+  models: { users: usersModel, tasks: tasksModel },
+});
+```
+
+```ts SQLite (local file)
+import { createDb } from 'vertz/db';
+
+const db = createDb({
+  dialect: 'sqlite',
+  path: '.vertz/data/app.db', // or ':memory:' for in-memory
+  models: { users: usersModel, tasks: tasksModel },
+  migrations: { autoApply: true },
+});
+```
+
+```ts Cloudflare D1
+import { createDb, type D1Database } from 'vertz/db';
+
+export function createD1Db(d1: D1Database) {
+  return createDb({
+    dialect: 'sqlite',
+    d1,
+    models: { users: usersModel, tasks: tasksModel },
+  });
+}
+```
+</CodeGroup>
+
+| Option | PostgreSQL | SQLite (local) | Cloudflare D1 |
+|--------|-----------|---------------|--------------|
+| `dialect` | `'postgres'` (default) | `'sqlite'` | `'sqlite'` |
+| Connection | `url: string` | `path: string` | `d1: D1Database` |
+| Migrations | CLI (`vertz db migrate`) | `migrations: { autoApply: true }` | Manual (wrangler) |
+| Transactions | `db.transaction()` | `db.transaction()` | Not supported (use `D1Database.batch()`) |
+
+<Note>
+SQLite with `autoApply: true` automatically creates tables on first query — no migration commands needed during development. Boolean values are stored as `0`/`1` and timestamps as ISO strings, but the query layer converts them to native JS types automatically.
+</Note>
 
 ## What's included
 
