@@ -12,7 +12,8 @@
   },
   "imports": {
     "#generated": "./.vertz/generated/client.ts",
-    "#generated/types": "./.vertz/generated/types/index.ts"
+    "#generated/types": "./.vertz/generated/types/index.ts",
+    "#generated/schemas": "./.vertz/generated/schemas/index.ts"
   },
   "dependencies": {
     "@vertz/db": "workspace:*",

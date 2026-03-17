@@ -1,52 +1,9 @@
-import type { DialogHandle, FormSchema } from '@vertz/ui';
+import type { DialogHandle } from '@vertz/ui';
 import { form } from '@vertz/ui';
-import type { CreateIssuesInput } from '../api/client';
 import { api } from '../api/client';
-import { PRIORITIES, STATUSES } from '../lib/issue-config';
+import { PRIORITIES } from '../lib/issue-config';
 import { dialogStyles, formStyles, inputStyles, labelStyles } from '../styles/components';
 import { Button } from './button';
-
-const createIssueSchema: FormSchema<CreateIssuesInput> = {
-  parse(data: unknown) {
-    if (typeof data !== 'object' || data === null) {
-      return { ok: false as const, error: new Error('Invalid form data') };
-    }
-    const obj = data as Record<string, unknown>;
-    const errors: Record<string, string> = {};
-
-    if (!obj.title || typeof obj.title !== 'string' || obj.title.trim().length === 0) {
-      errors.title = 'Title is required';
-    }
-
-    const status = (obj.status as string) || 'backlog';
-    if (!STATUSES.some((s) => s.value === status)) {
-      errors.status = 'Invalid status';
-    }
-
-    const priority = (obj.priority as string) || 'none';
-    if (!PRIORITIES.some((p) => p.value === priority)) {
-      errors.priority = 'Invalid priority';
-    }
-
-    if (Object.keys(errors).length > 0) {
-      const err = new Error('Validation failed');
-      (err as Error & { fieldErrors: Record<string, string> }).fieldErrors = errors;
-      return { ok: false as const, error: err };
-    }
-
-    return {
-      ok: true as const,
-      data: {
-        projectId: obj.projectId as string,
-        title: (obj.title as string).trim(),
-        description: obj.description ? String(obj.description).trim() : undefined,
-        status: status as string,
-        priority: priority as string,
-        assigneeId: obj.assigneeId ?? undefined,
-      },
-    };
-  },
-};
 
 interface CreateIssueDialogProps {
   projectId: string;
@@ -55,7 +12,6 @@ interface CreateIssueDialogProps {
 
 export function CreateIssueDialog({ projectId, dialog }: CreateIssueDialogProps) {
   const createForm = form(api.issues.create, {
-    schema: createIssueSchema,
     initial: {
       projectId,
       title: '',

@@ -19,20 +19,6 @@ describe('editIssueSchema', () => {
       }
     });
 
-    it('trims whitespace from title and description', () => {
-      const result = editIssueSchema.parse({
-        title: '  Trimmed title  ',
-        description: '  Trimmed desc  ',
-        status: 'todo',
-        priority: 'none',
-      });
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.data.title).toBe('Trimmed title');
-        expect(result.data.description).toBe('Trimmed desc');
-      }
-    });
-
     it('allows empty description', () => {
       const result = editIssueSchema.parse({
         title: 'Title',
@@ -41,9 +27,13 @@ describe('editIssueSchema', () => {
         priority: 'none',
       });
       expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.data.description).toBeUndefined();
-      }
+    });
+
+    it('allows missing optional fields', () => {
+      const result = editIssueSchema.parse({
+        title: 'Title',
+      });
+      expect(result.ok).toBe(true);
     });
   });
 
@@ -56,47 +46,22 @@ describe('editIssueSchema', () => {
       });
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        const err = result.error as Error & { fieldErrors: Record<string, string> };
-        expect(err.fieldErrors.title).toBe('Title is required');
-      }
-    });
-
-    it('returns error when title is missing', () => {
-      const result = editIssueSchema.parse({
-        status: 'todo',
-        priority: 'none',
-      });
-      expect(result.ok).toBe(false);
-    });
-
-    it('returns error for invalid status', () => {
-      const result = editIssueSchema.parse({
-        title: 'Title',
-        status: 'invalid_status',
-        priority: 'none',
-      });
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        const err = result.error as Error & { fieldErrors: Record<string, string> };
-        expect(err.fieldErrors.status).toBe('Invalid status');
-      }
-    });
-
-    it('returns error for invalid priority', () => {
-      const result = editIssueSchema.parse({
-        title: 'Title',
-        status: 'todo',
-        priority: 'invalid_priority',
-      });
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        const err = result.error as Error & { fieldErrors: Record<string, string> };
-        expect(err.fieldErrors.priority).toBe('Invalid priority');
+        const err = result.error as Error & {
+          issues?: { path: (string | number)[]; message: string }[];
+        };
+        expect(err.issues?.some((i) => i.path[0] === 'title')).toBe(true);
       }
     });
 
     it('returns error for non-object data', () => {
       const result = editIssueSchema.parse(null);
+      expect(result.ok).toBe(false);
+    });
+
+    it('returns error for non-string title', () => {
+      const result = editIssueSchema.parse({
+        title: 123,
+      });
       expect(result.ok).toBe(false);
     });
   });

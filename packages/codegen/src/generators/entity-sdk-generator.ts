@@ -38,17 +38,20 @@ export class EntitySdkGenerator implements Generator {
     const pascal = toPascalCase(entity.entityName);
     const lines: string[] = [FILE_HEADER];
 
-    // Check if any create operation has resolved schemas (needs schema import)
-    const createOpsWithMeta = entity.operations.filter(
-      (op) => op.kind === 'create' && op.resolvedFields && op.resolvedFields.length > 0,
+    // Check if any create/update operation has resolved schemas (needs schema import)
+    const mutationOpsWithMeta = entity.operations.filter(
+      (op) =>
+        (op.kind === 'create' || op.kind === 'update') &&
+        op.resolvedFields &&
+        op.resolvedFields.length > 0,
     );
-    const hasSchemaImports = createOpsWithMeta.length > 0;
+    const hasSchemaImports = mutationOpsWithMeta.length > 0;
 
-    // Import schemas (when create methods have resolved fields)
+    // Import schemas (when create/update methods have resolved fields)
     if (hasSchemaImports) {
       const schemaImports: string[] = [];
-      for (const op of createOpsWithMeta) {
-        const schemaVarName = `${(op.inputSchema ?? 'createInput').charAt(0).toLowerCase()}${(op.inputSchema ?? 'createInput').slice(1)}Schema`;
+      for (const op of mutationOpsWithMeta) {
+        const schemaVarName = `${(op.inputSchema ?? `${op.kind}Input`).charAt(0).toLowerCase()}${(op.inputSchema ?? `${op.kind}Input`).slice(1)}Schema`;
         schemaImports.push(schemaVarName);
       }
       lines.push(`import { ${schemaImports.join(', ')} } from '../schemas/${entity.entityName}';`);
@@ -173,12 +176,26 @@ export class EntitySdkGenerator implements Generator {
           }
           break;
         case 'update':
-          lines.push(`    update: Object.assign(`);
-          lines.push(
-            `      (id: string, body: ${inputType}) => createMutationDescriptor('PATCH', \`${op.path.replace(':id', '${id}')}\`, () => client.patch<${outputType}>(\`${op.path.replace(':id', '${id}')}\`, body), { entityType: '${entity.entityName}', kind: 'update' as const, id, body }, optimistic),`,
-          );
-          lines.push(`      { url: '${op.path}', method: 'PATCH' as const },`);
-          lines.push(`    ),`);
+          if (op.resolvedFields && op.resolvedFields.length > 0) {
+            const schemaVarName = `${(op.inputSchema ?? 'updateInput').charAt(0).toLowerCase()}${(op.inputSchema ?? 'updateInput').slice(1)}Schema`;
+            lines.push(`    update: Object.assign(`);
+            lines.push(
+              `      (id: string, body: ${inputType}) => createMutationDescriptor('PATCH', \`${op.path.replace(':id', '${id}')}\`, () => client.patch<${outputType}>(\`${op.path.replace(':id', '${id}')}\`, body), { entityType: '${entity.entityName}', kind: 'update' as const, id, body }, optimistic),`,
+            );
+            lines.push(`      {`);
+            lines.push(`        url: '${op.path}',`);
+            lines.push(`        method: 'PATCH' as const,`);
+            lines.push(`        meta: { bodySchema: ${schemaVarName} },`);
+            lines.push(`      },`);
+            lines.push(`    ),`);
+          } else {
+            lines.push(`    update: Object.assign(`);
+            lines.push(
+              `      (id: string, body: ${inputType}) => createMutationDescriptor('PATCH', \`${op.path.replace(':id', '${id}')}\`, () => client.patch<${outputType}>(\`${op.path.replace(':id', '${id}')}\`, body), { entityType: '${entity.entityName}', kind: 'update' as const, id, body }, optimistic),`,
+            );
+            lines.push(`      { url: '${op.path}', method: 'PATCH' as const },`);
+            lines.push(`    ),`);
+          }
           break;
         case 'delete':
           lines.push(`    delete: Object.assign(`);
