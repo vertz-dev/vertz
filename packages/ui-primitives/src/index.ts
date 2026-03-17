@@ -26,6 +26,8 @@ export type { CalendarClasses, ComposedCalendarProps } from './calendar/calendar
 export { ComposedCalendar } from './calendar/calendar-composed';
 export type { CarouselElements, CarouselOptions, CarouselState } from './carousel/carousel';
 export { Carousel } from './carousel/carousel';
+export type { CarouselClasses, ComposedCarouselProps } from './carousel/carousel-composed';
+export { ComposedCarousel } from './carousel/carousel-composed';
 export type { CheckboxOptions, CheckedState } from './checkbox/checkbox';
 export { Checkbox } from './checkbox/checkbox';
 export type { CheckboxClasses, ComposedCheckboxProps } from './checkbox/checkbox-composed';

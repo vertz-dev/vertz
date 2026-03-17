@@ -13,7 +13,7 @@ export type {
 } from './alert-dialog';
 export { createThemedAlertDialog } from './alert-dialog';
 export { createThemedCalendar } from './calendar';
-export type { ThemedCarouselResult } from './carousel';
+export type { CarouselRootProps, CarouselSlotProps, ThemedCarouselComponent } from './carousel';
 export { createThemedCarousel } from './carousel';
 export type { CheckboxRootProps, ThemedCheckboxComponent } from './checkbox';
 export { createThemedCheckbox } from './checkbox';

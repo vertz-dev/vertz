@@ -36,6 +36,7 @@ import type { PaginationComponents } from './components/pagination';
 import type { ThemedAccordionComponent } from './components/primitives/accordion';
 import type { ThemedAlertDialogComponent } from './components/primitives/alert-dialog';
 import type { ThemedCalendarComponent } from './components/primitives/calendar';
+import type { ThemedCarouselComponent } from './components/primitives/carousel';
 import type { ThemedCheckboxComponent } from './components/primitives/checkbox';
 import type { ThemedContextMenuComponent } from './components/primitives/context-menu';
 import type { ThemedDialogComponent } from './components/primitives/dialog';
@@ -100,8 +101,10 @@ declare module '@vertz/ui/components' {
     Toggle: ThemedToggleComponent;
     Toast: ThemedPrimitives['Toast'];
 
+    // Compound primitives (callable + sub-components) — continued
+    Carousel: ThemedCarouselComponent;
+
     // Factory primitives (lowercase)
-    carousel: ThemedPrimitives['carousel'];
     collapsible: ThemedPrimitives['collapsible'];
     command: ThemedPrimitives['command'];
     datePicker: ThemedPrimitives['datePicker'];

@@ -40,7 +40,7 @@ describe('carousel styles', () => {
 
 describe('themed carousel', () => {
   const styles = createCarouselStyles();
-  const ThemedCarousel = createThemedCarousel({
+  const Carousel = createThemedCarousel({
     root: styles.root,
     viewport: styles.viewport,
     slide: styles.slide,
@@ -48,35 +48,73 @@ describe('themed carousel', () => {
     nextButton: styles.nextButton,
   });
 
-  it('applies root class', () => {
-    const { root } = ThemedCarousel();
+  it('creates a themed carousel component with sub-components', () => {
+    expect(typeof Carousel).toBe('function');
+    expect(typeof Carousel.Slide).toBe('function');
+    expect(typeof Carousel.Previous).toBe('function');
+    expect(typeof Carousel.Next).toBe('function');
+  });
+
+  it('renders a carousel with themed classes', () => {
+    const root = Carousel({
+      children: () => {
+        const s1 = Carousel.Slide({ children: ['Slide 1'] });
+        const s2 = Carousel.Slide({ children: ['Slide 2'] });
+        const prev = Carousel.Previous({ children: ['Prev'] });
+        const next = Carousel.Next({ children: ['Next'] });
+        return [s1, s2, prev, next];
+      },
+    });
+
+    expect(root.getAttribute('role')).toBe('region');
+    expect(root.getAttribute('aria-roledescription')).toBe('carousel');
     expect(root.classList.contains(styles.root)).toBe(true);
   });
 
-  it('applies viewport class', () => {
-    const { viewport } = ThemedCarousel();
-    expect(viewport.classList.contains(styles.viewport)).toBe(true);
-  });
+  it('applies slide class to rendered slides', () => {
+    const root = Carousel({
+      children: () => {
+        const s1 = Carousel.Slide({ children: ['Slide 1'] });
+        return [s1];
+      },
+    });
 
-  it('applies button classes', () => {
-    const { prevButton, nextButton } = ThemedCarousel();
-    expect(prevButton.classList.contains(styles.prevButton)).toBe(true);
-    expect(nextButton.classList.contains(styles.nextButton)).toBe(true);
-  });
-
-  it('applies slide class to created slides', () => {
-    const { Slide } = ThemedCarousel();
-    const slide = Slide();
+    const slide = root.querySelector('[role="group"]') as HTMLElement;
     expect(slide.classList.contains(styles.slide)).toBe(true);
   });
 
-  it('preserves primitive behavior', () => {
-    const { state, Slide, nextButton } = ThemedCarousel();
-    Slide();
-    Slide();
+  it('applies button classes to prev/next buttons', () => {
+    const root = Carousel({
+      children: () => {
+        const s1 = Carousel.Slide({ children: ['Slide 1'] });
+        const prev = Carousel.Previous({ children: ['Prev'] });
+        const next = Carousel.Next({ children: ['Next'] });
+        return [s1, prev, next];
+      },
+    });
 
-    expect(state.currentIndex.peek()).toBe(0);
-    nextButton.click();
-    expect(state.currentIndex.peek()).toBe(1);
+    const prevBtn = root.querySelector('[aria-label="Previous slide"]') as HTMLElement;
+    const nextBtn = root.querySelector('[aria-label="Next slide"]') as HTMLElement;
+    expect(prevBtn.classList.contains(styles.prevButton)).toBe(true);
+    expect(nextBtn.classList.contains(styles.nextButton)).toBe(true);
+  });
+
+  it('preserves navigation behavior', () => {
+    const root = Carousel({
+      children: () => {
+        const s1 = Carousel.Slide({ children: ['S1'] });
+        const s2 = Carousel.Slide({ children: ['S2'] });
+        const prev = Carousel.Previous({ children: ['Prev'] });
+        const next = Carousel.Next({ children: ['Next'] });
+        return [s1, s2, prev, next];
+      },
+    });
+
+    const nextBtn = root.querySelector('[aria-label="Next slide"]') as HTMLButtonElement;
+    nextBtn.click();
+
+    const slides = root.querySelectorAll('[role="group"]');
+    expect(slides[0]?.getAttribute('data-state')).toBe('inactive');
+    expect(slides[1]?.getAttribute('data-state')).toBe('active');
   });
 });
