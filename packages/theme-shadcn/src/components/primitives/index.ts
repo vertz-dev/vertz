@@ -58,7 +58,14 @@ export type {
   ThemedMenubarComponent,
 } from './menubar';
 export { createThemedMenubar } from './menubar';
-export type { ThemedNavigationMenuResult } from './navigation-menu';
+export type {
+  NavigationMenuItemProps,
+  NavigationMenuLinkProps,
+  NavigationMenuRootProps,
+  NavigationMenuSlotProps,
+  NavigationMenuViewportProps,
+  ThemedNavigationMenuComponent,
+} from './navigation-menu';
 export { createThemedNavigationMenu } from './navigation-menu';
 export type { PopoverRootProps, PopoverSlotProps, ThemedPopoverComponent } from './popover';
 export { createThemedPopover } from './popover';

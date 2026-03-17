@@ -320,8 +320,15 @@ export const Menubar: ThemeComponentMap['Menubar'] = /* #__PURE__ */ createCompo
   ['Menu', 'Trigger', 'Content', 'Item', 'Group', 'Label', 'Separator'],
 ) as ThemeComponentMap['Menubar'];
 
-export const navigationMenu: ThemeComponentMap['navigationMenu'] =
-  /* #__PURE__ */ createPrimitiveProxy('navigationMenu') as ThemeComponentMap['navigationMenu'];
+export const NavigationMenu: ThemeComponentMap['NavigationMenu'] =
+  /* #__PURE__ */ createCompoundProxy('NavigationMenu', [
+    'List',
+    'Item',
+    'Trigger',
+    'Content',
+    'Link',
+    'Viewport',
+  ]) as ThemeComponentMap['NavigationMenu'];
 
 export const resizablePanel: ThemeComponentMap['resizablePanel'] =
   /* #__PURE__ */ createPrimitiveProxy('resizablePanel') as ThemeComponentMap['resizablePanel'];
