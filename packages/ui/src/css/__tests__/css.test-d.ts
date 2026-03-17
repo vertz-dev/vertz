@@ -280,12 +280,64 @@ void _pseudo4;
 // Valid ring and list utilities
 const _ring1: StyleEntry = 'ring:2';
 const _ring2: StyleEntry = 'ring:primary';
+const _ring3: StyleEntry = 'ring:primary.500';
 const _list1: StyleEntry = 'list:none';
 const _list2: StyleEntry = 'list:inside';
+const _list3: StyleEntry = 'list:disc';
+const _list4: StyleEntry = 'list:decimal';
+const _list5: StyleEntry = 'list:outside';
 void _ring1;
 void _ring2;
+void _ring3;
 void _list1;
 void _list2;
+void _list3;
+void _list4;
+void _list5;
+
+// Multi-mode text: font-size, text-align, and color modes
+const _textAlign1: StyleEntry = 'text:left';
+const _textAlign2: StyleEntry = 'text:right';
+const _textAlign3: StyleEntry = 'text:justify';
+const _textAlign4: StyleEntry = 'text:start';
+const _textAlign5: StyleEntry = 'text:end';
+void _textAlign1;
+void _textAlign2;
+void _textAlign3;
+void _textAlign4;
+void _textAlign5;
+
+// Multi-mode font: weight extremes
+const _fontW1: StyleEntry = 'font:thin';
+const _fontW2: StyleEntry = 'font:black';
+const _fontW3: StyleEntry = 'font:semibold';
+void _fontW1;
+void _fontW2;
+void _fontW3;
+
+// Multi-mode border: color and width modes
+const _borderColor1: StyleEntry = 'border:transparent';
+const _borderColor2: StyleEntry = 'border:primary.500';
+const _borderWidth1: StyleEntry = 'border:1';
+const _borderWidth2: StyleEntry = 'border:1.5';
+const _borderWidth3: StyleEntry = 'border:0';
+void _borderColor1;
+void _borderColor2;
+void _borderWidth1;
+void _borderWidth2;
+void _borderWidth3;
+
+// Size properties with spacing values
+const _sizeSpacing1: StyleEntry = 'w:64';
+const _sizeSpacing2: StyleEntry = 'h:12';
+const _sizeSpacing3: StyleEntry = 'min-h:24';
+const _sizeSpacing4: StyleEntry = 'max-w:xl';
+const _sizeSpacing5: StyleEntry = 'h:screen';
+void _sizeSpacing1;
+void _sizeSpacing2;
+void _sizeSpacing3;
+void _sizeSpacing4;
+void _sizeSpacing5;
 
 // ─── UtilityClass — INVALID strings must be rejected ──────────────
 

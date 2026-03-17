@@ -153,7 +153,7 @@ type BaseUtility =
   // Raw: cursor:pointer, z:10, opacity:0.5, transition:colors, ...
   | `${RawProperty}:${string}`
   // Ring (multi-mode): ring:2 (width) or ring:primary (color)
-  | `ring:${string}`
+  | `ring:${`${number}` | ColorToken}`
   // Multi-mode text: text:foreground (color), text:sm (font-size), text:center (align)
   | `text:${FontSizeValue | TextAlignKeyword | ColorToken}`
   // Multi-mode font: font:xl (size) or font:medium (weight)
