@@ -31,12 +31,8 @@ export function IssueListPage() {
       : issues.data?.items.filter((i) => i.status === statusFilter);
 
   const handleNewIssue = async () => {
-    try {
-      const created = await stack.open(CreateIssueDialog, { projectId });
-      if (created) issues.refetch();
-    } catch {
-      // Dialog dismissed — no action needed
-    }
+    const result = await stack.open(CreateIssueDialog, { projectId });
+    if (result.ok && result.data) issues.refetch();
   };
 
   return (
