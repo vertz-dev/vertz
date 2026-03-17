@@ -67,14 +67,14 @@
       "linter": {
         "rules": {
           "a11y": {
-            "noRedundantRoles": "off",
-            "useSemanticElements": "off",
             "noNoninteractiveElementToInteractiveRole": "off",
+            "noRedundantRoles": "off",
+            "noStaticElementInteractions": "off",
+            "useAriaPropsForRole": "off",
+            "useAriaPropsSupportedByRole": "off",
             "useFocusableInteractive": "off",
             "useKeyWithClickEvents": "off",
-            "useAriaPropsForRole": "off",
-            "noStaticElementInteractions": "off",
-            "useAriaPropsSupportedByRole": "off"
+            "useSemanticElements": "off"
           }
         }
       }
@@ -87,7 +87,8 @@
     "./biome-plugins/no-throw-plain-error.grit",
     "./biome-plugins/no-wrong-effect.grit",
     "./biome-plugins/no-querymatch-destructure.grit",
-    "./biome-plugins/no-body-jsx.grit"
+    "./biome-plugins/no-body-jsx.grit",
+    "./biome-plugins/no-try-catch-result.grit"
   ],
   "vcs": {
     "clientKind": "git",
