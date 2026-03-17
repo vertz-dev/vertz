@@ -1,10 +1,10 @@
 import type { DialogHandle } from '@vertz/ui';
-import { css, query } from '@vertz/ui';
+import { css, form, query } from '@vertz/ui';
 import { Button } from '@vertz/ui/components';
 import { api } from '../api/client';
 import { LABEL_COLORS } from '../lib/issue-config';
 import type { Label } from '../lib/types';
-import { dialogStyles, inputStyles } from '../styles/components';
+import { dialogStyles, formStyles, inputStyles, labelStyles } from '../styles/components';
 
 const styles = css({
   list: ['flex', 'flex-col', 'gap:2', 'mb:4', 'max-h:80', 'overflow-y:auto'],
@@ -12,7 +12,7 @@ const styles = css({
   dot: ['w:3', 'h:3', 'rounded:full', 'shrink-0'],
   name: ['flex-1', 'text:sm', 'text:foreground'],
   actions: ['flex', 'gap:1'],
-  form: ['flex', 'flex-col', 'gap:3', 'mb:4'],
+  formContainer: ['flex', 'flex-col', 'gap:3', 'mb:4'],
   colorGrid: ['flex', 'flex-wrap', 'gap:2'],
   colorButton: [
     'w:6',
@@ -34,7 +34,6 @@ const styles = css({
     'transition:all',
   ],
   empty: ['text:sm', 'text:muted-foreground', 'py:4', 'text:center'],
-  error: ['text:xs', 'text:destructive', 'mt:1'],
 });
 
 interface ManageLabelsDialogProps {
@@ -46,63 +45,46 @@ export function ManageLabelsDialog({ projectId, dialog }: ManageLabelsDialogProp
   const labelsQuery = query(api.labels.list({ projectId }));
 
   let editingLabel: Label | null = null;
-  let newName = '';
-  let newColor = LABEL_COLORS[0].value;
-  let error = '';
   let isCreating = false;
+  let selectedColor = LABEL_COLORS[0].value;
+
+  const createForm = form(api.labels.create, {
+    initial: { projectId, name: '', color: LABEL_COLORS[0].value },
+    onSuccess: () => {
+      isCreating = false;
+      editingLabel = null;
+      selectedColor = LABEL_COLORS[0].value;
+    },
+  });
 
   const resetForm = () => {
     editingLabel = null;
-    newName = '';
-    newColor = LABEL_COLORS[0].value;
-    error = '';
     isCreating = false;
-  };
-
-  const handleCreate = async () => {
-    if (!newName.trim()) {
-      error = 'Name is required';
-      return;
-    }
-    const res = await api.labels.create({ projectId, name: newName.trim(), color: newColor });
-    if (res.ok) {
-      resetForm();
-      labelsQuery.refetch();
-    } else {
-      error = 'Failed to create label';
-    }
-  };
-
-  const handleUpdate = async () => {
-    if (!editingLabel || !newName.trim()) {
-      error = 'Name is required';
-      return;
-    }
-    const res = await api.labels.update(editingLabel.id, { name: newName.trim(), color: newColor });
-    if (res.ok) {
-      resetForm();
-      labelsQuery.refetch();
-    } else {
-      error = 'Failed to update label';
-    }
+    selectedColor = LABEL_COLORS[0].value;
   };
 
   const handleDelete = async (labelId: string) => {
-    const res = await api.labels.delete(labelId);
-    if (res.ok) labelsQuery.refetch();
+    await api.labels.delete(labelId);
   };
 
   const startEdit = (label: Label) => {
     editingLabel = label;
-    newName = label.name;
-    newColor = label.color;
+    selectedColor = label.color;
     isCreating = true;
-    error = '';
   };
 
   const startCreate = () => {
     resetForm();
     isCreating = true;
+  };
+
+  const handleUpdate = async () => {
+    if (!editingLabel) return;
+    const nameInput = document.querySelector<HTMLInputElement>('#label-name');
+    const name = nameInput?.value?.trim();
+    if (!name) return;
+    await api.labels.update(editingLabel.id, { name, color: selectedColor });
+    resetForm();
   };
 
   return (
@@ -147,41 +129,92 @@ export function ManageLabelsDialog({ projectId, dialog }: ManageLabelsDialogProp
           ))}
         </div>
 
-        {isCreating && (
-          <div className={styles.form}>
-            <input
-              className={inputStyles.base}
-              value={newName}
-              onInput={(e: InputEvent) => {
-                newName = (e.target as HTMLInputElement).value;
-              }}
-              placeholder="Label name"
-            />
+        {isCreating && !editingLabel && (
+          <form
+            action={createForm.action}
+            method={createForm.method}
+            onSubmit={createForm.onSubmit}
+            className={styles.formContainer}
+          >
+            <input type="hidden" name="projectId" value={projectId} />
+            <input type="hidden" name="color" value={selectedColor} />
+            <div className={formStyles.field}>
+              <label className={labelStyles.base} htmlFor="label-name">
+                Name
+              </label>
+              <input
+                className={inputStyles.base}
+                id="label-name"
+                name="name"
+                placeholder="Label name"
+              />
+              {createForm.name.error && (
+                <span className={formStyles.error}>{createForm.name.error}</span>
+              )}
+            </div>
             <div className={styles.colorGrid}>
               {LABEL_COLORS.map((c) => (
                 <button
                   type="button"
                   key={c.value}
-                  className={c.value === newColor ? styles.colorSelected : styles.colorButton}
+                  className={c.value === selectedColor ? styles.colorSelected : styles.colorButton}
                   style={`background-color: ${c.value}`}
                   aria-label={c.name}
                   onClick={() => {
-                    newColor = c.value;
+                    selectedColor = c.value;
                   }}
                 />
               ))}
             </div>
-            {error && <span className={styles.error}>{error}</span>}
             <div className={dialogStyles.footer}>
               <Button intent="outline" size="sm" onClick={resetForm}>
                 Cancel
               </Button>
               <Button
+                type="submit"
                 intent="primary"
                 size="sm"
-                onClick={editingLabel ? handleUpdate : handleCreate}
+                disabled={createForm.submitting.value}
               >
-                {editingLabel ? 'Update' : 'Create'}
+                {createForm.submitting ? 'Creating...' : 'Create'}
+              </Button>
+            </div>
+          </form>
+        )}
+
+        {isCreating && editingLabel && (
+          <div className={styles.formContainer}>
+            <div className={formStyles.field}>
+              <label className={labelStyles.base} htmlFor="label-name">
+                Name
+              </label>
+              <input
+                className={inputStyles.base}
+                id="label-name"
+                placeholder="Label name"
+                value={editingLabel.name}
+              />
+            </div>
+            <div className={styles.colorGrid}>
+              {LABEL_COLORS.map((c) => (
+                <button
+                  type="button"
+                  key={c.value}
+                  className={c.value === selectedColor ? styles.colorSelected : styles.colorButton}
+                  style={`background-color: ${c.value}`}
+                  aria-label={c.name}
+                  onClick={() => {
+                    selectedColor = c.value;
+                  }}
+                />
+              ))}
+            </div>
+            <div className={dialogStyles.footer}>
+              <Button intent="outline" size="sm" onClick={resetForm}>
+                Cancel
+              </Button>
+              <Button intent="primary" size="sm" onClick={handleUpdate}>
+                Update
               </Button>
             </div>
           </div>

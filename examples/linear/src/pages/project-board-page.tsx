@@ -45,13 +45,11 @@ export function ProjectBoardPage() {
   });
 
   const handleNewIssue = async () => {
-    const result = await stack.open(CreateIssueDialog, { projectId });
-    if (result.ok && result.data) issues.refetch();
+    await stack.open(CreateIssueDialog, { projectId });
   };
 
   const handleManageLabels = async () => {
     await stack.open(ManageLabelsDialog, { projectId });
-    labelsQuery.refetch();
   };
 
   return (

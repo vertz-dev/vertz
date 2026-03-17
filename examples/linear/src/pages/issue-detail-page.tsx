@@ -61,7 +61,6 @@ export function IssueDetailPage() {
       return;
     }
     updateError = '';
-    issue.refetch();
   };
 
   const handlePriorityChange = async (priority: IssuePriority) => {
@@ -71,17 +70,14 @@ export function IssueDetailPage() {
       return;
     }
     updateError = '';
-    issue.refetch();
   };
 
   const handleAddLabel = async (labelId: string) => {
     await api.issueLabels.create({ issueId, labelId });
-    issueLabelsQuery.refetch();
   };
 
   const handleRemoveLabel = async (issueLabelId: string) => {
     await api.issueLabels.delete(issueLabelId);
-    issueLabelsQuery.refetch();
   };
 
   return (
@@ -113,7 +109,7 @@ export function IssueDetailPage() {
               loading={comments.loading}
               issueId={issueId}
               userMap={userMap}
-              onCommentAdded={() => comments.refetch()}
+              onCommentAdded={() => {}}
             />
           </div>
 
