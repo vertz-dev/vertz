@@ -53,7 +53,7 @@ export async function fetchEligibleIssues(): Promise<Issue[]> {
   return issues
     .filter((issue) => {
       const names = new Set(issue.labels.map((l) => l.name));
-      return !names.has('in-progress') && !names.has('blocked');
+      return !names.has('in-progress') && !names.has('blocked') && !names.has('ready-for-review');
     })
     .sort((a, b) => priorityOf(a) - priorityOf(b));
 }
