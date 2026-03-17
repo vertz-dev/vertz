@@ -236,12 +236,48 @@ describe('Feature: entity() definition', () => {
         const def = entity('tasks', { model: tenantModel });
         expect(def.tenantScoped).toBe(true);
       });
+
+      it('Then tenantColumn defaults to "tenantId"', () => {
+        const def = entity('tasks', { model: tenantModel });
+        expect(def.tenantColumn).toBe('tenantId');
+      });
     });
 
     describe('When calling entity() with tenantScoped: false', () => {
       it('Then tenantScoped is false', () => {
         const def = entity('tasks', { model: tenantModel, tenantScoped: false });
         expect(def.tenantScoped).toBe(false);
+      });
+
+      it('Then tenantColumn is null', () => {
+        const def = entity('tasks', { model: tenantModel, tenantScoped: false });
+        expect(def.tenantColumn).toBeNull();
+      });
+    });
+  });
+
+  describe('Given a model with a custom tenant FK column via _tenant relation', () => {
+    const orgsTable = d.table('organizations', { id: d.uuid().primary(), name: d.text() });
+    const employeesTable = d.table('employees', {
+      id: d.uuid().primary(),
+      name: d.text(),
+      organizationId: d.uuid(),
+    });
+    const employeesModel = d.model(
+      employeesTable,
+      { organization: d.ref.one(() => orgsTable, 'organizationId') },
+      { tenant: 'organization' },
+    );
+
+    describe('When calling entity() without explicit tenantScoped', () => {
+      it('Then tenantScoped defaults to true', () => {
+        const def = entity('employees', { model: employeesModel });
+        expect(def.tenantScoped).toBe(true);
+      });
+
+      it('Then tenantColumn resolves to the relation FK ("organizationId")', () => {
+        const def = entity('employees', { model: employeesModel });
+        expect(def.tenantColumn).toBe('organizationId');
       });
     });
   });
@@ -251,6 +287,11 @@ describe('Feature: entity() definition', () => {
       it('Then tenantScoped defaults to false', () => {
         const def = entity('users', { model: usersModel });
         expect(def.tenantScoped).toBe(false);
+      });
+
+      it('Then tenantColumn is null', () => {
+        const def = entity('users', { model: usersModel });
+        expect(def.tenantColumn).toBeNull();
       });
     });
   });

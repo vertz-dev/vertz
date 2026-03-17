@@ -1200,6 +1200,140 @@ describe('Feature: CRUD pipeline', () => {
     });
   });
 
+  describe('Given a tenant-scoped entity with custom FK column (workspaceId)', () => {
+    const workspacesTable = d.table('workspaces', {
+      id: d.uuid().primary(),
+      name: d.text(),
+    });
+    const projectsTable = d.table('projects', {
+      id: d.uuid().primary(),
+      title: d.text(),
+      workspaceId: d.uuid(),
+    });
+    const projectsModel = d.model(
+      projectsTable,
+      { workspace: d.ref.one(() => workspacesTable, 'workspaceId') },
+      { tenant: 'workspace' },
+    );
+    const def = entity('projects', {
+      model: projectsModel,
+      access: {
+        list: () => true,
+        get: () => true,
+        create: () => true,
+        update: () => true,
+        delete: () => true,
+      },
+    });
+
+    function createCustomTenantStubDb() {
+      const rows: Record<string, Record<string, unknown>> = {
+        'proj-1': { id: 'proj-1', title: 'Proj A', workspaceId: 'ws-a' },
+        'proj-2': { id: 'proj-2', title: 'Proj B', workspaceId: 'ws-b' },
+        'proj-3': { id: 'proj-3', title: 'Proj C', workspaceId: 'ws-a' },
+      };
+      return {
+        get: mock(async (id: string) => rows[id] ?? null),
+        list: mock(
+          async (options?: { where?: Record<string, unknown>; limit?: number; after?: string }) => {
+            let result = Object.values(rows);
+            const where = options?.where;
+            if (where) {
+              result = result.filter((row) =>
+                Object.entries(where).every(([key, value]) => row[key] === value),
+              );
+            }
+            const total = result.length;
+            if (options?.limit !== undefined) {
+              result = result.slice(0, options.limit);
+            }
+            return { data: result, total };
+          },
+        ),
+        create: mock(async (data: Record<string, unknown>) => ({
+          id: 'new-id',
+          ...data,
+        })),
+        update: mock(async (id: string, data: Record<string, unknown>) => ({
+          ...rows[id],
+          ...data,
+        })),
+        delete: mock(async (id: string) => rows[id] ?? null),
+      };
+    }
+
+    describe('When ws-a user calls list()', () => {
+      it('Then only returns projects for ws-a (filters by workspaceId)', async () => {
+        const db = createCustomTenantStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx({ tenantId: 'ws-a' });
+
+        const result = unwrap(await handlers.list(ctx));
+
+        expect(result.body.items).toHaveLength(2);
+        for (const item of result.body.items) {
+          expect(item.workspaceId).toBe('ws-a');
+        }
+      });
+    });
+
+    describe('When ws-a user calls get() for ws-b project', () => {
+      it('Then returns 404 (cross-tenant)', async () => {
+        const db = createCustomTenantStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx({ tenantId: 'ws-a' });
+
+        const result = await handlers.get(ctx, 'proj-2');
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityNotFoundError);
+        }
+      });
+    });
+
+    describe('When ws-a user calls create()', () => {
+      it('Then auto-sets workspaceId from context', async () => {
+        const db = createCustomTenantStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx({ tenantId: 'ws-a' });
+
+        unwrap(await handlers.create(ctx, { title: 'New Project' }));
+
+        const createCall = db.create.mock.calls[0]![0];
+        expect(createCall).toHaveProperty('workspaceId', 'ws-a');
+        expect(createCall).not.toHaveProperty('tenantId');
+      });
+    });
+
+    describe('When ws-a user calls update() on ws-b project', () => {
+      it('Then returns 404 (cross-tenant)', async () => {
+        const db = createCustomTenantStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx({ tenantId: 'ws-a' });
+
+        const result = await handlers.update(ctx, 'proj-2', { title: 'Hacked' });
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityNotFoundError);
+        }
+      });
+    });
+
+    describe('When ws-a user calls delete() on ws-b project', () => {
+      it('Then returns 404 (cross-tenant)', async () => {
+        const db = createCustomTenantStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx({ tenantId: 'ws-a' });
+
+        const result = await handlers.delete(ctx, 'proj-2');
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityNotFoundError);
+        }
+      });
+    });
+  });
+
   describe('Given a non-tenant-scoped entity (no tenantId column)', () => {
     describe('When calling list() without tenantId in context', () => {
       it('Then returns all rows (no tenant filter)', async () => {
