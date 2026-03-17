@@ -42,7 +42,7 @@ test.beforeEach(async ({ context, baseURL }) => {
     email: `e2e-${Date.now()}@test.local`,
     password: 'TestPassword123!',
   });
-  await api.auth.switchTenant({ tenantId: 'tenant-acme' });
+  await api.auth.switchTenant({ tenantId: 'ws-acme' });
 
   await context.addCookies(api.auth.cookies());
 });

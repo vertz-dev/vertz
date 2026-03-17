@@ -13,13 +13,13 @@ import {
   type commentsModel,
   type issuesModel,
   type projectsModel,
-  SEED_TENANT_ID,
-  type tenantsModel,
+  SEED_WORKSPACE_ID,
   type usersModel,
+  type workspacesModel,
 } from './schema';
 
 type SeedModels = {
-  tenants: typeof tenantsModel;
+  workspaces: typeof workspacesModel;
   users: typeof usersModel;
   projects: typeof projectsModel;
   issues: typeof issuesModel;
@@ -30,12 +30,12 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
   const result = await db.projects.count();
   if (isOk(result) && result.data > 0) return;
 
-  const T = SEED_TENANT_ID;
+  const W = SEED_WORKSPACE_ID;
 
-  // --- Tenant ---
+  // --- Workspace ---
   unwrap(
-    await db.tenants.create({
-      data: { id: T, name: 'Acme Corp' },
+    await db.workspaces.create({
+      data: { id: W, name: 'Acme Corp' },
     }),
   );
 
@@ -48,14 +48,14 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
       data: [
         {
           id: 'seed-alice',
-          tenantId: T,
+          tenantId: W,
           name: 'Alice Chen',
           email: 'alice@example.com',
           avatarUrl: null,
         },
         {
           id: 'seed-bob',
-          tenantId: T,
+          tenantId: W,
           name: 'Bob Martinez',
           email: 'bob@example.com',
           avatarUrl: null,
@@ -70,7 +70,7 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
       data: [
         {
           id: 'proj-eng',
-          tenantId: T,
+          tenantId: W,
           name: 'Engineering',
           key: 'ENG',
           description: 'Core platform development',
@@ -78,7 +78,7 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
         },
         {
           id: 'proj-des',
-          tenantId: T,
+          tenantId: W,
           name: 'Design',
           key: 'DES',
           description: 'Design system and UI work',
@@ -86,7 +86,7 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
         },
         {
           id: 'proj-doc',
-          tenantId: T,
+          tenantId: W,
           name: 'Documentation',
           key: 'DOC',
           description: 'Docs, guides, and tutorials',
@@ -102,7 +102,7 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
       data: [
         {
           id: 'iss-1',
-          tenantId: T,
+          tenantId: W,
           projectId: 'proj-eng',
           number: 1,
           title: 'Set up CI pipeline',
@@ -114,7 +114,7 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
         },
         {
           id: 'iss-2',
-          tenantId: T,
+          tenantId: W,
           projectId: 'proj-eng',
           number: 2,
           title: 'Add database migrations',
@@ -126,7 +126,7 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
         },
         {
           id: 'iss-3',
-          tenantId: T,
+          tenantId: W,
           projectId: 'proj-eng',
           number: 3,
           title: 'API rate limiting',
@@ -138,7 +138,7 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
         },
         {
           id: 'iss-4',
-          tenantId: T,
+          tenantId: W,
           projectId: 'proj-eng',
           number: 4,
           title: 'Fix memory leak in query cache',
@@ -150,7 +150,7 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
         },
         {
           id: 'iss-5',
-          tenantId: T,
+          tenantId: W,
           projectId: 'proj-eng',
           number: 5,
           title: 'Upgrade TypeScript to 5.5',
@@ -162,7 +162,7 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
         },
         {
           id: 'iss-6',
-          tenantId: T,
+          tenantId: W,
           projectId: 'proj-eng',
           number: 6,
           title: 'Add error boundary components',
@@ -174,7 +174,7 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
         },
         {
           id: 'iss-7',
-          tenantId: T,
+          tenantId: W,
           projectId: 'proj-des',
           number: 1,
           title: 'Create color token system',
@@ -186,7 +186,7 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
         },
         {
           id: 'iss-8',
-          tenantId: T,
+          tenantId: W,
           projectId: 'proj-des',
           number: 2,
           title: 'Design empty states',
@@ -198,7 +198,7 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
         },
         {
           id: 'iss-9',
-          tenantId: T,
+          tenantId: W,
           projectId: 'proj-des',
           number: 3,
           title: 'Audit accessibility',
@@ -210,7 +210,7 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
         },
         {
           id: 'iss-10',
-          tenantId: T,
+          tenantId: W,
           projectId: 'proj-doc',
           number: 1,
           title: 'Write getting started guide',
@@ -222,7 +222,7 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
         },
         {
           id: 'iss-11',
-          tenantId: T,
+          tenantId: W,
           projectId: 'proj-doc',
           number: 2,
           title: 'Document entity API',
@@ -234,7 +234,7 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
         },
         {
           id: 'iss-12',
-          tenantId: T,
+          tenantId: W,
           projectId: 'proj-doc',
           number: 3,
           title: 'Add code examples',
@@ -254,70 +254,70 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
       data: [
         {
           id: 'com-1',
-          tenantId: T,
+          tenantId: W,
           issueId: 'iss-1',
           body: 'CI is green on all branches. Merging the config PR now.',
           authorId: 'seed-bob',
         },
         {
           id: 'com-2',
-          tenantId: T,
+          tenantId: W,
           issueId: 'iss-1',
           body: 'Confirmed — builds pass. Moving to done.',
           authorId: 'seed-alice',
         },
         {
           id: 'com-3',
-          tenantId: T,
+          tenantId: W,
           issueId: 'iss-2',
           body: 'Started with drizzle-kit but hit issues with D1. Switching to manual SQL migrations.',
           authorId: 'seed-alice',
         },
         {
           id: 'com-4',
-          tenantId: T,
+          tenantId: W,
           issueId: 'iss-4',
           body: "Reproduced with 10k sequential queries. The WeakRef cleanup isn't firing.",
           authorId: 'seed-bob',
         },
         {
           id: 'com-5',
-          tenantId: T,
+          tenantId: W,
           issueId: 'iss-4',
           body: 'Root cause: the finalizer only runs on GC, which is lazy. Need explicit eviction.',
           authorId: 'seed-alice',
         },
         {
           id: 'com-6',
-          tenantId: T,
+          tenantId: W,
           issueId: 'iss-7',
           body: 'First pass at tokens is up. Using oklch for perceptual uniformity.',
           authorId: 'seed-alice',
         },
         {
           id: 'com-7',
-          tenantId: T,
+          tenantId: W,
           issueId: 'iss-10',
           body: 'Draft is ready for review. Covers install, first entity, and dev server.',
           authorId: 'seed-bob',
         },
         {
           id: 'com-8',
-          tenantId: T,
+          tenantId: W,
           issueId: 'iss-3',
           body: 'Should we use a token bucket or sliding window? Token bucket is simpler.',
           authorId: 'seed-bob',
         },
         {
           id: 'com-9',
-          tenantId: T,
+          tenantId: W,
           issueId: 'iss-6',
           body: 'The framework should provide ErrorBoundary as a primitive. Opened a separate issue.',
           authorId: 'seed-alice',
         },
         {
           id: 'com-10',
-          tenantId: T,
+          tenantId: W,
           issueId: 'iss-2',
           body: 'Migration system working. Need to add rollback support before closing.',
           authorId: 'seed-alice',

@@ -261,7 +261,7 @@ Use it in tests:
 ```ts
 test.beforeEach(async ({ context, baseURL }) => {
   const url = baseURL ?? 'http://localhost:3000';
-  const cookies = await authenticateWithTenant(url, 'tenant-acme');
+  const cookies = await authenticateWithTenant(url, 'ws-acme');
   await context.addCookies(cookies);
 });
 ```

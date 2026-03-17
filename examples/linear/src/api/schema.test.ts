@@ -1,34 +1,34 @@
 import { describe, expect, it } from 'bun:test';
-import { commentsModel, issuesModel, projectsModel, tenantsModel, usersModel } from './schema';
+import { commentsModel, issuesModel, projectsModel, usersModel, workspacesModel } from './schema';
 
 describe('Schema relations', () => {
-  describe('Given the tenants model', () => {
+  describe('Given the workspaces model', () => {
     it('Then it has no relations (it is the tenant root)', () => {
-      expect(tenantsModel.relations).toEqual({});
+      expect(workspacesModel.relations).toEqual({});
     });
 
     it('Then it has no tenant scoping', () => {
-      expect(tenantsModel._tenant).toBeNull();
+      expect(workspacesModel._tenant).toBeNull();
     });
   });
 
   describe('Given the users model', () => {
-    it('Then it has a tenant relation pointing to tenantsTable via tenantId', () => {
-      expect(usersModel.relations.tenant).toBeDefined();
-      expect(usersModel.relations.tenant._type).toBe('one');
-      expect(usersModel.relations.tenant._foreignKey).toBe('tenantId');
+    it('Then it has a workspace relation pointing to workspacesTable via tenantId', () => {
+      expect(usersModel.relations.workspace).toBeDefined();
+      expect(usersModel.relations.workspace._type).toBe('one');
+      expect(usersModel.relations.workspace._foreignKey).toBe('tenantId');
     });
 
-    it('Then it is directly scoped to the tenant', () => {
-      expect(usersModel._tenant).toBe('tenant');
+    it('Then it is directly scoped to the workspace', () => {
+      expect(usersModel._tenant).toBe('workspace');
     });
   });
 
   describe('Given the projects model', () => {
-    it('Then it has a tenant relation via tenantId', () => {
-      expect(projectsModel.relations.tenant).toBeDefined();
-      expect(projectsModel.relations.tenant._type).toBe('one');
-      expect(projectsModel.relations.tenant._foreignKey).toBe('tenantId');
+    it('Then it has a workspace relation via tenantId', () => {
+      expect(projectsModel.relations.workspace).toBeDefined();
+      expect(projectsModel.relations.workspace._type).toBe('one');
+      expect(projectsModel.relations.workspace._foreignKey).toBe('tenantId');
     });
 
     it('Then it has a creator relation to users via createdBy', () => {
@@ -37,8 +37,8 @@ describe('Schema relations', () => {
       expect(projectsModel.relations.creator._foreignKey).toBe('createdBy');
     });
 
-    it('Then it is directly scoped to the tenant', () => {
-      expect(projectsModel._tenant).toBe('tenant');
+    it('Then it is directly scoped to the workspace', () => {
+      expect(projectsModel._tenant).toBe('workspace');
     });
   });
 
