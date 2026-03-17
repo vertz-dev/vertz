@@ -7,16 +7,19 @@ The database client provides typed CRUD operations derived from your schema. Eve
 
 ## Creating the client
 
-```ts
+<CodeGroup>
+```ts PostgreSQL
 import { createDb } from 'vertz/db';
 
-// PostgreSQL
 const db = createDb({
   url: process.env.DATABASE_URL!,
   models: { users: usersModel, tasks: tasksModel },
 });
+```
 
-// SQLite (local file or in-memory)
+```ts SQLite (local file)
+import { createDb } from 'vertz/db';
+
 const db = createDb({
   dialect: 'sqlite',
   path: '.vertz/data/app.db', // or ':memory:'
@@ -24,6 +27,7 @@ const db = createDb({
   migrations: { autoApply: true },
 });
 ```
+</CodeGroup>
 
 Each model becomes a property on `db` with typed query methods. The query API is identical across all dialects — only the `createDb()` options differ.
 
