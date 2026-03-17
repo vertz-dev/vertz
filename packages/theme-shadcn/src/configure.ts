@@ -418,7 +418,7 @@ export interface ThemedPrimitives {
   /** Themed NavigationMenu — composable JSX component with NavigationMenu.List, NavigationMenu.Item, etc. */
   NavigationMenu: ThemedNavigationMenuComponent;
   /** Themed ResizablePanel — resizable panel layout with drag handles. */
-  resizablePanel: ReturnType<typeof createThemedResizablePanel>;
+  ResizablePanel: ReturnType<typeof createThemedResizablePanel>;
   /** Themed ScrollArea — composable JSX component wrapping @vertz/ui-primitives ScrollArea. */
   ScrollArea: ThemedScrollAreaComponent;
   /** Themed Toggle — composable JSX component wrapping @vertz/ui-primitives Toggle. */
@@ -613,7 +613,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
       HoverCard: createThemedHoverCard(hoverCardStyles),
       Menubar: createThemedMenubar(menubarStyles),
       NavigationMenu: createThemedNavigationMenu(navigationMenuStyles),
-      resizablePanel: createThemedResizablePanel(resizablePanelStyles),
+      ResizablePanel: createThemedResizablePanel(resizablePanelStyles),
       ScrollArea: createThemedScrollArea(scrollAreaStyles),
       Toggle: createThemedToggle(toggleStyles),
       ToggleGroup: createThemedToggleGroup(toggleGroupStyles),

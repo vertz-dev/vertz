@@ -51,6 +51,7 @@ import type { ThemedNavigationMenuComponent } from './components/primitives/navi
 import type { ThemedPopoverComponent } from './components/primitives/popover';
 import type { ThemedProgressComponent } from './components/primitives/progress';
 import type { ThemedRadioGroupComponent } from './components/primitives/radio-group';
+import type { ThemedResizablePanelComponent } from './components/primitives/resizable-panel';
 import type { ThemedSelectComponent } from './components/primitives/select';
 import type { ThemedSheetComponent } from './components/primitives/sheet';
 import type { ThemedSliderComponent } from './components/primitives/slider';
@@ -120,7 +121,7 @@ declare module '@vertz/ui/components' {
     DatePicker: ThemedDatePickerComponent;
     HoverCard: ThemedHoverCardComponent;
     NavigationMenu: ThemedNavigationMenuComponent;
-    resizablePanel: ThemedPrimitives['resizablePanel'];
+    ResizablePanel: ThemedResizablePanelComponent;
     ScrollArea: ThemedPrimitives['ScrollArea'];
     ToggleGroup: ThemedToggleGroupComponent;
   }

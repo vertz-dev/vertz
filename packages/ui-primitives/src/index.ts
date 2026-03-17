@@ -141,6 +141,12 @@ export type {
 } from './resizable-panel/resizable-panel';
 export { ResizablePanel } from './resizable-panel/resizable-panel';
 export type {
+  ComposedResizablePanelProps,
+  ResizablePanelClasses,
+  ResizablePanelClassKey,
+} from './resizable-panel/resizable-panel-composed';
+export { ComposedResizablePanel } from './resizable-panel/resizable-panel-composed';
+export type {
   ScrollAreaElements,
   ScrollAreaOptions,
   ScrollAreaState,
