@@ -6,11 +6,13 @@ import { describe, expect, it } from 'bun:test';
 import { createAuth } from '../index';
 import type { AuthConfig, AuthInstance, OnUserCreatedPayload } from '../types';
 import { InMemoryUserStore } from '../user-store';
+import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';
 
 function createTestAuth(overrides?: Partial<AuthConfig>): AuthInstance {
   return createAuth({
     session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
-    jwtSecret: 'on-user-created-test-secret-at-least-32-chars!!',
+    privateKey: TEST_PRIVATE_KEY,
+    publicKey: TEST_PUBLIC_KEY,
     isProduction: false,
     ...overrides,
   });

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { createAuth } from '../index';
 import type { AuthInstance } from '../types';
+import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';
 
 function createTestAuth(opts?: {
   onSend?: (user: { email: string }, token: string) => Promise<void>;
@@ -16,7 +17,8 @@ function createTestAuth(opts?: {
   const auth = createAuth({
     session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
     emailPassword: { enabled: true },
-    jwtSecret: 'test-secret-for-email-verification-testing-1234567890',
+    privateKey: TEST_PRIVATE_KEY,
+    publicKey: TEST_PUBLIC_KEY,
     isProduction: false,
     emailVerification: {
       enabled: true,
@@ -188,7 +190,8 @@ describe('Email Verification Routes', () => {
     const disabledAuth = createAuth({
       session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
       emailPassword: { enabled: true },
-      jwtSecret: 'test-secret-for-email-verification-testing-1234567890',
+      privateKey: TEST_PRIVATE_KEY,
+      publicKey: TEST_PUBLIC_KEY,
       isProduction: false,
     });
     auth = disabledAuth;
@@ -203,7 +206,8 @@ describe('Email Verification Routes', () => {
     const disabledAuth = createAuth({
       session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
       emailPassword: { enabled: true },
-      jwtSecret: 'test-secret-for-email-verification-testing-1234567890',
+      privateKey: TEST_PRIVATE_KEY,
+      publicKey: TEST_PUBLIC_KEY,
       isProduction: false,
     });
     auth = disabledAuth;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { d } from '@vertz/db';
+import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from '../auth/__tests__/test-keys';
 import type { AuthConfig } from '../auth/types';
 import { createServer } from '../create-server';
 
@@ -74,7 +75,8 @@ function createMockDatabaseClient() {
 
 const authConfig: AuthConfig = {
   session: { strategy: 'jwt', ttl: '7d' },
-  jwtSecret: 'test-secret-for-request-handler-tests',
+  privateKey: TEST_PRIVATE_KEY,
+  publicKey: TEST_PUBLIC_KEY,
   emailPassword: { enabled: true },
 };
 

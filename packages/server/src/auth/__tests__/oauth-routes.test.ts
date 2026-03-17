@@ -7,6 +7,7 @@ import { createAuth } from '../index';
 import { InMemoryOAuthAccountStore } from '../oauth-account-store';
 import type { AuthConfig, OAuthProvider } from '../types';
 import { InMemoryUserStore } from '../user-store';
+import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';
 
 function createMockProvider(overrides?: Partial<OAuthProvider>): OAuthProvider {
   return {
@@ -44,7 +45,8 @@ function createMockProvider(overrides?: Partial<OAuthProvider>): OAuthProvider {
 function createTestAuth(overrides?: Partial<AuthConfig>): ReturnType<typeof createAuth> {
   return createAuth({
     session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
-    jwtSecret: 'oauth-test-secret-at-least-32-characters!!',
+    privateKey: TEST_PRIVATE_KEY,
+    publicKey: TEST_PUBLIC_KEY,
     isProduction: false,
     oauthEncryptionKey: 'test-oauth-encryption-key-at-least-32!',
 

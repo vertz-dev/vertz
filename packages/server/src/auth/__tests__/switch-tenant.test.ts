@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { createAuth } from '../index';
 import type { AuthInstance, SwitchTenantInput } from '../types';
+import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -50,7 +51,8 @@ describe('Feature: Tenant switching (POST /auth/switch-tenant)', () => {
       auth = createAuth({
         session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
         emailPassword: { enabled: true },
-        jwtSecret: 'test-secret-for-switch-tenant-testing-1234567890',
+        privateKey: TEST_PRIVATE_KEY,
+        publicKey: TEST_PUBLIC_KEY,
         isProduction: false,
       });
     });
@@ -79,7 +81,8 @@ describe('Feature: Tenant switching (POST /auth/switch-tenant)', () => {
       auth = createAuth({
         session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
         emailPassword: { enabled: true },
-        jwtSecret: 'test-secret-for-switch-tenant-testing-1234567890',
+        privateKey: TEST_PRIVATE_KEY,
+        publicKey: TEST_PUBLIC_KEY,
         isProduction: false,
         tenant: {
           verifyMembership: async (_userId: string, tenantId: string) => {
@@ -138,7 +141,8 @@ describe('Feature: Tenant switching (POST /auth/switch-tenant)', () => {
       auth = createAuth({
         session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
         emailPassword: { enabled: true },
-        jwtSecret: 'test-secret-for-switch-tenant-testing-1234567890',
+        privateKey: TEST_PRIVATE_KEY,
+        publicKey: TEST_PUBLIC_KEY,
         isProduction: false,
         tenant: {
           verifyMembership: async () => true,
@@ -167,7 +171,8 @@ describe('Feature: Tenant switching (POST /auth/switch-tenant)', () => {
       auth = createAuth({
         session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
         emailPassword: { enabled: true },
-        jwtSecret: 'test-secret-for-switch-tenant-testing-1234567890',
+        privateKey: TEST_PRIVATE_KEY,
+        publicKey: TEST_PUBLIC_KEY,
         isProduction: false,
         tenant: {
           verifyMembership: async (_userId: string, tenantId: string) => {

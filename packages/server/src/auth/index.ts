@@ -3,6 +3,12 @@
  * Dual-token sessions, email/password authentication
  */
 
+import {
+  createPrivateKey,
+  createPublicKey,
+  generateKeyPairSync,
+  type KeyObject,
+} from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { BadRequestException } from '@vertz/core';
@@ -25,6 +31,7 @@ import {
   ok,
   type Result,
 } from '@vertz/errors';
+import { exportJWK } from 'jose';
 import { computeAccessSet, type EncodedAccessSet, encodeAccessSet } from './access-set';
 import {
   buildMfaChallengeCookie,
@@ -99,8 +106,8 @@ export function createAuth(config: AuthConfig): AuthInstance {
   const {
     session,
     emailPassword,
-    jwtSecret: configJwtSecret,
-    jwtAlgorithm = 'HS256',
+    privateKey: configPrivateKey,
+    publicKey: configPublicKey,
     claims,
   } = config;
 
@@ -110,28 +117,43 @@ export function createAuth(config: AuthConfig): AuthInstance {
     (typeof process === 'undefined' ||
       (process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test'));
 
-  // Validate JWT secret - throw in production, auto-generate in development
-  let jwtSecret: string;
+  // Validate RSA key pair - throw in production, auto-generate in development
+  let privateKey: KeyObject;
+  let publicKey: KeyObject;
 
-  if (configJwtSecret) {
-    jwtSecret = configJwtSecret;
+  if (configPrivateKey && configPublicKey) {
+    privateKey = createPrivateKey(configPrivateKey);
+    publicKey = createPublicKey(configPublicKey);
+  } else if (configPrivateKey || configPublicKey) {
+    throw new Error(
+      'Both privateKey and publicKey must be provided together. Provide both PEM strings via createAuth({ privateKey: "...", publicKey: "..." }).',
+    );
   } else if (isProduction) {
     throw new Error(
-      'jwtSecret is required in production. Provide it via createAuth({ jwtSecret: "..." }).',
+      'RSA key pair is required in production. Provide privateKey and publicKey PEM strings via createAuth({ privateKey: "...", publicKey: "..." }).',
     );
   } else {
-    const secretDir = config.devSecretPath ?? join(process.cwd(), '.vertz');
-    const secretFile = join(secretDir, 'jwt-secret');
+    const keyDir = config.devKeyPath ?? join(process.cwd(), '.vertz');
+    const privateKeyFile = join(keyDir, 'jwt-private.pem');
+    const publicKeyFile = join(keyDir, 'jwt-public.pem');
 
-    if (existsSync(secretFile)) {
-      jwtSecret = readFileSync(secretFile, 'utf-8').trim();
+    if (existsSync(privateKeyFile) && existsSync(publicKeyFile)) {
+      privateKey = createPrivateKey(readFileSync(privateKeyFile, 'utf-8'));
+      publicKey = createPublicKey(readFileSync(publicKeyFile, 'utf-8'));
     } else {
-      jwtSecret = crypto.randomUUID() + crypto.randomUUID();
-      mkdirSync(secretDir, { recursive: true });
-      writeFileSync(secretFile, jwtSecret, 'utf-8');
+      const keyPair = generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+        publicKeyEncoding: { type: 'spki', format: 'pem' },
+        privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+      });
+      mkdirSync(keyDir, { recursive: true });
+      writeFileSync(privateKeyFile, keyPair.privateKey as string, 'utf-8');
+      writeFileSync(publicKeyFile, keyPair.publicKey as string, 'utf-8');
       console.warn(
-        `[Auth] Auto-generated dev JWT secret at ${secretFile}. Add this path to .gitignore.`,
+        `[Auth] Auto-generated dev RSA key pair at ${keyDir}. Add this path to .gitignore.`,
       );
+      privateKey = createPrivateKey(keyPair.privateKey);
+      publicKey = createPublicKey(keyPair.publicKey);
     }
   }
 
@@ -278,7 +300,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
       }
     }
 
-    const jwt = await createJWT(user, jwtSecret, ttlMs, jwtAlgorithm, () => ({
+    const jwt = await createJWT(user, privateKey, ttlMs, () => ({
       ...userClaims,
       ...fvaClaim,
       ...tenantClaim,
@@ -551,7 +573,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
     }
 
     // Phase 2: JWT-only verification — no session Map lookup
-    const payload = await verifyJWT(token, jwtSecret, jwtAlgorithm);
+    const payload = await verifyJWT(token, publicKey);
     if (!payload) {
       return ok(null);
     }
@@ -628,7 +650,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
       const currentTokens = await sessionStore.getCurrentTokens(storedSession.id);
       if (currentTokens) {
         // Decode (without verify) to get the payload for the response
-        const payload = await verifyJWT(currentTokens.jwt, jwtSecret, jwtAlgorithm);
+        const payload = await verifyJWT(currentTokens.jwt, publicKey);
         // Even if JWT is expired, return the cached tokens — the client will get
         // a fresh JWT on the next refresh after the grace period ends
         return ok({
@@ -652,7 +674,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
     let existingFva: number | undefined;
     const oldTokens = await sessionStore.getCurrentTokens(storedSession.id);
     if (oldTokens) {
-      const oldPayload = await verifyJWT(oldTokens.jwt, jwtSecret, jwtAlgorithm);
+      const oldPayload = await verifyJWT(oldTokens.jwt, publicKey);
       existingFva = oldPayload?.fva;
     }
 
@@ -2422,6 +2444,28 @@ export function createAuth(config: AuthConfig): AuthInstance {
         );
       }
 
+      // =================================================================
+      // JWKS Endpoint
+      // =================================================================
+
+      // Route: GET /api/auth/.well-known/jwks.json
+      if (method === 'GET' && path === '/.well-known/jwks.json') {
+        const jwk = await exportJWK(publicKey);
+        return new Response(
+          JSON.stringify({
+            keys: [{ ...jwk, use: 'sig', alg: 'RS256' }],
+          }),
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'public, max-age=3600',
+              ...securityHeaders(),
+            },
+          },
+        );
+      }
+
       return new Response(JSON.stringify({ error: 'Not found' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
@@ -2489,8 +2533,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
       pendingMfaSecrets.clear();
     },
     resolveSessionForSSR: createSSRResolver({
-      jwtSecret,
-      jwtAlgorithm,
+      publicKey,
       cookieName: cookieConfig.name || 'vertz.sid',
     }),
   };

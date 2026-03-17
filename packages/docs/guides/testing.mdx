@@ -122,7 +122,7 @@ export const app = createServer({
   auth: {
     session: { strategy: 'jwt', ttl: '15m', cookie: { secure: false } },
     emailPassword: {}, // Enables signup/signin endpoints
-    jwtSecret: process.env.JWT_SECRET ?? 'dev-secret-at-least-32-characters!!',
+    // RS256 key pair — auto-generated in dev mode, required in production
   },
 });
 ```

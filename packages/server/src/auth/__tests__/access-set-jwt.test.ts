@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'bun:test';
+import { createPrivateKey, createPublicKey } from 'node:crypto';
 import type { AccessSet } from '../access-set';
 import { InMemoryClosureStore } from '../closure-store';
 import { defineAccess } from '../define-access';
 import { createAuth } from '../index';
 import { verifyJWT } from '../jwt';
 import { InMemoryRoleAssignmentStore } from '../role-assignment-store';
+import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';
 
 const accessDef = defineAccess({
   entities: {
@@ -35,7 +37,8 @@ function createTestAuth(options?: {
   const auth = createAuth({
     session: { strategy: 'jwt', ttl: '60s' },
     emailPassword: { enabled: true },
-    jwtSecret: 'test-secret-at-least-32-chars-long',
+    privateKey: TEST_PRIVATE_KEY,
+    publicKey: TEST_PUBLIC_KEY,
     access: {
       definition: accessDef,
       roleStore,
@@ -61,8 +64,7 @@ describe('JWT acl claim', () => {
 
     const payload = await verifyJWT(
       result.data.tokens?.jwt ?? '',
-      'test-secret-at-least-32-chars-long',
-      'HS256',
+      createPublicKey(TEST_PUBLIC_KEY),
     );
     expect(payload).not.toBeNull();
     expect(payload?.acl).toBeDefined();
@@ -90,8 +92,7 @@ describe('JWT acl claim', () => {
 
     const payload = await verifyJWT(
       result.data.tokens?.jwt ?? '',
-      'test-secret-at-least-32-chars-long',
-      'HS256',
+      createPublicKey(TEST_PUBLIC_KEY),
     );
     expect(payload).not.toBeNull();
     expect(payload?.acl).toBeDefined();
@@ -110,8 +111,7 @@ describe('JWT acl claim', () => {
 
     const payload = await verifyJWT(
       result.data.tokens?.jwt ?? '',
-      'test-secret-at-least-32-chars-long',
-      'HS256',
+      createPublicKey(TEST_PUBLIC_KEY),
     );
     expect(payload?.acl?.set).toBeDefined();
     expect(payload?.acl?.overflow).toBe(false);
@@ -129,8 +129,7 @@ describe('JWT acl claim', () => {
 
     const payload = await verifyJWT(
       result.data.tokens?.jwt ?? '',
-      'test-secret-at-least-32-chars-long',
-      'HS256',
+      createPublicKey(TEST_PUBLIC_KEY),
     );
     expect(payload?.acl?.hash).toBeTruthy();
     expect(typeof payload?.acl?.hash).toBe('string');
@@ -141,7 +140,8 @@ describe('JWT acl claim', () => {
     const auth = createAuth({
       session: { strategy: 'jwt', ttl: '60s' },
       emailPassword: { enabled: true },
-      jwtSecret: 'test-secret-at-least-32-chars-long',
+      privateKey: TEST_PRIVATE_KEY,
+      publicKey: TEST_PUBLIC_KEY,
     });
 
     const result = await auth.api.signUp({
@@ -153,8 +153,7 @@ describe('JWT acl claim', () => {
 
     const payload = await verifyJWT(
       result.data.tokens?.jwt ?? '',
-      'test-secret-at-least-32-chars-long',
-      'HS256',
+      createPublicKey(TEST_PUBLIC_KEY),
     );
     expect(payload?.acl).toBeUndefined();
   });
@@ -174,11 +173,7 @@ describe('JWT acl claim', () => {
     const tokens = signUpResult.data.tokens;
     expect(tokens).toBeDefined();
 
-    const initialPayload = await verifyJWT(
-      tokens?.jwt ?? '',
-      'test-secret-at-least-32-chars-long',
-      'HS256',
-    );
+    const initialPayload = await verifyJWT(tokens?.jwt ?? '', createPublicKey(TEST_PUBLIC_KEY));
     expect(
       initialPayload?.acl?.set?.entitlements['organization:create-project']?.allowed,
     ).toBeFalsy();
@@ -193,8 +188,7 @@ describe('JWT acl claim', () => {
 
     const refreshedPayload = await verifyJWT(
       refreshResult.data.tokens?.jwt ?? '',
-      'test-secret-at-least-32-chars-long',
-      'HS256',
+      createPublicKey(TEST_PUBLIC_KEY),
     );
     expect(refreshedPayload?.acl?.set?.entitlements['organization:create-project']?.allowed).toBe(
       true,
@@ -311,7 +305,8 @@ describe('JWT acl claim', () => {
     const auth = createAuth({
       session: { strategy: 'jwt', ttl: '60s' },
       emailPassword: { enabled: true },
-      jwtSecret: 'test-secret-at-least-32-chars-long',
+      privateKey: TEST_PRIVATE_KEY,
+      publicKey: TEST_PUBLIC_KEY,
       access: {
         definition: overflowAccessDef,
         roleStore,
@@ -328,8 +323,7 @@ describe('JWT acl claim', () => {
 
     const payload = await verifyJWT(
       result.data.tokens?.jwt ?? '',
-      'test-secret-at-least-32-chars-long',
-      'HS256',
+      createPublicKey(TEST_PUBLIC_KEY),
     );
     expect(payload).not.toBeNull();
     expect(payload?.acl?.overflow).toBe(true);
@@ -345,7 +339,8 @@ describe('JWT acl claim', () => {
     const auth = createAuth({
       session: { strategy: 'jwt', ttl: '60s' },
       emailPassword: { enabled: true },
-      jwtSecret: 'test-secret-at-least-32-chars-long',
+      privateKey: TEST_PRIVATE_KEY,
+      publicKey: TEST_PUBLIC_KEY,
       claims: (user) => ({ customField: `hello-${user.email}` }),
       access: {
         definition: accessDef,
@@ -363,8 +358,7 @@ describe('JWT acl claim', () => {
 
     const payload = await verifyJWT(
       result.data.tokens?.jwt ?? '',
-      'test-secret-at-least-32-chars-long',
-      'HS256',
+      createPublicKey(TEST_PUBLIC_KEY),
     );
     expect(payload).not.toBeNull();
     expect(payload?.acl).toBeDefined();

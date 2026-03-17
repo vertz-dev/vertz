@@ -14,6 +14,7 @@
  * Uses public package imports only (@vertz/server, @vertz/ui/auth).
  */
 import { afterEach, describe, expect, it } from 'bun:test';
+import { generateKeyPairSync } from 'node:crypto';
 import {
   computeAccessSet,
   computeEntityAccess,
@@ -28,6 +29,12 @@ import {
 } from '@vertz/server';
 // Client-side imports
 import { signal } from '@vertz/ui';
+
+const { publicKey: TEST_PUBLIC_KEY, privateKey: TEST_PRIVATE_KEY } = generateKeyPairSync('rsa', {
+  modulusLength: 2048,
+  publicKeyEncoding: { type: 'spki', format: 'pem' },
+  privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+});
 
 // ============================================================================
 // Setup — entity-centric config
@@ -74,7 +81,8 @@ function createTestAuth() {
   const auth = createAuth({
     session: { strategy: 'jwt', ttl: '60s' },
     emailPassword: { enabled: true },
-    jwtSecret: 'integration-test-secret-32-chars!!',
+    privateKey: TEST_PRIVATE_KEY as string,
+    publicKey: TEST_PUBLIC_KEY as string,
     access: {
       definition: accessDef,
       roleStore,

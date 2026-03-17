@@ -11,6 +11,7 @@
  * Uses public package imports only (@vertz/server).
  */
 import { describe, expect, it } from 'bun:test';
+import { createPublicKey, generateKeyPairSync } from 'node:crypto';
 import type { AccessEvent, ResourceRef } from '@vertz/server';
 import {
   computeAccessSet,
@@ -23,6 +24,12 @@ import {
   InMemoryFlagStore,
   InMemoryRoleAssignmentStore,
 } from '@vertz/server';
+
+const { publicKey: TEST_PUBLIC_KEY, privateKey: TEST_PRIVATE_KEY } = generateKeyPairSync('rsa', {
+  modulusLength: 2048,
+  publicKeyEncoding: { type: 'spki', format: 'pem' },
+  privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+});
 
 // ============================================================================
 // Setup — entity-centric config
@@ -256,7 +263,7 @@ describe('Feature Flag Store + Layer 1 (public imports)', () => {
 describe('Access Event Broadcaster (public imports)', () => {
   it('createAccessEventBroadcaster creates broadcaster with expected API', () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: 'test-secret-minimum-32-characters-long',
+      publicKey: createPublicKey(TEST_PUBLIC_KEY as string),
     });
 
     expect(typeof broadcaster.handleUpgrade).toBe('function');
@@ -269,7 +276,7 @@ describe('Access Event Broadcaster (public imports)', () => {
 
   it('broadcastFlagToggle formats correct AccessEvent', () => {
     const broadcaster = createAccessEventBroadcaster({
-      jwtSecret: 'test-secret-minimum-32-characters-long',
+      publicKey: createPublicKey(TEST_PUBLIC_KEY as string),
     });
 
     // Create a mock ws to verify the broadcast payload

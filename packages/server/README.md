@@ -223,7 +223,8 @@ const auth = createAuth({
     ttl: '7d',
     cookie: { name: 'session', httpOnly: true, secure: true },
   },
-  jwtSecret: process.env.AUTH_SECRET!,
+  privateKey: process.env.AUTH_PRIVATE_KEY!,
+  publicKey: process.env.AUTH_PUBLIC_KEY!,
   emailPassword: {
     enabled: true,
     password: { minLength: 8, requireUppercase: true },
@@ -237,16 +238,17 @@ const auth = createAuth({
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `session` | `SessionConfig` | *required* | Session strategy, TTL, and cookie settings |
-| `jwtSecret` | `string` | — | JWT signing secret. **Required in production** |
-| `jwtAlgorithm` | `'HS256' \| 'HS384' \| 'HS512' \| 'RS256'` | `'HS256'` | JWT signing algorithm |
+| `privateKey` | `string` | — | RSA private key (PKCS#8 PEM). **Required in production** |
+| `publicKey` | `string` | — | RSA public key (SPKI PEM). **Required in production** |
 | `emailPassword` | `EmailPasswordConfig` | — | Password requirements and rate limiting |
 | `claims` | `(user: AuthUser) => Record<string, unknown>` | — | Custom JWT claims |
 | `isProduction` | `boolean` | auto-detected | Override production mode detection |
+| `devKeyPath` | `string` | `.vertz` | Directory for auto-generated dev key pair |
 
 ### Production Mode
 
 By default, `createAuth` auto-detects production mode from `NODE_ENV`. In production mode:
-- `jwtSecret` is **required** (throws if missing)
+- RSA key pair (`privateKey` + `publicKey`) is **required** (throws if missing)
 - CSRF validation is enforced on state-changing requests
 
 On edge runtimes where `process` is unavailable (Cloudflare Workers, Deno Deploy), the default is **production** (secure-by-default). Pass `isProduction: false` explicitly for development:
@@ -255,13 +257,14 @@ On edge runtimes where `process` is unavailable (Cloudflare Workers, Deno Deploy
 // Edge runtime — defaults to production (secure)
 const auth = createAuth({
   session: { strategy: 'jwt', ttl: '7d' },
-  jwtSecret: env.AUTH_SECRET, // required — no fallback
+  privateKey: env.AUTH_PRIVATE_KEY, // required — no fallback
+  publicKey: env.AUTH_PUBLIC_KEY,
 });
 
 // Edge runtime in development — opt in explicitly
 const auth = createAuth({
   session: { strategy: 'jwt', ttl: '7d' },
-  isProduction: false, // uses insecure default secret
+  isProduction: false, // auto-generates RSA key pair
 });
 ```
 
@@ -274,6 +277,7 @@ Auth generates endpoints:
 | `POST` | `/api/auth/signout` | Invalidate session |
 | `GET` | `/api/auth/session` | Get current session |
 | `POST` | `/api/auth/refresh` | Refresh JWT |
+| `GET` | `/api/auth/.well-known/jwks.json` | Public key (JWKS) |
 
 Server-side API:
 
