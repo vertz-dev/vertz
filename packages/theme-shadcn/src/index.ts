@@ -38,6 +38,7 @@ import type { ThemedAlertDialogComponent } from './components/primitives/alert-d
 import type { ThemedCalendarComponent } from './components/primitives/calendar';
 import type { ThemedCarouselComponent } from './components/primitives/carousel';
 import type { ThemedCheckboxComponent } from './components/primitives/checkbox';
+import type { ThemedCommandComponent } from './components/primitives/command';
 import type { ThemedContextMenuComponent } from './components/primitives/context-menu';
 import type { ThemedDialogComponent } from './components/primitives/dialog';
 import type { ThemedDrawerComponent } from './components/primitives/drawer';
@@ -107,9 +108,11 @@ declare module '@vertz/ui/components' {
     // Compound primitives (callable + sub-components) — continued
     Carousel: ThemedCarouselComponent;
 
+    // Compound primitives (callable + sub-components) — continued
+    Command: ThemedCommandComponent;
+
     // Factory primitives (lowercase)
     collapsible: ThemedPrimitives['collapsible'];
-    command: ThemedPrimitives['command'];
     datePicker: ThemedPrimitives['datePicker'];
     hoverCard: ThemedPrimitives['hoverCard'];
     NavigationMenu: ThemedNavigationMenuComponent;

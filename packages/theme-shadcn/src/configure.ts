@@ -31,6 +31,7 @@ import { createThemedCarousel } from './components/primitives/carousel';
 import type { ThemedCheckboxComponent } from './components/primitives/checkbox';
 import { createThemedCheckbox } from './components/primitives/checkbox';
 import { createThemedCollapsible } from './components/primitives/collapsible';
+import type { ThemedCommandComponent } from './components/primitives/command';
 import { createThemedCommand } from './components/primitives/command';
 import type { ThemedContextMenuComponent } from './components/primitives/context-menu';
 import { createThemedContextMenu } from './components/primitives/context-menu';
@@ -397,8 +398,8 @@ export interface ThemedPrimitives {
   Carousel: ThemedCarouselComponent;
   /** Themed Collapsible — expandable/collapsible content section. */
   collapsible: ReturnType<typeof createThemedCollapsible>;
-  /** Themed Command — searchable command palette. */
-  command: ReturnType<typeof createThemedCommand>;
+  /** Themed Command — composable JSX component with Command.Input, Command.List, Command.Item, Command.Group, etc. */
+  Command: ThemedCommandComponent;
   /** Themed ContextMenu — composable JSX component with ContextMenu.Trigger, ContextMenu.Content, etc. */
   ContextMenu: ThemedContextMenuComponent;
   /** Themed DatePicker — date picker composing Calendar + Popover. */
@@ -600,7 +601,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
       Calendar: createThemedCalendar(calendarStyles),
       Carousel: createThemedCarousel(carouselStyles),
       collapsible: createThemedCollapsible(collapsibleStyles),
-      command: createThemedCommand(commandStyles),
+      Command: createThemedCommand(commandStyles),
       ContextMenu: createThemedContextMenu(contextMenuStyles),
       datePicker: createThemedDatePicker(datePickerStyles),
       Drawer: createThemedDrawer(drawerStyles),
