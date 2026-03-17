@@ -314,8 +314,10 @@ export interface EntityDefinition<TModel extends ModelDef = ModelDef> {
   readonly expose?: ExposeConfig<TModel['table'], TModel>;
   /** DB table name (defaults to entity name). */
   readonly table: string;
-  /** Whether CRUD auto-filters by tenantId. */
+  /** Whether CRUD auto-filters by tenant column. */
   readonly tenantScoped: boolean;
+  /** The tenant FK column name resolved from the model's tenant relation. Null when unscoped. */
+  readonly tenantColumn: string | null;
   /** Relation chain for indirect tenant scoping. Null for direct or unscoped. */
   readonly tenantChain: TenantChain | null;
 }

@@ -28,13 +28,13 @@ export const auth = defineAuth({
 
   // Bridge auth → entity: populate the developer's users table from GitHub profile.
   // Also handles email/password signups (for dev/E2E testing).
-  // tenantId is set explicitly because the session has no tenant yet at signup time.
+  // workspaceId is set explicitly because the session has no tenant yet at signup time.
   onUserCreated: async (payload, ctx) => {
     if (payload.provider) {
       const profile = payload.profile as Record<string, unknown>;
       await ctx.entities.users.create({
         id: payload.user.id,
-        tenantId: SEED_WORKSPACE_ID,
+        workspaceId: SEED_WORKSPACE_ID,
         email: payload.user.email,
         name: (profile.name as string) ?? (profile.login as string),
         avatarUrl: profile.avatar_url as string,
@@ -42,7 +42,7 @@ export const auth = defineAuth({
     } else {
       await ctx.entities.users.create({
         id: payload.user.id,
-        tenantId: SEED_WORKSPACE_ID,
+        workspaceId: SEED_WORKSPACE_ID,
         email: payload.user.email,
         name: payload.user.email.split('@')[0],
         avatarUrl: null,

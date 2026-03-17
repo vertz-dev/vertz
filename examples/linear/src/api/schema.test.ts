@@ -13,10 +13,10 @@ describe('Schema relations', () => {
   });
 
   describe('Given the users model', () => {
-    it('Then it has a workspace relation pointing to workspacesTable via tenantId', () => {
+    it('Then it has a workspace relation pointing to workspacesTable via workspaceId', () => {
       expect(usersModel.relations.workspace).toBeDefined();
       expect(usersModel.relations.workspace._type).toBe('one');
-      expect(usersModel.relations.workspace._foreignKey).toBe('tenantId');
+      expect(usersModel.relations.workspace._foreignKey).toBe('workspaceId');
     });
 
     it('Then it is directly scoped to the workspace', () => {
@@ -25,10 +25,10 @@ describe('Schema relations', () => {
   });
 
   describe('Given the projects model', () => {
-    it('Then it has a workspace relation via tenantId', () => {
+    it('Then it has a workspace relation via workspaceId', () => {
       expect(projectsModel.relations.workspace).toBeDefined();
       expect(projectsModel.relations.workspace._type).toBe('one');
-      expect(projectsModel.relations.workspace._foreignKey).toBe('tenantId');
+      expect(projectsModel.relations.workspace._foreignKey).toBe('workspaceId');
     });
 
     it('Then it has a creator relation to users via createdBy', () => {

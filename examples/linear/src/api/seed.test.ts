@@ -126,13 +126,13 @@ describe('seedDatabase', () => {
         expect(comments.every((c) => c.createdAt instanceof Date)).toBe(true);
       });
 
-      it('Then all seed records have the seed workspace ID as tenant_id', async () => {
+      it('Then all seed records have the seed workspace ID as workspaceId', async () => {
         await seedDatabase(client);
         for (const countResult of [
-          await client.users.count({ where: { tenantId: { ne: SEED_WORKSPACE_ID } } }),
-          await client.projects.count({ where: { tenantId: { ne: SEED_WORKSPACE_ID } } }),
-          await client.issues.count({ where: { tenantId: { ne: SEED_WORKSPACE_ID } } }),
-          await client.comments.count({ where: { tenantId: { ne: SEED_WORKSPACE_ID } } }),
+          await client.users.count({ where: { workspaceId: { ne: SEED_WORKSPACE_ID } } }),
+          await client.projects.count({ where: { workspaceId: { ne: SEED_WORKSPACE_ID } } }),
+          await client.issues.count({ where: { workspaceId: { ne: SEED_WORKSPACE_ID } } }),
+          await client.comments.count({ where: { workspaceId: { ne: SEED_WORKSPACE_ID } } }),
         ]) {
           expect(unwrap(countResult)).toBe(0);
         }

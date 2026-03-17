@@ -118,6 +118,7 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
 ): CrudHandlers<TModel> {
   const table = def.model.table;
   const isTenantScoped = def.tenantScoped;
+  const tenantColumn = def.tenantColumn ?? 'tenantId';
   const tenantChain = options?.tenantChain ?? def.tenantChain ?? null;
   const isIndirectlyScoped = tenantChain !== null;
   const queryParentIds = options?.queryParentIds ?? null;
@@ -144,7 +145,7 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
     if (!isTenantScoped) return true;
     // Indirect scoping uses subquery filtering, not row-level tenantId check
     if (isIndirectlyScoped) return true;
-    return row.tenantId === ctx.tenantId;
+    return row[tenantColumn] === ctx.tenantId;
   }
 
   /** Merges tenant filter into a where clause for list queries. */
@@ -155,7 +156,7 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
     if (!isTenantScoped) return where;
     // Indirect scoping is handled separately via resolveIndirectTenantWhere
     if (isIndirectlyScoped) return where;
-    return { ...where, tenantId: ctx.tenantId };
+    return { ...where, [tenantColumn]: ctx.tenantId };
   }
 
   /**
@@ -334,9 +335,9 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
         }
       }
 
-      // Auto-set tenantId from context for tenant-scoped entities
+      // Auto-set tenant column from context for directly scoped entities
       if (isTenantScoped && !isIndirectlyScoped && ctx.tenantId) {
-        input = { ...input, tenantId: ctx.tenantId };
+        input = { ...input, [tenantColumn]: ctx.tenantId };
       }
 
       // Apply before.create hook

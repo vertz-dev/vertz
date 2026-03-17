@@ -1,8 +1,17 @@
 import { deepFreeze } from '@vertz/core';
-import type { ModelDef } from '@vertz/db';
+import type { ModelDef, RelationDef } from '@vertz/db';
 import type { EntityActionDef, EntityConfig, EntityContext, EntityDefinition } from './types';
 
 const ENTITY_NAME_PATTERN = /^[a-z][a-z0-9-]*$/;
+
+/** Resolves the tenant FK column name from a model's `_tenant` relation. */
+function resolveTenantColumn(model: ModelDef): string | null {
+  if (!model._tenant) return null;
+  const relations = model.relations as Record<string, RelationDef>;
+  const tenantRel = relations[model._tenant];
+  if (!tenantRel || !tenantRel._foreignKey) return null;
+  return tenantRel._foreignKey;
+}
 
 export function entity<
   TModel extends ModelDef,
@@ -25,9 +34,10 @@ export function entity<
     throw new Error('entity() requires a model in the config.');
   }
 
-  // Detect tenantId column in the model to infer tenantScoped default
-  const hasTenantIdColumn = 'tenantId' in config.model.table._columns;
-  const tenantScoped = config.tenantScoped ?? hasTenantIdColumn;
+  // Resolve tenant column from the model's _tenant relation FK, or fallback to 'tenantId' column
+  const tenantColumn = resolveTenantColumn(config.model);
+  const hasTenantColumn = tenantColumn !== null || 'tenantId' in config.model.table._columns;
+  const tenantScoped = config.tenantScoped ?? hasTenantColumn;
 
   // Type erasure: EntityConfig<TModel> validates hooks at the call site.
   // EntityDefinition stores hooks as EntityBeforeHooks/EntityAfterHooks (unknown)
@@ -44,6 +54,7 @@ export function entity<
     expose: config.expose,
     table: config.table ?? name,
     tenantScoped,
+    tenantColumn: tenantScoped ? (tenantColumn ?? 'tenantId') : null,
     tenantChain: null,
   };
   return deepFreeze(def);

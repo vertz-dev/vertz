@@ -23,7 +23,7 @@ export const workspacesModel = d.model(workspacesTable);
 
 export const usersTable = d.table('users', {
   id: d.text().primary(),
-  tenantId: d.text().default(''),
+  workspaceId: d.text().default(''),
   name: d.text(),
   email: d.text().unique(),
   avatarUrl: d.text().nullable(),
@@ -34,7 +34,7 @@ export const usersTable = d.table('users', {
 export const usersModel = d.model(
   usersTable,
   {
-    workspace: d.ref.one(() => workspacesTable, 'tenantId'),
+    workspace: d.ref.one(() => workspacesTable, 'workspaceId'),
   },
   { tenant: 'workspace' },
 );
@@ -45,7 +45,7 @@ export const usersModel = d.model(
 
 export const projectsTable = d.table('projects', {
   id: d.uuid().primary({ generate: 'uuid' }),
-  tenantId: d.text().default(''),
+  workspaceId: d.text().default(''),
   name: d.text(),
   key: d.text().unique(),
   description: d.text().nullable(),
@@ -57,7 +57,7 @@ export const projectsTable = d.table('projects', {
 export const projectsModel = d.model(
   projectsTable,
   {
-    workspace: d.ref.one(() => workspacesTable, 'tenantId'),
+    workspace: d.ref.one(() => workspacesTable, 'workspaceId'),
     creator: d.ref.one(() => usersTable, 'createdBy'),
   },
   { tenant: 'workspace' },
@@ -69,7 +69,7 @@ export const projectsModel = d.model(
 
 export const issuesTable = d.table('issues', {
   id: d.uuid().primary({ generate: 'uuid' }),
-  tenantId: d.text().default(''),
+  workspaceId: d.text().default(''),
   projectId: d.uuid(),
   number: d.integer().default(0),
   title: d.text(),
@@ -93,7 +93,7 @@ export const issuesModel = d.model(issuesTable, {
 
 export const commentsTable = d.table('comments', {
   id: d.uuid().primary({ generate: 'uuid' }),
-  tenantId: d.text().default(''),
+  workspaceId: d.text().default(''),
   issueId: d.uuid(),
   body: d.text(),
   authorId: d.text().default(''),
