@@ -1,46 +1,18 @@
-import type { DialogHandle, FormSchema } from '@vertz/ui';
+import { s } from '@vertz/schema';
+import type { DialogHandle } from '@vertz/ui';
 import { form } from '@vertz/ui';
-import type { CreateProjectsInput } from '../api/client';
+import { createProjectsInputSchema } from '#generated/schemas';
 import { api } from '../api/client';
 import { dialogStyles, formStyles, inputStyles, labelStyles } from '../styles/components';
 import { Button } from './button';
 
-const createProjectSchema: FormSchema<CreateProjectsInput> = {
-  parse(data: unknown) {
-    if (typeof data !== 'object' || data === null) {
-      return { ok: false as const, error: new Error('Invalid form data') };
-    }
-    const obj = data as Record<string, unknown>;
-    const errors: Record<string, string> = {};
-
-    if (!obj.name || typeof obj.name !== 'string' || obj.name.trim().length === 0) {
-      errors.name = 'Name is required';
-    }
-
-    if (!obj.key || typeof obj.key !== 'string' || obj.key.trim().length === 0) {
-      errors.key = 'Key is required';
-    } else if (obj.key.length > 5) {
-      errors.key = 'Key must be 5 characters or fewer';
-    } else if (!/^[A-Z0-9]+$/i.test(obj.key)) {
-      errors.key = 'Key must contain only letters and numbers';
-    }
-
-    if (Object.keys(errors).length > 0) {
-      const err = new Error('Validation failed');
-      (err as Error & { fieldErrors: Record<string, string> }).fieldErrors = errors;
-      return { ok: false as const, error: err };
-    }
-
-    return {
-      ok: true as const,
-      data: {
-        name: (obj.name as string).trim(),
-        key: (obj.key as string).trim().toUpperCase(),
-        description: obj.description ? String(obj.description).trim() : undefined,
-      },
-    };
-  },
-};
+const createProjectSchema = createProjectsInputSchema.extend({
+  key: s
+    .string()
+    .min(1)
+    .max(5)
+    .regex(/^[A-Z0-9]+$/i),
+});
 
 interface CreateProjectDialogProps {
   dialog: DialogHandle<boolean>;

@@ -31,11 +31,15 @@ export function EditIssueDialog({ issue, dialog }: EditIssueDialogProps) {
 
     const result = editIssueSchema.parse(data);
     if (!result.ok) {
-      const err = result.error as Error & { fieldErrors?: Record<string, string> };
-      if (err.fieldErrors?.title) {
-        titleError = err.fieldErrors.title;
+      const err = result.error as Error & {
+        issues?: { path: (string | number)[]; message: string }[];
+      };
+      if (err.issues) {
+        for (const issue of err.issues) {
+          if (issue.path[0] === 'title') titleError = issue.message;
+        }
       }
-      formError = err.message;
+      formError = titleError || err.message;
       return;
     }
 

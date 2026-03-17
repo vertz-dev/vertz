@@ -408,7 +408,7 @@ describe('EntitySdkGenerator', () => {
       expect(todosFile?.content).not.toContain('meta:');
     });
 
-    it('does not embed .meta on update method', () => {
+    it('embeds .meta on update method when resolvedFields exist', () => {
       const ir = createBasicIR([
         {
           entityName: 'todos',
@@ -430,9 +430,11 @@ describe('EntitySdkGenerator', () => {
       const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
       const todosFile = files.find((f) => f.path === 'entities/todos.ts');
 
-      // Update uses Object.assign for url/method but NOT .meta
       expect(todosFile?.content).toContain('Object.assign');
-      expect(todosFile?.content).not.toContain('meta:');
+      expect(todosFile?.content).toContain('meta: { bodySchema: updateTodosInputSchema }');
+      expect(todosFile?.content).toContain(
+        "import { updateTodosInputSchema } from '../schemas/todos'",
+      );
     });
 
     it('uses Object.assign without .meta when no resolvedFields', () => {

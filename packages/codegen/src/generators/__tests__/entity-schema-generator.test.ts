@@ -55,7 +55,7 @@ describe('EntitySchemaGenerator', () => {
     expect(schemaFile).toBeDefined();
     expect(schemaFile?.content).toContain("import { s } from '@vertz/schema'");
     expect(schemaFile?.content).toContain('export const createTodosInputSchema');
-    expect(schemaFile?.content).toContain('title: s.string()');
+    expect(schemaFile?.content).toContain('title: s.string().min(1)');
     expect(schemaFile?.content).toContain('completed: s.boolean().optional()');
     expect(schemaFile?.content).toContain('export const updateTodosInputSchema');
   });
@@ -138,10 +138,10 @@ describe('EntitySchemaGenerator', () => {
     const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
     const schemaFile = files.find((f) => f.path === 'schemas/item.ts');
 
-    expect(schemaFile?.content).toContain('name: s.string()');
+    expect(schemaFile?.content).toContain('name: s.string().min(1)');
     expect(schemaFile?.content).toContain('count: s.number()');
     expect(schemaFile?.content).toContain('active: s.boolean()');
-    expect(schemaFile?.content).toContain('createdAt: s.string()'); // date → s.string() for JSON
+    expect(schemaFile?.content).toContain('createdAt: s.string().min(1)'); // date → s.string() for JSON, required
     expect(schemaFile?.content).toContain('meta: s.unknown().optional()');
   });
 
@@ -206,7 +206,7 @@ describe('EntitySchemaGenerator', () => {
     expect(schemaFile).toBeDefined();
     expect(schemaFile?.content).toContain("import { s } from '@vertz/schema'");
     expect(schemaFile?.content).toContain('export const activateUserInputSchema');
-    expect(schemaFile?.content).toContain('reason: s.string()');
+    expect(schemaFile?.content).toContain('reason: s.string().min(1)');
     expect(schemaFile?.content).toContain('force: s.boolean().optional()');
   });
 
