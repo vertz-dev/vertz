@@ -338,11 +338,10 @@ Theme components are pre-configured with the app's design tokens and provide con
 
 ### Using Components
 
-\`\`\`tsx
-import { themeComponents } from '../styles/theme';
+Import components from \`@vertz/ui/components\` — the centralized entrypoint:
 
-const { Button, Input } = themeComponents;
-const { AlertDialog } = themeComponents.primitives;
+\`\`\`tsx
+import { Button, Input, AlertDialog } from '@vertz/ui/components';
 
 // RIGHT — use theme components
 <Button intent="primary" size="md">Submit</Button>
@@ -355,10 +354,10 @@ const { AlertDialog } = themeComponents.primitives;
 
 ### Available Components
 
-**Direct** (from \`themeComponents\`): \`Button\`, \`Input\`, \`Label\`, \`Badge\`, \`Textarea\`,
+**Direct**: \`Button\`, \`Input\`, \`Label\`, \`Badge\`, \`Textarea\`,
 \`Card\` suite, \`Table\` suite, \`Avatar\` suite, \`FormGroup\` suite
 
-**Primitives** (from \`themeComponents.primitives\`): \`AlertDialog\`, \`Dialog\`, \`Tabs\`,
+**Primitives**: \`AlertDialog\`, \`Dialog\`, \`Tabs\`,
 \`Select\`, \`DropdownMenu\`, \`Popover\`, \`Sheet\`, \`Tooltip\`, \`Accordion\`
 — all with sub-components (\`.Trigger\`, \`.Content\`, \`.Footer\`, etc.)
 
@@ -367,8 +366,7 @@ const { AlertDialog } = themeComponents.primitives;
 ### Composable \`<AlertDialog>\` for inline confirmations
 
 \`\`\`tsx
-const { Button } = themeComponents;
-const { AlertDialog } = themeComponents.primitives;
+import { Button, AlertDialog } from '@vertz/ui/components';
 
 <AlertDialog>
   <AlertDialog.Trigger>
@@ -812,15 +810,17 @@ mount(App, {
  */
 export function themeTemplate(): string {
   return `import { configureTheme } from '@vertz/theme-shadcn';
+import { registerTheme } from 'vertz/ui';
 
-const { theme, globals, components } = configureTheme({
+const config = configureTheme({
   palette: 'zinc',
   radius: 'md',
 });
 
-export const appTheme = theme;
-export const themeGlobals = globals;
-export const themeComponents = components;
+registerTheme(config);
+
+export const appTheme = config.theme;
+export const themeGlobals = config.globals;
 `;
 }
 
@@ -842,11 +842,9 @@ export function homePageTemplate(): string {
   queryMatch,
   slideInFromTop,
 } from 'vertz/ui';
+import { Button } from '@vertz/ui/components';
+import { AlertDialog } from '@vertz/ui/components';
 import { api } from '../client';
-import { themeComponents } from '../styles/theme';
-
-const { Button } = themeComponents;
-const { AlertDialog } = themeComponents.primitives;
 
 // Global CSS for list item enter/exit animations
 void globalCss({

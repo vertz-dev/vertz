@@ -264,9 +264,15 @@ describe('templates', () => {
       expect(result).toContain("from '@vertz/theme-shadcn'");
     });
 
-    it('exports themeComponents', () => {
+    it('uses registerTheme to register the theme globally', () => {
       const result = themeTemplate();
-      expect(result).toContain('export const themeComponents = components');
+      expect(result).toContain('registerTheme');
+      expect(result).toContain('registerTheme(config)');
+    });
+
+    it('does not export themeComponents', () => {
+      const result = themeTemplate();
+      expect(result).not.toContain('themeComponents');
     });
   });
 
@@ -319,11 +325,11 @@ describe('templates', () => {
       expect(result).toContain('taskForm.submitting');
     });
 
-    it('uses theme components instead of raw HTML', () => {
+    it('uses theme components from @vertz/ui/components', () => {
       const result = homePageTemplate();
-      expect(result).toContain("import { themeComponents } from '../styles/theme'");
-      expect(result).toContain('const { Button } = themeComponents');
+      expect(result).toContain("from '@vertz/ui/components'");
       expect(result).toContain('<Button');
+      expect(result).not.toContain('themeComponents');
     });
 
     it('includes TaskItem component with checkbox toggle', () => {
@@ -479,7 +485,7 @@ describe('templates', () => {
     it('documents css() for styling and theme components', () => {
       const result = uiDevelopmentRuleTemplate();
       expect(result).toContain('css(');
-      expect(result).toContain('themeComponents');
+      expect(result).toContain('@vertz/ui/components');
       expect(result).toContain('AlertDialog');
     });
 

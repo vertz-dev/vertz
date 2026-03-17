@@ -7,13 +7,15 @@
  */
 
 import { configureTheme } from '@vertz/theme-shadcn';
+import { registerTheme } from '@vertz/ui';
 
-const { theme, globals, styles, components } = configureTheme({
+const config = configureTheme({
   palette: 'zinc',
   radius: 'md',
 });
 
-export const todoTheme = theme;
-export const themeGlobals = globals;
-export const themeStyles = styles;
-export const themeComponents = components;
+registerTheme(config);
+
+export const todoTheme = config.theme;
+export const themeGlobals = config.globals;
+export const themeStyles = config.styles;
