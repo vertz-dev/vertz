@@ -1,5 +1,25 @@
 # @vertz/server
 
+## 0.2.21
+
+### Patch Changes
+
+- [#1322](https://github.com/vertz-dev/vertz/pull/1322) [`786f057`](https://github.com/vertz-dev/vertz/commit/786f057d44a094c6685371706f22201c87ad26a1) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add cloud-managed auth infrastructure: JWKS client, RS256 JWT verifier, auth proxy with circuit breaker, provider cloud config union types, lifecycle callbacks, and SSR cloud verifier support.
+
+- [#1459](https://github.com/vertz-dev/vertz/pull/1459) [`6862ac1`](https://github.com/vertz-dev/vertz/commit/6862ac1559ddba889cc9f0190e5266a0e5f4145a) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(server): add defineAuth() and defineEntities() for extractable, type-safe config
+
+- [#1464](https://github.com/vertz-dev/vertz/pull/1464) [`4637095`](https://github.com/vertz-dev/vertz/commit/46370950e7f1e1f3247a945511500d8f1c3e1d76) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Migrate JWT from symmetric HS256 to asymmetric RS256 key pairs. Config now accepts `privateKey`/`publicKey` PEM strings instead of `jwtSecret`. Dev mode auto-generates RSA key pair to `.vertz/`. Public key exposed at `/.well-known/jwks.json`.
+
+- [#1397](https://github.com/vertz-dev/vertz/pull/1397) [`8873a05`](https://github.com/vertz-dev/vertz/commit/8873a052da73ab1f3d96c8680f3a6ecb40022285) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(server): add rules.\* serialization for cloud deploy-time extraction
+
+- [#1493](https://github.com/vertz-dev/vertz/pull/1493) [`2672525`](https://github.com/vertz-dev/vertz/commit/26725257feb8570fab7e924b3d39a283b359608c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Support custom tenant FK column names in entity CRUD pipeline. The tenant column is now resolved from the model's `_tenant` relation FK instead of being hardcoded to `tenantId`. Apps can use `workspaceId`, `orgId`, or any column name as long as the model declares a tenant relation pointing to it.
+
+- Updated dependencies [[`a897b19`](https://github.com/vertz-dev/vertz/commit/a897b19b36f0851e373f4dce31298c52c11328c7)]:
+  - @vertz/db@0.2.21
+  - @vertz/core@0.2.21
+  - @vertz/errors@0.2.21
+  - @vertz/schema@0.2.21
+
 ## 0.2.20
 
 ### Patch Changes

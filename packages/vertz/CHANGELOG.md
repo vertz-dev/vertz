@@ -1,5 +1,24 @@
 # vertz
 
+## 0.2.21
+
+### Patch Changes
+
+- Updated dependencies [[`f933062`](https://github.com/vertz-dev/vertz/commit/f93306200b0d994280b45ecd7c62a76d35e699e3), [`a16511c`](https://github.com/vertz-dev/vertz/commit/a16511cd78256fe86d0d69393dd923353d6f445a), [`796ef1a`](https://github.com/vertz-dev/vertz/commit/796ef1a9826f401c6d0b08f424d53609debda029), [`a5b9cbe`](https://github.com/vertz-dev/vertz/commit/a5b9cbe68202345ab09002f7e42c2a5be0c917bf), [`520444e`](https://github.com/vertz-dev/vertz/commit/520444e3bdbbf3140b75ed3754870166544b5f88), [`0704bbb`](https://github.com/vertz-dev/vertz/commit/0704bbbc5561e2e2a6a6e0fd0a5f6af343f5f178), [`786f057`](https://github.com/vertz-dev/vertz/commit/786f057d44a094c6685371706f22201c87ad26a1), [`67d1984`](https://github.com/vertz-dev/vertz/commit/67d19841241407eb8d8be7f2ddbb7e0a98ca6fe4), [`fa3d23c`](https://github.com/vertz-dev/vertz/commit/fa3d23ca2e92a4b734c4908ab274d8e75e45cbc0), [`646fc3f`](https://github.com/vertz-dev/vertz/commit/646fc3f82d21c79447a6560e40a08f8463709167), [`823e301`](https://github.com/vertz-dev/vertz/commit/823e3016dcb4487a7cdf9af61aea940566ffb21c), [`86d33bd`](https://github.com/vertz-dev/vertz/commit/86d33bd56934d62441b031fb72dd86687f0d0845), [`4390036`](https://github.com/vertz-dev/vertz/commit/4390036144176fab7aa869ddcde621eece6f904c), [`30737c7`](https://github.com/vertz-dev/vertz/commit/30737c73fcf844878b6b781f3b786fac39e6a7b5), [`6862ac1`](https://github.com/vertz-dev/vertz/commit/6862ac1559ddba889cc9f0190e5266a0e5f4145a), [`5eda52e`](https://github.com/vertz-dev/vertz/commit/5eda52e2a74966eb94dcca5af00cb1f1dd8c2fd7), [`0f7b4bc`](https://github.com/vertz-dev/vertz/commit/0f7b4bc228d6ebf294ab9b7a63087324f003cf86), [`a7e37c3`](https://github.com/vertz-dev/vertz/commit/a7e37c3dd29ac75183a085d34b0621d339f8402a), [`cda8b4b`](https://github.com/vertz-dev/vertz/commit/cda8b4b75a52eab1459b41adf686bbe90e5fcf97), [`6be7ce8`](https://github.com/vertz-dev/vertz/commit/6be7ce859300258b926fa7a608e2656952fea0c1), [`a897b19`](https://github.com/vertz-dev/vertz/commit/a897b19b36f0851e373f4dce31298c52c11328c7), [`301c401`](https://github.com/vertz-dev/vertz/commit/301c40192ddec0a306bba997a7f9e4ce4253aa95), [`4f5c101`](https://github.com/vertz-dev/vertz/commit/4f5c101424c2f7009ef750b2c12c220f377e0813), [`c9d6c7e`](https://github.com/vertz-dev/vertz/commit/c9d6c7ef368efdc905b4e96302798b2db65522aa), [`cac4e45`](https://github.com/vertz-dev/vertz/commit/cac4e452bd12b726c077ce2f48605bbc410a680f), [`9ccbe74`](https://github.com/vertz-dev/vertz/commit/9ccbe743c3c4eee109b69c9e3aff5df5f64c572e), [`4637095`](https://github.com/vertz-dev/vertz/commit/46370950e7f1e1f3247a945511500d8f1c3e1d76), [`e9cfc6a`](https://github.com/vertz-dev/vertz/commit/e9cfc6ad9b4b5dd5c518bea3c1982082d7e96e10), [`427e519`](https://github.com/vertz-dev/vertz/commit/427e5194a7f783c2accc246409bf146dcfa2f1b7), [`86fb89b`](https://github.com/vertz-dev/vertz/commit/86fb89bc7b7f681c45fd2ac823ab493a91574b38), [`41565d7`](https://github.com/vertz-dev/vertz/commit/41565d7960871c4a1f38f4019894302a4a7e7ff1), [`0d973b0`](https://github.com/vertz-dev/vertz/commit/0d973b03a06e8d53e23c4be315bfcc23ec1d534e), [`72348fe`](https://github.com/vertz-dev/vertz/commit/72348fe2fb0dfd8e63ec5f9f4db3973ecb3e494e), [`8873a05`](https://github.com/vertz-dev/vertz/commit/8873a052da73ab1f3d96c8680f3a6ecb40022285), [`027890d`](https://github.com/vertz-dev/vertz/commit/027890d736a3b47f545e3e110693f118041042b2), [`d760784`](https://github.com/vertz-dev/vertz/commit/d76078402df8eed4888589fd128142bb10e6d69a), [`2ae15d1`](https://github.com/vertz-dev/vertz/commit/2ae15d116fc58c59a430472a98198377ccde1e4e), [`cba472a`](https://github.com/vertz-dev/vertz/commit/cba472a554330cab18778c7c60e088e50a39a4ec), [`b5fbc7d`](https://github.com/vertz-dev/vertz/commit/b5fbc7d884b06c8a0cb0c48d22dae5fe2684a4cc), [`2672525`](https://github.com/vertz-dev/vertz/commit/26725257feb8570fab7e924b3d39a283b359608c), [`9a6eb66`](https://github.com/vertz-dev/vertz/commit/9a6eb6635b4c9776c3062e6d89ef79955435baa9), [`bfd3e9e`](https://github.com/vertz-dev/vertz/commit/bfd3e9e00eae4b1918e7d119fe8eaa245beb85ef), [`f356523`](https://github.com/vertz-dev/vertz/commit/f356523f7054b1b72d7936e3a7e13147904087dc), [`f9eccd5`](https://github.com/vertz-dev/vertz/commit/f9eccd56b2ecc4467b36b8e78bb3a072141ef93c), [`4079d6b`](https://github.com/vertz-dev/vertz/commit/4079d6b7567479f5f59648e81773f098c7696d02)]:
+  - @vertz/ui-primitives@0.2.21
+  - @vertz/ui@0.2.21
+  - @vertz/ui-compiler@0.2.21
+  - @vertz/ui-server@0.2.21
+  - @vertz/ui-auth@0.2.19
+  - @vertz/server@0.2.21
+  - @vertz/cloudflare@0.2.21
+  - @vertz/db@0.2.21
+  - @vertz/errors@0.2.21
+  - @vertz/fetch@0.2.21
+  - @vertz/schema@0.2.21
+  - @vertz/testing@0.2.21
+  - @vertz/tui@0.2.21
+
 ## 0.2.20
 
 ### Patch Changes

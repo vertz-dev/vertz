@@ -1,5 +1,11 @@
 # @vertz/icons
 
+## 0.2.21
+
+### Patch Changes
+
+- [#1345](https://github.com/vertz-dev/vertz/pull/1345) [`0704bbb`](https://github.com/vertz-dev/vertz/commit/0704bbbc5561e2e2a6a6e0fd0a5f6af343f5f178) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Adopt `className` as the standard JSX prop for CSS classes, matching React convention. The `class` prop remains as a deprecated alias. All components, examples, and docs updated.
+
 ## 0.2.20
 
 ## 0.2.19

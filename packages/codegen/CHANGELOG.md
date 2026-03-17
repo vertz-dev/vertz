@@ -1,5 +1,14 @@
 # @vertz/codegen
 
+## 0.2.21
+
+### Patch Changes
+
+- [#1466](https://github.com/vertz-dev/vertz/pull/1466) [`39894f6`](https://github.com/vertz-dev/vertz/commit/39894f6afa95e5e532d625599a6fe80fc47c3574) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Generate `.min(1)` for non-optional string fields in input schemas and attach `.meta.bodySchema` to update SDK methods
+
+- Updated dependencies []:
+  - @vertz/compiler@0.2.21
+
 ## 0.2.20
 
 ### Patch Changes

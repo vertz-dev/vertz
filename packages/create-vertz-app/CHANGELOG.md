@@ -1,5 +1,11 @@
 # @vertz/create-vertz-app
 
+## 0.2.21
+
+### Patch Changes
+
+- [#1307](https://github.com/vertz-dev/vertz/pull/1307) [`2b462a9`](https://github.com/vertz-dev/vertz/commit/2b462a96eaa747bdd6448763a7d76c0e7a4fee21) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Read CLI version from package.json instead of hardcoded value and show version in scaffold output
+
 ## 0.2.20
 
 ### Patch Changes

@@ -1,5 +1,95 @@
 # @vertz/ui
 
+## 0.2.21
+
+### Patch Changes
+
+- [#1422](https://github.com/vertz-dev/vertz/pull/1422) [`a16511c`](https://github.com/vertz-dev/vertz/commit/a16511cd78256fe86d0d69393dd923353d6f445a) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - perf(ui): batch effect registration during tolerant hydration
+
+  Add `deferredDomEffect()` variant that defers the first run during hydration.
+  `__text` and `__attr` now use deferred effects — SSR content is already correct,
+  so the first execution is skipped during the hydration walk. Effects are flushed
+  synchronously at `endHydration()`, establishing dependency tracking so reactive
+  updates work immediately after.
+
+  Benchmark: 2.5x faster hydration walk phase for 1000 reactive nodes.
+
+- [#1485](https://github.com/vertz-dev/vertz/pull/1485) [`796ef1a`](https://github.com/vertz-dev/vertz/commit/796ef1a9826f401c6d0b08f424d53609debda029) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Convert calendar from factory API to declarative JSX component. `Calendar` is now a PascalCase component importable from `@vertz/ui/components`, replacing the lowercase `calendar` factory.
+
+- [#1488](https://github.com/vertz-dev/vertz/pull/1488) [`a5b9cbe`](https://github.com/vertz-dev/vertz/commit/a5b9cbe68202345ab09002f7e42c2a5be0c917bf) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Convert carousel from factory pattern to declarative JSX component with Carousel.Slide, Carousel.Previous, and Carousel.Next sub-components
+
+- [#1461](https://github.com/vertz-dev/vertz/pull/1461) [`520444e`](https://github.com/vertz-dev/vertz/commit/520444e3bdbbf3140b75ed3754870166544b5f88) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(ui): add centralized theme API — registerTheme() + @vertz/ui/components
+
+  Adds `registerTheme()` to `@vertz/ui` and a new `@vertz/ui/components` subpath export. Developers can now register a theme once and import components from a single, stable path instead of threading theme references through local modules.
+
+  `@vertz/theme-shadcn` now provides module augmentation for `@vertz/ui/components`, giving full type safety to centralized component imports when the theme package is installed.
+
+- [#1345](https://github.com/vertz-dev/vertz/pull/1345) [`0704bbb`](https://github.com/vertz-dev/vertz/commit/0704bbbc5561e2e2a6a6e0fd0a5f6af343f5f178) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Adopt `className` as the standard JSX prop for CSS classes, matching React convention. The `class` prop remains as a deprecated alias. All components, examples, and docs updated.
+
+- [#1497](https://github.com/vertz-dev/vertz/pull/1497) [`fa3d23c`](https://github.com/vertz-dev/vertz/commit/fa3d23ca2e92a4b734c4908ab274d8e75e45cbc0) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Convert command factory to declarative JSX component with sub-components (Command.Input, Command.List, Command.Empty, Command.Item, Command.Group, Command.Separator)
+
+- [#1489](https://github.com/vertz-dev/vertz/pull/1489) [`823e301`](https://github.com/vertz-dev/vertz/commit/823e3016dcb4487a7cdf9af61aea940566ffb21c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(theme-shadcn): convert contextMenu factory to JSX component
+
+  Convert the `contextMenu` primitive from an imperative factory function to a
+  declarative JSX component with `.Trigger`, `.Content`, `.Item`, `.Group`,
+  `.Label`, and `.Separator` sub-components.
+
+  - Add `ComposedContextMenu` in `@vertz/ui-primitives` (context-based sub-component wiring)
+  - Replace imperative `createThemedContextMenu` factory with `withStyles()` wrapper
+  - Promote from lowercase `contextMenu` factory to PascalCase `ContextMenu` compound proxy
+  - Importable from `@vertz/ui/components` as `ContextMenu`
+  - No `document.createElement` — fully declarative JSX
+
+- [#1487](https://github.com/vertz-dev/vertz/pull/1487) [`86d33bd`](https://github.com/vertz-dev/vertz/commit/86d33bd56934d62441b031fb72dd86687f0d0845) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Convert drawer factory to declarative JSX component with sub-components (Trigger, Content, Header, Title, Description, Footer, Handle)
+
+- [#1316](https://github.com/vertz-dev/vertz/pull/1316) [`4390036`](https://github.com/vertz-dev/vertz/commit/4390036144176fab7aa869ddcde621eece6f904c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Simplify css() nested selector object shape from `{ property: 'x', value: 'y' }` to plain `{ 'x': 'y' }`. Remove RawDeclaration type. Support both direct object and array-with-objects forms for nested selectors.
+
+- [#1311](https://github.com/vertz-dev/vertz/pull/1311) [`a7e37c3`](https://github.com/vertz-dev/vertz/commit/a7e37c3dd29ac75183a085d34b0621d339f8402a) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - **Breaking:** `DialogStack.open()` now returns `Promise<DialogResult<T>>` instead of `Promise<T>`. Dismissal resolves with `{ ok: false }` instead of rejecting with `DialogDismissedError`. Use `if (result.ok) { result.data }` instead of try/catch.
+
+- [#1365](https://github.com/vertz-dev/vertz/pull/1365) [`6be7ce8`](https://github.com/vertz-dev/vertz/commit/6be7ce859300258b926fa7a608e2656952fea0c1) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix duplicate route components during production hydration with lazy (code-split) routes. RouterView and Outlet now re-enter hydration when lazy routes resolve, claiming SSR nodes instead of recreating DOM. Add route-aware chunk preloading via route-chunk manifest.
+
+- [#1392](https://github.com/vertz-dev/vertz/pull/1392) [`301c401`](https://github.com/vertz-dev/vertz/commit/301c40192ddec0a306bba997a7f9e4ce4253aa95) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui): add mismatch fallback to sync path during hydration re-entry in Outlet and RouterView
+
+- [#1357](https://github.com/vertz-dev/vertz/pull/1357) [`c9d6c7e`](https://github.com/vertz-dev/vertz/commit/c9d6c7ef368efdc905b4e96302798b2db65522aa) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Hydration claim functions (`claimElement`, `claimText`, `claimComment`) now restore the cursor on failure instead of exhausting it. This fixes cursor corruption when composed primitives use `resolveChildren` + `scanSlots` during hydration, where failed slot marker claims would break all subsequent claims.
+
+- [#1490](https://github.com/vertz-dev/vertz/pull/1490) [`9ccbe74`](https://github.com/vertz-dev/vertz/commit/9ccbe743c3c4eee109b69c9e3aff5df5f64c572e) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Convert menubar from factory to declarative JSX component with sub-components (Menubar.Menu, Menubar.Trigger, Menubar.Content, Menubar.Item, Menubar.Group, Menubar.Label, Menubar.Separator)
+
+- [#1495](https://github.com/vertz-dev/vertz/pull/1495) [`e9cfc6a`](https://github.com/vertz-dev/vertz/commit/e9cfc6ad9b4b5dd5c518bea3c1982082d7e96e10) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Convert `navigationMenu` factory to declarative `NavigationMenu` JSX component with `.List`, `.Item`, `.Trigger`, `.Content`, `.Link`, `.Viewport` sub-components. Importable from `@vertz/ui/components`.
+
+- [#1396](https://github.com/vertz-dev/vertz/pull/1396) [`2ae15d1`](https://github.com/vertz-dev/vertz/commit/2ae15d116fc58c59a430472a98198377ccde1e4e) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(ui,ui-server,cli): add generateParams for dynamic route SSG
+
+  Routes can now define `generateParams` to pre-render dynamic routes at build time. The build pipeline expands these into concrete paths and pre-renders each one to static HTML files.
+
+- [#1346](https://github.com/vertz-dev/vertz/pull/1346) [`b5fbc7d`](https://github.com/vertz-dev/vertz/commit/b5fbc7d884b06c8a0cb0c48d22dae5fe2684a4cc) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Support React-style `style` objects with camelCase properties. `style={{ backgroundColor: 'red' }}` now converts to a CSS string at all levels: JSX runtime, compiler-generated code, reactive `__attr()` bindings, and SSR. Includes auto-px for dimensional numeric values, unitless property detection, and vendor prefix handling.
+
+- [#1468](https://github.com/vertz-dev/vertz/pull/1468) [`f356523`](https://github.com/vertz-dev/vertz/commit/f356523f7054b1b72d7936e3a7e13147904087dc) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add type-safe CSS utility validation: `css()` and `variants()` now reject invalid utility class names at compile time with full editor autocomplete. The `UtilityClass` union type is exported for custom type definitions.
+
+- [#1467](https://github.com/vertz-dev/vertz/pull/1467) [`f9eccd5`](https://github.com/vertz-dev/vertz/commit/f9eccd56b2ecc4467b36b8e78bb3a072141ef93c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - refactor(auth): unify AuthProvider with generated auth SDK
+
+  BREAKING: AuthProvider now requires an `auth` prop (AuthSdk interface) instead of creating its own HTTP methods. The `basePath` prop is now optional (used only for access-set and auth operations not yet in the SDK like MFA, forgot/reset password).
+
+  Before:
+
+  ```tsx
+  <AuthProvider basePath="/api/auth">
+  ```
+
+  After:
+
+  ```tsx
+  <AuthProvider auth={api.auth}>
+  ```
+
+  - AuthProvider delegates signIn, signUp, signOut, refresh, and providers to the SDK
+  - `createAuthMethod()` removed from `@vertz/ui/auth`
+  - New `AuthSdk` and `AuthSdkMethod` types exported from `@vertz/ui/auth`
+  - `form(useAuth().signIn)` still works — AuthProvider attaches bodySchema from local validation schemas
+
+- [#1297](https://github.com/vertz-dev/vertz/pull/1297) [`4079d6b`](https://github.com/vertz-dev/vertz/commit/4079d6b7567479f5f59648e81773f098c7696d02) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add View Transitions API integration to the router. Navigations can optionally wrap DOM updates in `document.startViewTransition()` for animated page transitions. Supports global, per-route, and per-navigation config with graceful degradation for unsupported browsers, reduced motion, and SSR. Adds `vt-name` CSS shorthand for `view-transition-name`.
+
+- Updated dependencies []:
+  - @vertz/fetch@0.2.21
+
 ## 0.2.20
 
 ### Patch Changes

@@ -1,5 +1,28 @@
 # @vertz/cli
 
+## 0.2.21
+
+### Patch Changes
+
+- [#1420](https://github.com/vertz-dev/vertz/pull/1420) [`5c72dc4`](https://github.com/vertz-dev/vertz/commit/5c72dc40807415754963b3b5a5286102b08ded57) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add `vertz` meta-package to esbuild external list in production build orchestrator
+
+- [#1328](https://github.com/vertz-dev/vertz/pull/1328) [`64d9742`](https://github.com/vertz-dev/vertz/commit/64d974294c9cd072f72c24d05a69743a367bb223) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Read CLI version from package.json instead of hardcoded value; show version in `vertz create` output
+
+- [#1365](https://github.com/vertz-dev/vertz/pull/1365) [`6be7ce8`](https://github.com/vertz-dev/vertz/commit/6be7ce859300258b926fa7a608e2656952fea0c1) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix duplicate route components during production hydration with lazy (code-split) routes. RouterView and Outlet now re-enter hydration when lazy routes resolve, claiming SSR nodes instead of recreating DOM. Add route-aware chunk preloading via route-chunk manifest.
+
+- [#1396](https://github.com/vertz-dev/vertz/pull/1396) [`2ae15d1`](https://github.com/vertz-dev/vertz/commit/2ae15d116fc58c59a430472a98198377ccde1e4e) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(ui,ui-server,cli): add generateParams for dynamic route SSG
+
+  Routes can now define `generateParams` to pre-render dynamic routes at build time. The build pipeline expands these into concrete paths and pre-renders each one to static HTML files.
+
+- Updated dependencies [[`0704bbb`](https://github.com/vertz-dev/vertz/commit/0704bbbc5561e2e2a6a6e0fd0a5f6af343f5f178), [`30737c7`](https://github.com/vertz-dev/vertz/commit/30737c73fcf844878b6b781f3b786fac39e6a7b5), [`5eda52e`](https://github.com/vertz-dev/vertz/commit/5eda52e2a74966eb94dcca5af00cb1f1dd8c2fd7), [`0f7b4bc`](https://github.com/vertz-dev/vertz/commit/0f7b4bc228d6ebf294ab9b7a63087324f003cf86), [`2b462a9`](https://github.com/vertz-dev/vertz/commit/2b462a96eaa747bdd6448763a7d76c0e7a4fee21), [`6be7ce8`](https://github.com/vertz-dev/vertz/commit/6be7ce859300258b926fa7a608e2656952fea0c1), [`a897b19`](https://github.com/vertz-dev/vertz/commit/a897b19b36f0851e373f4dce31298c52c11328c7), [`39894f6`](https://github.com/vertz-dev/vertz/commit/39894f6afa95e5e532d625599a6fe80fc47c3574), [`2ae15d1`](https://github.com/vertz-dev/vertz/commit/2ae15d116fc58c59a430472a98198377ccde1e4e), [`b5fbc7d`](https://github.com/vertz-dev/vertz/commit/b5fbc7d884b06c8a0cb0c48d22dae5fe2684a4cc)]:
+  - @vertz/ui-server@0.2.21
+  - @vertz/create-vertz-app@0.2.21
+  - @vertz/db@0.2.21
+  - @vertz/codegen@0.2.21
+  - @vertz/compiler@0.2.21
+  - @vertz/errors@0.2.21
+  - @vertz/tui@0.2.21
+
 ## 0.2.20
 
 ### Patch Changes

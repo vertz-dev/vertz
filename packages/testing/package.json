@@ -1,6 +1,6 @@
 {
   "name": "@vertz/testing",
-  "version": "0.2.20",
+  "version": "0.2.21",
   "type": "module",
   "license": "MIT",
   "description": "Testing utilities for Vertz applications",

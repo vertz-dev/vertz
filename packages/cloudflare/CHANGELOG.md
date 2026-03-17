@@ -1,5 +1,38 @@
 # @vertz/cloudflare
 
+## 0.2.21
+
+### Patch Changes
+
+- [#1424](https://github.com/vertz-dev/vertz/pull/1424) [`67d1984`](https://github.com/vertz-dev/vertz/commit/67d19841241407eb8d8be7f2ddbb7e0a98ca6fe4) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add `beforeRender` middleware hook to `createHandler()` config. The hook runs before SSR rendering on non-API routes and can return a `Response` to short-circuit (e.g., redirect to `/login`). Returns `undefined`/`void` to proceed normally.
+
+- [#1423](https://github.com/vertz-dev/vertz/pull/1423) [`bfd3e9e`](https://github.com/vertz-dev/vertz/commit/bfd3e9e00eae4b1918e7d119fe8eaa245beb85ef) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat: traffic-aware pre-rendering (TPR) for Cloudflare Workers
+
+  Adds ISR (Incremental Static Regeneration) and TPR support:
+
+  - **ISR caching**: Cache SSR responses in Cloudflare KV with TTL-based revalidation and stale-while-revalidate via `ctx.waitUntil()`
+  - **TPR analytics**: Query Cloudflare GraphQL Analytics API to identify hot pages by traffic
+  - **Pre-rendering**: Render and store hot pages in KV at deploy time with concurrency control
+  - **Route classification**: Compiler-assisted classification of static vs dynamic routes for optimal pre-rendering
+
+  New `cache` config on `createHandler()`:
+
+  ```ts
+  createHandler({
+    cache: {
+      kv: (env) => env.PAGE_CACHE,
+      ttl: 3600,
+      staleWhileRevalidate: true,
+    },
+  });
+  ```
+
+  New `@vertz/cloudflare/tpr` export for deploy-time pre-rendering.
+
+- Updated dependencies [[`0704bbb`](https://github.com/vertz-dev/vertz/commit/0704bbbc5561e2e2a6a6e0fd0a5f6af343f5f178), [`30737c7`](https://github.com/vertz-dev/vertz/commit/30737c73fcf844878b6b781f3b786fac39e6a7b5), [`5eda52e`](https://github.com/vertz-dev/vertz/commit/5eda52e2a74966eb94dcca5af00cb1f1dd8c2fd7), [`0f7b4bc`](https://github.com/vertz-dev/vertz/commit/0f7b4bc228d6ebf294ab9b7a63087324f003cf86), [`6be7ce8`](https://github.com/vertz-dev/vertz/commit/6be7ce859300258b926fa7a608e2656952fea0c1), [`2ae15d1`](https://github.com/vertz-dev/vertz/commit/2ae15d116fc58c59a430472a98198377ccde1e4e), [`b5fbc7d`](https://github.com/vertz-dev/vertz/commit/b5fbc7d884b06c8a0cb0c48d22dae5fe2684a4cc)]:
+  - @vertz/ui-server@0.2.21
+  - @vertz/core@0.2.21
+
 ## 0.2.20
 
 ### Patch Changes
