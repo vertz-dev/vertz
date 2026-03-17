@@ -55,6 +55,7 @@ import { createThemedProgress } from './components/primitives/progress';
 import type { ThemedRadioGroupComponent } from './components/primitives/radio-group';
 import { createThemedRadioGroup } from './components/primitives/radio-group';
 import { createThemedResizablePanel } from './components/primitives/resizable-panel';
+import type { ThemedScrollAreaComponent } from './components/primitives/scroll-area';
 import { createThemedScrollArea } from './components/primitives/scroll-area';
 import type { ThemedSelectComponent } from './components/primitives/select';
 import { createThemedSelect } from './components/primitives/select';
@@ -415,8 +416,8 @@ export interface ThemedPrimitives {
   NavigationMenu: ThemedNavigationMenuComponent;
   /** Themed ResizablePanel — resizable panel layout with drag handles. */
   resizablePanel: ReturnType<typeof createThemedResizablePanel>;
-  /** Themed ScrollArea — custom scrollbars. */
-  scrollArea: ReturnType<typeof createThemedScrollArea>;
+  /** Themed ScrollArea — composable JSX component wrapping @vertz/ui-primitives ScrollArea. */
+  ScrollArea: ThemedScrollAreaComponent;
   /** Themed Toggle — composable JSX component wrapping @vertz/ui-primitives Toggle. */
   Toggle: ThemedToggleComponent;
   /** Themed ToggleGroup — group of toggle buttons. */
@@ -610,7 +611,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
       Menubar: createThemedMenubar(menubarStyles),
       NavigationMenu: createThemedNavigationMenu(navigationMenuStyles),
       resizablePanel: createThemedResizablePanel(resizablePanelStyles),
-      scrollArea: createThemedScrollArea(scrollAreaStyles),
+      ScrollArea: createThemedScrollArea(scrollAreaStyles),
       Toggle: createThemedToggle(toggleStyles),
       toggleGroup: createThemedToggleGroup(toggleGroupStyles),
     },

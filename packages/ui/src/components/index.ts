@@ -335,9 +335,9 @@ export const NavigationMenu: ThemeComponentMap['NavigationMenu'] =
 export const resizablePanel: ThemeComponentMap['resizablePanel'] =
   /* #__PURE__ */ createPrimitiveProxy('resizablePanel') as ThemeComponentMap['resizablePanel'];
 
-export const scrollArea: ThemeComponentMap['scrollArea'] = /* #__PURE__ */ createPrimitiveProxy(
-  'scrollArea',
-) as ThemeComponentMap['scrollArea'];
+export const ScrollArea: ThemeComponentMap['ScrollArea'] = /* #__PURE__ */ createPrimitiveProxy(
+  'ScrollArea',
+) as ThemeComponentMap['ScrollArea'];
 
 export const toggleGroup: ThemeComponentMap['toggleGroup'] = /* #__PURE__ */ createPrimitiveProxy(
   'toggleGroup',

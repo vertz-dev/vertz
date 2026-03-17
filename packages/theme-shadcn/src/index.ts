@@ -118,7 +118,7 @@ declare module '@vertz/ui/components' {
     hoverCard: ThemedPrimitives['hoverCard'];
     NavigationMenu: ThemedNavigationMenuComponent;
     resizablePanel: ThemedPrimitives['resizablePanel'];
-    scrollArea: ThemedPrimitives['scrollArea'];
+    ScrollArea: ThemedPrimitives['ScrollArea'];
     toggleGroup: ThemedPrimitives['toggleGroup'];
   }
 }
