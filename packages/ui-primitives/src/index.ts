@@ -92,6 +92,12 @@ export type {
 export { ComposedDropdownMenu } from './dropdown-menu/dropdown-menu-composed';
 export type { HoverCardElements, HoverCardOptions, HoverCardState } from './hover-card/hover-card';
 export { HoverCard } from './hover-card/hover-card';
+export type {
+  ComposedHoverCardProps,
+  HoverCardClasses,
+  HoverCardClassKey,
+} from './hover-card/hover-card-composed';
+export { ComposedHoverCard } from './hover-card/hover-card-composed';
 export type { MenuElements, MenuOptions, MenuState } from './menu/menu';
 export { Menu } from './menu/menu';
 export type { MenubarElements, MenubarOptions, MenubarState } from './menubar/menubar';
