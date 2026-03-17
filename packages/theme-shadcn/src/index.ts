@@ -37,6 +37,7 @@ import type { ThemedAccordionComponent } from './components/primitives/accordion
 import type { ThemedAlertDialogComponent } from './components/primitives/alert-dialog';
 import type { ThemedCalendarComponent } from './components/primitives/calendar';
 import type { ThemedCheckboxComponent } from './components/primitives/checkbox';
+import type { ThemedContextMenuComponent } from './components/primitives/context-menu';
 import type { ThemedDialogComponent } from './components/primitives/dialog';
 import type { ThemedDrawerComponent } from './components/primitives/drawer';
 import type { ThemedDropdownMenuComponent } from './components/primitives/dropdown-menu';
@@ -85,6 +86,7 @@ declare module '@vertz/ui/components' {
     Popover: ThemedPopoverComponent;
     RadioGroup: ThemedRadioGroupComponent;
     Accordion: ThemedAccordionComponent;
+    ContextMenu: ThemedContextMenuComponent;
     Tooltip: ThemedTooltipComponent;
     Sheet: ThemedSheetComponent;
     Drawer: ThemedDrawerComponent;
@@ -102,7 +104,6 @@ declare module '@vertz/ui/components' {
     carousel: ThemedPrimitives['carousel'];
     collapsible: ThemedPrimitives['collapsible'];
     command: ThemedPrimitives['command'];
-    contextMenu: ThemedPrimitives['contextMenu'];
     datePicker: ThemedPrimitives['datePicker'];
     hoverCard: ThemedPrimitives['hoverCard'];
     menubar: ThemedPrimitives['menubar'];

@@ -1,11 +1,6 @@
-import type {
-  ContextMenuElements,
-  ContextMenuOptions,
-  ContextMenuState,
-} from '@vertz/ui-primitives';
-import { ContextMenu } from '@vertz/ui-primitives';
-
-let idCounter = 0;
+import type { ChildValue } from '@vertz/ui';
+import type { ComposedContextMenuProps } from '@vertz/ui-primitives';
+import { ComposedContextMenu, withStyles } from '@vertz/ui-primitives';
 
 interface ContextMenuStyleClasses {
   readonly content: string;
@@ -15,67 +10,78 @@ interface ContextMenuStyleClasses {
   readonly separator: string;
 }
 
-export interface ThemedContextMenuResult extends ContextMenuElements {
-  state: ContextMenuState;
-  Item: (value: string, label?: string) => HTMLDivElement;
-  Group: (label: string) => {
-    el: HTMLDivElement;
-    Item: (value: string, label?: string) => HTMLDivElement;
-  };
-  Separator: () => HTMLHRElement;
-  Label: (text: string) => HTMLDivElement;
+// ── Props ──────────────────────────────────────────────────
+
+export interface ContextMenuRootProps {
+  onSelect?: (value: string) => void;
+  children?: ChildValue;
 }
+
+export interface ContextMenuSlotProps {
+  children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
+  class?: string;
+}
+
+export interface ContextMenuItemProps {
+  value: string;
+  children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
+  class?: string;
+}
+
+export interface ContextMenuGroupProps {
+  label: string;
+  children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
+  class?: string;
+}
+
+export interface ContextMenuLabelProps {
+  children?: ChildValue;
+  className?: string;
+  /** @deprecated Use `className` instead. */
+  class?: string;
+}
+
+// ── Component type ─────────────────────────────────────────
+
+export interface ThemedContextMenuComponent {
+  (props: ContextMenuRootProps): HTMLElement;
+  Trigger: (props: ContextMenuSlotProps) => HTMLElement;
+  Content: (props: ContextMenuSlotProps) => HTMLElement;
+  Item: (props: ContextMenuItemProps) => HTMLElement;
+  Group: (props: ContextMenuGroupProps) => HTMLElement;
+  Label: (props: ContextMenuLabelProps) => HTMLElement;
+  Separator: (props: ContextMenuSlotProps) => HTMLElement;
+}
+
+// ── Factory ────────────────────────────────────────────────
 
 export function createThemedContextMenu(
   styles: ContextMenuStyleClasses,
-): (options?: ContextMenuOptions) => ThemedContextMenuResult {
-  return function themedContextMenu(options?: ContextMenuOptions): ThemedContextMenuResult {
-    const result = ContextMenu.Root({
-      ...options,
-      positioning: { strategy: 'fixed' },
-    });
-    result.content.classList.add(styles.content);
+): ThemedContextMenuComponent {
+  const Styled = withStyles(ComposedContextMenu, {
+    content: styles.content,
+    item: styles.item,
+    group: styles.group,
+    label: styles.label,
+    separator: styles.separator,
+  });
 
-    function themedItem(value: string, label?: string): HTMLDivElement {
-      const item = result.Item(value, label);
-      item.classList.add(styles.item);
-      return item;
-    }
+  function ContextMenuRoot({ children, onSelect }: ContextMenuRootProps): HTMLElement {
+    return Styled({ children, onSelect } as ComposedContextMenuProps);
+  }
 
-    return {
-      trigger: result.trigger,
-      content: result.content,
-      state: result.state,
-      Item: themedItem,
-      Group: (label: string) => {
-        const group = result.Group(label);
-        group.el.classList.add(styles.group);
-        const labelEl = document.createElement('div');
-        labelEl.id = `ctx-menu-group-label-${++idCounter}`;
-        labelEl.textContent = label;
-        labelEl.classList.add(styles.label);
-        group.el.removeAttribute('aria-label');
-        group.el.setAttribute('aria-labelledby', labelEl.id);
-        group.el.prepend(labelEl);
-        return {
-          el: group.el,
-          Item: (value: string, itemLabel?: string) => {
-            const item = group.Item(value, itemLabel);
-            item.classList.add(styles.item);
-            return item;
-          },
-        };
-      },
-      Separator: () => {
-        const sep = result.Separator();
-        sep.classList.add(styles.separator);
-        return sep;
-      },
-      Label: (text: string) => {
-        const el = result.Label(text);
-        el.classList.add(styles.label);
-        return el;
-      },
-    };
-  };
+  return Object.assign(ContextMenuRoot, {
+    Trigger: ComposedContextMenu.Trigger,
+    Content: ComposedContextMenu.Content,
+    Item: ComposedContextMenu.Item,
+    Group: ComposedContextMenu.Group,
+    Label: ComposedContextMenu.Label,
+    Separator: ComposedContextMenu.Separator,
+  }) as ThemedContextMenuComponent;
 }
