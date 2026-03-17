@@ -1,5 +1,5 @@
-import type { CalendarElements, CalendarOptions, CalendarState } from '@vertz/ui-primitives';
-import { Calendar } from '@vertz/ui-primitives';
+import type { ComposedCalendarProps } from '@vertz/ui-primitives';
+import { ComposedCalendar, withStyles } from '@vertz/ui-primitives';
 
 interface CalendarStyleClasses {
   readonly root: string;
@@ -12,26 +12,39 @@ interface CalendarStyleClasses {
   readonly dayButton: string;
 }
 
-export function createThemedCalendar(
-  styles: CalendarStyleClasses,
-): (options?: CalendarOptions) => CalendarElements & { state: CalendarState } {
-  return function themedCalendar(options?: CalendarOptions) {
-    const result = Calendar.Root(options);
-    result.root.classList.add(styles.root);
-    result.header.classList.add(styles.header);
-    result.title.classList.add(styles.title);
-    result.prevButton.classList.add(styles.navButton);
-    result.nextButton.classList.add(styles.navButton);
-    result.grid.classList.add(styles.grid);
-    for (const th of result.grid.querySelectorAll('th')) {
-      th.classList.add(styles.headCell);
-    }
-    for (const td of result.grid.querySelectorAll('td')) {
-      td.classList.add(styles.cell);
-    }
-    for (const btn of result.grid.querySelectorAll('button')) {
-      btn.classList.add(styles.dayButton);
-    }
-    return result;
+// ── Props ──────────────────────────────────────────────────
+
+export interface CalendarRootProps {
+  mode?: ComposedCalendarProps['mode'];
+  defaultValue?: ComposedCalendarProps['defaultValue'];
+  defaultMonth?: Date;
+  minDate?: Date;
+  maxDate?: Date;
+  disabled?: (date: Date) => boolean;
+  weekStartsOn?: ComposedCalendarProps['weekStartsOn'];
+  onValueChange?: ComposedCalendarProps['onValueChange'];
+  onMonthChange?: (month: Date) => void;
+}
+
+// ── Component type ─────────────────────────────────────────
+
+export type ThemedCalendarComponent = (props: CalendarRootProps) => HTMLElement;
+
+// ── Factory ────────────────────────────────────────────────
+
+export function createThemedCalendar(styles: CalendarStyleClasses): ThemedCalendarComponent {
+  const StyledCalendar = withStyles(ComposedCalendar, {
+    root: styles.root,
+    header: styles.header,
+    title: styles.title,
+    navButton: styles.navButton,
+    grid: styles.grid,
+    headCell: styles.headCell,
+    cell: styles.cell,
+    dayButton: styles.dayButton,
+  });
+
+  return function CalendarRoot(props: CalendarRootProps): HTMLElement {
+    return StyledCalendar(props as ComposedCalendarProps);
   };
 }

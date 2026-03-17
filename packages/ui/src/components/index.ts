@@ -247,6 +247,10 @@ export const Sheet: ThemeComponentMap['Sheet'] = /* #__PURE__ */ createCompoundP
 // Simple primitives (just callable, no sub-components)
 // ---------------------------------------------------------------------------
 
+export const Calendar: ThemeComponentMap['Calendar'] = /* #__PURE__ */ createPrimitiveProxy(
+  'Calendar',
+) as ThemeComponentMap['Calendar'];
+
 export const Checkbox: ThemeComponentMap['Checkbox'] = /* #__PURE__ */ createPrimitiveProxy(
   'Checkbox',
 ) as ThemeComponentMap['Checkbox'];
@@ -274,10 +278,6 @@ export const Toast: ThemeComponentMap['Toast'] = /* #__PURE__ */ createPrimitive
 // ---------------------------------------------------------------------------
 // Factory primitives (lowercase names, delegated directly)
 // ---------------------------------------------------------------------------
-
-export const calendar: ThemeComponentMap['calendar'] = /* #__PURE__ */ createPrimitiveProxy(
-  'calendar',
-) as ThemeComponentMap['calendar'];
 
 export const carousel: ThemeComponentMap['carousel'] = /* #__PURE__ */ createPrimitiveProxy(
   'carousel',

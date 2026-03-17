@@ -24,6 +24,7 @@ import type { ThemedAccordionComponent } from './components/primitives/accordion
 import { createThemedAccordion } from './components/primitives/accordion';
 import type { ThemedAlertDialogComponent } from './components/primitives/alert-dialog';
 import { createThemedAlertDialog } from './components/primitives/alert-dialog';
+import type { ThemedCalendarComponent } from './components/primitives/calendar';
 import { createThemedCalendar } from './components/primitives/calendar';
 import { createThemedCarousel } from './components/primitives/carousel';
 import type { ThemedCheckboxComponent } from './components/primitives/checkbox';
@@ -385,8 +386,8 @@ export interface ThemedPrimitives {
   Tooltip: ThemedTooltipComponent;
   /** Themed Sheet — composable JSX component with Sheet.Trigger, Sheet.Content, etc. */
   Sheet: ThemedSheetComponent;
-  /** Themed Calendar — date grid with month navigation. */
-  calendar: ReturnType<typeof createThemedCalendar>;
+  /** Themed Calendar — composable JSX component wrapping @vertz/ui-primitives Calendar. */
+  Calendar: ThemedCalendarComponent;
   /** Themed Carousel — slide navigation with prev/next controls. */
   carousel: ReturnType<typeof createThemedCarousel>;
   /** Themed Collapsible — expandable/collapsible content section. */
@@ -591,7 +592,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
       Toast: createThemedToast(toastStyles),
       Tooltip: createThemedTooltip(tooltipStyles),
       Sheet: createThemedSheet(sheetStyles),
-      calendar: createThemedCalendar(calendarStyles),
+      Calendar: createThemedCalendar(calendarStyles),
       carousel: createThemedCarousel(carouselStyles),
       collapsible: createThemedCollapsible(collapsibleStyles),
       command: createThemedCommand(commandStyles),
