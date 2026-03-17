@@ -53,5 +53,5 @@ export function createThemedHoverCard(styles: HoverCardStyleClasses): ThemedHove
   return Object.assign(HoverCardRoot, {
     Trigger: ComposedHoverCard.Trigger,
     Content: ComposedHoverCard.Content,
-  }) as ThemedHoverCardComponent;
+  });
 }
