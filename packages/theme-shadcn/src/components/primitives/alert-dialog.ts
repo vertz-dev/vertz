@@ -50,7 +50,9 @@ export interface ThemedAlertDialogComponent {
 export function createThemedAlertDialog(
   styles: AlertDialogStyleClasses,
 ): ThemedAlertDialogComponent {
-  const StyledAlertDialog = withStyles(ComposedAlertDialog, {
+  // withStyles pre-binds classes onto the Root. Sub-components read classes
+  // from context, so they get styling automatically.
+  return withStyles(ComposedAlertDialog, {
     overlay: styles.overlay,
     content: styles.panel,
     cancel: styles.cancel,
@@ -59,28 +61,5 @@ export function createThemedAlertDialog(
     description: styles.description,
     footer: styles.footer,
     header: '',
-  });
-
-  function AlertDialogRoot({
-    children,
-    onOpenChange,
-    onAction,
-  }: AlertDialogRootProps): HTMLElement {
-    return StyledAlertDialog({
-      children,
-      onOpenChange,
-      onAction,
-    });
-  }
-
-  return Object.assign(AlertDialogRoot, {
-    Trigger: StyledAlertDialog.Trigger,
-    Content: StyledAlertDialog.Content,
-    Header: StyledAlertDialog.Header,
-    Title: StyledAlertDialog.Title,
-    Description: StyledAlertDialog.Description,
-    Footer: StyledAlertDialog.Footer,
-    Cancel: StyledAlertDialog.Cancel,
-    Action: StyledAlertDialog.Action,
-  });
+  }) as unknown as ThemedAlertDialogComponent;
 }

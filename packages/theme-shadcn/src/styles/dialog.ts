@@ -45,29 +45,33 @@ export function createDialogStyles(): CSSOutput<DialogBlocks> {
       },
     ],
     dialogPanel: [
-      'fixed',
-      'z:50',
       'bg:background',
       'gap:4',
       {
+        // Native <dialog> uses showModal() for top-layer rendering.
+        // No fixed/z-index/inset needed — the browser handles positioning.
         '&': {
           display: 'grid',
           width: '100%',
           'max-width': 'calc(100% - 2rem)',
-          // Nova: ring-1 ring-foreground/10 instead of border
           'box-shadow': '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent)',
-          // Nova: rounded-xl p-4 text-sm
           'border-radius': '0.75rem',
           padding: '1rem',
           'font-size': '0.875rem',
-          // Center via inset + margin:auto (avoids transform conflict with animations)
-          inset: '0',
           margin: 'auto',
           height: 'fit-content',
           outline: 'none',
+          border: 'none',
           'container-type': 'inline-size',
         },
-        // Nova: sm:max-w-sm (24rem vs base 32rem)
+        // Ensure closed dialog is hidden (theme display:grid overrides UA dialog:not([open]))
+        '&:not([open])': { display: 'none' },
+        // Style the native ::backdrop (replaces the overlay div)
+        '&::backdrop': {
+          'background-color': 'oklch(0 0 0 / 10%)',
+          'backdrop-filter': 'blur(4px)',
+          '-webkit-backdrop-filter': 'blur(4px)',
+        },
         '@media (min-width: 640px)': { 'max-width': '24rem' },
       },
       {

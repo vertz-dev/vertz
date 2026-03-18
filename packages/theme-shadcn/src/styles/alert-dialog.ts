@@ -45,27 +45,31 @@ export function createAlertDialogStyles(): CSSOutput<AlertDialogBlocks> {
       },
     ],
     alertDialogPanel: [
-      'fixed',
-      'z:50',
       'bg:background',
       'gap:4',
       {
+        // Native <dialog> uses showModal() for top-layer rendering.
         '&': {
           display: 'grid',
           width: '100%',
           'max-width': 'calc(100% - 2rem)',
-          // Nova: ring-1 ring-foreground/10 instead of border
           'box-shadow': '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent)',
-          // Nova: rounded-xl p-4
           'border-radius': '0.75rem',
           padding: '1rem',
-          // Center via inset + margin:auto
-          inset: '0',
           margin: 'auto',
           height: 'fit-content',
+          outline: 'none',
+          border: 'none',
           'container-type': 'inline-size',
         },
-        // Nova: sm:max-w-sm
+        // Ensure closed dialog is hidden (theme display:grid overrides UA dialog:not([open]))
+        '&:not([open])': { display: 'none' },
+        // Style the native ::backdrop
+        '&::backdrop': {
+          'background-color': 'oklch(0 0 0 / 10%)',
+          'backdrop-filter': 'blur(4px)',
+          '-webkit-backdrop-filter': 'blur(4px)',
+        },
         '@media (min-width: 640px)': { 'max-width': '24rem' },
       },
       {
