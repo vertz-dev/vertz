@@ -385,4 +385,108 @@ describe('Composed Select', () => {
       expect(separator).not.toBeNull();
     });
   });
+
+  describe('Given an open Select without explicit positioning (#1523)', () => {
+    describe('When a pointerdown event fires outside the Select', () => {
+      it('Then closes the dropdown', () => {
+        const root = ComposedSelect({
+          children: () => {
+            const t = ComposedSelect.Trigger({ children: ['Pick'] });
+            const c = ComposedSelect.Content({
+              children: () => [ComposedSelect.Item({ value: 'a', children: ['A'] })],
+            });
+            return [t, c];
+          },
+        });
+        container.appendChild(root);
+
+        // Open the select
+        const trigger = root.querySelector('[role="combobox"]') as HTMLElement;
+        trigger!.click();
+        expect(trigger!.getAttribute('aria-expanded')).toBe('true');
+
+        // Click outside
+        const outside = document.createElement('div');
+        document.body.appendChild(outside);
+        outside.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+        outside.remove();
+
+        expect(trigger!.getAttribute('aria-expanded')).toBe('false');
+        const listbox = root.querySelector('[role="listbox"]') as HTMLElement;
+        expect(listbox!.style.display).toBe('none');
+      });
+    });
+
+    describe('When Escape is pressed while the content is focused', () => {
+      it('Then closes the dropdown', () => {
+        const root = ComposedSelect({
+          children: () => {
+            const t = ComposedSelect.Trigger({ children: ['Pick'] });
+            const c = ComposedSelect.Content({
+              children: () => [ComposedSelect.Item({ value: 'a', children: ['A'] })],
+            });
+            return [t, c];
+          },
+        });
+        container.appendChild(root);
+
+        // Open
+        const trigger = root.querySelector('[role="combobox"]') as HTMLElement;
+        trigger!.click();
+        expect(trigger!.getAttribute('aria-expanded')).toBe('true');
+
+        // Press Escape on the content
+        const listbox = root.querySelector('[role="listbox"]') as HTMLElement;
+        listbox!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+        expect(trigger!.getAttribute('aria-expanded')).toBe('false');
+      });
+    });
+  });
+
+  describe('Given a Select trigger (#1523)', () => {
+    it('Then the chevron element contains an SVG down-arrow icon', () => {
+      const root = ComposedSelect({
+        children: () => {
+          const t = ComposedSelect.Trigger({ children: ['Pick'] });
+          const c = ComposedSelect.Content({
+            children: () => [ComposedSelect.Item({ value: 'a', children: ['A'] })],
+          });
+          return [t, c];
+        },
+      });
+      container.appendChild(root);
+
+      const chevron = root.querySelector('[data-part="chevron"]') as HTMLElement;
+      expect(chevron).not.toBeNull();
+      const svg = chevron!.querySelector('svg');
+      expect(svg).not.toBeNull();
+    });
+  });
+
+  describe('Given an open Select without explicit positioning (#1523)', () => {
+    it('Then the content has fixed or absolute positioning to float over content', async () => {
+      const root = ComposedSelect({
+        children: () => {
+          const t = ComposedSelect.Trigger({ children: ['Pick'] });
+          const c = ComposedSelect.Content({
+            children: () => [ComposedSelect.Item({ value: 'a', children: ['A'] })],
+          });
+          return [t, c];
+        },
+      });
+      container.appendChild(root);
+
+      // Open the select
+      const trigger = root.querySelector('[role="combobox"]') as HTMLElement;
+      trigger!.click();
+
+      // Wait for computePosition to resolve (async floating-ui computation)
+      await Promise.resolve();
+
+      const listbox = root.querySelector('[role="listbox"]') as HTMLElement;
+      const pos = listbox!.style.position;
+      expect(pos === 'fixed' || pos === 'absolute').toBe(true);
+    });
+  });
 });

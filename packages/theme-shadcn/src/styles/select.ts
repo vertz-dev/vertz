@@ -53,6 +53,15 @@ export function createSelectStyles(): CSSOutput<SelectBlocks> {
       { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
       { '&[data-state="open"]': ['border:ring'] },
       { [DARK]: [bgOpacity('input', 30)] },
+      // Chevron icon — muted, no-shrink
+      {
+        '& [data-part="chevron"]': {
+          opacity: '0.5',
+          'flex-shrink': '0',
+          display: 'flex',
+          'align-items': 'center',
+        },
+      },
     ],
     selectContent: [
       'z:50',
