@@ -206,7 +206,10 @@ function ComposedContextMenuRoot({
   }
 
   // Wire context menu (right-click) on the trigger element.
+  // Read isOpen to ensure effect re-runs if element not found on first attempt.
   lifecycleEffect(() => {
+    const _open = isOpen;
+    void _open;
     const root = document.querySelector(`[data-contextmenu-root="${ids.contentId}"]`);
     const trigger = root?.querySelector('[data-contextmenu-trigger]') as HTMLElement | null;
     if (!trigger || (trigger as HTMLElement & { __ctxWired?: boolean }).__ctxWired) return;
@@ -220,7 +223,10 @@ function ComposedContextMenuRoot({
   });
 
   // Wire keyboard and click handlers on the connected content element.
+  // Read isOpen to re-run when the menu opens (element may not be findable on first run).
   lifecycleEffect(() => {
+    const _open = isOpen; // track signal so effect re-runs
+    void _open;
     const el = getContentEl() as HTMLElement & { __menuWired?: boolean } | null;
     if (!el || el.__menuWired) return;
     el.__menuWired = true;
