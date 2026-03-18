@@ -232,38 +232,23 @@ function ComposedSheetRoot({
 
   function showDialog(): void {
     const el = getConnectedDialog();
-    if (!el) return;
-    const isRenderedOpen =
-      el.open || el.hasAttribute('open') || el.getAttribute('data-state') === 'open';
-    if (isRenderedOpen) return;
+    if (!el || el.open) return;
 
     el.setAttribute('data-state', 'open');
     el.showModal();
-    if (!el.open) el.setAttribute('open', '');
   }
 
   function hideDialog(): void {
     const el = getConnectedDialog();
-    if (!el) return;
-    const isRenderedOpen =
-      el.open || el.hasAttribute('open') || el.getAttribute('data-state') === 'open';
-    if (!isRenderedOpen) return;
+    if (!el || !el.open) return;
 
-    const dialog = el;
-    dialog.setAttribute('data-state', 'closed');
-
-    let closed = false;
-    const timeoutId = window.setTimeout(onEnd, 500);
-    function onEnd() {
-      if (closed) return;
-      closed = true;
-      window.clearTimeout(timeoutId);
-      dialog.removeEventListener('animationend', onEnd);
-      dialog.removeAttribute('open');
-      if (dialog.open) dialog.close();
-    }
-
-    dialog.addEventListener('animationend', onEnd);
+    el.setAttribute('data-state', 'closed');
+    const onEnd = () => {
+      el.removeEventListener('animationend', onEnd);
+      if (el.open) el.close();
+    };
+    el.addEventListener('animationend', onEnd);
+    setTimeout(onEnd, 150);
   }
 
   function open(): void {

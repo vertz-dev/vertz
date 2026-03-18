@@ -255,27 +255,19 @@ function ComposedAlertDialogRoot({
 
   function showDialog(): void {
     const el = getConnectedDialog();
-    if (!el) return;
-    const isRenderedOpen =
-      el.open || el.hasAttribute('open') || el.getAttribute('data-state') === 'open';
-    if (isRenderedOpen) return;
+    if (!el || el.open) return;
 
     el.setAttribute('data-state', 'open');
     el.showModal();
-    if (!el.open) el.setAttribute('open', '');
   }
 
   function hideDialog(): void {
     const el = getConnectedDialog();
-    if (!el) return;
-    const isRenderedOpen =
-      el.open || el.hasAttribute('open') || el.getAttribute('data-state') === 'open';
-    if (!isRenderedOpen) return;
+    if (!el || !el.open) return;
 
     el.setAttribute('data-state', 'closed');
     const onEnd = () => {
       el.removeEventListener('animationend', onEnd);
-      el.removeAttribute('open');
       if (el.open) el.close();
     };
     el.addEventListener('animationend', onEnd);
