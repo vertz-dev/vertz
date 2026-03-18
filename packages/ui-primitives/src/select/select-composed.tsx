@@ -6,7 +6,7 @@
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, lifecycleEffect, useContext } from '@vertz/ui';
+import { createContext, onMount, useContext } from '@vertz/ui';
 import { setHiddenAnimated } from '../utils/aria';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
@@ -117,9 +117,7 @@ function SelectContent({ children, className: cls, class: classProp }: SlotProps
   const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
   // Wire keyboard and click handlers on the connected content element.
-  lifecycleEffect(() => {
-    const _open = ctx.isOpen;
-    void _open;
+  onMount(() => {
     const el = document.getElementById(ctx.contentId) as HTMLElement & { __selectWired?: boolean } | null;
     if (!el || el.__selectWired) return;
     el.__selectWired = true;

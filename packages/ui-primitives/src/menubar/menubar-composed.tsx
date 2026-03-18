@@ -8,7 +8,7 @@
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, lifecycleEffect, useContext } from '@vertz/ui';
+import { createContext, onMount, useContext } from '@vertz/ui';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
@@ -378,7 +378,7 @@ function ComposedMenubarRoot({ children, classes, onSelect, positioning }: Compo
   }
 
   // Wire keyboard navigation and event delegation on connected elements.
-  lifecycleEffect(() => {
+  onMount(() => {
     const root = document.getElementById(rootId) as HTMLElement & { __menubarWired?: boolean } | null;
     if (!root || root.__menubarWired) return;
     root.__menubarWired = true;

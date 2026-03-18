@@ -6,7 +6,7 @@
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, lifecycleEffect, useContext } from '@vertz/ui';
+import { createContext, onMount, useContext } from '@vertz/ui';
 import { uniqueId } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
@@ -314,7 +314,7 @@ function ComposedCommandRoot({
   }
 
   // Wire imperative event handlers on connected DOM elements.
-  lifecycleEffect(() => {
+  onMount(() => {
     const root = document.getElementById(rootId) as HTMLElement & { __cmdWired?: boolean } | null;
     if (!root || root.__cmdWired) return;
     root.__cmdWired = true;

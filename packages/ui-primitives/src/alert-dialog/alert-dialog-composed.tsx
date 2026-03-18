@@ -6,7 +6,7 @@
  */
 
 import type { ChildValue, Ref } from '@vertz/ui';
-import { createContext, lifecycleEffect, ref, useContext } from '@vertz/ui';
+import { createContext, onMount, ref, useContext } from '@vertz/ui';
 import { linkedIds } from '../utils/id';
 
 // ---------------------------------------------------------------------------
@@ -100,7 +100,7 @@ function AlertDialogContent({ children, className: cls, class: classProp }: Slot
 
   // Wire cancel handler on the CONNECTED dialog element.
   // AlertDialog prevents Escape dismiss entirely.
-  lifecycleEffect(() => {
+  onMount(() => {
     const el = document.getElementById(ctx.contentId) as HTMLDialogElement | null;
     if (!el || el.__dialogWired) return;
     el.__dialogWired = true;

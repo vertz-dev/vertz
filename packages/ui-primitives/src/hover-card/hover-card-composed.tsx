@@ -5,7 +5,7 @@
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, lifecycleEffect, useContext } from '@vertz/ui';
+import { createContext, onMount, useContext } from '@vertz/ui';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
 import { uniqueId } from '../utils/id';
@@ -150,7 +150,7 @@ function ComposedHoverCardRoot({
   }
 
   // Position content relative to trigger when open.
-  lifecycleEffect(() => {
+  onMount(() => {
     const open = isOpen;
     if (!open || !positioning) return;
 

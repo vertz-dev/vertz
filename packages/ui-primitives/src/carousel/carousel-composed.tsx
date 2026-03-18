@@ -5,7 +5,7 @@
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, lifecycleEffect, useContext } from '@vertz/ui';
+import { createContext, onMount, useContext } from '@vertz/ui';
 
 // ---------------------------------------------------------------------------
 // Class types
@@ -129,9 +129,7 @@ function ComposedCarouselRoot({
   let currentIndex = defaultIndex;
 
   // Wire navigation handlers via event delegation on the connected root.
-  lifecycleEffect(() => {
-    const _idx = currentIndex; // track signal
-    void _idx;
+  onMount(() => {
     const root = document.querySelector('[data-carousel-root]') as HTMLElement & { __carouselWired?: boolean } | null;
     if (!root || root.__carouselWired) return;
     root.__carouselWired = true;

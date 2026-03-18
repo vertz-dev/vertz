@@ -8,7 +8,7 @@
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, lifecycleEffect, useContext } from '@vertz/ui';
+import { createContext, onMount, useContext } from '@vertz/ui';
 import type { CalendarClasses, ComposedCalendarProps } from '../calendar/calendar-composed';
 import { ComposedCalendar } from '../calendar/calendar-composed';
 import { createDismiss } from '../utils/dismiss';
@@ -220,7 +220,7 @@ function ComposedDatePickerRoot({
   };
 
   // Wire dismiss handler on connected content element.
-  lifecycleEffect(() => {
+  onMount(() => {
     const open = isOpen;
     if (!open) return;
 

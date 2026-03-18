@@ -6,7 +6,7 @@
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, lifecycleEffect, useContext } from '@vertz/ui';
+import { createContext, onMount, useContext } from '@vertz/ui';
 import { setHiddenAnimated } from '../utils/aria';
 import { uniqueId } from '../utils/id';
 import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
@@ -150,7 +150,7 @@ function AccordionContent({ children, className: cls, class: classProp }: SlotPr
   const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
   // Animate open/close on the connected DOM element.
-  lifecycleEffect(() => {
+  onMount(() => {
     const open = ctx.isOpen();
     const el = document.getElementById(ctx.contentId);
     if (!el) return;
@@ -236,9 +236,7 @@ function ComposedAccordionRoot({
   };
 
   // Wire click + keyboard handlers on the connected root via event delegation.
-  lifecycleEffect(() => {
-    const _vals = openValues; // track signal so effect re-runs
-    void _vals;
+  onMount(() => {
     const root = document.querySelector('[data-accordion-root]') as HTMLElement & { __accRootWired?: boolean } | null;
     if (!root || root.__accRootWired) return;
     root.__accRootWired = true;

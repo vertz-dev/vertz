@@ -9,7 +9,7 @@
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, lifecycleEffect, useContext } from '@vertz/ui';
+import { createContext, onMount, useContext } from '@vertz/ui';
 import { linkedIds } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
@@ -418,7 +418,7 @@ function ComposedNavigationMenuRoot({
   }
 
   // Wire roving tabindex and keyboard navigation on the list.
-  lifecycleEffect(() => {
+  onMount(() => {
     const root = document.getElementById(rootId) as HTMLElement & { __navWired?: boolean } | null;
     if (!root || root.__navWired) return;
     root.__navWired = true;

@@ -5,7 +5,7 @@
  */
 
 import type { ChildValue, Ref } from '@vertz/ui';
-import { createContext, lifecycleEffect, ref, useContext } from '@vertz/ui';
+import { createContext, onMount, ref, useContext } from '@vertz/ui';
 import { linkedIds } from '../utils/id';
 
 // Augment HTMLDialogElement to track whether we've wired imperative handlers.
@@ -106,7 +106,7 @@ function DialogContent({
   const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
   // Sync native <dialog> open/close state from reactive signal.
-  // lifecycleEffect is a no-op during SSR (avoids missing .showModal()).
+  // onMount is a no-op during SSR (avoids missing .showModal()).
   // Read ctx.isOpen BEFORE the null check so the signal is always tracked.
   // Query the dialog by ID rather than using the ref — during hydration,
   // the ref may point to an orphaned element while the connected one
@@ -114,7 +114,7 @@ function DialogContent({
   // Wire cancel/click handlers on the CONNECTED dialog element.
   // JSX event handlers end up on the orphaned element during hydration,
   // so we attach imperatively to the element found by ID.
-  lifecycleEffect(() => {
+  onMount(() => {
     const el = document.getElementById(ctx.contentId) as HTMLDialogElement | null;
     if (!el || el.__dialogWired) return;
     el.__dialogWired = true;

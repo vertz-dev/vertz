@@ -6,7 +6,7 @@
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, lifecycleEffect, useContext } from '@vertz/ui';
+import { createContext, onMount, useContext } from '@vertz/ui';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
@@ -107,9 +107,7 @@ function MenuContent({ children, className: cls, class: classProp }: SlotProps) 
   const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
   // Wire keyboard and click handlers on the connected content element.
-  lifecycleEffect(() => {
-    const _open = ctx.isOpen; // track signal so effect re-runs
-    void _open;
+  onMount(() => {
     const el = document.getElementById(ctx.contentId) as HTMLElement & { __menuWired?: boolean } | null;
     if (!el || el.__menuWired) return;
     el.__menuWired = true;

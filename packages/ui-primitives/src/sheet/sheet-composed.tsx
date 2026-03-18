@@ -5,7 +5,7 @@
  */
 
 import type { ChildValue, Ref } from '@vertz/ui';
-import { createContext, lifecycleEffect, ref, useContext } from '@vertz/ui';
+import { createContext, onMount, ref, useContext } from '@vertz/ui';
 import { linkedIds } from '../utils/id';
 import type { SheetSide } from './sheet';
 
@@ -100,7 +100,7 @@ function SheetContent({
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
-  lifecycleEffect(() => {
+  onMount(() => {
     const el = document.getElementById(ctx.contentId) as HTMLDialogElement | null;
     if (!el || el.__dialogWired) return;
     el.__dialogWired = true;
