@@ -6,7 +6,7 @@
  */
 
 import type { ChildValue, Ref } from '@vertz/ui';
-import { createContext, onMount, ref, useContext } from '@vertz/ui';
+import { createContext, ref, useContext } from '@vertz/ui';
 import { linkedIds } from '../utils/id';
 
 // ---------------------------------------------------------------------------
@@ -34,6 +34,7 @@ interface AlertDialogContextValue {
   titleId: string;
   descriptionId: string;
   contentId: string;
+  dialogRef: Ref<HTMLDialogElement>;
   classes?: AlertDialogClasses;
   onAction?: () => void;
   open: () => void;
@@ -94,26 +95,12 @@ function AlertDialogTrigger({ children }: SlotProps) {
 
 function AlertDialogContent({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useAlertDialogContext('Content');
-  const dialogRef: Ref<HTMLDialogElement> = ref();
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
-  // Wire cancel handler on the CONNECTED dialog element.
-  // AlertDialog prevents Escape dismiss entirely.
-  onMount(() => {
-    const el = document.getElementById(ctx.contentId) as HTMLDialogElement | null;
-    if (!el || el.__dialogWired) return;
-    el.__dialogWired = true;
-
-    el.addEventListener('cancel', (e: Event) => {
-      // AlertDialog does NOT dismiss on Escape.
-      e.preventDefault();
-    });
-  });
-
   return (
     <dialog
-      ref={dialogRef}
+      ref={ctx.dialogRef}
       id={ctx.contentId}
       role="alertdialog"
       aria-labelledby={ctx.titleId}
@@ -245,16 +232,13 @@ function ComposedAlertDialogRoot({
   const ids = linkedIds('alertdialog');
   const titleId = `${ids.contentId}-title`;
   const descriptionId = `${ids.contentId}-description`;
+  const dialogRef: Ref<HTMLDialogElement> = ref();
 
   // Reactive state — compiler transforms `let` to signal.
   let isOpen = false;
 
-  function getConnectedDialog(): HTMLDialogElement | null {
-    return document.getElementById(ids.contentId) as HTMLDialogElement | null;
-  }
-
   function showDialog(): void {
-    const el = getConnectedDialog();
+    const el = dialogRef.current;
     if (!el || el.open) return;
 
     el.setAttribute('data-state', 'open');
@@ -262,7 +246,7 @@ function ComposedAlertDialogRoot({
   }
 
   function hideDialog(): void {
-    const el = getConnectedDialog();
+    const el = dialogRef.current;
     if (!el || !el.open) return;
 
     el.setAttribute('data-state', 'closed');
@@ -294,6 +278,7 @@ function ComposedAlertDialogRoot({
     titleId,
     descriptionId,
     contentId: ids.contentId,
+    dialogRef,
     classes,
     onAction,
     open,

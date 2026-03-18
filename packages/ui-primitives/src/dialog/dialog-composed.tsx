@@ -5,15 +5,8 @@
  */
 
 import type { ChildValue, Ref } from '@vertz/ui';
-import { createContext, onMount, ref, useContext } from '@vertz/ui';
+import { createContext, ref, useContext } from '@vertz/ui';
 import { linkedIds } from '../utils/id';
-
-// Augment HTMLDialogElement to track whether we've wired imperative handlers.
-declare global {
-  interface HTMLDialogElement {
-    __dialogWired?: boolean;
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Class distribution
@@ -39,6 +32,7 @@ interface DialogContextValue {
   titleId: string;
   descriptionId: string;
   contentId: string;
+  dialogRef: Ref<HTMLDialogElement>;
   classes?: DialogClasses;
   open: () => void;
   close: () => void;
@@ -101,39 +95,12 @@ function DialogContent({
   showClose = true,
 }: DialogContentProps) {
   const ctx = useDialogContext('Content');
-  const dialogRef: Ref<HTMLDialogElement> = ref();
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
-  // Sync native <dialog> open/close state from reactive signal.
-  // onMount is a no-op during SSR (avoids missing .showModal()).
-  // Read ctx.isOpen BEFORE the null check so the signal is always tracked.
-  // Query the dialog by ID rather than using the ref — during hydration,
-  // the ref may point to an orphaned element while the connected one
-  // is the SSR-claimed element in the DOM.
-  // Wire cancel/click handlers on the CONNECTED dialog element.
-  // JSX event handlers end up on the orphaned element during hydration,
-  // so we attach imperatively to the element found by ID.
-  onMount(() => {
-    const el = document.getElementById(ctx.contentId) as HTMLDialogElement | null;
-    if (!el || el.__dialogWired) return;
-    el.__dialogWired = true;
-
-    el.addEventListener('cancel', (e: Event) => {
-      // Prevent native close so we can animate the exit.
-      e.preventDefault();
-      ctx.close();
-    });
-
-    el.addEventListener('click', (e: MouseEvent) => {
-      // Backdrop click: showModal() makes the <dialog> itself the backdrop target.
-      if (e.target === el) ctx.close();
-    });
-  });
-
   return (
     <dialog
-      ref={dialogRef}
+      ref={ctx.dialogRef}
       id={ctx.contentId}
       role="dialog"
       aria-labelledby={ctx.titleId}
@@ -149,7 +116,7 @@ function DialogContent({
         // Clicking the <dialog> backdrop (not content inside) closes the dialog.
         // When showModal() is used, clicking outside the dialog content but
         // inside the viewport hits the <dialog> element itself as the target.
-        if (e.target === dialogRef.current) ctx.close();
+        if (e.target === ctx.dialogRef.current) ctx.close();
       }}
     >
       {showClose && (
@@ -256,17 +223,14 @@ function ComposedDialogRoot({ children, classes, onOpenChange }: ComposedDialogP
   const ids = linkedIds('dialog');
   const titleId = `${ids.contentId}-title`;
   const descriptionId = `${ids.contentId}-description`;
+  const dialogRef: Ref<HTMLDialogElement> = ref();
 
   // Reactive state — compiler transforms `let` to signal.
   // Passed directly in context so Provider auto-wraps via wrapSignalProps.
   let isOpen = false;
 
-  function getConnectedDialog(): HTMLDialogElement | null {
-    return document.getElementById(ids.contentId) as HTMLDialogElement | null;
-  }
-
   function showDialog(): void {
-    const el = getConnectedDialog();
+    const el = dialogRef.current;
     if (!el || el.open) return;
 
     el.setAttribute('data-state', 'open');
@@ -274,7 +238,7 @@ function ComposedDialogRoot({ children, classes, onOpenChange }: ComposedDialogP
   }
 
   function hideDialog(): void {
-    const el = getConnectedDialog();
+    const el = dialogRef.current;
     if (!el || !el.open) return;
 
     el.setAttribute('data-state', 'closed');
@@ -311,6 +275,7 @@ function ComposedDialogRoot({ children, classes, onOpenChange }: ComposedDialogP
     titleId,
     descriptionId,
     contentId: ids.contentId,
+    dialogRef,
     classes,
     open,
     close,
