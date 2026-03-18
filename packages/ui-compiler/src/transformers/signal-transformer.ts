@@ -1,7 +1,7 @@
 import type MagicString from 'magic-string';
 import { type Node, type SourceFile, SyntaxKind } from 'ts-morph';
 import type { ComponentInfo, VariableInfo } from '../types';
-import { findBodyNode } from '../utils';
+import { findBodyNode, isShadowedInNestedScope } from '../utils';
 
 /**
  * Transform `let x = val` → `const x = signal(val)` and all reads/writes
@@ -138,6 +138,11 @@ function transformReferences(
       return;
     }
 
+    // Skip identifiers shadowed by a nested scope (callback parameter or local variable)
+    if (isShadowedInNestedScope(node, name, bodyNode)) {
+      return;
+    }
+
     // Use overwrite so source.slice() includes the .value transform
     source.overwrite(node.getStart(), node.getEnd(), `${name}.value`);
   });
@@ -206,6 +211,9 @@ function transformSignalApiProperties(
     if (!current.isKind(SyntaxKind.Identifier)) return;
     const rootName = current.getText();
 
+    // Skip if root identifier is shadowed by a nested scope
+    if (isShadowedInNestedScope(current, rootName, bodyNode)) return;
+
     // Root must have fieldSignalProperties
     const fieldSignalProps = fieldSignalPropVars.get(rootName);
     if (!fieldSignalProps) return;
@@ -266,6 +274,9 @@ function transformSignalApiProperties(
     // Check if the object is a signal API variable
     if (!objExpr.isKind(SyntaxKind.Identifier)) return;
     const varName = objExpr.getText();
+
+    // Skip if the variable is shadowed by a nested scope
+    if (isShadowedInNestedScope(objExpr, varName, bodyNode)) return;
 
     const signalProps = signalApiVars.get(varName);
     if (!signalProps || !signalProps.has(propName)) return;
