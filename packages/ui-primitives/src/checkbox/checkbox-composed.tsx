@@ -82,7 +82,12 @@ function ComposedCheckboxRoot({
         }
       }}
     >
-      <span data-part="indicator" data-state={dataStateFor(checked)} class={classes?.indicator}>
+      <span
+        data-part="indicator"
+        data-state={dataStateFor(checked)}
+        class={classes?.indicator}
+        style="width: 100%; height: 100%"
+      >
         {checked === 'mixed' ? (
           <svg
             aria-hidden="true"
@@ -94,6 +99,8 @@ function ComposedCheckboxRoot({
             stroke-linecap="round"
             stroke-linejoin="round"
             data-part="indicator-icon"
+            width="100%"
+            height="100%"
           >
             <path d="M5 12h14" />
           </svg>
@@ -108,6 +115,8 @@ function ComposedCheckboxRoot({
             stroke-linecap="round"
             stroke-linejoin="round"
             data-part="indicator-icon"
+            width="100%"
+            height="100%"
           >
             <path d="M20 6 9 17 4 12" />
           </svg>

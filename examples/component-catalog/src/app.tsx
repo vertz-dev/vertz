@@ -83,7 +83,7 @@ export function App() {
         <RouterContext.Provider value={appRouter}>
           <div className={layoutStyles.shell}>
             <Sidebar />
-            <div className={`${layoutStyles.main} ${scrollStyles.thin}`} style="overflow-y: auto;">
+            <div className={`${layoutStyles.main} ${scrollStyles.thin}`}>
               <RouterView router={appRouter} fallback={() => <div>Page not found</div>} />
             </div>
           </div>

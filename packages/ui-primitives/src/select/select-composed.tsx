@@ -110,7 +110,7 @@ function SelectTrigger({ children, className: cls, class: classProp }: SlotProps
     >
       <span
         data-part="text"
-        style="flex: 1; text-align: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap"
+        style="flex: 1; text-align: start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap"
       >
         {displayText}
       </span>

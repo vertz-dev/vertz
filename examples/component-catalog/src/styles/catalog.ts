@@ -4,10 +4,7 @@ export const layoutStyles = css({
   shell: [
     'flex',
     {
-      '&': [
-        { property: 'height', value: '100vh' },
-        { property: 'overflow', value: 'hidden' },
-      ],
+      '&': { height: '100vh', overflow: 'hidden' },
     },
   ],
   sidebar: [
@@ -22,20 +19,14 @@ export const layoutStyles = css({
     'flex',
     'flex-col',
     {
-      '&': [
-        { property: 'height', value: '100vh' },
-        { property: 'overflow', value: 'hidden' },
-      ],
+      '&': { height: '100vh', overflow: 'hidden' },
     },
   ],
   main: [
     'flex-1',
     'p:6',
     {
-      '&': [
-        { property: 'height', value: '100vh' },
-        { property: 'overflow', value: 'hidden' },
-      ],
+      '&': { height: '100vh', 'overflow-y': 'auto' },
     },
   ],
 });
