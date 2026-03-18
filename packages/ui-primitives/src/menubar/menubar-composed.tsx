@@ -1,19 +1,18 @@
 /**
- * Composed Menubar — fully declarative JSX implementation.
- * Sub-components self-wire via context. No factory delegation.
+ * Composed Menubar — compound component with keyboard navigation.
+ * Each sub-component renders its own DOM. Root provides shared state via context.
+ * Triggers and content panels are discovered from the DOM via querySelectorAll.
+ * No registration phase, no resolveChildren, no internal API imports.
  *
  * Follows WAI-ARIA menubar pattern with cross-menu keyboard navigation.
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, resolveChildren, useContext } from '@vertz/ui';
-import { _tryOnCleanup } from '@vertz/ui/internals';
-import { setDataState, setExpanded, setHidden, setHiddenAnimated } from '../utils/aria';
+import { createContext, lifecycleEffect, useContext } from '@vertz/ui';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
-import { setRovingTabindex } from '../utils/focus';
-import { linkedIds } from '../utils/id';
+import { linkedIds, uniqueId } from '../utils/id';
 import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
 // ---------------------------------------------------------------------------
@@ -35,16 +34,13 @@ export interface MenubarClasses {
 // ---------------------------------------------------------------------------
 
 interface MenubarContextValue {
+  rootId: string;
   classes?: MenubarClasses;
-  onSelect?: (value: string) => void;
-  positioning?: FloatingOptions;
-  /** @internal — registers a menu's trigger, content, and items */
-  _registerMenu: (
-    value: string,
-    trigger: HTMLButtonElement,
-    content: HTMLDivElement,
-    items: HTMLDivElement[],
-  ) => void;
+  getOnSelect: () => ((value: string) => void) | undefined;
+  getPositioning: () => FloatingOptions | undefined;
+  getActiveMenu: () => string | null;
+  openMenu: (value: string) => void;
+  closeAll: () => void;
 }
 
 const MenubarContext = createContext<MenubarContextValue | undefined>(
@@ -65,16 +61,9 @@ function useMenubarContext(componentName: string): MenubarContextValue {
 
 interface MenuContextValue {
   menuValue: string;
+  triggerId: string;
+  contentId: string;
   classes?: MenubarClasses;
-  /** @internal — registers the trigger element */
-  _registerTrigger: (el: HTMLButtonElement) => void;
-  /** @internal — registers content children */
-  _registerContent: (children: Node[]) => void;
-  /** @internal — registers an item element */
-  _registerItem: (el: HTMLDivElement) => void;
-  /** @internal — duplicate sub-component detection */
-  _triggerClaimed: boolean;
-  _contentClaimed: boolean;
 }
 
 const MenuContext = createContext<MenuContextValue | undefined>(
@@ -117,199 +106,135 @@ interface GroupProps extends SlotProps {
 }
 
 // ---------------------------------------------------------------------------
-// Element builder — outside component body to avoid computed() wrapping
-// ---------------------------------------------------------------------------
-
-function buildMenuItemEl(
-  value: string,
-  itemClass: string,
-  children: Node[],
-  onItemClick: () => void,
-): HTMLDivElement {
-  return (
-    <div
-      role="menuitem"
-      data-value={value}
-      tabindex="-1"
-      class={itemClass || undefined}
-      onClick={() => {
-        onItemClick();
-      }}
-    >
-      {...children}
-    </div>
-  ) as HTMLDivElement;
-}
-
-// ---------------------------------------------------------------------------
-// Sub-components
+// Sub-components — each renders its own DOM
 // ---------------------------------------------------------------------------
 
 function MenubarMenu({ value, children }: MenuProps) {
   const barCtx = useMenubarContext('Menu');
-
-  const reg: {
-    userTrigger: HTMLButtonElement | null;
-    contentChildren: Node[];
-    items: HTMLDivElement[];
-  } = {
-    userTrigger: null,
-    contentChildren: [],
-    items: [],
-  };
-
-  const menuCtxValue: MenuContextValue = {
-    menuValue: value,
-    classes: barCtx.classes,
-    _registerTrigger: (el: HTMLButtonElement) => {
-      reg.userTrigger = el;
-    },
-    _registerContent: (childNodes: Node[]) => {
-      childNodes.forEach((child) => {
-        reg.contentChildren.push(child);
-      });
-    },
-    _registerItem: (el: HTMLDivElement) => {
-      reg.items.push(el);
-    },
-    _triggerClaimed: false,
-    _contentClaimed: false,
-  };
-
-  // Resolve children to collect registrations
-  const resolvedNodes: Node[] = [];
-  MenuContext.Provider(menuCtxValue, () => {
-    const nodes = resolveChildren(children);
-    nodes.forEach((n) => resolvedNodes.push(n));
-  });
-
-  // Build trigger button
   const ids = linkedIds('menubar-menu');
-  const triggerClass = barCtx.classes?.trigger;
-  const trigger = (
+
+  const menuCtx: MenuContextValue = {
+    menuValue: value,
+    triggerId: ids.triggerId,
+    contentId: ids.contentId,
+    classes: barCtx.classes,
+  };
+
+  return (
+    <MenuContext.Provider value={menuCtx}>
+      <span style="display: contents" data-menubar-menu="" data-value={value}>
+        {children}
+      </span>
+    </MenuContext.Provider>
+  );
+}
+
+function MenubarTrigger({ children, className: cls, class: classProp }: SlotProps) {
+  const barCtx = useMenubarContext('Trigger');
+  const menuCtx = useMenuContext('Trigger');
+  const effectiveCls = cls ?? classProp;
+  const triggerClass = [menuCtx.classes?.trigger, effectiveCls].filter(Boolean).join(' ');
+
+  return (
     <button
       type="button"
       role="menuitem"
-      id={ids.triggerId}
-      aria-controls={ids.contentId}
+      id={menuCtx.triggerId}
+      aria-controls={menuCtx.contentId}
       aria-haspopup="menu"
-      data-value={value}
+      data-menubar-trigger=""
+      data-value={menuCtx.menuValue}
       aria-expanded="false"
       data-state="closed"
       class={triggerClass || undefined}
+      onClick={() => {
+        if (barCtx.getActiveMenu() === menuCtx.menuValue) {
+          barCtx.closeAll();
+        } else {
+          barCtx.openMenu(menuCtx.menuValue);
+        }
+      }}
+      onKeydown={(event: KeyboardEvent) => {
+        if (isKey(event, Keys.ArrowDown, Keys.Enter, Keys.Space)) {
+          event.preventDefault();
+          barCtx.openMenu(menuCtx.menuValue);
+        }
+      }}
     >
-      {reg.userTrigger ? [...(reg.userTrigger.childNodes as unknown as Node[])] : value}
+      {children ?? menuCtx.menuValue}
     </button>
-  ) as HTMLButtonElement;
+  );
+}
 
-  // If user provided a trigger, copy its text content into the button
-  if (reg.userTrigger) {
-    // Clear the button and move user trigger children in
-    trigger.textContent = '';
-    while (reg.userTrigger.firstChild) {
-      trigger.appendChild(reg.userTrigger.firstChild);
-    }
-  }
+function MenubarContent({ children, className: cls, class: classProp }: SlotProps) {
+  const menuCtx = useMenuContext('Content');
+  const effectiveCls = cls ?? classProp;
+  const contentClass = [menuCtx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
-  // Build content panel
-  const contentClass = barCtx.classes?.content;
-  const content = (
+  return (
     <div
       role="menu"
-      id={ids.contentId}
+      id={menuCtx.contentId}
+      data-menubar-content=""
+      data-value={menuCtx.menuValue}
       aria-hidden="true"
       data-state="closed"
       style="display: none"
       class={contentClass || undefined}
     >
-      {...reg.contentChildren}
+      {children}
     </div>
-  ) as HTMLDivElement;
-
-  // Register with the bar
-  barCtx._registerMenu(value, trigger, content, reg.items);
-
-  return (<span style="display: contents" />) as HTMLElement;
-}
-
-function MenubarTrigger({ children }: SlotProps) {
-  const ctx = useMenuContext('Trigger');
-  if (ctx._triggerClaimed) {
-    console.warn('Duplicate <Menubar.Trigger> detected – only the first is used');
-  }
-  ctx._triggerClaimed = true;
-
-  const resolved = resolveChildren(children);
-  // Create a wrapper to carry content — MenubarMenu will extract children
-  const wrapper = (<span style="display: contents">{...resolved}</span>) as HTMLElement;
-  ctx._registerTrigger(wrapper as unknown as HTMLButtonElement);
-
-  return (<span style="display: none" />) as HTMLElement;
-}
-
-function MenubarContent({ children }: SlotProps) {
-  const ctx = useMenuContext('Content');
-  if (ctx._contentClaimed) {
-    console.warn('Duplicate <Menubar.Content> detected – only the first is used');
-  }
-  ctx._contentClaimed = true;
-
-  const resolved = resolveChildren(children);
-  ctx._registerContent(resolved);
-
-  return (<span style="display: none" />) as HTMLElement;
+  );
 }
 
 function MenubarItem({ value, children, className: cls, class: classProp }: ItemProps) {
   const menuCtx = useMenuContext('Item');
   const effectiveCls = cls ?? classProp;
-
   const itemClass = [menuCtx.classes?.item, effectiveCls].filter(Boolean).join(' ');
-  const resolved = resolveChildren(children);
 
-  const el = buildMenuItemEl(value, itemClass, resolved, () => {
-    // onSelect is handled via click event delegation on the content panel
-  });
-
-  menuCtx._registerItem(el);
-
-  return el;
+  return (
+    <div
+      role="menuitem"
+      data-menubar-item=""
+      data-value={value}
+      tabindex="-1"
+      class={itemClass || undefined}
+    >
+      {children}
+    </div>
+  );
 }
 
 function MenubarGroup({ label, children, className: cls, class: classProp }: GroupProps) {
   const menuCtx = useMenuContext('Group');
   const effectiveCls = cls ?? classProp;
-
   const groupClass = [menuCtx.classes?.group, effectiveCls].filter(Boolean).join(' ');
-  const resolved = resolveChildren(children);
 
   return (
     <div role="group" aria-label={label} class={groupClass || undefined}>
-      {...resolved}
+      {children}
     </div>
-  ) as HTMLDivElement;
+  );
 }
 
 function MenubarLabel({ children, className: cls, class: classProp }: SlotProps) {
   const { classes } = useMenuContext('Label');
   const effectiveCls = cls ?? classProp;
-
   const labelClass = [classes?.label, effectiveCls].filter(Boolean).join(' ');
 
   return (
     <div role="none" class={labelClass || undefined}>
       {children}
     </div>
-  ) as HTMLDivElement;
+  );
 }
 
 function MenubarSeparator({ className: cls, class: classProp }: SlotProps) {
   const { classes } = useMenuContext('Separator');
   const effectiveCls = cls ?? classProp;
-
   const sepClass = [classes?.separator, effectiveCls].filter(Boolean).join(' ');
 
-  return (<hr role="separator" class={sepClass || undefined} />) as HTMLHRElement;
+  return <hr role="separator" class={sepClass || undefined} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -326,36 +251,46 @@ export interface ComposedMenubarProps {
 export type MenubarClassKey = keyof MenubarClasses;
 
 function ComposedMenubarRoot({ children, classes, onSelect, positioning }: ComposedMenubarProps) {
-  const triggers: HTMLButtonElement[] = [];
-  const menus: Map<
-    string,
-    { trigger: HTMLButtonElement; content: HTMLDivElement; items: HTMLDivElement[] }
-  > = new Map();
+  const rootId = uniqueId('menubar');
 
+  // Mutable state for active menu and cleanup functions.
   const state: {
     activeMenu: string | null;
     floatingCleanup: (() => void) | null;
     dismissCleanup: (() => void) | null;
-  } = {
-    activeMenu: null,
-    floatingCleanup: null,
-    dismissCleanup: null,
-  };
+  } = { activeMenu: null, floatingCleanup: null, dismissCleanup: null };
 
-  function handleClickOutside(event: MouseEvent): void {
-    const target = event.target as Node;
-    if (!root.contains(target)) {
-      closeAll();
-    }
+  function getRootEl(): HTMLElement | null {
+    return document.getElementById(rootId);
+  }
+
+  function getTriggers(): HTMLButtonElement[] {
+    const root = getRootEl();
+    if (!root) return [];
+    return [...root.querySelectorAll<HTMLButtonElement>('[data-menubar-trigger]')];
+  }
+
+  function getMenuItems(contentEl: HTMLElement): HTMLElement[] {
+    return [...contentEl.querySelectorAll<HTMLElement>('[role="menuitem"]')];
   }
 
   function closeAll(): void {
-    for (const [, menu] of menus) {
-      setExpanded(menu.trigger, false);
-      setDataState(menu.trigger, 'closed');
-      setDataState(menu.content, 'closed');
-      setHiddenAnimated(menu.content, true);
+    const root = getRootEl();
+    if (!root) return;
+
+    const triggers = root.querySelectorAll<HTMLElement>('[data-menubar-trigger]');
+    const contents = root.querySelectorAll<HTMLElement>('[data-menubar-content]');
+
+    for (const trigger of triggers) {
+      trigger.setAttribute('aria-expanded', 'false');
+      trigger.setAttribute('data-state', 'closed');
     }
+    for (const content of contents) {
+      content.setAttribute('data-state', 'closed');
+      content.setAttribute('aria-hidden', 'true');
+      content.style.display = 'none';
+    }
+
     state.activeMenu = null;
 
     if (positioning) {
@@ -368,15 +303,35 @@ function ComposedMenubarRoot({ children, classes, onSelect, positioning }: Compo
     }
   }
 
+  function handleClickOutside(event: MouseEvent): void {
+    const root = getRootEl();
+    const target = event.target as Node;
+    if (root && !root.contains(target)) {
+      closeAll();
+    }
+  }
+
   function openMenu(value: string): void {
+    const root = getRootEl();
+    if (!root) return;
+
     const current = state.activeMenu;
     if (current && current !== value) {
-      const prev = menus.get(current);
-      if (prev) {
-        setExpanded(prev.trigger, false);
-        setDataState(prev.trigger, 'closed');
-        setDataState(prev.content, 'closed');
-        setHiddenAnimated(prev.content, true);
+      // Close previous
+      const prevTrigger = root.querySelector<HTMLElement>(
+        `[data-menubar-trigger][data-value="${current}"]`,
+      );
+      const prevContent = root.querySelector<HTMLElement>(
+        `[data-menubar-content][data-value="${current}"]`,
+      );
+      if (prevTrigger) {
+        prevTrigger.setAttribute('aria-expanded', 'false');
+        prevTrigger.setAttribute('data-state', 'closed');
+      }
+      if (prevContent) {
+        prevContent.setAttribute('data-state', 'closed');
+        prevContent.setAttribute('aria-hidden', 'true');
+        prevContent.style.display = 'none';
       }
       if (positioning) {
         state.floatingCleanup?.();
@@ -384,16 +339,23 @@ function ComposedMenubarRoot({ children, classes, onSelect, positioning }: Compo
       }
     }
 
-    const menu = menus.get(value);
-    if (!menu) return;
+    const trigger = root.querySelector<HTMLElement>(
+      `[data-menubar-trigger][data-value="${value}"]`,
+    );
+    const content = root.querySelector<HTMLElement>(
+      `[data-menubar-content][data-value="${value}"]`,
+    );
+    if (!trigger || !content) return;
+
     state.activeMenu = value;
-    setExpanded(menu.trigger, true);
-    setHidden(menu.content, false);
-    setDataState(menu.trigger, 'open');
-    setDataState(menu.content, 'open');
+    trigger.setAttribute('aria-expanded', 'true');
+    trigger.setAttribute('data-state', 'open');
+    content.setAttribute('aria-hidden', 'false');
+    content.setAttribute('data-state', 'open');
+    content.style.display = '';
 
     if (positioning) {
-      const result = createFloatingPosition(menu.trigger, menu.content, positioning);
+      const result = createFloatingPosition(trigger, content, positioning);
       state.floatingCleanup = result.cleanup;
       if (!state.dismissCleanup) {
         state.dismissCleanup = createDismiss({
@@ -406,149 +368,150 @@ function ComposedMenubarRoot({ children, classes, onSelect, positioning }: Compo
       document.addEventListener('mousedown', handleClickOutside);
     }
 
-    const firstItem = menu.items[0];
+    // Focus first item in the content
+    const items = getMenuItems(content);
+    const firstItem = items[0];
     if (firstItem) {
       firstItem.setAttribute('tabindex', '0');
       firstItem.focus();
     }
   }
 
-  // Build root element
-  const rootClass = classes?.root;
-  const root = (
-    <div
-      role="menubar"
-      class={rootClass || undefined}
-      onKeydown={(event: KeyboardEvent) => {
-        if (isKey(event, Keys.ArrowLeft, Keys.ArrowRight, Keys.Home, Keys.End)) {
-          const focused = document.activeElement;
-          const triggerIndex = triggers.indexOf(focused as HTMLButtonElement);
+  // Wire keyboard navigation and event delegation on connected elements.
+  lifecycleEffect(() => {
+    const root = document.getElementById(rootId) as HTMLElement & { __menubarWired?: boolean } | null;
+    if (!root || root.__menubarWired) return;
+    root.__menubarWired = true;
 
-          if (triggerIndex >= 0) {
-            const result = handleListNavigation(event, triggers, { orientation: 'horizontal' });
-            if (result && state.activeMenu) {
-              const newTrigger = result as HTMLButtonElement;
-              const menuValue = newTrigger.getAttribute('data-value');
-              if (menuValue) openMenu(menuValue);
-            }
+    // Set up roving tabindex on triggers
+    const triggers = [...root.querySelectorAll<HTMLButtonElement>('[data-menubar-trigger]')];
+    for (let i = 0; i < triggers.length; i++) {
+      triggers[i]?.setAttribute('tabindex', i === 0 ? '0' : '-1');
+    }
+
+    // Root-level keyboard handler for arrow navigation between triggers
+    root.addEventListener('keydown', (event: KeyboardEvent) => {
+      if (isKey(event, Keys.ArrowLeft, Keys.ArrowRight, Keys.Home, Keys.End)) {
+        const currentTriggers = [
+          ...root.querySelectorAll<HTMLButtonElement>('[data-menubar-trigger]'),
+        ];
+        const focused = document.activeElement as HTMLElement;
+        const triggerIndex = currentTriggers.indexOf(focused as HTMLButtonElement);
+
+        if (triggerIndex >= 0) {
+          const result = handleListNavigation(event, currentTriggers, {
+            orientation: 'horizontal',
+          });
+          if (result && state.activeMenu) {
+            const newTrigger = result as HTMLButtonElement;
+            const menuValue = newTrigger.getAttribute('data-value');
+            if (menuValue) openMenu(menuValue);
           }
         }
-      }}
-    />
-  ) as HTMLDivElement;
+      }
+    });
 
-  const ctxValue: MenubarContextValue = {
-    classes,
-    onSelect,
-    positioning,
-    _registerMenu: (
-      value: string,
-      trigger: HTMLButtonElement,
-      content: HTMLDivElement,
-      items: HTMLDivElement[],
-    ) => {
-      // Wire trigger click
-      const handleTriggerClick = () => {
-        if (state.activeMenu === value) {
-          closeAll();
-        } else {
-          openMenu(value);
-        }
-      };
-      trigger.addEventListener('click', handleTriggerClick);
-      _tryOnCleanup(() => trigger.removeEventListener('click', handleTriggerClick));
+    // Event delegation for content panels — keydown
+    root.addEventListener('keydown', (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      const contentPanel = target.closest<HTMLElement>('[data-menubar-content]');
+      if (!contentPanel) return;
 
-      // Wire trigger keyboard
-      const handleTriggerKeydown = (event: KeyboardEvent) => {
-        if (isKey(event, Keys.ArrowDown, Keys.Enter, Keys.Space)) {
-          event.preventDefault();
-          openMenu(value);
-        }
-      };
-      trigger.addEventListener('keydown', handleTriggerKeydown);
-      _tryOnCleanup(() => trigger.removeEventListener('keydown', handleTriggerKeydown));
+      const menuValue = contentPanel.getAttribute('data-value');
+      if (!menuValue) return;
 
-      // Wire content keyboard
-      const handleContentKeydown = (event: KeyboardEvent) => {
-        if (isKey(event, Keys.Escape)) {
-          event.preventDefault();
-          event.stopPropagation();
-          closeAll();
-          trigger.focus();
-          return;
-        }
+      const trigger = root.querySelector<HTMLElement>(
+        `[data-menubar-trigger][data-value="${menuValue}"]`,
+      );
 
-        if (isKey(event, Keys.Enter, Keys.Space)) {
-          event.preventDefault();
-          const active = document.activeElement;
-          const activeItem = items.find((item) => item === active);
-          if (activeItem) {
-            const val = activeItem.getAttribute('data-value');
-            if (val !== null) {
-              onSelect?.(val);
-              closeAll();
-              trigger.focus();
-            }
-          }
-          return;
-        }
+      if (isKey(event, Keys.Escape)) {
+        event.preventDefault();
+        event.stopPropagation();
+        closeAll();
+        if (trigger) trigger.focus();
+        return;
+      }
 
-        if (isKey(event, Keys.ArrowLeft, Keys.ArrowRight)) {
-          event.preventDefault();
-          const triggerIdx = triggers.indexOf(trigger);
-          let nextIdx: number;
-          if (isKey(event, Keys.ArrowRight)) {
-            nextIdx = (triggerIdx + 1) % triggers.length;
-          } else {
-            nextIdx = (triggerIdx - 1 + triggers.length) % triggers.length;
-          }
-          const nextTrigger = triggers[nextIdx];
-          if (nextTrigger) {
-            nextTrigger.focus();
-            const nextValue = nextTrigger.getAttribute('data-value');
-            if (nextValue) openMenu(nextValue);
-          }
-          return;
-        }
-
-        handleListNavigation(event, items, { orientation: 'vertical' });
-      };
-      content.addEventListener('keydown', handleContentKeydown);
-      _tryOnCleanup(() => content.removeEventListener('keydown', handleContentKeydown));
-
-      // Wire item click → close via event delegation
-      const handleContentClick = (event: Event) => {
-        const target = (event.target as HTMLElement).closest('[role="menuitem"]');
-        if (target && content.contains(target)) {
-          const val = target.getAttribute('data-value');
+      if (isKey(event, Keys.Enter, Keys.Space)) {
+        event.preventDefault();
+        const active = document.activeElement as HTMLElement;
+        const activeItem = active?.closest<HTMLElement>('[role="menuitem"]');
+        if (activeItem && contentPanel.contains(activeItem)) {
+          const val = activeItem.getAttribute('data-value');
           if (val !== null) {
             onSelect?.(val);
             closeAll();
-            trigger.focus();
+            if (trigger) trigger.focus();
           }
         }
-      };
-      content.addEventListener('click', handleContentClick);
-      _tryOnCleanup(() => content.removeEventListener('click', handleContentClick));
+        return;
+      }
 
-      triggers.push(trigger);
-      setRovingTabindex(triggers, 0);
-      menus.set(value, { trigger, content, items });
-      root.appendChild(trigger);
-    },
-  };
+      if (isKey(event, Keys.ArrowLeft, Keys.ArrowRight)) {
+        event.preventDefault();
+        const currentTriggers = [
+          ...root.querySelectorAll<HTMLButtonElement>('[data-menubar-trigger]'),
+        ];
+        const triggerIdx = currentTriggers.indexOf(trigger as HTMLButtonElement);
+        let nextIdx: number;
+        if (isKey(event, Keys.ArrowRight)) {
+          nextIdx = (triggerIdx + 1) % currentTriggers.length;
+        } else {
+          nextIdx = (triggerIdx - 1 + currentTriggers.length) % currentTriggers.length;
+        }
+        const nextTrigger = currentTriggers[nextIdx];
+        if (nextTrigger) {
+          nextTrigger.focus();
+          const nextValue = nextTrigger.getAttribute('data-value');
+          if (nextValue) openMenu(nextValue);
+        }
+        return;
+      }
 
-  // Resolve children within context
-  MenubarContext.Provider(ctxValue, () => {
-    resolveChildren(children);
+      const items = getMenuItems(contentPanel);
+      handleListNavigation(event, items, { orientation: 'vertical' });
+    });
+
+    // Event delegation for item clicks
+    root.addEventListener('click', (event: Event) => {
+      const target = (event.target as HTMLElement).closest<HTMLElement>('[data-menubar-content] [role="menuitem"]');
+      if (!target) return;
+
+      const contentPanel = target.closest<HTMLElement>('[data-menubar-content]');
+      if (!contentPanel) return;
+
+      const menuValue = contentPanel.getAttribute('data-value');
+      const val = target.getAttribute('data-value');
+      if (val !== null) {
+        onSelect?.(val);
+        closeAll();
+        if (menuValue) {
+          const trigger = root.querySelector<HTMLElement>(
+            `[data-menubar-trigger][data-value="${menuValue}"]`,
+          );
+          if (trigger) trigger.focus();
+        }
+      }
+    });
   });
 
-  // Append content panels after all menus are registered
-  for (const [, menu] of menus) {
-    root.appendChild(menu.content);
-  }
+  const ctx: MenubarContextValue = {
+    rootId,
+    classes,
+    getOnSelect: () => onSelect,
+    getPositioning: () => positioning,
+    getActiveMenu: () => state.activeMenu,
+    openMenu,
+    closeAll,
+  };
 
-  return root;
+  return (
+    <MenubarContext.Provider value={ctx}>
+      <div role="menubar" id={rootId} class={classes?.root || undefined}>
+        {children}
+      </div>
+    </MenubarContext.Provider>
+  );
 }
 
 // ---------------------------------------------------------------------------

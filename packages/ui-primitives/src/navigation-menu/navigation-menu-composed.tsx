@@ -1,17 +1,17 @@
 /**
- * Composed NavigationMenu — fully declarative JSX component with hover-triggered
- * dropdowns. Sub-components self-wire via context. No factory wrapping.
+ * Composed NavigationMenu — compound component with hover-triggered dropdowns.
+ * Each sub-component renders its own DOM. Root provides shared state via context.
+ * Triggers and content panels are discovered from the DOM via querySelectorAll.
+ * No registration phase, no resolveChildren, no internal API imports.
  *
  * Follows WAI-ARIA navigation menu pattern with keyboard navigation,
  * hover delays, and roving tabindex.
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, resolveChildren, useContext } from '@vertz/ui';
-import { setDataState, setExpanded, setHidden, setHiddenAnimated } from '../utils/aria';
-import { focusFirst, setRovingTabindex } from '../utils/focus';
+import { createContext, lifecycleEffect, useContext } from '@vertz/ui';
 import { linkedIds } from '../utils/id';
-import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
+import { isKey, Keys } from '../utils/keyboard';
 
 // ---------------------------------------------------------------------------
 // Class types
@@ -27,48 +27,25 @@ export interface NavigationMenuClasses {
 }
 
 // ---------------------------------------------------------------------------
-// Registration types
-// ---------------------------------------------------------------------------
-
-interface ItemRegistration {
-  value: string;
-  triggerChildren: ChildValue;
-  contentChildren: ChildValue;
-  triggerClassName: string | undefined;
-  contentClassName: string | undefined;
-}
-
-interface LinkRegistration {
-  href: string;
-  children: ChildValue;
-  className: string | undefined;
-}
-
-// ---------------------------------------------------------------------------
 // Context
 // ---------------------------------------------------------------------------
 
 interface NavigationMenuContextValue {
+  rootId: string;
   classes?: NavigationMenuClasses;
   orientation: 'horizontal' | 'vertical';
-  _registerList: (listChildren: ChildValue) => void;
-  _registerViewport: () => void;
-  _listClaimed: boolean;
-  _viewportClaimed: boolean;
-}
-
-interface NavigationMenuListContextValue {
-  classes?: NavigationMenuClasses;
-  _registerItem: (reg: ItemRegistration) => void;
-  _registerLink: (reg: LinkRegistration) => void;
+  getActiveItem: () => string | null;
+  openItem: (value: string) => void;
+  closeAll: () => void;
+  scheduleOpen: (value: string) => void;
+  scheduleClose: () => void;
+  cancelTimers: () => void;
 }
 
 interface NavigationMenuItemContextValue {
   value: string;
-  _registerTrigger: (children: ChildValue, className?: string) => void;
-  _registerContent: (children: ChildValue, className?: string) => void;
-  _triggerClaimed: boolean;
-  _contentClaimed: boolean;
+  triggerId: string;
+  contentId: string;
 }
 
 const NavigationMenuContext = createContext<NavigationMenuContextValue | undefined>(
@@ -76,7 +53,7 @@ const NavigationMenuContext = createContext<NavigationMenuContextValue | undefin
   '@vertz/ui-primitives::NavigationMenuContext',
 );
 
-const NavigationMenuListContext = createContext<NavigationMenuListContextValue | undefined>(
+const NavigationMenuListContext = createContext<undefined>(
   undefined,
   '@vertz/ui-primitives::NavigationMenuListContext',
 );
@@ -97,15 +74,14 @@ function useNavigationMenuContext(componentName: string): NavigationMenuContextV
   return ctx;
 }
 
-function useNavigationMenuListContext(componentName: string): NavigationMenuListContextValue {
+function useNavigationMenuListContext(componentName: string): void {
   const ctx = useContext(NavigationMenuListContext);
-  if (!ctx) {
+  if (ctx === undefined && !useContext(NavigationMenuContext)) {
     throw new Error(
       `<NavigationMenu.${componentName}> must be used inside <NavigationMenu.List>. ` +
         'Ensure it is a direct or nested child of the NavigationMenu.List component.',
     );
   }
-  return ctx;
 }
 
 function useNavigationMenuItemContext(componentName: string): NavigationMenuItemContextValue {
@@ -159,87 +135,151 @@ interface ViewportProps {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components — self-wiring via context
+// Sub-components — each renders its own DOM
 // ---------------------------------------------------------------------------
 
-function NavMenuList({ children }: ListProps) {
+function NavMenuList({ children, className: cls, class: classProp }: ListProps) {
   const ctx = useNavigationMenuContext('List');
-  if (ctx._listClaimed) {
-    console.warn('Duplicate <NavigationMenu.List> detected – only the first is used');
-  }
-  ctx._listClaimed = true;
-  ctx._registerList(children);
-  return (<span style="display: contents" />) as HTMLElement;
+  const effectiveCls = cls ?? classProp;
+  const listClass = [ctx.classes?.list, effectiveCls].filter(Boolean).join(' ');
+
+  return (
+    <div data-part="nav-list" data-navmenu-list="" class={listClass || undefined}>
+      {children}
+    </div>
+  );
 }
 
 function NavMenuItem({ value, children }: ItemProps) {
-  const listCtx = useNavigationMenuListContext('Item');
+  useNavigationMenuListContext('Item');
+  const ids = linkedIds('nav-menu');
 
-  const reg: ItemRegistration = {
+  const itemCtx: NavigationMenuItemContextValue = {
     value,
-    triggerChildren: undefined,
-    contentChildren: undefined,
-    triggerClassName: undefined,
-    contentClassName: undefined,
+    triggerId: ids.triggerId,
+    contentId: ids.contentId,
   };
 
-  const itemCtxValue: NavigationMenuItemContextValue = {
-    value,
-    _registerTrigger: (triggerChildren, className) => {
-      reg.triggerChildren = triggerChildren;
-      reg.triggerClassName = className;
-    },
-    _registerContent: (contentChildren, className) => {
-      reg.contentChildren = contentChildren;
-      reg.contentClassName = className;
-    },
-    _triggerClaimed: false,
-    _contentClaimed: false,
-  };
-
-  NavigationMenuItemContext.Provider(itemCtxValue, () => {
-    resolveChildren(children);
-  });
-
-  listCtx._registerItem(reg);
-
-  return (<span style="display: contents" />) as HTMLElement;
+  return (
+    <NavigationMenuItemContext.Provider value={itemCtx}>
+      <span style="display: contents" data-navmenu-item="" data-value={value}>
+        {children}
+      </span>
+    </NavigationMenuItemContext.Provider>
+  );
 }
 
 function NavMenuTrigger({ children, className: cls, class: classProp }: TriggerProps) {
-  const ctx = useNavigationMenuItemContext('Trigger');
-  if (ctx._triggerClaimed) {
-    console.warn('Duplicate <NavigationMenu.Trigger> detected – only the first is used');
-  }
-  ctx._triggerClaimed = true;
-  ctx._registerTrigger(children, cls ?? classProp);
-  return (<span style="display: contents" />) as HTMLElement;
+  const ctx = useNavigationMenuContext('Trigger');
+  const itemCtx = useNavigationMenuItemContext('Trigger');
+  const effectiveCls = cls ?? classProp;
+  const triggerClass = [ctx.classes?.trigger, effectiveCls].filter(Boolean).join(' ');
+
+  return (
+    <button
+      type="button"
+      id={itemCtx.triggerId}
+      aria-controls={itemCtx.contentId}
+      data-navmenu-trigger=""
+      data-value={itemCtx.value}
+      aria-expanded="false"
+      data-state="closed"
+      class={triggerClass || undefined}
+      onClick={() => {
+        if (ctx.getActiveItem() === itemCtx.value) {
+          ctx.closeAll();
+        } else {
+          ctx.openItem(itemCtx.value);
+        }
+      }}
+      onMouseenter={() => {
+        ctx.cancelTimers();
+        ctx.scheduleOpen(itemCtx.value);
+      }}
+      onMouseleave={() => {
+        ctx.cancelTimers();
+        ctx.scheduleClose();
+      }}
+      onKeydown={(event: KeyboardEvent) => {
+        if (isKey(event, Keys.Enter, Keys.Space)) {
+          event.preventDefault();
+          ctx.openItem(itemCtx.value);
+          // Focus first focusable in content
+          queueMicrotask(() => {
+            const content = document.getElementById(itemCtx.contentId);
+            if (content) {
+              const first = content.querySelector<HTMLElement>('a, button, [tabindex]');
+              if (first) first.focus();
+            }
+          });
+        }
+        if (isKey(event, Keys.Escape)) {
+          event.preventDefault();
+          ctx.closeAll();
+        }
+      }}
+    >
+      {children}
+    </button>
+  );
 }
 
 function NavMenuContent({ children, className: cls, class: classProp }: ContentProps) {
-  const ctx = useNavigationMenuItemContext('Content');
-  if (ctx._contentClaimed) {
-    console.warn('Duplicate <NavigationMenu.Content> detected – only the first is used');
-  }
-  ctx._contentClaimed = true;
-  ctx._registerContent(children, cls ?? classProp);
-  return (<span style="display: contents" />) as HTMLElement;
+  const ctx = useNavigationMenuContext('Content');
+  const itemCtx = useNavigationMenuItemContext('Content');
+  const effectiveCls = cls ?? classProp;
+  const contentClass = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
+
+  return (
+    <div
+      id={itemCtx.contentId}
+      data-part="nav-content"
+      data-navmenu-content=""
+      data-value={itemCtx.value}
+      aria-hidden="true"
+      data-state="closed"
+      style="display: none"
+      class={contentClass || undefined}
+      onMouseenter={() => ctx.cancelTimers()}
+      onMouseleave={() => {
+        ctx.cancelTimers();
+        ctx.scheduleClose();
+      }}
+      onKeydown={(event: KeyboardEvent) => {
+        if (isKey(event, Keys.Escape)) {
+          event.preventDefault();
+          event.stopPropagation();
+          ctx.closeAll();
+          // Return focus to the associated trigger
+          const trigger = document.getElementById(itemCtx.triggerId);
+          if (trigger) trigger.focus();
+        }
+      }}
+    >
+      {children}
+    </div>
+  );
 }
 
 function NavMenuLink({ href, children, className: cls, class: classProp }: LinkProps) {
-  const listCtx = useNavigationMenuListContext('Link');
-  listCtx._registerLink({ href, children, className: cls ?? classProp });
-  return (<span style="display: contents" />) as HTMLElement;
+  const ctx = useNavigationMenuContext('Link');
+  useNavigationMenuListContext('Link');
+  const effectiveCls = cls ?? classProp;
+  const linkClass = [ctx.classes?.link, effectiveCls].filter(Boolean).join(' ');
+
+  return (
+    <a href={href} data-navmenu-link="" class={linkClass || undefined}>
+      {children}
+    </a>
+  );
 }
 
-function NavMenuViewport(_props: ViewportProps) {
+function NavMenuViewport({ className: cls, class: classProp }: ViewportProps) {
   const ctx = useNavigationMenuContext('Viewport');
-  if (ctx._viewportClaimed) {
-    console.warn('Duplicate <NavigationMenu.Viewport> detected – only the first is used');
-  }
-  ctx._viewportClaimed = true;
-  ctx._registerViewport();
-  return (<span style="display: contents" />) as HTMLElement;
+  const effectiveCls = cls ?? classProp;
+  const viewportClass = [ctx.classes?.viewport, effectiveCls].filter(Boolean).join(' ');
+
+  return <div data-part="nav-viewport" data-navmenu-viewport="" class={viewportClass || undefined} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -263,249 +303,193 @@ function ComposedNavigationMenuRoot({
   delayOpen = 200,
   delayClose = 300,
 }: ComposedNavigationMenuProps) {
-  // Registration storage
-  const reg: {
-    listChildren: ChildValue;
-    hasViewport: boolean;
-  } = { listChildren: undefined, hasViewport: false };
+  const rootId = `nav-menu-${linkedIds('nav-root').triggerId}`;
 
-  const ctxValue: NavigationMenuContextValue = {
-    classes,
-    orientation,
-    _registerList: (listChildren) => {
-      reg.listChildren = listChildren;
-    },
-    _registerViewport: () => {
-      reg.hasViewport = true;
-    },
-    _listClaimed: false,
-    _viewportClaimed: false,
-  };
-
-  // Phase 1: resolve top-level children to collect List + Viewport registrations
-  NavigationMenuContext.Provider(ctxValue, () => {
-    resolveChildren(children);
-  });
-
-  // Phase 2: resolve list children to collect items and links
-  const itemRegs: ItemRegistration[] = [];
-  const linkRegs: LinkRegistration[] = [];
-
-  const listCtxValue: NavigationMenuListContextValue = {
-    classes,
-    _registerItem: (itemReg) => {
-      itemRegs.push(itemReg);
-    },
-    _registerLink: (linkReg) => {
-      linkRegs.push(linkReg);
-    },
-  };
-
-  NavigationMenuContext.Provider(ctxValue, () => {
-    NavigationMenuListContext.Provider(listCtxValue, () => {
-      resolveChildren(reg.listChildren);
-    });
-  });
-
-  // Phase 3: build the navigation menu
-  const triggers: HTMLElement[] = [];
-  const items: Map<string, { trigger: HTMLElement; content: HTMLElement }> = new Map();
-  let activeItem: string | null = null;
-  let openTimeout: ReturnType<typeof setTimeout> | null = null;
-  let closeTimeout: ReturnType<typeof setTimeout> | null = null;
+  // Mutable state for active item and timers.
+  const state: {
+    activeItem: string | null;
+    openTimeout: ReturnType<typeof setTimeout> | null;
+    closeTimeout: ReturnType<typeof setTimeout> | null;
+  } = { activeItem: null, openTimeout: null, closeTimeout: null };
 
   function cancelTimers(): void {
-    if (openTimeout) {
-      clearTimeout(openTimeout);
-      openTimeout = null;
+    if (state.openTimeout) {
+      clearTimeout(state.openTimeout);
+      state.openTimeout = null;
     }
-    if (closeTimeout) {
-      clearTimeout(closeTimeout);
-      closeTimeout = null;
+    if (state.closeTimeout) {
+      clearTimeout(state.closeTimeout);
+      state.closeTimeout = null;
     }
+  }
+
+  function getRootEl(): HTMLElement | null {
+    return document.getElementById(rootId);
+  }
+
+  function getTriggers(): HTMLButtonElement[] {
+    const root = getRootEl();
+    if (!root) return [];
+    return [...root.querySelectorAll<HTMLButtonElement>('[data-navmenu-trigger]')];
   }
 
   function openItem(value: string): void {
     cancelTimers();
-    if (activeItem && activeItem !== value) {
-      const prev = items.get(activeItem);
-      if (prev) {
-        setExpanded(prev.trigger, false);
-        setDataState(prev.trigger, 'closed');
-        setDataState(prev.content, 'closed');
-        setHiddenAnimated(prev.content, true);
+    const root = getRootEl();
+    if (!root) return;
+
+    // Close previous
+    if (state.activeItem && state.activeItem !== value) {
+      const prevTrigger = root.querySelector<HTMLElement>(
+        `[data-navmenu-trigger][data-value="${state.activeItem}"]`,
+      );
+      const prevContent = root.querySelector<HTMLElement>(
+        `[data-navmenu-content][data-value="${state.activeItem}"]`,
+      );
+      if (prevTrigger) {
+        prevTrigger.setAttribute('aria-expanded', 'false');
+        prevTrigger.setAttribute('data-state', 'closed');
+      }
+      if (prevContent) {
+        prevContent.setAttribute('data-state', 'closed');
+        prevContent.setAttribute('aria-hidden', 'true');
+        prevContent.style.display = 'none';
       }
     }
-    const item = items.get(value);
-    if (!item) return;
-    activeItem = value;
-    setExpanded(item.trigger, true);
-    setHidden(item.content, false);
-    setDataState(item.trigger, 'open');
-    setDataState(item.content, 'open');
+
+    // Open new
+    const trigger = root.querySelector<HTMLElement>(
+      `[data-navmenu-trigger][data-value="${value}"]`,
+    );
+    const content = root.querySelector<HTMLElement>(
+      `[data-navmenu-content][data-value="${value}"]`,
+    );
+    if (!trigger || !content) return;
+
+    state.activeItem = value;
+    trigger.setAttribute('aria-expanded', 'true');
+    trigger.setAttribute('data-state', 'open');
+    content.setAttribute('aria-hidden', 'false');
+    content.setAttribute('data-state', 'open');
+    content.style.display = '';
+
+    // Move content into viewport if one exists
+    const viewport = root.querySelector<HTMLElement>('[data-navmenu-viewport]');
+    if (viewport && content.parentElement !== viewport) {
+      viewport.appendChild(content);
+    }
   }
 
   function closeAll(): void {
     cancelTimers();
-    if (activeItem) {
-      const item = items.get(activeItem);
-      if (item) {
-        setExpanded(item.trigger, false);
-        setDataState(item.trigger, 'closed');
-        setDataState(item.content, 'closed');
-        setHiddenAnimated(item.content, true);
+    const root = getRootEl();
+    if (!root || !state.activeItem) return;
+
+    const trigger = root.querySelector<HTMLElement>(
+      `[data-navmenu-trigger][data-value="${state.activeItem}"]`,
+    );
+    const content = root.querySelector<HTMLElement>(
+      `[data-navmenu-content][data-value="${state.activeItem}"]`,
+    );
+    if (trigger) {
+      trigger.setAttribute('aria-expanded', 'false');
+      trigger.setAttribute('data-state', 'closed');
+    }
+    if (content) {
+      content.setAttribute('data-state', 'closed');
+      content.setAttribute('aria-hidden', 'true');
+      content.style.display = 'none';
+    }
+    state.activeItem = null;
+  }
+
+  function scheduleOpen(value: string): void {
+    state.openTimeout = setTimeout(() => {
+      openItem(value);
+      state.openTimeout = null;
+    }, delayOpen);
+  }
+
+  function scheduleClose(): void {
+    state.closeTimeout = setTimeout(() => {
+      closeAll();
+      state.closeTimeout = null;
+    }, delayClose);
+  }
+
+  // Wire roving tabindex and keyboard navigation on the list.
+  lifecycleEffect(() => {
+    const root = document.getElementById(rootId) as HTMLElement & { __navWired?: boolean } | null;
+    if (!root || root.__navWired) return;
+    root.__navWired = true;
+
+    const triggers = [...root.querySelectorAll<HTMLButtonElement>('[data-navmenu-trigger]')];
+    if (triggers.length > 0) {
+      // Set roving tabindex
+      for (let i = 0; i < triggers.length; i++) {
+        triggers[i]?.setAttribute('tabindex', i === 0 ? '0' : '-1');
       }
     }
-    activeItem = null;
-  }
 
-  // Build items
-  const listElements: HTMLElement[] = [];
-  const viewportElements: HTMLElement[] = [];
-
-  for (const itemReg of itemRegs) {
-    const ids = linkedIds('nav-menu');
-
-    const triggerResolved = resolveChildren(itemReg.triggerChildren);
-    const contentResolved = resolveChildren(itemReg.contentChildren);
-
-    const triggerClass =
-      [classes?.trigger, itemReg.triggerClassName].filter(Boolean).join(' ') || undefined;
-    const contentClass =
-      [classes?.content, itemReg.contentClassName].filter(Boolean).join(' ') || undefined;
-
-    let contentEl: HTMLElement;
-
-    const triggerEl = (
-      <button
-        type="button"
-        id={ids.triggerId}
-        aria-controls={ids.contentId}
-        data-value={itemReg.value}
-        aria-expanded="false"
-        data-state="closed"
-        class={triggerClass}
-        onClick={() => {
-          if (activeItem === itemReg.value) {
-            closeAll();
-          } else {
-            openItem(itemReg.value);
-          }
-        }}
-        onMouseenter={() => {
-          cancelTimers();
-          openTimeout = setTimeout(() => {
-            openItem(itemReg.value);
-            openTimeout = null;
-          }, delayOpen);
-        }}
-        onMouseleave={() => {
-          cancelTimers();
-          closeTimeout = setTimeout(() => {
-            closeAll();
-            closeTimeout = null;
-          }, delayClose);
-        }}
-        onKeydown={(event: KeyboardEvent) => {
-          if (isKey(event, Keys.Enter, Keys.Space)) {
-            event.preventDefault();
-            openItem(itemReg.value);
-            queueMicrotask(() => focusFirst(contentEl));
-          }
-          if (isKey(event, Keys.Escape)) {
-            event.preventDefault();
-            closeAll();
-          }
-        }}
-      >
-        {...triggerResolved}
-      </button>
-    ) as HTMLElement;
-
-    contentEl = (
-      <div
-        id={ids.contentId}
-        data-part="nav-content"
-        aria-hidden="true"
-        data-state="closed"
-        style="display: none"
-        class={contentClass}
-        onMouseenter={() => cancelTimers()}
-        onMouseleave={() => {
-          cancelTimers();
-          closeTimeout = setTimeout(() => {
-            closeAll();
-            closeTimeout = null;
-          }, delayClose);
-        }}
-        onKeydown={(event: KeyboardEvent) => {
-          if (isKey(event, Keys.Escape)) {
-            event.preventDefault();
-            event.stopPropagation();
-            closeAll();
-            triggerEl.focus();
-          }
-        }}
-      >
-        {...contentResolved}
-      </div>
-    ) as HTMLElement;
-
-    triggers.push(triggerEl);
-    items.set(itemReg.value, { trigger: triggerEl, content: contentEl });
-    listElements.push(triggerEl);
-    viewportElements.push(contentEl);
-  }
-
-  // Build links
-  for (const linkReg of linkRegs) {
-    const linkResolved = resolveChildren(linkReg.children);
-    const linkClass = [classes?.link, linkReg.className].filter(Boolean).join(' ') || undefined;
-
-    const linkEl = (
-      <a href={linkReg.href} class={linkClass}>
-        {...linkResolved}
-      </a>
-    ) as HTMLElement;
-
-    listElements.push(linkEl);
-  }
-
-  // Set roving tabindex on triggers
-  if (triggers.length > 0) {
-    setRovingTabindex(triggers, 0);
-  }
-
-  // Build list element
-  const listEl = (
-    <div
-      data-part="nav-list"
-      class={classes?.list || undefined}
-      onKeydown={(event: KeyboardEvent) => {
+    // Keyboard navigation on the nav-list
+    const list = root.querySelector<HTMLElement>('[data-navmenu-list]');
+    if (list) {
+      list.addEventListener('keydown', (event: KeyboardEvent) => {
         if (isKey(event, Keys.ArrowLeft, Keys.ArrowRight, Keys.Home, Keys.End)) {
-          handleListNavigation(event, triggers, {
-            orientation: orientation === 'horizontal' ? 'horizontal' : 'vertical',
-          });
-        }
-      }}
-    >
-      {...listElements}
-    </div>
-  ) as HTMLElement;
+          const currentTriggers = [
+            ...root.querySelectorAll<HTMLButtonElement>('[data-navmenu-trigger]'),
+          ];
+          const focused = document.activeElement as HTMLElement;
+          const currentIndex = currentTriggers.indexOf(focused as HTMLButtonElement);
+          if (currentIndex < 0) return;
 
-  // Build viewport element
-  const viewportEl = (
-    <div data-part="nav-viewport" class={classes?.viewport || undefined}>
-      {...viewportElements}
-    </div>
-  ) as HTMLElement;
+          let nextIndex = -1;
+          if (isKey(event, Keys.ArrowRight)) {
+            event.preventDefault();
+            nextIndex = (currentIndex + 1) % currentTriggers.length;
+          } else if (isKey(event, Keys.ArrowLeft)) {
+            event.preventDefault();
+            nextIndex = (currentIndex - 1 + currentTriggers.length) % currentTriggers.length;
+          } else if (isKey(event, Keys.Home)) {
+            event.preventDefault();
+            nextIndex = 0;
+          } else if (isKey(event, Keys.End)) {
+            event.preventDefault();
+            nextIndex = currentTriggers.length - 1;
+          }
+
+          const nextTrigger = currentTriggers[nextIndex];
+          if (nextTrigger) {
+            // Update roving tabindex
+            for (let i = 0; i < currentTriggers.length; i++) {
+              currentTriggers[i]?.setAttribute('tabindex', i === nextIndex ? '0' : '-1');
+            }
+            nextTrigger.focus();
+          }
+        }
+      });
+    }
+  });
+
+  const ctx: NavigationMenuContextValue = {
+    rootId,
+    classes,
+    orientation,
+    getActiveItem: () => state.activeItem,
+    openItem,
+    closeAll,
+    scheduleOpen,
+    scheduleClose,
+    cancelTimers,
+  };
 
   return (
-    <nav class={classes?.root || undefined}>
-      {listEl}
-      {viewportEl}
-    </nav>
-  ) as HTMLElement;
+    <NavigationMenuContext.Provider value={ctx}>
+      <nav id={rootId} class={classes?.root || undefined}>
+        {children}
+      </nav>
+    </NavigationMenuContext.Provider>
+  );
 }
 
 // ---------------------------------------------------------------------------
