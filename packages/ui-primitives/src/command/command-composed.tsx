@@ -1,14 +1,12 @@
 /**
- * Composed Command — fully declarative JSX implementation.
- * Sub-components self-wire via context. No factory delegation.
- *
- * Searchable command palette with filtering, keyboard navigation,
- * grouped items, and empty state handling.
+ * Composed Command — compound component with keyboard navigation and filtering.
+ * Each sub-component renders its own DOM. Root provides shared state via context.
+ * Items are discovered from the DOM via querySelectorAll when filtering runs.
+ * No registration phase, no resolveChildren, no internal API imports.
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, resolveChildren, useContext } from '@vertz/ui';
-import { setHidden } from '../utils/aria';
+import { createContext, onMount, useContext } from '@vertz/ui';
 import { uniqueId } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
@@ -32,19 +30,11 @@ export interface CommandClasses {
 // ---------------------------------------------------------------------------
 
 interface CommandContextValue {
+  rootId: string;
+  listId: string;
   classes?: CommandClasses;
-  onSelect?: (value: string) => void;
+  getOnSelect: () => ((value: string) => void) | undefined;
   placeholder?: string;
-  /** @internal — registration storage shared between root and sub-components */
-  _reg: {
-    items: HTMLDivElement[];
-    groups: Map<HTMLDivElement, { heading: HTMLDivElement; items: HTMLDivElement[] }>;
-    inputEl: HTMLInputElement | null;
-    listEl: HTMLDivElement | null;
-    emptyEl: HTMLDivElement | null;
-    /** When non-null, items being registered also push into this array (group tracking) */
-    currentGroupItems: HTMLDivElement[] | null;
-  };
 }
 
 const CommandContext = createContext<CommandContextValue | undefined>(
@@ -111,123 +101,50 @@ interface CommandSeparatorProps {
 }
 
 // ---------------------------------------------------------------------------
-// Element builders — outside component body to avoid computed() wrapping
-// ---------------------------------------------------------------------------
-
-function buildInputEl(inputClass: string, placeholder: string | undefined): HTMLInputElement {
-  return (
-    <input
-      type="text"
-      role="combobox"
-      aria-autocomplete="list"
-      aria-expanded="true"
-      placeholder={placeholder}
-      class={inputClass || undefined}
-    />
-  ) as HTMLInputElement;
-}
-
-function buildListEl(listId: string, listClass: string, children: Node[]): HTMLDivElement {
-  return (
-    <div role="listbox" id={listId} class={listClass || undefined}>
-      {...children}
-    </div>
-  ) as HTMLDivElement;
-}
-
-function buildEmptyEl(emptyClass: string, children: Node[]): HTMLDivElement {
-  return (
-    <div data-part="command-empty" aria-hidden="true" class={emptyClass || undefined}>
-      {...children}
-    </div>
-  ) as HTMLDivElement;
-}
-
-function buildItemEl(
-  value: string,
-  itemClass: string,
-  children: Node[],
-  keywords: string[] | undefined,
-  onItemClick: () => void,
-): HTMLDivElement {
-  return (
-    <div
-      role="option"
-      data-value={value}
-      aria-selected="false"
-      data-keywords={keywords && keywords.length > 0 ? keywords.join(' ') : undefined}
-      class={itemClass || undefined}
-      onClick={() => {
-        onItemClick();
-      }}
-    >
-      {...children}
-    </div>
-  ) as HTMLDivElement;
-}
-
-function buildGroupEl(
-  headingId: string,
-  groupClass: string,
-  heading: HTMLDivElement,
-  children: Node[],
-): HTMLDivElement {
-  return (
-    <div role="group" aria-labelledby={headingId} class={groupClass || undefined}>
-      {heading}
-      {...children}
-    </div>
-  ) as HTMLDivElement;
-}
-
-function buildHeadingEl(
-  headingId: string,
-  headingClass: string | undefined,
-  label: string,
-): HTMLDivElement {
-  return (
-    <div id={headingId} class={headingClass}>
-      {label}
-    </div>
-  ) as HTMLDivElement;
-}
-
-function buildRootEl(rootClass: string | undefined, children: Node[]): HTMLElement {
-  return (<div class={rootClass}>{...children}</div>) as HTMLElement;
-}
-
-// ---------------------------------------------------------------------------
-// Sub-components — self-wiring via context
+// Sub-components — each renders its own DOM
 // ---------------------------------------------------------------------------
 
 function CommandInput({ className: cls, class: classProp }: CommandInputProps) {
   const ctx = useCommandContext('Input');
   const effectiveCls = cls ?? classProp;
   const inputClass = [ctx.classes?.input, effectiveCls].filter(Boolean).join(' ');
-  const el = buildInputEl(inputClass, ctx.placeholder);
-  ctx._reg.inputEl = el;
-  return el;
+
+  return (
+    <input
+      type="text"
+      role="combobox"
+      aria-autocomplete="list"
+      aria-expanded="true"
+      aria-controls={ctx.listId}
+      data-command-input=""
+      placeholder={ctx.placeholder}
+      class={inputClass || undefined}
+    />
+  );
 }
 
 function CommandList({ children, className: cls, class: classProp }: CommandListProps) {
   const ctx = useCommandContext('List');
   const effectiveCls = cls ?? classProp;
   const listClass = [ctx.classes?.list, effectiveCls].filter(Boolean).join(' ');
-  const listId = uniqueId('command-list');
-  const resolved = resolveChildren(children);
-  const el = buildListEl(listId, listClass, resolved);
-  ctx._reg.listEl = el;
-  return el;
+
+  return (
+    <div role="listbox" id={ctx.listId} class={listClass || undefined}>
+      {children}
+    </div>
+  );
 }
 
 function CommandEmpty({ children, className: cls, class: classProp }: CommandEmptyProps) {
   const ctx = useCommandContext('Empty');
   const effectiveCls = cls ?? classProp;
   const emptyClass = [ctx.classes?.empty, effectiveCls].filter(Boolean).join(' ');
-  const resolved = resolveChildren(children);
-  const el = buildEmptyEl(emptyClass, resolved);
-  ctx._reg.emptyEl = el;
-  return el;
+
+  return (
+    <div data-part="command-empty" data-command-empty="" aria-hidden="true" class={emptyClass || undefined}>
+      {children}
+    </div>
+  );
 }
 
 function CommandItem({
@@ -240,16 +157,21 @@ function CommandItem({
   const ctx = useCommandContext('Item');
   const effectiveCls = cls ?? classProp;
   const itemClass = [ctx.classes?.item, effectiveCls].filter(Boolean).join(' ');
-  const resolved = resolveChildren(children);
-  const onSelect = ctx.onSelect;
-  const el = buildItemEl(value, itemClass, resolved, keywords, () => {
-    onSelect?.(value);
-  });
-  ctx._reg.items.push(el);
-  if (ctx._reg.currentGroupItems) {
-    ctx._reg.currentGroupItems.push(el);
-  }
-  return el;
+
+  return (
+    <div
+      role="option"
+      data-value={value}
+      aria-selected="false"
+      data-keywords={keywords && keywords.length > 0 ? keywords.join(' ') : undefined}
+      class={itemClass || undefined}
+      onClick={() => {
+        ctx.getOnSelect()?.(value);
+      }}
+    >
+      {children}
+    </div>
+  );
 }
 
 function CommandGroup({ label, children, className: cls, class: classProp }: CommandGroupProps) {
@@ -258,26 +180,22 @@ function CommandGroup({ label, children, className: cls, class: classProp }: Com
   const groupClass = [ctx.classes?.group, effectiveCls].filter(Boolean).join(' ');
   const headingClass = ctx.classes?.groupHeading || undefined;
   const headingId = uniqueId('command-group');
-  const heading = buildHeadingEl(headingId, headingClass, label);
 
-  // Set up group item tracking — items will push into this array during resolve
-  const groupItems: HTMLDivElement[] = [];
-  const prevGroupItems = ctx._reg.currentGroupItems;
-  ctx._reg.currentGroupItems = groupItems;
-  const resolved = resolveChildren(children);
-  // Restore previous group tracking (handles nested groups)
-  ctx._reg.currentGroupItems = prevGroupItems;
-
-  const el = buildGroupEl(headingId, groupClass, heading, resolved);
-  ctx._reg.groups.set(el, { heading, items: groupItems });
-  return el;
+  return (
+    <div role="group" aria-labelledby={headingId} data-command-group="" class={groupClass || undefined}>
+      <div id={headingId} data-command-group-heading="" class={headingClass}>
+        {label}
+      </div>
+      {children}
+    </div>
+  );
 }
 
 function CommandSeparator({ className: cls, class: classProp }: CommandSeparatorProps) {
   const ctx = useCommandContext('Separator');
   const effectiveCls = cls ?? classProp;
   const sepClass = [ctx.classes?.separator, effectiveCls].filter(Boolean).join(' ');
-  return (<hr role="separator" class={sepClass || undefined} />) as HTMLHRElement;
+  return <hr role="separator" class={sepClass || undefined} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -303,33 +221,44 @@ function ComposedCommandRoot({
   onInputChange,
   placeholder,
 }: ComposedCommandProps) {
+  const rootId = uniqueId('command');
+  const listId = uniqueId('command-list');
+
   const defaultFilter = (value: string, search: string): boolean =>
     value.toLowerCase().includes(search.toLowerCase());
   const filterFn = customFilter ?? defaultFilter;
 
-  // Shared registration storage — sub-components write directly into this object
-  const reg: CommandContextValue['_reg'] = {
-    items: [],
-    groups: new Map(),
-    inputEl: null,
-    listEl: null,
-    emptyEl: null,
-    currentGroupItems: null,
-  };
+  // Plain mutable state — not reactive, managed imperatively.
+  const state: { activeIndex: number; wired: boolean } = { activeIndex: 0, wired: false };
 
-  // State — plain object, not reactive (mutated by closures)
-  const state: { activeIndex: number; resolvedNodes: Node[] } = {
-    activeIndex: 0,
-    resolvedNodes: [],
-  };
+  function getRootEl(): HTMLElement | null {
+    return document.getElementById(rootId);
+  }
+
+  function getItems(): HTMLDivElement[] {
+    const root = getRootEl();
+    if (!root) return [];
+    return [...root.querySelectorAll<HTMLDivElement>('[role="option"]')];
+  }
 
   function getVisibleItems(): HTMLDivElement[] {
-    return reg.items.filter((item) => item.getAttribute('aria-hidden') !== 'true');
+    return getItems().filter((item) => item.getAttribute('aria-hidden') !== 'true');
+  }
+
+  function getInputEl(): HTMLInputElement | null {
+    const root = getRootEl();
+    return root?.querySelector<HTMLInputElement>('[data-command-input]') ?? null;
+  }
+
+  function getEmptyEl(): HTMLElement | null {
+    const root = getRootEl();
+    return root?.querySelector<HTMLElement>('[data-command-empty]') ?? null;
   }
 
   function updateActiveItem(): void {
+    const allItems = getItems();
     const visible = getVisibleItems();
-    for (const item of reg.items) {
+    for (const item of allItems) {
       item.setAttribute('aria-selected', 'false');
     }
     if (visible.length > 0 && state.activeIndex >= 0 && state.activeIndex < visible.length) {
@@ -338,52 +267,60 @@ function ComposedCommandRoot({
   }
 
   function runFilter(): void {
-    const search = reg.inputEl?.value ?? '';
+    const inputEl = getInputEl();
+    const search = inputEl?.value ?? '';
+    const allItems = getItems();
     let visibleCount = 0;
 
-    for (const item of reg.items) {
+    for (const item of allItems) {
       const value = item.getAttribute('data-value') ?? '';
       const text = item.textContent ?? '';
       const keywords = item.getAttribute('data-keywords') ?? '';
       const searchable = `${value} ${text} ${keywords}`;
       const matches = search === '' || filterFn(searchable, search);
-      setHidden(item, !matches);
+      item.setAttribute('aria-hidden', String(!matches));
+      item.style.display = matches ? '' : 'none';
       if (matches) visibleCount++;
     }
 
-    for (const [groupEl, group] of reg.groups) {
-      const hasVisible = group.items.some((item) => item.getAttribute('aria-hidden') !== 'true');
-      setHidden(group.heading, !hasVisible);
-      if (!hasVisible) {
-        groupEl.style.display = 'none';
-      } else {
-        groupEl.style.display = '';
+    // Update group visibility
+    const root = getRootEl();
+    if (root) {
+      const groups = root.querySelectorAll<HTMLElement>('[data-command-group]');
+      for (const group of groups) {
+        const groupItems = group.querySelectorAll<HTMLElement>('[role="option"]');
+        const hasVisible = [...groupItems].some(
+          (item) => item.getAttribute('aria-hidden') !== 'true',
+        );
+        const heading = group.querySelector<HTMLElement>('[data-command-group-heading]');
+        if (heading) {
+          heading.setAttribute('aria-hidden', String(!hasVisible));
+          heading.style.display = hasVisible ? '' : 'none';
+        }
+        group.style.display = hasVisible ? '' : 'none';
       }
     }
 
-    if (reg.emptyEl) {
-      setHidden(reg.emptyEl, visibleCount > 0);
+    // Update empty state
+    const emptyEl = getEmptyEl();
+    if (emptyEl) {
+      const hide = visibleCount > 0;
+      emptyEl.setAttribute('aria-hidden', String(hide));
+      emptyEl.style.display = hide ? 'none' : '';
     }
 
     state.activeIndex = 0;
     updateActiveItem();
   }
 
-  const ctxValue: CommandContextValue = {
-    classes,
-    onSelect,
-    placeholder,
-    _reg: reg,
-  };
+  // Wire imperative event handlers on connected DOM elements.
+  onMount(() => {
+    const root = document.getElementById(rootId) as HTMLElement & { __cmdWired?: boolean } | null;
+    if (!root || root.__cmdWired) return;
+    root.__cmdWired = true;
 
-  // Phase 1: resolve children inside context to collect registrations
-  CommandContext.Provider(ctxValue, () => {
-    state.resolvedNodes = resolveChildren(children);
-  });
-
-  // Wire input event handlers after children have registered
-  if (reg.inputEl) {
-    const inputEl = reg.inputEl;
+    const inputEl = root.querySelector<HTMLInputElement>('[data-command-input]');
+    if (!inputEl) return;
 
     inputEl.addEventListener('input', () => {
       onInputChange?.(inputEl.value);
@@ -429,16 +366,25 @@ function ComposedCommandRoot({
       }
     });
 
-    // Wire aria-controls to the list
-    if (reg.listEl) {
-      inputEl.setAttribute('aria-controls', reg.listEl.id);
-    }
-  }
+    // Set initial active item
+    updateActiveItem();
+  });
 
-  // Set initial active item
-  updateActiveItem();
+  const ctx: CommandContextValue = {
+    rootId,
+    listId,
+    classes,
+    getOnSelect: () => onSelect,
+    placeholder,
+  };
 
-  return buildRootEl(classes?.root, state.resolvedNodes);
+  return (
+    <CommandContext.Provider value={ctx}>
+      <div id={rootId} class={classes?.root || undefined}>
+        {children}
+      </div>
+    </CommandContext.Provider>
+  );
 }
 
 // ---------------------------------------------------------------------------

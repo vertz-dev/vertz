@@ -72,7 +72,7 @@ describe('themed Drawer', () => {
       },
     });
 
-    expect(root).toBeInstanceOf(HTMLDivElement);
+    expect(root).toBeInstanceOf(HTMLElement);
     expect(root.contains(btn)).toBe(true);
   });
 
@@ -265,7 +265,7 @@ describe('themed Drawer', () => {
     document.body.removeChild(root);
   });
 
-  it('overlay has theme class', () => {
+  it('content uses the themed panel class', () => {
     const btn = document.createElement('button');
 
     const root = Drawer({
@@ -277,9 +277,9 @@ describe('themed Drawer', () => {
     });
     document.body.appendChild(root);
 
-    const overlay = root.querySelector('[data-sheet-overlay]') as HTMLElement;
-    expect(overlay).toBeTruthy();
-    expect(overlay.className).toContain(styles.overlay);
+    const dialog = root.querySelector('[role="dialog"]') as HTMLElement;
+    expect(dialog).toBeTruthy();
+    expect(dialog.className).toContain(styles.panelBottom);
 
     document.body.removeChild(root);
   });

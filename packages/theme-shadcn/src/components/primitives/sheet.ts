@@ -37,12 +37,16 @@ export interface SheetSlotProps {
   class?: string;
 }
 
+export interface SheetContentProps extends SheetSlotProps {
+  showClose?: boolean;
+}
+
 // ── Component type ─────────────────────────────────────────
 
 export interface ThemedSheetComponent {
   (props: SheetRootProps): HTMLElement;
   Trigger: (props: SheetSlotProps) => HTMLElement;
-  Content: (props: SheetSlotProps) => HTMLElement;
+  Content: (props: SheetContentProps) => HTMLElement;
   Title: (props: SheetSlotProps) => HTMLElement;
   Description: (props: SheetSlotProps) => HTMLElement;
   Close: (props: SheetSlotProps) => HTMLElement;

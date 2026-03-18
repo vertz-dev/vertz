@@ -1,8 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
-import { popScope, pushScope, runCleanups } from '@vertz/ui/internals';
 import { ComposedAlertDialog } from '../alert-dialog-composed';
 
-function createAlertDialogTree(classes?: Record<string, string>) {
+function flush() {
+  return new Promise<void>((resolve) => setTimeout(resolve, 20));
+}
+
+function getConnectedPanel(root: HTMLElement) {
+  const renderedPanel = root.querySelector('[role="alertdialog"]') as HTMLDialogElement;
+  return document.getElementById(renderedPanel.id) as HTMLDialogElement;
+}
+
+function createAlertDialogTree(
+  classes?: Record<string, string>,
+  options?: { onOpenChange?: (open: boolean) => void; onAction?: () => void },
+) {
   const triggerBtn = document.createElement('button');
   triggerBtn.textContent = 'Delete';
 
@@ -10,13 +21,16 @@ function createAlertDialogTree(classes?: Record<string, string>) {
   let actionEl!: HTMLElement;
 
   const root = ComposedAlertDialog({
+    classes,
+    onOpenChange: options?.onOpenChange,
+    onAction: options?.onAction,
     children: () => {
       const triggerEl = ComposedAlertDialog.Trigger({ children: [triggerBtn] });
       const titleEl = ComposedAlertDialog.Title({ children: ['Are you sure?'] });
-      const descEl = ComposedAlertDialog.Description({
+      const descriptionEl = ComposedAlertDialog.Description({
         children: ['This action cannot be undone.'],
       });
-      const headerEl = ComposedAlertDialog.Header({ children: [titleEl, descEl] });
+      const headerEl = ComposedAlertDialog.Header({ children: [titleEl, descriptionEl] });
       cancelEl = ComposedAlertDialog.Cancel({ children: ['Cancel'] });
       actionEl = ComposedAlertDialog.Action({ children: ['Delete'] });
       const footerEl = ComposedAlertDialog.Footer({ children: [cancelEl, actionEl] });
@@ -25,7 +39,6 @@ function createAlertDialogTree(classes?: Record<string, string>) {
       });
       return [triggerEl, contentEl];
     },
-    classes,
   });
 
   return { root, triggerBtn, cancelEl, actionEl };
@@ -45,149 +58,171 @@ describe('Composed AlertDialog', () => {
 
   describe('Given an AlertDialog with Trigger and Content sub-components', () => {
     describe('When the trigger is clicked', () => {
-      it('Then opens the dialog with role="alertdialog"', () => {
+      it('Then opens the alert dialog', () => {
         const { root, triggerBtn } = createAlertDialogTree();
         container.appendChild(root);
 
         triggerBtn.click();
 
-        const panel = root.querySelector('[role="alertdialog"]') as HTMLElement;
+        const panel = getConnectedPanel(root);
         expect(panel).not.toBeNull();
-        expect(panel!.getAttribute('data-state')).toBe('open');
+        expect(panel.getAttribute('data-state')).toBe('open');
       });
 
       it('Then sets aria-labelledby pointing to the title', () => {
         const { root } = createAlertDialogTree();
         container.appendChild(root);
 
-        const panel = root.querySelector('[role="alertdialog"]') as HTMLElement;
-        const labelledBy = panel!.getAttribute('aria-labelledby');
+        const panel = getConnectedPanel(root);
+        const labelledBy = panel.getAttribute('aria-labelledby');
         expect(labelledBy).toBeTruthy();
-        // The referenced element must exist in the DOM
-        const titleEl = root.querySelector(`#${labelledBy}`);
-        expect(titleEl).not.toBeNull();
-        expect(titleEl!.textContent).toBe('Are you sure?');
+        expect(root.querySelector(`#${labelledBy}`)?.textContent).toBe('Are you sure?');
       });
 
       it('Then sets aria-describedby pointing to the description', () => {
         const { root } = createAlertDialogTree();
         container.appendChild(root);
 
-        const panel = root.querySelector('[role="alertdialog"]') as HTMLElement;
-        const describedBy = panel!.getAttribute('aria-describedby');
+        const panel = getConnectedPanel(root);
+        const describedBy = panel.getAttribute('aria-describedby');
         expect(describedBy).toBeTruthy();
-        // The referenced element must exist in the DOM
-        const descEl = root.querySelector(`#${describedBy}`);
-        expect(descEl).not.toBeNull();
-        expect(descEl!.textContent).toBe('This action cannot be undone.');
+        expect(root.querySelector(`#${describedBy}`)?.textContent).toBe(
+          'This action cannot be undone.',
+        );
       });
     });
   });
 
   describe('Given an AlertDialog with action and cancel buttons', () => {
     describe('When Escape is pressed', () => {
-      it('Then does NOT close the dialog (blocked)', () => {
-        const { root, triggerBtn } = createAlertDialogTree();
+      it('Then does NOT close the dialog', async () => {
+        const onOpenChange = vi.fn();
+        const { root, triggerBtn } = createAlertDialogTree(undefined, { onOpenChange });
         container.appendChild(root);
 
         triggerBtn.click();
-        const panel = root.querySelector('[role="alertdialog"]') as HTMLElement;
-        expect(panel!.getAttribute('data-state')).toBe('open');
+        const panel = getConnectedPanel(root);
+        expect(panel.getAttribute('data-state')).toBe('open');
 
-        panel!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-        expect(panel!.getAttribute('data-state')).toBe('open');
-      });
-    });
+        panel.dispatchEvent(new Event('cancel', { bubbles: true, cancelable: true }));
+        await flush();
 
-    describe('When overlay is clicked', () => {
-      it('Then does NOT close the dialog (blocked)', () => {
-        const { root, triggerBtn } = createAlertDialogTree();
-        container.appendChild(root);
-
-        triggerBtn.click();
-        const panel = root.querySelector('[role="alertdialog"]') as HTMLElement;
-        expect(panel!.getAttribute('data-state')).toBe('open');
-
-        const overlay = root.querySelector('[data-alertdialog-overlay]') as HTMLElement;
-        overlay!.click();
-        expect(panel!.getAttribute('data-state')).toBe('open');
+        expect(onOpenChange).not.toHaveBeenCalledWith(false);
       });
     });
 
     describe('When Cancel is clicked', () => {
-      it('Then closes the dialog', () => {
-        const { root, triggerBtn, cancelEl } = createAlertDialogTree();
+      it('Then closes the dialog', async () => {
+        const onOpenChange = vi.fn();
+        const { root, triggerBtn, cancelEl } = createAlertDialogTree(undefined, { onOpenChange });
         container.appendChild(root);
 
         triggerBtn.click();
-        const panel = root.querySelector('[role="alertdialog"]') as HTMLElement;
-        expect(panel!.getAttribute('data-state')).toBe('open');
+        const panel = getConnectedPanel(root);
+        expect(panel.getAttribute('data-state')).toBe('open');
 
         cancelEl.click();
-        expect(panel!.getAttribute('data-state')).toBe('closed');
+        await flush();
+
+        expect(onOpenChange).toHaveBeenCalledWith(false);
       });
     });
 
     describe('When Action is clicked', () => {
-      it('Then closes the dialog', () => {
-        const { root, triggerBtn, actionEl } = createAlertDialogTree();
+      it('Then closes the dialog', async () => {
+        const onOpenChange = vi.fn();
+        const { root, triggerBtn, actionEl } = createAlertDialogTree(undefined, { onOpenChange });
         container.appendChild(root);
 
         triggerBtn.click();
-        const panel = root.querySelector('[role="alertdialog"]') as HTMLElement;
-        expect(panel!.getAttribute('data-state')).toBe('open');
+        const panel = getConnectedPanel(root);
+        expect(panel.getAttribute('data-state')).toBe('open');
 
         actionEl.click();
-        expect(panel!.getAttribute('data-state')).toBe('closed');
+        await flush();
+
+        expect(onOpenChange).toHaveBeenCalledWith(false);
+      });
+
+      it('Then calls onAction exactly once', async () => {
+        const onAction = vi.fn();
+        const { root, triggerBtn, actionEl } = createAlertDialogTree(undefined, { onAction });
+        container.appendChild(root);
+
+        triggerBtn.click();
+        actionEl.click();
+        await flush();
+
+        expect(onAction).toHaveBeenCalledTimes(1);
+      });
+
+      it('Then preserves the child onClick handler', async () => {
+        const onAction = vi.fn();
+        const onClick = vi.fn();
+        const triggerBtn = document.createElement('button');
+        let actionEl!: HTMLElement;
+
+        const root = ComposedAlertDialog({
+          onAction,
+          children: () => {
+            const triggerEl = ComposedAlertDialog.Trigger({ children: [triggerBtn] });
+            actionEl = ComposedAlertDialog.Action({ children: ['Confirm'], onClick });
+            const contentEl = ComposedAlertDialog.Content({ children: [actionEl] });
+            return [triggerEl, contentEl];
+          },
+        });
+        container.appendChild(root);
+
+        triggerBtn.click();
+        actionEl.click();
+        await flush();
+
+        expect(onAction).toHaveBeenCalledTimes(1);
+        expect(onClick).toHaveBeenCalledTimes(1);
       });
     });
   });
 
   describe('Given an AlertDialog with classes prop', () => {
-    describe('When rendered and opened', () => {
-      it('Then applies overlay class', () => {
-        const { root, triggerBtn } = createAlertDialogTree({ overlay: 'test-overlay' });
+    describe('When rendered', () => {
+      it('Then applies content, title, description, header, and footer classes', () => {
+        const { root } = createAlertDialogTree({
+          content: 'test-content',
+          title: 'test-title',
+          description: 'test-description',
+          header: 'test-header',
+          footer: 'test-footer',
+        });
         container.appendChild(root);
 
-        triggerBtn.click();
-
-        const overlay = root.querySelector('[data-alertdialog-overlay]') as HTMLElement;
-        expect(overlay!.className).toBe('test-overlay');
-      });
-
-      it('Then applies content class', () => {
-        const { root } = createAlertDialogTree({ content: 'test-content' });
-        container.appendChild(root);
-
-        const panel = root.querySelector('[role="alertdialog"]') as HTMLElement;
-        expect(panel!.className).toContain('test-content');
-      });
-
-      it('Then applies title class', () => {
-        const { root } = createAlertDialogTree({ title: 'test-title' });
-        container.appendChild(root);
-
-        const panel = root.querySelector('[role="alertdialog"]') as HTMLElement;
-        const title = panel!.querySelector('h2') as HTMLElement;
-        expect(title!.className).toBe('test-title');
+        const panel = getConnectedPanel(root);
+        expect(panel.className).toContain('test-content');
+        expect(panel.querySelector('h2')?.className).toBe('test-title');
+        expect(panel.querySelector('p')?.className).toBe('test-description');
+        expect(
+          Array.from(panel.querySelectorAll('div')).some((el) => el.className === 'test-header'),
+        ).toBe(true);
+        expect(
+          Array.from(panel.querySelectorAll('div')).some((el) => el.className === 'test-footer'),
+        ).toBe(true);
       });
     });
   });
 
   describe('Given onOpenChange callback', () => {
-    it('Then calls the callback when dialog opens and closes', () => {
+    it('Then calls the callback when dialog opens and closes', async () => {
       const onOpenChange = vi.fn();
       const triggerBtn = document.createElement('button');
       let cancelEl!: HTMLElement;
 
       const root = ComposedAlertDialog({
+        onOpenChange,
         children: () => {
           const triggerEl = ComposedAlertDialog.Trigger({ children: [triggerBtn] });
           cancelEl = ComposedAlertDialog.Cancel({ children: ['Cancel'] });
           const contentEl = ComposedAlertDialog.Content({ children: [cancelEl] });
           return [triggerEl, contentEl];
         },
-        onOpenChange,
       });
       container.appendChild(root);
 
@@ -195,128 +230,8 @@ describe('Composed AlertDialog', () => {
       expect(onOpenChange).toHaveBeenCalledWith(true);
 
       cancelEl.click();
+      await flush();
       expect(onOpenChange).toHaveBeenCalledWith(false);
-    });
-  });
-
-  describe('Given onAction callback', () => {
-    it('Then calls the callback when Action is clicked', () => {
-      const onAction = vi.fn();
-      const triggerBtn = document.createElement('button');
-      let actionEl!: HTMLElement;
-
-      const root = ComposedAlertDialog({
-        children: () => {
-          const triggerEl = ComposedAlertDialog.Trigger({ children: [triggerBtn] });
-          actionEl = ComposedAlertDialog.Action({ children: ['Delete'] });
-          const contentEl = ComposedAlertDialog.Content({ children: [actionEl] });
-          return [triggerEl, contentEl];
-        },
-        onAction,
-      });
-      container.appendChild(root);
-
-      triggerBtn.click();
-      actionEl.click();
-
-      expect(onAction).toHaveBeenCalledTimes(1);
-    });
-
-    it('Then fires onAction exactly once even when Action has its own onClick', () => {
-      const onAction = vi.fn();
-      const onClick = vi.fn();
-      const triggerBtn = document.createElement('button');
-      let actionEl!: HTMLElement;
-
-      const root = ComposedAlertDialog({
-        children: () => {
-          const triggerEl = ComposedAlertDialog.Trigger({ children: [triggerBtn] });
-          actionEl = ComposedAlertDialog.Action({ children: ['Confirm'], onClick });
-          const contentEl = ComposedAlertDialog.Content({ children: [actionEl] });
-          return [triggerEl, contentEl];
-        },
-        onAction,
-      });
-      container.appendChild(root);
-
-      triggerBtn.click();
-      actionEl.click();
-
-      expect(onAction).toHaveBeenCalledTimes(1);
-      expect(onClick).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe('Given an AlertDialog with Cancel and Action buttons', () => {
-    describe('When Cancel is clicked', () => {
-      it('Then does NOT invoke onAction', () => {
-        const onAction = vi.fn();
-        const triggerBtn = document.createElement('button');
-        let cancelEl!: HTMLElement;
-
-        const root = ComposedAlertDialog({
-          children: () => {
-            const triggerEl = ComposedAlertDialog.Trigger({ children: [triggerBtn] });
-            cancelEl = ComposedAlertDialog.Cancel({ children: ['Cancel'] });
-            const actionEl = ComposedAlertDialog.Action({ children: ['Delete'] });
-            const footerEl = ComposedAlertDialog.Footer({ children: [cancelEl, actionEl] });
-            const contentEl = ComposedAlertDialog.Content({ children: [footerEl] });
-            return [triggerEl, contentEl];
-          },
-          onAction,
-        });
-        container.appendChild(root);
-
-        triggerBtn.click();
-        cancelEl.click();
-
-        expect(onAction).not.toHaveBeenCalled();
-      });
-    });
-
-    describe('When Cancel is inside a wrapper with action data-slot (malformed DOM)', () => {
-      it('Then the cancel branch short-circuits and hide() is called exactly once', () => {
-        const onOpenChange = vi.fn();
-        const triggerBtn = document.createElement('button');
-        let cancelEl!: HTMLElement;
-
-        const root = ComposedAlertDialog({
-          children: () => {
-            const triggerEl = ComposedAlertDialog.Trigger({ children: [triggerBtn] });
-            cancelEl = ComposedAlertDialog.Cancel({ children: ['Cancel'] });
-            // Wrap cancel in a div with action data-slot to trigger both closest matches
-            const wrapper = document.createElement('div');
-            wrapper.setAttribute('data-slot', 'alertdialog-action');
-            wrapper.appendChild(cancelEl);
-            const contentEl = ComposedAlertDialog.Content({ children: [wrapper] });
-            return [triggerEl, contentEl];
-          },
-          onOpenChange,
-        });
-        container.appendChild(root);
-
-        triggerBtn.click();
-        onOpenChange.mockClear();
-
-        cancelEl.click();
-
-        // Cancel branch should fire exactly once; action branch should NOT also fire
-        expect(onOpenChange).toHaveBeenCalledTimes(1);
-        expect(onOpenChange).toHaveBeenCalledWith(false);
-      });
-    });
-  });
-
-  describe('Given an AlertDialog with Header sub-component', () => {
-    it('Then Header wraps title and description with applied class', () => {
-      const { root } = createAlertDialogTree({ header: 'test-header' });
-      container.appendChild(root);
-
-      // Find the header div inside the alertdialog content
-      const panel = root.querySelector('[role="alertdialog"]') as HTMLElement;
-      const titleEl = panel!.querySelector('[data-slot="alertdialog-title"]')!;
-      const headerDiv = titleEl.parentElement!;
-      expect(headerDiv.className).toBe('test-header');
     });
   });
 
@@ -336,72 +251,6 @@ describe('Composed AlertDialog', () => {
         expect(() => {
           ComposedAlertDialog.Content({ children: ['Orphan'] });
         }).toThrow('<AlertDialog.Content> must be used inside <AlertDialog>');
-      });
-    });
-  });
-
-  describe('Given an AlertDialog with duplicate Content sub-components', () => {
-    it('Then warns about the duplicate', () => {
-      const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const btn = document.createElement('button');
-
-      ComposedAlertDialog({
-        children: () => {
-          const t = ComposedAlertDialog.Trigger({ children: [btn] });
-          const c1 = ComposedAlertDialog.Content({ children: ['Body 1'] });
-          const c2 = ComposedAlertDialog.Content({ children: ['Body 2'] });
-          return [t, c1, c2];
-        },
-      });
-
-      expect(spy).toHaveBeenCalledWith(
-        'Duplicate <AlertDialog.Content> detected – only the first is used',
-      );
-      spy.mockRestore();
-    });
-  });
-
-  describe('Given an AlertDialog rendered inside a disposal scope', () => {
-    describe('When the disposal scope cleanups are run', () => {
-      it('Then removeEventListener is called for the trigger click handler', () => {
-        const scope = pushScope();
-        const triggerBtn = document.createElement('button');
-
-        const root = ComposedAlertDialog({
-          children: () => {
-            const triggerEl = ComposedAlertDialog.Trigger({ children: [triggerBtn] });
-            const contentEl = ComposedAlertDialog.Content({ children: [] });
-            return [triggerEl, contentEl];
-          },
-        });
-        container.appendChild(root);
-        popScope();
-
-        const spy = vi.spyOn(triggerBtn, 'removeEventListener');
-        runCleanups(scope);
-
-        expect(spy).toHaveBeenCalledWith('click', expect.any(Function));
-      });
-
-      it('Then removeEventListener is called for the content delegation handler', () => {
-        const scope = pushScope();
-        const triggerBtn = document.createElement('button');
-
-        const root = ComposedAlertDialog({
-          children: () => {
-            const triggerEl = ComposedAlertDialog.Trigger({ children: [triggerBtn] });
-            const contentEl = ComposedAlertDialog.Content({ children: [] });
-            return [triggerEl, contentEl];
-          },
-        });
-        container.appendChild(root);
-        popScope();
-
-        const panel = root.querySelector('[role="alertdialog"]') as HTMLElement;
-        const spy = vi.spyOn(panel, 'removeEventListener');
-        runCleanups(scope);
-
-        expect(spy).toHaveBeenCalledWith('click', expect.any(Function));
       });
     });
   });

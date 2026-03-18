@@ -5,6 +5,7 @@ interface RadioGroupStyleClasses {
   readonly root: string;
   readonly item: string;
   readonly indicator: string;
+  readonly indicatorIcon: string;
 }
 
 // ── Props ──────────────────────────────────────────────────
@@ -35,6 +36,7 @@ export function createThemedRadioGroup(styles: RadioGroupStyleClasses): ThemedRa
     root: styles.root,
     item: styles.item,
     indicator: styles.indicator,
+    indicatorIcon: styles.indicatorIcon,
   });
 
   function RadioGroupRoot(props: RadioGroupRootProps): HTMLElement {

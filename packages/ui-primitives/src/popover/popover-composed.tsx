@@ -1,17 +1,15 @@
 /**
- * Composed Popover — fully declarative JSX component with toggle, focus, and ARIA.
- * Sub-components self-wire via context. No factory wrapping.
+ * Composed Popover — compound component with floating content.
+ * Each sub-component renders its own DOM. Root provides shared state via context.
+ * No registration phase, no resolveChildren, no internal API imports.
  */
 
-import type { ChildValue, Ref } from '@vertz/ui';
-import { createContext, ref, resolveChildren, useContext } from '@vertz/ui';
-import { _tryOnCleanup } from '@vertz/ui/internals';
+import type { ChildValue } from '@vertz/ui';
+import { createContext, useContext } from '@vertz/ui';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
-import { focusFirst, saveFocus } from '../utils/focus';
 import { linkedIds } from '../utils/id';
-import { isKey, Keys } from '../utils/keyboard';
 
 // ---------------------------------------------------------------------------
 // Class distribution
@@ -26,13 +24,12 @@ export interface PopoverClasses {
 // ---------------------------------------------------------------------------
 
 interface PopoverContextValue {
-  /** @internal — registers the user trigger for ARIA sync */
-  _registerTrigger: (el: HTMLElement) => void;
-  /** @internal — registers content children and class */
-  _registerContent: (children: ChildValue, cls?: string) => void;
-  /** @internal — duplicate sub-component detection */
-  _triggerClaimed: boolean;
-  _contentClaimed: boolean;
+  isOpen: boolean;
+  contentId: string;
+  classes?: PopoverClasses;
+  open: () => void;
+  close: () => void;
+  toggle: () => void;
 }
 
 const PopoverContext = createContext<PopoverContextValue | undefined>(
@@ -63,37 +60,41 @@ interface SlotProps {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components — registration via context
+// Sub-components — each renders its own DOM
 // ---------------------------------------------------------------------------
 
 function PopoverTrigger({ children }: SlotProps) {
   const ctx = usePopoverContext('Trigger');
-  if (ctx._triggerClaimed) {
-    console.warn('Duplicate <Popover.Trigger> detected – only the first is used');
-  }
-  ctx._triggerClaimed = true;
-
-  const resolved = resolveChildren(children);
-  const userTrigger = resolved.find((n): n is HTMLElement => n instanceof HTMLElement) ?? null;
-  if (userTrigger) {
-    ctx._registerTrigger(userTrigger);
-  }
-
-  return <span style="display: contents">{...resolved}</span>;
+  return (
+    <span
+      style="display: contents"
+      data-popover-trigger=""
+      data-state={ctx.isOpen ? 'open' : 'closed'}
+      onClick={() => ctx.toggle()}
+    >
+      {children}
+    </span>
+  );
 }
 
 function PopoverContent({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = usePopoverContext('Content');
-  if (ctx._contentClaimed) {
-    console.warn('Duplicate <Popover.Content> detected – only the first is used');
-  }
-  ctx._contentClaimed = true;
-
   const effectiveCls = cls ?? classProp;
-  ctx._registerContent(children, effectiveCls);
+  const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
-  // Placeholder — Root renders the actual dialog element
-  return (<span style="display: contents" />) as HTMLElement;
+  return (
+    <div
+      role="dialog"
+      id={ctx.contentId}
+      data-popover-content=""
+      aria-hidden={ctx.isOpen ? 'false' : 'true'}
+      data-state={ctx.isOpen ? 'open' : 'closed'}
+      style={ctx.isOpen ? '' : 'display: none'}
+      class={combined || undefined}
+    >
+      {children}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -117,83 +118,46 @@ function ComposedPopoverRoot({
 }: ComposedPopoverProps) {
   const ids = linkedIds('popover');
 
-  // Registration storage — plain object so the compiler doesn't signal-transform it
-  const reg: {
-    triggerEl: HTMLElement | null;
-    contentChildren: ChildValue;
-    contentCls: string | undefined;
-    floatingCleanup: (() => void) | null;
-    dismissCleanup: (() => void) | null;
-  } = {
-    triggerEl: null,
-    contentChildren: undefined,
-    contentCls: undefined,
-    floatingCleanup: null,
-    dismissCleanup: null,
-  };
-
-  const ctxValue: PopoverContextValue = {
-    _registerTrigger: (el) => {
-      reg.triggerEl = el;
-    },
-    _registerContent: (contentChildren, cls) => {
-      if (reg.contentChildren === undefined) {
-        reg.contentChildren = contentChildren;
-        reg.contentCls = cls;
-      }
-    },
-    _triggerClaimed: false,
-    _contentClaimed: false,
-  };
-
-  // Phase 1: resolve children to collect registrations
-  let resolvedNodes: Node[] = [];
-  let contentNodes: Node[] = [];
-  PopoverContext.Provider(ctxValue, () => {
-    resolvedNodes = resolveChildren(children);
-    contentNodes = resolveChildren(reg.contentChildren);
-  });
-
-  // Phase 2: reactive state — compiler transforms `let` to signal
   let isOpen = false;
-  const contentRef: Ref<HTMLDivElement> = ref();
-  let restoreFocus: (() => void) | null = null;
+
+  // Track cleanup functions for floating position and dismiss listeners.
+  // Plain object so the compiler doesn't signal-transform it.
+  const cleanup: { floating: (() => void) | null; dismiss: (() => void) | null } = {
+    floating: null,
+    dismiss: null,
+  };
+
+  function getElements(): { trigger: HTMLElement | null; content: HTMLElement | null } {
+    const content = document.getElementById(ids.contentId);
+    const trigger = content
+      ? (content.parentElement?.querySelector('[data-popover-trigger]') as HTMLElement | null)
+      : null;
+    return { trigger, content };
+  }
 
   function open(): void {
     isOpen = true;
-    if (reg.triggerEl) {
-      reg.triggerEl.setAttribute('aria-expanded', 'true');
-      reg.triggerEl.setAttribute('data-state', 'open');
+
+    const { trigger, content } = getElements();
+    if (trigger && content && positioning) {
+      const result = createFloatingPosition(trigger, content, positioning);
+      cleanup.floating = result.cleanup;
+      cleanup.dismiss = createDismiss({
+        onDismiss: close,
+        insideElements: [trigger, content],
+        escapeKey: true,
+      });
     }
-    restoreFocus = saveFocus();
-    const contentEl = contentRef.current;
-    if (contentEl) {
-      if (positioning && reg.triggerEl) {
-        const result = createFloatingPosition(reg.triggerEl, contentEl, positioning);
-        reg.floatingCleanup = result.cleanup;
-        reg.dismissCleanup = createDismiss({
-          onDismiss: close,
-          insideElements: [reg.triggerEl, contentEl],
-          escapeKey: false,
-        });
-      }
-      queueMicrotask(() => focusFirst(contentEl));
-    }
+
     onOpenChange?.(true);
   }
 
   function close(): void {
     isOpen = false;
-    if (reg.triggerEl) {
-      reg.triggerEl.setAttribute('aria-expanded', 'false');
-      reg.triggerEl.setAttribute('data-state', 'closed');
-    }
-    reg.floatingCleanup?.();
-    reg.floatingCleanup = null;
-    reg.dismissCleanup?.();
-    reg.dismissCleanup = null;
-    restoreFocus?.();
-    restoreFocus = null;
+    cleanup.floating?.();
+    cleanup.floating = null;
+    cleanup.dismiss?.();
+    cleanup.dismiss = null;
     onOpenChange?.(false);
   }
 
@@ -202,42 +166,21 @@ function ComposedPopoverRoot({
     else open();
   }
 
-  // Wire user trigger with ARIA attributes and click handler
-  if (reg.triggerEl) {
-    reg.triggerEl.setAttribute('aria-haspopup', 'dialog');
-    reg.triggerEl.setAttribute('aria-controls', ids.contentId);
-    reg.triggerEl.setAttribute('aria-expanded', 'false');
-    reg.triggerEl.setAttribute('data-state', 'closed');
-
-    const triggerEl = reg.triggerEl;
-    const handleClick = () => toggle();
-    triggerEl.addEventListener('click', handleClick);
-    _tryOnCleanup(() => triggerEl.removeEventListener('click', handleClick));
-  }
-
-  const combined = [classes?.content, reg.contentCls].filter(Boolean).join(' ');
+  const ctx: PopoverContextValue = {
+    isOpen,
+    contentId: ids.contentId,
+    classes,
+    open,
+    close,
+    toggle,
+  };
 
   return (
-    <div style="display: contents">
-      {...resolvedNodes}
-      <div
-        ref={contentRef}
-        role="dialog"
-        id={ids.contentId}
-        aria-hidden={isOpen ? 'false' : 'true'}
-        data-state={isOpen ? 'open' : 'closed'}
-        style={isOpen ? '' : 'display: none'}
-        class={combined || undefined}
-        onKeydown={(event: KeyboardEvent) => {
-          if (isKey(event, Keys.Escape)) {
-            event.preventDefault();
-            close();
-          }
-        }}
-      >
-        {...contentNodes}
-      </div>
-    </div>
+    <PopoverContext.Provider value={ctx}>
+      <span style="display: contents" data-popover-root="">
+        {children}
+      </span>
+    </PopoverContext.Provider>
   );
 }
 

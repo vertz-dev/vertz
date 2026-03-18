@@ -88,9 +88,9 @@ describe('dialog', () => {
     expect(dialog.css).toContain('vz-zoom-out');
   });
 
-  it('CSS does not use display:none for animated states', () => {
-    // Animated components rely on setHiddenAnimated, not CSS display:none
-    expect(dialog.css).not.toContain('display: none');
+  it('CSS hides the native dialog when it is not open', () => {
+    expect(dialog.css).toContain(':not([open])');
+    expect(dialog.css).toContain('display: none');
   });
 });
 

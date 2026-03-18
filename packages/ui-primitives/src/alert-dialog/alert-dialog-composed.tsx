@@ -1,13 +1,12 @@
 /**
- * Composed AlertDialog — fully declarative JSX component with modal and ARIA.
- * Unlike Dialog, blocks Escape/overlay dismiss and adds Cancel/Action slots.
- * Sub-components self-wire via context. No factory wrapping.
+ * Composed AlertDialog — compound component using native <dialog> element.
+ * Unlike Dialog, blocks Escape/overlay dismiss and uses Cancel/Action slots.
+ * Each sub-component renders its own DOM. Root provides shared state via context.
+ * No registration phase, no resolveChildren, no internal API imports.
  */
 
 import type { ChildValue, Ref } from '@vertz/ui';
-import { createContext, ref, resolveChildren, useContext } from '@vertz/ui';
-import { _tryOnCleanup } from '@vertz/ui/internals';
-import { focusFirst, saveFocus, trapFocus } from '../utils/focus';
+import { createContext, onMount, ref, useContext } from '@vertz/ui';
 import { linkedIds } from '../utils/id';
 
 // ---------------------------------------------------------------------------
@@ -30,17 +29,15 @@ export interface AlertDialogClasses {
 // ---------------------------------------------------------------------------
 
 interface AlertDialogContextValue {
+  /** Whether the alert dialog is open. Signal auto-unwrapped by Provider. */
+  isOpen: boolean;
   titleId: string;
   descriptionId: string;
+  contentId: string;
   classes?: AlertDialogClasses;
   onAction?: () => void;
-  /** @internal — registers the user trigger for ARIA sync */
-  _registerTrigger: (el: HTMLElement) => void;
-  /** @internal — registers content children and class */
-  _registerContent: (children: ChildValue, cls?: string) => void;
-  /** @internal — duplicate sub-component detection */
-  _triggerClaimed: boolean;
-  _contentClaimed: boolean;
+  open: () => void;
+  close: () => void;
 }
 
 const AlertDialogContext = createContext<AlertDialogContextValue | undefined>(
@@ -76,42 +73,62 @@ interface ButtonSlotProps extends SlotProps {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components — registration via context
+// Sub-components — each renders its own DOM
 // ---------------------------------------------------------------------------
 
 function AlertDialogTrigger({ children }: SlotProps) {
   const ctx = useAlertDialogContext('Trigger');
-  if (ctx._triggerClaimed) {
-    console.warn('Duplicate <AlertDialog.Trigger> detected – only the first is used');
-  }
-  ctx._triggerClaimed = true;
-
-  const resolved = resolveChildren(children);
-  const userTrigger = resolved.find((n): n is HTMLElement => n instanceof HTMLElement) ?? null;
-  if (userTrigger) {
-    ctx._registerTrigger(userTrigger);
-  }
-
-  return <span style="display: contents">{...resolved}</span>;
+  return (
+    <span
+      style="display: contents"
+      data-alertdialog-trigger=""
+      data-state={ctx.isOpen ? 'open' : 'closed'}
+      onClick={() => {
+        if (!ctx.isOpen) ctx.open();
+      }}
+    >
+      {children}
+    </span>
+  );
 }
 
 function AlertDialogContent({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useAlertDialogContext('Content');
-  if (ctx._contentClaimed) {
-    console.warn('Duplicate <AlertDialog.Content> detected – only the first is used');
-  }
-  ctx._contentClaimed = true;
-
+  const dialogRef: Ref<HTMLDialogElement> = ref();
   const effectiveCls = cls ?? classProp;
-  ctx._registerContent(children, effectiveCls);
+  const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
-  // Placeholder — Root renders the actual alertdialog element
-  return (<span style="display: contents" />) as HTMLElement;
+  // Wire cancel handler on the CONNECTED dialog element.
+  // AlertDialog prevents Escape dismiss entirely.
+  onMount(() => {
+    const el = document.getElementById(ctx.contentId) as HTMLDialogElement | null;
+    if (!el || el.__dialogWired) return;
+    el.__dialogWired = true;
+
+    el.addEventListener('cancel', (e: Event) => {
+      // AlertDialog does NOT dismiss on Escape.
+      e.preventDefault();
+    });
+  });
+
+  return (
+    <dialog
+      ref={dialogRef}
+      id={ctx.contentId}
+      role="alertdialog"
+      aria-labelledby={ctx.titleId}
+      aria-describedby={ctx.descriptionId}
+      data-state={ctx.isOpen ? 'open' : 'closed'}
+      class={combined || undefined}
+      onCancel={(e: Event) => {
+        // AlertDialog blocks Escape dismiss — prevent the native close.
+        e.preventDefault();
+      }}
+    >
+      {children}
+    </dialog>
+  );
 }
-
-// ---------------------------------------------------------------------------
-// Sub-components — content elements (read classes from context)
-// ---------------------------------------------------------------------------
 
 function AlertDialogTitle({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useAlertDialogContext('Title');
@@ -139,20 +156,14 @@ function AlertDialogHeader({ children, className: cls, class: classProp }: SlotP
   const { classes } = useAlertDialogContext('Header');
   const effectiveCls = cls ?? classProp;
   const combined = [classes?.header, effectiveCls].filter(Boolean).join(' ');
-  const resolved = resolveChildren(children);
-  const el = (<div class={combined || undefined} />) as HTMLDivElement;
-  for (const node of resolved) {
-    el.appendChild(node);
-  }
-  return el;
+  return <div class={combined || undefined}>{children}</div>;
 }
 
 function AlertDialogFooter({ children, className: cls, class: classProp }: SlotProps) {
   const { classes } = useAlertDialogContext('Footer');
   const effectiveCls = cls ?? classProp;
   const combined = [classes?.footer, effectiveCls].filter(Boolean).join(' ');
-  const resolved = resolveChildren(children);
-  return <div class={combined || undefined}>{...resolved}</div>;
+  return <div class={combined || undefined}>{children}</div>;
 }
 
 function AlertDialogCancel({
@@ -162,9 +173,9 @@ function AlertDialogCancel({
   onClick,
   disabled,
 }: ButtonSlotProps) {
-  const { classes } = useAlertDialogContext('Cancel');
+  const ctx = useAlertDialogContext('Cancel');
   const effectiveCls = cls ?? classProp;
-  const combined = [classes?.cancel, effectiveCls].filter(Boolean).join(' ');
+  const combined = [ctx.classes?.cancel, effectiveCls].filter(Boolean).join(' ');
   return (
     <button
       type="button"
@@ -172,6 +183,7 @@ function AlertDialogCancel({
       class={combined || undefined}
       onClick={() => {
         onClick?.();
+        ctx.close();
       }}
       disabled={disabled}
     >
@@ -187,9 +199,9 @@ function AlertDialogAction({
   onClick,
   disabled,
 }: ButtonSlotProps) {
-  const { classes, onAction } = useAlertDialogContext('Action');
+  const ctx = useAlertDialogContext('Action');
   const effectiveCls = cls ?? classProp;
-  const combined = [classes?.action, effectiveCls].filter(Boolean).join(' ');
+  const combined = [ctx.classes?.action, effectiveCls].filter(Boolean).join(' ');
   return (
     <button
       type="button"
@@ -197,7 +209,8 @@ function AlertDialogAction({
       class={combined || undefined}
       onClick={() => {
         onClick?.();
-        onAction?.();
+        ctx.onAction?.();
+        ctx.close();
       }}
       disabled={disabled}
     >
@@ -233,140 +246,63 @@ function ComposedAlertDialogRoot({
   const titleId = `${ids.contentId}-title`;
   const descriptionId = `${ids.contentId}-description`;
 
-  // Registration storage — plain object so the compiler doesn't signal-transform it
-  const reg: {
-    triggerEl: HTMLElement | null;
-    contentChildren: ChildValue;
-    contentCls: string | undefined;
-  } = { triggerEl: null, contentChildren: undefined, contentCls: undefined };
-
-  const ctxValue: AlertDialogContextValue = {
-    titleId,
-    descriptionId,
-    classes,
-    onAction,
-    _registerTrigger: (el) => {
-      reg.triggerEl = el;
-    },
-    _registerContent: (contentChildren, cls) => {
-      if (reg.contentChildren === undefined) {
-        reg.contentChildren = contentChildren;
-        reg.contentCls = cls;
-      }
-    },
-    _triggerClaimed: false,
-    _contentClaimed: false,
-  };
-
-  // Phase 1: resolve children to collect registrations, then resolve content
-  // children while still inside the Provider so sub-components can access context
-  let resolvedNodes: Node[] = [];
-  let contentNodes: Node[] = [];
-  AlertDialogContext.Provider(ctxValue, () => {
-    resolvedNodes = resolveChildren(children);
-    contentNodes = resolveChildren(reg.contentChildren);
-  });
-
-  // Phase 2: reactive state — compiler transforms `let` to signal
+  // Reactive state — compiler transforms `let` to signal.
   let isOpen = false;
-  const contentRef: Ref<HTMLDivElement> = ref();
-  let restoreFocus: (() => void) | null = null;
-  let removeTrap: (() => void) | null = null;
+
+  function getConnectedDialog(): HTMLDialogElement | null {
+    return document.getElementById(ids.contentId) as HTMLDialogElement | null;
+  }
+
+  function showDialog(): void {
+    const el = getConnectedDialog();
+    if (!el || el.open) return;
+
+    el.setAttribute('data-state', 'open');
+    el.showModal();
+  }
+
+  function hideDialog(): void {
+    const el = getConnectedDialog();
+    if (!el || !el.open) return;
+
+    el.setAttribute('data-state', 'closed');
+    const onEnd = () => {
+      el.removeEventListener('animationend', onEnd);
+      if (el.open) el.close();
+    };
+    el.addEventListener('animationend', onEnd);
+    setTimeout(onEnd, 150);
+  }
 
   function open(): void {
     isOpen = true;
-    if (reg.triggerEl) {
-      reg.triggerEl.setAttribute('aria-expanded', 'true');
-      reg.triggerEl.setAttribute('data-state', 'open');
-    }
-    restoreFocus = saveFocus();
-    const contentEl = contentRef.current;
-    if (contentEl) {
-      removeTrap = trapFocus(contentEl);
-      queueMicrotask(() => focusFirst(contentEl));
-    }
+    showDialog();
     onOpenChange?.(true);
   }
 
   function close(): void {
     isOpen = false;
-    if (reg.triggerEl) {
-      reg.triggerEl.setAttribute('aria-expanded', 'false');
-      reg.triggerEl.setAttribute('data-state', 'closed');
-    }
-    removeTrap?.();
-    removeTrap = null;
-    restoreFocus?.();
-    restoreFocus = null;
+    hideDialog();
     onOpenChange?.(false);
   }
 
-  // Wire user trigger — AlertDialog trigger only opens (never closes)
-  if (reg.triggerEl) {
-    reg.triggerEl.setAttribute('aria-haspopup', 'dialog');
-    reg.triggerEl.setAttribute('aria-controls', ids.contentId);
-    reg.triggerEl.setAttribute('aria-expanded', 'false');
-    reg.triggerEl.setAttribute('data-state', 'closed');
-
-    const triggerEl = reg.triggerEl;
-    const handleClick = () => {
-      if (!isOpen) open();
-    };
-    triggerEl.addEventListener('click', handleClick);
-    _tryOnCleanup(() => triggerEl.removeEventListener('click', handleClick));
-  }
-
-  const combined = [classes?.content, reg.contentCls].filter(Boolean).join(' ');
-
-  // Create content panel first so we can wire the delegation handler
-  const contentPanel = (
-    <div
-      ref={contentRef}
-      role="alertdialog"
-      id={ids.contentId}
-      aria-modal="true"
-      aria-labelledby={titleId}
-      aria-describedby={descriptionId}
-      aria-hidden={isOpen ? 'false' : 'true'}
-      data-state={isOpen ? 'open' : 'closed'}
-      style={isOpen ? '' : 'display: none'}
-      class={combined || undefined}
-    >
-      {...contentNodes}
-    </div>
-  ) as HTMLDivElement;
-
-  // Wire cancel/action delegation on the content panel (explicit for cleanup)
-  const handleContentClick = (e: Event) => {
-    const target = e.target as HTMLElement;
-
-    if (target.closest('[data-slot="alertdialog-cancel"]')) {
-      close();
-      return;
-    }
-
-    if (target.closest('[data-slot="alertdialog-action"]')) {
-      close();
-    }
+  const ctx: AlertDialogContextValue = {
+    isOpen,
+    titleId,
+    descriptionId,
+    contentId: ids.contentId,
+    classes,
+    onAction,
+    open,
+    close,
   };
-  contentPanel.addEventListener('click', handleContentClick);
-  _tryOnCleanup(() => contentPanel.removeEventListener('click', handleContentClick));
-
-  // No Escape key handler — AlertDialog blocks Escape dismiss
-  // No overlay click handler — AlertDialog blocks overlay dismiss
 
   return (
-    <div style="display: contents">
-      {...resolvedNodes}
-      <div
-        data-alertdialog-overlay=""
-        aria-hidden={isOpen ? 'false' : 'true'}
-        data-state={isOpen ? 'open' : 'closed'}
-        style={isOpen ? '' : 'display: none'}
-        class={classes?.overlay || undefined}
-      />
-      {contentPanel}
-    </div>
+    <AlertDialogContext.Provider value={ctx}>
+      <span style="display: contents" data-alertdialog-root="">
+        {children}
+      </span>
+    </AlertDialogContext.Provider>
   );
 }
 

@@ -2,6 +2,11 @@ import { describe, expect, it } from 'bun:test';
 import { ComposedDialog } from '../../dialog/dialog-composed';
 import { withStyles } from '../with-styles';
 
+function requiredElement<T extends Element>(element: T | null): T {
+  expect(element).toBeTruthy();
+  return element as T;
+}
+
 describe('withStyles', () => {
   describe('Given withStyles(Dialog, classes)', () => {
     describe('When used as a component', () => {
@@ -31,14 +36,11 @@ describe('withStyles', () => {
         document.body.appendChild(root);
         triggerBtn.click();
 
-        const overlay = root.querySelector('[data-dialog-overlay]') as HTMLElement;
-        expect(overlay!.className).toBe('styled-overlay');
+        const panel = requiredElement(root.querySelector('[role="dialog"]') as HTMLElement | null);
+        expect(panel.className).toContain('styled-content');
 
-        const panel = root.querySelector('[role="dialog"]') as HTMLElement;
-        expect(panel!.className).toContain('styled-content');
-
-        const title = panel!.querySelector('h2') as HTMLElement;
-        expect(title!.className).toBe('styled-title');
+        const title = requiredElement(panel.querySelector('h2') as HTMLElement | null);
+        expect(title.className).toBe('styled-title');
 
         document.body.removeChild(root);
       });
@@ -112,10 +114,14 @@ describe('withStyles', () => {
         btn1.click();
         btn2.click();
 
-        const overlay1 = root1.querySelector('[data-dialog-overlay]') as HTMLElement;
-        const overlay2 = root2.querySelector('[data-dialog-overlay]') as HTMLElement;
-        expect(overlay1!.className).toBe('shadcn-overlay');
-        expect(overlay2!.className).toBe('material-overlay');
+        const panel1 = requiredElement(
+          root1.querySelector('[role="dialog"]') as HTMLElement | null,
+        );
+        const panel2 = requiredElement(
+          root2.querySelector('[role="dialog"]') as HTMLElement | null,
+        );
+        expect(panel1.className).toContain('shadcn-content');
+        expect(panel2.className).toContain('material-content');
 
         document.body.removeChild(root1);
         document.body.removeChild(root2);

@@ -1,9 +1,9 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it, vi } from 'bun:test';
 import { createThemedSheet } from '../components/primitives/sheet';
 import { createSheetStyles } from '../styles/sheet';
 
 afterEach(() => {
-  for (const el of document.body.querySelectorAll('[data-sheet-overlay], [role="dialog"]')) {
+  for (const el of document.body.querySelectorAll('[role="dialog"]')) {
     el.remove();
   }
   for (const el of document.body.querySelectorAll('[data-state]')) {
@@ -46,8 +46,9 @@ describe('sheet styles', () => {
     expect(sheet.css).toContain('vz-slide-out-to-right');
   });
 
-  it('overlay CSS includes pointer-events:none when data-state is closed', () => {
-    expect(sheet.css).toContain('pointer-events');
+  it('panel CSS styles the native dialog backdrop', () => {
+    expect(sheet.css).toContain('::backdrop');
+    expect(sheet.css).toContain('backdrop-filter');
   });
 });
 
@@ -75,7 +76,7 @@ describe('themed Sheet', () => {
       },
     });
 
-    expect(root).toBeInstanceOf(HTMLDivElement);
+    expect(root).toBeInstanceOf(HTMLElement);
     expect(root.contains(btn)).toBe(true);
   });
 
@@ -112,9 +113,11 @@ describe('themed Sheet', () => {
 
   it('Close button applies theme class and closes the sheet', () => {
     const btn = document.createElement('button');
+    const onOpenChange = vi.fn();
     let closeEl!: HTMLElement;
 
     const root = Sheet({
+      onOpenChange,
       children: () => {
         const t = Sheet.Trigger({ children: [btn] });
         const c = Sheet.Content({
@@ -134,12 +137,12 @@ describe('themed Sheet', () => {
     expect(closeEl.className).toContain(styles.close);
 
     closeEl.click();
-    expect(dialog.getAttribute('data-state')).toBe('closed');
+    expect(onOpenChange).toHaveBeenCalledWith(false);
 
     document.body.removeChild(root);
   });
 
-  it('defaults to right side with overlay', () => {
+  it('defaults to the right side panel class', () => {
     const btn = document.createElement('button');
 
     const root = Sheet({
@@ -152,13 +155,10 @@ describe('themed Sheet', () => {
       },
     });
     document.body.appendChild(root);
+    btn.click();
 
     const panel = root.querySelector('[role="dialog"]') as HTMLElement;
     expect(panel.className).toContain(styles.panelRight);
-
-    const overlay = root.querySelector('[data-sheet-overlay]') as HTMLElement;
-    expect(overlay).toBeTruthy();
-    expect(overlay.className).toContain(styles.overlay);
 
     document.body.removeChild(root);
   });

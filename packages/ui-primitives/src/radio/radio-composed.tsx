@@ -1,11 +1,10 @@
 /**
- * Composed RadioGroup — declarative JSX component with context-based registration
- * and class distribution. Builds on the same behavior as Radio.Root but in a fully
- * declarative structure.
+ * Composed RadioGroup — compound component where each Item renders its own DOM.
+ * Root provides shared state via context. No registration, no resolveChildren.
  */
 
-import type { ChildValue, Ref } from '@vertz/ui';
-import { createContext, ref, resolveChildren, useContext } from '@vertz/ui';
+import type { ChildValue } from '@vertz/ui';
+import { createContext, useContext } from '@vertz/ui';
 import { uniqueId } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
@@ -17,6 +16,7 @@ export interface RadioGroupClasses {
   root?: string;
   item?: string;
   indicator?: string;
+  indicatorIcon?: string;
 }
 
 export type RadioGroupClassKey = keyof RadioGroupClasses;
@@ -26,8 +26,9 @@ export type RadioGroupClassKey = keyof RadioGroupClasses;
 // ---------------------------------------------------------------------------
 
 interface RadioGroupContextValue {
-  /** @internal — registers an item for the radio group */
-  _registerItem: (value: string, disabled: boolean, labelText: string) => void;
+  selectedValue: string;
+  classes?: RadioGroupClasses;
+  select: (value: string) => void;
 }
 
 const RadioGroupContext = createContext<RadioGroupContextValue | undefined>(
@@ -57,19 +58,42 @@ interface RadioGroupItemProps {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components — registration via context
+// Sub-components — each renders its own DOM
 // ---------------------------------------------------------------------------
 
 function RadioGroupItem({ value, disabled, children }: RadioGroupItemProps) {
-  const { _registerItem } = useRadioGroupContext('Item');
+  const ctx = useRadioGroupContext('Item');
+  const isDisabled = disabled ?? false;
 
-  // Resolve children to extract label text
-  const resolved = resolveChildren(children);
-  const labelText = resolved.map((n) => n.textContent ?? '').join('');
-
-  _registerItem(value, disabled ?? false, labelText);
-
-  return (<span style="display: contents" />) as HTMLElement;
+  return (
+    <div
+      style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"
+      data-radiogroup-item=""
+      data-value={value}
+      onClick={() => {
+        if (!isDisabled) ctx.select(value);
+      }}
+    >
+      <div
+        role="radio"
+        aria-checked={ctx.selectedValue === value ? 'true' : 'false'}
+        data-state={ctx.selectedValue === value ? 'checked' : 'unchecked'}
+        tabindex={ctx.selectedValue === value ? '0' : '-1'}
+        aria-disabled={isDisabled ? 'true' : undefined}
+        class={ctx.classes?.item}
+        style={isDisabled ? 'pointer-events: none; position: relative;' : 'position: relative;'}
+      >
+        <span
+          data-part="indicator"
+          data-state={ctx.selectedValue === value ? 'checked' : 'unchecked'}
+          class={ctx.classes?.indicator}
+        >
+          <span data-part="indicator-icon" class={ctx.classes?.indicatorIcon} />
+        </span>
+      </div>
+      {children && <span>{children}</span>}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -89,111 +113,74 @@ function ComposedRadioGroupRoot({
   defaultValue = '',
   onValueChange,
 }: ComposedRadioGroupProps) {
-  // Collect item registrations
-  const registrations: { value: string; disabled: boolean; labelText: string }[] = [];
-
-  const ctxValue: RadioGroupContextValue = {
-    _registerItem: (value, disabled, labelText) => {
-      registrations.push({ value, disabled, labelText });
-    },
-  };
-
-  // Resolve children to collect registrations
-  RadioGroupContext.Provider(ctxValue, () => {
-    resolveChildren(children);
-  });
-
-  // Reactive state — compiler transforms `let` to signal
   let selectedValue = defaultValue;
 
-  // Refs for keyboard navigation (focus management)
-  const itemRefs: Ref<HTMLDivElement>[] = registrations.map(() => ref());
-  const itemValues: string[] = registrations.map((r) => r.value);
-
-  function selectItem(value: string, focusIdx?: number): void {
+  function select(value: string): void {
     selectedValue = value;
-    if (focusIdx != null) itemRefs[focusIdx]?.current?.focus();
     onValueChange?.(value);
   }
 
-  // Build items — inline signal refs so the compiler emits reactive __attr() calls.
-  const itemNodes = registrations.map((reg, i) => {
-    const { value, disabled: isDisabled, labelText } = reg;
-
-    return (
-      <div
-        ref={itemRefs[i]}
-        role="radio"
-        id={uniqueId('radio')}
-        data-value={value}
-        aria-checked={value === selectedValue ? 'true' : 'false'}
-        data-state={value === selectedValue ? 'checked' : 'unchecked'}
-        tabindex={value === selectedValue ? '0' : '-1'}
-        aria-disabled={isDisabled ? 'true' : undefined}
-        class={classes?.item}
-        style={isDisabled ? 'pointer-events: none' : undefined}
-        onClick={() => {
-          if (!isDisabled) selectItem(value, i);
-        }}
-      >
-        <span
-          data-part="indicator"
-          data-state={value === selectedValue ? 'checked' : 'unchecked'}
-          class={classes?.indicator}
-        />
-        {labelText && <span>{labelText}</span>}
-      </div>
-    );
-  });
+  const ctx: RadioGroupContextValue = {
+    selectedValue,
+    classes,
+    select,
+  };
 
   return (
-    <div
-      role="radiogroup"
-      id={uniqueId('radiogroup')}
-      class={classes?.root}
-      onKeydown={(event: KeyboardEvent) => {
-        const currentIdx = itemRefs.findIndex((r) => r.current === document.activeElement);
-        if (currentIdx < 0) return;
+    <RadioGroupContext.Provider value={ctx}>
+      <div
+        role="radiogroup"
+        id={uniqueId('radiogroup')}
+        class={classes?.root}
+        data-radiogroup-root=""
+        onKeydown={(event: KeyboardEvent) => {
+          const root = (event.currentTarget as HTMLElement);
+          const items = [...root.querySelectorAll<HTMLElement>('[data-radiogroup-item]')];
+          const currentIdx = items.indexOf(document.activeElement as HTMLElement);
+          if (currentIdx < 0) return;
 
-        const len = itemRefs.length;
-        let nextIdx = -1;
+          const len = items.length;
+          let nextIdx = -1;
 
-        if (isKey(event, Keys.ArrowDown, Keys.ArrowRight)) {
-          event.preventDefault();
-          nextIdx = (currentIdx + 1) % len;
-        } else if (isKey(event, Keys.ArrowUp, Keys.ArrowLeft)) {
-          event.preventDefault();
-          nextIdx = (currentIdx - 1 + len) % len;
-        } else if (isKey(event, Keys.Home)) {
-          event.preventDefault();
-          nextIdx = 0;
-        } else if (isKey(event, Keys.End)) {
-          event.preventDefault();
-          nextIdx = len - 1;
-        }
+          if (isKey(event, Keys.ArrowDown, Keys.ArrowRight)) {
+            event.preventDefault();
+            nextIdx = (currentIdx + 1) % len;
+          } else if (isKey(event, Keys.ArrowUp, Keys.ArrowLeft)) {
+            event.preventDefault();
+            nextIdx = (currentIdx - 1 + len) % len;
+          } else if (isKey(event, Keys.Home)) {
+            event.preventDefault();
+            nextIdx = 0;
+          } else if (isKey(event, Keys.End)) {
+            event.preventDefault();
+            nextIdx = len - 1;
+          }
 
-        if (nextIdx < 0) return;
+          if (nextIdx < 0) return;
 
-        // Skip disabled items: scan forward for Home/ArrowDown/Right, backward for End/ArrowUp/Left
-        const direction = isKey(event, Keys.End, Keys.ArrowUp, Keys.ArrowLeft) ? -1 : 1;
-        const startIdx = nextIdx;
-        while (registrations[nextIdx]?.disabled) {
-          nextIdx = (nextIdx + direction + len) % len;
-          if (nextIdx === startIdx) return; // all disabled
-        }
+          // Skip disabled items
+          const direction = isKey(event, Keys.End, Keys.ArrowUp, Keys.ArrowLeft) ? -1 : 1;
+          const startIdx = nextIdx;
+          while (items[nextIdx]?.getAttribute('aria-disabled') === 'true') {
+            nextIdx = (nextIdx + direction + len) % len;
+            if (nextIdx === startIdx) return; // all disabled
+          }
 
-        if (nextIdx !== currentIdx) {
-          selectItem(itemValues[nextIdx] ?? '', nextIdx);
-        }
-      }}
-    >
-      {itemNodes}
-    </div>
+          const nextValue = items[nextIdx]?.getAttribute('data-value');
+          if (nextValue != null) {
+            select(nextValue);
+            items[nextIdx]?.focus();
+          }
+        }}
+      >
+        {children}
+      </div>
+    </RadioGroupContext.Provider>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Export as callable with sub-component properties
+// Export
 // ---------------------------------------------------------------------------
 
 export const ComposedRadioGroup = Object.assign(ComposedRadioGroupRoot, {

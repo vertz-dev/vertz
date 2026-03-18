@@ -60,12 +60,13 @@ withStyles(ComposedCheckbox, { root: 'a', thumb: 'b' });
 
 // ── RadioGroup: Positive ──
 
-withStyles(ComposedRadioGroup, { root: 'a', item: 'b', indicator: 'c' });
+withStyles(ComposedRadioGroup, { root: 'a', item: 'b', indicator: 'c', indicatorIcon: 'd' });
 
 const StyledRadioGroup = withStyles(ComposedRadioGroup, {
   root: 'a',
   item: 'b',
   indicator: 'c',
+  indicatorIcon: 'd',
 });
 StyledRadioGroup({ children: [] });
 // Sub-component preserved on styled result

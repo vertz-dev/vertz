@@ -1,11 +1,11 @@
 /**
- * Composed Carousel — fully declarative JSX component with slide navigation.
- * Follows WAI-ARIA carousel pattern.
- * Sub-components self-wire via context. No factory wrapping.
+ * Composed Carousel — compound component with slide navigation.
+ * Each sub-component renders its own DOM. Root provides shared state via context.
+ * No registration, no resolveChildren, no internal API imports.
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, resolveChildren, useContext } from '@vertz/ui';
+import { createContext, onMount, useContext } from '@vertz/ui';
 
 // ---------------------------------------------------------------------------
 // Class types
@@ -20,23 +20,12 @@ export interface CarouselClasses {
 }
 
 // ---------------------------------------------------------------------------
-// Registration types
-// ---------------------------------------------------------------------------
-
-interface SlideRegistration {
-  children: ChildValue;
-  className: string | undefined;
-}
-
-// ---------------------------------------------------------------------------
 // Context
 // ---------------------------------------------------------------------------
 
 interface CarouselContextValue {
+  currentIndex: number;
   classes?: CarouselClasses;
-  _registerSlide: (reg: SlideRegistration) => void;
-  _registerPrevious: (children: ChildValue) => void;
-  _registerNext: (children: ChildValue) => void;
 }
 
 const CarouselContext = createContext<CarouselContextValue | undefined>(
@@ -70,25 +59,48 @@ interface SlotProps {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components
+// Sub-components — each renders its own DOM
 // ---------------------------------------------------------------------------
 
 function CarouselSlide({ children, className: cls, class: classProp }: SlideProps) {
   const ctx = useCarouselContext('Slide');
-  ctx._registerSlide({ children, className: cls ?? classProp });
-  return (<span style="display: contents" />) as HTMLElement;
+  const effectiveCls = cls ?? classProp;
+  const combined = [ctx.classes?.slide, effectiveCls].filter(Boolean).join(' ');
+
+  return (
+    <div
+      role="group"
+      aria-roledescription="slide"
+      data-carousel-slide=""
+      class={combined || undefined}
+    >
+      {children}
+    </div>
+  );
 }
 
 function CarouselPrevious({ children }: SlotProps) {
-  const ctx = useCarouselContext('Previous');
-  ctx._registerPrevious(children);
-  return (<span style="display: contents" />) as HTMLElement;
+  return (
+    <button
+      type="button"
+      aria-label="Previous slide"
+      data-carousel-prev=""
+    >
+      {children}
+    </button>
+  );
 }
 
 function CarouselNext({ children }: SlotProps) {
-  const ctx = useCarouselContext('Next');
-  ctx._registerNext(children);
-  return (<span style="display: contents" />) as HTMLElement;
+  return (
+    <button
+      type="button"
+      aria-label="Next slide"
+      data-carousel-next=""
+    >
+      {children}
+    </button>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -114,175 +126,102 @@ function ComposedCarouselRoot({
   defaultIndex = 0,
   onSlideChange,
 }: ComposedCarouselProps) {
-  // Registration storage — plain object so compiler doesn't signal-transform
-  const reg: {
-    slides: SlideRegistration[];
-    prevChildren: ChildValue;
-    nextChildren: ChildValue;
-  } = { slides: [], prevChildren: undefined, nextChildren: undefined };
+  let currentIndex = defaultIndex;
 
-  const ctxValue: CarouselContextValue = {
+  // Wire navigation handlers via event delegation on the connected root.
+  onMount(() => {
+    const root = document.querySelector('[data-carousel-root]') as HTMLElement & { __carouselWired?: boolean } | null;
+    if (!root || root.__carouselWired) return;
+    root.__carouselWired = true;
+
+    function getSlides(): HTMLElement[] {
+      return [...root!.querySelectorAll<HTMLElement>('[data-carousel-slide]')];
+    }
+
+    function updateDOM(): void {
+      const slides = getSlides();
+      const slideCount = slides.length;
+      slides.forEach((slide, i) => {
+        slide.setAttribute('aria-hidden', String(i !== currentIndex));
+        slide.setAttribute('aria-label', `Slide ${i + 1} of ${slideCount}`);
+        slide.setAttribute('data-state', i === currentIndex ? 'active' : 'inactive');
+      });
+
+      const prevBtn = root!.querySelector('[data-carousel-prev]') as HTMLButtonElement | null;
+      const nextBtn = root!.querySelector('[data-carousel-next]') as HTMLButtonElement | null;
+      if (!loop && prevBtn) prevBtn.disabled = currentIndex <= 0;
+      if (!loop && nextBtn) nextBtn.disabled = currentIndex >= slideCount - 1;
+
+      const viewport = root!.querySelector('[data-carousel-viewport]') as HTMLElement | null;
+      if (viewport) {
+        const prop = orientation === 'horizontal' ? 'translateX' : 'translateY';
+        viewport.style.transform = `${prop}(-${currentIndex * 100}%)`;
+      }
+    }
+
+    function goTo(index: number): void {
+      const slideCount = getSlides().length;
+      if (slideCount === 0) return;
+      let next = index;
+      if (loop) {
+        next = ((index % slideCount) + slideCount) % slideCount;
+      } else {
+        next = Math.max(0, Math.min(slideCount - 1, index));
+      }
+      if (next === currentIndex) return;
+      currentIndex = next;
+      updateDOM();
+      onSlideChange?.(next);
+    }
+
+    root.addEventListener('click', (e: Event) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-carousel-prev]')) goTo(currentIndex - 1);
+      if (target.closest('[data-carousel-next]')) goTo(currentIndex + 1);
+    });
+
+    root.addEventListener('keydown', (e: Event) => {
+      const ke = e as KeyboardEvent;
+      const prevKey = orientation === 'horizontal' ? 'ArrowLeft' : 'ArrowUp';
+      const nextKey = orientation === 'horizontal' ? 'ArrowRight' : 'ArrowDown';
+      if (ke.key === prevKey) { ke.preventDefault(); goTo(currentIndex - 1); }
+      if (ke.key === nextKey) { ke.preventDefault(); goTo(currentIndex + 1); }
+    });
+
+    // Initial state
+    updateDOM();
+  });
+
+  const ctx: CarouselContextValue = {
+    currentIndex,
     classes,
-    _registerSlide: (slideReg) => {
-      reg.slides.push(slideReg);
-    },
-    _registerPrevious: (prevChildren) => {
-      if (reg.prevChildren === undefined) {
-        reg.prevChildren = prevChildren;
-      }
-    },
-    _registerNext: (nextChildren) => {
-      if (reg.nextChildren === undefined) {
-        reg.nextChildren = nextChildren;
-      }
-    },
   };
 
-  // Phase 1: resolve children to collect registrations
-  CarouselContext.Provider(ctxValue, () => {
-    resolveChildren(children);
-  });
-
-  // Phase 2: build the carousel
-  let currentIndex = defaultIndex;
-  const slideCount = reg.slides.length;
-
-  function goTo(index: number): void {
-    if (slideCount === 0) return;
-    let next = index;
-    if (loop) {
-      next = ((index % slideCount) + slideCount) % slideCount;
-    } else {
-      next = Math.max(0, Math.min(slideCount - 1, index));
-    }
-    if (next === currentIndex) return;
-    currentIndex = next;
-    updateSlideVisibility();
-    onSlideChange?.(next);
-  }
-
-  function goNext(): void {
-    goTo(currentIndex + 1);
-  }
-
-  function goPrev(): void {
-    goTo(currentIndex - 1);
-  }
-
-  function updateSlideVisibility(): void {
-    for (let i = 0; i < slideEls.length; i++) {
-      const slide = slideEls[i];
-      if (!slide) continue;
-      slide.setAttribute('aria-hidden', String(i !== currentIndex));
-      slide.setAttribute('aria-label', `Slide ${i + 1} of ${slideCount}`);
-      slide.setAttribute('data-state', i === currentIndex ? 'active' : 'inactive');
-    }
-    if (!loop && prevButtonEl) {
-      (prevButtonEl as HTMLButtonElement).disabled = currentIndex <= 0;
-    }
-    if (!loop && nextButtonEl) {
-      (nextButtonEl as HTMLButtonElement).disabled = currentIndex >= slideCount - 1;
-    }
-    const translateProp = orientation === 'horizontal' ? 'translateX' : 'translateY';
-    if (viewportEl) {
-      viewportEl.style.transform = `${translateProp}(-${currentIndex * 100}%)`;
-    }
-  }
-
-  const isKey = (e: KeyboardEvent, key: string) => e.key === key;
-
-  function handleKeydown(event: KeyboardEvent): void {
-    const prevKey = orientation === 'horizontal' ? 'ArrowLeft' : 'ArrowUp';
-    const nextKey = orientation === 'horizontal' ? 'ArrowRight' : 'ArrowDown';
-    if (isKey(event, prevKey)) {
-      event.preventDefault();
-      goPrev();
-    }
-    if (isKey(event, nextKey)) {
-      event.preventDefault();
-      goNext();
-    }
-  }
-
-  // Build slide elements
-  const slideEls: HTMLDivElement[] = [];
-  const slideNodes = reg.slides.map((slideReg, i) => {
-    const resolved = resolveChildren(slideReg.children);
-    const slideClass = [classes?.slide, slideReg.className].filter(Boolean).join(' ') || undefined;
-    const isActive = i === defaultIndex;
-    const el = (
-      <div
-        role="group"
-        aria-roledescription="slide"
-        aria-hidden={isActive ? 'false' : 'true'}
-        aria-label={`Slide ${i + 1} of ${slideCount}`}
-        data-state={isActive ? 'active' : 'inactive'}
-        class={slideClass}
-      >
-        {...resolved}
-      </div>
-    ) as HTMLDivElement;
-    slideEls.push(el);
-    return el;
-  });
-
-  // Resolve prev/next button content
-  const prevContent = resolveChildren(reg.prevChildren);
-  const nextContent = resolveChildren(reg.nextChildren);
-
-  // Build viewport
-  const viewportEl = (
-    <div style="overflow: hidden;" class={classes?.viewport}>
-      {...slideNodes}
-    </div>
-  ) as HTMLDivElement;
-
-  // Build prev/next buttons
-  const prevButtonEl = (
-    <button
-      type="button"
-      aria-label="Previous slide"
-      class={classes?.prevButton}
-      disabled={!loop && defaultIndex <= 0}
-      onClick={goPrev}
-    >
-      {...prevContent}
-    </button>
-  ) as HTMLButtonElement;
-
-  const nextButtonEl = (
-    <button
-      type="button"
-      aria-label="Next slide"
-      class={classes?.nextButton}
-      disabled={!loop && defaultIndex >= slideCount - 1}
-      onClick={goNext}
-    >
-      {...nextContent}
-    </button>
-  ) as HTMLButtonElement;
-
-  // Apply initial transform
   const translateProp = orientation === 'horizontal' ? 'translateX' : 'translateY';
-  viewportEl.style.transform = `${translateProp}(-${defaultIndex * 100}%)`;
 
   return (
-    <div
-      role="region"
-      aria-roledescription="carousel"
-      data-orientation={orientation}
-      class={classes?.root}
-      onKeydown={handleKeydown}
-    >
-      {viewportEl}
-      {prevButtonEl}
-      {nextButtonEl}
-    </div>
-  ) as HTMLElement;
+    <CarouselContext.Provider value={ctx}>
+      <div
+        role="region"
+        aria-roledescription="carousel"
+        data-carousel-root=""
+        data-orientation={orientation}
+        class={classes?.root}
+      >
+        <div
+          data-carousel-viewport=""
+          style={`overflow: hidden; transform: ${translateProp}(-${defaultIndex * 100}%)`}
+          class={classes?.viewport}
+        >
+          {children}
+        </div>
+      </div>
+    </CarouselContext.Provider>
+  );
 }
 
 // ---------------------------------------------------------------------------
-// Export as callable with sub-component properties
+// Export
 // ---------------------------------------------------------------------------
 
 export const ComposedCarousel = Object.assign(ComposedCarouselRoot, {
