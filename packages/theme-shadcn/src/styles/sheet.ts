@@ -67,6 +67,8 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
           inset: '0 auto 0 0',
           width: '75%',
           'max-width': '24rem',
+          height: '100dvh',
+          'max-height': 'none',
           margin: '0',
           outline: 'none',
           border: 'none',
@@ -99,6 +101,8 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
           inset: '0 0 0 auto',
           width: '75%',
           'max-width': '24rem',
+          height: '100dvh',
+          'max-height': 'none',
           margin: '0',
           outline: 'none',
           border: 'none',
@@ -129,6 +133,8 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
       {
         '&': {
           inset: '0 0 auto 0',
+          width: '100dvw',
+          'max-width': 'none',
           margin: '0',
           outline: 'none',
           border: 'none',
@@ -159,6 +165,8 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
       {
         '&': {
           inset: 'auto 0 0 0',
+          width: '100dvw',
+          'max-width': 'none',
           margin: '0',
           outline: 'none',
           border: 'none',
