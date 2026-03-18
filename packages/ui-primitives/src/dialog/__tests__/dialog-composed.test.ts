@@ -225,6 +225,65 @@ describe('Composed Dialog', () => {
     });
   });
 
+  describe('Given an open dialog', () => {
+    describe('When close is triggered via Close button', () => {
+      it('Then sets data-state to closed but defers dialog.close() for animation', () => {
+        const { root, triggerBtn, closeEl } = createDialogTree();
+        container.appendChild(root);
+
+        triggerBtn.click();
+        const panel = getConnectedPanel(root);
+        expect(panel.open).toBe(true);
+        expect(panel.getAttribute('data-state')).toBe('open');
+
+        // Spy on dialog.close() to track when it's called
+        const closeSpy = vi.spyOn(panel, 'close');
+
+        closeEl.click();
+
+        // data-state should be "closed" immediately (triggers CSS animation)
+        expect(panel.getAttribute('data-state')).toBe('closed');
+
+        // But dialog.close() should NOT have been called yet — animation is pending
+        expect(closeSpy).not.toHaveBeenCalled();
+
+        // Simulate animationend — browser fires this after the CSS animation completes
+        panel.dispatchEvent(new Event('animationend'));
+
+        // Now dialog.close() should have been called
+        expect(closeSpy).toHaveBeenCalled();
+      });
+    });
+
+    describe('When close is triggered via Escape key', () => {
+      it('Then prevents native close and defers dialog.close() for animation', () => {
+        const { root, triggerBtn } = createDialogTree();
+        container.appendChild(root);
+
+        triggerBtn.click();
+        const panel = getConnectedPanel(root);
+        expect(panel.open).toBe(true);
+
+        const closeSpy = vi.spyOn(panel, 'close');
+        const cancelEvent = new Event('cancel', { bubbles: true, cancelable: true });
+        panel.dispatchEvent(cancelEvent);
+
+        // Cancel event must be prevented to stop native close before animation
+        expect(cancelEvent.defaultPrevented).toBe(true);
+
+        // data-state should be "closed" immediately
+        expect(panel.getAttribute('data-state')).toBe('closed');
+
+        // dialog.close() should be deferred
+        expect(closeSpy).not.toHaveBeenCalled();
+
+        // After animation ends, dialog closes
+        panel.dispatchEvent(new Event('animationend'));
+        expect(closeSpy).toHaveBeenCalled();
+      });
+    });
+  });
+
   describe('Given a Dialog.Trigger rendered outside Dialog', () => {
     describe('When the component mounts', () => {
       it('Then throws an error', () => {

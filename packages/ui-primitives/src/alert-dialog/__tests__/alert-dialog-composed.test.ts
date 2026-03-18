@@ -235,6 +235,29 @@ describe('Composed AlertDialog', () => {
     });
   });
 
+  describe('Given an open AlertDialog', () => {
+    describe('When close is triggered via Cancel button', () => {
+      it('Then sets data-state to closed but defers dialog.close() for animation', () => {
+        const { root, triggerBtn, cancelEl } = createAlertDialogTree();
+        container.appendChild(root);
+
+        triggerBtn.click();
+        const panel = getConnectedPanel(root);
+        expect(panel.open).toBe(true);
+
+        const closeSpy = vi.spyOn(panel, 'close');
+
+        cancelEl.click();
+
+        expect(panel.getAttribute('data-state')).toBe('closed');
+        expect(closeSpy).not.toHaveBeenCalled();
+
+        panel.dispatchEvent(new Event('animationend'));
+        expect(closeSpy).toHaveBeenCalled();
+      });
+    });
+  });
+
   describe('Given an AlertDialog.Trigger rendered outside AlertDialog', () => {
     describe('When the component mounts', () => {
       it('Then throws an error', () => {

@@ -140,9 +140,9 @@ function DialogContent({
       aria-describedby={ctx.descriptionId}
       data-state={ctx.isOpen ? 'open' : 'closed'}
       class={combined || undefined}
-      onCancel={() => {
-        // Browser closes the dialog natively on Escape.
-        // Sync our reactive state to match.
+      onCancel={(e: Event) => {
+        // Prevent native close so the CSS exit animation can play.
+        e.preventDefault();
         ctx.close();
       }}
       onClick={(e: MouseEvent) => {
@@ -278,12 +278,15 @@ function ComposedDialogRoot({ children, classes, onOpenChange }: ComposedDialogP
     if (!el || !el.open) return;
 
     el.setAttribute('data-state', 'closed');
+    // Force reflow so the browser starts the CSS close animation
+    // before any subsequent reactive updates.
+    void el.offsetHeight;
     const onEnd = () => {
       el.removeEventListener('animationend', onEnd);
       if (el.open) el.close();
     };
     el.addEventListener('animationend', onEnd);
-    setTimeout(onEnd, 150);
+    setTimeout(onEnd, 200);
   }
 
   function open(): void {
@@ -293,8 +296,8 @@ function ComposedDialogRoot({ children, classes, onOpenChange }: ComposedDialogP
   }
 
   function close(): void {
-    isOpen = false;
     hideDialog();
+    isOpen = false;
     onOpenChange?.(false);
   }
 

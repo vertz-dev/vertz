@@ -266,12 +266,15 @@ function ComposedAlertDialogRoot({
     if (!el || !el.open) return;
 
     el.setAttribute('data-state', 'closed');
+    // Force reflow so the browser starts the CSS close animation
+    // before any subsequent reactive updates.
+    void el.offsetHeight;
     const onEnd = () => {
       el.removeEventListener('animationend', onEnd);
       if (el.open) el.close();
     };
     el.addEventListener('animationend', onEnd);
-    setTimeout(onEnd, 150);
+    setTimeout(onEnd, 200);
   }
 
   function open(): void {
@@ -281,8 +284,8 @@ function ComposedAlertDialogRoot({
   }
 
   function close(): void {
-    isOpen = false;
     hideDialog();
+    isOpen = false;
     onOpenChange?.(false);
   }
 

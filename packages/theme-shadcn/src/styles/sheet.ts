@@ -77,6 +77,12 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
           'backdrop-filter': 'blur(4px)',
           '-webkit-backdrop-filter': 'blur(4px)',
         },
+        '&[data-state="open"]::backdrop': {
+          animation: 'vz-fade-in 100ms ease-out forwards',
+        },
+        '&[data-state="closed"]::backdrop': {
+          animation: 'vz-fade-out 300ms ease-out forwards',
+        },
       },
       {
         '&[data-state="open"]': [animationDecl('vz-slide-in-from-left 300ms ease-out forwards')],
@@ -103,6 +109,12 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
           'backdrop-filter': 'blur(4px)',
           '-webkit-backdrop-filter': 'blur(4px)',
         },
+        '&[data-state="open"]::backdrop': {
+          animation: 'vz-fade-in 100ms ease-out forwards',
+        },
+        '&[data-state="closed"]::backdrop': {
+          animation: 'vz-fade-out 300ms ease-out forwards',
+        },
       },
       {
         '&[data-state="open"]': [animationDecl('vz-slide-in-from-right 300ms ease-out forwards')],
@@ -127,6 +139,12 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
           'backdrop-filter': 'blur(4px)',
           '-webkit-backdrop-filter': 'blur(4px)',
         },
+        '&[data-state="open"]::backdrop': {
+          animation: 'vz-fade-in 100ms ease-out forwards',
+        },
+        '&[data-state="closed"]::backdrop': {
+          animation: 'vz-fade-out 300ms ease-out forwards',
+        },
       },
       {
         '&[data-state="open"]': [animationDecl('vz-slide-in-from-top 300ms ease-out forwards')],
@@ -150,6 +168,12 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
           'background-color': 'oklch(0 0 0 / 10%)',
           'backdrop-filter': 'blur(4px)',
           '-webkit-backdrop-filter': 'blur(4px)',
+        },
+        '&[data-state="open"]::backdrop': {
+          animation: 'vz-fade-in 100ms ease-out forwards',
+        },
+        '&[data-state="closed"]::backdrop': {
+          animation: 'vz-fade-out 300ms ease-out forwards',
         },
       },
       {
