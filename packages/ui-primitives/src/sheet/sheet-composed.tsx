@@ -5,7 +5,7 @@
  */
 
 import type { ChildValue, Ref } from '@vertz/ui';
-import { createContext, onMount, ref, useContext } from '@vertz/ui';
+import { createContext, ref, useContext } from '@vertz/ui';
 import { linkedIds } from '../utils/id';
 import type { SheetSide } from './sheet';
 
@@ -31,6 +31,7 @@ interface SheetContextValue {
   titleId: string;
   descriptionId: string;
   contentId: string;
+  dialogRef: Ref<HTMLDialogElement>;
   side: SheetSide;
   classes?: SheetClasses;
   open: () => void;
@@ -96,28 +97,12 @@ function SheetContent({
 }: SheetContentProps) {
   const ctx = useSheetContext('Content');
 
-  const dialogRef: Ref<HTMLDialogElement> = ref();
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
-  onMount(() => {
-    const el = document.getElementById(ctx.contentId) as HTMLDialogElement | null;
-    if (!el || el.__dialogWired) return;
-    el.__dialogWired = true;
-
-    el.addEventListener('cancel', (e: Event) => {
-      e.preventDefault();
-      ctx.close();
-    });
-
-    el.addEventListener('click', (e: MouseEvent) => {
-      if (e.target === el) ctx.close();
-    });
-  });
-
   return (
     <dialog
-      ref={dialogRef}
+      ref={ctx.dialogRef}
       id={ctx.contentId}
       role="dialog"
       aria-modal="true"
@@ -131,7 +116,7 @@ function SheetContent({
         ctx.close();
       }}
       onClick={(e: MouseEvent) => {
-        if (e.target === dialogRef.current) ctx.close();
+        if (e.target === ctx.dialogRef.current) ctx.close();
       }}
     >
       {showClose && (
@@ -226,15 +211,12 @@ function ComposedSheetRoot({
   const ids = linkedIds('sheet');
   const titleId = `${ids.contentId}-title`;
   const descriptionId = `${ids.contentId}-description`;
+  const dialogRef: Ref<HTMLDialogElement> = ref();
 
   let isOpen = false;
 
-  function getConnectedDialog(): HTMLDialogElement | null {
-    return document.getElementById(ids.contentId) as HTMLDialogElement | null;
-  }
-
   function showDialog(): void {
-    const el = getConnectedDialog();
+    const el = dialogRef.current;
     if (!el || el.open) return;
 
     el.setAttribute('data-state', 'open');
@@ -242,7 +224,7 @@ function ComposedSheetRoot({
   }
 
   function hideDialog(): void {
-    const el = getConnectedDialog();
+    const el = dialogRef.current;
     if (!el || !el.open) return;
 
     el.setAttribute('data-state', 'closed');
@@ -279,6 +261,7 @@ function ComposedSheetRoot({
     titleId,
     descriptionId,
     contentId: ids.contentId,
+    dialogRef,
     side,
     classes,
     open,

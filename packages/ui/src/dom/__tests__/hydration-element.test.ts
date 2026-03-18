@@ -11,6 +11,7 @@ import {
   __staticText,
   __text,
 } from '../element';
+import { __on } from '../events';
 
 describe('DOM helpers — hydration branches', () => {
   afterEach(() => {
@@ -270,6 +271,70 @@ describe('DOM helpers — hydration branches', () => {
       endHydration();
       text.value = 'updated';
       expect(wrapper.textContent).toBe('updated');
+    });
+
+    it('ref and getElementById point to same element after hydration (#1517)', () => {
+      // __child CSR-renders content during hydration. The CSR-created elements
+      // are appended to the claimed wrapper and ARE connected to the DOM.
+      // Both ref and getElementById should return the same element.
+      const root = document.createElement('div');
+      root.innerHTML =
+        '<span style="display:contents">' +
+        '<dialog id="test-dlg"><button>Close</button></dialog>' +
+        '</span>';
+      document.body.appendChild(root);
+
+      startHydration(root);
+
+      const dialogRef: { current: HTMLElement | undefined } = { current: undefined };
+      __child(() => {
+        const dialog = document.createElement('dialog');
+        dialog.id = 'test-dlg';
+        dialogRef.current = dialog;
+        return dialog;
+      });
+
+      endHydration();
+
+      // ref.current should be the CSR-created element, now in the DOM
+      expect(dialogRef.current).toBeDefined();
+      expect(dialogRef.current?.isConnected).toBe(true);
+      // ref and getElementById should agree
+      expect(document.getElementById('test-dlg')).toBe(dialogRef.current);
+
+      document.body.removeChild(root);
+    });
+
+    it('JSX event handlers fire on CSR element inside __child (#1517)', () => {
+      // Event handlers attached via __on inside __child target CSR elements
+      // that are connected to the DOM via the claimed wrapper.
+      const root = document.createElement('div');
+      root.innerHTML =
+        '<span style="display:contents">' + '<button id="test-btn">Click</button>' + '</span>';
+      document.body.appendChild(root);
+
+      startHydration(root);
+
+      let clicked = false;
+      const wrapper = __child(() => {
+        const btn = document.createElement('button');
+        btn.id = 'test-btn';
+        btn.textContent = 'Click';
+        __on(btn, 'click', () => {
+          clicked = true;
+        });
+        return btn;
+      });
+
+      endHydration();
+
+      // The CSR button is in the DOM and has the event handler
+      const btn = wrapper.querySelector('button')!;
+      expect(btn.isConnected).toBe(true);
+      btn.click();
+      expect(clicked).toBe(true);
+
+      document.body.removeChild(root);
     });
   });
 
