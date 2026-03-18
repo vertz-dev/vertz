@@ -104,7 +104,20 @@ function DialogContent({ children, className: cls, class: classProp, showClose =
     const el = document.getElementById(ctx.contentId) as HTMLDialogElement | null;
     if (!el) return;
     if (open && !el.open) el.showModal();
-    if (!open && el.open) el.close();
+    if (!open && el.open) {
+      // Wait for the close animation to finish before removing from top layer.
+      // data-state="closed" is already set by the reactive attribute, which
+      // triggers the CSS exit animation. We listen for animationend, then
+      // call el.close() to actually remove from the top layer.
+      const onEnd = () => {
+        el.removeEventListener('animationend', onEnd);
+        el.close();
+      };
+      el.addEventListener('animationend', onEnd);
+      // Fallback: if no animation runs (e.g., prefers-reduced-motion),
+      // close after the expected duration.
+      setTimeout(onEnd, 150);
+    }
   });
 
   return (

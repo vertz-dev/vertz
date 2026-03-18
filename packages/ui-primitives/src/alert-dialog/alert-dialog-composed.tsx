@@ -103,7 +103,15 @@ function AlertDialogContent({ children, className: cls, class: classProp }: Slot
     const el = document.getElementById(ctx.contentId) as HTMLDialogElement | null;
     if (!el) return;
     if (open && !el.open) el.showModal();
-    if (!open && el.open) el.close();
+    if (!open && el.open) {
+      // Wait for the close animation before removing from top layer.
+      const onEnd = () => {
+        el.removeEventListener('animationend', onEnd);
+        el.close();
+      };
+      el.addEventListener('animationend', onEnd);
+      setTimeout(onEnd, 150);
+    }
   });
 
   return (
