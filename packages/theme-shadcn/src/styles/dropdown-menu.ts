@@ -19,6 +19,7 @@ export function createDropdownMenuStyles(): CSSOutput<DropdownMenuBlocks> {
       'bg:popover',
       'text:popover-foreground',
       'rounded:lg',
+      'w:fit',
       'p:1',
       // Nova: ring-1 ring-foreground/10 instead of border, shadow-md, min-w-32
       {
