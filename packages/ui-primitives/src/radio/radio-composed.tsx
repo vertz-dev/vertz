@@ -16,6 +16,7 @@ export interface RadioGroupClasses {
   root?: string;
   item?: string;
   indicator?: string;
+  indicatorIcon?: string;
 }
 
 export type RadioGroupClassKey = keyof RadioGroupClasses;
@@ -86,7 +87,9 @@ function RadioGroupItem({ value, disabled, children }: RadioGroupItemProps) {
           data-part="indicator"
           data-state={ctx.selectedValue === value ? 'checked' : 'unchecked'}
           class={ctx.classes?.indicator}
-        />
+        >
+          <span data-part="indicator-icon" class={ctx.classes?.indicatorIcon} />
+        </span>
       </div>
       {children && <span>{children}</span>}
     </div>
