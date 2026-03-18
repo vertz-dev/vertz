@@ -8,12 +8,12 @@
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, onMount, useContext } from '@vertz/ui';
+import { createContext, useContext } from '@vertz/ui';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
 import { linkedIds, uniqueId } from '../utils/id';
-import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
+import { isKey, Keys } from '../utils/keyboard';
 
 // ---------------------------------------------------------------------------
 // Class distribution
@@ -375,128 +375,6 @@ function ComposedMenubarRoot({ children, classes, onSelect, positioning }: Compo
       firstItem.focus();
     }
   }
-
-  // Wire keyboard navigation and event delegation on connected elements.
-  onMount(() => {
-    const root = document.getElementById(rootId) as
-      | (HTMLElement & { __menubarWired?: boolean })
-      | null;
-    if (!root || root.__menubarWired) return;
-    root.__menubarWired = true;
-
-    // Set up roving tabindex on triggers
-    const triggers = [...root.querySelectorAll<HTMLButtonElement>('[data-menubar-trigger]')];
-    for (let i = 0; i < triggers.length; i++) {
-      triggers[i]?.setAttribute('tabindex', i === 0 ? '0' : '-1');
-    }
-
-    // Root-level keyboard handler for arrow navigation between triggers
-    root.addEventListener('keydown', (event: KeyboardEvent) => {
-      if (isKey(event, Keys.ArrowLeft, Keys.ArrowRight, Keys.Home, Keys.End)) {
-        const currentTriggers = [
-          ...root.querySelectorAll<HTMLButtonElement>('[data-menubar-trigger]'),
-        ];
-        const focused = document.activeElement as HTMLElement;
-        const triggerIndex = currentTriggers.indexOf(focused as HTMLButtonElement);
-
-        if (triggerIndex >= 0) {
-          const result = handleListNavigation(event, currentTriggers, {
-            orientation: 'horizontal',
-          });
-          if (result && state.activeMenu) {
-            const newTrigger = result as HTMLButtonElement;
-            const menuValue = newTrigger.getAttribute('data-value');
-            if (menuValue) openMenu(menuValue);
-          }
-        }
-      }
-    });
-
-    // Event delegation for content panels — keydown
-    root.addEventListener('keydown', (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement;
-      const contentPanel = target.closest<HTMLElement>('[data-menubar-content]');
-      if (!contentPanel) return;
-
-      const menuValue = contentPanel.getAttribute('data-value');
-      if (!menuValue) return;
-
-      const trigger = root.querySelector<HTMLElement>(
-        `[data-menubar-trigger][data-value="${menuValue}"]`,
-      );
-
-      if (isKey(event, Keys.Escape)) {
-        event.preventDefault();
-        event.stopPropagation();
-        closeAll();
-        if (trigger) trigger.focus();
-        return;
-      }
-
-      if (isKey(event, Keys.Enter, Keys.Space)) {
-        event.preventDefault();
-        const active = document.activeElement as HTMLElement;
-        const activeItem = active?.closest<HTMLElement>('[role="menuitem"]');
-        if (activeItem && contentPanel.contains(activeItem)) {
-          const val = activeItem.getAttribute('data-value');
-          if (val !== null) {
-            onSelect?.(val);
-            closeAll();
-            if (trigger) trigger.focus();
-          }
-        }
-        return;
-      }
-
-      if (isKey(event, Keys.ArrowLeft, Keys.ArrowRight)) {
-        event.preventDefault();
-        const currentTriggers = [
-          ...root.querySelectorAll<HTMLButtonElement>('[data-menubar-trigger]'),
-        ];
-        const triggerIdx = currentTriggers.indexOf(trigger as HTMLButtonElement);
-        let nextIdx: number;
-        if (isKey(event, Keys.ArrowRight)) {
-          nextIdx = (triggerIdx + 1) % currentTriggers.length;
-        } else {
-          nextIdx = (triggerIdx - 1 + currentTriggers.length) % currentTriggers.length;
-        }
-        const nextTrigger = currentTriggers[nextIdx];
-        if (nextTrigger) {
-          nextTrigger.focus();
-          const nextValue = nextTrigger.getAttribute('data-value');
-          if (nextValue) openMenu(nextValue);
-        }
-        return;
-      }
-
-      const items = getMenuItems(contentPanel);
-      handleListNavigation(event, items, { orientation: 'vertical' });
-    });
-
-    // Event delegation for item clicks
-    root.addEventListener('click', (event: Event) => {
-      const target = (event.target as HTMLElement).closest<HTMLElement>(
-        '[data-menubar-content] [role="menuitem"]',
-      );
-      if (!target) return;
-
-      const contentPanel = target.closest<HTMLElement>('[data-menubar-content]');
-      if (!contentPanel) return;
-
-      const menuValue = contentPanel.getAttribute('data-value');
-      const val = target.getAttribute('data-value');
-      if (val !== null) {
-        onSelect?.(val);
-        closeAll();
-        if (menuValue) {
-          const trigger = root.querySelector<HTMLElement>(
-            `[data-menubar-trigger][data-value="${menuValue}"]`,
-          );
-          if (trigger) trigger.focus();
-        }
-      }
-    });
-  });
 
   const ctx: MenubarContextValue = {
     rootId,

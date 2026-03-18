@@ -6,12 +6,11 @@
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, onMount, useContext } from '@vertz/ui';
+import { createContext, useContext } from '@vertz/ui';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition, virtualElement } from '../utils/floating';
 import { linkedIds } from '../utils/id';
-import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
 // ---------------------------------------------------------------------------
 // Class distribution
@@ -246,81 +245,6 @@ function ComposedContextMenuRoot({
       item.setAttribute('tabindex', i === index ? '0' : '-1');
     });
   }
-
-  // Wire keyboard and click handlers on the connected content element.
-  onMount(() => {
-    const el = getContentEl() as (HTMLElement & { __menuWired?: boolean }) | null;
-    if (!el || el.__menuWired) return;
-    el.__menuWired = true;
-
-    el.addEventListener('keydown', (event: KeyboardEvent) => {
-      if (isKey(event, Keys.Escape)) {
-        event.preventDefault();
-        close();
-        return;
-      }
-
-      const items = getItems();
-
-      if (isKey(event, Keys.Enter, Keys.Space)) {
-        event.preventDefault();
-        const active = items[state.activeIndex];
-        if (active) {
-          const val = active.getAttribute('data-value');
-          if (val !== null) {
-            onSelect?.(val);
-            close();
-          }
-        }
-        return;
-      }
-
-      if (state.activeIndex === -1) {
-        if (isKey(event, Keys.ArrowDown)) {
-          event.preventDefault();
-          state.activeIndex = 0;
-          updateActiveItem(items, 0);
-          items[0]?.focus();
-          return;
-        }
-        if (isKey(event, Keys.ArrowUp)) {
-          event.preventDefault();
-          const last = items.length - 1;
-          state.activeIndex = last;
-          updateActiveItem(items, last);
-          items[last]?.focus();
-          return;
-        }
-      }
-
-      const result = handleListNavigation(event, items, { orientation: 'vertical' });
-      if (result) {
-        const idx = items.indexOf(result as HTMLElement);
-        if (idx >= 0) {
-          state.activeIndex = idx;
-          updateActiveItem(items, idx);
-        }
-        return;
-      }
-
-      // Type-ahead
-      if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
-        const char = event.key.toLowerCase();
-        const match = items.find((item) => item.textContent?.toLowerCase().startsWith(char));
-        if (match) {
-          const idx = items.indexOf(match);
-          state.activeIndex = idx;
-          updateActiveItem(items, idx);
-          match.focus();
-        }
-      }
-    });
-
-    el.addEventListener('click', (event: Event) => {
-      const target = (event.target as HTMLElement).closest('[role="menuitem"]');
-      if (target) close();
-    });
-  });
 
   function open(x: number, y: number): void {
     isOpen = true;

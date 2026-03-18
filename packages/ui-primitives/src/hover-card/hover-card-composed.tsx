@@ -5,9 +5,8 @@
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, onMount, useContext } from '@vertz/ui';
+import { createContext, useContext } from '@vertz/ui';
 import type { FloatingOptions } from '../utils/floating';
-import { createFloatingPosition } from '../utils/floating';
 import { uniqueId } from '../utils/id';
 
 // ---------------------------------------------------------------------------
@@ -127,7 +126,7 @@ function ComposedHoverCardRoot({
   openDelay = 700,
   closeDelay = 300,
   onOpenChange,
-  positioning,
+  positioning: _positioning,
 }: ComposedHoverCardProps) {
   const contentId = uniqueId('hovercard');
 
@@ -157,21 +156,6 @@ function ComposedHoverCardRoot({
       timers.close = null;
     }
   }
-
-  // Position content relative to trigger when open.
-  onMount(() => {
-    const open = isOpen;
-    if (!open || !positioning) return;
-
-    const content = document.getElementById(contentId);
-    const trigger = content?.parentElement?.querySelector(
-      '[data-hovercard-trigger]',
-    ) as HTMLElement | null;
-    if (!trigger || !content) return;
-
-    const result = createFloatingPosition(trigger, content, positioning);
-    timers.floatingCleanup = result.cleanup;
-  });
 
   function show(): void {
     cancelTimers();
