@@ -188,6 +188,7 @@ function MenubarContent({ children, className: cls, class: classProp }: SlotProp
 }
 
 function MenubarItem({ value, children, className: cls, class: classProp }: ItemProps) {
+  const barCtx = useMenubarContext('Item');
   const menuCtx = useMenuContext('Item');
   const effectiveCls = cls ?? classProp;
   const itemClass = [menuCtx.classes?.item, effectiveCls].filter(Boolean).join(' ');
@@ -199,6 +200,10 @@ function MenubarItem({ value, children, className: cls, class: classProp }: Item
       data-value={value}
       tabindex="-1"
       class={itemClass || undefined}
+      onClick={() => {
+        barCtx.getOnSelect()?.(value);
+        barCtx.closeAll();
+      }}
     >
       {children}
     </div>
@@ -263,8 +268,6 @@ function ComposedMenubarRoot({ children, classes, onSelect, positioning }: Compo
   function getRootEl(): HTMLElement | null {
     return document.getElementById(rootId);
   }
-
-
 
   function getMenuItems(contentEl: HTMLElement): HTMLElement[] {
     return [...contentEl.querySelectorAll<HTMLElement>('[role="menuitem"]')];
@@ -375,7 +378,9 @@ function ComposedMenubarRoot({ children, classes, onSelect, positioning }: Compo
 
   // Wire keyboard navigation and event delegation on connected elements.
   onMount(() => {
-    const root = document.getElementById(rootId) as HTMLElement & { __menubarWired?: boolean } | null;
+    const root = document.getElementById(rootId) as
+      | (HTMLElement & { __menubarWired?: boolean })
+      | null;
     if (!root || root.__menubarWired) return;
     root.__menubarWired = true;
 
@@ -470,7 +475,9 @@ function ComposedMenubarRoot({ children, classes, onSelect, positioning }: Compo
 
     // Event delegation for item clicks
     root.addEventListener('click', (event: Event) => {
-      const target = (event.target as HTMLElement).closest<HTMLElement>('[data-menubar-content] [role="menuitem"]');
+      const target = (event.target as HTMLElement).closest<HTMLElement>(
+        '[data-menubar-content] [role="menuitem"]',
+      );
       if (!target) return;
 
       const contentPanel = target.closest<HTMLElement>('[data-menubar-content]');

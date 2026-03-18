@@ -76,8 +76,8 @@ function HoverCardTrigger({ children }: SlotProps) {
       aria-expanded={ctx.isOpen ? 'true' : 'false'}
       onMouseenter={() => ctx.show()}
       onMouseleave={() => ctx.hide()}
-      onFocus={() => ctx.showImmediate()}
-      onBlur={() => ctx.hide()}
+      onFocusin={() => ctx.showImmediate()}
+      onFocusout={() => ctx.hide()}
     >
       {children}
     </span>
@@ -141,12 +141,21 @@ function ComposedHoverCardRoot({
   } = { open: null, close: null, floatingCleanup: null };
 
   function cancelTimers(): void {
-    if (timers.open) { clearTimeout(timers.open); timers.open = null; }
-    if (timers.close) { clearTimeout(timers.close); timers.close = null; }
+    if (timers.open) {
+      clearTimeout(timers.open);
+      timers.open = null;
+    }
+    if (timers.close) {
+      clearTimeout(timers.close);
+      timers.close = null;
+    }
   }
 
   function cancelCloseTimer(): void {
-    if (timers.close) { clearTimeout(timers.close); timers.close = null; }
+    if (timers.close) {
+      clearTimeout(timers.close);
+      timers.close = null;
+    }
   }
 
   // Position content relative to trigger when open.
@@ -155,7 +164,9 @@ function ComposedHoverCardRoot({
     if (!open || !positioning) return;
 
     const content = document.getElementById(contentId);
-    const trigger = content?.parentElement?.querySelector('[data-hovercard-trigger]') as HTMLElement | null;
+    const trigger = content?.parentElement?.querySelector(
+      '[data-hovercard-trigger]',
+    ) as HTMLElement | null;
     if (!trigger || !content) return;
 
     const result = createFloatingPosition(trigger, content, positioning);

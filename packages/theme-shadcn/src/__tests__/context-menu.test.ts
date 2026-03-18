@@ -205,7 +205,11 @@ describe('createThemedContextMenu', () => {
     trigger.dispatchEvent(
       new MouseEvent('contextmenu', { clientX: 100, clientY: 200, bubbles: true }),
     );
-    expect(menu.getAttribute('data-state')).toBe('open');
+    // Re-query after dispatch: happy-dom returns different JS wrappers per query,
+    // so the original `menu` reference doesn't reflect setAttribute changes made
+    // via document.getElementById inside the primitive's open() function.
+    const menuAfter = root.querySelector('[role="menu"]') as HTMLElement;
+    expect(menuAfter.getAttribute('data-state')).toBe('open');
   });
 
   it('preserves primitive behavior — onSelect callback', async () => {

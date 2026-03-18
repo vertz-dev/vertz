@@ -5,7 +5,7 @@
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, onMount, useContext } from '@vertz/ui';
+import { createContext, useContext } from '@vertz/ui';
 
 // ---------------------------------------------------------------------------
 // Class types
@@ -80,11 +80,13 @@ function CarouselSlide({ children, className: cls, class: classProp }: SlideProp
 }
 
 function CarouselPrevious({ children }: SlotProps) {
+  const ctx = useCarouselContext('Previous');
   return (
     <button
       type="button"
       aria-label="Previous slide"
       data-carousel-prev=""
+      class={ctx.classes?.prevButton}
     >
       {children}
     </button>
@@ -92,11 +94,13 @@ function CarouselPrevious({ children }: SlotProps) {
 }
 
 function CarouselNext({ children }: SlotProps) {
+  const ctx = useCarouselContext('Next');
   return (
     <button
       type="button"
       aria-label="Next slide"
       data-carousel-next=""
+      class={ctx.classes?.nextButton}
     >
       {children}
     </button>
@@ -128,69 +132,67 @@ function ComposedCarouselRoot({
 }: ComposedCarouselProps) {
   let currentIndex = defaultIndex;
 
-  // Wire navigation handlers via event delegation on the connected root.
-  onMount(() => {
-    const root = document.querySelector('[data-carousel-root]') as HTMLElement & { __carouselWired?: boolean } | null;
-    if (!root || root.__carouselWired) return;
-    root.__carouselWired = true;
+  function getSlides(rootEl: HTMLElement): HTMLElement[] {
+    return [...rootEl.querySelectorAll<HTMLElement>('[data-carousel-slide]')];
+  }
 
-    function getSlides(): HTMLElement[] {
-      return [...root!.querySelectorAll<HTMLElement>('[data-carousel-slide]')];
-    }
-
-    function updateDOM(): void {
-      const slides = getSlides();
-      const slideCount = slides.length;
-      slides.forEach((slide, i) => {
-        slide.setAttribute('aria-hidden', String(i !== currentIndex));
-        slide.setAttribute('aria-label', `Slide ${i + 1} of ${slideCount}`);
-        slide.setAttribute('data-state', i === currentIndex ? 'active' : 'inactive');
-      });
-
-      const prevBtn = root!.querySelector('[data-carousel-prev]') as HTMLButtonElement | null;
-      const nextBtn = root!.querySelector('[data-carousel-next]') as HTMLButtonElement | null;
-      if (!loop && prevBtn) prevBtn.disabled = currentIndex <= 0;
-      if (!loop && nextBtn) nextBtn.disabled = currentIndex >= slideCount - 1;
-
-      const viewport = root!.querySelector('[data-carousel-viewport]') as HTMLElement | null;
-      if (viewport) {
-        const prop = orientation === 'horizontal' ? 'translateX' : 'translateY';
-        viewport.style.transform = `${prop}(-${currentIndex * 100}%)`;
-      }
-    }
-
-    function goTo(index: number): void {
-      const slideCount = getSlides().length;
-      if (slideCount === 0) return;
-      let next = index;
-      if (loop) {
-        next = ((index % slideCount) + slideCount) % slideCount;
-      } else {
-        next = Math.max(0, Math.min(slideCount - 1, index));
-      }
-      if (next === currentIndex) return;
-      currentIndex = next;
-      updateDOM();
-      onSlideChange?.(next);
-    }
-
-    root.addEventListener('click', (e: Event) => {
-      const target = e.target as HTMLElement;
-      if (target.closest('[data-carousel-prev]')) goTo(currentIndex - 1);
-      if (target.closest('[data-carousel-next]')) goTo(currentIndex + 1);
+  function updateDOM(rootEl: HTMLElement): void {
+    const slides = getSlides(rootEl);
+    const slideCount = slides.length;
+    slides.forEach((slide, i) => {
+      slide.setAttribute('aria-hidden', String(i !== currentIndex));
+      slide.setAttribute('aria-label', `Slide ${i + 1} of ${slideCount}`);
+      slide.setAttribute('data-state', i === currentIndex ? 'active' : 'inactive');
     });
 
-    root.addEventListener('keydown', (e: Event) => {
-      const ke = e as KeyboardEvent;
-      const prevKey = orientation === 'horizontal' ? 'ArrowLeft' : 'ArrowUp';
-      const nextKey = orientation === 'horizontal' ? 'ArrowRight' : 'ArrowDown';
-      if (ke.key === prevKey) { ke.preventDefault(); goTo(currentIndex - 1); }
-      if (ke.key === nextKey) { ke.preventDefault(); goTo(currentIndex + 1); }
-    });
+    const prevBtn = rootEl.querySelector('[data-carousel-prev]') as HTMLButtonElement | null;
+    const nextBtn = rootEl.querySelector('[data-carousel-next]') as HTMLButtonElement | null;
+    if (!loop && prevBtn) prevBtn.disabled = currentIndex <= 0;
+    if (!loop && nextBtn) nextBtn.disabled = currentIndex >= slideCount - 1;
 
-    // Initial state
-    updateDOM();
-  });
+    const viewport = rootEl.querySelector('[data-carousel-viewport]') as HTMLElement | null;
+    if (viewport) {
+      const prop = orientation === 'horizontal' ? 'translateX' : 'translateY';
+      viewport.style.transform = `${prop}(-${currentIndex * 100}%)`;
+    }
+  }
+
+  function goTo(rootEl: HTMLElement, index: number): void {
+    const slideCount = getSlides(rootEl).length;
+    if (slideCount === 0) return;
+    let next = index;
+    if (loop) {
+      next = ((index % slideCount) + slideCount) % slideCount;
+    } else {
+      next = Math.max(0, Math.min(slideCount - 1, index));
+    }
+    if (next === currentIndex) return;
+    currentIndex = next;
+    updateDOM(rootEl);
+    onSlideChange?.(next);
+  }
+
+  function handleClick(e: Event): void {
+    const rootEl = e.currentTarget as HTMLElement;
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-carousel-prev]')) goTo(rootEl, currentIndex - 1);
+    if (target.closest('[data-carousel-next]')) goTo(rootEl, currentIndex + 1);
+  }
+
+  function handleKeydown(e: Event): void {
+    const rootEl = e.currentTarget as HTMLElement;
+    const ke = e as KeyboardEvent;
+    const prevKey = orientation === 'horizontal' ? 'ArrowLeft' : 'ArrowUp';
+    const nextKey = orientation === 'horizontal' ? 'ArrowRight' : 'ArrowDown';
+    if (ke.key === prevKey) {
+      ke.preventDefault();
+      goTo(rootEl, currentIndex - 1);
+    }
+    if (ke.key === nextKey) {
+      ke.preventDefault();
+      goTo(rootEl, currentIndex + 1);
+    }
+  }
 
   const ctx: CarouselContextValue = {
     currentIndex,
@@ -207,6 +209,8 @@ function ComposedCarouselRoot({
         data-carousel-root=""
         data-orientation={orientation}
         class={classes?.root}
+        onClick={handleClick}
+        onKeydown={handleKeydown}
       >
         <div
           data-carousel-viewport=""
