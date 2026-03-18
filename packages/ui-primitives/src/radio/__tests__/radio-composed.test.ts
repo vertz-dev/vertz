@@ -152,10 +152,10 @@ describe('Composed RadioGroup', () => {
       const root = ComposedRadioGroup({
         defaultValue: 'a',
         children: () => {
-          ComposedRadioGroup.Item({ value: 'a', children: ['Alpha'] });
-          ComposedRadioGroup.Item({ value: 'b', disabled: true, children: ['Beta'] });
-          ComposedRadioGroup.Item({ value: 'c', children: ['Charlie'] });
-          return [];
+          const a = ComposedRadioGroup.Item({ value: 'a', children: ['Alpha'] });
+          const b = ComposedRadioGroup.Item({ value: 'b', disabled: true, children: ['Beta'] });
+          const c = ComposedRadioGroup.Item({ value: 'c', children: ['Charlie'] });
+          return [a, b, c];
         },
       });
       container.appendChild(root);
@@ -211,9 +211,9 @@ describe('Composed RadioGroup', () => {
         const root = ComposedRadioGroup({
           defaultValue: 'a',
           children: () => {
-            ComposedRadioGroup.Item({ value: 'a', children: ['Alpha'] });
-            ComposedRadioGroup.Item({ value: 'b', disabled: true, children: ['Beta'] });
-            return [];
+            const a = ComposedRadioGroup.Item({ value: 'a', children: ['Alpha'] });
+            const b = ComposedRadioGroup.Item({ value: 'b', disabled: true, children: ['Beta'] });
+            return [a, b];
           },
         });
         container.appendChild(root);
@@ -233,11 +233,11 @@ describe('Composed RadioGroup', () => {
       const root = ComposedRadioGroup({
         defaultValue: 'b',
         children: () => {
-          ComposedRadioGroup.Item({ value: 'a', disabled: true, children: ['Alpha'] });
-          ComposedRadioGroup.Item({ value: 'b', children: ['Beta'] });
-          ComposedRadioGroup.Item({ value: 'c', disabled: true, children: ['Charlie'] });
-          ComposedRadioGroup.Item({ value: 'd', children: ['Delta'] });
-          return [];
+          const a = ComposedRadioGroup.Item({ value: 'a', disabled: true, children: ['Alpha'] });
+          const b = ComposedRadioGroup.Item({ value: 'b', children: ['Beta'] });
+          const c = ComposedRadioGroup.Item({ value: 'c', disabled: true, children: ['Charlie'] });
+          const d = ComposedRadioGroup.Item({ value: 'd', children: ['Delta'] });
+          return [a, b, c, d];
         },
       });
       container.appendChild(root);
@@ -273,10 +273,14 @@ describe('Composed RadioGroup', () => {
         const root = ComposedRadioGroup({
           defaultValue: 'a',
           children: () => {
-            ComposedRadioGroup.Item({ value: 'a', disabled: true, children: ['Alpha'] });
-            ComposedRadioGroup.Item({ value: 'b', disabled: true, children: ['Beta'] });
-            ComposedRadioGroup.Item({ value: 'c', disabled: true, children: ['Charlie'] });
-            return [];
+            const a = ComposedRadioGroup.Item({ value: 'a', disabled: true, children: ['Alpha'] });
+            const b = ComposedRadioGroup.Item({ value: 'b', disabled: true, children: ['Beta'] });
+            const c = ComposedRadioGroup.Item({
+              value: 'c',
+              disabled: true,
+              children: ['Charlie'],
+            });
+            return [a, b, c];
           },
         });
         container.appendChild(root);
@@ -293,9 +297,9 @@ describe('Composed RadioGroup', () => {
         const root = ComposedRadioGroup({
           defaultValue: 'a',
           children: () => {
-            ComposedRadioGroup.Item({ value: 'a', disabled: true, children: ['Alpha'] });
-            ComposedRadioGroup.Item({ value: 'b', disabled: true, children: ['Beta'] });
-            return [];
+            const a = ComposedRadioGroup.Item({ value: 'a', disabled: true, children: ['Alpha'] });
+            const b = ComposedRadioGroup.Item({ value: 'b', disabled: true, children: ['Beta'] });
+            return [a, b];
           },
         });
         container.appendChild(root);
@@ -312,9 +316,9 @@ describe('Composed RadioGroup', () => {
         const root = ComposedRadioGroup({
           defaultValue: 'a',
           children: () => {
-            ComposedRadioGroup.Item({ value: 'a', disabled: true, children: ['Alpha'] });
-            ComposedRadioGroup.Item({ value: 'b', disabled: true, children: ['Beta'] });
-            return [];
+            const a = ComposedRadioGroup.Item({ value: 'a', disabled: true, children: ['Alpha'] });
+            const b = ComposedRadioGroup.Item({ value: 'b', disabled: true, children: ['Beta'] });
+            return [a, b];
           },
         });
         container.appendChild(root);

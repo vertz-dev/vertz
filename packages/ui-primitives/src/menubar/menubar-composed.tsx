@@ -13,7 +13,7 @@ import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
 import { linkedIds, uniqueId } from '../utils/id';
-import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
+import { isKey, Keys } from '../utils/keyboard';
 
 // ---------------------------------------------------------------------------
 // Class distribution
@@ -41,6 +41,7 @@ interface MenubarContextValue {
   getActiveMenu: () => string | null;
   openMenu: (value: string) => void;
   closeAll: () => void;
+  navigateMenu: (direction: 1 | -1) => void;
 }
 
 const MenubarContext = createContext<MenubarContextValue | undefined>(
@@ -122,7 +123,7 @@ function MenubarMenu({ value, children }: MenuProps) {
 
   return (
     <MenuContext.Provider value={menuCtx}>
-      <span style="display: contents" data-menubar-menu="" data-value={value}>
+      <span style="display: contents" data-menubar-menu="">
         {children}
       </span>
     </MenuContext.Provider>
@@ -130,12 +131,14 @@ function MenubarMenu({ value, children }: MenuProps) {
 }
 
 function MenubarTrigger({ children, className: cls, class: classProp }: SlotProps) {
-  const barCtx = useMenubarContext('Trigger');
+  // Check MenuContext first so the error message says "must be used inside <Menubar.Menu>"
+  // when called outside both Menu and Menubar.
   const menuCtx = useMenuContext('Trigger');
+  const barCtx = useMenubarContext('Trigger');
   const effectiveCls = cls ?? classProp;
   const triggerClass = [menuCtx.classes?.trigger, effectiveCls].filter(Boolean).join(' ');
 
-  return (
+  const el = (
     <button
       type="button"
       role="menuitem"
@@ -147,31 +150,50 @@ function MenubarTrigger({ children, className: cls, class: classProp }: SlotProp
       aria-expanded="false"
       data-state="closed"
       class={triggerClass || undefined}
-      onClick={() => {
-        if (barCtx.getActiveMenu() === menuCtx.menuValue) {
-          barCtx.closeAll();
-        } else {
-          barCtx.openMenu(menuCtx.menuValue);
-        }
-      }}
-      onKeydown={(event: KeyboardEvent) => {
-        if (isKey(event, Keys.ArrowDown, Keys.Enter, Keys.Space)) {
-          event.preventDefault();
-          barCtx.openMenu(menuCtx.menuValue);
-        }
-      }}
     >
       {children ?? menuCtx.menuValue}
     </button>
   );
+
+  // Use imperative event listeners registered via onMount so cleanup is
+  // captured by the disposal scope.
+  onMount(() => {
+    const btnEl = el as HTMLElement;
+
+    function handleClick() {
+      if (barCtx.getActiveMenu() === menuCtx.menuValue) {
+        barCtx.closeAll();
+      } else {
+        barCtx.openMenu(menuCtx.menuValue);
+      }
+    }
+
+    function handleKeydown(event: KeyboardEvent) {
+      if (isKey(event, Keys.ArrowDown, Keys.Enter, Keys.Space)) {
+        event.preventDefault();
+        barCtx.openMenu(menuCtx.menuValue);
+      }
+    }
+
+    btnEl.addEventListener('click', handleClick);
+    btnEl.addEventListener('keydown', handleKeydown);
+
+    return () => {
+      btnEl.removeEventListener('click', handleClick);
+      btnEl.removeEventListener('keydown', handleKeydown);
+    };
+  });
+
+  return el;
 }
 
 function MenubarContent({ children, className: cls, class: classProp }: SlotProps) {
   const menuCtx = useMenuContext('Content');
+  const barCtx = useMenubarContext('Content');
   const effectiveCls = cls ?? classProp;
   const contentClass = [menuCtx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
-  return (
+  const el = (
     <div
       role="menu"
       id={menuCtx.contentId}
@@ -185,9 +207,67 @@ function MenubarContent({ children, className: cls, class: classProp }: SlotProp
       {children}
     </div>
   );
+
+  // Wire keyboard handler on the content element via onMount.
+  onMount(() => {
+    const contentEl = el as HTMLElement;
+
+    function handleKeydown(event: KeyboardEvent) {
+      if (isKey(event, Keys.Escape)) {
+        event.preventDefault();
+        barCtx.closeAll();
+        // Focus the trigger for this menu
+        const root = document.getElementById(barCtx.rootId);
+        if (root) {
+          const trigger = root.querySelector<HTMLElement>(
+            `[data-menubar-trigger][data-value="${menuCtx.menuValue}"]`,
+          );
+          trigger?.focus();
+        }
+        return;
+      }
+
+      if (isKey(event, Keys.Enter)) {
+        event.preventDefault();
+        const items = [...contentEl.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+        const active = items.find((item) => item === document.activeElement);
+        if (active) {
+          const val = active.getAttribute('data-value');
+          if (val !== null) {
+            barCtx.getOnSelect()?.(val);
+            barCtx.closeAll();
+          }
+        }
+        return;
+      }
+
+      if (isKey(event, Keys.ArrowRight)) {
+        event.preventDefault();
+        event.stopPropagation();
+        barCtx.navigateMenu(1);
+        return;
+      }
+
+      if (isKey(event, Keys.ArrowLeft)) {
+        event.preventDefault();
+        event.stopPropagation();
+        barCtx.navigateMenu(-1);
+        return;
+      }
+    }
+
+    contentEl.addEventListener('keydown', handleKeydown);
+
+    return () => {
+      contentEl.removeEventListener('keydown', handleKeydown);
+    };
+  });
+
+  return el;
 }
 
 function MenubarItem({ value, children, className: cls, class: classProp }: ItemProps) {
+  const barCtx = useMenubarContext('Item');
   const menuCtx = useMenuContext('Item');
   const effectiveCls = cls ?? classProp;
   const itemClass = [menuCtx.classes?.item, effectiveCls].filter(Boolean).join(' ');
@@ -199,6 +279,10 @@ function MenubarItem({ value, children, className: cls, class: classProp }: Item
       data-value={value}
       tabindex="-1"
       class={itemClass || undefined}
+      onClick={() => {
+        barCtx.getOnSelect()?.(value);
+        barCtx.closeAll();
+      }}
     >
       {children}
     </div>
@@ -264,10 +348,15 @@ function ComposedMenubarRoot({ children, classes, onSelect, positioning }: Compo
     return document.getElementById(rootId);
   }
 
-
-
   function getMenuItems(contentEl: HTMLElement): HTMLElement[] {
     return [...contentEl.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+  }
+
+  function getMenuValues(): string[] {
+    const root = getRootEl();
+    if (!root) return [];
+    const triggers = root.querySelectorAll<HTMLElement>('[data-menubar-trigger]');
+    return [...triggers].map((t) => t.getAttribute('data-value')!);
   }
 
   function closeAll(): void {
@@ -373,123 +462,17 @@ function ComposedMenubarRoot({ children, classes, onSelect, positioning }: Compo
     }
   }
 
-  // Wire keyboard navigation and event delegation on connected elements.
-  onMount(() => {
-    const root = document.getElementById(rootId) as HTMLElement & { __menubarWired?: boolean } | null;
-    if (!root || root.__menubarWired) return;
-    root.__menubarWired = true;
+  function navigateMenu(direction: 1 | -1): void {
+    const values = getMenuValues();
+    if (values.length === 0) return;
 
-    // Set up roving tabindex on triggers
-    const triggers = [...root.querySelectorAll<HTMLButtonElement>('[data-menubar-trigger]')];
-    for (let i = 0; i < triggers.length; i++) {
-      triggers[i]?.setAttribute('tabindex', i === 0 ? '0' : '-1');
+    const currentIdx = state.activeMenu ? values.indexOf(state.activeMenu) : -1;
+    const nextIdx = (((currentIdx + direction) % values.length) + values.length) % values.length;
+    const nextValue = values[nextIdx];
+    if (nextValue) {
+      openMenu(nextValue);
     }
-
-    // Root-level keyboard handler for arrow navigation between triggers
-    root.addEventListener('keydown', (event: KeyboardEvent) => {
-      if (isKey(event, Keys.ArrowLeft, Keys.ArrowRight, Keys.Home, Keys.End)) {
-        const currentTriggers = [
-          ...root.querySelectorAll<HTMLButtonElement>('[data-menubar-trigger]'),
-        ];
-        const focused = document.activeElement as HTMLElement;
-        const triggerIndex = currentTriggers.indexOf(focused as HTMLButtonElement);
-
-        if (triggerIndex >= 0) {
-          const result = handleListNavigation(event, currentTriggers, {
-            orientation: 'horizontal',
-          });
-          if (result && state.activeMenu) {
-            const newTrigger = result as HTMLButtonElement;
-            const menuValue = newTrigger.getAttribute('data-value');
-            if (menuValue) openMenu(menuValue);
-          }
-        }
-      }
-    });
-
-    // Event delegation for content panels — keydown
-    root.addEventListener('keydown', (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement;
-      const contentPanel = target.closest<HTMLElement>('[data-menubar-content]');
-      if (!contentPanel) return;
-
-      const menuValue = contentPanel.getAttribute('data-value');
-      if (!menuValue) return;
-
-      const trigger = root.querySelector<HTMLElement>(
-        `[data-menubar-trigger][data-value="${menuValue}"]`,
-      );
-
-      if (isKey(event, Keys.Escape)) {
-        event.preventDefault();
-        event.stopPropagation();
-        closeAll();
-        if (trigger) trigger.focus();
-        return;
-      }
-
-      if (isKey(event, Keys.Enter, Keys.Space)) {
-        event.preventDefault();
-        const active = document.activeElement as HTMLElement;
-        const activeItem = active?.closest<HTMLElement>('[role="menuitem"]');
-        if (activeItem && contentPanel.contains(activeItem)) {
-          const val = activeItem.getAttribute('data-value');
-          if (val !== null) {
-            onSelect?.(val);
-            closeAll();
-            if (trigger) trigger.focus();
-          }
-        }
-        return;
-      }
-
-      if (isKey(event, Keys.ArrowLeft, Keys.ArrowRight)) {
-        event.preventDefault();
-        const currentTriggers = [
-          ...root.querySelectorAll<HTMLButtonElement>('[data-menubar-trigger]'),
-        ];
-        const triggerIdx = currentTriggers.indexOf(trigger as HTMLButtonElement);
-        let nextIdx: number;
-        if (isKey(event, Keys.ArrowRight)) {
-          nextIdx = (triggerIdx + 1) % currentTriggers.length;
-        } else {
-          nextIdx = (triggerIdx - 1 + currentTriggers.length) % currentTriggers.length;
-        }
-        const nextTrigger = currentTriggers[nextIdx];
-        if (nextTrigger) {
-          nextTrigger.focus();
-          const nextValue = nextTrigger.getAttribute('data-value');
-          if (nextValue) openMenu(nextValue);
-        }
-        return;
-      }
-
-      const items = getMenuItems(contentPanel);
-      handleListNavigation(event, items, { orientation: 'vertical' });
-    });
-
-    // Event delegation for item clicks
-    root.addEventListener('click', (event: Event) => {
-      const target = (event.target as HTMLElement).closest<HTMLElement>('[data-menubar-content] [role="menuitem"]');
-      if (!target) return;
-
-      const contentPanel = target.closest<HTMLElement>('[data-menubar-content]');
-      if (!contentPanel) return;
-
-      const menuValue = contentPanel.getAttribute('data-value');
-      const val = target.getAttribute('data-value');
-      if (val !== null) {
-        onSelect?.(val);
-        closeAll();
-        if (menuValue) {
-          const trigger = root.querySelector<HTMLElement>(
-            `[data-menubar-trigger][data-value="${menuValue}"]`,
-          );
-          if (trigger) trigger.focus();
-        }
-      }
-    });
-  });
+  }
 
   const ctx: MenubarContextValue = {
     rootId,
@@ -499,11 +482,26 @@ function ComposedMenubarRoot({ children, classes, onSelect, positioning }: Compo
     getActiveMenu: () => state.activeMenu,
     openMenu,
     closeAll,
+    navigateMenu,
   };
 
   return (
     <MenubarContext.Provider value={ctx}>
-      <div role="menubar" id={rootId} class={classes?.root || undefined}>
+      <div
+        role="menubar"
+        id={rootId}
+        class={classes?.root || undefined}
+        onKeydown={(event: KeyboardEvent) => {
+          // Handle ArrowRight/ArrowLeft on the root for trigger-level navigation
+          if (state.activeMenu && isKey(event, Keys.ArrowRight)) {
+            event.preventDefault();
+            navigateMenu(1);
+          } else if (state.activeMenu && isKey(event, Keys.ArrowLeft)) {
+            event.preventDefault();
+            navigateMenu(-1);
+          }
+        }}
+      >
         {children}
       </div>
     </MenubarContext.Provider>

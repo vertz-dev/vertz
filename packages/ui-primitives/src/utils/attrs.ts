@@ -25,7 +25,6 @@ export function applyAttrs(el: HTMLElement, attrs: Record<string, unknown>): voi
       const existing = el.getAttribute('class');
       const classValue = String(resolvedClass);
       el.setAttribute('class', existing ? `${existing} ${classValue}` : classValue);
-      continue;
     } else if (key === 'style') {
       const existing = el.getAttribute('style');
       el.setAttribute('style', existing ? `${existing}; ${String(value)}` : String(value));

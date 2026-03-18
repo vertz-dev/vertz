@@ -26,7 +26,8 @@ export type RadioGroupClassKey = keyof RadioGroupClasses;
 // ---------------------------------------------------------------------------
 
 interface RadioGroupContextValue {
-  selectedValue: string;
+  /** Function getter to avoid static signal capture in context. */
+  isSelected: (value: string) => boolean;
   classes?: RadioGroupClasses;
   select: (value: string) => void;
 }
@@ -35,17 +36,6 @@ const RadioGroupContext = createContext<RadioGroupContextValue | undefined>(
   undefined,
   '@vertz/ui-primitives::RadioGroupContext',
 );
-
-function useRadioGroupContext(componentName: string): RadioGroupContextValue {
-  const ctx = useContext(RadioGroupContext);
-  if (!ctx) {
-    throw new Error(
-      `<RadioGroup.${componentName}> must be used inside <RadioGroup>. ` +
-        'Ensure it is a direct or nested child of the RadioGroup root component.',
-    );
-  }
-  return ctx;
-}
 
 // ---------------------------------------------------------------------------
 // Sub-component props
@@ -62,30 +52,39 @@ interface RadioGroupItemProps {
 // ---------------------------------------------------------------------------
 
 function RadioGroupItem({ value, disabled, children }: RadioGroupItemProps) {
-  const ctx = useRadioGroupContext('Item');
+  // Use useContext() directly so the compiler recognizes ctx as reactive,
+  // wrapping derived const variables in computed() → reactive __attr.
+  const ctx = useContext(RadioGroupContext);
+  if (!ctx) {
+    throw new Error(
+      '<RadioGroup.Item> must be used inside <RadioGroup>. ' +
+        'Ensure it is a direct or nested child of the RadioGroup root component.',
+    );
+  }
   const isDisabled = disabled ?? false;
+  const isChecked = ctx.isSelected(value);
 
   return (
     <div
       style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"
       data-radiogroup-item=""
-      data-value={value}
       onClick={() => {
         if (!isDisabled) ctx.select(value);
       }}
     >
       <div
         role="radio"
-        aria-checked={ctx.selectedValue === value ? 'true' : 'false'}
-        data-state={ctx.selectedValue === value ? 'checked' : 'unchecked'}
-        tabindex={ctx.selectedValue === value ? '0' : '-1'}
+        data-value={value}
+        aria-checked={isChecked ? 'true' : 'false'}
+        data-state={isChecked ? 'checked' : 'unchecked'}
+        tabindex={isChecked ? '0' : '-1'}
         aria-disabled={isDisabled ? 'true' : undefined}
         class={ctx.classes?.item}
         style={isDisabled ? 'pointer-events: none; position: relative;' : 'position: relative;'}
       >
         <span
           data-part="indicator"
-          data-state={ctx.selectedValue === value ? 'checked' : 'unchecked'}
+          data-state={isChecked ? 'checked' : 'unchecked'}
           class={ctx.classes?.indicator}
         >
           <span data-part="indicator-icon" class={ctx.classes?.indicatorIcon} />
@@ -121,7 +120,7 @@ function ComposedRadioGroupRoot({
   }
 
   const ctx: RadioGroupContextValue = {
-    selectedValue,
+    isSelected: (value: string) => selectedValue === value,
     classes,
     select,
   };
@@ -134,8 +133,8 @@ function ComposedRadioGroupRoot({
         class={classes?.root}
         data-radiogroup-root=""
         onKeydown={(event: KeyboardEvent) => {
-          const root = (event.currentTarget as HTMLElement);
-          const items = [...root.querySelectorAll<HTMLElement>('[data-radiogroup-item]')];
+          const root = event.currentTarget as HTMLElement;
+          const items = [...root.querySelectorAll<HTMLElement>('[role="radio"]')];
           const currentIdx = items.indexOf(document.activeElement as HTMLElement);
           if (currentIdx < 0) return;
 

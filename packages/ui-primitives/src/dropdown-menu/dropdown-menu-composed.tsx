@@ -37,6 +37,8 @@ interface DropdownMenuContextValue {
   open: (activateFirst?: boolean) => void;
   close: () => void;
   toggle: () => void;
+  /** @internal Per-Root content instance counter for duplicate detection. */
+  _contentCount: { value: number };
 }
 
 const DropdownMenuContext = createContext<DropdownMenuContextValue | undefined>(
@@ -80,6 +82,35 @@ interface GroupProps extends SlotProps {
 
 function MenuTrigger({ children }: SlotProps) {
   const ctx = useDropdownMenuContext('Trigger');
+
+  // Forward ARIA attrs and events to the user's child element.
+  onMount(() => {
+    const childNodes = Array.isArray(children) ? children : [children];
+    const childEl = childNodes.find((c): c is HTMLElement => c instanceof HTMLElement);
+    if (!childEl) return;
+
+    childEl.setAttribute('aria-haspopup', 'menu');
+    childEl.setAttribute('aria-controls', ctx.contentId);
+    childEl.setAttribute('aria-expanded', ctx.isOpen ? 'true' : 'false');
+    childEl.setAttribute('data-state', ctx.isOpen ? 'open' : 'closed');
+
+    const handleClick = () => ctx.toggle();
+    const handleKeydown = (event: KeyboardEvent) => {
+      if (isKey(event, Keys.ArrowDown, Keys.Enter, Keys.Space)) {
+        event.preventDefault();
+        if (!ctx.isOpen) ctx.open(true);
+      }
+    };
+
+    childEl.addEventListener('click', handleClick);
+    childEl.addEventListener('keydown', handleKeydown);
+
+    return () => {
+      childEl.removeEventListener('click', handleClick);
+      childEl.removeEventListener('keydown', handleKeydown);
+    };
+  });
+
   return (
     <span
       style="display: contents"
@@ -88,13 +119,6 @@ function MenuTrigger({ children }: SlotProps) {
       aria-controls={ctx.contentId}
       aria-expanded={ctx.isOpen ? 'true' : 'false'}
       data-state={ctx.isOpen ? 'open' : 'closed'}
-      onClick={() => ctx.toggle()}
-      onKeydown={(event: KeyboardEvent) => {
-        if (isKey(event, Keys.ArrowDown, Keys.Enter, Keys.Space)) {
-          event.preventDefault();
-          if (!ctx.isOpen) ctx.open(true);
-        }
-      }}
     >
       {children}
     </span>
@@ -103,55 +127,15 @@ function MenuTrigger({ children }: SlotProps) {
 
 function MenuContent({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useDropdownMenuContext('Content');
+
+  // Track content instances per Root for duplicate detection.
+  const instanceIndex = ctx._contentCount.value++;
+  if (instanceIndex > 0) {
+    console.warn('Duplicate <DropdownMenu.Content> detected \u2013 only the first is used');
+  }
+
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
-
-  // Wire keyboard and click handlers on the connected content element.
-  onMount(() => {
-    const el = document.getElementById(ctx.contentId) as HTMLElement & { __menuWired?: boolean } | null;
-    if (!el || el.__menuWired) return;
-    el.__menuWired = true;
-
-    el.addEventListener('keydown', (event: KeyboardEvent) => {
-      if (isKey(event, Keys.Escape)) {
-        event.preventDefault();
-        ctx.close();
-        return;
-      }
-
-      const items = [...el.querySelectorAll<HTMLElement>('[role="menuitem"]')];
-      const focusedIdx = items.indexOf(document.activeElement as HTMLElement);
-
-      if (isKey(event, Keys.Enter, Keys.Space)) {
-        event.preventDefault();
-        const active = items[focusedIdx];
-        if (active) {
-          const val = active.getAttribute('data-value');
-          if (val !== null) {
-            ctx.onSelect?.(val);
-            ctx.close();
-          }
-        }
-        return;
-      }
-
-      const result = handleListNavigation(event, items, { orientation: 'vertical' });
-      if (result) return;
-
-      // Type-ahead: single character search
-      if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
-        const char = event.key.toLowerCase();
-        const match = items.find((item) => item.textContent?.toLowerCase().startsWith(char));
-        if (match) match.focus();
-      }
-    });
-
-    // Item click → close via event delegation
-    el.addEventListener('click', (event: Event) => {
-      const target = (event.target as HTMLElement).closest('[role="menuitem"]');
-      if (target) ctx.close();
-    });
-  });
 
   return (
     <div
@@ -163,6 +147,43 @@ function MenuContent({ children, className: cls, class: classProp }: SlotProps) 
       data-state={ctx.isOpen ? 'open' : 'closed'}
       style={ctx.isOpen ? '' : 'display: none'}
       class={combined || undefined}
+      onKeydown={(event: KeyboardEvent) => {
+        if (isKey(event, Keys.Escape)) {
+          event.preventDefault();
+          ctx.close();
+          return;
+        }
+
+        const el = (event.currentTarget ?? event.target) as HTMLElement;
+        const items = [...el.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+        const focusedIdx = items.indexOf(document.activeElement as HTMLElement);
+
+        if (isKey(event, Keys.Enter, Keys.Space)) {
+          event.preventDefault();
+          const active = items[focusedIdx];
+          if (active) {
+            const val = active.getAttribute('data-value');
+            if (val !== null) {
+              ctx.onSelect?.(val);
+              ctx.close();
+            }
+          }
+          return;
+        }
+
+        handleListNavigation(event, items, { orientation: 'vertical' });
+
+        // Type-ahead: single character search
+        if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+          const char = event.key.toLowerCase();
+          const match = items.find((item) => item.textContent?.toLowerCase().startsWith(char));
+          if (match) match.focus();
+        }
+      }}
+      onClick={(event: Event) => {
+        const target = (event.target as HTMLElement).closest('[role="menuitem"]');
+        if (target) ctx.close();
+      }}
     >
       {children}
     </div>
@@ -266,7 +287,9 @@ function ComposedDropdownMenuRoot({
 
   function getTriggerEl(): HTMLElement | null {
     const content = getContentEl();
-    return content?.parentElement?.querySelector('[data-dropdownmenu-trigger]') as HTMLElement | null;
+    return content?.parentElement?.querySelector(
+      '[data-dropdownmenu-trigger]',
+    ) as HTMLElement | null;
   }
 
   function updateActiveItem(items: HTMLElement[], index: number): void {
@@ -280,33 +303,30 @@ function ComposedDropdownMenuRoot({
     state.activeIndex = -1;
     onOpenChange?.(true);
 
-    // Defer positioning to next microtask so the content is visible in DOM.
-    queueMicrotask(() => {
-      const contentEl = getContentEl();
-      const triggerEl = getTriggerEl();
-      if (!contentEl) return;
+    const contentEl = getContentEl();
+    const triggerEl = getTriggerEl();
+    if (!contentEl) return;
 
-      if (positioning) {
-        const ref = positioning.referenceElement ?? triggerEl ?? contentEl;
-        const result = createFloatingPosition(ref, contentEl, positioning);
-        state.floatingCleanup = result.cleanup;
-        state.dismissCleanup = createDismiss({
-          onDismiss: close,
-          insideElements: [ref, contentEl, ...(triggerEl ? [triggerEl] : [])],
-          escapeKey: false,
-        });
-      }
+    if (positioning) {
+      const ref = positioning.referenceElement ?? triggerEl ?? contentEl;
+      const result = createFloatingPosition(ref, contentEl, positioning);
+      state.floatingCleanup = result.cleanup;
+      state.dismissCleanup = createDismiss({
+        onDismiss: close,
+        insideElements: [ref, contentEl, ...(triggerEl ? [triggerEl] : [])],
+        escapeKey: false,
+      });
+    }
 
-      const items = getItems();
-      if (activateFirst && items.length > 0) {
-        state.activeIndex = 0;
-        updateActiveItem(items, 0);
-        items[0]?.focus();
-      } else {
-        updateActiveItem(items, -1);
-        contentEl.focus();
-      }
-    });
+    const items = getItems();
+    if (activateFirst && items.length > 0) {
+      state.activeIndex = 0;
+      updateActiveItem(items, 0);
+      items[0]?.focus();
+    } else {
+      updateActiveItem(items, -1);
+      contentEl.focus();
+    }
   }
 
   function close(): void {
@@ -333,6 +353,7 @@ function ComposedDropdownMenuRoot({
     open,
     close,
     toggle,
+    _contentCount: { value: 0 },
   };
 
   return (

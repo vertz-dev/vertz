@@ -6,8 +6,7 @@
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, onMount, useContext } from '@vertz/ui';
-import { setHiddenAnimated } from '../utils/aria';
+import { createContext, useContext } from '@vertz/ui';
 import { uniqueId } from '../utils/id';
 import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
@@ -63,17 +62,6 @@ function useAccordionContext(componentName: string): AccordionContextValue {
   return ctx;
 }
 
-function useAccordionItemContext(componentName: string): AccordionItemContextValue {
-  const ctx = useContext(AccordionItemContext);
-  if (!ctx) {
-    throw new Error(
-      `<Accordion.${componentName}> must be used inside <Accordion.Item>. ` +
-        'Ensure it is a direct or nested child of an Accordion Item component.',
-    );
-  }
-  return ctx;
-}
-
 // ---------------------------------------------------------------------------
 // Sub-component props
 // ---------------------------------------------------------------------------
@@ -123,9 +111,17 @@ function AccordionItem({ value, children }: ItemProps) {
 }
 
 function AccordionTrigger({ children, className: cls, class: classProp }: SlotProps) {
-  const ctx = useAccordionItemContext('Trigger');
+  // Use useContext() directly so the compiler recognizes ctx as reactive.
+  const ctx = useContext(AccordionItemContext);
+  if (!ctx) {
+    throw new Error(
+      '<Accordion.Trigger> must be used inside <Accordion.Item>. ' +
+        'Ensure it is a direct or nested child of an Accordion Item component.',
+    );
+  }
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.trigger, effectiveCls].filter(Boolean).join(' ');
+  const isOpen = ctx.isOpen();
 
   return (
     <button
@@ -134,8 +130,8 @@ function AccordionTrigger({ children, className: cls, class: classProp }: SlotPr
       data-accordion-trigger=""
       aria-controls={ctx.contentId}
       data-value={ctx.value}
-      aria-expanded={ctx.isOpen() ? 'true' : 'false'}
-      data-state={ctx.isOpen() ? 'open' : 'closed'}
+      aria-expanded={isOpen ? 'true' : 'false'}
+      data-state={isOpen ? 'open' : 'closed'}
       class={combined || undefined}
       onClick={() => ctx.toggle()}
     >
@@ -145,25 +141,16 @@ function AccordionTrigger({ children, className: cls, class: classProp }: SlotPr
 }
 
 function AccordionContent({ children, className: cls, class: classProp }: SlotProps) {
-  const ctx = useAccordionItemContext('Content');
+  const ctx = useContext(AccordionItemContext);
+  if (!ctx) {
+    throw new Error(
+      '<Accordion.Content> must be used inside <Accordion.Item>. ' +
+        'Ensure it is a direct or nested child of an Accordion Item component.',
+    );
+  }
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
-
-  // Animate open/close on the connected DOM element.
-  onMount(() => {
-    const open = ctx.isOpen();
-    const el = document.getElementById(ctx.contentId);
-    if (!el) return;
-    const height = el.scrollHeight;
-    el.style.setProperty('--accordion-content-height', `${height}px`);
-    el.setAttribute('data-state', open ? 'open' : 'closed');
-    if (open) {
-      el.setAttribute('aria-hidden', 'false');
-      el.style.display = '';
-    } else {
-      setHiddenAnimated(el, true);
-    }
-  });
+  const isOpen = ctx.isOpen();
 
   return (
     <div
@@ -171,9 +158,9 @@ function AccordionContent({ children, className: cls, class: classProp }: SlotPr
       id={ctx.contentId}
       data-accordion-content=""
       aria-labelledby={ctx.triggerId}
-      aria-hidden="true"
-      data-state="closed"
-      style="display: none"
+      aria-hidden={isOpen ? 'false' : 'true'}
+      data-state={isOpen ? 'open' : 'closed'}
+      style={isOpen ? '' : 'display: none'}
       class={combined || undefined}
     >
       {children}
@@ -206,100 +193,31 @@ function ComposedAccordionRoot({
 
   let openValues: string[] = [...defaultValue];
 
-  function isOpen(value: string): boolean {
-    return openValues.includes(value);
-  }
-
-  function toggle(value: string): void {
-    const current = [...openValues];
-    const idx = current.indexOf(value);
-
-    if (idx >= 0) {
-      current.splice(idx, 1);
-    } else {
-      if (multiple) {
-        current.push(value);
-      } else {
-        current.length = 0;
-        current.push(value);
-      }
-    }
-
-    openValues = current;
-    onValueChange?.(current);
-  }
-
+  // Inline arrow functions in ctx so the compiler traces openValues → ctx → JSX
+  // and transforms openValues to a signal. Function declarations are invisible
+  // to the compiler's taint analysis.
   const ctx: AccordionContextValue = {
     classes,
-    isOpen,
-    toggle,
-  };
+    isOpen: (value: string) => openValues.includes(value),
+    toggle: (value: string) => {
+      const current = [...openValues];
+      const idx = current.indexOf(value);
 
-  // Wire click + keyboard handlers on the connected root via event delegation.
-  onMount(() => {
-    const root = document.querySelector('[data-accordion-root]') as HTMLElement & { __accRootWired?: boolean } | null;
-    if (!root || root.__accRootWired) return;
-    root.__accRootWired = true;
-
-    root.addEventListener('click', (event: Event) => {
-      const trigger = (event.target as HTMLElement).closest('[data-accordion-trigger]') as HTMLElement | null;
-      if (!trigger) return;
-      const value = trigger.getAttribute('data-value');
-      if (!value) return;
-
-      // Find the content region for this trigger
-      const contentId = trigger.getAttribute('aria-controls');
-      const content = contentId ? document.getElementById(contentId) : null;
-      const wasOpen = trigger.getAttribute('aria-expanded') === 'true';
-
-      // In single mode, close all other items first
-      if (!multiple) {
-        const allTriggers = root.querySelectorAll<HTMLElement>('[data-accordion-trigger]');
-        allTriggers.forEach(t => {
-          if (t === trigger) return;
-          const cId = t.getAttribute('aria-controls');
-          const c = cId ? document.getElementById(cId) : null;
-          if (t.getAttribute('aria-expanded') === 'true') {
-            t.setAttribute('aria-expanded', 'false');
-            t.setAttribute('data-state', 'closed');
-            if (c) setHiddenAnimated(c, true);
-            if (c) c.setAttribute('data-state', 'closed');
-          }
-        });
-      }
-
-      // Toggle this item
-      if (wasOpen) {
-        trigger.setAttribute('aria-expanded', 'false');
-        trigger.setAttribute('data-state', 'closed');
-        if (content) {
-          content.setAttribute('data-state', 'closed');
-          setHiddenAnimated(content, true);
-        }
+      if (idx >= 0) {
+        current.splice(idx, 1);
       } else {
-        trigger.setAttribute('aria-expanded', 'true');
-        trigger.setAttribute('data-state', 'open');
-        if (content) {
-          content.setAttribute('aria-hidden', 'false');
-          content.style.display = '';
-          content.setAttribute('data-state', 'open');
-          const height = content.scrollHeight;
-          content.style.setProperty('--accordion-content-height', `${height}px`);
+        if (multiple) {
+          current.push(value);
+        } else {
+          current.length = 0;
+          current.push(value);
         }
       }
 
-      // Sync signal for external consumers
-      toggle(value);
-    });
-
-    root.addEventListener('keydown', (event: Event) => {
-      const ke = event as KeyboardEvent;
-      if (isKey(ke, Keys.ArrowUp, Keys.ArrowDown, Keys.Home, Keys.End)) {
-        const triggers = [...root.querySelectorAll<HTMLElement>('[data-accordion-trigger]')];
-        handleListNavigation(ke, triggers, { orientation: 'vertical' });
-      }
-    });
-  });
+      openValues = current;
+      onValueChange?.(current);
+    },
+  };
 
   return (
     <AccordionContext.Provider value={ctx}>

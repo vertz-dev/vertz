@@ -5,7 +5,7 @@
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, onMount, useContext } from '@vertz/ui';
+import { createContext, useContext } from '@vertz/ui';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
 import { uniqueId } from '../utils/id';
@@ -28,6 +28,8 @@ interface TooltipContextValue {
   classes?: TooltipClasses;
   show: () => void;
   hide: () => void;
+  _triggerCount: { value: number };
+  _contentCount: { value: number };
 }
 
 const TooltipContext = createContext<TooltipContextValue | undefined>(
@@ -63,6 +65,16 @@ interface SlotProps {
 
 function TooltipTrigger({ children }: SlotProps) {
   const ctx = useTooltipContext('Trigger');
+  const idx = ctx._triggerCount.value++;
+  if (idx > 0) console.warn('Duplicate <Tooltip.Trigger> detected – only the first is used');
+
+  // Forward aria-describedby to the user's child HTMLElement.
+  const childNodes = Array.isArray(children) ? children : [children];
+  const childEl = childNodes.find((c): c is HTMLElement => c instanceof HTMLElement);
+  if (childEl) {
+    childEl.setAttribute('aria-describedby', ctx.contentId);
+  }
+
   return (
     <span
       style="display: contents"
@@ -80,6 +92,8 @@ function TooltipTrigger({ children }: SlotProps) {
 
 function TooltipContent({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useTooltipContext('Content');
+  const idx = ctx._contentCount.value++;
+  if (idx > 0) console.warn('Duplicate <Tooltip.Content> detected – only the first is used');
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
@@ -122,29 +136,32 @@ function ComposedTooltipRoot({
   let isOpen = false;
 
   // Track cleanup and timer state. Plain object to avoid signal transforms.
-  const state: { showTimeout: ReturnType<typeof setTimeout> | null; floatingCleanup: (() => void) | null } = {
+  const state: {
+    showTimeout: ReturnType<typeof setTimeout> | null;
+    floatingCleanup: (() => void) | null;
+  } = {
     showTimeout: null,
     floatingCleanup: null,
   };
 
-  // Position the tooltip content relative to the trigger when open.
-  onMount(() => {
-    const open = isOpen;
-    if (!open || !positioning) return;
-
+  function applyPositioning(): void {
+    if (!positioning) return;
     const content = document.getElementById(contentId);
-    const trigger = content?.parentElement?.querySelector('[data-tooltip-trigger]') as HTMLElement | null;
+    const trigger = content?.parentElement?.querySelector(
+      '[data-tooltip-trigger]',
+    ) as HTMLElement | null;
     if (!trigger || !content) return;
 
     const result = createFloatingPosition(trigger, content, positioning);
     state.floatingCleanup = result.cleanup;
-  });
+  }
 
   function show(): void {
     if (state.showTimeout !== null) return;
     state.showTimeout = setTimeout(() => {
       state.showTimeout = null;
       isOpen = true;
+      applyPositioning();
     }, delay);
   }
 
@@ -164,6 +181,8 @@ function ComposedTooltipRoot({
     classes,
     show,
     hide,
+    _triggerCount: { value: 0 },
+    _contentCount: { value: 0 },
   };
 
   return (

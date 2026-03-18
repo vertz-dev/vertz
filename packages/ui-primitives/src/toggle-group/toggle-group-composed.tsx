@@ -29,6 +29,8 @@ interface ToggleGroupContextValue {
   classes?: ToggleGroupClasses;
   disabled: boolean;
   toggle: (value: string) => void;
+  /** Returns true for the first item rendered, false for all subsequent. */
+  claimFirstItem: () => boolean;
 }
 
 const ToggleGroupContext = createContext<ToggleGroupContextValue | undefined>(
@@ -63,6 +65,7 @@ interface ToggleGroupItemProps {
 function ToggleGroupItem({ value, children }: ToggleGroupItemProps) {
   const ctx = useToggleGroupContext('Item');
   const isOn = ctx.selectedValues.includes(value);
+  const isFirst = ctx.claimFirstItem();
 
   return (
     <button
@@ -73,7 +76,7 @@ function ToggleGroupItem({ value, children }: ToggleGroupItemProps) {
       data-state={isOn ? 'on' : 'off'}
       disabled={ctx.disabled}
       aria-disabled={ctx.disabled ? 'true' : undefined}
-      tabindex="-1"
+      tabindex={isFirst ? '0' : '-1'}
       class={ctx.classes?.item}
       onClick={() => ctx.toggle(value)}
     >
@@ -131,11 +134,20 @@ function ComposedToggleGroupRoot({
     onValueChange?.(current);
   }
 
+  // Track first item for roving tabindex initialization.
+  // Use a plain object so the compiler won't transform this to a signal.
+  const _state = { firstItemClaimed: false };
+
   const ctx: ToggleGroupContextValue = {
     selectedValues,
     classes,
     disabled,
     toggle,
+    claimFirstItem: () => {
+      if (_state.firstItemClaimed) return false;
+      _state.firstItemClaimed = true;
+      return true;
+    },
   };
 
   return (
@@ -148,7 +160,15 @@ function ComposedToggleGroupRoot({
         class={classes?.root}
         onKeydown={(event: KeyboardEvent) => {
           if (
-            !isKey(event, Keys.ArrowLeft, Keys.ArrowRight, Keys.ArrowUp, Keys.ArrowDown, Keys.Home, Keys.End)
+            !isKey(
+              event,
+              Keys.ArrowLeft,
+              Keys.ArrowRight,
+              Keys.ArrowUp,
+              Keys.ArrowDown,
+              Keys.Home,
+              Keys.End,
+            )
           ) {
             return;
           }

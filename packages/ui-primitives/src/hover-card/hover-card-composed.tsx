@@ -5,9 +5,8 @@
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, onMount, useContext } from '@vertz/ui';
+import { createContext, useContext } from '@vertz/ui';
 import type { FloatingOptions } from '../utils/floating';
-import { createFloatingPosition } from '../utils/floating';
 import { uniqueId } from '../utils/id';
 
 // ---------------------------------------------------------------------------
@@ -68,16 +67,25 @@ interface SlotProps {
 
 function HoverCardTrigger({ children }: SlotProps) {
   const ctx = useHoverCardContext('Trigger');
+
+  // Forward ARIA attrs and focus/blur handlers to the user's child element.
+  const childNodes = Array.isArray(children) ? children : [children];
+  const childEl = childNodes.find((c): c is HTMLElement => c instanceof HTMLElement);
+  if (childEl) {
+    childEl.setAttribute('aria-haspopup', 'dialog');
+    childEl.setAttribute('aria-expanded', ctx.isOpen ? 'true' : 'false');
+    childEl.addEventListener('focus', () => ctx.showImmediate());
+    childEl.addEventListener('blur', () => ctx.hide());
+  }
+
   return (
     <span
       style="display: contents"
       data-hovercard-trigger=""
-      aria-haspopup="dialog"
-      aria-expanded={ctx.isOpen ? 'true' : 'false'}
       onMouseenter={() => ctx.show()}
       onMouseleave={() => ctx.hide()}
-      onFocus={() => ctx.showImmediate()}
-      onBlur={() => ctx.hide()}
+      onFocusin={() => ctx.showImmediate()}
+      onFocusout={() => ctx.hide()}
     >
       {children}
     </span>
@@ -127,7 +135,7 @@ function ComposedHoverCardRoot({
   openDelay = 700,
   closeDelay = 300,
   onOpenChange,
-  positioning,
+  positioning: _positioning,
 }: ComposedHoverCardProps) {
   const contentId = uniqueId('hovercard');
 
@@ -141,26 +149,22 @@ function ComposedHoverCardRoot({
   } = { open: null, close: null, floatingCleanup: null };
 
   function cancelTimers(): void {
-    if (timers.open) { clearTimeout(timers.open); timers.open = null; }
-    if (timers.close) { clearTimeout(timers.close); timers.close = null; }
+    if (timers.open) {
+      clearTimeout(timers.open);
+      timers.open = null;
+    }
+    if (timers.close) {
+      clearTimeout(timers.close);
+      timers.close = null;
+    }
   }
 
   function cancelCloseTimer(): void {
-    if (timers.close) { clearTimeout(timers.close); timers.close = null; }
+    if (timers.close) {
+      clearTimeout(timers.close);
+      timers.close = null;
+    }
   }
-
-  // Position content relative to trigger when open.
-  onMount(() => {
-    const open = isOpen;
-    if (!open || !positioning) return;
-
-    const content = document.getElementById(contentId);
-    const trigger = content?.parentElement?.querySelector('[data-hovercard-trigger]') as HTMLElement | null;
-    if (!trigger || !content) return;
-
-    const result = createFloatingPosition(trigger, content, positioning);
-    timers.floatingCleanup = result.cleanup;
-  });
 
   function show(): void {
     cancelTimers();

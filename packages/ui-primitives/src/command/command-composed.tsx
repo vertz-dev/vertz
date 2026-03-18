@@ -6,7 +6,7 @@
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, onMount, useContext } from '@vertz/ui';
+import { createContext, useContext } from '@vertz/ui';
 import { uniqueId } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
@@ -35,6 +35,10 @@ interface CommandContextValue {
   classes?: CommandClasses;
   getOnSelect: () => ((value: string) => void) | undefined;
   placeholder?: string;
+  handleInput: (inputEl: HTMLInputElement) => void;
+  handleKeydown: (event: KeyboardEvent, inputEl: HTMLInputElement) => void;
+  /** Returns true for the first item rendered, false for subsequent ones. */
+  claimInitialActive: () => boolean;
 }
 
 const CommandContext = createContext<CommandContextValue | undefined>(
@@ -119,6 +123,12 @@ function CommandInput({ className: cls, class: classProp }: CommandInputProps) {
       data-command-input=""
       placeholder={ctx.placeholder}
       class={inputClass || undefined}
+      onInput={(e: Event) => {
+        ctx.handleInput(e.target as HTMLInputElement);
+      }}
+      onKeydown={(e: KeyboardEvent) => {
+        ctx.handleKeydown(e, e.target as HTMLInputElement);
+      }}
     />
   );
 }
@@ -141,7 +151,12 @@ function CommandEmpty({ children, className: cls, class: classProp }: CommandEmp
   const emptyClass = [ctx.classes?.empty, effectiveCls].filter(Boolean).join(' ');
 
   return (
-    <div data-part="command-empty" data-command-empty="" aria-hidden="true" class={emptyClass || undefined}>
+    <div
+      data-part="command-empty"
+      data-command-empty=""
+      aria-hidden="true"
+      class={emptyClass || undefined}
+    >
       {children}
     </div>
   );
@@ -157,12 +172,13 @@ function CommandItem({
   const ctx = useCommandContext('Item');
   const effectiveCls = cls ?? classProp;
   const itemClass = [ctx.classes?.item, effectiveCls].filter(Boolean).join(' ');
+  const isInitialActive = ctx.claimInitialActive();
 
   return (
     <div
       role="option"
       data-value={value}
-      aria-selected="false"
+      aria-selected={isInitialActive ? 'true' : 'false'}
       data-keywords={keywords && keywords.length > 0 ? keywords.join(' ') : undefined}
       class={itemClass || undefined}
       onClick={() => {
@@ -182,7 +198,12 @@ function CommandGroup({ label, children, className: cls, class: classProp }: Com
   const headingId = uniqueId('command-group');
 
   return (
-    <div role="group" aria-labelledby={headingId} data-command-group="" class={groupClass || undefined}>
+    <div
+      role="group"
+      aria-labelledby={headingId}
+      data-command-group=""
+      class={groupClass || undefined}
+    >
       <div id={headingId} data-command-group-heading="" class={headingClass}>
         {label}
       </div>
@@ -229,35 +250,39 @@ function ComposedCommandRoot({
   const filterFn = customFilter ?? defaultFilter;
 
   // Plain mutable state — not reactive, managed imperatively.
-  const state: { activeIndex: number; wired: boolean } = { activeIndex: 0, wired: false };
+  const state: { activeIndex: number; initialClaimed: boolean } = {
+    activeIndex: 0,
+    initialClaimed: false,
+  };
 
-  function getRootEl(): HTMLElement | null {
-    return document.getElementById(rootId);
+  /** First call returns true (for the first item), subsequent calls return false. */
+  function claimInitialActive(): boolean {
+    if (state.initialClaimed) return false;
+    state.initialClaimed = true;
+    return true;
   }
 
-  function getItems(): HTMLDivElement[] {
-    const root = getRootEl();
-    if (!root) return [];
+  /** Walk up from an element to find the command root by id. */
+  function findRoot(el: HTMLElement): HTMLElement | null {
+    let current: HTMLElement | null = el;
+    while (current) {
+      if (current.id === rootId) return current;
+      current = current.parentElement;
+    }
+    return null;
+  }
+
+  function getItemsFrom(root: HTMLElement): HTMLDivElement[] {
     return [...root.querySelectorAll<HTMLDivElement>('[role="option"]')];
   }
 
-  function getVisibleItems(): HTMLDivElement[] {
-    return getItems().filter((item) => item.getAttribute('aria-hidden') !== 'true');
+  function getVisibleItemsFrom(root: HTMLElement): HTMLDivElement[] {
+    return getItemsFrom(root).filter((item) => item.getAttribute('aria-hidden') !== 'true');
   }
 
-  function getInputEl(): HTMLInputElement | null {
-    const root = getRootEl();
-    return root?.querySelector<HTMLInputElement>('[data-command-input]') ?? null;
-  }
-
-  function getEmptyEl(): HTMLElement | null {
-    const root = getRootEl();
-    return root?.querySelector<HTMLElement>('[data-command-empty]') ?? null;
-  }
-
-  function updateActiveItem(): void {
-    const allItems = getItems();
-    const visible = getVisibleItems();
+  function updateActiveItemIn(root: HTMLElement): void {
+    const allItems = getItemsFrom(root);
+    const visible = getVisibleItemsFrom(root);
     for (const item of allItems) {
       item.setAttribute('aria-selected', 'false');
     }
@@ -266,10 +291,9 @@ function ComposedCommandRoot({
     }
   }
 
-  function runFilter(): void {
-    const inputEl = getInputEl();
-    const search = inputEl?.value ?? '';
-    const allItems = getItems();
+  function runFilterFrom(inputEl: HTMLInputElement, root: HTMLElement): void {
+    const search = inputEl.value ?? '';
+    const allItems = getItemsFrom(root);
     let visibleCount = 0;
 
     for (const item of allItems) {
@@ -284,25 +308,22 @@ function ComposedCommandRoot({
     }
 
     // Update group visibility
-    const root = getRootEl();
-    if (root) {
-      const groups = root.querySelectorAll<HTMLElement>('[data-command-group]');
-      for (const group of groups) {
-        const groupItems = group.querySelectorAll<HTMLElement>('[role="option"]');
-        const hasVisible = [...groupItems].some(
-          (item) => item.getAttribute('aria-hidden') !== 'true',
-        );
-        const heading = group.querySelector<HTMLElement>('[data-command-group-heading]');
-        if (heading) {
-          heading.setAttribute('aria-hidden', String(!hasVisible));
-          heading.style.display = hasVisible ? '' : 'none';
-        }
-        group.style.display = hasVisible ? '' : 'none';
+    const groups = root.querySelectorAll<HTMLElement>('[data-command-group]');
+    for (const group of groups) {
+      const groupItems = group.querySelectorAll<HTMLElement>('[role="option"]');
+      const hasVisible = [...groupItems].some(
+        (item) => item.getAttribute('aria-hidden') !== 'true',
+      );
+      const heading = group.querySelector<HTMLElement>('[data-command-group-heading]');
+      if (heading) {
+        heading.setAttribute('aria-hidden', String(!hasVisible));
+        heading.style.display = hasVisible ? '' : 'none';
       }
+      group.style.display = hasVisible ? '' : 'none';
     }
 
     // Update empty state
-    const emptyEl = getEmptyEl();
+    const emptyEl = root.querySelector<HTMLElement>('[data-command-empty]');
     if (emptyEl) {
       const hide = visibleCount > 0;
       emptyEl.setAttribute('aria-hidden', String(hide));
@@ -310,65 +331,56 @@ function ComposedCommandRoot({
     }
 
     state.activeIndex = 0;
-    updateActiveItem();
+    updateActiveItemIn(root);
   }
 
-  // Wire imperative event handlers on connected DOM elements.
-  onMount(() => {
-    const root = document.getElementById(rootId) as HTMLElement & { __cmdWired?: boolean } | null;
-    if (!root || root.__cmdWired) return;
-    root.__cmdWired = true;
+  function handleInput(inputEl: HTMLInputElement): void {
+    const root = findRoot(inputEl);
+    if (!root) return;
+    onInputChange?.(inputEl.value);
+    runFilterFrom(inputEl, root);
+  }
 
-    const inputEl = root.querySelector<HTMLInputElement>('[data-command-input]');
-    if (!inputEl) return;
+  function handleKeydown(event: KeyboardEvent, inputEl: HTMLInputElement): void {
+    const root = findRoot(inputEl);
+    if (!root) return;
+    const visible = getVisibleItemsFrom(root);
 
-    inputEl.addEventListener('input', () => {
-      onInputChange?.(inputEl.value);
-      runFilter();
-    });
+    if (isKey(event, Keys.ArrowDown)) {
+      event.preventDefault();
+      const next = Math.min(state.activeIndex + 1, visible.length - 1);
+      state.activeIndex = next;
+      updateActiveItemIn(root);
+      return;
+    }
 
-    inputEl.addEventListener('keydown', (event: KeyboardEvent) => {
-      const visible = getVisibleItems();
+    if (isKey(event, Keys.ArrowUp)) {
+      event.preventDefault();
+      const prev = Math.max(state.activeIndex - 1, 0);
+      state.activeIndex = prev;
+      updateActiveItemIn(root);
+      return;
+    }
 
-      if (isKey(event, Keys.ArrowDown)) {
-        event.preventDefault();
-        const next = Math.min(state.activeIndex + 1, visible.length - 1);
-        state.activeIndex = next;
-        updateActiveItem();
-        return;
-      }
-
-      if (isKey(event, Keys.ArrowUp)) {
-        event.preventDefault();
-        const prev = Math.max(state.activeIndex - 1, 0);
-        state.activeIndex = prev;
-        updateActiveItem();
-        return;
-      }
-
-      if (isKey(event, Keys.Enter)) {
-        event.preventDefault();
-        const active = visible[state.activeIndex];
-        if (active) {
-          const val = active.getAttribute('data-value');
-          if (val !== null) {
-            onSelect?.(val);
-          }
+    if (isKey(event, Keys.Enter)) {
+      event.preventDefault();
+      const active = visible[state.activeIndex];
+      if (active) {
+        const val = active.getAttribute('data-value');
+        if (val !== null) {
+          onSelect?.(val);
         }
-        return;
       }
+      return;
+    }
 
-      if (isKey(event, Keys.Escape)) {
-        event.preventDefault();
-        inputEl.value = '';
-        onInputChange?.('');
-        runFilter();
-      }
-    });
-
-    // Set initial active item
-    updateActiveItem();
-  });
+    if (isKey(event, Keys.Escape)) {
+      event.preventDefault();
+      inputEl.value = '';
+      onInputChange?.('');
+      runFilterFrom(inputEl, root);
+    }
+  }
 
   const ctx: CommandContextValue = {
     rootId,
@@ -376,6 +388,9 @@ function ComposedCommandRoot({
     classes,
     getOnSelect: () => onSelect,
     placeholder,
+    handleInput,
+    handleKeydown,
+    claimInitialActive,
   };
 
   return (

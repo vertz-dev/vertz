@@ -87,7 +87,7 @@ describe('themed HoverCard', () => {
     });
     document.body.appendChild(root);
 
-    btn.dispatchEvent(new FocusEvent('focus'));
+    btn.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
     expect(onOpenChange).toHaveBeenCalledWith(true);
 
     document.body.removeChild(root);

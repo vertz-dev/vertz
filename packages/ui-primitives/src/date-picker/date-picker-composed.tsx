@@ -31,10 +31,12 @@ export type DatePickerClassKey = keyof DatePickerClasses;
 // ---------------------------------------------------------------------------
 
 interface DatePickerContextValue {
-  isOpen: boolean;
+  /** Function getters to avoid static signal capture in context. */
+  isOpen: () => boolean;
+  hasValue: () => boolean;
+  displayText: () => string;
   contentId: string;
   classes?: DatePickerClasses;
-  displayText: string;
   open: () => void;
   close: () => void;
   toggle: () => void;
@@ -44,17 +46,6 @@ const DatePickerContext = createContext<DatePickerContextValue | undefined>(
   undefined,
   '@vertz/ui-primitives::DatePickerContext',
 );
-
-function useDatePickerContext(componentName: string): DatePickerContextValue {
-  const ctx = useContext(DatePickerContext);
-  if (!ctx) {
-    throw new Error(
-      `<DatePicker.${componentName}> must be used inside <DatePicker>. ` +
-        'Ensure it is a direct or nested child of the DatePicker root component.',
-    );
-  }
-  return ctx;
-}
 
 // ---------------------------------------------------------------------------
 // Sub-component props
@@ -72,9 +63,20 @@ interface SlotProps {
 // ---------------------------------------------------------------------------
 
 function DatePickerTrigger({ children, className: cls, class: classProp }: SlotProps) {
-  const ctx = useDatePickerContext('Trigger');
+  // Use useContext() directly so the compiler recognizes ctx as reactive,
+  // wrapping derived const variables in computed() → reactive __attr.
+  const ctx = useContext(DatePickerContext);
+  if (!ctx) {
+    throw new Error(
+      '<DatePicker.Trigger> must be used inside <DatePicker>. ' +
+        'Ensure it is a direct or nested child of the DatePicker root component.',
+    );
+  }
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.trigger, effectiveCls].filter(Boolean).join(' ');
+  const isOpen = ctx.isOpen();
+  const hasVal = ctx.hasValue();
+  const text = ctx.displayText();
 
   return (
     <button
@@ -82,29 +84,37 @@ function DatePickerTrigger({ children, className: cls, class: classProp }: SlotP
       data-datepicker-trigger=""
       aria-haspopup="dialog"
       aria-controls={ctx.contentId}
-      aria-expanded={ctx.isOpen ? 'true' : 'false'}
-      data-state={ctx.isOpen ? 'open' : 'closed'}
+      aria-expanded={isOpen ? 'true' : 'false'}
+      data-state={isOpen ? 'open' : 'closed'}
+      data-placeholder={hasVal ? undefined : 'true'}
       class={combined || undefined}
       onClick={() => ctx.toggle()}
     >
-      {children ?? ctx.displayText}
+      {children ?? text}
     </button>
   );
 }
 
 function DatePickerContent({ children, className: cls, class: classProp }: SlotProps) {
-  const ctx = useDatePickerContext('Content');
+  const ctx = useContext(DatePickerContext);
+  if (!ctx) {
+    throw new Error(
+      '<DatePicker.Content> must be used inside <DatePicker>. ' +
+        'Ensure it is a direct or nested child of the DatePicker root component.',
+    );
+  }
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
+  const isOpen = ctx.isOpen();
 
   return (
     <div
       role="dialog"
       id={ctx.contentId}
       data-datepicker-content=""
-      aria-hidden={ctx.isOpen ? 'false' : 'true'}
-      data-state={ctx.isOpen ? 'open' : 'closed'}
-      style={ctx.isOpen ? '' : 'display: none'}
+      aria-hidden={isOpen ? 'false' : 'true'}
+      data-state={isOpen ? 'open' : 'closed'}
+      style={isOpen ? '' : 'display: none'}
       class={combined || undefined}
     >
       {children}
@@ -208,6 +218,7 @@ function ComposedDatePickerRoot({
   const ids = linkedIds('datepicker');
 
   let isOpen = false;
+  let hasValue = defaultValue != null;
   let displayText = _getDisplayText(defaultValue ?? null, placeholder, formatDate);
 
   // Plain object for non-reactive state.
@@ -225,7 +236,9 @@ function ComposedDatePickerRoot({
     if (!open) return;
 
     const contentEl = document.getElementById(ids.contentId);
-    const triggerEl = contentEl?.parentElement?.querySelector('[data-datepicker-trigger]') as HTMLElement | null;
+    const triggerEl = contentEl?.parentElement?.querySelector(
+      '[data-datepicker-trigger]',
+    ) as HTMLElement | null;
     if (!contentEl) return;
 
     state.dismissCleanup = createDismiss({
@@ -261,6 +274,7 @@ function ComposedDatePickerRoot({
       const realDate = _toRealDate(calValue);
       if (realDate) {
         state.value = realDate;
+        hasValue = true;
         displayText = _getDisplayText(realDate, placeholder, formatDate);
         onValueChange?.(realDate);
         close();
@@ -272,6 +286,7 @@ function ComposedDatePickerRoot({
       if (from && to) {
         const range = { from, to };
         state.value = range;
+        hasValue = true;
         displayText = _getDisplayText(range, placeholder, formatDate);
         onValueChange?.(range);
         if (from.getTime() !== to.getTime()) {
@@ -288,10 +303,11 @@ function ComposedDatePickerRoot({
   );
 
   const ctx: DatePickerContextValue = {
-    isOpen,
+    isOpen: () => isOpen,
+    hasValue: () => hasValue,
+    displayText: () => displayText,
     contentId: ids.contentId,
     classes,
-    displayText,
     open,
     close,
     toggle,

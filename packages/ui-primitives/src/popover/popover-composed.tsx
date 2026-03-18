@@ -5,7 +5,7 @@
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, useContext } from '@vertz/ui';
+import { createContext, onMount, useContext } from '@vertz/ui';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
@@ -24,12 +24,14 @@ export interface PopoverClasses {
 // ---------------------------------------------------------------------------
 
 interface PopoverContextValue {
-  isOpen: boolean;
+  isOpen: () => boolean;
   contentId: string;
   classes?: PopoverClasses;
   open: () => void;
   close: () => void;
   toggle: () => void;
+  /** @internal Per-Root content instance counter for duplicate detection. */
+  _contentCount: { value: number };
 }
 
 const PopoverContext = createContext<PopoverContextValue | undefined>(
@@ -65,12 +67,39 @@ interface SlotProps {
 
 function PopoverTrigger({ children }: SlotProps) {
   const ctx = usePopoverContext('Trigger');
+
+  // Forward ARIA attrs and events to the user's child element.
+  onMount(() => {
+    const childNodes = Array.isArray(children) ? children : [children];
+    const childEl = childNodes.find((c): c is HTMLElement => c instanceof HTMLElement);
+    if (!childEl) return;
+
+    childEl.setAttribute('aria-haspopup', 'dialog');
+    childEl.setAttribute('aria-controls', ctx.contentId);
+    childEl.setAttribute('aria-expanded', 'false');
+    childEl.setAttribute('data-state', 'closed');
+
+    const handleClick = () => {
+      ctx.toggle();
+      const nowOpen = ctx.isOpen();
+      childEl.setAttribute('aria-expanded', nowOpen ? 'true' : 'false');
+      childEl.setAttribute('data-state', nowOpen ? 'open' : 'closed');
+    };
+    childEl.addEventListener('click', handleClick);
+
+    return () => {
+      childEl.removeEventListener('click', handleClick);
+    };
+  });
+
   return (
     <span
       style="display: contents"
       data-popover-trigger=""
-      data-state={ctx.isOpen ? 'open' : 'closed'}
-      onClick={() => ctx.toggle()}
+      aria-haspopup="dialog"
+      aria-controls={ctx.contentId}
+      aria-expanded="false"
+      data-state="closed"
     >
       {children}
     </span>
@@ -79,6 +108,13 @@ function PopoverTrigger({ children }: SlotProps) {
 
 function PopoverContent({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = usePopoverContext('Content');
+
+  // Track content instances per Root for duplicate detection.
+  const instanceIndex = ctx._contentCount.value++;
+  if (instanceIndex > 0) {
+    console.warn('Duplicate <Popover.Content> detected \u2013 only the first is used');
+  }
+
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
@@ -87,9 +123,9 @@ function PopoverContent({ children, className: cls, class: classProp }: SlotProp
       role="dialog"
       id={ctx.contentId}
       data-popover-content=""
-      aria-hidden={ctx.isOpen ? 'false' : 'true'}
-      data-state={ctx.isOpen ? 'open' : 'closed'}
-      style={ctx.isOpen ? '' : 'display: none'}
+      aria-hidden="true"
+      data-state="closed"
+      style="display: none"
       class={combined || undefined}
     >
       {children}
@@ -135,8 +171,17 @@ function ComposedPopoverRoot({
     return { trigger, content };
   }
 
+  function syncContentAttrs(nowOpen: boolean): void {
+    const content = document.getElementById(ids.contentId);
+    if (!content) return;
+    content.setAttribute('data-state', nowOpen ? 'open' : 'closed');
+    content.setAttribute('aria-hidden', nowOpen ? 'false' : 'true');
+    content.style.display = nowOpen ? '' : 'none';
+  }
+
   function open(): void {
     isOpen = true;
+    syncContentAttrs(true);
 
     const { trigger, content } = getElements();
     if (trigger && content && positioning) {
@@ -154,6 +199,7 @@ function ComposedPopoverRoot({
 
   function close(): void {
     isOpen = false;
+    syncContentAttrs(false);
     cleanup.floating?.();
     cleanup.floating = null;
     cleanup.dismiss?.();
@@ -167,12 +213,13 @@ function ComposedPopoverRoot({
   }
 
   const ctx: PopoverContextValue = {
-    isOpen,
+    isOpen: () => isOpen,
     contentId: ids.contentId,
     classes,
     open,
     close,
     toggle,
+    _contentCount: { value: 0 },
   };
 
   return (

@@ -11,7 +11,6 @@ import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition, virtualElement } from '../utils/floating';
 import { linkedIds } from '../utils/id';
-import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
 // ---------------------------------------------------------------------------
 // Class distribution
@@ -34,7 +33,12 @@ interface ContextMenuContextValue {
   contentId: string;
   classes?: ContextMenuClasses;
   onSelect?: (value: string) => void;
+  open: (x: number, y: number) => void;
   close: () => void;
+  /** @internal Set by Content to share its element reference with Root. */
+  _setContentEl: (el: HTMLElement) => void;
+  /** @internal Per-Root content instance counter for duplicate detection. */
+  _contentCount: { value: number };
 }
 
 const ContextMenuContext = createContext<ContextMenuContextValue | undefined>(
@@ -77,32 +81,58 @@ interface GroupProps extends SlotProps {
 // ---------------------------------------------------------------------------
 
 function ContextMenuTrigger({ children }: SlotProps) {
-  return (
-    <div style="display: contents" data-contextmenu-trigger="">
+  const ctx = useContextMenuContext('Trigger');
+  const el = (
+    <div style="display: contents" data-part="trigger" data-contextmenu-trigger="">
       {children}
     </div>
   );
+
+  onMount(() => {
+    const triggerEl = el as HTMLElement;
+    function handleContextMenu(e: MouseEvent) {
+      e.preventDefault();
+      ctx.open(e.clientX, e.clientY);
+    }
+    triggerEl.addEventListener('contextmenu', handleContextMenu);
+    return () => triggerEl.removeEventListener('contextmenu', handleContextMenu);
+  });
+
+  return el;
 }
 
 function ContextMenuContent({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useContextMenuContext('Content');
+
+  // Track content instances per Root for duplicate detection.
+  const instanceIndex = ctx._contentCount.value++;
+  if (instanceIndex > 0) {
+    console.warn('Duplicate <ContextMenu.Content> detected \u2013 only the first is used');
+  }
+
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
-  return (
+  const el = (
     <div
       role="menu"
       tabindex="-1"
       id={ctx.contentId}
       data-contextmenu-content=""
-      aria-hidden={ctx.isOpen ? 'false' : 'true'}
-      data-state={ctx.isOpen ? 'open' : 'closed'}
-      style={ctx.isOpen ? '' : 'display: none'}
+      aria-hidden="true"
+      data-state="closed"
+      style="display: none"
       class={combined || undefined}
     >
       {children}
     </div>
   );
+
+  // Share the exact element reference with Root so open()/close() update
+  // the same JS wrapper that consumers obtain via querySelector.
+  ctx._setContentEl(el as HTMLElement);
+
+  return el;
 }
 
 function ContextMenuItem({ value, children, className: cls, class: classProp }: ItemProps) {
@@ -159,6 +189,16 @@ function ContextMenuSeparator({ className: cls, class: classProp }: SlotProps) {
 }
 
 // ---------------------------------------------------------------------------
+// Imperative DOM helpers for content element state
+// ---------------------------------------------------------------------------
+
+function updateContentDOM(el: HTMLElement, isOpen: boolean): void {
+  el.setAttribute('data-state', isOpen ? 'open' : 'closed');
+  el.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+  el.style.display = isOpen ? '' : 'none';
+}
+
+// ---------------------------------------------------------------------------
 // Root composed component
 // ---------------------------------------------------------------------------
 
@@ -183,6 +223,11 @@ function ComposedContextMenuRoot({
 
   let isOpen = false;
 
+  // Direct reference to the content element, set by ContextMenuContent.
+  // Using this avoids happy-dom wrapper identity issues where
+  // document.getElementById returns a different JS wrapper than querySelector.
+  const shared: { contentEl: HTMLElement | null } = { contentEl: null };
+
   const state: {
     activeIndex: number;
     floatingCleanup: (() => void) | null;
@@ -190,7 +235,7 @@ function ComposedContextMenuRoot({
   } = { activeIndex: -1, floatingCleanup: null, dismissCleanup: null };
 
   function getContentEl(): HTMLElement | null {
-    return document.getElementById(ids.contentId);
+    return shared.contentEl ?? document.getElementById(ids.contentId);
   }
 
   function getItems(): HTMLElement[] {
@@ -205,121 +250,39 @@ function ComposedContextMenuRoot({
     });
   }
 
-  // Wire context menu (right-click) on the trigger element.
-  onMount(() => {
-    const root = document.querySelector(`[data-contextmenu-root="${ids.contentId}"]`);
-    const trigger = root?.querySelector('[data-contextmenu-trigger]') as HTMLElement | null;
-    if (!trigger || (trigger as HTMLElement & { __ctxWired?: boolean }).__ctxWired) return;
-    (trigger as HTMLElement & { __ctxWired?: boolean }).__ctxWired = true;
-
-    trigger.addEventListener('contextmenu', (e: Event) => {
-      e.preventDefault();
-      const me = e as MouseEvent;
-      open(me.clientX, me.clientY);
-    });
-  });
-
-  // Wire keyboard and click handlers on the connected content element.
-  // Read isOpen to re-run when the menu opens (element may not be findable on first run).
-  onMount(() => {
-    const el = getContentEl() as HTMLElement & { __menuWired?: boolean } | null;
-    if (!el || el.__menuWired) return;
-    el.__menuWired = true;
-
-    el.addEventListener('keydown', (event: KeyboardEvent) => {
-      if (isKey(event, Keys.Escape)) {
-        event.preventDefault();
-        close();
-        return;
-      }
-
-      const items = getItems();
-
-      if (isKey(event, Keys.Enter, Keys.Space)) {
-        event.preventDefault();
-        const active = items[state.activeIndex];
-        if (active) {
-          const val = active.getAttribute('data-value');
-          if (val !== null) {
-            onSelect?.(val);
-            close();
-          }
-        }
-        return;
-      }
-
-      if (state.activeIndex === -1) {
-        if (isKey(event, Keys.ArrowDown)) {
-          event.preventDefault();
-          state.activeIndex = 0;
-          updateActiveItem(items, 0);
-          items[0]?.focus();
-          return;
-        }
-        if (isKey(event, Keys.ArrowUp)) {
-          event.preventDefault();
-          const last = items.length - 1;
-          state.activeIndex = last;
-          updateActiveItem(items, last);
-          items[last]?.focus();
-          return;
-        }
-      }
-
-      const result = handleListNavigation(event, items, { orientation: 'vertical' });
-      if (result) {
-        const idx = items.indexOf(result as HTMLElement);
-        if (idx >= 0) {
-          state.activeIndex = idx;
-          updateActiveItem(items, idx);
-        }
-        return;
-      }
-
-      // Type-ahead
-      if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
-        const char = event.key.toLowerCase();
-        const match = items.find((item) => item.textContent?.toLowerCase().startsWith(char));
-        if (match) {
-          const idx = items.indexOf(match);
-          state.activeIndex = idx;
-          updateActiveItem(items, idx);
-          match.focus();
-        }
-      }
-    });
-
-    el.addEventListener('click', (event: Event) => {
-      const target = (event.target as HTMLElement).closest('[role="menuitem"]');
-      if (target) close();
-    });
-  });
-
   function open(x: number, y: number): void {
     isOpen = true;
     state.activeIndex = -1;
     onOpenChange?.(true);
 
+    // Imperatively update the content element so DOM reflects the open state
+    // immediately — the JSX attributes on Content use the snapshot `ctx.isOpen`
+    // which is not reactive through the context object.
+    const contentEl = getContentEl();
+    if (contentEl) {
+      updateContentDOM(contentEl, true);
+    }
+
     queueMicrotask(() => {
-      const contentEl = getContentEl();
-      if (!contentEl) return;
+      const el = contentEl ?? getContentEl();
+      if (!el) return;
 
       const effectivePositioning: FloatingOptions = {
         ...(positioning ?? {}),
         placement: positioning?.placement ?? 'bottom-start',
       };
 
-      const result = createFloatingPosition(virtualElement(x, y), contentEl, effectivePositioning);
+      const result = createFloatingPosition(virtualElement(x, y), el, effectivePositioning);
       state.floatingCleanup = result.cleanup;
       state.dismissCleanup = createDismiss({
         onDismiss: close,
-        insideElements: [contentEl],
+        insideElements: [el],
         escapeKey: false,
       });
 
       const items = getItems();
       updateActiveItem(items, -1);
-      contentEl.focus();
+      el.focus();
     });
   }
 
@@ -330,6 +293,12 @@ function ComposedContextMenuRoot({
     state.dismissCleanup?.();
     state.dismissCleanup = null;
     onOpenChange?.(false);
+
+    // Imperatively update the content element DOM to reflect closed state.
+    const contentEl = getContentEl();
+    if (contentEl) {
+      updateContentDOM(contentEl, false);
+    }
   }
 
   const ctx: ContextMenuContextValue = {
@@ -337,7 +306,12 @@ function ComposedContextMenuRoot({
     contentId: ids.contentId,
     classes,
     onSelect,
+    open,
     close,
+    _setContentEl: (el: HTMLElement) => {
+      shared.contentEl = el;
+    },
+    _contentCount: { value: 0 },
   };
 
   return (
