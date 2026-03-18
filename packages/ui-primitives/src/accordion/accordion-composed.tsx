@@ -6,7 +6,8 @@
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, useContext } from '@vertz/ui';
+import { createContext, lifecycleEffect, useContext } from '@vertz/ui';
+import { setHiddenAnimated } from '../utils/aria';
 import { uniqueId } from '../utils/id';
 import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
@@ -141,6 +142,24 @@ function AccordionContent({ children, className: cls, class: classProp }: SlotPr
   const ctx = useAccordionItemContext('Content');
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
+
+  // Animate open/close on the connected DOM element.
+  // Sets --accordion-content-height for the CSS keyframe and uses
+  // setHiddenAnimated to wait for the exit animation before hiding.
+  lifecycleEffect(() => {
+    const open = ctx.isOpen;
+    const el = document.getElementById(ctx.contentId);
+    if (!el) return;
+    const height = el.scrollHeight;
+    el.style.setProperty('--accordion-content-height', `${height}px`);
+    el.setAttribute('data-state', open ? 'open' : 'closed');
+    if (open) {
+      el.setAttribute('aria-hidden', 'false');
+      el.style.display = '';
+    } else {
+      setHiddenAnimated(el, true);
+    }
+  });
 
   return (
     <div

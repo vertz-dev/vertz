@@ -66,25 +66,29 @@ function RadioGroupItem({ value, disabled, children }: RadioGroupItemProps) {
 
   return (
     <div
-      role="radio"
+      style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"
       data-radiogroup-item=""
       data-value={value}
-      aria-checked={ctx.selectedValue === value ? 'true' : 'false'}
-      data-state={ctx.selectedValue === value ? 'checked' : 'unchecked'}
-      tabindex={ctx.selectedValue === value ? '0' : '-1'}
-      aria-disabled={isDisabled ? 'true' : undefined}
-      class={ctx.classes?.item}
-      style={isDisabled ? 'pointer-events: none' : undefined}
       onClick={() => {
         if (!isDisabled) ctx.select(value);
       }}
     >
-      <span
-        data-part="indicator"
+      <div
+        role="radio"
+        aria-checked={ctx.selectedValue === value ? 'true' : 'false'}
         data-state={ctx.selectedValue === value ? 'checked' : 'unchecked'}
-        class={ctx.classes?.indicator}
-      />
-      {children}
+        tabindex={ctx.selectedValue === value ? '0' : '-1'}
+        aria-disabled={isDisabled ? 'true' : undefined}
+        class={ctx.classes?.item}
+        style={isDisabled ? 'pointer-events: none; position: relative;' : 'position: relative;'}
+      >
+        <span
+          data-part="indicator"
+          data-state={ctx.selectedValue === value ? 'checked' : 'unchecked'}
+          class={ctx.classes?.indicator}
+        />
+      </div>
+      {children && <span>{children}</span>}
     </div>
   );
 }
