@@ -50,6 +50,30 @@ describe('sheet styles', () => {
     expect(sheet.css).toContain('::backdrop');
     expect(sheet.css).toContain('backdrop-filter');
   });
+
+  it('left/right panels fill full viewport height and override dialog UA constraints', () => {
+    // left panel block has inset: 0 auto 0 0 — check it also has height + max-height override
+    const leftBlock = sheet.css.split('}').find((b) => b.includes('inset: 0 auto 0 0'));
+    expect(leftBlock).toContain('height: 100dvh');
+    expect(leftBlock).toContain('max-height: none');
+
+    // right panel block has inset: 0 0 0 auto
+    const rightBlock = sheet.css.split('}').find((b) => b.includes('inset: 0 0 0 auto'));
+    expect(rightBlock).toContain('height: 100dvh');
+    expect(rightBlock).toContain('max-height: none');
+  });
+
+  it('top/bottom panels fill full viewport width and override dialog UA constraints', () => {
+    // top panel block has inset: 0 0 auto 0
+    const topBlock = sheet.css.split('}').find((b) => b.includes('inset: 0 0 auto 0'));
+    expect(topBlock).toContain('width: 100dvw');
+    expect(topBlock).toContain('max-width: none');
+
+    // bottom panel block has inset: auto 0 0 0
+    const bottomBlock = sheet.css.split('}').find((b) => b.includes('inset: auto 0 0 0'));
+    expect(bottomBlock).toContain('width: 100dvw');
+    expect(bottomBlock).toContain('max-width: none');
+  });
 });
 
 describe('themed Sheet', () => {
