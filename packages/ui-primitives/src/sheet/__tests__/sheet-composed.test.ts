@@ -1,6 +1,47 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
-import { popScope, pushScope, runCleanups } from '@vertz/ui/internals';
 import { ComposedSheet } from '../sheet-composed';
+
+function flush() {
+  return new Promise<void>((resolve) => setTimeout(resolve, 20));
+}
+
+function getConnectedPanel(root: HTMLElement) {
+  const renderedPanel = root.querySelector('dialog') as HTMLDialogElement;
+  return document.getElementById(renderedPanel.id) as HTMLDialogElement;
+}
+
+function createSheetTree(
+  classes?: Record<string, string>,
+  options?: {
+    side?: 'left' | 'right' | 'top' | 'bottom';
+    showClose?: boolean;
+    onOpenChange?: (open: boolean) => void;
+  },
+) {
+  const triggerBtn = document.createElement('button');
+  triggerBtn.textContent = 'Open';
+
+  let closeEl!: HTMLElement;
+
+  const root = ComposedSheet({
+    classes,
+    side: options?.side,
+    onOpenChange: options?.onOpenChange,
+    children: () => {
+      const triggerEl = ComposedSheet.Trigger({ children: [triggerBtn] });
+      const titleEl = ComposedSheet.Title({ children: ['Sheet Title'] });
+      const descriptionEl = ComposedSheet.Description({ children: ['Sheet Description'] });
+      closeEl = ComposedSheet.Close({ children: ['Close'] });
+      const contentEl = ComposedSheet.Content({
+        showClose: options?.showClose,
+        children: [titleEl, descriptionEl, closeEl],
+      });
+      return [triggerEl, contentEl];
+    },
+  });
+
+  return { root, triggerBtn, closeEl };
+}
 
 describe('Composed Sheet', () => {
   let container: HTMLDivElement;
@@ -15,148 +56,177 @@ describe('Composed Sheet', () => {
   });
 
   describe('Given a Sheet with Trigger and Content sub-components', () => {
-    describe('When rendered', () => {
-      it('Then creates a wrapper with trigger, overlay, and dialog content', () => {
-        const btn = document.createElement('button');
-        btn.textContent = 'Open Sheet';
-
-        const root = ComposedSheet({
-          children: () => {
-            const t = ComposedSheet.Trigger({ children: [btn] });
-            const c = ComposedSheet.Content({ children: ['Sheet body'] });
-            return [t, c];
-          },
-        });
+    describe('When the trigger is clicked', () => {
+      it('Then opens the native dialog sheet', () => {
+        const { root, triggerBtn } = createSheetTree();
         container.appendChild(root);
 
-        expect(root.contains(btn)).toBe(true);
-        const dialog = root.querySelector('[role="dialog"]');
-        expect(dialog).not.toBeNull();
-        const overlay = root.querySelector('[data-sheet-overlay]');
-        expect(overlay).not.toBeNull();
+        triggerBtn.click();
+
+        const panel = getConnectedPanel(root);
+        expect(panel).not.toBeNull();
+        expect(panel.getAttribute('data-state')).toBe('open');
+      });
+
+      it('Then sets data-side on the content element', () => {
+        const { root, triggerBtn } = createSheetTree(undefined, { side: 'left' });
+        container.appendChild(root);
+
+        triggerBtn.click();
+
+        const panel = getConnectedPanel(root);
+        expect(panel.getAttribute('data-side')).toBe('left');
+      });
+
+      it('Then sets aria-labelledby pointing to the title', () => {
+        const { root } = createSheetTree();
+        container.appendChild(root);
+
+        const panel = getConnectedPanel(root);
+        const labelledBy = panel.getAttribute('aria-labelledby');
+        expect(labelledBy).toBeTruthy();
+        expect(root.querySelector(`#${labelledBy}`)?.textContent).toBe('Sheet Title');
+      });
+
+      it('Then sets aria-describedby pointing to the description', () => {
+        const { root } = createSheetTree();
+        container.appendChild(root);
+
+        const panel = getConnectedPanel(root);
+        const describedBy = panel.getAttribute('aria-describedby');
+        expect(describedBy).toBeTruthy();
+        expect(root.querySelector(`#${describedBy}`)?.textContent).toBe('Sheet Description');
       });
     });
 
-    describe('When the trigger is clicked', () => {
-      it('Then opens the sheet', () => {
-        const btn = document.createElement('button');
-
-        const root = ComposedSheet({
-          children: () => {
-            const t = ComposedSheet.Trigger({ children: [btn] });
-            const c = ComposedSheet.Content({ children: ['Body'] });
-            return [t, c];
-          },
-        });
+    describe('When Escape is pressed while the sheet is open', () => {
+      it('Then closes the sheet', async () => {
+        const onOpenChange = vi.fn();
+        const { root, triggerBtn } = createSheetTree(undefined, { onOpenChange });
         container.appendChild(root);
 
-        btn.click();
-        const dialog = root.querySelector('[role="dialog"]') as HTMLElement;
-        expect(dialog!.getAttribute('data-state')).toBe('open');
+        triggerBtn.click();
+        const panel = getConnectedPanel(root);
+        expect(panel.getAttribute('data-state')).toBe('open');
+
+        panel.dispatchEvent(new Event('cancel', { bubbles: true, cancelable: true }));
+        await flush();
+
+        expect(onOpenChange).toHaveBeenCalledWith(false);
+      });
+    });
+
+    describe('When the backdrop is clicked', () => {
+      it('Then closes the sheet', async () => {
+        const onOpenChange = vi.fn();
+        const { root, triggerBtn } = createSheetTree(undefined, { onOpenChange });
+        container.appendChild(root);
+
+        triggerBtn.click();
+        const panel = getConnectedPanel(root);
+        expect(panel.getAttribute('data-state')).toBe('open');
+
+        panel.click();
+        await flush();
+
+        expect(onOpenChange).toHaveBeenCalledWith(false);
+      });
+    });
+
+    describe('When Sheet.Close is clicked', () => {
+      it('Then closes the sheet', async () => {
+        const onOpenChange = vi.fn();
+        const { root, triggerBtn, closeEl } = createSheetTree(undefined, { onOpenChange });
+        container.appendChild(root);
+
+        triggerBtn.click();
+        const panel = getConnectedPanel(root);
+        expect(panel.getAttribute('data-state')).toBe('open');
+
+        closeEl.click();
+        await flush();
+
+        expect(onOpenChange).toHaveBeenCalledWith(false);
       });
     });
   });
 
   describe('Given a Sheet with classes prop', () => {
     describe('When rendered', () => {
-      it('Then applies overlay and content classes', () => {
-        const btn = document.createElement('button');
-
-        const root = ComposedSheet({
-          classes: { overlay: 'styled-overlay', content: 'styled-content' },
-          children: () => {
-            const t = ComposedSheet.Trigger({ children: [btn] });
-            const c = ComposedSheet.Content({ children: ['Body'] });
-            return [t, c];
-          },
+      it('Then applies content, title, description, and close classes', () => {
+        const { root } = createSheetTree({
+          content: 'test-content',
+          title: 'test-title',
+          description: 'test-description',
+          close: 'test-close',
         });
         container.appendChild(root);
 
-        const overlay = root.querySelector('[data-sheet-overlay]') as HTMLElement;
-        expect(overlay!.className).toContain('styled-overlay');
-
-        const dialog = root.querySelector('[role="dialog"]') as HTMLElement;
-        expect(dialog!.className).toContain('styled-content');
+        const panel = getConnectedPanel(root);
+        expect(panel.className).toContain('test-content');
+        expect(panel.querySelector('h2')?.className).toBe('test-title');
+        expect(panel.querySelector('p')?.className).toBe('test-description');
+        expect(panel.querySelector('[data-slot="sheet-close"]')?.className).toContain('test-close');
       });
     });
   });
 
-  describe('Given a Sheet with side prop', () => {
-    it('Then sets data-side on the content element', () => {
-      const btn = document.createElement('button');
+  describe('Given a Sheet.Content with per-instance class', () => {
+    describe('When rendered', () => {
+      it('Then merges per-instance class with classes.content via space concatenation', () => {
+        const triggerBtn = document.createElement('button');
 
-      const root = ComposedSheet({
-        side: 'left',
-        children: () => {
-          const t = ComposedSheet.Trigger({ children: [btn] });
-          const c = ComposedSheet.Content({ children: ['Body'] });
-          return [t, c];
-        },
+        const root = ComposedSheet({
+          classes: { content: 'sheet-panel' },
+          children: () => {
+            const triggerEl = ComposedSheet.Trigger({ children: [triggerBtn] });
+            const contentEl = ComposedSheet.Content({
+              class: 'max-w-md',
+              children: [],
+            });
+            return [triggerEl, contentEl];
+          },
+        });
+
+        const panel = root.querySelector('dialog') as HTMLDialogElement;
+        expect(panel.className).toBe('sheet-panel max-w-md');
       });
+    });
+  });
+
+  describe('Given a Sheet.Content with showClose disabled', () => {
+    it('Then does not render the default close icon button', () => {
+      const { root } = createSheetTree(undefined, { showClose: false });
       container.appendChild(root);
 
-      const dialog = root.querySelector('[role="dialog"]') as HTMLElement;
-      expect(dialog!.getAttribute('data-side')).toBe('left');
+      const iconClose = getConnectedPanel(root).querySelector('button[aria-label="Close"]');
+      expect(iconClose).toBeNull();
     });
   });
 
-  describe('Given a Sheet with Title and Description sub-components', () => {
-    it('Then renders title and description elements with classes', () => {
-      const btn = document.createElement('button');
-
-      const root = ComposedSheet({
-        classes: { title: 'styled-title', description: 'styled-desc' },
-        children: () => {
-          const t = ComposedSheet.Trigger({ children: [btn] });
-          const c = ComposedSheet.Content({
-            children: () => {
-              const title = ComposedSheet.Title({ children: ['Sheet Title'] });
-              const desc = ComposedSheet.Description({ children: ['Sheet Description'] });
-              return [title, desc];
-            },
-          });
-          return [t, c];
-        },
-      });
-      container.appendChild(root);
-
-      btn.click();
-      const dialog = root.querySelector('[role="dialog"]') as HTMLElement;
-      const title = dialog!.querySelector('h2') as HTMLElement;
-      expect(title!.textContent).toBe('Sheet Title');
-      expect(title!.className).toContain('styled-title');
-
-      const desc = dialog!.querySelector('p') as HTMLElement;
-      expect(desc!.textContent).toBe('Sheet Description');
-      expect(desc!.className).toContain('styled-desc');
-    });
-  });
-
-  describe('Given a Sheet with Close sub-component', () => {
-    it('Then clicking close hides the sheet', () => {
-      const btn = document.createElement('button');
+  describe('Given onOpenChange callback', () => {
+    it('Then calls the callback when the sheet opens and closes', async () => {
+      const onOpenChange = vi.fn();
+      const triggerBtn = document.createElement('button');
       let closeEl!: HTMLElement;
 
       const root = ComposedSheet({
+        onOpenChange,
         children: () => {
-          const t = ComposedSheet.Trigger({ children: [btn] });
-          const c = ComposedSheet.Content({
-            children: () => {
-              closeEl = ComposedSheet.Close({ children: ['Close'] });
-              return [closeEl];
-            },
-          });
-          return [t, c];
+          const triggerEl = ComposedSheet.Trigger({ children: [triggerBtn] });
+          closeEl = ComposedSheet.Close({ children: ['Close'] });
+          const contentEl = ComposedSheet.Content({ children: [closeEl] });
+          return [triggerEl, contentEl];
         },
       });
       container.appendChild(root);
 
-      btn.click();
-      const dialog = root.querySelector('[role="dialog"]') as HTMLElement;
-      expect(dialog!.getAttribute('data-state')).toBe('open');
+      triggerBtn.click();
+      expect(onOpenChange).toHaveBeenCalledWith(true);
 
       closeEl.click();
-      expect(dialog!.getAttribute('data-state')).toBe('closed');
+      await flush();
+      expect(onOpenChange).toHaveBeenCalledWith(false);
     });
   });
 
@@ -176,114 +246,6 @@ describe('Composed Sheet', () => {
         expect(() => {
           ComposedSheet.Content({ children: ['Orphan'] });
         }).toThrow('<Sheet.Content> must be used inside <Sheet>');
-      });
-    });
-  });
-
-  describe('Given a Sheet with duplicate Content sub-components', () => {
-    it('Then warns about the duplicate', () => {
-      const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const btn = document.createElement('button');
-
-      ComposedSheet({
-        children: () => {
-          const t = ComposedSheet.Trigger({ children: [btn] });
-          const c1 = ComposedSheet.Content({ children: ['Body 1'] });
-          const c2 = ComposedSheet.Content({ children: ['Body 2'] });
-          return [t, c1, c2];
-        },
-      });
-
-      expect(spy).toHaveBeenCalledWith(
-        'Duplicate <Sheet.Content> detected – only the first is used',
-      );
-      spy.mockRestore();
-    });
-  });
-
-  describe('Given a Sheet with closed overlay', () => {
-    describe('When the sheet is initially rendered (closed)', () => {
-      it('Then the overlay has pointer-events none so it does not block clicks', () => {
-        const btn = document.createElement('button');
-
-        const root = ComposedSheet({
-          children: () => {
-            const t = ComposedSheet.Trigger({ children: [btn] });
-            const c = ComposedSheet.Content({ children: ['Body'] });
-            return [t, c];
-          },
-        });
-        container.appendChild(root);
-
-        const overlay = root.querySelector('[data-sheet-overlay]') as HTMLElement;
-        expect(overlay.style.pointerEvents).toBe('none');
-      });
-    });
-
-    describe('When the sheet is opened then closed', () => {
-      it('Then the overlay pointer-events revert to none', () => {
-        const btn = document.createElement('button');
-
-        const root = ComposedSheet({
-          children: () => {
-            const t = ComposedSheet.Trigger({ children: [btn] });
-            const c = ComposedSheet.Content({ children: ['Body'] });
-            return [t, c];
-          },
-        });
-        container.appendChild(root);
-
-        btn.click();
-        const overlay = root.querySelector('[data-sheet-overlay]') as HTMLElement;
-        expect(overlay.style.pointerEvents).not.toBe('none');
-
-        overlay.click();
-        expect(overlay.style.pointerEvents).toBe('none');
-      });
-    });
-  });
-
-  describe('Given a Sheet rendered inside a disposal scope', () => {
-    describe('When the disposal scope cleanups are run', () => {
-      it('Then removeEventListener is called for the trigger click handler', () => {
-        const scope = pushScope();
-        const btn = document.createElement('button');
-
-        const root = ComposedSheet({
-          children: () => {
-            const t = ComposedSheet.Trigger({ children: [btn] });
-            const c = ComposedSheet.Content({ children: ['Body'] });
-            return [t, c];
-          },
-        });
-        container.appendChild(root);
-        popScope();
-
-        const spy = vi.spyOn(btn, 'removeEventListener');
-        runCleanups(scope);
-
-        expect(spy).toHaveBeenCalledWith('click', expect.any(Function));
-      });
-
-      it('Then removeEventListener is called for the content delegation handler', () => {
-        const scope = pushScope();
-        const btn = document.createElement('button');
-
-        const root = ComposedSheet({
-          children: () => {
-            const t = ComposedSheet.Trigger({ children: [btn] });
-            const c = ComposedSheet.Content({ children: ['Body'] });
-            return [t, c];
-          },
-        });
-        container.appendChild(root);
-        popScope();
-
-        const panel = root.querySelector('[role="dialog"]') as HTMLElement;
-        const spy = vi.spyOn(panel, 'removeEventListener');
-        runCleanups(scope);
-
-        expect(spy).toHaveBeenCalledWith('click', expect.any(Function));
       });
     });
   });

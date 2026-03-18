@@ -1,14 +1,12 @@
 /**
- * Composed Sheet — fully declarative JSX component with slide panel, focus trap, and ARIA.
- * Sub-components self-wire via context. No factory wrapping.
+ * Composed Sheet — compound component using native <dialog> element.
+ * Each sub-component renders its own DOM. Root provides shared state via context.
+ * No registration phase, no resolveChildren, no internal API imports.
  */
 
 import type { ChildValue, Ref } from '@vertz/ui';
-import { createContext, ref, resolveChildren, useContext } from '@vertz/ui';
-import { _tryOnCleanup } from '@vertz/ui/internals';
-import { focusFirst, saveFocus, trapFocus } from '../utils/focus';
+import { createContext, lifecycleEffect, ref, useContext } from '@vertz/ui';
 import { linkedIds } from '../utils/id';
-import { isKey, Keys } from '../utils/keyboard';
 import type { SheetSide } from './sheet';
 
 // ---------------------------------------------------------------------------
@@ -28,16 +26,16 @@ export interface SheetClasses {
 // ---------------------------------------------------------------------------
 
 interface SheetContextValue {
+  /** Whether the sheet is open. Signal auto-unwrapped by Provider. */
+  isOpen: boolean;
   titleId: string;
   descriptionId: string;
+  contentId: string;
+  side: SheetSide;
   classes?: SheetClasses;
-  /** @internal — registers the user trigger for ARIA sync */
-  _registerTrigger: (el: HTMLElement) => void;
-  /** @internal — registers content children and class */
-  _registerContent: (children: ChildValue, cls?: string) => void;
-  /** @internal — duplicate sub-component detection */
-  _triggerClaimed: boolean;
-  _contentClaimed: boolean;
+  open: () => void;
+  close: () => void;
+  toggle: () => void;
 }
 
 const SheetContext = createContext<SheetContextValue | undefined>(
@@ -67,43 +65,102 @@ interface SlotProps {
   class?: string;
 }
 
+interface SheetContentProps extends SlotProps {
+  showClose?: boolean;
+}
+
 // ---------------------------------------------------------------------------
-// Sub-components — registration via context
+// Sub-components — each renders its own DOM
 // ---------------------------------------------------------------------------
 
 function SheetTrigger({ children }: SlotProps) {
   const ctx = useSheetContext('Trigger');
-  if (ctx._triggerClaimed) {
-    console.warn('Duplicate <Sheet.Trigger> detected – only the first is used');
-  }
-  ctx._triggerClaimed = true;
 
-  const resolved = resolveChildren(children);
-  const userTrigger = resolved.find((n): n is HTMLElement => n instanceof HTMLElement) ?? null;
-  if (userTrigger) {
-    ctx._registerTrigger(userTrigger);
-  }
-
-  return <span style="display: contents">{...resolved}</span>;
+  return (
+    <span
+      style="display: contents"
+      data-sheet-trigger=""
+      data-state={ctx.isOpen ? 'open' : 'closed'}
+      onClick={() => ctx.toggle()}
+    >
+      {children}
+    </span>
+  );
 }
 
-function SheetContent({ children, className: cls, class: classProp }: SlotProps) {
+function SheetContent({
+  children,
+  className: cls,
+  class: classProp,
+  showClose = true,
+}: SheetContentProps) {
   const ctx = useSheetContext('Content');
-  if (ctx._contentClaimed) {
-    console.warn('Duplicate <Sheet.Content> detected – only the first is used');
-  }
-  ctx._contentClaimed = true;
 
+  const dialogRef: Ref<HTMLDialogElement> = ref();
   const effectiveCls = cls ?? classProp;
-  ctx._registerContent(children, effectiveCls);
+  const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
-  // Placeholder — Root renders the actual dialog element
-  return (<span style="display: contents" />) as HTMLElement;
+  lifecycleEffect(() => {
+    const el = document.getElementById(ctx.contentId) as HTMLDialogElement | null;
+    if (!el || el.__dialogWired) return;
+    el.__dialogWired = true;
+
+    el.addEventListener('cancel', (e: Event) => {
+      e.preventDefault();
+      ctx.close();
+    });
+
+    el.addEventListener('click', (e: MouseEvent) => {
+      if (e.target === el) ctx.close();
+    });
+  });
+
+  return (
+    <dialog
+      ref={dialogRef}
+      id={ctx.contentId}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={ctx.titleId}
+      aria-describedby={ctx.descriptionId}
+      data-side={ctx.side}
+      data-state={ctx.isOpen ? 'open' : 'closed'}
+      class={combined || undefined}
+      onCancel={() => ctx.close()}
+      onClick={(e: MouseEvent) => {
+        if (e.target === dialogRef.current) ctx.close();
+      }}
+    >
+      {showClose && (
+        <button
+          type="button"
+          data-slot="sheet-close"
+          class={ctx.classes?.close || undefined}
+          aria-label="Close"
+          onClick={() => ctx.close()}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+            focusable="false"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
+      )}
+      {children}
+    </dialog>
+  );
 }
-
-// ---------------------------------------------------------------------------
-// Sub-components — content elements (read classes from context)
-// ---------------------------------------------------------------------------
 
 function SheetTitle({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useSheetContext('Title');
@@ -128,15 +185,16 @@ function SheetDescription({ children, className: cls, class: classProp }: SlotPr
 }
 
 function SheetClose({ children, className: cls, class: classProp }: SlotProps) {
-  const { classes } = useSheetContext('Close');
+  const ctx = useSheetContext('Close');
   const effectiveCls = cls ?? classProp;
-  const combined = [classes?.close, effectiveCls].filter(Boolean).join(' ');
+  const combined = [ctx.classes?.close, effectiveCls].filter(Boolean).join(' ');
   return (
     <button
       type="button"
       data-slot="sheet-close"
       class={combined || undefined}
       aria-label={children ? undefined : 'Close'}
+      onClick={() => ctx.close()}
     >
       {children ?? '\u00D7'}
     </button>
@@ -166,157 +224,83 @@ function ComposedSheetRoot({
   const titleId = `${ids.contentId}-title`;
   const descriptionId = `${ids.contentId}-description`;
 
-  // Registration storage — plain object so the compiler doesn't signal-transform it
-  const reg: {
-    triggerEl: HTMLElement | null;
-    contentNodes: Node[];
-    contentCls: string | undefined;
-    contentRegistered: boolean;
-  } = { triggerEl: null, contentNodes: [], contentCls: undefined, contentRegistered: false };
-
-  const ctxValue: SheetContextValue = {
-    titleId,
-    descriptionId,
-    classes,
-    _registerTrigger: (el) => {
-      reg.triggerEl = el;
-    },
-    _registerContent: (contentChildren, cls) => {
-      if (!reg.contentRegistered) {
-        reg.contentRegistered = true;
-        // Resolve content children immediately while still inside the Provider scope
-        // so that nested sub-components (Title, Description, Close) can access context
-        reg.contentNodes = resolveChildren(contentChildren);
-        reg.contentCls = cls;
-      }
-    },
-    _triggerClaimed: false,
-    _contentClaimed: false,
-  };
-
-  // Phase 1: resolve children to collect registrations
-  let resolvedNodes: Node[] = [];
-  SheetContext.Provider(ctxValue, () => {
-    resolvedNodes = resolveChildren(children);
-  });
-
-  // Phase 2: reactive state — compiler transforms `let` to signal
   let isOpen = false;
-  const contentRef: Ref<HTMLDivElement> = ref();
-  let restoreFocus: (() => void) | null = null;
-  let removeTrap: (() => void) | null = null;
 
-  // Swipe-to-dismiss state — plain vars, not signals
-  const swipe = { startX: 0, startY: 0 };
-  const SWIPE_THRESHOLD = 50;
+  function getConnectedDialog(): HTMLDialogElement | null {
+    return document.getElementById(ids.contentId) as HTMLDialogElement | null;
+  }
+
+  function showDialog(): void {
+    const el = getConnectedDialog();
+    if (!el) return;
+    const isRenderedOpen =
+      el.open || el.hasAttribute('open') || el.getAttribute('data-state') === 'open';
+    if (isRenderedOpen) return;
+
+    el.setAttribute('data-state', 'open');
+    el.showModal();
+    if (!el.open) el.setAttribute('open', '');
+  }
+
+  function hideDialog(): void {
+    const el = getConnectedDialog();
+    if (!el) return;
+    const isRenderedOpen =
+      el.open || el.hasAttribute('open') || el.getAttribute('data-state') === 'open';
+    if (!isRenderedOpen) return;
+
+    const dialog = el;
+    dialog.setAttribute('data-state', 'closed');
+
+    let closed = false;
+    const timeoutId = window.setTimeout(onEnd, 500);
+    function onEnd() {
+      if (closed) return;
+      closed = true;
+      window.clearTimeout(timeoutId);
+      dialog.removeEventListener('animationend', onEnd);
+      dialog.removeAttribute('open');
+      if (dialog.open) dialog.close();
+    }
+
+    dialog.addEventListener('animationend', onEnd);
+  }
 
   function open(): void {
     isOpen = true;
-    if (reg.triggerEl) {
-      reg.triggerEl.setAttribute('aria-expanded', 'true');
-      reg.triggerEl.setAttribute('data-state', 'open');
-    }
-    restoreFocus = saveFocus();
-    const contentEl = contentRef.current;
-    if (contentEl) {
-      removeTrap = trapFocus(contentEl);
-      queueMicrotask(() => focusFirst(contentEl));
-    }
+    showDialog();
     onOpenChange?.(true);
   }
 
   function close(): void {
     isOpen = false;
-    if (reg.triggerEl) {
-      reg.triggerEl.setAttribute('aria-expanded', 'false');
-      reg.triggerEl.setAttribute('data-state', 'closed');
-    }
-    removeTrap?.();
-    removeTrap = null;
-    restoreFocus?.();
-    restoreFocus = null;
+    hideDialog();
     onOpenChange?.(false);
   }
 
-  // Wire user trigger — Sheet trigger only opens (never toggles)
-  if (reg.triggerEl) {
-    reg.triggerEl.setAttribute('aria-haspopup', 'dialog');
-    reg.triggerEl.setAttribute('aria-controls', ids.contentId);
-    reg.triggerEl.setAttribute('aria-expanded', 'false');
-    reg.triggerEl.setAttribute('data-state', 'closed');
-
-    const triggerEl = reg.triggerEl;
-    const handleClick = () => {
-      if (!isOpen) open();
-    };
-    triggerEl.addEventListener('click', handleClick);
-    _tryOnCleanup(() => triggerEl.removeEventListener('click', handleClick));
+  function toggle(): void {
+    if (isOpen) close();
+    else open();
   }
 
-  const combined = [classes?.content, reg.contentCls].filter(Boolean).join(' ');
-
-  // Create content panel first so we can wire the close-delegation handler
-  const contentPanel = (
-    <div
-      ref={contentRef}
-      role="dialog"
-      id={ids.contentId}
-      data-side={side}
-      aria-modal="true"
-      aria-labelledby={titleId}
-      aria-describedby={descriptionId}
-      aria-hidden={isOpen ? 'false' : 'true'}
-      data-state={isOpen ? 'open' : 'closed'}
-      style={isOpen ? '' : 'display: none'}
-      class={combined || undefined}
-      onKeydown={(event: KeyboardEvent) => {
-        if (isKey(event, Keys.Escape)) {
-          event.preventDefault();
-          event.stopPropagation();
-          close();
-        }
-      }}
-      onPointerdown={(e: PointerEvent) => {
-        swipe.startX = e.clientX;
-        swipe.startY = e.clientY;
-      }}
-      onPointerup={(e: PointerEvent) => {
-        if (!isOpen) return;
-        const deltaX = e.clientX - swipe.startX;
-        const deltaY = e.clientY - swipe.startY;
-        const shouldDismiss =
-          (side === 'right' && deltaX >= SWIPE_THRESHOLD) ||
-          (side === 'left' && deltaX <= -SWIPE_THRESHOLD) ||
-          (side === 'bottom' && deltaY >= SWIPE_THRESHOLD) ||
-          (side === 'top' && deltaY <= -SWIPE_THRESHOLD);
-        if (shouldDismiss) close();
-      }}
-    >
-      {...reg.contentNodes}
-    </div>
-  ) as HTMLDivElement;
-
-  // Wire close-button delegation on the content panel (explicit for cleanup)
-  const handleContentClick = (e: Event) => {
-    const target = (e.target as HTMLElement).closest('[data-slot="sheet-close"]');
-    if (target) close();
+  const ctx: SheetContextValue = {
+    isOpen,
+    titleId,
+    descriptionId,
+    contentId: ids.contentId,
+    side,
+    classes,
+    open,
+    close,
+    toggle,
   };
-  contentPanel.addEventListener('click', handleContentClick);
-  _tryOnCleanup(() => contentPanel.removeEventListener('click', handleContentClick));
 
   return (
-    <div style="display: contents">
-      {...resolvedNodes}
-      <div
-        data-sheet-overlay=""
-        aria-hidden={isOpen ? 'false' : 'true'}
-        data-state={isOpen ? 'open' : 'closed'}
-        style={isOpen ? '' : 'display: none; pointer-events: none'}
-        class={classes?.overlay || undefined}
-        onClick={() => close()}
-      />
-      {contentPanel}
-    </div>
+    <SheetContext.Provider value={ctx}>
+      <span style="display: contents" data-sheet-root="">
+        {children}
+      </span>
+    </SheetContext.Provider>
   );
 }
 
@@ -333,7 +317,7 @@ export const ComposedSheet = Object.assign(ComposedSheetRoot, {
 }) as ((props: ComposedSheetProps) => HTMLElement) & {
   __classKeys?: SheetClassKey;
   Trigger: (props: SlotProps) => HTMLElement;
-  Content: (props: SlotProps) => HTMLElement;
+  Content: (props: SheetContentProps) => HTMLElement;
   Title: (props: SlotProps) => HTMLElement;
   Description: (props: SlotProps) => HTMLElement;
   Close: (props: SlotProps) => HTMLElement;

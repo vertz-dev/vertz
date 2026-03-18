@@ -67,6 +67,15 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
           inset: '0 auto 0 0',
           width: '75%',
           'max-width': '24rem',
+          margin: '0',
+          outline: 'none',
+          border: 'none',
+        },
+        '&:not([open])': { display: 'none' },
+        '&::backdrop': {
+          'background-color': 'oklch(0 0 0 / 10%)',
+          'backdrop-filter': 'blur(4px)',
+          '-webkit-backdrop-filter': 'blur(4px)',
         },
       },
       {
@@ -84,6 +93,15 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
           inset: '0 0 0 auto',
           width: '75%',
           'max-width': '24rem',
+          margin: '0',
+          outline: 'none',
+          border: 'none',
+        },
+        '&:not([open])': { display: 'none' },
+        '&::backdrop': {
+          'background-color': 'oklch(0 0 0 / 10%)',
+          'backdrop-filter': 'blur(4px)',
+          '-webkit-backdrop-filter': 'blur(4px)',
         },
       },
       {
@@ -97,7 +115,18 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
       ...PANEL_BASE,
       'border-b:1',
       {
-        '&': { inset: '0 0 auto 0' },
+        '&': {
+          inset: '0 0 auto 0',
+          margin: '0',
+          outline: 'none',
+          border: 'none',
+        },
+        '&:not([open])': { display: 'none' },
+        '&::backdrop': {
+          'background-color': 'oklch(0 0 0 / 10%)',
+          'backdrop-filter': 'blur(4px)',
+          '-webkit-backdrop-filter': 'blur(4px)',
+        },
       },
       {
         '&[data-state="open"]': [animationDecl('vz-slide-in-from-top 300ms ease-out forwards')],
@@ -110,7 +139,18 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
       ...PANEL_BASE,
       'border-t:1',
       {
-        '&': { inset: 'auto 0 0 0' },
+        '&': {
+          inset: 'auto 0 0 0',
+          margin: '0',
+          outline: 'none',
+          border: 'none',
+        },
+        '&:not([open])': { display: 'none' },
+        '&::backdrop': {
+          'background-color': 'oklch(0 0 0 / 10%)',
+          'backdrop-filter': 'blur(4px)',
+          '-webkit-backdrop-filter': 'blur(4px)',
+        },
       },
       {
         '&[data-state="open"]': [animationDecl('vz-slide-in-from-bottom 300ms ease-out forwards')],

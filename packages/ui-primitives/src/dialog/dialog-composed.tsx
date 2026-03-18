@@ -8,6 +8,13 @@ import type { ChildValue, Ref } from '@vertz/ui';
 import { createContext, lifecycleEffect, ref, useContext } from '@vertz/ui';
 import { linkedIds } from '../utils/id';
 
+// Augment HTMLDialogElement to track whether we've wired imperative handlers.
+declare global {
+  interface HTMLDialogElement {
+    __dialogWired?: boolean;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Class distribution
 // ---------------------------------------------------------------------------
@@ -87,7 +94,12 @@ function DialogTrigger({ children }: SlotProps) {
   );
 }
 
-function DialogContent({ children, className: cls, class: classProp, showClose = true }: DialogContentProps) {
+function DialogContent({
+  children,
+  className: cls,
+  class: classProp,
+  showClose = true,
+}: DialogContentProps) {
   const ctx = useDialogContext('Content');
   const dialogRef: Ref<HTMLDialogElement> = ref();
   const effectiveCls = cls ?? classProp;
@@ -99,31 +111,31 @@ function DialogContent({ children, className: cls, class: classProp, showClose =
   // Query the dialog by ID rather than using the ref — during hydration,
   // the ref may point to an orphaned element while the connected one
   // is the SSR-claimed element in the DOM.
+  // Wire cancel/click handlers on the CONNECTED dialog element.
+  // JSX event handlers end up on the orphaned element during hydration,
+  // so we attach imperatively to the element found by ID.
   lifecycleEffect(() => {
-    const open = ctx.isOpen;
     const el = document.getElementById(ctx.contentId) as HTMLDialogElement | null;
-    if (!el) return;
-    if (open && !el.open) el.showModal();
-    if (!open && el.open) {
-      // Wait for the close animation to finish before removing from top layer.
-      // data-state="closed" is already set by the reactive attribute, which
-      // triggers the CSS exit animation. We listen for animationend, then
-      // call el.close() to actually remove from the top layer.
-      const onEnd = () => {
-        el.removeEventListener('animationend', onEnd);
-        el.close();
-      };
-      el.addEventListener('animationend', onEnd);
-      // Fallback: if no animation runs (e.g., prefers-reduced-motion),
-      // close after the expected duration.
-      setTimeout(onEnd, 150);
-    }
+    if (!el || el.__dialogWired) return;
+    el.__dialogWired = true;
+
+    el.addEventListener('cancel', (e: Event) => {
+      // Prevent native close so we can animate the exit.
+      e.preventDefault();
+      ctx.close();
+    });
+
+    el.addEventListener('click', (e: MouseEvent) => {
+      // Backdrop click: showModal() makes the <dialog> itself the backdrop target.
+      if (e.target === el) ctx.close();
+    });
   });
 
   return (
     <dialog
       ref={dialogRef}
       id={ctx.contentId}
+      role="dialog"
       aria-labelledby={ctx.titleId}
       aria-describedby={ctx.descriptionId}
       data-state={ctx.isOpen ? 'open' : 'closed'}
@@ -150,6 +162,8 @@ function DialogContent({ children, className: cls, class: classProp, showClose =
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+            focusable="false"
             width="16"
             height="16"
             viewBox="0 0 24 24"
@@ -247,13 +261,48 @@ function ComposedDialogRoot({ children, classes, onOpenChange }: ComposedDialogP
   // Passed directly in context so Provider auto-wraps via wrapSignalProps.
   let isOpen = false;
 
+  function getConnectedDialog(): HTMLDialogElement | null {
+    return document.getElementById(ids.contentId) as HTMLDialogElement | null;
+  }
+
+  function showDialog(): void {
+    const el = getConnectedDialog();
+    if (!el) return;
+    const isRenderedOpen =
+      el.open || el.hasAttribute('open') || el.getAttribute('data-state') === 'open';
+    if (isRenderedOpen) return;
+
+    el.setAttribute('data-state', 'open');
+    el.showModal();
+    if (!el.open) el.setAttribute('open', '');
+  }
+
+  function hideDialog(): void {
+    const el = getConnectedDialog();
+    if (!el) return;
+    const isRenderedOpen =
+      el.open || el.hasAttribute('open') || el.getAttribute('data-state') === 'open';
+    if (!isRenderedOpen) return;
+
+    el.setAttribute('data-state', 'closed');
+    const onEnd = () => {
+      el.removeEventListener('animationend', onEnd);
+      el.removeAttribute('open');
+      if (el.open) el.close();
+    };
+    el.addEventListener('animationend', onEnd);
+    setTimeout(onEnd, 500);
+  }
+
   function open(): void {
     isOpen = true;
+    showDialog();
     onOpenChange?.(true);
   }
 
   function close(): void {
     isOpen = false;
+    hideDialog();
     onOpenChange?.(false);
   }
 
