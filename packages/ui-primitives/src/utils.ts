@@ -6,7 +6,7 @@
  */
 
 // Animation utilities
-export { onAnimationsComplete } from '@vertz/ui/internals';
+export { onAnimationsComplete } from '@vertz/ui';
 
 // ARIA attribute helpers
 export {
