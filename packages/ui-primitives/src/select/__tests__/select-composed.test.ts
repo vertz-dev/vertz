@@ -464,6 +464,45 @@ describe('Composed Select', () => {
     });
   });
 
+  describe('Given a Select trigger with no value selected', () => {
+    it('Then the trigger text area has flex:1 so the chevron stays on the right', () => {
+      const root = ComposedSelect({
+        placeholder: 'Choose...',
+        children: () => {
+          const t = ComposedSelect.Trigger({});
+          const c = ComposedSelect.Content({
+            children: () => [ComposedSelect.Item({ value: 'a', children: ['A'] })],
+          });
+          return [t, c];
+        },
+      });
+      container.appendChild(root);
+
+      const trigger = root.querySelector('[role="combobox"]') as HTMLElement;
+      const textSpan = trigger.querySelector('[data-part="text"]') as HTMLElement;
+      expect(textSpan).not.toBeNull();
+      expect(textSpan.style.flex).toContain('1');
+    });
+
+    it('Then renders placeholder text when no value is selected', () => {
+      const root = ComposedSelect({
+        placeholder: 'Choose...',
+        children: () => {
+          const t = ComposedSelect.Trigger({});
+          const c = ComposedSelect.Content({
+            children: () => [ComposedSelect.Item({ value: 'a', children: ['A'] })],
+          });
+          return [t, c];
+        },
+      });
+      container.appendChild(root);
+
+      const trigger = root.querySelector('[role="combobox"]') as HTMLElement;
+      const textSpan = trigger.querySelector('[data-part="text"]') as HTMLElement;
+      expect(textSpan.textContent).toBe('Choose...');
+    });
+  });
+
   describe('Given an open Select without explicit positioning (#1523)', () => {
     it('Then the content has fixed or absolute positioning to float over content', async () => {
       const root = ComposedSelect({

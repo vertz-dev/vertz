@@ -95,4 +95,52 @@ describe('Composed Checkbox', () => {
       });
     });
   });
+
+  describe('Given a ComposedCheckbox in checked state', () => {
+    describe('When rendered', () => {
+      it('Then the indicator contains a checkmark SVG', () => {
+        const root = ComposedCheckbox({ defaultChecked: true });
+        container.appendChild(root);
+
+        const btn = root.querySelector('[role="checkbox"]') ?? root;
+        const indicator = btn.querySelector('[data-part="indicator"]') as HTMLElement;
+        const svg = indicator.querySelector('svg');
+        expect(svg).not.toBeNull();
+        expect(svg!.getAttribute('viewBox')).toBe('0 0 24 24');
+        expect(svg!.getAttribute('stroke')).toBe('currentColor');
+      });
+    });
+  });
+
+  describe('Given a ComposedCheckbox in indeterminate state', () => {
+    describe('When rendered', () => {
+      it('Then the indicator contains a dash SVG', () => {
+        const root = ComposedCheckbox({ defaultChecked: 'mixed' });
+        container.appendChild(root);
+
+        const btn = root.querySelector('[role="checkbox"]') ?? root;
+        const indicator = btn.querySelector('[data-part="indicator"]') as HTMLElement;
+        const svg = indicator.querySelector('svg');
+        expect(svg).not.toBeNull();
+        const path = svg!.querySelector('path');
+        expect(path).not.toBeNull();
+      });
+    });
+  });
+
+  describe('Given a checked ComposedCheckbox', () => {
+    describe('When toggled to unchecked', () => {
+      it('Then the indicator SVG is removed', () => {
+        const root = ComposedCheckbox({ defaultChecked: true });
+        container.appendChild(root);
+
+        const btn = (root.querySelector('[role="checkbox"]') ?? root) as HTMLElement;
+        const indicator = btn.querySelector('[data-part="indicator"]') as HTMLElement;
+        expect(indicator.querySelector('svg')).not.toBeNull();
+
+        btn.click();
+        expect(indicator.querySelector('svg')).toBeNull();
+      });
+    });
+  });
 });

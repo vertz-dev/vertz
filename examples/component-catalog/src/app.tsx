@@ -41,7 +41,10 @@ function Sidebar() {
     <nav className={layoutStyles.sidebar} aria-label="Component navigation">
       <div className={navStyles.title}>Components</div>
       <div className={navStyles.subtitle}>{componentRegistry.length} themed components</div>
-      <div className={scrollStyles.thin} style="flex: 1; min-height: 0; overflow-y: auto;">
+      <div
+        className={scrollStyles.thin}
+        style="flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;"
+      >
         <div style="display: flex; flex-direction: column; gap: 2px;">
           <Link href="/" className={navStyles.navItem} activeClass={navStyles.navItemActive}>
             Overview

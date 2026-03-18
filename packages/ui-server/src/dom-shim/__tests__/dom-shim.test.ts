@@ -807,4 +807,58 @@ describe('DOM Shim', () => {
       expect(el.attrs.style).toContain('display: none');
     });
   });
+
+  describe('Reflecting IDL properties', () => {
+    it('should reflect string properties to attrs', () => {
+      const el = new SSRElement('input');
+      el.placeholder = 'Enter text';
+      el.type = 'password';
+      el.name = 'email';
+      el.value = 'test@example.com';
+      expect(el.attrs.placeholder).toBe('Enter text');
+      expect(el.attrs.type).toBe('password');
+      expect(el.attrs.name).toBe('email');
+      expect(el.attrs.value).toBe('test@example.com');
+    });
+
+    it('should reflect placeholder in toVNode output', () => {
+      const el = new SSRElement('input');
+      el.placeholder = 'Search...';
+      const vnode = el.toVNode();
+      expect(vnode.attrs?.placeholder).toBe('Search...');
+    });
+
+    it('should reflect boolean disabled property', () => {
+      const el = new SSRElement('input');
+      el.disabled = true;
+      expect(el.attrs.disabled).toBe('');
+      expect(el.disabled).toBe(true);
+
+      el.disabled = false;
+      expect('disabled' in el.attrs).toBe(false);
+      expect(el.disabled).toBe(false);
+    });
+
+    it('should reflect htmlFor to for attribute', () => {
+      const el = new SSRElement('label');
+      el.htmlFor = 'input-1';
+      expect(el.attrs.for).toBe('input-1');
+      expect(el.htmlFor).toBe('input-1');
+    });
+
+    it('should reflect src and alt for images', () => {
+      const el = new SSRElement('img');
+      el.src = '/avatar.png';
+      el.alt = 'User avatar';
+      expect(el.attrs.src).toBe('/avatar.png');
+      expect(el.attrs.alt).toBe('User avatar');
+    });
+
+    it('should reflect rows as number', () => {
+      const el = new SSRElement('textarea');
+      el.rows = 5;
+      expect(el.attrs.rows).toBe('5');
+      expect(el.rows).toBe(5);
+    });
+  });
 });

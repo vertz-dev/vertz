@@ -1,7 +1,15 @@
 import { css } from '@vertz/ui';
 
 export const layoutStyles = css({
-  shell: ['flex', { '&': [{ property: 'height', value: '100vh' }] }],
+  shell: [
+    'flex',
+    {
+      '&': [
+        { property: 'height', value: '100vh' },
+        { property: 'overflow', value: 'hidden' },
+      ],
+    },
+  ],
   sidebar: [
     'w:64',
     'border-r:1',

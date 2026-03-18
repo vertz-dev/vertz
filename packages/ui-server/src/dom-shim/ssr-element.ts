@@ -312,6 +312,105 @@ export class SSRElement extends SSRNode {
     return this._innerHTML ?? '';
   }
 
+  // ---------------------------------------------------------------------------
+  // Reflecting IDL properties — setting these mirrors to HTML attributes
+  // so they appear in SSR output via toVNode(). Browsers do this natively;
+  // the SSR shim must replicate it for properties that theme components set
+  // directly (e.g. el.placeholder = "...", el.type = "...").
+  // ---------------------------------------------------------------------------
+
+  get placeholder(): string {
+    return this.attrs.placeholder ?? '';
+  }
+  set placeholder(value: string) {
+    this.attrs.placeholder = value;
+  }
+
+  get type(): string {
+    return this.attrs.type ?? '';
+  }
+  set type(value: string) {
+    this.attrs.type = value;
+  }
+
+  get name(): string {
+    return this.attrs.name ?? '';
+  }
+  set name(value: string) {
+    this.attrs.name = value;
+  }
+
+  get value(): string {
+    return this.attrs.value ?? '';
+  }
+  set value(value: string) {
+    this.attrs.value = value;
+  }
+
+  get src(): string {
+    return this.attrs.src ?? '';
+  }
+  set src(value: string) {
+    this.attrs.src = value;
+  }
+
+  get alt(): string {
+    return this.attrs.alt ?? '';
+  }
+  set alt(value: string) {
+    this.attrs.alt = value;
+  }
+
+  get htmlFor(): string {
+    return this.attrs.for ?? '';
+  }
+  set htmlFor(value: string) {
+    this.attrs.for = value;
+  }
+
+  get disabled(): boolean {
+    return 'disabled' in this.attrs;
+  }
+  set disabled(value: boolean) {
+    if (value) {
+      this.attrs.disabled = '';
+    } else {
+      delete this.attrs.disabled;
+    }
+  }
+
+  get checked(): boolean {
+    return 'checked' in this.attrs;
+  }
+  set checked(value: boolean) {
+    if (value) {
+      this.attrs.checked = '';
+    } else {
+      delete this.attrs.checked;
+    }
+  }
+
+  get rows(): number {
+    return Number(this.attrs.rows) || 0;
+  }
+  set rows(value: number) {
+    this.attrs.rows = String(value);
+  }
+
+  get scope(): string {
+    return this.attrs.scope ?? '';
+  }
+  set scope(value: string) {
+    this.attrs.scope = value;
+  }
+
+  get href(): string {
+    return this.attrs.href ?? '';
+  }
+  set href(value: string) {
+    this.attrs.href = value;
+  }
+
   // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
   addEventListener(_event: string, _handler: any): void {
     // No-op in SSR — event handlers are client-side only

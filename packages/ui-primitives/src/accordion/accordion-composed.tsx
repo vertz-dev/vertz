@@ -7,6 +7,7 @@
 
 import type { ChildValue } from '@vertz/ui';
 import { createContext, useContext } from '@vertz/ui';
+import { setDataState, setExpanded, setHidden, setHiddenAnimated } from '../utils/aria';
 import { uniqueId } from '../utils/id';
 import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
@@ -39,6 +40,8 @@ interface AccordionItemContextValue {
   /** Check if THIS item is open. Function to avoid eager signal reads. */
   isOpen: () => boolean;
   toggle: () => void;
+  /** @internal Register the content element for imperative animation control. */
+  _registerContentEl: (el: HTMLElement) => void;
 }
 
 const AccordionContext = createContext<AccordionContextValue | undefined>(
@@ -89,16 +92,41 @@ function AccordionItem({ value, children }: ItemProps) {
   const triggerId = `${baseId}-trigger`;
   const contentId = `${baseId}-content`;
 
-  // Use function references to avoid eager signal reads during component body.
-  // The signal is only read when isOpen() is called in JSX attribute expressions,
-  // which the compiler wraps in __attr effects.
+  // Mutable ref for the content element, set by AccordionContent via _registerContentEl.
+  let contentEl: HTMLElement | null = null;
+
   const itemCtx: AccordionItemContextValue = {
     value,
     triggerId,
     contentId,
     classes: ctx.classes,
     isOpen: () => ctx.isOpen(value),
-    toggle: () => ctx.toggle(value),
+    toggle: () => {
+      ctx.toggle(value);
+      const nowOpen = ctx.isOpen(value);
+
+      if (contentEl) {
+        if (nowOpen) {
+          setHidden(contentEl, false);
+        }
+        const height = contentEl.scrollHeight;
+        contentEl.style.setProperty('--accordion-content-height', `${height}px`);
+        setDataState(contentEl, nowOpen ? 'open' : 'closed');
+        if (!nowOpen) {
+          setHiddenAnimated(contentEl, true);
+        }
+      }
+
+      // Update trigger attributes
+      const triggerEl = document.getElementById(triggerId);
+      if (triggerEl) {
+        setExpanded(triggerEl, nowOpen);
+        setDataState(triggerEl, nowOpen ? 'open' : 'closed');
+      }
+    },
+    _registerContentEl: (el: HTMLElement) => {
+      contentEl = el;
+    },
   };
 
   return (
@@ -121,7 +149,7 @@ function AccordionTrigger({ children, className: cls, class: classProp }: SlotPr
   }
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.trigger, effectiveCls].filter(Boolean).join(' ');
-  const isOpen = ctx.isOpen();
+  const initiallyOpen = ctx.isOpen();
 
   return (
     <button
@@ -130,8 +158,8 @@ function AccordionTrigger({ children, className: cls, class: classProp }: SlotPr
       data-accordion-trigger=""
       aria-controls={ctx.contentId}
       data-value={ctx.value}
-      aria-expanded={isOpen ? 'true' : 'false'}
-      data-state={isOpen ? 'open' : 'closed'}
+      aria-expanded={initiallyOpen ? 'true' : 'false'}
+      data-state={initiallyOpen ? 'open' : 'closed'}
       class={combined || undefined}
       onClick={() => ctx.toggle()}
     >
@@ -150,22 +178,26 @@ function AccordionContent({ children, className: cls, class: classProp }: SlotPr
   }
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
-  const isOpen = ctx.isOpen();
+  const initiallyOpen = ctx.isOpen();
 
-  return (
+  const el = (
     <div
       role="region"
       id={ctx.contentId}
       data-accordion-content=""
       aria-labelledby={ctx.triggerId}
-      aria-hidden={isOpen ? 'false' : 'true'}
-      data-state={isOpen ? 'open' : 'closed'}
-      style={isOpen ? '' : 'display: none'}
+      aria-hidden={initiallyOpen ? 'false' : 'true'}
+      data-state={initiallyOpen ? 'open' : 'closed'}
+      style={initiallyOpen ? '' : 'display: none'}
       class={combined || undefined}
     >
       {children}
     </div>
-  );
+  ) as HTMLElement;
+
+  ctx._registerContentEl(el);
+
+  return el;
 }
 
 // ---------------------------------------------------------------------------
