@@ -1,12 +1,12 @@
 /**
- * Composed Accordion — fully declarative JSX component with expand/collapse and keyboard nav.
- * Sub-components self-wire via context. No factory wrapping.
- * Uses nested contexts: AccordionContext for the root, AccordionItemContext for each item.
+ * Composed Accordion — compound component with expand/collapse and keyboard nav.
+ * Each sub-component renders its own DOM. Root provides shared state via context.
+ * Item provides per-item context for Trigger and Content.
+ * No registration, no resolveChildren, no internal API imports.
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, resolveChildren, useContext } from '@vertz/ui';
-import { setDataState, setExpanded, setHidden, setHiddenAnimated } from '../utils/aria';
+import { createContext, useContext } from '@vertz/ui';
 import { uniqueId } from '../utils/id';
 import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
@@ -21,43 +21,22 @@ export interface AccordionClasses {
 }
 
 // ---------------------------------------------------------------------------
-// Registration types
-// ---------------------------------------------------------------------------
-
-interface ItemRegistration {
-  value: string;
-  triggerId: string;
-  contentId: string;
-  triggerChildren: ChildValue;
-  triggerClass: string | undefined;
-  contentChildren: ChildValue;
-  contentClass: string | undefined;
-}
-
-// ---------------------------------------------------------------------------
 // Contexts
 // ---------------------------------------------------------------------------
 
 interface AccordionContextValue {
+  openValues: string[];
   classes?: AccordionClasses;
-  /** @internal — registers a fully-resolved item */
-  _registerItem: (reg: ItemRegistration) => void;
-  /** @internal — duplicate detection */
-  _itemsClaimed: Set<string>;
+  toggle: (value: string) => void;
 }
 
 interface AccordionItemContextValue {
   value: string;
   triggerId: string;
   contentId: string;
+  isOpen: boolean;
   classes?: AccordionClasses;
-  /** @internal — registers trigger children/class for the item */
-  _registerTrigger: (children: ChildValue, cls?: string) => void;
-  /** @internal — registers content children/class for the item */
-  _registerContent: (children: ChildValue, cls?: string) => void;
-  /** @internal — duplicate detection */
-  _triggerClaimed: boolean;
-  _contentClaimed: boolean;
+  toggle: () => void;
 }
 
 const AccordionContext = createContext<AccordionContextValue | undefined>(
@@ -108,160 +87,75 @@ interface ItemProps extends SlotProps {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components — registration via context
+// Sub-components — each renders its own DOM
 // ---------------------------------------------------------------------------
 
 function AccordionItem({ value, children }: ItemProps) {
   const ctx = useAccordionContext('Item');
-  if (ctx._itemsClaimed.has(value)) {
-    console.warn(`Duplicate <Accordion.Item value="${value}"> detected – only the first is used`);
-  }
-  ctx._itemsClaimed.add(value);
 
-  // Generate stable IDs for this item's trigger/content
   const baseId = uniqueId('accordion');
   const triggerId = `${baseId}-trigger`;
   const contentId = `${baseId}-content`;
-
-  // Registration storage for this item's trigger/content
-  const itemReg: {
-    triggerChildren: ChildValue;
-    triggerClass: string | undefined;
-    contentChildren: ChildValue;
-    contentClass: string | undefined;
-  } = {
-    triggerChildren: undefined,
-    triggerClass: undefined,
-    contentChildren: undefined,
-    contentClass: undefined,
-  };
 
   const itemCtx: AccordionItemContextValue = {
     value,
     triggerId,
     contentId,
+    isOpen: ctx.openValues.includes(value),
     classes: ctx.classes,
-    _registerTrigger: (triggerChildren, triggerClass) => {
-      if (itemReg.triggerChildren === undefined) {
-        itemReg.triggerChildren = triggerChildren;
-        itemReg.triggerClass = triggerClass;
-      }
-    },
-    _registerContent: (contentChildren, contentClass) => {
-      if (itemReg.contentChildren === undefined) {
-        itemReg.contentChildren = contentChildren;
-        itemReg.contentClass = contentClass;
-      }
-    },
-    _triggerClaimed: false,
-    _contentClaimed: false,
+    toggle: () => ctx.toggle(value),
   };
 
-  // Resolve children (Trigger, Content) to collect their registrations
-  AccordionItemContext.Provider(itemCtx, () => {
-    resolveChildren(children);
-  });
-
-  // Register the fully-resolved item with the root
-  ctx._registerItem({
-    value,
-    triggerId,
-    contentId,
-    triggerChildren: itemReg.triggerChildren,
-    triggerClass: itemReg.triggerClass,
-    contentChildren: itemReg.contentChildren,
-    contentClass: itemReg.contentClass,
-  });
-
-  // Return a placeholder — Root renders the real item element
-  return (<span style="display: contents" />) as HTMLElement;
+  return (
+    <AccordionItemContext.Provider value={itemCtx}>
+      <div data-accordion-item="" data-value={value} class={ctx.classes?.item}>
+        {children}
+      </div>
+    </AccordionItemContext.Provider>
+  );
 }
 
 function AccordionTrigger({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useAccordionItemContext('Trigger');
-  if (ctx._triggerClaimed) {
-    console.warn('Duplicate <Accordion.Trigger> detected – only the first is used');
-  }
-  ctx._triggerClaimed = true;
-
   const effectiveCls = cls ?? classProp;
-  ctx._registerTrigger(children, effectiveCls);
+  const combined = [ctx.classes?.trigger, effectiveCls].filter(Boolean).join(' ');
 
-  // Return a placeholder — Root renders the real trigger button
-  return (<span style="display: contents" />) as HTMLElement;
+  return (
+    <button
+      type="button"
+      id={ctx.triggerId}
+      data-accordion-trigger=""
+      aria-controls={ctx.contentId}
+      data-value={ctx.value}
+      aria-expanded={ctx.isOpen ? 'true' : 'false'}
+      data-state={ctx.isOpen ? 'open' : 'closed'}
+      class={combined || undefined}
+      onClick={() => ctx.toggle()}
+    >
+      {children}
+    </button>
+  );
 }
 
 function AccordionContent({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useAccordionItemContext('Content');
-  if (ctx._contentClaimed) {
-    console.warn('Duplicate <Accordion.Content> detected – only the first is used');
-  }
-  ctx._contentClaimed = true;
-
   const effectiveCls = cls ?? classProp;
-  ctx._registerContent(children, effectiveCls);
+  const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
-  // Return a placeholder — Root renders the real content element
-  return (<span style="display: contents" />) as HTMLElement;
-}
-
-// ---------------------------------------------------------------------------
-// Element builder — standalone function outside the Root component body so
-// the Vertz compiler does not classify its return values as computed().
-//
-// Uses nested JSX so that elements are created in DOM order:
-//   item div → button (trigger) → div (content)
-// This is critical for hydration (#1406): the hydration cursor claims
-// elements in sibling order, so the creation order must match the SSR
-// DOM structure. Previously, separate builders created trigger/content
-// BEFORE the item wrapper, causing buildContentEl's __element("div") to
-// claim the SSR accordion root div and corrupt it with display:none.
-// ---------------------------------------------------------------------------
-
-function buildItem(
-  item: ItemRegistration,
-  classes: AccordionClasses | undefined,
-  isOpen: boolean,
-  onTriggerClick: () => void,
-): { itemEl: HTMLDivElement; triggerEl: HTMLButtonElement; contentEl: HTMLDivElement } {
-  const triggerClass = [classes?.trigger, item.triggerClass].filter(Boolean).join(' ');
-  const contentClass = [classes?.content, item.contentClass].filter(Boolean).join(' ');
-  const itemClass = classes?.item || undefined;
-  const resolvedTrigger = resolveChildren(item.triggerChildren);
-  const resolvedContent = resolveChildren(item.contentChildren);
-
-  const itemEl = (
-    <div data-value={item.value} class={itemClass}>
-      <button
-        type="button"
-        id={item.triggerId}
-        aria-controls={item.contentId}
-        data-value={item.value}
-        aria-expanded={isOpen ? 'true' : 'false'}
-        data-state={isOpen ? 'open' : 'closed'}
-        class={triggerClass || undefined}
-        onClick={onTriggerClick}
-      >
-        {...resolvedTrigger}
-      </button>
-      <div
-        role="region"
-        id={item.contentId}
-        aria-labelledby={item.triggerId}
-        aria-hidden={isOpen ? 'false' : 'true'}
-        data-state={isOpen ? 'open' : 'closed'}
-        style={isOpen ? '' : 'display: none'}
-        class={contentClass || undefined}
-      >
-        {...resolvedContent}
-      </div>
+  return (
+    <div
+      role="region"
+      id={ctx.contentId}
+      data-accordion-content=""
+      aria-labelledby={ctx.triggerId}
+      aria-hidden={ctx.isOpen ? 'false' : 'true'}
+      data-state={ctx.isOpen ? 'open' : 'closed'}
+      style={ctx.isOpen ? '' : 'display: none'}
+      class={combined || undefined}
+    >
+      {children}
     </div>
-  ) as HTMLDivElement;
-
-  const triggerEl = itemEl.querySelector(`#${item.triggerId}`) as HTMLButtonElement;
-  const contentEl = itemEl.querySelector(`#${item.contentId}`) as HTMLDivElement;
-
-  return { itemEl, triggerEl, contentEl };
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -287,65 +181,14 @@ function ComposedAccordionRoot({
 }: ComposedAccordionProps) {
   const multiple = type === 'multiple';
 
-  // Registration storage — plain object so the compiler doesn't signal-transform it
-  const reg: {
-    items: ItemRegistration[];
-    itemMap: Map<string, ItemRegistration>;
-  } = { items: [], itemMap: new Map() };
-
-  const ctxValue: AccordionContextValue = {
-    classes,
-    _registerItem: (itemReg) => {
-      if (!reg.itemMap.has(itemReg.value)) {
-        reg.items.push(itemReg);
-        reg.itemMap.set(itemReg.value, itemReg);
-      }
-    },
-    _itemsClaimed: new Set(),
-  };
-
-  // Phase 1: resolve children to collect item registrations
-  AccordionContext.Provider(ctxValue, () => {
-    resolveChildren(children);
-  });
-
-  // Phase 2: build items inside the root JSX return.
-  // Items are built inside the root element via .map() so that during
-  // hydration, the cursor is correctly positioned inside the root and
-  // claims elements in DOM order (root → item → trigger → content).
-  // See #1406: previously, items were built before the root, causing
-  // buildContentEl's __element("div") to claim the SSR root div.
-  const triggerEls: HTMLButtonElement[] = [];
-  const contentEls: HTMLDivElement[] = [];
-
-  // let for reactive state — compiler transforms to signal
   let openValues: string[] = [...defaultValue];
 
-  function updateItemState(value: string, open: boolean): void {
-    const idx = reg.items.findIndex((item) => item.value === value);
-    if (idx < 0) return;
-    const triggerEl = triggerEls[idx]!;
-    const contentEl = contentEls[idx]!;
-    if (open) {
-      setHidden(contentEl, false);
-    }
-    const height = contentEl.scrollHeight;
-    contentEl.style.setProperty('--accordion-content-height', `${height}px`);
-    setExpanded(triggerEl, open);
-    setDataState(triggerEl, open ? 'open' : 'closed');
-    setDataState(contentEl, open ? 'open' : 'closed');
-    if (!open) {
-      setHiddenAnimated(contentEl, true);
-    }
-  }
+  function toggle(value: string): void {
+    const current = [...openValues];
+    const idx = current.indexOf(value);
 
-  function toggleItem(value: string): void {
-    const prev = [...openValues];
-    const current = [...prev];
-    const itemIdx = current.indexOf(value);
-
-    if (itemIdx >= 0) {
-      current.splice(itemIdx, 1);
+    if (idx >= 0) {
+      current.splice(idx, 1);
     } else {
       if (multiple) {
         current.push(value);
@@ -357,52 +200,35 @@ function ComposedAccordionRoot({
 
     openValues = current;
     onValueChange?.(current);
-
-    for (const v of prev) {
-      if (!current.includes(v)) {
-        updateItemState(v, false);
-      }
-    }
-    for (const v of current) {
-      if (!prev.includes(v)) {
-        updateItemState(v, true);
-      }
-    }
   }
 
-  const handleKeydown = (event: KeyboardEvent) => {
-    if (isKey(event, Keys.ArrowUp, Keys.ArrowDown, Keys.Home, Keys.End)) {
-      handleListNavigation(event, triggerEls, { orientation: 'vertical' });
-    }
+  const ctx: AccordionContextValue = {
+    openValues,
+    classes,
+    toggle,
   };
 
   return (
-    <div data-orientation="vertical" onKeydown={handleKeydown}>
-      {reg.items.map((item) => {
-        const isOpen = defaultValue.includes(item.value);
-        const { itemEl, triggerEl, contentEl } = buildItem(item, classes, isOpen, () =>
-          toggleItem(item.value),
-        );
-        triggerEls.push(triggerEl);
-        contentEls.push(contentEl);
-
-        if (isOpen) {
-          requestAnimationFrame(() => {
-            contentEl.style.setProperty(
-              '--accordion-content-height',
-              `${contentEl.scrollHeight}px`,
-            );
-          });
-        }
-
-        return itemEl;
-      })}
-    </div>
+    <AccordionContext.Provider value={ctx}>
+      <div
+        data-orientation="vertical"
+        data-accordion-root=""
+        onKeydown={(event: KeyboardEvent) => {
+          if (isKey(event, Keys.ArrowUp, Keys.ArrowDown, Keys.Home, Keys.End)) {
+            const root = event.currentTarget as HTMLElement;
+            const triggers = [...root.querySelectorAll<HTMLElement>('[data-accordion-trigger]')];
+            handleListNavigation(event, triggers, { orientation: 'vertical' });
+          }
+        }}
+      >
+        {children}
+      </div>
+    </AccordionContext.Provider>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Export as callable with sub-component properties
+// Export
 // ---------------------------------------------------------------------------
 
 export const ComposedAccordion = Object.assign(ComposedAccordionRoot, {

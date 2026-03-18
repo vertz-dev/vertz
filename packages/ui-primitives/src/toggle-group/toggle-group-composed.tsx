@@ -1,13 +1,11 @@
 /**
- * Composed ToggleGroup — declarative JSX component with context-based registration
- * and class distribution. Builds on the same behavior as ToggleGroup.Root but in a
- * fully declarative structure.
- *
- * Supports single-select and multi-select modes with keyboard navigation.
+ * Composed ToggleGroup — compound component with single/multi select.
+ * Each Item renders its own DOM. Root provides shared state via context.
+ * No registration, no resolveChildren, no internal API imports.
  */
 
-import type { ChildValue, Ref } from '@vertz/ui';
-import { createContext, ref, resolveChildren, useContext } from '@vertz/ui';
+import type { ChildValue } from '@vertz/ui';
+import { createContext, useContext } from '@vertz/ui';
 import { uniqueId } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
@@ -27,8 +25,10 @@ export type ToggleGroupClassKey = keyof ToggleGroupClasses;
 // ---------------------------------------------------------------------------
 
 interface ToggleGroupContextValue {
-  /** @internal — registers an item for the toggle group */
-  _registerItem: (value: string, content: ChildValue) => void;
+  selectedValues: string[];
+  classes?: ToggleGroupClasses;
+  disabled: boolean;
+  toggle: (value: string) => void;
 }
 
 const ToggleGroupContext = createContext<ToggleGroupContextValue | undefined>(
@@ -57,13 +57,29 @@ interface ToggleGroupItemProps {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components — registration via context
+// Sub-components — each renders its own DOM
 // ---------------------------------------------------------------------------
 
-function ToggleGroupItem({ value, children: itemContent }: ToggleGroupItemProps) {
-  const { _registerItem } = useToggleGroupContext('Item');
-  _registerItem(value, itemContent);
-  return (<span style="display: contents" />) as HTMLElement;
+function ToggleGroupItem({ value, children }: ToggleGroupItemProps) {
+  const ctx = useToggleGroupContext('Item');
+  const isOn = ctx.selectedValues.includes(value);
+
+  return (
+    <button
+      type="button"
+      data-togglegroup-item=""
+      data-value={value}
+      aria-pressed={isOn ? 'true' : 'false'}
+      data-state={isOn ? 'on' : 'off'}
+      disabled={ctx.disabled}
+      aria-disabled={ctx.disabled ? 'true' : undefined}
+      tabindex="-1"
+      class={ctx.classes?.item}
+      onClick={() => ctx.toggle(value)}
+    >
+      {children}
+    </button>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -89,27 +105,9 @@ function ComposedToggleGroupRoot({
   disabled = false,
   onValueChange,
 }: ComposedToggleGroupProps) {
-  // Collect item registrations
-  const registrations: { value: string; content: ChildValue }[] = [];
-
-  const ctxValue: ToggleGroupContextValue = {
-    _registerItem: (value, content) => {
-      registrations.push({ value, content });
-    },
-  };
-
-  // Resolve children to collect registrations
-  ToggleGroupContext.Provider(ctxValue, () => {
-    resolveChildren(children);
-  });
-
-  // State
   let selectedValues = [...defaultValue];
 
-  // Refs for keyboard navigation
-  const itemRefs: Ref<HTMLButtonElement>[] = registrations.map(() => ref());
-
-  function toggleValue(itemValue: string): void {
+  function toggle(itemValue: string): void {
     if (disabled) return;
     const current = [...selectedValues];
     const idx = current.indexOf(itemValue);
@@ -133,87 +131,62 @@ function ComposedToggleGroupRoot({
     onValueChange?.(current);
   }
 
-  // Build items
-  const itemNodes = registrations.map((reg, i) => {
-    const { value } = reg;
-    const itemChildren = resolveChildren(reg.content);
-    const isOn = selectedValues.includes(value);
-
-    return (
-      <button
-        ref={itemRefs[i]}
-        type="button"
-        data-value={value}
-        aria-pressed={isOn ? 'true' : 'false'}
-        data-state={isOn ? 'on' : 'off'}
-        disabled={disabled}
-        aria-disabled={disabled ? 'true' : undefined}
-        tabindex={i === 0 ? '0' : '-1'}
-        class={classes?.item}
-        onClick={() => toggleValue(value)}
-      >
-        {...itemChildren}
-      </button>
-    );
-  });
+  const ctx: ToggleGroupContextValue = {
+    selectedValues,
+    classes,
+    disabled,
+    toggle,
+  };
 
   return (
-    <div
-      role="group"
-      id={uniqueId('toggle-group')}
-      data-orientation={orientation}
-      class={classes?.root}
-      onKeydown={(event: KeyboardEvent) => {
-        if (
-          !isKey(
-            event,
-            Keys.ArrowLeft,
-            Keys.ArrowRight,
-            Keys.ArrowUp,
-            Keys.ArrowDown,
-            Keys.Home,
-            Keys.End,
-          )
-        ) {
-          return;
-        }
-
-        event.preventDefault();
-        const currentIdx = itemRefs.findIndex((r) => r.current === document.activeElement);
-        if (currentIdx < 0) return;
-
-        const len = itemRefs.length;
-        let nextIdx: number;
-
-        if (isKey(event, Keys.ArrowRight, Keys.ArrowDown)) {
-          nextIdx = (currentIdx + 1) % len;
-        } else if (isKey(event, Keys.ArrowLeft, Keys.ArrowUp)) {
-          nextIdx = (currentIdx - 1 + len) % len;
-        } else if (isKey(event, Keys.Home)) {
-          nextIdx = 0;
-        } else if (isKey(event, Keys.End)) {
-          nextIdx = len - 1;
-        } else {
-          return;
-        }
-
-        // Update roving tabindex
-        for (let j = 0; j < len; j++) {
-          const el = itemRefs[j]?.current;
-          if (el) {
-            el.setAttribute('tabindex', j === nextIdx ? '0' : '-1');
+    <ToggleGroupContext.Provider value={ctx}>
+      <div
+        role="group"
+        id={uniqueId('toggle-group')}
+        data-orientation={orientation}
+        data-togglegroup-root=""
+        class={classes?.root}
+        onKeydown={(event: KeyboardEvent) => {
+          if (
+            !isKey(event, Keys.ArrowLeft, Keys.ArrowRight, Keys.ArrowUp, Keys.ArrowDown, Keys.Home, Keys.End)
+          ) {
+            return;
           }
-        }
-        itemRefs[nextIdx]?.current?.focus();
-      }}
-    >
-      {itemNodes}
-    </div>
+
+          event.preventDefault();
+          const root = event.currentTarget as HTMLElement;
+          const items = [...root.querySelectorAll<HTMLElement>('[data-togglegroup-item]')];
+          const currentIdx = items.indexOf(document.activeElement as HTMLElement);
+          if (currentIdx < 0) return;
+
+          const len = items.length;
+          let nextIdx: number;
+
+          if (isKey(event, Keys.ArrowRight, Keys.ArrowDown)) {
+            nextIdx = (currentIdx + 1) % len;
+          } else if (isKey(event, Keys.ArrowLeft, Keys.ArrowUp)) {
+            nextIdx = (currentIdx - 1 + len) % len;
+          } else if (isKey(event, Keys.Home)) {
+            nextIdx = 0;
+          } else if (isKey(event, Keys.End)) {
+            nextIdx = len - 1;
+          } else {
+            return;
+          }
+
+          // Update roving tabindex
+          items.forEach((el, j) => el.setAttribute('tabindex', j === nextIdx ? '0' : '-1'));
+          items[nextIdx]?.focus();
+        }}
+      >
+        {children}
+      </div>
+    </ToggleGroupContext.Provider>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Export as callable with sub-component properties
+// Export
 // ---------------------------------------------------------------------------
 
 export const ComposedToggleGroup = Object.assign(ComposedToggleGroupRoot, {
