@@ -93,6 +93,11 @@ export function configureThemeBase(config?: ThemeConfig): ResolvedThemeBase {
       color: 'var(--color-foreground)',
       backgroundColor: 'var(--color-background)',
     },
+    // Native <dialog> — hide when not [open] so component-level
+    // `display: grid` styles don't flash content during SSR-to-hydration.
+    'dialog:not([open])': {
+      display: 'none',
+    },
     // Native checkbox — styled to match shadcn design tokens so
     // <input type="checkbox"> looks correct without a custom component.
     'input[type="checkbox"]': {
