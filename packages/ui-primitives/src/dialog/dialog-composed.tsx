@@ -1,14 +1,12 @@
 /**
- * Composed Dialog — fully declarative JSX component with modal, focus trap, and ARIA.
- * Sub-components self-wire via context. No factory wrapping.
+ * Composed Dialog — compound component using native <dialog> element.
+ * Each sub-component renders its own DOM. Root provides shared state via context.
+ * No registration phase, no resolveChildren, no internal API imports.
  */
 
 import type { ChildValue, Ref } from '@vertz/ui';
-import { createContext, ref, resolveChildren, useContext } from '@vertz/ui';
-import { _tryOnCleanup } from '@vertz/ui/internals';
-import { focusFirst, saveFocus, trapFocus } from '../utils/focus';
+import { createContext, lifecycleEffect, ref, useContext } from '@vertz/ui';
 import { linkedIds } from '../utils/id';
-import { isKey, Keys } from '../utils/keyboard';
 
 // ---------------------------------------------------------------------------
 // Class distribution
@@ -29,16 +27,15 @@ export interface DialogClasses {
 // ---------------------------------------------------------------------------
 
 interface DialogContextValue {
+  /** Whether the dialog is open. Signal auto-unwrapped by Provider. */
+  isOpen: boolean;
   titleId: string;
   descriptionId: string;
+  contentId: string;
   classes?: DialogClasses;
-  /** @internal — registers the user trigger for ARIA sync */
-  _registerTrigger: (el: HTMLElement) => void;
-  /** @internal — registers content children and class */
-  _registerContent: (children: ChildValue, cls?: string) => void;
-  /** @internal — duplicate sub-component detection */
-  _triggerClaimed: boolean;
-  _contentClaimed: boolean;
+  open: () => void;
+  close: () => void;
+  toggle: () => void;
 }
 
 const DialogContext = createContext<DialogContextValue | undefined>(
@@ -68,43 +65,96 @@ interface SlotProps {
   class?: string;
 }
 
+interface DialogContentProps extends SlotProps {
+  showClose?: boolean;
+}
+
 // ---------------------------------------------------------------------------
-// Sub-components — registration via context
+// Sub-components — each renders its own DOM
 // ---------------------------------------------------------------------------
 
 function DialogTrigger({ children }: SlotProps) {
   const ctx = useDialogContext('Trigger');
-  if (ctx._triggerClaimed) {
-    console.warn('Duplicate <Dialog.Trigger> detected – only the first is used');
-  }
-  ctx._triggerClaimed = true;
-
-  const resolved = resolveChildren(children);
-  const userTrigger = resolved.find((n): n is HTMLElement => n instanceof HTMLElement) ?? null;
-  if (userTrigger) {
-    ctx._registerTrigger(userTrigger);
-  }
-
-  return <span style="display: contents">{...resolved}</span>;
+  return (
+    <span
+      style="display: contents"
+      data-dialog-trigger=""
+      data-state={ctx.isOpen ? 'open' : 'closed'}
+      onClick={() => ctx.toggle()}
+    >
+      {children}
+    </span>
+  );
 }
 
-function DialogContent({ children, className: cls, class: classProp }: SlotProps) {
+function DialogContent({ children, className: cls, class: classProp, showClose = true }: DialogContentProps) {
   const ctx = useDialogContext('Content');
-  if (ctx._contentClaimed) {
-    console.warn('Duplicate <Dialog.Content> detected – only the first is used');
-  }
-  ctx._contentClaimed = true;
-
+  const dialogRef: Ref<HTMLDialogElement> = ref();
   const effectiveCls = cls ?? classProp;
-  ctx._registerContent(children, effectiveCls);
+  const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
-  // Placeholder — Root renders the actual dialog element
-  return (<span style="display: contents" />) as HTMLElement;
+  // Sync native <dialog> open/close state from reactive signal.
+  // lifecycleEffect is a no-op during SSR (avoids missing .showModal()).
+  // Read ctx.isOpen BEFORE the null check so the signal is always tracked.
+  // Query the dialog by ID rather than using the ref — during hydration,
+  // the ref may point to an orphaned element while the connected one
+  // is the SSR-claimed element in the DOM.
+  lifecycleEffect(() => {
+    const open = ctx.isOpen;
+    const el = document.getElementById(ctx.contentId) as HTMLDialogElement | null;
+    if (!el) return;
+    if (open && !el.open) el.showModal();
+    if (!open && el.open) el.close();
+  });
+
+  return (
+    <dialog
+      ref={dialogRef}
+      id={ctx.contentId}
+      aria-labelledby={ctx.titleId}
+      aria-describedby={ctx.descriptionId}
+      data-state={ctx.isOpen ? 'open' : 'closed'}
+      class={combined || undefined}
+      onCancel={() => {
+        // Browser closes the dialog natively on Escape.
+        // Sync our reactive state to match.
+        ctx.close();
+      }}
+      onClick={(e: MouseEvent) => {
+        // Clicking the <dialog> backdrop (not content inside) closes the dialog.
+        // When showModal() is used, clicking outside the dialog content but
+        // inside the viewport hits the <dialog> element itself as the target.
+        if (e.target === dialogRef.current) ctx.close();
+      }}
+    >
+      {showClose && (
+        <button
+          type="button"
+          data-slot="dialog-close"
+          class={ctx.classes?.close || undefined}
+          aria-label="Close"
+          onClick={() => ctx.close()}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
+      )}
+      {children}
+    </dialog>
+  );
 }
-
-// ---------------------------------------------------------------------------
-// Sub-components — content elements (read classes from context)
-// ---------------------------------------------------------------------------
 
 function DialogTitle({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useDialogContext('Title');
@@ -143,15 +193,16 @@ function DialogFooter({ children, className: cls, class: classProp }: SlotProps)
 }
 
 function DialogClose({ children, className: cls, class: classProp }: SlotProps) {
-  const { classes } = useDialogContext('Close');
+  const ctx = useDialogContext('Close');
   const effectiveCls = cls ?? classProp;
-  const combined = [classes?.close, effectiveCls].filter(Boolean).join(' ');
+  const combined = [ctx.classes?.close, effectiveCls].filter(Boolean).join(' ');
   return (
     <button
       type="button"
       data-slot="dialog-close"
       class={combined || undefined}
       aria-label={children ? undefined : 'Close'}
+      onClick={() => ctx.close()}
     >
       {children ?? '\u00D7'}
     </button>
@@ -166,7 +217,6 @@ export interface ComposedDialogProps {
   children?: ChildValue;
   classes?: DialogClasses;
   onOpenChange?: (open: boolean) => void;
-  closeIcon?: HTMLElement;
 }
 
 // ---------------------------------------------------------------------------
@@ -175,75 +225,22 @@ export interface ComposedDialogProps {
 
 export type DialogClassKey = keyof DialogClasses;
 
-function ComposedDialogRoot({ children, classes, onOpenChange, closeIcon }: ComposedDialogProps) {
+function ComposedDialogRoot({ children, classes, onOpenChange }: ComposedDialogProps) {
   const ids = linkedIds('dialog');
   const titleId = `${ids.contentId}-title`;
   const descriptionId = `${ids.contentId}-description`;
 
-  // Registration storage — plain object so the compiler doesn't signal-transform it
-  const reg: {
-    triggerEl: HTMLElement | null;
-    contentChildren: ChildValue;
-    contentCls: string | undefined;
-  } = { triggerEl: null, contentChildren: undefined, contentCls: undefined };
-
-  const ctxValue: DialogContextValue = {
-    titleId,
-    descriptionId,
-    classes,
-    _registerTrigger: (el) => {
-      reg.triggerEl = el;
-    },
-    _registerContent: (contentChildren, cls) => {
-      if (reg.contentChildren === undefined) {
-        reg.contentChildren = contentChildren;
-        reg.contentCls = cls;
-      }
-    },
-    _triggerClaimed: false,
-    _contentClaimed: false,
-  };
-
-  // Phase 1: resolve children to collect registrations, then resolve content
-  // children while still inside the Provider so sub-components can access context
-  let resolvedNodes: Node[] = [];
-  let contentNodes: Node[] = [];
-  DialogContext.Provider(ctxValue, () => {
-    resolvedNodes = resolveChildren(children);
-    contentNodes = resolveChildren(reg.contentChildren);
-  });
-
-  // Phase 2: reactive state — compiler transforms `let` to signal
+  // Reactive state — compiler transforms `let` to signal.
+  // Passed directly in context so Provider auto-wraps via wrapSignalProps.
   let isOpen = false;
-  const contentRef: Ref<HTMLDivElement> = ref();
-  let restoreFocus: (() => void) | null = null;
-  let removeTrap: (() => void) | null = null;
 
   function open(): void {
     isOpen = true;
-    if (reg.triggerEl) {
-      reg.triggerEl.setAttribute('aria-expanded', 'true');
-      reg.triggerEl.setAttribute('data-state', 'open');
-    }
-    restoreFocus = saveFocus();
-    const contentEl = contentRef.current;
-    if (contentEl) {
-      removeTrap = trapFocus(contentEl);
-      queueMicrotask(() => focusFirst(contentEl));
-    }
     onOpenChange?.(true);
   }
 
   function close(): void {
     isOpen = false;
-    if (reg.triggerEl) {
-      reg.triggerEl.setAttribute('aria-expanded', 'false');
-      reg.triggerEl.setAttribute('data-state', 'closed');
-    }
-    removeTrap?.();
-    removeTrap = null;
-    restoreFocus?.();
-    restoreFocus = null;
     onOpenChange?.(false);
   }
 
@@ -252,75 +249,25 @@ function ComposedDialogRoot({ children, classes, onOpenChange, closeIcon }: Comp
     else open();
   }
 
-  // Wire user trigger with ARIA attributes and click handler
-  if (reg.triggerEl) {
-    reg.triggerEl.setAttribute('aria-haspopup', 'dialog');
-    reg.triggerEl.setAttribute('aria-controls', ids.contentId);
-    reg.triggerEl.setAttribute('aria-expanded', 'false');
-    reg.triggerEl.setAttribute('data-state', 'closed');
-
-    const triggerEl = reg.triggerEl;
-    const handleClick = () => toggle();
-    triggerEl.addEventListener('click', handleClick);
-    _tryOnCleanup(() => triggerEl.removeEventListener('click', handleClick));
-  }
-
-  // Wire close icon if provided
-  if (closeIcon) {
-    const handleCloseIconClick = () => close();
-    closeIcon.addEventListener('click', handleCloseIconClick);
-    _tryOnCleanup(() => closeIcon.removeEventListener('click', handleCloseIconClick));
-  }
-
-  const combined = [classes?.content, reg.contentCls].filter(Boolean).join(' ');
-
-  // Create content panel first so we can wire the close-delegation handler
-  const contentPanel = (
-    <div
-      ref={contentRef}
-      role="dialog"
-      id={ids.contentId}
-      aria-modal="true"
-      aria-labelledby={titleId}
-      aria-describedby={descriptionId}
-      aria-hidden={isOpen ? 'false' : 'true'}
-      data-state={isOpen ? 'open' : 'closed'}
-      style={isOpen ? '' : 'display: none'}
-      class={combined || undefined}
-      onKeydown={(event: KeyboardEvent) => {
-        if (isKey(event, Keys.Escape)) {
-          event.preventDefault();
-          event.stopPropagation();
-          close();
-        }
-      }}
-    >
-      {closeIcon}
-      {...contentNodes}
-    </div>
-  ) as HTMLDivElement;
-
-  // Wire close-button delegation on the content panel (explicit for cleanup)
-  const handleContentClick = (e: Event) => {
-    const target = (e.target as HTMLElement).closest('[data-slot="dialog-close"]');
-    if (target) close();
+  const ctx: DialogContextValue = {
+    isOpen,
+    titleId,
+    descriptionId,
+    contentId: ids.contentId,
+    classes,
+    open,
+    close,
+    toggle,
   };
-  contentPanel.addEventListener('click', handleContentClick);
-  _tryOnCleanup(() => contentPanel.removeEventListener('click', handleContentClick));
 
+  // JSX Provider with single-root wrapper.
+  // Children evaluate in DOM order inside the Provider scope.
   return (
-    <div style="display: contents">
-      {...resolvedNodes}
-      <div
-        data-dialog-overlay=""
-        aria-hidden={isOpen ? 'false' : 'true'}
-        data-state={isOpen ? 'open' : 'closed'}
-        style={isOpen ? '' : 'display: none'}
-        class={classes?.overlay || undefined}
-        onClick={() => close()}
-      />
-      {contentPanel}
-    </div>
+    <DialogContext.Provider value={ctx}>
+      <span style="display: contents" data-dialog-root="">
+        {children}
+      </span>
+    </DialogContext.Provider>
   );
 }
 
@@ -339,7 +286,7 @@ export const ComposedDialog = Object.assign(ComposedDialogRoot, {
 }) as ((props: ComposedDialogProps) => HTMLElement) & {
   __classKeys?: DialogClassKey;
   Trigger: (props: SlotProps) => HTMLElement;
-  Content: (props: SlotProps) => HTMLElement;
+  Content: (props: DialogContentProps) => HTMLElement;
   Title: (props: SlotProps) => HTMLElement;
   Description: (props: SlotProps) => HTMLElement;
   Header: (props: SlotProps) => HTMLElement;

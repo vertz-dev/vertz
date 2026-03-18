@@ -168,7 +168,7 @@ export { registerTheme } from './theme/registry';
 // Reactivity runtime
 export { DisposalScopeError } from './runtime/disposal';
 export { batch } from './runtime/scheduler';
-export { computed, signal } from './runtime/signal';
+export { computed, lifecycleEffect, signal } from './runtime/signal';
 export type {
   Computed,
   DisposeFn,
