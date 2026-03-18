@@ -1,7 +1,7 @@
 import type MagicString from 'magic-string';
 import { type Node, type SourceFile, SyntaxKind } from 'ts-morph';
 import type { ComponentInfo, VariableInfo } from '../types';
-import { findBodyNode } from '../utils';
+import { findBodyNode, isShadowedInNestedScope } from '../utils';
 
 /**
  * Transform `const x = expr` → `const x = computed(() => expr)` when classified as computed.
@@ -147,6 +147,11 @@ function transformComputedReads(source: MagicString, bodyNode: Node, computeds: 
 
     // Skip binding elements
     if (parent.isKind(SyntaxKind.BindingElement)) {
+      return;
+    }
+
+    // Skip identifiers shadowed by a nested scope (callback parameter or local variable)
+    if (isShadowedInNestedScope(node, name, bodyNode)) {
       return;
     }
 

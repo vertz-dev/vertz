@@ -164,6 +164,81 @@ function App() {
     });
   });
 
+  describe('callback-local const shadowing component-level names', () => {
+    it('does not add .value to callback const that shadows a component-level computed', () => {
+      const result = compile(
+        `
+function App() {
+  let count = 0;
+  const doubled = count * 2;
+  const items = [1, 2, 3];
+  return (
+    <div>
+      <span>{doubled}</span>
+      {items.map((v) => {
+        const doubled = v * 2;
+        return <span>{doubled}</span>;
+      })}
+    </div>
+  );
+}
+        `.trim(),
+      );
+
+      // The component-level doubled should have .value (it's a computed)
+      // But the callback-local doubled should NOT have .value
+      const renderFn = result.code.slice(result.code.indexOf('(v) =>'));
+      expect(renderFn).toContain('const doubled = v * 2');
+      expect(renderFn).not.toContain('doubled.value');
+    });
+
+    it('does not add .value to callback const that shadows a component-level signal', () => {
+      const result = compile(
+        `
+function App() {
+  let status = 'idle';
+  const items = ['a', 'b'];
+  return (
+    <div>
+      <span>{status}</span>
+      {items.map((item) => {
+        const status = item === 'a' ? 'active' : 'inactive';
+        return <span>{status}</span>;
+      })}
+    </div>
+  );
+}
+        `.trim(),
+      );
+
+      // The callback-local status should NOT have .value
+      const renderFn = result.code.slice(result.code.indexOf('(item) =>'));
+      expect(renderFn).not.toContain('status.value');
+    });
+
+    it('does not add .value to callback parameter that shadows a component-level signal', () => {
+      const result = compile(
+        `
+function App() {
+  let items: string[] = [];
+  return (
+    <ul>
+      {items.map((items) => {
+        return <li>{items}</li>;
+      })}
+    </ul>
+  );
+}
+        `.trim(),
+      );
+
+      // The callback parameter 'items' shadows the signal — should NOT get .value inside callback
+      const renderFn = result.code.slice(result.code.indexOf('(items) =>'));
+      // Inside the render function, 'items' refers to the callback parameter (a string)
+      expect(renderFn).not.toContain('items.value');
+    });
+  });
+
   describe('import generation', () => {
     it('adds __list to internals import', () => {
       const result = compile(
