@@ -1,15 +1,14 @@
 /**
- * Composed HoverCard — declarative JSX component with hover-triggered content.
- * Sub-components self-wire via context. No factory wrapping.
+ * Composed HoverCard — compound component with hover-triggered floating content.
+ * Each sub-component renders its own DOM. Root provides shared state via context.
+ * No registration phase, no resolveChildren, no internal API imports.
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, resolveChildren, useContext } from '@vertz/ui';
-import { setDataState, setExpanded, setHidden, setHiddenAnimated } from '../utils/aria';
+import { createContext, lifecycleEffect, useContext } from '@vertz/ui';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
 import { uniqueId } from '../utils/id';
-import { isKey, Keys } from '../utils/keyboard';
 
 // ---------------------------------------------------------------------------
 // Class distribution
@@ -26,10 +25,14 @@ export type HoverCardClassKey = keyof HoverCardClasses;
 // ---------------------------------------------------------------------------
 
 interface HoverCardContextValue {
-  _registerTrigger: (el: HTMLElement) => void;
-  _registerContent: (children: ChildValue, cls?: string) => void;
-  _triggerClaimed: boolean;
-  _contentClaimed: boolean;
+  isOpen: boolean;
+  contentId: string;
+  classes?: HoverCardClasses;
+  show: () => void;
+  hide: () => void;
+  showImmediate: () => void;
+  hideImmediate: () => void;
+  cancelCloseTimer: () => void;
 }
 
 const HoverCardContext = createContext<HoverCardContextValue | undefined>(
@@ -60,40 +63,53 @@ interface SlotProps {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components
+// Sub-components — each renders its own DOM
 // ---------------------------------------------------------------------------
 
 function HoverCardTrigger({ children }: SlotProps) {
   const ctx = useHoverCardContext('Trigger');
-  if (ctx._triggerClaimed) {
-    console.warn('Duplicate <HoverCard.Trigger> detected – only the first is used');
-  }
-  ctx._triggerClaimed = true;
-
-  const resolved = resolveChildren(children);
-  const userTrigger = resolved.find((n): n is HTMLElement => n instanceof HTMLElement) ?? null;
-  if (userTrigger) {
-    ctx._registerTrigger(userTrigger);
-  }
-
-  return <span style="display: contents">{...resolved}</span>;
+  return (
+    <span
+      style="display: contents"
+      data-hovercard-trigger=""
+      aria-haspopup="dialog"
+      aria-expanded={ctx.isOpen ? 'true' : 'false'}
+      onMouseenter={() => ctx.show()}
+      onMouseleave={() => ctx.hide()}
+      onFocus={() => ctx.showImmediate()}
+      onBlur={() => ctx.hide()}
+    >
+      {children}
+    </span>
+  );
 }
 
 function HoverCardContent({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useHoverCardContext('Content');
-  if (ctx._contentClaimed) {
-    console.warn('Duplicate <HoverCard.Content> detected – only the first is used');
-  }
-  ctx._contentClaimed = true;
-
   const effectiveCls = cls ?? classProp;
-  ctx._registerContent(children, effectiveCls);
+  const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
-  return (<span style="display: contents" />) as HTMLElement;
+  return (
+    <div
+      role="dialog"
+      id={ctx.contentId}
+      data-hovercard-content=""
+      aria-hidden={ctx.isOpen ? 'false' : 'true'}
+      data-state={ctx.isOpen ? 'open' : 'closed'}
+      style={ctx.isOpen ? '' : 'display: none'}
+      class={combined || undefined}
+      onMouseenter={() => ctx.cancelCloseTimer()}
+      onMouseleave={() => ctx.hide()}
+      onFocusin={() => ctx.cancelCloseTimer()}
+      onFocusout={() => ctx.hide()}
+    >
+      {children}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
-// Root
+// Root composed component
 // ---------------------------------------------------------------------------
 
 export interface ComposedHoverCardProps {
@@ -115,178 +131,90 @@ function ComposedHoverCardRoot({
 }: ComposedHoverCardProps) {
   const contentId = uniqueId('hovercard');
 
-  const reg: {
-    triggerEl: HTMLElement | null;
-    contentChildren: ChildValue;
-    contentCls: string | undefined;
-    floatingCleanup: (() => void) | null;
-  } = {
-    triggerEl: null,
-    contentChildren: undefined,
-    contentCls: undefined,
-    floatingCleanup: null,
-  };
-
-  const ctxValue: HoverCardContextValue = {
-    _registerTrigger: (el) => {
-      reg.triggerEl = el;
-    },
-    _registerContent: (contentChildren, cls) => {
-      reg.contentChildren = contentChildren;
-      reg.contentCls = cls;
-    },
-    _triggerClaimed: false,
-    _contentClaimed: false,
-  };
-
-  // Phase 1: resolve children to collect registrations
-  let resolvedNodes: Node[] = [];
-  let contentNodes: Node[] = [];
-  HoverCardContext.Provider(ctxValue, () => {
-    resolvedNodes = resolveChildren(children);
-    contentNodes = resolveChildren(reg.contentChildren);
-  });
-
-  // State
   let isOpen = false;
-  let openTimeout: ReturnType<typeof setTimeout> | null = null;
-  let closeTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  // Timer state. Plain object to avoid signal transforms.
+  const timers: {
+    open: ReturnType<typeof setTimeout> | null;
+    close: ReturnType<typeof setTimeout> | null;
+    floatingCleanup: (() => void) | null;
+  } = { open: null, close: null, floatingCleanup: null };
 
   function cancelTimers(): void {
-    if (openTimeout) {
-      clearTimeout(openTimeout);
-      openTimeout = null;
-    }
-    if (closeTimeout) {
-      clearTimeout(closeTimeout);
-      closeTimeout = null;
-    }
+    if (timers.open) { clearTimeout(timers.open); timers.open = null; }
+    if (timers.close) { clearTimeout(timers.close); timers.close = null; }
   }
 
   function cancelCloseTimer(): void {
-    if (closeTimeout) {
-      clearTimeout(closeTimeout);
-      closeTimeout = null;
-    }
+    if (timers.close) { clearTimeout(timers.close); timers.close = null; }
   }
 
-  function positionContent(): void {
-    if (positioning && reg.triggerEl) {
-      reg.floatingCleanup?.();
-      const effectivePlacement = positioning.placement ?? 'bottom';
-      const result = createFloatingPosition(reg.triggerEl, contentEl, {
-        ...positioning,
-        placement: effectivePlacement,
-      });
-      reg.floatingCleanup = result.cleanup;
-    }
-  }
+  // Position content relative to trigger when open.
+  lifecycleEffect(() => {
+    const open = isOpen;
+    if (!open || !positioning) return;
+
+    const content = document.getElementById(contentId);
+    const trigger = content?.parentElement?.querySelector('[data-hovercard-trigger]') as HTMLElement | null;
+    if (!trigger || !content) return;
+
+    const result = createFloatingPosition(trigger, content, positioning);
+    timers.floatingCleanup = result.cleanup;
+  });
 
   function show(): void {
     cancelTimers();
     if (isOpen) return;
-    openTimeout = setTimeout(() => {
+    timers.open = setTimeout(() => {
+      timers.open = null;
       isOpen = true;
-      if (reg.triggerEl) setExpanded(reg.triggerEl, true);
-      setHidden(contentEl, false);
-      setDataState(contentEl, 'open');
-      positionContent();
       onOpenChange?.(true);
-      openTimeout = null;
     }, openDelay);
   }
 
   function showImmediate(): void {
     cancelTimers();
     isOpen = true;
-    if (reg.triggerEl) setExpanded(reg.triggerEl, true);
-    setHidden(contentEl, false);
-    setDataState(contentEl, 'open');
-    positionContent();
     onOpenChange?.(true);
   }
 
   function hide(): void {
     cancelTimers();
     if (!isOpen) return;
-    closeTimeout = setTimeout(() => {
+    timers.close = setTimeout(() => {
+      timers.close = null;
       isOpen = false;
-      if (reg.triggerEl) setExpanded(reg.triggerEl, false);
-      setDataState(contentEl, 'closed');
-      setHiddenAnimated(contentEl, true);
-      reg.floatingCleanup?.();
-      reg.floatingCleanup = null;
+      timers.floatingCleanup?.();
+      timers.floatingCleanup = null;
       onOpenChange?.(false);
-      closeTimeout = null;
     }, closeDelay);
   }
 
   function hideImmediate(): void {
     cancelTimers();
     isOpen = false;
-    if (reg.triggerEl) setExpanded(reg.triggerEl, false);
-    setDataState(contentEl, 'closed');
-    setHiddenAnimated(contentEl, true);
-    reg.floatingCleanup?.();
-    reg.floatingCleanup = null;
+    timers.floatingCleanup?.();
+    timers.floatingCleanup = null;
     onOpenChange?.(false);
   }
 
-  // Build content element
-  const combined = [classes?.content, reg.contentCls].filter(Boolean).join(' ');
-  const contentEl = (
-    <div
-      role="dialog"
-      id={contentId}
-      aria-hidden="true"
-      data-state="closed"
-      style="display: none"
-      class={combined || undefined}
-      onMouseenter={cancelCloseTimer}
-      onMouseleave={hide}
-      onFocusin={cancelCloseTimer}
-      onFocusout={(event: FocusEvent) => {
-        const related = event.relatedTarget as Node | null;
-        if (related && (reg.triggerEl?.contains(related) || contentEl.contains(related))) return;
-        hide();
-      }}
-      onKeydown={(event: KeyboardEvent) => {
-        if (isKey(event, Keys.Escape)) {
-          hideImmediate();
-          reg.triggerEl?.focus();
-        }
-      }}
-    >
-      {...contentNodes}
-    </div>
-  ) as HTMLDivElement;
-
-  // Wire trigger
-  if (reg.triggerEl) {
-    const triggerEl = reg.triggerEl;
-    triggerEl.setAttribute('aria-haspopup', 'dialog');
-    triggerEl.setAttribute('aria-expanded', 'false');
-
-    triggerEl.addEventListener('mouseenter', show);
-    triggerEl.addEventListener('mouseleave', hide);
-    triggerEl.addEventListener('focus', showImmediate);
-    triggerEl.addEventListener('blur', (event: FocusEvent) => {
-      const related = event.relatedTarget as Node | null;
-      if (related && (triggerEl.contains(related) || contentEl.contains(related))) return;
-      hide();
-    });
-    triggerEl.addEventListener('keydown', (event: KeyboardEvent) => {
-      if (isKey(event, Keys.Escape) && isOpen) {
-        hideImmediate();
-      }
-    });
-  }
+  const ctx: HoverCardContextValue = {
+    isOpen,
+    contentId,
+    classes,
+    show,
+    hide,
+    showImmediate,
+    hideImmediate,
+    cancelCloseTimer,
+  };
 
   return (
-    <div style="display: contents">
-      {...resolvedNodes}
-      {contentEl}
-    </div>
+    <HoverCardContext.Provider value={ctx}>
+      <span style="display: contents" data-hovercard-root="">
+        {children}
+      </span>
+    </HoverCardContext.Provider>
   );
 }
 

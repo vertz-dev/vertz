@@ -1,18 +1,18 @@
 /**
- * Composed DatePicker — declarative JSX component with trigger + popover + calendar.
- * Sub-components (Trigger, Content) self-wire via context.
- * Builds DOM directly rather than composing other composed primitives,
- * to avoid compiler reactive-wrapping issues with nested component calls.
+ * Composed DatePicker — compound component with trigger + popover + calendar.
+ * Each sub-component renders its own DOM. Root provides shared state via context.
+ * No registration phase, no resolveChildren, no internal API imports.
+ *
+ * Note: Calls ComposedCalendar() as a function (not JSX) to avoid compiler
+ * reactive-wrapping issues with nested component calls.
  */
 
-import type { ChildValue, Ref } from '@vertz/ui';
-import { createContext, ref, resolveChildren, useContext } from '@vertz/ui';
-import { _tryOnCleanup } from '@vertz/ui/internals';
+import type { ChildValue } from '@vertz/ui';
+import { createContext, lifecycleEffect, useContext } from '@vertz/ui';
 import type { CalendarClasses, ComposedCalendarProps } from '../calendar/calendar-composed';
 import { ComposedCalendar } from '../calendar/calendar-composed';
 import { createDismiss } from '../utils/dismiss';
 import { linkedIds } from '../utils/id';
-import { isKey, Keys } from '../utils/keyboard';
 
 // ---------------------------------------------------------------------------
 // Class distribution
@@ -31,10 +31,13 @@ export type DatePickerClassKey = keyof DatePickerClasses;
 // ---------------------------------------------------------------------------
 
 interface DatePickerContextValue {
-  _registerTrigger: (children: ChildValue, cls?: string) => void;
-  _registerContent: (children: ChildValue, cls?: string) => void;
-  _triggerClaimed: boolean;
-  _contentClaimed: boolean;
+  isOpen: boolean;
+  contentId: string;
+  classes?: DatePickerClasses;
+  displayText: string;
+  open: () => void;
+  close: () => void;
+  toggle: () => void;
 }
 
 const DatePickerContext = createContext<DatePickerContextValue | undefined>(
@@ -65,45 +68,54 @@ interface SlotProps {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components
+// Sub-components — each renders its own DOM
 // ---------------------------------------------------------------------------
 
 function DatePickerTrigger({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useDatePickerContext('Trigger');
-  if (ctx._triggerClaimed) {
-    console.warn('Duplicate <DatePicker.Trigger> detected – only the first is used');
-  }
-  ctx._triggerClaimed = true;
-
   const effectiveCls = cls ?? classProp;
-  ctx._registerTrigger(children, effectiveCls);
+  const combined = [ctx.classes?.trigger, effectiveCls].filter(Boolean).join(' ');
 
-  return (<span style="display: contents" />) as HTMLElement;
+  return (
+    <button
+      type="button"
+      data-datepicker-trigger=""
+      aria-haspopup="dialog"
+      aria-controls={ctx.contentId}
+      aria-expanded={ctx.isOpen ? 'true' : 'false'}
+      data-state={ctx.isOpen ? 'open' : 'closed'}
+      class={combined || undefined}
+      onClick={() => ctx.toggle()}
+    >
+      {children ?? ctx.displayText}
+    </button>
+  );
 }
 
 function DatePickerContent({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useDatePickerContext('Content');
-  if (ctx._contentClaimed) {
-    console.warn('Duplicate <DatePicker.Content> detected – only the first is used');
-  }
-  ctx._contentClaimed = true;
-
   const effectiveCls = cls ?? classProp;
-  ctx._registerContent(children, effectiveCls);
+  const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
-  return (<span style="display: contents" />) as HTMLElement;
+  return (
+    <div
+      role="dialog"
+      id={ctx.contentId}
+      data-datepicker-content=""
+      aria-hidden={ctx.isOpen ? 'false' : 'true'}
+      data-state={ctx.isOpen ? 'open' : 'closed'}
+      style={ctx.isOpen ? '' : 'display: none'}
+      class={combined || undefined}
+    >
+      {children}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Helpers (module-level — not inside component, avoids compiler transforms)
 // ---------------------------------------------------------------------------
 
-/**
- * Safely convert a value to a real Date.
- * `__list()` wraps items in reactive proxies — `instanceof Date` returns `false`
- * for these proxied values. This helper detects Date-like objects by duck-typing
- * `getTime()` and creates a fresh Date instance.
- */
 function _toRealDate(val: unknown): Date | null {
   if (val instanceof Date) return val;
   if (val && typeof val === 'object' && typeof (val as Date).getTime === 'function') {
@@ -116,10 +128,6 @@ function _defaultFormatDate(date: Date): string {
   return date.toLocaleDateString();
 }
 
-function _formatRangeDisplay(value: { from: Date; to: Date }, fmt: (date: Date) => string): string {
-  return `${fmt(value.from)} – ${fmt(value.to)}`;
-}
-
 function _getDisplayText(
   value: Date | { from: Date; to: Date } | null,
   placeholder: string,
@@ -127,11 +135,10 @@ function _getDisplayText(
 ): string {
   if (value === null) return placeholder;
   if (value instanceof Date) return formatDate(value);
-  if ('from' in value) return _formatRangeDisplay(value, formatDate);
+  if ('from' in value) return `${formatDate(value.from)} – ${formatDate(value.to)}`;
   return placeholder;
 }
 
-/** Build the calendar element outside of the component to avoid compiler signal wrapping. */
 function _buildCalendar(
   props: ComposedDatePickerProps,
   onCalendarValueChange: (value: Date | Date[] | { from: Date; to: Date } | null) => void,
@@ -200,137 +207,51 @@ function ComposedDatePickerRoot({
 }: ComposedDatePickerProps) {
   const ids = linkedIds('datepicker');
 
-  // Registration storage — plain object avoids compiler signal transforms.
-  // Also stores calendar build props to escape compiler computed wrapping.
-  const reg: {
-    triggerChildren: ChildValue;
-    triggerCls: string | undefined;
-    contentChildren: ChildValue;
-    contentCls: string | undefined;
-    dismissCleanup: (() => void) | null;
-    calendarProps: ComposedDatePickerProps;
-  } = {
-    triggerChildren: undefined,
-    triggerCls: undefined,
-    contentChildren: undefined,
-    contentCls: undefined,
-    dismissCleanup: null,
-    calendarProps: {
-      mode,
-      defaultValue,
-      defaultMonth: defaultMonthProp,
-      minDate,
-      maxDate,
-      disabled,
-      classes,
-    },
-  };
+  let isOpen = false;
+  let displayText = _getDisplayText(defaultValue ?? null, placeholder, formatDate);
 
-  const ctxValue: DatePickerContextValue = {
-    _registerTrigger: (triggerChildren, cls) => {
-      reg.triggerChildren = triggerChildren;
-      reg.triggerCls = cls;
-    },
-    _registerContent: (contentChildren, cls) => {
-      reg.contentChildren = contentChildren;
-      reg.contentCls = cls;
-    },
-    _triggerClaimed: false,
-    _contentClaimed: false,
-  };
-
-  // Phase 1: resolve children to collect registrations
-  DatePickerContext.Provider(ctxValue, () => {
-    resolveChildren(children);
-  });
-
-  // State — plain object to avoid compiler signal transforms
+  // Plain object for non-reactive state.
   const state: {
     value: Date | { from: Date; to: Date } | null;
-    isOpen: boolean;
+    dismissCleanup: (() => void) | null;
   } = {
     value: defaultValue ?? null,
-    isOpen: false,
+    dismissCleanup: null,
   };
 
-  // Build trigger element
-  const triggerClass = [classes?.trigger, reg.triggerCls].filter(Boolean).join(' ');
-  const initialText = _getDisplayText(state.value, placeholder, formatDate);
+  // Wire dismiss handler on connected content element.
+  lifecycleEffect(() => {
+    const open = isOpen;
+    if (!open) return;
 
-  const triggerEl = (
-    <button
-      type="button"
-      aria-haspopup="dialog"
-      aria-controls={ids.contentId}
-      aria-expanded="false"
-      data-state="closed"
-      data-placeholder={state.value === null ? 'true' : undefined}
-      class={triggerClass || undefined}
-    >
-      {initialText}
-    </button>
-  ) as HTMLButtonElement;
+    const contentEl = document.getElementById(ids.contentId);
+    const triggerEl = contentEl?.parentElement?.querySelector('[data-datepicker-trigger]') as HTMLElement | null;
+    if (!contentEl) return;
 
-  // Content ref for DOM access
-  const contentRef: Ref<HTMLDivElement> = ref();
+    state.dismissCleanup = createDismiss({
+      onDismiss: close,
+      insideElements: [contentEl, ...(triggerEl ? [triggerEl] : [])],
+      escapeKey: true,
+    });
+  });
 
-  // Popover open/close logic
-  function openPopover(): void {
-    state.isOpen = true;
-    triggerEl.setAttribute('aria-expanded', 'true');
-    triggerEl.setAttribute('data-state', 'open');
-    const contentEl = contentRef.current;
-    if (contentEl) {
-      contentEl.style.display = '';
-      contentEl.setAttribute('aria-hidden', 'false');
-      contentEl.setAttribute('data-state', 'open');
-      reg.dismissCleanup = createDismiss({
-        onDismiss: closePopover,
-        insideElements: [triggerEl, contentEl],
-        escapeKey: false,
-      });
-    }
+  function open(): void {
+    isOpen = true;
     onOpenChange?.(true);
   }
 
-  function closePopover(): void {
-    state.isOpen = false;
-    triggerEl.setAttribute('aria-expanded', 'false');
-    triggerEl.setAttribute('data-state', 'closed');
-    const contentEl = contentRef.current;
-    if (contentEl) {
-      contentEl.style.display = 'none';
-      contentEl.setAttribute('aria-hidden', 'true');
-      contentEl.setAttribute('data-state', 'closed');
-    }
-    reg.dismissCleanup?.();
-    reg.dismissCleanup = null;
+  function close(): void {
+    isOpen = false;
+    state.dismissCleanup?.();
+    state.dismissCleanup = null;
     onOpenChange?.(false);
   }
 
-  function togglePopover(): void {
-    if (state.isOpen) closePopover();
-    else openPopover();
+  function toggle(): void {
+    if (isOpen) close();
+    else open();
   }
 
-  // Wire trigger click
-  triggerEl.addEventListener('click', togglePopover);
-  _tryOnCleanup(() => triggerEl.removeEventListener('click', togglePopover));
-
-  function updateTriggerDisplay(): void {
-    const text = _getDisplayText(state.value, placeholder, formatDate);
-    triggerEl.textContent = text;
-    if (state.value === null) {
-      triggerEl.setAttribute('data-placeholder', 'true');
-    } else {
-      triggerEl.removeAttribute('data-placeholder');
-    }
-  }
-
-  // Calendar value change handler
-  // Note: `__list()` wraps items in reactive proxies, so `calValue` from the
-  // calendar may be a Proxy rather than a real Date. Use `_toRealDate()` to
-  // convert proxy-wrapped Dates into plain Date instances.
   function handleCalendarValueChange(
     calValue: Date | Date[] | { from: Date; to: Date } | null,
   ): void {
@@ -340,58 +261,54 @@ function ComposedDatePickerRoot({
       const realDate = _toRealDate(calValue);
       if (realDate) {
         state.value = realDate;
-        updateTriggerDisplay();
+        displayText = _getDisplayText(realDate, placeholder, formatDate);
         onValueChange?.(realDate);
-        closePopover();
+        close();
       }
-    } else if (mode === 'range' && 'from' in (calValue as object)) {
+    } else if (mode === 'range' && calValue && 'from' in (calValue as object)) {
       const raw = calValue as { from: Date; to: Date };
       const from = _toRealDate(raw.from);
       const to = _toRealDate(raw.to);
       if (from && to) {
         const range = { from, to };
         state.value = range;
-        updateTriggerDisplay();
+        displayText = _getDisplayText(range, placeholder, formatDate);
         onValueChange?.(range);
         if (from.getTime() !== to.getTime()) {
-          closePopover();
+          close();
         }
       }
     }
   }
 
-  // Build calendar — via module-level helper to prevent compiler computed wrapping.
-  // Props are stored in `reg` (an object literal with explicit type) which the
-  // compiler does NOT transform to reactive signals.
-  const calendarEl = _buildCalendar(reg.calendarProps, handleCalendarValueChange);
+  // Build calendar via module-level helper to prevent compiler computed wrapping.
+  const calendarEl = _buildCalendar(
+    { mode, defaultValue, defaultMonth: defaultMonthProp, minDate, maxDate, disabled, classes },
+    handleCalendarValueChange,
+  );
 
-  // Content class
-  const contentClass = [classes?.content, reg.contentCls].filter(Boolean).join(' ');
-  const extraContent = resolveChildren(reg.contentChildren);
+  const ctx: DatePickerContextValue = {
+    isOpen,
+    contentId: ids.contentId,
+    classes,
+    displayText,
+    open,
+    close,
+    toggle,
+  };
 
   return (
-    <div style="display: contents">
-      {triggerEl}
-      <div
-        ref={contentRef}
-        role="dialog"
-        id={ids.contentId}
-        aria-hidden="true"
-        data-state="closed"
-        style="display: none"
-        class={contentClass || undefined}
-        onKeydown={(event: KeyboardEvent) => {
-          if (isKey(event, Keys.Escape)) {
-            event.preventDefault();
-            closePopover();
-          }
-        }}
-      >
-        {calendarEl}
-        {...extraContent}
-      </div>
-    </div>
-  ) as HTMLElement;
+    <DatePickerContext.Provider value={ctx}>
+      <span style="display: contents" data-datepicker-root="">
+        {children ?? (
+          <>
+            <DatePickerTrigger />
+            <DatePickerContent>{calendarEl}</DatePickerContent>
+          </>
+        )}
+      </span>
+    </DatePickerContext.Provider>
+  );
 }
 
 // ---------------------------------------------------------------------------
