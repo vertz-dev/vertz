@@ -31,6 +31,10 @@ describe('popover', () => {
   it('CSS does not use display:none for animated states', () => {
     expect(popover.css).not.toContain('display: none');
   });
+
+  it('CSS constrains content width to fit-content', () => {
+    expect(popover.css).toContain('fit-content');
+  });
 });
 
 describe('alert-dialog', () => {
@@ -305,6 +309,12 @@ describe('dropdown-menu', () => {
     const dm = createDropdownMenuStyles();
     expect(dm.css).toContain('vz-zoom-in');
     expect(dm.css).toContain('vz-zoom-out');
+  });
+
+  it('CSS constrains content width to fit-content', () => {
+    const { createDropdownMenuStyles } = require('../styles/dropdown-menu');
+    const dm = createDropdownMenuStyles();
+    expect(dm.css).toContain('fit-content');
   });
 });
 
