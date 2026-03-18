@@ -264,11 +264,7 @@ function ComposedMenubarRoot({ children, classes, onSelect, positioning }: Compo
     return document.getElementById(rootId);
   }
 
-  function getTriggers(): HTMLButtonElement[] {
-    const root = getRootEl();
-    if (!root) return [];
-    return [...root.querySelectorAll<HTMLButtonElement>('[data-menubar-trigger]')];
-  }
+
 
   function getMenuItems(contentEl: HTMLElement): HTMLElement[] {
     return [...contentEl.querySelectorAll<HTMLElement>('[role="menuitem"]')];

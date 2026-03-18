@@ -327,11 +327,7 @@ function ComposedNavigationMenuRoot({
     return document.getElementById(rootId);
   }
 
-  function getTriggers(): HTMLButtonElement[] {
-    const root = getRootEl();
-    if (!root) return [];
-    return [...root.querySelectorAll<HTMLButtonElement>('[data-navmenu-trigger]')];
-  }
+
 
   function openItem(value: string): void {
     cancelTimers();

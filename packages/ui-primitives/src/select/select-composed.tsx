@@ -244,7 +244,6 @@ function ComposedSelectRoot({
   children,
   classes,
   defaultValue = '',
-  placeholder = '',
   onValueChange,
   positioning,
 }: ComposedSelectProps) {
