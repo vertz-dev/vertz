@@ -72,6 +72,12 @@ export function createDialogStyles(): CSSOutput<DialogBlocks> {
           'backdrop-filter': 'blur(4px)',
           '-webkit-backdrop-filter': 'blur(4px)',
         },
+        '&[data-state="open"]::backdrop': {
+          animation: 'vz-fade-in 100ms ease-out forwards',
+        },
+        '&[data-state="closed"]::backdrop': {
+          animation: 'vz-fade-out 100ms ease-out forwards',
+        },
         '@media (min-width: 640px)': { 'max-width': '24rem' },
       },
       {

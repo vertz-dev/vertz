@@ -230,6 +230,51 @@ describe('Composed Sheet', () => {
     });
   });
 
+  describe('Given an open Sheet', () => {
+    describe('When close is triggered via Close button', () => {
+      it('Then sets data-state to closed but defers dialog.close() for animation', () => {
+        const { root, triggerBtn, closeEl } = createSheetTree();
+        container.appendChild(root);
+
+        triggerBtn.click();
+        const panel = getConnectedPanel(root);
+        expect(panel.open).toBe(true);
+
+        const closeSpy = vi.spyOn(panel, 'close');
+
+        closeEl.click();
+
+        expect(panel.getAttribute('data-state')).toBe('closed');
+        expect(closeSpy).not.toHaveBeenCalled();
+
+        panel.dispatchEvent(new Event('animationend'));
+        expect(closeSpy).toHaveBeenCalled();
+      });
+    });
+
+    describe('When close is triggered via Escape key', () => {
+      it('Then prevents native close and defers dialog.close() for animation', () => {
+        const { root, triggerBtn } = createSheetTree();
+        container.appendChild(root);
+
+        triggerBtn.click();
+        const panel = getConnectedPanel(root);
+        expect(panel.open).toBe(true);
+
+        const closeSpy = vi.spyOn(panel, 'close');
+        const cancelEvent = new Event('cancel', { bubbles: true, cancelable: true });
+        panel.dispatchEvent(cancelEvent);
+
+        expect(cancelEvent.defaultPrevented).toBe(true);
+        expect(panel.getAttribute('data-state')).toBe('closed');
+        expect(closeSpy).not.toHaveBeenCalled();
+
+        panel.dispatchEvent(new Event('animationend'));
+        expect(closeSpy).toHaveBeenCalled();
+      });
+    });
+  });
+
   describe('Given a Sheet.Trigger rendered outside Sheet', () => {
     describe('When the component mounts', () => {
       it('Then throws an error', () => {

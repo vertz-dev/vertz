@@ -126,7 +126,10 @@ function SheetContent({
       data-side={ctx.side}
       data-state={ctx.isOpen ? 'open' : 'closed'}
       class={combined || undefined}
-      onCancel={() => ctx.close()}
+      onCancel={(e: Event) => {
+        e.preventDefault();
+        ctx.close();
+      }}
       onClick={(e: MouseEvent) => {
         if (e.target === dialogRef.current) ctx.close();
       }}
@@ -243,12 +246,15 @@ function ComposedSheetRoot({
     if (!el || !el.open) return;
 
     el.setAttribute('data-state', 'closed');
+    // Force reflow so the browser starts the CSS close animation
+    // before any subsequent reactive updates.
+    void el.offsetHeight;
     const onEnd = () => {
       el.removeEventListener('animationend', onEnd);
       if (el.open) el.close();
     };
     el.addEventListener('animationend', onEnd);
-    setTimeout(onEnd, 150);
+    setTimeout(onEnd, 350);
   }
 
   function open(): void {
@@ -258,8 +264,8 @@ function ComposedSheetRoot({
   }
 
   function close(): void {
-    isOpen = false;
     hideDialog();
+    isOpen = false;
     onOpenChange?.(false);
   }
 
