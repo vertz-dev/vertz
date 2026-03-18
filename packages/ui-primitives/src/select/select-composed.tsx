@@ -107,7 +107,22 @@ function SelectTrigger({ children, className: cls, class: classProp }: SlotProps
       }}
     >
       {children ?? ctx.selectedValue()}
-      <span data-part="chevron" />
+      <span data-part="chevron">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </span>
     </button>
   );
 }
@@ -302,15 +317,21 @@ function ComposedSelectRoot({
     const triggerEl = getTriggerEl();
     if (!contentEl) return;
 
-    if (positioning && triggerEl) {
-      const result = createFloatingPosition(triggerEl, contentEl, positioning);
+    // Always set up floating positioning (defaults to bottom-start, fixed).
+    // Set position immediately to prevent layout shift before async computation.
+    contentEl.style.position = 'fixed';
+    if (triggerEl) {
+      const floatingOpts = positioning ?? {};
+      const result = createFloatingPosition(triggerEl, contentEl, floatingOpts);
       state.floatingCleanup = result.cleanup;
-      state.dismissCleanup = createDismiss({
-        onDismiss: close,
-        insideElements: [triggerEl, contentEl],
-        escapeKey: false,
-      });
     }
+
+    // Always set up dismiss (click-outside + Escape key).
+    const insideElements = [contentEl, ...(triggerEl ? [triggerEl] : [])];
+    state.dismissCleanup = createDismiss({
+      onDismiss: close,
+      insideElements,
+    });
 
     // Focus selected item or content
     const items = [...contentEl.querySelectorAll<HTMLElement>('[role="option"]')];
@@ -327,6 +348,14 @@ function ComposedSelectRoot({
     isOpen = false;
     syncTriggerAttrs(false);
     syncContentAttrs(false);
+
+    // Reset floating position styles
+    const contentEl = getContentEl();
+    if (contentEl) {
+      contentEl.style.position = '';
+      contentEl.style.left = '';
+      contentEl.style.top = '';
+    }
 
     state.floatingCleanup?.();
     state.floatingCleanup = null;
