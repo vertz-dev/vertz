@@ -7,7 +7,6 @@
 
 import type { ChildValue } from '@vertz/ui';
 import { createContext, onMount, useContext } from '@vertz/ui';
-import { setHiddenAnimated } from '../utils/aria';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
@@ -33,14 +32,16 @@ export interface SelectClasses {
 // ---------------------------------------------------------------------------
 
 interface SelectContextValue {
-  isOpen: boolean;
-  selectedValue: string;
+  isOpen: () => boolean;
+  selectedValue: () => string;
   contentId: string;
   classes?: SelectClasses;
   open: () => void;
   close: () => void;
   toggle: () => void;
   selectItem: (value: string) => void;
+  /** @internal Per-Root content instance counter for duplicate detection. */
+  _contentCount: { value: number };
 }
 
 const SelectContext = createContext<SelectContextValue | undefined>(
@@ -94,18 +95,18 @@ function SelectTrigger({ children, className: cls, class: classProp }: SlotProps
       data-select-trigger=""
       aria-controls={ctx.contentId}
       aria-haspopup="listbox"
-      aria-expanded={ctx.isOpen ? 'true' : 'false'}
-      data-state={ctx.isOpen ? 'open' : 'closed'}
+      aria-expanded="false"
+      data-state="closed"
       class={combined || undefined}
       onClick={() => ctx.toggle()}
       onKeydown={(event: KeyboardEvent) => {
         if (isKey(event, Keys.ArrowDown, Keys.ArrowUp, Keys.Enter, Keys.Space)) {
           event.preventDefault();
-          if (!ctx.isOpen) ctx.open();
+          if (!ctx.isOpen()) ctx.open();
         }
       }}
     >
-      {children ?? ctx.selectedValue}
+      {children ?? ctx.selectedValue()}
       <span data-part="chevron" />
     </button>
   );
@@ -113,12 +114,21 @@ function SelectTrigger({ children, className: cls, class: classProp }: SlotProps
 
 function SelectContent({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useSelectContext('Content');
+
+  // Track content instances per Root for duplicate detection.
+  const instanceIndex = ctx._contentCount.value++;
+  if (instanceIndex > 0) {
+    console.warn('Duplicate <Select.Content> detected \u2013 only the first is used');
+  }
+
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
   // Wire keyboard and click handlers on the connected content element.
   onMount(() => {
-    const el = document.getElementById(ctx.contentId) as HTMLElement & { __selectWired?: boolean } | null;
+    const el = document.getElementById(ctx.contentId) as
+      | (HTMLElement & { __selectWired?: boolean })
+      | null;
     if (!el || el.__selectWired) return;
     el.__selectWired = true;
 
@@ -168,9 +178,9 @@ function SelectContent({ children, className: cls, class: classProp }: SlotProps
       tabindex="-1"
       id={ctx.contentId}
       data-select-content=""
-      aria-hidden={ctx.isOpen ? 'false' : 'true'}
-      data-state={ctx.isOpen ? 'open' : 'closed'}
-      style={ctx.isOpen ? '' : 'display: none'}
+      aria-hidden="true"
+      data-state="closed"
+      style="display: none"
       class={combined || undefined}
     >
       {children}
@@ -182,20 +192,22 @@ function SelectItem({ value, children, className: cls, class: classProp }: ItemP
   const ctx = useSelectContext('Item');
   const effectiveCls = cls ?? classProp;
   const itemClass = [ctx.classes?.item, effectiveCls].filter(Boolean).join(' ');
+  const isSelected = ctx.selectedValue() === value;
 
   return (
     <div
       role="option"
       data-value={value}
       tabindex="-1"
-      aria-selected={ctx.selectedValue === value ? 'true' : 'false'}
-      data-state={ctx.selectedValue === value ? 'active' : 'inactive'}
+      aria-selected={isSelected ? 'true' : 'false'}
+      data-state={isSelected ? 'active' : 'inactive'}
       class={itemClass || undefined}
+      onClick={() => ctx.selectItem(value)}
     >
       {children ?? value}
       <span
         data-part="indicator"
-        style={ctx.selectedValue === value ? '' : 'display: none'}
+        style={isSelected ? '' : 'display: none'}
         class={ctx.classes?.itemIndicator || undefined}
       />
     </div>
@@ -266,44 +278,55 @@ function ComposedSelectRoot({
     return content?.parentElement?.querySelector('[data-select-trigger]') as HTMLElement | null;
   }
 
+  function syncTriggerAttrs(nowOpen: boolean): void {
+    const trigger = getTriggerEl();
+    if (!trigger) return;
+    trigger.setAttribute('aria-expanded', nowOpen ? 'true' : 'false');
+    trigger.setAttribute('data-state', nowOpen ? 'open' : 'closed');
+  }
+
+  function syncContentAttrs(nowOpen: boolean): void {
+    const content = getContentEl();
+    if (!content) return;
+    content.setAttribute('data-state', nowOpen ? 'open' : 'closed');
+    content.setAttribute('aria-hidden', nowOpen ? 'false' : 'true');
+    content.style.display = nowOpen ? '' : 'none';
+  }
+
   function open(): void {
     isOpen = true;
+    syncTriggerAttrs(true);
+    syncContentAttrs(true);
 
-    queueMicrotask(() => {
-      const contentEl = getContentEl();
-      const triggerEl = getTriggerEl();
-      if (!contentEl) return;
+    const contentEl = getContentEl();
+    const triggerEl = getTriggerEl();
+    if (!contentEl) return;
 
-      if (positioning && triggerEl) {
-        const result = createFloatingPosition(triggerEl, contentEl, positioning);
-        state.floatingCleanup = result.cleanup;
-        state.dismissCleanup = createDismiss({
-          onDismiss: close,
-          insideElements: [triggerEl, contentEl],
-          escapeKey: false,
-        });
-      }
+    if (positioning && triggerEl) {
+      const result = createFloatingPosition(triggerEl, contentEl, positioning);
+      state.floatingCleanup = result.cleanup;
+      state.dismissCleanup = createDismiss({
+        onDismiss: close,
+        insideElements: [triggerEl, contentEl],
+        escapeKey: false,
+      });
+    }
 
-      // Focus selected item or content
-      const items = [...contentEl.querySelectorAll<HTMLElement>('[role="option"]')];
-      const selectedIdx = items.findIndex(el => el.getAttribute('data-value') === selectedValue);
-      if (selectedIdx >= 0) {
-        items.forEach((el, i) => el.setAttribute('tabindex', i === selectedIdx ? '0' : '-1'));
-        items[selectedIdx]?.focus();
-      } else {
-        contentEl.focus();
-      }
-    });
+    // Focus selected item or content
+    const items = [...contentEl.querySelectorAll<HTMLElement>('[role="option"]')];
+    const selectedIdx = items.findIndex((el) => el.getAttribute('data-value') === selectedValue);
+    if (selectedIdx >= 0) {
+      items.forEach((el, i) => el.setAttribute('tabindex', i === selectedIdx ? '0' : '-1'));
+      items[selectedIdx]?.focus();
+    } else {
+      contentEl.focus();
+    }
   }
 
   function close(): void {
     isOpen = false;
-
-    const contentEl = getContentEl();
-    if (contentEl) {
-      contentEl.setAttribute('data-state', 'closed');
-      setHiddenAnimated(contentEl, true);
-    }
+    syncTriggerAttrs(false);
+    syncContentAttrs(false);
 
     state.floatingCleanup?.();
     state.floatingCleanup = null;
@@ -325,14 +348,15 @@ function ComposedSelectRoot({
   }
 
   const ctx: SelectContextValue = {
-    isOpen,
-    selectedValue,
+    isOpen: () => isOpen,
+    selectedValue: () => selectedValue,
     contentId: ids.contentId,
     classes,
     open,
     close,
     toggle,
     selectItem,
+    _contentCount: { value: 0 },
   };
 
   return (

@@ -201,7 +201,7 @@ function ComposedCarouselRoot({
 
   const translateProp = orientation === 'horizontal' ? 'translateX' : 'translateY';
 
-  return (
+  const el = (
     <CarouselContext.Provider value={ctx}>
       <div
         role="region"
@@ -222,6 +222,11 @@ function ComposedCarouselRoot({
       </div>
     </CarouselContext.Provider>
   );
+
+  // Initialize slide attributes after DOM tree is constructed.
+  updateDOM(el as HTMLElement);
+
+  return el;
 }
 
 // ---------------------------------------------------------------------------

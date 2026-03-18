@@ -67,12 +67,21 @@ interface SlotProps {
 
 function HoverCardTrigger({ children }: SlotProps) {
   const ctx = useHoverCardContext('Trigger');
+
+  // Forward ARIA attrs and focus/blur handlers to the user's child element.
+  const childNodes = Array.isArray(children) ? children : [children];
+  const childEl = childNodes.find((c): c is HTMLElement => c instanceof HTMLElement);
+  if (childEl) {
+    childEl.setAttribute('aria-haspopup', 'dialog');
+    childEl.setAttribute('aria-expanded', ctx.isOpen ? 'true' : 'false');
+    childEl.addEventListener('focus', () => ctx.showImmediate());
+    childEl.addEventListener('blur', () => ctx.hide());
+  }
+
   return (
     <span
       style="display: contents"
       data-hovercard-trigger=""
-      aria-haspopup="dialog"
-      aria-expanded={ctx.isOpen ? 'true' : 'false'}
       onMouseenter={() => ctx.show()}
       onMouseleave={() => ctx.hide()}
       onFocusin={() => ctx.showImmediate()}

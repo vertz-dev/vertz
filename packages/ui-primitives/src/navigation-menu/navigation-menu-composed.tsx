@@ -9,7 +9,7 @@
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, onMount, useContext } from '@vertz/ui';
+import { createContext, useContext } from '@vertz/ui';
 import { linkedIds } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
@@ -144,7 +144,45 @@ function NavMenuList({ children, className: cls, class: classProp }: ListProps) 
   const listClass = [ctx.classes?.list, effectiveCls].filter(Boolean).join(' ');
 
   return (
-    <div data-part="nav-list" data-navmenu-list="" class={listClass || undefined}>
+    <div
+      data-part="nav-list"
+      data-navmenu-list=""
+      class={listClass || undefined}
+      onKeydown={(event: KeyboardEvent) => {
+        if (!isKey(event, Keys.ArrowLeft, Keys.ArrowRight, Keys.Home, Keys.End)) return;
+
+        const listEl = event.currentTarget as HTMLElement;
+        const currentTriggers = [
+          ...listEl.querySelectorAll<HTMLButtonElement>('[data-navmenu-trigger]'),
+        ];
+        const focused = document.activeElement as HTMLElement;
+        const currentIndex = currentTriggers.indexOf(focused as HTMLButtonElement);
+        if (currentIndex < 0) return;
+
+        let nextIndex = -1;
+        if (isKey(event, Keys.ArrowRight)) {
+          event.preventDefault();
+          nextIndex = (currentIndex + 1) % currentTriggers.length;
+        } else if (isKey(event, Keys.ArrowLeft)) {
+          event.preventDefault();
+          nextIndex = (currentIndex - 1 + currentTriggers.length) % currentTriggers.length;
+        } else if (isKey(event, Keys.Home)) {
+          event.preventDefault();
+          nextIndex = 0;
+        } else if (isKey(event, Keys.End)) {
+          event.preventDefault();
+          nextIndex = currentTriggers.length - 1;
+        }
+
+        const nextTrigger = currentTriggers[nextIndex];
+        if (nextTrigger) {
+          for (let i = 0; i < currentTriggers.length; i++) {
+            currentTriggers[i]?.setAttribute('tabindex', i === nextIndex ? '0' : '-1');
+          }
+          nextTrigger.focus();
+        }
+      }}
+    >
       {children}
     </div>
   );
@@ -279,7 +317,9 @@ function NavMenuViewport({ className: cls, class: classProp }: ViewportProps) {
   const effectiveCls = cls ?? classProp;
   const viewportClass = [ctx.classes?.viewport, effectiveCls].filter(Boolean).join(' ');
 
-  return <div data-part="nav-viewport" data-navmenu-viewport="" class={viewportClass || undefined} />;
+  return (
+    <div data-part="nav-viewport" data-navmenu-viewport="" class={viewportClass || undefined} />
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -326,8 +366,6 @@ function ComposedNavigationMenuRoot({
   function getRootEl(): HTMLElement | null {
     return document.getElementById(rootId);
   }
-
-
 
   function openItem(value: string): void {
     cancelTimers();
@@ -412,60 +450,6 @@ function ComposedNavigationMenuRoot({
       state.closeTimeout = null;
     }, delayClose);
   }
-
-  // Wire roving tabindex and keyboard navigation on the list.
-  onMount(() => {
-    const root = document.getElementById(rootId) as HTMLElement & { __navWired?: boolean } | null;
-    if (!root || root.__navWired) return;
-    root.__navWired = true;
-
-    const triggers = [...root.querySelectorAll<HTMLButtonElement>('[data-navmenu-trigger]')];
-    if (triggers.length > 0) {
-      // Set roving tabindex
-      for (let i = 0; i < triggers.length; i++) {
-        triggers[i]?.setAttribute('tabindex', i === 0 ? '0' : '-1');
-      }
-    }
-
-    // Keyboard navigation on the nav-list
-    const list = root.querySelector<HTMLElement>('[data-navmenu-list]');
-    if (list) {
-      list.addEventListener('keydown', (event: KeyboardEvent) => {
-        if (isKey(event, Keys.ArrowLeft, Keys.ArrowRight, Keys.Home, Keys.End)) {
-          const currentTriggers = [
-            ...root.querySelectorAll<HTMLButtonElement>('[data-navmenu-trigger]'),
-          ];
-          const focused = document.activeElement as HTMLElement;
-          const currentIndex = currentTriggers.indexOf(focused as HTMLButtonElement);
-          if (currentIndex < 0) return;
-
-          let nextIndex = -1;
-          if (isKey(event, Keys.ArrowRight)) {
-            event.preventDefault();
-            nextIndex = (currentIndex + 1) % currentTriggers.length;
-          } else if (isKey(event, Keys.ArrowLeft)) {
-            event.preventDefault();
-            nextIndex = (currentIndex - 1 + currentTriggers.length) % currentTriggers.length;
-          } else if (isKey(event, Keys.Home)) {
-            event.preventDefault();
-            nextIndex = 0;
-          } else if (isKey(event, Keys.End)) {
-            event.preventDefault();
-            nextIndex = currentTriggers.length - 1;
-          }
-
-          const nextTrigger = currentTriggers[nextIndex];
-          if (nextTrigger) {
-            // Update roving tabindex
-            for (let i = 0; i < currentTriggers.length; i++) {
-              currentTriggers[i]?.setAttribute('tabindex', i === nextIndex ? '0' : '-1');
-            }
-            nextTrigger.focus();
-          }
-        }
-      });
-    }
-  });
 
   const ctx: NavigationMenuContextValue = {
     rootId,

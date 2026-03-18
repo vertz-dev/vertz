@@ -74,9 +74,9 @@ describe('Composed primitives — hydration', () => {
         defaultValue: 'a',
         onValueChange,
         children: () => {
-          ComposedRadioGroup.Item({ value: 'a', children: ['Alpha'] });
-          ComposedRadioGroup.Item({ value: 'b', children: ['Beta'] });
-          return [];
+          const i1 = ComposedRadioGroup.Item({ value: 'a', children: ['Alpha'] });
+          const i2 = ComposedRadioGroup.Item({ value: 'b', children: ['Beta'] });
+          return [i1, i2];
         },
       });
     }

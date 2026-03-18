@@ -6,7 +6,7 @@
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, useContext } from '@vertz/ui';
+import { createContext, onMount, useContext } from '@vertz/ui';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition, virtualElement } from '../utils/floating';
@@ -82,19 +82,23 @@ interface GroupProps extends SlotProps {
 
 function ContextMenuTrigger({ children }: SlotProps) {
   const ctx = useContextMenuContext('Trigger');
-  return (
-    <div
-      style="display: contents"
-      data-part="trigger"
-      data-contextmenu-trigger=""
-      onContextmenu={(e: MouseEvent) => {
-        e.preventDefault();
-        ctx.open(e.clientX, e.clientY);
-      }}
-    >
+  const el = (
+    <div style="display: contents" data-part="trigger" data-contextmenu-trigger="">
       {children}
     </div>
   );
+
+  onMount(() => {
+    const triggerEl = el as HTMLElement;
+    function handleContextMenu(e: MouseEvent) {
+      e.preventDefault();
+      ctx.open(e.clientX, e.clientY);
+    }
+    triggerEl.addEventListener('contextmenu', handleContextMenu);
+    return () => triggerEl.removeEventListener('contextmenu', handleContextMenu);
+  });
+
+  return el;
 }
 
 function ContextMenuContent({ children, className: cls, class: classProp }: SlotProps) {

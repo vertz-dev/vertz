@@ -23,10 +23,7 @@ export interface NavigationMenuElements {
   viewport: HTMLElement;
 }
 
-function NavMenuList(
-  triggers: HTMLElement[],
-  orientation: 'horizontal' | 'vertical',
-): HTMLElement {
+function NavMenuList(triggers: HTMLElement[], orientation: 'horizontal' | 'vertical'): HTMLElement {
   return (
     <div
       onKeydown={(event: KeyboardEvent) => {

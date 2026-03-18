@@ -196,9 +196,7 @@ function ComposedTabsRoot({
 
   return (
     <TabsContext.Provider value={ctx}>
-      <div data-tabs-root="">
-        {children}
-      </div>
+      <div data-tabs-root="">{children}</div>
     </TabsContext.Provider>
   );
 }
