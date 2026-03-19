@@ -203,6 +203,42 @@ describe('ComposedCollapsible', () => {
     expect(heightVar).toMatch(/^\d+px$/);
   });
 
+  it('distributes trigger class', async () => {
+    const { ComposedCollapsible } = await import('../collapsible-composed');
+    const root = ComposedCollapsible({
+      classes: { trigger: 'my-trigger' },
+      children: () => {
+        const trigger = ComposedCollapsible.Trigger({ children: ['Toggle'] });
+        const content = ComposedCollapsible.Content({ children: ['Body'] });
+        return [trigger, content];
+      },
+    });
+    container.appendChild(root);
+
+    const trigger = root.querySelector('button') as HTMLButtonElement;
+    expect(trigger.className).toContain('my-trigger');
+  });
+
+  it('merges trigger class from classes prop and Trigger className', async () => {
+    const { ComposedCollapsible } = await import('../collapsible-composed');
+    const root = ComposedCollapsible({
+      classes: { trigger: 'theme-trigger' },
+      children: () => {
+        const trigger = ComposedCollapsible.Trigger({
+          children: ['Toggle'],
+          className: 'user-trigger',
+        });
+        const content = ComposedCollapsible.Content({ children: ['Body'] });
+        return [trigger, content];
+      },
+    });
+    container.appendChild(root);
+
+    const trigger = root.querySelector('button') as HTMLButtonElement;
+    expect(trigger.className).toContain('theme-trigger');
+    expect(trigger.className).toContain('user-trigger');
+  });
+
   it('aria-controls links trigger to content', async () => {
     const { ComposedCollapsible } = await import('../collapsible-composed');
     const root = ComposedCollapsible({
