@@ -10,6 +10,7 @@ import { PropsDestructuringDiagnostics } from './diagnostics/props-destructuring
 import { SSRSafetyDiagnostics } from './diagnostics/ssr-safety-diagnostics';
 import { ComputedTransformer } from './transformers/computed-transformer';
 import { JsxTransformer } from './transformers/jsx-transformer';
+import { MountFrameTransformer } from './transformers/mount-frame-transformer';
 import { MutationTransformer } from './transformers/mutation-transformer';
 import { PropsDestructuringTransformer } from './transformers/props-destructuring-transformer';
 import { SignalTransformer } from './transformers/signal-transformer';
@@ -124,6 +125,10 @@ export function compile(
     const jsxTransformer = new JsxTransformer();
     jsxTransformer.transform(s, sourceFile, component, variables, jsxExpressions);
 
+    // 10. Mount frame injection (AFTER JSX transform — wraps return expressions)
+    const mountFrameTransformer = new MountFrameTransformer();
+    mountFrameTransformer.transform(s, sourceFile, component);
+
     // 11. Diagnostics
     const mutationDiags = new MutationDiagnostics();
     allDiagnostics.push(...mutationDiags.analyze(sourceFile, component, variables));
@@ -169,13 +174,16 @@ const DOM_HELPERS = [
   '__append',
   '__attr',
   '__child',
+  '__discardMountFrame',
   '__element',
   '__enterChildren',
   '__exitChildren',
+  '__flushMountFrame',
   '__insert',
   '__conditional',
   '__list',
   '__on',
+  '__pushMountFrame',
   '__show',
   '__classList',
   '__staticText',
