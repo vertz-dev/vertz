@@ -345,4 +345,88 @@ const button = css({ root: ['m:2'] });`;
     expect(result.css).toContain('transform: scale(1.05);');
     expect(result.css).toContain(':hover');
   });
+
+  it('handles 2-segment pseudo:property shorthand (no value)', () => {
+    const source = `const styles = css({
+  card: ['hover:flex'],
+});`;
+    const result = transformCSS(source);
+
+    expect(result.css).toContain(':hover');
+    expect(result.css).toContain('display: flex;');
+  });
+
+  it('returns null for 3-segment shorthand where first part is not a valid pseudo', () => {
+    const source = `const styles = css({
+  card: ['notapseudo:bg:primary'],
+});`;
+    const result = transformCSS(source);
+
+    // Should not generate any CSS rule for the invalid shorthand
+    expect(result.css).not.toContain('background-color');
+  });
+
+  it('handles radius value type', () => {
+    const source = `const styles = css({
+  card: ['rounded:lg'],
+});`;
+    const result = transformCSS(source);
+
+    expect(result.css).toContain('border-radius:');
+  });
+
+  it('handles alignment value type', () => {
+    const source = `const styles = css({
+  card: ['items:center'],
+});`;
+    const result = transformCSS(source);
+
+    expect(result.css).toContain('align-items: center;');
+  });
+
+  it('handles font-weight value type', () => {
+    const source = `const styles = css({
+  card: ['weight:bold'],
+});`;
+    const result = transformCSS(source);
+
+    expect(result.css).toContain('font-weight:');
+  });
+
+  it('handles line-height value type', () => {
+    const source = `const styles = css({
+  card: ['leading:relaxed'],
+});`;
+    const result = transformCSS(source);
+
+    expect(result.css).toContain('line-height:');
+  });
+
+  it('returns null for unknown color namespace with shade', () => {
+    const source = `const styles = css({
+  card: ['bg:unknownns.500'],
+});`;
+    const result = transformCSS(source);
+
+    // Unknown namespace should not produce a valid CSS rule
+    expect(result.css).not.toContain('var(--color-unknownns');
+  });
+
+  it('returns null for unknown color without dot', () => {
+    const source = `const styles = css({
+  card: ['bg:totallyunknown'],
+});`;
+    const result = transformCSS(source);
+
+    expect(result.css).not.toContain('totallyunknown');
+  });
+
+  it('passes through CSS keyword colors', () => {
+    const source = `const styles = css({
+  card: ['bg:transparent'],
+});`;
+    const result = transformCSS(source);
+
+    expect(result.css).toContain('transparent');
+  });
 });

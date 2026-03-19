@@ -2350,4 +2350,544 @@ describe('createAccessContext', () => {
       expect(allowedResult).toBe(true);
     });
   });
+
+  describe('canAll() bulk limit', () => {
+    it('throws when more than MAX_BULK_CHECKS checks are passed', async () => {
+      const { accessDef, closureStore, roleStore } = await setup();
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+      });
+
+      const checks = Array.from({ length: 101 }, (_, i) => ({
+        entitlement: 'project:view',
+        resource: { type: 'project', id: `proj-${i}` } as ResourceRef,
+      }));
+
+      await expect(ctx.canAll(checks)).rejects.toThrow('canAll() is limited to 100 checks per call');
+    });
+  });
+
+  describe('canBatch() bulk limit', () => {
+    it('throws when more than MAX_BULK_CHECKS resources are passed', async () => {
+      const { accessDef, closureStore, roleStore } = await setup();
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+      });
+
+      const resources = Array.from({ length: 101 }, (_, i) => ({
+        type: 'project',
+        id: `proj-${i}`,
+      }));
+
+      await expect(ctx.canBatch('project:view', resources)).rejects.toThrow(
+        'canBatch() is limited to 100 resources per call',
+      );
+    });
+  });
+
+  describe('check() — undefined entitlement', () => {
+    it('returns role_required when entitlement is not defined', async () => {
+      const { accessDef, closureStore, roleStore } = await setup();
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+      });
+
+      const result = await ctx.check('nonexistent:action');
+      expect(result.allowed).toBe(false);
+      expect(result.reasons).toContain('role_required');
+    });
+  });
+
+  describe('can() — global check without resource when roles required', () => {
+    it('returns false for role-gated entitlement without resource', async () => {
+      const { accessDef, closureStore, roleStore } = await setup();
+      await roleStore.assign('user-1', 'project', 'proj-1', 'manager');
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+      });
+
+      // project:edit requires roles but no resource provided → deny
+      const result = await ctx.can('project:edit');
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('check() — flag disabled path', () => {
+    it('returns flag_disabled with metadata when flags are off', async () => {
+      const { accessDef, closureStore, roleStore } = await setup();
+      await roleStore.assign('user-1', 'project', 'proj-1', 'manager');
+
+      const flagStore = new InMemoryFlagStore();
+      // Don't enable the 'export-v2' flag
+      const orgResolver = async () => 'org-1';
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        flagStore,
+        orgResolver,
+      });
+
+      const result = await ctx.check('project:export', { type: 'project', id: 'proj-1' });
+      expect(result.allowed).toBe(false);
+      expect(result.reasons).toContain('flag_disabled');
+      expect(result.meta?.disabledFlags).toContain('export-v2');
+    });
+
+    it('returns flag_disabled when orgResolver returns null', async () => {
+      const { accessDef, closureStore, roleStore } = await setup();
+      await roleStore.assign('user-1', 'project', 'proj-1', 'manager');
+
+      const flagStore = new InMemoryFlagStore();
+      const orgResolver = async () => null;
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        flagStore,
+        orgResolver,
+      });
+
+      const result = await ctx.check('project:export', { type: 'project', id: 'proj-1' });
+      expect(result.allowed).toBe(false);
+      expect(result.reasons).toContain('flag_disabled');
+      expect(result.meta?.disabledFlags).toEqual(['export-v2']);
+    });
+  });
+
+  describe('check() — plan-denied metadata', () => {
+    it('returns plan_required with requiredPlans when plan does not include feature', async () => {
+      const accessDef = defineAccess({
+        entities: {
+          organization: { roles: ['admin', 'member'] },
+        },
+        entitlements: {
+          'organization:export': { roles: ['admin'] },
+        },
+        plans: {
+          free: { group: 'main', features: [] },
+          pro: { group: 'main', features: ['organization:export'] },
+          enterprise: { group: 'main', features: ['organization:export'] },
+        },
+        defaultPlan: 'free',
+      });
+
+      const closureStore = new InMemoryClosureStore();
+      const roleStore = new InMemoryRoleAssignmentStore();
+      const subscriptionStore = new InMemorySubscriptionStore();
+      const orgResolver = async () => 'org-1';
+
+      await closureStore.addResource('organization', 'org-1');
+      await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+      await subscriptionStore.assign('org-1', 'free', new Date());
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        subscriptionStore,
+        orgResolver,
+      });
+
+      const result = await ctx.check('organization:export', {
+        type: 'organization',
+        id: 'org-1',
+      });
+      expect(result.allowed).toBe(false);
+      expect(result.reasons).toContain('plan_required');
+      expect(result.meta?.requiredPlans).toContain('pro');
+      expect(result.meta?.requiredPlans).toContain('enterprise');
+    });
+  });
+
+  describe('check() — overage cap hit', () => {
+    it('returns limit_reached with overage meta when overage cap is hit', async () => {
+      const accessDef = defineAccess({
+        entities: {
+          organization: { roles: ['admin'] },
+        },
+        entitlements: {
+          'organization:call': { roles: ['admin'] },
+        },
+        plans: {
+          starter: {
+            group: 'main',
+            features: ['organization:call'],
+            limits: {
+              api_calls: {
+                max: 100,
+                gates: 'organization:call',
+                per: 'month',
+                overage: { amount: 10, per: 1, cap: 50 },
+              },
+            },
+          },
+        },
+        defaultPlan: 'starter',
+      });
+
+      const closureStore = new InMemoryClosureStore();
+      const roleStore = new InMemoryRoleAssignmentStore();
+      const subscriptionStore = new InMemorySubscriptionStore();
+      const walletStore = new InMemoryWalletStore();
+      const orgResolver = async () => 'org-1';
+
+      await closureStore.addResource('organization', 'org-1');
+      await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+      const planStart = new Date('2026-01-01T00:00:00Z');
+      await subscriptionStore.assign('org-1', 'starter', planStart);
+
+      const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
+
+      // Consume 105 units — 5 over limit, overage cost = (5 * 10) / 1 = 50, equals cap
+      await walletStore.consume('org-1', 'api_calls', periodStart, periodEnd, 999, 105);
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        subscriptionStore,
+        walletStore,
+        orgResolver,
+      });
+
+      const result = await ctx.check('organization:call', { type: 'organization', id: 'org-1' });
+      expect(result.allowed).toBe(false);
+      expect(result.reasons).toContain('limit_reached');
+      expect(result.meta?.limit?.overage).toBe(true);
+    });
+  });
+
+  describe('check() — global role check without resource', () => {
+    it('returns role_required when roles required but no resource given', async () => {
+      const { accessDef, closureStore, roleStore } = await setup();
+      await roleStore.assign('user-1', 'project', 'proj-1', 'manager');
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+      });
+
+      // project:edit requires roles, no resource → should report role_required
+      const result = await ctx.check('project:edit');
+      expect(result.allowed).toBe(false);
+      expect(result.reasons).toContain('role_required');
+    });
+  });
+
+  describe('resolveEffectiveFeatures — versioned plan with add-ons', () => {
+    it('resolves features from versioned snapshot plus add-ons', async () => {
+      const accessDef = defineAccess({
+        entities: {
+          organization: { roles: ['admin'] },
+        },
+        entitlements: {
+          'organization:export': { roles: ['admin'] },
+          'organization:access': { roles: ['admin'] },
+        },
+        plans: {
+          pro: { group: 'main', features: ['organization:export'] },
+          api_addon: { features: ['organization:access'], addOn: true },
+        },
+        defaultPlan: 'pro',
+      });
+
+      const closureStore = new InMemoryClosureStore();
+      const roleStore = new InMemoryRoleAssignmentStore();
+      const subscriptionStore = new InMemorySubscriptionStore();
+      const planVersionStore = new InMemoryPlanVersionStore();
+      const orgResolver = async () => 'org-1';
+
+      await closureStore.addResource('organization', 'org-1');
+      await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+      await subscriptionStore.assign('org-1', 'pro', new Date());
+
+      // Register a version and pin tenant to it
+      const v1 = await planVersionStore.createVersion('pro', 'hash-v1', {
+        features: ['organization:export'],
+        limits: {},
+        price: null,
+      });
+      await planVersionStore.setTenantVersion('org-1', 'pro', v1);
+
+      // Add an add-on subscription
+      await subscriptionStore.attachAddOn('org-1', 'api_addon');
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        subscriptionStore,
+        orgResolver,
+        planVersionStore,
+      });
+
+      // Feature from versioned snapshot
+      const canExport = await ctx.can('organization:export', {
+        type: 'organization',
+        id: 'org-1',
+      });
+      expect(canExport).toBe(true);
+
+      // Feature from add-on (not versioned)
+      const canApi = await ctx.can('organization:access', {
+        type: 'organization',
+        id: 'org-1',
+      });
+      expect(canApi).toBe(true);
+    });
+
+    it('denies feature not in versioned snapshot or add-ons', async () => {
+      const accessDef = defineAccess({
+        entities: {
+          organization: { roles: ['admin'] },
+        },
+        entitlements: {
+          'organization:export': { roles: ['admin'] },
+          'organization:advanced': { roles: ['admin'] },
+        },
+        plans: {
+          pro: { group: 'main', features: ['organization:export', 'organization:advanced'] },
+        },
+        defaultPlan: 'pro',
+      });
+
+      const closureStore = new InMemoryClosureStore();
+      const roleStore = new InMemoryRoleAssignmentStore();
+      const subscriptionStore = new InMemorySubscriptionStore();
+      const planVersionStore = new InMemoryPlanVersionStore();
+      const orgResolver = async () => 'org-1';
+
+      await closureStore.addResource('organization', 'org-1');
+      await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+      await subscriptionStore.assign('org-1', 'pro', new Date());
+
+      // Versioned snapshot only includes organization:export, NOT organization:advanced
+      const v1 = await planVersionStore.createVersion('pro', 'hash-v1', {
+        features: ['organization:export'],
+        limits: {},
+        price: null,
+      });
+      await planVersionStore.setTenantVersion('org-1', 'pro', v1);
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        subscriptionStore,
+        orgResolver,
+        planVersionStore,
+      });
+
+      // organization:advanced is in current plan config but NOT in versioned snapshot → deny
+      const canAdvanced = await ctx.can('organization:advanced', {
+        type: 'organization',
+        id: 'org-1',
+      });
+      expect(canAdvanced).toBe(false);
+    });
+  });
+
+  describe('resolveAllLimitConsumptions — versioned limits', () => {
+    it('uses versioned limit snapshot for consumption resolution', async () => {
+      const accessDef = defineAccess({
+        entities: {
+          organization: { roles: ['admin'] },
+        },
+        entitlements: {
+          'organization:call': { roles: ['admin'] },
+        },
+        plans: {
+          starter: {
+            group: 'main',
+            features: ['organization:call'],
+            limits: {
+              api_calls: { max: 100, gates: 'organization:call', per: 'month' },
+            },
+          },
+        },
+        defaultPlan: 'starter',
+      });
+
+      const closureStore = new InMemoryClosureStore();
+      const roleStore = new InMemoryRoleAssignmentStore();
+      const subscriptionStore = new InMemorySubscriptionStore();
+      const walletStore = new InMemoryWalletStore();
+      const planVersionStore = new InMemoryPlanVersionStore();
+      const orgResolver = async () => 'org-1';
+
+      await closureStore.addResource('organization', 'org-1');
+      await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+      const planStart = new Date('2026-01-01T00:00:00Z');
+      await subscriptionStore.assign('org-1', 'starter', planStart);
+
+      // Versioned limit: max 200 instead of current config's 100
+      const v1 = await planVersionStore.createVersion('starter', 'hash-v1', {
+        features: ['organization:call'],
+        limits: { api_calls: { max: 200, gates: 'organization:call', per: 'month' } },
+        price: null,
+      });
+      await planVersionStore.setTenantVersion('org-1', 'starter', v1);
+
+      const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
+
+      // Consume 150 — above current config (100) but below versioned (200)
+      await walletStore.consume('org-1', 'api_calls', periodStart, periodEnd, 999, 150);
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        subscriptionStore,
+        walletStore,
+        orgResolver,
+        planVersionStore,
+      });
+
+      // Should be allowed because versioned max is 200
+      const result = await ctx.can('organization:call', { type: 'organization', id: 'org-1' });
+      expect(result).toBe(true);
+    });
+  });
+
+  describe('canAndConsume — overage cap exceeded triggers rollback', () => {
+    it('rolls back consumption when overage cap would be exceeded', async () => {
+      const accessDef = defineAccess({
+        entities: {
+          organization: { roles: ['admin'] },
+        },
+        entitlements: {
+          'organization:call': { roles: ['admin'] },
+        },
+        plans: {
+          starter: {
+            group: 'main',
+            features: ['organization:call'],
+            limits: {
+              api_calls: {
+                max: 100,
+                gates: 'organization:call',
+                per: 'month',
+                overage: { amount: 10, per: 1, cap: 50 },
+              },
+            },
+          },
+        },
+        defaultPlan: 'starter',
+      });
+
+      const closureStore = new InMemoryClosureStore();
+      const roleStore = new InMemoryRoleAssignmentStore();
+      const subscriptionStore = new InMemorySubscriptionStore();
+      const walletStore = new InMemoryWalletStore();
+      const orgResolver = async () => 'org-1';
+
+      await closureStore.addResource('organization', 'org-1');
+      await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+      const planStart = new Date('2026-01-01T00:00:00Z');
+      await subscriptionStore.assign('org-1', 'starter', planStart);
+
+      const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
+
+      // Consume to 105 — overage cost = (5 * 10) / 1 = 50 = cap
+      // Next consume of 1 would make cost = (6 * 10) / 1 = 60 > cap
+      await walletStore.consume('org-1', 'api_calls', periodStart, periodEnd, 999, 105);
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        subscriptionStore,
+        walletStore,
+        orgResolver,
+      });
+
+      const result = await ctx.canAndConsume('organization:call', {
+        type: 'organization',
+        id: 'org-1',
+      });
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('computeEffectiveLimit — old-style overrides', () => {
+    it('applies old-style per-customer override from subscription.overrides', async () => {
+      const accessDef = defineAccess({
+        entities: {
+          organization: { roles: ['admin'] },
+        },
+        entitlements: {
+          'organization:call': { roles: ['admin'] },
+        },
+        plans: {
+          starter: {
+            group: 'main',
+            features: ['organization:call'],
+            limits: {
+              api_calls: { max: 100, gates: 'organization:call', per: 'month' },
+            },
+          },
+        },
+        defaultPlan: 'starter',
+      });
+
+      const closureStore = new InMemoryClosureStore();
+      const roleStore = new InMemoryRoleAssignmentStore();
+      const subscriptionStore = new InMemorySubscriptionStore();
+      const walletStore = new InMemoryWalletStore();
+      const orgResolver = async () => 'org-1';
+
+      await closureStore.addResource('organization', 'org-1');
+      await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
+      const planStart = new Date('2026-01-01T00:00:00Z');
+      await subscriptionStore.assign('org-1', 'starter', planStart);
+
+      // Set old-style override on subscription via proper API
+      await subscriptionStore.updateOverrides('org-1', { api_calls: { max: 500 } });
+
+      const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
+
+      // Consume 200 — above plan max (100) but below override (500)
+      await walletStore.consume('org-1', 'api_calls', periodStart, periodEnd, 999, 200);
+
+      const ctx = createAccessContext({
+        userId: 'user-1',
+        accessDef,
+        closureStore,
+        roleStore,
+        subscriptionStore,
+        walletStore,
+        orgResolver,
+      });
+
+      // Should be allowed because old-style override is 500
+      const result = await ctx.can('organization:call', { type: 'organization', id: 'org-1' });
+      expect(result).toBe(true);
+    });
+  });
 });

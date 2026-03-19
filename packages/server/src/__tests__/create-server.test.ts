@@ -934,6 +934,51 @@ describe('createServer', () => {
     expect(body.items).toHaveLength(0);
   });
 
+  it('throws when cloud config uses custom apiPrefix', () => {
+    expect(() =>
+      createServer({
+        basePath: '/',
+        apiPrefix: '/custom',
+        cloud: { projectId: 'proj_test123' },
+      }),
+    ).toThrow(/requestHandler requires apiPrefix to be '\/api'/);
+  });
+
+  it('noop DB adapter create returns the data', async () => {
+    const app = createServer({
+      basePath: '/',
+      entities: [
+        {
+          name: 'users',
+          model: usersModel,
+          access: {
+            list: () => true,
+            get: () => true,
+            create: () => true,
+            update: () => true,
+            delete: () => true,
+          },
+          before: {},
+          after: {},
+          actions: {},
+          relations: {},
+        },
+      ] as never[],
+    });
+
+    // POST creates a new entity — noop adapter returns the data
+    const res = await app.handler(
+      new Request('http://localhost/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: 'u1', name: 'Alice' }),
+      }),
+    );
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.name).toBe('Alice');
+  });
+
   it('processes service definitions and generates service routes', async () => {
     const passthrough = { parse: (v: unknown) => ({ ok: true as const, data: v }) };
 

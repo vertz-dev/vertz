@@ -350,6 +350,53 @@ describe('createServer — cloud mode branching', () => {
     });
   });
 
+  describe('Given cloud mode auth.api stubs', () => {
+    it('then auth.api methods throw with descriptive messages', async () => {
+      process.env.VERTZ_CLOUD_TOKEN = 'vtk_ci_token';
+
+      const server = createServer({
+        cloud: { projectId: 'proj_cstest', cloudBaseUrl },
+      });
+
+      await expect(server.auth.api.signUp({} as never)).rejects.toThrow(
+        'auth.api.signUp() is not available in cloud mode',
+      );
+      await expect(server.auth.api.signIn({} as never)).rejects.toThrow(
+        'auth.api.signIn() is not available in cloud mode',
+      );
+      await expect(server.auth.api.signOut({} as never)).rejects.toThrow(
+        'auth.api.signOut() is not available in cloud mode',
+      );
+      await expect(server.auth.api.getSession({} as never)).rejects.toThrow(
+        'auth.api.getSession() is not available in cloud mode',
+      );
+      await expect(server.auth.api.refreshSession({} as never)).rejects.toThrow(
+        'auth.api.refreshSession() is not available in cloud mode',
+      );
+      await expect(server.auth.api.listSessions({} as never)).rejects.toThrow(
+        'auth.api.listSessions() is not available in cloud mode',
+      );
+      await expect(server.auth.api.revokeSession({} as never)).rejects.toThrow(
+        'auth.api.revokeSession() is not available in cloud mode',
+      );
+      await expect(server.auth.api.revokeAllSessions({} as never)).rejects.toThrow(
+        'auth.api.revokeAllSessions() is not available in cloud mode',
+      );
+    });
+
+    it('then auth.middleware() throws', () => {
+      process.env.VERTZ_CLOUD_TOKEN = 'vtk_ci_token';
+
+      const server = createServer({
+        cloud: { projectId: 'proj_cstest', cloudBaseUrl },
+      });
+
+      expect(() => server.auth.middleware()).toThrow(
+        'auth.middleware() is not available in cloud mode',
+      );
+    });
+  });
+
   describe('Given non-auth routes', () => {
     it('then requestHandler routes non-auth requests to entity handler', async () => {
       process.env.VERTZ_CLOUD_TOKEN = 'vtk_ci_token';

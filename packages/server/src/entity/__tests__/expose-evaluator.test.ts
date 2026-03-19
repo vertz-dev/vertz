@@ -224,6 +224,132 @@ describe('Feature: evaluateExposeDescriptors', () => {
     });
   });
 
+  describe('Given expose.select with rules.public descriptor', () => {
+    describe('When evaluateExposeDescriptors is called', () => {
+      it('Then the field is allowed (public always passes)', async () => {
+        const ctx = stubCtx({ authenticated: () => false });
+        const expose = {
+          select: {
+            id: true,
+            status: rules.public,
+          } as Record<string, true | object>,
+        };
+
+        const result = await evaluateExposeDescriptors(expose, ctx);
+
+        expect(result.allowedSelectFields).toEqual(new Set(['id', 'status']));
+        expect(result.nulledFields).toEqual(new Set());
+      });
+    });
+  });
+
+  describe('Given expose.select with rules.role() descriptor', () => {
+    describe('When the user has the role', () => {
+      it('Then the field is allowed', async () => {
+        const ctx = stubCtx({ role: (...roles: string[]) => roles.includes('admin') });
+        const expose = {
+          select: {
+            id: true,
+            secret: rules.role('admin'),
+          } as Record<string, true | object>,
+        };
+
+        const result = await evaluateExposeDescriptors(expose, ctx);
+
+        expect(result.allowedSelectFields).toEqual(new Set(['id', 'secret']));
+        expect(result.nulledFields).toEqual(new Set());
+      });
+    });
+
+    describe('When the user does NOT have the role', () => {
+      it('Then the field is nulled', async () => {
+        const ctx = stubCtx({ role: () => false });
+        const expose = {
+          select: {
+            id: true,
+            secret: rules.role('admin'),
+          } as Record<string, true | object>,
+        };
+
+        const result = await evaluateExposeDescriptors(expose, ctx);
+
+        expect(result.nulledFields).toEqual(new Set(['secret']));
+      });
+    });
+  });
+
+  describe('Given expose.select with entitlement descriptor but no options.can', () => {
+    describe('When evaluateExposeDescriptors is called without can option', () => {
+      it('Then the field is nulled (entitlement check returns false)', async () => {
+        const ctx = stubCtx();
+        const expose = {
+          select: {
+            id: true,
+            salary: rules.entitlement('hr:view'),
+          } as Record<string, true | object>,
+        };
+
+        // No options.can provided
+        const result = await evaluateExposeDescriptors(expose, ctx);
+
+        expect(result.nulledFields).toEqual(new Set(['salary']));
+      });
+    });
+  });
+
+  describe('Given expose.select with rules.where() descriptor', () => {
+    describe('When evaluateExposeDescriptors is called', () => {
+      it('Then the field is nulled (where rules are not applicable in expose context)', async () => {
+        const ctx = stubCtx();
+        const expose = {
+          select: {
+            id: true,
+            owned: rules.where({ createdBy: rules.user.id }),
+          } as Record<string, true | object>,
+        };
+
+        const result = await evaluateExposeDescriptors(expose, ctx);
+
+        expect(result.nulledFields).toEqual(new Set(['owned']));
+      });
+    });
+  });
+
+  describe('Given expose.select with rules.any() composed descriptor', () => {
+    describe('When at least one sub-rule passes', () => {
+      it('Then the field is allowed', async () => {
+        const ctx = stubCtx({ role: (...roles: string[]) => roles.includes('admin') });
+        const expose = {
+          select: {
+            id: true,
+            mixed: rules.any(rules.role('admin'), rules.entitlement('special')),
+          } as Record<string, true | object>,
+        };
+
+        const result = await evaluateExposeDescriptors(expose, ctx);
+
+        expect(result.allowedSelectFields).toEqual(new Set(['id', 'mixed']));
+        expect(result.nulledFields).toEqual(new Set());
+      });
+    });
+
+    describe('When no sub-rules pass', () => {
+      it('Then the field is nulled', async () => {
+        const ctx = stubCtx({ authenticated: () => false, role: () => false });
+        const expose = {
+          select: {
+            id: true,
+            mixed: rules.any(rules.role('admin'), rules.authenticated()),
+          } as Record<string, true | object>,
+        };
+
+        const result = await evaluateExposeDescriptors(expose, ctx);
+
+        expect(result.nulledFields).toEqual(new Set(['mixed']));
+      });
+    });
+  });
+
   describe('Given expose.select with rules.all() composed descriptor', () => {
     describe('When all sub-rules pass', () => {
       it('Then the field is allowed and not nulled', async () => {

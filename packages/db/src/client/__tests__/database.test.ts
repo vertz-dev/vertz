@@ -1,7 +1,8 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { afterEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import { d } from '../../d';
 import type { QueryFn } from '../../query/executor';
 import { createDb, isReadQuery } from '../database';
+import type { PostgresDriver } from '../postgres-driver';
 
 // ---------------------------------------------------------------------------
 // Test schema
@@ -1101,5 +1102,218 @@ describe('delegate include paths', () => {
     });
 
     expect(result.ok).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PostgreSQL lazy-init, replica routing, transactions via driver
+// ---------------------------------------------------------------------------
+
+describe('PostgreSQL lazy init and replica routing', () => {
+  afterEach(() => {
+    mock.restore();
+  });
+
+  function createMockPgDriver(overrides?: Partial<PostgresDriver>): PostgresDriver {
+    return {
+      queryFn: async <T>() => ({ rows: [{ id: '1' }] as unknown as T[], rowCount: 1 }),
+      query: async <T>() => [{ id: '1' }] as unknown as T[],
+      execute: async () => ({ rowsAffected: 1 }),
+      beginTransaction: async <T>(fn: (txFn: QueryFn) => Promise<T>) => {
+        const txQueryFn: QueryFn = async <R>() => ({
+          rows: [{ id: '1' }] as unknown as R[],
+          rowCount: 1,
+        });
+        return fn(txQueryFn);
+      },
+      close: async () => {},
+      isHealthy: async () => true,
+      ...overrides,
+    };
+  }
+
+  it('lazily initializes postgres driver and routes queries through it', async () => {
+    const primaryDriver = createMockPgDriver();
+    const driverQuerySpy = spyOn(primaryDriver, 'queryFn');
+
+    mock.module('../postgres-driver', () => ({
+      createPostgresDriver: () => primaryDriver,
+    }));
+
+    const db = createDb({
+      url: 'postgres://localhost:5432/test',
+      models: {
+        organizations: { table: organizations, relations: {} },
+      },
+    });
+
+    // First query triggers lazy init
+    const result = await db.organizations.list();
+    expect(result.ok).toBe(true);
+    expect(driverQuerySpy).toHaveBeenCalled();
+
+    await db.close();
+  });
+
+  it('routes read queries to replicas with round-robin', async () => {
+    const replicaCalls: string[] = [];
+    const primaryCalls: string[] = [];
+
+    const primaryDriver = createMockPgDriver({
+      queryFn: async <T>(sql: string) => {
+        primaryCalls.push(sql);
+        return { rows: [{ id: '1' }] as unknown as T[], rowCount: 1 };
+      },
+    });
+
+    const replicaDriver = createMockPgDriver({
+      queryFn: async <T>(sql: string) => {
+        replicaCalls.push(sql);
+        return { rows: [{ id: '1' }] as unknown as T[], rowCount: 1 };
+      },
+    });
+
+    let callCount = 0;
+    mock.module('../postgres-driver', () => ({
+      createPostgresDriver: () => {
+        callCount++;
+        // First call = primary, subsequent = replicas
+        return callCount === 1 ? primaryDriver : replicaDriver;
+      },
+    }));
+
+    const db = createDb({
+      url: 'postgres://localhost:5432/test',
+      models: {
+        organizations: { table: organizations, relations: {} },
+      },
+      pool: {
+        replicas: ['postgres://replica1:5432/test'],
+      },
+    });
+
+    // SELECT goes to replica
+    const listResult = await db.organizations.list();
+    expect(listResult.ok).toBe(true);
+    expect(replicaCalls.length).toBeGreaterThan(0);
+
+    // Write goes to primary
+    const createResult = await db.organizations.create({ data: { name: 'Test' } });
+    expect(createResult.ok).toBe(true);
+    expect(primaryCalls.length).toBeGreaterThan(0);
+
+    await db.close();
+  });
+
+  it('falls back to primary when replica query fails', async () => {
+    const primaryCalls: string[] = [];
+
+    const primaryDriver = createMockPgDriver({
+      queryFn: async <T>(sql: string) => {
+        primaryCalls.push(sql);
+        return { rows: [{ id: '1', name: 'Org' }] as unknown as T[], rowCount: 1 };
+      },
+    });
+
+    const failingReplica = createMockPgDriver({
+      queryFn: async () => {
+        throw new Error('replica connection lost');
+      },
+    });
+
+    let callCount = 0;
+    mock.module('../postgres-driver', () => ({
+      createPostgresDriver: () => {
+        callCount++;
+        return callCount === 1 ? primaryDriver : failingReplica;
+      },
+    }));
+
+    const warnSpy = spyOn(console, 'warn');
+
+    const db = createDb({
+      url: 'postgres://localhost:5432/test',
+      models: {
+        organizations: { table: organizations, relations: {} },
+      },
+      pool: {
+        replicas: ['postgres://replica1:5432/test'],
+      },
+    });
+
+    // Read query should fail on replica, then fall back to primary
+    const result = await db.organizations.list();
+    expect(result.ok).toBe(true);
+    expect(primaryCalls.length).toBeGreaterThan(0);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('replica query failed'),
+      expect.any(String),
+    );
+
+    warnSpy.mockRestore();
+    await db.close();
+  });
+
+  it('transaction() uses driver.beginTransaction when available', async () => {
+    let beginTxCalled = false;
+    const primaryDriver = createMockPgDriver({
+      beginTransaction: async <T>(fn: (txFn: QueryFn) => Promise<T>) => {
+        beginTxCalled = true;
+        const txQueryFn: QueryFn = async <R>() => ({
+          rows: [{ id: 'tx-1' }] as unknown as R[],
+          rowCount: 1,
+        });
+        return fn(txQueryFn);
+      },
+    });
+
+    mock.module('../postgres-driver', () => ({
+      createPostgresDriver: () => primaryDriver,
+    }));
+
+    const db = createDb({
+      url: 'postgres://localhost:5432/test',
+      models: {
+        organizations: { table: organizations, relations: {} },
+      },
+    });
+
+    // Trigger lazy init by making a query first
+    await db.organizations.list();
+
+    // Now use transaction — should use driver.beginTransaction
+    await db.transaction(async (tx) => {
+      const result = await tx.organizations.list();
+      expect(result.ok).toBe(true);
+    });
+
+    expect(beginTxCalled).toBe(true);
+    await db.close();
+  });
+
+  it('close() calls driver.close() when postgres driver is initialized', async () => {
+    let closeCalled = false;
+    const primaryDriver = createMockPgDriver({
+      close: async () => {
+        closeCalled = true;
+      },
+    });
+
+    mock.module('../postgres-driver', () => ({
+      createPostgresDriver: () => primaryDriver,
+    }));
+
+    const db = createDb({
+      url: 'postgres://localhost:5432/test',
+      models: {
+        organizations: { table: organizations, relations: {} },
+      },
+    });
+
+    // Trigger lazy init
+    await db.organizations.list();
+
+    await db.close();
+    expect(closeCalled).toBe(true);
   });
 });

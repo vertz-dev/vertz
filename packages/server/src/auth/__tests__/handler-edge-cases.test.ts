@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { encrypt } from '../crypto';
 import { createAuth } from '../index';
 import type {
   AuthInstance,
@@ -678,5 +679,234 @@ describe('Auth Middleware', () => {
     expect(nextCalled).toBe(true);
     expect(ctx.user).toBeNull();
     expect(ctx.session).toBeNull();
+  });
+});
+
+describe('Config validation edge cases', () => {
+  it('throws when only privateKey is provided without publicKey', () => {
+    expect(() =>
+      createAuth({
+        session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
+        emailPassword: { enabled: true },
+        privateKey: TEST_PRIVATE_KEY,
+        isProduction: false,
+      }),
+    ).toThrow('Both privateKey and publicKey must be provided together');
+  });
+
+  it('throws when only publicKey is provided without privateKey', () => {
+    expect(() =>
+      createAuth({
+        session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
+        emailPassword: { enabled: true },
+        publicKey: TEST_PUBLIC_KEY,
+        isProduction: false,
+      }),
+    ).toThrow('Both privateKey and publicKey must be provided together');
+  });
+});
+
+describe('JWKS and access-set endpoints', () => {
+  let auth: AuthInstance;
+
+  beforeEach(() => {
+    auth = createAuth({
+      session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
+      emailPassword: { enabled: true },
+      privateKey: TEST_PRIVATE_KEY,
+      publicKey: TEST_PUBLIC_KEY,
+      isProduction: false,
+    });
+  });
+
+  it('GET /.well-known/jwks.json returns JSON with keys array', async () => {
+    const res = await auth.handler(
+      new Request('http://localhost/api/auth/.well-known/jwks.json', { method: 'GET' }),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.keys).toBeDefined();
+    expect(body.keys).toHaveLength(1);
+    expect(body.keys[0].use).toBe('sig');
+    expect(body.keys[0].alg).toBe('RS256');
+  });
+
+  it('GET /access-set returns 404 when access not configured', async () => {
+    const res = await auth.handler(
+      new Request('http://localhost/api/auth/access-set', { method: 'GET' }),
+    );
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.error).toBe('Access control not configured');
+  });
+
+  it('DELETE /sessions returns error for unauthenticated request', async () => {
+    const res = await auth.handler(
+      new Request('http://localhost/api/auth/sessions', { method: 'DELETE' }),
+    );
+    expect(res.status).toBeGreaterThanOrEqual(400);
+  });
+
+  it('DELETE /session with invalid body returns error', async () => {
+    const res = await auth.handler(
+      new Request('http://localhost/api/auth/session', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    );
+    expect(res.status).toBeGreaterThanOrEqual(400);
+  });
+});
+
+describe('Body parse error paths', () => {
+  let auth: AuthInstance;
+
+  beforeEach(() => {
+    auth = createAuth({
+      session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
+      emailPassword: { enabled: true },
+      privateKey: TEST_PRIVATE_KEY,
+      publicKey: TEST_PUBLIC_KEY,
+      isProduction: false,
+    });
+  });
+
+  it('POST /signup with invalid JSON returns 400', async () => {
+    const res = await auth.handler(
+      new Request('http://localhost/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{invalid json',
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('POST /signin with missing fields returns validation error', async () => {
+    const res = await auth.handler(
+      new Request('http://localhost/api/auth/signin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('POST /forgot-password with invalid body returns 400', async () => {
+    const res = await auth.handler(
+      new Request('http://localhost/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{bad',
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('POST /verify-email with invalid body returns 400', async () => {
+    const res = await auth.handler(
+      new Request('http://localhost/api/auth/verify-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{bad',
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('POST /switch-tenant returns 404 when not configured', async () => {
+    const res = await auth.handler(
+      new Request('http://localhost/api/auth/switch-tenant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{bad',
+      }),
+    );
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('MFA challenge error paths', { timeout: 60_000 }, () => {
+  const encKey = 'mfa-test-encryption-key-at-least-32-chars!!!';
+
+  function createMfaAuth() {
+    return createAuth({
+      session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
+      emailPassword: { enabled: true },
+      privateKey: TEST_PRIVATE_KEY,
+      publicKey: TEST_PUBLIC_KEY,
+      isProduction: false,
+      mfa: { enabled: true, issuer: 'TestApp' },
+      oauthEncryptionKey: encKey,
+    });
+  }
+
+  it('POST /mfa/challenge returns 429 when rate limited', async () => {
+    const auth = createMfaAuth();
+
+    // Fire 6 requests to trip the rate limit (limit is 5)
+    for (let i = 0; i < 6; i++) {
+      await auth.handler(
+        new Request('http://localhost/api/auth/mfa/challenge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Cookie: 'vertz.mfa=garbage' },
+          body: JSON.stringify({ code: '123456' }),
+        }),
+      );
+    }
+
+    const res = await auth.handler(
+      new Request('http://localhost/api/auth/mfa/challenge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Cookie: 'vertz.mfa=garbage' },
+        body: JSON.stringify({ code: '123456' }),
+      }),
+    );
+    expect(res.status).toBe(429);
+  });
+
+  it('POST /mfa/challenge with expired token returns 401', async () => {
+    const auth = createMfaAuth();
+
+    // Create a challenge token that expired in the past
+    const challengeData = JSON.stringify({
+      userId: 'user-1',
+      expiresAt: Date.now() - 60_000, // expired 1 minute ago
+    });
+    const encryptedChallenge = await encrypt(challengeData, encKey);
+
+    const res = await auth.handler(
+      new Request('http://localhost/api/auth/mfa/challenge', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: `vertz.mfa=${encryptedChallenge}`,
+        },
+        body: JSON.stringify({ code: '123456' }),
+      }),
+    );
+    expect(res.status).toBe(401);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe('SESSION_EXPIRED');
+  });
+
+  it('POST /mfa/challenge with invalid encrypted token returns 401', async () => {
+    const auth = createMfaAuth();
+
+    const res = await auth.handler(
+      new Request('http://localhost/api/auth/mfa/challenge', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: 'vertz.mfa=not-valid-encrypted-data',
+        },
+        body: JSON.stringify({ code: '123456' }),
+      }),
+    );
+    expect(res.status).toBe(401);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe('SESSION_EXPIRED');
   });
 });

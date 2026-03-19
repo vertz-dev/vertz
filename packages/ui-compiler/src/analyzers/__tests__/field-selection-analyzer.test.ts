@@ -438,6 +438,82 @@ describe('analyzeFieldSelection', () => {
     });
   });
 
+  describe('Given nested relation map callback (parent.field.map)', () => {
+    it('Then tracks nested fields under the parent relation field', () => {
+      const source = `
+        import { query } from '@vertz/ui';
+
+        function TeamPage() {
+          const team = query(api.teams.get(id));
+          return <div>{team.data.members.map(m => <span>{m.name}</span>)}</div>;
+        }
+      `;
+
+      const result = analyzeFieldSelection('test.tsx', source);
+
+      expect(result[0].fields).toContain('members');
+      expect(result[0].nestedAccess).toContainEqual({
+        field: 'members',
+        nestedPath: ['name'],
+      });
+    });
+
+    it('tracks deeply nested relation map with nested access in callback', () => {
+      const source = `
+        import { query } from '@vertz/ui';
+
+        function TeamPage() {
+          const team = query(api.teams.get(id));
+          return <div>{team.data.members.map(m => <span>{m.profile.avatar}</span>)}</div>;
+        }
+      `;
+
+      const result = analyzeFieldSelection('test.tsx', source);
+
+      expect(result[0].fields).toContain('members');
+      expect(result[0].nestedAccess).toContainEqual({
+        field: 'members',
+        nestedPath: ['profile'],
+      });
+    });
+  });
+
+  describe('Given spread on a property access chain', () => {
+    it('Then marks hasOpaqueAccess for spread on queryVar.data', () => {
+      const source = `
+        import { query } from '@vertz/ui';
+
+        function UserDetail() {
+          const user = query(api.users.get(id));
+          const props = { ...user.data };
+          return <div>{props.name}</div>;
+        }
+      `;
+
+      const result = analyzeFieldSelection('test.tsx', source);
+
+      expect(result[0].hasOpaqueAccess).toBe(true);
+    });
+  });
+
+  describe('Given element access in property chain', () => {
+    it('Then handles items[0].field access pattern', () => {
+      const source = `
+        import { query } from '@vertz/ui';
+
+        function FirstUser() {
+          const users = query(api.users.list());
+          return <div>{users.data.items[0].name}</div>;
+        }
+      `;
+
+      const result = analyzeFieldSelection('test.tsx', source);
+
+      // Element access should still track the chain
+      expect(result[0].fields).toContain('name');
+    });
+  });
+
   describe('Given no query data passed to child components', () => {
     it('Then propFlows is empty', () => {
       const source = `

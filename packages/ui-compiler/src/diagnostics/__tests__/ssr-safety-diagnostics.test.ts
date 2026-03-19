@@ -401,6 +401,28 @@ describe('SSRSafetyDiagnostics', () => {
     expect(diags[0]?.message).toContain('cancelIdleCallback');
   });
 
+  it('does NOT flag browser API in ternary typeof window guard (true branch)', () => {
+    const [sf, comp] = firstComponent(`
+      function App() {
+        const val = typeof window !== 'undefined' ? localStorage.getItem('key') : null;
+        return <div>{val}</div>;
+      }
+    `);
+    const diags = new SSRSafetyDiagnostics().analyze(sf, comp);
+    expect(diags).toHaveLength(0);
+  });
+
+  it('does NOT flag browser API in logical AND typeof window guard', () => {
+    const [sf, comp] = firstComponent(`
+      function App() {
+        typeof window !== 'undefined' && localStorage.setItem('key', 'val');
+        return <div>ok</div>;
+      }
+    `);
+    const diags = new SSRSafetyDiagnostics().analyze(sf, comp);
+    expect(diags).toHaveLength(0);
+  });
+
   it('flags document.querySelectorAll at top level', () => {
     const [sf, comp] = firstComponent(`
       function App() {

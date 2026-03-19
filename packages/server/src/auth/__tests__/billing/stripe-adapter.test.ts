@@ -190,6 +190,47 @@ describe('Feature: Stripe billing adapter', () => {
     });
   });
 
+  describe('Given a plan with quarterly interval', () => {
+    it('maps quarter through mapInterval which returns month interval', async () => {
+      const stripe = createMockStripe();
+      const adapter = createStripeBillingAdapter({ stripe });
+
+      await adapter.syncPlans({
+        pro_quarterly: {
+          title: 'Pro Quarterly',
+          group: 'main',
+          price: { amount: 79, interval: 'quarter' as const },
+          features: ['doc:edit'],
+        },
+      });
+
+      expect(stripe._prices).toHaveLength(1);
+      // NOTE: mapInterval() returns { interval: 'month', interval_count: 3 } for quarter,
+      // but priceParams.recurring only takes the interval string — interval_count is dropped.
+      // This is a known limitation (see issue for fixing recurring type).
+      expect(stripe._prices[0].recurring).toEqual({
+        interval: 'month',
+      });
+    });
+  });
+
+  describe('Given placeholder methods', () => {
+    it('createSubscription returns placeholder string', async () => {
+      const stripe = createMockStripe();
+      const adapter = createStripeBillingAdapter({ stripe });
+
+      const subId = await adapter.createSubscription('tenant-1', 'pro');
+      expect(subId).toBe('sub_placeholder');
+    });
+
+    it('reportOverage resolves without error', async () => {
+      const stripe = createMockStripe();
+      const adapter = createStripeBillingAdapter({ stripe });
+
+      await expect(adapter.reportOverage('tenant-1', 'api-calls', 100)).resolves.toBeUndefined();
+    });
+  });
+
   describe('Given a plan version changes', () => {
     it('creates new Price and archives old Price', async () => {
       const stripe = createMockStripe();
