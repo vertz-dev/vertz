@@ -614,4 +614,101 @@ describe('__list', () => {
       expect(currentNodes[2]?.textContent).toBe('C');
     });
   });
+
+  describe('container with pre-existing children', () => {
+    it('appends list items after pre-existing children on initial render', () => {
+      const items = signal([
+        { id: 1, text: 'A' },
+        { id: 2, text: 'B' },
+      ]);
+      const container = document.createElement('div');
+      // Simulate a title div already in the container (like the compiler's __append before __list)
+      const titleDiv = document.createElement('div');
+      titleDiv.textContent = 'Title';
+      container.appendChild(titleDiv);
+
+      __list(
+        container,
+        items,
+        (item) => item.id,
+        (item) => {
+          const el = document.createElement('span');
+          el.textContent = item.text;
+          return el;
+        },
+      );
+
+      expect(container.children.length).toBe(3);
+      // Title div must remain first
+      expect(container.children[0]).toBe(titleDiv);
+      expect(container.children[0]?.textContent).toBe('Title');
+      // List items follow
+      expect(container.children[1]?.textContent).toBe('A');
+      expect(container.children[2]?.textContent).toBe('B');
+    });
+
+    it('preserves pre-existing children when list items are reordered', () => {
+      const items = signal([
+        { id: 1, text: 'A' },
+        { id: 2, text: 'B' },
+        { id: 3, text: 'C' },
+      ]);
+      const container = document.createElement('div');
+      const titleDiv = document.createElement('div');
+      titleDiv.textContent = 'Title';
+      container.appendChild(titleDiv);
+
+      __list(
+        container,
+        items,
+        (item) => item.id,
+        (item) => {
+          const el = document.createElement('span');
+          el.textContent = item.text;
+          return el;
+        },
+      );
+
+      // Reorder
+      items.value = [
+        { id: 3, text: 'C' },
+        { id: 1, text: 'A' },
+        { id: 2, text: 'B' },
+      ];
+
+      expect(container.children.length).toBe(4);
+      expect(container.children[0]).toBe(titleDiv);
+      expect(container.children[1]?.textContent).toBe('C');
+      expect(container.children[2]?.textContent).toBe('A');
+      expect(container.children[3]?.textContent).toBe('B');
+    });
+
+    it('preserves pre-existing children when list items are removed', () => {
+      const items = signal([
+        { id: 1, text: 'A' },
+        { id: 2, text: 'B' },
+      ]);
+      const container = document.createElement('div');
+      const titleDiv = document.createElement('div');
+      titleDiv.textContent = 'Title';
+      container.appendChild(titleDiv);
+
+      __list(
+        container,
+        items,
+        (item) => item.id,
+        (item) => {
+          const el = document.createElement('span');
+          el.textContent = item.text;
+          return el;
+        },
+      );
+
+      items.value = [{ id: 1, text: 'A' }];
+
+      expect(container.children.length).toBe(2);
+      expect(container.children[0]).toBe(titleDiv);
+      expect(container.children[1]?.textContent).toBe('A');
+    });
+  });
 });

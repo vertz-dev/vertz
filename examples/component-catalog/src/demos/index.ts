@@ -3,17 +3,31 @@ import { AlertDemo } from './alert';
 import { AlertDialogDemo } from './alert-dialog';
 import { AvatarDemo } from './avatar';
 import { BadgeDemo } from './badge';
+import { BreadcrumbDemo } from './breadcrumb';
 import { ButtonDemo } from './button';
+import { CalendarDemo } from './calendar';
 import { CardDemo } from './card';
+import { CarouselDemo } from './carousel';
 import { CheckboxDemo } from './checkbox';
+import { CollapsibleDemo } from './collapsible';
+import { CommandDemo } from './command';
+import { ContextMenuDemo } from './context-menu';
+import { DatePickerDemo } from './date-picker';
 import { DialogDemo } from './dialog';
+import { DrawerDemo } from './drawer';
 import { DropdownMenuDemo } from './dropdown-menu';
 import { FormGroupDemo } from './form-group';
+import { HoverCardDemo } from './hover-card';
 import { InputDemo } from './input';
 import { LabelDemo } from './label';
+import { MenubarDemo } from './menubar';
+import { NavigationMenuDemo } from './navigation-menu';
+import { PaginationDemo } from './pagination';
 import { PopoverDemo } from './popover';
 import { ProgressDemo } from './progress';
 import { RadioGroupDemo } from './radio-group';
+import { ResizablePanelDemo } from './resizable-panel';
+import { ScrollAreaDemo } from './scroll-area';
 import { SelectDemo } from './select';
 import { SeparatorDemo } from './separator';
 import { SheetDemo } from './sheet';
@@ -25,6 +39,7 @@ import { TabsDemo } from './tabs';
 import { TextareaDemo } from './textarea';
 import { ToastDemo } from './toast';
 import { ToggleDemo } from './toggle';
+import { ToggleGroupDemo } from './toggle-group';
 import { TooltipDemo } from './tooltip';
 
 export interface ComponentEntry {
@@ -114,6 +129,27 @@ export const componentRegistry: ComponentEntry[] = [
     description: 'Toggle button with pressed state.',
     demo: ToggleDemo,
   },
+  {
+    name: 'Calendar',
+    slug: 'calendar',
+    category: 'form',
+    description: 'Date selection calendar.',
+    demo: CalendarDemo,
+  },
+  {
+    name: 'DatePicker',
+    slug: 'date-picker',
+    category: 'form',
+    description: 'Date input with calendar dropdown.',
+    demo: DatePickerDemo,
+  },
+  {
+    name: 'ToggleGroup',
+    slug: 'toggle-group',
+    category: 'form',
+    description: 'Group of toggle buttons with single or multiple selection.',
+    demo: ToggleGroupDemo,
+  },
 
   // ── Layout ────────────────────────────────────────────────
   {
@@ -143,6 +179,27 @@ export const componentRegistry: ComponentEntry[] = [
     category: 'layout',
     description: 'Tabbed content organization.',
     demo: TabsDemo,
+  },
+  {
+    name: 'Collapsible',
+    slug: 'collapsible',
+    category: 'layout',
+    description: 'Toggle visibility of content sections.',
+    demo: CollapsibleDemo,
+  },
+  {
+    name: 'ResizablePanel',
+    slug: 'resizable-panel',
+    category: 'layout',
+    description: 'Resizable panel layout with drag handles.',
+    demo: ResizablePanelDemo,
+  },
+  {
+    name: 'ScrollArea',
+    slug: 'scroll-area',
+    category: 'layout',
+    description: 'Custom scrollbar container.',
+    demo: ScrollAreaDemo,
   },
 
   // ── Data Display ──────────────────────────────────────────
@@ -181,6 +238,13 @@ export const componentRegistry: ComponentEntry[] = [
     description: 'Shows task completion percentage.',
     demo: ProgressDemo,
   },
+  {
+    name: 'Carousel',
+    slug: 'carousel',
+    category: 'data-display',
+    description: 'Slideshow with navigation controls.',
+    demo: CarouselDemo,
+  },
 
   // ── Overlay ───────────────────────────────────────────────
   {
@@ -218,6 +282,20 @@ export const componentRegistry: ComponentEntry[] = [
     description: 'Brief info on hover or focus.',
     demo: TooltipDemo,
   },
+  {
+    name: 'Drawer',
+    slug: 'drawer',
+    category: 'overlay',
+    description: 'Bottom sheet panel with drag handle.',
+    demo: DrawerDemo,
+  },
+  {
+    name: 'HoverCard',
+    slug: 'hover-card',
+    category: 'overlay',
+    description: 'Content card shown on hover.',
+    demo: HoverCardDemo,
+  },
 
   // ── Navigation ────────────────────────────────────────────
   {
@@ -226,6 +304,48 @@ export const componentRegistry: ComponentEntry[] = [
     category: 'navigation',
     description: 'Menu triggered by a button click.',
     demo: DropdownMenuDemo,
+  },
+  {
+    name: 'Breadcrumb',
+    slug: 'breadcrumb',
+    category: 'navigation',
+    description: 'Shows the current page location in a hierarchy.',
+    demo: BreadcrumbDemo,
+  },
+  {
+    name: 'ContextMenu',
+    slug: 'context-menu',
+    category: 'navigation',
+    description: 'Menu triggered by right-click.',
+    demo: ContextMenuDemo,
+  },
+  {
+    name: 'Command',
+    slug: 'command',
+    category: 'navigation',
+    description: 'Command palette with search and groups.',
+    demo: CommandDemo,
+  },
+  {
+    name: 'Menubar',
+    slug: 'menubar',
+    category: 'navigation',
+    description: 'Horizontal menu bar with dropdown menus.',
+    demo: MenubarDemo,
+  },
+  {
+    name: 'NavigationMenu',
+    slug: 'navigation-menu',
+    category: 'navigation',
+    description: 'Site navigation with dropdown content.',
+    demo: NavigationMenuDemo,
+  },
+  {
+    name: 'Pagination',
+    slug: 'pagination',
+    category: 'navigation',
+    description: 'Page navigation controls.',
+    demo: PaginationDemo,
   },
 
   // ── Feedback ──────────────────────────────────────────────
