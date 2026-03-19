@@ -265,6 +265,113 @@ describe('Composed ContextMenu', () => {
     });
   });
 
+  // ---------------------------------------------------------------------------
+  // Keyboard navigation tests (#1527)
+  // ---------------------------------------------------------------------------
+
+  function renderMenuWithItems(onSelect?: (value: string) => void) {
+    const root = ComposedContextMenu({
+      onSelect,
+      children: () => {
+        const t = ComposedContextMenu.Trigger({
+          children: [document.createTextNode('Right-click me')],
+        });
+        const c = ComposedContextMenu.Content({
+          children: () => [
+            ComposedContextMenu.Item({ value: 'cut', children: ['Cut'] }),
+            ComposedContextMenu.Item({ value: 'copy', children: ['Copy'] }),
+            ComposedContextMenu.Item({ value: 'paste', children: ['Paste'] }),
+          ],
+        });
+        return [t, c];
+      },
+    });
+    container.appendChild(root);
+
+    const trigger = root.querySelector('[data-part="trigger"]') as HTMLElement;
+    const menu = root.querySelector('[role="menu"]') as HTMLElement;
+
+    function openMenu() {
+      trigger.dispatchEvent(
+        new MouseEvent('contextmenu', { clientX: 100, clientY: 200, bubbles: true }),
+      );
+    }
+
+    return { root, trigger, menu, openMenu };
+  }
+
+  describe('Given an open ContextMenu with multiple items', () => {
+    describe('When ArrowDown is pressed', () => {
+      it('Then moves focus to the next menu item', () => {
+        const { menu, openMenu } = renderMenuWithItems();
+        openMenu();
+
+        const items = menu.querySelectorAll('[role="menuitem"]');
+        (items[0] as HTMLElement).focus();
+
+        menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+
+        expect(document.activeElement).toBe(items[1]);
+      });
+    });
+
+    describe('When ArrowUp is pressed', () => {
+      it('Then moves focus to the previous menu item', () => {
+        const { menu, openMenu } = renderMenuWithItems();
+        openMenu();
+
+        const items = menu.querySelectorAll('[role="menuitem"]');
+        (items[1] as HTMLElement).focus();
+
+        menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+
+        expect(document.activeElement).toBe(items[0]);
+      });
+    });
+
+    describe('When Enter is pressed on a focused item', () => {
+      it('Then selects the focused item and closes the menu', () => {
+        const onSelect = vi.fn();
+        const { menu, openMenu } = renderMenuWithItems(onSelect);
+        openMenu();
+
+        const items = menu.querySelectorAll('[role="menuitem"]');
+        (items[1] as HTMLElement).focus();
+
+        menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+        expect(onSelect).toHaveBeenCalledWith('copy');
+        expect(menu.getAttribute('data-state')).toBe('closed');
+      });
+    });
+
+    describe('When Escape is pressed', () => {
+      it('Then closes the menu without selection', () => {
+        const onSelect = vi.fn();
+        const { menu, openMenu } = renderMenuWithItems(onSelect);
+        openMenu();
+
+        menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+        expect(onSelect).not.toHaveBeenCalled();
+        expect(menu.getAttribute('data-state')).toBe('closed');
+      });
+    });
+
+    describe('When Tab is pressed', () => {
+      it('Then closes the menu', () => {
+        const onSelect = vi.fn();
+        const { menu, openMenu } = renderMenuWithItems(onSelect);
+        openMenu();
+
+        menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+
+        expect(onSelect).not.toHaveBeenCalled();
+        expect(menu.getAttribute('data-state')).toBe('closed');
+      });
+    });
+  });
+
   describe('Given a ContextMenu with duplicate Content sub-components', () => {
     it('Then warns about the duplicate', () => {
       const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});

@@ -11,6 +11,7 @@ import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition, virtualElement } from '../utils/floating';
 import { linkedIds } from '../utils/id';
+import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
 // ---------------------------------------------------------------------------
 // Class distribution
@@ -123,6 +124,32 @@ function ContextMenuContent({ children, className: cls, class: classProp }: Slot
       data-state="closed"
       style="display: none"
       class={combined || undefined}
+      onKeydown={(event: KeyboardEvent) => {
+        if (isKey(event, Keys.Escape, Keys.Tab)) {
+          event.preventDefault();
+          ctx.close();
+          return;
+        }
+
+        const el = (event.currentTarget ?? event.target) as HTMLElement;
+        const items = [...el.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+        const focusedIdx = items.indexOf(document.activeElement as HTMLElement);
+
+        if (isKey(event, Keys.Enter, Keys.Space)) {
+          event.preventDefault();
+          const active = items[focusedIdx];
+          if (active) {
+            const val = active.getAttribute('data-value');
+            if (val !== null) {
+              ctx.onSelect?.(val);
+              ctx.close();
+            }
+          }
+          return;
+        }
+
+        handleListNavigation(event, items, { orientation: 'vertical' });
+      }}
     >
       {children}
     </div>
