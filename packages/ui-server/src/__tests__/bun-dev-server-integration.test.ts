@@ -25,6 +25,7 @@ import {
   isStaleGraphError,
   parseHMRAssets,
 } from '../bun-dev-server';
+import { removeDomShim } from '../dom-shim';
 
 let tmpDir: string;
 let devServer: BunDevServer | null = null;
@@ -46,6 +47,8 @@ afterEach(async () => {
     devServer = null;
   }
   rmSync(tmpDir, { recursive: true, force: true });
+  // Clean up dom-shim to avoid contaminating subsequent tests
+  removeDomShim();
 });
 
 /**
