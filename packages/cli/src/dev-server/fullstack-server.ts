@@ -7,6 +7,7 @@ import { createProcessManager } from './process-manager';
 
 interface ServerModule {
   handler: (request: Request) => Promise<Response>;
+  requestHandler?: (request: Request) => Promise<Response>;
   sessionResolver?: (request: Request) => Promise<unknown>;
   initialize?: () => Promise<void>;
 }
@@ -173,7 +174,7 @@ export async function startDevServer(options: StartDevServerOptions): Promise<vo
   let sessionResolver: ((req: Request) => Promise<unknown>) | undefined;
   if (mode.kind === 'full-stack') {
     const serverMod = await importServerModule(mode.serverEntry);
-    apiHandler = serverMod.handler;
+    apiHandler = serverMod.requestHandler ?? serverMod.handler;
     sessionResolver = serverMod.sessionResolver;
 
     // Auto-call initialize() when available (e.g. auth table setup)
