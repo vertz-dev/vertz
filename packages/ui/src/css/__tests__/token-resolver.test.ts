@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { resolveToken, TokenResolveError } from '../token-resolver';
+import { isValidColorToken, resolveToken, TokenResolveError } from '../token-resolver';
 
 describe('resolveToken', () => {
   describe('spacing', () => {
@@ -688,6 +688,32 @@ describe('resolveToken', () => {
       expect(() => resolveToken({ property: 'p', value: null, pseudo: null })).toThrow(
         TokenResolveError,
       );
+    });
+  });
+
+  describe('isValidColorToken', () => {
+    it('returns true for plain color namespace', () => {
+      expect(isValidColorToken('primary')).toBe(true);
+    });
+
+    it('returns true for dotted color token', () => {
+      expect(isValidColorToken('primary.700')).toBe(true);
+    });
+
+    it('returns true for color with opacity modifier', () => {
+      expect(isValidColorToken('primary/50')).toBe(true);
+    });
+
+    it('returns true for dotted color with opacity modifier', () => {
+      expect(isValidColorToken('primary.700/50')).toBe(true);
+    });
+
+    it('returns false for unknown namespace', () => {
+      expect(isValidColorToken('potato')).toBe(false);
+    });
+
+    it('returns false for unknown namespace with opacity', () => {
+      expect(isValidColorToken('potato/50')).toBe(false);
     });
   });
 });
