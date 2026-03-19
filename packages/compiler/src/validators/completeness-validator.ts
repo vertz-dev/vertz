@@ -304,18 +304,18 @@ export class CompletenessValidator implements Validator {
     // Skip if no createDb() calls found (e.g., using plain EntityDbAdapter)
     if (ir.databases.length === 0) return;
 
-    const allModelKeys = new Set<string>();
+    const allModelValues = new Set<string>();
     for (const db of ir.databases) {
-      for (const key of db.modelKeys) {
-        allModelKeys.add(key);
+      for (const value of db.modelValues) {
+        allModelValues.add(value);
       }
     }
 
     for (const entity of ir.entities) {
-      if (!allModelKeys.has(entity.name)) {
+      if (!allModelValues.has(entity.modelRef.variableName)) {
         const registeredList = ir.databases
           .flatMap((db) =>
-            db.modelKeys.map((key) => `"${key}" (${db.sourceFile}:${db.sourceLine})`),
+            db.modelValues.map((value) => `${value} (${db.sourceFile}:${db.sourceLine})`),
           )
           .join(', ');
 
@@ -324,8 +324,8 @@ export class CompletenessValidator implements Validator {
             severity: 'error',
             code: 'ENTITY_MODEL_NOT_REGISTERED',
             message:
-              `Entity "${entity.name}" is not registered in any createDb() call. ` +
-              `Add "${entity.name}: ${entity.modelRef.variableName}" to the models object in createDb().`,
+              `Entity "${entity.name}" model "${entity.modelRef.variableName}" is not registered in any createDb() call. ` +
+              `Add ${entity.modelRef.variableName} to the models object in createDb().`,
             suggestion: registeredList
               ? `Registered models: ${registeredList}`
               : 'No models registered in any createDb() call.',

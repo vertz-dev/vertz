@@ -47,6 +47,7 @@ describe('DatabaseAnalyzer', () => {
       const result = await analyze();
       expect(result.databases).toHaveLength(1);
       expect(result.databases[0]?.modelKeys).toEqual(['users', 'tasks']);
+      expect(result.databases[0]?.modelValues).toEqual(['usersModel', 'tasksModel']);
     });
 
     it('detects with aliased import', async () => {
@@ -278,7 +279,7 @@ const db = createDb({
       return { ...createEmptyAppIR(), ...overrides };
     }
 
-    it('emits ENTITY_MODEL_NOT_REGISTERED when entity name is not in any createDb models', async () => {
+    it('emits ENTITY_MODEL_NOT_REGISTERED when entity model variable is not in any createDb models', async () => {
       const ir = createIR({
         entities: [
           {
@@ -306,6 +307,7 @@ const db = createDb({
         databases: [
           {
             modelKeys: ['users'],
+            modelValues: ['usersModel'],
             sourceFile: 'src/worker.ts',
             sourceLine: 12,
             sourceColumn: 1,
@@ -319,11 +321,11 @@ const db = createDb({
 
       expect(entityModelDiags).toHaveLength(1);
       expect(entityModelDiags[0]?.message).toContain('tasks');
-      expect(entityModelDiags[0]?.suggestion).toContain('users');
+      expect(entityModelDiags[0]?.message).toContain('tasksModel');
       expect(entityModelDiags[0]?.severity).toBe('error');
     });
 
-    it('emits no diagnostic when entity name matches a model key', async () => {
+    it('emits no diagnostic when entity model variable matches a registered model value', async () => {
       const ir = createIR({
         entities: [
           {
@@ -351,6 +353,50 @@ const db = createDb({
         databases: [
           {
             modelKeys: ['users', 'tasks'],
+            modelValues: ['usersModel', 'tasksModel'],
+            sourceFile: 'src/worker.ts',
+            sourceLine: 12,
+            sourceColumn: 1,
+          },
+        ],
+      });
+
+      const validator = new CompletenessValidator();
+      const diagnostics = await validator.validate(ir);
+      const entityModelDiags = diagnostics.filter((d) => d.code === 'ENTITY_MODEL_NOT_REGISTERED');
+
+      expect(entityModelDiags).toHaveLength(0);
+    });
+
+    it('emits no diagnostic when entity name differs from model key but model variable matches', async () => {
+      const ir = createIR({
+        entities: [
+          {
+            name: 'issue-labels',
+            sourceFile: 'src/entities/issue-labels.ts',
+            sourceLine: 5,
+            sourceColumn: 1,
+            modelRef: {
+              variableName: 'issueLabelsModel',
+              schemaRefs: { resolved: false },
+            },
+            access: {
+              list: 'none',
+              get: 'none',
+              create: 'none',
+              update: 'none',
+              delete: 'none',
+              custom: {},
+            },
+            hooks: { before: [], after: [] },
+            actions: [],
+            relations: [],
+          },
+        ],
+        databases: [
+          {
+            modelKeys: ['issueLabels'],
+            modelValues: ['issueLabelsModel'],
             sourceFile: 'src/worker.ts',
             sourceLine: 12,
             sourceColumn: 1,
@@ -393,6 +439,7 @@ const db = createDb({
         databases: [
           {
             modelKeys: [],
+            modelValues: [],
             sourceFile: 'src/worker.ts',
             sourceLine: 12,
             sourceColumn: 1,

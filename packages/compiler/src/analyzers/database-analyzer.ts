@@ -73,8 +73,8 @@ export class DatabaseAnalyzer extends BaseAnalyzer<DatabaseAnalyzerResult> {
     const modelsObj = this.resolveObjectLiteral(modelsValue);
     if (!modelsObj) return null;
 
-    const modelKeys = this.extractModelKeys(modelsObj, loc);
-    return { modelKeys, ...loc };
+    const { keys: modelKeys, values: modelValues } = this.extractModelEntries(modelsObj, loc);
+    return { modelKeys, modelValues, ...loc };
   }
 
   /**
@@ -100,11 +100,16 @@ export class DatabaseAnalyzer extends BaseAnalyzer<DatabaseAnalyzerResult> {
   }
 
   /**
-   * Extracts property keys from a models object, emitting warnings for
-   * spread assignments and computed property names that can't be resolved.
+   * Extracts property keys and value identifiers from a models object,
+   * emitting warnings for spread assignments and computed property names
+   * that can't be resolved.
    */
-  private extractModelKeys(obj: ObjectLiteralExpression, loc: SourceLocation): string[] {
+  private extractModelEntries(
+    obj: ObjectLiteralExpression,
+    loc: SourceLocation,
+  ): { keys: string[]; values: string[] } {
     const keys: string[] = [];
+    const values: string[] = [];
 
     for (const prop of obj.getProperties()) {
       if (prop.isKind(SyntaxKind.PropertyAssignment)) {
@@ -120,9 +125,14 @@ export class DatabaseAnalyzer extends BaseAnalyzer<DatabaseAnalyzerResult> {
           });
         } else {
           keys.push(prop.getName());
+          const init = prop.getInitializerOrThrow();
+          if (init.isKind(SyntaxKind.Identifier)) {
+            values.push(init.getText());
+          }
         }
       } else if (prop.isKind(SyntaxKind.ShorthandPropertyAssignment)) {
         keys.push(prop.getName());
+        values.push(prop.getName());
       } else if (prop.isKind(SyntaxKind.SpreadAssignment)) {
         this.addDiagnostic({
           severity: 'warning',
@@ -136,6 +146,6 @@ export class DatabaseAnalyzer extends BaseAnalyzer<DatabaseAnalyzerResult> {
       }
     }
 
-    return keys;
+    return { keys, values };
   }
 }

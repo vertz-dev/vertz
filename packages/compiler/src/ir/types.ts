@@ -222,6 +222,7 @@ export interface ResolvedField {
 
 export interface DatabaseIR extends SourceLocation {
   modelKeys: string[];
+  modelValues: string[];
 }
 
 // ── Entity ─────────────────────────────────────────────────────────
