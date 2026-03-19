@@ -139,7 +139,7 @@ export function createStripeBillingAdapter(config: StripeBillingAdapterConfig): 
         if (expectedRecurring === null || p.recurring === null) return false;
         return (
           p.recurring.interval === expectedRecurring.interval &&
-          p.recurring.interval_count === expectedRecurring.interval_count
+          (p.recurring.interval_count ?? 1) === (expectedRecurring.interval_count ?? 1)
         );
       });
 

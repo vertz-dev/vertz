@@ -277,6 +277,32 @@ describe('Feature: Stripe billing adapter', () => {
     });
   });
 
+  describe('Given a quarterly plan synced twice', () => {
+    it('is idempotent — does not create duplicate price for quarterly interval', async () => {
+      const stripe = createMockStripe();
+      const adapter = createStripeBillingAdapter({ stripe });
+
+      const plans = {
+        pro_quarterly: {
+          title: 'Pro Quarterly',
+          group: 'main',
+          price: { amount: 79, interval: 'quarter' as const },
+          features: ['doc:edit'],
+        },
+      };
+
+      await adapter.syncPlans(plans);
+      await adapter.syncPlans(plans);
+
+      expect(stripe._prices).toHaveLength(1);
+      expect(stripe._prices[0].active).toBe(true);
+      expect(stripe._prices[0].recurring).toEqual({
+        interval: 'month',
+        interval_count: 3,
+      });
+    });
+  });
+
   describe('Given placeholder methods', () => {
     it('createSubscription returns placeholder string', async () => {
       const stripe = createMockStripe();
