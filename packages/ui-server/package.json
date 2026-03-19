@@ -51,7 +51,7 @@
   "scripts": {
     "build": "bunup",
     "test": "bun test",
-    "test:integration": "bun test src/__tests__/bun-dev-server.integration.test.ts",
+    "test:integration": "bun test src/__tests__/bun-dev-server.integration.local.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
