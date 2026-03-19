@@ -2,6 +2,18 @@
  * Integration tests for deferred onMount — exercises the full runtime behavior
  * by simulating what the compiler generates (push/flush/discard mount frames
  * around JSX-like setup code).
+ *
+ * Each test uses the exact compiler-generated pattern:
+ *   const __mfDepth = __pushMountFrame();
+ *   try {
+ *     ... body ...
+ *     const __mfResult = <expr>;
+ *     __flushMountFrame();
+ *     return __mfResult;
+ *   } catch (__mfErr) {
+ *     __discardMountFrame(__mfDepth);
+ *     throw __mfErr;
+ *   }
  */
 import { afterEach, describe, expect, test } from 'bun:test';
 import { popScope, pushScope, runCleanups } from '../../runtime/disposal';
@@ -12,24 +24,19 @@ describe('Feature: Deferred onMount', () => {
   describe('Given a component with ref and onMount', () => {
     describe('When the component is rendered', () => {
       test('Then ref.current is available inside onMount callback', () => {
-        // Simulate: component creates a ref, registers onMount, then JSX sets it
         let capturedValue: string | undefined;
         const fakeRef = { current: undefined as string | undefined };
 
-        // Simulated compiled component:
-        __pushMountFrame();
+        const __mfDepth = __pushMountFrame();
         try {
           onMount(() => {
             capturedValue = fakeRef.current;
           });
-
-          // JSX IIFE — sets the ref
           fakeRef.current = 'element';
-
           __flushMountFrame();
-        } catch (e) {
-          __discardMountFrame();
-          throw e;
+        } catch (__mfErr) {
+          __discardMountFrame(__mfDepth);
+          throw __mfErr;
         }
 
         expect(capturedValue).toBe('element');
@@ -43,18 +50,17 @@ describe('Feature: Deferred onMount', () => {
         let cleaned = false;
 
         const scope = pushScope();
-        __pushMountFrame();
+        const __mfDepth = __pushMountFrame();
         try {
           onMount(() => {
             return () => {
               cleaned = true;
             };
           });
-
           __flushMountFrame();
-        } catch (e) {
-          __discardMountFrame();
-          throw e;
+        } catch (__mfErr) {
+          __discardMountFrame(__mfDepth);
+          throw __mfErr;
         }
         popScope();
 
@@ -70,31 +76,24 @@ describe('Feature: Deferred onMount', () => {
       test('Then child onMount runs before parent onMount', () => {
         const order: string[] = [];
 
-        // Parent component start
-        __pushMountFrame();
+        const parentDepth = __pushMountFrame();
         try {
-          onMount(() => {
-            order.push('parent');
-          });
+          onMount(() => order.push('parent'));
 
           // Child component (called during parent's JSX IIFE)
-          __pushMountFrame();
+          const childDepth = __pushMountFrame();
           try {
-            onMount(() => {
-              order.push('child');
-            });
-            // Child JSX
-            __flushMountFrame(); // flushes child
-          } catch (e) {
-            __discardMountFrame();
-            throw e;
+            onMount(() => order.push('child'));
+            __flushMountFrame();
+          } catch (__mfErr) {
+            __discardMountFrame(childDepth);
+            throw __mfErr;
           }
 
-          // Parent JSX continues...
-          __flushMountFrame(); // flushes parent
-        } catch (e) {
-          __discardMountFrame();
-          throw e;
+          __flushMountFrame();
+        } catch (__mfErr) {
+          __discardMountFrame(parentDepth);
+          throw __mfErr;
         }
 
         expect(order).toEqual(['child', 'parent']);
@@ -125,15 +124,15 @@ describe('Feature: Deferred onMount', () => {
         registerSSRResolver(() => fakeCtx);
 
         let ran = false;
-        __pushMountFrame();
+        const __mfDepth = __pushMountFrame();
         try {
           onMount(() => {
             ran = true;
           });
           __flushMountFrame();
-        } catch (e) {
-          __discardMountFrame();
-          throw e;
+        } catch (__mfErr) {
+          __discardMountFrame(__mfDepth);
+          throw __mfErr;
         }
 
         expect(ran).toBe(false);
@@ -147,26 +146,22 @@ describe('Feature: Deferred onMount', () => {
         const mounted: string[] = [];
         const items = ['a', 'b', 'c'];
 
-        // Simulate parent component's JSX IIFE calling child components in a loop
-        __pushMountFrame(); // parent
+        const parentDepth = __pushMountFrame();
         try {
           for (const id of items) {
-            // Each child component
-            __pushMountFrame();
+            const childDepth = __pushMountFrame();
             try {
-              onMount(() => {
-                mounted.push(id);
-              });
+              onMount(() => mounted.push(id));
               __flushMountFrame();
-            } catch (e) {
-              __discardMountFrame();
-              throw e;
+            } catch (__mfErr) {
+              __discardMountFrame(childDepth);
+              throw __mfErr;
             }
           }
-          __flushMountFrame(); // parent
-        } catch (e) {
-          __discardMountFrame();
-          throw e;
+          __flushMountFrame();
+        } catch (__mfErr) {
+          __discardMountFrame(parentDepth);
+          throw __mfErr;
         }
 
         expect(mounted).toEqual(['a', 'b', 'c']);
@@ -180,7 +175,8 @@ describe('Feature: Deferred onMount', () => {
         let firstRan = false;
         let thirdRan = false;
 
-        __pushMountFrame();
+        // Use the real compiler pattern: flush throws → propagates to catch → discard
+        const __mfDepth = __pushMountFrame();
         try {
           onMount(() => {
             firstRan = true;
@@ -191,11 +187,12 @@ describe('Feature: Deferred onMount', () => {
           onMount(() => {
             thirdRan = true;
           });
-
-          expect(() => __flushMountFrame()).toThrow('boom');
-        } catch (e) {
-          __discardMountFrame();
-          if (!(e instanceof Error && e.message === 'boom')) throw e;
+          __flushMountFrame(); // throws 'boom'
+          // Never reached — flush threw
+        } catch (__mfErr) {
+          __discardMountFrame(__mfDepth); // no-op — flush already popped
+          // Don't rethrow — we're testing the error was propagated
+          expect((__mfErr as Error).message).toBe('boom');
         }
 
         expect(firstRan).toBe(true);
@@ -207,33 +204,66 @@ describe('Feature: Deferred onMount', () => {
   describe('Given a component body that throws before flush', () => {
     describe('When the error propagates', () => {
       test('Then the mount frame is cleaned up (no leak)', () => {
-        // Component throws before reaching __flushMountFrame
         expect(() => {
-          __pushMountFrame();
+          const __mfDepth = __pushMountFrame();
           try {
             onMount(() => {
               /* should never run */
             });
             throw new Error('component body error');
-          } catch (e) {
-            __discardMountFrame();
-            throw e;
+          } catch (__mfErr) {
+            __discardMountFrame(__mfDepth); // pops the frame
+            throw __mfErr;
           }
         }).toThrow('component body error');
 
         // Stack should be clean — next component should work fine
         let ran = false;
-        __pushMountFrame();
+        const __mfDepth = __pushMountFrame();
         try {
           onMount(() => {
             ran = true;
           });
           __flushMountFrame();
-        } catch (e) {
-          __discardMountFrame();
-          throw e;
+        } catch (__mfErr) {
+          __discardMountFrame(__mfDepth);
+          throw __mfErr;
         }
         expect(ran).toBe(true);
+      });
+    });
+  });
+
+  describe('Given nested child where deferred callback throws', () => {
+    describe('When discard uses depth tracking', () => {
+      test('Then parent frame is NOT corrupted', () => {
+        const order: string[] = [];
+
+        const parentDepth = __pushMountFrame();
+        try {
+          onMount(() => order.push('parent'));
+
+          // Child component — its callback throws
+          const childDepth = __pushMountFrame();
+          try {
+            onMount(() => {
+              throw new Error('child error');
+            });
+            __flushMountFrame(); // pops child frame, throws
+          } catch (__mfErr) {
+            __discardMountFrame(childDepth); // no-op — already popped
+            // Swallow child error for this test
+          }
+
+          // Parent frame should still be intact
+          __flushMountFrame();
+        } catch (__mfErr) {
+          __discardMountFrame(parentDepth);
+          throw __mfErr;
+        }
+
+        // Parent callback ran despite child error
+        expect(order).toEqual(['parent']);
       });
     });
   });

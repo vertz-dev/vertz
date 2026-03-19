@@ -229,10 +229,39 @@ describe('Mount frame stack', () => {
 
   describe('Given __discardMountFrame called after __flushMountFrame', () => {
     test('When the frame was already popped by flush, Then __discardMountFrame is a safe no-op', () => {
-      __pushMountFrame();
+      const depth = __pushMountFrame();
       __flushMountFrame();
       // Should not throw or pop a parent frame
-      expect(() => __discardMountFrame()).not.toThrow();
+      expect(() => __discardMountFrame(depth)).not.toThrow();
+    });
+  });
+
+  describe('Given nested child where a deferred callback throws', () => {
+    test('When discard is called with depth, Then parent frame is NOT corrupted', () => {
+      const parentDepth = __pushMountFrame(); // parent frame
+      onMount(() => {
+        /* parent callback */
+      });
+
+      const childDepth = __pushMountFrame(); // child frame
+      onMount(() => {
+        throw new Error('child boom');
+      });
+
+      // Simulate compiler pattern: flush throws, catch calls discard
+      try {
+        __flushMountFrame(); // pops child frame, runs callback, throws
+      } catch {
+        __discardMountFrame(childDepth); // no-op — child frame already popped
+      }
+
+      // Parent frame should still be intact
+      let parentRan = false;
+      onMount(() => {
+        parentRan = true;
+      });
+      __flushMountFrame(); // flushes parent — should work correctly
+      expect(parentRan).toBe(true);
     });
   });
 

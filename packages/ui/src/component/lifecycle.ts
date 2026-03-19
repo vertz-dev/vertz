@@ -8,9 +8,14 @@ import { getSSRContext } from '../ssr/ssr-render-context';
 
 const mountFrames: Array<Array<() => void>> = [];
 
-/** Compiler-injected: push a new mount frame at component body start. */
-export function __pushMountFrame(): void {
+/**
+ * Compiler-injected: push a new mount frame at component body start.
+ * Returns the stack depth AFTER pushing — used by __discardMountFrame
+ * to avoid popping a parent frame if __flushMountFrame already popped ours.
+ */
+export function __pushMountFrame(): number {
   mountFrames.push([]);
+  return mountFrames.length;
 }
 
 /**
@@ -36,10 +41,14 @@ export function __flushMountFrame(): void {
 
 /**
  * Compiler-injected: discard the current mount frame in error paths.
- * Safe no-op if the frame was already popped by __flushMountFrame.
+ * Only pops if the stack depth still matches `expectedDepth` (the value
+ * returned by __pushMountFrame). This prevents popping a parent frame
+ * when __flushMountFrame already popped ours (e.g., a callback threw).
  */
-export function __discardMountFrame(): void {
-  mountFrames.pop();
+export function __discardMountFrame(expectedDepth: number): void {
+  if (mountFrames.length === expectedDepth) {
+    mountFrames.pop();
+  }
 }
 
 // ---------------------------------------------------------------------------

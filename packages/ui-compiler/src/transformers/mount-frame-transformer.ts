@@ -14,14 +14,14 @@ import { findBodyNode } from '../utils';
  * Generated pattern (block body):
  * ```
  * function Comp() {
- *   __pushMountFrame();
+ *   const __mfDepth = __pushMountFrame();
  *   try {
  *     ...body...
- *     const __mfResult = /* JSX IIFE * /;
+ *     const __mfResult0 = <JSX IIFE>;
  *     __flushMountFrame();
- *     return __mfResult;
+ *     return __mfResult0;
  *   } catch (__mfErr) {
- *     __discardMountFrame();
+ *     __discardMountFrame(__mfDepth);
  *     throw __mfErr;
  *   }
  * }
@@ -32,69 +32,105 @@ export class MountFrameTransformer {
     const bodyNode = findBodyNode(sourceFile, component);
 
     if (bodyNode && bodyNode.isKind(SyntaxKind.Block)) {
-      this._transformBlockBody(source, sourceFile, component, bodyNode);
+      this._transformBlockBody(source, component, bodyNode);
     } else {
       // Arrow function with expression body
       this._transformExpressionBody(source, component);
     }
   }
 
-  private _transformBlockBody(
-    source: MagicString,
-    _sourceFile: SourceFile,
-    component: ComponentInfo,
-    bodyNode: Node,
-  ): void {
-    // Find return statements that are direct children of this body (not nested functions)
+  private _transformBlockBody(source: MagicString, component: ComponentInfo, bodyNode: Node): void {
     const returnStatements = this._findDirectReturnStatements(bodyNode);
-
     if (returnStatements.length === 0) return;
 
     // Insert __pushMountFrame() + try { after the opening brace
-    const openBrace = component.bodyStart; // Position of '{'
-    source.appendRight(openBrace + 1, '\n__pushMountFrame();\ntry {');
+    const openBrace = component.bodyStart;
+    source.appendRight(openBrace + 1, '\nconst __mfDepth = __pushMountFrame();\ntry {');
 
-    // Wrap each return statement: return <expr> → const __mfResult = <expr>; __flushMountFrame(); return __mfResult;
-    for (const ret of returnStatements as ReturnStatement[]) {
+    // Wrap each return statement
+    let resultIdx = 0;
+    for (const ret of returnStatements) {
       const expr = ret.getExpression();
-      if (!expr) continue; // bare `return;` — no mount frame interaction
-
       const retStart = ret.getStart();
       const retEnd = ret.getEnd();
 
-      // Read the expression text from MagicString (includes prior transforms)
-      const exprText = source.slice(expr.getStart(), expr.getEnd());
+      // Check if this return is inside a braceless control flow statement
+      const needsBraces = this._isInBracelessControlFlow(ret);
 
-      // Replace `return <expr>;` with `const __mfResult = <expr>; __flushMountFrame(); return __mfResult;`
-      source.overwrite(
-        retStart,
-        retEnd,
-        `const __mfResult = ${exprText};\n__flushMountFrame();\nreturn __mfResult;`,
-      );
+      if (!expr) {
+        // Bare `return;` — flush (empty frame, effectively a no-op) before returning
+        const replacement = needsBraces
+          ? '{ __flushMountFrame(); return; }'
+          : '__flushMountFrame();\nreturn;';
+        source.overwrite(retStart, retEnd, replacement);
+      } else {
+        const varName = `__mfResult${resultIdx++}`;
+        const exprText = source.slice(expr.getStart(), expr.getEnd());
+        const replacement = needsBraces
+          ? `{ const ${varName} = ${exprText};\n__flushMountFrame();\nreturn ${varName}; }`
+          : `const ${varName} = ${exprText};\n__flushMountFrame();\nreturn ${varName};`;
+        source.overwrite(retStart, retEnd, replacement);
+      }
     }
 
     // Insert catch + closing braces before the function body close
-    const closeBrace = component.bodyEnd - 1; // Position before '}'
+    const closeBrace = component.bodyEnd - 1;
     source.appendLeft(
       closeBrace,
-      '\n} catch (__mfErr) {\n__discardMountFrame();\nthrow __mfErr;\n}\n',
+      '\n} catch (__mfErr) {\n__discardMountFrame(__mfDepth);\nthrow __mfErr;\n}\n',
     );
   }
 
   private _transformExpressionBody(source: MagicString, component: ComponentInfo): void {
-    // Arrow with expression body: const Comp = () => <div/>
-    // After JSX transform, the expression is an IIFE: (() => { ... })()
-    // We need to convert to block body: () => { __pushMountFrame(); try { ... } catch ... }
     const bodyStart = component.bodyStart;
     const bodyEnd = component.bodyEnd;
-
     const exprText = source.slice(bodyStart, bodyEnd);
 
     source.overwrite(
       bodyStart,
       bodyEnd,
-      `{\n__pushMountFrame();\ntry {\nconst __mfResult = ${exprText};\n__flushMountFrame();\nreturn __mfResult;\n} catch (__mfErr) {\n__discardMountFrame();\nthrow __mfErr;\n}\n}`,
+      `{\nconst __mfDepth = __pushMountFrame();\ntry {\nconst __mfResult0 = ${exprText};\n__flushMountFrame();\nreturn __mfResult0;\n} catch (__mfErr) {\n__discardMountFrame(__mfDepth);\nthrow __mfErr;\n}\n}`,
     );
+  }
+
+  /**
+   * Check whether a ReturnStatement is the direct body of a braceless
+   * control flow statement (if/else/for/while). In that case, the
+   * multi-statement replacement needs wrapping in { }.
+   */
+  private _isInBracelessControlFlow(ret: ReturnStatement): boolean {
+    const parent = ret.getParent();
+    if (!parent) return false;
+
+    // Check if parent is an if/else/for/while/do and this return is
+    // the "then" or "else" branch body (not inside a block)
+    if (parent.isKind(SyntaxKind.IfStatement)) {
+      const ifStmt = parent;
+      // The return is either the thenStatement or elseStatement
+      const thenStmt = ifStmt.getThenStatement();
+      const elseStmt = ifStmt.getElseStatement();
+      if (
+        (thenStmt === ret && !thenStmt.isKind(SyntaxKind.Block)) ||
+        (elseStmt === ret && !elseStmt.isKind(SyntaxKind.Block))
+      ) {
+        return true;
+      }
+    }
+
+    if (
+      parent.isKind(SyntaxKind.ForStatement) ||
+      parent.isKind(SyntaxKind.ForInStatement) ||
+      parent.isKind(SyntaxKind.ForOfStatement) ||
+      parent.isKind(SyntaxKind.WhileStatement) ||
+      parent.isKind(SyntaxKind.DoStatement)
+    ) {
+      // The return is the loop body
+      if (!ret.isKind(SyntaxKind.Block)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -110,11 +146,15 @@ export class MountFrameTransformer {
         return;
       }
 
-      // Don't recurse into nested functions
+      // Don't recurse into nested functions (any function-like node)
       if (
         node.isKind(SyntaxKind.ArrowFunction) ||
         node.isKind(SyntaxKind.FunctionExpression) ||
-        node.isKind(SyntaxKind.FunctionDeclaration)
+        node.isKind(SyntaxKind.FunctionDeclaration) ||
+        node.isKind(SyntaxKind.MethodDeclaration) ||
+        node.isKind(SyntaxKind.GetAccessor) ||
+        node.isKind(SyntaxKind.SetAccessor) ||
+        node.isKind(SyntaxKind.Constructor)
       ) {
         return;
       }
@@ -124,7 +164,6 @@ export class MountFrameTransformer {
       }
     }
 
-    // Walk the body's children (skip the body node itself)
     for (const child of bodyNode.getChildren()) {
       walk(child);
     }
