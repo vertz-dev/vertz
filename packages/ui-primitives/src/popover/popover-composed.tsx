@@ -5,7 +5,7 @@
  */
 
 import type { ChildValue } from '@vertz/ui';
-import { createContext, onMount, useContext } from '@vertz/ui';
+import { createContext, useContext } from '@vertz/ui';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
@@ -68,30 +68,6 @@ interface SlotProps {
 function PopoverTrigger({ children }: SlotProps) {
   const ctx = usePopoverContext('Trigger');
 
-  // Forward ARIA attrs and events to the user's child element.
-  onMount(() => {
-    const childNodes = Array.isArray(children) ? children : [children];
-    const childEl = childNodes.find((c): c is HTMLElement => c instanceof HTMLElement);
-    if (!childEl) return;
-
-    childEl.setAttribute('aria-haspopup', 'dialog');
-    childEl.setAttribute('aria-controls', ctx.contentId);
-    childEl.setAttribute('aria-expanded', 'false');
-    childEl.setAttribute('data-state', 'closed');
-
-    const handleClick = () => {
-      ctx.toggle();
-      const nowOpen = ctx.isOpen();
-      childEl.setAttribute('aria-expanded', nowOpen ? 'true' : 'false');
-      childEl.setAttribute('data-state', nowOpen ? 'open' : 'closed');
-    };
-    childEl.addEventListener('click', handleClick);
-
-    return () => {
-      childEl.removeEventListener('click', handleClick);
-    };
-  });
-
   return (
     <span
       style="display: contents"
@@ -100,6 +76,17 @@ function PopoverTrigger({ children }: SlotProps) {
       aria-controls={ctx.contentId}
       aria-expanded="false"
       data-state="closed"
+      onClick={() => {
+        ctx.toggle();
+        const nowOpen = ctx.isOpen();
+        const el = document.querySelector(
+          `[data-popover-trigger][aria-controls="${ctx.contentId}"]`,
+        );
+        if (el) {
+          el.setAttribute('aria-expanded', nowOpen ? 'true' : 'false');
+          el.setAttribute('data-state', nowOpen ? 'open' : 'closed');
+        }
+      }}
     >
       {children}
     </span>
@@ -165,9 +152,14 @@ function ComposedPopoverRoot({
 
   function getElements(): { trigger: HTMLElement | null; content: HTMLElement | null } {
     const content = document.getElementById(ids.contentId);
-    const trigger = content
+    let trigger = content
       ? (content.parentElement?.querySelector('[data-popover-trigger]') as HTMLElement | null)
       : null;
+    // The trigger wrapper uses display:contents (no box / zero rect).
+    // Walk down to the first descendant with actual layout for positioning.
+    while (trigger && getComputedStyle(trigger).display === 'contents') {
+      trigger = trigger.firstElementChild as HTMLElement | null;
+    }
     return { trigger, content };
   }
 
@@ -184,9 +176,14 @@ function ComposedPopoverRoot({
     syncContentAttrs(true);
 
     const { trigger, content } = getElements();
-    if (trigger && content && positioning) {
-      const result = createFloatingPosition(trigger, content, positioning);
+    if (trigger && content) {
+      // Always set up floating positioning (with sensible defaults).
+      content.style.position = 'fixed';
+      const floatingOpts = positioning ?? {};
+      const result = createFloatingPosition(trigger, content, floatingOpts);
       cleanup.floating = result.cleanup;
+
+      // Always set up dismiss (click-outside + Escape).
       cleanup.dismiss = createDismiss({
         onDismiss: close,
         insideElements: [trigger, content],
@@ -200,6 +197,15 @@ function ComposedPopoverRoot({
   function close(): void {
     isOpen = false;
     syncContentAttrs(false);
+
+    // Reset floating position styles
+    const content = document.getElementById(ids.contentId);
+    if (content) {
+      content.style.position = '';
+      content.style.left = '';
+      content.style.top = '';
+    }
+
     cleanup.floating?.();
     cleanup.floating = null;
     cleanup.dismiss?.();

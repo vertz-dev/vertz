@@ -103,6 +103,25 @@ export const demoStyles = css({
   sectionTitle: ['font:sm', 'font:medium', 'text:muted-foreground', 'mb:3'],
   row: ['flex', 'flex-wrap', 'items:center', 'gap:3'],
   col: ['flex', 'flex-col', 'gap:4'],
+  demoButton: [
+    'inline-flex',
+    'items:center',
+    'justify:center',
+    'rounded:md',
+    'text:sm',
+    'font:medium',
+    'px:4',
+    'border:1',
+    'border:border',
+    'bg:background',
+    'text:foreground',
+    'hover:bg:accent',
+    'hover:text:accent-foreground',
+    'cursor:pointer',
+    {
+      '&': { height: '2.25rem' },
+    },
+  ],
 });
 
 export const homeStyles = css({

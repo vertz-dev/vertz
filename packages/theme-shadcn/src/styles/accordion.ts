@@ -49,6 +49,12 @@ export function createAccordionStyles(): CSSOutput<AccordionBlocks> {
       {
         '&[data-state="closed"]': [animationDecl(`${accordionUp} 200ms ease-out forwards`)],
       },
+      {
+        '& [data-part="content-inner"]': {
+          'padding-bottom': '1rem',
+          'padding-top': '0',
+        },
+      },
     ],
   });
   return {

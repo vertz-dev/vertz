@@ -40,8 +40,6 @@ interface AccordionItemContextValue {
   /** Check if THIS item is open. Function to avoid eager signal reads. */
   isOpen: () => boolean;
   toggle: () => void;
-  /** @internal Register the content element for imperative animation control. */
-  _registerContentEl: (el: HTMLElement) => void;
 }
 
 const AccordionContext = createContext<AccordionContextValue | undefined>(
@@ -92,9 +90,6 @@ function AccordionItem({ value, children }: ItemProps) {
   const triggerId = `${baseId}-trigger`;
   const contentId = `${baseId}-content`;
 
-  // Mutable ref for the content element, set by AccordionContent via _registerContentEl.
-  let contentEl: HTMLElement | null = null;
-
   const itemCtx: AccordionItemContextValue = {
     value,
     triggerId,
@@ -102,17 +97,36 @@ function AccordionItem({ value, children }: ItemProps) {
     classes: ctx.classes,
     isOpen: () => ctx.isOpen(value),
     toggle: () => {
+      // Measure height BEFORE toggling — the signal update may trigger
+      // reactive re-evaluation that replaces the content DOM element.
+      const beforeEl = document.getElementById(contentId);
+      const prevHeight = beforeEl?.scrollHeight ?? 0;
+
       ctx.toggle(value);
       const nowOpen = ctx.isOpen(value);
 
+      // Re-lookup after toggle — element may have been replaced reactively.
+      const contentEl = document.getElementById(contentId);
       if (contentEl) {
         if (nowOpen) {
           setHidden(contentEl, false);
-        }
-        const height = contentEl.scrollHeight;
-        contentEl.style.setProperty('--accordion-content-height', `${height}px`);
-        setDataState(contentEl, nowOpen ? 'open' : 'closed');
-        if (!nowOpen) {
+          const height = contentEl.scrollHeight;
+          contentEl.style.setProperty('--accordion-content-height', `${height}px`);
+          setDataState(contentEl, 'open');
+        } else {
+          // The reactive system may have created a new element starting in
+          // closed/hidden state. To animate the close transition:
+          // 1. Show it and set data-state="open" so the browser has a start state
+          // 2. Force reflow so the browser registers the open state
+          // 3. Transition to data-state="closed" to trigger the CSS animation
+          contentEl.style.display = '';
+          contentEl.setAttribute('aria-hidden', 'false');
+          contentEl.setAttribute('data-state', 'open');
+          contentEl.style.setProperty('--accordion-content-height', `${prevHeight}px`);
+          // Force reflow — browser needs to register the "open" state
+          // before we transition to "closed" to trigger the animation.
+          void contentEl.offsetHeight;
+          setDataState(contentEl, 'closed');
           setHiddenAnimated(contentEl, true);
         }
       }
@@ -123,9 +137,6 @@ function AccordionItem({ value, children }: ItemProps) {
         setExpanded(triggerEl, nowOpen);
         setDataState(triggerEl, nowOpen ? 'open' : 'closed');
       }
-    },
-    _registerContentEl: (el: HTMLElement) => {
-      contentEl = el;
     },
   };
 
@@ -178,24 +189,30 @@ function AccordionContent({ children, className: cls, class: classProp }: SlotPr
   }
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
-  const initiallyOpen = ctx.isOpen();
 
+  // Attributes are set imperatively below — NOT in JSX — to avoid the
+  // compiler making them reactive.  When ctx.isOpen() changes, reactive
+  // JSX would synchronously set style="display:none" *before* the toggle
+  // handler can measure scrollHeight and set up setHiddenAnimated, which
+  // kills the close animation.
   const el = (
     <div
       role="region"
       id={ctx.contentId}
       data-accordion-content=""
       aria-labelledby={ctx.triggerId}
-      aria-hidden={initiallyOpen ? 'false' : 'true'}
-      data-state={initiallyOpen ? 'open' : 'closed'}
-      style={initiallyOpen ? '' : 'display: none'}
       class={combined || undefined}
     >
-      {children}
+      <div data-part="content-inner">{children}</div>
     </div>
   ) as HTMLElement;
 
-  ctx._registerContentEl(el);
+  // Set initial state imperatively (works for SSR too).
+  // The toggle handler manages all subsequent updates.
+  const isOpen = ctx.isOpen();
+  el.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+  el.setAttribute('data-state', isOpen ? 'open' : 'closed');
+  if (!isOpen) el.style.display = 'none';
 
   return el;
 }
