@@ -2867,11 +2867,8 @@ describe('createAccessContext', () => {
       const planStart = new Date('2026-01-01T00:00:00Z');
       await subscriptionStore.assign('org-1', 'starter', planStart);
 
-      // Set old-style override on subscription
-      const sub = await subscriptionStore.get('org-1');
-      if (sub) {
-        sub.overrides.api_calls = { max: 500 };
-      }
+      // Set old-style override on subscription via proper API
+      await subscriptionStore.updateOverrides('org-1', { api_calls: { max: 500 } });
 
       const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
 

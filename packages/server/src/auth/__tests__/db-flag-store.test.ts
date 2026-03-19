@@ -66,13 +66,15 @@ describe('DbFlagStore.loadFlags()', () => {
   });
 
   it('clears old cache before loading', async () => {
-    // Insert a flag via setFlag (which persists to DB)
-    store.setFlag('org-1', 'old-flag', true);
+    // Insert a flag directly into DB and load it into cache
+    const id = crypto.randomUUID();
+    await testDb.db.query(
+      sql`INSERT INTO auth_flags (id, tenant_id, flag, enabled) VALUES (${id}, ${'org-1'}, ${'old-flag'}, ${1})`,
+    );
+    await store.loadFlags();
+    expect(store.getFlag('org-1', 'old-flag')).toBe(true);
 
-    // Wait for fire-and-forget write to complete
-    await new Promise((r) => setTimeout(r, 50));
-
-    // Delete the row from DB directly so loadFlags gets an empty set
+    // Delete the row from DB so next loadFlags gets an empty set
     await testDb.db.query(
       sql`DELETE FROM auth_flags WHERE tenant_id = ${'org-1'} AND flag = ${'old-flag'}`,
     );

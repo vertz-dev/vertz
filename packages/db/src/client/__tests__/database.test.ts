@@ -1110,6 +1110,10 @@ describe('delegate include paths', () => {
 // ---------------------------------------------------------------------------
 
 describe('PostgreSQL lazy init and replica routing', () => {
+  afterEach(() => {
+    mock.restore();
+  });
+
   function createMockPgDriver(overrides?: Partial<PostgresDriver>): PostgresDriver {
     return {
       queryFn: async <T>() => ({ rows: [{ id: '1' }] as unknown as T[], rowCount: 1 }),
