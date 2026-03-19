@@ -274,6 +274,21 @@ describe('importServerModule', () => {
     expect(typeof mod.requestHandler).toBe('function');
   });
 
+  it('ignores requestHandler when it is not a function', async () => {
+    const serverPath = join(tmpDir, 'server-bad-request-handler.ts');
+    writeFileSync(
+      serverPath,
+      `
+      const app = { handler: async (req: Request) => new Response('ok'), requestHandler: 'not-a-function' };
+      export default app;
+    `,
+    );
+
+    const mod = await importServerModule(serverPath);
+
+    expect(mod.requestHandler).toBeUndefined();
+  });
+
   it('returns undefined requestHandler when not present', async () => {
     const serverPath = join(tmpDir, 'server-no-request-handler.ts');
     writeFileSync(

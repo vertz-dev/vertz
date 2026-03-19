@@ -61,6 +61,8 @@ export function resolveDevMode(detected: DetectedApp): DevMode {
 /**
  * Import the user's server module via jiti and validate that it exports
  * a default object with a `.handler` function (duck-type check).
+ * When auth is configured, also extracts `.requestHandler` which routes
+ * both auth and entity requests.
  *
  * The user's server.ts must follow the convention:
  * ```ts
@@ -106,6 +108,17 @@ export async function importServerModule(serverEntry: string): Promise<ServerMod
     );
   }
 
+  // Auto-wire requestHandler if available (duck-type check)
+  // requestHandler routes both auth and entity requests when auth is configured
+  let requestHandler: ((req: Request) => Promise<Response>) | undefined;
+  if (
+    'requestHandler' in mod &&
+    typeof (mod as Record<string, unknown>).requestHandler === 'function'
+  ) {
+    requestHandler = (mod as { requestHandler: (req: Request) => Promise<Response> })
+      .requestHandler;
+  }
+
   // Auto-wire session resolver if auth is configured (duck-type check)
   let sessionResolver: ((req: Request) => Promise<unknown>) | undefined;
   if (
@@ -123,7 +136,7 @@ export async function importServerModule(serverEntry: string): Promise<ServerMod
     initialize = (mod as { initialize: () => Promise<void> }).initialize;
   }
 
-  return { ...(mod as ServerModule), sessionResolver, initialize };
+  return { ...(mod as ServerModule), requestHandler, sessionResolver, initialize };
 }
 
 /**
