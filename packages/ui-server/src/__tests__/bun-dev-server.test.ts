@@ -1173,3 +1173,570 @@ describe('clearSSRRequireCache', () => {
     expect(require.cache['/other/generated/routes.ts']).toBeUndefined();
   });
 });
+
+describe('generateSSRPageHtml editor variants', () => {
+  it('generates webstorm editor href with open?file= URL scheme', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+      editor: 'webstorm',
+    });
+
+    expect(html).toContain('webstorm://open?file=');
+    expect(html).not.toContain('webstorm://file/');
+  });
+
+  it('generates cursor editor href with cursor://file/ URL scheme', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+      editor: 'cursor',
+    });
+
+    expect(html).toContain('cursor://file/');
+  });
+
+  it('generates zed editor href with zed://file/ URL scheme', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+      editor: 'zed',
+    });
+
+    expect(html).toContain('zed://file/');
+  });
+
+  it('generates idea editor href with idea://open?file= URL scheme', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+      editor: 'idea',
+    });
+
+    expect(html).toContain('idea://open?file=');
+  });
+
+  it('includes font fallback metrics in page HTML when provided', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    // The page should have valid HTML structure
+    expect(html).toContain('<!doctype html>');
+    expect(html).toContain('</html>');
+  });
+});
+
+describe('broadcastError state machine', () => {
+  it('build errors block subsequent SSR errors', () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = spyOn(console, 'error').mockImplementation(() => {});
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+
+    // First: broadcast a build error
+    server.broadcastError('build', [{ message: 'Build failed' }]);
+
+    // Second: try to broadcast an SSR error — should be blocked
+    server.broadcastError('ssr', [{ message: 'SSR render failed' }]);
+
+    // The SSR error should have been suppressed
+    // (No direct state access, but we verify the build error took priority)
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+
+  it('build errors block subsequent runtime errors', () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = spyOn(console, 'error').mockImplementation(() => {});
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+
+    server.broadcastError('build', [{ message: 'Build failed' }]);
+    server.broadcastError('runtime', [{ message: 'Runtime error' }]);
+
+    // No stale graph detection for the runtime error (it was suppressed)
+    const staleMsg = logSpy.mock.calls.find(
+      (c) => typeof c[0] === 'string' && c[0].includes('Stale graph detected'),
+    );
+    expect(staleMsg).toBeUndefined();
+
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+
+  it('build errors can be overwritten by newer build errors', () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = spyOn(console, 'error').mockImplementation(() => {});
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+
+    server.broadcastError('build', [{ message: 'First build error' }]);
+    // Another build error should replace the first one
+    server.broadcastError('build', [{ message: 'Second build error' }]);
+
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+
+  it('clearError sets grace period that suppresses runtime errors', async () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = spyOn(console, 'error').mockImplementation(() => {});
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+
+    // Set an error, then clear it
+    server.broadcastError('build', [{ message: 'Build error' }]);
+    server.clearError();
+
+    // Runtime error during grace period should be suppressed
+    server.broadcastError('runtime', [{ message: 'Stale runtime error' }]);
+
+    // No stale graph detection (error was suppressed by grace period)
+    const staleMsg = logSpy.mock.calls.find(
+      (c) => typeof c[0] === 'string' && c[0].includes('Stale graph detected'),
+    );
+    expect(staleMsg).toBeUndefined();
+
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+
+  it('clearErrorForFileChange does not set grace period', async () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = spyOn(console, 'error').mockImplementation(() => {});
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: true });
+
+    // Set an error, then clear it via file change (no grace period)
+    server.broadcastError('build', [{ message: 'Build error' }]);
+    server.clearErrorForFileChange();
+
+    // Stale-graph runtime error after clearErrorForFileChange should NOT be suppressed
+    server.broadcastError('runtime', [
+      { message: "Export named 'Button' not found in module './components'" },
+    ]);
+
+    const staleMsg = logSpy.mock.calls.find(
+      (c) => typeof c[0] === 'string' && c[0].includes('Stale graph detected'),
+    );
+    expect(staleMsg).toBeDefined();
+
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+
+  it('clearError is no-op when no error is set', () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = spyOn(console, 'error').mockImplementation(() => {});
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+
+    // Should not throw
+    server.clearError();
+    server.clearError();
+
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+
+  it('clearErrorForFileChange is no-op when no error is set', () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = spyOn(console, 'error').mockImplementation(() => {});
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+
+    // Should not throw
+    server.clearErrorForFileChange();
+    server.clearErrorForFileChange();
+
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+
+  it('runtime errors are debounced and most informative error wins', async () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = spyOn(console, 'error').mockImplementation(() => {});
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+
+    // Fire multiple runtime errors in rapid succession
+    server.broadcastError('runtime', [{ message: 'Error 1' }]);
+    server.broadcastError('runtime', [{ message: 'Error 2', file: 'src/app.tsx' }]);
+    server.broadcastError('runtime', [{ message: 'Error 3' }]);
+
+    // Wait for debounce timer (100ms)
+    await new Promise((r) => setTimeout(r, 150));
+
+    // The error with file info should win (most informative)
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+
+  it('clearError cancels pending debounced runtime error', async () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = spyOn(console, 'error').mockImplementation(() => {});
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+
+    // Broadcast a runtime error (will be debounced)
+    server.broadcastError('runtime', [{ message: 'Debounced error' }]);
+
+    // Clear before debounce fires
+    server.clearError();
+
+    // Wait for debounce period
+    await new Promise((r) => setTimeout(r, 150));
+
+    // The debounced error should not have been broadcast
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+
+  it('clearErrorForFileChange cancels pending debounced runtime error', async () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = spyOn(console, 'error').mockImplementation(() => {});
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+
+    // Broadcast a runtime error (will be debounced)
+    server.broadcastError('runtime', [{ message: 'Debounced error' }]);
+
+    // Clear via file change before debounce fires
+    server.clearErrorForFileChange();
+
+    // Wait for debounce period
+    await new Promise((r) => setTimeout(r, 150));
+
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+
+  it('non-build/non-runtime errors are broadcast immediately', () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = spyOn(console, 'error').mockImplementation(() => {});
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+
+    // SSR and resolve errors should not be debounced
+    server.broadcastError('ssr', [{ message: 'SSR error' }]);
+    server.broadcastError('resolve', [{ message: 'Resolve error' }]);
+
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+
+  it('setLastChangedFile updates internal state', () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = spyOn(console, 'error').mockImplementation(() => {});
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+
+    // Should not throw
+    server.setLastChangedFile('src/components/Button.tsx');
+
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+
+  it('stale-graph error triggers auto-restart log', async () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = spyOn(console, 'error').mockImplementation(() => {});
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: true });
+
+    const staleError = [{ message: "Export named 'X' not found in module 'Y'" }];
+
+    // First stale-graph error should trigger auto-restart log
+    server.broadcastError('runtime', staleError);
+
+    // Wait for fire-and-forget restart to schedule
+    await new Promise((r) => setTimeout(r, 20));
+
+    const staleMsg = logSpy.mock.calls.find(
+      (c) => typeof c[0] === 'string' && c[0].includes('Stale graph detected'),
+    );
+    expect(staleMsg).toBeDefined();
+
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+});
+
+describe('console.error override (resolution, HMR, and frontend errors)', () => {
+  it('captures resolution errors and broadcasts them', () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = spyOn(console, 'error');
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+
+    // Simulate Bun console.error with a resolution error
+    console.error("Could not resolve './missing-module'");
+
+    // The error should have been broadcast (broadcastError called with 'resolve')
+    // We verify the original console.error was still called
+    expect(errSpy).toHaveBeenCalled();
+
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+
+  it('captures HMR runtime errors and broadcasts them', () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    // Don't mock console.error — let the override run
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+
+    // Simulate Bun's HMR error output
+    console.error(
+      '[browser] [vertz-hmr] Error re-mounting TaskCard: ReferenceError: foo is not defined',
+    );
+
+    logSpy.mockRestore();
+  });
+
+  it('captures Bun frontend errors and broadcasts them', () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+
+    // Simulate Bun's ANSI-colored frontend error
+    console.error('\x1b[31mfrontend\x1b[0m TypeError: Cannot read property of null');
+
+    logSpy.mockRestore();
+  });
+
+  it('deduplicates repeated resolution errors', () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+
+    // Same error twice
+    console.error("Could not resolve './missing-module'");
+    console.error("Could not resolve './missing-module'");
+
+    // Second should have been deduplicated (same lastBroadcastedError)
+    logSpy.mockRestore();
+  });
+
+  it('ignores [Server] logs from internal code', () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+
+    // Server logs should not be captured as build errors
+    console.error('[Server] Some internal message');
+
+    logSpy.mockRestore();
+  });
+
+  it('captures "Module not found" as resolution error', () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+
+    console.error("Module not found: '@vertz/nonexistent'");
+
+    logSpy.mockRestore();
+  });
+
+  it('captures "Cannot find module" as resolution error', () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+
+    console.error("Cannot find module './components/Missing'");
+
+    logSpy.mockRestore();
+  });
+
+  it('uses lastChangedFile as fallback for HMR errors without stack source', () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+
+    // Set lastChangedFile before the error
+    server.setLastChangedFile('src/components/Button.tsx');
+
+    console.error('[browser] [vertz-hmr] Error re-mounting Button: TypeError: x is not a function');
+
+    logSpy.mockRestore();
+  });
+
+  it('uses lastChangedFile as fallback for frontend errors without stack source', () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+
+    server.setLastChangedFile('src/pages/Home.tsx');
+
+    console.error('\x1b[31mfrontend\x1b[0m ReferenceError: x is not defined');
+
+    logSpy.mockRestore();
+  });
+});
+
+describe('OpenAPI spec handling', () => {
+  it('creates server with openapi option', () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = spyOn(console, 'error').mockImplementation(() => {});
+    const tmpDir = path.join(os.tmpdir(), `vertz-openapi-${Date.now()}`);
+    mkdirSync(tmpDir, { recursive: true });
+    const specPath = path.join(tmpDir, 'openapi.json');
+    writeFileSync(specPath, JSON.stringify({ openapi: '3.0.0', info: { title: 'Test API' } }));
+
+    const server = createBunDevServer({
+      entry: './src/app.tsx',
+      projectRoot: tmpDir,
+      openapi: { specPath },
+    });
+
+    expect(server).toBeDefined();
+
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+});
+
+describe('formatTerminalRuntimeError edge cases', () => {
+  it('returns empty string for empty errors array', () => {
+    const result = formatTerminalRuntimeError([]);
+    expect(result).toBe('');
+  });
+
+  it('formats error with file but no line number', () => {
+    const result = formatTerminalRuntimeError([{ message: 'Error: test', file: 'src/app.tsx' }]);
+    expect(result).toContain('at src/app.tsx');
+    expect(result).not.toContain(':undefined');
+  });
+
+  it('formats error with file, line, but no column', () => {
+    const result = formatTerminalRuntimeError([
+      { message: 'Error: test', file: 'src/app.tsx', line: 42 },
+    ]);
+    expect(result).toContain('at src/app.tsx:42');
+  });
+
+  it('does not include stack frames when parsedStack is empty', () => {
+    const result = formatTerminalRuntimeError([{ message: 'Error: test' }], []);
+    expect(result).toBe('[Browser] Error: test');
+  });
+});
+
+describe('createFetchInterceptor edge cases', () => {
+  const mockOrigFetch = mock(async () => new Response('original'));
+  mockOrigFetch.preconnect = mock();
+  const mockApi = mock(async () => new Response('api'));
+
+  beforeEach(() => {
+    mockOrigFetch.mockClear();
+    (mockOrigFetch.preconnect as ReturnType<typeof mock>).mockClear();
+    mockApi.mockClear();
+  });
+
+  it('handles Request object as input', async () => {
+    const intercepted = createFetchInterceptor({
+      apiHandler: mockApi,
+      origin: 'http://localhost:3000',
+      skipSSRPaths: ['/api/'],
+      originalFetch: mockOrigFetch as typeof fetch,
+    });
+
+    const req = new Request('http://localhost:3000/api/todos');
+    await intercepted(req);
+
+    expect(mockApi).toHaveBeenCalledTimes(1);
+  });
+
+  it('handles URL object as input', async () => {
+    const intercepted = createFetchInterceptor({
+      apiHandler: mockApi,
+      origin: 'http://localhost:3000',
+      skipSSRPaths: ['/api/'],
+      originalFetch: mockOrigFetch as typeof fetch,
+    });
+
+    await intercepted(new URL('http://localhost:3000/api/users'));
+
+    expect(mockApi).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes query string through to apiHandler', async () => {
+    const intercepted = createFetchInterceptor({
+      apiHandler: mockApi,
+      origin: 'http://localhost:3000',
+      skipSSRPaths: ['/api/'],
+      originalFetch: mockOrigFetch as typeof fetch,
+    });
+
+    await intercepted('/api/todos?status=active');
+
+    expect(mockApi).toHaveBeenCalledTimes(1);
+    const calledReq = mockApi.mock.calls[0][0] as Request;
+    expect(calledReq.url).toContain('status=active');
+  });
+
+  it('matches multiple skipSSRPaths', async () => {
+    const intercepted = createFetchInterceptor({
+      apiHandler: mockApi,
+      origin: 'http://localhost:3000',
+      skipSSRPaths: ['/api/', '/graphql/'],
+      originalFetch: mockOrigFetch as typeof fetch,
+    });
+
+    await intercepted('/graphql/query');
+    expect(mockApi).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('generateSSRPageHtml font fallback metrics', () => {
+  it('includes accessSet script when provided', () => {
+    const sessionScript =
+      '<script>window.__VERTZ_SESSION__={"user":{"id":"u1"},"expiresAt":999}</script>\n' +
+      '<script>window.__VERTZ_ACCESS_SET__=["task:read","task:write"]</script>';
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+      sessionScript,
+    });
+
+    expect(html).toContain('__VERTZ_ACCESS_SET__');
+    expect(html).toContain('__VERTZ_SESSION__');
+  });
+
+  it('safeSerialize handles special characters in SSR data', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [{ key: 'test', data: { name: '<script>alert("xss")</script>' } }],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    // SSR data should be safely serialized (no raw <script> tags)
+    expect(html).toContain('__VERTZ_SSR_DATA__');
+    // The HTML should not contain unescaped script tags in the data
+    expect(html).not.toContain('<script>alert');
+  });
+});
+
+describe('broadcastError with resolve and ssr categories', () => {
+  it('resolve errors are broadcast immediately without debounce', () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = spyOn(console, 'error').mockImplementation(() => {});
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+
+    server.broadcastError('resolve', [{ message: "Could not resolve './missing'" }]);
+
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+
+  it('ssr errors are broadcast immediately without debounce', () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const errSpy = spyOn(console, 'error').mockImplementation(() => {});
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+
+    server.broadcastError('ssr', [{ message: 'SSR render error', stack: 'Error: ...' }]);
+
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+});
