@@ -1891,7 +1891,7 @@ describe('bun-dev-server integration', () => {
     // Send resolve-stack
     const errorMsg = new Promise<string>((resolve) => {
       ws.onmessage = (e) => resolve(typeof e.data === 'string' ? e.data : '');
-      setTimeout(() => resolve(''), 3000);
+      setTimeout(() => resolve(''), 1500);
     });
 
     ws.send(
@@ -1947,7 +1947,7 @@ describe('bun-dev-server integration', () => {
           resolve();
         }
       };
-      setTimeout(resolve, 5000);
+      setTimeout(resolve, 1500);
     });
 
     ws.send(
@@ -2000,7 +2000,7 @@ describe('bun-dev-server integration', () => {
           resolve();
         }
       };
-      setTimeout(resolve, 5000);
+      setTimeout(resolve, 1500);
     });
 
     ws.send(
@@ -2061,7 +2061,7 @@ describe('bun-dev-server integration', () => {
           resolve();
         }
       };
-      setTimeout(resolve, 3000);
+      setTimeout(resolve, 1500);
     });
 
     // Send non-string stack to trigger resolveStack rejection → .catch() handler
@@ -2115,7 +2115,7 @@ describe('bun-dev-server integration', () => {
           resolve();
         }
       };
-      setTimeout(resolve, 3000);
+      setTimeout(resolve, 1500);
     });
 
     // Send non-string stack to trigger .catch() with lastChangedFile
@@ -2168,7 +2168,7 @@ describe('bun-dev-server integration', () => {
           resolve();
         }
       };
-      setTimeout(resolve, 3000);
+      setTimeout(resolve, 1500);
     });
 
     // Send non-string stack — no file context available
@@ -2274,7 +2274,7 @@ describe('bun-dev-server integration', () => {
 
     // Send restart
     ws.send(JSON.stringify({ type: 'restart' }));
-    await new Promise((r) => setTimeout(r, 2000));
+    await new Promise((r) => setTimeout(r, 500));
 
     ws.close();
 
@@ -2543,7 +2543,7 @@ describe('bun-dev-server integration', () => {
     // Wait for the clear message
     const clearMsg = new Promise<string>((resolve) => {
       ws.onmessage = (e) => resolve(typeof e.data === 'string' ? e.data : '');
-      setTimeout(() => resolve('timeout'), 10000);
+      setTimeout(() => resolve('timeout'), 2000);
     });
 
     const result = await clearMsg;
