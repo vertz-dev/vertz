@@ -142,5 +142,53 @@ describe('Composed Checkbox', () => {
         expect(indicator.querySelector('svg')).toBeNull();
       });
     });
+
+    describe('When toggled to unchecked then back to checked', () => {
+      it('Then exactly one SVG is present in the indicator (no duplicates)', () => {
+        const root = ComposedCheckbox({ defaultChecked: true });
+        container.appendChild(root);
+
+        const btn = (root.querySelector('[role="checkbox"]') ?? root) as HTMLElement;
+        const indicator = btn.querySelector('[data-part="indicator"]') as HTMLElement;
+
+        // Initial: one SVG
+        expect(indicator.querySelectorAll('svg').length).toBe(1);
+
+        // Uncheck
+        btn.click();
+        expect(indicator.querySelectorAll('svg').length).toBe(0);
+
+        // Re-check — must have exactly ONE SVG, not two
+        btn.click();
+        expect(indicator.querySelectorAll('svg').length).toBe(1);
+      });
+    });
+  });
+
+  describe('Given an unchecked ComposedCheckbox', () => {
+    describe('When toggled to checked then back to unchecked then checked again', () => {
+      it('Then exactly one SVG is present after each check', () => {
+        const root = ComposedCheckbox({ defaultChecked: false });
+        container.appendChild(root);
+
+        const btn = (root.querySelector('[role="checkbox"]') ?? root) as HTMLElement;
+        const indicator = btn.querySelector('[data-part="indicator"]') as HTMLElement;
+
+        // Initial: no SVG
+        expect(indicator.querySelectorAll('svg').length).toBe(0);
+
+        // Check — one SVG
+        btn.click();
+        expect(indicator.querySelectorAll('svg').length).toBe(1);
+
+        // Uncheck — no SVG
+        btn.click();
+        expect(indicator.querySelectorAll('svg').length).toBe(0);
+
+        // Re-check — exactly one SVG
+        btn.click();
+        expect(indicator.querySelectorAll('svg').length).toBe(1);
+      });
+    });
   });
 });
