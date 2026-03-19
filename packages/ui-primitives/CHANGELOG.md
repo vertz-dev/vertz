@@ -1,5 +1,32 @@
 # @vertz/ui-primitives
 
+## 0.2.22
+
+### Patch Changes
+
+- [#1498](https://github.com/vertz-dev/vertz/pull/1498) [`8ed55f6`](https://github.com/vertz-dev/vertz/commit/8ed55f6fc8aa691758606fe044a8b1d74b7bb9bc) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Convert collapsible factory to declarative JSX component with sub-components (Collapsible.Trigger, Collapsible.Content)
+
+- [#1505](https://github.com/vertz-dev/vertz/pull/1505) [`5d64812`](https://github.com/vertz-dev/vertz/commit/5d6481233006f67c21375f3879fda600c86c0cdd) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Convert DatePicker factory to declarative JSX component with sub-components (DatePicker.Trigger, DatePicker.Content)
+
+- [#1535](https://github.com/vertz-dev/vertz/pull/1535) [`179829d`](https://github.com/vertz-dev/vertz/commit/179829d9df73097aead0d666a1b130c9a138573b) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix dialog close animation not playing with native `<dialog>`. Reorder close logic to call hideDialog() before updating reactive state, force reflow to start CSS animation, prevent native close on Escape, and add ::backdrop fade-out animation.
+
+- [#1530](https://github.com/vertz-dev/vertz/pull/1530) [`4c96794`](https://github.com/vertz-dev/vertz/commit/4c967943b0289542b0162556e299a309e4a86f1f) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix 7 test failures in composed components (context-menu, menubar, carousel, command, hover-card): wire event handlers via JSX instead of dead onMount blocks, fix focus/blur to use bubbling focusin/focusout events, work around happy-dom wrapper identity issue in tests.
+
+- [#1500](https://github.com/vertz-dev/vertz/pull/1500) [`180ac91`](https://github.com/vertz-dev/vertz/commit/180ac91f4fbc562581136dd8256f67fcc724fa69) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Convert HoverCard factory to JSX component with composed primitives
+
+- [#1537](https://github.com/vertz-dev/vertz/pull/1537) [`e248ac3`](https://github.com/vertz-dev/vertz/commit/e248ac37bb9639d213ad5326d70db08a59adb7ff) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Remove getElementById workarounds from Dialog, AlertDialog, and Sheet composed components. Share dialog ref through context so showModal/close use ref directly instead of document.getElementById. JSX event handlers on CSR-rendered elements inside \_\_child wrappers are already on DOM-connected elements, making the imperative onMount+getElementById wiring unnecessary.
+
+- [#1507](https://github.com/vertz-dev/vertz/pull/1507) [`6d32565`](https://github.com/vertz-dev/vertz/commit/6d32565c2818f9235d02af14a616279f018d0ff5) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Convert ResizablePanel factory to JSX component with context-based sub-components
+
+- [#1502](https://github.com/vertz-dev/vertz/pull/1502) [`2e99e39`](https://github.com/vertz-dev/vertz/commit/2e99e3943830d2e2e0b2b44a1b32d8641e63dbe3) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Convert ScrollArea factory to JSX component with composed primitives
+
+- [#1534](https://github.com/vertz-dev/vertz/pull/1534) [`fabfb87`](https://github.com/vertz-dev/vertz/commit/fabfb879cd93dbcedbae4490996e8ce9cedf9457) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix Select: click-outside dismiss, add chevron SVG icon, float dropdown over content
+
+- [#1503](https://github.com/vertz-dev/vertz/pull/1503) [`1c4916b`](https://github.com/vertz-dev/vertz/commit/1c4916b04eaaef0ee2e27eda1b73c36ae24e665e) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Convert ToggleGroup factory to JSX component with composed primitives
+
+- Updated dependencies [[`8ed55f6`](https://github.com/vertz-dev/vertz/commit/8ed55f6fc8aa691758606fe044a8b1d74b7bb9bc), [`5d64812`](https://github.com/vertz-dev/vertz/commit/5d6481233006f67c21375f3879fda600c86c0cdd), [`180ac91`](https://github.com/vertz-dev/vertz/commit/180ac91f4fbc562581136dd8256f67fcc724fa69), [`6d32565`](https://github.com/vertz-dev/vertz/commit/6d32565c2818f9235d02af14a616279f018d0ff5), [`2e99e39`](https://github.com/vertz-dev/vertz/commit/2e99e3943830d2e2e0b2b44a1b32d8641e63dbe3), [`1c4916b`](https://github.com/vertz-dev/vertz/commit/1c4916b04eaaef0ee2e27eda1b73c36ae24e665e)]:
+  - @vertz/ui@0.2.22
+
 ## 0.2.21
 
 ### Patch Changes

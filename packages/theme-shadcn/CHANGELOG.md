@@ -1,5 +1,37 @@
 # @vertz/theme-shadcn
 
+## 0.2.22
+
+### Patch Changes
+
+- [#1498](https://github.com/vertz-dev/vertz/pull/1498) [`8ed55f6`](https://github.com/vertz-dev/vertz/commit/8ed55f6fc8aa691758606fe044a8b1d74b7bb9bc) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Convert collapsible factory to declarative JSX component with sub-components (Collapsible.Trigger, Collapsible.Content)
+
+- [#1505](https://github.com/vertz-dev/vertz/pull/1505) [`5d64812`](https://github.com/vertz-dev/vertz/commit/5d6481233006f67c21375f3879fda600c86c0cdd) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Convert DatePicker factory to declarative JSX component with sub-components (DatePicker.Trigger, DatePicker.Content)
+
+- [#1535](https://github.com/vertz-dev/vertz/pull/1535) [`179829d`](https://github.com/vertz-dev/vertz/commit/179829d9df73097aead0d666a1b130c9a138573b) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix dialog close animation not playing with native `<dialog>`. Reorder close logic to call hideDialog() before updating reactive state, force reflow to start CSS animation, prevent native close on Escape, and add ::backdrop fade-out animation.
+
+- [#1532](https://github.com/vertz-dev/vertz/pull/1532) [`8ab61a4`](https://github.com/vertz-dev/vertz/commit/8ab61a414fb759f6c086db6ee6e1aec95545daf9) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add global CSS rule to hide `dialog:not([open])` elements, preventing content flash during SSR-to-hydration transition
+
+- [#1500](https://github.com/vertz-dev/vertz/pull/1500) [`180ac91`](https://github.com/vertz-dev/vertz/commit/180ac91f4fbc562581136dd8256f67fcc724fa69) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Convert HoverCard factory to JSX component with composed primitives
+
+- [#1533](https://github.com/vertz-dev/vertz/pull/1533) [`e5d8d4d`](https://github.com/vertz-dev/vertz/commit/e5d8d4d49da65c13fb5c76ec279314052273da30) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix Popover and DropdownMenu content panels taking full width instead of fitting content
+
+- [#1504](https://github.com/vertz-dev/vertz/pull/1504) [`32dc39b`](https://github.com/vertz-dev/vertz/commit/32dc39b9f23b89aa387be49303fc6fcc4dceccdd) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Remove unnecessary type castings from themed primitive components. Eliminated `as ComposedProps` and `as ThemedComponent` casts across 23 files where proper type inference works naturally through `withStyles()` and `Object.assign`. Only JSX-to-HTMLElement narrowing casts (3 in drawer.tsx) remain with SAFETY comments.
+
+- [#1507](https://github.com/vertz-dev/vertz/pull/1507) [`6d32565`](https://github.com/vertz-dev/vertz/commit/6d32565c2818f9235d02af14a616279f018d0ff5) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Convert ResizablePanel factory to JSX component with context-based sub-components
+
+- [#1502](https://github.com/vertz-dev/vertz/pull/1502) [`2e99e39`](https://github.com/vertz-dev/vertz/commit/2e99e3943830d2e2e0b2b44a1b32d8641e63dbe3) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Convert ScrollArea factory to JSX component with composed primitives
+
+- [#1534](https://github.com/vertz-dev/vertz/pull/1534) [`fabfb87`](https://github.com/vertz-dev/vertz/commit/fabfb879cd93dbcedbae4490996e8ce9cedf9457) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix Select: click-outside dismiss, add chevron SVG icon, float dropdown over content
+
+- [#1538](https://github.com/vertz-dev/vertz/pull/1538) [`9b8af7b`](https://github.com/vertz-dev/vertz/commit/9b8af7b7645cf274e5b2eaacb1680822cd115063) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix Sheet panels not taking full viewport height/width after native dialog rewrite. Left/right panels now set `height: 100dvh` and `max-height: none`; top/bottom panels set `width: 100dvw` and `max-width: none` to override the `<dialog>` UA stylesheet constraints.
+
+- [#1503](https://github.com/vertz-dev/vertz/pull/1503) [`1c4916b`](https://github.com/vertz-dev/vertz/commit/1c4916b04eaaef0ee2e27eda1b73c36ae24e665e) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Convert ToggleGroup factory to JSX component with composed primitives
+
+- Updated dependencies [[`8ed55f6`](https://github.com/vertz-dev/vertz/commit/8ed55f6fc8aa691758606fe044a8b1d74b7bb9bc), [`5d64812`](https://github.com/vertz-dev/vertz/commit/5d6481233006f67c21375f3879fda600c86c0cdd), [`179829d`](https://github.com/vertz-dev/vertz/commit/179829d9df73097aead0d666a1b130c9a138573b), [`4c96794`](https://github.com/vertz-dev/vertz/commit/4c967943b0289542b0162556e299a309e4a86f1f), [`180ac91`](https://github.com/vertz-dev/vertz/commit/180ac91f4fbc562581136dd8256f67fcc724fa69), [`e248ac3`](https://github.com/vertz-dev/vertz/commit/e248ac37bb9639d213ad5326d70db08a59adb7ff), [`6d32565`](https://github.com/vertz-dev/vertz/commit/6d32565c2818f9235d02af14a616279f018d0ff5), [`2e99e39`](https://github.com/vertz-dev/vertz/commit/2e99e3943830d2e2e0b2b44a1b32d8641e63dbe3), [`fabfb87`](https://github.com/vertz-dev/vertz/commit/fabfb879cd93dbcedbae4490996e8ce9cedf9457), [`1c4916b`](https://github.com/vertz-dev/vertz/commit/1c4916b04eaaef0ee2e27eda1b73c36ae24e665e)]:
+  - @vertz/ui-primitives@0.2.22
+  - @vertz/ui@0.2.22
+
 ## 0.2.21
 
 ### Patch Changes

@@ -1,5 +1,26 @@
 # @vertz/db
 
+## 0.2.22
+
+### Patch Changes
+
+- [#1509](https://github.com/vertz-dev/vertz/pull/1509) [`59a7f9b`](https://github.com/vertz-dev/vertz/commit/59a7f9bf484c14288b0ca10e0f96c015f3d928bc) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(db): support column-level validation constraints (min, max, regex) in schema
+
+  Added `.min()`, `.max()`, and `.regex()` chainable methods to column builders so validation
+  constraints can be defined directly on the DB schema. These constraints flow through
+  `tableToSchemas()` to `@vertz/schema` validators for automatic API-level validation.
+
+  - `d.text().min(1).max(5).regex(/^[A-Z]+$/)` — string length and pattern constraints
+  - `d.integer().min(0).max(100)` — numeric range constraints
+  - Type-safe scoping: `.regex()` only available on string columns, `.min()`/`.max()` only on
+    string and numeric columns via `StringColumnBuilder` and `NumericColumnBuilder` interfaces
+  - Constraints survive chaining with existing builders (`.unique()`, `.nullable()`, etc.)
+  - Constraints are application-level only — they do NOT affect migrations or SQL DDL
+
+- Updated dependencies []:
+  - @vertz/errors@0.2.22
+  - @vertz/schema@0.2.22
+
 ## 0.2.21
 
 ### Patch Changes

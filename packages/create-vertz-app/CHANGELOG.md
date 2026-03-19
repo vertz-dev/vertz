@@ -1,5 +1,11 @@
 # @vertz/create-vertz-app
 
+## 0.2.22
+
+### Patch Changes
+
+- [#1506](https://github.com/vertz-dev/vertz/pull/1506) [`92262cc`](https://github.com/vertz-dev/vertz/commit/92262cc2d6b2b975994b6d4fc223b35c4ae716a5) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Stop exporting components directly from theme package. Scaffolded apps now use `registerTheme()` + `@vertz/ui/components` imports instead of destructuring from `configureTheme()`.
+
 ## 0.2.21
 
 ### Patch Changes
