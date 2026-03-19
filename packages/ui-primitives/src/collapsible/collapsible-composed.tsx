@@ -171,7 +171,7 @@ function ComposedCollapsibleRoot({
     <div data-part="collapsible" class={classes?.root || undefined}>
       <CollapsibleContext.Provider value={ctx}>{children}</CollapsibleContext.Provider>
     </div>
-  ) as HTMLElement;
+  );
 }
 
 // ---------------------------------------------------------------------------
