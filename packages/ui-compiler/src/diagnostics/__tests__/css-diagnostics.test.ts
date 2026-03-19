@@ -185,4 +185,32 @@ const styles = css({
     const results = diagnostics.analyze(sourceFile);
     expect(results).toHaveLength(0);
   });
+
+  it('reports empty shorthand string', () => {
+    const sourceFile = createSourceFile(
+      `
+const styles = css({
+  card: [''],
+});
+    `.trim(),
+    );
+
+    const results = diagnostics.analyze(sourceFile);
+    expect(results.some((d) => d.code === 'css-empty-shorthand')).toBe(true);
+    expect(results.some((d) => d.message.includes('Empty shorthand'))).toBe(true);
+  });
+
+  it('handles 2-segment shorthand with pseudo prefix (pseudo:property)', () => {
+    const sourceFile = createSourceFile(
+      `
+const styles = css({
+  card: ['hover:bg'],
+});
+    `.trim(),
+    );
+
+    const results = diagnostics.analyze(sourceFile);
+    // 'hover' is a valid pseudo, 'bg' is a valid property — no errors
+    expect(results).toHaveLength(0);
+  });
 });

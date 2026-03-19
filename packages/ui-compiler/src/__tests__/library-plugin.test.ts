@@ -128,4 +128,46 @@ function Counter() {
     const result = await runPluginOnLoad(createVertzLibraryPlugin(), source, 'counter.tsx');
     expect(result.contents).toBeTruthy();
   });
+
+  it('uses native Bun transpiler for excluded files', async () => {
+    const source = `
+function Helper() {
+  return <span>helper</span>;
+}
+    `.trim();
+
+    const plugin = createVertzLibraryPlugin({
+      exclude: /helper\.tsx$/,
+    });
+
+    const result = await runPluginOnLoad(plugin, source, 'helper.tsx');
+    // Native transpiler outputs JS, not Vertz-compiled code
+    expect(result.loader).toBe('js');
+    // Should NOT have Vertz-specific transforms
+    expect(result.contents).not.toContain('__element(');
+    expect(result.contents).not.toContain('signal(');
+  });
+
+  it('logs warnings for warning-severity diagnostics', async () => {
+    const source = `
+function App() {
+  let val = localStorage.getItem('key');
+  return <div>{val}</div>;
+}
+    `.trim();
+
+    const warnings: string[] = [];
+    const origWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.join(' '));
+    };
+
+    try {
+      const result = await runPluginOnLoad(createVertzLibraryPlugin(), source, 'app.tsx');
+      expect(result.contents).toBeTruthy();
+      expect(warnings.some((w) => w.includes('[vertz-library-plugin]'))).toBe(true);
+    } finally {
+      console.warn = origWarn;
+    }
+  });
 });

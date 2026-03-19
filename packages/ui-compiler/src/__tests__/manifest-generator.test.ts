@@ -355,6 +355,201 @@ describe('manifest-generator', () => {
         const analysis = analyzeFile('src/hooks/use-theme.ts', source);
         expect(analysis.manifest.exports.useTheme.reactivity.type).toBe('reactive-source');
       });
+
+      it('handles satisfies expression in return', () => {
+        const source = `
+          import { query } from '@vertz/ui';
+          type TaskQuery = any;
+          export function useTasks() {
+            return query(() => fetchTasks()) satisfies TaskQuery;
+          }
+        `;
+        const analysis = analyzeFile('src/hooks/use-tasks.ts', source);
+        expect(analysis.manifest.exports.useTasks.reactivity.type).toBe('signal-api');
+      });
+
+      it('handles parenthesized expression in return', () => {
+        const source = `
+          import { query } from '@vertz/ui';
+          export function useTasks() {
+            return (query(() => fetchTasks()));
+          }
+        `;
+        const analysis = analyzeFile('src/hooks/use-tasks.ts', source);
+        expect(analysis.manifest.exports.useTasks.reactivity.type).toBe('signal-api');
+      });
+
+      it('handles angle-bracket type assertion in return', () => {
+        const source = `
+          import { query } from '@vertz/ui';
+          export function useTasks() {
+            return <any>query(() => fetchTasks());
+          }
+        `;
+        const analysis = analyzeFile('src/hooks/use-tasks.ts', source);
+        expect(analysis.manifest.exports.useTasks.reactivity.type).toBe('signal-api');
+      });
+    });
+
+    describe('default imports', () => {
+      it('collects default import references', () => {
+        const source = `
+          import React from 'react';
+          export function App() {
+            return <div>Hello</div>;
+          }
+        `;
+        const analysis = analyzeFile('src/app.tsx', source);
+        expect(analysis.imports).toContainEqual({
+          localName: 'React',
+          originalName: 'default',
+          moduleSpecifier: 'react',
+        });
+      });
+    });
+
+    describe('local variable re-exports', () => {
+      it('resolves local variable exported via export { foo }', () => {
+        const source = `
+          import { query } from '@vertz/ui';
+          const tasks = query(() => fetchTasks());
+          export { tasks };
+        `;
+        const analysis = analyzeFile('src/hooks/tasks.ts', source);
+        expect(analysis.manifest.exports.tasks).toBeDefined();
+        expect(analysis.manifest.exports.tasks.kind).toBe('variable');
+        expect(analysis.manifest.exports.tasks.reactivity.type).toBe('signal-api');
+      });
+    });
+
+    describe('export default expressions', () => {
+      it('classifies export default arrow with block body returning query()', () => {
+        const source = `
+          import { query } from '@vertz/ui';
+          export default () => {
+            return query(() => fetchTasks());
+          };
+        `;
+        const analysis = analyzeFile('src/hooks/use-tasks.ts', source);
+        expect(analysis.manifest.exports.default.kind).toBe('function');
+        expect(analysis.manifest.exports.default.reactivity.type).toBe('signal-api');
+      });
+
+      it('classifies export default concise arrow returning query()', () => {
+        const source = `
+          import { query } from '@vertz/ui';
+          export default () => query(() => fetchTasks());
+        `;
+        const analysis = analyzeFile('src/hooks/use-tasks.ts', source);
+        expect(analysis.manifest.exports.default.kind).toBe('function');
+        expect(analysis.manifest.exports.default.reactivity.type).toBe('signal-api');
+      });
+
+      it('classifies export default concise arrow returning unknown as unknown', () => {
+        const source = `
+          export default () => someUnknownCall();
+        `;
+        const analysis = analyzeFile('src/hooks/unknown.ts', source);
+        expect(analysis.manifest.exports.default.kind).toBe('function');
+      });
+
+      it('classifies export default expression with framework call', () => {
+        const source = `
+          import { query } from '@vertz/ui';
+          export default query(() => fetchTasks());
+        `;
+        const analysis = analyzeFile('src/hooks/tasks.ts', source);
+        expect(analysis.manifest.exports.default.kind).toBe('variable');
+        expect(analysis.manifest.exports.default.reactivity.type).toBe('signal-api');
+      });
+    });
+
+    describe('variable without initializer', () => {
+      it('classifies exported let without initializer as unknown', () => {
+        const source = `
+          export let tasks: any;
+        `;
+        const analysis = analyzeFile('src/state.ts', source);
+        expect(analysis.manifest.exports.tasks.kind).toBe('variable');
+        expect(analysis.manifest.exports.tasks.reactivity.type).toBe('unknown');
+      });
+    });
+
+    describe('exported const concise arrow with non-framework call', () => {
+      it('classifies concise arrow returning non-framework call', () => {
+        const source = `
+          export const getData = () => someUnknownCall();
+        `;
+        const analysis = analyzeFile('src/utils.ts', source);
+        expect(analysis.manifest.exports.getData.kind).toBe('function');
+      });
+    });
+
+    describe('void function (no return statements)', () => {
+      it('classifies as static reactivity', () => {
+        const source = `
+          export function setup() {
+            console.log('initializing');
+          }
+        `;
+        const analysis = analyzeFile('src/setup.ts', source);
+        expect(analysis.manifest.exports.setup.kind).toBe('function');
+        expect(analysis.manifest.exports.setup.reactivity.type).toBe('static');
+      });
+    });
+
+    describe('inferExpressionShape with local variables', () => {
+      it('resolves identifier referencing local variable in return', () => {
+        const source = `
+          import { query } from '@vertz/ui';
+          export function useTasks() {
+            const q = query(() => fetchTasks());
+            return q;
+          }
+        `;
+        const analysis = analyzeFile('src/hooks/use-tasks.ts', source);
+        expect(analysis.manifest.exports.useTasks.reactivity.type).toBe('signal-api');
+      });
+    });
+
+    describe('conditional (ternary) expressions in returns', () => {
+      it('picks most reactive branch from ternary', () => {
+        const source = `
+          import { query, useContext } from '@vertz/ui';
+          export function useData(flag: boolean) {
+            const q = query(() => fetchData());
+            return flag ? q : null;
+          }
+        `;
+        const analysis = analyzeFile('src/hooks/maybe.ts', source);
+        expect(analysis.manifest.exports.useData.reactivity.type).toBe('signal-api');
+      });
+
+      it('returns static when both ternary branches are unknown', () => {
+        const source = `
+          export function pickOne(flag: boolean) {
+            return flag ? a : b;
+          }
+        `;
+        const analysis = analyzeFile('src/utils.ts', source);
+        expect(analysis.manifest.exports.pickOne.reactivity.type).toBe('static');
+      });
+    });
+
+    describe('mostReactiveShape comparison', () => {
+      it('picks signal-api over reactive-source in conditional return', () => {
+        const source = `
+          import { query, useContext } from '@vertz/ui';
+          export function useData(flag: boolean) {
+            if (flag) {
+              return query(() => fetchData());
+            }
+            return useContext(SomeCtx);
+          }
+        `;
+        const analysis = analyzeFile('src/hooks/use-data.ts', source);
+        expect(analysis.manifest.exports.useData.reactivity.type).toBe('signal-api');
+      });
     });
   });
 });

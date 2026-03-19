@@ -333,6 +333,60 @@ describe('manifest-resolver', () => {
       );
       expect(resolved).toBe('@vertz/ui');
     });
+
+    it('returns undefined for unresolvable relative import', () => {
+      const resolved = resolveModuleSpecifier(
+        './nonexistent-module',
+        join(project.dir, 'src/app.ts'),
+        {},
+        project.dir,
+      );
+      expect(resolved).toBeUndefined();
+    });
+
+    it('resolves exact file path with extension', () => {
+      const filePath = project.write('utils/helpers.ts', 'export const x = 1;');
+      const resolved = resolveModuleSpecifier(
+        './utils/helpers.ts',
+        join(project.dir, 'src/app.ts'),
+        {},
+        project.dir,
+      );
+      expect(resolved).toBe(filePath);
+    });
+
+    it('resolves directory import to index.tsx', () => {
+      const filePath = project.write('components/index.tsx', 'export const C = () => <div />;');
+      const resolved = resolveModuleSpecifier(
+        './components',
+        join(project.dir, 'src/app.ts'),
+        {},
+        project.dir,
+      );
+      expect(resolved).toBe(filePath);
+    });
+
+    it('resolves tsconfig exact-match path (no wildcard)', () => {
+      const filePath = project.write('special.ts', 'export const x = 1;');
+      const resolved = resolveModuleSpecifier(
+        'my-special',
+        join(project.dir, 'src/app.ts'),
+        { 'my-special': ['src/special'] },
+        project.dir,
+      );
+      expect(resolved).toBe(filePath);
+    });
+
+    it('returns undefined for unmatched tsconfig exact path', () => {
+      const resolved = resolveModuleSpecifier(
+        'not-configured',
+        join(project.dir, 'src/app.ts'),
+        { 'my-special': ['src/special'] },
+        project.dir,
+      );
+      // Falls through to package import detection
+      expect(resolved).toBe('not-configured');
+    });
   });
 
   describe('regenerateFileManifest', () => {

@@ -87,4 +87,34 @@ function Toggle() {
     expect(result).toContain('data-v-id="Counter"');
     expect(result).toContain('data-v-id="Toggle"');
   });
+
+  it('handles parenthesized return expression', () => {
+    const code = `function Widget() {
+  let active = false;
+  return (
+    <div>{active}</div>
+  );
+}`;
+    const result = transform(code);
+    expect(result).toContain('data-v-id="Widget"');
+  });
+
+  it('handles arrow function returning JSX via variable (fallback body traversal)', () => {
+    const code = `const Counter = () => {
+  let count = 0;
+  const el = <div>{count}</div>;
+  return el;
+};`;
+    const result = transform(code);
+    expect(result).toContain('data-v-id="Counter"');
+  });
+
+  it('handles parenthesized self-closing element', () => {
+    const code = `function Input() {
+  let value = '';
+  return (<input />);
+}`;
+    const result = transform(code);
+    expect(result).toContain('data-v-id="Input"');
+  });
 });

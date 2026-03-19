@@ -322,4 +322,64 @@ describe('JsxTransformer', () => {
     expect(result).not.toContain('"disabled"');
     expect(result).not.toContain('"label"');
   });
+
+  it('handles parenthesized JSX return', () => {
+    const result = transform(
+      `function App() {\n  return (\n    <div>hello</div>\n  );\n}`,
+      [],
+    );
+    expect(result).toContain('__element("div")');
+  });
+
+  it('handles literal style expression attribute with __styleStr guard', () => {
+    const result = transform(
+      `function App() {\n  return <div style={styleObj}></div>;\n}`,
+      [],
+    );
+    expect(result).toContain('__styleStr');
+  });
+
+  it('handles literal expression attribute with guard', () => {
+    const result = transform(
+      `function App() {\n  return <div disabled={isDisabled}></div>;\n}`,
+      [],
+    );
+    expect(result).toContain('__v');
+    expect(result).toContain('setAttribute');
+  });
+
+  it('handles ref prop returning null for empty expression', () => {
+    const result = transform(
+      `function App() {\n  return <div ref={myRef}></div>;\n}`,
+      [],
+    );
+    expect(result).toContain('myRef.current');
+  });
+
+  it('guards literal style expression with __styleStr', () => {
+    const result = transform(
+      `function App() {\n  return <div style={null}></div>;\n}`,
+      [],
+    );
+    expect(result).toContain('__styleStr');
+  });
+
+  it('guards literal non-style expression attribute', () => {
+    const result = transform(
+      `function App() {\n  return <div data-active={null}></div>;\n}`,
+      [],
+    );
+    expect(result).toContain('__v');
+    expect(result).toContain('setAttribute');
+  });
+
+  it('drops event handler with string value (returns null from transformAttribute)', () => {
+    const result = transform(
+      `function App() {\n  return <div onClick="alert()"></div>;\n}`,
+      [],
+    );
+    // String value on event handler is not supported — attribute is dropped
+    expect(result).not.toContain('__on');
+    expect(result).not.toContain('alert');
+  });
 });

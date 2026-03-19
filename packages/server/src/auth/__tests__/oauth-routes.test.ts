@@ -996,6 +996,95 @@ describe('OAuth Routes', () => {
     });
   });
 
+  describe('OAuth callback error paths', () => {
+    async function initiateAndGetState(
+      auth: ReturnType<typeof createAuth>,
+      providerId = 'mock',
+    ): Promise<{ state: string; cookie: string }> {
+      const initiateResponse = await auth.handler(
+        new Request(`http://localhost:3000/api/auth/oauth/${providerId}`),
+      );
+
+      const location = initiateResponse.headers.get('Location') ?? '';
+      const stateParam = new URL(location).searchParams.get('state') ?? '';
+      const setCookie = initiateResponse.headers.getSetCookie();
+      const oauthCookie = setCookie.find((c) => c.startsWith('vertz.oauth='));
+      const cookieValue = oauthCookie?.split(';')[0] ?? '';
+
+      return { state: stateParam, cookie: cookieValue };
+    }
+
+    it('redirects with token_exchange_failed when exchangeCode throws', async () => {
+      const auth = createTestAuth({
+        providers: [
+          createMockProvider({
+            exchangeCode: async () => {
+              throw new Error('Network failure');
+            },
+          }),
+        ],
+        oauthAccountStore: new InMemoryOAuthAccountStore(),
+        oauthErrorRedirect: '/login',
+      });
+
+      const { state, cookie } = await initiateAndGetState(auth);
+
+      const res = await auth.handler(
+        new Request(
+          `http://localhost:3000/api/auth/oauth/mock/callback?code=auth-code&state=${state}`,
+          { headers: { cookie } },
+        ),
+      );
+
+      expect(res.status).toBe(302);
+      const location = res.headers.get('Location') ?? '';
+      expect(location).toContain('error=token_exchange_failed');
+    });
+
+    it('redirects with token_exchange_failed when getUserInfo throws', async () => {
+      const auth = createTestAuth({
+        providers: [
+          createMockProvider({
+            getUserInfo: async () => {
+              throw new Error('API error');
+            },
+          }),
+        ],
+        oauthAccountStore: new InMemoryOAuthAccountStore(),
+        oauthErrorRedirect: '/login',
+      });
+
+      const { state, cookie } = await initiateAndGetState(auth);
+
+      const res = await auth.handler(
+        new Request(
+          `http://localhost:3000/api/auth/oauth/mock/callback?code=auth-code&state=${state}`,
+          { headers: { cookie } },
+        ),
+      );
+
+      expect(res.status).toBe(302);
+      const location = res.headers.get('Location') ?? '';
+      expect(location).toContain('error=token_exchange_failed');
+    });
+
+    it('returns 500 when OAuth initiated without encryption key', async () => {
+      const auth = createTestAuth({
+        providers: [createMockProvider()],
+        oauthAccountStore: new InMemoryOAuthAccountStore(),
+        oauthEncryptionKey: undefined,
+      });
+
+      const res = await auth.handler(
+        new Request('http://localhost:3000/api/auth/oauth/mock'),
+      );
+
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.error).toBe('OAuth not configured');
+    });
+  });
+
   describe('error redirect URL construction', () => {
     it('sets error param via URL constructor when oauthErrorRedirect already has query params', async () => {
       const auth = createTestAuth({

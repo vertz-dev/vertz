@@ -54,6 +54,37 @@ describe('InMemoryRateLimitStore', () => {
     expect(result.remaining).toBe(0);
   });
 
+  it('cleans up expired entries during cleanup cycle', async () => {
+    // Add an entry with a 1ms window (will expire nearly instantly)
+    await store.check('cleanup-key', 1, 1);
+
+    // Wait for the entry to expire
+    const start = Date.now();
+    while (Date.now() - start < 5) {
+      // busy wait
+    }
+
+    // Trigger cleanup by calling the private method via prototype trick
+    // eslint-disable-next-line @typescript-eslint/no-explicit-method-signature
+    (store as any).cleanup();
+
+    // The expired entry should be cleaned up, so a new check should be allowed
+    const result = await store.check('cleanup-key', 1, 1);
+    expect(result.allowed).toBe(true);
+    expect(result.remaining).toBe(0);
+  });
+
+  it('cleanup does not remove entries that have not expired', async () => {
+    await store.check('still-active', 2, 60_000);
+
+    // Trigger cleanup
+    (store as any).cleanup();
+
+    // Entry should still be counted
+    const result = await store.check('still-active', 2, 60_000);
+    expect(result.remaining).toBe(0);
+  });
+
   it('returns resetAt in the result', async () => {
     const before = Date.now();
     const result = await store.check('key-reset', 5, 60_000);

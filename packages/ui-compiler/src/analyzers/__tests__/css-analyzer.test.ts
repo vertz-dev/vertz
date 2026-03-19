@@ -215,4 +215,74 @@ const styles = css({
     expect(results).toHaveLength(1);
     expect(results[0]?.kind).toBe('static');
   });
+
+  it('classifies spread property in top-level object as reactive', () => {
+    const sourceFile = createSourceFile(
+      `
+const styles = css({
+  ...baseStyles,
+});
+    `.trim(),
+    );
+
+    const results = analyzer.analyze(sourceFile);
+    expect(results).toHaveLength(1);
+    expect(results[0]?.kind).toBe('reactive');
+  });
+
+  it('classifies non-array property value as reactive', () => {
+    const sourceFile = createSourceFile(
+      `
+const styles = css({
+  card: 'static-string',
+});
+    `.trim(),
+    );
+
+    const results = analyzer.analyze(sourceFile);
+    expect(results).toHaveLength(1);
+    expect(results[0]?.kind).toBe('reactive');
+  });
+
+  it('classifies nested selector element that is neither string nor object as reactive', () => {
+    const sourceFile = createSourceFile(
+      `
+const styles = css({
+  btn: ['p:4', { '&:hover': [42] }],
+});
+    `.trim(),
+    );
+
+    const results = analyzer.analyze(sourceFile);
+    expect(results).toHaveLength(1);
+    expect(results[0]?.kind).toBe('reactive');
+  });
+
+  it('classifies nested CSS object that fails static check as reactive', () => {
+    const sourceFile = createSourceFile(
+      `
+const styles = css({
+  btn: ['p:4', { '&:hover': [{ color: dynamicVar }] }],
+});
+    `.trim(),
+    );
+
+    const results = analyzer.analyze(sourceFile);
+    expect(results).toHaveLength(1);
+    expect(results[0]?.kind).toBe('reactive');
+  });
+
+  it('classifies direct non-static object value in nested selector as reactive', () => {
+    const sourceFile = createSourceFile(
+      `
+const styles = css({
+  btn: ['p:4', { '&:hover': { color: dynamicVar } }],
+});
+    `.trim(),
+    );
+
+    const results = analyzer.analyze(sourceFile);
+    expect(results).toHaveLength(1);
+    expect(results[0]?.kind).toBe('reactive');
+  });
 });

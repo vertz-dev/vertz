@@ -50,6 +50,37 @@ describe('MutationDiagnostics', () => {
     const diags = new MutationDiagnostics().analyze(sf, comp, variables);
     expect(diags[0]?.fix).toContain('let items');
   });
+
+  it('flags property assignment on const referenced in JSX', () => {
+    const code = `function App() {\n  const obj = { count: 0 };\n  obj.count = 1;\n  return <div>{obj}</div>;\n}`;
+    const [sf, comp] = firstComponent(code);
+    const variables: VariableInfo[] = [{ name: 'obj', kind: 'static', start: 0, end: 0 }];
+
+    const diags = new MutationDiagnostics().analyze(sf, comp, variables);
+    expect(diags).toHaveLength(1);
+    expect(diags[0]?.code).toBe('non-reactive-mutation');
+    expect(diags[0]?.message).toContain('Property assignment');
+    expect(diags[0]?.fix).toContain('let obj');
+  });
+
+  it('flags property assignment on deeply nested const in JSX', () => {
+    const code = `function App() {\n  const obj = { nested: { val: 0 } };\n  obj.nested.val = 1;\n  return <div>{obj}</div>;\n}`;
+    const [sf, comp] = firstComponent(code);
+    const variables: VariableInfo[] = [{ name: 'obj', kind: 'static', start: 0, end: 0 }];
+
+    const diags = new MutationDiagnostics().analyze(sf, comp, variables);
+    expect(diags).toHaveLength(1);
+    expect(diags[0]?.code).toBe('non-reactive-mutation');
+  });
+
+  it('does NOT flag property assignment on const NOT in JSX', () => {
+    const code = `function App() {\n  const obj = { count: 0 };\n  obj.count = 1;\n  return <div>hello</div>;\n}`;
+    const [sf, comp] = firstComponent(code);
+    const variables: VariableInfo[] = [{ name: 'obj', kind: 'static', start: 0, end: 0 }];
+
+    const diags = new MutationDiagnostics().analyze(sf, comp, variables);
+    expect(diags).toHaveLength(0);
+  });
 });
 
 describe('PropsDestructuringDiagnostics', () => {

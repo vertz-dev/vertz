@@ -349,6 +349,113 @@ const button = css({ root: ['m:2'] });`;
     expect(result.css).toContain('opacity: 1');
     expect(result.css).toContain(':hover');
   });
+
+  it('handles 2-segment pseudo:property shorthand', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ btn: ['hover:flex'] });`;
+    const result = extractor.extract(source, 'Button.tsx');
+
+    expect(result.css).toContain(':hover');
+    expect(result.css).toContain('display: flex');
+  });
+
+  it('skips 3-segment shorthand with invalid pseudo prefix', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ btn: ['notpseudo:bg:primary'] });`;
+    const result = extractor.extract(source, 'Button.tsx');
+
+    // Invalid 3-segment shorthand should not produce CSS
+    expect(result.css).not.toContain('background-color');
+  });
+
+  it('extracts radius value type', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ card: ['rounded:lg'] });`;
+    const result = extractor.extract(source, 'Card.tsx');
+
+    expect(result.css).toContain('border-radius:');
+  });
+
+  it('extracts alignment value type', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ card: ['items:center'] });`;
+    const result = extractor.extract(source, 'Card.tsx');
+
+    expect(result.css).toContain('align-items: center');
+  });
+
+  it('extracts font-weight value type', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ card: ['weight:bold'] });`;
+    const result = extractor.extract(source, 'Card.tsx');
+
+    expect(result.css).toContain('font-weight:');
+  });
+
+  it('extracts line-height value type', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ card: ['leading:relaxed'] });`;
+    const result = extractor.extract(source, 'Card.tsx');
+
+    expect(result.css).toContain('line-height:');
+  });
+
+  it('extracts ring value type', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ input: ['ring:2'] });`;
+    const result = extractor.extract(source, 'Input.tsx');
+
+    expect(result.css).toContain('2px solid var(--color-ring)');
+  });
+
+  it('extracts size:screen shorthand', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ panel: ['w:screen'] });`;
+    const result = extractor.extract(source, 'Panel.tsx');
+
+    expect(result.css).toContain('100vw');
+  });
+
+  it('resolves size keywords', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ panel: ['w:full'] });`;
+    const result = extractor.extract(source, 'Panel.tsx');
+
+    expect(result.css).toContain('100%');
+  });
+
+  it('passes through CSS keyword colors (transparent)', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ card: ['bg:transparent'] });`;
+    const result = extractor.extract(source, 'Card.tsx');
+
+    expect(result.css).toContain('transparent');
+  });
+
+  it('returns null for unknown color namespace with shade', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ card: ['bg:fake.500'] });`;
+    const result = extractor.extract(source, 'Card.tsx');
+
+    // Unknown namespace should not produce valid color CSS
+    expect(result.css).not.toContain('var(--color-fake');
+  });
+
+  it('returns null for unknown color without dot', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ card: ['bg:potato'] });`;
+    const result = extractor.extract(source, 'Card.tsx');
+
+    expect(result.css).not.toContain('potato');
+  });
+
+  it('extracts content value type', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ card: ['justify:center'] });`;
+    const result = extractor.extract(source, 'Card.tsx');
+
+    expect(result.css).toContain('justify-content: center');
+  });
 });
 
 // ─── Dead CSS Elimination Tests ────────────────────────────────
@@ -550,5 +657,40 @@ describe('CSSHMRHandler', () => {
     const snapshot = hmr.getSnapshot();
     expect(snapshot).toContain('.card');
     expect(snapshot).toContain('.btn');
+  });
+
+  it('returns empty snapshot when no files registered', () => {
+    const hmr = new CSSHMRHandler();
+    expect(hmr.getSnapshot()).toBe('');
+  });
+
+  it('excludes empty CSS entries from snapshot', () => {
+    const hmr = new CSSHMRHandler();
+    hmr.register('Card.tsx', '.card { padding: 1rem; }');
+    hmr.register('Empty.tsx', '');
+    const snapshot = hmr.getSnapshot();
+    expect(snapshot).toContain('.card');
+    expect(snapshot).not.toContain('\n\n');
+  });
+
+  it('tracks file count with size getter', () => {
+    const hmr = new CSSHMRHandler();
+    expect(hmr.size).toBe(0);
+
+    hmr.register('Card.tsx', '.card {}');
+    expect(hmr.size).toBe(1);
+
+    hmr.register('Button.tsx', '.btn {}');
+    expect(hmr.size).toBe(2);
+  });
+
+  it('clears all tracked state', () => {
+    const hmr = new CSSHMRHandler();
+    hmr.register('Card.tsx', '.card {}');
+    hmr.register('Button.tsx', '.btn {}');
+
+    hmr.clear();
+    expect(hmr.size).toBe(0);
+    expect(hmr.getSnapshot()).toBe('');
   });
 });

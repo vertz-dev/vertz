@@ -217,4 +217,54 @@ describe('Step-Up Authentication', { timeout: 60_000 }, () => {
     expect(session).not.toBeNull();
     expect(session!.payload.fva).toBeUndefined();
   });
+
+  it('step-up returns error when user has no MFA enabled', async () => {
+    // Sign up without enabling MFA
+    const result = await auth.api.signUp({
+      email: 'nomfa-stepup@test.com',
+      password: 'password123',
+    });
+    if (!result.ok || !result.data.tokens) throw new Error('fail');
+    const cookie = `vertz.sid=${result.data.tokens.jwt}`;
+
+    const res = await auth.handler(
+      new Request('http://localhost/api/auth/mfa/step-up', {
+        method: 'POST',
+        headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: '123456' }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe('MFA_NOT_ENABLED');
+  });
+
+  it('step-up returns 429 when rate limited', async () => {
+    const result = await auth.api.signUp({
+      email: 'ratelimit-stepup@test.com',
+      password: 'password123',
+    });
+    if (!result.ok || !result.data.tokens) throw new Error('fail');
+    const cookie = `vertz.sid=${result.data.tokens.jwt}`;
+
+    // Fire 6 requests (limit is 5) to trigger rate limit
+    for (let i = 0; i < 6; i++) {
+      await auth.handler(
+        new Request('http://localhost/api/auth/mfa/step-up', {
+          method: 'POST',
+          headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: '123456' }),
+        }),
+      );
+    }
+
+    const res = await auth.handler(
+      new Request('http://localhost/api/auth/mfa/step-up', {
+        method: 'POST',
+        headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: '123456' }),
+      }),
+    );
+    expect(res.status).toBe(429);
+  });
 });
