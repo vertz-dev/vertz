@@ -103,7 +103,7 @@ describe('dom-shim coverage: installDomShim internals', () => {
       expect(event.type).toBe('test');
       expect(event.detail).toBe(99);
     } finally {
-      removeDomShim();
+      // afterEach handles removeDomShim(); just restore CustomEvent
       if (saved !== undefined) {
         (globalThis as any).CustomEvent = saved;
       }
@@ -119,7 +119,7 @@ describe('dom-shim coverage: installDomShim internals', () => {
       expect(event.type).toBe('bare');
       expect(event.detail).toBeNull();
     } finally {
-      removeDomShim();
+      // afterEach handles removeDomShim(); just restore CustomEvent
       if (saved !== undefined) {
         (globalThis as any).CustomEvent = saved;
       }
@@ -162,17 +162,18 @@ describe('dom-shim coverage: removeDomShim edge cases', () => {
   it('removeDomShim restores pre-existing globals', () => {
     // Pre-set a global that SHIM_GLOBALS includes
     const originalEvent = (globalThis as any).Event;
-    (globalThis as any).Event = class PreExisting {};
+    const preExisting = class PreExisting {};
+    (globalThis as any).Event = preExisting;
 
     installDomShim();
-    // Shim replaces Event
-    expect((globalThis as any).Event).not.toBe(class PreExisting {});
+    // Shim replaces Event with its own version
+    expect((globalThis as any).Event).not.toBe(preExisting);
 
     removeDomShim();
     // Should restore the pre-existing Event, not delete it
-    expect((globalThis as any).Event).toBeDefined();
+    expect((globalThis as any).Event).toBe(preExisting);
 
-    // Clean up
+    // Clean up — restore whatever was there originally
     if (originalEvent !== undefined) {
       (globalThis as any).Event = originalEvent;
     } else {
