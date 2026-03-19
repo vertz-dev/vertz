@@ -2037,8 +2037,13 @@ describe('bun-dev-server integration', () => {
 
     await devServer.start();
 
-    // Set currentError with file info
-    devServer.broadcastError('build', [
+    const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
+    await new Promise<void>((resolve) => {
+      ws.onmessage = () => resolve(); // connected msg
+    });
+
+    // Set currentError with file info AFTER connecting (avoid resend race)
+    devServer.broadcastError('runtime', [
       {
         message: 'SyntaxError: Unexpected token',
         file: 'src/broken.tsx',
@@ -2046,17 +2051,22 @@ describe('bun-dev-server integration', () => {
       },
     ]);
 
-    const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
-    await new Promise<void>((resolve) => {
-      ws.onmessage = () => resolve(); // connected msg (includes current error)
-    });
+    // Wait for debounce to flush the runtime error
+    await new Promise((r) => setTimeout(r, 200));
 
-    // Collect error messages
+    // Drain any already-queued messages
+    const drain: string[] = [];
+    ws.onmessage = (e) => {
+      if (typeof e.data === 'string') drain.push(e.data);
+    };
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Now collect only the catch handler response
     const errorMsgs: string[] = [];
     const gotError = new Promise<void>((resolve) => {
       ws.onmessage = (e) => {
         const data = typeof e.data === 'string' ? e.data : '';
-        if (data.includes('"type":"error"')) {
+        if (data.includes('"type":"error"') && data.includes('"category":"runtime"')) {
           errorMsgs.push(data);
           resolve();
         }
