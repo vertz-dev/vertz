@@ -17,3 +17,5 @@ export const app = createServer({
   db,
   auth,
 });
+
+export default app;

@@ -7,8 +7,8 @@ import type { Label } from '../lib/types';
 import { dialogStyles, formStyles, inputStyles, labelStyles } from '../styles/components';
 
 const styles = css({
-  list: ['flex', 'flex-col', 'gap:2', 'mb:4', 'max-h:80', 'overflow-y:auto'],
-  item: ['flex', 'items:center', 'gap:2', 'px:3', 'py:2', 'rounded:md', 'bg:muted/50'],
+  list: ['flex', 'flex-col', 'gap:2', 'mb:4', 'max-h:80', 'overflow:hidden'],
+  item: ['flex', 'items:center', 'gap:2', 'px:3', 'py:2', 'rounded:md', 'bg:muted'],
   dot: ['w:3', 'h:3', 'rounded:full', 'shrink-0'],
   name: ['flex-1', 'text:sm', 'text:foreground'],
   actions: ['flex', 'gap:1'],
@@ -22,7 +22,7 @@ const styles = css({
     'border:transparent',
     'cursor:pointer',
     'transition:all',
-    'hover:scale-110',
+    'hover:border:foreground',
   ],
   colorSelected: [
     'w:6',
