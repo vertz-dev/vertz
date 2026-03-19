@@ -23,7 +23,7 @@ export function createJWKSClient(options: {
       // jose's reload() is marked @ignore in types but exists at runtime.
       // It invalidates the cache so the next getKey call re-fetches.
       if ('reload' in jwks && typeof (jwks as { reload: unknown }).reload === 'function') {
-        (jwks as { reload: () => void }).reload();
+        await (jwks as { reload: () => Promise<void> }).reload();
       }
     },
   };
