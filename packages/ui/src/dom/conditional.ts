@@ -126,6 +126,7 @@ function hydrateConditional(
         resultNode = wrap as unknown as Node;
       } else {
         currentNode = contentNode ?? (getAdapter().createComment('empty') as unknown as Node);
+        resultNode = currentNode;
       }
       return;
     }

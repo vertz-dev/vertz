@@ -215,4 +215,54 @@ describe('__conditional — hydration', () => {
     const matches = root.textContent?.match(/check-icon/g);
     expect(matches?.length).toBe(1);
   });
+
+  it('nested conditional: outer switches to true branch then back, no orphaned nodes', () => {
+    // Tests the mixed state path: outer condition true → false with inner re-creation
+    const root = document.createElement('div');
+    root.appendChild(document.createComment('conditional'));
+    root.appendChild(document.createComment('conditional'));
+    const ssrSpan = document.createElement('span');
+    ssrSpan.textContent = 'check-icon';
+    root.appendChild(ssrSpan);
+
+    startHydration(root);
+
+    const checked = signal<boolean | 'mixed'>(true);
+    __conditional(
+      () => checked.value === 'mixed',
+      () => {
+        const el = __element('span');
+        __enterChildren(el);
+        __append(el, __staticText('dash-icon'));
+        __exitChildren();
+        return el;
+      },
+      () =>
+        __conditional(
+          () => !!checked.value,
+          () => {
+            const el = __element('span');
+            __enterChildren(el);
+            __append(el, __staticText('check-icon'));
+            __exitChildren();
+            return el;
+          },
+          () => null,
+        ),
+    );
+
+    endHydration();
+
+    // Switch to mixed — outer condition becomes true, inner conditional is disposed
+    checked.value = 'mixed';
+    expect(root.textContent).toContain('dash-icon');
+    expect(root.textContent).not.toContain('check-icon');
+
+    // Switch back to true — outer condition false, inner re-created
+    checked.value = true;
+    expect(root.textContent).toContain('check-icon');
+    expect(root.textContent).not.toContain('dash-icon');
+    const checkMatches = root.textContent?.match(/check-icon/g);
+    expect(checkMatches?.length).toBe(1);
+  });
 });

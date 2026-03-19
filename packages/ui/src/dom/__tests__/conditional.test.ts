@@ -428,6 +428,42 @@ describe('__conditional', () => {
     expect(container.querySelectorAll('i').length).toBe(1);
   });
 
+  it('nested conditional: outer switches to true then back, cleanup is correct', () => {
+    const checked = signal<boolean | 'mixed'>(true);
+    const container = document.createElement('div');
+
+    const fragment = __conditional(
+      () => checked.value === 'mixed',
+      () => {
+        const el = document.createElement('b');
+        el.textContent = 'dash';
+        return el;
+      },
+      () =>
+        __conditional(
+          () => !!checked.value,
+          () => {
+            const el = document.createElement('i');
+            el.textContent = 'check';
+            return el;
+          },
+          () => null,
+        ),
+    );
+    container.appendChild(fragment);
+    expect(container.textContent).toBe('check');
+
+    // Switch to mixed — outer true branch
+    checked.value = 'mixed';
+    expect(container.textContent).toBe('dash');
+
+    // Switch back to checked — outer false, inner true
+    checked.value = true;
+    expect(container.textContent).toBe('check');
+    expect(container.querySelectorAll('b').length).toBe(0);
+    expect(container.querySelectorAll('i').length).toBe(1);
+  });
+
   it('handles both branches returning null without crashing', () => {
     const show = signal(true);
     const container = document.createElement('div');
