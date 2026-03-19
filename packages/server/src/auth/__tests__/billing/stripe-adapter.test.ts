@@ -238,6 +238,71 @@ describe('Feature: Stripe billing adapter', () => {
     });
   });
 
+  describe('Given a plan changes interval without changing amount', () => {
+    it('creates new Price when interval changes from month to quarter', async () => {
+      const stripe = createMockStripe();
+      const adapter = createStripeBillingAdapter({ stripe });
+
+      // First sync — $29/month
+      await adapter.syncPlans({
+        pro: {
+          title: 'Pro',
+          group: 'main',
+          price: { amount: 29, interval: 'month' as const },
+          features: ['doc:edit'],
+        },
+      });
+
+      expect(stripe._prices).toHaveLength(1);
+      expect(stripe._prices[0].recurring).toEqual({ interval: 'month' });
+
+      // Second sync — $29/quarter (same amount, different interval)
+      await adapter.syncPlans({
+        pro: {
+          title: 'Pro',
+          group: 'main',
+          price: { amount: 29, interval: 'quarter' as const },
+          features: ['doc:edit'],
+        },
+      });
+
+      // Should create a new price and archive the old one
+      expect(stripe._prices).toHaveLength(2);
+      expect(stripe._prices[0].active).toBe(false); // Old monthly archived
+      expect(stripe._prices[1].active).toBe(true);
+      expect(stripe._prices[1].recurring).toEqual({
+        interval: 'month',
+        interval_count: 3,
+      });
+    });
+  });
+
+  describe('Given a quarterly plan synced twice', () => {
+    it('is idempotent — does not create duplicate price for quarterly interval', async () => {
+      const stripe = createMockStripe();
+      const adapter = createStripeBillingAdapter({ stripe });
+
+      const plans = {
+        pro_quarterly: {
+          title: 'Pro Quarterly',
+          group: 'main',
+          price: { amount: 79, interval: 'quarter' as const },
+          features: ['doc:edit'],
+        },
+      };
+
+      await adapter.syncPlans(plans);
+      await adapter.syncPlans(plans);
+
+      expect(stripe._prices).toHaveLength(1);
+      expect(stripe._prices[0].active).toBe(true);
+      expect(stripe._prices[0].recurring).toEqual({
+        interval: 'month',
+        interval_count: 3,
+      });
+    });
+  });
+
   describe('Given placeholder methods', () => {
     it('createSubscription returns placeholder string', async () => {
       const stripe = createMockStripe();
