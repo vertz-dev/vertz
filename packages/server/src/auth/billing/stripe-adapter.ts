@@ -22,7 +22,7 @@ export interface StripePrice {
   id: string;
   product: string;
   unit_amount: number;
-  recurring: { interval: string } | null;
+  recurring: { interval: string; interval_count?: number } | null;
   active: boolean;
   metadata: Record<string, string>;
 }
@@ -46,7 +46,7 @@ export interface StripeClient {
       product: string;
       unit_amount: number;
       currency: string;
-      recurring?: { interval: string };
+      recurring?: { interval: string; interval_count?: number };
       metadata: Record<string, string>;
     }): Promise<StripePrice>;
     update(id: string, params: { active: boolean }): Promise<StripePrice>;
@@ -143,7 +143,7 @@ export function createStripeBillingAdapter(config: StripeBillingAdapterConfig): 
           product: string;
           unit_amount: number;
           currency: string;
-          recurring?: { interval: string };
+          recurring?: { interval: string; interval_count?: number };
           metadata: Record<string, string>;
         } = {
           product: product.id,
@@ -154,7 +154,7 @@ export function createStripeBillingAdapter(config: StripeBillingAdapterConfig): 
 
         if (interval && interval !== 'one_off') {
           const mapped = mapInterval(interval);
-          priceParams.recurring = { interval: mapped.interval };
+          priceParams.recurring = mapped;
         }
 
         await stripe.prices.create(priceParams);

@@ -29,7 +29,7 @@ function createMockStripe() {
     id: string;
     product: string;
     unit_amount: number;
-    recurring: { interval: string } | null;
+    recurring: { interval: string; interval_count?: number } | null;
     active: boolean;
     metadata: Record<string, string>;
   }> = [];
@@ -66,7 +66,7 @@ function createMockStripe() {
         product: string;
         unit_amount: number;
         currency: string;
-        recurring?: { interval: string };
+        recurring?: { interval: string; interval_count?: number };
         metadata: Record<string, string>;
       }) => {
         const price = {
