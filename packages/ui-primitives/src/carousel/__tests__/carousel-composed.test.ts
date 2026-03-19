@@ -216,6 +216,83 @@ describe('Composed Carousel', () => {
       root.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
       expect(slides[0]?.getAttribute('data-state')).toBe('active');
     });
+
+    it('Then keyboard loop wraps from last to first (horizontal)', () => {
+      const root = renderCarousel(['S1', 'S2', 'S3'], { loop: true });
+      container.appendChild(root);
+
+      // Navigate to last slide: 0 -> 1 -> 2
+      root.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      root.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      // Wrap: 2 -> 0
+      root.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+
+      const slides = root.querySelectorAll('[role="group"]');
+      expect(slides[0]?.getAttribute('data-state')).toBe('active');
+    });
+
+    it('Then keyboard loop wraps from first to last (horizontal)', () => {
+      const root = renderCarousel(['S1', 'S2', 'S3'], { loop: true });
+      container.appendChild(root);
+
+      // Wrap backward: 0 -> 2
+      root.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+
+      const slides = root.querySelectorAll('[role="group"]');
+      expect(slides[2]?.getAttribute('data-state')).toBe('active');
+    });
+
+    it('Then keyboard loop wraps in vertical orientation', () => {
+      const root = renderCarousel(['S1', 'S2', 'S3'], {
+        orientation: 'vertical',
+        loop: true,
+      });
+      container.appendChild(root);
+
+      // Navigate to last: 0 -> 1 -> 2
+      root.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      root.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      // Wrap: 2 -> 0
+      root.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+
+      const slides = root.querySelectorAll('[role="group"]');
+      expect(slides[0]?.getAttribute('data-state')).toBe('active');
+
+      // Wrap backward: 0 -> 2
+      root.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+      expect(slides[2]?.getAttribute('data-state')).toBe('active');
+    });
+
+    it('Then keyboard navigation stops at first slide when loop is disabled', () => {
+      const onSlideChange = vi.fn();
+      const root = renderCarousel(['S1', 'S2', 'S3'], { onSlideChange });
+      container.appendChild(root);
+
+      // Already at first slide, ArrowLeft should not change anything
+      root.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+
+      const slides = root.querySelectorAll('[role="group"]');
+      expect(slides[0]?.getAttribute('data-state')).toBe('active');
+      expect(onSlideChange).not.toHaveBeenCalled();
+    });
+
+    it('Then keyboard navigation stops at last slide when loop is disabled', () => {
+      const onSlideChange = vi.fn();
+      const root = renderCarousel(['S1', 'S2', 'S3'], { onSlideChange });
+      container.appendChild(root);
+
+      // Navigate to last slide: 0 -> 1 -> 2
+      root.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      root.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      onSlideChange.mockClear();
+
+      // Already at last slide, ArrowRight should not change anything
+      root.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+
+      const slides = root.querySelectorAll('[role="group"]');
+      expect(slides[2]?.getAttribute('data-state')).toBe('active');
+      expect(onSlideChange).not.toHaveBeenCalled();
+    });
   });
 
   describe('Given a Carousel with an onSlideChange callback', () => {
