@@ -81,7 +81,7 @@ function SheetTrigger({ children }: SlotProps) {
     <span
       style="display: contents"
       data-sheet-trigger=""
-      data-state={ctx.isOpen ? 'open' : 'closed'}
+      data-state="closed"
       onClick={() => ctx.toggle()}
     >
       {children}
@@ -100,7 +100,9 @@ function SheetContent({
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
-  return (
+  // Use static data-state to avoid reactive element replacement.
+  // showDialog()/hideDialog() manage data-state imperatively for animations.
+  const el = (
     <dialog
       ref={ctx.dialogRef}
       id={ctx.contentId}
@@ -109,7 +111,7 @@ function SheetContent({
       aria-labelledby={ctx.titleId}
       aria-describedby={ctx.descriptionId}
       data-side={ctx.side}
-      data-state={ctx.isOpen ? 'open' : 'closed'}
+      data-state="closed"
       class={combined || undefined}
       onCancel={(e: Event) => {
         e.preventDefault();
@@ -147,7 +149,8 @@ function SheetContent({
       )}
       {children}
     </dialog>
-  );
+  ) as HTMLDialogElement;
+  return el;
 }
 
 function SheetTitle({ children, className: cls, class: classProp }: SlotProps) {

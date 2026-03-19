@@ -80,7 +80,7 @@ function DialogTrigger({ children }: SlotProps) {
     <span
       style="display: contents"
       data-dialog-trigger=""
-      data-state={ctx.isOpen ? 'open' : 'closed'}
+      data-state="closed"
       onClick={() => ctx.toggle()}
     >
       {children}
@@ -98,14 +98,16 @@ function DialogContent({
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
-  return (
+  // Use static data-state to avoid reactive element replacement.
+  // showDialog()/hideDialog() manage data-state imperatively for animations.
+  const el = (
     <dialog
       ref={ctx.dialogRef}
       id={ctx.contentId}
       role="dialog"
       aria-labelledby={ctx.titleId}
       aria-describedby={ctx.descriptionId}
-      data-state={ctx.isOpen ? 'open' : 'closed'}
+      data-state="closed"
       class={combined || undefined}
       onCancel={(e: Event) => {
         // Prevent native close so the CSS exit animation can play.
@@ -147,7 +149,8 @@ function DialogContent({
       )}
       {children}
     </dialog>
-  );
+  ) as HTMLDialogElement;
+  return el;
 }
 
 function DialogTitle({ children, className: cls, class: classProp }: SlotProps) {

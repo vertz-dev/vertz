@@ -83,7 +83,7 @@ function AlertDialogTrigger({ children }: SlotProps) {
     <span
       style="display: contents"
       data-alertdialog-trigger=""
-      data-state={ctx.isOpen ? 'open' : 'closed'}
+      data-state="closed"
       onClick={() => {
         if (!ctx.isOpen) ctx.open();
       }}
@@ -98,6 +98,8 @@ function AlertDialogContent({ children, className: cls, class: classProp }: Slot
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
+  // Use static data-state to avoid reactive element replacement.
+  // showDialog()/hideDialog() manage data-state imperatively for animations.
   return (
     <dialog
       ref={ctx.dialogRef}
@@ -105,7 +107,7 @@ function AlertDialogContent({ children, className: cls, class: classProp }: Slot
       role="alertdialog"
       aria-labelledby={ctx.titleId}
       aria-describedby={ctx.descriptionId}
-      data-state={ctx.isOpen ? 'open' : 'closed'}
+      data-state="closed"
       class={combined || undefined}
       onCancel={(e: Event) => {
         // AlertDialog blocks Escape dismiss — prevent the native close.
@@ -114,7 +116,7 @@ function AlertDialogContent({ children, className: cls, class: classProp }: Slot
     >
       {children}
     </dialog>
-  );
+  ) as HTMLDialogElement;
 }
 
 function AlertDialogTitle({ children, className: cls, class: classProp }: SlotProps) {
