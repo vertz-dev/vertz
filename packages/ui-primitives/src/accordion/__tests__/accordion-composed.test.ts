@@ -209,12 +209,15 @@ describe('Composed Accordion', () => {
       container.appendChild(root);
 
       const trigger = root.querySelector('button') as HTMLElement;
-      const content = root.querySelector('[role="region"]') as HTMLElement;
+      let content = root.querySelector('[role="region"]') as HTMLElement;
       expect(content.getAttribute('data-state')).toBe('open');
       expect(content.getAttribute('aria-hidden')).toBe('false');
 
-      // Close the item — uses setHiddenAnimated which defers display:none until animation ends
+      // Close the item — uses setHiddenAnimated which defers display:none until animation ends.
+      // Re-query the content element after click because the reactive system may
+      // replace the DOM element during signal propagation.
       trigger.click();
+      content = root.querySelector('[role="region"]') as HTMLElement;
 
       expect(content.getAttribute('data-state')).toBe('closed');
       expect(content.getAttribute('aria-hidden')).toBe('true');
