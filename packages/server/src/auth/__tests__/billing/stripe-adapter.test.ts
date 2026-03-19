@@ -10,7 +10,7 @@ function createMockStripe() {
     id: string;
     product: string;
     unit_amount: number;
-    recurring: { interval: string } | null;
+    recurring: { interval: string; interval_count?: number } | null;
     active: boolean;
     metadata: Record<string, string>;
   }> = [];
@@ -54,7 +54,7 @@ function createMockStripe() {
         product: string;
         unit_amount: number;
         currency: string;
-        recurring?: { interval: string };
+        recurring?: { interval: string; interval_count?: number };
         metadata: Record<string, string>;
       }) => {
         calls.push({ method: 'prices.create', args: [params] });
@@ -191,7 +191,7 @@ describe('Feature: Stripe billing adapter', () => {
   });
 
   describe('Given a plan with quarterly interval', () => {
-    it('maps quarter through mapInterval which returns month interval', async () => {
+    it('passes interval_count: 3 to Stripe for quarterly plans', async () => {
       const stripe = createMockStripe();
       const adapter = createStripeBillingAdapter({ stripe });
 
@@ -205,11 +205,9 @@ describe('Feature: Stripe billing adapter', () => {
       });
 
       expect(stripe._prices).toHaveLength(1);
-      // NOTE: mapInterval() returns { interval: 'month', interval_count: 3 } for quarter,
-      // but priceParams.recurring only takes the interval string — interval_count is dropped.
-      // This is a known limitation (see issue for fixing recurring type).
       expect(stripe._prices[0].recurring).toEqual({
         interval: 'month',
+        interval_count: 3,
       });
     });
   });
