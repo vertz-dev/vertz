@@ -227,7 +227,7 @@ function MenubarContent({ children, className: cls, class: classProp }: SlotProp
         return;
       }
 
-      if (isKey(event, Keys.Enter)) {
+      if (isKey(event, Keys.Enter, Keys.Space)) {
         event.preventDefault();
         const items = [...contentEl.querySelectorAll<HTMLElement>('[role="menuitem"]')];
         const active = items.find((item) => item === document.activeElement);
@@ -238,6 +238,17 @@ function MenubarContent({ children, className: cls, class: classProp }: SlotProp
             barCtx.closeAll();
           }
         }
+        return;
+      }
+
+      if (isKey(event, Keys.ArrowDown, Keys.ArrowUp)) {
+        event.preventDefault();
+        const items = [...contentEl.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+        if (items.length === 0) return;
+        const currentIdx = items.indexOf(document.activeElement as HTMLElement);
+        const direction = isKey(event, Keys.ArrowDown) ? 1 : -1;
+        const nextIdx = (((currentIdx + direction) % items.length) + items.length) % items.length;
+        items[nextIdx]?.focus();
         return;
       }
 

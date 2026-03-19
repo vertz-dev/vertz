@@ -396,4 +396,128 @@ describe('Composed Menubar', () => {
       expect(fileContent.getAttribute('data-state')).toBe('closed');
     });
   });
+
+  describe('Given Enter is pressed on a trigger', () => {
+    it('Then opens the menu and focuses the first item', () => {
+      const root = renderMenubar();
+      const trigger = root.querySelector('[data-value="file"]') as HTMLElement;
+
+      trigger.focus();
+      trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+      const content = root.querySelectorAll('[role="menu"]')[0] as HTMLElement;
+      expect(content.getAttribute('data-state')).toBe('open');
+
+      const firstItem = content.querySelector('[data-value="new"]') as HTMLElement;
+      expect(document.activeElement).toBe(firstItem);
+    });
+  });
+
+  describe('Given Space is pressed on a trigger', () => {
+    it('Then opens the menu and focuses the first item', () => {
+      const root = renderMenubar();
+      const trigger = root.querySelector('[data-value="file"]') as HTMLElement;
+
+      trigger.focus();
+      trigger.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+
+      const content = root.querySelectorAll('[role="menu"]')[0] as HTMLElement;
+      expect(content.getAttribute('data-state')).toBe('open');
+
+      const firstItem = content.querySelector('[data-value="new"]') as HTMLElement;
+      expect(document.activeElement).toBe(firstItem);
+    });
+  });
+
+  describe('Given a menu is open and ArrowDown is pressed in the content', () => {
+    it('Then focuses the next menu item', () => {
+      const root = renderMenubar();
+      const trigger = root.querySelector('[data-value="file"]') as HTMLElement;
+      const content = root.querySelectorAll('[role="menu"]')[0] as HTMLElement;
+
+      trigger.click();
+      const items = content.querySelectorAll('[role="menuitem"]');
+      const firstItem = items[0] as HTMLElement;
+      const secondItem = items[1] as HTMLElement;
+
+      expect(document.activeElement).toBe(firstItem);
+
+      content.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      expect(document.activeElement).toBe(secondItem);
+    });
+
+    it('Then wraps around to the first item from the last', () => {
+      const root = renderMenubar();
+      const trigger = root.querySelector('[data-value="file"]') as HTMLElement;
+      const content = root.querySelectorAll('[role="menu"]')[0] as HTMLElement;
+
+      trigger.click();
+      const items = content.querySelectorAll('[role="menuitem"]');
+      const firstItem = items[0] as HTMLElement;
+      const secondItem = items[1] as HTMLElement;
+
+      // Move to second item
+      content.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      expect(document.activeElement).toBe(secondItem);
+
+      // Wrap to first
+      content.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      expect(document.activeElement).toBe(firstItem);
+    });
+  });
+
+  describe('Given a menu is open and ArrowUp is pressed in the content', () => {
+    it('Then focuses the previous menu item', () => {
+      const root = renderMenubar();
+      const trigger = root.querySelector('[data-value="file"]') as HTMLElement;
+      const content = root.querySelectorAll('[role="menu"]')[0] as HTMLElement;
+
+      trigger.click();
+      const items = content.querySelectorAll('[role="menuitem"]');
+      const firstItem = items[0] as HTMLElement;
+      const secondItem = items[1] as HTMLElement;
+
+      // Move to second item first
+      content.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      expect(document.activeElement).toBe(secondItem);
+
+      // ArrowUp back to first
+      content.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+      expect(document.activeElement).toBe(firstItem);
+    });
+
+    it('Then wraps around to the last item from the first', () => {
+      const root = renderMenubar();
+      const trigger = root.querySelector('[data-value="file"]') as HTMLElement;
+      const content = root.querySelectorAll('[role="menu"]')[0] as HTMLElement;
+
+      trigger.click();
+      const items = content.querySelectorAll('[role="menuitem"]');
+      const firstItem = items[0] as HTMLElement;
+      const secondItem = items[1] as HTMLElement;
+
+      expect(document.activeElement).toBe(firstItem);
+
+      // Wrap to last
+      content.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+      expect(document.activeElement).toBe(secondItem);
+    });
+  });
+
+  describe('Given a menu is open and Space is pressed on a focused item', () => {
+    it('Then fires onSelect and closes the menu', () => {
+      const onSelect = vi.fn();
+      const root = renderMenubar({ onSelect });
+      const trigger = root.querySelector('[data-value="file"]') as HTMLElement;
+      const content = root.querySelectorAll('[role="menu"]')[0] as HTMLElement;
+
+      trigger.click();
+      const item = content.querySelector('[data-value="new"]') as HTMLElement;
+      item.focus();
+      content.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+
+      expect(onSelect).toHaveBeenCalledWith('new');
+      expect(content.getAttribute('data-state')).toBe('closed');
+    });
+  });
 });
