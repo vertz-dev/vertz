@@ -578,6 +578,9 @@ describe('createCLI', () => {
       resetSpy?.mockRestore();
       baselineSpy?.mockRestore();
       mockCtx.close.mockClear();
+      mockCtx.queryFn.mockClear();
+      mockCtx.writeFile.mockClear();
+      mockCtx.readFile.mockClear();
     });
 
     it('calls process.exit(1) when loadDbContext throws', async () => {

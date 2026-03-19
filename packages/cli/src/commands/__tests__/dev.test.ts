@@ -756,8 +756,11 @@ describe('registerDevCommand action handler', () => {
       // Commander might throw due to exitOverride
     }
 
-    // Wait a tick for async action to complete
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    // Poll until the async action completes (process.exit is called)
+    const deadline = Date.now() + 2000;
+    while (!processExitSpy.mock.calls.length && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
 
     expect(processExitSpy).toHaveBeenCalledWith(1);
     expect(consoleErrorSpy).toHaveBeenCalled();

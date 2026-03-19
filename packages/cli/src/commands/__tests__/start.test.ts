@@ -709,11 +709,13 @@ describe('startAction — ui-only', () => {
     // Request a static asset
     const staticReq = new Request('http://localhost:3000/assets/app.js');
     const staticRes = await capturedFetch?.(staticReq);
-    expect(staticRes.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
+    expect(staticRes).toBeDefined();
+    expect(staticRes!.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
 
     // Request a route — falls through to SSR
     const routeReq = new Request('http://localhost:3000/about');
     const routeRes = await capturedFetch?.(routeReq);
+    expect(routeRes).toBeDefined();
     expect(routeRes).toBeInstanceOf(Response);
   });
 });
@@ -940,7 +942,8 @@ describe('startAction — full-stack', () => {
     // API request
     const apiReq = new Request('http://localhost:3000/api/users');
     const apiRes = await capturedFetch?.(apiReq);
-    const body = await apiRes.text();
+    expect(apiRes).toBeDefined();
+    const body = await apiRes!.text();
     expect(body).toBe('api-response');
   });
 
@@ -1000,11 +1003,13 @@ describe('startAction — full-stack', () => {
     // Static asset
     const staticReq = new Request('http://localhost:3000/assets/style.css');
     const staticRes = await capturedFetch?.(staticReq);
-    expect(staticRes.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
+    expect(staticRes).toBeDefined();
+    expect(staticRes!.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
 
     // Non-API, non-static route falls to SSR
     const routeReq = new Request('http://localhost:3000/dashboard');
     const routeRes = await capturedFetch?.(routeReq);
+    expect(routeRes).toBeDefined();
     expect(routeRes).toBeInstanceOf(Response);
   });
 
