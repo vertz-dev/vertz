@@ -166,6 +166,66 @@ describe('Composed Accordion', () => {
     });
   });
 
+  describe('Given an Accordion item that is toggled open', () => {
+    it('Then sets --accordion-content-height on the content element', () => {
+      const root = ComposedAccordion({
+        children: () => {
+          const item1 = ComposedAccordion.Item({
+            value: 'item1',
+            children: () => {
+              const trigger = ComposedAccordion.Trigger({ children: ['S1'] });
+              const content = ComposedAccordion.Content({ children: ['Content 1'] });
+              return [trigger, content];
+            },
+          });
+          return [item1];
+        },
+      });
+      container.appendChild(root);
+
+      const trigger = root.querySelector('button') as HTMLElement;
+      trigger.click();
+
+      const content = root.querySelector('[role="region"]') as HTMLElement;
+      const heightVar = content.style.getPropertyValue('--accordion-content-height');
+      expect(heightVar).not.toBe('');
+    });
+
+    it('Then sets data-state and aria-hidden correctly when closing', () => {
+      const root = ComposedAccordion({
+        defaultValue: ['item1'],
+        children: () => {
+          const item1 = ComposedAccordion.Item({
+            value: 'item1',
+            children: () => {
+              const trigger = ComposedAccordion.Trigger({ children: ['S1'] });
+              const content = ComposedAccordion.Content({ children: ['Content 1'] });
+              return [trigger, content];
+            },
+          });
+          return [item1];
+        },
+      });
+      container.appendChild(root);
+
+      const trigger = root.querySelector('button') as HTMLElement;
+      let content = root.querySelector('[role="region"]') as HTMLElement;
+      expect(content.getAttribute('data-state')).toBe('open');
+      expect(content.getAttribute('aria-hidden')).toBe('false');
+
+      // Close the item — uses setHiddenAnimated which defers display:none until animation ends.
+      // Re-query the content element after click because the reactive system may
+      // replace the DOM element during signal propagation.
+      trigger.click();
+      content = root.querySelector('[role="region"]') as HTMLElement;
+
+      expect(content.getAttribute('data-state')).toBe('closed');
+      expect(content.getAttribute('aria-hidden')).toBe('true');
+      expect(trigger.getAttribute('aria-expanded')).toBe('false');
+      expect(trigger.getAttribute('data-state')).toBe('closed');
+    });
+  });
+
   describe('Given Accordion trigger text from children', () => {
     it('Then moves children into the primitive trigger button', () => {
       const root = ComposedAccordion({

@@ -1,7 +1,12 @@
 import { css } from '@vertz/ui';
 
 export const layoutStyles = css({
-  shell: ['flex', { '&': [{ property: 'height', value: '100vh' }] }],
+  shell: [
+    'flex',
+    {
+      '&': { height: '100vh', overflow: 'hidden' },
+    },
+  ],
   sidebar: [
     'w:64',
     'border-r:1',
@@ -14,20 +19,14 @@ export const layoutStyles = css({
     'flex',
     'flex-col',
     {
-      '&': [
-        { property: 'height', value: '100vh' },
-        { property: 'overflow', value: 'hidden' },
-      ],
+      '&': { height: '100vh', overflow: 'hidden' },
     },
   ],
   main: [
     'flex-1',
     'p:6',
     {
-      '&': [
-        { property: 'height', value: '100vh' },
-        { property: 'overflow', value: 'hidden' },
-      ],
+      '&': { height: '100vh', 'overflow-y': 'auto' },
     },
   ],
 });
@@ -104,6 +103,25 @@ export const demoStyles = css({
   sectionTitle: ['font:sm', 'font:medium', 'text:muted-foreground', 'mb:3'],
   row: ['flex', 'flex-wrap', 'items:center', 'gap:3'],
   col: ['flex', 'flex-col', 'gap:4'],
+  demoButton: [
+    'inline-flex',
+    'items:center',
+    'justify:center',
+    'rounded:md',
+    'text:sm',
+    'font:medium',
+    'px:4',
+    'border:1',
+    'border:border',
+    'bg:background',
+    'text:foreground',
+    'hover:bg:accent',
+    'hover:text:accent-foreground',
+    'cursor:pointer',
+    {
+      '&': { height: '2.25rem' },
+    },
+  ],
 });
 
 export const homeStyles = css({

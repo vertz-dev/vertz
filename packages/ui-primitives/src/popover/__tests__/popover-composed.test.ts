@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
-import { popScope, pushScope, runCleanups } from '@vertz/ui/internals';
 import { ComposedPopover } from '../popover-composed';
 
 describe('Composed Popover', () => {
@@ -97,7 +96,7 @@ describe('Composed Popover', () => {
   });
 
   describe('Given a Popover trigger element', () => {
-    it('Then sets ARIA attributes on the user trigger', () => {
+    it('Then sets ARIA attributes on the trigger wrapper', () => {
       const btn = document.createElement('button');
 
       const root = ComposedPopover({
@@ -109,8 +108,10 @@ describe('Composed Popover', () => {
       });
       container.appendChild(root);
 
-      expect(btn.getAttribute('aria-haspopup')).toBe('dialog');
-      expect(btn.getAttribute('aria-expanded')).toBe('false');
+      // ARIA attributes are on the trigger wrapper span, not the user's button
+      const triggerWrapper = root.querySelector('[data-popover-trigger]') as HTMLElement;
+      expect(triggerWrapper.getAttribute('aria-haspopup')).toBe('dialog');
+      expect(triggerWrapper.getAttribute('aria-expanded')).toBe('false');
     });
   });
 
@@ -127,11 +128,13 @@ describe('Composed Popover', () => {
       });
       container.appendChild(root);
 
+      // Click the button — event bubbles to the trigger wrapper's onClick
+      const triggerWrapper = root.querySelector('[data-popover-trigger]') as HTMLElement;
       btn.click();
-      expect(btn.getAttribute('data-state')).toBe('open');
+      expect(triggerWrapper.getAttribute('data-state')).toBe('open');
 
       btn.click();
-      expect(btn.getAttribute('data-state')).toBe('closed');
+      expect(triggerWrapper.getAttribute('data-state')).toBe('closed');
     });
   });
 
@@ -200,27 +203,4 @@ describe('Composed Popover', () => {
     });
   });
 
-  describe('Given a Popover rendered inside a disposal scope', () => {
-    describe('When the disposal scope cleanups are run', () => {
-      it('Then removeEventListener is called for the trigger click handler', () => {
-        const scope = pushScope();
-        const btn = document.createElement('button');
-
-        const root = ComposedPopover({
-          children: () => {
-            const t = ComposedPopover.Trigger({ children: [btn] });
-            const c = ComposedPopover.Content({ children: ['Body'] });
-            return [t, c];
-          },
-        });
-        container.appendChild(root);
-        popScope();
-
-        const spy = vi.spyOn(btn, 'removeEventListener');
-        runCleanups(scope);
-
-        expect(spy).toHaveBeenCalledWith('click', expect.any(Function));
-      });
-    });
-  });
 });

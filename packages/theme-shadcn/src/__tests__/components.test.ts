@@ -295,6 +295,28 @@ describe('Separator component', () => {
     expect(el.className).toContain('extra');
     expect(el.className).toContain(separatorStyles.base);
   });
+
+  it('applies horizontal class by default', () => {
+    const el = Separator({});
+    expect(el.className).toContain(separatorStyles.horizontal);
+  });
+
+  it('applies vertical class when orientation is vertical', () => {
+    const el = Separator({ orientation: 'vertical' });
+    expect(el.className).toContain(separatorStyles.vertical);
+    expect(el.className).not.toContain(separatorStyles.horizontal);
+  });
+
+  it('sets role="separator" and aria-orientation', () => {
+    const el = Separator({});
+    expect(el.getAttribute('role')).toBe('separator');
+    expect(el.getAttribute('aria-orientation')).toBe('horizontal');
+  });
+
+  it('sets aria-orientation to vertical', () => {
+    const el = Separator({ orientation: 'vertical' });
+    expect(el.getAttribute('aria-orientation')).toBe('vertical');
+  });
 });
 
 describe('FormGroup components', () => {

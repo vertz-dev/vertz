@@ -34,6 +34,7 @@ export interface SelectClasses {
 interface SelectContextValue {
   isOpen: () => boolean;
   selectedValue: () => string;
+  placeholder?: string;
   contentId: string;
   classes?: SelectClasses;
   open: () => void;
@@ -87,6 +88,7 @@ function SelectTrigger({ children, className: cls, class: classProp }: SlotProps
   const ctx = useSelectContext('Trigger');
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.trigger, effectiveCls].filter(Boolean).join(' ');
+  const displayText = children ?? (ctx.selectedValue() || ctx.placeholder || '');
 
   return (
     <button
@@ -106,7 +108,12 @@ function SelectTrigger({ children, className: cls, class: classProp }: SlotProps
         }
       }}
     >
-      {children ?? ctx.selectedValue()}
+      <span
+        data-part="text"
+        style="flex: 1; text-align: start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap"
+      >
+        {displayText}
+      </span>
       <span data-part="chevron">
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -271,6 +278,7 @@ function ComposedSelectRoot({
   children,
   classes,
   defaultValue = '',
+  placeholder,
   onValueChange,
   positioning,
 }: ComposedSelectProps) {
@@ -321,7 +329,7 @@ function ComposedSelectRoot({
     // Set position immediately to prevent layout shift before async computation.
     contentEl.style.position = 'fixed';
     if (triggerEl) {
-      const floatingOpts = positioning ?? {};
+      const floatingOpts = { matchReferenceWidth: true, ...positioning };
       const result = createFloatingPosition(triggerEl, contentEl, floatingOpts);
       state.floatingCleanup = result.cleanup;
     }
@@ -379,6 +387,7 @@ function ComposedSelectRoot({
   const ctx: SelectContextValue = {
     isOpen: () => isOpen,
     selectedValue: () => selectedValue,
+    placeholder,
     contentId: ids.contentId,
     classes,
     open,

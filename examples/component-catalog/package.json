@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "bun node_modules/@vertz/cli/dist/vertz.js dev --port 8000",
     "build": "bun node_modules/@vertz/cli/dist/vertz.js build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "e2e": "npx playwright test",
+    "e2e:headed": "npx playwright test --headed"
   },
   "dependencies": {
     "@vertz/ui": "workspace:*",
@@ -15,6 +17,7 @@
     "@vertz/ui-server": "workspace:*"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@vertz/cli": "workspace:*",
     "@vertz/ui-compiler": "workspace:*",
     "bun-types": "^1.3.9",
