@@ -35,6 +35,17 @@ function randomPort(): number {
   return 10000 + Math.floor(Math.random() * 50000);
 }
 
+/** Wait for first WS message with a timeout guard to prevent CI hangs */
+function waitForWSMessage(ws: WebSocket, timeoutMs = 5000): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('WS message timeout')), timeoutMs);
+    ws.onmessage = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+  });
+}
+
 beforeEach(() => {
   tmpDir = join(tmpdir(), `vertz-integration-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   mkdirSync(join(tmpDir, 'src'), { recursive: true });
@@ -473,15 +484,11 @@ describe('bun-dev-server integration', () => {
       await devServer.start();
 
       const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
-      await new Promise<void>((resolve) => {
-        ws.onmessage = () => resolve(); // connected
-      });
+      await waitForWSMessage(ws);
 
       // Broadcast an error first
       devServer.broadcastError('build', [{ message: 'err' }]);
-      await new Promise<void>((resolve) => {
-        ws.onmessage = () => resolve(); // error msg
-      });
+      await waitForWSMessage(ws);
 
       // Listen for clear
       const clearMsg = new Promise<string>((resolve) => {
@@ -575,9 +582,7 @@ describe('bun-dev-server integration', () => {
       await devServer.start();
 
       const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
-      await new Promise<void>((resolve) => {
-        ws.onmessage = () => resolve(); // connected
-      });
+      await waitForWSMessage(ws);
 
       // Listen for error message
       const errorMsg = new Promise<string>((resolve, reject) => {
@@ -615,15 +620,11 @@ describe('bun-dev-server integration', () => {
       await devServer.start();
 
       const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
-      await new Promise<void>((resolve) => {
-        ws.onmessage = () => resolve(); // connected
-      });
+      await waitForWSMessage(ws);
 
       // Set an existing error
       devServer.broadcastError('build', [{ message: 'old error' }]);
-      await new Promise<void>((resolve) => {
-        ws.onmessage = () => resolve(); // error msg
-      });
+      await waitForWSMessage(ws);
 
       // Listen for clear message
       const clearMsg = new Promise<string>((resolve, reject) => {
@@ -658,9 +659,7 @@ describe('bun-dev-server integration', () => {
       await devServer.start();
 
       const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
-      await new Promise<void>((resolve) => {
-        ws.onmessage = () => resolve(); // connected
-      });
+      await waitForWSMessage(ws);
 
       // Listen for error message
       const errorMsg = new Promise<string>((resolve) => {
@@ -739,9 +738,7 @@ describe('bun-dev-server integration', () => {
       await devServer.start();
 
       const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
-      await new Promise<void>((resolve) => {
-        ws.onmessage = () => resolve(); // connected
-      });
+      await waitForWSMessage(ws);
 
       const errorMsg = new Promise<string>((resolve, reject) => {
         ws.onmessage = (e) => resolve(typeof e.data === 'string' ? e.data : '');
@@ -775,9 +772,7 @@ describe('bun-dev-server integration', () => {
       await devServer.start();
 
       const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
-      await new Promise<void>((resolve) => {
-        ws.onmessage = () => resolve(); // connected
-      });
+      await waitForWSMessage(ws);
 
       // Set up a listener that should NOT fire
       let received = false;
@@ -811,9 +806,7 @@ describe('bun-dev-server integration', () => {
       await devServer.start();
 
       const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
-      await new Promise<void>((resolve) => {
-        ws.onmessage = () => resolve(); // connected
-      });
+      await waitForWSMessage(ws);
 
       const messages: string[] = [];
       ws.onmessage = (e) => {
@@ -848,15 +841,11 @@ describe('bun-dev-server integration', () => {
       await devServer.start();
 
       const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
-      await new Promise<void>((resolve) => {
-        ws.onmessage = () => resolve(); // connected
-      });
+      await waitForWSMessage(ws);
 
       // Broadcast a build error
       devServer.broadcastError('build', [{ message: 'syntax error' }]);
-      await new Promise<void>((resolve) => {
-        ws.onmessage = () => resolve(); // error msg
-      });
+      await waitForWSMessage(ws);
 
       // Try broadcasting an SSR error — should be suppressed
       devServer.broadcastError('ssr', [{ message: 'ssr failure' }]);
@@ -949,9 +938,7 @@ describe('bun-dev-server integration', () => {
       await devServer.start();
 
       const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
-      await new Promise<void>((resolve) => {
-        ws.onmessage = () => resolve(); // connected
-      });
+      await waitForWSMessage(ws);
 
       // First, set up a message collector
       const messages: string[] = [];
@@ -1011,9 +998,7 @@ describe('bun-dev-server integration', () => {
       await devServer.start();
 
       const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
-      await new Promise<void>((resolve) => {
-        ws.onmessage = () => resolve(); // connected
-      });
+      await waitForWSMessage(ws);
 
       const messages: string[] = [];
       ws.onmessage = (e) => {
@@ -1078,9 +1063,7 @@ describe('bun-dev-server integration', () => {
       await devServer.start();
 
       const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
-      await new Promise<void>((resolve) => {
-        ws.onmessage = () => resolve(); // connected
-      });
+      await waitForWSMessage(ws);
 
       const messages: string[] = [];
       ws.onmessage = (e) => {
@@ -1134,9 +1117,7 @@ describe('bun-dev-server integration', () => {
       await devServer.start();
 
       const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
-      await new Promise<void>((resolve) => {
-        ws.onmessage = () => resolve(); // connected
-      });
+      await waitForWSMessage(ws);
 
       const messages: string[] = [];
       ws.onmessage = (e) => {
@@ -1190,9 +1171,7 @@ describe('bun-dev-server integration', () => {
       await devServer.start();
 
       const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
-      await new Promise<void>((resolve) => {
-        ws.onmessage = () => resolve(); // connected
-      });
+      await waitForWSMessage(ws);
 
       const errorMsg = new Promise<string>((resolve, reject) => {
         ws.onmessage = (e) => resolve(typeof e.data === 'string' ? e.data : '');
@@ -1230,9 +1209,7 @@ describe('bun-dev-server integration', () => {
       await devServer.start();
 
       const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
-      await new Promise<void>((resolve) => {
-        ws.onmessage = () => resolve(); // connected
-      });
+      await waitForWSMessage(ws);
 
       // Simulate the real watcher sequence:
       // 1. First, broadcast an error (as if a previous save had an error)
@@ -1288,9 +1265,7 @@ describe('bun-dev-server integration', () => {
       await devServer.start();
 
       const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
-      await new Promise<void>((resolve) => {
-        ws.onmessage = () => resolve(); // connected
-      });
+      await waitForWSMessage(ws);
 
       const errorMsg = new Promise<string>((resolve, reject) => {
         ws.onmessage = (e) => resolve(typeof e.data === 'string' ? e.data : '');
@@ -1328,9 +1303,7 @@ describe('bun-dev-server integration', () => {
       const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
 
       // Wait for connected message first
-      await new Promise<void>((resolve) => {
-        ws.onmessage = () => resolve();
-      });
+      await waitForWSMessage(ws);
 
       // Send ping and wait for pong
       const pong = new Promise<string>((resolve, reject) => {
@@ -1884,9 +1857,7 @@ describe('bun-dev-server integration', () => {
     const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
 
     // Wait for connected
-    await new Promise<void>((resolve) => {
-      ws.onmessage = () => resolve();
-    });
+    await waitForWSMessage(ws);
 
     // Send resolve-stack
     const errorMsg = new Promise<string>((resolve) => {
@@ -1931,9 +1902,7 @@ describe('bun-dev-server integration', () => {
     const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
 
     // Wait for connected
-    await new Promise<void>((resolve) => {
-      ws.onmessage = () => resolve();
-    });
+    await waitForWSMessage(ws);
 
     // Send resolve-stack with a completely invalid stack (no valid URLs)
     // This should cause the resolution to fail or return empty results,
@@ -1987,9 +1956,7 @@ describe('bun-dev-server integration', () => {
     const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
 
     // Wait for connected
-    await new Promise<void>((resolve) => {
-      ws.onmessage = () => resolve();
-    });
+    await waitForWSMessage(ws);
 
     const errorMsgs: string[] = [];
     const gotError = new Promise<void>((resolve) => {
@@ -2038,9 +2005,7 @@ describe('bun-dev-server integration', () => {
     await devServer.start();
 
     const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
-    await new Promise<void>((resolve) => {
-      ws.onmessage = () => resolve(); // connected msg
-    });
+    await waitForWSMessage(ws);
 
     // Set currentError with file info AFTER connecting (avoid resend race)
     devServer.broadcastError('runtime', [
@@ -2112,9 +2077,7 @@ describe('bun-dev-server integration', () => {
     devServer.setLastChangedFile('src/my-component.tsx');
 
     const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
-    await new Promise<void>((resolve) => {
-      ws.onmessage = () => resolve(); // connected
-    });
+    await waitForWSMessage(ws);
 
     const errorMsgs: string[] = [];
     const gotError = new Promise<void>((resolve) => {
@@ -2165,9 +2128,7 @@ describe('bun-dev-server integration', () => {
     // Don't set lastChangedFile or currentError
 
     const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
-    await new Promise<void>((resolve) => {
-      ws.onmessage = () => resolve(); // connected
-    });
+    await waitForWSMessage(ws);
 
     const errorMsgs: string[] = [];
     const gotError = new Promise<void>((resolve) => {
@@ -2278,9 +2239,7 @@ describe('bun-dev-server integration', () => {
     const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
 
     // Wait for connected
-    await new Promise<void>((resolve) => {
-      ws.onmessage = () => resolve();
-    });
+    await waitForWSMessage(ws);
 
     // Send restart
     ws.send(JSON.stringify({ type: 'restart' }));
@@ -2582,9 +2541,7 @@ describe('bun-dev-server integration', () => {
     await devServer.start();
 
     const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
-    await new Promise<void>((resolve) => {
-      ws.onmessage = () => resolve();
-    });
+    await waitForWSMessage(ws);
 
     ws.close();
     await new Promise((r) => setTimeout(r, 100));
