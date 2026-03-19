@@ -5,8 +5,8 @@
  * No registration phase, no resolveChildren, no internal API imports.
  */
 
-import type { ChildValue } from '@vertz/ui';
-import { createContext, onMount, useContext } from '@vertz/ui';
+import type { ChildValue, Ref } from '@vertz/ui';
+import { createContext, onMount, ref, useContext } from '@vertz/ui';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
@@ -32,6 +32,7 @@ export interface DropdownMenuClasses {
 interface DropdownMenuContextValue {
   isOpen: boolean;
   contentId: string;
+  contentRef: Ref<HTMLDivElement>;
   classes?: DropdownMenuClasses;
   onSelect?: (value: string) => void;
   open: (activateFirst?: boolean) => void;
@@ -139,6 +140,7 @@ function MenuContent({ children, className: cls, class: classProp }: SlotProps) 
 
   return (
     <div
+      ref={ctx.contentRef}
       role="menu"
       tabindex="-1"
       id={ctx.contentId}
@@ -265,6 +267,7 @@ function ComposedDropdownMenuRoot({
   positioning,
 }: ComposedDropdownMenuProps) {
   const ids = linkedIds('menu');
+  const contentRef: Ref<HTMLDivElement> = ref();
 
   let isOpen = false;
 
@@ -276,7 +279,7 @@ function ComposedDropdownMenuRoot({
   } = { activeIndex: -1, floatingCleanup: null, dismissCleanup: null };
 
   function getContentEl(): HTMLElement | null {
-    return document.getElementById(ids.contentId);
+    return contentRef.current ?? null;
   }
 
   function getItems(): HTMLElement[] {
@@ -348,6 +351,7 @@ function ComposedDropdownMenuRoot({
   const ctx: DropdownMenuContextValue = {
     isOpen,
     contentId: ids.contentId,
+    contentRef,
     classes,
     onSelect,
     open,

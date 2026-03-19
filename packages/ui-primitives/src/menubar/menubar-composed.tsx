@@ -7,8 +7,8 @@
  * Follows WAI-ARIA menubar pattern with cross-menu keyboard navigation.
  */
 
-import type { ChildValue } from '@vertz/ui';
-import { createContext, onMount, useContext } from '@vertz/ui';
+import type { ChildValue, Ref } from '@vertz/ui';
+import { createContext, onMount, ref, useContext } from '@vertz/ui';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
@@ -35,6 +35,7 @@ export interface MenubarClasses {
 
 interface MenubarContextValue {
   rootId: string;
+  rootRef: Ref<HTMLDivElement>;
   classes?: MenubarClasses;
   getOnSelect: () => ((value: string) => void) | undefined;
   getPositioning: () => FloatingOptions | undefined;
@@ -217,7 +218,7 @@ function MenubarContent({ children, className: cls, class: classProp }: SlotProp
         event.preventDefault();
         barCtx.closeAll();
         // Focus the trigger for this menu
-        const root = document.getElementById(barCtx.rootId);
+        const root = barCtx.rootRef.current;
         if (root) {
           const trigger = root.querySelector<HTMLElement>(
             `[data-menubar-trigger][data-value="${menuCtx.menuValue}"]`,
@@ -347,6 +348,7 @@ export type MenubarClassKey = keyof MenubarClasses;
 
 function ComposedMenubarRoot({ children, classes, onSelect, positioning }: ComposedMenubarProps) {
   const rootId = uniqueId('menubar');
+  const rootRef: Ref<HTMLDivElement> = ref();
 
   // Mutable state for active menu and cleanup functions.
   const state: {
@@ -356,7 +358,7 @@ function ComposedMenubarRoot({ children, classes, onSelect, positioning }: Compo
   } = { activeMenu: null, floatingCleanup: null, dismissCleanup: null };
 
   function getRootEl(): HTMLElement | null {
-    return document.getElementById(rootId);
+    return rootRef.current ?? null;
   }
 
   function getMenuItems(contentEl: HTMLElement): HTMLElement[] {
@@ -487,6 +489,7 @@ function ComposedMenubarRoot({ children, classes, onSelect, positioning }: Compo
 
   const ctx: MenubarContextValue = {
     rootId,
+    rootRef,
     classes,
     getOnSelect: () => onSelect,
     getPositioning: () => positioning,
@@ -499,6 +502,7 @@ function ComposedMenubarRoot({ children, classes, onSelect, positioning }: Compo
   return (
     <MenubarContext.Provider value={ctx}>
       <div
+        ref={rootRef}
         role="menubar"
         id={rootId}
         class={classes?.root || undefined}

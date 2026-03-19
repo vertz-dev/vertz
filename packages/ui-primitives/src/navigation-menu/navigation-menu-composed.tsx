@@ -8,8 +8,8 @@
  * hover delays, and roving tabindex.
  */
 
-import type { ChildValue } from '@vertz/ui';
-import { createContext, useContext } from '@vertz/ui';
+import type { ChildValue, Ref } from '@vertz/ui';
+import { createContext, ref, useContext } from '@vertz/ui';
 import { linkedIds } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
@@ -32,6 +32,7 @@ export interface NavigationMenuClasses {
 
 interface NavigationMenuContextValue {
   rootId: string;
+  rootRef: Ref<HTMLElement>;
   classes?: NavigationMenuClasses;
   orientation: 'horizontal' | 'vertical';
   getActiveItem: () => string | null;
@@ -46,6 +47,8 @@ interface NavigationMenuItemContextValue {
   value: string;
   triggerId: string;
   contentId: string;
+  triggerRef: Ref<HTMLButtonElement>;
+  contentRef: Ref<HTMLDivElement>;
 }
 
 const NavigationMenuContext = createContext<NavigationMenuContextValue | undefined>(
@@ -191,11 +194,15 @@ function NavMenuList({ children, className: cls, class: classProp }: ListProps) 
 function NavMenuItem({ value, children }: ItemProps) {
   useNavigationMenuListContext('Item');
   const ids = linkedIds('nav-menu');
+  const triggerRef: Ref<HTMLButtonElement> = ref();
+  const contentRef: Ref<HTMLDivElement> = ref();
 
   const itemCtx: NavigationMenuItemContextValue = {
     value,
     triggerId: ids.triggerId,
     contentId: ids.contentId,
+    triggerRef,
+    contentRef,
   };
 
   return (
@@ -215,6 +222,7 @@ function NavMenuTrigger({ children, className: cls, class: classProp }: TriggerP
 
   return (
     <button
+      ref={itemCtx.triggerRef}
       type="button"
       id={itemCtx.triggerId}
       aria-controls={itemCtx.contentId}
@@ -244,7 +252,7 @@ function NavMenuTrigger({ children, className: cls, class: classProp }: TriggerP
           ctx.openItem(itemCtx.value);
           // Focus first focusable in content
           queueMicrotask(() => {
-            const content = document.getElementById(itemCtx.contentId);
+            const content = itemCtx.contentRef.current;
             if (content) {
               const first = content.querySelector<HTMLElement>('a, button, [tabindex]');
               if (first) first.focus();
@@ -270,6 +278,7 @@ function NavMenuContent({ children, className: cls, class: classProp }: ContentP
 
   return (
     <div
+      ref={itemCtx.contentRef}
       id={itemCtx.contentId}
       data-part="nav-content"
       data-navmenu-content=""
@@ -289,7 +298,7 @@ function NavMenuContent({ children, className: cls, class: classProp }: ContentP
           event.stopPropagation();
           ctx.closeAll();
           // Return focus to the associated trigger
-          const trigger = document.getElementById(itemCtx.triggerId);
+          const trigger = itemCtx.triggerRef.current;
           if (trigger) trigger.focus();
         }
       }}
@@ -344,6 +353,7 @@ function ComposedNavigationMenuRoot({
   delayClose = 300,
 }: ComposedNavigationMenuProps) {
   const rootId = `nav-menu-${linkedIds('nav-root').triggerId}`;
+  const rootRef: Ref<HTMLElement> = ref();
 
   // Mutable state for active item and timers.
   const state: {
@@ -364,7 +374,7 @@ function ComposedNavigationMenuRoot({
   }
 
   function getRootEl(): HTMLElement | null {
-    return document.getElementById(rootId);
+    return rootRef.current ?? null;
   }
 
   function openItem(value: string): void {
@@ -453,6 +463,7 @@ function ComposedNavigationMenuRoot({
 
   const ctx: NavigationMenuContextValue = {
     rootId,
+    rootRef,
     classes,
     orientation,
     getActiveItem: () => state.activeItem,
@@ -465,7 +476,7 @@ function ComposedNavigationMenuRoot({
 
   return (
     <NavigationMenuContext.Provider value={ctx}>
-      <nav id={rootId} class={classes?.root || undefined}>
+      <nav ref={rootRef} id={rootId} class={classes?.root || undefined}>
         {children}
       </nav>
     </NavigationMenuContext.Provider>

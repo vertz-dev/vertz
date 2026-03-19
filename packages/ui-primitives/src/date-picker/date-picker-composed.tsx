@@ -7,8 +7,8 @@
  * reactive-wrapping issues with nested component calls.
  */
 
-import type { ChildValue } from '@vertz/ui';
-import { createContext, onMount, useContext } from '@vertz/ui';
+import type { ChildValue, Ref } from '@vertz/ui';
+import { createContext, onMount, ref, useContext } from '@vertz/ui';
 import type { CalendarClasses, ComposedCalendarProps } from '../calendar/calendar-composed';
 import { ComposedCalendar } from '../calendar/calendar-composed';
 import { createDismiss } from '../utils/dismiss';
@@ -36,6 +36,7 @@ interface DatePickerContextValue {
   hasValue: () => boolean;
   displayText: () => string;
   contentId: string;
+  contentRef: Ref<HTMLDivElement>;
   classes?: DatePickerClasses;
   open: () => void;
   close: () => void;
@@ -109,6 +110,7 @@ function DatePickerContent({ children, className: cls, class: classProp }: SlotP
 
   return (
     <div
+      ref={ctx.contentRef}
       role="dialog"
       id={ctx.contentId}
       data-datepicker-content=""
@@ -216,6 +218,7 @@ function ComposedDatePickerRoot({
   onOpenChange,
 }: ComposedDatePickerProps) {
   const ids = linkedIds('datepicker');
+  const contentRef: Ref<HTMLDivElement> = ref();
 
   let isOpen = false;
   let hasValue = defaultValue != null;
@@ -235,7 +238,7 @@ function ComposedDatePickerRoot({
     const open = isOpen;
     if (!open) return;
 
-    const contentEl = document.getElementById(ids.contentId);
+    const contentEl = contentRef.current;
     const triggerEl = contentEl?.parentElement?.querySelector(
       '[data-datepicker-trigger]',
     ) as HTMLElement | null;
@@ -307,6 +310,7 @@ function ComposedDatePickerRoot({
     hasValue: () => hasValue,
     displayText: () => displayText,
     contentId: ids.contentId,
+    contentRef,
     classes,
     open,
     close,

@@ -4,8 +4,8 @@
  * No registration phase, no resolveChildren, no internal API imports.
  */
 
-import type { ChildValue } from '@vertz/ui';
-import { createContext, useContext } from '@vertz/ui';
+import type { ChildValue, Ref } from '@vertz/ui';
+import { createContext, ref, useContext } from '@vertz/ui';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
@@ -26,6 +26,7 @@ export interface PopoverClasses {
 interface PopoverContextValue {
   isOpen: () => boolean;
   contentId: string;
+  contentRef: Ref<HTMLDivElement>;
   classes?: PopoverClasses;
   open: () => void;
   close: () => void;
@@ -107,6 +108,7 @@ function PopoverContent({ children, className: cls, class: classProp }: SlotProp
 
   return (
     <div
+      ref={ctx.contentRef}
       role="dialog"
       id={ctx.contentId}
       data-popover-content=""
@@ -140,6 +142,7 @@ function ComposedPopoverRoot({
   positioning,
 }: ComposedPopoverProps) {
   const ids = linkedIds('popover');
+  const contentRef: Ref<HTMLDivElement> = ref();
 
   let isOpen = false;
 
@@ -151,7 +154,7 @@ function ComposedPopoverRoot({
   };
 
   function getElements(): { trigger: HTMLElement | null; content: HTMLElement | null } {
-    const content = document.getElementById(ids.contentId);
+    const content = contentRef.current ?? null;
     let trigger = content
       ? (content.parentElement?.querySelector('[data-popover-trigger]') as HTMLElement | null)
       : null;
@@ -164,7 +167,7 @@ function ComposedPopoverRoot({
   }
 
   function syncContentAttrs(nowOpen: boolean): void {
-    const content = document.getElementById(ids.contentId);
+    const content = contentRef.current;
     if (!content) return;
     content.setAttribute('data-state', nowOpen ? 'open' : 'closed');
     content.setAttribute('aria-hidden', nowOpen ? 'false' : 'true');
@@ -199,7 +202,7 @@ function ComposedPopoverRoot({
     syncContentAttrs(false);
 
     // Reset floating position styles
-    const content = document.getElementById(ids.contentId);
+    const content = contentRef.current;
     if (content) {
       content.style.position = '';
       content.style.left = '';
@@ -221,6 +224,7 @@ function ComposedPopoverRoot({
   const ctx: PopoverContextValue = {
     isOpen: () => isOpen,
     contentId: ids.contentId,
+    contentRef,
     classes,
     open,
     close,

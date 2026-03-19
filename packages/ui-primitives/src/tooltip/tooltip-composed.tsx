@@ -4,8 +4,8 @@
  * No registration phase, no resolveChildren, no internal API imports.
  */
 
-import type { ChildValue } from '@vertz/ui';
-import { createContext, useContext } from '@vertz/ui';
+import type { ChildValue, Ref } from '@vertz/ui';
+import { createContext, ref, useContext } from '@vertz/ui';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
 import { uniqueId } from '../utils/id';
@@ -25,6 +25,7 @@ export interface TooltipClasses {
 interface TooltipContextValue {
   isOpen: boolean;
   contentId: string;
+  contentRef: Ref<HTMLDivElement>;
   classes?: TooltipClasses;
   show: () => void;
   hide: () => void;
@@ -99,6 +100,7 @@ function TooltipContent({ children, className: cls, class: classProp }: SlotProp
 
   return (
     <div
+      ref={ctx.contentRef}
       role="tooltip"
       id={ctx.contentId}
       data-tooltip-content=""
@@ -132,6 +134,7 @@ function ComposedTooltipRoot({
   positioning,
 }: ComposedTooltipProps) {
   const contentId = uniqueId('tooltip');
+  const contentRef: Ref<HTMLDivElement> = ref();
 
   let isOpen = false;
 
@@ -146,7 +149,7 @@ function ComposedTooltipRoot({
 
   function applyPositioning(): void {
     if (!positioning) return;
-    const content = document.getElementById(contentId);
+    const content = contentRef.current;
     const trigger = content?.parentElement?.querySelector(
       '[data-tooltip-trigger]',
     ) as HTMLElement | null;
@@ -178,6 +181,7 @@ function ComposedTooltipRoot({
   const ctx: TooltipContextValue = {
     isOpen,
     contentId,
+    contentRef,
     classes,
     show,
     hide,
