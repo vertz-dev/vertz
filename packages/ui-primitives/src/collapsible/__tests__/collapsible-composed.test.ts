@@ -203,6 +203,81 @@ describe('ComposedCollapsible', () => {
     expect(heightVar).toMatch(/^\d+px$/);
   });
 
+  it('distributes trigger class', async () => {
+    const { ComposedCollapsible } = await import('../collapsible-composed');
+    const root = ComposedCollapsible({
+      classes: { trigger: 'my-trigger' },
+      children: () => {
+        const trigger = ComposedCollapsible.Trigger({ children: ['Toggle'] });
+        const content = ComposedCollapsible.Content({ children: ['Body'] });
+        return [trigger, content];
+      },
+    });
+    container.appendChild(root);
+
+    const trigger = root.querySelector('button') as HTMLButtonElement;
+    expect(trigger.className).toContain('my-trigger');
+  });
+
+  it('merges trigger class from classes prop and Trigger className', async () => {
+    const { ComposedCollapsible } = await import('../collapsible-composed');
+    const root = ComposedCollapsible({
+      classes: { trigger: 'theme-trigger' },
+      children: () => {
+        const trigger = ComposedCollapsible.Trigger({
+          children: ['Toggle'],
+          className: 'user-trigger',
+        });
+        const content = ComposedCollapsible.Content({ children: ['Body'] });
+        return [trigger, content];
+      },
+    });
+    container.appendChild(root);
+
+    const trigger = root.querySelector('button') as HTMLButtonElement;
+    expect(trigger.className).toContain('theme-trigger');
+    expect(trigger.className).toContain('user-trigger');
+  });
+
+  it('throws when Trigger is used outside Provider', async () => {
+    const { ComposedCollapsible } = await import('../collapsible-composed');
+    expect(() => ComposedCollapsible.Trigger({ children: ['Toggle'] })).toThrow(
+      '<Collapsible.Trigger> must be used inside <Collapsible>',
+    );
+  });
+
+  it('throws when Content is used outside Provider', async () => {
+    const { ComposedCollapsible } = await import('../collapsible-composed');
+    expect(() => ComposedCollapsible.Content({ children: ['Body'] })).toThrow(
+      '<Collapsible.Content> must be used inside <Collapsible>',
+    );
+  });
+
+  it('rapid close-then-reopen keeps content visible', async () => {
+    const { ComposedCollapsible } = await import('../collapsible-composed');
+    const root = ComposedCollapsible({
+      children: () => {
+        const trigger = ComposedCollapsible.Trigger({ children: ['Toggle'] });
+        const content = ComposedCollapsible.Content({ children: ['Body'] });
+        return [trigger, content];
+      },
+    });
+    container.appendChild(root);
+
+    const trigger = root.querySelector('button') as HTMLButtonElement;
+    const content = root.querySelector('[data-part="collapsible-content"]') as HTMLElement;
+
+    // Open → Close → Open rapidly
+    trigger.click(); // open
+    trigger.click(); // close (deferred hide starts)
+    trigger.click(); // reopen (should cancel deferred hide)
+
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    expect(content.getAttribute('data-state')).toBe('open');
+    expect(content.getAttribute('aria-hidden')).toBe('false');
+    expect(content.style.display).toBe('');
+  });
+
   it('aria-controls links trigger to content', async () => {
     const { ComposedCollapsible } = await import('../collapsible-composed');
     const root = ComposedCollapsible({
