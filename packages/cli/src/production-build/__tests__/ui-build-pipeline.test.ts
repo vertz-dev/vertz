@@ -34,6 +34,7 @@ vi.mock('@vertz/ui-server/bun-plugin', () => {
 // subsequent test files (e.g., pglite tests that check `window.encodeURIComponent`).
 vi.mock('@vertz/ui-server/ssr', () => {
   return {
+    createSSRHandler: vi.fn(() => async () => new Response('ssr-mock')),
     collectPrerenderPaths: async () => [],
     discoverRoutes: async () => [],
     filterPrerenderableRoutes: (patterns: string[]) => patterns,
