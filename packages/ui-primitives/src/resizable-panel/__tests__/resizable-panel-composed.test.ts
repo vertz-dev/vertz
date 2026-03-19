@@ -52,7 +52,7 @@ describe('ComposedResizablePanel', () => {
     });
     container.appendChild(root);
 
-    const panels = root.querySelectorAll('[data-panel]');
+    const panels = root.querySelectorAll('[data-part="panel"]');
     expect(panels.length).toBe(2);
     for (const panel of panels) {
       expect((panel as HTMLElement).classList.contains('my-panel')).toBe(true);
@@ -95,7 +95,7 @@ describe('ComposedResizablePanel', () => {
     });
     container.appendChild(root);
 
-    const panels = root.querySelectorAll('[data-panel]');
+    const panels = root.querySelectorAll('[data-part="panel"]');
     expect((panels[0] as HTMLElement).classList.contains('left-panel')).toBe(true);
     expect((panels[1] as HTMLElement).classList.contains('right-panel')).toBe(true);
   });
@@ -145,6 +145,23 @@ describe('ComposedResizablePanel', () => {
     });
 
     expect(root.getAttribute('data-orientation')).toBe('vertical');
+  });
+
+  it('handle receives orientation from context', async () => {
+    const { ComposedResizablePanel } = await import('../resizable-panel-composed');
+    const root = ComposedResizablePanel({
+      orientation: 'vertical',
+      children: () => {
+        const p1 = ComposedResizablePanel.Panel({ children: ['Top'] });
+        const h = ComposedResizablePanel.Handle({});
+        const p2 = ComposedResizablePanel.Panel({ children: ['Bottom'] });
+        return [p1, h, p2];
+      },
+    });
+    container.appendChild(root);
+
+    const handle = root.querySelector('[role="separator"]') as HTMLElement;
+    expect(handle.getAttribute('data-orientation')).toBe('vertical');
   });
 
   it('passes onResize through', async () => {
@@ -201,7 +218,7 @@ describe('ComposedResizablePanel', () => {
     });
     container.appendChild(root);
 
-    const panels = root.querySelectorAll('[data-panel]');
+    const panels = root.querySelectorAll('[data-part="panel"]');
     expect((panels[0] as HTMLElement).textContent).toBe('Hello');
     expect((panels[1] as HTMLElement).textContent).toBe('World');
   });
@@ -218,5 +235,155 @@ describe('ComposedResizablePanel', () => {
     expect(() => {
       ComposedResizablePanel.Handle({});
     }).toThrow(/must be used inside/);
+  });
+
+  it('defaultSize={0} is treated as explicit zero, not unset', async () => {
+    const { ComposedResizablePanel } = await import('../resizable-panel-composed');
+    const root = ComposedResizablePanel({
+      children: () => {
+        const p1 = ComposedResizablePanel.Panel({
+          children: ['Collapsed'],
+          defaultSize: 0,
+        });
+        const h = ComposedResizablePanel.Handle({});
+        const p2 = ComposedResizablePanel.Panel({
+          children: ['Full'],
+          defaultSize: 100,
+        });
+        return [p1, h, p2];
+      },
+    });
+    container.appendChild(root);
+
+    const handle = root.querySelector('[role="separator"]') as HTMLElement;
+    expect(handle.getAttribute('aria-valuenow')).toBe('0');
+  });
+
+  it('nested ResizablePanel does not interfere with outer', async () => {
+    const { ComposedResizablePanel } = await import('../resizable-panel-composed');
+    const outerResize = vi.fn();
+    const root = ComposedResizablePanel({
+      onResize: outerResize,
+      children: () => {
+        const p1 = ComposedResizablePanel.Panel({
+          children: () => {
+            // Nested ResizablePanel inside the first panel
+            return ComposedResizablePanel({
+              orientation: 'vertical',
+              children: () => {
+                const ip1 = ComposedResizablePanel.Panel({ children: ['Top'] });
+                const ih = ComposedResizablePanel.Handle({});
+                const ip2 = ComposedResizablePanel.Panel({ children: ['Bottom'] });
+                return [ip1, ih, ip2];
+              },
+            });
+          },
+        });
+        const h = ComposedResizablePanel.Handle({});
+        const p2 = ComposedResizablePanel.Panel({ children: ['Right'] });
+        return [p1, h, p2];
+      },
+    });
+    container.appendChild(root);
+
+    // Outer root's group ID scopes its panels — should find only 2, not 4
+    // Get the outer group ID from the first direct panel
+    const allPanels = root.querySelectorAll('[data-part="panel"]');
+    // There should be 4 total panels (2 outer + 2 inner)
+    expect(allPanels.length).toBe(4);
+
+    // The outer panels share a group ID, inner panels share a different one
+    const outerGroupId = (allPanels[0] as HTMLElement).dataset.group;
+    const innerGroupId = (allPanels[1] as HTMLElement).dataset.group;
+    expect(outerGroupId).not.toBe(innerGroupId);
+
+    // Count panels per group
+    const outerPanelCount = root.querySelectorAll(
+      `[data-part="panel"][data-group="${outerGroupId}"]`,
+    ).length;
+    expect(outerPanelCount).toBe(2);
+
+    // Outer handle should have 50/50
+    const outerHandle = root.querySelector(
+      `[role="separator"][data-group="${outerGroupId}"]`,
+    ) as HTMLElement;
+    expect(outerHandle.getAttribute('aria-valuenow')).toBe('50');
+
+    // Resize the outer handle — should only affect outer panels
+    outerResize.mockClear();
+    outerHandle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    expect(outerResize).toHaveBeenCalledWith([55, 45]);
+  });
+
+  it('keyboard Home collapses left panel to minSize', async () => {
+    const onResize = vi.fn();
+    const { ComposedResizablePanel } = await import('../resizable-panel-composed');
+    const root = ComposedResizablePanel({
+      onResize,
+      children: () => {
+        const p1 = ComposedResizablePanel.Panel({
+          children: ['Left'],
+          minSize: 10,
+        });
+        const h = ComposedResizablePanel.Handle({});
+        const p2 = ComposedResizablePanel.Panel({ children: ['Right'] });
+        return [p1, h, p2];
+      },
+    });
+    container.appendChild(root);
+
+    onResize.mockClear();
+    const handle = root.querySelector('[role="separator"]') as HTMLElement;
+    handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+    expect(onResize).toHaveBeenCalledWith([10, 90]);
+  });
+
+  it('keyboard End expands left panel to fill available space', async () => {
+    const onResize = vi.fn();
+    const { ComposedResizablePanel } = await import('../resizable-panel-composed');
+    const root = ComposedResizablePanel({
+      onResize,
+      children: () => {
+        const p1 = ComposedResizablePanel.Panel({ children: ['Left'] });
+        const h = ComposedResizablePanel.Handle({});
+        const p2 = ComposedResizablePanel.Panel({
+          children: ['Right'],
+          minSize: 10,
+        });
+        return [p1, h, p2];
+      },
+    });
+    container.appendChild(root);
+
+    onResize.mockClear();
+    const handle = root.querySelector('[role="separator"]') as HTMLElement;
+    handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+    expect(onResize).toHaveBeenCalledWith([90, 10]);
+  });
+
+  it('handle has data-state="idle" initially', async () => {
+    const { ComposedResizablePanel } = await import('../resizable-panel-composed');
+    const root = ComposedResizablePanel({
+      children: () => {
+        const p1 = ComposedResizablePanel.Panel({ children: ['Left'] });
+        const h = ComposedResizablePanel.Handle({});
+        const p2 = ComposedResizablePanel.Panel({ children: ['Right'] });
+        return [p1, h, p2];
+      },
+    });
+    container.appendChild(root);
+
+    const handle = root.querySelector('[role="separator"]') as HTMLElement;
+    expect(handle.getAttribute('data-state')).toBe('idle');
+  });
+
+  it('no resolveChildren or factory imports in source', async () => {
+    const source = await Bun.file(
+      new URL('../resizable-panel-composed.tsx', import.meta.url).pathname,
+    ).text();
+    expect(source).not.toContain('resolveChildren');
+    expect(source).not.toContain("from './resizable-panel'");
+    expect(source).not.toContain('appendChild');
+    expect(source).not.toContain('createTextNode');
   });
 });
