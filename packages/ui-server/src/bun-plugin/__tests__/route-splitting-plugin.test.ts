@@ -10,7 +10,7 @@
 
 import { describe, expect, it, vi } from 'bun:test';
 import { originalPositionFor, TraceMap } from '@jridgewell/trace-mapping';
-
+import type { DebugLogger } from '../../debug-logger';
 import { createVertzBunPlugin } from '../plugin';
 
 // Helper: extract inline source map from plugin output
@@ -201,6 +201,201 @@ export function App() {
 
         expect(result.loader).toBe('ts');
         expect(result.contents).toBe(nonRouteSource);
+      } finally {
+        // @ts-expect-error — restoring Bun.file
+        Bun.file = originalBunFile;
+      }
+    });
+  });
+
+  describe('Given routeSplitting enabled with a logger', () => {
+    function createMockLogger(): DebugLogger & {
+      entries: { category: string; message: string; data?: Record<string, unknown> }[];
+    } {
+      const entries: { category: string; message: string; data?: Record<string, unknown> }[] = [];
+      return {
+        entries,
+        log(category, message, data) {
+          entries.push({ category, message, data });
+        },
+        isEnabled() {
+          return true;
+        },
+      };
+    }
+
+    const routeSource = `
+import { defineRoutes } from '@vertz/ui';
+import { HomePage } from './pages/home';
+
+export const routes = defineRoutes({
+  '/': { component: () => HomePage() },
+});
+
+export function App() {
+  return <div>app</div>;
+}
+`.trim();
+
+    it('Then logs route-split diagnostics for .tsx files', async () => {
+      const logger = createMockLogger();
+      const { plugin } = createVertzBunPlugin({
+        hmr: false,
+        fastRefresh: false,
+        routeSplitting: true,
+        projectRoot: '/test-project',
+        cssOutDir: '/tmp/vertz-test-css',
+        logger,
+      });
+
+      const mockBuild = { onLoad: vi.fn() };
+      plugin.setup(mockBuild as any);
+
+      const tsxCallback = mockBuild.onLoad.mock.calls[0][1];
+
+      const originalBunFile = Bun.file;
+      // @ts-expect-error — mocking Bun.file for test
+      Bun.file = () => ({ text: async () => routeSource });
+
+      try {
+        await tsxCallback({ path: '/test-project/src/router.tsx' });
+
+        const routeSplitEntries = logger.entries.filter(
+          (e) => e.message === 'route-split' || e.message === 'route-split-skip',
+        );
+        expect(routeSplitEntries.length).toBeGreaterThan(0);
+      } finally {
+        // @ts-expect-error — restoring Bun.file
+        Bun.file = originalBunFile;
+      }
+    });
+
+    it('Then logs route-split-skip for routes that cannot be split in .tsx files', async () => {
+      const logger = createMockLogger();
+      // Source with a mix: one splittable route and one with inline component (skipped)
+      const mixedRouteSource = `
+import { defineRoutes } from '@vertz/ui';
+import { HomePage } from './pages/home';
+
+export const routes = defineRoutes({
+  '/': { component: () => HomePage() },
+  '/inline': { component: () => <div>inline</div> },
+});
+
+export function App() {
+  return <div>app</div>;
+}
+`.trim();
+
+      const { plugin } = createVertzBunPlugin({
+        hmr: false,
+        fastRefresh: false,
+        routeSplitting: true,
+        projectRoot: '/test-project',
+        cssOutDir: '/tmp/vertz-test-css',
+        logger,
+      });
+
+      const mockBuild = { onLoad: vi.fn() };
+      plugin.setup(mockBuild as any);
+
+      const tsxCallback = mockBuild.onLoad.mock.calls[0][1];
+
+      const originalBunFile = Bun.file;
+      // @ts-expect-error — mocking Bun.file for test
+      Bun.file = () => ({ text: async () => mixedRouteSource });
+
+      try {
+        await tsxCallback({ path: '/test-project/src/router.tsx' });
+
+        const skipEntries = logger.entries.filter((e) => e.message === 'route-split-skip');
+        expect(skipEntries.length).toBeGreaterThan(0);
+        expect(skipEntries[0]?.data?.route).toBeDefined();
+        expect(skipEntries[0]?.data?.reason).toBeDefined();
+      } finally {
+        // @ts-expect-error — restoring Bun.file
+        Bun.file = originalBunFile;
+      }
+    });
+
+    it('Then logs route-split diagnostics for .ts files', async () => {
+      const logger = createMockLogger();
+      const tsRouteSource = [
+        "import { defineRoutes } from '@vertz/ui';",
+        "import { Page } from './pages/page';",
+        '',
+        'export const routes = defineRoutes({',
+        "  '/': { component: () => Page() },",
+        '});',
+      ].join('\n');
+
+      const { plugin } = createVertzBunPlugin({
+        hmr: false,
+        fastRefresh: false,
+        routeSplitting: true,
+        projectRoot: '/test-project',
+        cssOutDir: '/tmp/vertz-test-css',
+        logger,
+      });
+
+      const mockBuild = { onLoad: vi.fn() };
+      plugin.setup(mockBuild as any);
+
+      const tsCallback = mockBuild.onLoad.mock.calls[1][1];
+
+      const originalBunFile = Bun.file;
+      // @ts-expect-error — mocking Bun.file for test
+      Bun.file = () => ({ text: async () => tsRouteSource });
+
+      try {
+        await tsCallback({ path: '/test-project/src/router.ts' });
+
+        const routeSplitEntries = logger.entries.filter(
+          (e) => e.message === 'route-split' || e.message === 'route-split-skip',
+        );
+        expect(routeSplitEntries.length).toBeGreaterThan(0);
+      } finally {
+        // @ts-expect-error — restoring Bun.file
+        Bun.file = originalBunFile;
+      }
+    });
+
+    it('Then logs route-split-skip for .ts files with non-splittable routes', async () => {
+      const logger = createMockLogger();
+      // A .ts route file with a route that uses inline arrow — should be skipped
+      const tsRouteSkipSource = [
+        "import { defineRoutes } from '@vertz/ui';",
+        "import { Page } from './pages/page';",
+        '',
+        'export const routes = defineRoutes({',
+        "  '/': { component: () => Page() },",
+        "  '/about': { component: () => 'About' },",
+        '});',
+      ].join('\n');
+
+      const { plugin } = createVertzBunPlugin({
+        hmr: false,
+        fastRefresh: false,
+        routeSplitting: true,
+        projectRoot: '/test-project',
+        cssOutDir: '/tmp/vertz-test-css',
+        logger,
+      });
+
+      const mockBuild = { onLoad: vi.fn() };
+      plugin.setup(mockBuild as any);
+
+      const tsCallback = mockBuild.onLoad.mock.calls[1][1];
+
+      const originalBunFile = Bun.file;
+      // @ts-expect-error — mocking Bun.file for test
+      Bun.file = () => ({ text: async () => tsRouteSkipSource });
+
+      try {
+        await tsCallback({ path: '/test-project/src/router.ts' });
+
+        const skipEntries = logger.entries.filter((e) => e.message === 'route-split-skip');
+        expect(skipEntries.length).toBeGreaterThan(0);
       } finally {
         // @ts-expect-error — restoring Bun.file
         Bun.file = originalBunFile;

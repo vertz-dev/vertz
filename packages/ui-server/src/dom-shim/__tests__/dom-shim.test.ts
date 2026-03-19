@@ -860,5 +860,81 @@ describe('DOM Shim', () => {
       expect(el.attrs.rows).toBe('5');
       expect(el.rows).toBe(5);
     });
+
+    it('should return default empty string for unset string IDL properties', () => {
+      const el = new SSRElement('input');
+      expect(el.placeholder).toBe('');
+      expect(el.type).toBe('');
+      expect(el.name).toBe('');
+      expect(el.value).toBe('');
+      expect(el.src).toBe('');
+      expect(el.alt).toBe('');
+      expect(el.scope).toBe('');
+      expect(el.href).toBe('');
+    });
+
+    it('should reflect checked boolean property', () => {
+      const el = new SSRElement('input');
+      expect(el.checked).toBe(false);
+      el.checked = true;
+      expect(el.attrs.checked).toBe('');
+      expect(el.checked).toBe(true);
+      el.checked = false;
+      expect('checked' in el.attrs).toBe(false);
+      expect(el.checked).toBe(false);
+    });
+
+    it('should reflect scope property', () => {
+      const el = new SSRElement('th');
+      el.scope = 'col';
+      expect(el.attrs.scope).toBe('col');
+      expect(el.scope).toBe('col');
+    });
+
+    it('should reflect href property', () => {
+      const el = new SSRElement('a');
+      el.href = '/about';
+      expect(el.attrs.href).toBe('/about');
+      expect(el.href).toBe('/about');
+    });
+
+    it('should return 0 for unset rows', () => {
+      const el = new SSRElement('textarea');
+      expect(el.rows).toBe(0);
+    });
+
+    it('should round-trip string IDL properties via getter', () => {
+      const el = new SSRElement('input');
+      el.placeholder = 'Search...';
+      expect(el.placeholder).toBe('Search...');
+      el.type = 'text';
+      expect(el.type).toBe('text');
+      el.name = 'q';
+      expect(el.name).toBe('q');
+      el.value = 'hello';
+      expect(el.value).toBe('hello');
+    });
+
+    it('should round-trip src/alt via getter', () => {
+      const el = new SSRElement('img');
+      el.src = '/img.png';
+      expect(el.src).toBe('/img.png');
+      el.alt = 'logo';
+      expect(el.alt).toBe('logo');
+    });
+  });
+
+  describe('style proxy get handler', () => {
+    it('should return empty string for unset style properties', () => {
+      const el = new SSRElement('div');
+      expect(el.style.color).toBe('');
+      expect(el.style.display).toBe('');
+    });
+
+    it('should return set value after assignment', () => {
+      const el = new SSRElement('div');
+      el.style.color = 'red';
+      expect(el.style.color).toBe('red');
+    });
   });
 });

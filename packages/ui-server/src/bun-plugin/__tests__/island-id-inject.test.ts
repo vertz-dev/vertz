@@ -132,4 +132,65 @@ function Page({ comp }) {
       });
     });
   });
+
+  describe('Given <Island> with a member expression component prop', () => {
+    describe('When the transform runs', () => {
+      it('Then skips injection (non-identifier expression returns null)', () => {
+        const source = `
+import { Island } from '@vertz/ui';
+
+function Page() {
+  return <Island component={components.Button} />;
+}`;
+        const result = transform(source);
+        expect(result).not.toContain('id=');
+      });
+    });
+  });
+
+  describe('Given <Island> without a component prop', () => {
+    describe('When the transform runs', () => {
+      it('Then skips injection (no component name to derive id from)', () => {
+        const source = `
+import { Island } from '@vertz/ui';
+
+function Page() {
+  return <Island />;
+}`;
+        const result = transform(source);
+        expect(result).not.toContain('id=');
+      });
+    });
+  });
+
+  describe('Given an aliased Island import', () => {
+    describe('When the transform runs', () => {
+      it('Then recognizes the alias and injects id', () => {
+        const source = `
+import { Island as Isl } from '@vertz/ui';
+import CopyButton from './copy-button';
+
+function Hero() {
+  return <Isl component={CopyButton} />;
+}`;
+        const result = transform(source);
+        expect(result).toContain('id="src/components/hero.tsx::CopyButton"');
+      });
+    });
+  });
+
+  describe('Given <Island> with component prop that has no initializer value', () => {
+    describe('When the transform runs', () => {
+      it('Then skips injection (bare component prop)', () => {
+        const source = `
+import { Island } from '@vertz/ui';
+
+function Page() {
+  return <Island component />;
+}`;
+        const result = transform(source);
+        expect(result).not.toContain('id=');
+      });
+    });
+  });
 });
