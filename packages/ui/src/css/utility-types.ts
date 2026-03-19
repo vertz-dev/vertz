@@ -99,7 +99,10 @@ type RawProperty =
   | 'border-b'
   | 'grid-cols'
   | 'tracking'
-  | 'decoration';
+  | 'decoration'
+  | 'overflow'
+  | 'overflow-x'
+  | 'overflow-y';
 
 // ─── Color tokens ────────────────────────────────────────────────
 
@@ -116,7 +119,12 @@ type ColorShade =
   | '900'
   | '950';
 
-type ColorToken = ColorNamespace | `${ColorNamespace}.${ColorShade}` | CSSColorKeyword;
+type ColorToken =
+  | ColorNamespace
+  | `${ColorNamespace}.${ColorShade}`
+  | CSSColorKeyword
+  | `${ColorNamespace}/${number}`
+  | `${ColorNamespace}.${ColorShade}/${number}`;
 
 // ─── Multi-mode text values ──────────────────────────────────────
 // text:value resolves to font-size, text-align, OR color depending on value.
@@ -136,8 +144,8 @@ type BaseUtility =
   | `${SpacingProperty}:${SpacingValue}`
   // Background color: bg:primary, bg:primary.700, bg:transparent, ...
   | `${BgColorProperty}:${ColorToken}`
-  // Size: w:full, h:screen, h:4, max-w:xl, ...
-  | `${SizeProperty}:${SizeKeyword | SpacingValue | 'screen'}`
+  // Size: w:full, h:screen, h:4, max-w:xl, w:1/2, ...
+  | `${SizeProperty}:${SizeKeyword | SpacingValue | 'screen' | `${number}/${number}`}`
   // Radius: rounded:lg, rounded:full, ...
   | `${RadiusProperty}:${RadiusValue}`
   // Shadow: shadow:md, shadow:none, ...

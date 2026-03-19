@@ -456,6 +456,52 @@ const button = css({ root: ['m:2'] });`;
 
     expect(result.css).toContain('justify-content: center');
   });
+
+  it('extracts overflow axis variants', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ panel: ['overflow-x:auto', 'overflow-y:hidden'] });`;
+    const result = extractor.extract(source, 'Panel.tsx');
+
+    expect(result.css).toContain('overflow-x: auto');
+    expect(result.css).toContain('overflow-y: hidden');
+  });
+
+  it('extracts scale keywords', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ card: ['scale-110'] });`;
+    const result = extractor.extract(source, 'Card.tsx');
+
+    expect(result.css).toContain('transform: scale(1.1)');
+  });
+
+  it('extracts fraction dimensions', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ sidebar: ['w:1/2'], main: ['w:2/3'] });`;
+    const result = extractor.extract(source, 'Layout.tsx');
+
+    expect(result.css).toContain('width: 50%');
+    expect(result.css).toContain('width: 66.666667%');
+  });
+
+  it('extracts color opacity modifier', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ overlay: ['bg:primary/50'] });`;
+    const result = extractor.extract(source, 'Overlay.tsx');
+
+    expect(result.css).toContain(
+      'background-color: color-mix(in oklch, var(--color-primary) 50%, transparent)',
+    );
+  });
+
+  it('extracts shaded color with opacity modifier', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ card: ['bg:primary.700/30'] });`;
+    const result = extractor.extract(source, 'Card.tsx');
+
+    expect(result.css).toContain(
+      'background-color: color-mix(in oklch, var(--color-primary-700) 30%, transparent)',
+    );
+  });
 });
 
 // ─── Dead CSS Elimination Tests ────────────────────────────────

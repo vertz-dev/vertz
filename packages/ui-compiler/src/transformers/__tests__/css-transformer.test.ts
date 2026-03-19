@@ -429,4 +429,56 @@ const button = css({ root: ['m:2'] });`;
 
     expect(result.css).toContain('transparent');
   });
+
+  it('resolves overflow axis variants', () => {
+    const source = `const styles = css({
+  panel: ['overflow-x:auto', 'overflow-y:hidden'],
+});`;
+    const result = transformCSS(source);
+
+    expect(result.css).toContain('overflow-x: auto;');
+    expect(result.css).toContain('overflow-y: hidden;');
+  });
+
+  it('resolves scale keywords', () => {
+    const source = `const styles = css({
+  card: ['scale-110'],
+});`;
+    const result = transformCSS(source);
+
+    expect(result.css).toContain('transform: scale(1.1);');
+  });
+
+  it('resolves fraction dimensions', () => {
+    const source = `const styles = css({
+  sidebar: ['w:1/2'],
+  main: ['w:2/3'],
+});`;
+    const result = transformCSS(source);
+
+    expect(result.css).toContain('width: 50%;');
+    expect(result.css).toContain('width: 66.666667%;');
+  });
+
+  it('resolves color opacity modifier', () => {
+    const source = `const styles = css({
+  overlay: ['bg:primary/50'],
+});`;
+    const result = transformCSS(source);
+
+    expect(result.css).toContain(
+      'background-color: color-mix(in oklch, var(--color-primary) 50%, transparent);',
+    );
+  });
+
+  it('resolves shaded color with opacity modifier', () => {
+    const source = `const styles = css({
+  card: ['bg:primary.700/30'],
+});`;
+    const result = transformCSS(source);
+
+    expect(result.css).toContain(
+      'background-color: color-mix(in oklch, var(--color-primary-700) 30%, transparent);',
+    );
+  });
 });

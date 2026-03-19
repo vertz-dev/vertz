@@ -151,34 +151,62 @@ function resolveSpacing(value: string, property: string): string {
   );
 }
 
+/** Opacity modifier pattern: integer 0-100 after last `/`. */
+const OPACITY_PATTERN = /^(.+)\/(\d+)$/;
+
 function resolveColor(value: string, property: string): string {
+  // Check for opacity modifier: 'primary/50', 'primary.700/50'
+  const opacityMatch = OPACITY_PATTERN.exec(value);
+  if (opacityMatch && opacityMatch[1] && opacityMatch[2]) {
+    const colorPart = opacityMatch[1];
+    const opacityStr = opacityMatch[2];
+
+    // Validate opacity is an integer 0-100
+    const opacity = Number(opacityStr);
+    if (opacity < 0 || opacity > 100) {
+      throw new TokenResolveError(
+        `Invalid opacity '${opacityStr}' in '${value}'. Opacity must be an integer between 0 and 100.`,
+        `${property}:${value}`,
+      );
+    }
+
+    // Resolve the color token part (may throw if invalid)
+    const resolvedColor = resolveColorToken(colorPart, property, value);
+    return `color-mix(in oklch, ${resolvedColor} ${opacity}%, transparent)`;
+  }
+
+  return resolveColorToken(value, property, value);
+}
+
+/** Resolve a color token (no opacity) to a CSS value. */
+function resolveColorToken(token: string, property: string, fullValue: string): string {
   // Check for dotted notation: 'primary.700' -> 'var(--color-primary-700)'
-  const dotIndex = value.indexOf('.');
+  const dotIndex = token.indexOf('.');
   if (dotIndex !== -1) {
-    const namespace = value.substring(0, dotIndex);
-    const shade = value.substring(dotIndex + 1);
+    const namespace = token.substring(0, dotIndex);
+    const shade = token.substring(dotIndex + 1);
     if (COLOR_NAMESPACES.has(namespace)) {
       return `var(--color-${namespace}-${shade})`;
     }
     throw new TokenResolveError(
-      `Unknown color token '${value}'. Known namespaces: ${[...COLOR_NAMESPACES].join(', ')}`,
-      `${property}:${value}`,
+      `Unknown color token '${fullValue}'. Known namespaces: ${[...COLOR_NAMESPACES].join(', ')}`,
+      `${property}:${fullValue}`,
     );
   }
 
   // Plain token name: 'background' -> 'var(--color-background)'
-  if (COLOR_NAMESPACES.has(value)) {
-    return `var(--color-${value})`;
+  if (COLOR_NAMESPACES.has(token)) {
+    return `var(--color-${token})`;
   }
 
   // CSS color keywords (named colors + global keywords).
-  if (CSS_COLOR_KEYWORDS.has(value)) {
-    return value;
+  if (CSS_COLOR_KEYWORDS.has(token)) {
+    return token;
   }
 
   throw new TokenResolveError(
-    `Unknown color token '${value}'. Use a design token name (e.g. 'primary', 'background') or 'primary.700' for shades.`,
-    `${property}:${value}`,
+    `Unknown color token '${fullValue}'. Use a design token name (e.g. 'primary', 'background') or 'primary.700' for shades.`,
+    `${property}:${fullValue}`,
   );
 }
 
@@ -202,6 +230,9 @@ function resolveShadow(value: string, property: string): string {
   );
 }
 
+/** Fraction pattern: N/M where N and M are non-negative integers. */
+const FRACTION_PATTERN = /^(\d+)\/(\d+)$/;
+
 function resolveSize(value: string, property: string): string {
   // Check spacing scale first (numeric)
   const spaced = SPACING_SCALE[value];
@@ -216,8 +247,25 @@ function resolveSize(value: string, property: string): string {
   const keyword = SIZE_KEYWORDS[value];
   if (keyword !== undefined) return keyword;
 
+  // Fraction dimensions: N/M -> percentage
+  const fractionMatch = FRACTION_PATTERN.exec(value);
+  if (fractionMatch) {
+    const numerator = Number(fractionMatch[1]);
+    const denominator = Number(fractionMatch[2]);
+    if (denominator === 0) {
+      throw new TokenResolveError(
+        `Invalid fraction '${value}' for '${property}'. Denominator cannot be zero.`,
+        `${property}:${value}`,
+      );
+    }
+    const percent = (numerator / denominator) * 100;
+    // Use 6 decimal places for repeating fractions, strip trailing zeros
+    const formatted = percent % 1 === 0 ? `${percent}` : percent.toFixed(6);
+    return `${formatted}%`;
+  }
+
   throw new TokenResolveError(
-    `Invalid size value '${value}' for '${property}'. Use a spacing scale number or keyword (full, screen, min, max, fit, auto).`,
+    `Invalid size value '${value}' for '${property}'. Use a spacing scale number, keyword (full, screen, min, max, fit, auto), or fraction (1/2, 2/3, etc.).`,
     `${property}:${value}`,
   );
 }
@@ -454,9 +502,13 @@ export function isKnownProperty(name: string): boolean {
  * Check if a color token is valid.
  */
 export function isValidColorToken(value: string): boolean {
-  const dotIndex = value.indexOf('.');
+  // Strip opacity modifier if present
+  const slashIndex = value.lastIndexOf('/');
+  const token = slashIndex !== -1 ? value.substring(0, slashIndex) : value;
+
+  const dotIndex = token.indexOf('.');
   if (dotIndex !== -1) {
-    return COLOR_NAMESPACES.has(value.substring(0, dotIndex));
+    return COLOR_NAMESPACES.has(token.substring(0, dotIndex));
   }
-  return COLOR_NAMESPACES.has(value);
+  return COLOR_NAMESPACES.has(token);
 }

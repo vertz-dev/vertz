@@ -85,6 +85,9 @@ export type PropertyName =
   | 'opacity'
   | 'inset'
   | 'z'
+  | 'overflow'
+  | 'overflow-x'
+  | 'overflow-y'
   | 'vt-name'
   | 'view-transition-name'
   | 'content';
@@ -152,6 +155,11 @@ export const PROPERTY_MAP: Record<string, PropertyMapping> = {
   // Ring (outline)
   ring: { properties: ['outline'], valueType: 'ring' },
 
+  // Overflow
+  overflow: { properties: ['overflow'], valueType: 'raw' },
+  'overflow-x': { properties: ['overflow-x'], valueType: 'raw' },
+  'overflow-y': { properties: ['overflow-y'], valueType: 'raw' },
+
   // Misc properties
   cursor: { properties: ['cursor'], valueType: 'raw' },
   transition: { properties: ['transition'], valueType: 'raw' },
@@ -203,7 +211,16 @@ export type Keyword =
   | 'whitespace-nowrap'
   | 'shrink-0'
   | 'italic'
-  | 'not-italic';
+  | 'not-italic'
+  | 'scale-0'
+  | 'scale-75'
+  | 'scale-90'
+  | 'scale-95'
+  | 'scale-100'
+  | 'scale-105'
+  | 'scale-110'
+  | 'scale-125'
+  | 'scale-150';
 
 /** Keyword map -- single keywords that resolve to one or more declarations. */
 export const KEYWORD_MAP: Record<string, CSSDeclarationEntry[]> = {
@@ -252,6 +269,17 @@ export const KEYWORD_MAP: Record<string, CSSDeclarationEntry[]> = {
   // Font style
   italic: [{ property: 'font-style', value: 'italic' }],
   'not-italic': [{ property: 'font-style', value: 'normal' }],
+
+  // Transform scale
+  'scale-0': [{ property: 'transform', value: 'scale(0)' }],
+  'scale-75': [{ property: 'transform', value: 'scale(0.75)' }],
+  'scale-90': [{ property: 'transform', value: 'scale(0.9)' }],
+  'scale-95': [{ property: 'transform', value: 'scale(0.95)' }],
+  'scale-100': [{ property: 'transform', value: 'scale(1)' }],
+  'scale-105': [{ property: 'transform', value: 'scale(1.05)' }],
+  'scale-110': [{ property: 'transform', value: 'scale(1.1)' }],
+  'scale-125': [{ property: 'transform', value: 'scale(1.25)' }],
+  'scale-150': [{ property: 'transform', value: 'scale(1.5)' }],
 };
 
 /**
