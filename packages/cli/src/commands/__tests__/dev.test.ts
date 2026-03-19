@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'bun:test';
 import { Command } from 'commander';
+import type { DetectedApp } from '../../dev-server/app-detector';
 import type { FileChange } from '../../pipeline';
 import {
   categorizeFileChange,
   getAffectedStages,
   getStagesForChanges,
 } from '../../pipeline/watcher';
-import { type DevCommandOptions, registerDevCommand } from '../dev';
+import { registerDevCommand } from '../dev';
 
 describe('Pipeline Orchestrator', () => {
   describe('categorizeFileChange', () => {
@@ -352,5 +353,420 @@ describe('devAction error paths', () => {
     if (!result.ok) {
       expect(result.error.message).toBe('unexpected string error');
     }
+  });
+});
+
+describe('devAction full flow', () => {
+  let pathsSpy: Mock<(...args: unknown[]) => unknown>;
+  let appDetectorSpy: Mock<(...args: unknown[]) => unknown>;
+  let orchestratorSpy: Mock<(...args: unknown[]) => unknown>;
+  let watcherSpy: Mock<(...args: unknown[]) => unknown>;
+  let devServerSpy: Mock<(...args: unknown[]) => unknown>;
+  let consoleLogSpy: Mock<(...args: unknown[]) => unknown>;
+  let consoleErrorSpy: Mock<(...args: unknown[]) => unknown>;
+  let processOnSpy: Mock<(...args: unknown[]) => unknown>;
+  let registeredListeners: Array<{ event: string; handler: (...args: unknown[]) => unknown }>;
+
+  const fakeDetected: DetectedApp = {
+    type: 'api-only',
+    serverEntry: '/fake/root/src/server.ts',
+    projectRoot: '/fake/root',
+  };
+
+  let mockOrchestrator: {
+    runFull: Mock<(...args: unknown[]) => unknown>;
+    runStages: Mock<(...args: unknown[]) => unknown>;
+    dispose: Mock<(...args: unknown[]) => unknown>;
+  };
+
+  let capturedOnChange: ((changes: FileChange[]) => Promise<void>) | null;
+
+  beforeEach(async () => {
+    registeredListeners = [];
+    capturedOnChange = null;
+
+    mockOrchestrator = {
+      runFull: vi.fn().mockResolvedValue({ success: true, stages: [] }),
+      runStages: vi.fn().mockResolvedValue({ success: true, stages: [] }),
+      dispose: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const pathsMod = await import('../../utils/paths');
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue('/fake/root') as Mock<
+      (...args: unknown[]) => unknown
+    >;
+
+    const appDetector = await import('../../dev-server/app-detector');
+    appDetectorSpy = vi.spyOn(appDetector, 'detectAppType').mockReturnValue(fakeDetected) as Mock<
+      (...args: unknown[]) => unknown
+    >;
+
+    const pipelineMod = await import('../../pipeline');
+    orchestratorSpy = vi
+      .spyOn(pipelineMod, 'PipelineOrchestrator')
+      .mockImplementation(() => mockOrchestrator as unknown) as Mock<
+      (...args: unknown[]) => unknown
+    >;
+
+    watcherSpy = vi
+      .spyOn(pipelineMod, 'createPipelineWatcher')
+      .mockImplementation((config: unknown) => {
+        const cfg = config as { onChange?: (changes: FileChange[]) => Promise<void> };
+        if (cfg.onChange) {
+          capturedOnChange = cfg.onChange;
+        }
+        return { close: vi.fn() } as unknown;
+      }) as Mock<(...args: unknown[]) => unknown>;
+
+    const fullstackMod = await import('../../dev-server/fullstack-server');
+    devServerSpy = vi.spyOn(fullstackMod, 'startDevServer').mockResolvedValue(undefined) as Mock<
+      (...args: unknown[]) => unknown
+    >;
+
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as Mock<
+      (...args: unknown[]) => unknown
+    >;
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as Mock<
+      (...args: unknown[]) => unknown
+    >;
+
+    // Track process.on listeners so we can clean them up
+    const _originalProcessOn = process.on.bind(process);
+    processOnSpy = vi.spyOn(process, 'on').mockImplementation(((
+      event: string,
+      handler: (...args: unknown[]) => unknown,
+    ) => {
+      registeredListeners.push({ event, handler });
+      return process;
+    }) as typeof process.on) as Mock<(...args: unknown[]) => unknown>;
+  });
+
+  afterEach(() => {
+    pathsSpy?.mockRestore();
+    appDetectorSpy?.mockRestore();
+    orchestratorSpy?.mockRestore();
+    watcherSpy?.mockRestore();
+    devServerSpy?.mockRestore();
+    consoleLogSpy?.mockRestore();
+    consoleErrorSpy?.mockRestore();
+    processOnSpy?.mockRestore();
+
+    // Remove any listeners we registered
+    for (const { event, handler } of registeredListeners) {
+      process.removeListener(event, handler as (...args: unknown[]) => void);
+    }
+    registeredListeners = [];
+  });
+
+  it('returns ok on successful happy path', async () => {
+    const { devAction } = await import('../dev');
+    const result = await devAction({ port: 4000, host: '0.0.0.0' });
+
+    expect(result.ok).toBe(true);
+    expect(mockOrchestrator.runFull).toHaveBeenCalledTimes(1);
+    expect(watcherSpy).toHaveBeenCalledTimes(1);
+    expect(devServerSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('creates PipelineOrchestrator with correct config', async () => {
+    const { devAction } = await import('../dev');
+    await devAction({ port: 5000, host: '0.0.0.0', typecheck: false, open: true });
+
+    expect(orchestratorSpy).toHaveBeenCalledWith({
+      sourceDir: 'src',
+      outputDir: '.vertz/generated',
+      typecheck: false,
+      autoSyncDb: true,
+      open: true,
+      port: 5000,
+      host: '0.0.0.0',
+    });
+  });
+
+  it('passes detected app, port, and host to startDevServer', async () => {
+    const { devAction } = await import('../dev');
+    await devAction({ port: 8080, host: '127.0.0.1' });
+
+    expect(devServerSpy).toHaveBeenCalledWith({
+      detected: fakeDetected,
+      port: 8080,
+      host: '127.0.0.1',
+    });
+  });
+
+  it('registers SIGINT, SIGTERM, and SIGHUP signal handlers', async () => {
+    const { devAction } = await import('../dev');
+    await devAction();
+
+    const registeredEvents = registeredListeners.map((l) => l.event);
+    expect(registeredEvents).toContain('SIGINT');
+    expect(registeredEvents).toContain('SIGTERM');
+    expect(registeredEvents).toContain('SIGHUP');
+  });
+
+  it('logs verbose output when verbose is true and pipeline succeeds', async () => {
+    mockOrchestrator.runFull.mockResolvedValue({
+      success: true,
+      stages: [
+        { stage: 'analyze', success: true, durationMs: 50, output: 'Analysis complete' },
+        { stage: 'codegen', success: true, durationMs: 30, output: 'Generated 5 files' },
+      ],
+    });
+
+    const { devAction } = await import('../dev');
+    await devAction({ verbose: true });
+
+    // Check that verbose detection logs were emitted
+    const logCalls = consoleLogSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(logCalls.some((msg: string) => msg.includes('Detected app type:'))).toBe(true);
+
+    // Check that verbose pipeline result logs were emitted
+    expect(logCalls.some((msg: string) => msg.includes('Initial pipeline complete:'))).toBe(true);
+    expect(logCalls.some((msg: string) => msg.includes('analyze:'))).toBe(true);
+  });
+
+  it('logs verbose detection entries when present', async () => {
+    const detectedFull: DetectedApp = {
+      type: 'full-stack',
+      serverEntry: '/fake/root/src/server.ts',
+      uiEntry: '/fake/root/src/app.tsx',
+      ssrEntry: '/fake/root/src/entry-server.ts',
+      clientEntry: '/fake/root/src/entry-client.ts',
+      projectRoot: '/fake/root',
+    };
+
+    appDetectorSpy.mockReturnValue(detectedFull);
+
+    const { devAction } = await import('../dev');
+    await devAction({ verbose: true });
+
+    const logCalls = consoleLogSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(logCalls.some((msg: string) => msg.includes('Server:'))).toBe(true);
+    expect(logCalls.some((msg: string) => msg.includes('UI:'))).toBe(true);
+    expect(logCalls.some((msg: string) => msg.includes('SSR:'))).toBe(true);
+    expect(logCalls.some((msg: string) => msg.includes('Client:'))).toBe(true);
+  });
+
+  it('logs errors when initial pipeline fails', async () => {
+    mockOrchestrator.runFull.mockResolvedValue({
+      success: false,
+      stages: [
+        { stage: 'analyze', success: false, durationMs: 10, error: new Error('Compile error') },
+        { stage: 'codegen', success: true, durationMs: 5 },
+      ],
+    });
+
+    const { devAction } = await import('../dev');
+    const result = await devAction();
+
+    // Should still return ok because the dev server starts despite pipeline failure
+    expect(result.ok).toBe(true);
+
+    const errorCalls = consoleErrorSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(errorCalls.some((msg: string) => msg.includes('Initial pipeline failed:'))).toBe(true);
+    expect(
+      consoleErrorSpy.mock.calls.some((c: unknown[]) => String(c[0]).includes('analyze:')),
+    ).toBe(true);
+
+    // Should log the fix suggestion
+    const logCalls = consoleLogSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(logCalls.some((msg: string) => msg.includes('Fix the errors above'))).toBe(true);
+  });
+
+  it('returns err when startDevServer throws', async () => {
+    devServerSpy.mockRejectedValue(new Error('Server failed to start'));
+
+    const { devAction } = await import('../dev');
+    const result = await devAction();
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toBe('Server failed to start');
+    }
+    // Dispose should be called on error
+    expect(mockOrchestrator.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns err with stringified message when catch receives non-Error', async () => {
+    devServerSpy.mockRejectedValue('string error from server');
+
+    const { devAction } = await import('../dev');
+    const result = await devAction();
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toBe('string error from server');
+    }
+  });
+
+  it('creates watcher with correct dir and debounceMs', async () => {
+    const { devAction } = await import('../dev');
+    await devAction();
+
+    expect(watcherSpy).toHaveBeenCalledTimes(1);
+    const watcherConfig = (watcherSpy as unknown as { mock: { calls: unknown[][] } }).mock
+      .calls[0][0] as {
+      dir: string;
+      debounceMs: number;
+      onChange: unknown;
+    };
+    expect(watcherConfig.dir).toContain('/fake/root');
+    expect(watcherConfig.dir).toContain('src');
+    expect(watcherConfig.debounceMs).toBe(100);
+    expect(typeof watcherConfig.onChange).toBe('function');
+  });
+
+  it('uses default options when none provided', async () => {
+    const { devAction } = await import('../dev');
+    await devAction();
+
+    expect(devServerSpy).toHaveBeenCalledWith({
+      detected: fakeDetected,
+      port: 3000,
+      host: 'localhost',
+    });
+  });
+
+  describe('file watcher onChange callback', () => {
+    it('calls orchestrator.runStages when files change', async () => {
+      const { devAction } = await import('../dev');
+      await devAction();
+
+      expect(capturedOnChange).not.toBeNull();
+
+      const changes: FileChange[] = [{ type: 'change', path: 'src/modules/user.module.ts' }];
+
+      await capturedOnChange?.(changes);
+
+      expect(mockOrchestrator.runStages).toHaveBeenCalledTimes(1);
+    });
+
+    it('logs verbose output when watcher detects changes', async () => {
+      mockOrchestrator.runStages.mockResolvedValue({
+        success: true,
+        stages: [{ stage: 'analyze', success: true, durationMs: 20, output: 'OK' }],
+      });
+
+      const { devAction } = await import('../dev');
+      await devAction({ verbose: true });
+
+      const changes: FileChange[] = [{ type: 'change', path: 'src/modules/user.module.ts' }];
+
+      await capturedOnChange?.(changes);
+
+      const logCalls = consoleLogSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+      expect(logCalls.some((msg: string) => msg.includes('File change detected:'))).toBe(true);
+      expect(logCalls.some((msg: string) => msg.includes('Running stages:'))).toBe(true);
+      // Verbose stage output after success
+      expect(logCalls.some((msg: string) => msg.includes('analyze:'))).toBe(true);
+    });
+
+    it('logs errors when watcher pipeline update fails', async () => {
+      mockOrchestrator.runStages.mockResolvedValue({
+        success: false,
+        stages: [
+          { stage: 'codegen', success: false, durationMs: 5, error: new Error('Gen failed') },
+        ],
+      });
+
+      const { devAction } = await import('../dev');
+      await devAction();
+
+      await capturedOnChange?.([{ type: 'change', path: 'src/schemas/user.schema.ts' }]);
+
+      const errorCalls = consoleErrorSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+      expect(errorCalls.some((msg: string) => msg.includes('Pipeline update failed:'))).toBe(true);
+    });
+
+    it('skips execution when isRunning is false (after shutdown)', async () => {
+      const { devAction } = await import('../dev');
+      await devAction();
+
+      // Find and invoke the shutdown handler to set isRunning = false
+      const processExitSpy = vi
+        .spyOn(process, 'exit')
+        .mockImplementation((() => {}) as unknown as typeof process.exit);
+
+      // Find the SIGINT handler (first set of 3 are from devAction's shutdown)
+      const sigintHandler = registeredListeners.find((l) => l.event === 'SIGINT');
+      expect(sigintHandler).toBeDefined();
+
+      // Call shutdown to set isRunning = false
+      await (sigintHandler?.handler as () => Promise<void>)();
+
+      // Reset runStages call count
+      mockOrchestrator.runStages.mockClear();
+
+      // Now trigger onChange — should be a no-op since isRunning = false
+      await capturedOnChange?.([{ type: 'change', path: 'src/modules/user.module.ts' }]);
+
+      expect(mockOrchestrator.runStages).not.toHaveBeenCalled();
+      processExitSpy.mockRestore();
+    });
+  });
+
+  describe('shutdown handler', () => {
+    it('calls dispose on the orchestrator', async () => {
+      const processExitSpy = vi
+        .spyOn(process, 'exit')
+        .mockImplementation((() => {}) as unknown as typeof process.exit);
+
+      const { devAction } = await import('../dev');
+      await devAction();
+
+      const sigintHandler = registeredListeners.find((l) => l.event === 'SIGINT');
+      expect(sigintHandler).toBeDefined();
+
+      await (sigintHandler?.handler as () => Promise<void>)();
+
+      expect(mockOrchestrator.dispose).toHaveBeenCalledTimes(1);
+      expect(processExitSpy).toHaveBeenCalledWith(0);
+
+      processExitSpy.mockRestore();
+    });
+  });
+});
+
+describe('registerDevCommand action handler', () => {
+  it('calls process.exit(1) when devAction returns err', async () => {
+    const pathsMod = await import('../../utils/paths');
+    const pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(null) as Mock<
+      (...args: unknown[]) => unknown
+    >;
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as Mock<
+      (...args: unknown[]) => unknown
+    >;
+    const processExitSpy = vi
+      .spyOn(process, 'exit')
+      .mockImplementation((() => {}) as unknown as typeof process.exit);
+
+    const program = new Command();
+    program.exitOverride();
+    registerDevCommand(program);
+
+    const devCmd = program.commands.find((cmd) => cmd.name() === 'dev');
+    expect(devCmd).toBeDefined();
+
+    // Manually trigger the action handler
+    // Commander stores the action handler which we can invoke
+    // We'll parse and run the command
+    try {
+      await program.parseAsync(['node', 'test', 'dev', '--port', '3000']);
+    } catch {
+      // Commander might throw due to exitOverride
+    }
+
+    // Poll until the async action completes (process.exit is called)
+    const deadline = Date.now() + 2000;
+    while (!processExitSpy.mock.calls.length && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+
+    expect(processExitSpy).toHaveBeenCalledWith(1);
+    expect(consoleErrorSpy).toHaveBeenCalled();
+
+    pathsSpy.mockRestore();
+    consoleErrorSpy.mockRestore();
+    processExitSpy.mockRestore();
   });
 });

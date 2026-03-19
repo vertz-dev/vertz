@@ -219,6 +219,14 @@ describe('loadMigrationFiles', () => {
     expect(files[1]?.timestamp).toBe(2);
     expect(files[2]?.timestamp).toBe(3);
   });
+
+  it('re-throws non-ENOENT readdir errors', async () => {
+    // Pass a file path instead of a directory — readdir will throw ENOTDIR
+    const filePath = join(tempDir, 'not-a-dir.txt');
+    await writeFile(filePath, 'content');
+
+    await expect(loadMigrationFiles(filePath)).rejects.toThrow();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -301,6 +309,27 @@ export const db = { dialect: 'sqlite', schema: './schema.ts' };`,
     const { loadDbContext } = await import('../load-db-context');
 
     await expect(loadDbContext()).rejects.toThrow('No table definitions found');
+  });
+
+  it('throws parse error when config file exists but has syntax errors', async () => {
+    await writeFile(join(tempDir, 'vertz.config.ts'), 'export const db = {{{BAD SYNTAX');
+
+    const { loadDbContext } = await import('../load-db-context');
+
+    await expect(loadDbContext()).rejects.toThrow('could not be parsed');
+  });
+
+  it('throws when schema file exists but has syntax errors', async () => {
+    await writeFile(join(tempDir, 'schema.ts'), 'export const users = {{{BAD');
+    await writeFile(
+      join(tempDir, 'vertz.config.ts'),
+      `export default {};
+export const db = { dialect: 'sqlite', schema: './schema.ts' };`,
+    );
+
+    const { loadDbContext } = await import('../load-db-context');
+
+    await expect(loadDbContext()).rejects.toThrow('Failed to load schema file');
   });
 });
 
@@ -520,6 +549,63 @@ export const db = { dialect: 'sqlite', url: 'sqlite:${join(tempDir, 'noleak.db')
 
     await expect(loadAutoMigrateContext()).rejects.toThrow();
     // If we get here, no connection was leaked (connection is created after schema load)
+  });
+
+  it('throws when dialect is not sqlite', async () => {
+    await writeFile(join(tempDir, 'schema.ts'), SCHEMA_TS);
+    await writeFile(
+      join(tempDir, 'vertz.config.ts'),
+      `export default {};
+export const db = { dialect: 'postgres', schema: './schema.ts' };`,
+    );
+
+    const { loadAutoMigrateContext } = await import('../load-db-context');
+
+    await expect(loadAutoMigrateContext()).rejects.toThrow('only supports sqlite');
+  });
+
+  it('throws when vertz.config.ts does not exist', async () => {
+    // No config file created
+    const { loadAutoMigrateContext } = await import('../load-db-context');
+
+    await expect(loadAutoMigrateContext()).rejects.toThrow('Could not find vertz.config.ts');
+  });
+
+  it('throws when schema has no table definitions', async () => {
+    await writeFile(join(tempDir, 'schema.ts'), 'export const config = { setting: true };');
+    await writeFile(
+      join(tempDir, 'vertz.config.ts'),
+      `export default {};
+export const db = { dialect: 'sqlite', url: 'sqlite:${join(tempDir, 'empty-schema.db')}', schema: './schema.ts' };`,
+    );
+
+    const { loadAutoMigrateContext } = await import('../load-db-context');
+
+    await expect(loadAutoMigrateContext()).rejects.toThrow('No table definitions found');
+  });
+
+  it('uses custom migrationsDir and snapshotPath', async () => {
+    const customDir = join(tempDir, 'custom', 'migs');
+    await mkdir(customDir, { recursive: true });
+    await writeFile(join(tempDir, 'schema.ts'), SCHEMA_TS);
+    await writeFile(
+      join(tempDir, 'vertz.config.ts'),
+      `export default {};
+export const db = {
+  dialect: 'sqlite',
+  url: 'sqlite:${join(tempDir, 'custom-snap.db')}',
+  schema: './schema.ts',
+  migrationsDir: './custom/migs',
+  snapshotPath: './custom/snap.json',
+};`,
+    );
+
+    const { loadAutoMigrateContext } = await import('../load-db-context');
+    const ctx = await loadAutoMigrateContext();
+
+    expect(ctx.snapshotPath).toContain('custom/snap.json');
+
+    await ctx.close();
   });
 });
 

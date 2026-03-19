@@ -1,9 +1,14 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'bun:test';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { DetectedApp } from '../app-detector';
-import { formatBanner, importServerModule, resolveDevMode } from '../fullstack-server';
+import {
+  formatBanner,
+  importServerModule,
+  resolveDevMode,
+  startDevServer,
+} from '../fullstack-server';
 
 describe('resolveDevMode', () => {
   it('returns api-only mode for api-only apps', () => {
@@ -336,5 +341,285 @@ describe('importServerModule — initialize', () => {
     const mod = await importServerModule(serverPath);
 
     expect(mod.initialize).toBeUndefined();
+  });
+});
+
+describe('startDevServer', () => {
+  let logSpy: Mock<(...args: unknown[]) => unknown>;
+  let processOnSpy: Mock<(...args: unknown[]) => unknown>;
+  let existsSyncSpy: Mock<(...args: unknown[]) => unknown>;
+
+  beforeEach(() => {
+    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as Mock<
+      (...args: unknown[]) => unknown
+    >;
+    // Track process.on calls to prevent actual signal handlers from being registered
+    processOnSpy = vi.spyOn(process, 'on').mockImplementation((() => process) as never) as Mock<
+      (...args: unknown[]) => unknown
+    >;
+  });
+
+  afterEach(() => {
+    logSpy.mockRestore();
+    processOnSpy.mockRestore();
+    existsSyncSpy?.mockRestore();
+  });
+
+  it('prints banner and dispatches to api-only server', async () => {
+    const pmMod = await import('../process-manager');
+    const mockPm = {
+      start: vi.fn(),
+      stop: vi.fn().mockResolvedValue(undefined),
+      restart: vi.fn(),
+      isRunning: vi.fn().mockReturnValue(false),
+      onOutput: vi.fn(),
+      onError: vi.fn(),
+    };
+    const pmSpy = vi.spyOn(pmMod, 'createProcessManager').mockReturnValue(mockPm);
+
+    const detected: DetectedApp = {
+      type: 'api-only',
+      serverEntry: '/project/src/server.ts',
+      projectRoot: '/project',
+    };
+
+    // startDevServer returns a promise that only resolves on shutdown signal for api-only
+    // We need to trigger the shutdown handler so the promise resolves
+    let shutdownFn: (() => Promise<void>) | undefined;
+    processOnSpy.mockImplementation(((event: string, handler: () => Promise<void>) => {
+      if (event === 'SIGINT' && !shutdownFn) {
+        shutdownFn = handler;
+      }
+      return process;
+    }) as never);
+
+    const serverPromise = startDevServer({ detected, port: 4000, host: 'localhost' });
+
+    // Verify banner was printed
+    expect(logSpy).toHaveBeenCalled();
+    const bannerArg = logSpy.mock.calls[0]?.[0] as string;
+    expect(bannerArg).toContain('api-only');
+
+    // Verify process manager was created and started
+    expect(pmSpy).toHaveBeenCalled();
+    expect(mockPm.start).toHaveBeenCalledWith('/project/src/server.ts', { PORT: '4000' });
+
+    // Verify signal handlers were registered
+    expect(processOnSpy).toHaveBeenCalledWith('SIGINT', expect.any(Function));
+    expect(processOnSpy).toHaveBeenCalledWith('SIGTERM', expect.any(Function));
+    expect(processOnSpy).toHaveBeenCalledWith('SIGHUP', expect.any(Function));
+
+    // Trigger shutdown to resolve the promise
+    if (shutdownFn) {
+      await shutdownFn();
+    }
+    await serverPromise;
+
+    pmSpy.mockRestore();
+  });
+
+  it('dispatches to Bun dev server for ui-only app', async () => {
+    const fsMod = await import('node:fs');
+    existsSyncSpy = vi.spyOn(fsMod, 'existsSync').mockReturnValue(false) as Mock<
+      (...args: unknown[]) => unknown
+    >;
+
+    const mockDevServer = {
+      start: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn().mockResolvedValue(undefined),
+      restart: vi.fn(),
+      broadcastError: vi.fn(),
+      clearError: vi.fn(),
+    };
+
+    const uiServerMod = await import('@vertz/ui-server/bun-dev-server');
+    const createSpy = vi
+      .spyOn(uiServerMod, 'createBunDevServer')
+      .mockReturnValue(mockDevServer as never);
+
+    const detected: DetectedApp = {
+      type: 'ui-only',
+      uiEntry: '/project/src/app.tsx',
+      clientEntry: '/project/src/entry-client.ts',
+      projectRoot: '/project',
+    };
+
+    await startDevServer({ detected, port: 3000, host: 'localhost' });
+
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entry: './src/app.tsx',
+        port: 3000,
+        host: 'localhost',
+        apiHandler: undefined,
+        sessionResolver: undefined,
+        ssrModule: true,
+        clientEntry: '/src/entry-client.ts',
+        projectRoot: '/project',
+      }),
+    );
+    expect(mockDevServer.start).toHaveBeenCalled();
+
+    // Verify signal handlers registered
+    expect(processOnSpy).toHaveBeenCalledWith('SIGINT', expect.any(Function));
+    expect(processOnSpy).toHaveBeenCalledWith('SIGTERM', expect.any(Function));
+    expect(processOnSpy).toHaveBeenCalledWith('SIGHUP', expect.any(Function));
+
+    createSpy.mockRestore();
+  });
+
+  it('dispatches to Bun dev server for full-stack app with initialize', async () => {
+    const fsMod = await import('node:fs');
+    existsSyncSpy = vi.spyOn(fsMod, 'existsSync').mockReturnValue(false) as Mock<
+      (...args: unknown[]) => unknown
+    >;
+
+    const mockHandler = vi.fn();
+    const mockSessionResolver = vi.fn();
+    const mockInitialize = vi.fn().mockResolvedValue(undefined);
+
+    const fullstackMod = await import('../fullstack-server');
+    const importSpy = vi.spyOn(fullstackMod, 'importServerModule').mockResolvedValue({
+      handler: mockHandler as never,
+      sessionResolver: mockSessionResolver as never,
+      initialize: mockInitialize as never,
+    });
+
+    const mockDevServer = {
+      start: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn().mockResolvedValue(undefined),
+      restart: vi.fn(),
+      broadcastError: vi.fn(),
+      clearError: vi.fn(),
+    };
+
+    const uiServerMod = await import('@vertz/ui-server/bun-dev-server');
+    const createSpy = vi
+      .spyOn(uiServerMod, 'createBunDevServer')
+      .mockReturnValue(mockDevServer as never);
+
+    const detected: DetectedApp = {
+      type: 'full-stack',
+      serverEntry: '/project/src/server.ts',
+      uiEntry: '/project/src/app.tsx',
+      projectRoot: '/project',
+    };
+
+    await startDevServer({ detected, port: 3000, host: 'localhost' });
+
+    // Verify importServerModule was called
+    expect(importSpy).toHaveBeenCalledWith('/project/src/server.ts');
+
+    // Verify initialize was called
+    expect(mockInitialize).toHaveBeenCalled();
+
+    // Verify createBunDevServer was called with api handler and session resolver
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiHandler: mockHandler,
+        ssrModule: true,
+        projectRoot: '/project',
+      }),
+    );
+
+    expect(mockDevServer.start).toHaveBeenCalled();
+
+    importSpy.mockRestore();
+    createSpy.mockRestore();
+  });
+
+  it('dispatches to Bun dev server for full-stack app without initialize', async () => {
+    const fsMod = await import('node:fs');
+    existsSyncSpy = vi.spyOn(fsMod, 'existsSync').mockReturnValue(false) as Mock<
+      (...args: unknown[]) => unknown
+    >;
+
+    const mockHandler = vi.fn();
+
+    const fullstackMod = await import('../fullstack-server');
+    const importSpy = vi.spyOn(fullstackMod, 'importServerModule').mockResolvedValue({
+      handler: mockHandler as never,
+      sessionResolver: undefined,
+      initialize: undefined,
+    });
+
+    const mockDevServer = {
+      start: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn().mockResolvedValue(undefined),
+      restart: vi.fn(),
+      broadcastError: vi.fn(),
+      clearError: vi.fn(),
+    };
+
+    const uiServerMod = await import('@vertz/ui-server/bun-dev-server');
+    const createSpy = vi
+      .spyOn(uiServerMod, 'createBunDevServer')
+      .mockReturnValue(mockDevServer as never);
+
+    const detected: DetectedApp = {
+      type: 'full-stack',
+      serverEntry: '/project/src/server.ts',
+      uiEntry: '/project/src/app.tsx',
+      projectRoot: '/project',
+    };
+
+    await startDevServer({ detected, port: 3000, host: 'localhost' });
+
+    expect(importSpy).toHaveBeenCalledWith('/project/src/server.ts');
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiHandler: mockHandler,
+        sessionResolver: undefined,
+      }),
+    );
+
+    importSpy.mockRestore();
+    createSpy.mockRestore();
+  });
+
+  it('passes openapi config when openapi.json exists', async () => {
+    const fsMod = await import('node:fs');
+    existsSyncSpy = vi.spyOn(fsMod, 'existsSync').mockImplementation((p: unknown) => {
+      const path = String(p);
+      return path.includes('openapi.json');
+    }) as Mock<(...args: unknown[]) => unknown>;
+
+    const fullstackMod = await import('../fullstack-server');
+    const importSpy = vi.spyOn(fullstackMod, 'importServerModule').mockResolvedValue({
+      handler: vi.fn() as never,
+      sessionResolver: undefined,
+      initialize: undefined,
+    });
+
+    const mockDevServer = {
+      start: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn().mockResolvedValue(undefined),
+      restart: vi.fn(),
+      broadcastError: vi.fn(),
+      clearError: vi.fn(),
+    };
+
+    const uiServerMod = await import('@vertz/ui-server/bun-dev-server');
+    const createSpy = vi
+      .spyOn(uiServerMod, 'createBunDevServer')
+      .mockReturnValue(mockDevServer as never);
+
+    const detected: DetectedApp = {
+      type: 'full-stack',
+      serverEntry: '/project/src/server.ts',
+      uiEntry: '/project/src/app.tsx',
+      projectRoot: '/project',
+    };
+
+    await startDevServer({ detected, port: 3000, host: 'localhost' });
+
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        openapi: { specPath: '/project/.vertz/generated/openapi.json' },
+      }),
+    );
+
+    importSpy.mockRestore();
+    createSpy.mockRestore();
   });
 });

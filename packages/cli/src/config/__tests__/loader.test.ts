@@ -73,4 +73,71 @@ describe('loadConfig', () => {
     expect(config).toHaveProperty('strict');
     expect(config).toHaveProperty('compiler');
   });
+
+  it('loads and merges a real config file with default export', async () => {
+    const dir = join(
+      tmpdir(),
+      `vertz-cfg-merge-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'vertz.config.ts'),
+      `export default { strict: true, compiler: { sourceDir: 'lib' } };`,
+    );
+
+    try {
+      const config = await loadConfig(join(dir, 'vertz.config.ts'));
+      // User override
+      expect(config.strict).toBe(true);
+      // Deep-merged: user's sourceDir wins
+      expect(config.compiler?.sourceDir).toBe('lib');
+      // Deep-merged: defaults preserved for un-overridden keys
+      expect(config.compiler?.entryFile).toBe('src/app.ts');
+      expect(config.compiler?.outputDir).toBe('.vertz/generated');
+      // Non-overridden top-level default
+      expect(config.forceGenerate).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('loads config with named export (no default)', async () => {
+    const dir = join(
+      tmpdir(),
+      `vertz-cfg-named-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'vertz.config.ts'), `export const strict = true;`);
+
+    try {
+      const config = await loadConfig(join(dir, 'vertz.config.ts'));
+      // When module has no `default` key, the whole module object is used as config
+      // It should still be merged with defaults
+      expect(config.compiler?.sourceDir).toBe('src');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('deep-merges nested objects without overwriting sibling keys', async () => {
+    const dir = join(
+      tmpdir(),
+      `vertz-cfg-deep-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'vertz.config.ts'),
+      `export default { compiler: { entryFile: 'src/main.ts' } };`,
+    );
+
+    try {
+      const config = await loadConfig(join(dir, 'vertz.config.ts'));
+      expect(config.compiler?.entryFile).toBe('src/main.ts');
+      // Other compiler keys should remain from defaults
+      expect(config.compiler?.sourceDir).toBe('src');
+      expect(config.compiler?.outputDir).toBe('.vertz/generated');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
