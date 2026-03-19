@@ -377,6 +377,118 @@ describe('ComposedResizablePanel', () => {
     expect(handle.getAttribute('data-state')).toBe('idle');
   });
 
+  it('vertical orientation: ArrowDown grows top panel', async () => {
+    const onResize = vi.fn();
+    const { ComposedResizablePanel } = await import('../resizable-panel-composed');
+    const root = ComposedResizablePanel({
+      orientation: 'vertical',
+      onResize,
+      children: () => {
+        const p1 = ComposedResizablePanel.Panel({ children: ['Top'] });
+        const h = ComposedResizablePanel.Handle({});
+        const p2 = ComposedResizablePanel.Panel({ children: ['Bottom'] });
+        return [p1, h, p2];
+      },
+    });
+    container.appendChild(root);
+
+    onResize.mockClear();
+    const handle = root.querySelector('[role="separator"]') as HTMLElement;
+    handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    expect(onResize).toHaveBeenCalledWith([55, 45]);
+  });
+
+  it('vertical orientation: ArrowUp shrinks top panel', async () => {
+    const onResize = vi.fn();
+    const { ComposedResizablePanel } = await import('../resizable-panel-composed');
+    const root = ComposedResizablePanel({
+      orientation: 'vertical',
+      onResize,
+      children: () => {
+        const p1 = ComposedResizablePanel.Panel({ children: ['Top'] });
+        const h = ComposedResizablePanel.Handle({});
+        const p2 = ComposedResizablePanel.Panel({ children: ['Bottom'] });
+        return [p1, h, p2];
+      },
+    });
+    container.appendChild(root);
+
+    onResize.mockClear();
+    const handle = root.querySelector('[role="separator"]') as HTMLElement;
+    handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+    expect(onResize).toHaveBeenCalledWith([45, 55]);
+  });
+
+  it('pointer drag sets data-state to dragging then idle', async () => {
+    const { ComposedResizablePanel } = await import('../resizable-panel-composed');
+    const root = ComposedResizablePanel({
+      children: () => {
+        const p1 = ComposedResizablePanel.Panel({ children: ['Left'] });
+        const h = ComposedResizablePanel.Handle({});
+        const p2 = ComposedResizablePanel.Panel({ children: ['Right'] });
+        return [p1, h, p2];
+      },
+    });
+    container.appendChild(root);
+
+    const handle = root.querySelector('[role="separator"]') as HTMLElement;
+    // Mock setPointerCapture/releasePointerCapture (not in happy-dom)
+    handle.setPointerCapture = vi.fn();
+    handle.releasePointerCapture = vi.fn();
+
+    expect(handle.getAttribute('data-state')).toBe('idle');
+
+    // Start drag
+    handle.dispatchEvent(
+      new PointerEvent('pointerdown', { pointerId: 1, clientX: 100, bubbles: true }),
+    );
+    expect(handle.getAttribute('data-state')).toBe('dragging');
+    expect(handle.setPointerCapture).toHaveBeenCalledWith(1);
+
+    // End drag
+    handle.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, bubbles: true }));
+    expect(handle.getAttribute('data-state')).toBe('idle');
+    expect(handle.releasePointerCapture).toHaveBeenCalledWith(1);
+  });
+
+  it('pointer drag updates sizes proportionally', async () => {
+    const onResize = vi.fn();
+    const { ComposedResizablePanel } = await import('../resizable-panel-composed');
+    const root = ComposedResizablePanel({
+      onResize,
+      children: () => {
+        const p1 = ComposedResizablePanel.Panel({ children: ['Left'] });
+        const h = ComposedResizablePanel.Handle({});
+        const p2 = ComposedResizablePanel.Panel({ children: ['Right'] });
+        return [p1, h, p2];
+      },
+    });
+    container.appendChild(root);
+
+    // Mock offsetWidth so drag delta calculation doesn't divide by zero
+    Object.defineProperty(root, 'offsetWidth', { value: 1000, configurable: true });
+
+    const handle = root.querySelector('[role="separator"]') as HTMLElement;
+    handle.setPointerCapture = vi.fn();
+    handle.releasePointerCapture = vi.fn();
+
+    onResize.mockClear();
+
+    // Start drag at x=500
+    handle.dispatchEvent(
+      new PointerEvent('pointerdown', { pointerId: 1, clientX: 500, bubbles: true }),
+    );
+
+    // Move to x=600 (100px / 1000px = 10%)
+    handle.dispatchEvent(
+      new PointerEvent('pointermove', { pointerId: 1, clientX: 600, bubbles: true }),
+    );
+    expect(onResize).toHaveBeenCalledWith([60, 40]);
+
+    // End drag
+    handle.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, bubbles: true }));
+  });
+
   it('no resolveChildren or factory imports in source', async () => {
     const source = await Bun.file(
       new URL('../resizable-panel-composed.tsx', import.meta.url).pathname,
