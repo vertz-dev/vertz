@@ -683,6 +683,42 @@ describe('__list', () => {
       expect(container.children[3]?.textContent).toBe('B');
     });
 
+    it('preserves pre-existing children when new items are added', () => {
+      const items = signal([
+        { id: 1, text: 'A' },
+        { id: 2, text: 'B' },
+      ]);
+      const container = document.createElement('div');
+      const titleDiv = document.createElement('div');
+      titleDiv.textContent = 'Title';
+      container.appendChild(titleDiv);
+
+      __list(
+        container,
+        items,
+        (item) => item.id,
+        (item) => {
+          const el = document.createElement('span');
+          el.textContent = item.text;
+          return el;
+        },
+      );
+
+      // Add a new item
+      items.value = [
+        { id: 1, text: 'A' },
+        { id: 2, text: 'B' },
+        { id: 3, text: 'C' },
+      ];
+
+      expect(container.children.length).toBe(4);
+      expect(container.children[0]).toBe(titleDiv);
+      expect(container.children[0]?.textContent).toBe('Title');
+      expect(container.children[1]?.textContent).toBe('A');
+      expect(container.children[2]?.textContent).toBe('B');
+      expect(container.children[3]?.textContent).toBe('C');
+    });
+
     it('preserves pre-existing children when list items are removed', () => {
       const items = signal([
         { id: 1, text: 'A' },
