@@ -1,7 +1,8 @@
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 import { onCleanup, popScope, pushScope, runCleanups } from '../../runtime/disposal';
 import { signal } from '../../runtime/signal';
-import { onMount } from '../lifecycle';
+import { registerSSRResolver } from '../../ssr/ssr-render-context';
+import { __discardMountFrame, __flushMountFrame, __pushMountFrame, onMount } from '../lifecycle';
 
 describe('onMount', () => {
   test('runs callback immediately within a disposal scope', () => {
@@ -136,6 +137,139 @@ describe('onMount return-cleanup', () => {
     expect(log).toEqual([]);
     runCleanups(scope);
     expect(log).toEqual(['return-cleanup']);
+  });
+});
+
+describe('Mount frame stack', () => {
+  describe('Given an active mount frame', () => {
+    test('When onMount is called, Then defers the callback until __flushMountFrame', () => {
+      let ran = false;
+      __pushMountFrame();
+      onMount(() => {
+        ran = true;
+      });
+      expect(ran).toBe(false);
+      __flushMountFrame();
+      expect(ran).toBe(true);
+    });
+  });
+
+  describe('Given no active mount frame', () => {
+    test('When onMount is called, Then runs the callback immediately (backward compat)', () => {
+      let ran = false;
+      onMount(() => {
+        ran = true;
+      });
+      expect(ran).toBe(true);
+    });
+  });
+
+  describe('Given nested mount frames (parent + child)', () => {
+    test('When both are flushed, Then child callbacks run on child flush, parent on parent flush', () => {
+      const order: string[] = [];
+      __pushMountFrame(); // parent frame
+      onMount(() => order.push('parent'));
+
+      __pushMountFrame(); // child frame
+      onMount(() => order.push('child'));
+      __flushMountFrame(); // flush child
+      expect(order).toEqual(['child']);
+
+      __flushMountFrame(); // flush parent
+      expect(order).toEqual(['child', 'parent']);
+    });
+  });
+
+  describe('Given a mount frame where a callback throws', () => {
+    test('When __flushMountFrame is called, Then the frame is still popped (no leak)', () => {
+      __pushMountFrame();
+      onMount(() => {
+        throw new Error('boom');
+      });
+      expect(() => __flushMountFrame()).toThrow('boom');
+      // Stack should be clean — pushing and flushing a new frame should work
+      __pushMountFrame();
+      let ran = false;
+      onMount(() => {
+        ran = true;
+      });
+      __flushMountFrame();
+      expect(ran).toBe(true);
+    });
+
+    test('When __flushMountFrame is called, Then all remaining callbacks still execute', () => {
+      let firstRan = false;
+      let thirdRan = false;
+      __pushMountFrame();
+      onMount(() => {
+        firstRan = true;
+      });
+      onMount(() => {
+        throw new Error('boom');
+      });
+      onMount(() => {
+        thirdRan = true;
+      });
+      expect(() => __flushMountFrame()).toThrow('boom');
+      expect(firstRan).toBe(true);
+      expect(thirdRan).toBe(true);
+    });
+
+    test('When __flushMountFrame is called, Then the first error is rethrown after all callbacks run', () => {
+      __pushMountFrame();
+      onMount(() => {
+        throw new Error('first');
+      });
+      onMount(() => {
+        throw new Error('second');
+      });
+      expect(() => __flushMountFrame()).toThrow('first');
+    });
+  });
+
+  describe('Given __discardMountFrame called after __flushMountFrame', () => {
+    test('When the frame was already popped by flush, Then __discardMountFrame is a safe no-op', () => {
+      __pushMountFrame();
+      __flushMountFrame();
+      // Should not throw or pop a parent frame
+      expect(() => __discardMountFrame()).not.toThrow();
+    });
+  });
+
+  describe('Given a deferred onMount with cleanup return', () => {
+    test('When the scope is disposed, Then cleanup runs', () => {
+      let cleaned = false;
+      const scope = pushScope();
+      __pushMountFrame();
+      onMount(() => {
+        return () => {
+          cleaned = true;
+        };
+      });
+      __flushMountFrame();
+      popScope();
+      expect(cleaned).toBe(false);
+      runCleanups(scope);
+      expect(cleaned).toBe(true);
+    });
+  });
+
+  describe('Given SSR context is active', () => {
+    afterEach(() => {
+      registerSSRResolver(null);
+    });
+
+    test('When onMount is called with an active frame, Then callback is not deferred and not executed', () => {
+      const fakeCtx = { url: '/' } as any;
+      registerSSRResolver(() => fakeCtx);
+      let ran = false;
+      __pushMountFrame();
+      onMount(() => {
+        ran = true;
+      });
+      __flushMountFrame();
+      expect(ran).toBe(false);
+    });
   });
 });
 

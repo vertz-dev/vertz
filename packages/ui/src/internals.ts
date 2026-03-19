@@ -8,6 +8,8 @@
 
 // Context scope management (used by HMR Fast Refresh runtime)
 export { getContextScope, setContextScope } from './component/context';
+// Mount frame stack (used by compiler-generated mount frame wrappers)
+export { __discardMountFrame, __flushMountFrame, __pushMountFrame } from './component/lifecycle';
 // CSS build-time utility
 export { compileTheme } from './css';
 // Shared CSS token tables — single source of truth for runtime and compiler
