@@ -227,6 +227,79 @@ describe('resolveToken', () => {
     });
   });
 
+  describe('fraction dimensions', () => {
+    it('resolves w:1/2 to width: 50%', () => {
+      const result = resolveToken({ property: 'w', value: '1/2', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'width', value: '50%' }]);
+    });
+
+    it('resolves w:1/3 to width: 33.333333%', () => {
+      const result = resolveToken({ property: 'w', value: '1/3', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'width', value: '33.333333%' }]);
+    });
+
+    it('resolves w:2/3 to width: 66.666667%', () => {
+      const result = resolveToken({ property: 'w', value: '2/3', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'width', value: '66.666667%' }]);
+    });
+
+    it('resolves w:1/4 to width: 25%', () => {
+      const result = resolveToken({ property: 'w', value: '1/4', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'width', value: '25%' }]);
+    });
+
+    it('resolves w:3/4 to width: 75%', () => {
+      const result = resolveToken({ property: 'w', value: '3/4', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'width', value: '75%' }]);
+    });
+
+    it('resolves w:1/5 to width: 20%', () => {
+      const result = resolveToken({ property: 'w', value: '1/5', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'width', value: '20%' }]);
+    });
+
+    it('resolves w:1/6 to width: 16.666667%', () => {
+      const result = resolveToken({ property: 'w', value: '1/6', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'width', value: '16.666667%' }]);
+    });
+
+    it('resolves w:5/6 to width: 83.333333%', () => {
+      const result = resolveToken({ property: 'w', value: '5/6', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'width', value: '83.333333%' }]);
+    });
+
+    it('resolves w:3/2 to width: 150% (fractions > 1 allowed)', () => {
+      const result = resolveToken({ property: 'w', value: '3/2', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'width', value: '150%' }]);
+    });
+
+    it('resolves min-w:1/3 to min-width: 33.333333%', () => {
+      const result = resolveToken({ property: 'min-w', value: '1/3', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'min-width', value: '33.333333%' }]);
+    });
+
+    it('resolves h:1/2 to height: 50%', () => {
+      const result = resolveToken({ property: 'h', value: '1/2', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'height', value: '50%' }]);
+    });
+
+    it('resolves max-w:3/4 to max-width: 75%', () => {
+      const result = resolveToken({ property: 'max-w', value: '3/4', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'max-width', value: '75%' }]);
+    });
+
+    it('throws on w:0/0 (division by zero)', () => {
+      expect(() => resolveToken({ property: 'w', value: '0/0', pseudo: null })).toThrow(
+        TokenResolveError,
+      );
+    });
+
+    it('resolves w:1/1 to width: 100%', () => {
+      const result = resolveToken({ property: 'w', value: '1/1', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'width', value: '100%' }]);
+    });
+  });
+
   describe('alignment', () => {
     it('resolves items:center', () => {
       const result = resolveToken({ property: 'items', value: 'center', pseudo: null });
@@ -373,6 +446,229 @@ describe('resolveToken', () => {
 
     it('throws on invalid list value', () => {
       expect(() => resolveToken({ property: 'list', value: 'potato', pseudo: null })).toThrow(
+        TokenResolveError,
+      );
+    });
+  });
+
+  describe('overflow', () => {
+    it('resolves overflow:auto to overflow: auto', () => {
+      const result = resolveToken({ property: 'overflow', value: 'auto', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'overflow', value: 'auto' }]);
+    });
+
+    it('resolves overflow:scroll to overflow: scroll', () => {
+      const result = resolveToken({ property: 'overflow', value: 'scroll', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'overflow', value: 'scroll' }]);
+    });
+
+    it('resolves overflow:visible to overflow: visible', () => {
+      const result = resolveToken({ property: 'overflow', value: 'visible', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'overflow', value: 'visible' }]);
+    });
+
+    it('resolves overflow:hidden to overflow: hidden', () => {
+      const result = resolveToken({ property: 'overflow', value: 'hidden', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'overflow', value: 'hidden' }]);
+    });
+
+    it('resolves overflow-x:auto to overflow-x: auto', () => {
+      const result = resolveToken({ property: 'overflow-x', value: 'auto', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'overflow-x', value: 'auto' }]);
+    });
+
+    it('resolves overflow-x:scroll to overflow-x: scroll', () => {
+      const result = resolveToken({ property: 'overflow-x', value: 'scroll', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'overflow-x', value: 'scroll' }]);
+    });
+
+    it('resolves overflow-y:auto to overflow-y: auto', () => {
+      const result = resolveToken({ property: 'overflow-y', value: 'auto', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'overflow-y', value: 'auto' }]);
+    });
+
+    it('resolves overflow-y:hidden to overflow-y: hidden', () => {
+      const result = resolveToken({ property: 'overflow-y', value: 'hidden', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'overflow-y', value: 'hidden' }]);
+    });
+
+    it('overflow-hidden keyword still works (no regression)', () => {
+      const result = resolveToken({ property: 'overflow-hidden', value: null, pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'overflow', value: 'hidden' }]);
+    });
+  });
+
+  describe('transform scale keywords', () => {
+    it('resolves scale-0 to transform: scale(0)', () => {
+      const result = resolveToken({ property: 'scale-0', value: null, pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'transform', value: 'scale(0)' }]);
+    });
+
+    it('resolves scale-75 to transform: scale(0.75)', () => {
+      const result = resolveToken({ property: 'scale-75', value: null, pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'transform', value: 'scale(0.75)' }]);
+    });
+
+    it('resolves scale-90 to transform: scale(0.9)', () => {
+      const result = resolveToken({ property: 'scale-90', value: null, pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'transform', value: 'scale(0.9)' }]);
+    });
+
+    it('resolves scale-95 to transform: scale(0.95)', () => {
+      const result = resolveToken({ property: 'scale-95', value: null, pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'transform', value: 'scale(0.95)' }]);
+    });
+
+    it('resolves scale-100 to transform: scale(1)', () => {
+      const result = resolveToken({ property: 'scale-100', value: null, pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'transform', value: 'scale(1)' }]);
+    });
+
+    it('resolves scale-105 to transform: scale(1.05)', () => {
+      const result = resolveToken({ property: 'scale-105', value: null, pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'transform', value: 'scale(1.05)' }]);
+    });
+
+    it('resolves scale-110 to transform: scale(1.1)', () => {
+      const result = resolveToken({ property: 'scale-110', value: null, pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'transform', value: 'scale(1.1)' }]);
+    });
+
+    it('resolves scale-125 to transform: scale(1.25)', () => {
+      const result = resolveToken({ property: 'scale-125', value: null, pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'transform', value: 'scale(1.25)' }]);
+    });
+
+    it('resolves scale-150 to transform: scale(1.5)', () => {
+      const result = resolveToken({ property: 'scale-150', value: null, pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'transform', value: 'scale(1.5)' }]);
+    });
+
+    it('resolves hover:scale-110 with pseudo', () => {
+      const result = resolveToken({ property: 'scale-110', value: null, pseudo: ':hover' });
+      expect(result.pseudo).toBe(':hover');
+      expect(result.declarations).toEqual([{ property: 'transform', value: 'scale(1.1)' }]);
+    });
+  });
+
+  describe('color opacity modifier', () => {
+    it('resolves bg:primary/50 to color-mix', () => {
+      const result = resolveToken({ property: 'bg', value: 'primary/50', pseudo: null });
+      expect(result.declarations).toEqual([
+        {
+          property: 'background-color',
+          value: 'color-mix(in oklch, var(--color-primary) 50%, transparent)',
+        },
+      ]);
+    });
+
+    it('resolves bg:primary.700/50 to color-mix with shade', () => {
+      const result = resolveToken({ property: 'bg', value: 'primary.700/50', pseudo: null });
+      expect(result.declarations).toEqual([
+        {
+          property: 'background-color',
+          value: 'color-mix(in oklch, var(--color-primary-700) 50%, transparent)',
+        },
+      ]);
+    });
+
+    it('resolves bg:background/80', () => {
+      const result = resolveToken({ property: 'bg', value: 'background/80', pseudo: null });
+      expect(result.declarations).toEqual([
+        {
+          property: 'background-color',
+          value: 'color-mix(in oklch, var(--color-background) 80%, transparent)',
+        },
+      ]);
+    });
+
+    it('resolves text:muted/90 via multi-mode resolver', () => {
+      const result = resolveToken({ property: 'text', value: 'muted/90', pseudo: null });
+      expect(result.declarations).toEqual([
+        {
+          property: 'color',
+          value: 'color-mix(in oklch, var(--color-muted) 90%, transparent)',
+        },
+      ]);
+    });
+
+    it('resolves border:ring/30 via multi-mode resolver', () => {
+      const result = resolveToken({ property: 'border', value: 'ring/30', pseudo: null });
+      expect(result.declarations).toEqual([
+        {
+          property: 'border-color',
+          value: 'color-mix(in oklch, var(--color-ring) 30%, transparent)',
+        },
+      ]);
+    });
+
+    it('resolves ring:primary.500/50 via multi-mode resolver', () => {
+      const result = resolveToken({ property: 'ring', value: 'primary.500/50', pseudo: null });
+      expect(result.declarations).toEqual([
+        {
+          property: 'outline-color',
+          value: 'color-mix(in oklch, var(--color-primary-500) 50%, transparent)',
+        },
+      ]);
+    });
+
+    it('resolves bg:primary/0 (fully transparent)', () => {
+      const result = resolveToken({ property: 'bg', value: 'primary/0', pseudo: null });
+      expect(result.declarations).toEqual([
+        {
+          property: 'background-color',
+          value: 'color-mix(in oklch, var(--color-primary) 0%, transparent)',
+        },
+      ]);
+    });
+
+    it('resolves bg:primary/100 (fully opaque)', () => {
+      const result = resolveToken({ property: 'bg', value: 'primary/100', pseudo: null });
+      expect(result.declarations).toEqual([
+        {
+          property: 'background-color',
+          value: 'color-mix(in oklch, var(--color-primary) 100%, transparent)',
+        },
+      ]);
+    });
+
+    it('resolves hover:bg:primary/50 with pseudo', () => {
+      const result = resolveToken({ property: 'bg', value: 'primary/50', pseudo: ':hover' });
+      expect(result.pseudo).toBe(':hover');
+      expect(result.declarations).toEqual([
+        {
+          property: 'background-color',
+          value: 'color-mix(in oklch, var(--color-primary) 50%, transparent)',
+        },
+      ]);
+    });
+
+    it('throws on bg:potato/50 (invalid namespace)', () => {
+      expect(() => resolveToken({ property: 'bg', value: 'potato/50', pseudo: null })).toThrow(
+        TokenResolveError,
+      );
+    });
+
+    it('throws on bg:primary/200 (out of range)', () => {
+      expect(() => resolveToken({ property: 'bg', value: 'primary/200', pseudo: null })).toThrow(
+        TokenResolveError,
+      );
+    });
+
+    it('throws on bg:primary/-10 (negative)', () => {
+      expect(() => resolveToken({ property: 'bg', value: 'primary/-10', pseudo: null })).toThrow(
+        TokenResolveError,
+      );
+    });
+
+    it('throws on bg:primary/50.5 (non-integer)', () => {
+      expect(() => resolveToken({ property: 'bg', value: 'primary/50.5', pseudo: null })).toThrow(
+        TokenResolveError,
+      );
+    });
+
+    it('throws on bg:primary/abc (non-numeric)', () => {
+      expect(() => resolveToken({ property: 'bg', value: 'primary/abc', pseudo: null })).toThrow(
         TokenResolveError,
       );
     });

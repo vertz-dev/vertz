@@ -257,6 +257,9 @@ describe('token-tables', () => {
       'opacity',
       'inset',
       'z',
+      'overflow',
+      'overflow-x',
+      'overflow-y',
       'vt-name',
       'view-transition-name',
     ];
@@ -305,6 +308,15 @@ describe('token-tables', () => {
       'lowercase',
       'capitalize',
       'outline-none',
+      'scale-0',
+      'scale-75',
+      'scale-90',
+      'scale-95',
+      'scale-100',
+      'scale-105',
+      'scale-110',
+      'scale-125',
+      'scale-150',
     ];
 
     for (const kw of essential) {

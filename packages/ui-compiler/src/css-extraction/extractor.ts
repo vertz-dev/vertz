@@ -402,7 +402,19 @@ function resolveValue(value: string, valueType: string, property: string): strin
       if (value === 'screen') {
         return HEIGHT_AXIS_PROPERTIES.has(property) ? '100vh' : '100vw';
       }
-      return SPACING_SCALE[value] ?? SIZE_KEYWORDS[value] ?? null;
+      const sizeVal = SPACING_SCALE[value] ?? SIZE_KEYWORDS[value] ?? null;
+      if (sizeVal !== null) return sizeVal;
+      // Fraction dimensions: N/M -> percentage
+      {
+        const fm = /^(\d+)\/(\d+)$/.exec(value);
+        if (fm) {
+          const den = Number(fm[2]);
+          if (den === 0) return null;
+          const pct = (Number(fm[1]) / den) * 100;
+          return `${pct % 1 === 0 ? pct : pct.toFixed(6)}%`;
+        }
+      }
+      return null;
     }
     case 'alignment':
       return ALIGNMENT_MAP[value] ?? null;
@@ -425,19 +437,33 @@ function resolveValue(value: string, valueType: string, property: string): strin
 }
 
 function resolveColor(value: string): string | null {
-  const dotIndex = value.indexOf('.');
+  // Check for opacity modifier: 'primary/50', 'primary.700/50'
+  const opMatch = /^(.+)\/(\d+)$/.exec(value);
+  if (opMatch) {
+    const colorPart = opMatch[1];
+    const opacity = Number(opMatch[2]);
+    if (opacity < 0 || opacity > 100) return null;
+    const resolved = resolveColorToken(colorPart);
+    if (resolved === null) return null;
+    return `color-mix(in oklch, ${resolved} ${opacity}%, transparent)`;
+  }
+  return resolveColorToken(value);
+}
+
+function resolveColorToken(token: string): string | null {
+  const dotIndex = token.indexOf('.');
   if (dotIndex !== -1) {
-    const namespace = value.substring(0, dotIndex);
-    const shade = value.substring(dotIndex + 1);
+    const namespace = token.substring(0, dotIndex);
+    const shade = token.substring(dotIndex + 1);
     if (COLOR_NAMESPACES.has(namespace)) {
       return `var(--color-${namespace}-${shade})`;
     }
     return null;
   }
-  if (COLOR_NAMESPACES.has(value)) {
-    return `var(--color-${value})`;
+  if (COLOR_NAMESPACES.has(token)) {
+    return `var(--color-${token})`;
   }
-  if (CSS_COLOR_KEYWORDS.has(value)) return value;
+  if (CSS_COLOR_KEYWORDS.has(token)) return token;
   return null;
 }
 

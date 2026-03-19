@@ -267,6 +267,42 @@ void _raw2;
 void _raw3;
 void _raw4;
 
+// Valid overflow utilities
+const _overflow1: StyleEntry = 'overflow:auto';
+const _overflow2: StyleEntry = 'overflow-x:scroll';
+const _overflow3: StyleEntry = 'overflow-y:hidden';
+void _overflow1;
+void _overflow2;
+void _overflow3;
+
+// Valid transform scale keywords
+const _scale1: StyleEntry = 'scale-110';
+const _scale2: StyleEntry = 'scale-0';
+const _scale3: StyleEntry = 'scale-150';
+void _scale1;
+void _scale2;
+void _scale3;
+
+// Valid fraction dimensions
+const _frac1: StyleEntry = 'w:1/2';
+const _frac2: StyleEntry = 'h:2/3';
+const _frac3: StyleEntry = 'min-w:1/4';
+const _frac4: StyleEntry = 'max-w:3/4';
+void _frac1;
+void _frac2;
+void _frac3;
+void _frac4;
+
+// Valid color opacity modifiers
+const _opacity1: StyleEntry = 'bg:primary/50';
+const _opacity2: StyleEntry = 'bg:primary.700/50';
+const _opacity3: StyleEntry = 'text:muted/90';
+const _opacity4: StyleEntry = 'border:ring/30';
+void _opacity1;
+void _opacity2;
+void _opacity3;
+void _opacity4;
+
 // Valid pseudo-prefixed utilities
 const _pseudo1: StyleEntry = 'hover:bg:primary';
 const _pseudo2: StyleEntry = 'focus:outline-none';
