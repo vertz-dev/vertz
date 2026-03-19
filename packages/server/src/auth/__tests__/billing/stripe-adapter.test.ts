@@ -209,6 +209,32 @@ describe('Feature: Stripe billing adapter', () => {
         interval: 'month',
         interval_count: 3,
       });
+
+      // Verify the raw call args passed to prices.create
+      const createCall = stripe._calls.find((c) => c.method === 'prices.create');
+      expect((createCall?.args[0] as { recurring: unknown }).recurring).toEqual({
+        interval: 'month',
+        interval_count: 3,
+      });
+    });
+  });
+
+  describe('Given a plan with yearly interval', () => {
+    it('maps year to { interval: "year" } without interval_count', async () => {
+      const stripe = createMockStripe();
+      const adapter = createStripeBillingAdapter({ stripe });
+
+      await adapter.syncPlans({
+        pro_yearly: {
+          title: 'Pro Yearly',
+          group: 'main',
+          price: { amount: 290, interval: 'year' as const },
+          features: ['doc:edit'],
+        },
+      });
+
+      expect(stripe._prices).toHaveLength(1);
+      expect(stripe._prices[0].recurring).toEqual({ interval: 'year' });
     });
   });
 
