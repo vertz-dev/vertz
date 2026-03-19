@@ -138,8 +138,8 @@ describe('tolerant hydration e2e', () => {
 
     mount(App);
 
-    // The SSR span must still be in the DOM — not ripped out
-    expect(root.querySelector('span')).toBe(ssrSpan);
+    // The SSR span must still be in the DOM (inside the conditional wrapper)
+    expect(root.contains(ssrSpan)).toBe(true);
     expect(root.textContent).toContain('visible');
   });
 

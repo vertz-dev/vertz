@@ -31,7 +31,7 @@ describe('__conditional — hydration', () => {
       () => null,
     );
 
-    // The comment anchor must still be in the SSR root — not ripped out
+    // The comment anchor must still be in the DOM tree (inside the wrapper span)
     expect(root.contains(comment)).toBe(true);
   });
 
@@ -158,5 +158,61 @@ describe('__conditional — hydration', () => {
     // Switch back to true branch
     show.value = true;
     expect(root.textContent).toContain('true-branch');
+  });
+
+  it('nested conditional: inner content is cleaned up when outer re-evaluates after hydration', () => {
+    // Reproduces checkbox bug: checked === 'mixed' ? <svg1/> : checked ? <svg2/> : null
+    // SSR DOM simulates: checked=true → outer false, inner true → SVG present
+    const root = document.createElement('div');
+    // Outer conditional anchor
+    root.appendChild(document.createComment('conditional'));
+    // Inner conditional anchor
+    root.appendChild(document.createComment('conditional'));
+    // Inner true branch content (the SVG/span)
+    const ssrSpan = document.createElement('span');
+    ssrSpan.textContent = 'check-icon';
+    root.appendChild(ssrSpan);
+
+    startHydration(root);
+
+    const checked = signal<boolean | 'mixed'>(true);
+    __conditional(
+      () => checked.value === 'mixed',
+      () => {
+        const el = __element('span');
+        __enterChildren(el);
+        __append(el, __staticText('dash-icon'));
+        __exitChildren();
+        return el;
+      },
+      () =>
+        __conditional(
+          () => !!checked.value,
+          () => {
+            const el = __element('span');
+            __enterChildren(el);
+            __append(el, __staticText('check-icon'));
+            __exitChildren();
+            return el;
+          },
+          () => null,
+        ),
+    );
+
+    endHydration();
+
+    // Initial: SSR content intact
+    expect(root.textContent).toContain('check-icon');
+
+    // Uncheck: checked=false → content should be cleared
+    checked.value = false;
+    expect(root.textContent).not.toContain('check-icon');
+
+    // Re-check: checked=true → content restored, text appears exactly once
+    checked.value = true;
+    expect(root.textContent).toContain('check-icon');
+    // Verify no duplicate text — 'check-icon' should appear exactly once
+    const matches = root.textContent?.match(/check-icon/g);
+    expect(matches?.length).toBe(1);
   });
 });

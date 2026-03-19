@@ -343,6 +343,91 @@ describe('__conditional', () => {
     expect(container.textContent).toBe('Done');
   });
 
+  it('nested conditional: inner branch toggles while outer condition stays false', () => {
+    // Reproduces the checkbox bug: checked === 'mixed' ? <svg1/> : checked ? <svg2/> : null
+    // The outer condition (=== 'mixed') is always false, only inner condition toggles.
+    const checked = signal<boolean | 'mixed'>(true);
+    const container = document.createElement('div');
+
+    const fragment = __conditional(
+      () => checked.value === 'mixed',
+      () => {
+        const svg = document.createElement('span');
+        svg.textContent = 'dash-icon';
+        return svg;
+      },
+      () =>
+        __conditional(
+          () => !!checked.value,
+          () => {
+            const svg = document.createElement('span');
+            svg.textContent = 'check-icon';
+            return svg;
+          },
+          () => null,
+        ),
+    );
+    container.appendChild(fragment);
+
+    // Initial: checked=true → outer false, inner true → check-icon visible
+    expect(container.textContent).toBe('check-icon');
+
+    // Uncheck: checked=false → outer false, inner false → null (empty)
+    checked.value = false;
+    expect(container.textContent).toBe('');
+
+    // Re-check: checked=true → outer false, inner true → check-icon (ONE icon, not two)
+    checked.value = true;
+    const icons = container.querySelectorAll('span:not([style])');
+    // Must be exactly 1 icon element, not 2
+    let iconCount = 0;
+    for (const node of container.querySelectorAll('*')) {
+      if (node.textContent === 'check-icon' && node.childNodes.length === 1) {
+        iconCount++;
+      }
+    }
+    expect(iconCount).toBe(1);
+    expect(container.textContent).toBe('check-icon');
+  });
+
+  it('nested conditional: multiple toggle cycles produce exactly one child', () => {
+    // Stress test: toggle the inner condition many times while outer stays stable
+    const checked = signal<boolean | 'mixed'>(true);
+    const container = document.createElement('div');
+
+    const fragment = __conditional(
+      () => checked.value === 'mixed',
+      () => {
+        const el = document.createElement('b');
+        el.textContent = 'mixed';
+        return el;
+      },
+      () =>
+        __conditional(
+          () => !!checked.value,
+          () => {
+            const el = document.createElement('i');
+            el.textContent = 'on';
+            return el;
+          },
+          () => null,
+        ),
+    );
+    container.appendChild(fragment);
+    expect(container.textContent).toBe('on');
+
+    // Toggle many times
+    for (let i = 0; i < 5; i++) {
+      checked.value = false;
+      expect(container.textContent).toBe('');
+      checked.value = true;
+      expect(container.textContent).toBe('on');
+    }
+
+    // After all toggles, exactly 1 <i> element should exist
+    expect(container.querySelectorAll('i').length).toBe(1);
+  });
+
   it('handles both branches returning null without crashing', () => {
     const show = signal(true);
     const container = document.createElement('div');

@@ -57,6 +57,15 @@ export function __conditional(
  * Hydration path for __conditional.
  * Claims the existing comment anchor and branch content from SSR,
  * then attaches reactive effect for future branch switches.
+ *
+ * After the first hydration run, wraps all claimed nodes (anchor + content)
+ * in a display:contents span. This ensures that when a parent conditional
+ * re-evaluates and calls replaceChild, ALL nodes belonging to this
+ * conditional are replaced — not just the anchor comment.
+ *
+ * Without wrapping, nested conditionals leave orphaned content nodes:
+ * the parent replaces the inner anchor but the inner's content (e.g., an SVG)
+ * stays in the DOM as a sibling, causing duplicate rendering. (#1553)
  */
 function hydrateConditional(
   condFn: () => boolean,
@@ -68,6 +77,8 @@ function hydrateConditional(
     claimComment() ?? (getAdapter().createComment('conditional') as unknown as Comment);
   let currentNode: Node | null = null;
   let branchCleanups: DisposeFn[] = [];
+  // After wrapping, this holds the wrapper span (returned to the parent).
+  let resultNode: Node = anchor as unknown as Node;
 
   const outerScope = pushScope();
 
@@ -84,19 +95,37 @@ function hydrateConditional(
       popScope();
       branchCleanups = scope;
 
-      // During hydration, the branch content is already in the DOM.
-      // Just track the current node for future branch switches.
+      // Determine which DOM node the branch produced (if any).
+      let contentNode: Node | null = null;
       if (branchResult == null || typeof branchResult === 'boolean') {
-        currentNode = getAdapter().createComment('empty') as unknown as Node;
+        contentNode = null; // no content in DOM
       } else if (isRenderNode(branchResult)) {
-        currentNode = branchResult;
+        contentNode = branchResult;
       } else {
         // Branch returned a primitive (string/number). The SSR DOM contains
         // a text node with this value — claim it so the cursor advances past
         // it and we have a reference for future branch switches (replaceChild).
         const claimed = claimText();
-        currentNode =
+        contentNode =
           claimed ?? (getAdapter().createTextNode(String(branchResult)) as unknown as Node);
+      }
+
+      // Wrap anchor (and content if present) in a display:contents span.
+      // This ensures replaceChild on this node removes ALL our DOM content,
+      // preventing orphaned siblings when nested conditionals re-evaluate.
+      const anchorParent = (anchor as unknown as Node).parentNode;
+      if (anchorParent) {
+        const wrap = getAdapter().createElement('span') as unknown as HTMLElement;
+        wrap.style.display = 'contents';
+        anchorParent.insertBefore(wrap as unknown as Node, anchor);
+        wrap.appendChild(anchor as unknown as Node);
+        if (contentNode?.parentNode && contentNode.parentNode !== wrap) {
+          wrap.appendChild(contentNode);
+        }
+        currentNode = wrap as unknown as Node;
+        resultNode = wrap as unknown as Node;
+      } else {
+        currentNode = contentNode ?? (getAdapter().createComment('empty') as unknown as Node);
       }
       return;
     }
@@ -121,18 +150,17 @@ function hydrateConditional(
   });
   popScope();
 
-  const wrapper = () => {
+  const disposeFn = () => {
     runCleanups(branchCleanups);
     runCleanups(outerScope);
   };
 
-  _tryOnCleanup(wrapper);
+  _tryOnCleanup(disposeFn);
 
-  // During hydration, anchor and content are already in the SSR DOM.
-  // Do NOT move them into a fragment — that would rip them from the live tree.
-  // Return the anchor as the result node (it's already in the DOM).
-  const result: DisposableNode = Object.assign(anchor as Node, {
-    dispose: wrapper,
+  // Return the wrapper span (or anchor if wrapping wasn't possible).
+  // domEffect runs synchronously, so resultNode is already set.
+  const result: DisposableNode = Object.assign(resultNode, {
+    dispose: disposeFn,
   });
   return result;
 }
