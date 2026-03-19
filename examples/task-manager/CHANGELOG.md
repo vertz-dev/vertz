@@ -1,5 +1,18 @@
 # @vertz-examples/task-manager
 
+## 0.2.22
+
+### Patch Changes
+
+- Updated dependencies [[`8ed55f6`](https://github.com/vertz-dev/vertz/commit/8ed55f6fc8aa691758606fe044a8b1d74b7bb9bc), [`5d64812`](https://github.com/vertz-dev/vertz/commit/5d6481233006f67c21375f3879fda600c86c0cdd), [`179829d`](https://github.com/vertz-dev/vertz/commit/179829d9df73097aead0d666a1b130c9a138573b), [`8ab61a4`](https://github.com/vertz-dev/vertz/commit/8ab61a414fb759f6c086db6ee6e1aec95545daf9), [`4c96794`](https://github.com/vertz-dev/vertz/commit/4c967943b0289542b0162556e299a309e4a86f1f), [`180ac91`](https://github.com/vertz-dev/vertz/commit/180ac91f4fbc562581136dd8256f67fcc724fa69), [`e248ac3`](https://github.com/vertz-dev/vertz/commit/e248ac37bb9639d213ad5326d70db08a59adb7ff), [`e5d8d4d`](https://github.com/vertz-dev/vertz/commit/e5d8d4d49da65c13fb5c76ec279314052273da30), [`32dc39b`](https://github.com/vertz-dev/vertz/commit/32dc39b9f23b89aa387be49303fc6fcc4dceccdd), [`6d32565`](https://github.com/vertz-dev/vertz/commit/6d32565c2818f9235d02af14a616279f018d0ff5), [`2e99e39`](https://github.com/vertz-dev/vertz/commit/2e99e3943830d2e2e0b2b44a1b32d8641e63dbe3), [`fabfb87`](https://github.com/vertz-dev/vertz/commit/fabfb879cd93dbcedbae4490996e8ce9cedf9457), [`9b8af7b`](https://github.com/vertz-dev/vertz/commit/9b8af7b7645cf274e5b2eaacb1680822cd115063), [`1c4916b`](https://github.com/vertz-dev/vertz/commit/1c4916b04eaaef0ee2e27eda1b73c36ae24e665e)]:
+  - @vertz/ui-primitives@0.2.22
+  - @vertz/theme-shadcn@0.2.22
+  - @vertz/ui@0.2.22
+  - @vertz/errors@0.2.22
+  - @vertz/fetch@0.2.22
+  - @vertz/icons@0.2.22
+  - @vertz/ui-server@0.2.22
+
 ## 0.2.21
 
 ### Patch Changes
