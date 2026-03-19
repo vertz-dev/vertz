@@ -129,8 +129,19 @@ export function createStripeBillingAdapter(config: StripeBillingAdapterConfig): 
       const existingPrices = await stripe.prices.list({ product: product.id });
       const activePrices = existingPrices.data.filter((p) => p.active);
 
-      // Check if we already have a matching price
-      const matchingPrice = activePrices.find((p) => p.unit_amount === unitAmount);
+      // Build expected recurring for comparison
+      const expectedRecurring = interval && interval !== 'one_off' ? mapInterval(interval) : null;
+
+      // Check if we already have a matching price (amount + recurring must both match)
+      const matchingPrice = activePrices.find((p) => {
+        if (p.unit_amount !== unitAmount) return false;
+        if (expectedRecurring === null && p.recurring === null) return true;
+        if (expectedRecurring === null || p.recurring === null) return false;
+        return (
+          p.recurring.interval === expectedRecurring.interval &&
+          p.recurring.interval_count === expectedRecurring.interval_count
+        );
+      });
 
       if (!matchingPrice) {
         // Archive old prices
@@ -152,9 +163,8 @@ export function createStripeBillingAdapter(config: StripeBillingAdapterConfig): 
           metadata: { vertzPlanId: planId },
         };
 
-        if (interval && interval !== 'one_off') {
-          const mapped = mapInterval(interval);
-          priceParams.recurring = mapped;
+        if (expectedRecurring) {
+          priceParams.recurring = expectedRecurring;
         }
 
         await stripe.prices.create(priceParams);
