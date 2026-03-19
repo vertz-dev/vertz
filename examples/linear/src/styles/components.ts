@@ -53,7 +53,7 @@ export const skeletonStyles = css({
   bone: ['rounded:md', 'bg:muted'],
   card: ['rounded:md', 'bg:muted', 'h:20', 'mb:2'],
   line: ['rounded:sm', 'bg:muted', 'h:4', 'mb:2'],
-  lineShort: ['rounded:sm', 'bg:muted', 'h:4', 'w:2/3', 'mb:2'],
+  lineShort: ['rounded:sm', 'bg:muted', 'h:4', 'mb:2'],
 });
 
 export const skeletonAnimation = `background: linear-gradient(90deg, transparent 25%, hsl(var(--muted-foreground) / 0.08) 50%, transparent 75%); background-size: 200% 100%; animation: ${shimmer} 1.5s ease-in-out infinite;`;
@@ -75,6 +75,6 @@ export const errorFallbackStyles = css({
     'cursor:pointer',
     'border:0',
     'transition:colors',
-    'hover:bg:primary/90',
+    'hover:bg:primary.700',
   ],
 });

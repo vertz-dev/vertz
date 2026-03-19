@@ -19,7 +19,7 @@ const styles = css({
     'text:foreground',
     'transition:colors',
     'hover:bg:accent',
-    'text-align:left',
+    'text:left',
   ],
   active: [
     'flex',
@@ -36,7 +36,7 @@ const styles = css({
     'text:foreground',
     'transition:colors',
     'hover:bg:accent',
-    'text-align:left',
+    'text:left',
   ],
   dot: ['w:2.5', 'h:2.5', 'rounded:full', 'shrink-0'],
   check: ['ml:auto', 'text:muted-foreground', 'text:xs'],
