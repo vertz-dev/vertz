@@ -5,8 +5,8 @@
  * No registration, no resolveChildren, no internal API imports.
  */
 
-import type { ChildValue } from '@vertz/ui';
-import { createContext, onMount, useContext } from '@vertz/ui';
+import type { ChildValue, Ref } from '@vertz/ui';
+import { createContext, onMount, ref, useContext } from '@vertz/ui';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
@@ -36,6 +36,7 @@ interface SelectContextValue {
   selectedValue: () => string;
   placeholder?: string;
   contentId: string;
+  contentRef: Ref<HTMLDivElement>;
   classes?: SelectClasses;
   open: () => void;
   close: () => void;
@@ -146,11 +147,11 @@ function SelectContent({ children, className: cls, class: classProp }: SlotProps
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
-  // Wire keyboard and click handlers on the connected content element.
+  // Wire keyboard handler on the connected content element.
+  // Click selection is handled by SelectItem's inline onClick — no
+  // delegated click handler here to avoid double selectItem() calls.
   onMount(() => {
-    const el = document.getElementById(ctx.contentId) as
-      | (HTMLElement & { __selectWired?: boolean })
-      | null;
+    const el = ctx.contentRef.current as (HTMLDivElement & { __selectWired?: boolean }) | undefined;
     if (!el || el.__selectWired) return;
     el.__selectWired = true;
 
@@ -184,18 +185,11 @@ function SelectContent({ children, className: cls, class: classProp }: SlotProps
         if (match) match.focus();
       }
     });
-
-    el.addEventListener('click', (event: Event) => {
-      const target = (event.target as HTMLElement).closest('[role="option"]');
-      if (target) {
-        const val = target.getAttribute('data-value');
-        if (val !== null) ctx.selectItem(val);
-      }
-    });
   });
 
   return (
     <div
+      ref={ctx.contentRef}
       role="listbox"
       tabindex="-1"
       id={ctx.contentId}
@@ -283,6 +277,7 @@ function ComposedSelectRoot({
   positioning,
 }: ComposedSelectProps) {
   const ids = linkedIds('select');
+  const contentRef: Ref<HTMLDivElement> = ref();
 
   let isOpen = false;
   let selectedValue = defaultValue;
@@ -293,7 +288,7 @@ function ComposedSelectRoot({
   } = { floatingCleanup: null, dismissCleanup: null };
 
   function getContentEl(): HTMLElement | null {
-    return document.getElementById(ids.contentId);
+    return contentRef.current ?? null;
   }
 
   function getTriggerEl(): HTMLElement | null {
@@ -389,6 +384,7 @@ function ComposedSelectRoot({
     selectedValue: () => selectedValue,
     placeholder,
     contentId: ids.contentId,
+    contentRef,
     classes,
     open,
     close,

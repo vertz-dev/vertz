@@ -5,8 +5,8 @@
  * No registration phase, no resolveChildren, no internal API imports.
  */
 
-import type { ChildValue } from '@vertz/ui';
-import { createContext, onMount, useContext } from '@vertz/ui';
+import type { ChildValue, Ref } from '@vertz/ui';
+import { createContext, onMount, ref, useContext } from '@vertz/ui';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition, virtualElement } from '../utils/floating';
@@ -32,12 +32,11 @@ export interface ContextMenuClasses {
 interface ContextMenuContextValue {
   isOpen: boolean;
   contentId: string;
+  contentRef: Ref<HTMLDivElement>;
   classes?: ContextMenuClasses;
   onSelect?: (value: string) => void;
   open: (x: number, y: number) => void;
   close: () => void;
-  /** @internal Set by Content to share its element reference with Root. */
-  _setContentEl: (el: HTMLElement) => void;
   /** @internal Per-Root content instance counter for duplicate detection. */
   _contentCount: { value: number };
 }
@@ -116,6 +115,7 @@ function ContextMenuContent({ children, className: cls, class: classProp }: Slot
 
   const el = (
     <div
+      ref={ctx.contentRef}
       role="menu"
       tabindex="-1"
       id={ctx.contentId}
@@ -154,10 +154,6 @@ function ContextMenuContent({ children, className: cls, class: classProp }: Slot
       {children}
     </div>
   );
-
-  // Share the exact element reference with Root so open()/close() update
-  // the same JS wrapper that consumers obtain via querySelector.
-  ctx._setContentEl(el as HTMLElement);
 
   return el;
 }
@@ -247,13 +243,9 @@ function ComposedContextMenuRoot({
   positioning,
 }: ComposedContextMenuProps) {
   const ids = linkedIds('ctxmenu');
+  const contentRef: Ref<HTMLDivElement> = ref();
 
   let isOpen = false;
-
-  // Direct reference to the content element, set by ContextMenuContent.
-  // Using this avoids happy-dom wrapper identity issues where
-  // document.getElementById returns a different JS wrapper than querySelector.
-  const shared: { contentEl: HTMLElement | null } = { contentEl: null };
 
   const state: {
     activeIndex: number;
@@ -262,7 +254,7 @@ function ComposedContextMenuRoot({
   } = { activeIndex: -1, floatingCleanup: null, dismissCleanup: null };
 
   function getContentEl(): HTMLElement | null {
-    return shared.contentEl ?? document.getElementById(ids.contentId);
+    return contentRef.current ?? null;
   }
 
   function getItems(): HTMLElement[] {
@@ -331,13 +323,11 @@ function ComposedContextMenuRoot({
   const ctx: ContextMenuContextValue = {
     isOpen,
     contentId: ids.contentId,
+    contentRef,
     classes,
     onSelect,
     open,
     close,
-    _setContentEl: (el: HTMLElement) => {
-      shared.contentEl = el;
-    },
     _contentCount: { value: 0 },
   };
 

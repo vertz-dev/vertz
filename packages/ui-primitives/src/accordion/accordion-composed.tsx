@@ -5,8 +5,8 @@
  * No registration, no resolveChildren, no internal API imports.
  */
 
-import type { ChildValue } from '@vertz/ui';
-import { createContext, useContext } from '@vertz/ui';
+import type { ChildValue, Ref } from '@vertz/ui';
+import { createContext, ref, useContext } from '@vertz/ui';
 import { setDataState, setExpanded, setHidden, setHiddenAnimated } from '../utils/aria';
 import { uniqueId } from '../utils/id';
 import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
@@ -36,6 +36,8 @@ interface AccordionItemContextValue {
   value: string;
   triggerId: string;
   contentId: string;
+  contentRef: Ref<HTMLElement>;
+  triggerRef: Ref<HTMLButtonElement>;
   classes?: AccordionClasses;
   /** Check if THIS item is open. Function to avoid eager signal reads. */
   isOpen: () => boolean;
@@ -89,24 +91,26 @@ function AccordionItem({ value, children }: ItemProps) {
   const baseId = uniqueId('accordion');
   const triggerId = `${baseId}-trigger`;
   const contentId = `${baseId}-content`;
+  const contentRef: Ref<HTMLElement> = ref();
+  const triggerRef: Ref<HTMLButtonElement> = ref();
 
   const itemCtx: AccordionItemContextValue = {
     value,
     triggerId,
     contentId,
+    contentRef,
+    triggerRef,
     classes: ctx.classes,
     isOpen: () => ctx.isOpen(value),
     toggle: () => {
-      // Measure height BEFORE toggling — the signal update may trigger
-      // reactive re-evaluation that replaces the content DOM element.
-      const beforeEl = document.getElementById(contentId);
-      const prevHeight = beforeEl?.scrollHeight ?? 0;
+      // Measure height BEFORE toggling. The element is stable (Vertz
+      // components run once — the content DOM node is never replaced).
+      const prevHeight = contentRef.current?.scrollHeight ?? 0;
 
       ctx.toggle(value);
       const nowOpen = ctx.isOpen(value);
 
-      // Re-lookup after toggle — element may have been replaced reactively.
-      const contentEl = document.getElementById(contentId);
+      const contentEl = contentRef.current;
       if (contentEl) {
         if (nowOpen) {
           setHidden(contentEl, false);
@@ -114,8 +118,7 @@ function AccordionItem({ value, children }: ItemProps) {
           contentEl.style.setProperty('--accordion-content-height', `${height}px`);
           setDataState(contentEl, 'open');
         } else {
-          // The reactive system may have created a new element starting in
-          // closed/hidden state. To animate the close transition:
+          // To animate the close transition:
           // 1. Show it and set data-state="open" so the browser has a start state
           // 2. Force reflow so the browser registers the open state
           // 3. Transition to data-state="closed" to trigger the CSS animation
@@ -132,7 +135,7 @@ function AccordionItem({ value, children }: ItemProps) {
       }
 
       // Update trigger attributes
-      const triggerEl = document.getElementById(triggerId);
+      const triggerEl = triggerRef.current;
       if (triggerEl) {
         setExpanded(triggerEl, nowOpen);
         setDataState(triggerEl, nowOpen ? 'open' : 'closed');
@@ -164,6 +167,7 @@ function AccordionTrigger({ children, className: cls, class: classProp }: SlotPr
 
   return (
     <button
+      ref={ctx.triggerRef}
       type="button"
       id={ctx.triggerId}
       data-accordion-trigger=""
@@ -197,6 +201,7 @@ function AccordionContent({ children, className: cls, class: classProp }: SlotPr
   // kills the close animation.
   const el = (
     <div
+      ref={ctx.contentRef}
       role="region"
       id={ctx.contentId}
       data-accordion-content=""
