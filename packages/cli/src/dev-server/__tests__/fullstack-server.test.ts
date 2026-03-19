@@ -255,6 +255,54 @@ describe('importServerModule', () => {
 
     expect(mod.sessionResolver).toBeUndefined();
   });
+
+  it('extracts requestHandler when present on the server module', async () => {
+    const serverPath = join(tmpDir, 'server-with-request-handler.ts');
+    writeFileSync(
+      serverPath,
+      `
+      const handler = async (req: Request) => new Response('entity');
+      const requestHandler = async (req: Request) => new Response('unified');
+      const app = { handler, requestHandler };
+      export default app;
+    `,
+    );
+
+    const mod = await importServerModule(serverPath);
+
+    expect(mod.requestHandler).toBeDefined();
+    expect(typeof mod.requestHandler).toBe('function');
+  });
+
+  it('ignores requestHandler when it is not a function', async () => {
+    const serverPath = join(tmpDir, 'server-bad-request-handler.ts');
+    writeFileSync(
+      serverPath,
+      `
+      const app = { handler: async (req: Request) => new Response('ok'), requestHandler: 'not-a-function' };
+      export default app;
+    `,
+    );
+
+    const mod = await importServerModule(serverPath);
+
+    expect(mod.requestHandler).toBeUndefined();
+  });
+
+  it('returns undefined requestHandler when not present', async () => {
+    const serverPath = join(tmpDir, 'server-no-request-handler.ts');
+    writeFileSync(
+      serverPath,
+      `
+      const app = { handler: async (req: Request) => new Response('ok') };
+      export default app;
+    `,
+    );
+
+    const mod = await importServerModule(serverPath);
+
+    expect(mod.requestHandler).toBeUndefined();
+  });
 });
 
 describe('formatBanner', () => {
@@ -572,6 +620,53 @@ describe('startDevServer', () => {
         sessionResolver: undefined,
       }),
     );
+
+    importSpy.mockRestore();
+    createSpy.mockRestore();
+  });
+
+  it('prefers requestHandler over handler for full-stack apps when auth is configured', async () => {
+    const fsMod = await import('node:fs');
+    existsSyncSpy = vi.spyOn(fsMod, 'existsSync').mockReturnValue(false) as Mock<
+      (...args: unknown[]) => unknown
+    >;
+
+    const mockHandler = vi.fn();
+    const mockRequestHandler = vi.fn();
+
+    const fullstackMod = await import('../fullstack-server');
+    const importSpy = vi.spyOn(fullstackMod, 'importServerModule').mockResolvedValue({
+      handler: mockHandler as never,
+      requestHandler: mockRequestHandler as never,
+      sessionResolver: undefined,
+      initialize: undefined,
+    });
+
+    const mockDevServer = {
+      start: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn().mockResolvedValue(undefined),
+      restart: vi.fn(),
+      broadcastError: vi.fn(),
+      clearError: vi.fn(),
+    };
+
+    const uiServerMod = await import('@vertz/ui-server/bun-dev-server');
+    const createSpy = vi
+      .spyOn(uiServerMod, 'createBunDevServer')
+      .mockReturnValue(mockDevServer as never);
+
+    const detected: DetectedApp = {
+      type: 'full-stack',
+      serverEntry: '/project/src/server.ts',
+      uiEntry: '/project/src/app.tsx',
+      projectRoot: '/project',
+    };
+
+    await startDevServer({ detected, port: 3000, host: 'localhost' });
+
+    // Use direct identity check — bun's objectContaining doesn't distinguish vi.fn() instances
+    const passedConfig = createSpy.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(passedConfig.apiHandler).toBe(mockRequestHandler);
 
     importSpy.mockRestore();
     createSpy.mockRestore();
