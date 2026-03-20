@@ -305,7 +305,7 @@ function transformJsxElement(
     if (!attr.isKind(SyntaxKind.JsxAttribute)) continue;
     const attrStmt = processAttribute(attr, elVar, source, jsxMap, tagName);
     if (!attrStmt) continue;
-    if (tagName === 'select' && isIdlProperty(tagName, extractAttrName(attr, source))) {
+    if (tagName === 'select' && isIdlProperty(tagName, extractAttrName(attr))) {
       deferredStmts.push(attrStmt);
     } else {
       statements.push(attrStmt);
@@ -414,7 +414,7 @@ function isIdlProperty(tagName: string, attrName: string): boolean {
 }
 
 /** Extract the normalized attribute name from a JsxAttribute node. */
-function extractAttrName(attr: Node, _source: MagicString): string {
+function extractAttrName(attr: Node): string {
   if (!attr.isKind(SyntaxKind.JsxAttribute)) return '';
   const raw = attr.getNameNode().getText();
   return raw === 'className' ? 'class' : raw;
@@ -437,7 +437,7 @@ function processAttribute(
   if (!init) {
     // Boolean shorthand: <input checked />, <input disabled />, etc.
     if (isIdlProperty(tagName, attrName)) {
-      // Boolean IDL props (checked, selected) → .prop = true
+      // Boolean IDL props (checked) → .prop = true
       // String IDL props (value) → .prop = "" (matches HTML empty-attr semantic)
       const shorthandValue = BOOLEAN_IDL_PROPERTIES.has(attrName) ? 'true' : '""';
       return `${elVar}.${attrName} = ${shorthandValue}`;

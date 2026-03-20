@@ -114,6 +114,7 @@ export function SettingsPage() {
           <select
             className={formStyles.select}
             data-testid="default-priority-select"
+            value={defaultPriority}
             onChange={(e: Event) => {
               const value = (e.target as HTMLSelectElement).value as
                 | 'low'
@@ -125,18 +126,10 @@ export function SettingsPage() {
               flashSaved();
             }}
           >
-            <option value="low" selected={defaultPriority === 'low'}>
-              Low
-            </option>
-            <option value="medium" selected={defaultPriority === 'medium'}>
-              Medium
-            </option>
-            <option value="high" selected={defaultPriority === 'high'}>
-              High
-            </option>
-            <option value="urgent" selected={defaultPriority === 'urgent'}>
-              Urgent
-            </option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="urgent">Urgent</option>
           </select>
         </div>
       </section>
