@@ -443,7 +443,7 @@ describe('Email Verification Handler Edge Cases', () => {
 
     const race = await Promise.race([
       pendingResponse.then(() => 'resolved'),
-      new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 25)),
+      new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 500)),
     ]);
 
     releaseSend?.();
