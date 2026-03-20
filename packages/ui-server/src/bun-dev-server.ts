@@ -117,15 +117,18 @@ export type ErrorCategory = 'build' | 'resolve' | 'runtime' | 'ssr';
  * Classify whether an error message indicates a stale module graph
  * that requires a server restart to resolve.
  *
- * Matches export-specific errors only (not generic resolution errors):
+ * Matches:
  * - "Export named 'X' not found in module 'Y'"
  * - "No matching export in 'Y' for import 'X'"
  * - "'Y' does not provide an export named 'X'"
+ * - "Failed to resolve module specifier 'X'" (browser bare-import failure
+ *   after upstream package rebuild changes chunk hashes)
  */
 const STALE_GRAPH_PATTERNS = [
   /Export named ['"].*['"] not found in module/i,
   /No matching export in ['"].*['"] for import/i,
   /does not provide an export named/i,
+  /Failed to resolve module specifier/i,
 ];
 
 export function isStaleGraphError(message: string): boolean {
@@ -342,7 +345,7 @@ function buildErrorChannelScript(editor: string): string {
     // trigger a full page reload when the WS reconnects after restart.
     'V._restarting=false;',
     // isStaleGraph: detect errors that indicate a stale module graph
-    'V.isStaleGraph=function(m){return/Export named [\'"].*[\'"] not found in module/i.test(m)||/No matching export in [\'"].*[\'"] for import/i.test(m)||/does not provide an export named/i.test(m)};',
+    'V.isStaleGraph=function(m){return/Export named [\'"].*[\'"] not found in module/i.test(m)||/No matching export in [\'"].*[\'"] for import/i.test(m)||/does not provide an export named/i.test(m)||/Failed to resolve module specifier/i.test(m)};',
     // _canAutoRestart: check if auto-restart is allowed (max 3 within 10s window)
     'V._canAutoRestart=function(){',
     "var raw=sessionStorage.getItem('__vertz_auto_restart');",

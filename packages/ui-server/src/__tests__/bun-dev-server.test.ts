@@ -633,10 +633,11 @@ describe('generateSSRPageHtml', () => {
       scriptTag: '<script src="/app.js"></script>',
     });
 
-    // Should include inline isStaleGraph function that detects export-specific errors
+    // Should include inline isStaleGraph function that detects stale-graph errors
     expect(html).toContain('isStaleGraph');
     expect(html).toContain('Export named');
     expect(html).toContain('not found in module');
+    expect(html).toContain('Failed to resolve module specifier');
   });
 
   it('error channel script includes "Restart Server" button for stale-graph errors', () => {
@@ -1135,6 +1136,14 @@ describe('isStaleGraphError', () => {
 
   it('returns false for "Could not resolve" errors (handled by resolve category)', () => {
     expect(isStaleGraphError("Could not resolve './missing-module'")).toBe(false);
+  });
+
+  it('returns true for "Failed to resolve module specifier" (browser bare-import failure)', () => {
+    expect(
+      isStaleGraphError(
+        'Failed to resolve module specifier "@vertz/ui". Relative references must start with either "/", "./", or "../".',
+      ),
+    ).toBe(true);
   });
 
   it('returns false for empty string', () => {
