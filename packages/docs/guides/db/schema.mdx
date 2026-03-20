@@ -220,30 +220,30 @@ d.jsonb<Settings>(settingsSchema)
 
 ## Multi-tenancy
 
-Declare tenant scoping at the model level using the `tenant` option:
+Declare the tenant root by calling `.tenant()` on the root table definition. The framework automatically derives all tenant scoping from the relation graph — no per-model configuration needed.
 
 ```ts
 const orgsTable = d.table('organizations', {
   id: d.uuid().primary(),
   name: d.text(),
-});
+}).tenant();
 
 const usersTable = d.table('users', {
   id: d.uuid().primary(),
-  tenantId: d.text(),
+  orgId: d.uuid(),
   email: d.email(),
 });
 
 const usersModel = d.model(usersTable, {
-  org: d.ref.one(() => orgsTable, 'tenantId'),
-}, { tenant: 'org' });
+  org: d.ref.one(() => orgsTable, 'orgId'),
+});
 ```
 
-The `tenant` option references a **relation name** — not a column. This keeps tenant scoping at the relation level where it belongs, and the type system constrains the value to valid relation keys.
+Only one table per application can be marked as `.tenant()`. The framework scans all `ref.one` relations to discover which models are scoped to the tenant root.
 
 ### Any table can be the tenant root
 
-The tenant root is not limited to a table called "tenants". Any table can serve as the root — `organizations`, `workspaces`, `teams`, etc. The framework discovers the root by following the relation declared in `{ tenant: 'relationName' }`.
+The tenant root is not limited to a table called "tenants". Any table can serve as the root — `organizations`, `workspaces`, `teams`, etc. Just call `.tenant()` on it.
 
 For example, the [Linear clone](/examples/task-manager) uses `workspaces` as the tenant root, matching Linear's domain model:
 
@@ -252,37 +252,37 @@ For example, the [Linear clone](/examples/task-manager) uses `workspaces` as the
 const workspacesTable = d.table('workspaces', {
   id: d.text().primary(),
   name: d.text(),
-});
+}).tenant();
 
 const workspacesModel = d.model(workspacesTable);
 
-// Users are directly scoped to a workspace
+// Users are directly scoped to a workspace via ref.one
 const usersModel = d.model(usersTable, {
-  workspace: d.ref.one(() => workspacesTable, 'tenantId'),
-}, { tenant: 'workspace' });
+  workspace: d.ref.one(() => workspacesTable, 'workspaceId'),
+});
 
-// Projects are directly scoped to a workspace
+// Projects are directly scoped to a workspace via ref.one
 const projectsModel = d.model(projectsTable, {
-  workspace: d.ref.one(() => workspacesTable, 'tenantId'),
+  workspace: d.ref.one(() => workspacesTable, 'workspaceId'),
   creator: d.ref.one(() => usersTable, 'createdBy'),
-}, { tenant: 'workspace' });
+});
 ```
 
 <Note>
-The FK column on child tables must be named `tenantId` — this is the framework convention that the entity system uses for automatic tenant filtering and auto-setting on create. The relation name (e.g., `workspace`, `org`) can be anything.
+The tenant FK column name is automatically resolved from the `ref.one` relation targeting the `.tenant()` root table. You can name it anything — `orgId`, `workspaceId`, `tenantId`, etc.
 </Note>
 
 ### Direct vs indirect scoping
 
-Models with a `tenant` declaration are **directly scoped** — they are automatically filtered by the current tenant context at query time.
+Models with a `ref.one` relation pointing to the `.tenant()` root table are **directly scoped** — they are automatically filtered by the current tenant context at query time.
 
-Models without a `tenant` declaration but reachable via relation chains from a directly-scoped model are **indirectly scoped**. The framework follows relations transitively:
+Models without a direct relation to the root but reachable via `ref.one` chains from a directly-scoped model are **indirectly scoped**. The framework follows relations transitively using BFS to find the shortest path:
 
 ```ts
-// Directly scoped — declares { tenant: 'workspace' }
+// Directly scoped — ref.one to the .tenant() root
 const projectsModel = d.model(projectsTable, {
-  workspace: d.ref.one(() => workspacesTable, 'tenantId'),
-}, { tenant: 'workspace' });
+  workspace: d.ref.one(() => workspacesTable, 'workspaceId'),
+});
 
 // Indirectly scoped — project → workspace chain provides tenant context
 const issuesModel = d.model(issuesTable, {
@@ -294,6 +294,8 @@ const commentsModel = d.model(commentsTable, {
   issue: d.ref.one(() => issuesTable, 'issueId'),
 });
 ```
+
+When multiple `ref.one` paths exist to the tenant root, the framework picks the shortest one.
 
 ### Shared tables
 
@@ -309,4 +311,4 @@ const featureFlags = d.table('feature_flags', {
 const flagsModel = d.model(featureFlags);
 ```
 
-Shared tables are never filtered by tenant context, regardless of their relations.
+Shared tables are never filtered by tenant context, regardless of their relations. A table cannot be both `.tenant()` and `.shared()` — calling one on a table already marked with the other throws an error.
