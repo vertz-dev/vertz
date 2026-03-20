@@ -413,7 +413,13 @@ function processAttribute(
   // Map className → class for intrinsic elements (DOM attribute name)
   const attrName = rawAttrName === 'className' ? 'class' : rawAttrName;
   const init = attr.getInitializer();
-  if (!init) return null;
+  if (!init) {
+    // Boolean shorthand: <input checked /> or <input disabled />
+    if (isIdlProperty(tagName, attrName)) {
+      return `${elVar}.${attrName} = true`;
+    }
+    return `${elVar}.setAttribute(${JSON.stringify(attrName)}, "")`;
+  }
 
   const useProperty = isIdlProperty(tagName, attrName);
 
