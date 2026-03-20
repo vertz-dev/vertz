@@ -788,6 +788,39 @@ export function Gallery() {
         expect(threw).toBe(true);
       }
     });
+
+    it('uses fallback paths when image file does not exist on disk', async () => {
+      // Reference a non-existent image — computeImageOutputPaths returns null,
+      // triggering the fallback path (lines 342-347) and producing an image
+      // transform source map (line 385).
+      const filePath = project.write(
+        'missing-img.tsx',
+        `
+import { Image } from '@vertz/ui';
+
+export function MissingImg() {
+  return <Image src="./nonexistent.png" width={200} height={150} alt="Missing" />;
+}
+`,
+      );
+
+      const { plugin } = createVertzBunPlugin({
+        projectRoot: project.dir,
+        srcDir: project.srcDir,
+        cssOutDir: project.cssDir,
+        hmr: false,
+        fastRefresh: false,
+      });
+
+      const result = await runPluginOnLoad(plugin, filePath);
+
+      // The transform should succeed — fallback paths are used instead of
+      // crashing, and no image processing is attempted.
+      expect(result.contents).toContain('MissingImg');
+      expect(result.loader).toBe('tsx');
+      // The <Image> should have been replaced with <picture> using fallback paths
+      expect(result.contents).toContain('picture');
+    });
   });
 
   describe('manifest HMR warning logging during updateManifest', () => {
