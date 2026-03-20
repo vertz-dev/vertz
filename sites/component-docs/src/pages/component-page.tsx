@@ -1,14 +1,22 @@
 import { useParams } from '@vertz/ui/router';
 import { DocsLayout } from '../components/docs-layout';
 import { PrevNext } from '../components/prev-next';
+import { Content as AccordionContent } from '../content/accordion-content';
+import { Content as AlertContent } from '../content/alert-content';
+import { Content as AlertDialogContent } from '../content/alert-dialog-content';
 import { Content as BadgeContent } from '../content/badge-content';
 import { Content as BreadcrumbContent } from '../content/breadcrumb-content';
 import { Content as ButtonContent } from '../content/button-content';
+import { Content as CardContent } from '../content/card-content';
+import { Content as DialogContent } from '../content/dialog-content';
 import { Content as InputContent } from '../content/input-content';
 import { Content as LabelContent } from '../content/label-content';
 import { Content as PaginationContent } from '../content/pagination-content';
 import { descriptions } from '../content/registry';
+import { Content as SelectContent } from '../content/select-content';
 import { Content as SeparatorContent } from '../content/separator-content';
+import { Content as TableContent } from '../content/table-content';
+import { Content as TabsContent } from '../content/tabs-content';
 import { Content as TextareaContent } from '../content/textarea-content';
 import { findComponent, getAdjacentComponents } from '../manifest';
 
@@ -24,6 +32,14 @@ const contentMap: Record<
   separator: SeparatorContent,
   breadcrumb: BreadcrumbContent,
   pagination: PaginationContent,
+  dialog: DialogContent,
+  'alert-dialog': AlertDialogContent,
+  select: SelectContent,
+  tabs: TabsContent,
+  accordion: AccordionContent,
+  card: CardContent,
+  table: TableContent,
+  alert: AlertContent,
 };
 
 export function ComponentPage() {

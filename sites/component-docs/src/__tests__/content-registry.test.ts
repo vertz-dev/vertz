@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'bun:test';
 import { descriptions } from '../content/registry';
 
-const PHASE_4_COMPONENTS = [
+const DOCUMENTED_COMPONENTS = [
+  // Simple
   'button',
   'badge',
   'input',
@@ -10,17 +11,26 @@ const PHASE_4_COMPONENTS = [
   'separator',
   'breadcrumb',
   'pagination',
+  // Compound / suite
+  'dialog',
+  'alert-dialog',
+  'select',
+  'tabs',
+  'accordion',
+  'card',
+  'table',
+  'alert',
 ];
 
 describe('Content registry', () => {
-  it('has descriptions for all Phase 4 components', () => {
-    for (const name of PHASE_4_COMPONENTS) {
+  it('has descriptions for all documented components', () => {
+    for (const name of DOCUMENTED_COMPONENTS) {
       expect(descriptions[name]).toBeDefined();
     }
   });
 
   it('each description is a non-empty string', () => {
-    for (const name of PHASE_4_COMPONENTS) {
+    for (const name of DOCUMENTED_COMPONENTS) {
       expect(typeof descriptions[name]).toBe('string');
       expect(descriptions[name].length).toBeGreaterThan(0);
     }
