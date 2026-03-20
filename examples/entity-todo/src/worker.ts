@@ -28,17 +28,14 @@ export default createHandler({
     });
 
     return createServer({
-      basePath: '/api',
       entities: [todos],
       // biome-ignore lint/suspicious/noExplicitAny: DatabaseClient variance — specific model → generic
       db: db as any as ServerConfig['db'],
     });
   },
-  basePath: '/api',
   ssr: {
     module: app,
     clientScript: '/assets/entry-client.js',
     title: 'Entity Todo — vertz full-stack demo',
   },
-  securityHeaders: true,
 });
