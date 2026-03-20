@@ -27,7 +27,7 @@ type SeedModels = {
   issues: typeof issuesModel;
   comments: typeof commentsModel;
   labels: typeof labelsModel;
-  'issue-labels': typeof issueLabelsModel;
+  issueLabels: typeof issueLabelsModel;
 };
 
 export async function seedDatabase(db: DatabaseClient<SeedModels>) {
@@ -365,7 +365,7 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
 
   // --- Issue Labels (assign some labels to issues) ---
   unwrap(
-    await db['issue-labels'].createMany({
+    await db.issueLabels.createMany({
       data: [
         { id: 'il-1', workspaceId: W, issueId: 'iss-1', labelId: 'lbl-eng-2' },
         { id: 'il-2', workspaceId: W, issueId: 'iss-2', labelId: 'lbl-eng-2' },

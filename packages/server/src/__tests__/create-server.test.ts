@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { computeTenantGraph, d } from '@vertz/db';
-import { createServer } from '../create-server';
+import { createQueryParentIds, createServer } from '../create-server';
 import { resolveTenantChain } from '../entity/tenant-chain';
 
 const ok = <T>(data: T) => ({ ok: true as const, data });
@@ -231,6 +231,73 @@ describe('createServer', () => {
     expect(getBody.name).toBe('Alice');
   });
 
+  it('validates entity models by table._name, not registry key (camelCase keys work)', async () => {
+    const issueLabelsTable = d.table('issue_labels', {
+      id: d.uuid().primary(),
+      name: d.text(),
+    });
+    const issueLabelsModel = d.model(issueLabelsTable);
+
+    const mockLabel = { id: 'il-1', name: 'Bug' };
+    const mockDelegate = {
+      get: async () => ok(mockLabel),
+      getOrThrow: async () => ok(mockLabel),
+      list: async () => ok([mockLabel]),
+      listAndCount: async () => ok({ data: [mockLabel], total: 1 }),
+      create: async (data: unknown) => ok(data),
+      update: async () => ok(null),
+      delete: async () => ok(null),
+    };
+
+    const mockDatabaseClient = {
+      users: mockDelegate,
+      issueLabels: mockDelegate, // camelCase key, NOT 'issue-labels'
+      close: async () => {},
+      isHealthy: async () => true,
+      query: async () => ok({ rows: [], rowCount: 0 }),
+      _internals: {
+        models: {
+          users: { table: usersTable, relations: {} },
+          issueLabels: { table: issueLabelsTable, relations: {} },
+        },
+        dialect: { paramPlaceholder: () => '?', quoteName: (n: string) => `"${n}"` },
+        tenantGraph: {
+          root: null,
+          directlyScoped: [],
+          indirectlyScoped: [],
+          shared: [],
+        },
+      },
+    };
+
+    // Entity name is kebab-case ('issue-labels') but model is registered as camelCase ('issueLabels')
+    // Validation should match by table._name ('issue_labels'), not by registry key
+    const app = createServer({
+      basePath: '/',
+      db: mockDatabaseClient,
+      entities: [
+        {
+          kind: 'entity',
+          name: 'issue-labels',
+          model: issueLabelsModel,
+          inject: {},
+          access: { list: () => true, get: () => true },
+          before: {},
+          after: {},
+          actions: {},
+          relations: {},
+        },
+      ] as never[],
+    });
+
+    // Exercise the bridge adapter — an HTTP request must reach the camelCase delegate
+    const listRes = await app.handler(new Request('http://localhost/api/issue-labels'));
+    expect(listRes.status).toBe(200);
+    const body = await listRes.json();
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0].name).toBe('Bug');
+  });
+
   it('throws when entity model is not registered in DatabaseClient', () => {
     const tasksTable = d.table('tasks', {
       id: d.uuid().primary(),
@@ -284,7 +351,7 @@ describe('createServer', () => {
           },
         ] as never[],
       }),
-    ).toThrow(/Entity "tasks" is not registered in createDb/);
+    ).toThrow(/Entity "tasks" references table "tasks" — not registered in createDb/);
   });
 
   it('lists all missing entity names in the error message', () => {
@@ -356,7 +423,9 @@ describe('createServer', () => {
           },
         ] as never[],
       }),
-    ).toThrow(/"tasks", "projects"/);
+    ).toThrow(
+      /Entity "tasks" references table "tasks".*Entity "projects" references table "projects"/,
+    );
   });
 
   it('does not throw when all entity models are registered in DatabaseClient', () => {
@@ -1012,5 +1081,52 @@ describe('createServer', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.status).toBe('ok');
+  });
+});
+
+describe('createQueryParentIds', () => {
+  it('translates SQL table name to registry key and calls delegate.list', async () => {
+    const tableNameToModelKey = new Map([['issue_labels', 'issueLabels']]);
+    const mockDelegate = {
+      list: async (opts: never) => ({
+        ok: true as const,
+        data: [{ id: 'il-1' }, { id: 'il-2' }],
+      }),
+    };
+    const dbClient = { issueLabels: mockDelegate } as Record<string, unknown>;
+
+    const queryParentIds = createQueryParentIds(dbClient, tableNameToModelKey);
+    const ids = await queryParentIds('issue_labels', { labelId: 'lbl-1' });
+    expect(ids).toEqual(['il-1', 'il-2']);
+  });
+
+  it('returns empty array when SQL table name is not in the map', async () => {
+    const tableNameToModelKey = new Map<string, string>();
+    const dbClient = {} as Record<string, unknown>;
+
+    const queryParentIds = createQueryParentIds(dbClient, tableNameToModelKey);
+    const ids = await queryParentIds('unknown_table', {});
+    expect(ids).toEqual([]);
+  });
+
+  it('returns empty array when delegate is not found on the client', async () => {
+    const tableNameToModelKey = new Map([['orphaned', 'orphanedKey']]);
+    const dbClient = {} as Record<string, unknown>; // no orphanedKey delegate
+
+    const queryParentIds = createQueryParentIds(dbClient, tableNameToModelKey);
+    const ids = await queryParentIds('orphaned', {});
+    expect(ids).toEqual([]);
+  });
+
+  it('returns empty array when delegate.list returns not ok', async () => {
+    const tableNameToModelKey = new Map([['tasks', 'tasks']]);
+    const mockDelegate = {
+      list: async () => ({ ok: false as const, error: new Error('fail') }),
+    };
+    const dbClient = { tasks: mockDelegate } as Record<string, unknown>;
+
+    const queryParentIds = createQueryParentIds(dbClient, tableNameToModelKey);
+    const ids = await queryParentIds('tasks', {});
+    expect(ids).toEqual([]);
   });
 });

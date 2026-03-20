@@ -52,9 +52,7 @@ interface DatabaseClientLike {
  * A DatabaseClient has `_internals` with `models` and `dialect` properties
  * that an EntityDbAdapter does not.
  */
-function isDatabaseClient(
-  db: DatabaseClientLike | EntityDbAdapter,
-): db is DatabaseClientLike {
+function isDatabaseClient(db: DatabaseClientLike | EntityDbAdapter): db is DatabaseClientLike {
   return db !== null && typeof db === 'object' && '_internals' in db;
 }
 
@@ -110,6 +108,28 @@ export interface ServerConfig extends Omit<AppConfig, '_entityDbFactory' | 'enti
   auth?: AuthConfig;
   /** Cloud-managed auth — when set, auth is handled by Vertz Cloud proxy */
   cloud?: CloudServerConfig;
+}
+
+// ---------------------------------------------------------------------------
+// queryParentIds factory — resolves SQL table names to registry keys
+// ---------------------------------------------------------------------------
+
+/** @internal Exported for testing only. */
+export function createQueryParentIds(
+  dbClient: Record<string, unknown>,
+  tableNameToModelKey: Map<string, string>,
+): (sqlTableName: string, where: Record<string, unknown>) => Promise<string[]> {
+  return async (sqlTableName, where) => {
+    const registryKey = tableNameToModelKey.get(sqlTableName);
+    if (!registryKey) return [];
+    const delegate = dbClient[registryKey] as
+      | { list: (opts: never) => Promise<{ ok: boolean; data?: unknown[] }> }
+      | undefined;
+    if (!delegate) return [];
+    const result = await delegate.list({ where } as never);
+    if (!result.ok || !result.data) return [];
+    return (result.data as Record<string, unknown>[]).map((row) => row.id as string);
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -216,34 +236,42 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
   // Process entities first (so registry has all entities registered for DI)
   if (config.entities && config.entities.length > 0) {
     let dbFactory: (entityDef: EntityDefinition) => EntityDbAdapter;
-    // Use def.table for DB lookup (admin entities may share tables via table override)
-    const tableOf = (e: EntityDefinition) => e.table ?? e.name;
 
+    // Build reverse lookup: SQL table name → model registry key (used by validation,
+    // bridge adapter, tenant chain resolution, and queryParentIds)
+    const tableNameToModelKey = new Map<string, string>();
     if (hasDbClient) {
-      // Validate all entity models are registered in the DatabaseClient
       const dbModels = (db as DatabaseClient<Record<string, ModelEntry>>)._internals.models;
+      for (const [key, entry] of Object.entries(dbModels)) {
+        tableNameToModelKey.set(entry.table._name, key);
+      }
+
+      // Validate all entity models are registered in the DatabaseClient (by table._name)
       const missing = config.entities
-        .filter((e) => !(tableOf(e as EntityDefinition) in dbModels))
-        .map((e) => `"${tableOf(e as EntityDefinition)}"`);
+        .filter((e) => !tableNameToModelKey.has((e as EntityDefinition).model.table._name))
+        .map((e) => {
+          const eDef = e as EntityDefinition;
+          return `Entity "${eDef.name}" references table "${eDef.model.table._name}"`;
+        });
       // Deduplicate (multiple entities can share a table)
       const uniqueMissing = [...new Set(missing)];
       if (uniqueMissing.length > 0) {
-        const registered = Object.keys(dbModels)
-          .map((k) => `"${k}"`)
-          .join(', ');
+        const registeredTables = [...tableNameToModelKey.keys()].map((t) => `"${t}"`).join(', ');
         const plural = uniqueMissing.length > 1;
         throw new Error(
-          `${plural ? 'Entities' : 'Entity'} ${uniqueMissing.join(', ')} ${plural ? 'are' : 'is'} not registered in createDb(). ` +
+          `${uniqueMissing.join('; ')} — not registered in createDb(). ` +
             `Add the missing model${plural ? 's' : ''} to the models object in your createDb() call. ` +
-            `Registered models: ${registered || '(none)'}`,
+            `Registered tables: ${registeredTables || '(none)'}`,
         );
       }
 
-      dbFactory = (entityDef) =>
-        createDatabaseBridgeAdapter(
+      dbFactory = (entityDef) => {
+        const modelKey = tableNameToModelKey.get(entityDef.model.table._name)!;
+        return createDatabaseBridgeAdapter(
           db as DatabaseClient<Record<string, ModelEntry>>,
-          tableOf(entityDef),
+          modelKey,
         );
+      };
     } else if (db) {
       dbFactory = () => db as EntityDbAdapter;
     } else {
@@ -265,7 +293,7 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
         const eDef = entityDef as EntityDefinition;
         // Skip entities that explicitly opt out
         if (eDef.tenantScoped === false) continue;
-        const modelKey = tableOf(eDef);
+        const modelKey = tableNameToModelKey.get(eDef.model.table._name)!;
         const chain = resolveTenantChain(modelKey, tenantGraph, dbModelsMap);
         if (chain) {
           tenantChains.set(eDef.name, chain);
@@ -274,15 +302,10 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
 
       // Create queryParentIds from the DatabaseClient for indirect tenant chain traversal
       if (tenantChains.size > 0) {
-        queryParentIds = async (tableName: string, where: Record<string, unknown>) => {
-          const delegate = (dbClient as Record<string, unknown>)[tableName] as
-            | { list: (opts: never) => Promise<{ ok: boolean; data?: unknown[] }> }
-            | undefined;
-          if (!delegate) return [];
-          const result = await delegate.list({ where } as never);
-          if (!result.ok || !result.data) return [];
-          return (result.data as Record<string, unknown>[]).map((row) => row.id as string);
-        };
+        queryParentIds = createQueryParentIds(
+          dbClient as Record<string, unknown>,
+          tableNameToModelKey,
+        );
       }
     }
 
