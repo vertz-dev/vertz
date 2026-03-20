@@ -12,9 +12,19 @@ import { layoutStyles, navStyles, scrollStyles } from './styles/catalog';
 import { catalogTheme, themeGlobals, themeStyles } from './styles/theme';
 
 const appGlobals = globalCss({
+  '@font-face': {
+    fontFamily: "'Geist Variable'",
+    fontStyle: 'normal',
+    fontDisplay: 'swap',
+    fontWeight: '100 900',
+    src: "url('https://cdn.jsdelivr.net/fontsource/fonts/geist:vf@latest/latin-wght-normal.woff2') format('woff2-variations')",
+  },
   a: {
     textDecoration: 'none',
     color: 'inherit',
+  },
+  'html, body': {
+    fontFamily: "'Geist Variable', ui-sans-serif, system-ui, sans-serif",
   },
 });
 

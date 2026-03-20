@@ -86,6 +86,16 @@ export function __list<T>(
 
   const isHydrationRun = getIsHydrating();
 
+  // Record how many children the container already has before list items.
+  // The compiler may have appended static children (e.g., a title div) via
+  // __append before calling __list. The reconciliation loop must skip these
+  // so it only reorders list-managed nodes.
+  //
+  // During hydration, we can't read the offset yet (SSR nodes include both
+  // static children and list items). We compute it after the hydration run
+  // claims exactly the list items, leaving the difference as the offset.
+  let startOffset = isHydrationRun ? -1 : container.childNodes.length;
+
   // Wrap the outer effect in its own scope so that any parent disposal scope
   // (e.g., __conditional) captures the outerScope — not the raw effect dispose.
   // This ensures parent disposal triggers our full cleanup (scopeMap + effect).
@@ -110,6 +120,8 @@ export function __list<T>(
         scopeMap.set(key, scope);
         itemSignalMap.set(key, itemSig);
       }
+      // Compute offset: total children minus list-managed children
+      startOffset = container.childNodes.length - nodeMap.size;
       return;
     }
     isFirstRun = false;
@@ -157,10 +169,11 @@ export function __list<T>(
       desiredNodes.push(node);
     }
 
-    // Reconcile: reorder children to match desired order
-    // This minimizes DOM operations by only moving nodes that are out of place
+    // Reconcile: reorder children to match desired order.
+    // Use startOffset to skip pre-existing non-list children so they
+    // stay in their original positions (e.g., a title div before the list).
     for (const [i, desiredNode] of desiredNodes.entries()) {
-      const currentChild = container.childNodes[i];
+      const currentChild = container.childNodes[startOffset + i];
       if (currentChild !== desiredNode) {
         container.insertBefore(desiredNode, currentChild ?? null);
       }

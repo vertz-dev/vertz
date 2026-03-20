@@ -142,6 +142,69 @@ function computeGridRows(display: Date, weekStartsOn: number): Date[][] {
 }
 
 // ---------------------------------------------------------------------------
+// DayCell — separate component so the compiler generates reactive getters
+// for `value` and `displayMonth` props, making selection state update on click.
+// ---------------------------------------------------------------------------
+
+type CalendarValue = Date | Date[] | { from: Date; to: Date } | null;
+
+interface DayCellProps {
+  cellDate: Date;
+  displayMonth: Date;
+  now: Date;
+  mode: 'single' | 'range' | 'multiple';
+  value: CalendarValue;
+  minDate?: Date;
+  maxDate?: Date;
+  disabled?: (date: Date) => boolean;
+  classes?: CalendarClasses;
+  onSelect: (date: Date) => void;
+}
+
+function DayCell({
+  cellDate,
+  displayMonth,
+  now,
+  mode,
+  value,
+  minDate,
+  maxDate,
+  disabled,
+  classes,
+  onSelect,
+}: DayCellProps) {
+  const dateStr = formatDate(cellDate);
+  const isOutside = cellDate.getMonth() !== displayMonth.getMonth();
+  const isToday = isSameDay(cellDate, now);
+  const isDisabled = isDateDisabledCheck(cellDate, minDate, maxDate, disabled);
+  const selected = isSelectedDate(cellDate, value);
+  const rangeVal = value as { from: Date; to: Date } | null;
+  const isRangeStart =
+    mode === 'range' && rangeVal && 'from' in rangeVal && isSameDay(cellDate, rangeVal.from);
+  const isRangeEnd =
+    mode === 'range' && rangeVal && 'to' in rangeVal && isSameDay(cellDate, rangeVal.to);
+  const inRange = mode === 'range' && isInRangeDate(cellDate, value);
+
+  return (
+    <button
+      type="button"
+      class={classes?.dayButton}
+      data-date={dateStr}
+      data-outside-month={isOutside ? 'true' : undefined}
+      data-today={isToday ? 'true' : undefined}
+      aria-disabled={isDisabled ? 'true' : undefined}
+      aria-selected={selected ? 'true' : undefined}
+      data-range-start={isRangeStart ? 'true' : undefined}
+      data-range-end={isRangeEnd ? 'true' : undefined}
+      data-in-range={inRange ? 'true' : undefined}
+      onClick={() => onSelect(cellDate)}
+    >
+      {cellDate.getDate()}
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -283,9 +346,13 @@ function ComposedCalendarRoot({
   return (
     <div class={classes?.root}>
       <div class={classes?.header}>
-        <button type="button" class={classes?.navButton} onClick={() => navigateMonth(-1)} />
+        <button type="button" class={classes?.navButton} aria-label="Previous month" onClick={() => navigateMonth(-1)}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+        </button>
         <div class={classes?.title}>{titleText}</div>
-        <button type="button" class={classes?.navButton} onClick={() => navigateMonth(1)} />
+        <button type="button" class={classes?.navButton} aria-label="Next month" onClick={() => navigateMonth(1)}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+        </button>
       </div>
       <table role="grid" class={classes?.grid} onKeydown={handleGridKeydown}>
         <thead>
@@ -300,45 +367,22 @@ function ComposedCalendarRoot({
         <tbody>
           {rows.map((rowDates) => (
             <tr>
-              {rowDates.map((cellDate) => {
-                const dateStr = formatDate(cellDate);
-                const isOutside = cellDate.getMonth() !== displayMonth.getMonth();
-                const isToday = isSameDay(cellDate, now);
-                const isDisabled = isDateDisabledCheck(cellDate, minDate, maxDate, disabled);
-                const selected = isSelectedDate(cellDate, value);
-                const rangeVal = value as { from: Date; to: Date } | null;
-                const isRangeStart =
-                  mode === 'range' &&
-                  rangeVal &&
-                  'from' in rangeVal &&
-                  isSameDay(cellDate, rangeVal.from);
-                const isRangeEnd =
-                  mode === 'range' &&
-                  rangeVal &&
-                  'to' in rangeVal &&
-                  isSameDay(cellDate, rangeVal.to);
-                const inRange = mode === 'range' && isInRangeDate(cellDate, value);
-
-                return (
-                  <td role="gridcell" class={classes?.cell}>
-                    <button
-                      type="button"
-                      class={classes?.dayButton}
-                      data-date={dateStr}
-                      data-outside-month={isOutside ? 'true' : undefined}
-                      data-today={isToday ? 'true' : undefined}
-                      aria-disabled={isDisabled ? 'true' : undefined}
-                      aria-selected={selected ? 'true' : undefined}
-                      data-range-start={isRangeStart ? 'true' : undefined}
-                      data-range-end={isRangeEnd ? 'true' : undefined}
-                      data-in-range={inRange ? 'true' : undefined}
-                      onClick={() => selectDate(cellDate)}
-                    >
-                      {cellDate.getDate()}
-                    </button>
-                  </td>
-                );
-              })}
+              {rowDates.map((cellDate) => (
+                <td role="gridcell" class={classes?.cell}>
+                  <DayCell
+                    cellDate={cellDate}
+                    displayMonth={displayMonth}
+                    now={now}
+                    mode={mode}
+                    value={value}
+                    minDate={minDate}
+                    maxDate={maxDate}
+                    disabled={disabled}
+                    classes={classes}
+                    onSelect={selectDate}
+                  />
+                </td>
+              ))}
             </tr>
           ))}
         </tbody>

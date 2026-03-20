@@ -4,6 +4,7 @@ interface PaginationStyleClasses {
   readonly item: string;
   readonly link: string;
   readonly linkActive: string;
+  readonly navButton: string;
   readonly ellipsis: string;
 }
 
@@ -44,8 +45,11 @@ export function createPaginationComponent(
     prevLi.classList.add(styles.item);
     const prevBtn = document.createElement('button');
     prevBtn.setAttribute('type', 'button');
-    prevBtn.classList.add(styles.link);
-    prevBtn.textContent = '\u2039';
+    prevBtn.classList.add(styles.navButton);
+    prevBtn.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg><span>Previous</span>';
+    prevBtn.style.paddingLeft = '0.375rem';
+    prevBtn.style.paddingRight = '0.625rem';
     prevBtn.setAttribute('aria-label', 'Previous page');
     if (currentPage <= 1) {
       prevBtn.disabled = true;
@@ -66,7 +70,8 @@ export function createPaginationComponent(
         const span = document.createElement('span');
         span.setAttribute('aria-hidden', 'true');
         span.classList.add(styles.ellipsis);
-        span.textContent = '\u2026';
+        span.innerHTML =
+          '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>';
         li.appendChild(span);
       } else {
         const btn = document.createElement('button');
@@ -90,8 +95,11 @@ export function createPaginationComponent(
     nextLi.classList.add(styles.item);
     const nextBtn = document.createElement('button');
     nextBtn.setAttribute('type', 'button');
-    nextBtn.classList.add(styles.link);
-    nextBtn.textContent = '\u203A';
+    nextBtn.classList.add(styles.navButton);
+    nextBtn.innerHTML =
+      '<span>Next</span><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>';
+    nextBtn.style.paddingLeft = '0.625rem';
+    nextBtn.style.paddingRight = '0.375rem';
     nextBtn.setAttribute('aria-label', 'Next page');
     if (currentPage >= totalPages) {
       nextBtn.disabled = true;

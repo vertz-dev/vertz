@@ -135,6 +135,61 @@ describe('__list — hydration', () => {
     expect(claimedUl.children[2]).toBe(ssrLis[1]); // B was ssrLis[1]
   });
 
+  it('preserves pre-existing children after hydration reorder', () => {
+    // SSR output: <div> with a title <h2> followed by list <li> items
+    const root = document.createElement('div');
+    const container = document.createElement('div');
+    const titleDiv = document.createElement('h2');
+    titleDiv.textContent = 'Title';
+    container.appendChild(titleDiv);
+    for (const text of ['A', 'B', 'C']) {
+      const li = document.createElement('li');
+      li.textContent = text;
+      container.appendChild(li);
+    }
+    root.appendChild(container);
+
+    startHydration(root);
+    const claimed = __element('div');
+    enterChildren(claimed);
+    // Claim the title div (like __append would during hydration)
+    __element('h2');
+
+    const items = signal([
+      { id: 1, text: 'A' },
+      { id: 2, text: 'B' },
+      { id: 3, text: 'C' },
+    ]);
+
+    __list(
+      claimed,
+      items,
+      (item) => item.id,
+      (_item) => {
+        const li = __element('li');
+        return li;
+      },
+    );
+
+    endHydration();
+
+    // Reorder: [C, A, B]
+    items.value = [
+      { id: 3, text: 'C' },
+      { id: 1, text: 'A' },
+      { id: 2, text: 'B' },
+    ];
+
+    // Title div must still be the first child
+    expect(claimed.children.length).toBe(4);
+    expect(claimed.children[0]).toBe(titleDiv);
+    expect(claimed.children[0]?.textContent).toBe('Title');
+    // List items follow in new order
+    expect(claimed.children[1]?.textContent).toBe('C');
+    expect(claimed.children[2]?.textContent).toBe('A');
+    expect(claimed.children[3]?.textContent).toBe('B');
+  });
+
   it('list update after hydration works normally (add/remove/reorder)', () => {
     const root = document.createElement('div');
     const ul = document.createElement('ul');
