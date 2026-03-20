@@ -1,3 +1,4 @@
+import { s } from '@vertz/schema';
 import type { DialogHandle } from '@vertz/ui';
 import { css, form, query } from '@vertz/ui';
 import { Button } from '@vertz/ui/components';
@@ -48,20 +49,38 @@ export function ManageLabelsDialog({ projectId, dialog }: ManageLabelsDialogProp
   let isCreating = false;
   let selectedColor = LABEL_COLORS[0].value;
 
-  const createForm = form(api.labels.create, {
-    initial: { projectId, name: '', color: LABEL_COLORS[0].value },
-    onSuccess: () => {
-      isCreating = false;
-      editingLabel = null;
-      selectedColor = LABEL_COLORS[0].value;
-    },
-  });
+  // --- Two form() instances: one for create, one for update ---
 
-  const resetForm = () => {
+  const resetState = () => {
     editingLabel = null;
     isCreating = false;
     selectedColor = LABEL_COLORS[0].value;
   };
+
+  const createForm = form(api.labels.create, {
+    initial: { projectId, name: '', color: LABEL_COLORS[0].value },
+    onSuccess: resetState,
+  });
+
+  // Bind the update SDK method: form() expects (body) => ..., but api.labels.update
+  // takes (id, body). We wrap it so the id is read from editingLabel at submission time.
+  const boundUpdate = Object.assign(
+    (body: { name: string; color: string }) => api.labels.update(editingLabel?.id ?? '', body),
+    { url: api.labels.update.url, method: api.labels.update.method },
+  );
+
+  const updateForm = form(boundUpdate, {
+    schema: s.object({ name: s.string().min(1), color: s.string().min(1) }),
+    initial: () => ({
+      name: editingLabel?.name ?? '',
+      color: editingLabel?.color ?? LABEL_COLORS[0].value,
+    }),
+    onSuccess: resetState,
+  });
+
+  // Reactive: compiler wraps this as computed() since it reads editingLabel (a signal).
+  // The <form> tag binds to whichever form is active — action, method, onSubmit all swap.
+  const activeForm = editingLabel ? updateForm : createForm;
 
   const handleDelete = async (labelId: string) => {
     await api.labels.delete(labelId);
@@ -74,17 +93,8 @@ export function ManageLabelsDialog({ projectId, dialog }: ManageLabelsDialogProp
   };
 
   const startCreate = () => {
-    resetForm();
+    resetState();
     isCreating = true;
-  };
-
-  const handleUpdate = async () => {
-    if (!editingLabel) return;
-    const nameInput = document.querySelector<HTMLInputElement>('#label-name');
-    const name = nameInput?.value?.trim();
-    if (!name) return;
-    await api.labels.update(editingLabel.id, { name, color: selectedColor });
-    resetForm();
   };
 
   return (
@@ -129,14 +139,14 @@ export function ManageLabelsDialog({ projectId, dialog }: ManageLabelsDialogProp
           ))}
         </div>
 
-        {isCreating && !editingLabel && (
+        {isCreating && (
           <form
-            action={createForm.action}
-            method={createForm.method}
-            onSubmit={createForm.onSubmit}
+            action={activeForm.action}
+            method={activeForm.method}
+            onSubmit={activeForm.onSubmit}
             className={styles.formContainer}
           >
-            <input type="hidden" name="projectId" value={projectId} />
+            {!editingLabel && <input type="hidden" name="projectId" value={projectId} />}
             <input type="hidden" name="color" value={selectedColor} />
             <div className={formStyles.field}>
               <label className={labelStyles.base} htmlFor="label-name">
@@ -148,8 +158,8 @@ export function ManageLabelsDialog({ projectId, dialog }: ManageLabelsDialogProp
                 name="name"
                 placeholder="Label name"
               />
-              {createForm.name.error && (
-                <span className={formStyles.error}>{createForm.name.error}</span>
+              {activeForm.name.error && (
+                <span className={formStyles.error}>{activeForm.name.error}</span>
               )}
             </div>
             <div className={styles.colorGrid}>
@@ -167,57 +177,25 @@ export function ManageLabelsDialog({ projectId, dialog }: ManageLabelsDialogProp
               ))}
             </div>
             <div className={dialogStyles.footer}>
-              <Button intent="outline" size="sm" onClick={resetForm}>
+              <Button intent="outline" size="sm" onClick={resetState}>
                 Cancel
               </Button>
               <Button
                 type="submit"
                 intent="primary"
                 size="sm"
-                disabled={createForm.submitting.value}
+                disabled={activeForm.submitting.value}
               >
-                {createForm.submitting ? 'Creating...' : 'Create'}
+                {editingLabel
+                  ? activeForm.submitting
+                    ? 'Updating...'
+                    : 'Update'
+                  : activeForm.submitting
+                    ? 'Creating...'
+                    : 'Create'}
               </Button>
             </div>
           </form>
-        )}
-
-        {isCreating && editingLabel && (
-          <div className={styles.formContainer}>
-            <div className={formStyles.field}>
-              <label className={labelStyles.base} htmlFor="label-name">
-                Name
-              </label>
-              <input
-                className={inputStyles.base}
-                id="label-name"
-                placeholder="Label name"
-                value={editingLabel.name}
-              />
-            </div>
-            <div className={styles.colorGrid}>
-              {LABEL_COLORS.map((c) => (
-                <button
-                  type="button"
-                  key={c.value}
-                  className={c.value === selectedColor ? styles.colorSelected : styles.colorButton}
-                  style={`background-color: ${c.value}`}
-                  aria-label={c.name}
-                  onClick={() => {
-                    selectedColor = c.value;
-                  }}
-                />
-              ))}
-            </div>
-            <div className={dialogStyles.footer}>
-              <Button intent="outline" size="sm" onClick={resetForm}>
-                Cancel
-              </Button>
-              <Button intent="primary" size="sm" onClick={handleUpdate}>
-                Update
-              </Button>
-            </div>
-          </div>
         )}
 
         <footer className={dialogStyles.footer}>
