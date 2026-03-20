@@ -101,7 +101,7 @@ function CarouselPrevious({ children }: SlotProps) {
       disabled={!ctx.loop && ctx.currentIndex <= 0}
       class={ctx.classes?.prevButton}
     >
-      {children}
+      {children ?? '\u2039'}
     </button>
   );
 }
@@ -122,7 +122,7 @@ function CarouselNext({ children }: SlotProps) {
       disabled={!ctx.loop && ctx.currentIndex >= ctx.getSlideCount() - 1}
       class={ctx.classes?.nextButton}
     >
-      {children}
+      {children ?? '\u203A'}
     </button>
   );
 }
@@ -208,8 +208,6 @@ function ComposedCarouselRoot({
     classes,
   };
 
-  const translateProp = orientation === 'horizontal' ? 'translateX' : 'translateY';
-
   return (
     <CarouselContext.Provider value={ctx}>
       <div
@@ -223,7 +221,6 @@ function ComposedCarouselRoot({
       >
         <div
           data-carousel-viewport=""
-          style={`overflow: hidden; transform: ${translateProp}(-${currentIndex * 100}%)`}
           class={classes?.viewport}
         >
           {children}

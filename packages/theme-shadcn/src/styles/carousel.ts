@@ -12,19 +12,10 @@ type CarouselBlocks = {
 /** Create carousel css() styles following shadcn conventions. */
 export function createCarouselStyles(): CSSOutput<CarouselBlocks> {
   const s = css({
-    carouselRoot: ['relative', 'overflow-hidden'],
+    carouselRoot: ['relative'],
     carouselViewport: ['overflow-hidden'],
     carouselSlide: [
-      'shrink-0',
-      {
-        '&': {
-          'min-width': '0',
-          'flex-grow': '0',
-          'flex-basis': '100%',
-        },
-      },
-      { '&[data-state="inactive"]': ['opacity:0'] },
-      { '&[data-state="active"]': ['opacity:1'] },
+      { '&[data-state="inactive"]': [{ display: 'none' }] },
     ],
     carouselPrevButton: [
       'absolute',
