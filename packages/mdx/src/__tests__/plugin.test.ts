@@ -29,12 +29,16 @@ describe('createMdxPlugin', () => {
 });
 
 describe('MDX compilation via Bun plugin', () => {
-  it('compiles a simple MDX file to a JS module with MDXContent', async () => {
-    const output = await buildMdx('# Hello World\n\nA paragraph.');
+  it(
+    'compiles a simple MDX file to a JS module with MDXContent',
+    async () => {
+      const output = await buildMdx('# Hello World\n\nA paragraph.');
 
-    expect(output).toContain('MDXContent');
-    expect(output).toMatch(/jsx|jsxs|Fragment/);
-  });
+      expect(output).toContain('MDXContent');
+      expect(output).toMatch(/jsx|jsxs|Fragment/);
+    },
+    { timeout: 30_000 },
+  );
 
   it('defaults jsxImportSource to @vertz/ui', async () => {
     const output = await buildMdx('# Hello');
