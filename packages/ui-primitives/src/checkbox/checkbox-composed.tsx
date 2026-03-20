@@ -102,7 +102,7 @@ function ComposedCheckboxRoot({
           width="100%"
           height="100%"
         >
-          <path d="M20 6 9 17 4 12" />
+          <path d="M4 12 9 17 20 6" />
         </svg>
         <svg
           aria-hidden="true"
