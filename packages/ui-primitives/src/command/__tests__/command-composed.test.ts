@@ -152,6 +152,34 @@ describe('Composed Command', () => {
   });
 
   describe('Given a Command with an Empty sub-component', () => {
+    describe('When rendered with items present', () => {
+      it('Then the empty element is visually hidden (display: none)', () => {
+        const root = ComposedCommand({
+          children: () => {
+            const input = ComposedCommand.Input({});
+            const list = ComposedCommand.List({
+              children: () => {
+                const empty = ComposedCommand.Empty({
+                  children: ['No results found.'],
+                });
+                const i1 = ComposedCommand.Item({
+                  value: 'calendar',
+                  children: ['Calendar'],
+                });
+                return [empty, i1];
+              },
+            });
+            return [input, list];
+          },
+        });
+        container.appendChild(root);
+
+        const empty = root.querySelector('[data-part="command-empty"]') as HTMLElement;
+        expect(empty.getAttribute('aria-hidden')).toBe('true');
+        expect(empty.style.display).toBe('none');
+      });
+    });
+
     describe('When all items are filtered out', () => {
       it('Then the empty element is shown', () => {
         const root = ComposedCommand({
@@ -184,6 +212,7 @@ describe('Composed Command', () => {
         input.dispatchEvent(new Event('input', { bubbles: true }));
 
         expect(empty.getAttribute('aria-hidden')).toBe('false');
+        expect(empty.style.display).not.toBe('none');
       });
     });
   });
