@@ -441,7 +441,7 @@ describe('Composed Carousel', () => {
 
       expect(root.classList.contains('carousel-root')).toBe(true);
 
-      const viewport = root.querySelector('[style*="overflow"]') as HTMLElement;
+      const viewport = root.querySelector('[data-carousel-viewport]') as HTMLElement;
       expect(viewport.classList.contains('carousel-viewport')).toBe(true);
 
       const slide = root.querySelector('[role="group"]') as HTMLElement;
@@ -482,24 +482,15 @@ describe('Composed Carousel', () => {
     });
   });
 
-  describe('Given a Carousel with viewport transform', () => {
-    it('Then applies translateX for horizontal orientation', () => {
-      const root = renderCarousel(['S1', 'S2'], { defaultIndex: 1 });
+  describe('Given a Carousel with slide visibility', () => {
+    it('Then active slide is visible and inactive slides are hidden via data-state', () => {
+      const root = renderCarousel(['S1', 'S2', 'S3'], { defaultIndex: 1 });
       container.appendChild(root);
 
-      const viewport = root.querySelector('[style*="overflow"]') as HTMLElement;
-      expect(viewport.style.transform).toBe('translateX(-100%)');
-    });
-
-    it('Then applies translateY for vertical orientation', () => {
-      const root = renderCarousel(['S1', 'S2'], {
-        orientation: 'vertical',
-        defaultIndex: 1,
-      });
-      container.appendChild(root);
-
-      const viewport = root.querySelector('[style*="overflow"]') as HTMLElement;
-      expect(viewport.style.transform).toBe('translateY(-100%)');
+      const slides = root.querySelectorAll('[role="group"]');
+      expect(slides[0]?.getAttribute('data-state')).toBe('inactive');
+      expect(slides[1]?.getAttribute('data-state')).toBe('active');
+      expect(slides[2]?.getAttribute('data-state')).toBe('inactive');
     });
   });
 });

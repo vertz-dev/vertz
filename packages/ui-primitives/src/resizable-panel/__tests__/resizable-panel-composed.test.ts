@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 
+/** Flush queued microtasks so deferred signal effects propagate to the DOM. */
+const flush = () => new Promise<void>((r) => queueMicrotask(r));
+
 describe('ComposedResizablePanel', () => {
   let container: HTMLDivElement;
 
@@ -127,6 +130,7 @@ describe('ComposedResizablePanel', () => {
       },
     });
     container.appendChild(root);
+    await flush();
 
     const handle = root.querySelector('[role="separator"]') as HTMLElement;
     expect(handle.getAttribute('aria-valuenow')).toBe('50');
@@ -178,6 +182,7 @@ describe('ComposedResizablePanel', () => {
     });
     container.appendChild(root);
 
+    await flush();
     onResize.mockClear();
     const handle = root.querySelector('[role="separator"]') as HTMLElement;
     handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
@@ -201,6 +206,7 @@ describe('ComposedResizablePanel', () => {
       },
     });
     container.appendChild(root);
+    await flush();
 
     const handle = root.querySelector('[role="separator"]') as HTMLElement;
     expect(handle.getAttribute('aria-valuenow')).toBe('30');
@@ -254,6 +260,7 @@ describe('ComposedResizablePanel', () => {
       },
     });
     container.appendChild(root);
+    await flush();
 
     const handle = root.querySelector('[role="separator"]') as HTMLElement;
     expect(handle.getAttribute('aria-valuenow')).toBe('0');
@@ -303,6 +310,8 @@ describe('ComposedResizablePanel', () => {
     ).length;
     expect(outerPanelCount).toBe(2);
 
+    await flush();
+
     // Outer handle should have 50/50
     const outerHandle = root.querySelector(
       `[role="separator"][data-group="${outerGroupId}"]`,
@@ -331,6 +340,7 @@ describe('ComposedResizablePanel', () => {
       },
     });
     container.appendChild(root);
+    await flush();
 
     onResize.mockClear();
     const handle = root.querySelector('[role="separator"]') as HTMLElement;
@@ -354,6 +364,7 @@ describe('ComposedResizablePanel', () => {
       },
     });
     container.appendChild(root);
+    await flush();
 
     onResize.mockClear();
     const handle = root.querySelector('[role="separator"]') as HTMLElement;
@@ -391,6 +402,7 @@ describe('ComposedResizablePanel', () => {
       },
     });
     container.appendChild(root);
+    await flush();
 
     onResize.mockClear();
     const handle = root.querySelector('[role="separator"]') as HTMLElement;
@@ -412,6 +424,7 @@ describe('ComposedResizablePanel', () => {
       },
     });
     container.appendChild(root);
+    await flush();
 
     onResize.mockClear();
     const handle = root.querySelector('[role="separator"]') as HTMLElement;
@@ -430,6 +443,7 @@ describe('ComposedResizablePanel', () => {
       },
     });
     container.appendChild(root);
+    await flush();
 
     const handle = root.querySelector('[role="separator"]') as HTMLElement;
     // Mock setPointerCapture/releasePointerCapture (not in happy-dom)
@@ -464,6 +478,7 @@ describe('ComposedResizablePanel', () => {
       },
     });
     container.appendChild(root);
+    await flush();
 
     // Mock offsetWidth so drag delta calculation doesn't divide by zero
     Object.defineProperty(root, 'offsetWidth', { value: 1000, configurable: true });
@@ -489,7 +504,7 @@ describe('ComposedResizablePanel', () => {
     handle.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, bubbles: true }));
   });
 
-  it('no resolveChildren or factory imports in source', async () => {
+  it('no imperative DOM manipulation in source', async () => {
     const source = await Bun.file(
       new URL('../resizable-panel-composed.tsx', import.meta.url).pathname,
     ).text();
@@ -497,5 +512,6 @@ describe('ComposedResizablePanel', () => {
     expect(source).not.toContain("from './resizable-panel'");
     expect(source).not.toContain('appendChild');
     expect(source).not.toContain('createTextNode');
+    expect(source).not.toContain('querySelectorAll');
   });
 });

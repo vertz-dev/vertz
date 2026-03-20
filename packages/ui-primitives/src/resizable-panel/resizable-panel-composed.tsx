@@ -1,7 +1,7 @@
 /**
- * Composed ResizablePanel — compound component with resizable split panels.
- * Each sub-component renders its own DOM. Root provides shared state via context.
- * No registration callbacks, no child resolution, no internal API imports.
+ * Composed ResizablePanel — fully declarative compound component.
+ * Panels and handles register via context. Sizes are reactive signals.
+ * No DOM queries, no imperative DOM manipulation.
  * Follows WAI-ARIA separator pattern.
  */
 
@@ -21,7 +21,7 @@ export interface ResizablePanelClasses {
 export type ResizablePanelClassKey = keyof ResizablePanelClasses;
 
 // ---------------------------------------------------------------------------
-// Group ID — unique per root instance to scope DOM queries
+// Group ID — unique per root instance
 // ---------------------------------------------------------------------------
 
 const _groupCounter = { value: 0 };
@@ -30,27 +30,34 @@ const _groupCounter = { value: 0 };
 // Context
 // ---------------------------------------------------------------------------
 
+interface PanelConfig {
+  defaultSize?: number;
+  minSize: number;
+  maxSize: number;
+}
+
 interface ResizablePanelContextValue {
   groupId: string;
   orientation: 'horizontal' | 'vertical';
   classes?: ResizablePanelClasses;
+  registerPanel: (opts: {
+    defaultSize?: number;
+    minSize?: number;
+    maxSize?: number;
+  }) => number;
+  registerHandle: () => number;
+  getSizeForPanel: (index: number) => number;
+  getAriaForHandle: (index: number) => {
+    valuenow: number;
+    valuemin: number;
+    valuemax: number;
+  };
 }
 
 const ResizablePanelContext = createContext<ResizablePanelContextValue | undefined>(
   undefined,
   '@vertz/ui-primitives::ResizablePanelContext',
 );
-
-function useResizablePanelContext(componentName: string): ResizablePanelContextValue {
-  const ctx = useContext(ResizablePanelContext);
-  if (!ctx) {
-    throw new Error(
-      `<ResizablePanel.${componentName}> must be used inside <ResizablePanel>. ` +
-        'Ensure it is a direct or nested child of the ResizablePanel root component.',
-    );
-  }
-  return ctx;
-}
 
 // ---------------------------------------------------------------------------
 // Sub-component props
@@ -84,7 +91,14 @@ function ResizablePanelPanel({
   minSize,
   maxSize,
 }: PanelSlotProps) {
-  const ctx = useResizablePanelContext('Panel');
+  const ctx = useContext(ResizablePanelContext);
+  if (!ctx) {
+    throw new Error(
+      '<ResizablePanel.Panel> must be used inside <ResizablePanel>. ' +
+        'Ensure it is a direct or nested child of the ResizablePanel root component.',
+    );
+  }
+  const index = ctx.registerPanel({ defaultSize, minSize, maxSize });
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.panel, effectiveCls].filter(Boolean).join(' ');
 
@@ -92,9 +106,7 @@ function ResizablePanelPanel({
     <div
       data-part="panel"
       data-group={ctx.groupId}
-      data-default-size={defaultSize != null ? String(defaultSize) : undefined}
-      data-min-size={minSize != null ? String(minSize) : undefined}
-      data-max-size={maxSize != null ? String(maxSize) : undefined}
+      style={{ flex: `${ctx.getSizeForPanel(index)} 1 0`, minWidth: 0, minHeight: 0 }}
       class={combined || undefined}
     >
       {children}
@@ -103,7 +115,14 @@ function ResizablePanelPanel({
 }
 
 function ResizablePanelHandle({ className: cls, class: classProp }: HandleSlotProps) {
-  const ctx = useResizablePanelContext('Handle');
+  const ctx = useContext(ResizablePanelContext);
+  if (!ctx) {
+    throw new Error(
+      '<ResizablePanel.Handle> must be used inside <ResizablePanel>. ' +
+        'Ensure it is a direct or nested child of the ResizablePanel root component.',
+    );
+  }
+  const handleIndex = ctx.registerHandle();
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.handle, effectiveCls].filter(Boolean).join(' ');
 
@@ -111,9 +130,14 @@ function ResizablePanelHandle({ className: cls, class: classProp }: HandleSlotPr
     <div
       role="separator"
       tabindex="0"
+      style={{ flexShrink: 0 }}
       data-group={ctx.groupId}
+      data-handle-index={String(handleIndex)}
       data-orientation={ctx.orientation}
       data-state="idle"
+      aria-valuenow={String(ctx.getAriaForHandle(handleIndex).valuenow)}
+      aria-valuemin={String(ctx.getAriaForHandle(handleIndex).valuemin)}
+      aria-valuemax={String(ctx.getAriaForHandle(handleIndex).valuemax)}
       class={combined || undefined}
     />
   );
@@ -138,73 +162,87 @@ function ComposedResizablePanelRoot({
 }: ComposedResizablePanelProps) {
   const groupId = String(_groupCounter.value++);
 
-  // Mutable state container — using const object to avoid compiler
-  // transforming `let` to reactive signals (which breaks object access).
-  const _state = {
-    panels: [] as { element: HTMLElement; minSize: number; maxSize: number }[],
-    handles: [] as HTMLElement[],
-    sizes: [] as number[],
+  // Registration data — plain object, NOT reactive.
+  const _reg = {
+    nextPanelIdx: 0,
+    nextHandleIdx: 0,
+    panelConfigs: [] as PanelConfig[],
   };
 
-  function updateSizes(newSizes: number[]): void {
-    _state.sizes = [...newSizes];
-    for (let i = 0; i < _state.panels.length; i++) {
-      const panel = _state.panels[i];
-      if (panel) panel.element.style.flex = `0 0 ${newSizes[i] ?? 0}%`;
-    }
-    for (let i = 0; i < _state.handles.length; i++) {
-      const handle = _state.handles[i];
-      const leftPanel = _state.panels[i];
-      if (handle && leftPanel) {
-        const size = newSizes[i] ?? 0;
-        handle.setAttribute('aria-valuenow', String(Math.round(size)));
-        handle.setAttribute('aria-valuemin', String(Math.round(leftPanel.minSize)));
-        handle.setAttribute('aria-valuemax', String(Math.round(leftPanel.maxSize)));
-      }
-    }
-    onResize?.(newSizes);
-  }
+  // Reactive sizes — panels read this for their flex style.
+  // `let` becomes a signal via the compiler; panels track it reactively.
+  let sizes: number[] = [];
 
-  function initPanels(rootEl: HTMLElement): void {
-    // Query by group ID to scope to this instance — prevents picking up
-    // panels/handles from nested ResizablePanel instances.
-    _state.panels = [
-      ...rootEl.querySelectorAll<HTMLElement>(`[data-part="panel"][data-group="${groupId}"]`),
-    ].map((panelEl) => ({
-      element: panelEl,
-      minSize: Number(panelEl.dataset.minSize ?? 0),
-      maxSize: Number(panelEl.dataset.maxSize ?? 100),
-    }));
-    _state.handles = [
-      ...rootEl.querySelectorAll<HTMLElement>(`[role="separator"][data-group="${groupId}"]`),
-    ];
+  function recomputeSizes(): void {
+    const configs = _reg.panelConfigs;
+    const panelCount = configs.length;
+    if (panelCount === 0) return;
 
-    // Calculate initial sizes.
-    // Use a Set to track which indices have explicit defaultSize,
-    // so defaultSize={0} is not confused with "unset".
-    const initialSizes: number[] = new Array(_state.panels.length).fill(0);
+    const newSizes: number[] = new Array(panelCount).fill(0);
     const explicitIndices = new Set<number>();
 
-    for (let i = 0; i < _state.panels.length; i++) {
-      const ds = _state.panels[i]?.element.dataset.defaultSize;
-      if (ds != null) {
-        initialSizes[i] = Number(ds);
+    for (let i = 0; i < panelCount; i++) {
+      const config = configs[i];
+      if (config && config.defaultSize != null) {
+        newSizes[i] = config.defaultSize;
         explicitIndices.add(i);
       }
     }
 
     if (explicitIndices.size === 0) {
-      const equal = 100 / _state.panels.length;
-      for (let i = 0; i < _state.panels.length; i++) initialSizes[i] = equal;
+      const equal = 100 / panelCount;
+      for (let i = 0; i < panelCount; i++) newSizes[i] = equal;
     } else {
-      const used = [...explicitIndices].reduce((sum, i) => sum + (initialSizes[i] ?? 0), 0);
-      const unsetCount = _state.panels.length - explicitIndices.size;
+      const used = [...explicitIndices].reduce((sum, i) => sum + (newSizes[i] ?? 0), 0);
+      const unsetCount = panelCount - explicitIndices.size;
       const each = unsetCount > 0 ? (100 - used) / unsetCount : 0;
-      for (let i = 0; i < initialSizes.length; i++) {
-        if (!explicitIndices.has(i)) initialSizes[i] = each;
+      for (let i = 0; i < newSizes.length; i++) {
+        if (!explicitIndices.has(i)) newSizes[i] = each;
       }
     }
-    updateSizes(initialSizes);
+
+    sizes = newSizes;
+  }
+
+  function registerPanel(opts: {
+    defaultSize?: number;
+    minSize?: number;
+    maxSize?: number;
+  }): number {
+    const idx = _reg.nextPanelIdx++;
+    _reg.panelConfigs.push({
+      defaultSize: opts.defaultSize,
+      minSize: opts.minSize ?? 0,
+      maxSize: opts.maxSize ?? 100,
+    });
+    recomputeSizes();
+    return idx;
+  }
+
+  function registerHandle(): number {
+    return _reg.nextHandleIdx++;
+  }
+
+  function getSizeForPanel(index: number): number {
+    return sizes[index] ?? 0;
+  }
+
+  function getAriaForHandle(handleIndex: number): {
+    valuenow: number;
+    valuemin: number;
+    valuemax: number;
+  } {
+    const config = _reg.panelConfigs[handleIndex];
+    return {
+      valuenow: Math.round(sizes[handleIndex] ?? 0),
+      valuemin: Math.round(config?.minSize ?? 0),
+      valuemax: Math.round(config?.maxSize ?? 100),
+    };
+  }
+
+  function updateSizes(newSizes: number[]): void {
+    sizes = [...newSizes];
+    onResize?.(newSizes);
   }
 
   // Event delegation: keyboard resize
@@ -214,18 +252,17 @@ function ComposedResizablePanelRoot({
     if (target.getAttribute('role') !== 'separator') return;
     if (target.dataset.group !== groupId) return;
 
-    const handleIndex = _state.handles.indexOf(target);
+    const handleIndex = Number(target.dataset.handleIndex ?? -1);
     if (handleIndex < 0) return;
 
     const leftIdx = handleIndex;
     const rightIdx = handleIndex + 1;
-    const leftPanel = _state.panels[leftIdx];
-    const rightPanel = _state.panels[rightIdx];
-    if (!leftPanel || !rightPanel) return;
+    const leftConfig = _reg.panelConfigs[leftIdx];
+    const rightConfig = _reg.panelConfigs[rightIdx];
+    if (!leftConfig || !rightConfig) return;
 
-    const currentSizes = _state.sizes;
-    const leftStart = currentSizes[leftIdx] ?? 0;
-    const rightStart = currentSizes[rightIdx] ?? 0;
+    const leftStart = sizes[leftIdx] ?? 0;
+    const rightStart = sizes[rightIdx] ?? 0;
     const STEP = 5;
     const growKey = orientation === 'horizontal' ? 'ArrowRight' : 'ArrowDown';
     const shrinkKey = orientation === 'horizontal' ? 'ArrowLeft' : 'ArrowUp';
@@ -235,29 +272,29 @@ function ComposedResizablePanelRoot({
 
     if (ke.key === growKey) {
       ke.preventDefault();
-      const delta = Math.min(STEP, rightStart - rightPanel.minSize, leftPanel.maxSize - leftStart);
+      const delta = Math.min(STEP, rightStart - rightConfig.minSize, leftConfig.maxSize - leftStart);
       newLeft += delta;
       newRight -= delta;
     } else if (ke.key === shrinkKey) {
       ke.preventDefault();
-      const delta = Math.min(STEP, leftStart - leftPanel.minSize, rightPanel.maxSize - rightStart);
+      const delta = Math.min(STEP, leftStart - leftConfig.minSize, rightConfig.maxSize - rightStart);
       newLeft -= delta;
       newRight += delta;
     } else if (ke.key === 'Home') {
       ke.preventDefault();
-      const delta = leftStart - leftPanel.minSize;
+      const delta = leftStart - leftConfig.minSize;
       newLeft -= delta;
       newRight += delta;
     } else if (ke.key === 'End') {
       ke.preventDefault();
-      const delta = rightStart - rightPanel.minSize;
+      const delta = rightStart - rightConfig.minSize;
       newLeft += delta;
       newRight -= delta;
     } else {
       return;
     }
 
-    const newSizes = [...currentSizes];
+    const newSizes = sizes.slice();
     newSizes[leftIdx] = newLeft;
     newSizes[rightIdx] = newRight;
     updateSizes(newSizes);
@@ -274,30 +311,30 @@ function ComposedResizablePanelRoot({
     target.setPointerCapture(pe.pointerId);
     target.setAttribute('data-state', 'dragging');
 
-    const handleIndex = _state.handles.indexOf(target);
+    const handleIndex = Number(target.dataset.handleIndex ?? -1);
     const rootEl = pe.currentTarget as HTMLElement;
     const startPos = orientation === 'horizontal' ? pe.clientX : pe.clientY;
     const rootSize = orientation === 'horizontal' ? rootEl.offsetWidth : rootEl.offsetHeight;
-    const startSizes = [..._state.sizes];
+    const startSizes = sizes.slice();
 
     function onMove(ev: PointerEvent): void {
       const currentPos = orientation === 'horizontal' ? ev.clientX : ev.clientY;
       const delta = ((currentPos - startPos) / rootSize) * 100;
 
-      const moveSizes = [...startSizes];
+      const moveSizes = startSizes.slice();
       const leftIdx = handleIndex;
       const rightIdx = handleIndex + 1;
-      const leftPanel = _state.panels[leftIdx];
-      const rightPanel = _state.panels[rightIdx];
-      if (!leftPanel || !rightPanel) return;
+      const leftConfig = _reg.panelConfigs[leftIdx];
+      const rightConfig = _reg.panelConfigs[rightIdx];
+      if (!leftConfig || !rightConfig) return;
 
       const rawLeft = Math.max(
-        leftPanel.minSize,
-        Math.min(leftPanel.maxSize, (startSizes[leftIdx] ?? 0) + delta),
+        leftConfig.minSize,
+        Math.min(leftConfig.maxSize, (startSizes[leftIdx] ?? 0) + delta),
       );
       const rawRight = Math.max(
-        rightPanel.minSize,
-        Math.min(rightPanel.maxSize, (startSizes[rightIdx] ?? 0) - delta),
+        rightConfig.minSize,
+        Math.min(rightConfig.maxSize, (startSizes[rightIdx] ?? 0) - delta),
       );
 
       moveSizes[leftIdx] = rawLeft;
@@ -316,13 +353,22 @@ function ComposedResizablePanelRoot({
     target.addEventListener('pointerup', onUp);
   }
 
-  const ctx: ResizablePanelContextValue = { groupId, orientation, classes };
+  const ctx: ResizablePanelContextValue = {
+    groupId,
+    orientation,
+    classes,
+    registerPanel,
+    registerHandle,
+    getSizeForPanel,
+    getAriaForHandle,
+  };
 
-  const rootEl = (
+  return (
     <ResizablePanelContext.Provider value={ctx}>
       <div
         style={{ display: 'flex', flexDirection: orientation === 'horizontal' ? 'row' : 'column' }}
         data-orientation={orientation}
+        data-panel-count={sizes.length}
         class={classes?.root}
         onKeydown={handleKeydown}
         onPointerdown={handlePointerdown}
@@ -331,11 +377,6 @@ function ComposedResizablePanelRoot({
       </div>
     </ResizablePanelContext.Provider>
   );
-
-  // Post-render initialization: query panels/handles, calculate sizes, set ARIA
-  initPanels(rootEl as HTMLElement);
-
-  return rootEl;
 }
 
 // ---------------------------------------------------------------------------
