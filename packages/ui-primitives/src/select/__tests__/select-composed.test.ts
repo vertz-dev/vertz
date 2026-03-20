@@ -528,4 +528,53 @@ describe('Composed Select', () => {
       expect(pos === 'fixed' || pos === 'absolute').toBe(true);
     });
   });
+
+  describe('Given an open Select (#1615)', () => {
+    describe('When the dropdown is closed while an animation is playing', () => {
+      it('Then defers display:none until the exit animation completes', async () => {
+        const root = ComposedSelect({
+          children: () => {
+            const t = ComposedSelect.Trigger({ children: ['Pick'] });
+            const c = ComposedSelect.Content({
+              children: () => [ComposedSelect.Item({ value: 'a', children: ['A'] })],
+            });
+            return [t, c];
+          },
+        });
+        container.appendChild(root);
+
+        // Open the select
+        const trigger = root.querySelector('[role="combobox"]') as HTMLElement;
+        trigger!.click();
+
+        const listbox = root.querySelector('[role="listbox"]') as HTMLElement;
+        expect(listbox!.style.display).not.toBe('none');
+
+        // Mock a running CSS animation on the content
+        let resolveAnim!: () => void;
+        const animFinished = new Promise<void>((resolve) => {
+          resolveAnim = resolve;
+        });
+        listbox!.getAnimations = () => [{ finished: animFinished } as unknown as Animation];
+
+        // Close the select
+        trigger!.click();
+
+        // data-state should be "closed" immediately (triggers CSS exit animation)
+        expect(listbox!.getAttribute('data-state')).toBe('closed');
+        // aria-hidden should be set immediately for screen readers
+        expect(listbox!.getAttribute('aria-hidden')).toBe('true');
+        // But display should NOT be "none" yet — animation still running
+        expect(listbox!.style.display).not.toBe('none');
+
+        // Finish the animation
+        resolveAnim();
+        await animFinished;
+        await new Promise((r) => setTimeout(r, 0));
+
+        // Now display should be "none"
+        expect(listbox!.style.display).toBe('none');
+      });
+    });
+  });
 });
