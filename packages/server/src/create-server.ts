@@ -284,11 +284,7 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
     if (hasDbClient) {
       const dbClient = db as DatabaseClient<Record<string, ModelEntry>>;
       const tenantGraph = dbClient._internals.tenantGraph;
-      // Models are actually ModelDef (which has _tenant), but typed as ModelEntry
-      const dbModelsMap = dbClient._internals.models as Record<
-        string,
-        ModelEntry & { readonly _tenant?: string | null }
-      >;
+      const dbModelsMap = dbClient._internals.models;
       for (const entityDef of config.entities) {
         const eDef = entityDef as EntityDefinition;
         // Skip entities that explicitly opt out

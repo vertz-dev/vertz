@@ -27,27 +27,49 @@ export interface TenantChain {
 // ---------------------------------------------------------------------------
 
 interface ModelRegistryEntry {
-  readonly table: { readonly _name: string; readonly _columns: Record<string, unknown> };
+  readonly table: {
+    readonly _name: string;
+    readonly _columns: Record<string, unknown>;
+    readonly _tenant?: boolean;
+  };
   readonly relations: Record<string, RelationDef>;
-  readonly _tenant?: string | null;
 }
 
 type ModelRegistry = Record<string, ModelRegistryEntry>;
 
 // ---------------------------------------------------------------------------
-// resolveTenantChain
+// resolveTenantFkFromRelations
+// ---------------------------------------------------------------------------
+
+/**
+ * Finds the tenant FK column by scanning a model's ref.one relations for one
+ * targeting the tenant root table. Returns the FK column name, or null.
+ */
+export function resolveTenantFkFromRelations(
+  entry: ModelRegistryEntry,
+  rootTableName: string,
+): string | null {
+  for (const rel of Object.values(entry.relations)) {
+    if (rel._type === 'one' && rel._foreignKey && rel._target()._name === rootTableName) {
+      return rel._foreignKey;
+    }
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// resolveTenantChain — BFS shortest-path
 // ---------------------------------------------------------------------------
 
 /**
  * Resolves the relation chain from an indirectly scoped entity back to the
- * tenant root.
+ * tenant root using BFS (breadth-first search) to guarantee the shortest path.
  *
  * Returns null if the entity is not indirectly scoped (i.e., it's the root,
  * directly scoped, shared, or unscoped).
  *
- * The chain is computed by walking `ref.one` relations from the entity until
- * we reach a directly-scoped model. The tenant column is read from the
- * directly-scoped model's `_tenant` relation FK.
+ * Shared tables are excluded from traversal — a ref.one to a .shared() table
+ * is never followed.
  */
 export function resolveTenantChain(
   entityKey: string,
@@ -75,74 +97,111 @@ export function resolveTenantChain(
   }
 
   // Set of table names that are directly scoped or root
-  const directlyScopedTableNames = new Set<string>();
-  for (const key of tenantGraph.directlyScoped) {
-    const entry = registry[key];
-    if (entry) directlyScopedTableNames.add(entry.table._name);
-  }
-  directlyScopedTableNames.add(rootTableName);
+  const directlyScopedKeys = new Set(tenantGraph.directlyScoped);
+  directlyScopedKeys.add(tenantGraph.root);
 
-  // Walk the relation chain from entity to a directly-scoped model
-  const hops: TenantChainHop[] = [];
-  let currentKey = entityKey;
+  // Set of shared model keys — excluded from traversal
+  const sharedKeys = new Set(tenantGraph.shared);
+
+  // Set of indirectly scoped model keys
+  const indirectlyScopedKeys = new Set(tenantGraph.indirectlyScoped);
+
+  const entityEntry = registry[entityKey];
+  if (!entityEntry) return null;
+
+  // BFS queue: each entry tracks the full path taken to reach it
+  const queue: Array<{ key: string; hops: TenantChainHop[] }> = [];
   const visited = new Set<string>();
+  visited.add(entityKey);
 
-  while (true) {
-    if (visited.has(currentKey)) {
-      // Cycle detected — shouldn't happen with valid schemas
-      return null;
+  // Seed: all ref.one relations from the entity
+  for (const rel of Object.values(entityEntry.relations)) {
+    if (rel._type !== 'one' || !rel._foreignKey) continue;
+
+    const targetTableName = rel._target()._name;
+    const targetKey = tableNameToKey.get(targetTableName);
+    if (!targetKey || visited.has(targetKey)) continue;
+
+    // Skip shared tables
+    if (sharedKeys.has(targetKey)) continue;
+
+    // Skip unscoped targets
+    if (!directlyScopedKeys.has(targetKey) && !indirectlyScopedKeys.has(targetKey)) continue;
+
+    const targetEntry = registry[targetKey];
+    if (!targetEntry) continue;
+    const targetPk = resolvePrimaryKey(targetEntry.table._columns);
+
+    const hop: TenantChainHop = {
+      tableName: targetTableName,
+      foreignKey: rel._foreignKey,
+      targetColumn: targetPk,
+    };
+
+    // If target is directly scoped (not root), resolve its tenant FK
+    if (directlyScopedKeys.has(targetKey) && targetKey !== tenantGraph.root) {
+      const tenantColumn = resolveTenantFkFromRelations(targetEntry, rootTableName);
+      if (tenantColumn) {
+        return { hops: [hop], tenantColumn };
+      }
     }
+
+    // If target is the root, the FK is the tenant column
+    if (targetKey === tenantGraph.root) {
+      return { hops: [hop], tenantColumn: rel._foreignKey };
+    }
+
+    // Otherwise, enqueue for further BFS exploration
+    queue.push({ key: targetKey, hops: [hop] });
+  }
+
+  // BFS: expand level by level — guarantees shortest path
+  while (queue.length > 0) {
+    const item = queue.shift();
+    if (!item) break;
+    const { key: currentKey, hops } = item;
+    if (visited.has(currentKey)) continue;
     visited.add(currentKey);
 
-    const currentEntry = registry[currentKey];
-    if (!currentEntry) return null;
+    const entry = registry[currentKey];
+    if (!entry) continue;
 
-    // Find a ref.one relation that targets a scoped table (directly or indirectly scoped)
-    let foundHop = false;
-    for (const [, rel] of Object.entries(currentEntry.relations)) {
+    for (const rel of Object.values(entry.relations)) {
       if (rel._type !== 'one' || !rel._foreignKey) continue;
 
       const targetTableName = rel._target()._name;
       const targetKey = tableNameToKey.get(targetTableName);
-      if (!targetKey) continue;
+      if (!targetKey || visited.has(targetKey)) continue;
+      if (sharedKeys.has(targetKey)) continue;
+      if (!directlyScopedKeys.has(targetKey) && !indirectlyScopedKeys.has(targetKey)) continue;
 
-      // Check if this target is in the scoping path (directly scoped, root, or indirectly scoped)
-      const targetIsDirectlyScoped = directlyScopedTableNames.has(targetTableName);
-      const targetIsIndirectlyScoped = tenantGraph.indirectlyScoped.includes(targetKey);
-
-      if (!targetIsDirectlyScoped && !targetIsIndirectlyScoped) continue;
-
-      // Resolve the target table's PK column
       const targetEntry = registry[targetKey];
       if (!targetEntry) continue;
       const targetPk = resolvePrimaryKey(targetEntry.table._columns);
 
-      hops.push({
+      const hop: TenantChainHop = {
         tableName: targetTableName,
         foreignKey: rel._foreignKey,
         targetColumn: targetPk,
-      });
+      };
+      const newHops = [...hops, hop];
 
-      // If we reached a directly scoped model, resolve the tenant column and return
-      if (targetIsDirectlyScoped && targetKey !== tenantGraph.root) {
-        const tenantColumn = resolveTenantFk(targetKey, registry);
-        if (!tenantColumn) return null;
-        return { hops, tenantColumn };
+      if (directlyScopedKeys.has(targetKey) && targetKey !== tenantGraph.root) {
+        const tenantColumn = resolveTenantFkFromRelations(targetEntry, rootTableName);
+        if (tenantColumn) {
+          return { hops: newHops, tenantColumn };
+        }
       }
 
-      // If we reached the root, the tenant column is just the PK of root
       if (targetKey === tenantGraph.root) {
-        return { hops, tenantColumn: rel._foreignKey };
+        return { hops: newHops, tenantColumn: rel._foreignKey };
       }
 
-      // Continue walking from the target
-      currentKey = targetKey;
-      foundHop = true;
-      break;
+      queue.push({ key: targetKey, hops: newHops });
     }
-
-    if (!foundHop) return null;
   }
+
+  return null; // No path found
 }
 
 // ---------------------------------------------------------------------------
@@ -158,15 +217,4 @@ function resolvePrimaryKey(columns: Record<string, unknown>): string {
     }
   }
   return 'id';
-}
-
-/** Resolves the FK column used by a directly-scoped model's tenant relation. */
-function resolveTenantFk(modelKey: string, registry: ModelRegistry): string | null {
-  const entry = registry[modelKey];
-  if (!entry || !entry._tenant) return null;
-
-  const tenantRel = entry.relations[entry._tenant] as RelationDef | undefined;
-  if (!tenantRel || !tenantRel._foreignKey) return null;
-
-  return tenantRel._foreignKey;
 }

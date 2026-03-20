@@ -1201,20 +1201,20 @@ describe('Feature: CRUD pipeline', () => {
   });
 
   describe('Given a tenant-scoped entity with custom FK column (workspaceId)', () => {
-    const workspacesTable = d.table('workspaces', {
-      id: d.uuid().primary(),
-      name: d.text(),
-    });
+    const workspacesTable = d
+      .table('workspaces', {
+        id: d.uuid().primary(),
+        name: d.text(),
+      })
+      .tenant();
     const projectsTable = d.table('projects', {
       id: d.uuid().primary(),
       title: d.text(),
       workspaceId: d.uuid(),
     });
-    const projectsModel = d.model(
-      projectsTable,
-      { workspace: d.ref.one(() => workspacesTable, 'workspaceId') },
-      { tenant: 'workspace' },
-    );
+    const projectsModel = d.model(projectsTable, {
+      workspace: d.ref.one(() => workspacesTable, 'workspaceId'),
+    });
     const def = entity('projects', {
       model: projectsModel,
       access: {

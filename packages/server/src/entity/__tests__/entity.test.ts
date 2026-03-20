@@ -256,18 +256,18 @@ describe('Feature: entity() definition', () => {
     });
   });
 
-  describe('Given a model with a custom tenant FK column via _tenant relation', () => {
-    const orgsTable = d.table('organizations', { id: d.uuid().primary(), name: d.text() });
+  describe('Given a model with a custom tenant FK column via ref.one to .tenant() root', () => {
+    const orgsTable = d
+      .table('organizations', { id: d.uuid().primary(), name: d.text() })
+      .tenant();
     const employeesTable = d.table('employees', {
       id: d.uuid().primary(),
       name: d.text(),
       organizationId: d.uuid(),
     });
-    const employeesModel = d.model(
-      employeesTable,
-      { organization: d.ref.one(() => orgsTable, 'organizationId') },
-      { tenant: 'organization' },
-    );
+    const employeesModel = d.model(employeesTable, {
+      organization: d.ref.one(() => orgsTable, 'organizationId'),
+    });
 
     describe('When calling entity() without explicit tenantScoped', () => {
       it('Then tenantScoped defaults to true', () => {

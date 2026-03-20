@@ -4,13 +4,15 @@ import type { EntityActionDef, EntityConfig, EntityContext, EntityDefinition } f
 
 const ENTITY_NAME_PATTERN = /^[a-z][a-z0-9-]*$/;
 
-/** Resolves the tenant FK column name from a model's `_tenant` relation. */
+/** Resolves the tenant FK column name by scanning ref.one relations for the root table. */
 function resolveTenantColumn(model: ModelDef): string | null {
-  if (!model._tenant) return null;
   const relations = model.relations as Record<string, RelationDef>;
-  const tenantRel = relations[model._tenant];
-  if (!tenantRel || !tenantRel._foreignKey) return null;
-  return tenantRel._foreignKey;
+  for (const rel of Object.values(relations)) {
+    if (rel._type === 'one' && rel._foreignKey && rel._target()._tenant) {
+      return rel._foreignKey;
+    }
+  }
+  return null;
 }
 
 export function entity<

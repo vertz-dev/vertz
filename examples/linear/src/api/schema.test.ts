@@ -15,8 +15,8 @@ describe('Schema relations', () => {
       expect(workspacesModel.relations).toEqual({});
     });
 
-    it('Then it has no tenant scoping', () => {
-      expect(workspacesModel._tenant).toBeNull();
+    it('Then its table is the tenant root', () => {
+      expect(workspacesModel.table._tenant).toBe(true);
     });
   });
 
@@ -27,8 +27,8 @@ describe('Schema relations', () => {
       expect(usersModel.relations.workspace._foreignKey).toBe('workspaceId');
     });
 
-    it('Then it is directly scoped to the workspace', () => {
-      expect(usersModel._tenant).toBe('workspace');
+    it('Then it does not have a _tenant property (tenant is on the table)', () => {
+      expect(usersModel).not.toHaveProperty('_tenant');
     });
   });
 
@@ -45,8 +45,8 @@ describe('Schema relations', () => {
       expect(projectsModel.relations.creator._foreignKey).toBe('createdBy');
     });
 
-    it('Then it is directly scoped to the workspace', () => {
-      expect(projectsModel._tenant).toBe('workspace');
+    it('Then it does not have a _tenant property (tenant is on the table)', () => {
+      expect(projectsModel).not.toHaveProperty('_tenant');
     });
   });
 
@@ -63,8 +63,8 @@ describe('Schema relations', () => {
       expect(issuesModel.relations.assignee._foreignKey).toBe('assigneeId');
     });
 
-    it('Then it is indirectly scoped (no direct tenant declaration)', () => {
-      expect(issuesModel._tenant).toBeNull();
+    it('Then it does not have a _tenant property (indirectly scoped)', () => {
+      expect(issuesModel).not.toHaveProperty('_tenant');
     });
   });
 
@@ -75,8 +75,8 @@ describe('Schema relations', () => {
       expect(labelsModel.relations.project._foreignKey).toBe('projectId');
     });
 
-    it('Then it is indirectly scoped (no direct tenant declaration)', () => {
-      expect(labelsModel._tenant).toBeNull();
+    it('Then it does not have a _tenant property (indirectly scoped)', () => {
+      expect(labelsModel).not.toHaveProperty('_tenant');
     });
   });
 
@@ -93,8 +93,8 @@ describe('Schema relations', () => {
       expect(issueLabelsModel.relations.label._foreignKey).toBe('labelId');
     });
 
-    it('Then it is indirectly scoped (no direct tenant declaration)', () => {
-      expect(issueLabelsModel._tenant).toBeNull();
+    it('Then it does not have a _tenant property (indirectly scoped)', () => {
+      expect(issueLabelsModel).not.toHaveProperty('_tenant');
     });
   });
 
@@ -111,8 +111,8 @@ describe('Schema relations', () => {
       expect(commentsModel.relations.author._foreignKey).toBe('authorId');
     });
 
-    it('Then it is indirectly scoped (no direct tenant declaration)', () => {
-      expect(commentsModel._tenant).toBeNull();
+    it('Then it does not have a _tenant property (indirectly scoped)', () => {
+      expect(commentsModel).not.toHaveProperty('_tenant');
     });
   });
 });
