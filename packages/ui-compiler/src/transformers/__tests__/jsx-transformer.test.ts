@@ -437,4 +437,36 @@ describe('JsxTransformer', () => {
     expect(result).not.toContain('__on');
     expect(result).not.toContain('alert');
   });
+
+  it('emits property assignment for boolean shorthand IDL property <input checked />', () => {
+    const result = transform(`function App() {\n  return <input checked />;\n}`, []);
+    expect(result).toContain('.checked = true');
+  });
+
+  it('emits property assignment for boolean shorthand IDL property <option selected />', () => {
+    const result = transform(`function App() {\n  return <option selected>A</option>;\n}`, []);
+    expect(result).toContain('.selected = true');
+  });
+
+  it('emits setAttribute for boolean shorthand non-IDL attribute <input disabled />', () => {
+    const result = transform(`function App() {\n  return <input disabled />;\n}`, []);
+    expect(result).toContain('setAttribute("disabled", "")');
+  });
+
+  it('emits setAttribute for boolean shorthand non-IDL attribute <button disabled />', () => {
+    const result = transform(`function App() {\n  return <button disabled></button>;\n}`, []);
+    expect(result).toContain('setAttribute("disabled", "")');
+  });
+
+  it('emits empty string for boolean shorthand on string IDL property <input value />', () => {
+    const result = transform(`function App() {\n  return <input value />;\n}`, []);
+    // String IDL property — boolean shorthand means empty string, not true
+    expect(result).toContain('.value = ""');
+    expect(result).not.toContain('.value = true');
+  });
+
+  it('emits empty string for boolean shorthand on string IDL property <textarea value />', () => {
+    const result = transform(`function App() {\n  return <textarea value></textarea>;\n}`, []);
+    expect(result).toContain('.value = ""');
+  });
 });
