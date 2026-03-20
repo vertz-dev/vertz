@@ -48,7 +48,7 @@ function resolveToObjectLiteral(node: Expression): ObjectLiteralExpression | nul
 
   // Unwrap function calls like defineAuth({...}) — extract first argument
   if (node.isKind(SyntaxKind.CallExpression)) {
-    const firstArg = node.getArguments()[0];
+    const firstArg = node.getArguments()[0] as Expression | undefined;
     if (firstArg) return resolveToObjectLiteral(firstArg);
     return null;
   }
