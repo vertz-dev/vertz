@@ -52,6 +52,17 @@ export function __prop(el: HTMLElement, name: string, fn: () => unknown): Dispos
     } else {
       Reflect.set(el, name, value);
     }
+    // Mirror 'selected' to the HTML attribute so detached <option> elements
+    // retain their state when later appended to a <select>.
+    // The IDL property alone isn't picked up by all DOM implementations
+    // (e.g., happy-dom) when the element is not yet in the tree.
+    if (name === 'selected') {
+      if (value) {
+        el.setAttribute(name, '');
+      } else {
+        el.removeAttribute(name);
+      }
+    }
   });
 }
 

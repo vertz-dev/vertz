@@ -379,6 +379,33 @@ describe('Composed Calendar', () => {
         expect(june1).not.toBeNull();
       });
 
+      it('Then select.value reflects the initially-selected month', () => {
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown',
+          defaultMonth: new Date(2024, 5, 1),
+        });
+        container.appendChild(root);
+        const monthSelect = root.querySelector(
+          'select[aria-label="Select month"]',
+        ) as HTMLSelectElement;
+        // June = month index 5
+        expect(monthSelect.value).toBe('5');
+      });
+
+      it('Then select.value reflects the initially-selected year', () => {
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown',
+          defaultMonth: new Date(2024, 5, 1),
+          minDate: new Date(2020, 0, 1),
+          maxDate: new Date(2030, 11, 31),
+        });
+        container.appendChild(root);
+        const yearSelect = root.querySelector(
+          'select[aria-label="Select year"]',
+        ) as HTMLSelectElement;
+        expect(yearSelect.value).toBe('2024');
+      });
+
       it('Then year select includes the current year', () => {
         const root = ComposedCalendar({
           captionLayout: 'dropdown',
@@ -721,17 +748,6 @@ describe('Composed Calendar', () => {
           maxDate: new Date(2030, 11, 31),
         });
         container.appendChild(root);
-        const monthSelect = root.querySelector(
-          'select[aria-label="Select month"]',
-        ) as HTMLSelectElement;
-        // Prime the reactive binding with a roundtrip so happy-dom
-        // picks up the __prop selected state (see month select test).
-        monthSelect.value = '0';
-        monthSelect.dispatchEvent(new Event('change'));
-        monthSelect.value = '5';
-        monthSelect.dispatchEvent(new Event('change'));
-        expect(monthSelect.value).toBe('5');
-
         const nextBtn = root.querySelector('button[aria-label="Next month"]') as HTMLButtonElement;
         nextBtn.click();
         // Grid should now show July 2024

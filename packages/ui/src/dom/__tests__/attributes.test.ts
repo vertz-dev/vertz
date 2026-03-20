@@ -103,6 +103,37 @@ describe('__prop', () => {
     expect(el.selected).toBe(false);
   });
 
+  it('mirrors selected property to attribute for detached-element compatibility', () => {
+    const select = document.createElement('select');
+    const opt1 = document.createElement('option');
+    opt1.value = 'a';
+    opt1.textContent = 'A';
+    const opt2 = document.createElement('option');
+    opt2.value = 'b';
+    opt2.textContent = 'B';
+
+    // Set selected on opt2 while it's detached from the select
+    __prop(opt2, 'selected', () => true);
+
+    // Append options to select — attribute ensures state persists through append
+    select.appendChild(opt1);
+    select.appendChild(opt2);
+
+    expect(opt2.hasAttribute('selected')).toBe(true);
+    expect(select.value).toBe('b');
+  });
+
+  it('removes selected attribute when value becomes falsy', () => {
+    const opt = document.createElement('option');
+    const isSelected = signal(true);
+    __prop(opt, 'selected', () => isSelected.value);
+    expect(opt.hasAttribute('selected')).toBe(true);
+
+    isSelected.value = false;
+    expect(opt.hasAttribute('selected')).toBe(false);
+    expect(opt.selected).toBe(false);
+  });
+
   it('resets value to empty string when fn returns null', () => {
     const el = document.createElement('select');
     const opt = document.createElement('option');
