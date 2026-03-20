@@ -37,8 +37,9 @@ export function __spread(el: Element, props: Record<string, unknown>): void {
     }
 
     // Event handlers: onClick → addEventListener('click', handler)
+    // Full lowercase: onDblClick → dblclick (DOM events are case-sensitive)
     if (key.length > 2 && key.startsWith('on') && typeof value === 'function') {
-      const eventName = key[2]?.toLowerCase() + key.slice(3);
+      const eventName = key.slice(2).toLowerCase();
       el.addEventListener(eventName, value as EventListener);
       continue;
     }

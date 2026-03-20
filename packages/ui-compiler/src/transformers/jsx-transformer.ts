@@ -304,7 +304,9 @@ function transformJsxElement(
   for (const attr of attrs) {
     if (attr.isKind(SyntaxKind.JsxSpreadAttribute)) {
       const expr = attr.getExpression();
-      statements.push(`__spread(${elVar}, ${expr.getText()})`);
+      // Read from MagicString to pick up .value transforms from signal transformer
+      const exprText = source.slice(expr.getStart(), expr.getEnd());
+      statements.push(`__spread(${elVar}, ${exprText})`);
       continue;
     }
     if (!attr.isKind(SyntaxKind.JsxAttribute)) continue;
@@ -370,7 +372,9 @@ function transformSelfClosingElement(
   for (const attr of attrs) {
     if (attr.isKind(SyntaxKind.JsxSpreadAttribute)) {
       const expr = attr.getExpression();
-      statements.push(`__spread(${elVar}, ${expr.getText()})`);
+      // Read from MagicString to pick up .value transforms from signal transformer
+      const exprText = source.slice(expr.getStart(), expr.getEnd());
+      statements.push(`__spread(${elVar}, ${exprText})`);
       continue;
     }
     if (!attr.isKind(SyntaxKind.JsxAttribute)) continue;
@@ -1005,7 +1009,9 @@ function buildPropsObject(
     // Handle spread attributes: {...expr} → ...expr in the object literal
     if (attr.isKind(SyntaxKind.JsxSpreadAttribute)) {
       const expr = attr.getExpression();
-      props.push(`...${expr.getText()}`);
+      // Read from MagicString to pick up .value transforms from signal transformer
+      const exprText = source.slice(expr.getStart(), expr.getEnd());
+      props.push(`...${exprText}`);
       continue;
     }
     if (!attr.isKind(SyntaxKind.JsxAttribute)) continue;

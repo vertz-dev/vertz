@@ -170,4 +170,32 @@ describe('Feature: Intrinsic element spread attributes', () => {
       });
     });
   });
+
+  describe('Given a spread with multi-word event name', () => {
+    describe('When __spread is called', () => {
+      it('Then event name is fully lowercased (onDblClick -> dblclick)', () => {
+        const el = document.createElement('div');
+        let fired = false;
+        __spread(el, {
+          onDblClick: () => {
+            fired = true;
+          },
+        });
+        el.dispatchEvent(new Event('dblclick'));
+        expect(fired).toBe(true);
+      });
+    });
+  });
+
+  describe('Given an empty spread object', () => {
+    describe('When __spread is called', () => {
+      it('Then no attributes are set (no-op)', () => {
+        const el = document.createElement('div');
+        el.setAttribute('data-existing', 'keep');
+        __spread(el, {});
+        expect(el.getAttribute('data-existing')).toBe('keep');
+        expect(el.attributes.length).toBe(1);
+      });
+    });
+  });
 });

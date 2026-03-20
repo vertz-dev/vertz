@@ -217,5 +217,32 @@ function App() {
         });
       });
     });
+
+    describe('Given a signal variable also used in a spread (MagicString correctness)', () => {
+      describe('When compiled', () => {
+        it('Then source.slice picks up .value transforms applied by signal transformer', () => {
+          // This test verifies that the compiler reads spread expressions from
+          // MagicString (source.slice) rather than the original AST (getText).
+          // When a let variable is transformed to a signal AND used in a spread,
+          // the spread must emit the transformed name (with .value).
+          const result = compile(
+            `
+function App() {
+  let count = 0;
+  return <div data-count={count} {...{ extra: count }} />;
+}
+          `.trim(),
+          );
+
+          const code = result.code;
+          // count is transformed to a signal because it's used in a JSX attribute
+          expect(code).toContain('signal(0');
+          // The spread expression reads from MagicString which has .value
+          expect(code).toContain('__spread(');
+          // The inline spread object { extra: count } should have count.value
+          expect(code).toContain('count.value');
+        });
+      });
+    });
   });
 });
