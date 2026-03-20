@@ -1,8 +1,7 @@
-import { css, onMount } from '@vertz/ui';
-import { Tooltip } from '@vertz/ui-primitives';
-import type { CompactToken, Token, TokenLine } from './highlighted-code';
+import { css } from '@vertz/ui';
+import type { Token, TokenLine } from './highlighted-code';
 
-function hasHint(token: Token): token is [string, string, CompactToken[][]] {
+function hasHint(token: Token): token is [string, string, unknown] {
   return token.length > 2;
 }
 
@@ -10,77 +9,24 @@ const s = css({
   pre: ['m:0'],
 });
 
-const TOOLTIP_CONTENT_STYLE: Record<string, string> = {
-  background: '#191a21',
-  border: '1px solid #44475a',
-  borderRadius: '4px',
-  padding: '8px 12px',
-  fontFamily: 'var(--font-mono)',
-  fontSize: '12px',
-  lineHeight: '1.5',
-  color: '#f8f8f2',
-  whiteSpace: 'pre',
-  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.5)',
-  maxWidth: '480px',
-};
-
-function HintedToken({ token }: { token: [string, string, CompactToken[][]] }) {
-  const hintId = token[1].trim();
-
-  onMount(() => {
-    const el = document.querySelector(`[data-hint-id="${hintId}"]`) as HTMLSpanElement | null;
-    if (!el) return;
-
-    const { trigger, content } = Tooltip.Root({
-      delay: 200,
-      positioning: { placement: 'top', offset: 8, portal: true, flip: true, shift: true },
-    });
-
-    trigger.style.cssText = `${token[0]}; text-decoration: underline dashed; text-decoration-color: #52525b; text-underline-offset: 3px; cursor: default`;
-    trigger.textContent = token[1];
-
-    Object.assign(content.style, TOOLTIP_CONTENT_STYLE);
-
-    for (const hintLine of token[2]) {
-      const lineSpan = document.createElement('span');
-      for (const t of hintLine) {
-        const tokenSpan = document.createElement('span');
-        tokenSpan.style.cssText = t[0];
-        tokenSpan.textContent = t[1];
-        lineSpan.appendChild(tokenSpan);
-      }
-      lineSpan.appendChild(document.createTextNode('\n'));
-      content.appendChild(lineSpan);
-    }
-
-    el.replaceWith(trigger);
-  });
-
-  return (
-    <span
-      data-hint-id={hintId}
-      style={`${token[0]}; text-decoration: underline dashed; text-decoration-color: #52525b; text-underline-offset: 3px; cursor: default`}
-    >
-      {token[1]}
-    </span>
-  );
-}
-
 export function TokenLines({ lines }: { lines: TokenLine[] }) {
   return (
     <pre className={s.pre}>
       <code>
         {lines.map((line) => (
           <span key={line.map((t) => t[1]).join('')}>
-            {line.map((token) =>
-              hasHint(token) ? (
-                <HintedToken key={token[1]} token={token} />
-              ) : (
-                <span key={token[1]} style={token[0]}>
-                  {token[1]}
-                </span>
-              ),
-            )}
+            {line.map((token) => (
+              <span
+                key={token[1]}
+                style={
+                  hasHint(token)
+                    ? `${token[0]}; text-decoration: underline dashed; text-decoration-color: #52525b; text-underline-offset: 3px`
+                    : token[0]
+                }
+              >
+                {token[1]}
+              </span>
+            ))}
             {'\n'}
           </span>
         ))}

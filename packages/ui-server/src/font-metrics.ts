@@ -8,6 +8,7 @@
  * Uses @capsizecss/unpack for font file parsing (pure JS, works in Bun + Node).
  */
 
+import { access as fsAccess } from 'node:fs/promises';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fromBuffer } from '@capsizecss/unpack';
@@ -119,10 +120,23 @@ function getPrimarySrcPath(descriptor: FontDescriptor): string | null {
   return null;
 }
 
-/** Resolve a font URL path to a filesystem path. Strips leading '/'. */
-function resolveFilePath(urlPath: string, rootDir: string): string {
+/**
+ * Resolve a font URL path to a filesystem path.
+ *
+ * Font descriptors use URL paths (e.g. `/fonts/dm-sans.woff2`) that the dev
+ * server serves from `public/`. Try the direct path first, then fall back to
+ * `public/` subdirectory — which is the standard static-asset convention.
+ */
+async function resolveFilePath(urlPath: string, rootDir: string): Promise<string> {
   const cleaned = urlPath.startsWith('/') ? urlPath.slice(1) : urlPath;
-  return join(rootDir, cleaned);
+  const direct = join(rootDir, cleaned);
+  try {
+    await fsAccess(direct);
+    return direct;
+  } catch {
+    // Font URL paths are served from public/ by the dev server
+    return join(rootDir, 'public', cleaned);
+  }
 }
 
 // ─── Main extraction function ────────────────────────────────────
@@ -153,7 +167,7 @@ export async function extractFontMetrics(
     if (!srcPath.toLowerCase().endsWith('.woff2')) continue;
 
     try {
-      const filePath = resolveFilePath(srcPath, rootDir);
+      const filePath = await resolveFilePath(srcPath, rootDir);
       const buffer = await readFile(filePath);
       const metrics = await fromBuffer(buffer);
 

@@ -5,7 +5,7 @@
  * at build time. Used by `vertz build` to generate static HTML files.
  */
 
-import type { CompiledRoute } from '@vertz/ui';
+import type { CompiledRoute, FontFallbackMetrics } from '@vertz/ui';
 import type { SSRModule, SSRRenderResult } from './ssr-render';
 import { ssrRenderToString } from './ssr-render';
 import { injectIntoTemplate } from './template-inject';
@@ -22,6 +22,8 @@ export interface PrerenderOptions {
   routes: string[];
   /** CSP nonce for inline scripts. */
   nonce?: string;
+  /** Pre-computed font fallback metrics for zero-CLS font loading. */
+  fallbackMetrics?: Record<string, FontFallbackMetrics>;
 }
 
 /**
@@ -81,7 +83,9 @@ export async function prerenderRoutes(
   for (const routePath of options.routes) {
     let renderResult: SSRRenderResult;
     try {
-      renderResult = await ssrRenderToString(module, routePath);
+      renderResult = await ssrRenderToString(module, routePath, {
+        fallbackMetrics: options.fallbackMetrics,
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(

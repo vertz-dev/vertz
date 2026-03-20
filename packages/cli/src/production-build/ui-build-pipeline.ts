@@ -303,6 +303,23 @@ ${modulepreloadLinks}
       return { success: true, durationMs };
     }
 
+    // Extract font fallback metrics for zero-CLS font loading
+    let fallbackMetrics: Record<string, import('@vertz/ui-server').FontFallbackMetrics> | undefined;
+    if (ssrModule.theme?.fonts) {
+      try {
+        const { extractFontMetrics } = await import('@vertz/ui-server');
+        fallbackMetrics = await extractFontMetrics(ssrModule.theme.fonts, projectRoot);
+        const fontCount = Object.keys(fallbackMetrics).length;
+        if (fontCount > 0) {
+          console.log(`  Extracted font fallback metrics for ${fontCount} font(s)`);
+        }
+      } catch (error) {
+        console.log(
+          `  ⚠ Could not extract font metrics: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
     // Discover routes
     let allPatterns: string[];
     try {
@@ -347,6 +364,7 @@ ${modulepreloadLinks}
         // Pre-render each route
         const results = await prerenderRoutes(ssrModule, html, {
           routes: prerenderableRoutes,
+          fallbackMetrics,
         });
 
         // Only strip JS from static pages when the app uses islands mode.
