@@ -78,6 +78,24 @@ describe('themed DatePicker', () => {
     document.body.removeChild(root);
   });
 
+  it('forwards captionLayout="dropdown" to the inner calendar', () => {
+    const DatePicker = createThemedDatePicker(styles, calendarStyles);
+    const root = DatePicker({
+      captionLayout: 'dropdown',
+      defaultMonth: new Date(2025, 5, 1),
+      minDate: new Date(1926, 0, 1),
+      maxDate: new Date(2026, 11, 31),
+    });
+    document.body.appendChild(root);
+
+    const selects = root.querySelectorAll('select');
+    expect(selects.length).toBe(2);
+    const header = root.querySelector('[data-caption-layout="dropdown"]');
+    expect(header).not.toBeNull();
+
+    document.body.removeChild(root);
+  });
+
   it('shows default placeholder text', () => {
     const DatePicker = createThemedDatePicker(styles, calendarStyles);
     const root = DatePicker({ defaultMonth: new Date(2025, 5, 1) });

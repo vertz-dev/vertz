@@ -180,6 +180,7 @@ function _buildCalendar(
     minDate: props.minDate,
     maxDate: props.maxDate,
     disabled: props.disabled,
+    captionLayout: props.captionLayout,
     onValueChange: onCalendarValueChange,
   });
 }
@@ -201,6 +202,7 @@ export interface ComposedDatePickerProps {
   placeholder?: string;
   onValueChange?: (value: Date | { from: Date; to: Date } | null) => void;
   onOpenChange?: (open: boolean) => void;
+  captionLayout?: ComposedCalendarProps['captionLayout'];
 }
 
 function ComposedDatePickerRoot({
@@ -216,6 +218,7 @@ function ComposedDatePickerRoot({
   placeholder = 'Pick a date',
   onValueChange,
   onOpenChange,
+  captionLayout,
 }: ComposedDatePickerProps) {
   const ids = linkedIds('datepicker');
   const contentRef: Ref<HTMLDivElement> = ref();
@@ -301,7 +304,16 @@ function ComposedDatePickerRoot({
 
   // Build calendar via module-level helper to prevent compiler computed wrapping.
   const calendarEl = _buildCalendar(
-    { mode, defaultValue, defaultMonth: defaultMonthProp, minDate, maxDate, disabled, classes },
+    {
+      mode,
+      defaultValue,
+      defaultMonth: defaultMonthProp,
+      minDate,
+      maxDate,
+      disabled,
+      classes,
+      captionLayout,
+    },
     handleCalendarValueChange,
   );
 

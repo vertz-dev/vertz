@@ -1,5 +1,5 @@
 import type { ChildValue } from '@vertz/ui';
-import type { CalendarClasses } from '@vertz/ui-primitives';
+import type { CalendarClasses, ComposedCalendarProps } from '@vertz/ui-primitives';
 import { ComposedDatePicker } from '@vertz/ui-primitives';
 
 interface DatePickerStyleClasses {
@@ -20,6 +20,7 @@ export interface DatePickerRootProps {
   placeholder?: string;
   onValueChange?: (value: Date | { from: Date; to: Date } | null) => void;
   onOpenChange?: (open: boolean) => void;
+  captionLayout?: ComposedCalendarProps['captionLayout'];
   children?: ChildValue;
 }
 
@@ -56,6 +57,7 @@ export function createThemedDatePicker(
     placeholder,
     onValueChange,
     onOpenChange,
+    captionLayout,
   }: DatePickerRootProps): HTMLElement {
     return ComposedDatePicker({
       children,
@@ -69,6 +71,7 @@ export function createThemedDatePicker(
       placeholder,
       onValueChange,
       onOpenChange,
+      captionLayout,
       classes: {
         trigger: styles.trigger,
         content: styles.content,
