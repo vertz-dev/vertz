@@ -5,9 +5,9 @@ Documenting the experience of adding multi-tenancy to the Linear clone after the
 ## What Was Changed
 
 - **1 new table**: `workspaces` — the tenant root (matching Linear's Workspace concept)
-- **4 tables** gained a `workspaceId` column (users, projects, issues, comments)
+- **2 directly-scoped tables** gained a `workspaceId` column (users, projects)
 - **Relation declarations**: `workspace: d.ref.one(() => workspacesTable, 'workspaceId')` on users and projects
-- **Model options**: `{ tenant: 'workspace' }` on directly-scoped models
+- **Indirectly-scoped tables** (issues, comments, labels, issueLabels) need no `workspaceId` — the framework derives tenant scope from the relation chain (e.g., issues → projects → workspaces)
 - **Seed data** updated to include a default workspace ID
 - **Server config** gained a `tenant.verifyMembership` callback
 - **`onUserCreated` hook** explicitly sets workspaceId for new signups
@@ -17,17 +17,17 @@ Documenting the experience of adding multi-tenancy to the Linear clone after the
 
 In Linear, the top-level organizational unit is a **Workspace**, not a generic "tenant". The Vertz framework's tenant scoping system is relation-driven — any table can serve as the tenant root. We chose `workspaces` as the table name to match Linear's domain model.
 
-The `{ tenant: 'workspace' }` model option tells the framework which relation points to the tenant root. The FK column is named `workspaceId` to match the domain language. The framework resolves the column name from the tenant relation's FK, so any name works (`workspaceId`, `orgId`, `tenantId`).
+The `.tenant()` method on the table definition marks it as the tenant root. The FK column on directly-scoped tables is named `workspaceId` to match the domain language. The framework resolves the column name from the `ref.one` relation's FK, so any name works (`workspaceId`, `orgId`, `tenantId`). Indirectly-scoped tables (issues, comments) don't need a `workspaceId` column at all — the framework follows the relation chain to derive tenant scope.
 
 ## What Was Easy
 
-1. **Schema changes** — Adding `workspaceId: d.text()` to each table definition was trivial. The schema builder made it a one-line addition per table.
+1. **Schema changes** — Adding `workspaceId: d.text()` to directly-scoped tables (users, projects) and `.tenant()` to the root table was trivial. Indirectly-scoped tables needed zero schema changes — the framework derives their scope from the relation chain.
 
 2. **Auto-scoping just works** — Zero changes to entity access rules. The framework detected the tenant relation and automatically added tenant filtering to all CRUD operations. No manual `rules.where({ workspaceId: ... })` needed.
 
 3. **Entity files untouched** — `users.entity.ts`, `projects.entity.ts`, `issues.entity.ts`, and `comments.entity.ts` required zero modifications. The framework handled everything.
 
-4. **Seed data** — Straightforward: export a constant `SEED_WORKSPACE_ID`, add `workspaceId` to each seed record.
+4. **Seed data** — Straightforward: export a constant `SEED_WORKSPACE_ID`, add `workspaceId` to directly-scoped seed records (users, projects). Indirectly-scoped records (issues, comments, labels) just reference their parent FK — no tenant column needed.
 
 5. **Before hooks preserved** — The existing `before.create` hooks (auto-increment issue numbers, auto-set `createdBy`/`authorId`) continued working without changes. The framework's tenant auto-set runs at a different layer (crud-pipeline) and doesn't interfere.
 
