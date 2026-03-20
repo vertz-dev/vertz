@@ -54,7 +54,9 @@ export function createCommandStyles(): CSSOutput<CommandBlocks> {
       focusRing,
     ],
     commandList: [
-      'p:1',
+      'px:1',
+      'pb:1',
+      'pt:2',
       {
         '&': {
           'max-height': '300px',

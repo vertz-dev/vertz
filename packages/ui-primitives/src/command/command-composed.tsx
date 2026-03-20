@@ -155,6 +155,7 @@ function CommandEmpty({ children, className: cls, class: classProp }: CommandEmp
       data-part="command-empty"
       data-command-empty=""
       aria-hidden="true"
+      style="display: none"
       class={emptyClass || undefined}
     >
       {children}
