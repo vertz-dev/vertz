@@ -652,7 +652,7 @@ describe('Composed Calendar', () => {
     });
 
     describe('When clicking prev/next with dropdown-buttons', () => {
-      it('Then updates both the grid and the select values', () => {
+      it('Then updates the grid to show the next month', () => {
         const root = ComposedCalendar({
           captionLayout: 'dropdown-buttons',
           defaultMonth: new Date(2024, 5, 1),
