@@ -84,6 +84,38 @@ describe('renderToStream', () => {
     expect(html).toContain('loaded');
   });
 
+  it('renders fragment nodes by flattening children without a wrapper tag', async () => {
+    const tree: VNode = {
+      tag: 'div',
+      attrs: {},
+      children: [
+        {
+          tag: 'fragment',
+          attrs: {},
+          children: [
+            { tag: 'p', attrs: {}, children: ['first'] },
+            { tag: 'p', attrs: {}, children: ['second'] },
+          ],
+        },
+      ],
+    };
+    const html = await streamToString(renderToStream(tree));
+    expect(html).toBe('<div><p>first</p><p>second</p></div>');
+  });
+
+  it('renders top-level fragment without wrapper', async () => {
+    const tree: VNode = {
+      tag: 'fragment',
+      attrs: {},
+      children: [
+        { tag: 'h1', attrs: {}, children: ['Title'] },
+        { tag: 'p', attrs: {}, children: ['Content'] },
+      ],
+    };
+    const html = await streamToString(renderToStream(tree));
+    expect(html).toBe('<h1>Title</h1><p>Content</p>');
+  });
+
   describe('signal-like object unwrapping', () => {
     it('unwraps signal-like child to its peeked value', async () => {
       const signal = { value: 'hello', peek: () => 'hello' };
