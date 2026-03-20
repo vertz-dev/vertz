@@ -73,7 +73,7 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
           outline: 'none',
           border: 'none',
         },
-        '&:not([open])': { display: 'none' },
+        '&:not([open]):not([data-state="open"])': { display: 'none' },
         '&::backdrop': {
           'background-color': 'oklch(0 0 0 / 10%)',
           'backdrop-filter': 'blur(4px)',
@@ -107,7 +107,7 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
           outline: 'none',
           border: 'none',
         },
-        '&:not([open])': { display: 'none' },
+        '&:not([open]):not([data-state="open"])': { display: 'none' },
         '&::backdrop': {
           'background-color': 'oklch(0 0 0 / 10%)',
           'backdrop-filter': 'blur(4px)',
@@ -139,7 +139,7 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
           outline: 'none',
           border: 'none',
         },
-        '&:not([open])': { display: 'none' },
+        '&:not([open]):not([data-state="open"])': { display: 'none' },
         '&::backdrop': {
           'background-color': 'oklch(0 0 0 / 10%)',
           'backdrop-filter': 'blur(4px)',
@@ -171,7 +171,7 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
           outline: 'none',
           border: 'none',
         },
-        '&:not([open])': { display: 'none' },
+        '&:not([open]):not([data-state="open"])': { display: 'none' },
         '&::backdrop': {
           'background-color': 'oklch(0 0 0 / 10%)',
           'backdrop-filter': 'blur(4px)',
