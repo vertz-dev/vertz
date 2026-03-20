@@ -1,0 +1,135 @@
+---
+title: Foreign
+description: "API reference for Foreign — rendering unmanaged DOM subtrees"
+---
+
+`Foreign` renders a container element whose children are owned by external (non-Vertz) code. During hydration, the container is claimed but its children are not walked — external content is preserved.
+
+Use `Foreign` to integrate third-party libraries that manage their own DOM (D3, Chart.js, CodeMirror, map libraries, etc.).
+
+## Signature
+
+```tsx
+import { Foreign } from 'vertz/ui';
+
+<Foreign
+  tag="div"
+  onReady={(container) => {
+    // External code owns `container` from here
+    return () => { /* cleanup */ };
+  }}
+/>
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `tag` | `keyof HTMLElementTagNameMap \| keyof SVGElementTagNameMap` | `'div'` | HTML/SVG tag for the container element |
+| `onReady` | `(container: HTMLElement \| SVGElement) => (() => void) \| void` | — | Called when the container is mounted and ready for external DOM manipulation. Return a cleanup function for unmount. |
+| `id` | `string` | — | Element `id` attribute |
+| `className` | `string` | — | CSS class name |
+| `style` | `Partial<CSSStyleDeclaration>` | — | Inline styles (camelCase object) |
+| `children` | `never` | — | Not supported. External code manages children via `onReady`. |
+
+## Usage
+
+### Wrapping a chart library
+
+```tsx
+import { Foreign } from 'vertz/ui';
+import * as d3 from 'd3';
+
+function SalesChart({ data }: { data: number[] }) {
+  return (
+    <Foreign
+      tag="svg"
+      className="sales-chart"
+      onReady={(container) => {
+        const svg = d3.select(container);
+        // D3 owns this SVG — binds data, appends elements, etc.
+        svg.selectAll('rect')
+          .data(data)
+          .join('rect')
+          .attr('height', (d) => d * 10);
+
+        return () => svg.selectAll('*').remove();
+      }}
+    />
+  );
+}
+```
+
+### Wrapping a rich text editor
+
+```tsx
+import { Foreign } from 'vertz/ui';
+import CodeMirror from 'codemirror';
+
+function CodeEditor({ initialValue }: { initialValue: string }) {
+  return (
+    <Foreign
+      onReady={(container) => {
+        const editor = CodeMirror(container, { value: initialValue });
+        return () => editor.toTextArea();
+      }}
+    />
+  );
+}
+```
+
+### With reactive data via domEffect
+
+Bridge Vertz reactivity into the unmanaged subtree using `domEffect`:
+
+```tsx
+import { Foreign } from 'vertz/ui';
+import { domEffect } from 'vertz/ui';
+
+function LiveCounter() {
+  let count = 0;
+
+  return (
+    <div>
+      <button onClick={() => count++}>Increment</button>
+      <Foreign
+        onReady={(container) => {
+          domEffect(() => {
+            container.textContent = `Count: ${count}`;
+          });
+        }}
+      />
+    </div>
+  );
+}
+```
+
+## Hydration behavior
+
+During server-side rendering, `Foreign` renders as an empty container element (e.g., `<div></div>`). On hydration:
+
+1. The container element is claimed by the hydration cursor
+2. Children are **not** walked — the cursor advances past the container
+3. `onReady` fires after hydration completes (post-hydration `onMount` timing)
+4. Any server-rendered children inside the container are preserved for the `onReady` callback to use or replace
+
+This means external libraries can safely manipulate the container's children without interfering with Vertz's hydration of surrounding elements.
+
+## Cleanup
+
+The function returned from `onReady` runs when the component unmounts (e.g., route change, conditional removal). Use it to tear down third-party library instances, remove event listeners, or cancel animations.
+
+```tsx
+<Foreign
+  onReady={(container) => {
+    const chart = new Chart(container, config);
+    const resizeObserver = new ResizeObserver(() => chart.resize());
+    resizeObserver.observe(container);
+
+    return () => {
+      resizeObserver.disconnect();
+      chart.destroy();
+    };
+  }}
+/>
+```
