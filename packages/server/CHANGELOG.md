@@ -1,5 +1,19 @@
 # @vertz/server
 
+## 0.2.23
+
+### Patch Changes
+
+- [#1561](https://github.com/vertz-dev/vertz/pull/1561) [`676e600`](https://github.com/vertz-dev/vertz/commit/676e60040f3b92ac85b04cb93f1da1f3266dcd72) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix quarterly interval dropping interval_count when building Stripe price params — quarterly plans were silently created as monthly (#1557)
+
+- [#1563](https://github.com/vertz-dev/vertz/pull/1563) [`b1ae03f`](https://github.com/vertz-dev/vertz/commit/b1ae03fb1fe1b86bf4120ba63ec4e978a6193395) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix matchingPrice check in Stripe adapter to compare recurring interval and interval_count, not just unit_amount — prevents silent interval drift when syncing plans (#1560)
+
+- Updated dependencies []:
+  - @vertz/core@0.2.23
+  - @vertz/db@0.2.23
+  - @vertz/errors@0.2.23
+  - @vertz/schema@0.2.23
+
 ## 0.2.22
 
 ### Patch Changes

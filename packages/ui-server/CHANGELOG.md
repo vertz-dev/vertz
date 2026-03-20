@@ -1,5 +1,16 @@
 # @vertz/ui-server
 
+## 0.2.23
+
+### Patch Changes
+
+- [#1588](https://github.com/vertz-dev/vertz/pull/1588) [`7c146e6`](https://github.com/vertz-dev/vertz/commit/7c146e695b642affeb39134beb0e1eb6475f20a8) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix reactive form element properties (`value`, `checked`, `selected`) to use DOM property assignment instead of `setAttribute`. This fixes `<select value={signal}>`, `<input value={signal}>`, `<input checked={signal}>`, and `<option selected={signal}>` not updating the displayed state reactively.
+
+- Updated dependencies [[`eb1e2d6`](https://github.com/vertz-dev/vertz/commit/eb1e2d6df1923c2fd7525c58281bb1b13e52750a), [`10f6309`](https://github.com/vertz-dev/vertz/commit/10f6309790bff69c7a1a0ab92e50f78f34b129c3), [`1709f6d`](https://github.com/vertz-dev/vertz/commit/1709f6d933f04600d1b959b51660f2f8f33805d8), [`1e26cca`](https://github.com/vertz-dev/vertz/commit/1e26cca7eca00291633a2fa6257fc80a1f409b60), [`83c3a67`](https://github.com/vertz-dev/vertz/commit/83c3a67ca7de53a7c79fb650250b33b0ed05329f), [`82055ae`](https://github.com/vertz-dev/vertz/commit/82055aefc19e4c3a115152f2e7157389486e792e), [`e085298`](https://github.com/vertz-dev/vertz/commit/e085298955cdc027e1db6117c83912b9fc0cb0b0), [`4ff38bb`](https://github.com/vertz-dev/vertz/commit/4ff38bbdb34204b6de388a09152a174b7e16406c), [`a21f762`](https://github.com/vertz-dev/vertz/commit/a21f76239e5c4b112c7be9a4ebea8327c3d2230b), [`7c146e6`](https://github.com/vertz-dev/vertz/commit/7c146e695b642affeb39134beb0e1eb6475f20a8)]:
+  - @vertz/ui-compiler@0.2.23
+  - @vertz/ui@0.2.23
+  - @vertz/core@0.2.23
+
 ## 0.2.22
 
 ### Patch Changes

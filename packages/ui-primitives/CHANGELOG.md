@@ -1,5 +1,24 @@
 # @vertz/ui-primitives
 
+## 0.2.23
+
+### Patch Changes
+
+- [#1585](https://github.com/vertz-dev/vertz/pull/1585) [`18b300a`](https://github.com/vertz-dev/vertz/commit/18b300adadcdea445ab708b10c2600489e865f52) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add captionLayout prop to Calendar for month/year dropdown navigation
+
+- [#1618](https://github.com/vertz-dev/vertz/pull/1618) [`f609e2d`](https://github.com/vertz-dev/vertz/commit/f609e2d93773f4b11d3b981e8a50af643abbf0c4) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix Command component styling: empty state starts hidden, increased list top-padding for input-to-results gap
+
+- [#1544](https://github.com/vertz-dev/vertz/pull/1544) [`173e9cb`](https://github.com/vertz-dev/vertz/commit/173e9cb0fc08e00f618eeedde1101b760c6de4b2) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add keyboard navigation to composed ContextMenu (ArrowUp/Down, Enter, Escape, Tab)
+
+- [#1594](https://github.com/vertz-dev/vertz/pull/1594) [`e57868e`](https://github.com/vertz-dev/vertz/commit/e57868ee9097c53722237b3d2cf5bee1ffff085b) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Forward `captionLayout` prop through DatePicker to enable dropdown month/year navigation
+
+- [#1542](https://github.com/vertz-dev/vertz/pull/1542) [`9caf0bc`](https://github.com/vertz-dev/vertz/commit/9caf0bce30d59cd284dbf9687ee2c79765bbb563) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add ArrowUp/ArrowDown item navigation and Space key selection to Menubar content keyboard handler
+
+- [#1620](https://github.com/vertz-dev/vertz/pull/1620) [`14e032c`](https://github.com/vertz-dev/vertz/commit/14e032c00a2af9a6c3d7f53bce548343990ac953) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix Select dropdown open/close animation: correct keyframe names and defer display:none until exit animation completes
+
+- Updated dependencies [[`10f6309`](https://github.com/vertz-dev/vertz/commit/10f6309790bff69c7a1a0ab92e50f78f34b129c3), [`1709f6d`](https://github.com/vertz-dev/vertz/commit/1709f6d933f04600d1b959b51660f2f8f33805d8), [`1e26cca`](https://github.com/vertz-dev/vertz/commit/1e26cca7eca00291633a2fa6257fc80a1f409b60), [`82055ae`](https://github.com/vertz-dev/vertz/commit/82055aefc19e4c3a115152f2e7157389486e792e), [`a21f762`](https://github.com/vertz-dev/vertz/commit/a21f76239e5c4b112c7be9a4ebea8327c3d2230b), [`7c146e6`](https://github.com/vertz-dev/vertz/commit/7c146e695b642affeb39134beb0e1eb6475f20a8)]:
+  - @vertz/ui@0.2.23
+
 ## 0.2.22
 
 ### Patch Changes

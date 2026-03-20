@@ -1,5 +1,26 @@
 # @vertz/ui-compiler
 
+## 0.2.23
+
+### Patch Changes
+
+- [#1595](https://github.com/vertz-dev/vertz/pull/1595) [`eb1e2d6`](https://github.com/vertz-dev/vertz/commit/eb1e2d6df1923c2fd7525c58281bb1b13e52750a) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix boolean shorthand JSX attributes dropping IDL properties (e.g. `<input checked />` now emits `el.checked = true`)
+
+- [#1571](https://github.com/vertz-dev/vertz/pull/1571) [`10f6309`](https://github.com/vertz-dev/vertz/commit/10f6309790bff69c7a1a0ab92e50f78f34b129c3) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Expand CSS utility tokens with overflow axis variants, transform scale keywords, fraction dimensions, and color opacity modifiers
+
+- [#1545](https://github.com/vertz-dev/vertz/pull/1545) [`1709f6d`](https://github.com/vertz-dev/vertz/commit/1709f6d933f04600d1b959b51660f2f8f33805d8) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Defer onMount callbacks until after JSX evaluation so refs and DOM elements are available inside the callback. The compiler now injects mount frame push/flush around component return expressions. No public API change — onMount keeps its existing signature. Outside compiled components (event handlers, watch), onMount still runs immediately for backward compat.
+
+- [#1600](https://github.com/vertz-dev/vertz/pull/1600) [`83c3a67`](https://github.com/vertz-dev/vertz/commit/83c3a67ca7de53a7c79fb650250b33b0ed05329f) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix extractKeyPropValue descending into nested JSX children when looking for key props
+
+- [#1597](https://github.com/vertz-dev/vertz/pull/1597) [`e085298`](https://github.com/vertz-dev/vertz/commit/e085298955cdc027e1db6117c83912b9fc0cb0b0) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix ReferenceError when .map() index parameter is used as key prop (e.g., `key={i}`)
+
+- [#1602](https://github.com/vertz-dev/vertz/pull/1602) [`4ff38bb`](https://github.com/vertz-dev/vertz/commit/4ff38bbdb34204b6de388a09152a174b7e16406c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Remove `selected` from `<option>` IDL properties — now uses `setAttribute`/`removeAttribute` instead of `Reflect.set`, fixing happydom cascading auto-selection. Defer `<select value={...}>` IDL property assignment until after children so options exist when `select.value` is set.
+
+- [#1588](https://github.com/vertz-dev/vertz/pull/1588) [`7c146e6`](https://github.com/vertz-dev/vertz/commit/7c146e695b642affeb39134beb0e1eb6475f20a8) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix reactive form element properties (`value`, `checked`, `selected`) to use DOM property assignment instead of `setAttribute`. This fixes `<select value={signal}>`, `<input value={signal}>`, `<input checked={signal}>`, and `<option selected={signal}>` not updating the displayed state reactively.
+
+- Updated dependencies [[`10f6309`](https://github.com/vertz-dev/vertz/commit/10f6309790bff69c7a1a0ab92e50f78f34b129c3), [`1709f6d`](https://github.com/vertz-dev/vertz/commit/1709f6d933f04600d1b959b51660f2f8f33805d8), [`1e26cca`](https://github.com/vertz-dev/vertz/commit/1e26cca7eca00291633a2fa6257fc80a1f409b60), [`82055ae`](https://github.com/vertz-dev/vertz/commit/82055aefc19e4c3a115152f2e7157389486e792e), [`a21f762`](https://github.com/vertz-dev/vertz/commit/a21f76239e5c4b112c7be9a4ebea8327c3d2230b), [`7c146e6`](https://github.com/vertz-dev/vertz/commit/7c146e695b642affeb39134beb0e1eb6475f20a8)]:
+  - @vertz/ui@0.2.23
+
 ## 0.2.22
 
 ### Patch Changes
