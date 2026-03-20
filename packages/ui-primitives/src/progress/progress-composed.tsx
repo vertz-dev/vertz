@@ -62,7 +62,7 @@ function ComposedProgressRoot({
       data-state={dataStateFor(pct)}
       class={classes?.root}
     >
-      <div data-part="indicator" style={`width: ${pct}%`} class={classes?.indicator} />
+      <div data-part="indicator" style={{ width: `${pct}%` }} class={classes?.indicator} />
     </div>
   );
 }

@@ -138,7 +138,7 @@ function TabsContent({ value, children, className: cls, class: classProp }: Cont
       tabindex="0"
       aria-hidden={isActive ? 'false' : 'true'}
       data-state={isActive ? 'active' : 'inactive'}
-      style={isActive ? '' : 'display: none'}
+      style={{ display: isActive ? '' : 'none' }}
       class={combined || undefined}
     >
       {children}

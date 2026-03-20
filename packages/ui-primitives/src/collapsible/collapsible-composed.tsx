@@ -102,7 +102,7 @@ function CollapsibleContent({ children, className: cls, class: classProp }: Slot
       data-part="collapsible-content"
       aria-hidden={ctx.defaultOpen ? 'false' : 'true'}
       data-state={ctx.defaultOpen ? 'open' : 'closed'}
-      style={ctx.defaultOpen ? '' : 'display: none'}
+      style={{ display: ctx.defaultOpen ? '' : 'none' }}
       class={combined || undefined}
     >
       {children}

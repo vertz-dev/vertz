@@ -81,7 +81,7 @@ function AlertDialogTrigger({ children }: SlotProps) {
   const ctx = useAlertDialogContext('Trigger');
   return (
     <span
-      style="display: contents"
+      style={{ display: 'contents' }}
       data-alertdialog-trigger=""
       data-state="closed"
       onClick={() => {
@@ -289,7 +289,7 @@ function ComposedAlertDialogRoot({
 
   return (
     <AlertDialogContext.Provider value={ctx}>
-      <span style="display: contents" data-alertdialog-root="">
+      <span style={{ display: 'contents' }} data-alertdialog-root="">
         {children}
       </span>
     </AlertDialogContext.Provider>

@@ -157,13 +157,13 @@ function ComposedScrollAreaRoot({
   return (
     <div
       data-part="scroll-area"
-      style="position: relative; overflow: hidden;"
+      style={{ position: 'relative', overflow: 'hidden' }}
       class={classes?.root || undefined}
     >
       <div
         ref={viewportRef}
         data-part="scroll-area-viewport"
-        style="overflow: scroll; scrollbar-width: none;"
+        style={{ overflow: 'scroll', scrollbarWidth: 'none' }}
         class={classes?.viewport || undefined}
         onScroll={handleViewportScroll}
       >

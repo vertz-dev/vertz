@@ -111,11 +111,16 @@ function ComposedSliderRoot({
         document.addEventListener('pointerup', onUp);
       }}
     >
-      <div ref={trackRef} data-part="track" style="position: relative;" class={classes?.track}>
+      <div ref={trackRef} data-part="track" style={{ position: 'relative' }} class={classes?.track}>
         <div
           ref={fillRef}
           data-part="fill"
-          style={`position: absolute; height: 100%; border-radius: inherit; width: ${initialPct}%`}
+          style={{
+            position: 'absolute',
+            height: '100%',
+            borderRadius: 'inherit',
+            width: `${initialPct}%`,
+          }}
           class={classes?.range}
         />
         <div
@@ -127,7 +132,11 @@ function ComposedSliderRoot({
           aria-valuemin={String(min)}
           aria-valuemax={String(max)}
           aria-disabled={disabled ? 'true' : undefined}
-          style={`position: absolute; transform: translate(-50%, -50%); left: ${initialPct}%`}
+          style={{
+            position: 'absolute',
+            transform: 'translate(-50%, -50%)',
+            left: `${initialPct}%`,
+          }}
           class={classes?.thumb}
           onKeydown={(event: KeyboardEvent) => {
             if (disabled) return;

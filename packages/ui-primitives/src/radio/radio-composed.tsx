@@ -66,7 +66,7 @@ function RadioGroupItem({ value, disabled, children }: RadioGroupItemProps) {
 
   return (
     <div
-      style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"
+      style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}
       data-radiogroup-item=""
       onClick={() => {
         if (!isDisabled) ctx.select(value);
@@ -80,7 +80,7 @@ function RadioGroupItem({ value, disabled, children }: RadioGroupItemProps) {
         tabindex={isChecked ? '0' : '-1'}
         aria-disabled={isDisabled ? 'true' : undefined}
         class={ctx.classes?.item}
-        style={isDisabled ? 'pointer-events: none; position: relative;' : 'position: relative;'}
+        style={{ pointerEvents: isDisabled ? 'none' : undefined, position: 'relative' }}
       >
         <span
           data-part="indicator"

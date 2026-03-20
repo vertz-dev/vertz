@@ -321,7 +321,7 @@ function ComposedResizablePanelRoot({
   const rootEl = (
     <ResizablePanelContext.Provider value={ctx}>
       <div
-        style={`display: flex; flex-direction: ${orientation === 'horizontal' ? 'row' : 'column'};`}
+        style={{ display: 'flex', flexDirection: orientation === 'horizontal' ? 'row' : 'column' }}
         data-orientation={orientation}
         class={classes?.root}
         onKeydown={handleKeydown}

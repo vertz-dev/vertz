@@ -71,7 +71,7 @@ function PopoverTrigger({ children }: SlotProps) {
 
   return (
     <span
-      style="display: contents"
+      style={{ display: 'contents' }}
       data-popover-trigger=""
       aria-haspopup="dialog"
       aria-controls={ctx.contentId}
@@ -114,7 +114,7 @@ function PopoverContent({ children, className: cls, class: classProp }: SlotProp
       data-popover-content=""
       aria-hidden="true"
       data-state="closed"
-      style="display: none"
+      style={{ display: 'none' }}
       class={combined || undefined}
     >
       {children}
@@ -234,7 +234,7 @@ function ComposedPopoverRoot({
 
   return (
     <PopoverContext.Provider value={ctx}>
-      <span style="display: contents" data-popover-root="">
+      <span style={{ display: 'contents' }} data-popover-root="">
         {children}
       </span>
     </PopoverContext.Provider>

@@ -78,7 +78,7 @@ function DialogTrigger({ children }: SlotProps) {
   const ctx = useDialogContext('Trigger');
   return (
     <span
-      style="display: contents"
+      style={{ display: 'contents' }}
       data-dialog-trigger=""
       data-state="closed"
       onClick={() => ctx.toggle()}
@@ -289,7 +289,7 @@ function ComposedDialogRoot({ children, classes, onOpenChange }: ComposedDialogP
   // Children evaluate in DOM order inside the Provider scope.
   return (
     <DialogContext.Provider value={ctx}>
-      <span style="display: contents" data-dialog-root="">
+      <span style={{ display: 'contents' }} data-dialog-root="">
         {children}
       </span>
     </DialogContext.Provider>

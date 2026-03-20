@@ -124,7 +124,7 @@ function MenubarMenu({ value, children }: MenuProps) {
 
   return (
     <MenuContext.Provider value={menuCtx}>
-      <span style="display: contents" data-menubar-menu="">
+      <span style={{ display: 'contents' }} data-menubar-menu="">
         {children}
       </span>
     </MenuContext.Provider>
@@ -202,7 +202,7 @@ function MenubarContent({ children, className: cls, class: classProp }: SlotProp
       data-value={menuCtx.menuValue}
       aria-hidden="true"
       data-state="closed"
-      style="display: none"
+      style={{ display: 'none' }}
       class={contentClass || undefined}
     >
       {children}
