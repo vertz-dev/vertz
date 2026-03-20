@@ -324,18 +324,12 @@ describe('JsxTransformer', () => {
   });
 
   it('handles parenthesized JSX return', () => {
-    const result = transform(
-      `function App() {\n  return (\n    <div>hello</div>\n  );\n}`,
-      [],
-    );
+    const result = transform(`function App() {\n  return (\n    <div>hello</div>\n  );\n}`, []);
     expect(result).toContain('__element("div")');
   });
 
   it('handles literal style expression attribute with __styleStr guard', () => {
-    const result = transform(
-      `function App() {\n  return <div style={styleObj}></div>;\n}`,
-      [],
-    );
+    const result = transform(`function App() {\n  return <div style={styleObj}></div>;\n}`, []);
     expect(result).toContain('__styleStr');
   });
 
@@ -349,35 +343,96 @@ describe('JsxTransformer', () => {
   });
 
   it('handles ref prop returning null for empty expression', () => {
-    const result = transform(
-      `function App() {\n  return <div ref={myRef}></div>;\n}`,
-      [],
-    );
+    const result = transform(`function App() {\n  return <div ref={myRef}></div>;\n}`, []);
     expect(result).toContain('myRef.current');
   });
 
   it('guards literal style expression with __styleStr', () => {
-    const result = transform(
-      `function App() {\n  return <div style={null}></div>;\n}`,
-      [],
-    );
+    const result = transform(`function App() {\n  return <div style={null}></div>;\n}`, []);
     expect(result).toContain('__styleStr');
   });
 
   it('guards literal non-style expression attribute', () => {
-    const result = transform(
-      `function App() {\n  return <div data-active={null}></div>;\n}`,
-      [],
-    );
+    const result = transform(`function App() {\n  return <div data-active={null}></div>;\n}`, []);
     expect(result).toContain('__v');
     expect(result).toContain('setAttribute');
   });
 
-  it('drops event handler with string value (returns null from transformAttribute)', () => {
+  it('emits __prop for reactive value on <select>', () => {
     const result = transform(
-      `function App() {\n  return <div onClick="alert()"></div>;\n}`,
-      [],
+      `function App() {\n  return <select value={selectedId}></select>;\n}`,
+      [{ name: 'selectedId', kind: 'signal', start: 0, end: 0 }],
     );
+    expect(result).toContain('__prop(');
+    expect(result).toContain('"value"');
+    expect(result).not.toContain('__attr(');
+  });
+
+  it('emits __prop for reactive value on <input>', () => {
+    const result = transform(`function App() {\n  return <input value={text} />;\n}`, [
+      { name: 'text', kind: 'signal', start: 0, end: 0 },
+    ]);
+    expect(result).toContain('__prop(');
+    expect(result).toContain('"value"');
+  });
+
+  it('emits __prop for reactive checked on <input>', () => {
+    const result = transform(
+      `function App() {\n  return <input type="checkbox" checked={isChecked} />;\n}`,
+      [{ name: 'isChecked', kind: 'signal', start: 0, end: 0 }],
+    );
+    expect(result).toContain('__prop(');
+    expect(result).toContain('"checked"');
+  });
+
+  it('emits __prop for reactive value on <textarea>', () => {
+    const result = transform(
+      `function App() {\n  return <textarea value={content}></textarea>;\n}`,
+      [{ name: 'content', kind: 'signal', start: 0, end: 0 }],
+    );
+    expect(result).toContain('__prop(');
+    expect(result).toContain('"value"');
+  });
+
+  it('emits __prop for reactive selected on <option>', () => {
+    const result = transform(
+      `function App() {\n  return <option selected={isSelected}>A</option>;\n}`,
+      [{ name: 'isSelected', kind: 'signal', start: 0, end: 0 }],
+    );
+    expect(result).toContain('__prop(');
+    expect(result).toContain('"selected"');
+  });
+
+  it('emits __prop for static non-literal value on <select>', () => {
+    const result = transform(
+      `function App() {\n  return <select value={selectedId}></select>;\n}`,
+      [{ name: 'selectedId', kind: 'static', start: 0, end: 0 }],
+    );
+    expect(result).toContain('.value =');
+    expect(result).not.toContain('setAttribute');
+  });
+
+  it('imports __prop from internals when IDL property is used', () => {
+    const result = compile(
+      `function App() {\n  let val = 'a';\n  return <select value={val}></select>;\n}`,
+    );
+    const internalsImport = result.code
+      .split('\n')
+      .find((line) => line.includes("from '@vertz/ui/internals'"));
+    expect(internalsImport).toBeDefined();
+    expect(internalsImport).toContain('__prop');
+  });
+
+  it('uses __attr for non-IDL attributes on form elements', () => {
+    const result = transform(`function App() {\n  return <select className={cls}></select>;\n}`, [
+      { name: 'cls', kind: 'signal', start: 0, end: 0 },
+    ]);
+    expect(result).toContain('__attr(');
+    expect(result).not.toContain('__prop(');
+  });
+
+  it('drops event handler with string value (returns null from transformAttribute)', () => {
+    const result = transform(`function App() {\n  return <div onClick="alert()"></div>;\n}`, []);
     // String value on event handler is not supported — attribute is dropped
     expect(result).not.toContain('__on');
     expect(result).not.toContain('alert');

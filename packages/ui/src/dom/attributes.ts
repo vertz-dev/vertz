@@ -34,6 +34,28 @@ export function __attr(
 }
 
 /**
+ * Create a reactive DOM property binding.
+ * Unlike __attr (which uses setAttribute), this directly assigns to the
+ * element's IDL property (e.g., el.value, el.checked). This is required
+ * for form-related properties where setAttribute doesn't control the
+ * displayed state (e.g., <select>.value, <input>.checked).
+ *
+ * Uses deferredDomEffect so the first run is skipped during hydration.
+ */
+export function __prop(el: HTMLElement, name: string, fn: () => unknown): DisposeFn {
+  return deferredDomEffect(() => {
+    const value = fn();
+    if (value == null) {
+      // Reset to the property's type-appropriate default:
+      // '' for string props (value), false for boolean props (checked, selected)
+      Reflect.set(el, name, typeof Reflect.get(el, name) === 'boolean' ? false : '');
+    } else {
+      Reflect.set(el, name, value);
+    }
+  });
+}
+
+/**
  * Reactive display toggle.
  * When fn() returns false, the element is hidden (display: none).
  * When fn() returns true, the element is shown (display restored).

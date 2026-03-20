@@ -174,6 +174,7 @@ const DOM_HELPERS = [
   '__append',
   '__attr',
   '__child',
+  '__prop',
   '__discardMountFrame',
   '__element',
   '__enterChildren',

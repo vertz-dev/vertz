@@ -884,6 +884,17 @@ describe('DOM Shim', () => {
       expect(el.checked).toBe(false);
     });
 
+    it('should reflect selected boolean property', () => {
+      const el = new SSRElement('option');
+      expect(el.selected).toBe(false);
+      el.selected = true;
+      expect(el.attrs.selected).toBe('');
+      expect(el.selected).toBe(true);
+      el.selected = false;
+      expect('selected' in el.attrs).toBe(false);
+      expect(el.selected).toBe(false);
+    });
+
     it('should reflect scope property', () => {
       const el = new SSRElement('th');
       el.scope = 'col';

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { signal } from '../../runtime/signal';
-import { __attr, __classList, __show } from '../attributes';
+import { __attr, __classList, __prop, __show } from '../attributes';
 
 describe('__attr', () => {
   it('sets an attribute reactively', () => {
@@ -51,6 +51,88 @@ describe('__attr', () => {
     const color = signal('red');
     __attr(el, 'style', () => `color: ${color.value}`);
     expect(el.getAttribute('style')).toBe('color: red');
+  });
+});
+
+describe('__prop', () => {
+  it('sets a DOM property reactively on select element', () => {
+    const el = document.createElement('select');
+    const opt1 = document.createElement('option');
+    opt1.value = 'a';
+    const opt2 = document.createElement('option');
+    opt2.value = 'b';
+    el.appendChild(opt1);
+    el.appendChild(opt2);
+
+    const selected = signal('b');
+    __prop(el, 'value', () => selected.value);
+    expect(el.value).toBe('b');
+
+    selected.value = 'a';
+    expect(el.value).toBe('a');
+  });
+
+  it('sets input value property reactively', () => {
+    const el = document.createElement('input');
+    const text = signal('hello');
+    __prop(el, 'value', () => text.value);
+    expect(el.value).toBe('hello');
+
+    text.value = 'world';
+    expect(el.value).toBe('world');
+  });
+
+  it('sets checkbox checked property reactively', () => {
+    const el = document.createElement('input');
+    el.type = 'checkbox';
+    const isChecked = signal(true);
+    __prop(el, 'checked', () => isChecked.value);
+    expect(el.checked).toBe(true);
+
+    isChecked.value = false;
+    expect(el.checked).toBe(false);
+  });
+
+  it('sets option selected property reactively', () => {
+    const el = document.createElement('option');
+    const isSelected = signal(true);
+    __prop(el, 'selected', () => isSelected.value);
+    expect(el.selected).toBe(true);
+
+    isSelected.value = false;
+    expect(el.selected).toBe(false);
+  });
+
+  it('resets value to empty string when fn returns null', () => {
+    const el = document.createElement('select');
+    const opt = document.createElement('option');
+    opt.value = 'a';
+    el.appendChild(opt);
+
+    const selected = signal<string | null>('a');
+    __prop(el, 'value', () => selected.value);
+    expect(el.value).toBe('a');
+
+    selected.value = null;
+    expect(el.value).toBe('');
+  });
+
+  it('resets checked to false when fn returns null', () => {
+    const el = document.createElement('input');
+    el.type = 'checkbox';
+    const isChecked = signal<boolean | null>(true);
+    __prop(el, 'checked', () => isChecked.value);
+    expect(el.checked).toBe(true);
+
+    isChecked.value = null;
+    expect(el.checked).toBe(false);
+  });
+
+  it('returns a dispose function', () => {
+    const el = document.createElement('input');
+    const text = signal('hello');
+    const dispose = __prop(el, 'value', () => text.value);
+    expect(typeof dispose).toBe('function');
   });
 });
 
