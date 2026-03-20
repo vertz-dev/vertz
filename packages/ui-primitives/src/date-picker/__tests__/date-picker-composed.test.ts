@@ -198,6 +198,54 @@ describe('Composed DatePicker', () => {
     });
   });
 
+  describe('Given a ComposedDatePicker with captionLayout="dropdown"', () => {
+    describe('When rendered', () => {
+      it('Then the calendar header contains <select> elements for month and year', () => {
+        const root = ComposedDatePicker({
+          captionLayout: 'dropdown',
+          defaultMonth: new Date(2025, 5, 1),
+          minDate: new Date(1926, 0, 1),
+          maxDate: new Date(2026, 11, 31),
+        });
+        container.appendChild(root);
+        const selects = root.querySelectorAll('select');
+        expect(selects.length).toBe(2);
+      });
+
+      it('Then sets data-caption-layout="dropdown" on the calendar header', () => {
+        const root = ComposedDatePicker({
+          captionLayout: 'dropdown',
+          defaultMonth: new Date(2025, 5, 1),
+          minDate: new Date(1926, 0, 1),
+          maxDate: new Date(2026, 11, 31),
+        });
+        container.appendChild(root);
+        const header = root.querySelector('[data-caption-layout="dropdown"]');
+        expect(header).not.toBeNull();
+      });
+    });
+  });
+
+  describe('Given a ComposedDatePicker with captionLayout="dropdown-buttons"', () => {
+    describe('When rendered', () => {
+      it('Then the calendar renders both <select> elements and nav buttons', () => {
+        const root = ComposedDatePicker({
+          captionLayout: 'dropdown-buttons',
+          defaultMonth: new Date(2025, 5, 1),
+          minDate: new Date(1926, 0, 1),
+          maxDate: new Date(2026, 11, 31),
+        });
+        container.appendChild(root);
+        const selects = root.querySelectorAll('select');
+        expect(selects.length).toBe(2);
+        const prevBtn = root.querySelector('[aria-label="Previous month"]');
+        const nextBtn = root.querySelector('[aria-label="Next month"]');
+        expect(prevBtn).not.toBeNull();
+        expect(nextBtn).not.toBeNull();
+      });
+    });
+  });
+
   describe('Given ComposedDatePicker sub-components', () => {
     it('Then has Trigger and Content sub-components', () => {
       expect(typeof ComposedDatePicker.Trigger).toBe('function');
