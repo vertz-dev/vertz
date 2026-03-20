@@ -1,7 +1,8 @@
 /**
  * Composed Carousel — compound component with slide navigation.
  * Each sub-component renders its own DOM. Root provides shared state via context.
- * No registration, no resolveChildren, no internal API imports.
+ * Slides register themselves to get their index, then reactively compute
+ * their own attributes from context — no querySelectorAll, no setAttribute.
  */
 
 import type { ChildValue } from '@vertz/ui';
@@ -24,7 +25,10 @@ export interface CarouselClasses {
 // ---------------------------------------------------------------------------
 
 interface CarouselContextValue {
+  registerSlide: () => number;
   currentIndex: number;
+  getSlideCount: () => number;
+  loop: boolean;
   classes?: CarouselClasses;
 }
 
@@ -32,17 +36,6 @@ const CarouselContext = createContext<CarouselContextValue | undefined>(
   undefined,
   '@vertz/ui-primitives::CarouselContext',
 );
-
-function useCarouselContext(componentName: string): CarouselContextValue {
-  const ctx = useContext(CarouselContext);
-  if (!ctx) {
-    throw new Error(
-      `<Carousel.${componentName}> must be used inside <Carousel>. ` +
-        'Ensure it is a direct or nested child of the Carousel root component.',
-    );
-  }
-  return ctx;
-}
 
 // ---------------------------------------------------------------------------
 // Sub-component props
@@ -59,11 +52,21 @@ interface SlotProps {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components — each renders its own DOM
+// Sub-components — each renders its own DOM, driven by reactive context.
+// NOTE: Each child calls useContext() directly (not through a wrapper) so the
+// compiler recognises the result as a reactive source and generates reactive
+// __attr() bindings instead of static setAttribute() calls.
 // ---------------------------------------------------------------------------
 
 function CarouselSlide({ children, className: cls, class: classProp }: SlideProps) {
-  const ctx = useCarouselContext('Slide');
+  const ctx = useContext(CarouselContext);
+  if (!ctx) {
+    throw new Error(
+      '<Carousel.Slide> must be used inside <Carousel>. ' +
+        'Ensure it is a direct or nested child of the Carousel root component.',
+    );
+  }
+  const index = ctx.registerSlide();
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.slide, effectiveCls].filter(Boolean).join(' ');
 
@@ -72,6 +75,9 @@ function CarouselSlide({ children, className: cls, class: classProp }: SlideProp
       role="group"
       aria-roledescription="slide"
       data-carousel-slide=""
+      aria-hidden={String(index !== ctx.currentIndex)}
+      aria-label={`Slide ${index + 1} of ${ctx.getSlideCount()}`}
+      data-state={index === ctx.currentIndex ? 'active' : 'inactive'}
       class={combined || undefined}
     >
       {children}
@@ -80,12 +86,19 @@ function CarouselSlide({ children, className: cls, class: classProp }: SlideProp
 }
 
 function CarouselPrevious({ children }: SlotProps) {
-  const ctx = useCarouselContext('Previous');
+  const ctx = useContext(CarouselContext);
+  if (!ctx) {
+    throw new Error(
+      '<Carousel.Previous> must be used inside <Carousel>. ' +
+        'Ensure it is a direct or nested child of the Carousel root component.',
+    );
+  }
   return (
     <button
       type="button"
       aria-label="Previous slide"
       data-carousel-prev=""
+      disabled={!ctx.loop && ctx.currentIndex <= 0}
       class={ctx.classes?.prevButton}
     >
       {children}
@@ -94,12 +107,19 @@ function CarouselPrevious({ children }: SlotProps) {
 }
 
 function CarouselNext({ children }: SlotProps) {
-  const ctx = useCarouselContext('Next');
+  const ctx = useContext(CarouselContext);
+  if (!ctx) {
+    throw new Error(
+      '<Carousel.Next> must be used inside <Carousel>. ' +
+        'Ensure it is a direct or nested child of the Carousel root component.',
+    );
+  }
   return (
     <button
       type="button"
       aria-label="Next slide"
       data-carousel-next=""
+      disabled={!ctx.loop && ctx.currentIndex >= ctx.getSlideCount() - 1}
       class={ctx.classes?.nextButton}
     >
       {children}
@@ -131,77 +151,66 @@ function ComposedCarouselRoot({
   onSlideChange,
 }: ComposedCarouselProps) {
   let currentIndex = defaultIndex;
+  // _reg uses a plain object so the compiler doesn't transform it into a
+  // signal.  registerSlide() is called inside a computed (because children
+  // access it through useContext — a reactive source) so it must NOT read any
+  // signal, otherwise the computed would re-evaluate on every signal change
+  // and call registerSlide() again.  We write to the slideCount signal
+  // (write-only, no read) so that other effects (aria-labels) pick up the
+  // final count reactively.
+  const _reg = { nextIdx: 0 };
+  let slideCount = 0;
 
-  function getSlides(rootEl: HTMLElement): HTMLElement[] {
-    return [...rootEl.querySelectorAll<HTMLElement>('[data-carousel-slide]')];
+  function registerSlide(): number {
+    const idx = _reg.nextIdx++;
+    slideCount = _reg.nextIdx;
+    return idx;
   }
 
-  function updateDOM(rootEl: HTMLElement): void {
-    const slides = getSlides(rootEl);
-    const slideCount = slides.length;
-    slides.forEach((slide, i) => {
-      slide.setAttribute('aria-hidden', String(i !== currentIndex));
-      slide.setAttribute('aria-label', `Slide ${i + 1} of ${slideCount}`);
-      slide.setAttribute('data-state', i === currentIndex ? 'active' : 'inactive');
-    });
-
-    const prevBtn = rootEl.querySelector('[data-carousel-prev]') as HTMLButtonElement | null;
-    const nextBtn = rootEl.querySelector('[data-carousel-next]') as HTMLButtonElement | null;
-    if (!loop && prevBtn) prevBtn.disabled = currentIndex <= 0;
-    if (!loop && nextBtn) nextBtn.disabled = currentIndex >= slideCount - 1;
-
-    const viewport = rootEl.querySelector('[data-carousel-viewport]') as HTMLElement | null;
-    if (viewport) {
-      const prop = orientation === 'horizontal' ? 'translateX' : 'translateY';
-      viewport.style.transform = `${prop}(-${currentIndex * 100}%)`;
-    }
-  }
-
-  function goTo(rootEl: HTMLElement, index: number): void {
-    const slideCount = getSlides(rootEl).length;
-    if (slideCount === 0) return;
+  function goTo(index: number): void {
+    const count = _reg.nextIdx;
+    if (count === 0) return;
     let next = index;
     if (loop) {
-      next = ((index % slideCount) + slideCount) % slideCount;
+      next = ((index % count) + count) % count;
     } else {
-      next = Math.max(0, Math.min(slideCount - 1, index));
+      next = Math.max(0, Math.min(count - 1, index));
     }
     if (next === currentIndex) return;
     currentIndex = next;
-    updateDOM(rootEl);
     onSlideChange?.(next);
   }
 
-  function handleClick(e: Event): void {
-    const rootEl = e.currentTarget as HTMLElement;
-    const target = e.target as HTMLElement;
-    if (target.closest('[data-carousel-prev]')) goTo(rootEl, currentIndex - 1);
-    if (target.closest('[data-carousel-next]')) goTo(rootEl, currentIndex + 1);
+  function handleClick(e: MouseEvent): void {
+    const target = e.target as Element;
+    if (target.closest('[data-carousel-prev]')) goTo(currentIndex - 1);
+    if (target.closest('[data-carousel-next]')) goTo(currentIndex + 1);
   }
 
-  function handleKeydown(e: Event): void {
-    const rootEl = e.currentTarget as HTMLElement;
-    const ke = e as KeyboardEvent;
+  function handleKeydown(e: KeyboardEvent): void {
     const prevKey = orientation === 'horizontal' ? 'ArrowLeft' : 'ArrowUp';
     const nextKey = orientation === 'horizontal' ? 'ArrowRight' : 'ArrowDown';
-    if (ke.key === prevKey) {
-      ke.preventDefault();
-      goTo(rootEl, currentIndex - 1);
+    if (e.key === prevKey) {
+      e.preventDefault();
+      goTo(currentIndex - 1);
     }
-    if (ke.key === nextKey) {
-      ke.preventDefault();
-      goTo(rootEl, currentIndex + 1);
+    if (e.key === nextKey) {
+      e.preventDefault();
+      goTo(currentIndex + 1);
     }
   }
 
   const ctx: CarouselContextValue = {
+    registerSlide,
     currentIndex,
+    getSlideCount: () => slideCount,
+    loop,
     classes,
   };
 
   const translateProp = orientation === 'horizontal' ? 'translateX' : 'translateY';
 
-  const el = (
+  return (
     <CarouselContext.Provider value={ctx}>
       <div
         role="region"
@@ -214,7 +223,7 @@ function ComposedCarouselRoot({
       >
         <div
           data-carousel-viewport=""
-          style={{ overflow: 'hidden', transform: `${translateProp}(-${defaultIndex * 100}%)` }}
+          style={`overflow: hidden; transform: ${translateProp}(-${currentIndex * 100}%)`}
           class={classes?.viewport}
         >
           {children}
@@ -222,11 +231,6 @@ function ComposedCarouselRoot({
       </div>
     </CarouselContext.Provider>
   );
-
-  // Initialize slide attributes after DOM tree is constructed.
-  updateDOM(el as HTMLElement);
-
-  return el;
 }
 
 // ---------------------------------------------------------------------------
