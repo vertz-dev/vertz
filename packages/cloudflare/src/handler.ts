@@ -66,17 +66,16 @@ export interface CloudflareHandlerConfig {
    */
   app: (env: unknown) => AppBuilder;
 
-  /** API path prefix. Requests matching this prefix go to the app handler. */
-  basePath: string;
+  /** API path prefix. Requests matching this prefix go to the app handler. Default: '/api' */
+  basePath?: string;
 
   /**
    * SSR configuration for non-API routes.
    *
    * - `SSRModuleConfig` — zero-boilerplate: pass the app module directly
    * - `(request: Request) => Promise<Response>` — custom SSR callback
-   * - `undefined` — non-API requests return 404
    */
-  ssr?: SSRModuleConfig | ((request: Request) => Promise<Response>);
+  ssr: SSRModuleConfig | ((request: Request) => Promise<Response>);
 
   /** When true, adds standard security headers to all responses. */
   securityHeaders?: boolean;
@@ -160,6 +159,20 @@ function stripBasePath(request: Request, basePath: string): Request {
     return new Request(url.toString(), request);
   }
   return request;
+}
+
+/**
+ * Auto-detect requestHandler on ServerInstance (includes auth routing).
+ * Falls back to handler for plain AppBuilder.
+ */
+function getApiHandler(app: AppBuilder): (request: Request) => Promise<Response> {
+  if (
+    'requestHandler' in app &&
+    typeof (app as Record<string, unknown>).requestHandler === 'function'
+  ) {
+    return (app as Record<string, unknown>).requestHandler as (req: Request) => Promise<Response>;
+  }
+  return app.handler;
 }
 
 // ---------------------------------------------------------------------------
@@ -259,13 +272,14 @@ function isSSRModuleConfig(
 
 function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWorkerModule {
   const {
-    basePath,
+    basePath: configBasePath,
     ssr,
-    securityHeaders,
     imageOptimizer: imageOptimizerHandler,
     cache: cacheConfig,
     beforeRender,
   } = config;
+  const basePath = configBasePath ?? '/api';
+  const securityHeaders = config.securityHeaders !== false;
   const cacheTtl = cacheConfig?.ttl ?? 3600;
   const swr = cacheConfig?.staleWhileRevalidate !== false;
   // Install per-request fetch proxy once (idempotent)
@@ -297,8 +311,6 @@ function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWork
   async function resolveSSR(): Promise<void> {
     if (ssrResolved) return;
     ssrResolved = true;
-
-    if (!ssr) return;
 
     if (isSSRModuleConfig(ssr)) {
       const { createSSRHandler } = await import('@vertz/ui-server/ssr');
@@ -341,7 +353,7 @@ function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWork
       if (isLocal && pathname.startsWith(basePath)) {
         const absoluteUrl = isRelative ? `${origin}${rawUrl}` : rawUrl;
         const req = new Request(absoluteUrl, init);
-        return app.handler(req);
+        return getApiHandler(app)(req);
       }
       return globalThis.fetch(input, init);
     };
@@ -376,7 +388,7 @@ function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWork
       if (url.pathname.startsWith(basePath)) {
         try {
           const app = getApp(env);
-          const response = await app.handler(request);
+          const response = await getApiHandler(app)(request);
           return applyHeaders(response, nonce);
         } catch (error) {
           console.error('Unhandled error in worker:', error);
@@ -392,77 +404,73 @@ function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWork
         }
       }
 
-      // Non-API routes → SSR (with optional ISR caching) or 404
-      if (ssrHandlerFactory) {
-        const kv = getKV(env);
+      // Non-API routes → SSR (with optional ISR caching)
+      const kv = getKV(env);
 
-        // ISR cache: check KV before SSR
-        if (kv) {
-          try {
-            const cacheResult = await lookupCache(kv, url.pathname, cacheTtl);
-
-            if (cacheResult.status === 'HIT' && cacheResult.html) {
-              // Inject fresh nonce into cached HTML (stored without nonce)
-              const html = injectNonce(cacheResult.html, nonce);
-              const response = new Response(html, {
-                headers: { 'Content-Type': 'text/html; charset=utf-8' },
-              });
-              return applyHeaders(withCacheHeader(response, 'HIT'), nonce);
-            }
-
-            if (cacheResult.status === 'STALE' && cacheResult.html && swr) {
-              // Serve stale immediately, revalidate in background
-              const kvExpiry = cacheTtl * 2;
-              ctx.waitUntil(
-                (async () => {
-                  try {
-                    const freshResponse = await executeSSR(request, nonce, env);
-                    const freshHtml = await freshResponse.text();
-                    // Strip nonce before caching — each request gets its own nonce
-                    await storeCache(kv, url.pathname, stripNonce(freshHtml), kvExpiry);
-                  } catch {
-                    // Background revalidation failure is non-fatal
-                  }
-                })(),
-              );
-              // Inject fresh nonce into stale HTML
-              const html = injectNonce(cacheResult.html, nonce);
-              const response = new Response(html, {
-                headers: { 'Content-Type': 'text/html; charset=utf-8' },
-              });
-              return applyHeaders(withCacheHeader(response, 'STALE'), nonce);
-            }
-          } catch {
-            // KV lookup failure is non-fatal — fall through to SSR
-          }
-        }
-
-        // Cache MISS (or no cache configured) → SSR
+      // ISR cache: check KV before SSR
+      if (kv) {
         try {
-          const response = await executeSSR(request, nonce, env);
+          const cacheResult = await lookupCache(kv, url.pathname, cacheTtl);
 
-          // Store in KV for future requests
-          if (kv) {
-            const html = await response.text();
-            // Strip nonce before caching — each request gets its own nonce
-            const kvExpiry = cacheTtl * 2;
-            ctx.waitUntil(storeCache(kv, url.pathname, stripNonce(html), kvExpiry));
-            const cachedResponse = new Response(html, {
-              status: response.status,
-              statusText: response.statusText,
-              headers: response.headers,
+          if (cacheResult.status === 'HIT' && cacheResult.html) {
+            // Inject fresh nonce into cached HTML (stored without nonce)
+            const html = injectNonce(cacheResult.html, nonce);
+            const response = new Response(html, {
+              headers: { 'Content-Type': 'text/html; charset=utf-8' },
             });
-            return applyHeaders(withCacheHeader(cachedResponse, 'MISS'), nonce);
+            return applyHeaders(withCacheHeader(response, 'HIT'), nonce);
           }
 
-          return applyHeaders(response, nonce);
-        } catch (error) {
-          console.error('Unhandled error in worker:', error);
-          return applyHeaders(new Response('Internal Server Error', { status: 500 }), nonce);
+          if (cacheResult.status === 'STALE' && cacheResult.html && swr) {
+            // Serve stale immediately, revalidate in background
+            const kvExpiry = cacheTtl * 2;
+            ctx.waitUntil(
+              (async () => {
+                try {
+                  const freshResponse = await executeSSR(request, nonce, env);
+                  const freshHtml = await freshResponse.text();
+                  // Strip nonce before caching — each request gets its own nonce
+                  await storeCache(kv, url.pathname, stripNonce(freshHtml), kvExpiry);
+                } catch {
+                  // Background revalidation failure is non-fatal
+                }
+              })(),
+            );
+            // Inject fresh nonce into stale HTML
+            const html = injectNonce(cacheResult.html, nonce);
+            const response = new Response(html, {
+              headers: { 'Content-Type': 'text/html; charset=utf-8' },
+            });
+            return applyHeaders(withCacheHeader(response, 'STALE'), nonce);
+          }
+        } catch {
+          // KV lookup failure is non-fatal — fall through to SSR
         }
       }
 
-      return applyHeaders(new Response('Not Found', { status: 404 }), nonce);
+      // Cache MISS (or no cache configured) → SSR
+      try {
+        const response = await executeSSR(request, nonce, env);
+
+        // Store in KV for future requests
+        if (kv) {
+          const html = await response.text();
+          // Strip nonce before caching — each request gets its own nonce
+          const kvExpiry = cacheTtl * 2;
+          ctx.waitUntil(storeCache(kv, url.pathname, stripNonce(html), kvExpiry));
+          const cachedResponse = new Response(html, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: response.headers,
+          });
+          return applyHeaders(withCacheHeader(cachedResponse, 'MISS'), nonce);
+        }
+
+        return applyHeaders(response, nonce);
+      } catch (error) {
+        console.error('Unhandled error in worker:', error);
+        return applyHeaders(new Response('Internal Server Error', { status: 500 }), nonce);
+      }
     },
   };
 }

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
+import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import type { AppBuilder } from '@vertz/core';
 import { createHandler, generateHTMLTemplate, generateNonce } from '../src/handler.js';
 
@@ -191,6 +191,133 @@ describe('createHandler (config object)', () => {
   const mockEnv = { DB: {} };
   const mockCtx = {} as ExecutionContext;
 
+  // ---------------------------------------------------------------------------
+  // basePath defaults to '/api'
+  // ---------------------------------------------------------------------------
+
+  describe('Feature: Optional basePath', () => {
+    describe('Given a config without basePath', () => {
+      describe('When a request arrives at /api/todos', () => {
+        it('Then routes to the app handler', async () => {
+          const apiHandler = mock().mockResolvedValue(new Response('OK'));
+          const ssrHandler = mock().mockResolvedValue(new Response('<html></html>'));
+
+          const worker = createHandler({
+            app: () => mockApp(apiHandler),
+            ssr: ssrHandler,
+          });
+
+          const response = await worker.fetch(
+            new Request('https://example.com/api/todos'),
+            mockEnv,
+            mockCtx,
+          );
+
+          expect(apiHandler).toHaveBeenCalled();
+          expect(ssrHandler).not.toHaveBeenCalled();
+          expect(await response.text()).toBe('OK');
+        });
+      });
+
+      describe('When a request arrives at /dashboard', () => {
+        it('Then does not route to the app handler', async () => {
+          const apiHandler = mock().mockResolvedValue(new Response('API'));
+          const ssrHandler = mock().mockResolvedValue(new Response('<html>SSR</html>'));
+
+          const worker = createHandler({
+            app: () => mockApp(apiHandler),
+            ssr: ssrHandler,
+          });
+
+          const response = await worker.fetch(
+            new Request('https://example.com/dashboard'),
+            mockEnv,
+            mockCtx,
+          );
+
+          expect(apiHandler).not.toHaveBeenCalled();
+          expect(ssrHandler).toHaveBeenCalled();
+          expect(await response.text()).toBe('<html>SSR</html>');
+        });
+      });
+    });
+
+    describe('Given a config with explicit basePath "/v1"', () => {
+      describe('When a request arrives at /v1/todos', () => {
+        it('Then routes to the app handler (backward compat)', async () => {
+          const apiHandler = mock().mockResolvedValue(new Response('OK'));
+          const ssrHandler = mock().mockResolvedValue(new Response('<html></html>'));
+
+          const worker = createHandler({
+            app: () => mockApp(apiHandler),
+            basePath: '/v1',
+            ssr: ssrHandler,
+          });
+
+          const response = await worker.fetch(
+            new Request('https://example.com/v1/todos'),
+            mockEnv,
+            mockCtx,
+          );
+
+          expect(apiHandler).toHaveBeenCalled();
+          expect(await response.text()).toBe('OK');
+        });
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // securityHeaders defaults to true
+  // ---------------------------------------------------------------------------
+
+  describe('Feature: securityHeaders defaults to true', () => {
+    describe('Given a config without securityHeaders', () => {
+      it('Then includes security headers on responses', async () => {
+        const worker = createHandler({
+          app: () => mockApp(mock().mockResolvedValue(new Response('OK'))),
+          ssr: () => Promise.resolve(new Response('<html></html>')),
+        });
+
+        const response = await worker.fetch(
+          new Request('https://example.com/api/test'),
+          mockEnv,
+          mockCtx,
+        );
+
+        expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
+        expect(response.headers.get('X-Frame-Options')).toBe('DENY');
+        expect(response.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin');
+        expect(response.headers.get('Strict-Transport-Security')).toBe(
+          'max-age=31536000; includeSubDomains',
+        );
+        expect(response.headers.get('Content-Security-Policy')).toMatch(
+          /script-src 'self' 'nonce-/,
+        );
+      });
+    });
+
+    describe('Given securityHeaders: false', () => {
+      it('Then does not include security headers', async () => {
+        const worker = createHandler({
+          app: () => mockApp(mock().mockResolvedValue(new Response('OK'))),
+          ssr: () => Promise.resolve(new Response('<html></html>')),
+          securityHeaders: false,
+        });
+
+        const response = await worker.fetch(
+          new Request('https://example.com/api/test'),
+          mockEnv,
+          mockCtx,
+        );
+
+        expect(response.headers.get('X-Content-Type-Options')).toBeNull();
+        expect(response.headers.get('X-Frame-Options')).toBeNull();
+        expect(response.headers.get('Content-Security-Policy')).toBeNull();
+      });
+    });
+  });
+
   it('routes API requests to app handler and SSR to ssr handler', async () => {
     const apiHandler = mock().mockResolvedValue(
       new Response('{"items":[]}', {
@@ -225,12 +352,13 @@ describe('createHandler (config object)', () => {
   });
 
   it('passes env to the app factory and caches the result', async () => {
-    const apiHandler = mock().mockResolvedValue(new Response('OK'));
+    const apiHandler = mock().mockImplementation(() => Promise.resolve(new Response('OK')));
     const appFactory = mock().mockReturnValue(mockApp(apiHandler));
 
     const worker = createHandler({
       app: appFactory,
       basePath: '/api',
+      ssr: () => Promise.resolve(new Response('<html></html>')),
     });
 
     // First request — factory called
@@ -247,6 +375,7 @@ describe('createHandler (config object)', () => {
     const worker = createHandler({
       app: () => mockApp(mock().mockImplementation(() => new Response('OK'))),
       basePath: '/api',
+      ssr: () => Promise.resolve(new Response('<html></html>')),
       securityHeaders: true,
     });
 
@@ -281,6 +410,7 @@ describe('createHandler (config object)', () => {
     const worker = createHandler({
       app: () => mockApp(apiHandler),
       basePath: '/api',
+      ssr: () => Promise.resolve(new Response('<html></html>')),
     });
 
     await worker.fetch(new Request('https://example.com/api/todos/123'), mockEnv, mockCtx);
@@ -296,6 +426,7 @@ describe('createHandler (config object)', () => {
     const worker = createHandler({
       app: () => mockApp(mock().mockRejectedValue(new Error('DB connection failed'))),
       basePath: '/api',
+      ssr: () => Promise.resolve(new Response('<html></html>')),
     });
 
     const response = await worker.fetch(
@@ -325,20 +456,84 @@ describe('createHandler (config object)', () => {
     consoleErrorSpy.mockRestore();
   });
 
-  it('returns 404 for non-API routes when no SSR handler is provided', async () => {
-    const worker = createHandler({
-      app: () => mockApp(),
-      basePath: '/api',
+  // ---------------------------------------------------------------------------
+  // requestHandler auto-detection
+  // ---------------------------------------------------------------------------
+
+  describe('Feature: Auto-detect requestHandler', () => {
+    describe('Given an app with requestHandler (ServerInstance with auth)', () => {
+      it('Then routes API requests to requestHandler', async () => {
+        const handler = mock().mockResolvedValue(new Response('handler'));
+        const requestHandler = mock().mockResolvedValue(new Response('requestHandler'));
+        const appWithAuth = {
+          handler,
+          requestHandler,
+        } as unknown as AppBuilder;
+
+        const worker = createHandler({
+          app: () => appWithAuth,
+          basePath: '/api',
+          ssr: () => Promise.resolve(new Response('<html></html>')),
+        });
+
+        const response = await worker.fetch(
+          new Request('https://example.com/api/auth/signin'),
+          mockEnv,
+          mockCtx,
+        );
+
+        expect(requestHandler).toHaveBeenCalled();
+        expect(handler).not.toHaveBeenCalled();
+        expect(await response.text()).toBe('requestHandler');
+      });
+
+      it('Then routes entity requests to requestHandler too', async () => {
+        const handler = mock().mockResolvedValue(new Response('handler'));
+        const requestHandler = mock().mockResolvedValue(new Response('requestHandler'));
+        const appWithAuth = {
+          handler,
+          requestHandler,
+        } as unknown as AppBuilder;
+
+        const worker = createHandler({
+          app: () => appWithAuth,
+          basePath: '/api',
+          ssr: () => Promise.resolve(new Response('<html></html>')),
+        });
+
+        const response = await worker.fetch(
+          new Request('https://example.com/api/todos'),
+          mockEnv,
+          mockCtx,
+        );
+
+        expect(requestHandler).toHaveBeenCalled();
+        expect(handler).not.toHaveBeenCalled();
+        expect(await response.text()).toBe('requestHandler');
+      });
     });
 
-    const response = await worker.fetch(
-      new Request('https://example.com/some-page'),
-      mockEnv,
-      mockCtx,
-    );
+    describe('Given an app without requestHandler (plain AppBuilder)', () => {
+      it('Then routes to handler (backward compat)', async () => {
+        const handler = mock().mockResolvedValue(new Response('handler'));
+        const plainApp = { handler } as unknown as AppBuilder;
 
-    expect(response.status).toBe(404);
-    expect(await response.text()).toBe('Not Found');
+        const worker = createHandler({
+          app: () => plainApp,
+          basePath: '/api',
+          ssr: () => Promise.resolve(new Response('<html></html>')),
+        });
+
+        const response = await worker.fetch(
+          new Request('https://example.com/api/todos'),
+          mockEnv,
+          mockCtx,
+        );
+
+        expect(handler).toHaveBeenCalled();
+        expect(await response.text()).toBe('handler');
+      });
+    });
   });
 });
 
@@ -368,10 +563,13 @@ describe('createHandler (SSR module config)', () => {
 
   // We mock @vertz/ui-server's createSSRHandler to isolate wiring logic.
   // The mock returns a handler that echoes 'SSR Module' so we can verify routing.
-  const mockSSRRequestHandler = mock().mockResolvedValue(
-    new Response('<html>SSR Module</html>', {
-      headers: { 'Content-Type': 'text/html' },
-    }),
+  // Must create a fresh Response per call — withSecurityHeaders consumes the body.
+  const mockSSRRequestHandler = mock().mockImplementation(() =>
+    Promise.resolve(
+      new Response('<html>SSR Module</html>', {
+        headers: { 'Content-Type': 'text/html' },
+      }),
+    ),
   );
   const mockCreateSSRHandler = mock().mockReturnValue(mockSSRRequestHandler);
 
@@ -538,6 +736,7 @@ describe('nonce-based CSP headers', () => {
     const worker = createHandler({
       app: () => mockApp(mock().mockImplementation(() => new Response('OK'))),
       basePath: '/api',
+      ssr: () => Promise.resolve(new Response('<html></html>')),
       securityHeaders: true,
     });
 
@@ -561,6 +760,7 @@ describe('nonce-based CSP headers', () => {
     const worker = createHandler({
       app: () => mockApp(mock().mockImplementation(() => new Response('OK'))),
       basePath: '/api',
+      ssr: () => Promise.resolve(new Response('<html></html>')),
       securityHeaders: true,
     });
 
@@ -578,6 +778,7 @@ describe('nonce-based CSP headers', () => {
     const worker = createHandler({
       app: () => mockApp(mock().mockImplementation(() => new Response('OK'))),
       basePath: '/api',
+      ssr: () => Promise.resolve(new Response('<html></html>')),
       securityHeaders: true,
     });
 
@@ -613,31 +814,13 @@ describe('nonce-based CSP headers', () => {
     expect(csp).toMatch(/script-src 'self' 'nonce-[A-Za-z0-9+/=]+'/);
   });
 
-  it('applies nonce-based CSP to 404 responses', async () => {
-    const worker = createHandler({
-      app: () => mockApp(),
-      basePath: '/api',
-      securityHeaders: true,
-    });
-
-    const response = await worker.fetch(
-      new Request('https://example.com/some-page'),
-      mockEnv,
-      mockCtx,
-    );
-
-    expect(response.status).toBe(404);
-    const csp = response.headers.get('Content-Security-Policy');
-    expect(csp).toBeTruthy();
-    expect(csp).toMatch(/script-src 'self' 'nonce-[A-Za-z0-9+/=]+'/);
-  });
-
   it('applies nonce-based CSP to 500 error responses', async () => {
     const consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {});
 
     const worker = createHandler({
       app: () => mockApp(mock().mockRejectedValue(new Error('fail'))),
       basePath: '/api',
+      ssr: () => Promise.resolve(new Response('<html></html>')),
       securityHeaders: true,
     });
 
@@ -700,6 +883,7 @@ describe('createHandler (image optimizer integration)', () => {
     const worker = createHandler({
       app: () => mockApp(apiHandler),
       basePath: '/api',
+      ssr: () => Promise.resolve(new Response('<html></html>')),
       imageOptimizer: optimizerHandler,
     });
 
@@ -720,6 +904,7 @@ describe('createHandler (image optimizer integration)', () => {
     const worker = createHandler({
       app: () => mockApp(),
       basePath: '/api',
+      ssr: () => Promise.resolve(new Response('<html></html>')),
       imageOptimizer: fakeImageOptimizerHandler(),
       securityHeaders: true,
     });
@@ -747,6 +932,7 @@ describe('createHandler (image optimizer integration)', () => {
     const worker = createHandler({
       app: () => mockApp(apiHandler),
       basePath: '/api',
+      ssr: () => Promise.resolve(new Response('<html></html>')),
       imageOptimizer: optimizerHandler,
     });
 
@@ -783,10 +969,13 @@ describe('createHandler (image optimizer integration)', () => {
     expect(await response.text()).toBe('<html>SSR</html>');
   });
 
-  it('falls through to SSR or 404 when no imageOptimizer configured', async () => {
+  it('falls through to SSR when no imageOptimizer configured', async () => {
+    const ssrHandler = mock().mockResolvedValue(new Response('<html>SSR</html>'));
+
     const worker = createHandler({
       app: () => mockApp(),
       basePath: '/api',
+      ssr: ssrHandler,
     });
 
     const response = await worker.fetch(
@@ -795,8 +984,9 @@ describe('createHandler (image optimizer integration)', () => {
       mockCtx,
     );
 
-    // No optimizer → falls through to 404 (no SSR configured either)
-    expect(response.status).toBe(404);
+    // No optimizer → falls through to SSR
+    expect(ssrHandler).toHaveBeenCalled();
+    expect(await response.text()).toBe('<html>SSR</html>');
   });
 
   it('image optimizer route takes priority over basePath when both could match', async () => {
@@ -807,6 +997,7 @@ describe('createHandler (image optimizer integration)', () => {
     const worker = createHandler({
       app: () => mockApp(apiHandler),
       basePath: '/_vertz',
+      ssr: () => Promise.resolve(new Response('<html></html>')),
       imageOptimizer: optimizerHandler,
     });
 
@@ -912,15 +1103,17 @@ describe('createHandler (beforeRender hook)', () => {
     expect(beforeRender).toHaveBeenCalledWith(request, env);
   });
 
-  it('short-circuits even when no SSR handler is configured (non-SSR routes)', async () => {
+  it('short-circuits before SSR when beforeRender returns a response', async () => {
     const redirectResponse = new Response(null, {
       status: 302,
       headers: { Location: '/login' },
     });
+    const ssrHandler = mock().mockResolvedValue(new Response('<html></html>'));
 
     const worker = createHandler({
       app: () => mockApp(),
       basePath: '/api',
+      ssr: ssrHandler,
       beforeRender: async () => redirectResponse,
     });
 
@@ -938,6 +1131,7 @@ describe('createHandler (beforeRender hook)', () => {
     const worker = createHandler({
       app: () => mockApp(),
       basePath: '/api',
+      ssr: () => Promise.resolve(new Response('<html></html>')),
       securityHeaders: true,
       beforeRender: async () => new Response('Redirecting', { status: 302 }),
     });
@@ -958,6 +1152,7 @@ describe('createHandler (beforeRender hook)', () => {
     const worker = createHandler({
       app: () => mockApp(apiHandler),
       basePath: '/api',
+      ssr: () => Promise.resolve(new Response('<html></html>')),
       beforeRender,
     });
 
@@ -985,6 +1180,7 @@ describe('createHandler (beforeRender hook)', () => {
     const worker = createHandler({
       app: () => mockApp(),
       basePath: '/api',
+      ssr: () => Promise.resolve(new Response('<html></html>')),
       imageOptimizer: optimizerHandler,
       beforeRender,
     });
