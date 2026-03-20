@@ -7,7 +7,11 @@
  */
 
 import { type Context, createContext, useContext } from '../component/context';
-import { beginDeferringMounts, flushDeferredMounts } from '../component/lifecycle';
+import {
+  beginDeferringMounts,
+  discardDeferredMounts,
+  flushDeferredMounts,
+} from '../component/lifecycle';
 import { __append, __element, __enterChildren, __exitChildren } from '../dom/element';
 import { endHydration, getIsHydrating, startHydration } from '../hydrate/hydration-context';
 import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
@@ -95,14 +99,20 @@ export function Outlet(): HTMLElement {
               // onMount in the lazy component runs after mini-hydration.
               beginDeferringMounts();
               startHydration(container);
+              let miniHydrationOk = false;
               try {
                 RouterContext.Provider(router, () => {
                   node = (mod as { default: () => Node }).default();
                   __append(container, node);
                 });
+                miniHydrationOk = true;
               } finally {
                 endHydration();
-                flushDeferredMounts();
+                if (miniHydrationOk) {
+                  flushDeferredMounts();
+                } else {
+                  discardDeferredMounts();
+                }
               }
               // Safety fallback: if the component's root wasn't claimed
               // (SSR/client tree mismatch), fall back to CSR append.

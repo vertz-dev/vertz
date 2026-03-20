@@ -81,9 +81,13 @@ export function __discardMountFrame(expectedDepth: number): void {
 /**
  * Begin deferring mount callbacks. Called by mount() before startHydration().
  * While active, __flushMountFrame() queues callbacks instead of executing them.
+ *
+ * Idempotent: if already deferring, keeps the existing queue (no data loss).
  */
 export function beginDeferringMounts(): void {
-  postHydrationQueue = [];
+  if (!postHydrationQueue) {
+    postHydrationQueue = [];
+  }
 }
 
 /**

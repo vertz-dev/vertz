@@ -762,7 +762,7 @@ describe('mount() — post-hydration onMount timing', () => {
     let wasHydrating: boolean | null = null;
 
     const App = () => {
-      const depth = __pushMountFrame();
+      __pushMountFrame();
       try {
         const el = __element('div');
         __enterChildren(el);
@@ -791,7 +791,7 @@ describe('mount() — post-hydration onMount timing', () => {
     const order: string[] = [];
 
     const Child = () => {
-      const depth = __pushMountFrame();
+      __pushMountFrame();
       const el = __element('span');
       __enterChildren(el);
       __append(el, __staticText('child'));
@@ -806,7 +806,7 @@ describe('mount() — post-hydration onMount timing', () => {
     };
 
     const App = () => {
-      const depth = __pushMountFrame();
+      __pushMountFrame();
       const el = __element('div');
       __enterChildren(el);
       const child = Child();
@@ -833,7 +833,7 @@ describe('mount() — post-hydration onMount timing', () => {
     let claimedP: Element | null = null;
 
     const ChildA = () => {
-      const depth = __pushMountFrame();
+      __pushMountFrame();
       const el = __element('span');
       __enterChildren(el);
       __append(el, __staticText('A'));
@@ -852,7 +852,7 @@ describe('mount() — post-hydration onMount timing', () => {
     };
 
     const ChildB = () => {
-      const depth = __pushMountFrame();
+      __pushMountFrame();
       const el = __element('p');
       claimedP = el;
       __enterChildren(el);
@@ -863,7 +863,7 @@ describe('mount() — post-hydration onMount timing', () => {
     };
 
     const App = () => {
-      const depth = __pushMountFrame();
+      __pushMountFrame();
       const el = __element('div');
       __enterChildren(el);
       const a = ChildA();
@@ -886,7 +886,7 @@ describe('mount() — post-hydration onMount timing', () => {
     const order: string[] = [];
 
     const App = () => {
-      const depth = __pushMountFrame();
+      __pushMountFrame();
       const el = __element('div');
 
       onMount(() => {
@@ -915,7 +915,7 @@ describe('mount() — post-hydration onMount timing', () => {
     const App = () => {
       callCount++;
       if (callCount === 1) {
-        const depth = __pushMountFrame();
+        __pushMountFrame();
         onMount(() => {
           onMountCalled = true;
         });
@@ -941,7 +941,7 @@ describe('mount() — post-hydration onMount timing', () => {
     let textUpdated = false;
 
     const App = () => {
-      const depth = __pushMountFrame();
+      __pushMountFrame();
       const el = __element('div');
       __enterChildren(el);
 
@@ -972,5 +972,61 @@ describe('mount() — post-hydration onMount timing', () => {
 
     // The text effect should have re-run because the signal changed in onMount
     expect(textUpdated).toBe(true);
+  });
+
+  it('onMount throw does not trigger CSR fallback (hydration already succeeded)', () => {
+    root.innerHTML = '<div>hydrated</div>';
+
+    const ssrDiv = root.firstChild as HTMLElement;
+
+    const App = () => {
+      __pushMountFrame();
+      const el = __element('div');
+      __enterChildren(el);
+      __append(el, __staticText('hydrated'));
+      __exitChildren();
+
+      onMount(() => {
+        throw new Error('onMount exploded');
+      });
+
+      __flushMountFrame();
+      return el;
+    };
+
+    // The onMount error should propagate, not be swallowed by CSR fallback
+    expect(() => mount(App)).toThrow('onMount exploded');
+
+    // DOM should still contain the hydrated content (not CSR fallback)
+    expect(root.firstChild).toBe(ssrDiv);
+    expect(root.textContent).toContain('hydrated');
+  });
+
+  it('beginDeferringMounts is idempotent (double-call does not corrupt queue)', () => {
+    root.innerHTML = '<div>content</div>';
+
+    const order: string[] = [];
+
+    const App = () => {
+      __pushMountFrame();
+      const el = __element('div');
+      __enterChildren(el);
+      __append(el, __staticText('content'));
+      __exitChildren();
+
+      onMount(() => {
+        order.push('mounted');
+      });
+
+      __flushMountFrame();
+      return el;
+    };
+
+    // Simulate double-call (SHOULD-FIX-3 guard)
+    // This happens if two systems both call beginDeferringMounts
+    // The second call should not lose callbacks from the first
+    mount(App);
+
+    expect(order).toEqual(['mounted']);
   });
 });

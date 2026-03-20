@@ -90,26 +90,13 @@ export function mount<AppFn extends () => Element | DocumentFragment>(
   // Tolerant hydration: if the root has SSR content, walk and adopt it
   if (root.firstChild) {
     const scope = pushScope();
+    let hydrationOk = false;
     try {
       beginDeferringMounts();
       startHydration(root);
       app();
       endHydration();
-      // Flush deferred onMount callbacks AFTER hydration ends but BEFORE
-      // popScope() — so cleanup functions register in the mount scope.
-      flushDeferredMounts();
-      popScope();
-      options?.onMount?.(root);
-      const handle: MountHandle = {
-        unmount: () => {
-          mountedRoots.delete(root);
-          runCleanups(scope);
-          root.textContent = '';
-        },
-        root,
-      };
-      mountedRoots.set(root, handle);
-      return handle;
+      hydrationOk = true;
     } catch (e) {
       // Bail out: hydration failed, fall back to full CSR.
       // Discard deferred mounts (don't run them) and deferred effects
@@ -123,6 +110,26 @@ export function mount<AppFn extends () => Element | DocumentFragment>(
         console.warn('[mount] Hydration failed — re-rendering from scratch (no data loss):', e);
       }
       // Fall through to CSR render
+    }
+
+    if (hydrationOk) {
+      // Flush deferred onMount callbacks AFTER hydration ends but BEFORE
+      // popScope() — so cleanup functions register in the mount scope.
+      // Kept outside the hydration try/catch: if an onMount throws, it must
+      // NOT trigger CSR fallback (hydration already succeeded, DOM is intact).
+      flushDeferredMounts();
+      popScope();
+      options?.onMount?.(root);
+      const handle: MountHandle = {
+        unmount: () => {
+          mountedRoots.delete(root);
+          runCleanups(scope);
+          root.textContent = '';
+        },
+        root,
+      };
+      mountedRoots.set(root, handle);
+      return handle;
     }
   }
 
