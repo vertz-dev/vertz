@@ -416,6 +416,36 @@ describe('Composed Calendar', () => {
         const yearSelect = root.querySelector('select[aria-label="Select year"]');
         expect(yearSelect?.className).toContain('cal-year-sel');
       });
+
+      it('Then month select shows current month as selected (#1593)', () => {
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown',
+          defaultMonth: new Date(2024, 5, 1),
+        });
+        container.appendChild(root);
+        const monthSelect = root.querySelector(
+          'select[aria-label="Select month"]',
+        ) as HTMLSelectElement;
+        // June is month index 5 — should be selected
+        expect(monthSelect.value).toBe('5');
+        const selectedOption = monthSelect.options[monthSelect.selectedIndex];
+        expect(selectedOption?.textContent).toBe('June');
+      });
+
+      it('Then year select shows current year as selected (#1593)', () => {
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown',
+          defaultMonth: new Date(2024, 5, 1),
+          minDate: new Date(2020, 0, 1),
+          maxDate: new Date(2030, 11, 31),
+        });
+        container.appendChild(root);
+        const yearSelect = root.querySelector(
+          'select[aria-label="Select year"]',
+        ) as HTMLSelectElement;
+        // 2024 should be the selected year
+        expect(yearSelect.value).toBe('2024');
+      });
     });
   });
 
@@ -454,6 +484,37 @@ describe('Composed Calendar', () => {
         const val = onMonthChange.mock.calls[0]?.[0] as Date;
         expect(val.getMonth()).toBe(0);
         expect(val.getFullYear()).toBe(2024);
+      });
+    });
+
+    describe('When selecting a month and then navigating', () => {
+      it('Then updates both the grid and the select values (#1593)', () => {
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown',
+          defaultMonth: new Date(2024, 5, 1),
+          minDate: new Date(2020, 0, 1),
+          maxDate: new Date(2030, 11, 31),
+        });
+        container.appendChild(root);
+        const monthSelect = root.querySelector(
+          'select[aria-label="Select month"]',
+        ) as HTMLSelectElement;
+        const yearSelect = root.querySelector(
+          'select[aria-label="Select year"]',
+        ) as HTMLSelectElement;
+
+        // Initially June 2024
+        expect(monthSelect.value).toBe('5');
+        expect(yearSelect.value).toBe('2024');
+
+        // Change to March
+        monthSelect.value = '2';
+        monthSelect.dispatchEvent(new Event('change'));
+
+        // Grid shows March 2024, select reflects it
+        expect(monthSelect.value).toBe('2');
+        const mar1 = root.querySelector('button[data-date="2024-03-01"]');
+        expect(mar1).not.toBeNull();
       });
     });
 

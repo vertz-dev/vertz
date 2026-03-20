@@ -297,12 +297,19 @@ function transformJsxElement(
   const statements: string[] = [];
   statements.push(`const ${elVar} = __element(${JSON.stringify(tagName)})`);
 
-  // Process attributes
+  // Process attributes — for <select>, IDL property statements (value) are
+  // deferred until after children so that options exist when select.value is set.
   const attrs = openingElement.getAttributes();
+  const deferredStmts: string[] = [];
   for (const attr of attrs) {
     if (!attr.isKind(SyntaxKind.JsxAttribute)) continue;
     const attrStmt = processAttribute(attr, elVar, source, jsxMap, tagName);
-    if (attrStmt) statements.push(attrStmt);
+    if (!attrStmt) continue;
+    if (tagName === 'select' && isIdlProperty(tagName, extractAttrName(attr))) {
+      deferredStmts.push(attrStmt);
+    } else {
+      statements.push(attrStmt);
+    }
   }
 
   // Check for __bindElement on <form> elements
@@ -326,6 +333,9 @@ function transformJsxElement(
   if (hasChildren) {
     statements.push(`__exitChildren()`);
   }
+
+  // Emit deferred IDL property statements after children
+  statements.push(...deferredStmts);
 
   return `(() => {\n${statements.map((s) => `  ${s};`).join('\n')}\n  return ${elVar};\n})()`;
 }
@@ -394,14 +404,20 @@ const IDL_PROPERTIES: Record<string, ReadonlySet<string>> = {
   input: new Set(['value', 'checked']),
   select: new Set(['value']),
   textarea: new Set(['value']),
-  option: new Set(['selected']),
 };
 
 /** Boolean IDL properties — boolean shorthand emits `.prop = true`. */
-const BOOLEAN_IDL_PROPERTIES: ReadonlySet<string> = new Set(['checked', 'selected']);
+const BOOLEAN_IDL_PROPERTIES: ReadonlySet<string> = new Set(['checked']);
 
 function isIdlProperty(tagName: string, attrName: string): boolean {
   return IDL_PROPERTIES[tagName]?.has(attrName) ?? false;
+}
+
+/** Extract the normalized attribute name from a JsxAttribute node. */
+function extractAttrName(attr: Node): string {
+  if (!attr.isKind(SyntaxKind.JsxAttribute)) return '';
+  const raw = attr.getNameNode().getText();
+  return raw === 'className' ? 'class' : raw;
 }
 
 function processAttribute(
@@ -421,7 +437,7 @@ function processAttribute(
   if (!init) {
     // Boolean shorthand: <input checked />, <input disabled />, etc.
     if (isIdlProperty(tagName, attrName)) {
-      // Boolean IDL props (checked, selected) → .prop = true
+      // Boolean IDL props (checked) → .prop = true
       // String IDL props (value) → .prop = "" (matches HTML empty-attr semantic)
       const shorthandValue = BOOLEAN_IDL_PROPERTIES.has(attrName) ? 'true' : '""';
       return `${elVar}.${attrName} = ${shorthandValue}`;

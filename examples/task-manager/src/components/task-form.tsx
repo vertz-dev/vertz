@@ -122,11 +122,14 @@ export function TaskForm({ onSuccess, onCancel }: TaskFormProps) {
         <label className={labelStyles.base} for="task-priority">
           Priority
         </label>
-        <select className={formStyles.select} id="task-priority" name={taskForm.fields.priority}>
+        <select
+          className={formStyles.select}
+          id="task-priority"
+          name={taskForm.fields.priority}
+          value="medium"
+        >
           <option value="low">Low</option>
-          <option value="medium" selected>
-            Medium
-          </option>
+          <option value="medium">Medium</option>
           <option value="high">High</option>
           <option value="urgent">Urgent</option>
         </select>
