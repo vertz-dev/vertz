@@ -1,3 +1,4 @@
+import { Link } from '@vertz/ui/router';
 import type { ComponentEntry } from '../manifest';
 
 interface PrevNextProps {
@@ -17,32 +18,8 @@ export function PrevNext({ prev, next }: PrevNextProps) {
         marginTop: '48px',
       }}
     >
-      {prev ? (
-        <a
-          href={`/components/${prev.name}`}
-          style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}
-        >
-          <span style={{ fontSize: '12px', color: 'var(--color-muted-foreground)' }}>Previous</span>
-          <span style={{ fontSize: '14px', fontWeight: '500', color: 'var(--color-foreground)' }}>
-            {prev.title}
-          </span>
-        </a>
-      ) : (
-        <div />
-      )}
-      {next ? (
-        <a
-          href={`/components/${next.name}`}
-          style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}
-        >
-          <span style={{ fontSize: '12px', color: 'var(--color-muted-foreground)' }}>Next</span>
-          <span style={{ fontSize: '14px', fontWeight: '500', color: 'var(--color-foreground)' }}>
-            {next.title}
-          </span>
-        </a>
-      ) : (
-        <div />
-      )}
+      {prev ? <Link href={`/components/${prev.name}`}>{`\u2190 ${prev.title}`}</Link> : <div />}
+      {next ? <Link href={`/components/${next.name}`}>{`${next.title} \u2192`}</Link> : <div />}
     </div>
   );
 }

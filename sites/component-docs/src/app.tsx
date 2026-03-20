@@ -1,6 +1,7 @@
 import { getInjectedCSS, ThemeProvider } from '@vertz/ui';
 import { createRouter, defineRoutes, RouterView } from '@vertz/ui/router';
 import { ComponentPage } from './pages/component-page';
+import { IndexRedirect } from './pages/index-redirect';
 import { appGlobals } from './styles/globals';
 import { docsTheme, themeGlobals } from './styles/theme';
 
@@ -12,7 +13,7 @@ export const styles = [themeGlobals.css, appGlobals.css];
 // ── Routes ─────────────────────────────────────────────────
 const routes = defineRoutes({
   '/': {
-    component: () => <ComponentPage />,
+    component: () => <IndexRedirect />,
   },
   '/components/:name': {
     component: () => <ComponentPage />,
@@ -25,7 +26,7 @@ const router = createRouter(routes);
 export function App() {
   return (
     <ThemeProvider theme="dark">
-      <RouterView router={router} fallback={() => <ComponentPage />} />
+      <RouterView router={router} fallback={() => <IndexRedirect />} />
     </ThemeProvider>
   );
 }

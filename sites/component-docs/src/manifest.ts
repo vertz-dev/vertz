@@ -16,6 +16,7 @@ export const components: ComponentEntry[] = [
   { name: 'button', title: 'Button', category: 'Form' },
   { name: 'checkbox', title: 'Checkbox', category: 'Form' },
   { name: 'date-picker', title: 'DatePicker', category: 'Form' },
+  { name: 'form-group', title: 'FormGroup', category: 'Form' },
   { name: 'input', title: 'Input', category: 'Form' },
   { name: 'label', title: 'Label', category: 'Form' },
   { name: 'radio-group', title: 'RadioGroup', category: 'Form' },
@@ -66,7 +67,6 @@ export const components: ComponentEntry[] = [
   { name: 'accordion', title: 'Accordion', category: 'Disclosure' },
   { name: 'carousel', title: 'Carousel', category: 'Disclosure' },
   { name: 'collapsible', title: 'Collapsible', category: 'Disclosure' },
-  { name: 'form-group', title: 'FormGroup', category: 'Disclosure' },
   { name: 'toggle-group', title: 'ToggleGroup', category: 'Disclosure' },
 ];
 
