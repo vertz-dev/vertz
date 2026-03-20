@@ -11,8 +11,9 @@
     "e2e:headed": "npx playwright test --headed"
   },
   "dependencies": {
-    "@vertz/ui": "workspace:*",
+    "@fontsource-variable/geist": "^5.2.8",
     "@vertz/theme-shadcn": "workspace:*",
+    "@vertz/ui": "workspace:*",
     "@vertz/ui-primitives": "workspace:*",
     "@vertz/ui-server": "workspace:*"
   },

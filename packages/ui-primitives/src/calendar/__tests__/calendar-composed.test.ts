@@ -191,6 +191,27 @@ describe('Composed Calendar', () => {
   });
 
   describe('Given a ComposedCalendar with nav buttons', () => {
+    describe('When rendered', () => {
+      it('Then nav buttons contain chevron SVG icons', () => {
+        const root = ComposedCalendar({
+          defaultMonth: new Date(2024, 5, 15),
+        });
+        container.appendChild(root);
+
+        const navButtons = Array.from(root.querySelectorAll('button')).filter(
+          (b) => !b.hasAttribute('data-date'),
+        );
+        expect(navButtons.length).toBe(2);
+
+        const prevSvg = navButtons[0]?.querySelector('svg');
+        const nextSvg = navButtons[1]?.querySelector('svg');
+        expect(prevSvg).not.toBeNull();
+        expect(nextSvg).not.toBeNull();
+        expect(prevSvg?.getAttribute('aria-hidden')).toBe('true');
+        expect(nextSvg?.getAttribute('aria-hidden')).toBe('true');
+      });
+    });
+
     describe('When clicking prev/next buttons', () => {
       it('Then changes the displayed month', () => {
         const root = ComposedCalendar({

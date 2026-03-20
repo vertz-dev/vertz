@@ -25,28 +25,76 @@ const focusRing: Record<string, StyleValue[]> = {
 /** Create calendar css() styles. */
 export function createCalendarStyles(): CSSOutput<CalendarBlocks> {
   const s = css({
-    calendarRoot: ['p:3'],
-    calendarHeader: ['flex', 'items:center', 'justify:between', 'py:2'],
-    calendarTitle: ['text:sm', 'font:medium'],
+    /* root: bg-background p-2, --cell-size = 1.75rem (spacing-7) */
+    calendarRoot: [
+      'w:fit',
+      'bg:background',
+      'rounded:lg',
+      'border:1',
+      'border:border',
+      {
+        '&': {
+          padding: '0.5rem',
+        },
+      },
+    ],
+    /* header: relative, flex, items-center, justify-between, h = --cell-size */
+    calendarHeader: [
+      'flex',
+      'items:center',
+      'justify:between',
+      {
+        '&': {
+          position: 'relative',
+          height: '1.75rem',
+          width: '100%',
+        },
+      },
+    ],
+    /* month_caption: flex h-(--cell-size) w-full items-center justify-center px-(--cell-size) */
+    calendarTitle: [
+      'text:sm',
+      'font:medium',
+      {
+        '&': {
+          position: 'absolute',
+          inset: '0',
+          display: 'flex',
+          'align-items': 'center',
+          'justify-content': 'center',
+          'pointer-events': 'none',
+          'user-select': 'none',
+        },
+      },
+    ],
+    /* nav buttons: ghost variant + size-(--cell-size) = 1.75rem, p-0 */
     calendarNavButton: [
       'inline-flex',
       'items:center',
       'justify:center',
-      'rounded:md',
-      'border:1',
-      'border:input',
+      'rounded:lg',
       'bg:transparent',
       'cursor:pointer',
-      'transition:colors',
-      { '&:hover': ['bg:accent', 'text:accent-foreground'] },
+      'transition:all',
+      { '&:hover': ['bg:muted', 'text:foreground'] },
       focusRing,
       {
         '&': {
           height: '1.75rem',
           width: '1.75rem',
+          padding: '0',
+          border: '1px solid transparent',
+          'user-select': 'none',
+          'z-index': '1',
+        },
+        '& svg:not([class*="size-"])': {
+          width: '1rem',
+          height: '1rem',
         },
       },
+      { '&[aria-disabled="true"]': ['opacity:0.5'] },
     ],
+    /* table: w-full border-collapse */
     calendarGrid: [
       {
         '&': {
@@ -55,47 +103,68 @@ export function createCalendarStyles(): CSSOutput<CalendarBlocks> {
         },
       },
     ],
+    /* weekday: text-[0.8rem] font-normal text-muted-foreground select-none */
     calendarHeadCell: [
       'text:muted-foreground',
-      'text:xs',
-      'font:medium',
+      'font:normal',
       {
         '&': {
-          width: '2rem',
+          width: '1.75rem',
           'text-align': 'center',
+          'font-size': '0.8rem',
+          'user-select': 'none',
         },
       },
     ],
+    /* day: aspect-square p-0 text-center select-none */
     calendarCell: [
       {
         '&': {
           'text-align': 'center',
           padding: '0',
+          'user-select': 'none',
         },
       },
     ],
+    /* DayButton: ghost variant, size=icon (size-8 = 2rem), font-normal, border-0 */
     calendarDayButton: [
       'inline-flex',
       'items:center',
       'justify:center',
-      'rounded:md',
+      'rounded:lg',
       'text:sm',
+      'font:normal',
       'bg:transparent',
       'cursor:pointer',
-      'transition:colors',
+      'transition:all',
       focusRing,
       {
         '&': {
-          height: '2rem',
-          width: '2rem',
+          height: '1.75rem',
+          width: '1.75rem',
+          border: '1px solid transparent',
+          padding: '0',
         },
       },
-      { '&:hover': ['bg:accent', 'text:accent-foreground'] },
+      { '&:hover': ['bg:muted', 'text:foreground'] },
+      /* selected single: bg-primary text-primary-foreground */
       { '&[aria-selected="true"]': ['bg:primary', 'text:primary-foreground'] },
-      { '&[data-today="true"]': ['border:1', 'border:accent'] },
-      { '&[aria-disabled="true"]': ['opacity:0.5', 'pointer-events-none'] },
-      { '&[data-outside-month="true"]': ['text:muted-foreground', 'opacity:0.5'] },
-      { '&[data-in-range="true"]': ['bg:accent'] },
+      /* today: bg-muted text-foreground (not selected) */
+      {
+        '&[data-today="true"]': ['bg:muted', 'text:foreground'],
+      },
+      /* today + selected: primary wins */
+      {
+        '&[data-today="true"][aria-selected="true"]': ['bg:primary', 'text:primary-foreground'],
+      },
+      /* disabled: text-muted-foreground opacity-50 */
+      { '&[aria-disabled="true"]': ['text:muted-foreground', 'opacity:0.5', 'pointer-events-none'] },
+      /* outside: text-muted-foreground */
+      {
+        '&[data-outside-month="true"]': ['text:muted-foreground'],
+      },
+      /* range middle: bg-muted text-foreground rounded-none */
+      { '&[data-in-range="true"]': ['bg:muted', 'text:foreground'] },
     ],
   });
   return {

@@ -5,18 +5,20 @@ import { createPaginationStyles } from '../styles/pagination';
 describe('pagination styles', () => {
   const pagination = createPaginationStyles();
 
-  it('has all 6 blocks as non-empty strings', () => {
+  it('has all 7 blocks as non-empty strings', () => {
     expect(typeof pagination.nav).toBe('string');
     expect(typeof pagination.list).toBe('string');
     expect(typeof pagination.item).toBe('string');
     expect(typeof pagination.link).toBe('string');
     expect(typeof pagination.linkActive).toBe('string');
+    expect(typeof pagination.navButton).toBe('string');
     expect(typeof pagination.ellipsis).toBe('string');
     expect(pagination.nav.length).toBeGreaterThanOrEqual(0);
     expect(pagination.list.length).toBeGreaterThan(0);
     expect(pagination.item.length).toBeGreaterThanOrEqual(0);
     expect(pagination.link.length).toBeGreaterThan(0);
     expect(pagination.linkActive.length).toBeGreaterThan(0);
+    expect(pagination.navButton.length).toBeGreaterThan(0);
     expect(pagination.ellipsis.length).toBeGreaterThan(0);
   });
 
@@ -70,14 +72,14 @@ describe('Pagination component', () => {
 
   it('ellipsis rendered when pages truncated', () => {
     const el = Pagination({ currentPage: 5, totalPages: 10, onPageChange: () => {} });
-    const ellipses = el.querySelectorAll('[aria-hidden="true"]');
+    const ellipses = el.querySelectorAll('span[aria-hidden="true"]');
     expect(ellipses.length).toBeGreaterThan(0);
-    expect(ellipses[0]?.textContent).toBe('\u2026');
+    expect(ellipses[0]?.querySelector('svg')).not.toBeNull();
   });
 
   it('all pages shown when totalPages is small', () => {
     const el = Pagination({ currentPage: 3, totalPages: 5, onPageChange: () => {} });
-    const ellipses = el.querySelectorAll('[aria-hidden="true"]');
+    const ellipses = el.querySelectorAll('span[aria-hidden="true"]');
     expect(ellipses.length).toBe(0);
     // Should have prev + 5 pages + next = 7 buttons
     const buttons = el.querySelectorAll('button');
