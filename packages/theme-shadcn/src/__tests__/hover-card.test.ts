@@ -15,6 +15,21 @@ describe('hover-card styles', () => {
     expect(typeof styles.css).toBe('string');
     expect(styles.css.length).toBeGreaterThan(0);
   });
+
+  it('CSS contains outline:none for content', () => {
+    expect(styles.css).toContain('outline: none');
+  });
+
+  it('CSS uses lg border-radius (0.5rem) consistent with other floating components', () => {
+    expect(styles.css).toContain('0.5rem');
+  });
+
+  it('CSS contains both fade and zoom animations for open/close states', () => {
+    expect(styles.css).toContain('vz-fade-in');
+    expect(styles.css).toContain('vz-fade-out');
+    expect(styles.css).toContain('vz-zoom-in');
+    expect(styles.css).toContain('vz-zoom-out');
+  });
 });
 
 describe('themed HoverCard', () => {
