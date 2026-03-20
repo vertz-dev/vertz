@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 
+/** Flush queued microtasks so initPanels() (deferred via queueMicrotask) runs. */
+const flush = () => new Promise<void>((r) => queueMicrotask(r));
+
 describe('ComposedResizablePanel', () => {
   let container: HTMLDivElement;
 
@@ -127,6 +130,7 @@ describe('ComposedResizablePanel', () => {
       },
     });
     container.appendChild(root);
+    await flush();
 
     const handle = root.querySelector('[role="separator"]') as HTMLElement;
     expect(handle.getAttribute('aria-valuenow')).toBe('50');
@@ -177,6 +181,7 @@ describe('ComposedResizablePanel', () => {
       },
     });
     container.appendChild(root);
+    await flush();
 
     onResize.mockClear();
     const handle = root.querySelector('[role="separator"]') as HTMLElement;
@@ -201,6 +206,7 @@ describe('ComposedResizablePanel', () => {
       },
     });
     container.appendChild(root);
+    await flush();
 
     const handle = root.querySelector('[role="separator"]') as HTMLElement;
     expect(handle.getAttribute('aria-valuenow')).toBe('30');
@@ -254,6 +260,7 @@ describe('ComposedResizablePanel', () => {
       },
     });
     container.appendChild(root);
+    await flush();
 
     const handle = root.querySelector('[role="separator"]') as HTMLElement;
     expect(handle.getAttribute('aria-valuenow')).toBe('0');
@@ -285,6 +292,7 @@ describe('ComposedResizablePanel', () => {
       },
     });
     container.appendChild(root);
+    await flush();
 
     // Outer root's group ID scopes its panels — should find only 2, not 4
     // Get the outer group ID from the first direct panel
@@ -331,6 +339,7 @@ describe('ComposedResizablePanel', () => {
       },
     });
     container.appendChild(root);
+    await flush();
 
     onResize.mockClear();
     const handle = root.querySelector('[role="separator"]') as HTMLElement;
@@ -354,6 +363,7 @@ describe('ComposedResizablePanel', () => {
       },
     });
     container.appendChild(root);
+    await flush();
 
     onResize.mockClear();
     const handle = root.querySelector('[role="separator"]') as HTMLElement;
@@ -391,6 +401,7 @@ describe('ComposedResizablePanel', () => {
       },
     });
     container.appendChild(root);
+    await flush();
 
     onResize.mockClear();
     const handle = root.querySelector('[role="separator"]') as HTMLElement;
@@ -412,6 +423,7 @@ describe('ComposedResizablePanel', () => {
       },
     });
     container.appendChild(root);
+    await flush();
 
     onResize.mockClear();
     const handle = root.querySelector('[role="separator"]') as HTMLElement;
@@ -430,6 +442,7 @@ describe('ComposedResizablePanel', () => {
       },
     });
     container.appendChild(root);
+    await flush();
 
     const handle = root.querySelector('[role="separator"]') as HTMLElement;
     // Mock setPointerCapture/releasePointerCapture (not in happy-dom)
@@ -464,6 +477,7 @@ describe('ComposedResizablePanel', () => {
       },
     });
     container.appendChild(root);
+    await flush();
 
     // Mock offsetWidth so drag delta calculation doesn't divide by zero
     Object.defineProperty(root, 'offsetWidth', { value: 1000, configurable: true });

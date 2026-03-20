@@ -5,8 +5,8 @@
  * Follows WAI-ARIA separator pattern.
  */
 
-import type { ChildValue } from '@vertz/ui';
-import { createContext, useContext } from '@vertz/ui';
+import type { ChildValue, Ref } from '@vertz/ui';
+import { createContext, ref, useContext } from '@vertz/ui';
 
 // ---------------------------------------------------------------------------
 // Class distribution
@@ -41,17 +41,6 @@ const ResizablePanelContext = createContext<ResizablePanelContextValue | undefin
   '@vertz/ui-primitives::ResizablePanelContext',
 );
 
-function useResizablePanelContext(componentName: string): ResizablePanelContextValue {
-  const ctx = useContext(ResizablePanelContext);
-  if (!ctx) {
-    throw new Error(
-      `<ResizablePanel.${componentName}> must be used inside <ResizablePanel>. ` +
-        'Ensure it is a direct or nested child of the ResizablePanel root component.',
-    );
-  }
-  return ctx;
-}
-
 // ---------------------------------------------------------------------------
 // Sub-component props
 // ---------------------------------------------------------------------------
@@ -84,7 +73,16 @@ function ResizablePanelPanel({
   minSize,
   maxSize,
 }: PanelSlotProps) {
-  const ctx = useResizablePanelContext('Panel');
+  // NOTE: Direct useContext() call (not through a wrapper) so the compiler
+  // recognises the result as a reactive source and generates reactive
+  // __attr() bindings instead of static setAttribute() calls.
+  const ctx = useContext(ResizablePanelContext);
+  if (!ctx) {
+    throw new Error(
+      '<ResizablePanel.Panel> must be used inside <ResizablePanel>. ' +
+        'Ensure it is a direct or nested child of the ResizablePanel root component.',
+    );
+  }
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.panel, effectiveCls].filter(Boolean).join(' ');
 
@@ -103,7 +101,13 @@ function ResizablePanelPanel({
 }
 
 function ResizablePanelHandle({ className: cls, class: classProp }: HandleSlotProps) {
-  const ctx = useResizablePanelContext('Handle');
+  const ctx = useContext(ResizablePanelContext);
+  if (!ctx) {
+    throw new Error(
+      '<ResizablePanel.Handle> must be used inside <ResizablePanel>. ' +
+        'Ensure it is a direct or nested child of the ResizablePanel root component.',
+    );
+  }
   const effectiveCls = cls ?? classProp;
   const combined = [ctx.classes?.handle, effectiveCls].filter(Boolean).join(' ');
 
@@ -318,9 +322,17 @@ function ComposedResizablePanelRoot({
 
   const ctx: ResizablePanelContextValue = { groupId, orientation, classes };
 
-  const rootEl = (
+  // Use ref + queueMicrotask to avoid assigning JSX to a const (the compiler
+  // wraps it in computed(), making it a signal instead of an HTMLElement).
+  const rootRef: Ref<HTMLDivElement> = ref();
+  queueMicrotask(() => {
+    if (rootRef.current) initPanels(rootRef.current);
+  });
+
+  return (
     <ResizablePanelContext.Provider value={ctx}>
       <div
+        ref={rootRef}
         style={{ display: 'flex', flexDirection: orientation === 'horizontal' ? 'row' : 'column' }}
         data-orientation={orientation}
         class={classes?.root}
@@ -331,11 +343,6 @@ function ComposedResizablePanelRoot({
       </div>
     </ResizablePanelContext.Provider>
   );
-
-  // Post-render initialization: query panels/handles, calculate sizes, set ARIA
-  initPanels(rootEl as HTMLElement);
-
-  return rootEl;
 }
 
 // ---------------------------------------------------------------------------
