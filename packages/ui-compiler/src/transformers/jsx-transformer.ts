@@ -834,7 +834,16 @@ function findJsxInBody(node: Node): Node | null {
  * Returns the expression text (e.g. "item.id") or null if no key prop.
  */
 function extractKeyPropValue(jsxNode: Node): string | null {
-  const attrs = jsxNode.getDescendantsOfKind(SyntaxKind.JsxAttribute);
+  // Use getAttributes() on the element directly — getDescendantsOfKind() would
+  // descend into nested JSX children and extract keys from the wrong element.
+  const element = jsxNode.isKind(SyntaxKind.JsxElement) ? jsxNode.getOpeningElement() : jsxNode;
+  if (
+    !element.isKind(SyntaxKind.JsxSelfClosingElement) &&
+    !element.isKind(SyntaxKind.JsxOpeningElement)
+  ) {
+    return null;
+  }
+  const attrs = element.getAttributes().filter((a) => a.isKind(SyntaxKind.JsxAttribute));
   for (const attr of attrs) {
     if (attr.getNameNode().getText() !== 'key') continue;
     const init = attr.getInitializer();
