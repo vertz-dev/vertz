@@ -488,12 +488,12 @@ function ComposedCalendarRoot({
             <select
               aria-label="Select month"
               class={classes?.monthSelect}
+              value={String(displayMonth.getMonth())}
               onChange={handleMonthSelect}
             >
               {MONTH_OPTIONS.map((mo) => (
                 <option
                   value={String(mo.index)}
-                  selected={mo.index === displayMonth.getMonth()}
                   disabled={isMonthDisabled(mo.index, displayMonth.getFullYear(), minDate, maxDate)}
                 >
                   {mo.name}
@@ -503,12 +503,11 @@ function ComposedCalendarRoot({
             <select
               aria-label="Select year"
               class={classes?.yearSelect}
+              value={String(displayMonth.getFullYear())}
               onChange={handleYearSelect}
             >
               {yearRange.map((yr) => (
-                <option value={String(yr)} selected={yr === displayMonth.getFullYear()}>
-                  {yr}
-                </option>
+                <option value={String(yr)}>{yr}</option>
               ))}
             </select>
           </>

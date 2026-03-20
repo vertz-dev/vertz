@@ -394,13 +394,14 @@ describe('JsxTransformer', () => {
     expect(result).toContain('"value"');
   });
 
-  it('emits __prop for reactive selected on <option>', () => {
+  it('emits __attr for reactive selected on <option> (#1593)', () => {
     const result = transform(
       `function App() {\n  return <option selected={isSelected}>A</option>;\n}`,
       [{ name: 'isSelected', kind: 'signal', start: 0, end: 0 }],
     );
-    expect(result).toContain('__prop(');
+    expect(result).toContain('__attr(');
     expect(result).toContain('"selected"');
+    expect(result).not.toContain('__prop(');
   });
 
   it('emits __prop for static non-literal value on <select>', () => {
@@ -423,6 +424,19 @@ describe('JsxTransformer', () => {
     expect(internalsImport).toContain('__prop');
   });
 
+  it('defers select.value assignment until after children (#1593)', () => {
+    const result = transform(
+      `function App() {\n  return <select value={val}><option value="a">A</option></select>;\n}`,
+      [{ name: 'val', kind: 'signal', start: 0, end: 0 }],
+    );
+    // __prop for value must appear AFTER __exitChildren so options exist
+    const propIdx = result.indexOf('__prop(');
+    const exitIdx = result.indexOf('__exitChildren()');
+    expect(propIdx).toBeGreaterThan(-1);
+    expect(exitIdx).toBeGreaterThan(-1);
+    expect(propIdx).toBeGreaterThan(exitIdx);
+  });
+
   it('uses __attr for non-IDL attributes on form elements', () => {
     const result = transform(`function App() {\n  return <select className={cls}></select>;\n}`, [
       { name: 'cls', kind: 'signal', start: 0, end: 0 },
@@ -443,9 +457,10 @@ describe('JsxTransformer', () => {
     expect(result).toContain('.checked = true');
   });
 
-  it('emits property assignment for boolean shorthand IDL property <option selected />', () => {
+  it('emits setAttribute for boolean shorthand <option selected /> (#1593)', () => {
     const result = transform(`function App() {\n  return <option selected>A</option>;\n}`, []);
-    expect(result).toContain('.selected = true');
+    expect(result).toContain('setAttribute("selected", "")');
+    expect(result).not.toContain('.selected = true');
   });
 
   it('emits setAttribute for boolean shorthand non-IDL attribute <input disabled />', () => {
