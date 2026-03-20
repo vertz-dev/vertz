@@ -46,7 +46,7 @@ describe('resolveVertzQL', () => {
     expect(resolveVertzQL(undefined)).toBeUndefined();
   });
 
-  it('passes through query as-is when no select or include present', () => {
+  it('passes through query as-is when no VertzQL keys present', () => {
     const query = { status: 'active', page: 1 };
 
     expect(resolveVertzQL(query)).toEqual({ status: 'active', page: 1 });
@@ -101,7 +101,70 @@ describe('resolveVertzQL', () => {
     });
   });
 
-  it('returns same reference when no select or include (no-op)', () => {
+  it('extracts where from query and encodes inside q= param', () => {
+    const query = { where: { projectId: '123' } };
+    const result = resolveVertzQL(query);
+
+    expect(result).toBeDefined();
+    expect(result?.where).toBeUndefined();
+    expect(result?.q).toBeDefined();
+    expect(decodeBase64url(result?.q as string)).toEqual({
+      where: { projectId: '123' },
+    });
+  });
+
+  it('extracts orderBy from query and encodes inside q= param', () => {
+    const query = { orderBy: { createdAt: 'desc' } };
+    const result = resolveVertzQL(query);
+
+    expect(result).toBeDefined();
+    expect(result?.orderBy).toBeUndefined();
+    expect(result?.q).toBeDefined();
+    expect(decodeBase64url(result?.q as string)).toEqual({
+      orderBy: { createdAt: 'desc' },
+    });
+  });
+
+  it('extracts limit from query and encodes inside q= param', () => {
+    const query = { limit: 10 };
+    const result = resolveVertzQL(query);
+
+    expect(result).toBeDefined();
+    expect(result?.limit).toBeUndefined();
+    expect(result?.q).toBeDefined();
+    expect(decodeBase64url(result?.q as string)).toEqual({
+      limit: 10,
+    });
+  });
+
+  it('combines all five VertzQL keys into single q= param', () => {
+    const query = {
+      select: { id: true, title: true },
+      include: { comments: true },
+      where: { status: 'active' },
+      orderBy: { createdAt: 'desc' },
+      limit: 25,
+      page: 2,
+    };
+    const result = resolveVertzQL(query);
+
+    expect(result).toBeDefined();
+    expect(result?.select).toBeUndefined();
+    expect(result?.include).toBeUndefined();
+    expect(result?.where).toBeUndefined();
+    expect(result?.orderBy).toBeUndefined();
+    expect(result?.limit).toBeUndefined();
+    expect(result?.page).toBe(2);
+    expect(decodeBase64url(result?.q as string)).toEqual({
+      select: { id: true, title: true },
+      include: { comments: true },
+      where: { status: 'active' },
+      orderBy: { createdAt: 'desc' },
+      limit: 25,
+    });
+  });
+
+  it('returns same reference when no VertzQL keys present (no-op)', () => {
     const query = { status: 'active' };
     const result = resolveVertzQL(query);
 
@@ -113,6 +176,39 @@ describe('resolveVertzQL', () => {
     const q2 = resolveVertzQL({ select: { id: true, email: true } });
 
     expect(q1?.q).not.toBe(q2?.q);
+  });
+});
+
+describe('encodeVertzQL with top-level where/orderBy/limit (#1637)', () => {
+  it('encodes where as a top-level VertzQL key', () => {
+    const result = encodeVertzQL({ where: { projectId: '123' } });
+
+    expect(decodeBase64url(result)).toEqual({ where: { projectId: '123' } });
+  });
+
+  it('encodes orderBy as a top-level VertzQL key', () => {
+    const result = encodeVertzQL({ orderBy: { createdAt: 'desc' } });
+
+    expect(decodeBase64url(result)).toEqual({ orderBy: { createdAt: 'desc' } });
+  });
+
+  it('encodes limit as a top-level VertzQL key', () => {
+    const result = encodeVertzQL({ limit: 10 });
+
+    expect(decodeBase64url(result)).toEqual({ limit: 10 });
+  });
+
+  it('encodes all five VertzQL keys together', () => {
+    const params = {
+      select: { id: true, title: true },
+      include: { comments: true },
+      where: { status: 'active' },
+      orderBy: { createdAt: 'desc' },
+      limit: 25,
+    };
+    const result = encodeVertzQL(params);
+
+    expect(decodeBase64url(result)).toEqual(params);
   });
 });
 
@@ -244,5 +340,40 @@ describe('encodeVertzQL round-trip with server decode logic', () => {
 
     expect(decoded.select).toEqual({ id: true, name: true });
     expect(decoded.include).toEqual({ posts: true });
+  });
+
+  it('round-trips where filter (#1637)', () => {
+    const encoded = encodeVertzQL({ where: { projectId: '123' } });
+    const decoded = serverDecode(encoded);
+
+    expect(decoded.where).toEqual({ projectId: '123' });
+  });
+
+  it('round-trips orderBy (#1637)', () => {
+    const encoded = encodeVertzQL({ orderBy: { createdAt: 'desc' } });
+    const decoded = serverDecode(encoded);
+
+    expect(decoded.orderBy).toEqual({ createdAt: 'desc' });
+  });
+
+  it('round-trips limit (#1637)', () => {
+    const encoded = encodeVertzQL({ limit: 10 });
+    const decoded = serverDecode(encoded);
+
+    expect(decoded.limit).toBe(10);
+  });
+
+  it('round-trips all five VertzQL keys (#1637)', () => {
+    const params = {
+      select: { id: true, title: true },
+      include: { comments: true },
+      where: { status: 'active', projectId: '456' },
+      orderBy: { createdAt: 'desc' },
+      limit: 50,
+    };
+    const encoded = encodeVertzQL(params);
+    const decoded = serverDecode(encoded);
+
+    expect(decoded).toEqual(params);
   });
 });
