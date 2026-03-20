@@ -7,6 +7,7 @@ import {
   pauseHydration,
   resumeHydration,
 } from '../hydrate/hydration-context';
+import { popScope, pushScope, runCleanups } from '../runtime/disposal';
 import { deferredDomEffect, domEffect } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
 import { getAdapter, isRenderNode } from './adapter';
@@ -113,38 +114,58 @@ export function __child(
       // before any browser paint — no visual flash.
       pauseHydration();
       try {
+        let childCleanups: DisposeFn[] = [];
         wrapper.dispose = domEffect(() => {
-          const value = fn();
+          // Dispose nested effects (e.g., __conditional domEffects) from the
+          // previous fn() evaluation. Without this, old conditionals' effects
+          // stay alive and produce orphaned/duplicate DOM nodes.
+          runCleanups(childCleanups);
 
-          // Stable-node optimization (same as CSR path)
-          if (
-            isRenderNode(value) &&
-            wrapper.childNodes.length === 1 &&
-            wrapper.firstChild === value
-          ) {
-            return;
+          // Pause hydration on every re-run, not just the first.
+          // When a signal change triggers a re-run while hydration is still
+          // active (e.g., router outlet switching routes before endHydration),
+          // child components must render via CSR — there are no SSR nodes to
+          // claim for the new content.
+          const needsPause = getIsHydrating();
+          if (needsPause) pauseHydration();
+          try {
+            const scope = pushScope();
+            const value = fn();
+            popScope();
+            childCleanups = scope;
+
+            // Stable-node optimization (same as CSR path)
+            if (
+              isRenderNode(value) &&
+              wrapper.childNodes.length === 1 &&
+              wrapper.firstChild === value
+            ) {
+              return;
+            }
+
+            // Text-in-place optimization (same as CSR path)
+            if (
+              !isRenderNode(value) &&
+              value != null &&
+              typeof value !== 'boolean' &&
+              wrapper.childNodes.length === 1 &&
+              wrapper.firstChild!.nodeType === 3
+            ) {
+              const text = typeof value === 'string' ? value : String(value);
+              (wrapper.firstChild as Text).data = text;
+              return;
+            }
+
+            // Clear previous content
+            while (wrapper.firstChild) {
+              wrapper.removeChild(wrapper.firstChild);
+            }
+
+            // Resolve any value: thunks, arrays, nodes, primitives, null/boolean
+            resolveAndAppend(wrapper, value);
+          } finally {
+            if (needsPause) resumeHydration();
           }
-
-          // Text-in-place optimization (same as CSR path)
-          if (
-            !isRenderNode(value) &&
-            value != null &&
-            typeof value !== 'boolean' &&
-            wrapper.childNodes.length === 1 &&
-            wrapper.firstChild!.nodeType === 3
-          ) {
-            const text = typeof value === 'string' ? value : String(value);
-            (wrapper.firstChild as Text).data = text;
-            return;
-          }
-
-          // Clear previous content
-          while (wrapper.firstChild) {
-            wrapper.removeChild(wrapper.firstChild);
-          }
-
-          // Resolve any value: thunks, arrays, nodes, primitives, null/boolean
-          resolveAndAppend(wrapper, value);
         });
       } finally {
         resumeHydration();
@@ -157,8 +178,17 @@ export function __child(
   wrapper = getAdapter().createElement('span') as unknown as HTMLElement & { dispose: DisposeFn };
   wrapper.style.display = 'contents';
 
+  let childCleanups: DisposeFn[] = [];
   wrapper.dispose = domEffect(() => {
+    // Dispose nested effects (e.g., __conditional domEffects) from the
+    // previous fn() evaluation. Without this, old conditionals' effects
+    // stay alive and produce orphaned/duplicate DOM nodes.
+    runCleanups(childCleanups);
+
+    const scope = pushScope();
     const value = fn();
+    popScope();
+    childCleanups = scope;
 
     // Stable-node optimization: if fn() returns the same Node reference
     // that's already the sole child, skip the nuke-and-replace cycle.

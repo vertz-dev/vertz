@@ -72,9 +72,14 @@ function hydrateConditional(
   trueFn: () => Node | null,
   falseFn: () => Node | null,
 ): DisposableNode {
-  // Claim the SSR comment anchor
-  const anchor =
-    claimComment() ?? (getAdapter().createComment('conditional') as unknown as Comment);
+  // Claim the SSR comment anchor. If there's no matching SSR node, this
+  // component wasn't server-rendered (e.g., route mismatch between SSR and
+  // client). Fall back to CSR path which correctly builds the DOM from scratch.
+  const claimed = claimComment();
+  if (!claimed) {
+    return csrConditional(condFn, trueFn, falseFn);
+  }
+  const anchor = claimed;
   let currentNode: Node | null = null;
   let branchCleanups: DisposeFn[] = [];
   // After wrapping, this holds the wrapper span (returned to the parent).
