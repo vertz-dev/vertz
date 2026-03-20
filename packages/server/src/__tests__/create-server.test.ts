@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { computeTenantGraph, d } from '@vertz/db';
-import { createServer } from '../create-server';
+import { createQueryParentIds, createServer } from '../create-server';
 import { resolveTenantChain } from '../entity/tenant-chain';
 
 const ok = <T>(data: T) => ({ ok: true as const, data });
@@ -1081,5 +1081,52 @@ describe('createServer', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.status).toBe('ok');
+  });
+});
+
+describe('createQueryParentIds', () => {
+  it('translates SQL table name to registry key and calls delegate.list', async () => {
+    const tableNameToModelKey = new Map([['issue_labels', 'issueLabels']]);
+    const mockDelegate = {
+      list: async (opts: never) => ({
+        ok: true as const,
+        data: [{ id: 'il-1' }, { id: 'il-2' }],
+      }),
+    };
+    const dbClient = { issueLabels: mockDelegate } as Record<string, unknown>;
+
+    const queryParentIds = createQueryParentIds(dbClient, tableNameToModelKey);
+    const ids = await queryParentIds('issue_labels', { labelId: 'lbl-1' });
+    expect(ids).toEqual(['il-1', 'il-2']);
+  });
+
+  it('returns empty array when SQL table name is not in the map', async () => {
+    const tableNameToModelKey = new Map<string, string>();
+    const dbClient = {} as Record<string, unknown>;
+
+    const queryParentIds = createQueryParentIds(dbClient, tableNameToModelKey);
+    const ids = await queryParentIds('unknown_table', {});
+    expect(ids).toEqual([]);
+  });
+
+  it('returns empty array when delegate is not found on the client', async () => {
+    const tableNameToModelKey = new Map([['orphaned', 'orphanedKey']]);
+    const dbClient = {} as Record<string, unknown>; // no orphanedKey delegate
+
+    const queryParentIds = createQueryParentIds(dbClient, tableNameToModelKey);
+    const ids = await queryParentIds('orphaned', {});
+    expect(ids).toEqual([]);
+  });
+
+  it('returns empty array when delegate.list returns not ok', async () => {
+    const tableNameToModelKey = new Map([['tasks', 'tasks']]);
+    const mockDelegate = {
+      list: async () => ({ ok: false as const, error: new Error('fail') }),
+    };
+    const dbClient = { tasks: mockDelegate } as Record<string, unknown>;
+
+    const queryParentIds = createQueryParentIds(dbClient, tableNameToModelKey);
+    const ids = await queryParentIds('tasks', {});
+    expect(ids).toEqual([]);
   });
 });

@@ -111,6 +111,28 @@ export interface ServerConfig extends Omit<AppConfig, '_entityDbFactory' | 'enti
 }
 
 // ---------------------------------------------------------------------------
+// queryParentIds factory — resolves SQL table names to registry keys
+// ---------------------------------------------------------------------------
+
+/** @internal Exported for testing only. */
+export function createQueryParentIds(
+  dbClient: Record<string, unknown>,
+  tableNameToModelKey: Map<string, string>,
+): (sqlTableName: string, where: Record<string, unknown>) => Promise<string[]> {
+  return async (sqlTableName, where) => {
+    const registryKey = tableNameToModelKey.get(sqlTableName);
+    if (!registryKey) return [];
+    const delegate = dbClient[registryKey] as
+      | { list: (opts: never) => Promise<{ ok: boolean; data?: unknown[] }> }
+      | undefined;
+    if (!delegate) return [];
+    const result = await delegate.list({ where } as never);
+    if (!result.ok || !result.data) return [];
+    return (result.data as Record<string, unknown>[]).map((row) => row.id as string);
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Default in-memory DB adapter (placeholder — real DB adapter comes from @vertz/db)
 // ---------------------------------------------------------------------------
 
@@ -280,18 +302,10 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
 
       // Create queryParentIds from the DatabaseClient for indirect tenant chain traversal
       if (tenantChains.size > 0) {
-        queryParentIds = async (sqlTableName: string, where: Record<string, unknown>) => {
-          // Translate SQL table name (from TenantChainHop) to model registry key
-          const registryKey = tableNameToModelKey.get(sqlTableName);
-          if (!registryKey) return [];
-          const delegate = (dbClient as Record<string, unknown>)[registryKey] as
-            | { list: (opts: never) => Promise<{ ok: boolean; data?: unknown[] }> }
-            | undefined;
-          if (!delegate) return [];
-          const result = await delegate.list({ where } as never);
-          if (!result.ok || !result.data) return [];
-          return (result.data as Record<string, unknown>[]).map((row) => row.id as string);
-        };
+        queryParentIds = createQueryParentIds(
+          dbClient as Record<string, unknown>,
+          tableNameToModelKey,
+        );
       }
     }
 
