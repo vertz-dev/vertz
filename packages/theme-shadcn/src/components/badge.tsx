@@ -1,5 +1,4 @@
 import type { ChildValue, VariantFunction } from '@vertz/ui';
-import { resolveChildren } from '@vertz/ui';
 
 type BadgeVariants = {
   color: Record<string, string[]>;
@@ -22,22 +21,15 @@ export function createBadgeComponent(
     yellow: { backgroundColor: 'oklch(0.75 0.15 85)', color: 'oklch(0.25 0.05 85)' },
   };
 
-  return function Badge({
-    color,
-    className,
-    class: classProp,
-    children,
-  }: BadgeProps): HTMLSpanElement {
-    const effectiveClass = className ?? classProp;
-    const el = document.createElement('span');
-    el.className = [badgeStyles({ color }), effectiveClass].filter(Boolean).join(' ');
+  return function Badge({ color, className, class: classProp, children }: BadgeProps) {
+    const combinedClass = [badgeStyles({ color }), className ?? classProp]
+      .filter(Boolean)
+      .join(' ');
     const inlineStyle = color ? colorStyles[color] : undefined;
-    if (inlineStyle) {
-      Object.assign(el.style, inlineStyle);
-    }
-    for (const node of resolveChildren(children)) {
-      el.appendChild(node);
-    }
-    return el;
+    return (
+      <span class={combinedClass} style={inlineStyle}>
+        {children}
+      </span>
+    ) as HTMLSpanElement;
   };
 }

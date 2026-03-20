@@ -16,14 +16,13 @@ export function createSeparatorComponent(
     orientation = 'horizontal',
     className,
     class: classProp,
-  }: SeparatorProps): HTMLHRElement {
-    const effectiveClass = className ?? classProp;
+  }: SeparatorProps) {
     const orientationClass =
       orientation === 'vertical' ? separatorStyles.vertical : separatorStyles.horizontal;
-    const el = document.createElement('hr');
-    el.className = [separatorStyles.base, orientationClass, effectiveClass]
+    const combinedClass = [separatorStyles.base, orientationClass, className ?? classProp]
       .filter(Boolean)
       .join(' ');
+    const el = (<hr class={combinedClass} />) as HTMLHRElement;
     el.setAttribute('role', 'separator');
     el.setAttribute('aria-orientation', orientation);
     return el;

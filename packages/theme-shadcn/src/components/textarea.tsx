@@ -28,15 +28,20 @@ export function createTextareaComponent(
     value,
     rows,
     ...attrs
-  }: TextareaProps): HTMLTextAreaElement {
-    const effectiveClass = className ?? classProp;
-    const el = document.createElement('textarea');
-    el.className = [textareaStyles.base, effectiveClass].filter(Boolean).join(' ');
-    if (name !== undefined) el.name = name;
-    if (placeholder !== undefined) el.placeholder = placeholder;
-    if (disabled) el.disabled = true;
+  }: TextareaProps) {
+    const combinedClass = [textareaStyles.base, className ?? classProp].filter(Boolean).join(' ');
+    const el = (
+      <textarea
+        class={combinedClass}
+        name={name}
+        placeholder={placeholder}
+        disabled={disabled || undefined}
+        rows={rows}
+      >
+        {value}
+      </textarea>
+    ) as HTMLTextAreaElement;
     if (value !== undefined) el.value = value;
-    if (rows !== undefined) el.rows = rows;
     applyProps(el, attrs);
     return el;
   };

@@ -28,15 +28,18 @@ export function createInputComponent(
     disabled,
     value,
     ...attrs
-  }: InputProps): HTMLInputElement {
-    const effectiveClass = className ?? classProp;
-    const el = document.createElement('input');
-    el.className = [inputStyles.base, effectiveClass].filter(Boolean).join(' ');
-    if (name !== undefined) el.name = name;
-    if (placeholder !== undefined) el.placeholder = placeholder;
-    if (type !== undefined) el.type = type;
-    if (disabled) el.disabled = true;
-    if (value !== undefined) el.value = value;
+  }: InputProps) {
+    const combinedClass = [inputStyles.base, className ?? classProp].filter(Boolean).join(' ');
+    const el = (
+      <input
+        class={combinedClass}
+        name={name}
+        placeholder={placeholder}
+        type={type}
+        disabled={disabled || undefined}
+        value={value}
+      />
+    ) as HTMLInputElement;
     applyProps(el, attrs);
     return el;
   };
