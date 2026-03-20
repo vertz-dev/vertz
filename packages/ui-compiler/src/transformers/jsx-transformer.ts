@@ -413,6 +413,8 @@ function processAttribute(
 ): string | null {
   if (!attr.isKind(SyntaxKind.JsxAttribute)) return null;
   const rawAttrName = attr.getNameNode().getText();
+  // key is a framework concept (used by __list reconciliation), not a DOM attribute
+  if (rawAttrName === 'key') return null;
   // Map className → class for intrinsic elements (DOM attribute name)
   const attrName = rawAttrName === 'className' ? 'class' : rawAttrName;
   const init = attr.getInitializer();
@@ -790,6 +792,11 @@ function extractKeyFunction(
   if (jsxNode) {
     const keyValue = extractKeyPropValue(jsxNode);
     if (keyValue) {
+      // Include index param when the key expression references it as a variable
+      // (not as part of a property access like item.id)
+      if (indexParam && new RegExp(`(?<![.])\\b${indexParam}\\b`).test(keyValue)) {
+        return `(${itemParam}, ${indexParam}) => ${keyValue}`;
+      }
       return `(${itemParam}) => ${keyValue}`;
     }
   }
@@ -958,6 +965,8 @@ function buildPropsObject(
   const props: string[] = [];
   for (const attr of attrs) {
     const name = attr.getNameNode().getText();
+    // key is a framework concept (used by __list reconciliation), not a component prop
+    if (name === 'key') continue;
     const key = quoteIfNeeded(name);
     const init = attr.getInitializer();
     if (!init) {

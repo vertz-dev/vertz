@@ -51,6 +51,75 @@ function App() {
       // Should use index-based key function when no key prop
       // The key function should use the index parameter or generate a fallback
     });
+
+    it('includes index param in key function when key={i} uses the index', () => {
+      const result = compile(
+        `
+function App() {
+  const paragraphs = ["a", "b", "c"];
+  return <div>{paragraphs.map((p, i) => <p key={i}>{p}</p>)}</div>;
+}
+        `.trim(),
+      );
+
+      expect(result.code).toContain('__list(');
+      // Key function must include index param: (p, i) => i or (_p, i) => i
+      // NOT (p) => i which would leave i undefined
+      expect(result.code).toMatch(/\(_?\w+,\s*i\)\s*=>\s*i/);
+    });
+
+    it('does not render key prop as a DOM attribute', () => {
+      const result = compile(
+        `
+function App() {
+  const items = ["a", "b", "c"];
+  return <ul>{items.map((item, i) => <li key={i}>{item}</li>)}</ul>;
+}
+        `.trim(),
+      );
+
+      expect(result.code).toContain('__list(');
+      // key should be extracted for __list, not set as a DOM attribute
+      expect(result.code).not.toContain('setAttribute("key"');
+      expect(result.code).not.toContain("setAttribute('key'");
+      // key attribute should not generate __attr call in the render body
+      expect(result.code).not.toMatch(/__attr\([^,]+,\s*"key"/);
+      expect(result.code).not.toMatch(/"key"/);
+    });
+
+    it('does not include index param in key function when key uses item property', () => {
+      const result = compile(
+        `
+function App() {
+  let items = [{ id: 1, name: "a" }];
+  return <ul>{items.map((item, i) => <li key={item.id}>{item.name}</li>)}</ul>;
+}
+        `.trim(),
+      );
+
+      expect(result.code).toContain('__list(');
+      // key={item.id} does not reference the index param i — should be (item) => item.id
+      expect(result.code).toMatch(/\(item\)\s*=>\s*item\.id/);
+      // Should NOT include index param since key doesn't use it
+      expect(result.code).not.toMatch(/\(item,\s*i\)\s*=>\s*item\.id/);
+    });
+
+    it('does not pass key as a component prop', () => {
+      const result = compile(
+        `
+function App() {
+  let items = [{ id: 1, text: "hello" }];
+  return <ul>{items.map(item => <TodoItem key={item.id} task={item} />)}</ul>;
+}
+        `.trim(),
+      );
+
+      expect(result.code).toContain('__list(');
+      // key should be used in the key function, not passed as a prop
+      expect(result.code).toContain('item.id');
+      // Component call should not include key in props
+      expect(result.code).not.toMatch(/TodoItem\(\{[^}]*key/);
+    });
   });
 
   describe('static .map() — always uses __list()', () => {
