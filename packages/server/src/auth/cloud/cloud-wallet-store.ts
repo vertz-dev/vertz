@@ -71,7 +71,7 @@ export class CloudWalletStore implements WalletStore {
     return {
       success: false,
       consumed: data.currentCount,
-      limit: data.max,
+      limit,
       remaining: data.remaining,
     };
   }
@@ -138,14 +138,9 @@ export class CloudWalletStore implements WalletStore {
 // Types
 // ============================================================================
 
-interface CloudConsumeResponse {
-  consumed: boolean;
-  newCount: number;
-  max: number;
-  remaining: number;
-  currentCount: number;
-  reason?: string;
-}
+type CloudConsumeResponse =
+  | { consumed: true; newCount: number; max: number; remaining: number }
+  | { consumed: false; currentCount: number; max: number; remaining: number; reason?: string };
 
 // ============================================================================
 // Error class

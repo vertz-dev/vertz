@@ -39,7 +39,7 @@ export interface StorageConfig {
 export const CLOUD_DEFAULTS = {
   baseUrl: 'https://api.vertz.cloud',
   timeoutMs: 2000,
-  failMode: 'closed' as CloudFailMode,
+  failMode: 'closed',
 } as const;
 
 // ============================================================================

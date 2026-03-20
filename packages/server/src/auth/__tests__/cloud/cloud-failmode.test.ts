@@ -150,6 +150,73 @@ describe('Feature: Cloud failure modes', () => {
     });
   });
 
+  describe('Given failMode: "cached" and cloud is down with no cached data', () => {
+    describe('When checking can() with limit', () => {
+      it('Then falls back to closed behavior (deny)', async () => {
+        const ctx = createAccessContext({
+          userId: 'user-1',
+          accessDef,
+          closureStore,
+          roleStore,
+          subscriptionStore,
+          walletStore: new FailingWalletStore(),
+          orgResolver: () => Promise.resolve('org-1'),
+          cloudFailMode: 'cached',
+        });
+
+        const result = await ctx.can('workspace:create-prompt', {
+          type: 'workspace',
+          id: 'ws-1',
+        });
+        expect(result).toBe(false);
+      });
+    });
+
+    describe('When checking check() with limit', () => {
+      it('Then returns denied with cloudError meta', async () => {
+        const ctx = createAccessContext({
+          userId: 'user-1',
+          accessDef,
+          closureStore,
+          roleStore,
+          subscriptionStore,
+          walletStore: new FailingWalletStore(),
+          orgResolver: () => Promise.resolve('org-1'),
+          cloudFailMode: 'cached',
+        });
+
+        const result = await ctx.check('workspace:create-prompt', {
+          type: 'workspace',
+          id: 'ws-1',
+        });
+        expect(result.allowed).toBe(false);
+        expect(result.reasons).toContain('limit_reached');
+        expect(result.meta?.cloudError).toBe(true);
+      });
+    });
+
+    describe('When calling canAndConsume()', () => {
+      it('Then returns false', async () => {
+        const ctx = createAccessContext({
+          userId: 'user-1',
+          accessDef,
+          closureStore,
+          roleStore,
+          subscriptionStore,
+          walletStore: new FailingWalletStore(),
+          orgResolver: () => Promise.resolve('org-1'),
+          cloudFailMode: 'cached',
+        });
+
+        const result = await ctx.canAndConsume('workspace:create-prompt', {
+          type: 'workspace',
+          id: 'ws-1',
+        });
+        expect(result).toBe(false);
+      });
+    });
+  });
+
   describe('Given no cloud configured (local wallet, no failMode)', () => {
     describe('When wallet throws', () => {
       it('Then propagates the error (no failMode fallback)', async () => {

@@ -125,7 +125,31 @@ describe('Feature: CachedWalletStore', () => {
   });
 
   describe('Given the inner store fails on getConsumption', () => {
-    describe('When cached data exists', () => {
+    describe('When stale cached data exists (expired TTL)', () => {
+      it('Then returns the stale cached value', async () => {
+        inner.consumption = 42;
+        const cached = new CachedWalletStore(inner, { cacheTtlMs: 50 }); // 50ms TTL
+
+        // Populate cache
+        await cached.getConsumption('tenant_abc', 'prompt:create', periodStart, periodEnd);
+
+        // Wait for cache to expire
+        await new Promise((resolve) => setTimeout(resolve, 60));
+
+        // Now fail — should serve stale cache
+        inner.shouldThrow = true;
+        const result = await cached.getConsumption(
+          'tenant_abc',
+          'prompt:create',
+          periodStart,
+          periodEnd,
+        );
+
+        expect(result).toBe(42); // Stale cache served
+      });
+    });
+
+    describe('When fresh cached data exists', () => {
       it('Then returns the cached value', async () => {
         inner.consumption = 42;
         const cached = new CachedWalletStore(inner, { cacheTtlMs: 5000 });

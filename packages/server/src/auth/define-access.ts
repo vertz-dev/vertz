@@ -6,7 +6,10 @@
  * declarations. Entitlements map to entity-scoped roles.
  */
 
-import { type CloudConfig, validateCloudConfig } from './cloud/cloud-config';
+import { type CloudConfig, type StorageConfig, validateCloudConfig } from './cloud/cloud-config';
+
+export type { StorageConfig } from './cloud/cloud-config';
+
 import type { AccessRule } from './rules';
 
 // ============================================================================
@@ -142,14 +145,6 @@ export interface RuleContext {
 
 /** Entitlement value: object or callback returning object */
 export type EntitlementValue = EntitlementDef | ((r: RuleContext) => EntitlementDef);
-
-/** Storage configuration — local DB and/or Vertz Cloud */
-export interface StorageConfig {
-  /** Local database reference */
-  local?: unknown;
-  /** Cloud configuration — when provided, wallet/billing data routes to Vertz Cloud */
-  cloud?: CloudConfig;
-}
 
 /** The input config for defineAccess() */
 export interface DefineAccessInput {

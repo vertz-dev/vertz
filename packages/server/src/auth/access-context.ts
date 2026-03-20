@@ -432,7 +432,8 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
       } catch (error) {
         if (!cloudFailMode) throw error;
         meta.cloudError = true;
-        if (cloudFailMode === 'closed') {
+        if (cloudFailMode !== 'open') {
+          // 'closed' and 'cached' (when cache miss) both deny
           reasons.push('limit_reached');
         }
         // 'open' — skip, no denial reason added
