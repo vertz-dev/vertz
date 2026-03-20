@@ -7,6 +7,8 @@ export type { Context } from './component/context';
 export { createContext, useContext } from './component/context';
 export type { ErrorBoundaryProps } from './component/error-boundary';
 export { ErrorBoundary } from './component/error-boundary';
+export type { ForeignProps } from './component/foreign';
+export { Foreign } from './component/foreign';
 export { onMount } from './component/lifecycle';
 export type { ListTransitionProps } from './component/list-transition';
 export { ListTransition } from './component/list-transition';
@@ -84,9 +86,9 @@ export {
 // Render adapter
 export type { RenderAdapter, RenderElement, RenderNode, RenderText } from './dom/adapter';
 export { getAdapter, isRenderNode, RENDER_NODE_BRAND, setAdapter } from './dom/adapter';
-export { createDOMAdapter } from './dom/dom-adapter';
 // DOM primitives (compiler output targets, also used by app shells for hydration)
 export { onAnimationsComplete } from './dom/animation';
+export { createDOMAdapter } from './dom/dom-adapter';
 export { __append, __element, __enterChildren, __exitChildren, __staticText } from './dom/element';
 export { isBrowser } from './env/is-browser';
 // Forms
@@ -161,11 +163,6 @@ export { RouterContext, useParams, useRouter } from './router/router-context';
 export type { RouterViewProps } from './router/router-view';
 export { RouterView } from './router/router-view';
 export { parseSearchParams, useSearchParams } from './router/search-params';
-
-// Theme registry
-export type { RegisterThemeInput } from './theme/registry';
-export { registerTheme } from './theme/registry';
-
 // Reactivity runtime
 export { DisposalScopeError } from './runtime/disposal';
 export { batch } from './runtime/scheduler';
@@ -199,3 +196,6 @@ export {
   registerRelationSchema,
   resetRelationSchemas_TEST_ONLY,
 } from './store';
+// Theme registry
+export type { RegisterThemeInput } from './theme/registry';
+export { registerTheme } from './theme/registry';

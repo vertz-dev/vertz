@@ -102,7 +102,12 @@
           },
           {
             "group": "Deployment",
-            "pages": ["guides/deploy/cloudflare", "guides/deploy/static-sites", "guides/deploy/ssg", "guides/deploy/og-images"]
+            "pages": [
+              "guides/deploy/cloudflare",
+              "guides/deploy/static-sites",
+              "guides/deploy/ssg",
+              "guides/deploy/og-images"
+            ]
           },
           {
             "group": "Testing",
@@ -126,7 +131,8 @@
               "api-reference/ui/query",
               "api-reference/ui/form",
               "api-reference/ui/context",
-              "api-reference/ui/mount"
+              "api-reference/ui/mount",
+              "api-reference/ui/foreign"
             ]
           }
         ],
