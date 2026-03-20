@@ -6,6 +6,10 @@
  * declarations. Entitlements map to entity-scoped roles.
  */
 
+import { type CloudConfig, type StorageConfig, validateCloudConfig } from './cloud/cloud-config';
+
+export type { StorageConfig } from './cloud/cloud-config';
+
 import type { AccessRule } from './rules';
 
 // ============================================================================
@@ -36,6 +40,8 @@ export interface DenialMeta {
     overage?: boolean;
   };
   fvaMaxAge?: number;
+  /** True when a cloud wallet API call failed during this check */
+  cloudError?: boolean;
 }
 
 /** Result of a full access check (all layers evaluated) */
@@ -147,6 +153,8 @@ export interface DefineAccessInput {
   plans?: Record<string, PlanDef>;
   /** Fallback plan name when an org's plan expires. Defaults to 'free'. */
   defaultPlan?: string;
+  /** Storage config — local DB and/or Vertz Cloud for wallet/billing data */
+  storage?: StorageConfig;
 }
 
 /** The frozen config returned by defineAccess() */
@@ -174,6 +182,8 @@ export interface AccessDefinition {
    * Used during can() to find all limits that need to pass for an entitlement.
    */
   readonly _entitlementToLimitKeys: Readonly<Record<string, readonly string[]>>;
+  /** Cloud configuration, if storage.cloud was provided */
+  readonly _cloudConfig?: Readonly<CloudConfig>;
 }
 
 // ============================================================================
@@ -446,6 +456,11 @@ export function defineAccess(input: DefineAccessInput): AccessDefinition {
     }
   }
 
+  // ---- Validate storage config ----
+  if (input.storage?.cloud) {
+    validateCloudConfig(input.storage.cloud);
+  }
+
   // ---- Build frozen config ----
   // Build roles map from entities
   const rolesMap: Record<string, readonly string[]> = {};
@@ -483,6 +498,7 @@ export function defineAccess(input: DefineAccessInput): AccessDefinition {
         Object.entries(entitlementToLimitKeys).map(([k, v]) => [k, Object.freeze([...v])]),
       ),
     ),
+    ...(input.storage?.cloud ? { _cloudConfig: Object.freeze({ ...input.storage.cloud }) } : {}),
     ...(input.defaultPlan ? { defaultPlan: input.defaultPlan } : {}),
     ...(input.plans
       ? {

@@ -17,6 +17,7 @@
 import { AuthorizationError } from './access';
 import { calculateBillingPeriod } from './billing-period';
 import type { ClosureStore } from './closure-store';
+import type { CloudFailMode } from './cloud/cloud-config';
 import type {
   AccessCheckResult,
   AccessDefinition,
@@ -64,6 +65,8 @@ export interface AccessContextConfig {
   orgResolver?: (resource?: ResourceRef) => Promise<string | null>;
   /** Plan version store — required for versioned plan resolution (grandfathered tenants) */
   planVersionStore?: PlanVersionStore;
+  /** Cloud failure mode — how to handle wallet store errors. Only set when using cloud wallet. */
+  cloudFailMode?: CloudFailMode;
 }
 
 /**
@@ -116,6 +119,7 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     overrideStore,
     orgResolver,
     planVersionStore,
+    cloudFailMode,
   } = config;
 
   // ==========================================================================
@@ -208,30 +212,36 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     // Layer 4: Limit check (read-only — for UI display, not atomic)
     const limitKeys = accessDef._entitlementToLimitKeys[entitlement];
     if (limitKeys?.length && walletStore && subscriptionStore && resolvedOrgId) {
-      const walletStates = await resolveAllLimitStates(
-        entitlement,
-        resolvedOrgId,
-        accessDef,
-        subscriptionStore,
-        walletStore,
-        planVersionStore,
-        overrides,
-      );
-      for (const ws of walletStates) {
-        if (ws.max === 0) return false; // disabled
-        if (ws.max === -1) continue; // unlimited
-        if (ws.consumed >= ws.max) {
-          if (ws.hasOverage) {
-            // Check overage cap
-            if (ws.overageCap !== undefined) {
-              const overageUnits = ws.consumed - ws.max;
-              const overageCost = (overageUnits * (ws.overageAmount ?? 0)) / (ws.overagePer ?? 1);
-              if (overageCost >= ws.overageCap) return false; // Cap hit — hard block
+      try {
+        const walletStates = await resolveAllLimitStates(
+          entitlement,
+          resolvedOrgId,
+          accessDef,
+          subscriptionStore,
+          walletStore,
+          planVersionStore,
+          overrides,
+        );
+        for (const ws of walletStates) {
+          if (ws.max === 0) return false; // disabled
+          if (ws.max === -1) continue; // unlimited
+          if (ws.consumed >= ws.max) {
+            if (ws.hasOverage) {
+              // Check overage cap
+              if (ws.overageCap !== undefined) {
+                const overageUnits = ws.consumed - ws.max;
+                const overageCost = (overageUnits * (ws.overageAmount ?? 0)) / (ws.overagePer ?? 1);
+                if (overageCost >= ws.overageCap) return false; // Cap hit — hard block
+              }
+              continue; // Overage allowed
             }
-            continue; // Overage allowed
+            return false;
           }
-          return false;
         }
+      } catch (error) {
+        if (!cloudFailMode) throw error;
+        // Cloud failure — apply failMode
+        return cloudFailMode === 'open';
       }
     }
 
@@ -358,28 +368,39 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     // Layer 4: Limit check
     const checkLimitKeys = accessDef._entitlementToLimitKeys[entitlement];
     if (checkLimitKeys?.length && walletStore && subscriptionStore && resolvedOrgId) {
-      const walletStates = await resolveAllLimitStates(
-        entitlement,
-        resolvedOrgId,
-        accessDef,
-        subscriptionStore,
-        walletStore,
-        planVersionStore,
-        overrides,
-      );
-      for (const ws of walletStates) {
-        const exceeded = ws.max === 0 || (ws.max !== -1 && ws.consumed >= ws.max);
-        if (exceeded) {
-          if (ws.hasOverage && ws.max !== 0) {
-            // Check overage cap
-            let capHit = false;
-            if (ws.overageCap !== undefined) {
-              const overageUnits = ws.consumed - ws.max;
-              const overageCost = (overageUnits * (ws.overageAmount ?? 0)) / (ws.overagePer ?? 1);
-              if (overageCost >= ws.overageCap) capHit = true;
-            }
-            if (capHit) {
-              reasons.push('limit_reached');
+      try {
+        const walletStates = await resolveAllLimitStates(
+          entitlement,
+          resolvedOrgId,
+          accessDef,
+          subscriptionStore,
+          walletStore,
+          planVersionStore,
+          overrides,
+        );
+        for (const ws of walletStates) {
+          const exceeded = ws.max === 0 || (ws.max !== -1 && ws.consumed >= ws.max);
+          if (exceeded) {
+            if (ws.hasOverage && ws.max !== 0) {
+              // Check overage cap
+              let capHit = false;
+              if (ws.overageCap !== undefined) {
+                const overageUnits = ws.consumed - ws.max;
+                const overageCost = (overageUnits * (ws.overageAmount ?? 0)) / (ws.overagePer ?? 1);
+                if (overageCost >= ws.overageCap) capHit = true;
+              }
+              if (capHit) {
+                reasons.push('limit_reached');
+                meta.limit = {
+                  key: ws.key,
+                  max: ws.max,
+                  consumed: ws.consumed,
+                  remaining: 0,
+                  overage: true,
+                };
+                break;
+              }
+              // Overage allowed — attach meta with overage flag
               meta.limit = {
                 key: ws.key,
                 max: ws.max,
@@ -387,36 +408,35 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
                 remaining: 0,
                 overage: true,
               };
-              break;
+              continue;
             }
-            // Overage allowed — attach meta with overage flag
+            reasons.push('limit_reached');
             meta.limit = {
               key: ws.key,
               max: ws.max,
               consumed: ws.consumed,
-              remaining: 0,
-              overage: true,
+              remaining: Math.max(0, ws.max === -1 ? Infinity : ws.max - ws.consumed),
             };
-            continue;
+            break; // Report first blocking limit
           }
+          // Attach limit meta even if passing (for UI display)
+          if (!meta.limit) {
+            meta.limit = {
+              key: ws.key,
+              max: ws.max,
+              consumed: ws.consumed,
+              remaining: ws.max === -1 ? Infinity : Math.max(0, ws.max - ws.consumed),
+            };
+          }
+        }
+      } catch (error) {
+        if (!cloudFailMode) throw error;
+        meta.cloudError = true;
+        if (cloudFailMode !== 'open') {
+          // 'closed' and 'cached' (when cache miss) both deny
           reasons.push('limit_reached');
-          meta.limit = {
-            key: ws.key,
-            max: ws.max,
-            consumed: ws.consumed,
-            remaining: Math.max(0, ws.max === -1 ? Infinity : ws.max - ws.consumed),
-          };
-          break; // Report first blocking limit
         }
-        // Attach limit meta even if passing (for UI display)
-        if (!meta.limit) {
-          meta.limit = {
-            key: ws.key,
-            max: ws.max,
-            consumed: ws.consumed,
-            remaining: ws.max === -1 ? Infinity : Math.max(0, ws.max - ws.consumed),
-          };
-        }
+        // 'open' — skip, no denial reason added
       }
     }
 
@@ -532,80 +552,85 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
     if (!effectivePlanId) return false;
 
     // Resolve all limits and consume atomically
-    const limitsToConsume = await resolveAllLimitConsumptions(
-      resolvedOrgId,
-      entitlement,
-      effectivePlanId,
-      accessDef,
-      subscriptionStore,
-      walletStore,
-      subscription,
-      planVersionStore,
-      overrides,
-    );
-
-    if (!limitsToConsume.length) return true; // No applicable limits
-
-    // Atomic all-or-nothing consumption
-    const consumed: Array<{
-      key: string;
-      periodStart: Date;
-      periodEnd: Date;
-    }> = [];
-
-    for (const lc of limitsToConsume) {
-      if (lc.effectiveMax === -1) continue; // Unlimited — skip
-      if (lc.effectiveMax === 0) {
-        // Disabled — rollback any prior consumption and fail
-        await rollbackConsumptions(resolvedOrgId, consumed, walletStore, amount);
-        return false;
-      }
-
-      // Determine max for wallet consumption — with overage, use a very high cap
-      let consumeMax = lc.effectiveMax;
-      if (lc.hasOverage) {
-        // Check overage cap first
-        if (lc.overageCap !== undefined) {
-          const currentConsumed = await walletStore.getConsumption(
-            resolvedOrgId,
-            lc.walletKey,
-            lc.periodStart,
-            lc.periodEnd,
-          );
-          const overageUnits = Math.max(0, currentConsumed + amount - lc.effectiveMax);
-          const overageCost = (overageUnits * (lc.overageAmount ?? 0)) / (lc.overagePer ?? 1);
-          if (overageCost > lc.overageCap) {
-            await rollbackConsumptions(resolvedOrgId, consumed, walletStore, amount);
-            return false; // Cap would be exceeded
-          }
-        }
-        // Allow overage by raising the effective max for wallet
-        consumeMax = Number.MAX_SAFE_INTEGER;
-      }
-
-      const result = await walletStore.consume(
+    try {
+      const limitsToConsume = await resolveAllLimitConsumptions(
         resolvedOrgId,
-        lc.walletKey,
-        lc.periodStart,
-        lc.periodEnd,
-        consumeMax,
-        amount,
+        entitlement,
+        effectivePlanId,
+        accessDef,
+        subscriptionStore,
+        walletStore,
+        subscription,
+        planVersionStore,
+        overrides,
       );
 
-      if (!result.success) {
-        // Rollback prior consumptions
-        await rollbackConsumptions(resolvedOrgId, consumed, walletStore, amount);
-        return false;
+      if (!limitsToConsume.length) return true; // No applicable limits
+
+      // Atomic all-or-nothing consumption
+      const consumed: Array<{
+        key: string;
+        periodStart: Date;
+        periodEnd: Date;
+      }> = [];
+
+      for (const lc of limitsToConsume) {
+        if (lc.effectiveMax === -1) continue; // Unlimited — skip
+        if (lc.effectiveMax === 0) {
+          // Disabled — rollback any prior consumption and fail
+          await rollbackConsumptions(resolvedOrgId, consumed, walletStore, amount);
+          return false;
+        }
+
+        // Determine max for wallet consumption — with overage, use a very high cap
+        let consumeMax = lc.effectiveMax;
+        if (lc.hasOverage) {
+          // Check overage cap first
+          if (lc.overageCap !== undefined) {
+            const currentConsumed = await walletStore.getConsumption(
+              resolvedOrgId,
+              lc.walletKey,
+              lc.periodStart,
+              lc.periodEnd,
+            );
+            const overageUnits = Math.max(0, currentConsumed + amount - lc.effectiveMax);
+            const overageCost = (overageUnits * (lc.overageAmount ?? 0)) / (lc.overagePer ?? 1);
+            if (overageCost > lc.overageCap) {
+              await rollbackConsumptions(resolvedOrgId, consumed, walletStore, amount);
+              return false; // Cap would be exceeded
+            }
+          }
+          // Allow overage by raising the effective max for wallet
+          consumeMax = Number.MAX_SAFE_INTEGER;
+        }
+
+        const result = await walletStore.consume(
+          resolvedOrgId,
+          lc.walletKey,
+          lc.periodStart,
+          lc.periodEnd,
+          consumeMax,
+          amount,
+        );
+
+        if (!result.success) {
+          // Rollback prior consumptions
+          await rollbackConsumptions(resolvedOrgId, consumed, walletStore, amount);
+          return false;
+        }
+
+        consumed.push({
+          key: lc.walletKey,
+          periodStart: lc.periodStart,
+          periodEnd: lc.periodEnd,
+        });
       }
 
-      consumed.push({
-        key: lc.walletKey,
-        periodStart: lc.periodStart,
-        periodEnd: lc.periodEnd,
-      });
+      return true;
+    } catch (error) {
+      if (!cloudFailMode) throw error;
+      return cloudFailMode === 'open';
     }
-
-    return true;
   }
 
   // ==========================================================================

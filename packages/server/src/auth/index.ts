@@ -2600,6 +2600,21 @@ export type { CircuitBreaker } from './circuit-breaker';
 export { CircuitBreakerOpenError, createCircuitBreaker } from './circuit-breaker';
 export type { ClosureEntry, ClosureRow, ClosureStore, ParentRef } from './closure-store';
 export { InMemoryClosureStore } from './closure-store';
+export type {
+  CachedWalletStoreOptions,
+  CloudConfig,
+  CloudFailMode,
+  CloudHealthResult,
+} from './cloud';
+// Cloud storage
+export {
+  CachedWalletStore,
+  CloudWalletError,
+  CloudWalletStore,
+  checkCloudHealth,
+  createCloudWalletStore,
+  validateCloudConfig,
+} from './cloud';
 export type { CloudJWTVerifier } from './cloud-jwt-verifier';
 export { createCloudJWTVerifier } from './cloud-jwt-verifier';
 export type { CloudProxyLifecycleCallbacks } from './cloud-proxy';
@@ -2633,6 +2648,7 @@ export type {
   PlanPrice,
   PriceInterval,
   RuleContext,
+  StorageConfig,
 } from './define-access';
 export { defineAccess } from './define-access';
 export type { DbDialectName } from './dialect-ddl';
