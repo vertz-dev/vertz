@@ -89,7 +89,7 @@ function NavMenuItemContent(
       id={contentId}
       aria-hidden="true"
       data-state="closed"
-      style="display: none"
+      style={{ display: 'none' }}
       onMouseenter={onMouseenter}
       onMouseleave={onMouseleave}
       onKeydown={onKeydown}

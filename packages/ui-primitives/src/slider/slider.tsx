@@ -75,7 +75,10 @@ function SliderRoot(options: SliderOptions = {}): SliderElements & { state: Slid
   }
 
   const fill = (
-    <div data-part="fill" style="position: absolute; height: 100%; border-radius: inherit;" />
+    <div
+      data-part="fill"
+      style={{ position: 'absolute', height: '100%', borderRadius: 'inherit' }}
+    />
   ) as HTMLDivElement;
 
   const thumb = (
@@ -84,7 +87,7 @@ function SliderRoot(options: SliderOptions = {}): SliderElements & { state: Slid
       tabindex={disabled ? '-1' : '0'}
       data-part="thumb"
       aria-disabled={disabled ? 'true' : undefined}
-      style="position: absolute; transform: translate(-50%, -50%);"
+      style={{ position: 'absolute', transform: 'translate(-50%, -50%)' }}
       onKeydown={(event: KeyboardEvent) => {
         if (state.disabled.peek()) return;
         const current = state.value.peek();
@@ -109,7 +112,7 @@ function SliderRoot(options: SliderOptions = {}): SliderElements & { state: Slid
   setValueRange(thumb, defaultValue, min, max);
 
   const track = (
-    <div data-part="track" style="position: relative;">
+    <div data-part="track" style={{ position: 'relative' }}>
       {fill}
       {thumb}
     </div>

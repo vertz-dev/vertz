@@ -107,7 +107,7 @@ function DialogRoot(options: DialogOptions = {}): DialogElements & { state: Dial
       data-dialog-overlay=""
       aria-hidden={defaultOpen ? 'false' : 'true'}
       data-state={defaultOpen ? 'open' : 'closed'}
-      style={defaultOpen ? '' : 'display: none'}
+      style={{ display: defaultOpen ? '' : 'none' }}
       onClick={() => closeDialog()}
     />
   ) as HTMLDivElement;
@@ -119,7 +119,7 @@ function DialogRoot(options: DialogOptions = {}): DialogElements & { state: Dial
       aria-modal={modal ? 'true' : undefined}
       aria-hidden={defaultOpen ? 'false' : 'true'}
       data-state={defaultOpen ? 'open' : 'closed'}
-      style={defaultOpen ? '' : 'display: none'}
+      style={{ display: defaultOpen ? '' : 'none' }}
       onKeydown={(event: KeyboardEvent) => {
         if (isKey(event, Keys.Escape)) {
           event.preventDefault();

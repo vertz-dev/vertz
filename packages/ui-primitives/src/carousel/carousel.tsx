@@ -90,7 +90,7 @@ function CarouselRoot(options: CarouselOptions = {}): CarouselElements & {
     goTo(state.currentIndex.peek() - 1);
   }
 
-  const viewport = (<div style="overflow: hidden;" />) as HTMLDivElement;
+  const viewport = (<div style={{ overflow: 'hidden' }} />) as HTMLDivElement;
 
   const prevButton = (
     <button type="button" aria-label="Previous slide" onClick={goPrev} />

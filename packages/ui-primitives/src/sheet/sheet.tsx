@@ -115,7 +115,7 @@ function SheetRoot(options: SheetOptions = {}): SheetElements & { state: SheetSt
       data-sheet-overlay=""
       aria-hidden={defaultOpen ? 'false' : 'true'}
       data-state={defaultOpen ? 'open' : 'closed'}
-      style={defaultOpen ? '' : 'display: none'}
+      style={{ display: defaultOpen ? '' : 'none' }}
       onClick={() => hide()}
     />
   ) as HTMLDivElement;
@@ -128,7 +128,7 @@ function SheetRoot(options: SheetOptions = {}): SheetElements & { state: SheetSt
       data-side={side}
       aria-hidden={defaultOpen ? 'false' : 'true'}
       data-state={defaultOpen ? 'open' : 'closed'}
-      style={defaultOpen ? '' : 'display: none'}
+      style={{ display: defaultOpen ? '' : 'none' }}
       onKeydown={(event: KeyboardEvent) => {
         if (isKey(event, Keys.Escape)) {
           event.preventDefault();

@@ -65,7 +65,7 @@ function ResizablePanelRoot(options: ResizablePanelOptions = {}): ResizablePanel
 
   const root = (
     <div
-      style={`display: flex; flex-direction: ${orientation === 'horizontal' ? 'row' : 'column'};`}
+      style={{ display: 'flex', flexDirection: orientation === 'horizontal' ? 'row' : 'column' }}
       data-orientation={orientation}
     />
   ) as HTMLDivElement;

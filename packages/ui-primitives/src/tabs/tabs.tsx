@@ -92,7 +92,7 @@ function TabPanel(panelId: string, triggerId: string, isActive: boolean): HTMLEl
       tabindex="0"
       aria-hidden={isActive ? 'false' : 'true'}
       data-state={isActive ? 'active' : 'inactive'}
-      style={isActive ? '' : 'display: none'}
+      style={{ display: isActive ? '' : 'none' }}
     />
   ) as HTMLElement;
 }
