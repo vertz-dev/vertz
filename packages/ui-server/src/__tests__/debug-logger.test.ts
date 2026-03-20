@@ -14,6 +14,7 @@ describe('createDebugLogger', () => {
   });
 
   afterEach(() => {
+    delete process.env.VERTZ_DEBUG;
     rmSync(logDir, { recursive: true, force: true });
   });
 

@@ -50,6 +50,8 @@ beforeEach(() => {
   tmpDir = join(tmpdir(), `vertz-integration-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   mkdirSync(join(tmpDir, 'src'), { recursive: true });
   mkdirSync(join(tmpDir, 'public'), { recursive: true });
+  // Guard against VERTZ_DEBUG leaking from other test files (debug-logger.test.ts)
+  delete process.env.VERTZ_DEBUG;
 });
 
 afterEach(async () => {
@@ -2918,14 +2920,14 @@ describe('broadcastError state machine', () => {
 describe('console.error override', () => {
   it('captures resolution errors', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false, projectRoot: tmpDir });
     console.error("Could not resolve './missing-module'");
     logSpy.mockRestore();
   });
 
   it('captures HMR runtime errors', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false, projectRoot: tmpDir });
     console.error(
       '[browser] [vertz-hmr] Error re-mounting TaskCard: ReferenceError: foo is not defined',
     );
@@ -2934,14 +2936,14 @@ describe('console.error override', () => {
 
   it('captures Bun frontend errors', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false, projectRoot: tmpDir });
     console.error('\x1b[31mfrontend\x1b[0m TypeError: Cannot read property of null');
     logSpy.mockRestore();
   });
 
   it('deduplicates repeated resolution errors', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false, projectRoot: tmpDir });
     console.error("Could not resolve './missing-module'");
     console.error("Could not resolve './missing-module'");
     logSpy.mockRestore();
@@ -2949,14 +2951,14 @@ describe('console.error override', () => {
 
   it('ignores [Server] logs', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false, projectRoot: tmpDir });
     console.error('[Server] Some internal message');
     logSpy.mockRestore();
   });
 
   it('uses lastChangedFile as fallback for HMR errors', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false, projectRoot: tmpDir });
     server.setLastChangedFile('src/components/Button.tsx');
     console.error('[browser] [vertz-hmr] Error re-mounting Button: TypeError: x is not a function');
     logSpy.mockRestore();
@@ -2964,7 +2966,7 @@ describe('console.error override', () => {
 
   it('uses lastChangedFile as fallback for frontend errors', () => {
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
-    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+    const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false, projectRoot: tmpDir });
     server.setLastChangedFile('src/pages/Home.tsx');
     console.error('\x1b[31mfrontend\x1b[0m ReferenceError: x is not defined');
     logSpy.mockRestore();

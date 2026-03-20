@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it, spyOn } from 'bun:test';
 import {
   createRouter,
   defineRoutes,
@@ -1365,6 +1365,103 @@ describe('ProtectedRoute SSR redirect', () => {
       expect(result.redirect).toBeDefined();
       // Redirect URL contains loginPath (either outer or inner — both are valid)
       expect(result.redirect!.to).toContain('returnTo=%2Fadmin');
+    });
+  });
+});
+
+describe('SSR error paths', () => {
+  describe('Given a module with no default or App export', () => {
+    it('Then ssrRenderToString throws with descriptive error', async () => {
+      const module = { styles: ['body { margin: 0 }'] };
+      await expect(ssrRenderToString(module, '/')).rejects.toThrow(
+        'App entry must export a default function or named App function',
+      );
+    });
+
+    it('Then ssrDiscoverQueries throws with descriptive error', async () => {
+      const module = {};
+      await expect(ssrDiscoverQueries(module, '/')).rejects.toThrow(
+        'App entry must export a default function or named App function',
+      );
+    });
+
+    it('Then ssrStreamNavQueries throws with descriptive error', async () => {
+      const module = { App: 'not-a-function' as unknown as () => unknown };
+      await expect(ssrStreamNavQueries(module as never, '/')).rejects.toThrow(
+        'App entry must export a default function or named App function',
+      );
+    });
+  });
+
+  describe('Given a module with an invalid theme', () => {
+    it('Then compileTheme failure is caught, logged, and rendering continues', async () => {
+      const spy = spyOn(console, 'error').mockImplementation(() => {});
+      const module = {
+        default: () => {
+          const el = document.createElement('div');
+          el.textContent = 'Themed App';
+          return el;
+        },
+        theme: { __invalid: true } as never,
+      };
+      const result = await ssrRenderToString(module, '/');
+      expect(result.html).toContain('Themed App');
+      expect(spy).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to compile theme'),
+        expect.anything(),
+      );
+      spy.mockRestore();
+    });
+  });
+
+  describe('Given a query that resolves after the timeout in ssrDiscoverQueries', () => {
+    it('Then the timed-out query appears in pending, not resolved', async () => {
+      const module = {
+        default: () => {
+          registerSSRQuery({
+            key: 'slow-query',
+            promise: new Promise((r) => setTimeout(() => r({ data: 'late' }), 500)),
+            timeout: 10,
+            resolve: () => {},
+          });
+          const el = document.createElement('div');
+          el.textContent = 'App';
+          return el;
+        },
+      };
+      const result = await ssrDiscoverQueries(module, '/');
+      expect(result.pending).toContain('slow-query');
+      expect(result.resolved.find((r) => r.key === 'slow-query')).toBeUndefined();
+    });
+  });
+
+  describe('Given a query that rejects in ssrStreamNavQueries', () => {
+    it('Then the rejected query is silently dropped and done event emitted', async () => {
+      const module = {
+        default: () => {
+          registerSSRQuery({
+            key: 'failing-query',
+            promise: Promise.reject(new Error('fetch failed')),
+            timeout: 5000,
+            resolve: () => {},
+          });
+          const el = document.createElement('div');
+          el.textContent = 'App';
+          return el;
+        },
+      };
+      const stream = await ssrStreamNavQueries(module, '/');
+      const reader = stream.getReader();
+      const decoder = new TextDecoder();
+      let text = '';
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        text += decoder.decode(value, { stream: true });
+      }
+      expect(text).not.toContain('failing-query');
+      expect(text).toContain('event: done');
     });
   });
 });
