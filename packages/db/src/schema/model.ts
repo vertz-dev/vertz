@@ -40,6 +40,21 @@ export interface ModelOptions<TRelations extends Record<string, RelationDef>> {
 }
 
 // ---------------------------------------------------------------------------
+// ValidateOneRelationFKs — ensures ref.one() foreign keys exist on source table
+// ---------------------------------------------------------------------------
+
+export type ValidateOneRelationFKs<
+  TTable extends TableDef<ColumnRecord>,
+  TRelations extends Record<string, RelationDef>,
+> = {
+  [K in keyof TRelations]: TRelations[K] extends RelationDef<infer T, 'one', infer FK>
+    ? FK extends Extract<keyof TTable['_columns'], string>
+      ? TRelations[K]
+      : RelationDef<T, 'one', Extract<keyof TTable['_columns'], string>>
+    : TRelations[K];
+};
+
+// ---------------------------------------------------------------------------
 // createModel factory
 // ---------------------------------------------------------------------------
 
@@ -48,7 +63,7 @@ export function createModel<
   TRelations extends Record<string, RelationDef> = Record<string, never>,
 >(
   table: TTable,
-  relations?: TRelations,
+  relations?: TRelations & ValidateOneRelationFKs<TTable, TRelations>,
   options?: ModelOptions<TRelations>,
 ): ModelDef<TTable, TRelations> {
   return {

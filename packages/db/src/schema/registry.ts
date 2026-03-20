@@ -32,7 +32,7 @@ interface TypedRef<
   one<TTargetName extends Extract<keyof TModels, string>, TFK extends ColumnKeys<TSourceTable>>(
     target: TTargetName,
     foreignKey: TFK,
-  ): RelationDef<TModels[TTargetName], 'one'>;
+  ): RelationDef<TModels[TTargetName], 'one', TFK>;
 
   /** hasMany — FK lives on the target table */
   many<
