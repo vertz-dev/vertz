@@ -143,9 +143,11 @@ export function computeTenantGraph(registry: ModelRegistry): TenantGraph {
         continue;
       }
 
-      // Check if any relation targets a scoped or indirectly scoped table
+      // Check if any ref.one relation targets a scoped or indirectly scoped table
+      // (Only ref.one is used because tenant chain resolution follows FK → PK joins)
       for (const rel of Object.values(entry.relations)) {
-        const targetTableName = (rel as RelationDef)._target()._name;
+        if (rel._type !== 'one') continue;
+        const targetTableName = rel._target()._name;
         if (scopedTableNames.has(targetTableName) || indirectlyScopedNames.has(targetTableName)) {
           indirectlyScoped.push(key);
           indirectlyScopedNames.add(entry.table._name);

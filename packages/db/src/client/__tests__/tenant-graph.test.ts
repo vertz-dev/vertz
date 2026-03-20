@@ -244,7 +244,7 @@ describe('computeTenantGraph', () => {
     expect(() => computeTenantGraph(registry)).toThrow('marked as both .tenant() and .shared()');
   });
 
-  it('resolves indirect scoping via ref.many', () => {
+  it('resolves indirect scoping when model has ref.one to a scoped table (alongside ref.many)', () => {
     const tags = d.table('tags', {
       id: d.uuid().primary(),
       name: d.text(),
@@ -263,6 +263,29 @@ describe('computeTenantGraph', () => {
 
     const graph = computeTenantGraph(registry);
     expect(graph.indirectlyScoped).toContain('tags');
+  });
+
+  it('does NOT classify a model as indirectly scoped when it only has ref.many to scoped tables', () => {
+    const tags = d.table('tags', {
+      id: d.uuid().primary(),
+      projectId: d.uuid(),
+      name: d.text(),
+    });
+
+    const registry = {
+      organizations: d.model(organizations),
+      projects: d.model(projects, {
+        organization: d.ref.one(() => organizations, 'organizationId'),
+        // ref.many to tags — does not make projects depend on tags for scoping
+        tags: d.ref.many(() => tags, 'projectId'),
+      }),
+      // tags only has ref.many from projects — no ref.one to any scoped table
+      tags: d.model(tags),
+    };
+
+    const graph = computeTenantGraph(registry);
+    // tags should NOT be indirectly scoped since it has no ref.one path to a scoped table
+    expect(graph.indirectlyScoped).not.toContain('tags');
   });
 
   it('returns null root when no .tenant() table exists', () => {

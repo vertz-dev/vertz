@@ -250,10 +250,20 @@ function createTableInternal<TColumns extends ColumnRecord>(
     },
 
     shared() {
+      if (isTenant) {
+        throw new Error(
+          `Table "${name}" is already marked as .tenant(). A table cannot be both .tenant() and .shared().`,
+        );
+      }
       return createTableInternal(name, columns, indexes, true, false);
     },
 
     tenant() {
+      if (shared) {
+        throw new Error(
+          `Table "${name}" is already marked as .shared(). A table cannot be both .shared() and .tenant().`,
+        );
+      }
       return createTableInternal(name, columns, indexes, false, true);
     },
   };

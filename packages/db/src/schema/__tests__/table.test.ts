@@ -201,6 +201,24 @@ describe('.tenant()', () => {
     expect(workspaces._indexes).toHaveLength(1);
     expect(workspaces._indexes[0].unique).toBe(true);
   });
+
+  it('throws when called on a .shared() table', () => {
+    const shared = d
+      .table('shared_items', { id: d.uuid().primary(), name: d.text() })
+      .shared();
+
+    expect(() => shared.tenant()).toThrow(/already marked as \.shared\(\)/);
+  });
+});
+
+describe('.shared() / .tenant() mutual exclusion', () => {
+  it('throws when .shared() is called on a .tenant() table', () => {
+    const tenant = d
+      .table('orgs', { id: d.uuid().primary(), name: d.text() })
+      .tenant();
+
+    expect(() => tenant.shared()).toThrow(/already marked as \.tenant\(\)/);
+  });
 });
 
 describe('phantom type getters', () => {
