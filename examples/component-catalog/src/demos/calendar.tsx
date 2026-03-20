@@ -14,8 +14,16 @@ export function CalendarDemo() {
             selectedDate = date as Date | null;
           }}
         />
-        <p style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: 'var(--color-muted-foreground)' }}>
-          {selectedDate ? `Selected: ${(selectedDate as Date).toLocaleDateString()}` : 'No date selected'}
+        <p
+          style={{
+            marginTop: '0.5rem',
+            fontSize: '0.875rem',
+            color: 'var(--color-muted-foreground)',
+          }}
+        >
+          {selectedDate
+            ? `Selected: ${(selectedDate as Date).toLocaleDateString()}`
+            : 'No date selected'}
         </p>
       </div>
       <div className={demoStyles.section}>
@@ -25,6 +33,33 @@ export function CalendarDemo() {
           minDate={new Date(2026, 2, 10)}
           maxDate={new Date(2026, 2, 25)}
           defaultMonth={new Date(2026, 2, 1)}
+        />
+      </div>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Dropdown navigation</div>
+        <Calendar
+          mode="single"
+          captionLayout="dropdown"
+          minDate={new Date(2020, 0, 1)}
+          maxDate={new Date(2030, 11, 31)}
+        />
+      </div>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Dropdown + buttons</div>
+        <Calendar
+          mode="single"
+          captionLayout="dropdown-buttons"
+          minDate={new Date(2020, 0, 1)}
+          maxDate={new Date(2030, 11, 31)}
+        />
+      </div>
+      <div className={demoStyles.section}>
+        <div className={demoStyles.sectionTitle}>Birthdate picker</div>
+        <Calendar
+          mode="single"
+          captionLayout="dropdown"
+          minDate={new Date(1926, 0, 1)}
+          maxDate={new Date(2026, 11, 31)}
         />
       </div>
     </div>

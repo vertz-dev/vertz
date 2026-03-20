@@ -10,6 +10,8 @@ type CalendarBlocks = {
   headCell: StyleEntry[];
   cell: StyleEntry[];
   dayButton: StyleEntry[];
+  monthSelect: StyleEntry[];
+  yearSelect: StyleEntry[];
 };
 
 const focusRing: Record<string, StyleValue[]> = {
@@ -48,6 +50,15 @@ export function createCalendarStyles(): CSSOutput<CalendarBlocks> {
           position: 'relative',
           height: '1.75rem',
           width: '100%',
+        },
+        /* dropdown-only mode: center the selects */
+        '&[data-caption-layout="dropdown"]': {
+          'justify-content': 'center',
+          gap: '0.25rem',
+        },
+        /* dropdown-buttons mode: space between with gap */
+        '&[data-caption-layout="dropdown-buttons"]': {
+          gap: '0.25rem',
         },
       },
     ],
@@ -158,13 +169,44 @@ export function createCalendarStyles(): CSSOutput<CalendarBlocks> {
         '&[data-today="true"][aria-selected="true"]': ['bg:primary', 'text:primary-foreground'],
       },
       /* disabled: text-muted-foreground opacity-50 */
-      { '&[aria-disabled="true"]': ['text:muted-foreground', 'opacity:0.5', 'pointer-events-none'] },
+      {
+        '&[aria-disabled="true"]': ['text:muted-foreground', 'opacity:0.5', 'pointer-events-none'],
+      },
       /* outside: text-muted-foreground */
       {
         '&[data-outside-month="true"]': ['text:muted-foreground'],
       },
       /* range middle: bg-muted text-foreground rounded-none */
       { '&[data-in-range="true"]': ['bg:muted', 'text:foreground'] },
+    ],
+    /* month/year dropdown selects */
+    calendarMonthSelect: [
+      'text:sm',
+      'font:medium',
+      'bg:transparent',
+      'cursor:pointer',
+      focusRing,
+      {
+        '&': {
+          border: 'none',
+          'padding-inline': '0.25rem',
+          appearance: 'auto',
+        },
+      },
+    ],
+    calendarYearSelect: [
+      'text:sm',
+      'font:medium',
+      'bg:transparent',
+      'cursor:pointer',
+      focusRing,
+      {
+        '&': {
+          border: 'none',
+          'padding-inline': '0.25rem',
+          appearance: 'auto',
+        },
+      },
     ],
   });
   return {
@@ -176,6 +218,8 @@ export function createCalendarStyles(): CSSOutput<CalendarBlocks> {
     headCell: s.calendarHeadCell,
     cell: s.calendarCell,
     dayButton: s.calendarDayButton,
+    monthSelect: s.calendarMonthSelect,
+    yearSelect: s.calendarYearSelect,
     css: s.css,
   } as CSSOutput<CalendarBlocks>;
 }

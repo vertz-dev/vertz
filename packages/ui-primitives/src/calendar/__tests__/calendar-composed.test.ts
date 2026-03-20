@@ -306,6 +306,388 @@ describe('Composed Calendar', () => {
     });
   });
 
+  describe('Given captionLayout="dropdown"', () => {
+    describe('When rendered', () => {
+      it('Then renders month <select> with aria-label="Select month"', () => {
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown',
+          defaultMonth: new Date(2024, 5, 1),
+        });
+        container.appendChild(root);
+        const monthSelect = root.querySelector('select[aria-label="Select month"]');
+        expect(monthSelect).not.toBeNull();
+      });
+
+      it('Then renders year <select> with aria-label="Select year"', () => {
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown',
+          defaultMonth: new Date(2024, 5, 1),
+        });
+        container.appendChild(root);
+        const yearSelect = root.querySelector('select[aria-label="Select year"]');
+        expect(yearSelect).not.toBeNull();
+      });
+
+      it('Then does NOT render prev/next arrow buttons', () => {
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown',
+          defaultMonth: new Date(2024, 5, 1),
+        });
+        container.appendChild(root);
+        const prevBtn = root.querySelector('button[aria-label="Previous month"]');
+        const nextBtn = root.querySelector('button[aria-label="Next month"]');
+        expect(prevBtn).toBeNull();
+        expect(nextBtn).toBeNull();
+      });
+
+      it('Then month select shows current month as selected', () => {
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown',
+          defaultMonth: new Date(2024, 5, 1),
+        });
+        container.appendChild(root);
+        const monthSelect = root.querySelector(
+          'select[aria-label="Select month"]',
+        ) as HTMLSelectElement;
+        const selectedOption = monthSelect.querySelector('option[selected]') as HTMLOptionElement;
+        expect(selectedOption).not.toBeNull();
+        expect(selectedOption.value).toBe('5');
+      });
+
+      it('Then year select shows current year as selected', () => {
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown',
+          defaultMonth: new Date(2024, 5, 1),
+        });
+        container.appendChild(root);
+        const yearSelect = root.querySelector(
+          'select[aria-label="Select year"]',
+        ) as HTMLSelectElement;
+        const selectedOption = yearSelect.querySelector('option[selected]') as HTMLOptionElement;
+        expect(selectedOption).not.toBeNull();
+        expect(selectedOption.value).toBe('2024');
+      });
+
+      it('Then applies monthSelect class to month <select>', () => {
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown',
+          defaultMonth: new Date(2024, 5, 1),
+          classes: { monthSelect: 'cal-month-sel' },
+        });
+        container.appendChild(root);
+        const monthSelect = root.querySelector('select[aria-label="Select month"]');
+        expect(monthSelect?.className).toContain('cal-month-sel');
+      });
+
+      it('Then applies yearSelect class to year <select>', () => {
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown',
+          defaultMonth: new Date(2024, 5, 1),
+          classes: { yearSelect: 'cal-year-sel' },
+        });
+        container.appendChild(root);
+        const yearSelect = root.querySelector('select[aria-label="Select year"]');
+        expect(yearSelect?.className).toContain('cal-year-sel');
+      });
+    });
+  });
+
+  describe('Given captionLayout="dropdown" with month/year selection', () => {
+    describe('When selecting a different month', () => {
+      it('Then updates the calendar grid to show the new month', () => {
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown',
+          defaultMonth: new Date(2024, 5, 1),
+        });
+        container.appendChild(root);
+        const monthSelect = root.querySelector(
+          'select[aria-label="Select month"]',
+        ) as HTMLSelectElement;
+        monthSelect.value = '0';
+        monthSelect.dispatchEvent(new Event('change'));
+        // Grid should now show January 2024 dates
+        const jan1Btn = root.querySelector('button[data-date="2024-01-01"]');
+        expect(jan1Btn).not.toBeNull();
+      });
+
+      it('Then fires onMonthChange with the new Date', () => {
+        const onMonthChange = vi.fn();
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown',
+          defaultMonth: new Date(2024, 5, 1),
+          onMonthChange,
+        });
+        container.appendChild(root);
+        const monthSelect = root.querySelector(
+          'select[aria-label="Select month"]',
+        ) as HTMLSelectElement;
+        monthSelect.value = '0';
+        monthSelect.dispatchEvent(new Event('change'));
+        expect(onMonthChange).toHaveBeenCalledTimes(1);
+        const val = onMonthChange.mock.calls[0]?.[0] as Date;
+        expect(val.getMonth()).toBe(0);
+        expect(val.getFullYear()).toBe(2024);
+      });
+    });
+
+    describe('When selecting a different year', () => {
+      it('Then updates the calendar grid to show the new year', () => {
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown',
+          defaultMonth: new Date(2024, 5, 1),
+          minDate: new Date(2020, 0, 1),
+          maxDate: new Date(2030, 11, 31),
+        });
+        container.appendChild(root);
+        const yearSelect = root.querySelector(
+          'select[aria-label="Select year"]',
+        ) as HTMLSelectElement;
+        yearSelect.value = '2025';
+        yearSelect.dispatchEvent(new Event('change'));
+        // Grid should now show June 2025 dates
+        const jun1Btn = root.querySelector('button[data-date="2025-06-01"]');
+        expect(jun1Btn).not.toBeNull();
+      });
+
+      it('Then fires onMonthChange with the new Date', () => {
+        const onMonthChange = vi.fn();
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown',
+          defaultMonth: new Date(2024, 5, 1),
+          minDate: new Date(2020, 0, 1),
+          maxDate: new Date(2030, 11, 31),
+          onMonthChange,
+        });
+        container.appendChild(root);
+        const yearSelect = root.querySelector(
+          'select[aria-label="Select year"]',
+        ) as HTMLSelectElement;
+        yearSelect.value = '2025';
+        yearSelect.dispatchEvent(new Event('change'));
+        expect(onMonthChange).toHaveBeenCalledTimes(1);
+        const val = onMonthChange.mock.calls[0]?.[0] as Date;
+        expect(val.getMonth()).toBe(5);
+        expect(val.getFullYear()).toBe(2025);
+      });
+    });
+  });
+
+  describe('Given captionLayout="dropdown" with minDate/maxDate constraints', () => {
+    describe('When minDate and maxDate are provided', () => {
+      it('Then year select only contains years within range', () => {
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown',
+          defaultMonth: new Date(2024, 5, 1),
+          minDate: new Date(2020, 0, 1),
+          maxDate: new Date(2026, 11, 31),
+        });
+        container.appendChild(root);
+        const yearSelect = root.querySelector(
+          'select[aria-label="Select year"]',
+        ) as HTMLSelectElement;
+        const years = Array.from(yearSelect.options).map((o) => Number(o.value));
+        expect(years[0]).toBe(2020);
+        expect(years[years.length - 1]).toBe(2026);
+        expect(years.length).toBe(7);
+      });
+
+      it('Then months before minDate are disabled in boundary year', () => {
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown',
+          defaultMonth: new Date(2020, 5, 1),
+          minDate: new Date(2020, 2, 1),
+          maxDate: new Date(2026, 11, 31),
+        });
+        container.appendChild(root);
+        const monthSelect = root.querySelector(
+          'select[aria-label="Select month"]',
+        ) as HTMLSelectElement;
+        const janOption = monthSelect.querySelector('option[value="0"]') as HTMLOptionElement;
+        const febOption = monthSelect.querySelector('option[value="1"]') as HTMLOptionElement;
+        const marOption = monthSelect.querySelector('option[value="2"]') as HTMLOptionElement;
+        expect(janOption.disabled).toBe(true);
+        expect(febOption.disabled).toBe(true);
+        expect(marOption.disabled).toBe(false);
+      });
+
+      it('Then months after maxDate are disabled in boundary year', () => {
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown',
+          defaultMonth: new Date(2026, 5, 1),
+          minDate: new Date(2020, 0, 1),
+          maxDate: new Date(2026, 8, 30),
+        });
+        container.appendChild(root);
+        const monthSelect = root.querySelector(
+          'select[aria-label="Select month"]',
+        ) as HTMLSelectElement;
+        const sepOption = monthSelect.querySelector('option[value="8"]') as HTMLOptionElement;
+        const octOption = monthSelect.querySelector('option[value="9"]') as HTMLOptionElement;
+        expect(sepOption.disabled).toBe(false);
+        expect(octOption.disabled).toBe(true);
+      });
+    });
+
+    describe('When minDate and maxDate are in the same year', () => {
+      it('Then year select contains only that year', () => {
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown',
+          defaultMonth: new Date(2024, 5, 1),
+          minDate: new Date(2024, 2, 1),
+          maxDate: new Date(2024, 8, 30),
+        });
+        container.appendChild(root);
+        const yearSelect = root.querySelector(
+          'select[aria-label="Select year"]',
+        ) as HTMLSelectElement;
+        expect(yearSelect.options.length).toBe(1);
+        expect(yearSelect.options[0]?.value).toBe('2024');
+      });
+
+      it('Then months before minDate AND after maxDate are both disabled', () => {
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown',
+          defaultMonth: new Date(2024, 5, 1),
+          minDate: new Date(2024, 2, 1),
+          maxDate: new Date(2024, 8, 30),
+        });
+        container.appendChild(root);
+        const monthSelect = root.querySelector(
+          'select[aria-label="Select month"]',
+        ) as HTMLSelectElement;
+        expect((monthSelect.querySelector('option[value="1"]') as HTMLOptionElement).disabled).toBe(
+          true,
+        );
+        expect((monthSelect.querySelector('option[value="2"]') as HTMLOptionElement).disabled).toBe(
+          false,
+        );
+        expect((monthSelect.querySelector('option[value="8"]') as HTMLOptionElement).disabled).toBe(
+          false,
+        );
+        expect((monthSelect.querySelector('option[value="9"]') as HTMLOptionElement).disabled).toBe(
+          true,
+        );
+      });
+    });
+
+    describe('When no minDate/maxDate', () => {
+      it('Then year range defaults to current year -100 to +10', () => {
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown',
+          defaultMonth: new Date(2024, 5, 1),
+        });
+        container.appendChild(root);
+        const yearSelect = root.querySelector(
+          'select[aria-label="Select year"]',
+        ) as HTMLSelectElement;
+        const years = Array.from(yearSelect.options).map((o) => Number(o.value));
+        const currentYear = new Date().getFullYear();
+        expect(years[0]).toBe(currentYear - 100);
+        expect(years[years.length - 1]).toBe(currentYear + 10);
+      });
+    });
+
+    describe('When selecting a disabled month option', () => {
+      it('Then displayMonth does NOT change', () => {
+        const onMonthChange = vi.fn();
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown',
+          defaultMonth: new Date(2020, 5, 1),
+          minDate: new Date(2020, 2, 1),
+          maxDate: new Date(2026, 11, 31),
+          onMonthChange,
+        });
+        container.appendChild(root);
+        const monthSelect = root.querySelector(
+          'select[aria-label="Select month"]',
+        ) as HTMLSelectElement;
+        // Try to select January (disabled)
+        monthSelect.value = '0';
+        monthSelect.dispatchEvent(new Event('change'));
+        expect(onMonthChange).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('Given captionLayout="dropdown-buttons"', () => {
+    describe('When rendered', () => {
+      it('Then renders both selects AND prev/next arrow buttons', () => {
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown-buttons',
+          defaultMonth: new Date(2024, 5, 1),
+        });
+        container.appendChild(root);
+        expect(root.querySelector('select[aria-label="Select month"]')).not.toBeNull();
+        expect(root.querySelector('select[aria-label="Select year"]')).not.toBeNull();
+        expect(root.querySelector('button[aria-label="Previous month"]')).not.toBeNull();
+        expect(root.querySelector('button[aria-label="Next month"]')).not.toBeNull();
+      });
+    });
+
+    describe('When clicking prev/next with dropdown-buttons', () => {
+      it('Then updates both the grid and the select values', () => {
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown-buttons',
+          defaultMonth: new Date(2024, 5, 1),
+          minDate: new Date(2020, 0, 1),
+          maxDate: new Date(2030, 11, 31),
+        });
+        container.appendChild(root);
+        const nextBtn = root.querySelector('button[aria-label="Next month"]') as HTMLButtonElement;
+        nextBtn.click();
+        // Grid should now show July 2024
+        const jul1Btn = root.querySelector('button[data-date="2024-07-01"]');
+        expect(jul1Btn).not.toBeNull();
+        // Month select should reflect July
+        const monthSelect = root.querySelector(
+          'select[aria-label="Select month"]',
+        ) as HTMLSelectElement;
+        const selectedOption = monthSelect.querySelector('option[selected]') as HTMLOptionElement;
+        expect(selectedOption.value).toBe('6');
+      });
+    });
+
+    describe('When at the boundary of the year range', () => {
+      it('Then prev button is disabled at min year/month', () => {
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown-buttons',
+          defaultMonth: new Date(2020, 0, 1),
+          minDate: new Date(2020, 0, 1),
+          maxDate: new Date(2026, 11, 31),
+        });
+        container.appendChild(root);
+        const prevBtn = root.querySelector('button[aria-label="Previous month"]');
+        expect(prevBtn?.getAttribute('aria-disabled')).toBe('true');
+      });
+
+      it('Then next button is disabled at max year/month', () => {
+        const root = ComposedCalendar({
+          captionLayout: 'dropdown-buttons',
+          defaultMonth: new Date(2026, 11, 1),
+          minDate: new Date(2020, 0, 1),
+          maxDate: new Date(2026, 11, 31),
+        });
+        container.appendChild(root);
+        const nextBtn = root.querySelector('button[aria-label="Next month"]');
+        expect(nextBtn?.getAttribute('aria-disabled')).toBe('true');
+      });
+    });
+  });
+
+  describe('Given captionLayout="buttons" (default)', () => {
+    describe('When rendered', () => {
+      it('Then renders arrow buttons and title, no <select> elements', () => {
+        const root = ComposedCalendar({
+          defaultMonth: new Date(2024, 5, 1),
+        });
+        container.appendChild(root);
+        expect(root.querySelector('select')).toBeNull();
+        expect(root.querySelector('button[aria-label="Previous month"]')).not.toBeNull();
+        expect(root.querySelector('button[aria-label="Next month"]')).not.toBeNull();
+      });
+    });
+  });
+
   describe('Given a ComposedCalendar with keyboard navigation', () => {
     describe('When arrow keys are pressed', () => {
       it('Then ArrowRight moves focus by 1 day', () => {

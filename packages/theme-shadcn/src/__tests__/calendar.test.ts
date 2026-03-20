@@ -24,6 +24,13 @@ describe('calendar styles', () => {
     expect(styles.dayButton.length).toBeGreaterThan(0);
   });
 
+  it('has monthSelect and yearSelect blocks', () => {
+    expect(typeof styles.monthSelect).toBe('string');
+    expect(typeof styles.yearSelect).toBe('string');
+    expect(styles.monthSelect.length).toBeGreaterThan(0);
+    expect(styles.yearSelect.length).toBeGreaterThan(0);
+  });
+
   it('has combined CSS', () => {
     expect(typeof styles.css).toBe('string');
     expect(styles.css.length).toBeGreaterThan(0);
@@ -80,5 +87,15 @@ describe('themed Calendar', () => {
     const tds = root.querySelectorAll('td');
     expect(tds.length).toBeGreaterThan(0);
     expect(tds[0]?.className).toContain(styles.cell);
+  });
+
+  it('forwards captionLayout prop and applies monthSelect/yearSelect styles', () => {
+    const root = Calendar({ captionLayout: 'dropdown' });
+    const monthSelect = root.querySelector('select[aria-label="Select month"]');
+    const yearSelect = root.querySelector('select[aria-label="Select year"]');
+    expect(monthSelect).not.toBeNull();
+    expect(yearSelect).not.toBeNull();
+    expect(monthSelect?.className).toContain(styles.monthSelect);
+    expect(yearSelect?.className).toContain(styles.yearSelect);
   });
 });
