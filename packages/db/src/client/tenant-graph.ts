@@ -8,7 +8,7 @@ import type { ColumnRecord, TableDef } from '../schema/table';
 export interface TenantGraph {
   /** The tenant root table key (e.g., "organizations"). Null if no tenant declarations exist. */
   readonly root: string | null;
-  /** Model keys with a direct { tenant } declaration pointing to the root. */
+  /** Model keys with a ref.one relation to the tenant root table. */
   readonly directlyScoped: readonly string[];
   /** Model keys reachable from scoped models via relation chains. */
   readonly indirectlyScoped: readonly string[];
@@ -23,7 +23,6 @@ export interface TenantGraph {
 interface ModelRegistryEntry {
   readonly table: TableDef<ColumnRecord>;
   readonly relations: Record<string, RelationDef>;
-  readonly _tenant?: string | null;
 }
 
 type ModelRegistry = Record<string, ModelRegistryEntry>;
@@ -35,13 +34,14 @@ type ModelRegistry = Record<string, ModelRegistryEntry>;
 /**
  * Analyzes a model registry to compute the tenant scoping graph.
  *
- * Fully relation-derived — reads _tenant from model options and follows
- * relation chains for indirect scoping. Does NOT scan column metadata.
+ * Fully derived from table metadata and relations:
  *
- * 1. Finds the tenant root — the table that tenant relations point to.
- * 2. Classifies models as directly scoped (has { tenant } option),
- *    indirectly scoped (has a relation to a scoped model), or shared (.shared()).
- * 3. Models that are none of the above are unscoped — the caller should
+ * 1. Finds the tenant root — the table with `._tenant === true`.
+ * 2. Finds directly scoped models — those with a `ref.one` targeting the root.
+ * 3. Finds indirectly scoped models — those reachable from scoped models via
+ *    relation chains.
+ * 4. Finds shared models — those whose tables are marked `.shared()`.
+ * 5. Models that are none of the above are unscoped — the caller should
  *    log a notice for those.
  */
 export function computeTenantGraph(registry: ModelRegistry): TenantGraph {
@@ -53,57 +53,76 @@ export function computeTenantGraph(registry: ModelRegistry): TenantGraph {
     tableNameToKey.set(entry.table._name, key);
   }
 
-  // Step 1: Find tenant root, directly scoped, and shared models
+  // Step 1: Find tenant root and shared tables
   let root: string | null = null;
-  const directlyScoped: string[] = [];
   const shared: string[] = [];
 
   for (const [key, entry] of entries) {
-    // Check for shared
+    if (entry.table._shared && entry.table._tenant) {
+      throw new Error(
+        `Table "${entry.table._name}" is marked as both .tenant() and .shared(). ` +
+          'A tenant root cannot be shared — it defines the tenant boundary.',
+      );
+    }
+
     if (entry.table._shared) {
       shared.push(key);
       continue;
     }
 
-    // Check for tenant option
-    if (entry._tenant) {
-      const tenantRel = entry.relations[entry._tenant] as RelationDef | undefined;
-      if (!tenantRel) {
+    if (entry.table._tenant) {
+      if (root !== null) {
+        const existingRootName = registry[root]?.table._name;
         throw new Error(
-          `Model "${key}": tenant relation "${entry._tenant}" not found in relations`,
+          `Multiple tables marked as .tenant(): "${existingRootName}" and "${entry.table._name}". ` +
+            'Only one tenant root is supported per application.',
         );
       }
-      if (!directlyScoped.includes(key)) {
-        directlyScoped.push(key);
-      }
-      // The referenced table is the tenant root
-      const rootTableName = tenantRel._target()._name;
-      const rootKey = tableNameToKey.get(rootTableName);
-      if (rootKey) {
-        if (root !== null && root !== rootKey) {
-          throw new Error(
-            `Conflicting tenant roots: "${root}" and "${rootKey}". All tenant declarations must point to the same root table.`,
-          );
-        }
-        root = rootKey;
-      }
+      root = key;
     }
   }
 
-  // Step 2: Find indirectly scoped models via relation chains
-  // Build a set of table names that are scoped (root + directly scoped)
-  const scopedTableNames = new Set<string>();
-  if (root !== null) {
-    const rootEntry = registry[root];
-    if (rootEntry) {
-      scopedTableNames.add(rootEntry.table._name);
+  // If no tenant root, return early
+  if (root === null) {
+    return { root: null, directlyScoped: [], indirectlyScoped: [], shared };
+  }
+
+  const rootEntry = registry[root];
+  if (!rootEntry) {
+    return { root: null, directlyScoped: [], indirectlyScoped: [], shared };
+  }
+  const rootTableName = rootEntry.table._name;
+
+  // Step 2: Find directly scoped models — any model with ref.one → root table
+  const directlyScoped: string[] = [];
+
+  for (const [key, entry] of entries) {
+    if (key === root || shared.includes(key)) continue;
+
+    const refsToRoot: string[] = [];
+    for (const [relName, rel] of Object.entries(entry.relations)) {
+      if (rel._type === 'one' && rel._target()._name === rootTableName) {
+        refsToRoot.push(relName);
+      }
+    }
+
+    if (refsToRoot.length === 1) {
+      directlyScoped.push(key);
+    } else if (refsToRoot.length > 1) {
+      throw new Error(
+        `Model "${key}" has ${refsToRoot.length} relations to tenant root ` +
+          `"${root}" (${refsToRoot.join(', ')}). Mark the table as .shared() ` +
+          "if it's cross-tenant and handle scoping manually in your access rules.",
+      );
     }
   }
+
+  // Step 3: Find indirectly scoped models via relation chains
+  const scopedTableNames = new Set<string>();
+  scopedTableNames.add(rootTableName);
   for (const key of directlyScoped) {
     const entry = registry[key];
-    if (entry) {
-      scopedTableNames.add(entry.table._name);
-    }
+    if (entry) scopedTableNames.add(entry.table._name);
   }
 
   const indirectlyScoped: string[] = [];
@@ -124,9 +143,11 @@ export function computeTenantGraph(registry: ModelRegistry): TenantGraph {
         continue;
       }
 
-      // Check if any relation targets a scoped or indirectly scoped table
+      // Check if any ref.one relation targets a scoped or indirectly scoped table
+      // (Only ref.one is used because tenant chain resolution follows FK → PK joins)
       for (const rel of Object.values(entry.relations)) {
-        const targetTableName = (rel as RelationDef)._target()._name;
+        if (rel._type !== 'one') continue;
+        const targetTableName = rel._target()._name;
         if (scopedTableNames.has(targetTableName) || indirectlyScopedNames.has(targetTableName)) {
           indirectlyScoped.push(key);
           indirectlyScopedNames.add(entry.table._name);

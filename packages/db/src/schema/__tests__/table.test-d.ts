@@ -212,3 +212,44 @@ describe('.shared() type', () => {
     type _t3 = Expect<Equal<Flag['enabled'], boolean>>;
   });
 });
+
+// ---------------------------------------------------------------------------
+// .tenant() -- metadata flag
+// ---------------------------------------------------------------------------
+
+describe('.tenant() type', () => {
+  it('preserves column types after .tenant()', () => {
+    const workspaces = d
+      .table('workspaces', {
+        id: d.uuid().primary(),
+        name: d.text(),
+        slug: d.text().unique(),
+      })
+      .tenant();
+
+    type Ws = typeof workspaces.$infer;
+    type _t1 = Expect<Equal<Ws['id'], string>>;
+    type _t2 = Expect<Equal<Ws['name'], string>>;
+    type _t3 = Expect<Equal<Ws['slug'], string>>;
+  });
+
+  it('_tenant is boolean on TableDef', () => {
+    const workspaces = d
+      .table('workspaces', {
+        id: d.uuid().primary(),
+        name: d.text(),
+      })
+      .tenant();
+
+    type _t1 = Expect<Equal<typeof workspaces._tenant, boolean>>;
+  });
+
+  it('_tenant defaults to false on plain tables', () => {
+    const users = d.table('users', {
+      id: d.uuid().primary(),
+      name: d.text(),
+    });
+
+    type _t1 = Expect<Equal<typeof users._tenant, boolean>>;
+  });
+});

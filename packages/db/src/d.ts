@@ -12,7 +12,7 @@ import type {
 } from './schema/column';
 import { createColumn, createSerialColumn } from './schema/column';
 import type { ModelEntry } from './schema/inference';
-import type { ModelDef, ModelOptions } from './schema/model';
+import type { ModelDef, ValidateOneRelationFKs } from './schema/model';
 import { createModel } from './schema/model';
 import type { SchemaLike } from './schema/model-schemas';
 import type { ManyRelationDef, RelationDef } from './schema/relation';
@@ -66,13 +66,13 @@ export const d: {
   ): TableDef<TColumns>;
   index(columns: string | string[], options?: IndexOptions): IndexDef;
   ref: {
-    one<TTarget extends TableDef<ColumnRecord>>(
+    one<TTarget extends TableDef<ColumnRecord>, TFK extends string>(
       target: () => TTarget,
-      foreignKey: string,
-    ): RelationDef<TTarget, 'one'>;
+      foreignKey: TFK,
+    ): RelationDef<TTarget, 'one', TFK>;
     many<TTarget extends TableDef<ColumnRecord>>(
       target: () => TTarget,
-      foreignKey: string,
+      foreignKey: Extract<keyof TTarget['_columns'], string>,
     ): RelationDef<TTarget, 'many'>;
     many<TTarget extends TableDef<ColumnRecord>>(target: () => TTarget): ManyRelationDef<TTarget>;
   };
@@ -86,12 +86,7 @@ export const d: {
   model<TTable extends TableDef<ColumnRecord>>(table: TTable): ModelDef<TTable, {}>;
   model<TTable extends TableDef<ColumnRecord>, TRelations extends Record<string, RelationDef>>(
     table: TTable,
-    relations: TRelations,
-  ): ModelDef<TTable, TRelations>;
-  model<TTable extends TableDef<ColumnRecord>, TRelations extends Record<string, RelationDef>>(
-    table: TTable,
-    relations: TRelations,
-    options: ModelOptions<TRelations>,
+    relations: TRelations & ValidateOneRelationFKs<TTable, TRelations>,
   ): ModelDef<TTable, TRelations>;
 } = {
   uuid: () => createColumn<string, DefaultMeta<'uuid'>>('uuid'),
@@ -165,18 +160,19 @@ export const d: {
     createTable(name, columns, options),
   index: (columns: string | string[], options?: IndexOptions) => createIndex(columns, options),
   ref: {
-    one: <TTarget extends TableDef<ColumnRecord>>(target: () => TTarget, foreignKey: string) =>
-      createOneRelation(target, foreignKey),
-    many: <TTarget extends TableDef<ColumnRecord>>(target: () => TTarget, foreignKey?: string) =>
-      createManyRelation(target, foreignKey),
+    one: <TTarget extends TableDef<ColumnRecord>, TFK extends string>(
+      target: () => TTarget,
+      foreignKey: TFK,
+    ) => createOneRelation(target, foreignKey),
+    many: <TTarget extends TableDef<ColumnRecord>>(
+      target: () => TTarget,
+      foreignKey?: Extract<keyof TTarget['_columns'], string>,
+    ) => createManyRelation(target, foreignKey),
   },
   entry: (table: TableDef<ColumnRecord>, relations: Record<string, RelationDef> = {}) => ({
     table,
     relations,
   }),
-  model: (
-    table: TableDef<ColumnRecord>,
-    relations: Record<string, RelationDef> = {},
-    options?: ModelOptions<Record<string, RelationDef>>,
-  ) => createModel(table, relations, options),
+  model: (table: TableDef<ColumnRecord>, relations: Record<string, RelationDef> = {}) =>
+    createModel(table, relations),
 };

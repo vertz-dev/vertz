@@ -19,7 +19,7 @@ const users = d.table('users', {
 const usersModel = d.model(users);
 
 // ---------------------------------------------------------------------------
-// _tenant — model-level tenant option
+// d.model() — no third argument (ModelOptions removed)
 // ---------------------------------------------------------------------------
 
 const orgs = d.table('organizations', {
@@ -33,38 +33,20 @@ const employees = d.table('employees', {
   name: d.text(),
 });
 
-describe('ModelDef._tenant type', () => {
-  it('is string | null', () => {
-    const model = d.model(
-      employees,
-      {
-        organization: d.ref.one(() => orgs, 'organizationId'),
-      },
-      { tenant: 'organization' },
-    );
-
-    type _t1 = Expect<Extends<typeof model._tenant, string | null>>;
+describe('d.model() rejects third argument', () => {
+  it('rejects a third options argument', () => {
+    const rels = { organization: d.ref.one(() => orgs, 'organizationId') };
+    // @ts-expect-error — ModelOptions removed, no third argument accepted
+    d.model(employees, rels, { tenant: 'organization' });
   });
 
-  it('is string | null when no options provided', () => {
-    type _t1 = Expect<Extends<typeof usersModel._tenant, string | null>>;
-  });
+  it('ModelDef does not have _tenant field', () => {
+    const model = d.model(employees, {
+      organization: d.ref.one(() => orgs, 'organizationId'),
+    });
 
-  it('rejects invalid relation names in tenant option', () => {
-    const relations = { organization: d.ref.one(() => orgs, 'organizationId') };
-    // @ts-expect-error — 'nonexistent' is not a key of the relations record
-    d.model(employees, relations, { tenant: 'nonexistent' });
-  });
-
-  it('accepts valid relation names in tenant option', () => {
-    // Should compile without error
-    d.model(
-      employees,
-      {
-        organization: d.ref.one(() => orgs, 'organizationId'),
-      },
-      { tenant: 'organization' },
-    );
+    // @ts-expect-error — _tenant no longer exists on ModelDef
+    model._tenant;
   });
 });
 

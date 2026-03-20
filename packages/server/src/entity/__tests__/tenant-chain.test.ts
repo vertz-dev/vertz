@@ -4,12 +4,15 @@ import { resolveTenantChain } from '../tenant-chain';
 
 // ---------------------------------------------------------------------------
 // Test schema: multi-tenant SaaS with indirect scoping
+// Tenant root is declared via .tenant() on the root table.
 // ---------------------------------------------------------------------------
 
-const organizations = d.table('organizations', {
-  id: d.uuid().primary(),
-  name: d.text(),
-});
+const organizations = d
+  .table('organizations', {
+    id: d.uuid().primary(),
+    name: d.text(),
+  })
+  .tenant();
 
 const projects = d.table('projects', {
   id: d.uuid().primary(),
@@ -47,11 +50,9 @@ const auditLogs = d.table('audit_logs', {
 
 const registry = {
   organizations: d.model(organizations),
-  projects: d.model(
-    projects,
-    { organization: d.ref.one(() => organizations, 'organizationId') },
-    { tenant: 'organization' },
-  ),
+  projects: d.model(projects, {
+    organization: d.ref.one(() => organizations, 'organizationId'),
+  }),
   tasks: d.model(tasks, {
     project: d.ref.one(() => projects, 'projectId'),
   }),
@@ -129,13 +130,14 @@ describe('resolveTenantChain', () => {
     expect(chain).toBeNull();
   });
 
-  it('resolves tenant column from the directly-scoped model _tenant relation', () => {
-    // The tenant column should come from the relation's FK on the directly-scoped model,
-    // not from a hardcoded 'tenantId'
-    const customOrgs = d.table('orgs', {
-      id: d.uuid().primary(),
-      name: d.text(),
-    });
+  it('resolves tenant column from the directly-scoped model ref.one to root', () => {
+    // The tenant column should come from the relation's FK on the directly-scoped model
+    const customOrgs = d
+      .table('orgs', {
+        id: d.uuid().primary(),
+        name: d.text(),
+      })
+      .tenant();
     const customProjects = d.table('custom_projects', {
       id: d.uuid().primary(),
       orgId: d.uuid(),
@@ -149,11 +151,9 @@ describe('resolveTenantChain', () => {
 
     const customRegistry = {
       orgs: d.model(customOrgs),
-      projects: d.model(
-        customProjects,
-        { org: d.ref.one(() => customOrgs, 'orgId') },
-        { tenant: 'org' },
-      ),
+      projects: d.model(customProjects, {
+        org: d.ref.one(() => customOrgs, 'orgId'),
+      }),
       tasks: d.model(customTasks, {
         project: d.ref.one(() => customProjects, 'projectId'),
       }),
@@ -163,5 +163,77 @@ describe('resolveTenantChain', () => {
 
     expect(chain).not.toBeNull();
     expect(chain!.tenantColumn).toBe('orgId');
+  });
+
+  it('picks the shortest path when multiple paths exist (BFS)', () => {
+    // reactions has ref.one to both comments (2 hops to directly-scoped)
+    // and directly to projects (1 hop to directly-scoped)
+    const reactions = d.table('reactions', {
+      id: d.uuid().primary(),
+      commentId: d.uuid(),
+      projectId: d.uuid(),
+      emoji: d.text(),
+    });
+
+    const multiPathRegistry = {
+      organizations: d.model(organizations),
+      projects: d.model(projects, {
+        organization: d.ref.one(() => organizations, 'organizationId'),
+      }),
+      tasks: d.model(tasks, {
+        project: d.ref.one(() => projects, 'projectId'),
+      }),
+      comments: d.model(comments, {
+        task: d.ref.one(() => tasks, 'taskId'),
+      }),
+      reactions: d.model(reactions, {
+        comment: d.ref.one(() => comments, 'commentId'),
+        project: d.ref.one(() => projects, 'projectId'),
+      }),
+    };
+    const multiPathGraph = computeTenantGraph(multiPathRegistry);
+    const chain = resolveTenantChain('reactions', multiPathGraph, multiPathRegistry);
+
+    expect(chain).not.toBeNull();
+    // Should pick reactions → projects (1 hop) over reactions → comments → tasks → projects (3 hops)
+    expect(chain!.hops).toHaveLength(1);
+    expect(chain!.hops[0].tableName).toBe('projects');
+    expect(chain!.tenantColumn).toBe('organizationId');
+  });
+
+  it('ignores shared tables during traversal', () => {
+    // taskItems has ref.one to both projects (scoped) and templates (shared)
+    const templates = d
+      .table('templates', {
+        id: d.uuid().primary(),
+        name: d.text(),
+      })
+      .shared();
+
+    const taskItems = d.table('task_items', {
+      id: d.uuid().primary(),
+      projectId: d.uuid(),
+      templateId: d.uuid(),
+      title: d.text(),
+    });
+
+    const sharedRegistry = {
+      organizations: d.model(organizations),
+      projects: d.model(projects, {
+        organization: d.ref.one(() => organizations, 'organizationId'),
+      }),
+      templates: d.model(templates),
+      taskItems: d.model(taskItems, {
+        template: d.ref.one(() => templates, 'templateId'),
+        project: d.ref.one(() => projects, 'projectId'),
+      }),
+    };
+    const sharedGraph = computeTenantGraph(sharedRegistry);
+    const chain = resolveTenantChain('taskItems', sharedGraph, sharedRegistry);
+
+    expect(chain).not.toBeNull();
+    // Should scope through projects, NOT templates (shared)
+    expect(chain!.hops[0].tableName).toBe('projects');
+    expect(chain!.tenantColumn).toBe('organizationId');
   });
 });

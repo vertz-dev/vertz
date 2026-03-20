@@ -168,44 +168,18 @@ describe('Feature: d.model() and derived schemas', () => {
     });
   });
 
-  describe('Given a model with tenant option', () => {
-    const orgsTable = d.table('organizations', {
-      id: d.uuid().primary(),
-      name: d.text(),
-    });
-
-    const employeesTable = d.table('employees', {
-      id: d.uuid().primary(),
-      organizationId: d.uuid(),
-      name: d.text(),
-    });
-
-    describe('When calling d.model(table) without relations or options', () => {
-      it('Then ._tenant defaults to null', () => {
+  describe('Given d.model() only accepts two arguments', () => {
+    describe('When calling d.model(table) without relations', () => {
+      it('Then returns a model with empty relations', () => {
         const model = d.model(usersTable);
-        expect(model._tenant).toBeNull();
+        expect(model.relations).toEqual({});
       });
     });
 
-    describe('When calling d.model(table, relations) without options', () => {
-      it('Then ._tenant defaults to null', () => {
-        const model = d.model(employeesTable, {
-          organization: d.ref.one(() => orgsTable, 'organizationId'),
-        });
-        expect(model._tenant).toBeNull();
-      });
-    });
-
-    describe('When calling d.model(table, relations, { tenant }) with a valid relation name', () => {
-      it('Then ._tenant equals the relation name', () => {
-        const model = d.model(
-          employeesTable,
-          {
-            organization: d.ref.one(() => orgsTable, 'organizationId'),
-          },
-          { tenant: 'organization' },
-        );
-        expect(model._tenant).toBe('organization');
+    describe('When calling d.model(table, relations)', () => {
+      it('Then does not have a _tenant property', () => {
+        const model = d.model(usersTable);
+        expect(model).not.toHaveProperty('_tenant');
       });
     });
   });

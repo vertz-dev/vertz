@@ -8,12 +8,14 @@ export const SEED_WORKSPACE_ID = 'ws-acme';
 // In Linear, the top-level organizational unit is a Workspace.
 // ---------------------------------------------------------------------------
 
-export const workspacesTable = d.table('workspaces', {
-  id: d.text().primary(),
-  name: d.text(),
-  createdAt: d.timestamp().default('now').readOnly(),
-  updatedAt: d.timestamp().autoUpdate(),
-});
+export const workspacesTable = d
+  .table('workspaces', {
+    id: d.text().primary(),
+    name: d.text(),
+    createdAt: d.timestamp().default('now').readOnly(),
+    updatedAt: d.timestamp().autoUpdate(),
+  })
+  .tenant();
 
 export const workspacesModel = d.model(workspacesTable);
 
@@ -31,13 +33,9 @@ export const usersTable = d.table('users', {
   updatedAt: d.timestamp().autoUpdate(),
 });
 
-export const usersModel = d.model(
-  usersTable,
-  {
-    workspace: d.ref.one(() => workspacesTable, 'workspaceId'),
-  },
-  { tenant: 'workspace' },
-);
+export const usersModel = d.model(usersTable, {
+  workspace: d.ref.one(() => workspacesTable, 'workspaceId'),
+});
 
 // ---------------------------------------------------------------------------
 // Projects
@@ -54,14 +52,10 @@ export const projectsTable = d.table('projects', {
   updatedAt: d.timestamp().autoUpdate(),
 });
 
-export const projectsModel = d.model(
-  projectsTable,
-  {
-    workspace: d.ref.one(() => workspacesTable, 'workspaceId'),
-    creator: d.ref.one(() => usersTable, 'createdBy'),
-  },
-  { tenant: 'workspace' },
-);
+export const projectsModel = d.model(projectsTable, {
+  workspace: d.ref.one(() => workspacesTable, 'workspaceId'),
+  creator: d.ref.one(() => usersTable, 'createdBy'),
+});
 
 // ---------------------------------------------------------------------------
 // Issues — indirectly scoped via project → workspace

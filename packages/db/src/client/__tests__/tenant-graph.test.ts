@@ -4,13 +4,15 @@ import { computeTenantGraph } from '../tenant-graph';
 
 // ---------------------------------------------------------------------------
 // Test schema: multi-tenant SaaS
-// Tenant scoping is declared at the model level via { tenant: 'relationName' }
+// Tenant root is declared via .tenant() on the root table.
 // ---------------------------------------------------------------------------
 
-const organizations = d.table('organizations', {
-  id: d.uuid().primary(),
-  name: d.text(),
-});
+const organizations = d
+  .table('organizations', {
+    id: d.uuid().primary(),
+    name: d.text(),
+  })
+  .tenant();
 
 const users = d.table('users', {
   id: d.uuid().primary(),
@@ -56,39 +58,27 @@ const auditLogs = d.table('audit_logs', {
 // ---------------------------------------------------------------------------
 
 describe('computeTenantGraph', () => {
-  it('identifies the tenant root table', () => {
+  it('identifies the tenant root table from .tenant()', () => {
     const registry = {
       organizations: d.model(organizations),
-      users: d.model(
-        users,
-        {
-          organization: d.ref.one(() => organizations, 'organizationId'),
-        },
-        { tenant: 'organization' },
-      ),
+      users: d.model(users, {
+        organization: d.ref.one(() => organizations, 'organizationId'),
+      }),
     };
 
     const graph = computeTenantGraph(registry);
     expect(graph.root).toBe('organizations');
   });
 
-  it('identifies directly scoped tables (those with { tenant } option)', () => {
+  it('identifies directly scoped models (those with ref.one to root)', () => {
     const registry = {
       organizations: d.model(organizations),
-      users: d.model(
-        users,
-        {
-          organization: d.ref.one(() => organizations, 'organizationId'),
-        },
-        { tenant: 'organization' },
-      ),
-      projects: d.model(
-        projects,
-        {
-          organization: d.ref.one(() => organizations, 'organizationId'),
-        },
-        { tenant: 'organization' },
-      ),
+      users: d.model(users, {
+        organization: d.ref.one(() => organizations, 'organizationId'),
+      }),
+      projects: d.model(projects, {
+        organization: d.ref.one(() => organizations, 'organizationId'),
+      }),
     };
 
     const graph = computeTenantGraph(registry);
@@ -97,16 +87,12 @@ describe('computeTenantGraph', () => {
     expect(graph.directlyScoped).not.toContain('organizations');
   });
 
-  it('identifies indirectly scoped tables (via relations to directly scoped)', () => {
+  it('identifies indirectly scoped models (via relations to directly scoped)', () => {
     const registry = {
       organizations: d.model(organizations),
-      projects: d.model(
-        projects,
-        {
-          organization: d.ref.one(() => organizations, 'organizationId'),
-        },
-        { tenant: 'organization' },
-      ),
+      projects: d.model(projects, {
+        organization: d.ref.one(() => organizations, 'organizationId'),
+      }),
       tasks: d.model(tasks, {
         project: d.ref.one(() => projects, 'projectId'),
       }),
@@ -119,13 +105,9 @@ describe('computeTenantGraph', () => {
   it('traverses multi-hop indirect tenant paths', () => {
     const registry = {
       organizations: d.model(organizations),
-      projects: d.model(
-        projects,
-        {
-          organization: d.ref.one(() => organizations, 'organizationId'),
-        },
-        { tenant: 'organization' },
-      ),
+      projects: d.model(projects, {
+        organization: d.ref.one(() => organizations, 'organizationId'),
+      }),
       tasks: d.model(tasks, {
         project: d.ref.one(() => projects, 'projectId'),
       }),
@@ -153,18 +135,14 @@ describe('computeTenantGraph', () => {
   it('returns tables without tenant path and not shared as unscoped', () => {
     const registry = {
       organizations: d.model(organizations),
-      users: d.model(
-        users,
-        {
-          organization: d.ref.one(() => organizations, 'organizationId'),
-        },
-        { tenant: 'organization' },
-      ),
+      users: d.model(users, {
+        organization: d.ref.one(() => organizations, 'organizationId'),
+      }),
       auditLogs: d.model(auditLogs),
     };
 
     const graph = computeTenantGraph(registry);
-    // auditLogs has no tenant relation, no relation to scoped tables, and is not shared
+    // auditLogs has no relation to scoped tables and is not shared
     expect(graph.directlyScoped).not.toContain('auditLogs');
     expect(graph.indirectlyScoped).not.toContain('auditLogs');
     expect(graph.shared).not.toContain('auditLogs');
@@ -173,20 +151,12 @@ describe('computeTenantGraph', () => {
   it('root table is not in directlyScoped or indirectlyScoped', () => {
     const registry = {
       organizations: d.model(organizations),
-      users: d.model(
-        users,
-        {
-          organization: d.ref.one(() => organizations, 'organizationId'),
-        },
-        { tenant: 'organization' },
-      ),
-      projects: d.model(
-        projects,
-        {
-          organization: d.ref.one(() => organizations, 'organizationId'),
-        },
-        { tenant: 'organization' },
-      ),
+      users: d.model(users, {
+        organization: d.ref.one(() => organizations, 'organizationId'),
+      }),
+      projects: d.model(projects, {
+        organization: d.ref.one(() => organizations, 'organizationId'),
+      }),
     };
 
     const graph = computeTenantGraph(registry);
@@ -194,49 +164,87 @@ describe('computeTenantGraph', () => {
     expect(graph.indirectlyScoped).not.toContain('organizations');
   });
 
-  it('throws when multiple tenant declarations point to different roots', () => {
-    const otherRoot = d.table('other_root', {
-      id: d.uuid().primary(),
-      name: d.text(),
-    });
+  it('throws when multiple tables are marked .tenant()', () => {
+    const otherRoot = d
+      .table('other_root', {
+        id: d.uuid().primary(),
+        name: d.text(),
+      })
+      .tenant();
 
     const registry = {
       organizations: d.model(organizations),
       otherRoot: d.model(otherRoot),
-      users: d.model(
-        users,
-        {
-          organization: d.ref.one(() => organizations, 'organizationId'),
-        },
-        { tenant: 'organization' },
-      ),
-      projects: d.model(
-        projects,
-        {
-          other: d.ref.one(() => otherRoot, 'organizationId'),
-        },
-        { tenant: 'other' },
-      ),
     };
 
-    expect(() => computeTenantGraph(registry)).toThrow('Conflicting tenant roots');
+    expect(() => computeTenantGraph(registry)).toThrow('Multiple tables marked as .tenant()');
   });
 
-  it('throws when _tenant references a non-existent relation', () => {
+  it('throws when a model has two ref.one relations to the tenant root', () => {
+    const transfers = d.table('transfers', {
+      id: d.uuid().primary(),
+      fromOrgId: d.uuid(),
+      toOrgId: d.uuid(),
+      amount: d.integer(),
+    });
+
     const registry = {
       organizations: d.model(organizations),
-      users: {
-        table: users,
-        relations: {},
-        _tenant: 'organization', // relation doesn't exist
-        schemas: d.model(users).schemas,
+      transfers: d.model(transfers, {
+        fromOrg: d.ref.one(() => organizations, 'fromOrgId'),
+        toOrg: d.ref.one(() => organizations, 'toOrgId'),
+      }),
+    };
+
+    expect(() => computeTenantGraph(registry)).toThrow('has 2 relations to tenant root');
+  });
+
+  it('throws when a table is both .tenant() and .shared()', () => {
+    // Manually construct since chaining both isn't possible via the API
+    // (tenant() resets shared, shared() resets tenant) — but test the validation
+    const badTable = {
+      _name: 'bad',
+      _columns: {},
+      _indexes: [],
+      _shared: true,
+      _tenant: true,
+      get $infer() {
+        return undefined as never;
+      },
+      get $infer_all() {
+        return undefined as never;
+      },
+      get $insert() {
+        return undefined as never;
+      },
+      get $update() {
+        return undefined as never;
+      },
+      get $response() {
+        return undefined as never;
+      },
+      get $create_input() {
+        return undefined as never;
+      },
+      get $update_input() {
+        return undefined as never;
+      },
+      shared() {
+        return this;
+      },
+      tenant() {
+        return this;
       },
     };
 
-    expect(() => computeTenantGraph(registry)).toThrow('tenant relation "organization" not found');
+    const registry = {
+      bad: { table: badTable, relations: {}, schemas: d.model(auditLogs).schemas },
+    };
+
+    expect(() => computeTenantGraph(registry)).toThrow('marked as both .tenant() and .shared()');
   });
 
-  it('resolves indirect scoping via ref.many', () => {
+  it('resolves indirect scoping when model has ref.one to a scoped table (alongside ref.many)', () => {
     const tags = d.table('tags', {
       id: d.uuid().primary(),
       name: d.text(),
@@ -244,14 +252,10 @@ describe('computeTenantGraph', () => {
 
     const registry = {
       organizations: d.model(organizations),
-      projects: d.model(
-        projects,
-        {
-          organization: d.ref.one(() => organizations, 'organizationId'),
-          tags: d.ref.many(() => tags, 'projectId'),
-        },
-        { tenant: 'organization' },
-      ),
+      projects: d.model(projects, {
+        organization: d.ref.one(() => organizations, 'organizationId'),
+        tags: d.ref.many(() => tags, 'projectId'),
+      }),
       tags: d.model(tags, {
         project: d.ref.one(() => projects, 'projectId'),
       }),
@@ -261,7 +265,30 @@ describe('computeTenantGraph', () => {
     expect(graph.indirectlyScoped).toContain('tags');
   });
 
-  it('returns null root when no tenant options exist', () => {
+  it('does NOT classify a model as indirectly scoped when it only has ref.many to scoped tables', () => {
+    const tags = d.table('tags', {
+      id: d.uuid().primary(),
+      projectId: d.uuid(),
+      name: d.text(),
+    });
+
+    const registry = {
+      organizations: d.model(organizations),
+      projects: d.model(projects, {
+        organization: d.ref.one(() => organizations, 'organizationId'),
+        // ref.many to tags — does not make projects depend on tags for scoping
+        tags: d.ref.many(() => tags, 'projectId'),
+      }),
+      // tags only has ref.many from projects — no ref.one to any scoped table
+      tags: d.model(tags),
+    };
+
+    const graph = computeTenantGraph(registry);
+    // tags should NOT be indirectly scoped since it has no ref.one path to a scoped table
+    expect(graph.indirectlyScoped).not.toContain('tags');
+  });
+
+  it('returns null root when no .tenant() table exists', () => {
     const standalone = d.table('standalone', {
       id: d.uuid().primary(),
       name: d.text(),

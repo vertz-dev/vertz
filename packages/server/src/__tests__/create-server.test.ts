@@ -527,7 +527,9 @@ describe('createServer', () => {
   });
 
   it('merges _tenantChains into entity route generation', async () => {
-    const orgsTable = d.table('organizations', { id: d.uuid().primary(), name: d.text() });
+    const orgsTable = d
+      .table('organizations', { id: d.uuid().primary(), name: d.text() })
+      .tenant();
     const projectsTable = d.table('projects', {
       id: d.uuid().primary(),
       organizationId: d.uuid(),
@@ -540,11 +542,9 @@ describe('createServer', () => {
     });
 
     const orgsModel = d.model(orgsTable);
-    const projectsModel = d.model(
-      projectsTable,
-      { organization: d.ref.one(() => orgsTable, 'organizationId') },
-      { tenant: 'organization' },
-    );
+    const projectsModel = d.model(projectsTable, {
+      organization: d.ref.one(() => orgsTable, 'organizationId'),
+    });
     const tasksModel = d.model(tasksTable, {
       project: d.ref.one(() => projectsTable, 'projectId'),
     });
@@ -636,7 +636,9 @@ describe('createServer', () => {
   });
 
   it('resolves tenant chains from DatabaseClient when db is provided', () => {
-    const orgsTable = d.table('organizations', { id: d.uuid().primary(), name: d.text() });
+    const orgsTable = d
+      .table('organizations', { id: d.uuid().primary(), name: d.text() })
+      .tenant();
     const orgsModel = d.model(orgsTable);
 
     const projectsTable = d.table('projects', {
@@ -644,11 +646,9 @@ describe('createServer', () => {
       organizationId: d.uuid(),
       name: d.text(),
     });
-    const projectsModel = d.model(
-      projectsTable,
-      { organization: d.ref.one(() => orgsTable, 'organizationId') },
-      { tenant: 'organization' },
-    );
+    const projectsModel = d.model(projectsTable, {
+      organization: d.ref.one(() => orgsTable, 'organizationId'),
+    });
 
     const tasksTable = d.table('tasks', {
       id: d.uuid().primary(),
@@ -898,18 +898,18 @@ describe('createServer', () => {
   });
 
   it('DatabaseClient queryParentIds delegates to model list methods', async () => {
-    const orgsTable = d.table('organizations', { id: d.uuid().primary(), name: d.text() });
+    const orgsTable = d
+      .table('organizations', { id: d.uuid().primary(), name: d.text() })
+      .tenant();
     const orgsModel = d.model(orgsTable);
     const projectsTable = d.table('projects', {
       id: d.uuid().primary(),
       organizationId: d.uuid(),
       name: d.text(),
     });
-    const projectsModel = d.model(
-      projectsTable,
-      { organization: d.ref.one(() => orgsTable, 'organizationId') },
-      { tenant: 'organization' },
-    );
+    const projectsModel = d.model(projectsTable, {
+      organization: d.ref.one(() => orgsTable, 'organizationId'),
+    });
     const tasksTable = d.table('tasks', {
       id: d.uuid().primary(),
       projectId: d.uuid(),

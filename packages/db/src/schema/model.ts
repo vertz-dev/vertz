@@ -23,21 +23,22 @@ export interface ModelDef<
   readonly table: TTable;
   readonly relations: TRelations;
   readonly schemas: ModelSchemas<TTable>;
-  readonly _tenant: string | null;
 }
 
 // ---------------------------------------------------------------------------
-// ModelOptions — optional config for d.model()
+// ValidateOneRelationFKs — ensures ref.one() foreign keys exist on source table
 // ---------------------------------------------------------------------------
 
-export interface ModelOptions<TRelations extends Record<string, RelationDef>> {
-  /**
-   * The relation that defines the tenant boundary for this model.
-   * Must reference a key in the relations record. The referenced relation's
-   * target table is the tenant root.
-   */
-  readonly tenant?: Extract<keyof TRelations, string>;
-}
+export type ValidateOneRelationFKs<
+  TTable extends TableDef<ColumnRecord>,
+  TRelations extends Record<string, RelationDef>,
+> = {
+  [K in keyof TRelations]: TRelations[K] extends RelationDef<infer T, 'one', infer FK>
+    ? FK extends Extract<keyof TTable['_columns'], string>
+      ? TRelations[K]
+      : RelationDef<T, 'one', Extract<keyof TTable['_columns'], string>>
+    : TRelations[K];
+};
 
 // ---------------------------------------------------------------------------
 // createModel factory
@@ -48,13 +49,11 @@ export function createModel<
   TRelations extends Record<string, RelationDef> = Record<string, never>,
 >(
   table: TTable,
-  relations?: TRelations,
-  options?: ModelOptions<TRelations>,
+  relations?: TRelations & ValidateOneRelationFKs<TTable, TRelations>,
 ): ModelDef<TTable, TRelations> {
   return {
     table,
     relations: (relations ?? {}) as TRelations,
     schemas: deriveSchemas(table),
-    _tenant: options?.tenant ?? null,
   };
 }

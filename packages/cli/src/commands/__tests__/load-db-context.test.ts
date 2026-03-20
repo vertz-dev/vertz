@@ -32,7 +32,7 @@ describe('extractSchemaEntries', () => {
   it('finds ModelDef objects (table + relations)', () => {
     const fakeTable = { _name: 'users', _columns: { id: {} }, _indexes: [], _shared: false };
     const module = {
-      users: { table: fakeTable, relations: {}, schemas: {}, _tenant: null },
+      users: { table: fakeTable, relations: {}, schemas: {} },
     };
 
     const entries = extractSchemaEntries(module as Record<string, unknown>);
@@ -48,7 +48,7 @@ describe('extractSchemaEntries', () => {
     const fakeTable = { _name: 'users', _columns: { id: {} }, _indexes: [], _shared: false };
     const module = {
       usersTable: fakeTable,
-      users: { table: fakeTable, relations: { org: {} }, schemas: {}, _tenant: null },
+      users: { table: fakeTable, relations: { org: {} }, schemas: {} },
     };
 
     const entries = extractSchemaEntries(module as Record<string, unknown>);

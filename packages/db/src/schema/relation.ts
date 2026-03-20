@@ -17,10 +17,11 @@ export interface ThroughDef<TJoin extends TableDef<ColumnRecord> = TableDef<Colu
 export interface RelationDef<
   TTarget extends TableDef<ColumnRecord> = TableDef<ColumnRecord>,
   TType extends 'one' | 'many' = 'one' | 'many',
+  TForeignKey extends string = string,
 > {
   readonly _type: TType;
   readonly _target: () => TTarget;
-  readonly _foreignKey: string | null;
+  readonly _foreignKey: TForeignKey | null;
   readonly _through: ThroughDef | null;
 }
 
@@ -32,8 +33,8 @@ export interface ManyRelationDef<TTarget extends TableDef<ColumnRecord> = TableD
   extends RelationDef<TTarget, 'many'> {
   through<TJoin extends TableDef<ColumnRecord>>(
     joinTable: () => TJoin,
-    thisKey: string,
-    thatKey: string,
+    thisKey: Extract<keyof TJoin['_columns'], string>,
+    thatKey: Extract<keyof TJoin['_columns'], string>,
   ): RelationDef<TTarget, 'many'>;
 }
 
@@ -41,10 +42,10 @@ export interface ManyRelationDef<TTarget extends TableDef<ColumnRecord> = TableD
 // Factory: createOneRelation
 // ---------------------------------------------------------------------------
 
-export function createOneRelation<TTarget extends TableDef<ColumnRecord>>(
+export function createOneRelation<TTarget extends TableDef<ColumnRecord>, TFK extends string>(
   target: () => TTarget,
-  foreignKey: string,
-): RelationDef<TTarget, 'one'> {
+  foreignKey: TFK,
+): RelationDef<TTarget, 'one', TFK> {
   return {
     _type: 'one',
     _target: target,
@@ -59,7 +60,7 @@ export function createOneRelation<TTarget extends TableDef<ColumnRecord>>(
 
 export function createManyRelation<TTarget extends TableDef<ColumnRecord>>(
   target: () => TTarget,
-  foreignKey?: string,
+  foreignKey?: Extract<keyof TTarget['_columns'], string>,
 ): ManyRelationDef<TTarget> {
   return {
     _type: 'many',
@@ -68,8 +69,8 @@ export function createManyRelation<TTarget extends TableDef<ColumnRecord>>(
     _through: null,
     through<TJoin extends TableDef<ColumnRecord>>(
       joinTable: () => TJoin,
-      thisKey: string,
-      thatKey: string,
+      thisKey: Extract<keyof TJoin['_columns'], string>,
+      thatKey: Extract<keyof TJoin['_columns'], string>,
     ): RelationDef<TTarget, 'many'> {
       return {
         _type: 'many',

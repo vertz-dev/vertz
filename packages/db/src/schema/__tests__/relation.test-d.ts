@@ -1,5 +1,5 @@
 import { describe, it } from 'bun:test';
-import type { Equal, Expect, Extends, HasKey } from '../../__tests__/_type-helpers';
+import type { Equal, Expect, Extends, HasKey, Not } from '../../__tests__/_type-helpers';
 import { d } from '../../d';
 import type { RelationDef } from '../relation';
 import type { ColumnRecord, TableDef } from '../table';
@@ -74,5 +74,88 @@ describe('relation types', () => {
 
     // @ts-expect-error -- _bogus does not exist on RelationDef
     rel._bogus;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Foreign key field validation — ref.many() constrains FK to target columns
+// ---------------------------------------------------------------------------
+
+describe('ref.many() foreign key validation', () => {
+  it('accepts valid foreign key that exists on target table', () => {
+    // 'authorId' is a column on `posts` — should compile
+    d.ref.many(() => posts, 'authorId');
+  });
+
+  it('rejects foreign key that does not exist on target table', () => {
+    // @ts-expect-error -- 'bogus' is not a column on posts table
+    d.ref.many(() => posts, 'bogus');
+  });
+
+  it('rejects empty string as foreign key', () => {
+    // @ts-expect-error -- '' is not a column on posts table
+    d.ref.many(() => posts, '');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Foreign key field validation — through() constrains keys to join table columns
+// ---------------------------------------------------------------------------
+
+describe('through() key validation', () => {
+  it('accepts valid keys that exist on join table', () => {
+    // 'tagId' and 'postId' are columns on `postTags` — should compile
+    d.ref.many(() => posts).through(() => postTags, 'tagId', 'postId');
+  });
+
+  it('rejects thisKey that does not exist on join table', () => {
+    // @ts-expect-error -- 'bogus' is not a column on postTags table
+    d.ref.many(() => posts).through(() => postTags, 'bogus', 'postId');
+  });
+
+  it('rejects thatKey that does not exist on join table', () => {
+    // @ts-expect-error -- 'nonexistent' is not a column on postTags table
+    d.ref.many(() => posts).through(() => postTags, 'tagId', 'nonexistent');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Foreign key field validation — ref.one() FK validated at d.model()
+// ---------------------------------------------------------------------------
+
+describe('ref.one() foreign key validation at d.model()', () => {
+  it('accepts valid foreign key that exists on source table', () => {
+    // 'authorId' is a column on `posts` (the source table) — should compile
+    d.model(posts, {
+      author: d.ref.one(() => users, 'authorId'),
+    });
+  });
+
+  it('rejects foreign key that does not exist on source table', () => {
+    d.model(posts, {
+      // @ts-expect-error -- 'bogusField' is not a column on posts table
+      author: d.ref.one(() => users, 'bogusField'),
+    });
+  });
+
+  it('accepts mixed ref.one() and ref.many() relations', () => {
+    d.model(posts, {
+      author: d.ref.one(() => users, 'authorId'),
+      tags: d.ref.many(() => postTags, 'postId'),
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Foreign key literal type preservation
+// ---------------------------------------------------------------------------
+
+describe('foreign key literal type preservation', () => {
+  it('ref.one() captures FK as literal type', () => {
+    const rel = d.ref.one(() => users, 'authorId');
+
+    type _t1 = Expect<Equal<typeof rel._foreignKey, 'authorId' | null>>;
+    // Should NOT widen to string
+    type _t2 = Expect<Not<Equal<typeof rel._foreignKey, string | null>>>;
   });
 });

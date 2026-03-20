@@ -8,10 +8,12 @@ import type { PostgresDriver } from '../postgres-driver';
 // Test schema
 // ---------------------------------------------------------------------------
 
-const organizations = d.table('organizations', {
-  id: d.uuid().primary(),
-  name: d.text(),
-});
+const organizations = d
+  .table('organizations', {
+    id: d.uuid().primary(),
+    name: d.text(),
+  })
+  .tenant();
 
 const users = d.table('users', {
   id: d.uuid().primary(),
@@ -69,20 +71,12 @@ describe('createDb', () => {
       url: 'postgres://localhost:5432/test',
       models: {
         organizations: d.model(organizations),
-        users: d.model(
-          users,
-          {
-            organization: d.ref.one(() => organizations, 'organizationId'),
-          },
-          { tenant: 'organization' },
-        ),
-        projects: d.model(
-          projects,
-          {
-            organization: d.ref.one(() => organizations, 'organizationId'),
-          },
-          { tenant: 'organization' },
-        ),
+        users: d.model(users, {
+          organization: d.ref.one(() => organizations, 'organizationId'),
+        }),
+        projects: d.model(projects, {
+          organization: d.ref.one(() => organizations, 'organizationId'),
+        }),
         tasks: d.model(tasks, {
           project: d.ref.one(() => projects, 'projectId'),
         }),
@@ -105,13 +99,9 @@ describe('createDb', () => {
       url: 'postgres://localhost:5432/test',
       models: {
         organizations: d.model(organizations),
-        users: d.model(
-          users,
-          {
-            organization: d.ref.one(() => organizations, 'organizationId'),
-          },
-          { tenant: 'organization' },
-        ),
+        users: d.model(users, {
+          organization: d.ref.one(() => organizations, 'organizationId'),
+        }),
         auditLogs: d.model(auditLogs),
       },
       log: logFn,
@@ -127,13 +117,9 @@ describe('createDb', () => {
       url: 'postgres://localhost:5432/test',
       models: {
         organizations: d.model(organizations),
-        users: d.model(
-          users,
-          {
-            organization: d.ref.one(() => organizations, 'organizationId'),
-          },
-          { tenant: 'organization' },
-        ),
+        users: d.model(users, {
+          organization: d.ref.one(() => organizations, 'organizationId'),
+        }),
         featureFlags: d.model(featureFlags),
       },
       log: logFn,

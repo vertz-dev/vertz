@@ -19,10 +19,12 @@ import { createMiddleware, createServer, entity, resolveTenantChain, rules } fro
 // 1. Schema — multi-hop tenant scoping
 // ---------------------------------------------------------------------------
 
-const organizationsTable = d.table('organizations', {
-  id: d.uuid().primary(),
-  name: d.text(),
-});
+const organizationsTable = d
+  .table('organizations', {
+    id: d.uuid().primary(),
+    name: d.text(),
+  })
+  .tenant();
 
 const projectsTable = d.table('projects', {
   id: d.uuid().primary(),
@@ -53,11 +55,9 @@ const featureFlagsTable = d
 
 // Models
 const organizationsModel = d.model(organizationsTable);
-const projectsModel = d.model(
-  projectsTable,
-  { organization: d.ref.one(() => organizationsTable, 'organizationId') },
-  { tenant: 'organization' },
-);
+const projectsModel = d.model(projectsTable, {
+  organization: d.ref.one(() => organizationsTable, 'organizationId'),
+});
 const tasksModel = d.model(tasksTable, {
   project: d.ref.one(() => projectsTable, 'projectId'),
 });
