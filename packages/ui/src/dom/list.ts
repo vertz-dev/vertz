@@ -194,6 +194,16 @@ export function __list<T>(
         container.insertBefore(desiredNode, currentChild ?? null);
       }
     }
+
+    // Fix up <select> elements: some DOM implementations (happy-dom) lose
+    // option.selected IDL state when options are inserted sequentially.
+    // Re-apply from the selected attribute which __prop mirrors.
+    if (container.tagName === 'SELECT') {
+      const selected = container.querySelector('option[selected]') as HTMLOptionElement | null;
+      if (selected) {
+        Reflect.set(container, 'value', selected.value);
+      }
+    }
   });
   popScope();
 
