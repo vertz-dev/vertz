@@ -74,6 +74,8 @@ export interface UpstreamWatcherOptions {
   onDistChanged: (packageName: string) => void;
   /** Debounce interval in ms. @default 1000 */
   debounceMs?: number;
+  /** Keep the watcher alive in the event loop. @default false */
+  persistent?: boolean;
 }
 
 export interface UpstreamWatcher {
@@ -90,7 +92,7 @@ export interface UpstreamWatcher {
  * after the debounce period with the package name that changed.
  */
 export function createUpstreamWatcher(options: UpstreamWatcherOptions): UpstreamWatcher {
-  const { projectRoot, watchDeps, onDistChanged, debounceMs = 1000 } = options;
+  const { projectRoot, watchDeps, onDistChanged, debounceMs = 1000, persistent = false } = options;
 
   const packages = resolveWorkspacePackages(projectRoot, watchDeps);
   const watchers: FSWatcher[] = [];
@@ -99,7 +101,7 @@ export function createUpstreamWatcher(options: UpstreamWatcherOptions): Upstream
 
   for (const pkg of packages) {
     try {
-      const watcher = watch(pkg.distPath, { recursive: true, persistent: false }, () => {
+      const watcher = watch(pkg.distPath, { recursive: true, persistent }, () => {
         if (closed) return;
 
         // Debounce per-package — builds write many files over ~1s

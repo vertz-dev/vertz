@@ -170,14 +170,18 @@ describe('createUpstreamWatcher', () => {
         watchDeps: true,
         onDistChanged: (name) => changed.push(name),
         debounceMs: 100,
+        persistent: true,
       });
       openWatchers.push(watcher);
+
+      // Give FSEvents time to initialize before writing
+      await new Promise((r) => setTimeout(r, 200));
 
       // Simulate a dist rebuild by writing a file
       writeFileSync(join(distDir, 'index.js'), 'export default {}');
 
-      // Wait for debounce
-      await new Promise((r) => setTimeout(r, 300));
+      // Wait for watcher event + debounce
+      await new Promise((r) => setTimeout(r, 500));
 
       expect(changed).toEqual(['@vertz/theme-shadcn']);
     });
@@ -206,15 +210,20 @@ describe('createUpstreamWatcher', () => {
         watchDeps: true,
         onDistChanged: (name) => changed.push(name),
         debounceMs: 200,
+        persistent: true,
       });
       openWatchers.push(watcher);
+
+      // Give FSEvents time to initialize before writing
+      await new Promise((r) => setTimeout(r, 200));
 
       // Simulate a build writing multiple files rapidly
       writeFileSync(join(distDir, 'index.js'), 'v1');
       writeFileSync(join(distDir, 'styles.css'), 'v1');
       writeFileSync(join(distDir, 'chunk.js'), 'v1');
 
-      await new Promise((r) => setTimeout(r, 500));
+      // Wait for watcher events + debounce
+      await new Promise((r) => setTimeout(r, 800));
 
       expect(changed).toEqual(['@vertz/theme-shadcn']);
     });
