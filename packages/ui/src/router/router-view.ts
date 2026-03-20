@@ -42,6 +42,8 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
 
   // Per-level state from previous render, used for matched chain diffing.
   let prevLevels: LevelState[] = [];
+  // Track previous match params to detect param-only changes (same route, different params).
+  let prevParamsKey: string | undefined;
 
   // Enter children scope for the container — during hydration this sets
   // the cursor to container.firstChild so the page component's own
@@ -62,13 +64,22 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
         if (prevLevels[divergeAt]!.route !== newMatched[divergeAt]!.route) break;
       }
 
-      // Check if the full chain is identical (no change needed)
-      if (
-        prevLevels.length > 0 &&
-        divergeAt === prevLevels.length &&
-        divergeAt === newMatched.length
-      ) {
+      // Check if the full chain is identical AND params haven't changed.
+      // When only params change (e.g. /items/1 → /items/2), the route
+      // definitions are the same but the component must re-render.
+      const currentParamsKey = match ? JSON.stringify(match.params) : undefined;
+      const chainIdentical =
+        prevLevels.length > 0 && divergeAt === prevLevels.length && divergeAt === newMatched.length;
+
+      if (chainIdentical && prevParamsKey === currentParamsKey) {
         return;
+      }
+
+      // When only params changed (same route chain), force a full re-render
+      // by resetting divergeAt. The partial-reuse branch can't handle this
+      // because leaf routes have no childSignal to swap.
+      if (chainIdentical) {
+        divergeAt = 0;
       }
 
       // If divergence is at index > 0, we can reuse parent layouts
@@ -88,6 +99,7 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
 
         // Preserve parent levels, update from divergence point onward
         prevLevels = [...prevLevels.slice(0, divergeAt), ...newLevels.slice(divergeAt)];
+        prevParamsKey = currentParamsKey;
         return;
       }
 
@@ -110,6 +122,7 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
 
         if (!match) {
           prevLevels = [];
+          prevParamsKey = undefined;
           if (fallback) {
             container.appendChild(fallback());
           }
@@ -172,6 +185,12 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
               popScope();
             });
           } else {
+            // Guard: if a synchronous navigate() was called during component
+            // execution (e.g., a redirect component), a re-entrant effect run
+            // already rendered the new route. Skip appending stale content.
+            if (gen !== renderGen) {
+              return;
+            }
             __append(container, result);
             // Safety fallback: if hydration suppressed __append and the node
             // wasn't claimed from SSR (mismatch), fall back to CSR append.
@@ -186,7 +205,11 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
           }
         });
 
-        prevLevels = levels;
+        // Don't overwrite state set by a re-entrant render.
+        if (gen === renderGen) {
+          prevLevels = levels;
+          prevParamsKey = currentParamsKey;
+        }
         if (!asyncRoute) {
           popScope();
         }

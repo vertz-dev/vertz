@@ -5,7 +5,10 @@ export function IndexRedirect() {
   const { navigate } = useRouter();
   const first = components[0];
   if (first) {
-    navigate({ to: `/components/${first.name}` });
+    // Defer navigation to avoid re-entrant domEffect during hydration.
+    // Synchronous navigate() would trigger a re-render while __append
+    // is still suppressed by hydration mode, producing a blank page.
+    queueMicrotask(() => navigate({ to: `/components/${first.name}`, replace: true }));
   }
   return <div />;
 }
