@@ -1,3 +1,8 @@
+import {
+  beginDeferringMounts,
+  discardDeferredMounts,
+  flushDeferredMounts,
+} from './component/lifecycle';
 import { injectCSS } from './css/css';
 import type { Theme } from './css/theme';
 import { compileTheme } from './css/theme';
@@ -86,9 +91,13 @@ export function mount<AppFn extends () => Element | DocumentFragment>(
   if (root.firstChild) {
     const scope = pushScope();
     try {
+      beginDeferringMounts();
       startHydration(root);
       app();
       endHydration();
+      // Flush deferred onMount callbacks AFTER hydration ends but BEFORE
+      // popScope() — so cleanup functions register in the mount scope.
+      flushDeferredMounts();
       popScope();
       options?.onMount?.(root);
       const handle: MountHandle = {
@@ -103,8 +112,9 @@ export function mount<AppFn extends () => Element | DocumentFragment>(
       return handle;
     } catch (e) {
       // Bail out: hydration failed, fall back to full CSR.
-      // Discard deferred effects first — they reference DOM nodes from the
-      // broken hydration tree that are about to be destroyed.
+      // Discard deferred mounts (don't run them) and deferred effects
+      // (they reference DOM nodes from the broken hydration tree).
+      discardDeferredMounts();
       discardDeferredEffects();
       endHydration();
       popScope();

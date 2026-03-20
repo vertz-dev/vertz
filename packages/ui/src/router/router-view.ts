@@ -1,3 +1,4 @@
+import { beginDeferringMounts, flushDeferredMounts } from '../component/lifecycle';
 import { __append, __element, __enterChildren, __exitChildren } from '../dom/element';
 import { endHydration, getIsHydrating, startHydration } from '../hydrate/hydration-context';
 import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
@@ -141,6 +142,9 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
                 // Re-enter hydration scoped to this container so the
                 // lazy component claims SSR nodes via __element()
                 // instead of creating new ones.
+                // Wrap with beginDeferringMounts/flushDeferredMounts so
+                // onMount in the lazy component runs after mini-hydration.
+                beginDeferringMounts();
                 startHydration(container);
                 try {
                   RouterContext.Provider(router, () => {
@@ -149,6 +153,7 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
                   });
                 } finally {
                   endHydration();
+                  flushDeferredMounts();
                 }
                 // Safety fallback: if the component's root wasn't claimed
                 // (SSR/client tree mismatch), fall back to CSR append.

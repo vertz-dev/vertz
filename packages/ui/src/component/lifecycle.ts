@@ -8,6 +8,17 @@ import { getSSRContext } from '../ssr/ssr-render-context';
 
 const mountFrames: Array<Array<() => void>> = [];
 
+// ---------------------------------------------------------------------------
+// Post-hydration mount queue — defers onMount callbacks until after hydration
+// ---------------------------------------------------------------------------
+
+/**
+ * When non-null, __flushMountFrame() pushes callbacks here instead of
+ * executing them immediately. Flushed by flushDeferredMounts() after
+ * endHydration(). Null in CSR mode (zero overhead — single falsy check).
+ */
+let postHydrationQueue: Array<() => void> | null = null;
+
 /**
  * Compiler-injected: push a new mount frame at component body start.
  * Returns the stack depth AFTER pushing — used by __discardMountFrame
@@ -23,11 +34,27 @@ export function __pushMountFrame(): number {
  * Pops the frame first (so the stack is clean even if a callback throws),
  * then executes all deferred callbacks. All callbacks run even if one throws —
  * the first error is rethrown after all have executed.
+ *
+ * During hydration (postHydrationQueue is non-null), callbacks are pushed
+ * to the queue instead of executing — they run after endHydration() via
+ * flushDeferredMounts(). This prevents onMount DOM manipulation from
+ * corrupting the hydration cursor.
  */
 export function __flushMountFrame(): void {
   const frame = mountFrames.pop();
   if (!frame) return;
 
+  if (postHydrationQueue) {
+    // During hydration — defer to post-hydration queue.
+    // Preserves child-before-parent ordering because depth-first
+    // JSX evaluation pushes child callbacks before parent callbacks.
+    for (const cb of frame) {
+      postHydrationQueue.push(cb);
+    }
+    return;
+  }
+
+  // Normal (CSR) execution — unchanged
   let firstError: unknown;
   for (const cb of frame) {
     try {
@@ -49,6 +76,47 @@ export function __discardMountFrame(expectedDepth: number): void {
   if (mountFrames.length === expectedDepth) {
     mountFrames.pop();
   }
+}
+
+/**
+ * Begin deferring mount callbacks. Called by mount() before startHydration().
+ * While active, __flushMountFrame() queues callbacks instead of executing them.
+ */
+export function beginDeferringMounts(): void {
+  postHydrationQueue = [];
+}
+
+/**
+ * Flush all deferred mount callbacks in FIFO order (child-before-parent).
+ * All callbacks execute even if one throws — the first error is rethrown
+ * after all have executed (matches __flushMountFrame semantics).
+ *
+ * INVARIANT: must be called before popScope() so that cleanup functions
+ * from onMount register in the mount scope.
+ */
+export function flushDeferredMounts(): void {
+  const queue = postHydrationQueue;
+  postHydrationQueue = null;
+  if (!queue) return;
+
+  let firstError: unknown;
+  for (const cb of queue) {
+    try {
+      cb();
+    } catch (e) {
+      if (firstError === undefined) firstError = e;
+    }
+  }
+  if (firstError !== undefined) throw firstError;
+}
+
+/**
+ * Discard all queued mount callbacks without executing them.
+ * Nulls the queue — callbacks are never run.
+ * Called in hydration error recovery before CSR fallback.
+ */
+export function discardDeferredMounts(): void {
+  postHydrationQueue = null;
 }
 
 // ---------------------------------------------------------------------------

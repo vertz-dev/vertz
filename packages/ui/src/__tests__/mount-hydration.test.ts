@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
+import { __flushMountFrame, __pushMountFrame, onMount } from '../component/lifecycle';
 import { resetInjectedStyles } from '../css/css';
 import {
   __append,
@@ -11,6 +12,7 @@ import {
   __text,
 } from '../dom/element';
 import { __on } from '../dom/events';
+import { getIsHydrating } from '../hydrate/hydration-context';
 import { mount } from '../mount';
 import { popScope, pushScope } from '../runtime/disposal';
 import { domEffect, signal, startSignalCollection, stopSignalCollection } from '../runtime/signal';
@@ -736,5 +738,239 @@ describe('mount() — tolerant hydration', () => {
     ssrButton.click();
     expect(clicked).toBe(true);
     expect(count.value).toBe(1);
+  });
+});
+
+describe('mount() — post-hydration onMount timing', () => {
+  let root: HTMLElement;
+
+  beforeEach(() => {
+    root = document.createElement('div');
+    root.id = 'app';
+    document.body.appendChild(root);
+    resetInjectedStyles();
+  });
+
+  afterEach(() => {
+    document.body.removeChild(root);
+    resetInjectedStyles();
+  });
+
+  it('onMount callbacks execute after hydration ends (getIsHydrating is false)', () => {
+    root.innerHTML = '<div>content</div>';
+
+    let wasHydrating: boolean | null = null;
+
+    const App = () => {
+      const depth = __pushMountFrame();
+      try {
+        const el = __element('div');
+        __enterChildren(el);
+        __append(el, __staticText('content'));
+        __exitChildren();
+
+        onMount(() => {
+          wasHydrating = getIsHydrating();
+        });
+
+        __flushMountFrame();
+        return el;
+      } catch (e) {
+        return __element('div');
+      }
+    };
+
+    mount(App);
+
+    expect(wasHydrating).toBe(false);
+  });
+
+  it('child onMount runs before parent onMount during hydration', () => {
+    root.innerHTML = '<div><span>child</span></div>';
+
+    const order: string[] = [];
+
+    const Child = () => {
+      const depth = __pushMountFrame();
+      const el = __element('span');
+      __enterChildren(el);
+      __append(el, __staticText('child'));
+      __exitChildren();
+
+      onMount(() => {
+        order.push('child');
+      });
+
+      __flushMountFrame();
+      return el;
+    };
+
+    const App = () => {
+      const depth = __pushMountFrame();
+      const el = __element('div');
+      __enterChildren(el);
+      const child = Child();
+      __append(el, child);
+      __exitChildren();
+
+      onMount(() => {
+        order.push('parent');
+      });
+
+      __flushMountFrame();
+      return el;
+    };
+
+    mount(App);
+
+    expect(order).toEqual(['child', 'parent']);
+  });
+
+  it('DOM manipulation in onMount does not corrupt sibling hydration', () => {
+    root.innerHTML = '<div><span>A</span><p>B</p></div>';
+
+    const ssrP = root.querySelector('p')!;
+    let claimedP: Element | null = null;
+
+    const ChildA = () => {
+      const depth = __pushMountFrame();
+      const el = __element('span');
+      __enterChildren(el);
+      __append(el, __staticText('A'));
+      __exitChildren();
+
+      onMount(() => {
+        // Insert a new <span> after ChildA's element — this would corrupt
+        // the cursor if onMount ran during hydration
+        const inserted = document.createElement('span');
+        inserted.textContent = 'inserted';
+        el.parentNode!.insertBefore(inserted, el.nextSibling);
+      });
+
+      __flushMountFrame();
+      return el;
+    };
+
+    const ChildB = () => {
+      const depth = __pushMountFrame();
+      const el = __element('p');
+      claimedP = el;
+      __enterChildren(el);
+      __append(el, __staticText('B'));
+      __exitChildren();
+      __flushMountFrame();
+      return el;
+    };
+
+    const App = () => {
+      const depth = __pushMountFrame();
+      const el = __element('div');
+      __enterChildren(el);
+      const a = ChildA();
+      __append(el, a);
+      const b = ChildB();
+      __append(el, b);
+      __exitChildren();
+      __flushMountFrame();
+      return el;
+    };
+
+    mount(App);
+
+    // ChildB should have claimed the original SSR <p>, not the inserted <span>
+    expect(claimedP).toBe(ssrP);
+  });
+
+  it('CSR path is unchanged — onMount executes immediately in __flushMountFrame', () => {
+    // Empty root = CSR path (no hydration)
+    const order: string[] = [];
+
+    const App = () => {
+      const depth = __pushMountFrame();
+      const el = __element('div');
+
+      onMount(() => {
+        order.push('mounted');
+      });
+
+      __flushMountFrame();
+      order.push('after-flush');
+      return el;
+    };
+
+    mount(App);
+
+    // In CSR, onMount runs synchronously during __flushMountFrame
+    // "mounted" should appear before "after-flush"
+    expect(order).toEqual(['mounted', 'after-flush']);
+  });
+
+  it('deferred mount callbacks are discarded on hydration failure', () => {
+    root.innerHTML = '<div>SSR content</div>';
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    let onMountCalled = false;
+    let callCount = 0;
+
+    const App = () => {
+      callCount++;
+      if (callCount === 1) {
+        const depth = __pushMountFrame();
+        onMount(() => {
+          onMountCalled = true;
+        });
+        __flushMountFrame();
+        throw new Error('hydration broke');
+      }
+      const el = document.createElement('div');
+      el.textContent = 'fallback';
+      return el;
+    };
+
+    mount(App);
+
+    // The onMount callback from the failed hydration should NOT have run
+    expect(onMountCalled).toBe(false);
+    expect(root.textContent).toBe('fallback');
+    vi.restoreAllMocks();
+  });
+
+  it('reactive effects are established before onMount runs during hydration', () => {
+    root.innerHTML = '<div><span>0</span></div>';
+
+    let textUpdated = false;
+
+    const App = () => {
+      const depth = __pushMountFrame();
+      const el = __element('div');
+      __enterChildren(el);
+
+      const count = signal(0);
+      const textNode = __text(() => {
+        if (count.value > 0) textUpdated = true;
+        return String(count.value);
+      });
+      const span = __element('span');
+      __enterChildren(span);
+      __append(span, textNode);
+      __exitChildren();
+      __append(el, span);
+
+      __exitChildren();
+
+      onMount(() => {
+        // At this point, deferred effects have already run (dependency tracking established)
+        // Changing the signal should trigger the text effect
+        count.value = 1;
+      });
+
+      __flushMountFrame();
+      return el;
+    };
+
+    mount(App);
+
+    // The text effect should have re-run because the signal changed in onMount
+    expect(textUpdated).toBe(true);
   });
 });
