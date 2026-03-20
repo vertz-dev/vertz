@@ -217,6 +217,7 @@ export async function startDevServer(options: StartDevServerOptions): Promise<vo
     ssrModule: mode.ssrModule,
     clientEntry,
     projectRoot: detected.projectRoot,
+    watchDeps: true,
   });
 
   await devServer.start();

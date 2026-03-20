@@ -35,6 +35,8 @@ import type { SSRModule } from './ssr-render';
 import { ssrRenderToString, ssrStreamNavQueries } from './ssr-render';
 import { createSessionScript } from './ssr-session';
 import { safeSerialize } from './ssr-streaming-runtime';
+import type { UpstreamWatcher } from './upstream-watcher';
+import { createUpstreamWatcher } from './upstream-watcher';
 
 /**
  * Detect `public/favicon.svg` and return a `<link>` tag for it.
@@ -87,6 +89,16 @@ export interface BunDevServerOptions {
    * optionally `window.__VERTZ_ACCESS_SET__` for instant auth hydration.
    */
   sessionResolver?: import('./ssr-session').SessionResolver;
+  /**
+   * Watch workspace-linked package dist directories for changes.
+   * When a dist directory changes, automatically restart the server.
+   *
+   * Accepts an array of package names (e.g., ['@vertz/theme-shadcn', '@vertz/ui'])
+   * or `true` to auto-detect all `@vertz/*` packages linked via workspace symlinks.
+   *
+   * @default false
+   */
+  watchDeps?: boolean | string[];
 }
 
 export interface ErrorDetail {
@@ -756,6 +768,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     editor: editorOption,
     headTags: headTagsOption = '',
     sessionResolver,
+    watchDeps,
   } = options;
 
   const faviconTag = detectFaviconTag(projectRoot);
@@ -1099,6 +1112,50 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
   let stableUpdateManifest:
     | ((filePath: string, sourceText: string) => { changed: boolean })
     | null = null;
+
+  // ── Upstream package watcher ────────────────────────────────────
+  // Created once, persists across soft restarts. The set of workspace-linked
+  // packages doesn't change during a dev session.
+  // Uses a late-bound reference to devServer since it's defined later.
+  let upstreamWatcherRef: UpstreamWatcher | null = null;
+  let pendingDistRestart = false;
+  let restartFn: (() => Promise<void>) | null = null;
+
+  if (watchDeps) {
+    upstreamWatcherRef = createUpstreamWatcher({
+      projectRoot,
+      watchDeps,
+      onDistChanged: (pkgName) => {
+        if (!restartFn || stopped) return;
+        if (logRequests) {
+          console.log(`[Server] Upstream package rebuilt: ${pkgName} — restarting...`);
+        }
+        if (isRestarting) {
+          pendingDistRestart = true;
+          return;
+        }
+        restartFn()
+          .then(() => {
+            if (pendingDistRestart && restartFn && !stopped) {
+              pendingDistRestart = false;
+              restartFn().catch((err) => {
+                const msg = err instanceof Error ? err.message : String(err);
+                console.error(`[Server] Pending upstream restart failed: ${msg}`);
+              });
+            }
+          })
+          .catch((err) => {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error(`[Server] Upstream restart failed: ${msg}`);
+          });
+      },
+    });
+
+    if (logRequests && upstreamWatcherRef.packages.length > 0) {
+      const names = upstreamWatcherRef.packages.map((p) => p.name).join(', ');
+      console.log(`[Server] Watching upstream packages: ${names}`);
+    }
+  }
 
   // ── Unified SSR + HMR ────────────────────────────────────────────
 
@@ -1918,6 +1975,12 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
         server.stop(true);
         server = null;
       }
+
+      // Close upstream watcher on full stop (not recreated on restart)
+      if (upstreamWatcherRef) {
+        upstreamWatcherRef.close();
+        upstreamWatcherRef = null;
+      }
     },
 
     async restart() {
@@ -1990,6 +2053,9 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
       isRestarting = false;
     },
   };
+
+  // Bind restart function for upstream watcher (late-bound reference)
+  restartFn = () => devServer.restart();
 
   return devServer;
 }
