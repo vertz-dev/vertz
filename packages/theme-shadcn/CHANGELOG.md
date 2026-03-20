@@ -1,5 +1,38 @@
 # @vertz/theme-shadcn
 
+## 0.2.23
+
+### Patch Changes
+
+- [#1626](https://github.com/vertz-dev/vertz/pull/1626) [`8a31e2a`](https://github.com/vertz-dev/vertz/commit/8a31e2a3b50b053eb45bae3ced0a4e71f3f9d6b0) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Reset list-style, margin, and padding on breadcrumb ol to prevent numbered list markers from overlapping text
+
+- [#1585](https://github.com/vertz-dev/vertz/pull/1585) [`18b300a`](https://github.com/vertz-dev/vertz/commit/18b300adadcdea445ab708b10c2600489e865f52) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add captionLayout prop to Calendar for month/year dropdown navigation
+
+- [#1618](https://github.com/vertz-dev/vertz/pull/1618) [`f609e2d`](https://github.com/vertz-dev/vertz/commit/f609e2d93773f4b11d3b981e8a50af643abbf0c4) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix Command component styling: empty state starts hidden, increased list top-padding for input-to-results gap
+
+- [#1617](https://github.com/vertz-dev/vertz/pull/1617) [`67821b4`](https://github.com/vertz-dev/vertz/commit/67821b4309bf62c2aedbc538c0fcc1c732a9014f) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(theme-shadcn): ContextMenu content has min-width, all-sided padding, and visual consistency with DropdownMenu
+
+- [#1594](https://github.com/vertz-dev/vertz/pull/1594) [`e57868e`](https://github.com/vertz-dev/vertz/commit/e57868ee9097c53722237b3d2cf5bee1ffff085b) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Forward `captionLayout` prop through DatePicker to enable dropdown month/year navigation
+
+- [#1623](https://github.com/vertz-dev/vertz/pull/1623) [`c150205`](https://github.com/vertz-dev/vertz/commit/c15020541ab92cd80ee610753c62c36c47d8eded) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix Drawer rendering small at bottom-left by adding dialog UA style resets (margin, width, border, outline), ::backdrop styles, and hidden-when-closed rules to all panel directions
+
+- [#1599](https://github.com/vertz-dev/vertz/pull/1599) [`5830045`](https://github.com/vertz-dev/vertz/commit/58300458245c75756f00006f0a2325d72c44a726) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix dialog panel CSS hiding non-native dialog elements with data-state="open"
+
+  The `&:not([open])` rule on dialog and alert-dialog panel styles assumed native
+  `<dialog>` elements. When a `<div role="dialog">` used panel styles, the element
+  was always hidden because `<div>` never has the `[open]` attribute. Changed to
+  `&:not([open]):not([data-state="open"])` so elements with `data-state="open"` remain visible.
+
+- [#1619](https://github.com/vertz-dev/vertz/pull/1619) [`5ee3712`](https://github.com/vertz-dev/vertz/commit/5ee37128a448324c6129378d7e3873b813dd3623) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix HoverCard styling: upgrade border-radius to lg, add outline-none, add zoom animation alongside fade for consistent appearance with other floating components
+
+- [#1621](https://github.com/vertz-dev/vertz/pull/1621) [`028e703`](https://github.com/vertz-dev/vertz/commit/028e70302c252b529b0d94aceb1334cace3c9795) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix menubar submenus being mispositioned and pushing sibling items by enabling floating positioning (`bottom-start` placement) in the themed menubar component
+
+- [#1620](https://github.com/vertz-dev/vertz/pull/1620) [`14e032c`](https://github.com/vertz-dev/vertz/commit/14e032c00a2af9a6c3d7f53bce548343990ac953) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix Select dropdown open/close animation: correct keyframe names and defer display:none until exit animation completes
+
+- Updated dependencies [[`18b300a`](https://github.com/vertz-dev/vertz/commit/18b300adadcdea445ab708b10c2600489e865f52), [`f609e2d`](https://github.com/vertz-dev/vertz/commit/f609e2d93773f4b11d3b981e8a50af643abbf0c4), [`173e9cb`](https://github.com/vertz-dev/vertz/commit/173e9cb0fc08e00f618eeedde1101b760c6de4b2), [`10f6309`](https://github.com/vertz-dev/vertz/commit/10f6309790bff69c7a1a0ab92e50f78f34b129c3), [`e57868e`](https://github.com/vertz-dev/vertz/commit/e57868ee9097c53722237b3d2cf5bee1ffff085b), [`1709f6d`](https://github.com/vertz-dev/vertz/commit/1709f6d933f04600d1b959b51660f2f8f33805d8), [`1e26cca`](https://github.com/vertz-dev/vertz/commit/1e26cca7eca00291633a2fa6257fc80a1f409b60), [`82055ae`](https://github.com/vertz-dev/vertz/commit/82055aefc19e4c3a115152f2e7157389486e792e), [`a21f762`](https://github.com/vertz-dev/vertz/commit/a21f76239e5c4b112c7be9a4ebea8327c3d2230b), [`7c146e6`](https://github.com/vertz-dev/vertz/commit/7c146e695b642affeb39134beb0e1eb6475f20a8), [`9caf0bc`](https://github.com/vertz-dev/vertz/commit/9caf0bce30d59cd284dbf9687ee2c79765bbb563), [`14e032c`](https://github.com/vertz-dev/vertz/commit/14e032c00a2af9a6c3d7f53bce548343990ac953)]:
+  - @vertz/ui-primitives@0.2.23
+  - @vertz/ui@0.2.23
+
 ## 0.2.22
 
 ### Patch Changes

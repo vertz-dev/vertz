@@ -1,5 +1,18 @@
 # @vertz-examples/task-manager
 
+## 0.2.23
+
+### Patch Changes
+
+- Updated dependencies [[`8a31e2a`](https://github.com/vertz-dev/vertz/commit/8a31e2a3b50b053eb45bae3ced0a4e71f3f9d6b0), [`18b300a`](https://github.com/vertz-dev/vertz/commit/18b300adadcdea445ab708b10c2600489e865f52), [`f609e2d`](https://github.com/vertz-dev/vertz/commit/f609e2d93773f4b11d3b981e8a50af643abbf0c4), [`173e9cb`](https://github.com/vertz-dev/vertz/commit/173e9cb0fc08e00f618eeedde1101b760c6de4b2), [`67821b4`](https://github.com/vertz-dev/vertz/commit/67821b4309bf62c2aedbc538c0fcc1c732a9014f), [`10f6309`](https://github.com/vertz-dev/vertz/commit/10f6309790bff69c7a1a0ab92e50f78f34b129c3), [`e57868e`](https://github.com/vertz-dev/vertz/commit/e57868ee9097c53722237b3d2cf5bee1ffff085b), [`1709f6d`](https://github.com/vertz-dev/vertz/commit/1709f6d933f04600d1b959b51660f2f8f33805d8), [`c150205`](https://github.com/vertz-dev/vertz/commit/c15020541ab92cd80ee610753c62c36c47d8eded), [`1e26cca`](https://github.com/vertz-dev/vertz/commit/1e26cca7eca00291633a2fa6257fc80a1f409b60), [`5830045`](https://github.com/vertz-dev/vertz/commit/58300458245c75756f00006f0a2325d72c44a726), [`82055ae`](https://github.com/vertz-dev/vertz/commit/82055aefc19e4c3a115152f2e7157389486e792e), [`5ee3712`](https://github.com/vertz-dev/vertz/commit/5ee37128a448324c6129378d7e3873b813dd3623), [`a21f762`](https://github.com/vertz-dev/vertz/commit/a21f76239e5c4b112c7be9a4ebea8327c3d2230b), [`7c146e6`](https://github.com/vertz-dev/vertz/commit/7c146e695b642affeb39134beb0e1eb6475f20a8), [`9caf0bc`](https://github.com/vertz-dev/vertz/commit/9caf0bce30d59cd284dbf9687ee2c79765bbb563), [`028e703`](https://github.com/vertz-dev/vertz/commit/028e70302c252b529b0d94aceb1334cace3c9795), [`14e032c`](https://github.com/vertz-dev/vertz/commit/14e032c00a2af9a6c3d7f53bce548343990ac953)]:
+  - @vertz/theme-shadcn@0.2.23
+  - @vertz/ui-primitives@0.2.23
+  - @vertz/ui@0.2.23
+  - @vertz/ui-server@0.2.23
+  - @vertz/errors@0.2.23
+  - @vertz/fetch@0.2.23
+  - @vertz/icons@0.2.23
+
 ## 0.2.22
 
 ### Patch Changes

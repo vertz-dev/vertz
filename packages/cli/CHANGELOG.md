@@ -1,5 +1,20 @@
 # @vertz/cli
 
+## 0.2.23
+
+### Patch Changes
+
+- [#1569](https://github.com/vertz-dev/vertz/pull/1569) [`9493358`](https://github.com/vertz-dev/vertz/commit/94933585e51971cdf3dcea36ea9d5981a1fe5e0b) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix CLI dev server using `.handler` instead of `.requestHandler` when auth is configured, which caused auth routes (sign-in, sign-up, OAuth, etc.) to 404. The dev server now prefers `requestHandler` when available and falls back to `handler` for non-auth setups.
+
+- Updated dependencies [[`7c146e6`](https://github.com/vertz-dev/vertz/commit/7c146e695b642affeb39134beb0e1eb6475f20a8)]:
+  - @vertz/ui-server@0.2.23
+  - @vertz/codegen@0.2.23
+  - @vertz/compiler@0.2.23
+  - @vertz/create-vertz-app@0.2.23
+  - @vertz/db@0.2.23
+  - @vertz/errors@0.2.23
+  - @vertz/tui@0.2.23
+
 ## 0.2.22
 
 ### Patch Changes

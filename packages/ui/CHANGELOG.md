@@ -1,5 +1,30 @@
 # @vertz/ui
 
+## 0.2.23
+
+### Patch Changes
+
+- [#1571](https://github.com/vertz-dev/vertz/pull/1571) [`10f6309`](https://github.com/vertz-dev/vertz/commit/10f6309790bff69c7a1a0ab92e50f78f34b129c3) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Expand CSS utility tokens with overflow axis variants, transform scale keywords, fraction dimensions, and color opacity modifiers
+
+- [#1545](https://github.com/vertz-dev/vertz/pull/1545) [`1709f6d`](https://github.com/vertz-dev/vertz/commit/1709f6d933f04600d1b959b51660f2f8f33805d8) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Defer onMount callbacks until after JSX evaluation so refs and DOM elements are available inside the callback. The compiler now injects mount frame push/flush around component return expressions. No public API change — onMount keeps its existing signature. Outside compiled components (event handlers, watch), onMount still runs immediately for backward compat.
+
+- [#1556](https://github.com/vertz-dev/vertz/pull/1556) [`1e26cca`](https://github.com/vertz-dev/vertz/commit/1e26cca7eca00291633a2fa6257fc80a1f409b60) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix nested conditional cleanup during hydration — wrap anchor + content in display:contents span to prevent orphaned DOM nodes when parent conditionals re-evaluate (#1553)
+
+- [#1584](https://github.com/vertz-dev/vertz/pull/1584) [`82055ae`](https://github.com/vertz-dev/vertz/commit/82055aefc19e4c3a115152f2e7157389486e792e) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui): preserve prototype chain in `__list` item proxies (#1581)
+
+  `createItemProxy` used `{}` as the Proxy target, which broke `instanceof` checks
+  (e.g., `val instanceof Date`) and `Array.isArray()` for proxied list items.
+  Changed to use the initial item value as the target and added a `getPrototypeOf`
+  trap that reads from the live signal value. Also added a read-only `set` trap to
+  prevent accidental mutation of original items through the proxy.
+
+- [#1634](https://github.com/vertz-dev/vertz/pull/1634) [`a21f762`](https://github.com/vertz-dev/vertz/commit/a21f76239e5c4b112c7be9a4ebea8327c3d2230b) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add post-hydration onMount queue and Foreign component for unmanaged DOM subtrees. Fix scope safety in mount/router hydration paths.
+
+- [#1588](https://github.com/vertz-dev/vertz/pull/1588) [`7c146e6`](https://github.com/vertz-dev/vertz/commit/7c146e695b642affeb39134beb0e1eb6475f20a8) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix reactive form element properties (`value`, `checked`, `selected`) to use DOM property assignment instead of `setAttribute`. This fixes `<select value={signal}>`, `<input value={signal}>`, `<input checked={signal}>`, and `<option selected={signal}>` not updating the displayed state reactively.
+
+- Updated dependencies []:
+  - @vertz/fetch@0.2.23
+
 ## 0.2.22
 
 ### Patch Changes

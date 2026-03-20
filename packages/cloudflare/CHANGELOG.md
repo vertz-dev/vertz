@@ -1,5 +1,18 @@
 # @vertz/cloudflare
 
+## 0.2.23
+
+### Patch Changes
+
+- [#1579](https://github.com/vertz-dev/vertz/pull/1579) [`bcd80af`](https://github.com/vertz-dev/vertz/commit/bcd80af9ca0007a8a21805a6cfa832aa983edb14) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Improve Cloudflare adapter DX with zero-boilerplate defaults:
+  - `basePath` is now optional, defaults to `'/api'` (matches `createServer`'s `apiPrefix` default)
+  - `ssr` is now required — enforces SSR-first at the type level
+  - `securityHeaders` now defaults to `true` (security by default)
+  - Auto-detect `requestHandler` on ServerInstance for auth-aware routing (auth routes no longer require manual wiring)
+- Updated dependencies [[`7c146e6`](https://github.com/vertz-dev/vertz/commit/7c146e695b642affeb39134beb0e1eb6475f20a8)]:
+  - @vertz/ui-server@0.2.23
+  - @vertz/core@0.2.23
+
 ## 0.2.22
 
 ### Patch Changes
