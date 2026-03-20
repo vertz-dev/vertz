@@ -258,6 +258,30 @@ describe('Composed Calendar', () => {
         const val = onValueChange.mock.calls[0]?.[0] as Date;
         expect(val.getDate()).toBe(10);
       });
+
+      it('Then updates aria-selected on the clicked date (#1581)', () => {
+        const root = ComposedCalendar({
+          defaultMonth: new Date(2024, 5, 1),
+        });
+        container.appendChild(root);
+
+        const btn10 = root.querySelector('button[data-date="2024-06-10"]') as HTMLButtonElement;
+        const btn15 = root.querySelector('button[data-date="2024-06-15"]') as HTMLButtonElement;
+
+        // Before click: no date is selected
+        expect(btn10.getAttribute('aria-selected')).toBeNull();
+        expect(btn15.getAttribute('aria-selected')).toBeNull();
+
+        // Click date 10
+        btn10.click();
+        expect(btn10.getAttribute('aria-selected')).toBe('true');
+        expect(btn15.getAttribute('aria-selected')).toBeNull();
+
+        // Click date 15 — selection moves
+        btn15.click();
+        expect(btn10.getAttribute('aria-selected')).toBeNull();
+        expect(btn15.getAttribute('aria-selected')).toBe('true');
+      });
     });
   });
 

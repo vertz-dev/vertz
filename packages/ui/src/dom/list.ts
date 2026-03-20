@@ -8,42 +8,58 @@ import type { DisposeFn, Signal } from '../runtime/signal-types';
  * Property accesses read from `itemSignal.value`, so any domEffect
  * that reads through the proxy automatically subscribes to the signal.
  * When `itemSignal.value` is updated, those effects re-run.
+ *
+ * The initial value is used as the Proxy target to preserve `instanceof`
+ * checks and `Array.isArray()`. The `getPrototypeOf` trap reads from
+ * the live signal value so `instanceof` stays correct after updates.
+ *
+ * Note: `Array.isArray()` checks the target's internal [[Class]] slot,
+ * which is fixed at proxy creation time. If an item changes from array
+ * to non-array (or vice versa) for the same key, `Array.isArray` will
+ * be stale. In practice, __list items maintain stable types per key.
  */
 function createItemProxy<T>(itemSignal: Signal<T>): T {
-  if (typeof itemSignal.peek() !== 'object' || itemSignal.peek() == null) {
+  const initial = itemSignal.peek();
+  if (typeof initial !== 'object' || initial == null) {
     // Primitives and null can't be proxied — return the value directly.
     // These items won't get reactive updates on key reuse.
-    return itemSignal.peek();
+    return initial;
   }
-  return new Proxy(
-    {},
-    {
-      get(_target, prop, receiver) {
-        const current = itemSignal.value;
-        if (current == null) return undefined;
-        const value = Reflect.get(current as object, prop, receiver);
-        if (typeof value === 'function') {
-          return value.bind(current);
-        }
-        return value;
-      },
-      has(_target, prop) {
-        const current = itemSignal.value;
-        if (current == null) return false;
-        return Reflect.has(current as object, prop);
-      },
-      ownKeys() {
-        const current = itemSignal.value;
-        if (current == null) return [];
-        return Reflect.ownKeys(current as object);
-      },
-      getOwnPropertyDescriptor(_target, prop) {
-        const current = itemSignal.value;
-        if (current == null) return undefined;
-        return Reflect.getOwnPropertyDescriptor(current as object, prop);
-      },
+  return new Proxy(initial as object, {
+    get(_target, prop, receiver) {
+      const current = itemSignal.value;
+      if (current == null) return undefined;
+      const value = Reflect.get(current as object, prop, receiver);
+      if (typeof value === 'function') {
+        return value.bind(current);
+      }
+      return value;
     },
-  ) as T;
+    set() {
+      // Items are read-only through the proxy — mutations go through the signal.
+      return false;
+    },
+    has(_target, prop) {
+      const current = itemSignal.value;
+      if (current == null) return false;
+      return Reflect.has(current as object, prop);
+    },
+    ownKeys() {
+      const current = itemSignal.value;
+      if (current == null) return [];
+      return Reflect.ownKeys(current as object);
+    },
+    getOwnPropertyDescriptor(_target, prop) {
+      const current = itemSignal.value;
+      if (current == null) return undefined;
+      return Reflect.getOwnPropertyDescriptor(current as object, prop);
+    },
+    getPrototypeOf() {
+      const current = itemSignal.value;
+      if (current == null) return null;
+      return Object.getPrototypeOf(current);
+    },
+  }) as T;
 }
 
 /**

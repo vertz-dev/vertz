@@ -747,4 +747,108 @@ describe('__list', () => {
       expect(container.children[1]?.textContent).toBe('A');
     });
   });
+
+  describe('item proxy prototype preservation (#1581)', () => {
+    it('Date items preserve instanceof Date through the proxy', () => {
+      const dates = signal([new Date(2024, 5, 10), new Date(2024, 5, 11)]);
+      const container = document.createElement('div');
+      const receivedItems: unknown[] = [];
+
+      __list(
+        container,
+        dates,
+        (_item, i) => i,
+        (item) => {
+          receivedItems.push(item);
+          const el = document.createElement('span');
+          el.textContent = String(item);
+          return el;
+        },
+      );
+
+      // The item proxy must preserve instanceof so that user code
+      // like `val instanceof Date` works correctly.
+      expect(receivedItems[0] instanceof Date).toBe(true);
+      expect(receivedItems[1] instanceof Date).toBe(true);
+    });
+
+    it('Array items preserve Array.isArray through the proxy', () => {
+      const rows = signal([
+        [1, 2],
+        [3, 4],
+      ]);
+      const container = document.createElement('div');
+      const receivedItems: unknown[] = [];
+
+      __list(
+        container,
+        rows,
+        (_item, i) => i,
+        (item) => {
+          receivedItems.push(item);
+          const el = document.createElement('span');
+          return el;
+        },
+      );
+
+      expect(Array.isArray(receivedItems[0])).toBe(true);
+      expect(Array.isArray(receivedItems[1])).toBe(true);
+    });
+
+    it('instanceof stays correct after key-reuse signal update', () => {
+      const dates = signal([new Date(2024, 0, 1), new Date(2024, 0, 2)]);
+      const container = document.createElement('div');
+      const receivedItems: unknown[] = [];
+
+      __list(
+        container,
+        dates,
+        (_item, i) => i,
+        (item) => {
+          receivedItems.push(item);
+          const el = document.createElement('span');
+          return el;
+        },
+      );
+
+      // Initial: instanceof works
+      expect(receivedItems[0] instanceof Date).toBe(true);
+
+      // Update items with the same keys (index-based) — proxy is reused,
+      // signal value changes, getPrototypeOf should reflect the new value.
+      dates.value = [new Date(2025, 6, 15), new Date(2025, 6, 16)];
+
+      // The proxy from the initial render should still report correct prototype
+      expect(receivedItems[0] instanceof Date).toBe(true);
+      expect(Object.getPrototypeOf(receivedItems[0])).toBe(Date.prototype);
+    });
+
+    it('proxy is read-only — set returns false', () => {
+      const items = signal([{ id: 1, name: 'A' }]);
+      const container = document.createElement('div');
+      let proxyItem: { id: number; name: string } | undefined;
+
+      __list(
+        container,
+        items,
+        (item) => item.id,
+        (item) => {
+          proxyItem = item;
+          const el = document.createElement('span');
+          return el;
+        },
+      );
+
+      // Strict mode would throw, but in non-strict it returns false.
+      // Either way, the original item should not be mutated.
+      const original = items.peek()[0];
+      expect(original).toBeDefined();
+      try {
+        (proxyItem as { id: number; name: string }).name = 'mutated';
+      } catch {
+        // Expected in strict mode
+      }
+      expect(original?.name).toBe('A');
+    });
+  });
 });
