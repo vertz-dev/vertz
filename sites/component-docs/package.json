@@ -1,0 +1,27 @@
+{
+  "name": "@vertz/component-docs",
+  "private": true,
+  "type": "module",
+  "vertz": {
+    "title": "Vertz UI — Component Documentation",
+    "description": "Interactive component documentation for Vertz UI, built with Vertz itself."
+  },
+  "scripts": {
+    "dev": "bun run src/dev-server.ts",
+    "build": "bun node_modules/@vertz/cli/dist/vertz.js build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vertz/mdx": "workspace:*",
+    "@vertz/theme-shadcn": "workspace:*",
+    "@vertz/ui": "workspace:*",
+    "@vertz/ui-primitives": "workspace:*",
+    "@vertz/ui-server": "workspace:*"
+  },
+  "devDependencies": {
+    "@vertz/cli": "workspace:*",
+    "@vertz/ui-compiler": "workspace:*",
+    "bun-types": "^1.3.9",
+    "typescript": "^5.8.0"
+  }
+}
