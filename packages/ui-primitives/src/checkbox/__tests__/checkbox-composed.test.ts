@@ -35,7 +35,7 @@ describe('Composed Checkbox', () => {
         const btn = root.querySelector('[role="checkbox"]') ?? root;
         const indicator = btn.querySelector('[data-part="indicator"]') as HTMLElement;
         expect(indicator).not.toBeNull();
-        expect(indicator!.className).toContain('cb-ind');
+        expect(indicator.className).toContain('cb-ind');
       });
     });
   });
@@ -98,96 +98,138 @@ describe('Composed Checkbox', () => {
 
   describe('Given a ComposedCheckbox in checked state', () => {
     describe('When rendered', () => {
-      it('Then the indicator contains a checkmark SVG', () => {
+      it('Then the indicator contains both SVG icons (always in DOM)', () => {
         const root = ComposedCheckbox({ defaultChecked: true });
         container.appendChild(root);
 
         const btn = root.querySelector('[role="checkbox"]') ?? root;
         const indicator = btn.querySelector('[data-part="indicator"]') as HTMLElement;
-        const svg = indicator.querySelector('svg');
-        expect(svg).not.toBeNull();
-        expect(svg!.getAttribute('viewBox')).toBe('0 0 24 24');
-        expect(svg!.getAttribute('stroke')).toBe('currentColor');
+        const svgs = indicator.querySelectorAll('svg');
+        expect(svgs.length).toBe(2);
+
+        // Check icon and minus icon are both present
+        expect(indicator.querySelector('[data-icon="check"]')).not.toBeNull();
+        expect(indicator.querySelector('[data-icon="minus"]')).not.toBeNull();
+      });
+
+      it('Then the indicator data-state is "checked"', () => {
+        const root = ComposedCheckbox({ defaultChecked: true });
+        container.appendChild(root);
+
+        const btn = root.querySelector('[role="checkbox"]') ?? root;
+        const indicator = btn.querySelector('[data-part="indicator"]') as HTMLElement;
+        expect(indicator.getAttribute('data-state')).toBe('checked');
       });
     });
   });
 
   describe('Given a ComposedCheckbox in indeterminate state', () => {
     describe('When rendered', () => {
-      it('Then the indicator contains a dash SVG', () => {
+      it('Then the indicator data-state is "indeterminate"', () => {
         const root = ComposedCheckbox({ defaultChecked: 'mixed' });
         container.appendChild(root);
 
         const btn = root.querySelector('[role="checkbox"]') ?? root;
         const indicator = btn.querySelector('[data-part="indicator"]') as HTMLElement;
-        const svg = indicator.querySelector('svg');
-        expect(svg).not.toBeNull();
-        const path = svg!.querySelector('path');
-        expect(path).not.toBeNull();
+        expect(indicator.getAttribute('data-state')).toBe('indeterminate');
+      });
+
+      it('Then the minus icon SVG has the horizontal line path', () => {
+        const root = ComposedCheckbox({ defaultChecked: 'mixed' });
+        container.appendChild(root);
+
+        const btn = root.querySelector('[role="checkbox"]') ?? root;
+        const indicator = btn.querySelector('[data-part="indicator"]') as HTMLElement;
+        const minusSvg = indicator.querySelector('[data-icon="minus"]');
+        expect(minusSvg).not.toBeNull();
+        const path = minusSvg?.querySelector('path');
+        expect(path?.getAttribute('d')).toBe('M5 12h14');
       });
     });
   });
 
   describe('Given a checked ComposedCheckbox', () => {
     describe('When toggled to unchecked', () => {
-      it('Then the indicator SVG is removed', () => {
+      it('Then the indicator data-state changes to "unchecked" (SVGs remain in DOM)', () => {
         const root = ComposedCheckbox({ defaultChecked: true });
         container.appendChild(root);
 
         const btn = (root.querySelector('[role="checkbox"]') ?? root) as HTMLElement;
         const indicator = btn.querySelector('[data-part="indicator"]') as HTMLElement;
-        expect(indicator.querySelector('svg')).not.toBeNull();
+        expect(indicator.getAttribute('data-state')).toBe('checked');
+        expect(indicator.querySelectorAll('svg').length).toBe(2);
 
         btn.click();
-        expect(indicator.querySelector('svg')).toBeNull();
+        expect(indicator.getAttribute('data-state')).toBe('unchecked');
+        // SVGs always in DOM — visibility controlled by CSS
+        expect(indicator.querySelectorAll('svg').length).toBe(2);
       });
     });
 
     describe('When toggled to unchecked then back to checked', () => {
-      it('Then exactly one SVG is present in the indicator (no duplicates)', () => {
+      it('Then data-state returns to "checked" with exactly two SVGs (no duplicates)', () => {
         const root = ComposedCheckbox({ defaultChecked: true });
         container.appendChild(root);
 
         const btn = (root.querySelector('[role="checkbox"]') ?? root) as HTMLElement;
         const indicator = btn.querySelector('[data-part="indicator"]') as HTMLElement;
 
-        // Initial: one SVG
-        expect(indicator.querySelectorAll('svg').length).toBe(1);
+        // Initial: checked, two SVGs
+        expect(indicator.getAttribute('data-state')).toBe('checked');
+        expect(indicator.querySelectorAll('svg').length).toBe(2);
 
         // Uncheck
         btn.click();
-        expect(indicator.querySelectorAll('svg').length).toBe(0);
+        expect(indicator.getAttribute('data-state')).toBe('unchecked');
+        expect(indicator.querySelectorAll('svg').length).toBe(2);
 
-        // Re-check — must have exactly ONE SVG, not two
+        // Re-check — must still have exactly TWO SVGs, not more
         btn.click();
-        expect(indicator.querySelectorAll('svg').length).toBe(1);
+        expect(indicator.getAttribute('data-state')).toBe('checked');
+        expect(indicator.querySelectorAll('svg').length).toBe(2);
       });
     });
   });
 
   describe('Given an unchecked ComposedCheckbox', () => {
-    describe('When toggled to checked then back to unchecked then checked again', () => {
-      it('Then exactly one SVG is present after each check', () => {
+    describe('When toggled through multiple states', () => {
+      it('Then data-state tracks the checked state correctly', () => {
         const root = ComposedCheckbox({ defaultChecked: false });
         container.appendChild(root);
 
         const btn = (root.querySelector('[role="checkbox"]') ?? root) as HTMLElement;
         const indicator = btn.querySelector('[data-part="indicator"]') as HTMLElement;
 
-        // Initial: no SVG
-        expect(indicator.querySelectorAll('svg').length).toBe(0);
+        // Initial: unchecked
+        expect(indicator.getAttribute('data-state')).toBe('unchecked');
+        expect(indicator.querySelectorAll('svg').length).toBe(2);
 
-        // Check — one SVG
+        // Check
         btn.click();
-        expect(indicator.querySelectorAll('svg').length).toBe(1);
+        expect(indicator.getAttribute('data-state')).toBe('checked');
+        expect(indicator.querySelectorAll('svg').length).toBe(2);
 
-        // Uncheck — no SVG
+        // Uncheck
         btn.click();
-        expect(indicator.querySelectorAll('svg').length).toBe(0);
+        expect(indicator.getAttribute('data-state')).toBe('unchecked');
 
-        // Re-check — exactly one SVG
+        // Re-check — SVG count stable
         btn.click();
-        expect(indicator.querySelectorAll('svg').length).toBe(1);
+        expect(indicator.getAttribute('data-state')).toBe('checked');
+        expect(indicator.querySelectorAll('svg').length).toBe(2);
+      });
+    });
+  });
+
+  describe('Given a ComposedCheckbox with pointer-events: none on indicator', () => {
+    describe('When rendered', () => {
+      it('Then the indicator span has pointer-events: none to prevent click target race', () => {
+        const root = ComposedCheckbox({});
+        container.appendChild(root);
+
+        const btn = root.querySelector('[role="checkbox"]') ?? root;
+        const indicator = btn.querySelector('[data-part="indicator"]') as HTMLElement;
+        expect(indicator.style.pointerEvents).toBe('none');
       });
     });
   });
