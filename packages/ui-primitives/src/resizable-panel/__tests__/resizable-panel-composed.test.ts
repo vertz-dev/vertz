@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 
-/** Flush queued microtasks so initPanels() (deferred via queueMicrotask) runs. */
+/** Flush queued microtasks so deferred signal effects propagate to the DOM. */
 const flush = () => new Promise<void>((r) => queueMicrotask(r));
 
 describe('ComposedResizablePanel', () => {
@@ -181,8 +181,8 @@ describe('ComposedResizablePanel', () => {
       },
     });
     container.appendChild(root);
-    await flush();
 
+    await flush();
     onResize.mockClear();
     const handle = root.querySelector('[role="separator"]') as HTMLElement;
     handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
@@ -292,7 +292,6 @@ describe('ComposedResizablePanel', () => {
       },
     });
     container.appendChild(root);
-    await flush();
 
     // Outer root's group ID scopes its panels — should find only 2, not 4
     // Get the outer group ID from the first direct panel
@@ -310,6 +309,8 @@ describe('ComposedResizablePanel', () => {
       `[data-part="panel"][data-group="${outerGroupId}"]`,
     ).length;
     expect(outerPanelCount).toBe(2);
+
+    await flush();
 
     // Outer handle should have 50/50
     const outerHandle = root.querySelector(
@@ -503,7 +504,7 @@ describe('ComposedResizablePanel', () => {
     handle.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, bubbles: true }));
   });
 
-  it('no resolveChildren or factory imports in source', async () => {
+  it('no imperative DOM manipulation in source', async () => {
     const source = await Bun.file(
       new URL('../resizable-panel-composed.tsx', import.meta.url).pathname,
     ).text();
@@ -511,5 +512,6 @@ describe('ComposedResizablePanel', () => {
     expect(source).not.toContain("from './resizable-panel'");
     expect(source).not.toContain('appendChild');
     expect(source).not.toContain('createTextNode');
+    expect(source).not.toContain('querySelectorAll');
   });
 });

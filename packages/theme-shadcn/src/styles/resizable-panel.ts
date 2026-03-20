@@ -21,7 +21,7 @@ const focusRing: Record<string, StyleValue[]> = {
 export function createResizablePanelStyles(): CSSOutput<ResizablePanelBlocks> {
   const s = css({
     resizableRoot: ['flex', 'h:full', 'w:full'],
-    resizablePanel: ['overflow-hidden'],
+    resizablePanel: ['overflow-hidden', { '&': [{ 'white-space': 'nowrap' }] }],
     resizableHandle: [
       'relative',
       'flex',
