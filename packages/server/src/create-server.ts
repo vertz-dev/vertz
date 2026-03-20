@@ -513,10 +513,9 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
         const result = await auth.api.getSession(raw.headers);
         if (!result.ok || !result.data) return {};
 
-        const payload = result.data.payload as Record<string, unknown>;
         return {
           userId: result.data.user.id,
-          tenantId: (payload.tenantId as string) ?? null,
+          tenantId: result.data.payload.tenantId ?? null,
           roles: [result.data.user.role],
           user: result.data.user,
           session: result.data,
