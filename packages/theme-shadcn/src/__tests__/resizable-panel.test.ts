@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 import { createResizablePanelStyles } from '../styles/resizable-panel';
 
+/** Flush queued microtasks so initPanels() (deferred via queueMicrotask) runs. */
+const flush = () => new Promise<void>((r) => queueMicrotask(r));
+
 describe('resizable-panel styles', () => {
   const styles = createResizablePanelStyles();
 
@@ -127,6 +130,7 @@ describe('createThemedResizablePanel', () => {
       },
     });
     container.appendChild(root);
+    await flush();
 
     onResize.mockClear();
     const handle = root.querySelector('[role="separator"]') as HTMLElement;
