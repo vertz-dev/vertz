@@ -103,6 +103,31 @@ describe('__prop', () => {
     expect(el.selected).toBe(false);
   });
 
+  it('resets value to empty string when fn returns null', () => {
+    const el = document.createElement('select');
+    const opt = document.createElement('option');
+    opt.value = 'a';
+    el.appendChild(opt);
+
+    const selected = signal<string | null>('a');
+    __prop(el, 'value', () => selected.value);
+    expect(el.value).toBe('a');
+
+    selected.value = null;
+    expect(el.value).toBe('');
+  });
+
+  it('resets checked to false when fn returns null', () => {
+    const el = document.createElement('input');
+    el.type = 'checkbox';
+    const isChecked = signal<boolean | null>(true);
+    __prop(el, 'checked', () => isChecked.value);
+    expect(el.checked).toBe(true);
+
+    isChecked.value = null;
+    expect(el.checked).toBe(false);
+  });
+
   it('returns a dispose function', () => {
     const el = document.createElement('input');
     const text = signal('hello');

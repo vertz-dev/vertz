@@ -44,7 +44,14 @@ export function __attr(
  */
 export function __prop(el: HTMLElement, name: string, fn: () => unknown): DisposeFn {
   return deferredDomEffect(() => {
-    Reflect.set(el, name, fn());
+    const value = fn();
+    if (value == null) {
+      // Reset to the property's type-appropriate default:
+      // '' for string props (value), false for boolean props (checked, selected)
+      Reflect.set(el, name, typeof Reflect.get(el, name) === 'boolean' ? false : '');
+    } else {
+      Reflect.set(el, name, value);
+    }
   });
 }
 

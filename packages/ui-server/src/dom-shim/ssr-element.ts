@@ -390,6 +390,17 @@ export class SSRElement extends SSRNode {
     }
   }
 
+  get selected(): boolean {
+    return 'selected' in this.attrs;
+  }
+  set selected(value: boolean) {
+    if (value) {
+      this.attrs.selected = '';
+    } else {
+      delete this.attrs.selected;
+    }
+  }
+
   get rows(): number {
     return Number(this.attrs.rows) || 0;
   }
