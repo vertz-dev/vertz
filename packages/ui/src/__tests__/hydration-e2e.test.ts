@@ -3,6 +3,7 @@ import { resetInjectedStyles } from '../css/css';
 import { __conditional } from '../dom/conditional';
 import {
   __append,
+  __child,
   __element,
   __enterChildren,
   __exitChildren,
@@ -11,6 +12,7 @@ import {
 } from '../dom/element';
 import { __on } from '../dom/events';
 import { __list } from '../dom/list';
+import { SVG_NS } from '../dom/svg-tags';
 import { mount } from '../mount';
 import { signal } from '../runtime/signal';
 
@@ -222,5 +224,261 @@ describe('tolerant hydration e2e', () => {
     const updated = Array.from(root.querySelectorAll('li'));
     expect(updated).toHaveLength(4);
     expect(updated[3]?.textContent).toBe('D');
+  });
+
+  it('claimElement claims SVG namespace elements with lowercase tagName', () => {
+    // SVG elements have lowercase tagName ("svg", "path") in the SVG namespace,
+    // unlike HTML elements which are always uppercase ("DIV", "SPAN").
+    // Regression: claimElement used strict equality (el.tagName === "SVG")
+    // which always failed for SVG elements, causing orphaned SSR nodes.
+    root.innerHTML =
+      '<button>' +
+      '<span>' +
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
+      '<path d="M5 12l5 5L20 7"></path>' +
+      '</svg>' +
+      '</span>' +
+      '</button>';
+
+    const ssrSvg = root.querySelector('svg')!;
+    const ssrPath = root.querySelector('path')!;
+
+    // Verify happydom gives lowercase tagName for SVG elements (matching browser behavior)
+    expect(ssrSvg.tagName).toBe('svg');
+    expect(ssrPath.tagName).toBe('path');
+
+    const App = () => {
+      const btn = __element('button');
+      __enterChildren(btn);
+
+      const span = __element('span');
+      __enterChildren(span);
+
+      const svg = __element('svg', { xmlns: SVG_NS, viewBox: '0 0 24 24' });
+      __enterChildren(svg);
+      const p = __element('path', { d: 'M5 12l5 5L20 7' });
+      __append(svg, p);
+      __exitChildren();
+      __append(span, svg);
+
+      __exitChildren();
+      __append(btn, span);
+
+      __exitChildren();
+      return btn;
+    };
+
+    mount(App);
+
+    // SSR SVG must be adopted (same reference), not duplicated
+    const svgs = root.querySelectorAll('svg');
+    expect(svgs).toHaveLength(1);
+    expect(svgs[0]).toBe(ssrSvg);
+
+    // Path must also be adopted
+    const paths = root.querySelectorAll('path');
+    expect(paths).toHaveLength(1);
+    expect(paths[0]).toBe(ssrPath);
+  });
+
+  it('checkbox-like conditional SVG: no duplicate after hydration + toggle', () => {
+    // Simulates the compiled checkbox pattern:
+    //   {checked === 'mixed' ? <svg1> : checked ? <svg2> : null}
+    // which compiles to nested __conditional() calls.
+    // The SSR output for checked=true (not mixed) has TWO comment anchors:
+    // one for the outer conditional (mixed? check) and one for the inner
+    // conditional (checked? check), followed by the SVG.
+    // Regression: SVG claimElement failure caused duplicate SVGs after
+    // hydration — the SSR SVG stayed orphaned while a new empty SVG was created.
+    root.innerHTML =
+      '<button role="checkbox">' +
+      '<span data-part="indicator">' +
+      '<!-- conditional -->' +
+      '<!-- conditional -->' +
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
+      '<path d="M5 12l5 5L20 7"></path>' +
+      '</svg>' +
+      '</span>' +
+      '</button>';
+
+    const ssrSvg = root.querySelector('svg')!;
+
+    const checked = signal<boolean | 'mixed'>(true);
+    const App = () => {
+      const btn = __element('button', { role: 'checkbox' });
+      __enterChildren(btn);
+
+      const indicator = __element('span', { 'data-part': 'indicator' });
+      __enterChildren(indicator);
+
+      // Nested conditional: mixed → svg1, checked → svg2, else → null
+      const cond = __conditional(
+        () => checked.value === 'mixed',
+        () => {
+          // "mixed" branch — minus icon SVG
+          const svg = __element('svg', { xmlns: SVG_NS, viewBox: '0 0 24 24' });
+          __enterChildren(svg);
+          const p1 = __element('path', { d: 'M5 12h14' });
+          __append(svg, p1);
+          __exitChildren();
+          return svg;
+        },
+        () =>
+          __conditional(
+            () => !!checked.value,
+            () => {
+              // "checked" branch — checkmark SVG
+              const svg = __element('svg', { xmlns: SVG_NS, viewBox: '0 0 24 24' });
+              __enterChildren(svg);
+              const p2 = __element('path', { d: 'M5 12l5 5L20 7' });
+              __append(svg, p2);
+              __exitChildren();
+              return svg;
+            },
+            () => null,
+          ) as unknown as Node,
+      );
+      __append(indicator, cond);
+
+      __exitChildren();
+      __append(btn, indicator);
+
+      __exitChildren();
+      return btn;
+    };
+
+    mount(App);
+
+    // SSR SVG must be adopted (same reference), not duplicated
+    const svgs = root.querySelectorAll('svg');
+    expect(svgs).toHaveLength(1);
+    expect(svgs[0]).toBe(ssrSvg);
+    expect(root.querySelector('path')?.getAttribute('d')).toBe('M5 12l5 5L20 7');
+
+    // Toggle off → no SVG
+    checked.value = false;
+    expect(root.querySelectorAll('svg')).toHaveLength(0);
+
+    // Toggle back on → exactly one SVG (checkmark)
+    checked.value = true;
+    expect(root.querySelectorAll('svg')).toHaveLength(1);
+
+    // Toggle to mixed → exactly one SVG (minus)
+    checked.value = 'mixed';
+    expect(root.querySelectorAll('svg')).toHaveLength(1);
+    expect(root.querySelector('path')?.getAttribute('d')).toBe('M5 12h14');
+
+    // Toggle back to checked → exactly one SVG (checkmark)
+    checked.value = true;
+    expect(root.querySelectorAll('svg')).toHaveLength(1);
+    expect(root.querySelector('path')?.getAttribute('d')).toBe('M5 12l5 5L20 7');
+  });
+
+  it('__child disposes nested conditional effects on re-evaluation', () => {
+    // Regression: __child did not run scope cleanup between evaluations,
+    // so nested __conditional effects survived and produced orphaned DOM.
+    root.innerHTML =
+      '<div>' +
+      '<span style="display: contents">' +
+      '<!-- conditional -->' +
+      '<span>hello</span>' +
+      '</span>' +
+      '</div>';
+
+    const show = signal(true);
+    const label = signal('hello');
+
+    const App = () => {
+      const el = __element('div');
+      __enterChildren(el);
+
+      const child = __child(() =>
+        __conditional(
+          () => show.value,
+          () => {
+            const s = __element('span');
+            __enterChildren(s);
+            __append(
+              s,
+              __text(() => label.value),
+            );
+            __exitChildren();
+            return s;
+          },
+          () => null,
+        ),
+      );
+      __append(el, child);
+
+      __exitChildren();
+      return el;
+    };
+
+    mount(App);
+
+    const wrapper = root.querySelector('span[style*="contents"]')!;
+    expect(wrapper).toBeTruthy();
+    expect(wrapper.textContent).toContain('hello');
+
+    // Toggle off
+    show.value = false;
+    // The span should be gone (replaced by a comment or empty)
+    expect(wrapper.querySelectorAll('span')).toHaveLength(0);
+
+    // Toggle back on — should have exactly one span, not duplicates
+    show.value = true;
+    expect(wrapper.querySelectorAll('span')).toHaveLength(1);
+    expect(wrapper.textContent).toContain('hello');
+
+    // Change label — should update, not create extra nodes
+    label.value = 'world';
+    expect(wrapper.querySelectorAll('span')).toHaveLength(1);
+    expect(wrapper.textContent).toContain('world');
+  });
+
+  it('hydrateConditional falls back to CSR when no SSR comment anchor', () => {
+    // If hydration is active but the SSR output has no comment anchor
+    // (e.g., SSR/client route mismatch), __conditional should fall back to
+    // CSR path instead of creating an orphaned anchor.
+    // We test this at the unit level using startHydration/endHydration directly.
+    const container = document.createElement('div');
+    // SSR has a <span> but no <!-- conditional --> comment
+    container.innerHTML = '<span>existing</span>';
+    root.appendChild(container);
+
+    const { startHydration, endHydration } = require('../hydrate/hydration-context');
+    startHydration(container);
+
+    const show = signal(true);
+
+    // Claim the <span> so cursor advances past it
+    __element('span');
+
+    // This conditional has no comment anchor in SSR — should CSR-fallback
+    const cond = __conditional(
+      () => show.value,
+      () => {
+        const p = document.createElement('p');
+        p.textContent = 'extra';
+        return p;
+      },
+      () => null,
+    );
+
+    endHydration();
+
+    // The CSR-fallback returns a DocumentFragment; append it to verify content
+    container.appendChild(cond);
+
+    // The <p> should be rendered (via CSR fallback)
+    expect(container.querySelector('p')?.textContent).toBe('extra');
+
+    // Toggle off — content should go away
+    show.value = false;
+    expect(container.querySelector('p')).toBeNull();
+
+    // Toggle on — should come back
+    show.value = true;
+    expect(container.querySelector('p')?.textContent).toBe('extra');
   });
 });
