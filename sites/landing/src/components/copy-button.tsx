@@ -61,17 +61,17 @@ export default function CopyButton() {
       type="button"
       onClick={handleClick}
       className={s.copyButton}
-      style="font-family: var(--font-mono); border-color: #1e1e22; box-shadow: 4px 4px 0 rgba(255,255,255,0.06); transition: all 0.15s"
+      style={{ fontFamily: 'var(--font-mono)', borderColor: '#1e1e22', boxShadow: '4px 4px 0 rgba(255,255,255,0.06)', transition: 'all 0.15s' }}
     >
-      <span className={s.mobileBadge} style={copied ? 'opacity: 1' : 'opacity: 0'}>
+      <span className={s.mobileBadge} style={{ opacity: copied ? '1' : '0' }}>
         Copied!
       </span>
       <span className={s.dollarSign}>$</span> bun create vertz@latest my-app
       <span className={s.copyPrefix}>
-        <span style="grid-area: 1/1; visibility: hidden; pointer-events: none">
+        <span style={{ gridArea: '1/1', visibility: 'hidden', pointerEvents: 'none' }}>
           (click to copy)
         </span>
-        <span style="grid-area: 1/1">{copied ? 'Copied!' : '(click to copy)'}</span>
+        <span style={{ gridArea: '1/1' }}>{copied ? 'Copied!' : '(click to copy)'}</span>
       </span>
     </button>
   );

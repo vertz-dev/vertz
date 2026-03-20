@@ -29,7 +29,7 @@ export function Nav() {
   return (
     <nav
       className={s.nav}
-      style="top: 0; left: 0; right: 0; background: rgba(10,10,11,0.8); backdrop-filter: blur(12px); border-bottom: 2px solid rgba(255,255,255,0.04)"
+      style={{ top: '0', left: '0', right: '0', background: 'rgba(10,10,11,0.8)', backdropFilter: 'blur(12px)', borderBottom: '2px solid rgba(255,255,255,0.04)' }}
     >
       <Link href="/" className={s.logoWrapper}>
         <VertzLogo />
@@ -43,7 +43,7 @@ export function Nav() {
           target="_blank"
           rel="noopener"
           className={s.link}
-          style="font-family: var(--font-mono)"
+          style={{ fontFamily: 'var(--font-mono)' }}
         >
           GitHub
         </a>
@@ -53,12 +53,12 @@ export function Nav() {
           target="_blank"
           rel="noopener"
           className={s.link}
-          style="font-family: var(--font-mono)"
+          style={{ fontFamily: 'var(--font-mono)' }}
         >
           Discord
         </a>
         */}
-        <a href="https://docs.vertz.dev" className={s.link} style="font-family: var(--font-mono)">
+        <a href="https://docs.vertz.dev" className={s.link} style={{ fontFamily: 'var(--font-mono)' }}>
           Docs
         </a>
       </div>

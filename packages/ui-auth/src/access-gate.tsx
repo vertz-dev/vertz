@@ -13,14 +13,14 @@ export function AccessGate({ fallback, children }: AccessGateProps): JSX.Element
 
   if (!ctx) {
     return (
-      <span style="display:contents">{typeof children === 'function' ? children() : children}</span>
+      <span style={{ display: 'contents' }}>{typeof children === 'function' ? children() : children}</span>
     );
   }
 
   const isLoaded = (ctx.accessSet as AccessSet | null) !== null;
 
   return (
-    <span style="display:contents">
+    <span style={{ display: 'contents' }}>
       {isLoaded
         ? typeof children === 'function'
           ? children()

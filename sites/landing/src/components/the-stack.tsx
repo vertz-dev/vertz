@@ -97,22 +97,22 @@ export function TheStack() {
   return (
     <section className={s.section}>
       <div className={s.container}>
-        <p className={s.label} style="font-family: var(--font-mono)">
+        <p className={s.label} style={{ fontFamily: 'var(--font-mono)' }}>
           The stack
         </p>
-        <h2 className={s.heading} style="font-family: var(--font-display)">
+        <h2 className={s.heading} style={{ fontFamily: 'var(--font-display)' }}>
           One framework. Not fifteen npm installs.
         </h2>
         <p className={s.subtitle}>Every layer works together because they were built together.</p>
 
         <div className={s.list}>
           {LAYERS.map((layer) => (
-            <div key={layer.pkg} className={s.row} style="border-bottom: 1px solid #1e1e22">
-              <div className={s.pkg} style={`font-family: var(--font-mono); color: ${layer.color}`}>
+            <div key={layer.pkg} className={s.row} style={{ borderBottom: '1px solid #1e1e22' }}>
+              <div className={s.pkg} style={{ fontFamily: 'var(--font-mono)', color: layer.color }}>
                 {layer.pkg}
               </div>
               <div className={s.what}>{layer.what}</div>
-              <div className={s.replaces} style="font-family: var(--font-mono)">
+              <div className={s.replaces} style={{ fontFamily: 'var(--font-mono)' }}>
                 replaces {layer.replaces}
               </div>
             </div>

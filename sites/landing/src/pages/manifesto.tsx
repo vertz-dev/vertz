@@ -24,16 +24,16 @@ export default function ManifestoPage() {
     <div className={s.page}>
       <Nav />
       <article className={s.article}>
-        <h1 style="font-family: var(--font-display); font-size: clamp(2.5rem, 6vw, 4rem); letter-spacing: -0.025em; line-height: 1.1; margin-bottom: 1.5rem">
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.5rem, 6vw, 4rem)', letterSpacing: '-0.025em', lineHeight: '1.1', marginBottom: '1.5rem' }}>
           The Vertz Manifesto
         </h1>
-        <p className={s.subtitle} style="font-style: italic">
+        <p className={s.subtitle} style={{ fontStyle: 'italic' }}>
           Designed by humans. Built by LLMs, for LLMs.
         </p>
 
         {/* ── Not Just for Humans Anymore ── */}
         <section className={s.section}>
-          <h2 className={s.sectionTitle} style="font-family: var(--font-display)">
+          <h2 className={s.sectionTitle} style={{ fontFamily: 'var(--font-display)' }}>
             Not Just for Humans Anymore
           </h2>
           <p className={s.paragraph}>We built Vertz because the way we write software has changed.</p>
@@ -69,16 +69,16 @@ export default function ManifestoPage() {
 
         <div
           className={s.divider}
-          style="height: 1px; background: linear-gradient(to right, transparent, #1e1e22, transparent)"
+          style={{ height: '1px', background: 'linear-gradient(to right, transparent, #1e1e22, transparent)' }}
         />
 
         {/* ── What We Believe ── */}
         <section className={s.section}>
-          <h2 className={s.sectionTitle} style="font-family: var(--font-display)">
+          <h2 className={s.sectionTitle} style={{ fontFamily: 'var(--font-display)' }}>
             What We Believe
           </h2>
 
-          <h3 style="font-family: var(--font-display); font-size: 1.25rem; margin-bottom: 0.75rem; color: #e4e4e7">
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', marginBottom: '0.75rem', color: '#e4e4e7' }}>
             Type Safety Wins
           </h3>
           <p className={s.paragraph}>
@@ -91,7 +91,7 @@ export default function ManifestoPage() {
             <span className={s.highlight}>If your code builds, it runs.</span>
           </p>
 
-          <h3 style="font-family: var(--font-display); font-size: 1.25rem; margin-bottom: 0.75rem; margin-top: 2rem; color: #e4e4e7">
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', marginBottom: '0.75rem', marginTop: '2rem', color: '#e4e4e7' }}>
             One Way to Do Things
           </h3>
           <p className={s.paragraph}>
@@ -103,7 +103,7 @@ export default function ManifestoPage() {
             <span className={s.highlight}>predictability matters more than flexibility.</span>
           </p>
 
-          <h3 style="font-family: var(--font-display); font-size: 1.25rem; margin-bottom: 0.75rem; margin-top: 2rem; color: #e4e4e7">
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', marginBottom: '0.75rem', marginTop: '2rem', color: '#e4e4e7' }}>
             Production-Ready by Default
           </h3>
           <p className={s.paragraph}>
@@ -116,7 +116,7 @@ export default function ManifestoPage() {
             not bolted on later.
           </p>
 
-          <h3 style="font-family: var(--font-display); font-size: 1.25rem; margin-bottom: 0.75rem; margin-top: 2rem; color: #e4e4e7">
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', marginBottom: '0.75rem', marginTop: '2rem', color: '#e4e4e7' }}>
             The Backend Is Just the First Step
           </h3>
           <p className={s.paragraph}>
@@ -132,15 +132,15 @@ export default function ManifestoPage() {
 
         <div
           className={s.divider}
-          style="height: 1px; background: linear-gradient(to right, transparent, #1e1e22, transparent)"
+          style={{ height: '1px', background: 'linear-gradient(to right, transparent, #1e1e22, transparent)' }}
         />
 
         {/* ── The Tradeoffs We Accept ── */}
         <section className={s.section}>
-          <h2 className={s.sectionTitle} style="font-family: var(--font-display)">
+          <h2 className={s.sectionTitle} style={{ fontFamily: 'var(--font-display)' }}>
             The Tradeoffs We Accept
           </h2>
-          <ul className={s.list} style="list-style: none">
+          <ul className={s.list} style={{ listStyle: 'none' }}>
             <li className={s.tradeoffItem}>
               <span className={s.bold}>Explicit over implicit.</span> More visible code, fewer
               surprises.
@@ -162,15 +162,15 @@ export default function ManifestoPage() {
 
         <div
           className={s.divider}
-          style="height: 1px; background: linear-gradient(to right, transparent, #1e1e22, transparent)"
+          style={{ height: '1px', background: 'linear-gradient(to right, transparent, #1e1e22, transparent)' }}
         />
 
         {/* ── Who Vertz Is For ── */}
         <section className={s.section}>
-          <h2 className={s.sectionTitle} style="font-family: var(--font-display)">
+          <h2 className={s.sectionTitle} style={{ fontFamily: 'var(--font-display)' }}>
             Who Vertz Is For
           </h2>
-          <ul className={s.list} style="list-style: none">
+          <ul className={s.list} style={{ listStyle: 'none' }}>
             <li className={s.listItem}>
               Developers who want to move fast without sacrificing safety or clean, simple code
             </li>
@@ -191,36 +191,36 @@ export default function ManifestoPage() {
 
         <div
           className={s.divider}
-          style="height: 1px; background: linear-gradient(to right, transparent, #1e1e22, transparent)"
+          style={{ height: '1px', background: 'linear-gradient(to right, transparent, #1e1e22, transparent)' }}
         />
 
         {/* ── The North Star ── */}
-        <section className={s.section} style="text-align: center">
-          <h2 className={s.sectionTitle} style="font-family: var(--font-display)">
+        <section className={s.section} style={{ textAlign: 'center' }}>
+          <h2 className={s.sectionTitle} style={{ fontFamily: 'var(--font-display)' }}>
             The North Star
           </h2>
-          <p className={s.paragraph} style="text-align: center">
+          <p className={s.paragraph} style={{ textAlign: 'center' }}>
             When a developer finishes their first Vertz project, we want them to say:
           </p>
-          <p className={s.blockquote} style="font-family: var(--font-display)">
+          <p className={s.blockquote} style={{ fontFamily: 'var(--font-display)' }}>
             "My LLM nailed it on the first try."
           </p>
-          <p className={s.paragraph} style="text-align: center">
+          <p className={s.paragraph} style={{ textAlign: 'center' }}>
             That's the bar. That's what we're building toward.
           </p>
         </section>
 
         <div
           className={s.divider}
-          style="height: 1px; background: linear-gradient(to right, transparent, #1e1e22, transparent)"
+          style={{ height: '1px', background: 'linear-gradient(to right, transparent, #1e1e22, transparent)' }}
         />
 
         {/* ── Vertz Is NOT ── */}
         <section className={s.section}>
-          <h2 className={s.sectionTitle} style="font-family: var(--font-display)">
+          <h2 className={s.sectionTitle} style={{ fontFamily: 'var(--font-display)' }}>
             Vertz Is NOT
           </h2>
-          <ul className={s.list} style="list-style: none">
+          <ul className={s.list} style={{ listStyle: 'none' }}>
             <li className={s.listItem}>A framework that hides complexity behind magic</li>
             <li className={s.listItem}>Another decorator-heavy clone with different syntax</li>
             <li className={s.listItem}>
@@ -233,11 +233,11 @@ export default function ManifestoPage() {
 
         <div
           className={s.divider}
-          style="height: 1px; background: linear-gradient(to right, transparent, #1e1e22, transparent)"
+          style={{ height: '1px', background: 'linear-gradient(to right, transparent, #1e1e22, transparent)' }}
         />
 
         <p className={s.closing}>
-          <span style="font-style: italic">Vertz: Type-safe. LLM-native. Built for what's next.</span>
+          <span style={{ fontStyle: 'italic' }}>Vertz: Type-safe. LLM-native. Built for what's next.</span>
         </p>
       </article>
       <Footer />

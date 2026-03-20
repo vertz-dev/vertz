@@ -75,7 +75,7 @@ describe('UserAvatar', () => {
 
     // img is always in DOM but hidden when no src
     const img = wrapper?.querySelector('img');
-    expect(img?.getAttribute('style')).toContain('display:none');
+    expect(img?.getAttribute('style')).toContain('display: none');
     expect(wrapper?.innerHTML).toContain('<svg');
   });
 
@@ -159,11 +159,11 @@ describe('UserAvatar', () => {
     // Image is visible initially
     const img = wrapper?.querySelector('img');
     expect(img).not.toBeNull();
-    expect(img?.getAttribute('style')).not.toContain('display:none');
+    expect(img?.getAttribute('style')).not.toContain('display: none');
 
     // Simulate image error — should switch to fallback
     img?.dispatchEvent(new Event('error'));
-    expect(img?.getAttribute('style')).toContain('display:none');
+    expect(img?.getAttribute('style')).toContain('display: none');
     expect(wrapper?.innerHTML).toContain('<svg');
 
     // Change to a new URL — should recover and show the new image
@@ -175,7 +175,7 @@ describe('UserAvatar', () => {
     };
 
     expect(img?.getAttribute('src')).toBe('/working.jpg');
-    expect(img?.getAttribute('style')).not.toContain('display:none');
+    expect(img?.getAttribute('style')).not.toContain('display: none');
   });
 
   it('uses provided user instead of auth context (static, no __child)', () => {
@@ -197,8 +197,8 @@ describe('UserAvatar', () => {
     const el = UserAvatar({ user: overrideUser, size: 'lg' });
 
     const style = el.getAttribute('style') ?? '';
-    expect(style).toContain('width:56px');
-    expect(style).toContain('height:56px');
+    expect(style).toContain('width: 56px');
+    expect(style).toContain('height: 56px');
   });
 
   it('passes fallback to Avatar', () => {
@@ -207,7 +207,7 @@ describe('UserAvatar', () => {
 
     // img is always in DOM but hidden when no src
     const img = el.querySelector('img');
-    expect(img?.getAttribute('style')).toContain('display:none');
+    expect(img?.getAttribute('style')).toContain('display: none');
     expect(el.textContent).toBe('JD');
   });
 
@@ -237,7 +237,7 @@ describe('UserAvatar', () => {
 
     // img is always in DOM but hidden when no src
     const img = wrapper?.querySelector('img');
-    expect(img?.getAttribute('style')).toContain('display:none');
+    expect(img?.getAttribute('style')).toContain('display: none');
     expect(wrapper?.innerHTML).toContain('<svg');
   });
 });

@@ -30,11 +30,11 @@ export function GetStarted() {
   return (
     <section
       className={s.section}
-      style="background: #0e0e11; border-top: 1px solid rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.02)"
+      style={{ background: '#0e0e11', borderTop: '1px solid rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.02)' }}
     >
       <div className={s.container}>
         <div>
-          <h2 className={s.heading} style="font-family: var(--font-display)">
+          <h2 className={s.heading} style={{ fontFamily: 'var(--font-display)' }}>
             Get started in 30 seconds.
           </h2>
           <p className={s.desc}>
@@ -44,18 +44,18 @@ export function GetStarted() {
         </div>
         <div
           className={s.terminal}
-          style="border-color: #1e1e22; font-family: var(--font-mono); box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1)"
+          style={{ borderColor: '#1e1e22', fontFamily: 'var(--font-mono)', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
         >
           <div className={`${s.terminalLine} ${s.terminalCmd}`}>$ bun create vertz@latest my-app</div>
           <div className={`${s.terminalLine} ${s.terminalCmd}`}>$ cd my-app</div>
           <div className={s.terminalCmd}>$ bun dev</div>
-          <div className={s.successLine} style="color: #4ade80">
+          <div className={s.successLine} style={{ color: '#4ade80' }}>
             ✓ SQLite database ready
           </div>
-          <div className={s.success} style="color: #4ade80">
+          <div className={s.success} style={{ color: '#4ade80' }}>
             ✓ API server on http://localhost:3000/api
           </div>
-          <div className={s.success} style="color: #4ade80">
+          <div className={s.success} style={{ color: '#4ade80' }}>
             ✓ UI on http://localhost:3000
           </div>
         </div>

@@ -10,19 +10,19 @@ const s = css({
   pre: ['m:0'],
 });
 
-const TOOLTIP_CONTENT_STYLE = [
-  'background: #191a21',
-  'border: 1px solid #44475a',
-  'border-radius: 4px',
-  'padding: 8px 12px',
-  'font-family: var(--font-mono)',
-  'font-size: 12px',
-  'line-height: 1.5',
-  'color: #f8f8f2',
-  'white-space: pre',
-  'box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5)',
-  'max-width: 480px',
-].join('; ');
+const TOOLTIP_CONTENT_STYLE: Record<string, string> = {
+  background: '#191a21',
+  border: '1px solid #44475a',
+  borderRadius: '4px',
+  padding: '8px 12px',
+  fontFamily: 'var(--font-mono)',
+  fontSize: '12px',
+  lineHeight: '1.5',
+  color: '#f8f8f2',
+  whiteSpace: 'pre',
+  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.5)',
+  maxWidth: '480px',
+};
 
 function HintedToken({ token }: { token: [string, string, CompactToken[][]] }) {
   const hintId = token[1].trim();
@@ -39,7 +39,7 @@ function HintedToken({ token }: { token: [string, string, CompactToken[][]] }) {
     trigger.style.cssText = `${token[0]}; text-decoration: underline dashed; text-decoration-color: #52525b; text-underline-offset: 3px; cursor: default`;
     trigger.textContent = token[1];
 
-    content.style.cssText = TOOLTIP_CONTENT_STYLE;
+    Object.assign(content.style, TOOLTIP_CONTENT_STYLE);
 
     for (const hintLine of token[2]) {
       const lineSpan = document.createElement('span');
