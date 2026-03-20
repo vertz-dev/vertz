@@ -88,39 +88,38 @@ function ComposedCheckboxRoot({
         class={classes?.indicator}
         style="width: 100%; height: 100%; pointer-events: none"
       >
-        {checked === 'mixed' ? (
-          <svg
-            aria-hidden="true"
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="3"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            data-part="indicator-icon"
-            width="100%"
-            height="100%"
-          >
-            <path d="M5 12h14" />
-          </svg>
-        ) : checked ? (
-          <svg
-            aria-hidden="true"
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="3"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            data-part="indicator-icon"
-            width="100%"
-            height="100%"
-          >
-            <path d="M20 6 9 17 4 12" />
-          </svg>
-        ) : null}
+        <svg
+          aria-hidden="true"
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="3"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          data-part="indicator-icon"
+          data-icon="check"
+          width="100%"
+          height="100%"
+        >
+          <path d="M20 6 9 17 4 12" />
+        </svg>
+        <svg
+          aria-hidden="true"
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="3"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          data-part="indicator-icon"
+          data-icon="minus"
+          width="100%"
+          height="100%"
+        >
+          <path d="M5 12h14" />
+        </svg>
       </span>
       {children}
     </button>

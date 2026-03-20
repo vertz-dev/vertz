@@ -45,10 +45,42 @@ export function createCheckboxStyles(): CSSOutput<CheckboxBlocks> {
       },
     ],
     checkboxIndicator: [
+      'relative',
       'flex',
       'items:center',
       'justify:center',
-      { '&[data-state="unchecked"]': ['hidden'] },
+      // Both SVGs are always in the DOM, stacked absolutely.
+      // CSS controls which icon is visible based on the indicator's data-state.
+      {
+        '& [data-part="indicator-icon"]': {
+          position: 'absolute',
+          inset: '0',
+          opacity: '0',
+          transform: 'scale(0.5)',
+          transition:
+            'opacity 150ms cubic-bezier(0.4, 0, 0.2, 1), ' +
+            'transform 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+        },
+        // Checkmark draw animation via stroke-dashoffset
+        '& [data-icon="check"] path': {
+          'stroke-dasharray': '30',
+          'stroke-dashoffset': '30',
+          transition: 'stroke-dashoffset 200ms cubic-bezier(0.4, 0, 0.2, 1) 50ms',
+        },
+        // Checked: show checkmark, draw the path
+        '&[data-state="checked"] [data-icon="check"]': {
+          opacity: '1',
+          transform: 'scale(1)',
+        },
+        '&[data-state="checked"] [data-icon="check"] path': {
+          'stroke-dashoffset': '0',
+        },
+        // Indeterminate: show minus icon
+        '&[data-state="indeterminate"] [data-icon="minus"]': {
+          opacity: '1',
+          transform: 'scale(1)',
+        },
+      },
     ],
   });
   return {

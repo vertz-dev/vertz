@@ -195,9 +195,13 @@ describe('checkbox', () => {
     expect(checkbox.indicator.length).toBeGreaterThan(0);
   });
 
-  it('CSS contains data-state="unchecked" selector with display: none', () => {
-    expect(checkbox.css).toContain('[data-state="unchecked"]');
-    expect(checkbox.css).toContain('display: none');
+  it('CSS uses opacity/transform transitions for indicator icons instead of display: none', () => {
+    // Icons are always in the DOM — CSS controls visibility via opacity+scale
+    expect(checkbox.css).toContain('[data-part="indicator-icon"]');
+    expect(checkbox.css).toContain('opacity: 0');
+    expect(checkbox.css).toContain('transform: scale(0.5)');
+    expect(checkbox.css).toContain('[data-state="checked"] [data-icon="check"]');
+    expect(checkbox.css).toContain('opacity: 1');
   });
 
   it('CSS contains data-state="checked" and data-state="indeterminate" selectors', () => {
