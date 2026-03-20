@@ -4,20 +4,47 @@ import { PrevNext } from '../components/prev-next';
 import { Content as AccordionContent } from '../content/accordion-content';
 import { Content as AlertContent } from '../content/alert-content';
 import { Content as AlertDialogContent } from '../content/alert-dialog-content';
+import { Content as AvatarContent } from '../content/avatar-content';
 import { Content as BadgeContent } from '../content/badge-content';
 import { Content as BreadcrumbContent } from '../content/breadcrumb-content';
 import { Content as ButtonContent } from '../content/button-content';
+import { Content as CalendarContent } from '../content/calendar-content';
 import { Content as CardContent } from '../content/card-content';
+import { Content as CarouselContent } from '../content/carousel-content';
+import { Content as CheckboxContent } from '../content/checkbox-content';
+import { Content as CollapsibleContent } from '../content/collapsible-content';
+import { Content as CommandContent } from '../content/command-content';
+import { Content as ContextMenuContent } from '../content/context-menu-content';
+import { Content as DatePickerContent } from '../content/date-picker-content';
 import { Content as DialogContent } from '../content/dialog-content';
+import { Content as DrawerContent } from '../content/drawer-content';
+import { Content as DropdownMenuContent } from '../content/dropdown-menu-content';
+import { Content as FormGroupContent } from '../content/form-group-content';
+import { Content as HoverCardContent } from '../content/hover-card-content';
 import { Content as InputContent } from '../content/input-content';
 import { Content as LabelContent } from '../content/label-content';
+import { Content as MenubarContent } from '../content/menubar-content';
+import { Content as NavigationMenuContent } from '../content/navigation-menu-content';
 import { Content as PaginationContent } from '../content/pagination-content';
+import { Content as PopoverContent } from '../content/popover-content';
+import { Content as ProgressContent } from '../content/progress-content';
+import { Content as RadioGroupContent } from '../content/radio-group-content';
 import { descriptions } from '../content/registry';
+import { Content as ResizablePanelContent } from '../content/resizable-panel-content';
+import { Content as ScrollAreaContent } from '../content/scroll-area-content';
 import { Content as SelectContent } from '../content/select-content';
 import { Content as SeparatorContent } from '../content/separator-content';
+import { Content as SheetContent } from '../content/sheet-content';
+import { Content as SkeletonContent } from '../content/skeleton-content';
+import { Content as SliderContent } from '../content/slider-content';
+import { Content as SwitchContent } from '../content/switch-content';
 import { Content as TableContent } from '../content/table-content';
 import { Content as TabsContent } from '../content/tabs-content';
 import { Content as TextareaContent } from '../content/textarea-content';
+import { Content as ToastContent } from '../content/toast-content';
+import { Content as ToggleContent } from '../content/toggle-content';
+import { Content as ToggleGroupContent } from '../content/toggle-group-content';
+import { Content as TooltipContent } from '../content/tooltip-content';
 import { findComponent, getAdjacentComponents } from '../manifest';
 
 const contentMap: Record<
@@ -40,6 +67,33 @@ const contentMap: Record<
   card: CardContent,
   table: TableContent,
   alert: AlertContent,
+  checkbox: CheckboxContent,
+  'date-picker': DatePickerContent,
+  'form-group': FormGroupContent,
+  'radio-group': RadioGroupContent,
+  slider: SliderContent,
+  switch: SwitchContent,
+  toggle: ToggleContent,
+  'resizable-panel': ResizablePanelContent,
+  'scroll-area': ScrollAreaContent,
+  skeleton: SkeletonContent,
+  avatar: AvatarContent,
+  calendar: CalendarContent,
+  progress: ProgressContent,
+  drawer: DrawerContent,
+  sheet: SheetContent,
+  toast: ToastContent,
+  command: CommandContent,
+  menubar: MenubarContent,
+  'navigation-menu': NavigationMenuContent,
+  'context-menu': ContextMenuContent,
+  'dropdown-menu': DropdownMenuContent,
+  'hover-card': HoverCardContent,
+  popover: PopoverContent,
+  tooltip: TooltipContent,
+  carousel: CarouselContent,
+  collapsible: CollapsibleContent,
+  'toggle-group': ToggleGroupContent,
 };
 
 export function ComponentPage() {

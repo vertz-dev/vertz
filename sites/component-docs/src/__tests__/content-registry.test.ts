@@ -20,6 +20,40 @@ const DOCUMENTED_COMPONENTS = [
   'card',
   'table',
   'alert',
+  // Form
+  'checkbox',
+  'date-picker',
+  'form-group',
+  'radio-group',
+  'slider',
+  'switch',
+  'toggle',
+  // Layout
+  'resizable-panel',
+  'scroll-area',
+  'skeleton',
+  // Data Display
+  'avatar',
+  'calendar',
+  'progress',
+  // Feedback
+  'drawer',
+  'sheet',
+  'toast',
+  // Navigation
+  'command',
+  'menubar',
+  'navigation-menu',
+  // Overlay
+  'context-menu',
+  'dropdown-menu',
+  'hover-card',
+  'popover',
+  'tooltip',
+  // Disclosure
+  'carousel',
+  'collapsible',
+  'toggle-group',
 ];
 
 describe('Content registry', () => {

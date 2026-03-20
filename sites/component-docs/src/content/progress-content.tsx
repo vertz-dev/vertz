@@ -1,0 +1,36 @@
+import { Progress } from '@vertz/ui/components';
+import { ComponentPreview } from '../components/component-preview';
+import { CodeFence, DocH2 } from '../components/mdx-components';
+import { PropsTable } from '../components/props-table';
+import { progressProps } from '../props/progress-props';
+
+export const description = 'Displays an indicator showing the completion progress of a task.';
+
+export function Content() {
+  return (
+    <>
+      <ComponentPreview>
+        <div style={{ width: '300px' }}>
+          <Progress defaultValue={60} />
+        </div>
+      </ComponentPreview>
+
+      <DocH2>Installation</DocH2>
+      <CodeFence>
+        <code>bun add @vertz/ui @vertz/theme-shadcn</code>
+      </CodeFence>
+
+      <DocH2>Usage</DocH2>
+      <CodeFence>
+        <code>
+          {`import { Progress } from '@vertz/ui/components';
+
+<Progress defaultValue={60} />`}
+        </code>
+      </CodeFence>
+
+      <DocH2>API Reference</DocH2>
+      <PropsTable props={progressProps} />
+    </>
+  );
+}
