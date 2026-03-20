@@ -10,6 +10,8 @@ interface CalendarStyleClasses {
   readonly headCell: string;
   readonly cell: string;
   readonly dayButton: string;
+  readonly monthSelect: string;
+  readonly yearSelect: string;
 }
 
 // ── Props ──────────────────────────────────────────────────
@@ -24,6 +26,7 @@ export interface CalendarRootProps {
   weekStartsOn?: ComposedCalendarProps['weekStartsOn'];
   onValueChange?: ComposedCalendarProps['onValueChange'];
   onMonthChange?: (month: Date) => void;
+  captionLayout?: ComposedCalendarProps['captionLayout'];
 }
 
 // ── Component type ─────────────────────────────────────────
@@ -42,6 +45,8 @@ export function createThemedCalendar(styles: CalendarStyleClasses): ThemedCalend
     headCell: styles.headCell,
     cell: styles.cell,
     dayButton: styles.dayButton,
+    monthSelect: styles.monthSelect,
+    yearSelect: styles.yearSelect,
   });
 
   return function CalendarRoot(props: CalendarRootProps): HTMLElement {
