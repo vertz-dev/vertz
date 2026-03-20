@@ -851,4 +851,32 @@ describe('__list', () => {
       expect(original?.name).toBe('A');
     });
   });
+
+  describe('select fix-up', () => {
+    it('sets select.value from option[selected] after reconciliation', () => {
+      const select = document.createElement('select');
+      const items = signal([
+        { value: 'a', label: 'A' },
+        { value: 'b', label: 'B' },
+        { value: 'c', label: 'C' },
+      ]);
+
+      __list(
+        select,
+        items,
+        (item) => item.value,
+        (item) => {
+          const opt = document.createElement('option');
+          opt.value = item.value;
+          opt.textContent = item.label;
+          if (item.value === 'b') {
+            opt.setAttribute('selected', '');
+          }
+          return opt;
+        },
+      );
+
+      expect(select.value).toBe('b');
+    });
+  });
 });
