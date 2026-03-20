@@ -69,7 +69,7 @@ function FounderPhoto({ name }: { name: string }) {
           alt="Vinicius Dacal"
           width={80}
           height={80}
-          style={{ objectFit: 'cover', borderRadius: '9999px', outline: '2px solid #27272a', outlineOffset: '2px' }}
+          style="object-fit: cover; border-radius: 9999px; outline: 2px solid #27272a; outline-offset: 2px"
           fit="cover"
         />
       </div>
@@ -82,7 +82,7 @@ function FounderPhoto({ name }: { name: string }) {
         alt="Matheus Poleza"
         width={80}
         height={80}
-        style={{ objectFit: 'cover', borderRadius: '9999px', outline: '2px solid #27272a', outlineOffset: '2px' }}
+        style="object-fit: cover; border-radius: 9999px; outline: 2px solid #27272a; outline-offset: 2px"
         fit="cover"
       />
     </div>
