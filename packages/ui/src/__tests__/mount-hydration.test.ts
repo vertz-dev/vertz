@@ -1029,4 +1029,38 @@ describe('mount() — post-hydration onMount timing', () => {
 
     expect(order).toEqual(['mounted']);
   });
+
+  it('onMount inside __child is still deferred during hydration', () => {
+    // SSR: the __child wrapper span contains "hello"
+    root.innerHTML = '<div><span style="display: contents">hello</span></div>';
+
+    let mountRanDuringHydration: boolean | null = null;
+
+    const App = () => {
+      __pushMountFrame();
+      const el = __element('div');
+      __enterChildren(el);
+
+      // __child pauses hydration (isHydrating = false) but postHydrationQueue
+      // is still non-null — so onMount inside the child factory is deferred.
+      const childWrapper = __child(() => {
+        __pushMountFrame();
+        onMount(() => {
+          mountRanDuringHydration = getIsHydrating();
+        });
+        __flushMountFrame();
+        return 'hello';
+      });
+      __append(el, childWrapper);
+
+      __exitChildren();
+      __flushMountFrame();
+      return el;
+    };
+
+    mount(App);
+
+    // onMount should have run after hydration ended
+    expect(mountRanDuringHydration).toBe(false);
+  });
 });
