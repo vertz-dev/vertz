@@ -8,7 +8,7 @@
 import { createBunDevServer } from '@vertz/ui-server/bun-dev-server';
 import { app } from './api/server';
 
-const PORT = Number(process.env.PORT) || 3001;
+const PORT = Number(process.env.PORT) || 3000;
 
 // Initialize auth tables (creates auth_users, oauth_accounts, sessions tables)
 await app.initialize();

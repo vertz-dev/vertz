@@ -5,10 +5,11 @@
  * This component only handles the authenticated layout.
  */
 
-import { css, Link, Outlet, query } from '@vertz/ui';
+import { css, isBrowser, Link, Outlet, onMount, query } from '@vertz/ui';
 import { useAuth } from '@vertz/ui/auth';
 import { Button } from '@vertz/ui/components';
 import { api } from '../api/client';
+import { SEED_WORKSPACE_ID } from '../lib/constants';
 
 const sidebarStyles = css({
   shell: ['flex', 'min-h:screen', 'bg:background'],
@@ -48,6 +49,32 @@ const sidebarStyles = css({
 export function WorkspaceShell() {
   const auth = useAuth();
   const projects = query(api.projects.list());
+
+  // Auto-switch to seed workspace on first login.
+  // OAuth creates the session without a tenantId — tenant-scoped APIs
+  // return 403 until switch-tenant is called. The sessionStorage flag
+  // prevents infinite reload loops: we only attempt one switch per page load.
+  if (isBrowser()) {
+    onMount(async () => {
+      const resp = await fetch('/api/auth/session');
+      const data = await resp.json();
+      const tenantId = data.session?.payload?.tenantId;
+      if (tenantId) {
+        // Session has a tenant — nothing to do.
+        sessionStorage.removeItem('__vertz_tenant_switched');
+        return;
+      }
+      if (data.session && !tenantId) {
+        // Guard: only attempt switch once per page load to prevent reload loop.
+        if (sessionStorage.getItem('__vertz_tenant_switched')) return;
+        sessionStorage.setItem('__vertz_tenant_switched', '1');
+        const result = await api.auth.switchTenant({ tenantId: SEED_WORKSPACE_ID });
+        if (result.ok) {
+          window.location.reload();
+        }
+      }
+    });
+  }
 
   const handleSignOut = async () => {
     await auth.signOut({ redirectTo: '/login' });

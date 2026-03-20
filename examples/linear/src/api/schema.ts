@@ -1,7 +1,7 @@
 import { d } from '@vertz/db';
 
-// Default workspace ID — all seed data and new signups belong to this workspace.
-export const SEED_WORKSPACE_ID = 'ws-acme';
+// Re-export from shared constants so server-side consumers can still import from schema.
+export { SEED_WORKSPACE_ID } from '../lib/constants';
 
 // ---------------------------------------------------------------------------
 // Workspaces — tenant root table for multi-tenancy scoping.

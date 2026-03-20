@@ -42,7 +42,7 @@ interface ManageLabelsDialogProps {
 }
 
 export function ManageLabelsDialog({ projectId, dialog }: ManageLabelsDialogProps) {
-  const labelsQuery = query(api.labels.list({ projectId }));
+  const labelsQuery = query(api.labels.list({ where: { projectId } }));
 
   let editingLabel: Label | null = null;
   let isCreating = false;
