@@ -26,6 +26,16 @@ describe('context-menu styles', () => {
     expect(cm.css).toContain('vz-zoom-in');
     expect(cm.css).toContain('vz-zoom-out');
   });
+
+  it('content has min-width for reasonable sizing', () => {
+    expect(cm.css).toContain('min-width');
+  });
+
+  it('content has padding on all sides (not just vertical)', () => {
+    // Content should use p:1 (all-sided padding), not just py:1
+    // This ensures items have spacing from the container border
+    expect(cm.css).toMatch(/padding:\s*0\.25rem/);
+  });
 });
 
 // ── Themed Component ──────────────────────────────────────

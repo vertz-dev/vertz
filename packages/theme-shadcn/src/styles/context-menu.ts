@@ -18,11 +18,16 @@ export function createContextMenuStyles(): CSSOutput<ContextMenuBlocks> {
       'overflow-hidden',
       'bg:popover',
       'text:popover-foreground',
-      'rounded:md',
-      'border:1',
-      'border:border',
-      'shadow:md',
-      'py:1',
+      'rounded:lg',
+      'w:fit',
+      'p:1',
+      {
+        '&': {
+          'box-shadow':
+            '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent), 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+          'min-width': '8rem',
+        },
+      },
       {
         '&[data-state="open"]': [animationDecl('vz-zoom-in 150ms ease-out forwards')],
       },
@@ -33,19 +38,30 @@ export function createContextMenuStyles(): CSSOutput<ContextMenuBlocks> {
     cmItem: [
       'flex',
       'items:center',
-      'px:2',
-      'py:1.5',
+      'gap:1.5',
+      'px:1.5',
+      'py:1',
       'text:sm',
       'cursor:pointer',
-      'rounded:sm',
+      'rounded:md',
       'outline-none',
       { '&:hover': ['bg:accent', 'text:accent-foreground'] },
       { '&:focus': ['bg:accent', 'text:accent-foreground'] },
       { '&[data-disabled]': ['pointer-events-none', 'opacity:0.5'] },
     ],
     cmGroup: ['py:1'],
-    cmLabel: ['px:2', 'py:1.5', 'text:xs', 'font:semibold', 'text:muted-foreground'],
-    cmSeparator: ['mx:1', 'my:1', 'border-t:1', 'border:muted', { '&': { height: '1px' } }],
+    cmLabel: ['px:1.5', 'py:1', 'text:xs', 'font:medium', 'text:muted-foreground'],
+    cmSeparator: [
+      'my:1',
+      'bg:border',
+      {
+        '&': {
+          'margin-left': '-0.25rem',
+          'margin-right': '-0.25rem',
+          height: '1px',
+        },
+      },
+    ],
   });
   return {
     content: s.cmContent,
