@@ -20,6 +20,8 @@ const MONTH_NAMES = [
 
 const DAY_NAMES = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
+const MONTH_OPTIONS = MONTH_NAMES.map((name, index) => ({ name, index }));
+
 // ---------------------------------------------------------------------------
 // Class distribution
 // ---------------------------------------------------------------------------
@@ -33,6 +35,8 @@ export interface CalendarClasses {
   headCell?: string;
   cell?: string;
   dayButton?: string;
+  monthSelect?: string;
+  yearSelect?: string;
 }
 
 export type CalendarClassKey = keyof CalendarClasses;
@@ -52,6 +56,13 @@ export interface ComposedCalendarProps {
   weekStartsOn?: 0 | 1 | 2 | 3 | 4 | 5 | 6;
   onValueChange?: (value: Date | Date[] | { from: Date; to: Date } | null) => void;
   onMonthChange?: (month: Date) => void;
+  /**
+   * Controls how the calendar header navigation is rendered.
+   * - 'buttons' (default): prev/next arrow buttons only
+   * - 'dropdown': month + year <select> elements, no arrow buttons
+   * - 'dropdown-buttons': month + year <select> elements AND arrow buttons
+   */
+  captionLayout?: 'buttons' | 'dropdown' | 'dropdown-buttons';
 }
 
 // ---------------------------------------------------------------------------
@@ -114,6 +125,22 @@ function isDateDisabledCheck(
   if (disabled?.(date)) return true;
   if (minDate && date < minDate && !isSameDay(date, minDate)) return true;
   if (maxDate && date > maxDate && !isSameDay(date, maxDate)) return true;
+  return false;
+}
+
+function computeYearRange(now: Date, minDate?: Date, maxDate?: Date): number[] {
+  const minYear = minDate ? minDate.getFullYear() : now.getFullYear() - 100;
+  const maxYear = maxDate ? maxDate.getFullYear() : now.getFullYear() + 10;
+  const years: number[] = [];
+  for (let y = minYear; y <= maxYear; y++) {
+    years.push(y);
+  }
+  return years;
+}
+
+function isMonthDisabled(month: number, year: number, minDate?: Date, maxDate?: Date): boolean {
+  if (minDate && year === minDate.getFullYear() && month < minDate.getMonth()) return true;
+  if (maxDate && year === maxDate.getFullYear() && month > maxDate.getMonth()) return true;
   return false;
 }
 
@@ -219,6 +246,7 @@ function ComposedCalendarRoot({
   weekStartsOn = 0,
   onValueChange,
   onMonthChange,
+  captionLayout = 'buttons',
 }: ComposedCalendarProps) {
   const now = new Date();
   const mode = modeProp;
@@ -340,19 +368,142 @@ function ComposedCalendarRoot({
   // Title text — derived from displayMonth (reactive)
   const titleText = `${MONTH_NAMES[displayMonth.getMonth()]} ${displayMonth.getFullYear()}`;
 
+  // Dropdown state — derived values for computed() caching
+  const showDropdowns = captionLayout === 'dropdown' || captionLayout === 'dropdown-buttons';
+  const showButtons = captionLayout === 'buttons' || captionLayout === 'dropdown-buttons';
+  const yearRange = showDropdowns ? computeYearRange(now, minDate, maxDate) : [];
+
+  // Dropdown change handlers
+  function handleMonthSelect(event: Event): void {
+    const target = event.target as HTMLSelectElement;
+    const newMonth = Number(target.value);
+    if (isMonthDisabled(newMonth, displayMonth.getFullYear(), minDate, maxDate)) return;
+    displayMonth = new Date(displayMonth.getFullYear(), newMonth, 1);
+    onMonthChange?.(displayMonth);
+  }
+
+  function handleYearSelect(event: Event): void {
+    const target = event.target as HTMLSelectElement;
+    const newYear = Number(target.value);
+    let month = displayMonth.getMonth();
+    // Clamp month if it would be outside range for the new year
+    if (isMonthDisabled(month, newYear, minDate, maxDate)) {
+      if (minDate && newYear === minDate.getFullYear()) month = minDate.getMonth();
+      if (maxDate && newYear === maxDate.getFullYear()) month = maxDate.getMonth();
+    }
+    displayMonth = new Date(newYear, month, 1);
+    onMonthChange?.(displayMonth);
+  }
+
+  // Nav button boundary clamping for dropdown modes
+  const isAtMinBoundary =
+    showDropdowns && minDate
+      ? displayMonth.getFullYear() === minDate.getFullYear() &&
+        displayMonth.getMonth() === minDate.getMonth()
+      : false;
+  const isAtMaxBoundary =
+    showDropdowns && maxDate
+      ? displayMonth.getFullYear() === maxDate.getFullYear() &&
+        displayMonth.getMonth() === maxDate.getMonth()
+      : false;
+
   // Grid rows — derived from displayMonth (reactive)
   const rows = computeGridRows(displayMonth, weekStartsOn);
+
+  const prevChevron = (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m15 18-6-6 6-6" />
+    </svg>
+  );
+  const nextChevron = (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m9 18 6-6-6-6" />
+    </svg>
+  );
 
   return (
     <div class={classes?.root}>
       <div class={classes?.header}>
-        <button type="button" class={classes?.navButton} aria-label="Previous month" onClick={() => navigateMonth(-1)}>
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
-        </button>
-        <div class={classes?.title}>{titleText}</div>
-        <button type="button" class={classes?.navButton} aria-label="Next month" onClick={() => navigateMonth(1)}>
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
-        </button>
+        {showButtons && (
+          <button
+            type="button"
+            class={classes?.navButton}
+            aria-label="Previous month"
+            aria-disabled={isAtMinBoundary ? 'true' : undefined}
+            onClick={() => {
+              if (!isAtMinBoundary) navigateMonth(-1);
+            }}
+          >
+            {prevChevron}
+          </button>
+        )}
+        {showDropdowns ? (
+          <>
+            <select
+              aria-label="Select month"
+              class={classes?.monthSelect}
+              onChange={handleMonthSelect}
+            >
+              {MONTH_OPTIONS.map((mo) => (
+                <option
+                  value={String(mo.index)}
+                  selected={mo.index === displayMonth.getMonth()}
+                  disabled={isMonthDisabled(mo.index, displayMonth.getFullYear(), minDate, maxDate)}
+                >
+                  {mo.name}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Select year"
+              class={classes?.yearSelect}
+              onChange={handleYearSelect}
+            >
+              {yearRange.map((yr) => (
+                <option value={String(yr)} selected={yr === displayMonth.getFullYear()}>
+                  {yr}
+                </option>
+              ))}
+            </select>
+          </>
+        ) : (
+          <div class={classes?.title}>{titleText}</div>
+        )}
+        {showButtons && (
+          <button
+            type="button"
+            class={classes?.navButton}
+            aria-label="Next month"
+            aria-disabled={isAtMaxBoundary ? 'true' : undefined}
+            onClick={() => {
+              if (!isAtMaxBoundary) navigateMonth(1);
+            }}
+          >
+            {nextChevron}
+          </button>
+        )}
       </div>
       <table role="grid" class={classes?.grid} onKeydown={handleGridKeydown}>
         <thead>
