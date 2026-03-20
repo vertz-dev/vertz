@@ -18,6 +18,11 @@ describe('breadcrumb styles', () => {
     expect(typeof breadcrumb.css).toBe('string');
     expect(breadcrumb.css).toContain(':hover');
   });
+
+  it('list styles reset list-style, margin, and padding for ol', () => {
+    expect(breadcrumb.css).toContain('list-style');
+    expect(breadcrumb.css).toContain('none');
+  });
 });
 
 describe('Breadcrumb component', () => {

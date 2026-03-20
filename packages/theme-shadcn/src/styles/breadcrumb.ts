@@ -21,6 +21,13 @@ export function createBreadcrumbStyles(): CSSOutput<BreadcrumbBlocks> {
       'gap:1.5',
       'text:sm',
       'text:muted-foreground',
+      {
+        '&': {
+          'list-style': 'none',
+          margin: '0',
+          padding: '0',
+        },
+      },
     ],
     breadcrumbItem: ['inline-flex', 'items:center', 'gap:1.5'],
     breadcrumbLink: ['transition:colors', 'text:foreground', { '&:hover': ['text:foreground'] }],
