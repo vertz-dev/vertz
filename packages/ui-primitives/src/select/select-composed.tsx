@@ -7,6 +7,7 @@
 
 import type { ChildValue, Ref } from '@vertz/ui';
 import { createContext, onMount, ref, useContext } from '@vertz/ui';
+import { setHiddenAnimated } from '../utils/aria';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
@@ -303,18 +304,25 @@ function ComposedSelectRoot({
     trigger.setAttribute('data-state', nowOpen ? 'open' : 'closed');
   }
 
-  function syncContentAttrs(nowOpen: boolean): void {
+  function showContent(): void {
     const content = getContentEl();
     if (!content) return;
-    content.setAttribute('data-state', nowOpen ? 'open' : 'closed');
-    content.setAttribute('aria-hidden', nowOpen ? 'false' : 'true');
-    content.style.display = nowOpen ? '' : 'none';
+    content.setAttribute('data-state', 'open');
+    content.setAttribute('aria-hidden', 'false');
+    content.style.display = '';
+  }
+
+  function hideContent(): void {
+    const content = getContentEl();
+    if (!content) return;
+    content.setAttribute('data-state', 'closed');
+    setHiddenAnimated(content, true);
   }
 
   function open(): void {
     isOpen = true;
     syncTriggerAttrs(true);
-    syncContentAttrs(true);
+    showContent();
 
     const contentEl = getContentEl();
     const triggerEl = getTriggerEl();
@@ -350,15 +358,7 @@ function ComposedSelectRoot({
   function close(): void {
     isOpen = false;
     syncTriggerAttrs(false);
-    syncContentAttrs(false);
-
-    // Reset floating position styles
-    const contentEl = getContentEl();
-    if (contentEl) {
-      contentEl.style.position = '';
-      contentEl.style.left = '';
-      contentEl.style.top = '';
-    }
+    hideContent();
 
     state.floatingCleanup?.();
     state.floatingCleanup = null;

@@ -128,6 +128,15 @@ describe('select', () => {
     expect(select.css).toContain('vz-zoom-out');
   });
 
+  it('CSS uses correct slide keyframe names for directional open animations', () => {
+    // data-side="bottom" → slide in from top, data-side="top" → slide in from bottom
+    expect(select.css).toContain('vz-slide-in-from-top');
+    expect(select.css).toContain('vz-slide-in-from-bottom');
+    // Must NOT reference non-existent keyframe names
+    expect(select.css).not.toContain('vz-slide-down-in');
+    expect(select.css).not.toContain('vz-slide-up-in');
+  });
+
   it('CSS does not use display:none for animated content states', () => {
     // display:none is allowed for the indicator (hidden until selected),
     // but not for the content panel animated open/close states.

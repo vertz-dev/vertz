@@ -80,21 +80,21 @@ export function createSelectStyles(): CSSOutput<SelectBlocks> {
       },
       {
         '&[data-state="open"][data-side="bottom"]': [
-          animationDecl('vz-slide-down-in 100ms ease-out forwards'),
+          animationDecl('vz-slide-in-from-top 150ms ease-out forwards'),
         ],
       },
       {
         '&[data-state="open"][data-side="top"]': [
-          animationDecl('vz-slide-up-in 100ms ease-out forwards'),
+          animationDecl('vz-slide-in-from-bottom 150ms ease-out forwards'),
         ],
       },
       {
         '&[data-state="open"]:not([data-side])': [
-          animationDecl('vz-zoom-in 100ms ease-out forwards'),
+          animationDecl('vz-zoom-in 150ms ease-out forwards'),
         ],
       },
       {
-        '&[data-state="closed"]': [animationDecl('vz-zoom-out 100ms ease-out forwards')],
+        '&[data-state="closed"]': [animationDecl('vz-zoom-out 150ms ease-out forwards')],
       },
     ],
     selectItem: [
