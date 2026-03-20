@@ -51,6 +51,15 @@ export function createCalendarStyles(): CSSOutput<CalendarBlocks> {
           height: '1.75rem',
           width: '100%',
         },
+        /* dropdown-only mode: center the selects */
+        '&[data-caption-layout="dropdown"]': {
+          'justify-content': 'center',
+          gap: '0.25rem',
+        },
+        /* dropdown-buttons mode: space between with gap */
+        '&[data-caption-layout="dropdown-buttons"]': {
+          gap: '0.25rem',
+        },
       },
     ],
     /* month_caption: flex h-(--cell-size) w-full items-center justify-center px-(--cell-size) */

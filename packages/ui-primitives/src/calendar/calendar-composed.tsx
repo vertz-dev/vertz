@@ -341,6 +341,24 @@ function ComposedCalendarRoot({
     }
 
     if (next) {
+      // In dropdown modes, clamp keyboard navigation to the year range
+      if (showDropdowns) {
+        const minYear = yearRange[0] ?? now.getFullYear();
+        const maxYear = yearRange[yearRange.length - 1] ?? now.getFullYear();
+        const minMo =
+          minDate && next.getFullYear() === minDate.getFullYear() ? minDate.getMonth() : 0;
+        const maxMo =
+          maxDate && next.getFullYear() === maxDate.getFullYear() ? maxDate.getMonth() : 11;
+        if (
+          next.getFullYear() < minYear ||
+          next.getFullYear() > maxYear ||
+          (next.getFullYear() === minYear && next.getMonth() < minMo) ||
+          (next.getFullYear() === maxYear && next.getMonth() > maxMo)
+        ) {
+          return; // Don't navigate outside the dropdown range
+        }
+      }
+
       const needsMonthChange =
         next.getMonth() !== displayMonth.getMonth() ||
         next.getFullYear() !== displayMonth.getFullYear();
@@ -389,23 +407,29 @@ function ComposedCalendarRoot({
     // Clamp month if it would be outside range for the new year
     if (isMonthDisabled(month, newYear, minDate, maxDate)) {
       if (minDate && newYear === minDate.getFullYear()) month = minDate.getMonth();
-      if (maxDate && newYear === maxDate.getFullYear()) month = maxDate.getMonth();
+      else if (maxDate && newYear === maxDate.getFullYear()) month = maxDate.getMonth();
     }
     displayMonth = new Date(newYear, month, 1);
     onMonthChange?.(displayMonth);
   }
 
-  // Nav button boundary clamping for dropdown modes
+  // Nav button boundary clamping for dropdown modes — clamp to effective range
+  const effectiveMinYear = showDropdowns ? (yearRange[0] ?? now.getFullYear()) : 0;
+  const effectiveMaxYear = showDropdowns
+    ? (yearRange[yearRange.length - 1] ?? now.getFullYear())
+    : 9999;
+  const effectiveMinMonth =
+    minDate && effectiveMinYear === minDate.getFullYear() ? minDate.getMonth() : 0;
+  const effectiveMaxMonth =
+    maxDate && effectiveMaxYear === maxDate.getFullYear() ? maxDate.getMonth() : 11;
   const isAtMinBoundary =
-    showDropdowns && minDate
-      ? displayMonth.getFullYear() === minDate.getFullYear() &&
-        displayMonth.getMonth() === minDate.getMonth()
-      : false;
+    showDropdowns &&
+    displayMonth.getFullYear() === effectiveMinYear &&
+    displayMonth.getMonth() === effectiveMinMonth;
   const isAtMaxBoundary =
-    showDropdowns && maxDate
-      ? displayMonth.getFullYear() === maxDate.getFullYear() &&
-        displayMonth.getMonth() === maxDate.getMonth()
-      : false;
+    showDropdowns &&
+    displayMonth.getFullYear() === effectiveMaxYear &&
+    displayMonth.getMonth() === effectiveMaxMonth;
 
   // Grid rows — derived from displayMonth (reactive)
   const rows = computeGridRows(displayMonth, weekStartsOn);
@@ -445,7 +469,7 @@ function ComposedCalendarRoot({
 
   return (
     <div class={classes?.root}>
-      <div class={classes?.header}>
+      <div class={classes?.header} data-caption-layout={captionLayout}>
         {showButtons && (
           <button
             type="button"
