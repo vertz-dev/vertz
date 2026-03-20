@@ -175,7 +175,7 @@ export function claimElement(tag: string): HTMLElement | null {
     // Match: element with the expected tag
     if (currentNode.nodeType === Node.ELEMENT_NODE) {
       const el = currentNode as HTMLElement;
-      if (el.tagName === upperTag) {
+      if (el.tagName.toUpperCase() === upperTag) {
         if (isDebug()) {
           const id = el.id ? `#${el.id}` : '';
           const cls = el.className ? `.${el.className.split(' ')[0]}` : '';

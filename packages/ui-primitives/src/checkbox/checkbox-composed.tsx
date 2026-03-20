@@ -86,7 +86,7 @@ function ComposedCheckboxRoot({
         data-part="indicator"
         data-state={dataStateFor(checked)}
         class={classes?.indicator}
-        style="width: 100%; height: 100%"
+        style="width: 100%; height: 100%; pointer-events: none"
       >
         {checked === 'mixed' ? (
           <svg
