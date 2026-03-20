@@ -63,6 +63,13 @@ describe('sheet styles', () => {
     expect(rightBlock).toContain('max-height: none');
   });
 
+  it('panel CSS does not hide elements with data-state="open" (div role="dialog" support)', () => {
+    expect(sheet.css).toContain(':not([open]):not([data-state="open"])');
+    // Ensure all 4 panel directions use the updated selector (4 occurrences)
+    const matches = sheet.css.match(/:not\(\[open\]\):not\(\[data-state="open"\]\)/g);
+    expect(matches?.length).toBe(4);
+  });
+
   it('top/bottom panels fill full viewport width and override dialog UA constraints', () => {
     // top panel block has inset: 0 0 auto 0
     const topBlock = sheet.css.split('}').find((b) => b.includes('inset: 0 0 auto 0'));
