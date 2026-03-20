@@ -4,7 +4,6 @@ import { CodeFence, DocH2, DocH3 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { badgeProps } from '../props/badge-props';
 
-export const description = 'Displays a badge or a component that looks like a badge.';
 
 export function Content() {
   return (

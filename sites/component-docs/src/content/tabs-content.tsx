@@ -4,7 +4,6 @@ import { CodeFence, DocH2, DocParagraph } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { tabsContentProps, tabsProps, tabsTriggerProps } from '../props/tabs-props';
 
-export const description = 'A set of layered sections of content, known as tab panels.';
 
 export function Content() {
   return (

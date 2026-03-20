@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { popoverProps } from '../props/popover-props';
 
-export const description = 'A floating panel anchored to a trigger element.';
 
 export function Content() {
   return (

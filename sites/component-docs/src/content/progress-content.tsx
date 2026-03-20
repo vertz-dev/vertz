@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { progressProps } from '../props/progress-props';
 
-export const description = 'Displays an indicator showing the completion progress of a task.';
 
 export function Content() {
   return (

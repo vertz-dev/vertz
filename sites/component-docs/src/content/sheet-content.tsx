@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { sheetContentProps, sheetProps } from '../props/sheet-props';
 
-export const description = 'A panel that slides in from the edge of the screen as an overlay.';
 
 export function Content() {
   return (

@@ -4,9 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { menubarMenuProps, menubarProps } from '../props/menubar-props';
 
-export const description =
-  'A horizontally stacked set of menus, typically at the top of the window.';
-
 export function Content() {
   return (
     <>

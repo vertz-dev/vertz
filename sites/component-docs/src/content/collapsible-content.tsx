@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { collapsibleProps } from '../props/collapsible-props';
 
-export const description = 'A component that expands and collapses content.';
 
 export function Content() {
   return (

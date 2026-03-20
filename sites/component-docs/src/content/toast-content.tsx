@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { toastProps } from '../props/toast-props';
 
-export const description = 'A succinct message that is displayed temporarily.';
 
 export function Content() {
   return (

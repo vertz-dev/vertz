@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { hoverCardProps } from '../props/hover-card-props';
 
-export const description = 'A card that appears on hover to preview content.';
 
 export function Content() {
   return (

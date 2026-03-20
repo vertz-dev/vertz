@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { carouselProps } from '../props/carousel-props';
 
-export const description = 'A slideshow component for cycling through content.';
 
 export function Content() {
   return (

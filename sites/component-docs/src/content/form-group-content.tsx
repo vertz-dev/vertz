@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { formErrorProps, formGroupProps } from '../props/form-group-props';
 
-export const description = 'Groups a form label, input, and error message together.';
 
 export function Content() {
   return (

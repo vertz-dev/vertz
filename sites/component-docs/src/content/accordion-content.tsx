@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { accordionItemProps, accordionProps } from '../props/accordion-props';
 
-export const description = 'A vertically stacked set of interactive headings that reveal content.';
 
 export function Content() {
   return (

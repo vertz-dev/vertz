@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { dialogContentProps, dialogProps } from '../props/dialog-props';
 
-export const description = 'A window overlaid on the primary window, rendering content on top.';
 
 export function Content() {
   return (

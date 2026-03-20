@@ -89,7 +89,7 @@ export function InlineCode({ children }: MdxProps) {
 export function DocLink({ href, children }: MdxProps & { href?: string }) {
   return (
     <a
-      href={href as string}
+      href={href ?? undefined}
       style={{
         color: 'var(--color-primary)',
         textDecoration: 'underline',

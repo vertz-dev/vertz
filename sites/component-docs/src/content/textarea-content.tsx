@@ -4,7 +4,6 @@ import { CodeFence, DocH2, DocH3 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { textareaProps } from '../props/textarea-props';
 
-export const description = 'Displays a multi-line text input field.';
 
 export function Content() {
   return (

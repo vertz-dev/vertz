@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { toggleGroupItemProps, toggleGroupProps } from '../props/toggle-group-props';
 
-export const description = 'A group of toggle buttons where one or multiple can be active.';
 
 export function Content() {
   return (

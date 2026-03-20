@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { navigationMenuItemProps, navigationMenuProps } from '../props/navigation-menu-props';
 
-export const description = 'A collection of links for navigating between pages.';
 
 export function Content() {
   return (

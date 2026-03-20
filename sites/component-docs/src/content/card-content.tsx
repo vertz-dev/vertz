@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { cardProps } from '../props/card-props';
 
-export const description = 'Displays a card with header, content, and footer.';
 
 export function Content() {
   return (

@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { resizablePanelPanelProps, resizablePanelProps } from '../props/resizable-panel-props';
 
-export const description = 'A group of resizable panels with draggable handles.';
 
 export function Content() {
   return (

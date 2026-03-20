@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { commandItemProps, commandProps } from '../props/command-props';
 
-export const description = 'A command palette for fast, searchable actions.';
 
 export function Content() {
   return (

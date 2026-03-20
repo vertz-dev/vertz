@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { separatorProps } from '../props/separator-props';
 
-export const description = 'Visually or semantically separates content.';
 
 export function Content() {
   return (

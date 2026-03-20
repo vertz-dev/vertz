@@ -4,9 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { checkboxProps } from '../props/checkbox-props';
 
-export const description =
-  'A control that allows the user to toggle between checked and not checked.';
-
 export function Content() {
   return (
     <>

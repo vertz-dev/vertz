@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { skeletonProps } from '../props/skeleton-props';
 
-export const description = 'A placeholder to show while content is loading.';
 
 export function Content() {
   return (

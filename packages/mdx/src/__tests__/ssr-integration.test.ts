@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
-import { serializeToHtml } from '../../../ui-server/src/html-serializer';
-import { Fragment, jsx, jsxs } from '../../../ui-server/src/jsx-runtime/index';
+import { serializeToHtml } from '@vertz/ui-server';
+import { Fragment, jsx, jsxs } from '@vertz/ui-server/jsx-runtime';
 
 /**
  * Helper: compile MDX through the Bun plugin, then evaluate with the server

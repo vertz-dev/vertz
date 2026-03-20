@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { sliderProps } from '../props/slider-props';
 
-export const description = 'An input for selecting a value from a range by dragging a handle.';
 
 export function Content() {
   return (

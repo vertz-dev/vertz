@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { tooltipProps } from '../props/tooltip-props';
 
-export const description = 'A small popup that provides additional information on hover.';
 
 export function Content() {
   return (

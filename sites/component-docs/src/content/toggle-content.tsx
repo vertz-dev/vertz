@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { toggleProps } from '../props/toggle-props';
 
-export const description = 'A two-state button that can be either on or off.';
 
 export function Content() {
   return (

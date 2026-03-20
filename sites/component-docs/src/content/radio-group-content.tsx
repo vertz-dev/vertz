@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { radioGroupItemProps, radioGroupProps } from '../props/radio-group-props';
 
-export const description = 'A set of checkable buttons where only one can be checked at a time.';
 
 export function Content() {
   return (

@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { dropdownMenuItemProps, dropdownMenuProps } from '../props/dropdown-menu-props';
 
-export const description = 'A menu of actions triggered by a button, displayed as a dropdown.';
 
 export function Content() {
   return (

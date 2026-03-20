@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { paginationProps } from '../props/pagination-props';
 
-export const description = 'Pagination with page navigation, previous and next links.';
 
 export function Content() {
   let currentPage = 3;

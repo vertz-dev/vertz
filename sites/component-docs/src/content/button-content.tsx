@@ -4,7 +4,6 @@ import { CodeFence, DocH2, DocH3 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { buttonProps } from '../props/button-props';
 
-export const description = 'Displays a button or a component that looks like a button.';
 
 export function Content() {
   return (

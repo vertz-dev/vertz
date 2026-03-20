@@ -4,9 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { selectItemProps, selectProps } from '../props/select-props';
 
-export const description =
-  'Displays a list of options for the user to pick from, triggered by a button.';
-
 export function Content() {
   return (
     <>

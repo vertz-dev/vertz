@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { labelProps } from '../props/label-props';
 
-export const description = 'Renders an accessible label associated with a form control.';
 
 export function Content() {
   return (

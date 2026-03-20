@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { avatarImageProps, avatarProps } from '../props/avatar-props';
 
-export const description = 'An image element with a fallback for representing the user.';
 
 export function Content() {
   return (

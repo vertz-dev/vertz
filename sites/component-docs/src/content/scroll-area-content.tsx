@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { scrollAreaProps } from '../props/scroll-area-props';
 
-export const description = 'A scrollable area with custom styled scrollbars.';
 
 export function Content() {
   return (

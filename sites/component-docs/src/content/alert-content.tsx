@@ -4,7 +4,6 @@ import { CodeFence, DocH2, DocH3 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { alertProps } from '../props/alert-props';
 
-export const description = 'Displays a callout for important information.';
 
 export function Content() {
   return (

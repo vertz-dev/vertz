@@ -4,7 +4,6 @@ import { CodeFence, DocH2, DocH3 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { breadcrumbProps } from '../props/breadcrumb-props';
 
-export const description = 'Displays the path to the current resource using a hierarchy of links.';
 
 export function Content() {
   return (

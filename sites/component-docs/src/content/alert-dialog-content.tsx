@@ -4,9 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { alertDialogProps } from '../props/alert-dialog-props';
 
-export const description =
-  'A modal dialog that interrupts the user with important content and expects a response.';
-
 export function Content() {
   return (
     <>

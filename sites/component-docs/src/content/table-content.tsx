@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { tableProps } from '../props/table-props';
 
-export const description = 'A responsive table component for displaying tabular data.';
 
 export function Content() {
   return (

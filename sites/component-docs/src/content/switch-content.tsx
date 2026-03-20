@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { switchProps } from '../props/switch-props';
 
-export const description = 'A control that toggles between on and off states.';
 
 export function Content() {
   return (

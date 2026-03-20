@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { datePickerProps } from '../props/date-picker-props';
 
-export const description = 'A date picker component with calendar dropdown for selecting dates.';
 
 export function Content() {
   return (

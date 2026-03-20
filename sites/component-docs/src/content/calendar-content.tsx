@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { calendarProps } from '../props/calendar-props';
 
-export const description = 'A date calendar component for selecting dates.';
 
 export function Content() {
   return (

@@ -4,7 +4,6 @@ import { CodeFence, DocH2, DocH3 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { inputProps } from '../props/input-props';
 
-export const description = 'Displays an input field for user text entry.';
 
 export function Content() {
   return (

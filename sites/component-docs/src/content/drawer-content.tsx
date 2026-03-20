@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { drawerProps } from '../props/drawer-props';
 
-export const description = 'A panel that slides out from the edge of the screen.';
 
 export function Content() {
   return (

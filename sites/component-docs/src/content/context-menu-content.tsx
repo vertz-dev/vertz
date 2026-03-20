@@ -4,7 +4,6 @@ import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { contextMenuItemProps, contextMenuProps } from '../props/context-menu-props';
 
-export const description = 'A menu that appears on right-click with contextual actions.';
 
 export function Content() {
   return (
