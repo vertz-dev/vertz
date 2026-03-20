@@ -301,7 +301,7 @@ function transformJsxElement(
   const attrs = openingElement.getAttributes();
   for (const attr of attrs) {
     if (!attr.isKind(SyntaxKind.JsxAttribute)) continue;
-    const attrStmt = processAttribute(attr, elVar, source, jsxMap);
+    const attrStmt = processAttribute(attr, elVar, source, jsxMap, tagName);
     if (attrStmt) statements.push(attrStmt);
   }
 
@@ -354,7 +354,7 @@ function transformSelfClosingElement(
   const attrs = node.getAttributes();
   for (const attr of attrs) {
     if (!attr.isKind(SyntaxKind.JsxAttribute)) continue;
-    const attrStmt = processAttribute(attr, elVar, source, jsxMap);
+    const attrStmt = processAttribute(attr, elVar, source, jsxMap, tagName);
     if (attrStmt) statements.push(attrStmt);
   }
 
@@ -385,11 +385,28 @@ function transformFragment(
   return `(() => {\n${statements.map((s) => `  ${s};`).join('\n')}\n  return ${fragVar};\n})()`;
 }
 
+/**
+ * IDL properties that must use property assignment (el.prop = value) instead of
+ * setAttribute. For these properties, setAttribute doesn't control the displayed
+ * state — only the DOM property does.
+ */
+const IDL_PROPERTIES: Record<string, ReadonlySet<string>> = {
+  input: new Set(['value', 'checked']),
+  select: new Set(['value']),
+  textarea: new Set(['value']),
+  option: new Set(['selected']),
+};
+
+function isIdlProperty(tagName: string, attrName: string): boolean {
+  return IDL_PROPERTIES[tagName]?.has(attrName) ?? false;
+}
+
 function processAttribute(
   attr: Node,
   elVar: string,
   source: MagicString,
   jsxMap: Map<number, JsxExpressionInfo>,
+  tagName: string,
 ): string | null {
   if (!attr.isKind(SyntaxKind.JsxAttribute)) return null;
   const rawAttrName = attr.getNameNode().getText();
@@ -397,6 +414,8 @@ function processAttribute(
   const attrName = rawAttrName === 'className' ? 'class' : rawAttrName;
   const init = attr.getInitializer();
   if (!init) return null;
+
+  const useProperty = isIdlProperty(tagName, attrName);
 
   // Ref prop: ref={myRef} → myRef.current = el
   if (attrName === 'ref' && init.isKind(SyntaxKind.JsxExpression)) {
@@ -420,7 +439,8 @@ function processAttribute(
     return null;
   }
 
-  // String literal attribute
+  // String literal attribute — IDL properties still use setAttribute for literals
+  // since SSR emits HTML attributes and hydration expects them
   if (init.isKind(SyntaxKind.StringLiteral)) {
     return `${elVar}.setAttribute(${JSON.stringify(attrName)}, ${init.getText()})`;
   }
@@ -436,14 +456,21 @@ function processAttribute(
       const exprInfo = jsxMap.get(init.getStart());
       if (exprInfo?.reactive) {
         const getterBody = inlineCallbackConsts(exprText, exprInfo.callbackConstInlines, source);
+        const wrappedBody = getterBody.trimStart().startsWith('{') ? `(${getterBody})` : getterBody;
+        if (useProperty) {
+          return `__prop(${elVar}, ${JSON.stringify(attrName)}, () => ${wrappedBody})`;
+        }
         // Wrap in parens if expression starts with { to avoid arrow-function-object ambiguity:
         // () => { color: 'red' } is parsed as a labeled statement block, not an object literal.
-        const wrappedBody = getterBody.trimStart().startsWith('{') ? `(${getterBody})` : getterBody;
         return `__attr(${elVar}, ${JSON.stringify(attrName)}, () => ${wrappedBody})`;
       }
       // Style attribute with non-literal expression: may be object or string at runtime
       if (attrName === 'style') {
         return `{ const __v = ${exprText}; if (__v != null && __v !== false) ${elVar}.setAttribute("style", typeof __v === "object" ? __styleStr(__v) : __v === true ? "" : String(__v)); }`;
+      }
+      // IDL property: use direct property assignment
+      if (useProperty) {
+        return `{ const __v = ${exprText}; if (__v != null) ${elVar}.${attrName} = __v; }`;
       }
       // Static non-literal: use guarded setAttribute (handles null/false/true correctly)
       return `{ const __v = ${exprText}; if (__v != null && __v !== false) ${elVar}.setAttribute(${JSON.stringify(attrName)}, __v === true ? "" : __v); }`;
@@ -454,6 +481,9 @@ function processAttribute(
     // disabled="false" which still disables the element per HTML spec.
     if (attrName === 'style') {
       return `{ const __v = ${exprText}; if (__v != null && __v !== false) ${elVar}.setAttribute("style", typeof __v === "object" ? __styleStr(__v) : __v === true ? "" : String(__v)); }`;
+    }
+    if (useProperty) {
+      return `{ const __v = ${exprText}; if (__v != null) ${elVar}.${attrName} = __v; }`;
     }
     return `{ const __v = ${exprText}; if (__v != null && __v !== false) ${elVar}.setAttribute(${JSON.stringify(attrName)}, __v === true ? "" : __v); }`;
   }
