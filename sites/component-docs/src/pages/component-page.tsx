@@ -1,7 +1,30 @@
 import { useParams } from '@vertz/ui/router';
 import { DocsLayout } from '../components/docs-layout';
 import { PrevNext } from '../components/prev-next';
+import { Content as BadgeContent } from '../content/badge-content';
+import { Content as BreadcrumbContent } from '../content/breadcrumb-content';
+import { Content as ButtonContent } from '../content/button-content';
+import { Content as InputContent } from '../content/input-content';
+import { Content as LabelContent } from '../content/label-content';
+import { Content as PaginationContent } from '../content/pagination-content';
+import { descriptions } from '../content/registry';
+import { Content as SeparatorContent } from '../content/separator-content';
+import { Content as TextareaContent } from '../content/textarea-content';
 import { findComponent, getAdjacentComponents } from '../manifest';
+
+const contentMap: Record<
+  string,
+  (props?: Record<string, unknown>) => HTMLElement | SVGElement | DocumentFragment
+> = {
+  button: ButtonContent,
+  badge: BadgeContent,
+  input: InputContent,
+  label: LabelContent,
+  textarea: TextareaContent,
+  separator: SeparatorContent,
+  breadcrumb: BreadcrumbContent,
+  pagination: PaginationContent,
+};
 
 export function ComponentPage() {
   const { name } = useParams<'/components/:name'>();
@@ -36,6 +59,9 @@ export function ComponentPage() {
     );
   }
 
+  const description = descriptions[name];
+  const ContentComponent = contentMap[name];
+
   return (
     <DocsLayout activeName={name}>
       <h1
@@ -57,8 +83,9 @@ export function ComponentPage() {
           margin: '0 0 32px',
         }}
       >
-        Documentation for {entry.title} is coming soon.
+        {description ?? `Documentation for ${entry.title} is coming soon.`}
       </p>
+      {ContentComponent ? <ContentComponent /> : null}
       <PrevNext prev={prev} next={next} />
     </DocsLayout>
   );
