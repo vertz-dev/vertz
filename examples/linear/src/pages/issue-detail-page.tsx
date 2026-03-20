@@ -35,10 +35,22 @@ export function IssueDetailPage() {
   const { projectId, issueId } = useParams<'/projects/:projectId/issues/:issueId'>();
   const issue = query(api.issues.get(issueId));
   const project = query(api.projects.get(projectId));
-  const comments = query(api.comments.list({ issueId }));
-  const users = query(api.users.list());
-  const labelsQuery = query(api.labels.list({ projectId }));
-  const issueLabelsQuery = query(api.issueLabels.list({ issueId }));
+  const comments = query(
+    api.comments.list({
+      where: { issueId },
+      select: { id: true, body: true, authorId: true, createdAt: true },
+    }),
+  );
+  const users = query(api.users.list({ select: { id: true, name: true, avatarUrl: true } }));
+  const labelsQuery = query(
+    api.labels.list({ where: { projectId }, select: { id: true, name: true, color: true } }),
+  );
+  const issueLabelsQuery = query(
+    api.issueLabels.list({
+      where: { issueId },
+      select: { id: true, issueId: true, labelId: true },
+    }),
+  );
 
   let updateError = '';
 

@@ -1,7 +1,7 @@
 import { d } from '@vertz/db';
 
-// Default workspace ID — all seed data and new signups belong to this workspace.
-export const SEED_WORKSPACE_ID = 'ws-acme';
+// Re-export from shared constants so server-side consumers can still import from schema.
+export { SEED_WORKSPACE_ID } from '../lib/constants';
 
 // ---------------------------------------------------------------------------
 // Workspaces — tenant root table for multi-tenancy scoping.
@@ -63,7 +63,6 @@ export const projectsModel = d.model(projectsTable, {
 
 export const issuesTable = d.table('issues', {
   id: d.uuid().primary({ generate: 'uuid' }),
-  workspaceId: d.text().default(''),
   projectId: d.uuid(),
   number: d.integer().default(0),
   title: d.text(),
@@ -87,7 +86,6 @@ export const issuesModel = d.model(issuesTable, {
 
 export const labelsTable = d.table('labels', {
   id: d.uuid().primary({ generate: 'uuid' }),
-  workspaceId: d.text().default(''),
   projectId: d.uuid(),
   name: d.text(),
   color: d.text(),
@@ -105,7 +103,6 @@ export const labelsModel = d.model(labelsTable, {
 
 export const issueLabelsTable = d.table('issue_labels', {
   id: d.uuid().primary({ generate: 'uuid' }),
-  workspaceId: d.text().default(''),
   issueId: d.uuid(),
   labelId: d.uuid(),
   createdAt: d.timestamp().default('now').readOnly(),
@@ -122,7 +119,6 @@ export const issueLabelsModel = d.model(issueLabelsTable, {
 
 export const commentsTable = d.table('comments', {
   id: d.uuid().primary({ generate: 'uuid' }),
-  workspaceId: d.text().default(''),
   issueId: d.uuid(),
   body: d.text(),
   authorId: d.text().default(''),

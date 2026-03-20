@@ -22,10 +22,19 @@ const styles = css({
 
 export function IssueListPage() {
   const { projectId } = useParams<'/projects/:projectId'>();
-  const issues = query(api.issues.list({ projectId }));
+  const issues = query(
+    api.issues.list({
+      where: { projectId },
+      select: { id: true, number: true, title: true, status: true, priority: true },
+    }),
+  );
   const project = query(api.projects.get(projectId));
-  const labelsQuery = query(api.labels.list({ projectId }));
-  const issueLabelsQuery = query(api.issueLabels.list());
+  const labelsQuery = query(
+    api.labels.list({ where: { projectId }, select: { id: true, name: true, color: true } }),
+  );
+  const issueLabelsQuery = query(
+    api.issueLabels.list({ select: { id: true, issueId: true, labelId: true } }),
+  );
   const stack = useDialogStack();
 
   let statusFilter = 'all';

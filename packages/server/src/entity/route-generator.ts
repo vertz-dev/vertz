@@ -153,7 +153,7 @@ export function generateEntityRoutes(
   // Helper to build EntityContext from handler ctx
   function makeEntityCtx(ctx: Record<string, unknown>) {
     const requestInfo = extractRequestInfo(ctx);
-    const entityOps = {} as EntityOperations; // Operations are used via crudHandlers directly
+    const entityOps = registry.has(def.name) ? registry.get(def.name) : ({} as EntityOperations);
     return createEntityContext(requestInfo, entityOps, registryProxy);
   }
 

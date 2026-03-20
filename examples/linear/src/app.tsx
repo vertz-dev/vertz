@@ -89,10 +89,15 @@ export function App() {
     document.documentElement.setAttribute('data-theme', 'dark');
   }
 
-  // Use document.createElement instead of JSX (<div />) because JSX compiles
-  // to __element('div') which claims SSR nodes during hydration. This container
-  // is created before the JSX tree, so it would steal ThemeProvider's <div>.
-  const dialogContainer = document.createElement('div');
+  // Dialog container: During SSR, create a fresh div (DOM shim). On the client,
+  // claim the existing SSR-rendered div by its data attribute — document.createElement
+  // would produce a NEW detached div that __append skips during hydration (no-op),
+  // leaving the dialog stack appending to a node not in the DOM.
+  const dialogContainer = isBrowser()
+    ? ((document.querySelector('[data-dialog-container]') as HTMLDivElement) ??
+      document.createElement('div'))
+    : document.createElement('div');
+  dialogContainer.setAttribute('data-dialog-container', '');
   const dialogStack = createDialogStack(dialogContainer);
 
   return (

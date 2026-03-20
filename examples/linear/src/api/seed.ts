@@ -106,7 +106,6 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
       data: [
         {
           id: 'iss-1',
-          workspaceId: W,
           projectId: 'proj-eng',
           number: 1,
           title: 'Set up CI pipeline',
@@ -118,7 +117,6 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
         },
         {
           id: 'iss-2',
-          workspaceId: W,
           projectId: 'proj-eng',
           number: 2,
           title: 'Add database migrations',
@@ -130,7 +128,6 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
         },
         {
           id: 'iss-3',
-          workspaceId: W,
           projectId: 'proj-eng',
           number: 3,
           title: 'API rate limiting',
@@ -142,7 +139,6 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
         },
         {
           id: 'iss-4',
-          workspaceId: W,
           projectId: 'proj-eng',
           number: 4,
           title: 'Fix memory leak in query cache',
@@ -154,7 +150,6 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
         },
         {
           id: 'iss-5',
-          workspaceId: W,
           projectId: 'proj-eng',
           number: 5,
           title: 'Upgrade TypeScript to 5.5',
@@ -166,7 +161,6 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
         },
         {
           id: 'iss-6',
-          workspaceId: W,
           projectId: 'proj-eng',
           number: 6,
           title: 'Add error boundary components',
@@ -178,7 +172,6 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
         },
         {
           id: 'iss-7',
-          workspaceId: W,
           projectId: 'proj-des',
           number: 1,
           title: 'Create color token system',
@@ -190,7 +183,6 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
         },
         {
           id: 'iss-8',
-          workspaceId: W,
           projectId: 'proj-des',
           number: 2,
           title: 'Design empty states',
@@ -202,7 +194,6 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
         },
         {
           id: 'iss-9',
-          workspaceId: W,
           projectId: 'proj-des',
           number: 3,
           title: 'Audit accessibility',
@@ -214,7 +205,6 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
         },
         {
           id: 'iss-10',
-          workspaceId: W,
           projectId: 'proj-doc',
           number: 1,
           title: 'Write getting started guide',
@@ -226,7 +216,6 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
         },
         {
           id: 'iss-11',
-          workspaceId: W,
           projectId: 'proj-doc',
           number: 2,
           title: 'Document entity API',
@@ -238,7 +227,6 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
         },
         {
           id: 'iss-12',
-          workspaceId: W,
           projectId: 'proj-doc',
           number: 3,
           title: 'Add code examples',
@@ -258,70 +246,60 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
       data: [
         {
           id: 'com-1',
-          workspaceId: W,
           issueId: 'iss-1',
           body: 'CI is green on all branches. Merging the config PR now.',
           authorId: 'seed-bob',
         },
         {
           id: 'com-2',
-          workspaceId: W,
           issueId: 'iss-1',
           body: 'Confirmed — builds pass. Moving to done.',
           authorId: 'seed-alice',
         },
         {
           id: 'com-3',
-          workspaceId: W,
           issueId: 'iss-2',
           body: 'Started with drizzle-kit but hit issues with D1. Switching to manual SQL migrations.',
           authorId: 'seed-alice',
         },
         {
           id: 'com-4',
-          workspaceId: W,
           issueId: 'iss-4',
           body: "Reproduced with 10k sequential queries. The WeakRef cleanup isn't firing.",
           authorId: 'seed-bob',
         },
         {
           id: 'com-5',
-          workspaceId: W,
           issueId: 'iss-4',
           body: 'Root cause: the finalizer only runs on GC, which is lazy. Need explicit eviction.',
           authorId: 'seed-alice',
         },
         {
           id: 'com-6',
-          workspaceId: W,
           issueId: 'iss-7',
           body: 'First pass at tokens is up. Using oklch for perceptual uniformity.',
           authorId: 'seed-alice',
         },
         {
           id: 'com-7',
-          workspaceId: W,
           issueId: 'iss-10',
           body: 'Draft is ready for review. Covers install, first entity, and dev server.',
           authorId: 'seed-bob',
         },
         {
           id: 'com-8',
-          workspaceId: W,
           issueId: 'iss-3',
           body: 'Should we use a token bucket or sliding window? Token bucket is simpler.',
           authorId: 'seed-bob',
         },
         {
           id: 'com-9',
-          workspaceId: W,
           issueId: 'iss-6',
           body: 'The framework should provide ErrorBoundary as a primitive. Opened a separate issue.',
           authorId: 'seed-alice',
         },
         {
           id: 'com-10',
-          workspaceId: W,
           issueId: 'iss-2',
           body: 'Migration system working. Need to add rollback support before closing.',
           authorId: 'seed-alice',
@@ -342,7 +320,6 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
   const projects = ['proj-eng', 'proj-des', 'proj-doc'];
   const labelData: {
     id: string;
-    workspaceId: string;
     projectId: string;
     name: string;
     color: string;
@@ -353,7 +330,6 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
     for (let i = 0; i < labelDefs.length; i++) {
       labelData.push({
         id: `lbl-${suffix}-${i + 1}`,
-        workspaceId: W,
         projectId: proj,
         name: labelDefs[i].name,
         color: labelDefs[i].color,
@@ -367,16 +343,16 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
   unwrap(
     await db.issueLabels.createMany({
       data: [
-        { id: 'il-1', workspaceId: W, issueId: 'iss-1', labelId: 'lbl-eng-2' },
-        { id: 'il-2', workspaceId: W, issueId: 'iss-2', labelId: 'lbl-eng-2' },
-        { id: 'il-3', workspaceId: W, issueId: 'iss-3', labelId: 'lbl-eng-3' },
-        { id: 'il-4', workspaceId: W, issueId: 'iss-4', labelId: 'lbl-eng-1' },
-        { id: 'il-5', workspaceId: W, issueId: 'iss-4', labelId: 'lbl-eng-5' },
-        { id: 'il-6', workspaceId: W, issueId: 'iss-6', labelId: 'lbl-eng-3' },
-        { id: 'il-7', workspaceId: W, issueId: 'iss-7', labelId: 'lbl-des-2' },
-        { id: 'il-8', workspaceId: W, issueId: 'iss-8', labelId: 'lbl-des-4' },
-        { id: 'il-9', workspaceId: W, issueId: 'iss-10', labelId: 'lbl-doc-4' },
-        { id: 'il-10', workspaceId: W, issueId: 'iss-11', labelId: 'lbl-doc-4' },
+        { id: 'il-1', issueId: 'iss-1', labelId: 'lbl-eng-2' },
+        { id: 'il-2', issueId: 'iss-2', labelId: 'lbl-eng-2' },
+        { id: 'il-3', issueId: 'iss-3', labelId: 'lbl-eng-3' },
+        { id: 'il-4', issueId: 'iss-4', labelId: 'lbl-eng-1' },
+        { id: 'il-5', issueId: 'iss-4', labelId: 'lbl-eng-5' },
+        { id: 'il-6', issueId: 'iss-6', labelId: 'lbl-eng-3' },
+        { id: 'il-7', issueId: 'iss-7', labelId: 'lbl-des-2' },
+        { id: 'il-8', issueId: 'iss-8', labelId: 'lbl-des-4' },
+        { id: 'il-9', issueId: 'iss-10', labelId: 'lbl-doc-4' },
+        { id: 'il-10', issueId: 'iss-11', labelId: 'lbl-doc-4' },
       ],
     }),
   );

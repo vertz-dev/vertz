@@ -1,5 +1,4 @@
 import type { ChildValue, VariantFunction } from '@vertz/ui';
-import { resolveChildren } from '@vertz/ui';
 import type { ElementEventHandlers } from '@vertz/ui-primitives';
 import { applyProps } from '@vertz/ui-primitives/utils';
 
@@ -32,16 +31,20 @@ export function createButtonComponent(
     disabled,
     type,
     ...rest
-  }: ButtonProps): HTMLButtonElement {
+  }: ButtonProps) {
     const effectiveClass = className ?? classProp;
-    const el = document.createElement('button');
-    el.type = type ?? 'button';
-    el.className = [buttonStyles({ intent, size }), effectiveClass].filter(Boolean).join(' ');
-    if (disabled) el.disabled = true;
+    const combinedClass = [buttonStyles({ intent, size }), effectiveClass]
+      .filter(Boolean)
+      .join(' ');
+    // JSX creates/claims the element (hydration-aware via __element).
+    // Spread props are not supported by the compiler on intrinsic elements,
+    // so we apply rest props (event handlers, data-* attrs) imperatively.
+    const el = (
+      <button type={type ?? 'button'} class={combinedClass} disabled={disabled || undefined}>
+        {children}
+      </button>
+    ) as HTMLButtonElement;
     applyProps(el, rest);
-    for (const node of resolveChildren(children)) {
-      el.appendChild(node);
-    }
     return el;
   };
 }
