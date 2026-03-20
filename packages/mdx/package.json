@@ -1,0 +1,51 @@
+{
+  "name": "@vertz/mdx",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "description": "MDX support for Vertz — Bun plugin that compiles .mdx files to Vertz components",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vertz-dev/vertz.git",
+    "directory": "packages/mdx"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bunup",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mdx-js/mdx": "^3.0.0",
+    "@shikijs/rehype": "^4.0.1",
+    "remark-frontmatter": "^5.0.0",
+    "remark-mdx-frontmatter": "^4.0.0",
+    "shiki": "^4.0.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@vertz/ui-server": "workspace:^",
+    "bun-types": "^1.3.10",
+    "bunup": "^0.16.31",
+    "typescript": "^5.7.0",
+    "unified": "^11.0.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "sideEffects": false
+}
