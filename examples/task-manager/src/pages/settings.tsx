@@ -75,11 +75,16 @@ export function SettingsPage() {
           >
             <div
               className={settingsStyles.previewBox}
-              style="background-color: #ffffff; display: flex; align-items: center; justify-content: center"
+              style={{
+                backgroundColor: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
             >
               <SunIcon size={24} />
             </div>
-            <div style="font-weight: 500">Light</div>
+            <div style={{ fontWeight: '500' }}>Light</div>
           </div>
           <div
             className={`${settingsStyles.themeCard} ${
@@ -94,11 +99,17 @@ export function SettingsPage() {
           >
             <div
               className={settingsStyles.previewBox}
-              style="background-color: #111827; color: #ffffff; display: flex; align-items: center; justify-content: center"
+              style={{
+                backgroundColor: '#111827',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
             >
               <MoonIcon size={24} />
             </div>
-            <div style="font-weight: 500">Dark</div>
+            <div style={{ fontWeight: '500' }}>Dark</div>
           </div>
         </div>
         {showSaved && (

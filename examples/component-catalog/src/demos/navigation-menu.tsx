@@ -11,8 +11,8 @@ export function NavigationMenuDemo() {
             <NavigationMenu.Item value="getting-started">
               <NavigationMenu.Trigger>Getting Started</NavigationMenu.Trigger>
               <NavigationMenu.Content>
-                <div style="padding: 1rem; width: 24rem;">
-                  <p style="font-size: 14px; color: var(--color-muted-foreground);">
+                <div style={{ padding: '1rem', width: '24rem' }}>
+                  <p style={{ fontSize: '14px', color: 'var(--color-muted-foreground)' }}>
                     Re-usable components built with Vertz UI and Shadcn theming.
                   </p>
                 </div>
@@ -21,7 +21,15 @@ export function NavigationMenuDemo() {
             <NavigationMenu.Item value="components">
               <NavigationMenu.Trigger>Components</NavigationMenu.Trigger>
               <NavigationMenu.Content>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; padding: 1rem; width: 28rem;">
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '0.75rem',
+                    padding: '1rem',
+                    width: '28rem',
+                  }}
+                >
                   <NavigationMenu.Link href="/button">Button</NavigationMenu.Link>
                   <NavigationMenu.Link href="/dialog">Dialog</NavigationMenu.Link>
                   <NavigationMenu.Link href="/tabs">Tabs</NavigationMenu.Link>

@@ -65,7 +65,7 @@ export function LabelFilter({ labels, selected, onChange }: LabelFilterProps) {
             aria-pressed={isActive ? 'true' : 'false'}
             onClick={() => toggle(label.id)}
           >
-            <span className={styles.dot} style={`background-color: ${label.color}`} />
+            <span className={styles.dot} style={{ backgroundColor: label.color }} />
             {label.name}
           </button>
         );

@@ -23,7 +23,7 @@ interface LabelBadgeProps {
 export function LabelBadge({ name, color }: LabelBadgeProps) {
   return (
     <span className={styles.badge} data-testid="label-badge">
-      <span className={styles.dot} style={`background-color: ${color}`} />
+      <span className={styles.dot} style={{ backgroundColor: color }} />
       {name}
     </span>
   );

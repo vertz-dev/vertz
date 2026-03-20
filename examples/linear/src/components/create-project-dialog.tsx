@@ -72,7 +72,7 @@ export function CreateProjectDialog({ dialog }: CreateProjectDialogProps) {
               name="key"
               placeholder="PROJ"
               maxLength={5}
-              style="text-transform: uppercase"
+              style={{ textTransform: 'uppercase' }}
             />
             {createForm.key.error && (
               <span className={formStyles.error}>{createForm.key.error}</span>
@@ -88,7 +88,7 @@ export function CreateProjectDialog({ dialog }: CreateProjectDialogProps) {
               id="project-description"
               name="description"
               placeholder="Optional description"
-              style="min-height: 5rem; resize: vertical"
+              style={{ minHeight: '5rem', resize: 'vertical' }}
             />
           </div>
 

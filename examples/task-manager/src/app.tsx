@@ -82,7 +82,7 @@ function Sidebar() {
     <nav
       className={layoutStyles.sidebar}
       aria-label="Main navigation"
-      style="display: flex; flex-direction: column"
+      style={{ display: 'flex', flexDirection: 'column' }}
     >
       <div className={navStyles.navTitle}>Task Manager</div>
       <div className={navStyles.navList}>

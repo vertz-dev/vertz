@@ -12,12 +12,16 @@ export function TabsDemo() {
             <Tabs.Trigger value="password">Password</Tabs.Trigger>
           </Tabs.List>
           <Tabs.Content value="account">
-            <p style="padding: 1rem; color: var(--color-muted-foreground); font-size: 14px;">
+            <p
+              style={{ padding: '1rem', color: 'var(--color-muted-foreground)', fontSize: '14px' }}
+            >
               Make changes to your account here.
             </p>
           </Tabs.Content>
           <Tabs.Content value="password">
-            <p style="padding: 1rem; color: var(--color-muted-foreground); font-size: 14px;">
+            <p
+              style={{ padding: '1rem', color: 'var(--color-muted-foreground)', fontSize: '14px' }}
+            >
               Change your password here.
             </p>
           </Tabs.Content>
@@ -33,17 +37,23 @@ export function TabsDemo() {
             <Tabs.Trigger value="reports">Reports</Tabs.Trigger>
           </Tabs.List>
           <Tabs.Content value="overview">
-            <p style="padding: 1rem; color: var(--color-muted-foreground); font-size: 14px;">
+            <p
+              style={{ padding: '1rem', color: 'var(--color-muted-foreground)', fontSize: '14px' }}
+            >
               Overview content goes here.
             </p>
           </Tabs.Content>
           <Tabs.Content value="analytics">
-            <p style="padding: 1rem; color: var(--color-muted-foreground); font-size: 14px;">
+            <p
+              style={{ padding: '1rem', color: 'var(--color-muted-foreground)', fontSize: '14px' }}
+            >
               Analytics content goes here.
             </p>
           </Tabs.Content>
           <Tabs.Content value="reports">
-            <p style="padding: 1rem; color: var(--color-muted-foreground); font-size: 14px;">
+            <p
+              style={{ padding: '1rem', color: 'var(--color-muted-foreground)', fontSize: '14px' }}
+            >
               Reports content goes here.
             </p>
           </Tabs.Content>

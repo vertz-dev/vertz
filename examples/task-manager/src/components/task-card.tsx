@@ -58,7 +58,11 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
       data-testid={`task-card-${task.id}`}
       role="button"
       tabindex="0"
-      style={`cursor: pointer; transition: box-shadow 150ms, border-color 150ms; view-transition-name: task-${task.id}`}
+      style={{
+        cursor: 'pointer',
+        transition: 'box-shadow 150ms, border-color 150ms',
+        viewTransitionName: `task-${task.id}`,
+      }}
       onClick={() => onClick(task.id)}
       onKeyDown={(e: KeyboardEvent) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -69,9 +73,9 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
     >
       <div
         className={cardStyles.header}
-        style="flex-direction: row; align-items: center; justify-content: space-between"
+        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
       >
-        <h3 className={cardStyles.title} style="font-size: 1rem">
+        <h3 className={cardStyles.title} style={{ fontSize: '1rem' }}>
           {task.title}
         </h3>
         <span className={badge({ color: priorityColor(task.priority) })}>{task.priority}</span>
@@ -83,11 +87,11 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
             : task.description}
         </p>
       </div>
-      <div className={cardStyles.footer} style="justify-content: space-between">
+      <div className={cardStyles.footer} style={{ justifyContent: 'space-between' }}>
         <span className={badge({ color: statusColor(task.status) })}>
           {statusLabel(task.status)}
         </span>
-        <span style="font-size: 0.75rem; color: var(--color-muted-foreground)">
+        <span style={{ fontSize: '0.75rem', color: 'var(--color-muted-foreground)' }}>
           {new Date(task.updatedAt).toLocaleDateString()}
         </span>
       </div>

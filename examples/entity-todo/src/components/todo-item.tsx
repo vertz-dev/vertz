@@ -71,9 +71,9 @@ export function TodoItem({ id, title, completed }: TodoItemProps) {
       <div
         className={alertDialogStyles.overlay}
         aria-hidden={isConfirmOpen ? 'false' : 'true'}
-        style={isConfirmOpen ? '' : 'display: none'}
+        style={{ display: isConfirmOpen ? '' : 'none' }}
       />
-      <div className={dialogWrapperStyles.wrapper} style={isConfirmOpen ? '' : 'display: none'}>
+      <div className={dialogWrapperStyles.wrapper} style={{ display: isConfirmOpen ? '' : 'none' }}>
         <div
           className={alertDialogStyles.panel}
           role="alertdialog"

@@ -115,7 +115,7 @@ export function ManageLabelsDialog({ projectId, dialog }: ManageLabelsDialogProp
           )}
           {(labelsQuery.data?.items ?? []).map((label) => (
             <div className={styles.item} key={label.id}>
-              <span className={styles.dot} style={`background-color: ${label.color}`} />
+              <span className={styles.dot} style={{ backgroundColor: label.color }} />
               <span className={styles.name}>{label.name}</span>
               <div className={styles.actions}>
                 <Button intent="ghost" size="sm" onClick={() => startEdit(label as Label)}>
@@ -158,7 +158,7 @@ export function ManageLabelsDialog({ projectId, dialog }: ManageLabelsDialogProp
                   type="button"
                   key={c.value}
                   className={c.value === selectedColor ? styles.colorSelected : styles.colorButton}
-                  style={`background-color: ${c.value}`}
+                  style={{ backgroundColor: c.value }}
                   aria-label={c.name}
                   onClick={() => {
                     selectedColor = c.value;
@@ -201,7 +201,7 @@ export function ManageLabelsDialog({ projectId, dialog }: ManageLabelsDialogProp
                   type="button"
                   key={c.value}
                   className={c.value === selectedColor ? styles.colorSelected : styles.colorButton}
-                  style={`background-color: ${c.value}`}
+                  style={{ backgroundColor: c.value }}
                   aria-label={c.name}
                   onClick={() => {
                     selectedColor = c.value;

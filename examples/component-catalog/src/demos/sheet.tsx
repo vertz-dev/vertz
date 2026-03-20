@@ -15,12 +15,14 @@ export function SheetDemo() {
           <Sheet.Content>
             <Sheet.Title>Edit profile</Sheet.Title>
             <Sheet.Description>Make changes to your profile here.</Sheet.Description>
-            <div style="display: flex; flex-direction: column; gap: 1rem; padding: 1rem 0;">
-              <div style="display: flex; flex-direction: column; gap: 0.375rem;">
+            <div
+              style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem 0' }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
                 <Label for="sheet-name">Name</Label>
                 <Input id="sheet-name" name="name" defaultValue="Pedro Duarte" />
               </div>
-              <div style="display: flex; flex-direction: column; gap: 0.375rem;">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
                 <Label for="sheet-username">Username</Label>
                 <Input id="sheet-username" name="username" defaultValue="@peduarte" />
               </div>
@@ -42,7 +44,7 @@ export function SheetDemo() {
           </Sheet.Trigger>
           <Sheet.Content>
             <Sheet.Title>Navigation</Sheet.Title>
-            <p style="color: var(--color-muted-foreground); font-size: 14px;">
+            <p style={{ color: 'var(--color-muted-foreground)', fontSize: '14px' }}>
               This sheet slides in from the left.
             </p>
           </Sheet.Content>

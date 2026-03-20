@@ -17,7 +17,7 @@ export function BoardSkeleton() {
           <div className={boardStyles.header}>
             <div
               className={skeletonStyles.bone}
-              style={`width: 5rem; height: 1rem; ${skeletonAnimation}`}
+              style={{ width: '5rem', height: '1rem', ...skeletonAnimation }}
             />
           </div>
           {[0, 1, 2].map((card) => (
@@ -59,7 +59,11 @@ export function ProjectGridSkeleton() {
   return (
     <div className={gridStyles.container} data-testid="projects-skeleton">
       {[0, 1, 2].map((i) => (
-        <div key={i} className={skeletonStyles.card} style={`height: 5rem; ${skeletonAnimation}`} />
+        <div
+          key={i}
+          className={skeletonStyles.card}
+          style={{ height: '5rem', ...skeletonAnimation }}
+        />
       ))}
     </div>
   );
@@ -84,7 +88,7 @@ export function AuthLoadingSkeleton() {
     <div className={authStyles.container} data-testid="auth-loading">
       <div
         className={skeletonStyles.bone}
-        style={`width: 8rem; height: 2rem; ${skeletonAnimation}`}
+        style={{ width: '8rem', height: '2rem', ...skeletonAnimation }}
       />
     </div>
   );
@@ -96,17 +100,17 @@ export function IssueDetailSkeleton() {
   return (
     <div className={detailStyles.layout} data-testid="detail-skeleton">
       <div className={detailStyles.main}>
-        <div className={skeletonStyles.lineShort} style={`width: 6rem; ${skeletonAnimation}`} />
+        <div className={skeletonStyles.lineShort} style={{ width: '6rem', ...skeletonAnimation }} />
         <div
           className={skeletonStyles.bone}
-          style={`height: 2rem; width: 60%; margin-bottom: 1rem; ${skeletonAnimation}`}
+          style={{ height: '2rem', width: '60%', marginBottom: '1rem', ...skeletonAnimation }}
         />
         <div className={skeletonStyles.line} style={skeletonAnimation} />
         <div className={skeletonStyles.line} style={skeletonAnimation} />
         <div className={skeletonStyles.lineShort} style={skeletonAnimation} />
       </div>
       <div className={detailStyles.sidebar}>
-        <div className={skeletonStyles.card} style={`height: 8rem; ${skeletonAnimation}`} />
+        <div className={skeletonStyles.card} style={{ height: '8rem', ...skeletonAnimation }} />
       </div>
     </div>
   );

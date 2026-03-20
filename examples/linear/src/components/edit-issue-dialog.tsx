@@ -102,7 +102,7 @@ export function EditIssueDialog({ issue, dialog }: EditIssueDialogProps) {
               id="edit-issue-description"
               name="description"
               placeholder="Optional description"
-              style="min-height: 5rem; resize: vertical"
+              style={{ minHeight: '5rem', resize: 'vertical' }}
             >
               {issue.description ?? ''}
             </textarea>
