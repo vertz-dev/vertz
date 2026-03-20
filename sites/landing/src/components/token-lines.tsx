@@ -1,7 +1,7 @@
 import { css } from '@vertz/ui';
-import type { Token, TokenLine } from './highlighted-code';
+import type { HintedToken, Token, TokenLine } from './highlighted-code';
 
-function hasHint(token: Token): token is [string, string, unknown] {
+function hasHint(token: Token): token is HintedToken {
   return token.length > 2;
 }
 
