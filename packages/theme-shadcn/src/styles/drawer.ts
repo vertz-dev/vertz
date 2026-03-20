@@ -62,7 +62,22 @@ export function createDrawerStyles(): CSSOutput<DrawerBlocks> {
           inset: '0 auto 0 0',
           width: '75%',
           'max-width': '24rem',
+          height: '100dvh',
+          'max-height': 'none',
+          margin: '0',
+          outline: 'none',
+          border: 'none',
           'border-radius': '0 0.75rem 0.75rem 0',
+        },
+        '&:not([open]):not([data-state="open"])': { display: 'none' },
+        '&::backdrop': {
+          'background-color': 'oklch(0 0 0 / 50%)',
+        },
+        '&[data-state="open"]::backdrop': {
+          animation: 'vz-fade-in 150ms ease-out forwards',
+        },
+        '&[data-state="closed"]::backdrop': {
+          animation: 'vz-fade-out 300ms ease-out forwards',
         },
       },
       {
@@ -80,7 +95,22 @@ export function createDrawerStyles(): CSSOutput<DrawerBlocks> {
           inset: '0 0 0 auto',
           width: '75%',
           'max-width': '24rem',
+          height: '100dvh',
+          'max-height': 'none',
+          margin: '0',
+          outline: 'none',
+          border: 'none',
           'border-radius': '0.75rem 0 0 0.75rem',
+        },
+        '&:not([open]):not([data-state="open"])': { display: 'none' },
+        '&::backdrop': {
+          'background-color': 'oklch(0 0 0 / 50%)',
+        },
+        '&[data-state="open"]::backdrop': {
+          animation: 'vz-fade-in 150ms ease-out forwards',
+        },
+        '&[data-state="closed"]::backdrop': {
+          animation: 'vz-fade-out 300ms ease-out forwards',
         },
       },
       {
@@ -96,7 +126,22 @@ export function createDrawerStyles(): CSSOutput<DrawerBlocks> {
       {
         '&': {
           inset: '0 0 auto 0',
+          width: '100dvw',
+          'max-width': 'none',
+          margin: '0',
+          outline: 'none',
+          border: 'none',
           'border-radius': '0 0 0.75rem 0.75rem',
+        },
+        '&:not([open]):not([data-state="open"])': { display: 'none' },
+        '&::backdrop': {
+          'background-color': 'oklch(0 0 0 / 50%)',
+        },
+        '&[data-state="open"]::backdrop': {
+          animation: 'vz-fade-in 150ms ease-out forwards',
+        },
+        '&[data-state="closed"]::backdrop': {
+          animation: 'vz-fade-out 300ms ease-out forwards',
         },
       },
       {
@@ -112,7 +157,22 @@ export function createDrawerStyles(): CSSOutput<DrawerBlocks> {
       {
         '&': {
           inset: 'auto 0 0 0',
+          width: '100dvw',
+          'max-width': 'none',
+          margin: '0',
+          outline: 'none',
+          border: 'none',
           'border-radius': '0.75rem 0.75rem 0 0',
+        },
+        '&:not([open]):not([data-state="open"])': { display: 'none' },
+        '&::backdrop': {
+          'background-color': 'oklch(0 0 0 / 50%)',
+        },
+        '&[data-state="open"]::backdrop': {
+          animation: 'vz-fade-in 150ms ease-out forwards',
+        },
+        '&[data-state="closed"]::backdrop': {
+          animation: 'vz-fade-out 300ms ease-out forwards',
         },
       },
       {

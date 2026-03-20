@@ -44,6 +44,51 @@ describe('drawer styles', () => {
     expect(drawer.handle.length).toBeGreaterThan(0);
     expect(drawer.close.length).toBeGreaterThan(0);
   });
+
+  it('panel CSS styles the native dialog backdrop', () => {
+    expect(drawer.css).toContain('::backdrop');
+    expect(drawer.css).toContain('background-color: oklch(0 0 0 / 50%)');
+  });
+
+  it('top/bottom panels fill full viewport width and override dialog UA constraints', () => {
+    const topBlock = drawer.css.split('}').find((b) => b.includes('inset: 0 0 auto 0'));
+    expect(topBlock).toContain('width: 100dvw');
+    expect(topBlock).toContain('max-width: none');
+
+    const bottomBlock = drawer.css.split('}').find((b) => b.includes('inset: auto 0 0 0'));
+    expect(bottomBlock).toContain('width: 100dvw');
+    expect(bottomBlock).toContain('max-width: none');
+  });
+
+  it('left/right panels fill full viewport height and override dialog UA constraints', () => {
+    const leftBlock = drawer.css.split('}').find((b) => b.includes('inset: 0 auto 0 0'));
+    expect(leftBlock).toContain('height: 100dvh');
+    expect(leftBlock).toContain('max-height: none');
+
+    const rightBlock = drawer.css.split('}').find((b) => b.includes('inset: 0 0 0 auto'));
+    expect(rightBlock).toContain('height: 100dvh');
+    expect(rightBlock).toContain('max-height: none');
+  });
+
+  it('all panels reset dialog UA margin and border', () => {
+    const blocks = drawer.css.split('}');
+    const panelBlocks = blocks.filter(
+      (b) =>
+        b.includes('inset: 0 auto 0 0') ||
+        b.includes('inset: 0 0 0 auto') ||
+        b.includes('inset: 0 0 auto 0') ||
+        b.includes('inset: auto 0 0 0'),
+    );
+    for (const block of panelBlocks) {
+      expect(block).toContain('margin: 0');
+      expect(block).toContain('border: none');
+      expect(block).toContain('outline: none');
+    }
+  });
+
+  it('closed dialog panels are hidden', () => {
+    expect(drawer.css).toContain(':not([open]):not([data-state="open"])');
+  });
 });
 
 describe('themed Drawer', () => {
