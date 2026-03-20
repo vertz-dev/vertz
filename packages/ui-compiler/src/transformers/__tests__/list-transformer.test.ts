@@ -104,6 +104,24 @@ function App() {
       expect(result.code).not.toMatch(/\(item,\s*i\)\s*=>\s*item\.id/);
     });
 
+    it('does not extract key from nested child JSX element', () => {
+      const result = compile(
+        `
+function App() {
+  let items = [{ id: 1, name: "hello" }];
+  return <ul>{items.map(item => <div><span key={item.id}>{item.name}</span></div>)}</ul>;
+}
+        `.trim(),
+      );
+
+      expect(result.code).toContain('__list(');
+      // The outer <div> has no key prop — key is on the nested <span>
+      // Should fallback to index-based key, NOT extract item.id from nested <span>
+      expect(result.code).not.toMatch(/\(item\)\s*=>\s*item\.id/);
+      // Should use index-based key fallback
+      expect(result.code).toMatch(/=>\s*__i/);
+    });
+
     it('does not pass key as a component prop', () => {
       const result = compile(
         `
