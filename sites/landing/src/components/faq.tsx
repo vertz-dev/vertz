@@ -33,13 +33,13 @@ export function FAQ() {
   return (
     <section className={s.section}>
       <div className={s.container}>
-        <p className={s.label} style="font-family: var(--font-mono)">
+        <p className={s.label} style={{ fontFamily: 'var(--font-mono)' }}>
           What about...
         </p>
 
         <div className={s.list}>
           {QUESTIONS.map((item) => (
-            <div key={item.q} className={s.item} style="border-color: #1e1e22">
+            <div key={item.q} className={s.item} style={{ borderColor: '#1e1e22' }}>
               <p className={s.question}>{item.q}</p>
               <p className={s.answer}>{item.a}</p>
             </div>

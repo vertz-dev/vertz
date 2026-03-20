@@ -47,7 +47,7 @@ function ProgressBar(
       aria-valuemax={String(max)}
       data-state={dataStateFor(initialPct)}
     >
-      <div ref={indicatorRef} data-part="indicator" style={`width: ${initialPct}%`} />
+      <div ref={indicatorRef} data-part="indicator" style={{ width: `${initialPct}%` }} />
     </div>
   ) as HTMLElement;
 }

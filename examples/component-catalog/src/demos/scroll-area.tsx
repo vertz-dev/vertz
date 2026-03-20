@@ -8,15 +8,35 @@ export function ScrollAreaDemo() {
     <div className={demoStyles.col}>
       <div className={demoStyles.section}>
         <div className={demoStyles.sectionTitle}>Default</div>
-        <div style="height: 18rem; width: 14rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg);">
+        <div
+          style={{
+            height: '18rem',
+            width: '14rem',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-lg)',
+          }}
+        >
           <ScrollArea>
-            <div style="padding: 1rem;">
-              <h4 style="font-size: 14px; font-weight: 600; margin: 0 0 1rem; color: var(--color-foreground);">
+            <div style={{ padding: '1rem' }}>
+              <h4
+                style={{
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  margin: '0 0 1rem',
+                  color: 'var(--color-foreground)',
+                }}
+              >
                 Tags
               </h4>
               {tags.map((tag) => (
                 <div>
-                  <div style="font-size: 13px; padding: 0.375rem 0; color: var(--color-foreground);">
+                  <div
+                    style={{
+                      fontSize: '13px',
+                      padding: '0.375rem 0',
+                      color: 'var(--color-foreground)',
+                    }}
+                  >
                     {tag}
                   </div>
                   <Separator />

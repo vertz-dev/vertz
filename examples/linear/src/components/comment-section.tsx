@@ -98,7 +98,7 @@ export function CommentSection({
           name="body"
           placeholder="Add a comment..."
           className={inputStyles.base}
-          style="min-height: 5rem; resize: vertical"
+          style={{ minHeight: '5rem', resize: 'vertical' }}
           data-testid="comment-input"
         />
         {commentForm.body.error && (

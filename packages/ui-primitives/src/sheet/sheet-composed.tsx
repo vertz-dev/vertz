@@ -79,7 +79,7 @@ function SheetTrigger({ children }: SlotProps) {
 
   return (
     <span
-      style="display: contents"
+      style={{ display: 'contents' }}
       data-sheet-trigger=""
       data-state="closed"
       onClick={() => ctx.toggle()}
@@ -274,7 +274,7 @@ function ComposedSheetRoot({
 
   return (
     <SheetContext.Provider value={ctx}>
-      <span style="display: contents" data-sheet-root="">
+      <span style={{ display: 'contents' }} data-sheet-root="">
         {children}
       </span>
     </SheetContext.Provider>

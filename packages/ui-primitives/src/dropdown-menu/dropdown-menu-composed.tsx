@@ -114,7 +114,7 @@ function MenuTrigger({ children }: SlotProps) {
 
   return (
     <span
-      style="display: contents"
+      style={{ display: 'contents' }}
       data-dropdownmenu-trigger=""
       aria-haspopup="menu"
       aria-controls={ctx.contentId}
@@ -147,7 +147,7 @@ function MenuContent({ children, className: cls, class: classProp }: SlotProps) 
       data-dropdownmenu-content=""
       aria-hidden={ctx.isOpen ? 'false' : 'true'}
       data-state={ctx.isOpen ? 'open' : 'closed'}
-      style={ctx.isOpen ? '' : 'display: none'}
+      style={{ display: ctx.isOpen ? '' : 'none' }}
       class={combined || undefined}
       onKeydown={(event: KeyboardEvent) => {
         if (isKey(event, Keys.Escape)) {
@@ -362,7 +362,7 @@ function ComposedDropdownMenuRoot({
 
   return (
     <DropdownMenuContext.Provider value={ctx}>
-      <span style="display: contents" data-dropdownmenu-root="">
+      <span style={{ display: 'contents' }} data-dropdownmenu-root="">
         {children}
       </span>
     </DropdownMenuContext.Provider>

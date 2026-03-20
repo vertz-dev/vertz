@@ -28,8 +28,8 @@ const s = css({
 
 export function Footer() {
   return (
-    <footer className={s.footer} style="border-color: #1e1e22">
-      <div className={s.container} style="font-family: var(--font-mono)">
+    <footer className={s.footer} style={{ borderColor: '#1e1e22' }}>
+      <div className={s.container} style={{ fontFamily: 'var(--font-mono)' }}>
         <div className={s.linkGroup}>
           <a
             href="https://github.com/vertz-dev/vertz"

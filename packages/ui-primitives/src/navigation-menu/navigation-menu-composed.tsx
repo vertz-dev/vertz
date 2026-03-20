@@ -207,7 +207,7 @@ function NavMenuItem({ value, children }: ItemProps) {
 
   return (
     <NavigationMenuItemContext.Provider value={itemCtx}>
-      <span style="display: contents" data-navmenu-item="" data-value={value}>
+      <span style={{ display: 'contents' }} data-navmenu-item="" data-value={value}>
         {children}
       </span>
     </NavigationMenuItemContext.Provider>
@@ -285,7 +285,7 @@ function NavMenuContent({ children, className: cls, class: classProp }: ContentP
       data-value={itemCtx.value}
       aria-hidden="true"
       data-state="closed"
-      style="display: none"
+      style={{ display: 'none' }}
       class={contentClass || undefined}
       onMouseenter={() => ctx.cancelTimers()}
       onMouseleave={() => {

@@ -126,7 +126,7 @@ function AccordionRoot(options: AccordionOptions = {}): AccordionElements & {
         aria-labelledby={triggerId}
         aria-hidden={isOpen ? 'false' : 'true'}
         data-state={isOpen ? 'open' : 'closed'}
-        style={isOpen ? '' : 'display: none'}
+        style={{ display: isOpen ? '' : 'none' }}
       />
     ) as HTMLDivElement;
 

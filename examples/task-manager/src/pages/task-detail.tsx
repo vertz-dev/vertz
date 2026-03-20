@@ -90,16 +90,16 @@ export function TaskDetailPage() {
   const taskContent = queryMatch(taskQuery, {
     loading: () => <div data-testid="loading">Loading task...</div>,
     error: (err) => (
-      <div style="color: var(--color-destructive)" data-testid="error">
+      <div style={{ color: 'var(--color-destructive)' }} data-testid="error">
         {`Failed to load task: ${err instanceof Error ? err.message : String(err)}`}
       </div>
     ),
     data: (task) => (
-      <div data-testid="task-content" style={`view-transition-name: task-${taskId}`}>
+      <div data-testid="task-content" style={{ viewTransitionName: `task-${taskId}` }}>
         <button
           type="button"
           className={button({ intent: 'ghost', size: 'sm' })}
-          style="margin-bottom: 1rem"
+          style={{ marginBottom: '1rem' }}
           onClick={() => navigate({ to: '/' })}
         >
           <ArrowLeftIcon size={14} />
@@ -162,10 +162,16 @@ export function TaskDetailPage() {
             </button>
           ))}
         </div>
-        <div style="margin-top: 1.5rem">
+        <div style={{ marginTop: '1.5rem' }}>
           <div
             role="tablist"
-            style="display: flex; gap: 0.5rem; border-bottom: 1px solid var(--color-border); padding-bottom: 0.5rem; margin-bottom: 1rem"
+            style={{
+              display: 'flex',
+              gap: '0.5rem',
+              borderBottom: '1px solid var(--color-border)',
+              paddingBottom: '0.5rem',
+              marginBottom: '1rem',
+            }}
           >
             <button
               type="button"

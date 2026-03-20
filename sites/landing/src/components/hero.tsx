@@ -57,17 +57,17 @@ export function Hero() {
     <section className={s.section}>
       <div className={s.badge}>
         <span className={s.badgeDotWrap}>
-          <span className={s.badgeDotPing} style="background: #60a5fa" />
-          <span className={s.badgeDot} style="background: #3b82f6" />
+          <span className={s.badgeDotPing} style={{ background: '#60a5fa' }} />
+          <span className={s.badgeDot} style={{ background: '#3b82f6' }} />
         </span>
-        <span className={s.badgeText} style="font-family: var(--font-mono)">
+        <span className={s.badgeText} style={{ fontFamily: 'var(--font-mono)' }}>
           Public Beta
         </span>
       </div>
 
       <h1
         className={s.h1}
-        style="font-family: var(--font-display); font-size: clamp(3rem, 8vw, 6rem); letter-spacing: -0.025em; line-height: 1.1"
+        style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(3rem, 8vw, 6rem)', letterSpacing: '-0.025em', lineHeight: '1.1' }}
       >
         <span className={s.h1Line}>One command.</span>
         <span className={s.h1LineFaded}>Full stack. Running.</span>
@@ -87,7 +87,7 @@ export function Hero() {
           target="_blank"
           rel="noopener"
           className={s.githubLink}
-          style="font-family: var(--font-mono)"
+          style={{ fontFamily: 'var(--font-mono)' }}
         >
           View on GitHub →
         </a>

@@ -121,7 +121,7 @@ function ContextMenuRoot(options: ContextMenuOptions = {}): ContextMenuElements 
     <div
       role="menu"
       id={contentId}
-      style="position: fixed; display: none;"
+      style={{ position: 'fixed', display: 'none' }}
       aria-hidden="true"
       data-state="closed"
       onKeydown={(event: KeyboardEvent) => {

@@ -7,7 +7,14 @@ export function CheckboxDemo() {
       <div className={demoStyles.section}>
         <div className={demoStyles.sectionTitle}>Default</div>
         <div className={demoStyles.row}>
-          <label style="display: flex; align-items: center; gap: 8px; color: var(--color-foreground)">
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              color: 'var(--color-foreground)',
+            }}
+          >
             <Checkbox />
             Accept terms and conditions
           </label>
@@ -16,7 +23,14 @@ export function CheckboxDemo() {
       <div className={demoStyles.section}>
         <div className={demoStyles.sectionTitle}>Checked by default</div>
         <div className={demoStyles.row}>
-          <label style="display: flex; align-items: center; gap: 8px; color: var(--color-foreground)">
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              color: 'var(--color-foreground)',
+            }}
+          >
             <Checkbox defaultChecked />
             Email notifications
           </label>
@@ -25,7 +39,15 @@ export function CheckboxDemo() {
       <div className={demoStyles.section}>
         <div className={demoStyles.sectionTitle}>Disabled</div>
         <div className={demoStyles.row}>
-          <label style="display: flex; align-items: center; gap: 8px; color: var(--color-muted-foreground); opacity: 0.5">
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              color: 'var(--color-muted-foreground)',
+              opacity: '0.5',
+            }}
+          >
             <Checkbox disabled />
             Disabled option
           </label>

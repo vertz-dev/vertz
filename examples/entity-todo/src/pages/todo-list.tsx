@@ -52,7 +52,7 @@ export function TodoListPage() {
 
       <div
         className={pageStyles.listContainer}
-        style={todosQuery.revalidating ? 'opacity: 0.6' : ''}
+        style={{ opacity: todosQuery.revalidating ? 0.6 : 1 }}
       >
         {queryMatch(todosQuery, {
           loading: () => (

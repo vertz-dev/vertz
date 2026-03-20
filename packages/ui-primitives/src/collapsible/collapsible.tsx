@@ -72,7 +72,7 @@ function CollapsibleRoot(options: CollapsibleOptions = {}) {
       id={ids.contentId}
       aria-hidden={defaultOpen ? 'false' : 'true'}
       data-state={defaultOpen ? 'open' : 'closed'}
-      style={defaultOpen ? '' : 'display: none'}
+      style={{ display: defaultOpen ? '' : 'none' }}
     />
   ) as HTMLDivElement;
 

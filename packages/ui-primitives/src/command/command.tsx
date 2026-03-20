@@ -151,7 +151,7 @@ function CommandRoot(options: CommandOptions = {}): CommandElements & {
 
   const list = (<div role="listbox" id={listId} />) as HTMLDivElement;
 
-  const empty = (<div aria-hidden="true" style="display: none" />) as HTMLDivElement;
+  const empty = (<div aria-hidden="true" style={{ display: 'none' }} />) as HTMLDivElement;
 
   const root = (
     <div>

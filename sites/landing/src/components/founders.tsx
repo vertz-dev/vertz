@@ -94,7 +94,7 @@ export function Founders() {
     <section
       id="founders"
       className={s.section}
-      style="background: #0e0e11; border-top: 1px solid rgba(255,255,255,0.02)"
+      style={{ background: '#0e0e11', borderTop: '1px solid rgba(255,255,255,0.02)' }}
     >
       <div className={s.container}>
         <p className={s.intro}>
@@ -107,7 +107,7 @@ export function Founders() {
             <div key={f.name} className={s.card}>
               <FounderPhoto name={f.name} />
               <p className={s.name}>{f.name}</p>
-              <p className={s.role} style="font-family: var(--font-mono)">
+              <p className={s.role} style={{ fontFamily: 'var(--font-mono)' }}>
                 Co-founder
               </p>
               <p className={s.bio}>{f.bio}</p>
@@ -116,7 +116,7 @@ export function Founders() {
                 target="_blank"
                 rel="noopener"
                 className={s.socialLink}
-                style="font-family: var(--font-mono)"
+                style={{ fontFamily: 'var(--font-mono)' }}
               >
                 <TwitterIcon size={16} />
                 {f.x.handle}

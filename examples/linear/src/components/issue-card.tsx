@@ -40,7 +40,7 @@ export function IssueCard({ issue, projectKey, labels }: IssueCardProps) {
         <div className={styles.meta}>
           <span
             className={styles.priority}
-            style={`color: ${PRIORITY_CONFIG[issue.priority].color}`}
+            style={{ color: PRIORITY_CONFIG[issue.priority].color }}
           >
             {PRIORITY_CONFIG[issue.priority].label}
           </span>

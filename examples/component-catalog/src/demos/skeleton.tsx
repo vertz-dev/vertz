@@ -9,7 +9,7 @@ export function SkeletonDemo() {
         <div className={demoStyles.col}>
           <div className={demoStyles.row}>
             <SkeletonSuite.Skeleton width="40px" height="40px" />
-            <div style="display: flex; flex-direction: column; gap: 4px; flex: 1">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
               <SkeletonSuite.Skeleton width="200px" height="16px" />
               <SkeletonSuite.Skeleton width="150px" height="16px" />
             </div>

@@ -33,7 +33,7 @@ export function WhyVertz() {
   return (
     <section className={s.section}>
       <div className={s.container}>
-        <p className={s.label} style="font-family: var(--font-mono)">
+        <p className={s.label} style={{ fontFamily: 'var(--font-mono)' }}>
           Why Vertz
         </p>
         <div className={s.grid}>
@@ -41,9 +41,9 @@ export function WhyVertz() {
             <div
               key={f.title}
               className={s.card}
-              style="background: rgba(17,17,19,0.5); border-color: rgba(30,30,34,0.5)"
+              style={{ background: 'rgba(17,17,19,0.5)', borderColor: 'rgba(30,30,34,0.5)' }}
             >
-              <h3 className={s.title} style="font-family: var(--font-display)">
+              <h3 className={s.title} style={{ fontFamily: 'var(--font-display)' }}>
                 {f.title}
               </h3>
               <p className={s.desc}>{f.desc}</p>

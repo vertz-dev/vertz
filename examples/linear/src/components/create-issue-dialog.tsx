@@ -70,7 +70,7 @@ export function CreateIssueDialog({ projectId, dialog }: CreateIssueDialogProps)
               id="issue-description"
               name="description"
               placeholder="Optional description"
-              style="min-height: 5rem; resize: vertical"
+              style={{ minHeight: '5rem', resize: 'vertical' }}
             />
           </div>
 

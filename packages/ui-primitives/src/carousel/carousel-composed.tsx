@@ -214,7 +214,7 @@ function ComposedCarouselRoot({
       >
         <div
           data-carousel-viewport=""
-          style={`overflow: hidden; transform: ${translateProp}(-${defaultIndex * 100}%)`}
+          style={{ overflow: 'hidden', transform: `${translateProp}(-${defaultIndex * 100}%)` }}
           class={classes?.viewport}
         >
           {children}

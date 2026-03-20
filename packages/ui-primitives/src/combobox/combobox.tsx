@@ -155,7 +155,7 @@ function ComboboxRoot(options: ComboboxOptions = {}): ComboboxElements & {
       id={ids.contentId}
       aria-hidden="true"
       data-state="closed"
-      style="display: none"
+      style={{ display: 'none' }}
     />
   ) as HTMLDivElement;
 

@@ -8,7 +8,20 @@ export function ContextMenuDemo() {
         <div className={demoStyles.sectionTitle}>Right-click to open</div>
         <ContextMenu>
           <ContextMenu.Trigger>
-            <div style="display: flex; align-items: center; justify-content: center; height: 10rem; width: 100%; max-width: 20rem; border: 2px dashed var(--color-border); border-radius: var(--radius-lg); color: var(--color-muted-foreground); font-size: 14px;">
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '10rem',
+                width: '100%',
+                maxWidth: '20rem',
+                border: '2px dashed var(--color-border)',
+                borderRadius: 'var(--radius-lg)',
+                color: 'var(--color-muted-foreground)',
+                fontSize: '14px',
+              }}
+            >
               Right click here
             </div>
           </ContextMenu.Trigger>

@@ -49,7 +49,7 @@ export function IssueRow({ issue, projectKey, labels }: IssueRowProps) {
         {STATUS_LABELS[issue.status] ?? issue.status}
       </span>
       {issue.priority !== 'none' && PRIORITY_CONFIG[issue.priority] && (
-        <span className={styles.priority} style={`color: ${PRIORITY_CONFIG[issue.priority].color}`}>
+        <span className={styles.priority} style={{ color: PRIORITY_CONFIG[issue.priority].color }}>
           {PRIORITY_CONFIG[issue.priority].label}
         </span>
       )}

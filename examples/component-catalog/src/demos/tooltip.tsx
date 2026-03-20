@@ -14,7 +14,7 @@ export function TooltipDemo() {
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content>
-              <p style="margin: 0;">Add to library</p>
+              <p style={{ margin: 0 }}>Add to library</p>
             </Tooltip.Content>
           </Tooltip>
         </div>

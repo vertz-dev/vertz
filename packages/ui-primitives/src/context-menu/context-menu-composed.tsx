@@ -83,7 +83,7 @@ interface GroupProps extends SlotProps {
 function ContextMenuTrigger({ children }: SlotProps) {
   const ctx = useContextMenuContext('Trigger');
   const el = (
-    <div style="display: contents" data-part="trigger" data-contextmenu-trigger="">
+    <div style={{ display: 'contents' }} data-part="trigger" data-contextmenu-trigger="">
       {children}
     </div>
   );
@@ -122,7 +122,7 @@ function ContextMenuContent({ children, className: cls, class: classProp }: Slot
       data-contextmenu-content=""
       aria-hidden="true"
       data-state="closed"
-      style="display: none"
+      style={{ display: 'none' }}
       class={combined || undefined}
       onKeydown={(event: KeyboardEvent) => {
         if (isKey(event, Keys.Escape, Keys.Tab)) {
@@ -333,7 +333,7 @@ function ComposedContextMenuRoot({
 
   return (
     <ContextMenuContext.Provider value={ctx}>
-      <span style="display: contents" data-contextmenu-root={ids.contentId}>
+      <span style={{ display: 'contents' }} data-contextmenu-root={ids.contentId}>
         {children}
       </span>
     </ContextMenuContext.Provider>

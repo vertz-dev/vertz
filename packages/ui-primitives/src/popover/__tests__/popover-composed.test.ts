@@ -202,5 +202,4 @@ describe('Composed Popover', () => {
       spy.mockRestore();
     });
   });
-
 });

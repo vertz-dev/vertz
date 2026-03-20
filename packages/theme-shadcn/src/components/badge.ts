@@ -16,10 +16,10 @@ export interface BadgeProps {
 export function createBadgeComponent(
   badgeStyles: VariantFunction<BadgeVariants>,
 ): (props: BadgeProps) => HTMLSpanElement {
-  const colorStyles: Record<string, string> = {
-    blue: 'background-color: oklch(0.55 0.15 250); color: #fff;',
-    green: 'background-color: oklch(0.55 0.15 155); color: #fff;',
-    yellow: 'background-color: oklch(0.75 0.15 85); color: oklch(0.25 0.05 85);',
+  const colorStyles: Record<string, Record<string, string>> = {
+    blue: { backgroundColor: 'oklch(0.55 0.15 250)', color: '#fff' },
+    green: { backgroundColor: 'oklch(0.55 0.15 155)', color: '#fff' },
+    yellow: { backgroundColor: 'oklch(0.75 0.15 85)', color: 'oklch(0.25 0.05 85)' },
   };
 
   return function Badge({
@@ -33,7 +33,7 @@ export function createBadgeComponent(
     el.className = [badgeStyles({ color }), effectiveClass].filter(Boolean).join(' ');
     const inlineStyle = color ? colorStyles[color] : undefined;
     if (inlineStyle) {
-      el.style.cssText = inlineStyle;
+      Object.assign(el.style, inlineStyle);
     }
     for (const node of resolveChildren(children)) {
       el.appendChild(node);

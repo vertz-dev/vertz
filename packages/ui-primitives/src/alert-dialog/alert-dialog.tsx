@@ -57,7 +57,7 @@ function AlertDialogOverlayEl(defaultOpen: boolean): HTMLElement {
       data-alertdialog-overlay=""
       aria-hidden={defaultOpen ? 'false' : 'true'}
       data-state={defaultOpen ? 'open' : 'closed'}
-      style={defaultOpen ? '' : 'display: none'}
+      style={{ display: defaultOpen ? '' : 'none' }}
     />
   ) as HTMLElement;
 }
@@ -77,7 +77,7 @@ function AlertDialogContentEl(
       aria-describedby={descriptionId}
       aria-hidden={defaultOpen ? 'false' : 'true'}
       data-state={defaultOpen ? 'open' : 'closed'}
-      style={defaultOpen ? '' : 'display: none'}
+      style={{ display: defaultOpen ? '' : 'none' }}
     />
   ) as HTMLElement;
 }

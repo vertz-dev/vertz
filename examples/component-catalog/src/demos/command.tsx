@@ -6,7 +6,14 @@ export function CommandDemo() {
     <div className={demoStyles.col}>
       <div className={demoStyles.section}>
         <div className={demoStyles.sectionTitle}>Default</div>
-        <div style="width: 100%; max-width: 28rem;">
+        <div
+          style={{
+            width: '100%',
+            maxWidth: '28rem',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-lg)',
+          }}
+        >
           <Command placeholder="Type a command or search...">
             <Command.Input />
             <Command.List>

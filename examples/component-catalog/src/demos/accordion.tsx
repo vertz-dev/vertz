@@ -6,7 +6,7 @@ export function AccordionDemo() {
     <div className={demoStyles.col}>
       <div className={demoStyles.section}>
         <div className={demoStyles.sectionTitle}>Default</div>
-        <div style="width: 100%; max-width: 28rem;">
+        <div style={{ width: '100%', maxWidth: '28rem' }}>
           <Accordion>
             <Accordion.Item value="item-1">
               <Accordion.Trigger>Is it accessible?</Accordion.Trigger>

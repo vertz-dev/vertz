@@ -57,7 +57,7 @@ export function TaskListPage() {
   return (
     <div data-testid="task-list-page">
       <div className={layoutStyles.header}>
-        <h1 style="font-size: 1.5rem; font-weight: 700">Tasks</h1>
+        <h1 style={{ fontSize: '1.5rem', fontWeight: '700' }}>Tasks</h1>
 
         <button
           type="button"
@@ -69,7 +69,7 @@ export function TaskListPage() {
           New Task
         </button>
       </div>
-      <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem">
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
         {filters.map((filter) => (
           <button
             type="button"
@@ -89,7 +89,7 @@ export function TaskListPage() {
       {queryMatch(tasksQuery, {
         loading: () => <div data-testid="loading">Loading tasks...</div>,
         error: (err) => (
-          <div style="color: var(--color-destructive)" data-testid="error">
+          <div style={{ color: 'var(--color-destructive)' }} data-testid="error">
             {`Failed to load tasks: ${err instanceof Error ? err.message : String(err)}`}
           </div>
         ),
@@ -115,7 +115,7 @@ export function TaskListPage() {
             )}
             <div
               data-testid="task-list"
-              style="display: flex; flex-direction: column; gap: 0.75rem"
+              style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
             >
               {filteredTasks.map((task) => (
                 <TaskCard

@@ -51,7 +51,7 @@ function TooltipContent(contentId: string): HTMLElement {
       id={contentId}
       aria-hidden="true"
       data-state="closed"
-      style="display: none"
+      style={{ display: 'none' }}
     />
   ) as HTMLElement;
 }

@@ -53,9 +53,9 @@ function Sidebar() {
       <div className={navStyles.subtitle}>{componentRegistry.length} themed components</div>
       <div
         className={scrollStyles.thin}
-        style="flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;"
+        style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain' }}
       >
-        <div style="display: flex; flex-direction: column; gap: 2px;">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
           <Link href="/" className={navStyles.navItem} activeClass={navStyles.navItemActive}>
             Overview
           </Link>

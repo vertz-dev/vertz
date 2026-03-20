@@ -34,10 +34,10 @@ export function SchemaFlow() {
   return (
     <section className={s.section}>
       <div className={s.container}>
-        <p className={s.label} style="font-family: var(--font-mono)">
+        <p className={s.label} style={{ fontFamily: 'var(--font-mono)' }}>
           How it works
         </p>
-        <h2 className={s.heading} style="font-family: var(--font-display)">
+        <h2 className={s.heading} style={{ fontFamily: 'var(--font-display)' }}>
           One schema. Three layers. Zero wiring.
         </h2>
 
@@ -45,14 +45,14 @@ export function SchemaFlow() {
           {STEPS.map((step) => (
             <div key={step.label}>
               <div className={s.stepHeader}>
-                <span className={s.stepLabel} style="font-family: var(--font-mono); color: #3b82f6">
+                <span className={s.stepLabel} style={{ fontFamily: 'var(--font-mono)', color: '#3b82f6' }}>
                   {step.label}
                 </span>
-                <span className={s.stepTitle} style="font-family: var(--font-mono)">
+                <span className={s.stepTitle} style={{ fontFamily: 'var(--font-mono)' }}>
                   {step.title}
                 </span>
               </div>
-              <div className={s.codeBlock} style="border-color: #1e1e22">
+              <div className={s.codeBlock} style={{ borderColor: '#1e1e22' }}>
                 <TokenLines lines={step.tokens} />
               </div>
             </div>

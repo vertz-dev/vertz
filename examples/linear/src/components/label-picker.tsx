@@ -75,7 +75,7 @@ export function LabelPicker({ labels, issueLabels, onAdd, onRemove }: LabelPicke
             className={isAssigned ? styles.active : styles.button}
             onClick={() => handleClick(label)}
           >
-            <span className={styles.dot} style={`background-color: ${label.color}`} />
+            <span className={styles.dot} style={{ backgroundColor: label.color }} />
             {label.name}
             {isAssigned && <span className={styles.check}>✓</span>}
           </button>

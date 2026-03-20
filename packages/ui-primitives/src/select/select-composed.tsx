@@ -112,7 +112,13 @@ function SelectTrigger({ children, className: cls, class: classProp }: SlotProps
     >
       <span
         data-part="text"
-        style="flex: 1; text-align: start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap"
+        style={{
+          flex: 1,
+          textAlign: 'start',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
       >
         {displayText}
       </span>
@@ -197,7 +203,7 @@ function SelectContent({ children, className: cls, class: classProp }: SlotProps
       data-select-content=""
       aria-hidden="true"
       data-state="closed"
-      style="display: none"
+      style={{ display: 'none' }}
       class={combined || undefined}
     >
       {children}
@@ -224,7 +230,7 @@ function SelectItem({ value, children, className: cls, class: classProp }: ItemP
       {children ?? value}
       <span
         data-part="indicator"
-        style={isSelected ? '' : 'display: none'}
+        style={{ display: isSelected ? '' : 'none' }}
         class={ctx.classes?.itemIndicator || undefined}
       />
     </div>
@@ -395,7 +401,7 @@ function ComposedSelectRoot({
 
   return (
     <SelectContext.Provider value={ctx}>
-      <span style="display: contents" data-select-root="">
+      <span style={{ display: 'contents' }} data-select-root="">
         {children}
       </span>
     </SelectContext.Provider>

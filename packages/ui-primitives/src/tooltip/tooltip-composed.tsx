@@ -78,7 +78,7 @@ function TooltipTrigger({ children }: SlotProps) {
 
   return (
     <span
-      style="display: contents"
+      style={{ display: 'contents' }}
       data-tooltip-trigger=""
       aria-describedby={ctx.contentId}
       onMouseenter={() => ctx.show()}
@@ -106,7 +106,7 @@ function TooltipContent({ children, className: cls, class: classProp }: SlotProp
       data-tooltip-content=""
       aria-hidden={ctx.isOpen ? 'false' : 'true'}
       data-state={ctx.isOpen ? 'open' : 'closed'}
-      style={ctx.isOpen ? '' : 'display: none'}
+      style={{ display: ctx.isOpen ? '' : 'none' }}
       class={combined || undefined}
     >
       {children}
@@ -191,7 +191,7 @@ function ComposedTooltipRoot({
 
   return (
     <TooltipContext.Provider value={ctx}>
-      <span style="display: contents" data-tooltip-root="">
+      <span style={{ display: 'contents' }} data-tooltip-root="">
         {children}
       </span>
     </TooltipContext.Provider>

@@ -99,7 +99,7 @@ function PopoverRoot(options: PopoverOptions = {}): PopoverElements & { state: P
       id={ids.contentId}
       aria-hidden={defaultOpen ? 'false' : 'true'}
       data-state={defaultOpen ? 'open' : 'closed'}
-      style={defaultOpen ? '' : 'display: none'}
+      style={{ display: defaultOpen ? '' : 'none' }}
       onKeydown={(event: KeyboardEvent) => {
         if (isKey(event, Keys.Escape)) {
           event.preventDefault();

@@ -164,7 +164,7 @@ function SelectRoot(options: SelectOptions = {}): SelectElements & {
       id={ids.contentId}
       aria-hidden="true"
       data-state="closed"
-      style="display: none"
+      style={{ display: 'none' }}
       onKeydown={(event: KeyboardEvent) => {
         if (isKey(event, Keys.Escape)) {
           event.preventDefault();

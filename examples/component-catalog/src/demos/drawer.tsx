@@ -18,8 +18,8 @@ export function DrawerDemo() {
               <Drawer.Title>Move goal</Drawer.Title>
               <Drawer.Description>Set your daily activity goal.</Drawer.Description>
             </Drawer.Header>
-            <div style="padding: 1rem;">
-              <p style="color: var(--color-muted-foreground); font-size: 14px;">
+            <div style={{ padding: '1rem' }}>
+              <p style={{ color: 'var(--color-muted-foreground)', fontSize: '14px' }}>
                 Drag the handle or use the buttons to adjust your goal.
               </p>
             </div>

@@ -138,7 +138,7 @@ export function TaskForm({ onSuccess, onCancel }: TaskFormProps) {
         </span>
       </div>
 
-      <div style="display: flex; gap: 0.5rem; justify-content: flex-end">
+      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
         <button
           type="button"
           className={button({ intent: 'secondary', size: 'md' })}

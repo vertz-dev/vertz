@@ -80,7 +80,7 @@ function HoverCardTrigger({ children }: SlotProps) {
 
   return (
     <span
-      style="display: contents"
+      style={{ display: 'contents' }}
       data-hovercard-trigger=""
       onMouseenter={() => ctx.show()}
       onMouseleave={() => ctx.hide()}
@@ -104,7 +104,7 @@ function HoverCardContent({ children, className: cls, class: classProp }: SlotPr
       data-hovercard-content=""
       aria-hidden={ctx.isOpen ? 'false' : 'true'}
       data-state={ctx.isOpen ? 'open' : 'closed'}
-      style={ctx.isOpen ? '' : 'display: none'}
+      style={{ display: ctx.isOpen ? '' : 'none' }}
       class={combined || undefined}
       onMouseenter={() => ctx.cancelCloseTimer()}
       onMouseleave={() => ctx.hide()}
@@ -215,7 +215,7 @@ function ComposedHoverCardRoot({
 
   return (
     <HoverCardContext.Provider value={ctx}>
-      <span style="display: contents" data-hovercard-root="">
+      <span style={{ display: 'contents' }} data-hovercard-root="">
         {children}
       </span>
     </HoverCardContext.Provider>
