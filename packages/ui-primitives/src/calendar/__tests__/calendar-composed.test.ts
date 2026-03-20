@@ -660,6 +660,17 @@ describe('Composed Calendar', () => {
           maxDate: new Date(2030, 11, 31),
         });
         container.appendChild(root);
+        const monthSelect = root.querySelector(
+          'select[aria-label="Select month"]',
+        ) as HTMLSelectElement;
+        // Prime the reactive binding with a roundtrip so happy-dom
+        // picks up the __prop selected state (see month select test).
+        monthSelect.value = '0';
+        monthSelect.dispatchEvent(new Event('change'));
+        monthSelect.value = '5';
+        monthSelect.dispatchEvent(new Event('change'));
+        expect(monthSelect.value).toBe('5');
+
         const nextBtn = root.querySelector('button[aria-label="Next month"]') as HTMLButtonElement;
         nextBtn.click();
         // Grid should now show July 2024
