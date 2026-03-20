@@ -10,12 +10,14 @@ import { sql } from '../sql/tagged';
 // Schema definition — organizations, users, posts, comments, featureFlags
 // ---------------------------------------------------------------------------
 
-const organizations = d.table('organizations', {
-  id: d.uuid().primary(),
-  name: d.text(),
-  slug: d.text().unique(),
-  createdAt: d.timestamp().default('now'),
-});
+const organizations = d
+  .table('organizations', {
+    id: d.uuid().primary(),
+    name: d.text(),
+    slug: d.text().unique(),
+    createdAt: d.timestamp().default('now'),
+  })
+  .tenant();
 
 const users = d.table('users', {
   id: d.uuid().primary(),
@@ -61,13 +63,9 @@ const featureFlags = d
 
 const models = {
   organizations: d.model(organizations),
-  users: d.model(
-    users,
-    {
-      organization: d.ref.one(() => organizations, 'organizationId'),
-    },
-    { tenant: 'organization' },
-  ),
+  users: d.model(users, {
+    organization: d.ref.one(() => organizations, 'organizationId'),
+  }),
   posts: d.model(posts, {
     author: d.ref.one(() => users, 'authorId'),
     comments: d.ref.many(() => comments, 'postId'),
@@ -637,10 +635,10 @@ describe('E2E Acceptance Test (db-018)', () => {
     it('computes tenant graph correctly', () => {
       const graph = db._internals.tenantGraph;
 
-      // organizations is the root (users model has { tenant: 'organization' })
+      // organizations is the root (marked with .tenant())
       expect(graph.root).toBe('organizations');
 
-      // users is directly scoped (has { tenant: 'organization' })
+      // users is directly scoped (has ref.one to tenant root)
       expect(graph.directlyScoped).toContain('users');
 
       // posts references users via relation -> indirectly scoped

@@ -12,7 +12,7 @@ import type {
 } from './schema/column';
 import { createColumn, createSerialColumn } from './schema/column';
 import type { ModelEntry } from './schema/inference';
-import type { ModelDef, ModelOptions, ValidateOneRelationFKs } from './schema/model';
+import type { ModelDef, ValidateOneRelationFKs } from './schema/model';
 import { createModel } from './schema/model';
 import type { SchemaLike } from './schema/model-schemas';
 import type { ManyRelationDef, RelationDef } from './schema/relation';
@@ -87,11 +87,6 @@ export const d: {
   model<TTable extends TableDef<ColumnRecord>, TRelations extends Record<string, RelationDef>>(
     table: TTable,
     relations: TRelations & ValidateOneRelationFKs<TTable, TRelations>,
-  ): ModelDef<TTable, TRelations>;
-  model<TTable extends TableDef<ColumnRecord>, TRelations extends Record<string, RelationDef>>(
-    table: TTable,
-    relations: TRelations & ValidateOneRelationFKs<TTable, TRelations>,
-    options: ModelOptions<TRelations>,
   ): ModelDef<TTable, TRelations>;
 } = {
   uuid: () => createColumn<string, DefaultMeta<'uuid'>>('uuid'),
@@ -178,9 +173,6 @@ export const d: {
     table,
     relations,
   }),
-  model: (
-    table: TableDef<ColumnRecord>,
-    relations: Record<string, RelationDef> = {},
-    options?: ModelOptions<Record<string, RelationDef>>,
-  ) => createModel(table, relations, options),
+  model: (table: TableDef<ColumnRecord>, relations: Record<string, RelationDef> = {}) =>
+    createModel(table, relations),
 };

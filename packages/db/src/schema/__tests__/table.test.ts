@@ -151,6 +151,58 @@ describe('.shared()', () => {
   });
 });
 
+describe('.tenant()', () => {
+  it('sets the tenant metadata flag on a table', () => {
+    const workspaces = d
+      .table('workspaces', {
+        id: d.uuid().primary(),
+        name: d.text(),
+      })
+      .tenant();
+
+    expect(workspaces._tenant).toBe(true);
+  });
+
+  it('defaults tenant to false', () => {
+    const users = d.table('users', {
+      id: d.uuid().primary(),
+      name: d.text(),
+    });
+
+    expect(users._tenant).toBe(false);
+  });
+
+  it('preserves column metadata after calling .tenant()', () => {
+    const workspaces = d
+      .table('workspaces', {
+        id: d.uuid().primary(),
+        name: d.text().unique(),
+        slug: d.text().nullable(),
+      })
+      .tenant();
+
+    expect(workspaces._name).toBe('workspaces');
+    expect(workspaces._columns.name._meta.unique).toBe(true);
+    expect(workspaces._columns.slug._meta.nullable).toBe(true);
+  });
+
+  it('preserves indexes after calling .tenant()', () => {
+    const workspaces = d
+      .table(
+        'workspaces',
+        {
+          id: d.uuid().primary(),
+          slug: d.text(),
+        },
+        { indexes: [d.index('slug', { unique: true })] },
+      )
+      .tenant();
+
+    expect(workspaces._indexes).toHaveLength(1);
+    expect(workspaces._indexes[0].unique).toBe(true);
+  });
+});
+
 describe('phantom type getters', () => {
   const users = d.table('users', {
     id: d.uuid().primary(),

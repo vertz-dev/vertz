@@ -144,7 +144,7 @@ export type {
   SelectOption,
   UpdateInput,
 } from './schema/inference';
-export type { ModelDef, ModelOptions } from './schema/model';
+export type { ModelDef } from './schema/model';
 export type { ModelSchemas, SchemaLike } from './schema/model-schemas';
 export { createRegistry } from './schema/registry';
 export type { RelationDef } from './schema/relation';

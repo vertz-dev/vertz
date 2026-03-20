@@ -165,6 +165,7 @@ export interface TableDef<TColumns extends ColumnRecord = ColumnRecord> {
   readonly _columns: TColumns;
   readonly _indexes: readonly IndexDef[];
   readonly _shared: boolean;
+  readonly _tenant: boolean;
 
   /** Default SELECT type -- excludes columns annotated 'hidden'. */
   readonly $infer: Infer<TColumns>;
@@ -184,6 +185,8 @@ export interface TableDef<TColumns extends ColumnRecord = ColumnRecord> {
 
   /** Mark this table as shared / cross-tenant. */
   shared(): TableDef<TColumns>;
+  /** Mark this table as the tenant root. */
+  tenant(): TableDef<TColumns>;
 }
 
 // ---------------------------------------------------------------------------
@@ -204,7 +207,7 @@ export function createTable<TColumns extends ColumnRecord>(
   columns: TColumns,
   options?: TableOptions,
 ): TableDef<TColumns> {
-  return createTableInternal(name, columns, options?.indexes ?? [], false);
+  return createTableInternal(name, columns, options?.indexes ?? [], false, false);
 }
 
 function createTableInternal<TColumns extends ColumnRecord>(
@@ -212,12 +215,14 @@ function createTableInternal<TColumns extends ColumnRecord>(
   columns: TColumns,
   indexes: readonly IndexDef[],
   shared: boolean,
+  isTenant: boolean,
 ): TableDef<TColumns> {
   const table: TableDef<TColumns> = {
     _name: name,
     _columns: columns,
     _indexes: indexes,
     _shared: shared,
+    _tenant: isTenant,
 
     // Derived type properties are phantom -- they exist only at the type level.
     // At runtime they are never accessed; we use `undefined as never` to avoid
@@ -245,7 +250,11 @@ function createTableInternal<TColumns extends ColumnRecord>(
     },
 
     shared() {
-      return createTableInternal(name, columns, indexes, true);
+      return createTableInternal(name, columns, indexes, true, false);
+    },
+
+    tenant() {
+      return createTableInternal(name, columns, indexes, false, true);
     },
   };
   return table;
