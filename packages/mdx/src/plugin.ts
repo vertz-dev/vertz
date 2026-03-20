@@ -59,7 +59,10 @@ export function createMdxPlugin(options?: MdxPluginOptions): BunPlugin {
                 themes: [shikiTheme],
                 langs: shikiLangs,
               });
-            })();
+            })().catch((err) => {
+              highlighterPromise = null;
+              throw err;
+            });
           }
           const highlighter = await highlighterPromise;
           const { default: rehypeShiki } = await import('@shikijs/rehype');

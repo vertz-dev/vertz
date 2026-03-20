@@ -118,4 +118,8 @@ const x = 1;
     const output = await buildMdx('# Test', { rehypePlugins: [] });
     expect(output).toContain('MDXContent');
   });
+
+  it('fails build on malformed MDX with unclosed JSX', async () => {
+    await expect(buildMdx('<div>unclosed')).rejects.toThrow();
+  });
 });

@@ -127,4 +127,13 @@ describe('serializeToHtml', () => {
     const node: VNode = { tag: 'fragment', attrs: {}, children: [] };
     expect(serializeToHtml(node)).toBe('');
   });
+
+  it('serializes fragments with mixed text and element children', () => {
+    const node: VNode = {
+      tag: 'fragment',
+      attrs: {},
+      children: ['Hello ', { tag: 'strong', attrs: {}, children: ['world'] }, '!'],
+    };
+    expect(serializeToHtml(node)).toBe('Hello <strong>world</strong>!');
+  });
 });
