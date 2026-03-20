@@ -230,7 +230,31 @@ const button = variants({
 });
 ```
 
-Inline `style` only for truly dynamic values or one-off layout.
+### Inline `style` — always use camelCase objects
+
+When using inline `style` attributes in JSX, always use camelCase style objects, never string syntax.
+
+```tsx
+// WRONG — string style in JSX
+<div style="font-size: 16px; background-color: red;">
+
+// WRONG — object with quoted dash-case keys
+<div style={{ 'font-size': '16px' }}>
+
+// RIGHT — camelCase object style
+<div style={{ fontSize: '16px', backgroundColor: 'red' }}>
+
+// RIGHT — conditional visibility
+<div style={{ display: isOpen ? '' : 'none' }}>
+
+// RIGHT — dynamic values
+<div style={{ width: `${pct}%`, opacity: isLoading ? 0.6 : 1 }}>
+
+// RIGHT — omit property conditionally with undefined
+<div style={{ pointerEvents: disabled ? 'none' : undefined, position: 'relative' }}>
+```
+
+Use inline `style` only for truly dynamic values or one-off layout. `css()` / `variants()` remain the primary styling mechanism for static, design-token-based styles.
 
 ## Data Fetching & Forms
 

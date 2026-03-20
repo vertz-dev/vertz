@@ -498,3 +498,7 @@ describe('Phase 3: SSR object style serialization', () => {
   });
 });
 ```
+
+## Post-Migration Note (2026-03-20)
+
+All first-party code (examples, ui-primitives, ui-auth, icons, theme-shadcn, landing site) now uses camelCase style objects exclusively. String styles are still accepted by the runtime for backward compatibility, but all framework code, examples, and primitives use objects. See `plans/camelcase-style-migration.md` for the full migration plan.
