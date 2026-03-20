@@ -11,21 +11,26 @@ export function createHoverCardStyles(): CSSOutput<HoverCardBlocks> {
   const s = css({
     hoverCardContent: [
       'z:50',
-      'rounded:md',
+      'rounded:lg',
       'border:1',
       'border:border',
       'bg:popover',
       'text:popover-foreground',
       'shadow:md',
+      'outline-none',
       'p:4',
       {
         '&': { width: '16rem' },
       },
       {
-        '&[data-state="open"]': [animationDecl('vz-fade-in 150ms ease-out forwards')],
+        '&[data-state="open"]': [
+          animationDecl('vz-fade-in 150ms ease-out forwards, vz-zoom-in 150ms ease-out forwards'),
+        ],
       },
       {
-        '&[data-state="closed"]': [animationDecl('vz-fade-out 150ms ease-out forwards')],
+        '&[data-state="closed"]': [
+          animationDecl('vz-fade-out 150ms ease-out forwards, vz-zoom-out 150ms ease-out forwards'),
+        ],
       },
     ],
   });
