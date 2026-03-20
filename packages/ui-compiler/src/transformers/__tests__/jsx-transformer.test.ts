@@ -457,4 +457,16 @@ describe('JsxTransformer', () => {
     const result = transform(`function App() {\n  return <button disabled></button>;\n}`, []);
     expect(result).toContain('setAttribute("disabled", "")');
   });
+
+  it('emits empty string for boolean shorthand on string IDL property <input value />', () => {
+    const result = transform(`function App() {\n  return <input value />;\n}`, []);
+    // String IDL property — boolean shorthand means empty string, not true
+    expect(result).toContain('.value = ""');
+    expect(result).not.toContain('.value = true');
+  });
+
+  it('emits empty string for boolean shorthand on string IDL property <textarea value />', () => {
+    const result = transform(`function App() {\n  return <textarea value></textarea>;\n}`, []);
+    expect(result).toContain('.value = ""');
+  });
 });

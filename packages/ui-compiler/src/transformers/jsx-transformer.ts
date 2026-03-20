@@ -386,9 +386,9 @@ function transformFragment(
 }
 
 /**
- * IDL properties that must use property assignment (el.prop = value) instead of
- * setAttribute. For these properties, setAttribute doesn't control the displayed
- * state — only the DOM property does.
+ * Properties where setAttribute doesn't reflect the displayed state — only
+ * direct property assignment (el.prop = value) works. Note: boolean attributes
+ * like `disabled` work fine with setAttribute and are NOT included here.
  */
 const IDL_PROPERTIES: Record<string, ReadonlySet<string>> = {
   input: new Set(['value', 'checked']),
@@ -396,6 +396,9 @@ const IDL_PROPERTIES: Record<string, ReadonlySet<string>> = {
   textarea: new Set(['value']),
   option: new Set(['selected']),
 };
+
+/** Boolean IDL properties — boolean shorthand emits `.prop = true`. */
+const BOOLEAN_IDL_PROPERTIES: ReadonlySet<string> = new Set(['checked', 'selected']);
 
 function isIdlProperty(tagName: string, attrName: string): boolean {
   return IDL_PROPERTIES[tagName]?.has(attrName) ?? false;
@@ -414,9 +417,12 @@ function processAttribute(
   const attrName = rawAttrName === 'className' ? 'class' : rawAttrName;
   const init = attr.getInitializer();
   if (!init) {
-    // Boolean shorthand: <input checked /> or <input disabled />
+    // Boolean shorthand: <input checked />, <input disabled />, etc.
     if (isIdlProperty(tagName, attrName)) {
-      return `${elVar}.${attrName} = true`;
+      // Boolean IDL props (checked, selected) → .prop = true
+      // String IDL props (value) → .prop = "" (matches HTML empty-attr semantic)
+      const shorthandValue = BOOLEAN_IDL_PROPERTIES.has(attrName) ? 'true' : '""';
+      return `${elVar}.${attrName} = ${shorthandValue}`;
     }
     return `${elVar}.setAttribute(${JSON.stringify(attrName)}, "")`;
   }
