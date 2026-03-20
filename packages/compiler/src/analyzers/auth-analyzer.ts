@@ -1,4 +1,4 @@
-import { SyntaxKind } from 'ts-morph';
+import { type Expression, type ObjectLiteralExpression, SyntaxKind } from 'ts-morph';
 import type { AuthFeature, AuthIR } from '../ir/types';
 import { extractObjectLiteral, getPropertyValue } from '../utils/ast-helpers';
 import { BaseAnalyzer } from './base-analyzer';
@@ -15,6 +15,46 @@ const AUTH_FEATURE_KEYS: AuthFeature[] = [
   'emailVerification',
   'passwordReset',
 ];
+
+/**
+ * Resolve an expression to an ObjectLiteralExpression by following identifiers
+ * to their variable declarations and unwrapping wrapper calls like defineAuth().
+ */
+function resolveToObjectLiteral(node: Expression): ObjectLiteralExpression | null {
+  if (node.isKind(SyntaxKind.ObjectLiteralExpression)) {
+    return node;
+  }
+
+  if (node.isKind(SyntaxKind.Identifier)) {
+    for (const def of node.getDefinitionNodes()) {
+      if (def.isKind(SyntaxKind.VariableDeclaration)) {
+        const init = def.getInitializer();
+        if (init) return resolveToObjectLiteral(init);
+      }
+      // Follow imports to the source module's variable declaration
+      if (def.isKind(SyntaxKind.ImportSpecifier)) {
+        const aliased = def.getSymbol()?.getAliasedSymbol();
+        if (!aliased) continue;
+        for (const decl of aliased.getDeclarations()) {
+          if (decl.isKind(SyntaxKind.VariableDeclaration)) {
+            const init = decl.getInitializer();
+            if (init) return resolveToObjectLiteral(init);
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  // Unwrap function calls like defineAuth({...}) — extract first argument
+  if (node.isKind(SyntaxKind.CallExpression)) {
+    const firstArg = node.getArguments()[0];
+    if (firstArg) return resolveToObjectLiteral(firstArg);
+    return null;
+  }
+
+  return null;
+}
 
 export class AuthAnalyzer extends BaseAnalyzer<AuthAnalyzerResult> {
   async analyze(): Promise<AuthAnalyzerResult> {
@@ -35,9 +75,10 @@ export class AuthAnalyzer extends BaseAnalyzer<AuthAnalyzerResult> {
         // auth is configured — check which features are enabled
         const features: AuthFeature[] = [];
 
-        if (authProp.isKind(SyntaxKind.ObjectLiteralExpression)) {
+        const authObj = resolveToObjectLiteral(authProp);
+        if (authObj) {
           for (const key of AUTH_FEATURE_KEYS) {
-            if (getPropertyValue(authProp, key)) {
+            if (getPropertyValue(authObj, key)) {
               features.push(key);
             }
           }
