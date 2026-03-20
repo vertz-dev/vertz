@@ -64,8 +64,10 @@ export function createDialogStyles(): CSSOutput<DialogBlocks> {
           border: 'none',
           'container-type': 'inline-size',
         },
-        // Ensure closed dialog is hidden (theme display:grid overrides UA dialog:not([open]))
-        '&:not([open])': { display: 'none' },
+        // Ensure closed dialog is hidden (theme display:grid overrides UA dialog:not([open])).
+        // Also exclude [data-state="open"] so non-native <div role="dialog"> elements
+        // using panel styles remain visible when opened via data-state.
+        '&:not([open]):not([data-state="open"])': { display: 'none' },
         // Style the native ::backdrop (replaces the overlay div)
         '&::backdrop': {
           'background-color': 'oklch(0 0 0 / 10%)',

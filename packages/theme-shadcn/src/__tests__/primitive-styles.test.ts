@@ -59,6 +59,10 @@ describe('alert-dialog', () => {
     expect(alertDialog.cancel.length).toBeGreaterThan(0);
     expect(alertDialog.action.length).toBeGreaterThan(0);
   });
+
+  it('panel CSS does not hide elements with data-state="open" (div role="dialog" support)', () => {
+    expect(alertDialog.css).toContain(':not([open]):not([data-state="open"])');
+  });
 });
 
 describe('dialog', () => {
@@ -95,6 +99,12 @@ describe('dialog', () => {
   it('CSS hides the native dialog when it is not open', () => {
     expect(dialog.css).toContain(':not([open])');
     expect(dialog.css).toContain('display: none');
+  });
+
+  it('panel CSS does not hide elements with data-state="open" (div role="dialog" support)', () => {
+    // The :not([open]) rule must also exclude [data-state="open"] so that
+    // non-native <div role="dialog"> elements using panel styles remain visible.
+    expect(dialog.css).toContain(':not([open]):not([data-state="open"])');
   });
 });
 
