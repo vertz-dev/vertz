@@ -242,4 +242,81 @@ describe('themed Menubar (JSX component)', () => {
     expect(typeof Menubar.Label).toBe('function');
     expect(typeof Menubar.Separator).toBe('function');
   });
+
+  it('uses fixed positioning on content when menu is opened (#1612)', async () => {
+    const { createThemedMenubar } = await import('../components/primitives/menubar');
+    const { ComposedMenubar } = await import('@vertz/ui-primitives');
+    const styles = createMenubarStyles();
+    const Menubar = createThemedMenubar(styles);
+
+    const root = Menubar({
+      children: () => {
+        const menu = ComposedMenubar.Menu({
+          value: 'file',
+          children: () => {
+            const t = ComposedMenubar.Trigger({ children: ['File'] });
+            const c = ComposedMenubar.Content({
+              children: () => [ComposedMenubar.Item({ value: 'new', children: ['New'] })],
+            });
+            return [t, c];
+          },
+        });
+        return [menu];
+      },
+    });
+    container.appendChild(root);
+
+    const trigger = root.querySelector('[aria-haspopup="menu"]') as HTMLElement;
+    trigger.click();
+    // Wait for computePosition promise to resolve
+    await new Promise((r) => setTimeout(r, 10));
+
+    const content = root.querySelector('[role="menu"]') as HTMLElement;
+    expect(content.getAttribute('data-state')).toBe('open');
+    // Floating positioning should set position: fixed on the content
+    expect(content.style.position).toBe('fixed');
+  });
+
+  it('does not shift sibling menubar items when a menu opens (#1612)', async () => {
+    const { createThemedMenubar } = await import('../components/primitives/menubar');
+    const { ComposedMenubar } = await import('@vertz/ui-primitives');
+    const styles = createMenubarStyles();
+    const Menubar = createThemedMenubar(styles);
+
+    const root = Menubar({
+      children: () => {
+        const file = ComposedMenubar.Menu({
+          value: 'file',
+          children: () => {
+            const t = ComposedMenubar.Trigger({ children: ['File'] });
+            const c = ComposedMenubar.Content({
+              children: () => [ComposedMenubar.Item({ value: 'new', children: ['New'] })],
+            });
+            return [t, c];
+          },
+        });
+        const edit = ComposedMenubar.Menu({
+          value: 'edit',
+          children: () => {
+            const t = ComposedMenubar.Trigger({ children: ['Edit'] });
+            const c = ComposedMenubar.Content({
+              children: () => [ComposedMenubar.Item({ value: 'undo', children: ['Undo'] })],
+            });
+            return [t, c];
+          },
+        });
+        return [file, edit];
+      },
+    });
+    container.appendChild(root);
+
+    const trigger = root.querySelector('[data-value="file"]') as HTMLElement;
+    trigger.click();
+    // Wait for computePosition promise to resolve
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Content should use fixed positioning (out of normal flow)
+    const content = root.querySelector('[role="menu"]') as HTMLElement;
+    expect(content.style.position).toBe('fixed');
+  });
 });

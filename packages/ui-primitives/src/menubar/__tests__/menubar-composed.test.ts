@@ -363,6 +363,67 @@ describe('Composed Menubar', () => {
     });
   });
 
+  describe('Given a Menubar with positioning prop', () => {
+    it('Then content gets fixed positioning when opened', async () => {
+      const root = ComposedMenubar({
+        positioning: { placement: 'bottom-start' },
+        children: () => {
+          const file = ComposedMenubar.Menu({
+            value: 'file',
+            children: () => {
+              const t = ComposedMenubar.Trigger({ children: ['File'] });
+              const c = ComposedMenubar.Content({
+                children: () => [ComposedMenubar.Item({ value: 'new', children: ['New'] })],
+              });
+              return [t, c];
+            },
+          });
+          return [file];
+        },
+      });
+      container.appendChild(root);
+
+      const trigger = root.querySelector('[data-value="file"]') as HTMLElement;
+      trigger.click();
+      // Wait for computePosition promise to resolve
+      await new Promise((r) => setTimeout(r, 10));
+
+      const content = root.querySelector('[role="menu"]') as HTMLElement;
+      expect(content.getAttribute('data-state')).toBe('open');
+      expect(content.style.position).toBe('fixed');
+    });
+
+    it('Then uses dismiss handler for click-outside instead of document listener', () => {
+      const root = ComposedMenubar({
+        positioning: { placement: 'bottom-start' },
+        children: () => {
+          const file = ComposedMenubar.Menu({
+            value: 'file',
+            children: () => {
+              const t = ComposedMenubar.Trigger({ children: ['File'] });
+              const c = ComposedMenubar.Content({
+                children: () => [ComposedMenubar.Item({ value: 'new', children: ['New'] })],
+              });
+              return [t, c];
+            },
+          });
+          return [file];
+        },
+      });
+      container.appendChild(root);
+
+      const trigger = root.querySelector('[data-value="file"]') as HTMLElement;
+      trigger.click();
+
+      const content = root.querySelector('[role="menu"]') as HTMLElement;
+      expect(content.getAttribute('data-state')).toBe('open');
+
+      // Click outside should dismiss via the dismiss handler (uses pointerdown)
+      document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      expect(content.getAttribute('data-state')).toBe('closed');
+    });
+  });
+
   describe('Given a Menubar rendered inside a disposal scope', () => {
     describe('When the disposal scope cleanups are run', () => {
       it('Then removeEventListener is called for the trigger handlers', () => {
