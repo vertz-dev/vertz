@@ -29,7 +29,7 @@ describe('seedDatabase', () => {
         issues: issuesModel,
         comments: commentsModel,
         labels: labelsModel,
-        'issue-labels': issueLabelsModel,
+        issueLabels: issueLabelsModel,
       },
       dialect: 'sqlite',
       path: dbPath,
@@ -132,7 +132,7 @@ describe('seedDatabase', () => {
 
       it('Then assigns labels to some issues via issue_labels', async () => {
         await seedDatabase(client);
-        const count = unwrap(await client['issue-labels'].count());
+        const count = unwrap(await client.issueLabels.count());
         expect(count).toBeGreaterThan(0);
       });
 

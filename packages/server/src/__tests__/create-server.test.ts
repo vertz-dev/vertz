@@ -231,6 +231,73 @@ describe('createServer', () => {
     expect(getBody.name).toBe('Alice');
   });
 
+  it('validates entity models by table._name, not registry key (camelCase keys work)', async () => {
+    const issueLabelsTable = d.table('issue_labels', {
+      id: d.uuid().primary(),
+      name: d.text(),
+    });
+    const issueLabelsModel = d.model(issueLabelsTable);
+
+    const mockLabel = { id: 'il-1', name: 'Bug' };
+    const mockDelegate = {
+      get: async () => ok(mockLabel),
+      getOrThrow: async () => ok(mockLabel),
+      list: async () => ok([mockLabel]),
+      listAndCount: async () => ok({ data: [mockLabel], total: 1 }),
+      create: async (data: unknown) => ok(data),
+      update: async () => ok(null),
+      delete: async () => ok(null),
+    };
+
+    const mockDatabaseClient = {
+      users: mockDelegate,
+      issueLabels: mockDelegate, // camelCase key, NOT 'issue-labels'
+      close: async () => {},
+      isHealthy: async () => true,
+      query: async () => ok({ rows: [], rowCount: 0 }),
+      _internals: {
+        models: {
+          users: { table: usersTable, relations: {} },
+          issueLabels: { table: issueLabelsTable, relations: {} },
+        },
+        dialect: { paramPlaceholder: () => '?', quoteName: (n: string) => `"${n}"` },
+        tenantGraph: {
+          root: null,
+          directlyScoped: [],
+          indirectlyScoped: [],
+          shared: [],
+        },
+      },
+    };
+
+    // Entity name is kebab-case ('issue-labels') but model is registered as camelCase ('issueLabels')
+    // Validation should match by table._name ('issue_labels'), not by registry key
+    const app = createServer({
+      basePath: '/',
+      db: mockDatabaseClient,
+      entities: [
+        {
+          kind: 'entity',
+          name: 'issue-labels',
+          model: issueLabelsModel,
+          inject: {},
+          access: { list: () => true, get: () => true },
+          before: {},
+          after: {},
+          actions: {},
+          relations: {},
+        },
+      ] as never[],
+    });
+
+    // Exercise the bridge adapter — an HTTP request must reach the camelCase delegate
+    const listRes = await app.handler(new Request('http://localhost/api/issue-labels'));
+    expect(listRes.status).toBe(200);
+    const body = await listRes.json();
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0].name).toBe('Bug');
+  });
+
   it('throws when entity model is not registered in DatabaseClient', () => {
     const tasksTable = d.table('tasks', {
       id: d.uuid().primary(),
@@ -284,7 +351,7 @@ describe('createServer', () => {
           },
         ] as never[],
       }),
-    ).toThrow(/Entity "tasks" is not registered in createDb/);
+    ).toThrow(/Entity "tasks" references table "tasks" — not registered in createDb/);
   });
 
   it('lists all missing entity names in the error message', () => {
@@ -356,7 +423,9 @@ describe('createServer', () => {
           },
         ] as never[],
       }),
-    ).toThrow(/"tasks", "projects"/);
+    ).toThrow(
+      /Entity "tasks" references table "tasks".*Entity "projects" references table "projects"/,
+    );
   });
 
   it('does not throw when all entity models are registered in DatabaseClient', () => {

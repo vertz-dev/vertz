@@ -29,7 +29,7 @@ export const db = createDb({
     issues: issuesModel,
     comments: commentsModel,
     labels: labelsModel,
-    'issue-labels': issueLabelsModel,
+    issueLabels: issueLabelsModel,
   },
   dialect: 'sqlite',
   path: DB_PATH,
