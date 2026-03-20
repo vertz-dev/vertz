@@ -198,6 +198,19 @@ describe('Composed DatePicker', () => {
     });
   });
 
+  describe('Given a ComposedDatePicker without captionLayout', () => {
+    describe('When rendered', () => {
+      it('Then the calendar does not render <select> elements (default buttons layout)', () => {
+        const root = ComposedDatePicker({
+          defaultMonth: new Date(2025, 5, 1),
+        });
+        container.appendChild(root);
+        const selects = root.querySelectorAll('select');
+        expect(selects.length).toBe(0);
+      });
+    });
+  });
+
   describe('Given a ComposedDatePicker with captionLayout="dropdown"', () => {
     describe('When rendered', () => {
       it('Then the calendar header contains <select> elements for month and year', () => {

@@ -1,7 +1,7 @@
 # DatePicker `captionLayout` Prop Forwarding
 
 **Issue:** #1586
-**Status:** Design
+**Status:** Implemented
 
 ## Summary
 
