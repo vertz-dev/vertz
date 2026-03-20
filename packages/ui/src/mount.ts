@@ -117,8 +117,13 @@ export function mount<AppFn extends () => Element | DocumentFragment>(
       // popScope() — so cleanup functions register in the mount scope.
       // Kept outside the hydration try/catch: if an onMount throws, it must
       // NOT trigger CSR fallback (hydration already succeeded, DOM is intact).
-      flushDeferredMounts();
-      popScope();
+      // Wrap in try/finally to ensure popScope() always runs even if an
+      // onMount callback throws — prevents scope stack corruption.
+      try {
+        flushDeferredMounts();
+      } finally {
+        popScope();
+      }
       options?.onMount?.(root);
       const handle: MountHandle = {
         unmount: () => {

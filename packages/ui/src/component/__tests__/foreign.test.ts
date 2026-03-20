@@ -77,7 +77,7 @@ describe('Foreign — CSR', () => {
     expect(readyEl!.tagName).toBe('CANVAS');
   });
 
-  it('supports SVG tag', () => {
+  it('supports SVG tag with className', () => {
     let readyEl: Element | null = null;
 
     const App = () => {
@@ -87,6 +87,7 @@ describe('Foreign — CSR', () => {
         el,
         Foreign({
           tag: 'svg',
+          className: 'chart-svg',
           onReady: (container) => {
             readyEl = container;
           },
@@ -100,6 +101,8 @@ describe('Foreign — CSR', () => {
 
     expect(readyEl).not.toBeNull();
     expect(readyEl!.tagName.toLowerCase()).toBe('svg');
+    // className is set via setAttribute — works for SVG elements
+    expect(readyEl!.getAttribute('class')).toBe('chart-svg');
   });
 
   it('applies id, className and style', () => {

@@ -22,8 +22,9 @@ export interface ForeignProps {
    * Return a cleanup function for unmount.
    *
    * This is the sole way to access the container element.
+   * For SVG tags, cast to the appropriate SVG element type.
    */
-  onReady?: (container: HTMLElement) => (() => void) | void;
+  onReady?: (container: HTMLElement | SVGElement) => (() => void) | void;
 
   /** Element id */
   id?: string;
@@ -52,19 +53,19 @@ export interface ForeignProps {
  * because it's a framework primitive that uses `__element()` directly.
  */
 export function Foreign({ tag = 'div', onReady, id, className, style }: ForeignProps): Element {
-  // Cast to HTMLElement — __element returns Element for the union tag type,
-  // but all HTML/SVG elements support id, className, and style.
-  const el = __element(tag) as HTMLElement;
+  const el = __element(tag);
   // NO __enterChildren(el) — do not walk into children during hydration.
   // The cursor advances past this element, leaving its children untouched.
 
   if (id) el.id = id;
-  if (className) el.className = className;
-  if (style) Object.assign(el.style, style);
+  // Use setAttribute for className — works for both HTML and SVG elements.
+  // SVG elements have className as SVGAnimatedString, not a plain string.
+  if (className) el.setAttribute('class', className);
+  if (style) Object.assign((el as HTMLElement).style, style);
 
   // SSR safety: skip onReady during server-side rendering.
   if (onReady && !getSSRContext()) {
-    onMount(() => onReady(el as HTMLElement));
+    onMount(() => onReady(el as HTMLElement | SVGElement));
   }
 
   return el;

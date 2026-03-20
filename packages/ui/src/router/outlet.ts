@@ -91,49 +91,51 @@ export function Outlet(): HTMLElement {
             let node!: Node;
             childCleanups = pushScope();
 
-            if (wasHydrating) {
-              // Re-enter hydration scoped to this container so the
-              // lazy component claims SSR nodes via __element()
-              // instead of creating new ones.
-              // Wrap with beginDeferringMounts/flushDeferredMounts so
-              // onMount in the lazy component runs after mini-hydration.
-              beginDeferringMounts();
-              startHydration(container);
-              let miniHydrationOk = false;
-              try {
+            try {
+              if (wasHydrating) {
+                // Re-enter hydration scoped to this container so the
+                // lazy component claims SSR nodes via __element()
+                // instead of creating new ones.
+                // Wrap with beginDeferringMounts/flushDeferredMounts so
+                // onMount in the lazy component runs after mini-hydration.
+                beginDeferringMounts();
+                startHydration(container);
+                let miniHydrationOk = false;
+                try {
+                  RouterContext.Provider(router, () => {
+                    node = (mod as { default: () => Node }).default();
+                    __append(container, node);
+                  });
+                  miniHydrationOk = true;
+                } finally {
+                  endHydration();
+                  if (miniHydrationOk) {
+                    flushDeferredMounts();
+                  } else {
+                    discardDeferredMounts();
+                  }
+                }
+                // Safety fallback: if the component's root wasn't claimed
+                // (SSR/client tree mismatch), fall back to CSR append.
+                if (!container.contains(node)) {
+                  while (container.firstChild) {
+                    container.removeChild(container.firstChild);
+                  }
+                  container.appendChild(node);
+                }
+              } else {
+                // CSR: clear existing content and append the new component.
+                while (container.firstChild) {
+                  container.removeChild(container.firstChild);
+                }
                 RouterContext.Provider(router, () => {
                   node = (mod as { default: () => Node }).default();
                   __append(container, node);
                 });
-                miniHydrationOk = true;
-              } finally {
-                endHydration();
-                if (miniHydrationOk) {
-                  flushDeferredMounts();
-                } else {
-                  discardDeferredMounts();
-                }
               }
-              // Safety fallback: if the component's root wasn't claimed
-              // (SSR/client tree mismatch), fall back to CSR append.
-              if (!container.contains(node)) {
-                while (container.firstChild) {
-                  container.removeChild(container.firstChild);
-                }
-                container.appendChild(node);
-              }
-            } else {
-              // CSR: clear existing content and append the new component.
-              while (container.firstChild) {
-                container.removeChild(container.firstChild);
-              }
-              RouterContext.Provider(router, () => {
-                node = (mod as { default: () => Node }).default();
-                __append(container, node);
-              });
+            } finally {
+              popScope();
             }
-
-            popScope();
           });
         } else {
           __append(container, result);
