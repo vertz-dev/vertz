@@ -195,7 +195,7 @@ describe('Router Integration Tests', () => {
 
   // IT-6-6: Route error component renders when loader throws
   test('route error component renders when loader throws', async () => {
-    const errorComponent = (error: Error) => {
+    const errorComponent = ({ error }: { error: Error; retry: () => void }) => {
       const el = document.createElement('div');
       el.className = 'error';
       el.textContent = `Error: ${error.message}`;
@@ -229,7 +229,7 @@ describe('Router Integration Tests', () => {
     const errorFn = router.current.value?.route.errorComponent;
     expect(errorFn).toBeDefined();
     // biome-ignore lint/style/noNonNullAssertion: asserted non-null above
-    const errorNode = errorFn!(router.loaderError.value!);
+    const errorNode = errorFn!({ error: router.loaderError.value!, retry: () => {} });
     expect(errorNode.textContent).toBe('Error: Data fetch failed');
     expect((errorNode as HTMLElement).className).toBe('error');
   });

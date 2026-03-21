@@ -52,24 +52,3 @@ export const skeletonAnimation = {
   backgroundSize: '200% 100%',
   animation: `${shimmer} 1.5s ease-in-out infinite`,
 };
-
-// ── Error fallback ──────────────────────────────────────────
-
-export const errorFallbackStyles = css({
-  container: ['flex', 'flex-col', 'items:center', 'justify:center', 'py:12', 'text:center'],
-  title: ['font:lg', 'font:semibold', 'text:destructive', 'mb:2'],
-  message: ['text:sm', 'text:muted-foreground', 'mb:4', 'max-w:md'],
-  retryButton: [
-    'px:4',
-    'py:2',
-    'rounded:md',
-    'bg:primary',
-    'text:primary-foreground',
-    'text:sm',
-    'font:medium',
-    'cursor:pointer',
-    'border:0',
-    'transition:colors',
-    'hover:bg:primary.700',
-  ],
-});

@@ -5,6 +5,8 @@ export type { ChildrenAccessor, ChildValue } from './component/children';
 export { children, resolveChildren } from './component/children';
 export type { Context } from './component/context';
 export { createContext, useContext } from './component/context';
+export type { ErrorFallbackProps } from './component/default-error-fallback';
+export { DefaultErrorFallback } from './component/default-error-fallback';
 export type { ErrorBoundaryProps } from './component/error-boundary';
 export { ErrorBoundary } from './component/error-boundary';
 export type { ForeignProps } from './component/foreign';
