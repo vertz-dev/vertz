@@ -2,24 +2,18 @@
  * Shared test utilities for @vertz/og tests.
  */
 
+import { join } from 'node:path';
 import type { SatoriElement } from '../types';
 
 let cachedFont: ArrayBuffer | undefined;
 
-/** Load a test font (cached across calls within a test run). */
+/** Load a test font from the local fixture (no network calls). */
 export async function getTestFont(): Promise<ArrayBuffer> {
   if (cachedFont) return cachedFont;
 
-  const res = await fetch(
-    'https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400&display=swap&subset=latin',
-    { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' } },
-  );
-  const css = await res.text();
-  const match = css.match(/src:\s*url\(([^)]+)\)/);
-  if (!match?.[1]) throw new Error('Could not load test font');
-  const fontData = await fetch(match[1]).then((r) => r.arrayBuffer());
-  cachedFont = fontData;
-  return fontData;
+  const fontPath = join(import.meta.dir, 'fixtures', 'NotoSans-Regular-Latin.ttf');
+  cachedFont = await Bun.file(fontPath).arrayBuffer();
+  return cachedFont;
 }
 
 /** Standard font config for tests. */

@@ -27,6 +27,7 @@
   "scripts": {
     "build": "bunup",
     "test": "bun test",
+    "test:benchmark": "bun test src/graphics-benchmark.local.ts",
     "test:watch": "bun test --watch",
     "typecheck": "tsc --noEmit"
   },

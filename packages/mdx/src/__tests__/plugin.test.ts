@@ -1,18 +1,34 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 import { createMdxPlugin } from '../index';
 
-// Shared default plugin — reuses the same Shiki highlighter across tests.
+// Pre-created plugin instances — reuse Shiki highlighter across tests.
 // Without this, each test creates a new plugin instance that re-initializes
 // Shiki's WASM + grammar loading, causing >30s timeouts on CI runners.
 const defaultPlugin = createMdxPlugin();
+const jsxImportSourcePlugin = createMdxPlugin({ jsxImportSource: '@vertz/ui-server' });
+const noFrontmatterPlugin = createMdxPlugin({ remarkFrontmatter: false });
+const noShikiPlugin = createMdxPlugin({ shikiTheme: false });
+
+// Map of serialized options to pre-created plugins for test reuse
+const pluginCache = new Map<string, ReturnType<typeof createMdxPlugin>>();
+pluginCache.set(JSON.stringify({ jsxImportSource: '@vertz/ui-server' }), jsxImportSourcePlugin);
+pluginCache.set(JSON.stringify({ remarkFrontmatter: false }), noFrontmatterPlugin);
+pluginCache.set(JSON.stringify({ shikiTheme: false }), noShikiPlugin);
 
 // Helper: build an MDX file through the plugin, marking jsx-runtime as external.
-// Uses the shared default plugin unless custom options require a new instance.
+// Uses pre-created plugins where possible, falls back to new instances.
 async function buildMdx(content: string, options?: Parameters<typeof createMdxPlugin>[0]) {
   const path = `/tmp/vertz-mdx-test-${Date.now()}-${Math.random().toString(36).slice(2)}.mdx`;
   await Bun.write(path, content);
 
-  const plugin = options ? createMdxPlugin(options) : defaultPlugin;
+  let plugin: ReturnType<typeof createMdxPlugin>;
+  if (!options) {
+    plugin = defaultPlugin;
+  } else {
+    const key = JSON.stringify(options);
+    plugin = pluginCache.get(key) ?? createMdxPlugin(options);
+  }
+
   const result = await Bun.build({
     entrypoints: [path],
     plugins: [plugin],
@@ -36,11 +52,16 @@ describe('createMdxPlugin', () => {
 });
 
 describe('MDX compilation via Bun plugin', () => {
-  // Pre-warm the shared plugin: first Bun.build() + Shiki init is slow on CI
-  // runners (~15-30s). Paying the cost here prevents individual tests from timing out.
+  // Pre-warm ALL Shiki-enabled plugins: first Bun.build() + Shiki WASM init is
+  // slow on CI runners (~15-30s per instance). Paying the cost here prevents
+  // individual tests from timing out. noShikiPlugin doesn't need warm-up.
   beforeAll(async () => {
-    await buildMdx('# warm');
-  }, 60_000);
+    await Promise.all([
+      buildMdx('# warm-default'),
+      buildMdx('# warm-jsx', { jsxImportSource: '@vertz/ui-server' }),
+      buildMdx('# warm-no-frontmatter', { remarkFrontmatter: false }),
+    ]);
+  }, 120_000);
 
   it('compiles a simple MDX file to a JS module with MDXContent', async () => {
     const output = await buildMdx('# Hello World\n\nA paragraph.');

@@ -209,6 +209,9 @@ describe('createBunDevServer', () => {
   });
 
   it('restart() concurrent guard skips when already restarting', async () => {
+    // Restart does real I/O (dynamic imports, port binding) with retry delays
+    // of 100+200+500ms. On CI, the imports fail (no app.tsx), so all 3 retries
+    // run for both concurrent calls. 30s timeout accommodates slow CI runners.
     const logSpy = spyOn(console, 'log').mockImplementation(() => {});
     const errSpy = spyOn(console, 'error').mockImplementation(() => {});
     const server = createBunDevServer({
@@ -229,7 +232,7 @@ describe('createBunDevServer', () => {
 
     logSpy.mockRestore();
     errSpy.mockRestore();
-  });
+  }, 30_000);
 
   it('stop() can be called multiple times safely', async () => {
     const server = createBunDevServer({

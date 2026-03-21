@@ -60,7 +60,8 @@ describe('crypto', () => {
 
     it('decrypt returns null for tampered ciphertext', async () => {
       const ciphertext = await encrypt('secret data', TEST_KEY);
-      const tampered = `X${ciphertext.slice(1)}`;
+      const flipped = ciphertext[0] === 'X' ? 'Y' : 'X';
+      const tampered = `${flipped}${ciphertext.slice(1)}`;
       const result = await decrypt(tampered, TEST_KEY);
       expect(result).toBeNull();
     });
