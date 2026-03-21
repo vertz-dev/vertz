@@ -39,22 +39,31 @@ const routes = defineRoutes({
 
 const router = createRouter(routes);
 
-// ── App component ──────────────────────────────────────────
-function getInitialTheme(): 'dark' | 'light' {
-  if (typeof window !== 'undefined') {
-    const stored = localStorage.getItem('vertz-docs-theme');
-    if (stored === 'light' || stored === 'dark') return stored;
-  }
-  return 'dark';
+// ── Theme helpers ──────────────────────────────────────────
+function getThemeCookie(): 'dark' | 'light' | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(/(?:^|; )theme=(light|dark)/);
+  return (match?.[1] as 'dark' | 'light') ?? null;
 }
 
+function setThemeCookie(value: 'dark' | 'light'): void {
+  if (typeof document === 'undefined') return;
+  document.cookie = `theme=${value};path=/;max-age=31536000;SameSite=Lax`;
+}
+
+export function getInitialTheme(): 'dark' | 'light' {
+  return getThemeCookie() ?? 'dark';
+}
+
+// ── App component ──────────────────────────────────────────
 export function App() {
   let currentTheme: 'dark' | 'light' = getInitialTheme();
 
   function toggle() {
     currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('vertz-docs-theme', currentTheme);
+    setThemeCookie(currentTheme);
+    if (typeof document !== 'undefined') {
+      document.querySelector('[data-theme]')?.setAttribute('data-theme', currentTheme);
     }
   }
 
