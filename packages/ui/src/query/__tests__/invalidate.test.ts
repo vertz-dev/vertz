@@ -311,17 +311,20 @@ describe('invalidate()', () => {
       const result = query(descriptor);
       // Signals are not auto-unwrapped outside reactive context
       const loadingSig = result.loading as unknown as { value: boolean };
+      const dataSig = result.data as unknown as { value: unknown };
 
       // Wait for initial fetch to complete (needs multiple microtick flushes)
       vi.advanceTimersByTime(0);
       for (let i = 0; i < 5; i++) await Promise.resolve();
       expect(callCount).toBe(1);
       expect(loadingSig.value).toBe(false);
+      expect(dataSig.value).toBeDefined();
 
       // Trigger tenant invalidation — should clear data + refetch
       invalidateTenantQueries();
 
-      // After clearData, loading should be true and data should be cleared
+      // After clearData, data should be undefined and loading should be true
+      expect(dataSig.value).toBeUndefined();
       expect(loadingSig.value).toBe(true);
 
       // Let the refetch complete
@@ -329,6 +332,7 @@ describe('invalidate()', () => {
       for (let i = 0; i < 5; i++) await Promise.resolve();
       expect(callCount).toBe(2);
       expect(loadingSig.value).toBe(false);
+      expect(dataSig.value).toBeDefined();
     });
 
     it('does NOT clear data on non-tenant-scoped query', async () => {

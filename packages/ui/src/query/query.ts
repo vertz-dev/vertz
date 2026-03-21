@@ -899,8 +899,11 @@ export function query<T, E = unknown>(
         rawData.value = undefined;
         loading.value = true;
       });
+      // Use the actual cache key (may be dep-hash-derived) for cache deletion.
+      const cacheKey = untrack(() => getCacheKey());
+      cache.delete(cacheKey);
+      // queryIndices and envelopeStore are keyed by entity type or custom key.
       const queryKey = customKey ?? meta.entityType;
-      cache.delete(queryKey);
       getEntityStore().queryIndices.clear(queryKey);
       getQueryEnvelopeStore().delete(queryKey);
     };
