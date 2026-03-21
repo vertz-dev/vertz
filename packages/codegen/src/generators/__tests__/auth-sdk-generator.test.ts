@@ -127,6 +127,36 @@ describe('AuthSdkGenerator', () => {
       expect(content).toContain('export interface SwitchTenantInput');
       expect(content).toContain('export interface SwitchTenantResponse');
     });
+
+    it('emits TenantInfo and ListTenantsResponse only when listTenants exists', () => {
+      const irWithout = createIR([
+        { operationId: 'session', method: 'GET', path: '/session', hasBody: false },
+      ]);
+      const contentWithout = generator.generate(irWithout, {
+        outputDir: '.vertz',
+        options: {},
+      })[0].content;
+
+      expect(contentWithout).not.toContain('export interface TenantInfo');
+      expect(contentWithout).not.toContain('export interface ListTenantsResponse');
+
+      const irWith = createIR([
+        { operationId: 'listTenants', method: 'GET', path: '/tenants', hasBody: false },
+      ]);
+      const contentWith = generator.generate(irWith, {
+        outputDir: '.vertz',
+        options: {},
+      })[0].content;
+
+      expect(contentWith).toContain('export interface TenantInfo');
+      expect(contentWith).toContain('id: string');
+      expect(contentWith).toContain('name: string');
+      expect(contentWith).toContain('export interface ListTenantsResponse');
+      expect(contentWith).toContain('tenants: TenantInfo[]');
+      expect(contentWith).toContain('currentTenantId?: string');
+      expect(contentWith).toContain('lastTenantId?: string');
+      expect(contentWith).toContain('resolvedDefaultId?: string');
+    });
   });
 
   describe('AuthSdk interface', () => {
@@ -146,6 +176,19 @@ describe('AuthSdkGenerator', () => {
       expect(content).not.toContain('signUp:');
       expect(content).not.toContain('switchTenant:');
       expect(content).not.toContain('providers:');
+      expect(content).not.toContain('listTenants:');
+    });
+
+    it('includes listTenants method when listTenants operation exists', () => {
+      const ir = createIR([
+        { operationId: 'session', method: 'GET', path: '/session', hasBody: false },
+        { operationId: 'listTenants', method: 'GET', path: '/tenants', hasBody: false },
+      ]);
+      const content = generator.generate(ir, { outputDir: '.vertz', options: {} })[0].content;
+
+      expect(content).toContain(
+        'listTenants: () => Promise<Result<ListTenantsResponse, AuthError>>',
+      );
     });
 
     it('includes cookies() method', () => {
@@ -260,6 +303,7 @@ describe('AuthSdkGenerator', () => {
         { operationId: 'signIn', method: 'POST', path: '/signin', hasBody: true },
         { operationId: 'signUp', method: 'POST', path: '/signup', hasBody: true },
         { operationId: 'switchTenant', method: 'POST', path: '/switch-tenant', hasBody: true },
+        { operationId: 'listTenants', method: 'GET', path: '/tenants', hasBody: false },
         { operationId: 'providers', method: 'GET', path: '/providers', hasBody: false },
       ]);
       const content = generator.generate(ir, { outputDir: '.vertz', options: {} })[0].content;
@@ -269,6 +313,8 @@ describe('AuthSdkGenerator', () => {
       expect(content).toContain('export interface SignUpInput');
       expect(content).toContain('export interface SwitchTenantInput');
       expect(content).toContain('export interface SwitchTenantResponse');
+      expect(content).toContain('export interface TenantInfo');
+      expect(content).toContain('export interface ListTenantsResponse');
 
       // All SDK interface methods present
       expect(content).toContain('signIn: SdkMethodWithMeta');
@@ -277,6 +323,7 @@ describe('AuthSdkGenerator', () => {
       expect(content).toContain('signOut: () => Promise');
       expect(content).toContain('session: () => Promise');
       expect(content).toContain('refresh: () => Promise');
+      expect(content).toContain('listTenants: () => Promise');
       expect(content).toContain('providers: () => Promise');
     });
   });

@@ -127,6 +127,23 @@ export interface AuthError extends Error {
       lines.push('');
     }
 
+    if (hasOp('listTenants')) {
+      lines.push(`export interface TenantInfo {
+  id: string;
+  name: string;
+  [key: string]: unknown;
+}`);
+      lines.push('');
+
+      lines.push(`export interface ListTenantsResponse {
+  tenants: TenantInfo[];
+  currentTenantId?: string;
+  lastTenantId?: string;
+  resolvedDefaultId?: string;
+}`);
+      lines.push('');
+    }
+
     // SdkMethodWithMeta type (inline — avoids extra import dependency)
     lines.push(`type SdkMethodWithMeta<TBody, TResult> = ((body: TBody) => Promise<Result<TResult, AuthError>>) & {
   url: string;
@@ -155,6 +172,9 @@ export interface AuthError extends Error {
     }
     if (hasOp('refresh')) {
       lines.push('  refresh: () => Promise<Result<AuthResponse, AuthError>>;');
+    }
+    if (hasOp('listTenants')) {
+      lines.push('  listTenants: () => Promise<Result<ListTenantsResponse, AuthError>>;');
     }
     if (hasOp('providers')) {
       lines.push(
@@ -441,6 +461,8 @@ async function authFetch<T>(
         return 'SwitchTenantResponse';
       case 'session':
         return '{ session: AuthSession | null }';
+      case 'listTenants':
+        return 'ListTenantsResponse';
       case 'providers':
         return '{ id: string; name: string; authUrl: string }[]';
       default:

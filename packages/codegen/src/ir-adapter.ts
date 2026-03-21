@@ -321,12 +321,20 @@ function buildAuthOperations(features: AuthFeature[]): CodegenAuthOperation[] {
   }
 
   if (features.includes('tenant')) {
-    ops.push({
-      operationId: 'switchTenant',
-      method: 'POST',
-      path: '/switch-tenant',
-      hasBody: true,
-    });
+    ops.push(
+      {
+        operationId: 'switchTenant',
+        method: 'POST',
+        path: '/switch-tenant',
+        hasBody: true,
+      },
+      {
+        operationId: 'listTenants',
+        method: 'GET',
+        path: '/tenants',
+        hasBody: false,
+      },
+    );
   }
 
   if (features.includes('providers')) {
