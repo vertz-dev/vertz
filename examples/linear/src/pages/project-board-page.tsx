@@ -8,7 +8,7 @@ import { ManageLabelsDialog } from '../components/manage-labels-dialog';
 import { StatusColumn } from '../components/status-column';
 import { ViewToggle } from '../components/view-toggle';
 import { STATUSES } from '../lib/issue-config';
-import type { Issue, IssueLabel, IssueStatus, Label } from '../lib/types';
+import type { Issue, IssueStatus, Label } from '../lib/types';
 
 const styles = css({
   container: ['p:6'],
@@ -25,33 +25,33 @@ export function ProjectBoardPage() {
     api.issues.list({
       where: { projectId },
       select: { id: true, number: true, title: true, status: true, priority: true },
+      include: { labels: true },
     }),
   );
   const project = query(api.projects.get(projectId));
   const labelsQuery = query(
     api.labels.list({ where: { projectId }, select: { id: true, name: true, color: true } }),
   );
-  const issueLabelsQuery = query(
-    api.issueLabels.list({ select: { id: true, issueId: true, labelId: true } }),
-  );
   const stack = useDialogStack();
 
   let selectedLabelIds: string[] = [];
 
+  type IssueWithLabels = Issue & { labels?: Label[] };
+
   // Filter issues by selected labels, then group by status
-  const columns: { status: IssueStatus; label: string; items: Issue[] }[] = STATUSES.map((s) => {
-    let items = (issues.data?.items.filter((i) => i.status === s.value) ?? []) as Issue[];
-    if (selectedLabelIds.length > 0) {
-      const allIssueLabels = (issueLabelsQuery.data?.items ?? []) as IssueLabel[];
-      items = items.filter((issue) => {
-        const issueLabelIds = allIssueLabels
-          .filter((il) => il.issueId === issue.id)
-          .map((il) => il.labelId);
-        return selectedLabelIds.some((id) => issueLabelIds.includes(id));
-      });
-    }
-    return { status: s.value, label: s.label, items };
-  });
+  const columns: { status: IssueStatus; label: string; items: IssueWithLabels[] }[] = STATUSES.map(
+    (s) => {
+      let items = (issues.data?.items.filter((i) => i.status === s.value) ??
+        []) as IssueWithLabels[];
+      if (selectedLabelIds.length > 0) {
+        items = items.filter((issue) => {
+          const issueLabels = (issue.labels ?? []) as Label[];
+          return issueLabels.some((l) => selectedLabelIds.includes(l.id));
+        });
+      }
+      return { status: s.value, label: s.label, items };
+    },
+  );
 
   const handleNewIssue = async () => {
     await stack.open(CreateIssueDialog, { projectId });
@@ -98,8 +98,6 @@ export function ProjectBoardPage() {
               issues={col.items}
               projectKey={project.data?.key}
               projectId={projectId}
-              allLabels={(labelsQuery.data?.items ?? []) as Label[]}
-              issueLabels={(issueLabelsQuery.data?.items ?? []) as IssueLabel[]}
             />
           ))}
         </div>

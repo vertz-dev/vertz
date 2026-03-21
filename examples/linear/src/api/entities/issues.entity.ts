@@ -10,6 +10,38 @@ export const issues = entity('issues', {
     update: rules.authenticated(),
     delete: rules.all(rules.authenticated(), rules.where({ createdBy: rules.user.id })),
   },
+  expose: {
+    select: {
+      id: true,
+      projectId: true,
+      number: true,
+      title: true,
+      description: true,
+      status: true,
+      priority: true,
+      assigneeId: true,
+      createdBy: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+    allowWhere: { projectId: true, status: true, priority: true, assigneeId: true },
+    allowOrderBy: { number: true, createdAt: true, updatedAt: true, priority: true },
+    include: {
+      project: { select: { id: true, name: true, key: true } },
+      assignee: { select: { id: true, name: true, avatarUrl: true } },
+      comments: {
+        select: { id: true, body: true, authorId: true, createdAt: true },
+        allowOrderBy: { createdAt: true },
+        maxLimit: 100,
+        include: {
+          author: { select: { id: true, name: true, avatarUrl: true } },
+        },
+      },
+      labels: {
+        select: { id: true, name: true, color: true },
+      },
+    },
+  },
   before: {
     create: async (data, ctx) => {
       if (!ctx.userId) throw new UnauthorizedException('Authenticated user required');

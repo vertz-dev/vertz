@@ -1,5 +1,5 @@
 import { css, Link, ListTransition } from '@vertz/ui';
-import type { Issue, IssueLabel, Label } from '../lib/types';
+import type { Issue, Label } from '../lib/types';
 import { IssueCard } from './issue-card';
 
 const styles = css({
@@ -11,29 +11,16 @@ const styles = css({
   empty: ['text:xs', 'text:muted-foreground', 'px:2', 'py:4', 'text:center'],
 });
 
+type IssueWithLabels = Issue & { labels?: Label[] };
+
 interface StatusColumnProps {
   label: string;
-  issues: Issue[];
+  issues: IssueWithLabels[];
   projectKey?: string;
   projectId: string;
-  allLabels?: Label[];
-  issueLabels?: IssueLabel[];
 }
 
-export function StatusColumn({
-  label,
-  issues,
-  projectKey,
-  projectId,
-  allLabels,
-  issueLabels,
-}: StatusColumnProps) {
-  const getLabelsForIssue = (issueId: string): Label[] => {
-    if (!allLabels || !issueLabels) return [];
-    const labelIds = issueLabels.filter((il) => il.issueId === issueId).map((il) => il.labelId);
-    return allLabels.filter((l) => labelIds.includes(l.id));
-  };
-
+export function StatusColumn({ label, issues, projectKey, projectId }: StatusColumnProps) {
   return (
     <div
       className={styles.column}
@@ -47,13 +34,13 @@ export function StatusColumn({
         {issues.length === 0 && <div className={styles.empty}>No issues</div>}
         <ListTransition
           each={issues}
-          keyFn={(issue: Issue) => issue.id}
-          children={(issue: Issue) => (
+          keyFn={(issue: IssueWithLabels) => issue.id}
+          children={(issue: IssueWithLabels) => (
             <Link href={`/projects/${projectId}/issues/${issue.id}`}>
               <IssueCard
                 issue={issue}
                 projectKey={projectKey}
-                labels={getLabelsForIssue(issue.id)}
+                labels={(issue.labels ?? []) as Label[]}
               />
             </Link>
           )}

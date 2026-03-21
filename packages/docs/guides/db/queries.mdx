@@ -96,6 +96,8 @@ const result = await db.users.list({
 
 ### Include relations
 
+Load related data in a single query instead of making separate API calls:
+
 ```ts
 const result = await db.posts.list({
   include: { author: true, comments: true },
@@ -110,6 +112,47 @@ Narrow included relations to specific fields:
 include: {
   author: { select: { id: true, name: true } },
 }
+```
+
+Filter, sort, and limit included relations:
+
+```ts
+include: {
+  comments: {
+    where: { status: 'approved' },
+    orderBy: { createdAt: 'desc' },
+    limit: 10,
+  },
+}
+```
+
+Nest includes up to 3 levels deep:
+
+```ts
+include: {
+  comments: {
+    orderBy: { createdAt: 'desc' },
+    include: {
+      author: { select: { id: true, name: true } },
+    },
+  },
+}
+// result.data.items[0].comments[0].author.name
+```
+
+Many-to-many relations work through join tables — define a `.through()` relation in your model and include it like any other:
+
+```ts
+// Schema
+const postsModel = d.model(postsTable, {
+  tags: d.ref.many(() => tagsTable).through(() => postTagsTable, 'postId', 'tagId'),
+});
+
+// Query — join table is traversed automatically
+const result = await db.posts.list({
+  include: { tags: true },
+});
+// result.data.items[0].tags — Tag[] resolved through the join table
 ```
 
 ### Count

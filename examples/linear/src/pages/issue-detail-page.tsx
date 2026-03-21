@@ -5,7 +5,7 @@ import { LabelPicker } from '../components/label-picker';
 import { IssueDetailSkeleton } from '../components/loading-skeleton';
 import { PrioritySelect } from '../components/priority-select';
 import { StatusSelect } from '../components/status-select';
-import type { IssueLabel, IssuePriority, IssueStatus, Label } from '../lib/types';
+import type { Comment, IssueLabel, IssuePriority, IssueStatus, Label } from '../lib/types';
 
 const styles = css({
   container: ['p:6'],
@@ -33,15 +33,18 @@ const styles = css({
 
 export function IssueDetailPage() {
   const { projectId, issueId } = useParams<'/projects/:projectId/issues/:issueId'>();
-  const issue = query(api.issues.get(issueId));
-  const project = query(api.projects.get(projectId));
-  const comments = query(
-    api.comments.list({
-      where: { issueId },
-      select: { id: true, body: true, authorId: true, createdAt: true },
+  const issue = query(
+    api.issues.get(issueId, {
+      include: {
+        project: true,
+        comments: {
+          orderBy: { createdAt: 'asc' },
+          include: { author: true },
+        },
+        labels: true,
+      },
     }),
   );
-  const users = query(api.users.list({ select: { id: true, name: true, avatarUrl: true } }));
   const labelsQuery = query(
     api.labels.list({ where: { projectId }, select: { id: true, name: true, color: true } }),
   );
@@ -54,17 +57,18 @@ export function IssueDetailPage() {
 
   let updateError = '';
 
-  // Build user lookup map for author resolution.
-  // Must be a single declarative expression so the compiler wraps it in computed()
-  // and re-evaluates when users.data loads.
-  const userMap: Record<string, { name: string; avatarUrl: string | null }> = users.data?.items
-    ? Object.fromEntries(
-        users.data.items.map((u) => [
-          u.id,
-          { name: u.name, avatarUrl: u.avatarUrl as string | null },
-        ]),
-      )
-    : {};
+  interface IncludedComment {
+    id: string;
+    body: string;
+    authorId: string;
+    createdAt: string;
+    author?: { id: string; name: string; avatarUrl: string | null };
+  }
+
+  // biome-ignore lint/suspicious/noExplicitAny: issue.data includes nested relations from include
+  const issueData = issue.data as Record<string, any> | undefined;
+  const issueComments = (issueData?.comments ?? []) as IncludedComment[];
+  const projectData = issueData?.project as { key?: string } | undefined;
 
   const handleStatusChange = async (status: IssueStatus) => {
     const res = await api.issues.update(issueId, { status });
@@ -104,7 +108,7 @@ export function IssueDetailPage() {
         <div className={styles.layout}>
           <div className={styles.main}>
             <div className={styles.identifier}>
-              {`${project.data?.key ?? '...'}-${issue.data.number}`}
+              {`${projectData?.key ?? '...'}-${issue.data.number}`}
             </div>
             <h2 className={styles.title}>{issue.data.title}</h2>
             {issue.data.description ? (
@@ -117,10 +121,17 @@ export function IssueDetailPage() {
             </div>
 
             <CommentSection
-              comments={comments.data?.items ?? []}
-              loading={comments.loading}
+              comments={issueComments as Comment[]}
+              loading={issue.loading}
               issueId={issueId}
-              userMap={userMap}
+              userMap={Object.fromEntries(
+                issueComments
+                  .filter((c) => c.author)
+                  .map((c) => [
+                    c.authorId,
+                    { name: c.author!.name, avatarUrl: c.author!.avatarUrl ?? null },
+                  ]),
+              )}
               onCommentAdded={() => {}}
             />
           </div>

@@ -8,7 +8,7 @@ import { IssueListSkeleton } from '../components/loading-skeleton';
 import { ManageLabelsDialog } from '../components/manage-labels-dialog';
 import { StatusFilter } from '../components/status-filter';
 import { ViewToggle } from '../components/view-toggle';
-import type { Issue, IssueLabel, Label } from '../lib/types';
+import type { Issue, Label } from '../lib/types';
 import { emptyStateStyles } from '../styles/components';
 
 const styles = css({
@@ -26,26 +26,17 @@ export function IssueListPage() {
     api.issues.list({
       where: { projectId },
       select: { id: true, number: true, title: true, status: true, priority: true },
+      include: { labels: true },
     }),
   );
   const project = query(api.projects.get(projectId));
   const labelsQuery = query(
     api.labels.list({ where: { projectId }, select: { id: true, name: true, color: true } }),
   );
-  const issueLabelsQuery = query(
-    api.issueLabels.list({ select: { id: true, issueId: true, labelId: true } }),
-  );
   const stack = useDialogStack();
 
   let statusFilter = 'all';
   let selectedLabelIds: string[] = [];
-
-  const getLabelsForIssue = (issueId: string): Label[] => {
-    const allLabels = (labelsQuery.data?.items ?? []) as Label[];
-    const allIssueLabels = (issueLabelsQuery.data?.items ?? []) as IssueLabel[];
-    const labelIds = allIssueLabels.filter((il) => il.issueId === issueId).map((il) => il.labelId);
-    return allLabels.filter((l) => labelIds.includes(l.id));
-  };
 
   const filtered = (() => {
     let items = issues.data?.items;
@@ -54,12 +45,9 @@ export function IssueListPage() {
       items = items.filter((i) => i.status === statusFilter);
     }
     if (selectedLabelIds.length > 0) {
-      const allIssueLabels = (issueLabelsQuery.data?.items ?? []) as IssueLabel[];
       items = items.filter((issue) => {
-        const issueLabelIds = allIssueLabels
-          .filter((il) => il.issueId === issue.id)
-          .map((il) => il.labelId);
-        return selectedLabelIds.some((id) => issueLabelIds.includes(id));
+        const issueLabels = ((issue as Issue & { labels?: Label[] }).labels ?? []) as Label[];
+        return issueLabels.some((l) => selectedLabelIds.includes(l.id));
       });
     }
     return items;
@@ -132,7 +120,7 @@ export function IssueListPage() {
               <IssueRow
                 issue={issue as Issue}
                 projectKey={project.data?.key}
-                labels={getLabelsForIssue(issue.id)}
+                labels={((issue as Issue & { labels?: Label[] }).labels ?? []) as Label[]}
               />
             </Link>
           ))}

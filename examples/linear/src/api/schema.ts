@@ -78,6 +78,9 @@ export const issuesTable = d.table('issues', {
 export const issuesModel = d.model(issuesTable, {
   project: d.ref.one(() => projectsTable, 'projectId'),
   assignee: d.ref.one(() => usersTable, 'assigneeId'),
+  comments: d.ref.many(() => commentsTable, 'issueId'),
+  issueLabels: d.ref.many(() => issueLabelsTable, 'issueId'),
+  labels: d.ref.many(() => labelsTable).through(() => issueLabelsTable, 'issueId', 'labelId'),
 });
 
 // ---------------------------------------------------------------------------

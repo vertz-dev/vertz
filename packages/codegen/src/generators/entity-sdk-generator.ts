@@ -134,7 +134,9 @@ export class EntitySdkGenerator implements Generator {
           lines.push(`    get: Object.assign(`);
           if (op.outputSchema) {
             lines.push(`      <K extends keyof ${outputType} = keyof ${outputType}>(`);
-            lines.push(`        id: string, options?: { select?: Record<K, true> },`);
+            lines.push(
+              `        id: string, options?: { select?: Record<K, true> } & Record<string, unknown>,`,
+            );
             lines.push(`      ) => {`);
             lines.push(`        const resolvedQuery = resolveVertzQL(options);`);
             lines.push(
