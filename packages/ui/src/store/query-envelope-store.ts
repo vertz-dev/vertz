@@ -24,6 +24,10 @@ export class QueryEnvelopeStore {
     this._envelopes.set(queryKey, envelope);
   }
 
+  delete(queryKey: string): void {
+    this._envelopes.delete(queryKey);
+  }
+
   clear(): void {
     this._envelopes.clear();
   }

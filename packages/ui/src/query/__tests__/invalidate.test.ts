@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 import { createDescriptor } from '@vertz/fetch';
 import { popScope, pushScope, runCleanups } from '../../runtime/disposal';
 import type { DisposeFn } from '../../runtime/signal-types';
+import { disableTestSSR, enableTestSSR } from '../../ssr/test-ssr-helpers';
 import { resetMutationEventBus } from '../../store/mutation-event-bus-singleton';
 import {
   __registrySize,
@@ -280,6 +281,88 @@ describe('invalidate()', () => {
     });
   });
 
+  describe('integration: invalidateTenantQueries() with query()', () => {
+    let scope: DisposeFn[];
+
+    beforeEach(() => {
+      scope = pushScope();
+    });
+    afterEach(() => {
+      popScope();
+      runCleanups(scope);
+    });
+
+    it('clears data and sets loading before refetch on tenant-scoped query', async () => {
+      let callCount = 0;
+      const descriptor = createDescriptor(
+        'GET',
+        '/tasks',
+        () => {
+          callCount++;
+          return Promise.resolve({
+            ok: true as const,
+            data: { data: { items: [{ id: '1', title: `call-${callCount}` }] } },
+          });
+        },
+        undefined,
+        { entityType: 'tasks', kind: 'list', tenantScoped: true },
+      );
+
+      const result = query(descriptor);
+      // Signals are not auto-unwrapped outside reactive context
+      const loadingSig = result.loading as unknown as { value: boolean };
+
+      // Wait for initial fetch to complete (needs multiple microtick flushes)
+      vi.advanceTimersByTime(0);
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+      expect(callCount).toBe(1);
+      expect(loadingSig.value).toBe(false);
+
+      // Trigger tenant invalidation — should clear data + refetch
+      invalidateTenantQueries();
+
+      // After clearData, loading should be true and data should be cleared
+      expect(loadingSig.value).toBe(true);
+
+      // Let the refetch complete
+      vi.advanceTimersByTime(0);
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+      expect(callCount).toBe(2);
+      expect(loadingSig.value).toBe(false);
+    });
+
+    it('does NOT clear data on non-tenant-scoped query', async () => {
+      let callCount = 0;
+      const descriptor = createDescriptor(
+        'GET',
+        '/settings',
+        () => {
+          callCount++;
+          return Promise.resolve({
+            ok: true as const,
+            data: { data: { items: [{ id: '1', name: 'global' }] } },
+          });
+        },
+        undefined,
+        { entityType: 'settings', kind: 'list', tenantScoped: false },
+      );
+
+      const result = query(descriptor);
+      const loadingSig = result.loading as unknown as { value: boolean };
+
+      vi.advanceTimersByTime(0);
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+      expect(callCount).toBe(1);
+      expect(loadingSig.value).toBe(false);
+
+      invalidateTenantQueries();
+
+      // Non-tenant query should be untouched
+      expect(loadingSig.value).toBe(false);
+      expect(callCount).toBe(1);
+    });
+  });
+
   describe('invalidateTenantQueries()', () => {
     describe('Given registered queries with mixed tenantScoped flags', () => {
       it('Then only queries with tenantScoped=true call refetch', () => {
@@ -389,6 +472,22 @@ describe('invalidate()', () => {
 
         registerActiveQuery({ entityType: 'tasks', kind: 'list' }, refetch);
 
+        invalidateTenantQueries();
+
+        expect(refetch).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('Given SSR context is active', () => {
+      afterEach(() => {
+        disableTestSSR();
+      });
+
+      it('Then it is a no-op — does not call refetch', () => {
+        const refetch = vi.fn();
+        registerActiveQuery({ entityType: 'tasks', kind: 'list', tenantScoped: true }, refetch);
+
+        enableTestSSR();
         invalidateTenantQueries();
 
         expect(refetch).not.toHaveBeenCalled();
