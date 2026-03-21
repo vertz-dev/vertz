@@ -26,7 +26,7 @@ export type HoverCardClassKey = keyof HoverCardClasses;
 // ---------------------------------------------------------------------------
 
 interface HoverCardContextValue {
-  isOpen: boolean;
+  isOpen: () => boolean;
   contentId: string;
   triggerRef: Ref<HTMLSpanElement>;
   contentRef: Ref<HTMLDivElement>;
@@ -77,7 +77,7 @@ function HoverCardTrigger({ children }: SlotProps) {
   const childEl = childNodes.find((c): c is HTMLElement => c instanceof HTMLElement);
   if (childEl) {
     childEl.setAttribute('aria-haspopup', 'dialog');
-    childEl.setAttribute('aria-expanded', ctx.isOpen ? 'true' : 'false');
+    childEl.setAttribute('aria-expanded', ctx.isOpen() ? 'true' : 'false');
     childEl.addEventListener('focus', () => ctx.showImmediate());
     childEl.addEventListener('blur', () => ctx.hide());
   }
@@ -99,15 +99,16 @@ function HoverCardTrigger({ children }: SlotProps) {
 
 function HoverCardContent({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useHoverCardContext('Content');
+  const isOpen = ctx.isOpen();
   return (
     <div
       ref={ctx.contentRef}
       role="dialog"
       id={ctx.contentId}
       data-hovercard-content=""
-      aria-hidden={ctx.isOpen ? 'false' : 'true'}
-      data-state={ctx.isOpen ? 'open' : 'closed'}
-      style={{ display: ctx.isOpen ? '' : 'none' }}
+      aria-hidden={isOpen ? 'false' : 'true'}
+      data-state={isOpen ? 'open' : 'closed'}
+      style={{ display: isOpen ? '' : 'none' }}
       class={cn(ctx.classes?.content, cls ?? classProp)}
       onMouseenter={() => ctx.cancelCloseTimer()}
       onMouseleave={() => ctx.hide()}
@@ -224,7 +225,7 @@ function ComposedHoverCardRoot({
   }
 
   const ctx: HoverCardContextValue = {
-    isOpen,
+    isOpen: () => isOpen,
     contentId,
     triggerRef,
     contentRef,
