@@ -34,14 +34,6 @@ export const formStyles = css({
   error: ['text:xs', 'text:destructive', 'mt:1'],
 });
 
-// ── Empty state ─────────────────────────────────────────────
-
-export const emptyStateStyles = css({
-  container: ['flex', 'flex-col', 'items:center', 'justify:center', 'py:12', 'text:center'],
-  title: ['font:lg', 'font:semibold', 'text:foreground', 'mb:1'],
-  description: ['text:sm', 'text:muted-foreground', 'mb:4'],
-});
-
 // ── Loading skeleton ────────────────────────────────────────
 
 const shimmer = keyframes('linear-shimmer', {

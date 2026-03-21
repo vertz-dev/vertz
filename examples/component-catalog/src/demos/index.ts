@@ -16,6 +16,7 @@ import { DatePickerDemo } from './date-picker';
 import { DialogDemo } from './dialog';
 import { DrawerDemo } from './drawer';
 import { DropdownMenuDemo } from './dropdown-menu';
+import { EmptyStateDemo } from './empty-state';
 import { FormGroupDemo } from './form-group';
 import { HoverCardDemo } from './hover-card';
 import { InputDemo } from './input';
@@ -230,6 +231,13 @@ export const componentRegistry: ComponentEntry[] = [
     category: 'data-display',
     description: 'Loading placeholder with pulse animation.',
     demo: SkeletonDemo,
+  },
+  {
+    name: 'EmptyState',
+    slug: 'empty-state',
+    category: 'data-display',
+    description: 'Placeholder for empty data with icon, title, and action.',
+    demo: EmptyStateDemo,
   },
   {
     name: 'Progress',

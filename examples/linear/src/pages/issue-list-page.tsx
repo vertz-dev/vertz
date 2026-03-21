@@ -1,5 +1,5 @@
 import { css, Link, query, useDialogStack, useParams } from '@vertz/ui';
-import { Button } from '@vertz/ui/components';
+import { Button, EmptyState } from '@vertz/ui/components';
 import { api } from '../api/client';
 import { CreateIssueDialog } from '../components/create-issue-dialog';
 import { IssueRow } from '../components/issue-row';
@@ -9,7 +9,6 @@ import { ManageLabelsDialog } from '../components/manage-labels-dialog';
 import { StatusFilter } from '../components/status-filter';
 import { ViewToggle } from '../components/view-toggle';
 import type { Issue, Label } from '../lib/types';
-import { emptyStateStyles } from '../styles/components';
 
 const styles = css({
   container: ['p:6'],
@@ -97,10 +96,10 @@ export function IssueListPage() {
       )}
 
       {!issues.loading && !issues.error && issues.data?.items.length === 0 && (
-        <div className={emptyStateStyles.container} data-testid="issues-empty">
-          <h3 className={emptyStateStyles.title}>No issues yet</h3>
-          <p className={emptyStateStyles.description}>Create your first issue to get started.</p>
-        </div>
+        <EmptyState data-testid="issues-empty">
+          <EmptyState.Title>No issues yet</EmptyState.Title>
+          <EmptyState.Description>Create your first issue to get started.</EmptyState.Description>
+        </EmptyState>
       )}
 
       {!issues.loading &&
@@ -108,9 +107,9 @@ export function IssueListPage() {
         filtered &&
         filtered.length === 0 &&
         issues.data?.items.length !== 0 && (
-          <div className={emptyStateStyles.container} data-testid="filter-empty">
-            <p className={emptyStateStyles.description}>No issues match the selected filter.</p>
-          </div>
+          <EmptyState data-testid="filter-empty">
+            <EmptyState.Description>No issues match the selected filter.</EmptyState.Description>
+          </EmptyState>
         )}
 
       {filtered && filtered.length > 0 && (
