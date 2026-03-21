@@ -1,9 +1,13 @@
-import { describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from 'bun:test';
 import { onCleanup, popScope, pushScope, runCleanups } from '../../runtime/disposal';
 import { domEffect, signal } from '../../runtime/signal';
-import { __list } from '../list';
+import { __list, _resetUnkeyedListWarning } from '../list';
 
 describe('__list', () => {
+  afterEach(() => {
+    _resetUnkeyedListWarning();
+  });
+
   it('renders initial items', () => {
     const items = signal([
       { id: 1, text: 'A' },
@@ -849,6 +853,234 @@ describe('__list', () => {
         // Expected in strict mode
       }
       expect(original?.name).toBe('A');
+    });
+  });
+
+  describe('unkeyed list (null keyFn)', () => {
+    it('produces correct content when items are filtered', () => {
+      const items = signal([
+        { id: 1, text: 'A' },
+        { id: 2, text: 'B' },
+        { id: 3, text: 'C' },
+      ]);
+      const container = document.createElement('ul');
+      __list(container, items, null, (item) => {
+        const li = document.createElement('li');
+        li.textContent = item.text;
+        return li;
+      });
+
+      expect(container.children.length).toBe(3);
+      expect(container.children[0]?.textContent).toBe('A');
+
+      // Filter to only the last item
+      items.value = [{ id: 3, text: 'C' }];
+
+      expect(container.children.length).toBe(1);
+      // Must show 'C', not stale 'A'
+      expect(container.children[0]?.textContent).toBe('C');
+    });
+
+    it('produces correct content when items are reordered', () => {
+      const items = signal([
+        { id: 1, text: 'A' },
+        { id: 2, text: 'B' },
+        { id: 3, text: 'C' },
+      ]);
+      const container = document.createElement('ul');
+      __list(container, items, null, (item) => {
+        const li = document.createElement('li');
+        li.textContent = item.text;
+        return li;
+      });
+
+      items.value = [
+        { id: 3, text: 'C' },
+        { id: 1, text: 'A' },
+        { id: 2, text: 'B' },
+      ];
+
+      expect(container.children.length).toBe(3);
+      expect(container.children[0]?.textContent).toBe('C');
+      expect(container.children[1]?.textContent).toBe('A');
+      expect(container.children[2]?.textContent).toBe('B');
+    });
+
+    it('works correctly with primitive items (strings)', () => {
+      const items = signal(['Alice', 'Bob', 'Charlie']);
+      const container = document.createElement('ul');
+      __list(container, items, null, (item) => {
+        const li = document.createElement('li');
+        li.textContent = item;
+        return li;
+      });
+
+      expect(container.children.length).toBe(3);
+      expect(container.children[0]?.textContent).toBe('Alice');
+
+      // Filter to last item
+      items.value = ['Charlie'];
+
+      expect(container.children.length).toBe(1);
+      expect(container.children[0]?.textContent).toBe('Charlie');
+    });
+
+    it('disposes item scopes when items are removed', () => {
+      const items = signal([
+        { id: 1, text: 'A' },
+        { id: 2, text: 'B' },
+      ]);
+      const cleanedUp: string[] = [];
+
+      const container = document.createElement('ul');
+      __list(container, items, null, (item) => {
+        onCleanup(() => {
+          cleanedUp.push(item.text);
+        });
+        const li = document.createElement('li');
+        li.textContent = item.text;
+        return li;
+      });
+
+      expect(cleanedUp).toEqual([]);
+
+      // Replace with a single new item — all old items should be cleaned up
+      items.value = [{ id: 3, text: 'C' }];
+      expect(cleanedUp).toContain('A');
+      expect(cleanedUp).toContain('B');
+      expect(container.children.length).toBe(1);
+      expect(container.children[0]?.textContent).toBe('C');
+    });
+
+    it('recreates all nodes on every update (no stale reuse)', () => {
+      const items = signal([
+        { id: 1, text: 'A' },
+        { id: 2, text: 'B' },
+      ]);
+      let renderCount = 0;
+      const container = document.createElement('ul');
+      __list(container, items, null, (item) => {
+        renderCount++;
+        const li = document.createElement('li');
+        li.textContent = item.text;
+        return li;
+      });
+
+      expect(renderCount).toBe(2);
+
+      // Update with same-shaped data — full replacement means all re-rendered
+      items.value = [
+        { id: 1, text: 'A' },
+        { id: 2, text: 'B' },
+      ];
+
+      expect(renderCount).toBe(4);
+    });
+
+    it('emits a console.warn once when keyFn is null', () => {
+      _resetUnkeyedListWarning();
+      const originalWarn = console.warn;
+      const warnings: string[] = [];
+      console.warn = (...args: unknown[]) => {
+        warnings.push(String(args[0]));
+      };
+
+      try {
+        const items1 = signal([{ id: 1, text: 'A' }]);
+        const items2 = signal([{ id: 2, text: 'B' }]);
+        const container1 = document.createElement('ul');
+        const container2 = document.createElement('ul');
+
+        __list(container1, items1, null, (item) => {
+          const li = document.createElement('li');
+          li.textContent = item.text;
+          return li;
+        });
+        __list(container2, items2, null, (item) => {
+          const li = document.createElement('li');
+          li.textContent = item.text;
+          return li;
+        });
+
+        // Should only warn once, not per list instance
+        expect(warnings.length).toBe(1);
+        expect(warnings[0]).toContain('key');
+      } finally {
+        console.warn = originalWarn;
+      }
+    });
+
+    it('handles going from non-empty to empty', () => {
+      const items = signal([
+        { id: 1, text: 'A' },
+        { id: 2, text: 'B' },
+      ]);
+      const cleanedUp: string[] = [];
+
+      const container = document.createElement('ul');
+      __list(container, items, null, (item) => {
+        onCleanup(() => {
+          cleanedUp.push(item.text);
+        });
+        const li = document.createElement('li');
+        li.textContent = item.text;
+        return li;
+      });
+
+      expect(container.children.length).toBe(2);
+
+      items.value = [];
+
+      expect(container.children.length).toBe(0);
+      expect(cleanedUp).toContain('A');
+      expect(cleanedUp).toContain('B');
+    });
+
+    it('handles going from empty to non-empty', () => {
+      const items = signal<{ id: number; text: string }[]>([]);
+      const container = document.createElement('ul');
+      __list(container, items, null, (item) => {
+        const li = document.createElement('li');
+        li.textContent = item.text;
+        return li;
+      });
+
+      expect(container.children.length).toBe(0);
+
+      items.value = [
+        { id: 1, text: 'A' },
+        { id: 2, text: 'B' },
+      ];
+
+      expect(container.children.length).toBe(2);
+      expect(container.children[0]?.textContent).toBe('A');
+      expect(container.children[1]?.textContent).toBe('B');
+    });
+
+    it('preserves pre-existing children', () => {
+      const items = signal([
+        { id: 1, text: 'A' },
+        { id: 2, text: 'B' },
+      ]);
+      const container = document.createElement('div');
+      const titleDiv = document.createElement('div');
+      titleDiv.textContent = 'Title';
+      container.appendChild(titleDiv);
+
+      __list(container, items, null, (item) => {
+        const el = document.createElement('span');
+        el.textContent = item.text;
+        return el;
+      });
+
+      expect(container.children.length).toBe(3);
+      expect(container.children[0]).toBe(titleDiv);
+
+      items.value = [{ id: 3, text: 'C' }];
+
+      expect(container.children.length).toBe(2);
+      expect(container.children[0]).toBe(titleDiv);
+      expect(container.children[1]?.textContent).toBe('C');
     });
   });
 

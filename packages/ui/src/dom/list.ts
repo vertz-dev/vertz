@@ -3,6 +3,16 @@ import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disp
 import { domEffect, signal } from '../runtime/signal';
 import type { DisposeFn, Signal } from '../runtime/signal-types';
 
+/** Deduplicate the "no key" warning — fire once per application, not per list. */
+let unkeyedListWarned = false;
+
+/**
+ * @internal Reset the warning flag — for tests only.
+ */
+export function _resetUnkeyedListWarning(): void {
+  unkeyedListWarned = false;
+}
+
 /**
  * Create a reactive proxy over an item signal.
  * Property accesses read from `itemSignal.value`, so any domEffect
@@ -78,14 +88,15 @@ function createItemProxy<T>(itemSignal: Signal<T>): T {
  * @param items - A signal or getter function containing the array of items.
  *   The compiler generates `() => signal.value` as a getter; the runtime
  *   also accepts a raw Signal for direct use in tests.
- * @param keyFn - Extracts a unique key from each item (receives item and index)
+ * @param keyFn - Extracts a unique key from each item (receives item and index).
+ *   Pass `null` for unkeyed lists — triggers full-replacement mode (safe but slower).
  * @param renderFn - Creates a DOM node for an item (called once per key)
  * @returns A dispose function to stop the reactive list reconciliation
  */
 export function __list<T>(
   container: HTMLElement,
   items: Signal<T[]> | (() => T[]),
-  keyFn: (item: T, index: number) => string | number,
+  keyFn: ((item: T, index: number) => string | number) | null,
   renderFn: (item: T) => Node,
 ): DisposeFn {
   // Normalize items access: compiler passes a getter `() => signal.value`,
@@ -99,6 +110,15 @@ export function __list<T>(
   // Map from key to the item signal — updated when the item at a key changes,
   // triggering reactive bindings inside the node via the proxy.
   const itemSignalMap = new Map<string | number, Signal<T>>();
+
+  if (!keyFn && !unkeyedListWarned) {
+    unkeyedListWarned = true;
+    console.warn(
+      '[vertz] .map() without a key prop uses full-replacement mode (slower). ' +
+        'Add a key prop to list items for efficient updates: ' +
+        '{items.map(item => <Item key={item.id} />)}',
+    );
+  }
 
   const isHydrationRun = getIsHydrating();
 
@@ -126,21 +146,57 @@ export function __list<T>(
       // and populate nodeMap/scopeMap. Skip DOM reconciliation — nodes
       // are already in the correct order.
       for (const [i, item] of newItems.entries()) {
-        const key = keyFn(item, i);
-        const itemSig = signal(item);
-        const proxy = createItemProxy(itemSig);
+        const key = keyFn ? keyFn(item, i) : i;
         const scope = pushScope();
-        const node = renderFn(proxy);
+        if (keyFn) {
+          // Keyed: wrap in proxy for reactive updates on key reuse
+          const itemSig = signal(item);
+          const proxy = createItemProxy(itemSig);
+          const node = renderFn(proxy);
+          itemSignalMap.set(key, itemSig);
+          nodeMap.set(key, node);
+        } else {
+          // Unkeyed: no proxy needed — nodes will be fully replaced on updates
+          const node = renderFn(item);
+          nodeMap.set(key, node);
+        }
         popScope();
-        nodeMap.set(key, node);
         scopeMap.set(key, scope);
-        itemSignalMap.set(key, itemSig);
       }
       // Compute offset: total children minus list-managed children
       startOffset = container.childNodes.length - nodeMap.size;
       return;
     }
     isFirstRun = false;
+
+    // Unkeyed mode: full replacement — dispose all existing nodes,
+    // create all new ones. Safe default when no key prop is provided.
+    if (!keyFn) {
+      // Dispose all existing item scopes
+      for (const scope of scopeMap.values()) {
+        runCleanups(scope);
+      }
+      scopeMap.clear();
+      // Remove all existing list-managed nodes from DOM
+      for (const node of nodeMap.values()) {
+        node.parentNode?.removeChild(node);
+      }
+      nodeMap.clear();
+      itemSignalMap.clear();
+
+      // Create fresh nodes for all items
+      for (const item of newItems) {
+        const scope = pushScope();
+        const node = renderFn(item);
+        popScope();
+        container.appendChild(node);
+        const internalKey = nodeMap.size;
+        nodeMap.set(internalKey, node);
+        scopeMap.set(internalKey, scope);
+      }
+      fixUpSelectValue(container);
+      return;
+    }
 
     const newKeySet = new Set(newItems.map((item, i) => keyFn(item, i)));
 
@@ -195,15 +251,7 @@ export function __list<T>(
       }
     }
 
-    // Fix up <select> elements: some DOM implementations (happy-dom) lose
-    // option.selected IDL state when options are inserted sequentially.
-    // Re-apply from the selected attribute which __prop mirrors.
-    if (container.tagName === 'SELECT') {
-      const selected = container.querySelector('option[selected]') as HTMLOptionElement | null;
-      if (selected) {
-        Reflect.set(container, 'value', selected.value);
-      }
-    }
+    fixUpSelectValue(container);
   });
   popScope();
 
@@ -220,4 +268,18 @@ export function __list<T>(
   _tryOnCleanup(wrapper);
 
   return wrapper;
+}
+
+/**
+ * Fix up <select> elements: some DOM implementations (happy-dom) lose
+ * option.selected IDL state when options are inserted sequentially.
+ * Re-apply from the selected attribute which __prop mirrors.
+ */
+function fixUpSelectValue(container: HTMLElement): void {
+  if (container.tagName === 'SELECT') {
+    const selected = container.querySelector('option[selected]') as HTMLOptionElement | null;
+    if (selected) {
+      Reflect.set(container, 'value', selected.value);
+    }
+  }
 }

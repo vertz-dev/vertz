@@ -810,7 +810,7 @@ function tryTransformList(
 /**
  * Extract a key function from the callback body.
  * Looks for a `key` prop on the outermost JSX element.
- * Falls back to index-based key if no key prop is found.
+ * Falls back to `null` for safe full-replacement mode if no key prop is found.
  */
 function extractKeyFunction(
   callbackBody: Node,
@@ -831,11 +831,8 @@ function extractKeyFunction(
     }
   }
 
-  // Fallback: use index if available, otherwise use a stringified item
-  if (indexParam) {
-    return `(_item, ${indexParam}) => ${indexParam}`;
-  }
-  return `(_item, __i) => __i`;
+  // No key prop found — emit null for safe full-replacement mode in __list
+  return 'null';
 }
 
 /**
