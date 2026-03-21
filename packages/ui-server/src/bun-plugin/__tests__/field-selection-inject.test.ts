@@ -456,6 +456,93 @@ function TaskDetail() {
     });
   });
 
+  describe('Given a parent passing data to a child that the manifest cannot resolve', () => {
+    it('Then falls back to opaque (no injection) to prevent under-fetching', () => {
+      const parentSource = `
+import { query } from '@vertz/ui';
+import { IssueRow } from './issue-row';
+
+function IssueList() {
+  const issues = query(api.issues.list());
+  return <div>{issues.data.items.map(issue => <IssueRow issue={issue} key={issue.id} />)}</div>;
+}`;
+
+      const manifest = new FieldSelectionManifest();
+      // Register the file but with NO matching component (simulates the child
+      // file being found but the component not being analyzable)
+      manifest.registerFile(
+        '/src/issue-row.tsx',
+        `
+        // Non-exported or non-PascalCase — the analyzer can't track it
+        const helper = (x: any) => x;
+      `,
+      );
+
+      const resolveImport = (spec: string, _from: string): string | undefined => {
+        if (spec === './issue-row') return '/src/issue-row.tsx';
+        return undefined;
+      };
+      manifest.setImportResolver(resolveImport);
+
+      const result = injectFieldSelection('test.tsx', parentSource, { manifest, resolveImport });
+
+      // Should NOT inject a narrow select — the child's fields are unknown
+      // so we must fall back to opaque (fetch all fields)
+      expect(result.injected).toBe(false);
+      expect(result.diagnostics[0]?.hasOpaqueAccess).toBe(true);
+    });
+  });
+
+  describe('Given a parent importing a child via a barrel file', () => {
+    it('Then follows re-exports to resolve child component fields', () => {
+      const parentSource = `
+import { query } from '@vertz/ui';
+import { IssueRow } from './components';
+
+function IssueList() {
+  const issues = query(api.issues.list());
+  return <div>{issues.data.items.map(issue => <IssueRow issue={issue} key={issue.id} />)}</div>;
+}`;
+
+      const manifest = new FieldSelectionManifest();
+      const resolveImport = (spec: string, from: string): string | undefined => {
+        if (spec === './components' && from === 'test.tsx') return '/src/components/index.ts';
+        if (spec === './issue-row' && from === '/src/components/index.ts') {
+          return '/src/components/issue-row.tsx';
+        }
+        return undefined;
+      };
+      manifest.setImportResolver(resolveImport);
+
+      // Barrel file
+      manifest.registerFile(
+        '/src/components/index.ts',
+        `
+        export { IssueRow } from './issue-row';
+      `,
+      );
+
+      // Actual component
+      manifest.registerFile(
+        '/src/components/issue-row.tsx',
+        `
+        export function IssueRow({ issue }: Props) {
+          return <div>{issue.title}<span>#{issue.number}</span><span>{issue.status}</span></div>;
+        }
+      `,
+      );
+
+      const result = injectFieldSelection('test.tsx', parentSource, { manifest, resolveImport });
+
+      expect(result.code).toContain('select:');
+      expect(result.code).toContain('id: true');
+      expect(result.code).toContain('number: true');
+      expect(result.code).toContain('status: true');
+      expect(result.code).toContain('title: true');
+      expect(result.injected).toBe(true);
+    });
+  });
+
   describe('Given no manifest provided (Phase 1 backward compat)', () => {
     it('Then only uses single-file fields', () => {
       const source = `

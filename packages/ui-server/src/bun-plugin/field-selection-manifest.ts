@@ -8,18 +8,53 @@
  * Supports:
  * - Direct field access on props
  * - Transitive resolution through prop forwarding chains (A → B → C)
+ * - Re-export following (barrel files → defining files)
  * - Incremental updates for HMR
  * - Conservative fallback for unresolvable imports
  */
 import type { ComponentPropFields, PropFieldAccess } from '@vertz/ui-compiler';
 import { analyzeComponentPropFields } from '@vertz/ui-compiler';
+import { ts } from 'ts-morph';
 
 export interface ResolvedPropFields {
   fields: string[];
   hasOpaqueAccess: boolean;
 }
 
+export interface ReExportEntry {
+  /** Exported name (or '*' for star re-exports) */
+  name: string;
+  /** Import specifier (e.g., './issue-row') */
+  source: string;
+}
+
 type ImportResolver = (specifier: string, fromFile: string) => string | undefined;
+
+/**
+ * Parse re-export statements from source text.
+ * Detects: `export { Foo } from './bar'` and `export * from './bar'`
+ */
+function parseReExports(sourceText: string, filePath: string): ReExportEntry[] {
+  const sourceFile = ts.createSourceFile(filePath, sourceText, ts.ScriptTarget.Latest, true);
+  const reExports: ReExportEntry[] = [];
+
+  for (const stmt of sourceFile.statements) {
+    if (!ts.isExportDeclaration(stmt) || !stmt.moduleSpecifier) continue;
+    const source = stmt.moduleSpecifier.getText(sourceFile).replace(/^['"]|['"]$/g, '');
+
+    if (!stmt.exportClause) {
+      // export * from './bar'
+      reExports.push({ name: '*', source });
+    } else if (ts.isNamedExports(stmt.exportClause)) {
+      // export { Foo, Bar } from './bar'
+      for (const el of stmt.exportClause.elements) {
+        reExports.push({ name: el.name.getText(sourceFile), source });
+      }
+    }
+  }
+
+  return reExports;
+}
 
 /**
  * Cross-file field selection manifest.
@@ -27,6 +62,8 @@ type ImportResolver = (specifier: string, fromFile: string) => string | undefine
 export class FieldSelectionManifest {
   /** filePath → ComponentPropFields[] */
   private fileComponents = new Map<string, ComponentPropFields[]>();
+  /** filePath → ReExportEntry[] */
+  private fileReExports = new Map<string, ReExportEntry[]>();
   private importResolver: ImportResolver = () => undefined;
   /** Cache for resolved fields (cleared on updates) */
   private resolvedCache = new Map<string, ResolvedPropFields>();
@@ -36,12 +73,14 @@ export class FieldSelectionManifest {
   }
 
   /**
-   * Register a file's component prop fields.
+   * Register a file's component prop fields and re-exports.
    * Called during initial scan and incremental updates.
    */
   registerFile(filePath: string, sourceText: string): void {
     const components = analyzeComponentPropFields(filePath, sourceText);
     this.fileComponents.set(filePath, components);
+    const reExports = parseReExports(sourceText, filePath);
+    this.fileReExports.set(filePath, reExports);
     this.resolvedCache.clear();
   }
 
@@ -58,6 +97,10 @@ export class FieldSelectionManifest {
       this.resolvedCache.clear();
     }
 
+    // Always update re-exports
+    const reExports = parseReExports(sourceText, filePath);
+    this.fileReExports.set(filePath, reExports);
+
     return { changed };
   }
 
@@ -66,24 +109,65 @@ export class FieldSelectionManifest {
    */
   deleteFile(filePath: string): void {
     this.fileComponents.delete(filePath);
+    this.fileReExports.delete(filePath);
     this.resolvedCache.clear();
   }
 
   /**
    * Get raw (non-transitively-resolved) component prop fields.
+   * Follows re-exports if the component isn't directly defined in the file.
    */
   getComponentPropFields(
     filePath: string,
     componentName: string,
     propName: string,
   ): PropFieldAccess | undefined {
+    // Direct lookup
     const components = this.fileComponents.get(filePath);
-    if (!components) return undefined;
+    if (components) {
+      const component = components.find((c) => c.componentName === componentName);
+      if (component) return component.props[propName];
+    }
 
-    const component = components.find((c) => c.componentName === componentName);
-    if (!component) return undefined;
+    // Follow re-exports
+    return this.followReExports(filePath, componentName, propName, new Set());
+  }
 
-    return component.props[propName];
+  /**
+   * Follow re-export chains to find the defining file of a component.
+   */
+  private followReExports(
+    filePath: string,
+    componentName: string,
+    propName: string,
+    visited: Set<string>,
+  ): PropFieldAccess | undefined {
+    if (visited.has(filePath)) return undefined; // Circular
+    visited.add(filePath);
+
+    const reExports = this.fileReExports.get(filePath);
+    if (!reExports) return undefined;
+
+    for (const re of reExports) {
+      // Match named re-export or star re-export
+      if (re.name !== componentName && re.name !== '*') continue;
+
+      const targetPath = this.importResolver(re.source, filePath);
+      if (!targetPath) continue;
+
+      // Try direct lookup at the target
+      const targetComponents = this.fileComponents.get(targetPath);
+      if (targetComponents) {
+        const component = targetComponents.find((c) => c.componentName === componentName);
+        if (component) return component.props[propName];
+      }
+
+      // Recurse for chained re-exports
+      const result = this.followReExports(targetPath, componentName, propName, visited);
+      if (result) return result;
+    }
+
+    return undefined;
   }
 
   /**

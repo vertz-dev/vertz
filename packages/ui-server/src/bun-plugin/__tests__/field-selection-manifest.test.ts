@@ -168,6 +168,90 @@ describe('FieldSelectionManifest', () => {
     });
   });
 
+  describe('Given a component re-exported from a barrel file', () => {
+    it('Then resolves fields by following the re-export to the defining file', () => {
+      const manifest = new FieldSelectionManifest();
+      const resolveImport = (spec: string, from: string): string | undefined => {
+        if (spec === './issue-row' && from === '/src/components/index.ts') {
+          return '/src/components/issue-row.tsx';
+        }
+        return undefined;
+      };
+      manifest.setImportResolver(resolveImport);
+
+      // Barrel file re-exports
+      manifest.registerFile(
+        '/src/components/index.ts',
+        `
+        export { IssueRow } from './issue-row';
+        export { IssueCard } from './issue-card';
+      `,
+      );
+
+      // Actual defining file
+      manifest.registerFile(
+        '/src/components/issue-row.tsx',
+        `
+        export function IssueRow({ issue }: Props) {
+          return <div>{issue.title}<span>#{issue.number}</span></div>;
+        }
+      `,
+      );
+
+      // Look up through the barrel path — should follow re-export
+      const fields = manifest.getResolvedPropFields(
+        '/src/components/index.ts',
+        'IssueRow',
+        'issue',
+      );
+
+      expect(fields).toBeDefined();
+      expect(fields!.fields).toContain('title');
+      expect(fields!.fields).toContain('number');
+      expect(fields!.hasOpaqueAccess).toBe(false);
+    });
+  });
+
+  describe('Given a star re-export from a barrel file', () => {
+    it('Then resolves fields by following the star re-export', () => {
+      const manifest = new FieldSelectionManifest();
+      const resolveImport = (spec: string, from: string): string | undefined => {
+        if (spec === './issue-row' && from === '/src/components/index.ts') {
+          return '/src/components/issue-row.tsx';
+        }
+        return undefined;
+      };
+      manifest.setImportResolver(resolveImport);
+
+      // Barrel with star re-export
+      manifest.registerFile(
+        '/src/components/index.ts',
+        `
+        export * from './issue-row';
+      `,
+      );
+
+      // Actual defining file
+      manifest.registerFile(
+        '/src/components/issue-row.tsx',
+        `
+        export function IssueRow({ issue }: Props) {
+          return <div>{issue.title}</div>;
+        }
+      `,
+      );
+
+      const fields = manifest.getResolvedPropFields(
+        '/src/components/index.ts',
+        'IssueRow',
+        'issue',
+      );
+
+      expect(fields).toBeDefined();
+      expect(fields!.fields).toContain('title');
+    });
+  });
+
   describe('Given a file is deleted', () => {
     it('Then removes it from the manifest', () => {
       const manifest = new FieldSelectionManifest();
