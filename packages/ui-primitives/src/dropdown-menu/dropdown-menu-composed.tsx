@@ -6,7 +6,7 @@
  */
 
 import type { ChildValue, Ref } from '@vertz/ui';
-import { createContext, onMount, ref, useContext } from '@vertz/ui';
+import { createContext, ref, useContext } from '@vertz/ui';
 import { cn } from '../composed/cn';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
@@ -31,7 +31,7 @@ export interface DropdownMenuClasses {
 // ---------------------------------------------------------------------------
 
 interface DropdownMenuContextValue {
-  isOpen: boolean;
+  isOpen: () => boolean;
   contentId: string;
   contentRef: Ref<HTMLDivElement>;
   classes?: DropdownMenuClasses;
@@ -85,42 +85,21 @@ interface GroupProps extends SlotProps {
 function MenuTrigger({ children }: SlotProps) {
   const ctx = useDropdownMenuContext('Trigger');
 
-  // Forward ARIA attrs and events to the user's child element.
-  onMount(() => {
-    const childNodes = Array.isArray(children) ? children : [children];
-    const childEl = childNodes.find((c): c is HTMLElement => c instanceof HTMLElement);
-    if (!childEl) return;
-
-    childEl.setAttribute('aria-haspopup', 'menu');
-    childEl.setAttribute('aria-controls', ctx.contentId);
-    childEl.setAttribute('aria-expanded', ctx.isOpen ? 'true' : 'false');
-    childEl.setAttribute('data-state', ctx.isOpen ? 'open' : 'closed');
-
-    const handleClick = () => ctx.toggle();
-    const handleKeydown = (event: KeyboardEvent) => {
-      if (isKey(event, Keys.ArrowDown, Keys.Enter, Keys.Space)) {
-        event.preventDefault();
-        if (!ctx.isOpen) ctx.open(true);
-      }
-    };
-
-    childEl.addEventListener('click', handleClick);
-    childEl.addEventListener('keydown', handleKeydown);
-
-    return () => {
-      childEl.removeEventListener('click', handleClick);
-      childEl.removeEventListener('keydown', handleKeydown);
-    };
-  });
-
   return (
     <span
       style={{ display: 'contents' }}
       data-dropdownmenu-trigger=""
       aria-haspopup="menu"
       aria-controls={ctx.contentId}
-      aria-expanded={ctx.isOpen ? 'true' : 'false'}
-      data-state={ctx.isOpen ? 'open' : 'closed'}
+      aria-expanded="false"
+      data-state="closed"
+      onClick={() => ctx.toggle()}
+      onKeydown={(event: KeyboardEvent) => {
+        if (isKey(event, Keys.ArrowDown, Keys.Enter, Keys.Space)) {
+          event.preventDefault();
+          if (!ctx.isOpen()) ctx.open(true);
+        }
+      }}
     >
       {children}
     </span>
@@ -143,9 +122,9 @@ function MenuContent({ children, className: cls, class: classProp }: SlotProps) 
       tabindex="-1"
       id={ctx.contentId}
       data-dropdownmenu-content=""
-      aria-hidden={ctx.isOpen ? 'false' : 'true'}
-      data-state={ctx.isOpen ? 'open' : 'closed'}
-      style={{ display: ctx.isOpen ? '' : 'none' }}
+      aria-hidden="true"
+      data-state="closed"
+      style={{ display: 'none' }}
       class={cn(ctx.classes?.content, cls ?? classProp)}
       onKeydown={(event: KeyboardEvent) => {
         if (isKey(event, Keys.Escape)) {
@@ -291,9 +270,25 @@ function ComposedDropdownMenuRoot({
     });
   }
 
+  function syncContentAttrs(): void {
+    const contentEl = getContentEl();
+    if (!contentEl) return;
+    const open = isOpen;
+    contentEl.style.display = open ? '' : 'none';
+    contentEl.setAttribute('aria-hidden', open ? 'false' : 'true');
+    contentEl.setAttribute('data-state', open ? 'open' : 'closed');
+    // Also update trigger attrs
+    const triggerEl = getTriggerEl();
+    if (triggerEl) {
+      triggerEl.setAttribute('aria-expanded', open ? 'true' : 'false');
+      triggerEl.setAttribute('data-state', open ? 'open' : 'closed');
+    }
+  }
+
   function open(activateFirst = false): void {
     isOpen = true;
     state.activeIndex = -1;
+    syncContentAttrs();
     onOpenChange?.(true);
 
     const contentEl = getContentEl();
@@ -324,6 +319,7 @@ function ComposedDropdownMenuRoot({
 
   function close(): void {
     isOpen = false;
+    syncContentAttrs();
     state.floatingCleanup?.();
     state.floatingCleanup = null;
     state.dismissCleanup?.();
@@ -339,7 +335,7 @@ function ComposedDropdownMenuRoot({
   }
 
   const ctx: DropdownMenuContextValue = {
-    isOpen,
+    isOpen: () => isOpen,
     contentId: ids.contentId,
     contentRef,
     classes,

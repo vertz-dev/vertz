@@ -16,6 +16,7 @@
 
 import type { ChildValue } from '../component/children';
 import { resolveChildren } from '../component/children';
+import { __attr } from '../dom/attributes';
 import { __append, __element, __enterChildren, __exitChildren } from '../dom/element';
 
 /** A child node: either a DOM Node or a string (text content). */
@@ -39,11 +40,17 @@ export interface ThemeProviderProps {
  *
  * Uses __element() directly (instead of jsx()) so the hydration cursor
  * walker can claim the existing SSR node during mount().
+ *
+ * Accepts `props` without destructuring so that the compiler-generated
+ * getter for `theme` stays alive — `__attr()` reads it inside a domEffect,
+ * making the attribute reactive when the parent passes a signal-backed value.
  */
-export function ThemeProvider({ theme = 'light', children }: ThemeProviderProps): HTMLElement {
-  const el = __element('div', { 'data-theme': theme });
+export function ThemeProvider(props: ThemeProviderProps): HTMLElement {
+  const el = __element('div');
+  // Reactive binding: re-runs when props.theme getter returns a new value
+  __attr(el, 'data-theme', () => props.theme ?? 'light');
   __enterChildren(el);
-  const nodes = resolveChildren(children as ChildValue);
+  const nodes = resolveChildren(props.children as ChildValue);
   for (const node of nodes) {
     __append(el, node);
   }
