@@ -110,6 +110,26 @@ function RenderTwoItems() {
   );
 }
 
+function RenderEmpty() {
+  return (
+    <RouterContext.Provider value={mockRouter}>
+      <ComposedBreadcrumb classes={classes} />
+    </RouterContext.Provider>
+  );
+}
+
+function RenderHrefAndCurrent() {
+  return (
+    <RouterContext.Provider value={mockRouter}>
+      <ComposedBreadcrumb classes={classes}>
+        <ComposedBreadcrumb.Item href="/conflict" current>
+          Conflict
+        </ComposedBreadcrumb.Item>
+      </ComposedBreadcrumb>
+    </RouterContext.Provider>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -140,7 +160,7 @@ describe('ComposedBreadcrumb', () => {
     const el = RenderSingle();
     const nav = el.querySelector('nav') ?? el;
     const ol = nav.querySelector('ol');
-    expect(ol!.className).toContain('bc-list');
+    expect(ol?.className).toContain('bc-list');
   });
 
   it('each Item renders as an li', () => {
@@ -155,10 +175,10 @@ describe('ComposedBreadcrumb', () => {
     const nav = el.querySelector('nav') ?? el;
     const anchors = nav.querySelectorAll('a');
     expect(anchors.length).toBe(2);
-    expect(anchors[0]!.getAttribute('href')).toBe('/');
-    expect(anchors[0]!.textContent).toBe('Home');
-    expect(anchors[1]!.getAttribute('href')).toBe('/products');
-    expect(anchors[1]!.textContent).toBe('Products');
+    expect(anchors[0]?.getAttribute('href')).toBe('/');
+    expect(anchors[0]?.textContent).toBe('Home');
+    expect(anchors[1]?.getAttribute('href')).toBe('/products');
+    expect(anchors[1]?.textContent).toBe('Products');
   });
 
   it('applies link class to anchor', () => {
@@ -166,7 +186,7 @@ describe('ComposedBreadcrumb', () => {
     const nav = el.querySelector('nav') ?? el;
     const anchor = nav.querySelector('a');
     expect(anchor).not.toBeNull();
-    expect(anchor!.className).toContain('bc-link');
+    expect(anchor?.className).toContain('bc-link');
   });
 
   it('Item with current renders span with aria-current="page"', () => {
@@ -174,7 +194,7 @@ describe('ComposedBreadcrumb', () => {
     const nav = el.querySelector('nav') ?? el;
     const pageSpan = nav.querySelector('[aria-current="page"]');
     expect(pageSpan).not.toBeNull();
-    expect(pageSpan!.textContent).toBe('Current');
+    expect(pageSpan?.textContent).toBe('Current');
   });
 
   it('applies page class to current span', () => {
@@ -182,7 +202,7 @@ describe('ComposedBreadcrumb', () => {
     const nav = el.querySelector('nav') ?? el;
     const pageSpan = nav.querySelector('[aria-current="page"]');
     expect(pageSpan).not.toBeNull();
-    expect(pageSpan!.className).toContain('bc-page');
+    expect(pageSpan?.className).toContain('bc-page');
   });
 
   it('current Item does not render a link', () => {
@@ -200,7 +220,7 @@ describe('ComposedBreadcrumb', () => {
     const li = nav.querySelector('li');
     expect(li).not.toBeNull();
     // The li textContent includes separator, so check for presence of our text
-    expect(li!.textContent).toContain('Plain Text');
+    expect(li?.textContent).toContain('Plain Text');
   });
 
   it('separator elements appear in each item', () => {
@@ -220,7 +240,7 @@ describe('ComposedBreadcrumb', () => {
     const nav = el.querySelector('nav') ?? el;
     const sep = nav.querySelector('[role="presentation"]');
     expect(sep).not.toBeNull();
-    expect(sep!.className).toContain('bc-separator');
+    expect(sep?.className).toContain('bc-separator');
   });
 
   it('custom separator text works', () => {
@@ -255,5 +275,57 @@ describe('ComposedBreadcrumb', () => {
     const nav = el.querySelector('nav') ?? el;
     expect(nav.tagName).toBe('NAV');
     expect(nav.getAttribute('aria-label')).toBe('Breadcrumb');
+  });
+
+  it('ol has inline list reset styles', () => {
+    const el = RenderSingle();
+    const nav = el.querySelector('nav') ?? el;
+    const ol = nav.querySelector('ol');
+    expect(ol).not.toBeNull();
+    expect(ol?.style.listStyle).toBe('none');
+    expect(ol?.style.margin).toBe('0px');
+    expect(ol?.style.padding).toBe('0px');
+  });
+
+  it('renders empty breadcrumb without crashing', () => {
+    const el = RenderEmpty();
+    const nav = el.querySelector('nav') ?? el;
+    expect(nav.tagName).toBe('NAV');
+    const ol = nav.querySelector('ol');
+    expect(ol).not.toBeNull();
+    expect(ol?.querySelectorAll('li').length).toBe(0);
+  });
+
+  it('first separator is in DOM for unstyled usage (theme hides via CSS)', () => {
+    const el = RenderUnstyled();
+    const nav = el.querySelector('nav') ?? el;
+    const separators = nav.querySelectorAll('[role="presentation"]');
+    // All items have separators — first one is hidden via theme CSS, not inline
+    expect(separators.length).toBe(2);
+    for (const sep of separators) {
+      expect(sep.getAttribute('aria-hidden')).toBe('true');
+    }
+  });
+
+  it('warns in dev mode when both href and current are set', () => {
+    const warns: string[] = [];
+    const origWarn = console.warn;
+    console.warn = (...args: unknown[]) => warns.push(String(args[0]));
+    try {
+      RenderHrefAndCurrent();
+      expect(warns.length).toBeGreaterThan(0);
+      expect(warns[0]).toContain('both "href" and "current"');
+    } finally {
+      console.warn = origWarn;
+    }
+  });
+
+  it('href + current renders as current (no link)', () => {
+    const el = RenderHrefAndCurrent();
+    const nav = el.querySelector('nav') ?? el;
+    const pageSpan = nav.querySelector('[aria-current="page"]');
+    expect(pageSpan).not.toBeNull();
+    expect(pageSpan?.textContent).toBe('Conflict');
+    expect(nav.querySelector('a')).toBeNull();
   });
 });

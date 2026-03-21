@@ -43,7 +43,7 @@ const BreadcrumbContext = createContext<BreadcrumbContextValue | undefined>(
 // ---------------------------------------------------------------------------
 
 export interface BreadcrumbItemProps {
-  children?: ChildValue;
+  children?: string | Node | (() => string | Node);
   /** Target path — renders as Link (SPA navigation). Omit for non-linked items. */
   href?: string;
   /** Marks this item as the current page (aria-current="page", no link). */
@@ -67,6 +67,12 @@ function BreadcrumbItem({
   const ctx = useContext(BreadcrumbContext);
   const separatorText = ctx?.separator ?? '/';
 
+  if (href && current) {
+    console.warn(
+      'Breadcrumb.Item: both "href" and "current" are set. "current" takes precedence — the link will not render.',
+    );
+  }
+
   const content = current ? (
     <span aria-current="page" class={cn(ctx?.classes?.page, className ?? classProp)}>
       {children}
@@ -75,7 +81,7 @@ function BreadcrumbItem({
     <Link
       href={href}
       className={cn(ctx?.classes?.link, className ?? classProp)}
-      children={(children ?? '') as string | Node | (() => string | Node)}
+      children={children ?? ''}
     />
   ) : (
     <span class={cn(ctx?.classes?.link, className ?? classProp)}>{children}</span>
@@ -115,7 +121,9 @@ function ComposedBreadcrumbRoot({
   return (
     <BreadcrumbContext.Provider value={{ classes, separator }}>
       <nav aria-label="Breadcrumb" class={cn(classes?.nav, className ?? classProp)}>
-        <ol class={cn(classes?.list)}>{children}</ol>
+        <ol class={cn(classes?.list)} style={{ listStyle: 'none', margin: '0', padding: '0' }}>
+          {children}
+        </ol>
       </nav>
     </BreadcrumbContext.Provider>
   );
