@@ -153,6 +153,57 @@ describe('Token Refresh', () => {
     expect(refreshResult.ok).toBe(false);
   });
 
+  it('refresh preserves tenantId in session', async () => {
+    const tenantAuth = createTestAuth({
+      tenant: {
+        verifyMembership: async (_userId: string, tenantId: string) => tenantId === 'tenant-a',
+      },
+    });
+
+    const signUpResult = await tenantAuth.api.signUp({
+      email: 'tenant-refresh@test.com',
+      password: 'password123',
+    });
+    expect(signUpResult.ok).toBe(true);
+    if (!signUpResult.ok) return;
+
+    // Switch to tenant-a to get a JWT with tenantId
+    const switchRes = await tenantAuth.handler(
+      new Request('http://localhost/api/auth/switch-tenant', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          cookie: `vertz.sid=${signUpResult.data.tokens?.jwt}`,
+        },
+        body: JSON.stringify({ tenantId: 'tenant-a' }),
+      }),
+    );
+    expect(switchRes.status).toBe(200);
+
+    // Get cookies from switch-tenant response
+    const switchCookies = switchRes.headers
+      .getSetCookie()
+      .map((c) => c.split(';')[0])
+      .join('; ');
+
+    // Extract refresh token from switch cookies
+    const refMatch = switchCookies.match(/vertz\.ref=([^;]+)/);
+    expect(refMatch).toBeTruthy();
+
+    // Refresh using the tenant-scoped session
+    const refreshResult = await tenantAuth.api.refreshSession({
+      headers: new Headers({
+        cookie: `vertz.ref=${refMatch?.[1]}`,
+      }),
+      request: new Request('http://localhost/api/auth/refresh'),
+    });
+    expect(refreshResult.ok).toBe(true);
+    if (!refreshResult.ok) return;
+
+    // Verify tenantId is preserved in the refreshed JWT
+    expect(refreshResult.data.payload.tenantId).toBe('tenant-a');
+  });
+
   it('refresh loads fresh user data', async () => {
     const signUpResult = await auth.api.signUp({
       email: 'freshdata@test.com',
