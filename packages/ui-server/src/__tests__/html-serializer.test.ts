@@ -92,4 +92,48 @@ describe('serializeToHtml', () => {
     };
     expect(serializeToHtml(node)).toBe('<div data-count="42"></div>');
   });
+
+  it('serializes fragment nodes by rendering children without a wrapper tag', () => {
+    const node: VNode = {
+      tag: 'fragment',
+      attrs: {},
+      children: [
+        { tag: 'p', attrs: {}, children: ['first'] },
+        { tag: 'p', attrs: {}, children: ['second'] },
+      ],
+    };
+    expect(serializeToHtml(node)).toBe('<p>first</p><p>second</p>');
+  });
+
+  it('serializes nested fragments', () => {
+    const node: VNode = {
+      tag: 'div',
+      attrs: {},
+      children: [
+        {
+          tag: 'fragment',
+          attrs: {},
+          children: [
+            { tag: 'span', attrs: {}, children: ['a'] },
+            { tag: 'span', attrs: {}, children: ['b'] },
+          ],
+        },
+      ],
+    };
+    expect(serializeToHtml(node)).toBe('<div><span>a</span><span>b</span></div>');
+  });
+
+  it('serializes empty fragments as empty string', () => {
+    const node: VNode = { tag: 'fragment', attrs: {}, children: [] };
+    expect(serializeToHtml(node)).toBe('');
+  });
+
+  it('serializes fragments with mixed text and element children', () => {
+    const node: VNode = {
+      tag: 'fragment',
+      attrs: {},
+      children: ['Hello ', { tag: 'strong', attrs: {}, children: ['world'] }, '!'],
+    };
+    expect(serializeToHtml(node)).toBe('Hello <strong>world</strong>!');
+  });
 });

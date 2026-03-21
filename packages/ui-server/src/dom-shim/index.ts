@@ -119,6 +119,17 @@ export function installDomShim(): void {
   // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
   (globalThis as any).document = fakeDocument;
 
+  // Window shim stubs — safe no-ops for SSR
+  const windowStubs: Record<string, unknown> = {
+    scrollTo: () => {},
+    scroll: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => true,
+    getComputedStyle: () => ({}),
+    matchMedia: () => ({ matches: false, addListener: () => {}, removeListener: () => {} }),
+  };
+
   // Provide a minimal window shim if not present
   if (typeof window === 'undefined') {
     // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
@@ -128,17 +139,24 @@ export function installDomShim(): void {
         pushState: () => {},
         replaceState: () => {},
       },
+      ...windowStubs,
     };
   } else {
     // CRITICAL FIX: Update window.location.pathname even if window already exists
     // This handles module caching where router.ts was already loaded but we're
     // rendering a different URL
     // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
-    (globalThis as any).window.location = {
-      // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
-      ...((globalThis as any).window.location || {}),
+    const win = (globalThis as any).window;
+    win.location = {
+      ...(win.location || {}),
       pathname: ssrStorage.getStore()?.url || '/',
     };
+    // Ensure window stubs exist even if window was pre-existing (e.g. re-entry)
+    for (const [key, val] of Object.entries(windowStubs)) {
+      if (typeof win[key] !== 'function') {
+        win[key] = val;
+      }
+    }
   }
 
   // Provide global DOM constructors for instanceof checks

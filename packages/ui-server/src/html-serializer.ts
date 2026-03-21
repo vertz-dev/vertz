@@ -69,6 +69,12 @@ export function serializeToHtml(node: VNode | string | RawHtml): string {
   }
 
   const { tag, attrs, children } = node;
+
+  // Fragment nodes should render children only, without a wrapper tag.
+  if (tag === 'fragment') {
+    return children.map((child) => serializeToHtml(child)).join('');
+  }
+
   const attrStr = serializeAttrs(attrs);
 
   if (VOID_ELEMENTS.has(tag)) {

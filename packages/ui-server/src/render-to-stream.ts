@@ -75,6 +75,12 @@ export function renderToStream(
     }
 
     const { tag, attrs, children } = node;
+
+    // Fragment nodes should render children only, without a wrapper tag.
+    if (tag === 'fragment') {
+      return children.map((child) => walkAndSerialize(child)).join('');
+    }
+
     const isRawText = RAW_TEXT_ELEMENTS.has(tag);
 
     const attrStr = Object.entries(attrs)
