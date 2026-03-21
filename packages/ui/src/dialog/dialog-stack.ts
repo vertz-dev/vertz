@@ -95,14 +95,14 @@ interface StackEntry {
  * The container renders after children — dialogs portal into it.
  */
 export function DialogStackProvider({ children }: { children?: unknown }): HTMLElement {
-  const container = __element('div', { 'data-dialog-container': '' }) as HTMLDivElement;
+  const container = __element('div', { 'data-dialog-container': '' });
   const stack = createDialogStack(container);
 
   return DialogStackContext.Provider({
     value: stack,
     children: () => {
       const frag = document.createDocumentFragment();
-      __insert(frag, children as Node | string | (() => unknown) | null | undefined);
+      __insert(frag, children as Parameters<typeof __insert>[1]);
       frag.appendChild(container);
       return frag;
     },
