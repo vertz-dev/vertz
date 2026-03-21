@@ -8,6 +8,7 @@
 import type { Result } from '@vertz/fetch';
 import { type Context, createContext, type UnwrapSignals, useContext } from '../component/context';
 import type { SdkMethodWithMeta } from '../form/form';
+import { invalidateTenantQueries } from '../query/invalidate';
 import { signal } from '../runtime/signal';
 import type { Signal } from '../runtime/signal-types';
 import { AuthContext } from './auth-context';
@@ -102,6 +103,7 @@ export function TenantProvider({
     if (result.ok) {
       currentTenantIdSignal.value = tenantId;
       lastTenantIdSignal.value = tenantId;
+      invalidateTenantQueries();
       onSwitchComplete?.(tenantId);
       return { ok: true, data: undefined };
     }

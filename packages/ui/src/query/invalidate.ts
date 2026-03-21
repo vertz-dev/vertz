@@ -1,8 +1,10 @@
 import type { EntityQueryMeta, QueryDescriptor } from '@vertz/fetch';
+import { getSSRContext } from '../ssr/ssr-render-context';
 
 interface QueryRegistration {
   entityMeta: EntityQueryMeta;
   refetch: () => void;
+  clearData?: () => void;
 }
 
 /**
@@ -16,8 +18,12 @@ const registry = new Set<QueryRegistration>();
  * Called by `query()` when entity metadata is present.
  * @internal
  */
-export function registerActiveQuery(entityMeta: EntityQueryMeta, refetch: () => void): () => void {
-  const registration: QueryRegistration = { entityMeta, refetch };
+export function registerActiveQuery(
+  entityMeta: EntityQueryMeta,
+  refetch: () => void,
+  clearData?: () => void,
+): () => void {
+  const registration: QueryRegistration = { entityMeta, refetch, clearData };
   registry.add(registration);
   return () => registry.delete(registration);
 }
@@ -56,6 +62,25 @@ export function invalidate<T, E>(descriptor: QueryDescriptor<T, E>): void {
     if (reg.entityMeta.entityType !== meta.entityType) continue;
     if (reg.entityMeta.kind !== meta.kind) continue;
     if (meta.kind === 'get' && reg.entityMeta.id !== meta.id) continue;
+    reg.refetch();
+  }
+}
+
+/**
+ * Invalidate all active queries targeting tenant-scoped entities.
+ * Clears cached data first (no SWR stale window), then refetches.
+ *
+ * Called automatically by TenantProvider after switchTenant() succeeds.
+ * Can also be called manually if needed.
+ *
+ * No-op during SSR.
+ */
+export function invalidateTenantQueries(): void {
+  if (getSSRContext() !== undefined) return;
+  // Snapshot to avoid re-entrancy issues if clearData/refetch modify the registry.
+  for (const reg of [...registry]) {
+    if (reg.entityMeta.tenantScoped !== true) continue;
+    reg.clearData?.();
     reg.refetch();
   }
 }

@@ -3,7 +3,13 @@ import { createDescriptor } from '@vertz/fetch';
 import { popScope, pushScope, runCleanups } from '../../runtime/disposal';
 import type { DisposeFn } from '../../runtime/signal-types';
 import { resetMutationEventBus } from '../../store/mutation-event-bus-singleton';
-import { __registrySize, invalidate, registerActiveQuery, resetQueryRegistry } from '../invalidate';
+import {
+  __registrySize,
+  invalidate,
+  invalidateTenantQueries,
+  registerActiveQuery,
+  resetQueryRegistry,
+} from '../invalidate';
 import { query, resetDefaultQueryCache } from '../query';
 
 describe('invalidate()', () => {
@@ -271,6 +277,122 @@ describe('invalidate()', () => {
       await Promise.resolve();
       // Should NOT have refetched after dispose
       expect(callCount).toBe(1);
+    });
+  });
+
+  describe('invalidateTenantQueries()', () => {
+    describe('Given registered queries with mixed tenantScoped flags', () => {
+      it('Then only queries with tenantScoped=true call refetch', () => {
+        const taskRefetch = vi.fn();
+        const templateRefetch = vi.fn();
+
+        registerActiveQuery({ entityType: 'tasks', kind: 'list', tenantScoped: true }, taskRefetch);
+        registerActiveQuery(
+          { entityType: 'templates', kind: 'list', tenantScoped: false },
+          templateRefetch,
+        );
+
+        invalidateTenantQueries();
+
+        expect(taskRefetch).toHaveBeenCalledOnce();
+        expect(templateRefetch).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('Given registered queries where none are tenantScoped', () => {
+      it('Then no queries are refetched', () => {
+        const refetch1 = vi.fn();
+        const refetch2 = vi.fn();
+
+        registerActiveQuery({ entityType: 'settings', kind: 'get', id: 'global' }, refetch1);
+        registerActiveQuery(
+          { entityType: 'templates', kind: 'list', tenantScoped: false },
+          refetch2,
+        );
+
+        invalidateTenantQueries();
+
+        expect(refetch1).not.toHaveBeenCalled();
+        expect(refetch2).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('Given both get and list tenant-scoped queries', () => {
+      it('Then both get and list queries call refetch', () => {
+        const listRefetch = vi.fn();
+        const getRefetch = vi.fn();
+
+        registerActiveQuery({ entityType: 'tasks', kind: 'list', tenantScoped: true }, listRefetch);
+        registerActiveQuery(
+          { entityType: 'tasks', kind: 'get', id: '1', tenantScoped: true },
+          getRefetch,
+        );
+
+        invalidateTenantQueries();
+
+        expect(listRefetch).toHaveBeenCalledOnce();
+        expect(getRefetch).toHaveBeenCalledOnce();
+      });
+    });
+
+    describe('Given queries with clearData callbacks', () => {
+      it('Then clearData is called before refetch for tenant-scoped queries', () => {
+        const order: string[] = [];
+        const clearData = vi.fn(() => order.push('clear'));
+        const refetch = vi.fn(() => order.push('refetch'));
+
+        registerActiveQuery(
+          { entityType: 'tasks', kind: 'list', tenantScoped: true },
+          refetch,
+          clearData,
+        );
+
+        invalidateTenantQueries();
+
+        expect(clearData).toHaveBeenCalledOnce();
+        expect(refetch).toHaveBeenCalledOnce();
+        expect(order).toEqual(['clear', 'refetch']);
+      });
+
+      it('Then clearData is NOT called for non-tenant-scoped queries', () => {
+        const clearData = vi.fn();
+        const refetch = vi.fn();
+
+        registerActiveQuery(
+          { entityType: 'templates', kind: 'list', tenantScoped: false },
+          refetch,
+          clearData,
+        );
+
+        invalidateTenantQueries();
+
+        expect(clearData).not.toHaveBeenCalled();
+        expect(refetch).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('Given a query registered without clearData callback', () => {
+      it('Then refetch is still called (clearData is optional)', () => {
+        const refetch = vi.fn();
+
+        registerActiveQuery({ entityType: 'tasks', kind: 'list', tenantScoped: true }, refetch);
+
+        invalidateTenantQueries();
+
+        expect(refetch).toHaveBeenCalledOnce();
+      });
+    });
+
+    describe('Given queries with tenantScoped undefined (legacy)', () => {
+      it('Then they are NOT affected (undefined !== true)', () => {
+        const refetch = vi.fn();
+
+        registerActiveQuery({ entityType: 'tasks', kind: 'list' }, refetch);
+
+        invalidateTenantQueries();
+
+        expect(refetch).not.toHaveBeenCalled();
+      });
     });
   });
 

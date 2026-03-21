@@ -132,7 +132,7 @@ export type {
   QueryOptions,
   QueryResult,
 } from './query';
-export { invalidate, isQueryDescriptor, query, queryMatch } from './query';
+export { invalidate, invalidateTenantQueries, isQueryDescriptor, query, queryMatch } from './query';
 // Router
 export type {
   CompiledRoute,
