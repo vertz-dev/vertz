@@ -1,10 +1,10 @@
 import { s } from '@vertz/schema';
 import type { DialogHandle } from '@vertz/ui';
 import { form } from '@vertz/ui';
-import { Button } from '@vertz/ui/components';
+import { Button, Dialog } from '@vertz/ui/components';
 import { createProjectsInputSchema } from '#generated/schemas';
 import { api } from '../api/client';
-import { dialogStyles, formStyles, inputStyles, labelStyles } from '../styles/components';
+import { formStyles, inputStyles, labelStyles } from '../styles/components';
 
 const createProjectSchema = createProjectsInputSchema.extend({
   key: s
@@ -15,38 +15,28 @@ const createProjectSchema = createProjectsInputSchema.extend({
 });
 
 interface CreateProjectDialogProps {
-  dialog: DialogHandle<boolean>;
+  dialog: DialogHandle<void>;
 }
 
 export function CreateProjectDialog({ dialog }: CreateProjectDialogProps) {
   const createForm = form(api.projects.create, {
     schema: createProjectSchema,
     initial: { name: '', key: '', description: '' },
-    onSuccess: () => dialog.close(true),
+    onSuccess: () => dialog.close(),
   });
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: dialog overlay backdrop
-    <div
-      className={dialogStyles.overlay}
-      data-state="open"
-      role="presentation"
-      onClick={(e: MouseEvent) => {
-        if (e.target === e.currentTarget) dialog.close(false);
-      }}
-      onKeyDown={(e: KeyboardEvent) => {
-        if (e.key === 'Escape') dialog.close(false);
-      }}
-    >
-      <div
-        className={dialogStyles.panel}
-        role="dialog"
-        aria-modal="true"
-        aria-label="New Project"
-        data-state="open"
-      >
-        <h3 className={dialogStyles.title}>New Project</h3>
-        <form action={createForm.action} method={createForm.method} onSubmit={createForm.onSubmit}>
+    <>
+      <Dialog.Header>
+        <Dialog.Title>New Project</Dialog.Title>
+      </Dialog.Header>
+      <Dialog.Body>
+        <form
+          id="create-project-form"
+          action={createForm.action}
+          method={createForm.method}
+          onSubmit={createForm.onSubmit}
+        >
           <div className={formStyles.field}>
             <label className={labelStyles.base} htmlFor="project-name">
               Name
@@ -91,17 +81,20 @@ export function CreateProjectDialog({ dialog }: CreateProjectDialogProps) {
               style={{ minHeight: '5rem', resize: 'vertical' }}
             />
           </div>
-
-          <footer className={dialogStyles.footer}>
-            <Button intent="outline" size="sm" onClick={() => dialog.close(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" intent="primary" size="sm" disabled={createForm.submitting.value}>
-              {createForm.submitting ? 'Creating...' : 'Create Project'}
-            </Button>
-          </footer>
         </form>
-      </div>
-    </div>
+      </Dialog.Body>
+      <Dialog.Footer>
+        <Dialog.Cancel>Cancel</Dialog.Cancel>
+        <Button
+          type="submit"
+          form="create-project-form"
+          intent="primary"
+          size="sm"
+          disabled={createForm.submitting.value}
+        >
+          {createForm.submitting ? 'Creating...' : 'Create Project'}
+        </Button>
+      </Dialog.Footer>
+    </>
   );
 }
