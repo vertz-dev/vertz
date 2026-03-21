@@ -267,6 +267,9 @@ export function createDialogGlobalStyles(): GlobalCSSOutput {
       cursor: 'pointer',
       borderRadius: '0.125rem',
     },
+    'dialog[data-dialog-wrapper] [data-part="close"]:hover': {
+      opacity: '1',
+    },
     'dialog[data-dialog-wrapper] [data-part="cancel"]': {
       background: 'none',
       border: '1px solid var(--color-border)',

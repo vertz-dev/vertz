@@ -1012,5 +1012,18 @@ describe('Feature: dialogs.confirm()', () => {
         expect(container.querySelector('dialog')).toBeTruthy();
       });
     });
+
+    describe('When confirm() is called with dismissible: true and user presses Escape', () => {
+      it('Then returns false', async () => {
+        const stack = createDialogStack(container);
+        const resultPromise = stack.confirm({ title: 'Sure?', dismissible: true });
+
+        const dialog = container.querySelector('dialog') as HTMLDialogElement;
+        dialog.dispatchEvent(new Event('cancel', { bubbles: false }));
+
+        const result = await resultPromise;
+        expect(result).toBe(false);
+      });
+    });
   });
 });

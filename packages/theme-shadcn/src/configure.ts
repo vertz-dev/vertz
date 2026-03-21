@@ -371,7 +371,7 @@ export interface ThemeStyles {
 
 /** Themed primitive factories returned by configureTheme(). */
 export interface ThemedPrimitives {
-  /** Themed Dialog — composable JSX component with Dialog.Trigger, Dialog.Content, Dialog.Title, Dialog.Description, Dialog.Footer. */
+  /** Themed Dialog — stack-aware sub-components: Dialog.Header, Dialog.Title, Dialog.Description, Dialog.Footer, Dialog.Body, Dialog.Close, Dialog.Cancel. */
   Dialog: ThemedDialogComponent;
   /** Themed DropdownMenu — composable JSX component with DropdownMenu.Trigger, DropdownMenu.Content, etc. */
   DropdownMenu: ThemedDropdownMenuComponent;
