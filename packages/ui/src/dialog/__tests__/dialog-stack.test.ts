@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { createContext, getContextScope, useContext } from '../../component/context';
+import { __element } from '../../dom/element';
+import { __on } from '../../dom/events';
+import { form, type SdkMethod } from '../../form/form';
 import type { DialogHandle, DialogStack } from '../dialog-stack';
 import { createDialogStack, DialogStackContext, useDialogStack } from '../dialog-stack';
 
@@ -354,6 +357,111 @@ describe('DialogStack', () => {
 
     const result = await promise;
     expect(result).toEqual({ ok: false });
+  });
+
+  it('form onSubmit handler fires inside dynamically-opened dialog', () => {
+    const stack = createDialogStack(container);
+    let preventDefaultCalled = false;
+
+    function FormDialog({ dialog }: { dialog: DialogHandle<void> }) {
+      const formEl = document.createElement('form');
+      __on(formEl, 'submit', (e: Event) => {
+        e.preventDefault();
+        preventDefaultCalled = true;
+      });
+      return formEl;
+    }
+
+    stack.open(FormDialog, {});
+
+    const formEl = container.querySelector('form')!;
+    expect(formEl).toBeTruthy();
+    formEl.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    expect(preventDefaultCalled).toBe(true);
+  });
+
+  it('form() onSubmit handler prevents default inside dialog (compiled path)', () => {
+    const stack = createDialogStack(container);
+    let preventDefaultCalled = false;
+
+    const mockSdkMethod = Object.assign(
+      (_body: unknown) => Promise.resolve({ ok: true, data: { id: '1' } }),
+      { url: '/api/test', method: 'POST' },
+    ) as unknown as SdkMethod<{ title: string }, { id: string }>;
+
+    function FormDialog({ dialog }: { dialog: DialogHandle<void> }) {
+      const taskForm = form(mockSdkMethod);
+
+      // Simulate compiled output: __element + __on + __bindElement
+      const formEl = __element('form') as HTMLFormElement;
+      {
+        const __v = taskForm.action;
+        if (__v != null && __v !== false)
+          formEl.setAttribute('action', __v === true ? '' : (__v as string));
+      }
+      {
+        const __v = taskForm.method;
+        if (__v != null && __v !== false)
+          formEl.setAttribute('method', __v === true ? '' : (__v as string));
+      }
+      __on(formEl, 'submit', taskForm.onSubmit);
+      taskForm.__bindElement(formEl);
+
+      const inputEl = __element('input') as HTMLInputElement;
+      inputEl.setAttribute('name', 'title');
+      formEl.appendChild(inputEl);
+
+      return formEl;
+    }
+
+    stack.open(FormDialog, {});
+
+    const formEl = container.querySelector('form')! as HTMLFormElement;
+    expect(formEl).toBeTruthy();
+    expect(formEl.getAttribute('action')).toBe('/api/test');
+    expect(formEl.getAttribute('method')).toBe('POST');
+
+    const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
+    const originalPreventDefault = submitEvent.preventDefault.bind(submitEvent);
+    submitEvent.preventDefault = () => {
+      preventDefaultCalled = true;
+      originalPreventDefault();
+    };
+    formEl.dispatchEvent(submitEvent);
+
+    expect(preventDefaultCalled).toBe(true);
+  });
+
+  it('event listeners are cleaned up when dialog closes', async () => {
+    const stack = createDialogStack(container);
+    let clickCount = 0;
+
+    function ClickDialog({ dialog }: { dialog: DialogHandle<void> }) {
+      const btn = document.createElement('button');
+      __on(btn, 'click', () => {
+        clickCount++;
+      });
+      const closeBtn = document.createElement('button');
+      closeBtn.setAttribute('data-testid', 'close');
+      closeBtn.addEventListener('click', () => dialog.close());
+      const wrapper = document.createElement('div');
+      wrapper.appendChild(btn);
+      wrapper.appendChild(closeBtn);
+      return wrapper;
+    }
+
+    const promise = stack.open(ClickDialog, {});
+    const btn = container.querySelector('button')!;
+    btn.click();
+    expect(clickCount).toBe(1);
+
+    // Close the dialog — cleanups should run
+    container.querySelector('[data-testid="close"]')!.click();
+    await promise;
+
+    // After close, the listener should have been removed via disposal scope cleanup
+    btn.click();
+    expect(clickCount).toBe(1);
   });
 
   it('useDialogStack captures context scope eagerly for use in event handlers', () => {
