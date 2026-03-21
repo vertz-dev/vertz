@@ -693,7 +693,7 @@ describe('query()', () => {
     expect(fetchFn).toHaveBeenCalled();
   });
 
-  test('null-return thunk does not fetch descriptor', async () => {
+  test('null-return thunk does not fetch', async () => {
     const fetchFn = vi.fn().mockResolvedValue(ok('data'));
 
     const result = query(() => null as Promise<string> | null);

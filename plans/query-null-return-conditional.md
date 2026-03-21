@@ -304,6 +304,17 @@ SSR does two passes (discovery + render). During pass 1, a dependent query's thu
 
 The client hydrates, the parent data arrives, the dependent effect re-runs, and the chain completes on the client. This means dependent query data won't be in the initial SSR HTML — it loads client-side. This is acceptable for most use cases (comments, related data) and matches how TanStack Query + SSR works in React.
 
+### Descriptor-in-thunk: no entity-store reactivity for mutations
+
+When using `query(() => condition ? descriptor : null)`, entity metadata is set lazily on first non-null descriptor return. However, the `data` computed is bound to `rawData` at construction time (before entity metadata exists). This means:
+
+- **Initial fetch works correctly** — data is normalized into the entity store and `rawData` is updated.
+- **Mutations to the entity store (e.g., optimistic updates) are NOT reactively reflected** — because `data === rawData`, not the entity-store-backed computed.
+
+For `query(descriptor)` (direct descriptor), entity metadata is known at construction time, so `data` reads from the entity store and reflects mutations reactively.
+
+This is an acceptable tradeoff for Phase 1. The descriptor-in-thunk pattern is primarily for conditional fetching, and the direct descriptor pattern should be preferred when entity-store reactivity is needed.
+
 ## Unknowns
 
 ### Resolved: Dependency tracking on null return

@@ -49,15 +49,19 @@ describe('query() SSR behavior', () => {
 
     expect(result.data.value).toBe('server-data');
     expect(result.loading.value).toBe(false);
+    expect(result.idle.value).toBe(false);
   });
 
-  it('does not register when enabled is false', () => {
-    query(() => Promise.resolve('data'), {
+  it('does not register SSR promise when thunk returns null', () => {
+    const result = query(() => null as Promise<string> | null, {
       key: 'ssr-disabled-query',
-      enabled: false,
     });
 
     expect(ctx.queries).toHaveLength(0);
+    // SSR null-return must reset loading to false (no hydration flash)
+    expect(result.loading.value).toBe(false);
+    // idle stays true — no fetch has occurred
+    expect(result.idle.value).toBe(true);
   });
 
   it('multiple queries register independently in parallel', () => {

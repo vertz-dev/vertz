@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { __list } from '../../dom/list';
 import { ListTransition } from '../../component/list-transition';
+import { __list } from '../../dom/list';
 import { computed, domEffect, signal } from '../../runtime/signal';
 import type { Signal } from '../../runtime/signal-types';
 import type { QueryResult } from '../query';
@@ -300,7 +300,7 @@ describe('queryMatch()', () => {
 
   test('shows loading when loading=false, error=undefined, data=undefined', () => {
     // Edge case: query with no data yet but not technically loading
-    // (e.g., enabled:false or timing gap). Should show loading, not crash.
+    // (e.g., idle query or timing gap). Should show loading, not crash.
     const qr = fakeQueryResult<{ items: string[] }>({
       loading: false,
       data: undefined,

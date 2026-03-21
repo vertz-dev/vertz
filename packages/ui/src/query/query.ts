@@ -169,9 +169,6 @@ export function query<T, E = unknown>(
     _entityMeta: optionsEntityMeta,
   } = options;
 
-  // enabled is always true — conditional fetching is handled via null-return from thunk.
-  const enabled = true;
-
   // Entity metadata — set from options (descriptor overload) or lazily from
   // a descriptor returned by the thunk (descriptor-in-thunk pattern).
   let entityMeta: EntityQueryMeta | undefined = optionsEntityMeta;
@@ -246,7 +243,7 @@ export function query<T, E = unknown>(
 
   // -- Reactive signals --
   const rawData: Signal<T | undefined> = signal<T | undefined>(initialData);
-  const loading: Signal<boolean> = signal<boolean>(initialData === undefined && enabled);
+  const loading: Signal<boolean> = signal<boolean>(initialData === undefined);
   const revalidating: Signal<boolean> = signal<boolean>(false);
   const error: Signal<unknown> = signal<unknown>(undefined);
   const idle: Signal<boolean> = signal<boolean>(initialData === undefined);
@@ -362,7 +359,7 @@ export function query<T, E = unknown>(
   // Pass 1 (discovery): registers the query promise for renderToHTML() to await.
   // Pass 2 (render): the cache is already populated — serve from cache.
   const ssrTimeout = options.ssrTimeout ?? getGlobalSSRTimeout() ?? 300;
-  if (isSSR() && enabled && ssrTimeout !== 0 && initialData === undefined) {
+  if (isSSR() && ssrTimeout !== 0 && initialData === undefined) {
     // Call the thunk to derive cache key from dependency values.
     const ssrRaw = callThunkWithCapture();
 
@@ -370,6 +367,7 @@ export function query<T, E = unknown>(
     // Dependent chains won't resolve during SSR (known limitation).
     if (ssrRaw === null) {
       // No SSR promise registered — the client will fetch when deps are ready.
+      loading.value = false;
     } else {
       // Decompose descriptor if needed.
       let ssrPromise: Promise<T>;
@@ -410,6 +408,7 @@ export function query<T, E = unknown>(
               normalizeToEntityStore(result as T);
               rawData.value = result as T;
               loading.value = false;
+              idle.value = false;
               cache.set(key, result as T);
             },
             key,
@@ -426,7 +425,7 @@ export function query<T, E = unknown>(
   let ssrHydrated = false;
   let navPrefetchDeferred = false;
 
-  if (!isSSR() && enabled && initialData === undefined) {
+  if (!isSSR() && initialData === undefined) {
     // Derive the cache key for hydration matching.
     // For custom keys this is straightforward; for derived keys we need
     // to call the thunk once to capture deps and compute the key.
@@ -532,7 +531,7 @@ export function query<T, E = unknown>(
 
   // Visibility-based pause/resume for polling
   let visibilityHandler: (() => void) | undefined;
-  if (hasInterval && enabled && isBrowser()) {
+  if (hasInterval && isBrowser()) {
     visibilityHandler = () => {
       if (document.visibilityState === 'hidden') {
         intervalPaused = true;
@@ -634,216 +633,213 @@ export function query<T, E = unknown>(
   // This enables cache hits when switching back to previously-fetched
   // dependency combinations.
   let disposeFn: (() => void) | undefined;
+  let isFirst = true;
+  disposeFn = lifecycleEffect(() => {
+    // Read the refetch trigger so this effect re-runs on manual refetch().
+    refetchTrigger.value;
 
-  if (enabled) {
-    let isFirst = true;
-    disposeFn = lifecycleEffect(() => {
-      // Read the refetch trigger so this effect re-runs on manual refetch().
-      refetchTrigger.value;
+    // Skip initial fetch if SSR hydration already provided data.
+    if (isFirst && ssrHydrated) {
+      isFirst = false;
+      return;
+    }
 
-      // Skip initial fetch if SSR hydration already provided data.
-      if (isFirst && ssrHydrated) {
-        isFirst = false;
-        return;
-      }
-
-      // Nav prefetch active: check cache first (data from a previous visit
-      // may still be available), then defer to SSE stream if no cache hit.
-      if (isFirst && navPrefetchDeferred) {
-        if (customKey) {
-          const cached = untrack(() => cache.get(customKey));
-          if (cached !== undefined) {
-            retainKey(customKey);
-            untrack(() => {
-              rawData.value = cached;
-              loading.value = false;
-            });
-            isFirst = false;
-            return;
-          }
-        } else {
-          // Derived key: call thunk to discover the key, then check cache.
-          const trackRaw = callThunkWithCapture();
-          if (trackRaw === null) {
-            // Thunk not ready — defer to next effect run.
-            isFirst = false;
-            return;
-          }
-          if (!isQueryDescriptor(trackRaw)) {
-            (trackRaw as Promise<T>).catch(() => {});
-          }
-          const derivedKey = untrack(() => getCacheKey());
-          const cached = untrack(() => cache.get(derivedKey));
-          if (cached !== undefined) {
-            retainKey(derivedKey);
-            untrack(() => {
-              rawData.value = cached;
-              loading.value = false;
-            });
-            isFirst = false;
-            return;
-          }
-        }
-        // No cache hit — defer to the SSE stream / doneHandler fallback.
-        isFirst = false;
-        return;
-      }
-
-      // When a custom key is provided, deduplication can be checked before
-      // calling the thunk — the key is static so the check is reliable.
+    // Nav prefetch active: check cache first (data from a previous visit
+    // may still be available), then defer to SSE stream if no cache hit.
+    if (isFirst && navPrefetchDeferred) {
       if (customKey) {
-        const existing = untrack(() => getInflight().get(customKey) as Promise<T> | undefined);
-        if (existing) {
-          const id = ++fetchId;
-          untrack(() => {
-            if (rawData.value !== undefined) {
-              revalidating.value = true;
-            } else {
-              loading.value = true;
-            }
-            error.value = undefined;
-          });
-          handleFetchPromise(existing, id, customKey);
-          isFirst = false;
-          return;
-        }
-      }
-
-      // Call the thunk inside the tracking context so that reactive
-      // signals read by the thunk are captured as effect dependencies.
-      // callThunkWithCapture also records the actual signal values to
-      // produce a deterministic cache key based on dependency values.
-      const raw = callThunkWithCapture();
-
-      // Null return: thunk says "not ready" — skip fetch, deps are tracked.
-      if (raw === null) {
-        clearTimeout(debounceTimer);
-        untrack(() => {
-          loading.value = false;
-        });
-        isFirst = false;
-        return;
-      }
-
-      // Classify the result: QueryDescriptor or Promise.
-      // MUST check isQueryDescriptor FIRST — QueryDescriptor extends PromiseLike,
-      // and accidentally .then()-ing it would trigger a double-fetch.
-      let promise: Promise<T>;
-      let effectKey: string | undefined;
-      let effectEntityMeta: EntityQueryMeta | undefined;
-
-      if (isQueryDescriptor<T, E>(raw)) {
-        effectKey = raw._key;
-        effectEntityMeta = raw._entity;
-        const fetchResult = raw._fetch();
-        promise = fetchResult.then((result: Result<T, E>) => {
-          if (!result.ok) throw result.error;
-          return result.data;
-        });
-        // Lazy entity metadata setup on first descriptor return
-        if (effectEntityMeta && !entityMeta) {
-          entityMeta = effectEntityMeta;
-          if (!isSSR()) {
-            unsubscribeBus = getMutationEventBus().subscribe(entityMeta.entityType, refetch);
-            unregisterFromRegistry = registerActiveQuery(entityMeta, refetch);
-          }
-        }
-      } else {
-        promise = raw as Promise<T>;
-      }
-
-      // Mark the query as no longer idle — a fetch is about to start.
-      untrack(() => {
-        idle.value = false;
-      });
-
-      // Snapshot the cache key for this effect run. For descriptor-in-thunk,
-      // use the descriptor's _key. Otherwise use the dep-hash-derived key.
-      const key = effectKey ?? untrack(() => getCacheKey());
-
-      // Deduplication check for derived keys: now that the thunk has been
-      // called and the dep hash updated, check if an in-flight request
-      // exists for this key.
-      if (!customKey && !effectKey) {
-        const existing = untrack(() => getInflight().get(key) as Promise<T> | undefined);
-        if (existing) {
-          promise.catch(() => {});
-          const id = ++fetchId;
-          untrack(() => {
-            if (rawData.value !== undefined) {
-              revalidating.value = true;
-            } else {
-              loading.value = true;
-            }
-            error.value = undefined;
-          });
-          handleFetchPromise(existing, id, key);
-          isFirst = false;
-          return;
-        }
-      }
-
-      // Cache hit: serve data from cache without re-fetching.
-      // - During navigation (ssrHydrationCleanup !== null): always check cache
-      //   on first run — cached data from a previous visit should render
-      //   immediately (SWR pattern). This covers derived-key queries that
-      //   were previously skipped because the key wasn't known until thunk ran.
-      // - On first run with a custom key (non-nav): check cache to support
-      //   remounting a query still in the shared cache.
-      // - On subsequent runs with derived keys: check cache when deps change
-      //   back to previously-seen values.
-      // - On subsequent runs with custom keys: skip — the key is static, so
-      //   a cache hit would prevent re-fetching when deps change.
-      const isNavigation = ssrHydrationCleanup !== null;
-      const shouldCheckCache = effectKey || isNavigation || (isFirst ? !!customKey : !customKey);
-      if (shouldCheckCache) {
-        const cached = untrack(() => cache.get(key));
+        const cached = untrack(() => cache.get(customKey));
         if (cached !== undefined) {
-          retainKey(key);
-          promise.catch(() => {});
+          retainKey(customKey);
           untrack(() => {
-            normalizeToEntityStore(cached);
             rawData.value = cached;
             loading.value = false;
-            error.value = undefined;
           });
           isFirst = false;
-          // Start polling if refetchInterval is configured.
-          scheduleInterval();
+          return;
+        }
+      } else {
+        // Derived key: call thunk to discover the key, then check cache.
+        const trackRaw = callThunkWithCapture();
+        if (trackRaw === null) {
+          // Thunk not ready — defer to next effect run.
+          isFirst = false;
+          return;
+        }
+        if (!isQueryDescriptor(trackRaw)) {
+          (trackRaw as Promise<T>).catch(() => {});
+        }
+        const derivedKey = untrack(() => getCacheKey());
+        const cached = untrack(() => cache.get(derivedKey));
+        if (cached !== undefined) {
+          retainKey(derivedKey);
+          untrack(() => {
+            rawData.value = cached;
+            loading.value = false;
+          });
+          isFirst = false;
           return;
         }
       }
+      // No cache hit — defer to the SSE stream / doneHandler fallback.
+      isFirst = false;
+      return;
+    }
 
-      if (isFirst && initialData !== undefined) {
-        // Skip the initial fetch when initialData is provided.
-        // The thunk was still called above to register reactive deps.
-        // Suppress unhandled rejection on the discarded tracking promise.
+    // When a custom key is provided, deduplication can be checked before
+    // calling the thunk — the key is static so the check is reliable.
+    if (customKey) {
+      const existing = untrack(() => getInflight().get(customKey) as Promise<T> | undefined);
+      if (existing) {
+        const id = ++fetchId;
+        untrack(() => {
+          if (rawData.value !== undefined) {
+            revalidating.value = true;
+          } else {
+            loading.value = true;
+          }
+          error.value = undefined;
+        });
+        handleFetchPromise(existing, id, customKey);
+        isFirst = false;
+        return;
+      }
+    }
+
+    // Call the thunk inside the tracking context so that reactive
+    // signals read by the thunk are captured as effect dependencies.
+    // callThunkWithCapture also records the actual signal values to
+    // produce a deterministic cache key based on dependency values.
+    const raw = callThunkWithCapture();
+
+    // Null return: thunk says "not ready" — skip fetch, deps are tracked.
+    if (raw === null) {
+      clearTimeout(debounceTimer);
+      untrack(() => {
+        loading.value = false;
+      });
+      isFirst = false;
+      return;
+    }
+
+    // Classify the result: QueryDescriptor or Promise.
+    // MUST check isQueryDescriptor FIRST — QueryDescriptor extends PromiseLike,
+    // and accidentally .then()-ing it would trigger a double-fetch.
+    let promise: Promise<T>;
+    let effectKey: string | undefined;
+    let effectEntityMeta: EntityQueryMeta | undefined;
+
+    if (isQueryDescriptor<T, E>(raw)) {
+      effectKey = raw._key;
+      effectEntityMeta = raw._entity;
+      const fetchResult = raw._fetch();
+      promise = fetchResult.then((result: Result<T, E>) => {
+        if (!result.ok) throw result.error;
+        return result.data;
+      });
+      // Lazy entity metadata setup on first descriptor return
+      if (effectEntityMeta && !entityMeta) {
+        entityMeta = effectEntityMeta;
+        if (!isSSR()) {
+          unsubscribeBus = getMutationEventBus().subscribe(entityMeta.entityType, refetch);
+          unregisterFromRegistry = registerActiveQuery(entityMeta, refetch);
+        }
+      }
+    } else {
+      promise = raw as Promise<T>;
+    }
+
+    // Mark the query as no longer idle — a fetch is about to start.
+    untrack(() => {
+      idle.value = false;
+    });
+
+    // Snapshot the cache key for this effect run. For descriptor-in-thunk,
+    // use the descriptor's _key. Otherwise use the dep-hash-derived key.
+    const key = effectKey ?? untrack(() => getCacheKey());
+
+    // Deduplication check for derived keys: now that the thunk has been
+    // called and the dep hash updated, check if an in-flight request
+    // exists for this key.
+    if (!customKey && !effectKey) {
+      const existing = untrack(() => getInflight().get(key) as Promise<T> | undefined);
+      if (existing) {
         promise.catch(() => {});
+        const id = ++fetchId;
+        untrack(() => {
+          if (rawData.value !== undefined) {
+            revalidating.value = true;
+          } else {
+            loading.value = true;
+          }
+          error.value = undefined;
+        });
+        handleFetchPromise(existing, id, key);
+        isFirst = false;
+        return;
+      }
+    }
+
+    // Cache hit: serve data from cache without re-fetching.
+    // - During navigation (ssrHydrationCleanup !== null): always check cache
+    //   on first run — cached data from a previous visit should render
+    //   immediately (SWR pattern). This covers derived-key queries that
+    //   were previously skipped because the key wasn't known until thunk ran.
+    // - On first run with a custom key (non-nav): check cache to support
+    //   remounting a query still in the shared cache.
+    // - On subsequent runs with derived keys: check cache when deps change
+    //   back to previously-seen values.
+    // - On subsequent runs with custom keys: skip — the key is static, so
+    //   a cache hit would prevent re-fetching when deps change.
+    const isNavigation = ssrHydrationCleanup !== null;
+    const shouldCheckCache = effectKey || isNavigation || (isFirst ? !!customKey : !customKey);
+    if (shouldCheckCache) {
+      const cached = untrack(() => cache.get(key));
+      if (cached !== undefined) {
+        retainKey(key);
+        promise.catch(() => {});
+        untrack(() => {
+          normalizeToEntityStore(cached);
+          rawData.value = cached;
+          loading.value = false;
+          error.value = undefined;
+        });
         isFirst = false;
         // Start polling if refetchInterval is configured.
         scheduleInterval();
         return;
       }
-      isFirst = false;
+    }
 
-      if (debounceMs !== undefined && debounceMs > 0) {
-        clearTimeout(debounceTimer);
-        // Suppress unhandled rejection on the debounced promise in case a
-        // future signal change clears the timer before it fires. Without
-        // this, the orphaned promise would reject with no handler attached.
-        promise.catch(() => {});
-        // Use the tracking promise directly instead of calling thunk() again.
-        // This avoids a redundant fetch call in the setTimeout.
-        // Previous tracking promises (from rapid dep changes) are invalidated
-        // by the fetchId check in handleFetchPromise.
-        debounceTimer = setTimeout(() => {
-          startFetch(promise, key);
-        }, debounceMs);
-      } else {
+    if (isFirst && initialData !== undefined) {
+      // Skip the initial fetch when initialData is provided.
+      // The thunk was still called above to register reactive deps.
+      // Suppress unhandled rejection on the discarded tracking promise.
+      promise.catch(() => {});
+      isFirst = false;
+      // Start polling if refetchInterval is configured.
+      scheduleInterval();
+      return;
+    }
+    isFirst = false;
+
+    if (debounceMs !== undefined && debounceMs > 0) {
+      clearTimeout(debounceTimer);
+      // Suppress unhandled rejection on the debounced promise in case a
+      // future signal change clears the timer before it fires. Without
+      // this, the orphaned promise would reject with no handler attached.
+      promise.catch(() => {});
+      // Use the tracking promise directly instead of calling thunk() again.
+      // This avoids a redundant fetch call in the setTimeout.
+      // Previous tracking promises (from rapid dep changes) are invalidated
+      // by the fetchId check in handleFetchPromise.
+      debounceTimer = setTimeout(() => {
         startFetch(promise, key);
-      }
-    });
-  }
+      }, debounceMs);
+    } else {
+      startFetch(promise, key);
+    }
+  });
 
   /**
    * Dispose the query — stops the reactive effect and cleans up inflight state.
@@ -893,7 +889,7 @@ export function query<T, E = unknown>(
   // would leak until the bus is reset between requests.
   let unsubscribeBus: (() => void) | undefined;
   let unregisterFromRegistry: (() => void) | undefined;
-  if (entityMeta && enabled && !isSSR()) {
+  if (entityMeta && !isSSR()) {
     unsubscribeBus = getMutationEventBus().subscribe(entityMeta.entityType, refetch);
     unregisterFromRegistry = registerActiveQuery(entityMeta, refetch);
   }
