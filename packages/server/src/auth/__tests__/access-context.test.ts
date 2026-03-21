@@ -537,12 +537,14 @@ describe('createAccessContext', () => {
     it('can() returns true when within limit', async () => {
       const { accessDef, closureStore, roleStore, subscriptionStore, walletStore, orgResolver } =
         setupWithLimits();
+      const today = new Date();
+      const now = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 15, 12, 0, 0));
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-      await subscriptionStore.assign('org-1', 'free');
+      await subscriptionStore.assign('org-1', 'free', now);
 
       // Consume 49 of 50
-      const { periodStart, periodEnd } = calculateBillingPeriod(new Date(), 'month');
+      const { periodStart, periodEnd } = calculateBillingPeriod(now, 'month');
       await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 50, 49);
 
       const ctx = createAccessContext({
@@ -565,11 +567,13 @@ describe('createAccessContext', () => {
     it('can() returns false when limit reached', async () => {
       const { accessDef, closureStore, roleStore, subscriptionStore, walletStore, orgResolver } =
         setupWithLimits();
+      const today = new Date();
+      const now = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 15, 12, 0, 0));
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-      await subscriptionStore.assign('org-1', 'free');
+      await subscriptionStore.assign('org-1', 'free', now);
 
-      const { periodStart, periodEnd } = calculateBillingPeriod(new Date(), 'month');
+      const { periodStart, periodEnd } = calculateBillingPeriod(now, 'month');
       await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 50, 50);
 
       const ctx = createAccessContext({
@@ -616,11 +620,13 @@ describe('createAccessContext', () => {
     it('check() returns limit_reached with meta when limit exceeded', async () => {
       const { accessDef, closureStore, roleStore, subscriptionStore, walletStore, orgResolver } =
         setupWithLimits();
+      const today = new Date();
+      const now = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 15, 12, 0, 0));
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-      await subscriptionStore.assign('org-1', 'free');
+      await subscriptionStore.assign('org-1', 'free', now);
 
-      const { periodStart, periodEnd } = calculateBillingPeriod(new Date(), 'month');
+      const { periodStart, periodEnd } = calculateBillingPeriod(now, 'month');
       await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 50, 50);
 
       const ctx = createAccessContext({
@@ -694,12 +700,14 @@ describe('createAccessContext', () => {
     it('denies when per-brand limit is exceeded even if tenant-level is within', async () => {
       const { accessDef, closureStore, roleStore, subscriptionStore, walletStore, orgResolver } =
         setupMultiLimit();
+      const today = new Date();
+      const now = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 15, 12, 0, 0));
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-      await subscriptionStore.assign('org-1', 'free');
+      await subscriptionStore.assign('org-1', 'free', now);
 
       // Tenant-level: 3 of 50 (ok), per-brand: 5 of 5 (exceeded)
-      const { periodStart, periodEnd } = calculateBillingPeriod(new Date(), 'month');
+      const { periodStart, periodEnd } = calculateBillingPeriod(now, 'month');
       await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 50, 3);
       await walletStore.consume('org-1', 'prompts_per_brand', periodStart, periodEnd, 5, 5);
 
@@ -723,11 +731,13 @@ describe('createAccessContext', () => {
     it('check() denial meta includes the per-brand limit as the blocker', async () => {
       const { accessDef, closureStore, roleStore, subscriptionStore, walletStore, orgResolver } =
         setupMultiLimit();
+      const today = new Date();
+      const now = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 15, 12, 0, 0));
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-      await subscriptionStore.assign('org-1', 'free');
+      await subscriptionStore.assign('org-1', 'free', now);
 
-      const { periodStart, periodEnd } = calculateBillingPeriod(new Date(), 'month');
+      const { periodStart, periodEnd } = calculateBillingPeriod(now, 'month');
       await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 50, 3);
       await walletStore.consume('org-1', 'prompts_per_brand', periodStart, periodEnd, 5, 5);
 
@@ -948,13 +958,15 @@ describe('createAccessContext', () => {
     it('add-on limit increases effective max', async () => {
       const { accessDef, closureStore, roleStore, subscriptionStore, walletStore, orgResolver } =
         setupWithAddOns();
+      const today = new Date();
+      const now = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 15, 12, 0, 0));
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-      await subscriptionStore.assign('org-1', 'free');
+      await subscriptionStore.assign('org-1', 'free', now);
       await subscriptionStore.attachAddOn('org-1', 'extra_prompts_50');
 
       // Consume 75 — over base (50) but within effective (100)
-      const { periodStart, periodEnd } = calculateBillingPeriod(new Date(), 'month');
+      const { periodStart, periodEnd } = calculateBillingPeriod(now, 'month');
       await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 100, 75);
 
       const ctx = createAccessContext({
@@ -2366,7 +2378,9 @@ describe('createAccessContext', () => {
         resource: { type: 'project', id: `proj-${i}` } as ResourceRef,
       }));
 
-      await expect(ctx.canAll(checks)).rejects.toThrow('canAll() is limited to 100 checks per call');
+      await expect(ctx.canAll(checks)).rejects.toThrow(
+        'canAll() is limited to 100 checks per call',
+      );
     });
   });
 

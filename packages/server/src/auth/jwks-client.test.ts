@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
+import { afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import * as jose from 'jose';
 import { createJWKSClient } from './jwks-client';
 
@@ -6,9 +6,9 @@ import { createJWKSClient } from './jwks-client';
 let privateKey: CryptoKey;
 let publicJwk: jose.JWK;
 let kid: string;
-let mockServer: ReturnType<typeof Bun.serve>;
-let jwksUrl: string;
-let requestCount: number;
+
+// Track servers for cleanup
+const openServers: ReturnType<typeof Bun.serve>[] = [];
 
 beforeAll(async () => {
   const { publicKey, privateKey: privKey } = await jose.generateKeyPair('RS256');
@@ -18,9 +18,17 @@ beforeAll(async () => {
   publicJwk.kid = kid;
   publicJwk.use = 'sig';
   publicJwk.alg = 'RS256';
-  requestCount = 0;
+});
 
-  mockServer = Bun.serve({
+afterEach(() => {
+  for (const server of openServers) server.stop();
+  openServers.length = 0;
+});
+
+/** Create a per-test mock JWKS server with its own request counter. */
+function createMockServer() {
+  let requestCount = 0;
+  const server = Bun.serve({
     port: 0,
     fetch() {
       requestCount++;
@@ -29,37 +37,36 @@ beforeAll(async () => {
       });
     },
   });
-
-  jwksUrl = `http://localhost:${mockServer.port}/.well-known/jwks.json`;
-});
-
-afterAll(() => {
-  mockServer?.stop();
-});
-
-afterEach(() => {
-  requestCount = 0;
-});
+  openServers.push(server);
+  const url = `http://localhost:${server.port}/.well-known/jwks.json`;
+  return {
+    server,
+    url,
+    getRequestCount: () => requestCount,
+    resetRequestCount: () => {
+      requestCount = 0;
+    },
+  };
+}
 
 describe('createJWKSClient', () => {
   it('resolves the CryptoKey for verification when kid matches', async () => {
-    const client = createJWKSClient({ url: jwksUrl });
+    const { url } = createMockServer();
+    const client = createJWKSClient({ url });
 
-    // Sign a JWT with the private key
     const jwt = await new jose.SignJWT({ sub: 'user_1' })
       .setProtectedHeader({ alg: 'RS256', kid })
       .setIssuedAt()
       .setExpirationTime('1h')
       .sign(privateKey);
 
-    // Verify using the JWKS client's getKey
     const { payload } = await jose.jwtVerify(jwt, client.getKey);
     expect(payload.sub).toBe('user_1');
   });
 
   it('returns cached key without additional HTTP request within cache TTL', async () => {
-    const client = createJWKSClient({ url: jwksUrl, cacheTtl: 60_000 });
-    requestCount = 0;
+    const { url, getRequestCount } = createMockServer();
+    const client = createJWKSClient({ url, cacheTtl: 60_000 });
 
     // First verification — fetches JWKS
     const jwt1 = await new jose.SignJWT({ sub: 'user_1' })
@@ -69,7 +76,7 @@ describe('createJWKSClient', () => {
       .sign(privateKey);
 
     await jose.jwtVerify(jwt1, client.getKey);
-    const firstCount = requestCount;
+    const firstCount = getRequestCount();
     expect(firstCount).toBeGreaterThanOrEqual(1);
 
     // Second verification — should use cache
@@ -80,11 +87,12 @@ describe('createJWKSClient', () => {
       .sign(privateKey);
 
     await jose.jwtVerify(jwt2, client.getKey);
-    expect(requestCount).toBe(firstCount); // No additional request
+    expect(getRequestCount()).toBe(firstCount); // No additional request
   });
 
   it('rejects when kid is not found after refresh', async () => {
-    const client = createJWKSClient({ url: jwksUrl });
+    const { url } = createMockServer();
+    const client = createJWKSClient({ url });
 
     const unknownKey = await jose.generateKeyPair('RS256');
     const jwt = await new jose.SignJWT({ sub: 'user_1' })
@@ -128,6 +136,7 @@ describe('createJWKSClient', () => {
         });
       },
     });
+    openServers.push(rotatingServer);
 
     const client = createJWKSClient({
       url: `http://localhost:${rotatingServer.port}/.well-known/jwks.json`,
@@ -147,13 +156,12 @@ describe('createJWKSClient', () => {
     // Now verification should succeed
     const { payload } = await jose.jwtVerify(jwt, client.getKey);
     expect(payload.sub).toBe('user_rotated');
-
-    rotatingServer.stop();
   });
 
   it('forces a re-fetch on next verification after refresh() is called', async () => {
-    const client = createJWKSClient({ url: jwksUrl, cacheTtl: 600_000 });
-    requestCount = 0;
+    const { url, getRequestCount, resetRequestCount } = createMockServer();
+    const client = createJWKSClient({ url, cacheTtl: 600_000 });
+    resetRequestCount();
 
     // Initial fetch + verify
     const jwt1 = await new jose.SignJWT({ sub: 'user_1' })
@@ -162,7 +170,7 @@ describe('createJWKSClient', () => {
       .setExpirationTime('1h')
       .sign(privateKey);
     await jose.jwtVerify(jwt1, client.getKey);
-    const countAfterFirst = requestCount;
+    const countAfterFirst = getRequestCount();
 
     // Verify again — should use cache (no additional request)
     const jwt2 = await new jose.SignJWT({ sub: 'user_2' })
@@ -171,7 +179,7 @@ describe('createJWKSClient', () => {
       .setExpirationTime('1h')
       .sign(privateKey);
     await jose.jwtVerify(jwt2, client.getKey);
-    expect(requestCount).toBe(countAfterFirst); // Cache hit
+    expect(getRequestCount()).toBe(countAfterFirst); // Cache hit
 
     // Mark cache as stale
     await client.refresh();
@@ -183,6 +191,6 @@ describe('createJWKSClient', () => {
       .setExpirationTime('1h')
       .sign(privateKey);
     await jose.jwtVerify(jwt3, client.getKey);
-    expect(requestCount).toBeGreaterThan(countAfterFirst);
+    expect(getRequestCount()).toBeGreaterThan(countAfterFirst);
   });
 });

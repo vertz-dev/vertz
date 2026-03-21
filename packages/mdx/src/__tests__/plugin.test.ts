@@ -1,21 +1,45 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 import { createMdxPlugin } from '../index';
 
-// Shared default plugin — reuses the same Shiki highlighter across tests.
+// Pre-created plugin instances — reuse Shiki highlighter across tests.
 // Without this, each test creates a new plugin instance that re-initializes
 // Shiki's WASM + grammar loading, causing >30s timeouts on CI runners.
 const defaultPlugin = createMdxPlugin();
+const jsxImportSourcePlugin = createMdxPlugin({ jsxImportSource: '@vertz/ui-server' });
+const noFrontmatterPlugin = createMdxPlugin({ remarkFrontmatter: false });
+const noShikiPlugin = createMdxPlugin({ shikiTheme: false });
+
+// Helper: resolve a pre-created plugin for the given options, or create a new one.
+function resolvePlugin(options?: Parameters<typeof createMdxPlugin>[0]) {
+  if (!options) return defaultPlugin;
+  // Match known option combinations to pre-created instances
+  if (options.jsxImportSource === '@vertz/ui-server' && Object.keys(options).length === 1)
+    return jsxImportSourcePlugin;
+  if (options.remarkFrontmatter === false && Object.keys(options).length === 1)
+    return noFrontmatterPlugin;
+  if (options.shikiTheme === false && Object.keys(options).length === 1) return noShikiPlugin;
+  // Empty remarkPlugins/rehypePlugins arrays are semantically identical to default
+  const isEmptyArrayOnly =
+    Object.keys(options).length === 1 &&
+    (('remarkPlugins' in options &&
+      Array.isArray(options.remarkPlugins) &&
+      options.remarkPlugins.length === 0) ||
+      ('rehypePlugins' in options &&
+        Array.isArray(options.rehypePlugins) &&
+        options.rehypePlugins.length === 0));
+  if (isEmptyArrayOnly) return defaultPlugin;
+  // Unknown combination — create a new plugin (will cold-init Shiki if enabled)
+  return createMdxPlugin(options);
+}
 
 // Helper: build an MDX file through the plugin, marking jsx-runtime as external.
-// Uses the shared default plugin unless custom options require a new instance.
 async function buildMdx(content: string, options?: Parameters<typeof createMdxPlugin>[0]) {
   const path = `/tmp/vertz-mdx-test-${Date.now()}-${Math.random().toString(36).slice(2)}.mdx`;
   await Bun.write(path, content);
 
-  const plugin = options ? createMdxPlugin(options) : defaultPlugin;
   const result = await Bun.build({
     entrypoints: [path],
-    plugins: [plugin],
+    plugins: [resolvePlugin(options)],
     target: 'bun',
     external: ['@vertz/ui', '@vertz/ui-server'],
   });
@@ -36,11 +60,16 @@ describe('createMdxPlugin', () => {
 });
 
 describe('MDX compilation via Bun plugin', () => {
-  // Pre-warm the shared plugin: first Bun.build() + Shiki init is slow on CI
-  // runners (~15-30s). Paying the cost here prevents individual tests from timing out.
+  // Pre-warm ALL Shiki-enabled plugins: first Bun.build() + Shiki WASM init is
+  // slow on CI runners (~15-30s per instance). Paying the cost here prevents
+  // individual tests from timing out. noShikiPlugin doesn't need warm-up.
   beforeAll(async () => {
-    await buildMdx('# warm');
-  }, 60_000);
+    await Promise.all([
+      buildMdx('# warm-default'),
+      buildMdx('# warm-jsx', { jsxImportSource: '@vertz/ui-server' }),
+      buildMdx('# warm-no-frontmatter', { remarkFrontmatter: false }),
+    ]);
+  }, 120_000);
 
   it('compiles a simple MDX file to a JS module with MDXContent', async () => {
     const output = await buildMdx('# Hello World\n\nA paragraph.');
