@@ -9,33 +9,19 @@ export interface CodeBlockProps {
   style?: Partial<CSSStyleDeclaration>;
 }
 
-/** Escape HTML special characters for safe text rendering. */
-function escapeForHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-/**
- * Build a plain `<pre><code>` fallback HTML string.
- * Used when Shiki is not available — both SSR and client render
- * the same structure inside the Foreign container.
- */
-function buildFallbackHtml(code: string): string {
-  return `<pre tabindex="0"><code>${escapeForHtml(code)}</code></pre>`;
-}
-
 export function CodeBlock({ code, lang = 'tsx', style }: CodeBlockProps) {
+  let highlighted = '';
   let copied = false;
 
-  // Get highlighted HTML synchronously if Shiki is ready (true during SSR).
-  // Falls back to a plain <pre><code> so SSR and client always render a
-  // Foreign container — avoiding hydration mismatches from conditional swaps.
-  const initialHtml = isHighlighterReady()
-    ? (highlightCode(code, lang) ?? buildFallbackHtml(code))
-    : buildFallbackHtml(code);
+  // Highlight sync if ready, otherwise subscribe for when it loads.
+  // Initialization is triggered by entry-client.ts AFTER hydration completes.
+  if (isHighlighterReady()) {
+    highlighted = highlightCode(code, lang) ?? '';
+  } else {
+    onHighlighterReady(() => {
+      highlighted = highlightCode(code, lang) ?? '';
+    });
+  }
 
   function handleCopy() {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -53,33 +39,38 @@ export function CodeBlock({ code, lang = 'tsx', style }: CodeBlockProps) {
     ...style,
   };
 
+  const preStyle: Partial<CSSStyleDeclaration> = {
+    margin: '0',
+    padding: '16px 48px 16px 16px',
+    fontSize: '13px',
+    lineHeight: '1.5',
+    overflow: 'auto',
+    borderRadius: '8px',
+    backgroundColor: 'var(--color-muted)' as string,
+    fontFamily: 'var(--font-mono, monospace)' as string,
+    color: 'var(--color-foreground)' as string,
+  };
+
   return (
     <div style={containerStyle}>
-      {/* @ts-expect-error Foreign returns Element (not JSX.Element) — known type gap in framework primitive */}
-      <Foreign
-        tag="div"
-        className="code-block-highlighted"
-        html={initialHtml}
-        onReady={(container) => {
-          const el = container as HTMLElement;
-          const applyHighlighting = (html: string) => {
-            el.innerHTML = html;
-            const pre = el.querySelector('pre');
-            if (pre) pre.setAttribute('tabindex', '0');
-          };
-
-          if (isHighlighterReady()) {
-            // Shiki already loaded (e.g. subsequent client navigation)
-            applyHighlighting(highlightCode(code, lang) ?? buildFallbackHtml(code));
-          } else {
-            // SSR content is already in the DOM from hydration — leave it.
-            // When Shiki loads on the client, upgrade to highlighted code.
-            onHighlighterReady(() => {
-              applyHighlighting(highlightCode(code, lang) ?? buildFallbackHtml(code));
-            });
-          }
-        }}
-      />
+      {highlighted ? (
+        // @ts-expect-error Foreign returns Element (not JSX.Element) — known type gap in framework primitive
+        <Foreign
+          tag="div"
+          className="code-block-highlighted"
+          onReady={(container) => {
+            (container as HTMLElement).innerHTML = highlighted;
+            const pre = container.querySelector('pre');
+            if (pre) {
+              pre.setAttribute('tabindex', '0');
+            }
+          }}
+        />
+      ) : (
+        <pre style={preStyle} tabindex={0}>
+          <code>{code}</code>
+        </pre>
+      )}
       <button
         type="button"
         onClick={handleCopy}
@@ -129,7 +120,7 @@ export function CodeBlock({ code, lang = 'tsx', style }: CodeBlockProps) {
             aria-hidden="true"
           >
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2 2v1" />
           </svg>
         )}
       </button>
