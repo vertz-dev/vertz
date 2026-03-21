@@ -17,13 +17,15 @@ export const auth = defineAuth({
   oauthSuccessRedirect: '/projects',
   oauthErrorRedirect: '/login',
 
-  // Tenant switching — enables POST /api/auth/switch-tenant.
-  // In a real app verifyMembership would check a workspace_members table.
+  // Tenant switching — enables POST /api/auth/switch-tenant and GET /api/auth/tenants.
+  // In a real app these would check a workspace_members table.
   // Here we auto-assign every user to the default seed workspace.
   tenant: {
     verifyMembership: async (_userId, tenantId) => {
       return tenantId === SEED_WORKSPACE_ID;
     },
+    listTenants: async (_userId) => [{ id: SEED_WORKSPACE_ID, name: 'Acme Corp' }],
+    resolveDefault: async (_userId, _tenants) => SEED_WORKSPACE_ID,
   },
 
   // Bridge auth → entity: populate the developer's users table from GitHub profile.

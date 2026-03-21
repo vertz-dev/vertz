@@ -247,6 +247,182 @@ describe('TenantContext', () => {
       ).toThrow('TenantProvider must be rendered inside AuthProvider');
     });
 
+    describe('auto-switch to resolvedDefaultId', () => {
+      it('auto-switches when currentTenantId is undefined and resolvedDefaultId is set', async () => {
+        const switchMock = mock(async () =>
+          ok({
+            tenantId: 'org-1',
+            user: { id: '1', email: 'a@b.com', role: 'user' },
+            expiresAt: 0,
+          }),
+        );
+
+        const ctx = setupTenantProvider({
+          listTenants: async () =>
+            ok({
+              tenants: [{ id: 'org-1', name: 'Org One' }],
+              currentTenantId: undefined,
+              lastTenantId: undefined,
+              resolvedDefaultId: 'org-1',
+            }),
+          switchTenantResult: switchMock,
+        });
+
+        // Wait for setTimeout(0) fetch + auto-switch
+        await new Promise((r) => setTimeout(r, 50));
+
+        expect(switchMock).toHaveBeenCalledWith({ tenantId: 'org-1' });
+        expect(ctx.currentTenantId).toBe('org-1');
+      });
+
+      it('does NOT auto-switch when currentTenantId is already set', async () => {
+        const switchMock = mock(async () =>
+          ok({
+            tenantId: 'org-2',
+            user: { id: '1', email: 'a@b.com', role: 'user' },
+            expiresAt: 0,
+          }),
+        );
+
+        const ctx = setupTenantProvider({
+          listTenants: async () =>
+            ok({
+              tenants: [
+                { id: 'org-1', name: 'Org One' },
+                { id: 'org-2', name: 'Org Two' },
+              ],
+              currentTenantId: 'org-1',
+              lastTenantId: 'org-1',
+              resolvedDefaultId: 'org-2',
+            }),
+          switchTenantResult: switchMock,
+        });
+
+        await new Promise((r) => setTimeout(r, 50));
+
+        expect(switchMock).not.toHaveBeenCalled();
+        expect(ctx.currentTenantId).toBe('org-1');
+      });
+
+      it('does NOT auto-switch when resolvedDefaultId is undefined', async () => {
+        const switchMock = mock(async () =>
+          ok({
+            tenantId: 'org-1',
+            user: { id: '1', email: 'a@b.com', role: 'user' },
+            expiresAt: 0,
+          }),
+        );
+
+        setupTenantProvider({
+          listTenants: async () =>
+            ok({
+              tenants: [],
+              currentTenantId: undefined,
+              lastTenantId: undefined,
+              resolvedDefaultId: undefined,
+            }),
+          switchTenantResult: switchMock,
+        });
+
+        await new Promise((r) => setTimeout(r, 50));
+
+        expect(switchMock).not.toHaveBeenCalled();
+      });
+
+      it('keeps currentTenantId undefined when auto-switch fails', async () => {
+        const switchMock = mock(async () =>
+          err(
+            Object.assign(new Error('Forbidden'), {
+              code: 'AUTH_FORBIDDEN',
+              statusCode: 403,
+            }),
+          ),
+        );
+
+        const ctx = setupTenantProvider({
+          listTenants: async () =>
+            ok({
+              tenants: [{ id: 'org-1', name: 'Org One' }],
+              currentTenantId: undefined,
+              lastTenantId: undefined,
+              resolvedDefaultId: 'org-1',
+            }),
+          switchTenantResult: switchMock,
+        });
+
+        await new Promise((r) => setTimeout(r, 50));
+
+        expect(switchMock).toHaveBeenCalledWith({ tenantId: 'org-1' });
+        expect(ctx.currentTenantId).toBeUndefined();
+        expect(ctx.isLoading).toBe(false);
+      });
+
+      it('sets isLoading to false when listTenants fails', async () => {
+        const switchMock = mock(async () => ok({}));
+
+        const ctx = setupTenantProvider({
+          listTenants: async () =>
+            err(
+              Object.assign(new Error('Network error'), {
+                code: 'NETWORK_ERROR',
+                statusCode: 500,
+              }),
+            ),
+          switchTenantResult: switchMock,
+        });
+
+        await new Promise((r) => setTimeout(r, 50));
+
+        expect(ctx.isLoading).toBe(false);
+        expect(ctx.tenants).toEqual([]);
+        expect(switchMock).not.toHaveBeenCalled();
+      });
+
+      it('sets isLoading to false when listTenants throws', async () => {
+        const switchMock = mock(async () => ok({}));
+
+        const ctx = setupTenantProvider({
+          listTenants: async () => {
+            throw new Error('Network failure');
+          },
+          switchTenantResult: switchMock,
+        });
+
+        await new Promise((r) => setTimeout(r, 50));
+
+        expect(ctx.isLoading).toBe(false);
+        expect(ctx.tenants).toEqual([]);
+        expect(switchMock).not.toHaveBeenCalled();
+      });
+
+      it('calls onSwitchComplete after auto-switch', async () => {
+        const onSwitchComplete = mock(() => {});
+        const switchMock = mock(async () =>
+          ok({
+            tenantId: 'org-1',
+            user: { id: '1', email: 'a@b.com', role: 'user' },
+            expiresAt: 0,
+          }),
+        );
+
+        setupTenantProvider({
+          listTenants: async () =>
+            ok({
+              tenants: [{ id: 'org-1', name: 'Org One' }],
+              currentTenantId: undefined,
+              lastTenantId: undefined,
+              resolvedDefaultId: 'org-1',
+            }),
+          switchTenantResult: switchMock,
+          onSwitchComplete,
+        });
+
+        await new Promise((r) => setTimeout(r, 50));
+
+        expect(onSwitchComplete).toHaveBeenCalledWith('org-1');
+      });
+    });
+
     describe('auto-invalidation on tenant switch', () => {
       beforeEach(() => {
         resetQueryRegistry();

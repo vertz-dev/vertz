@@ -83,19 +83,27 @@ export function TenantProvider({
 
   // Fetch tenants on mount (deferred to avoid sync fetch during construction)
   setTimeout(() => {
-    void fetchTenants();
+    fetchTenants().catch(() => {});
   }, 0);
 
   async function fetchTenants() {
     isLoadingSignal.value = true;
-    const result = await listTenants();
-    if (result.ok) {
-      tenantsSignal.value = result.data.tenants;
-      currentTenantIdSignal.value = result.data.currentTenantId;
-      lastTenantIdSignal.value = result.data.lastTenantId;
-      resolvedDefaultIdSignal.value = result.data.resolvedDefaultId;
+    try {
+      const result = await listTenants();
+      if (result.ok) {
+        tenantsSignal.value = result.data.tenants;
+        currentTenantIdSignal.value = result.data.currentTenantId;
+        lastTenantIdSignal.value = result.data.lastTenantId;
+        resolvedDefaultIdSignal.value = result.data.resolvedDefaultId;
+
+        // Auto-switch to resolved default when session has no tenant yet
+        if (!result.data.currentTenantId && result.data.resolvedDefaultId) {
+          await doSwitchTenant(result.data.resolvedDefaultId);
+        }
+      }
+    } finally {
+      isLoadingSignal.value = false;
     }
-    isLoadingSignal.value = false;
   }
 
   async function doSwitchTenant(tenantId: string): Promise<Result<void, Error>> {
