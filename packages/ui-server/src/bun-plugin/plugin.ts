@@ -182,10 +182,11 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
   };
   fieldSelectionManifest.setImportResolver(fieldSelectionResolveImport);
 
-  // Scan all .tsx files for component prop field access
+  // Scan all .tsx and .ts files for component prop field access and re-exports.
+  // .tsx files contain component definitions; .ts files may be barrel re-exports.
   let fieldSelectionFileCount = 0;
   for (const [filePath] of manifests) {
-    if (filePath.endsWith('.tsx')) {
+    if (filePath.endsWith('.tsx') || filePath.endsWith('.ts')) {
       try {
         const sourceText = readFileSync(filePath, 'utf-8');
         fieldSelectionManifest.registerFile(filePath, sourceText);
@@ -557,8 +558,8 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
       manifestsRecord = null; // Invalidate cached Record view
     }
 
-    // Update field selection manifest incrementally
-    if (filePath.endsWith('.tsx')) {
+    // Update field selection manifest incrementally (.tsx for components, .ts for barrel re-exports)
+    if (filePath.endsWith('.tsx') || filePath.endsWith('.ts')) {
       fieldSelectionManifest.updateFile(filePath, sourceText);
     }
 

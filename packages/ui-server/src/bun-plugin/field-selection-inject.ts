@@ -291,6 +291,10 @@ function resolveCrossFileFields(
       if (childFields.hasOpaqueAccess) {
         hasOpaqueAccess = true;
       }
+    } else {
+      // Component not found in manifest → we can't determine what fields
+      // the child accesses. Fall back to opaque to prevent under-fetching.
+      hasOpaqueAccess = true;
     }
   }
 
