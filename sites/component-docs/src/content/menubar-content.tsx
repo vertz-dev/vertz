@@ -27,16 +27,10 @@ export function Content() {
           </Menubar.Menu>
         </Menubar>
       </ComponentPreview>
-
-      <DocH2>Installation</DocH2>
-      <CodeFence>
-        <code>bun add @vertz/ui @vertz/theme-shadcn</code>
-      </CodeFence>
-
       <DocH2>Usage</DocH2>
       <CodeFence>
         <code>
-          {`import { Menubar } from '@vertz/ui/components';
+          {`import { Menubar } from 'vertz/components';
 
 <Menubar>
   <Menubar.Menu value="file">

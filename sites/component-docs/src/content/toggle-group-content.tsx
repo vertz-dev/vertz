@@ -3,8 +3,6 @@ import { ComponentPreview } from '../components/component-preview';
 import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { toggleGroupItemProps, toggleGroupProps } from '../props/toggle-group-props';
-
-
 export function Content() {
   return (
     <>
@@ -15,16 +13,10 @@ export function Content() {
           <ToggleGroup.Item value="right">Right</ToggleGroup.Item>
         </ToggleGroup>
       </ComponentPreview>
-
-      <DocH2>Installation</DocH2>
-      <CodeFence>
-        <code>bun add @vertz/ui @vertz/theme-shadcn</code>
-      </CodeFence>
-
       <DocH2>Usage</DocH2>
       <CodeFence>
         <code>
-          {`import { ToggleGroup } from '@vertz/ui/components';
+          {`import { ToggleGroup } from 'vertz/components';
 
 <ToggleGroup type="single" defaultValue={['center']}>
   <ToggleGroup.Item value="left">Left</ToggleGroup.Item>

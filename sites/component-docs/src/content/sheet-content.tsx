@@ -1,10 +1,8 @@
-import { Button, Sheet } from '@vertz/ui/components';
+import { Button, Input, Label, Sheet } from '@vertz/ui/components';
 import { ComponentPreview } from '../components/component-preview';
 import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { sheetContentProps, sheetProps } from '../props/sheet-props';
-
-
 export function Content() {
   return (
     <>
@@ -14,24 +12,28 @@ export function Content() {
             <Button intent="outline">Open Sheet</Button>
           </Sheet.Trigger>
           <Sheet.Content>
-            <Sheet.Title>Sheet Title</Sheet.Title>
-            <Sheet.Description>Sheet description goes here.</Sheet.Description>
-            <Sheet.Close>
-              <Button intent="secondary">Close</Button>
-            </Sheet.Close>
+            <Sheet.Title>Edit profile</Sheet.Title>
+            <Sheet.Description>Make changes to your profile here.</Sheet.Description>
+            <div style={{ display: 'grid', gap: '1rem', padding: '1rem 0' }}>
+              <div style={{ display: 'grid', gap: '0.75rem' }}>
+                <Label for="sheet-name">Name</Label>
+                <Input id="sheet-name" name="name" defaultValue="Pedro Duarte" />
+              </div>
+              <div style={{ display: 'grid', gap: '0.75rem' }}>
+                <Label for="sheet-username">Username</Label>
+                <Input id="sheet-username" name="username" defaultValue="@peduarte" />
+              </div>
+            </div>
+            <Button intent="primary" size="md">
+              Save changes
+            </Button>
           </Sheet.Content>
         </Sheet>
       </ComponentPreview>
-
-      <DocH2>Installation</DocH2>
-      <CodeFence>
-        <code>bun add @vertz/ui @vertz/theme-shadcn</code>
-      </CodeFence>
-
       <DocH2>Usage</DocH2>
       <CodeFence>
         <code>
-          {`import { Sheet, Button } from '@vertz/ui/components';
+          {`import { Sheet, Button } from 'vertz/components';
 
 <Sheet>
   <Sheet.Trigger>

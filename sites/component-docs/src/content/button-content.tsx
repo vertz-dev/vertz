@@ -3,8 +3,6 @@ import { ComponentPreview } from '../components/component-preview';
 import { CodeFence, DocH2, DocH3 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { buttonProps } from '../props/button-props';
-
-
 export function Content() {
   return (
     <>
@@ -13,16 +11,10 @@ export function Content() {
           Click me
         </Button>
       </ComponentPreview>
-
-      <DocH2>Installation</DocH2>
-      <CodeFence>
-        <code>bun add @vertz/ui @vertz/theme-shadcn</code>
-      </CodeFence>
-
       <DocH2>Usage</DocH2>
       <CodeFence>
         <code>
-          {`import { Button } from '@vertz/ui/components';
+          {`import { Button } from 'vertz/components';
 
 <Button intent="primary">Click me</Button>`}
         </code>

@@ -3,8 +3,6 @@ import { ComponentPreview } from '../components/component-preview';
 import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { cardProps } from '../props/card-props';
-
-
 export function Content() {
   return (
     <>
@@ -27,16 +25,10 @@ export function Content() {
           </Card.CardFooter>
         </Card.Card>
       </ComponentPreview>
-
-      <DocH2>Installation</DocH2>
-      <CodeFence>
-        <code>bun add @vertz/ui @vertz/theme-shadcn</code>
-      </CodeFence>
-
       <DocH2>Usage</DocH2>
       <CodeFence>
         <code>
-          {`import { Card } from '@vertz/ui/components';
+          {`import { Card } from 'vertz/components';
 
 <Card.Card>
   <Card.CardHeader>

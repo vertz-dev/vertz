@@ -3,8 +3,6 @@ import { ComponentPreview } from '../components/component-preview';
 import { CodeFence, DocH2, DocParagraph } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { tabsContentProps, tabsProps, tabsTriggerProps } from '../props/tabs-props';
-
-
 export function Content() {
   return (
     <>
@@ -22,16 +20,10 @@ export function Content() {
           </Tabs.Content>
         </Tabs>
       </ComponentPreview>
-
-      <DocH2>Installation</DocH2>
-      <CodeFence>
-        <code>bun add @vertz/ui @vertz/theme-shadcn</code>
-      </CodeFence>
-
       <DocH2>Usage</DocH2>
       <CodeFence>
         <code>
-          {`import { Tabs } from '@vertz/ui/components';
+          {`import { Tabs } from 'vertz/components';
 
 <Tabs defaultValue="tab1">
   <Tabs.List>

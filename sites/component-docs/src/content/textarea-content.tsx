@@ -3,24 +3,16 @@ import { ComponentPreview } from '../components/component-preview';
 import { CodeFence, DocH2, DocH3 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { textareaProps } from '../props/textarea-props';
-
-
 export function Content() {
   return (
     <>
       <ComponentPreview>
         <Textarea placeholder="Type your message here..." />
       </ComponentPreview>
-
-      <DocH2>Installation</DocH2>
-      <CodeFence>
-        <code>bun add @vertz/ui @vertz/theme-shadcn</code>
-      </CodeFence>
-
       <DocH2>Usage</DocH2>
       <CodeFence>
         <code>
-          {`import { Textarea } from '@vertz/ui/components';
+          {`import { Textarea } from 'vertz/components';
 
 <Textarea placeholder="Type your message..." />`}
         </code>

@@ -3,8 +3,6 @@ import { ComponentPreview } from '../components/component-preview';
 import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { hoverCardProps } from '../props/hover-card-props';
-
-
 export function Content() {
   return (
     <>
@@ -30,16 +28,10 @@ export function Content() {
           </HoverCard.Content>
         </HoverCard>
       </ComponentPreview>
-
-      <DocH2>Installation</DocH2>
-      <CodeFence>
-        <code>bun add @vertz/ui @vertz/theme-shadcn</code>
-      </CodeFence>
-
       <DocH2>Usage</DocH2>
       <CodeFence>
         <code>
-          {`import { HoverCard } from '@vertz/ui/components';
+          {`import { HoverCard } from 'vertz/components';
 
 <HoverCard>
   <HoverCard.Trigger>

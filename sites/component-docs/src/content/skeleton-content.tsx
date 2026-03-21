@@ -3,8 +3,6 @@ import { ComponentPreview } from '../components/component-preview';
 import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { skeletonProps } from '../props/skeleton-props';
-
-
 export function Content() {
   return (
     <>
@@ -15,16 +13,10 @@ export function Content() {
           <Skeleton.Skeleton width="150px" height="20px" />
         </div>
       </ComponentPreview>
-
-      <DocH2>Installation</DocH2>
-      <CodeFence>
-        <code>bun add @vertz/ui @vertz/theme-shadcn</code>
-      </CodeFence>
-
       <DocH2>Usage</DocH2>
       <CodeFence>
         <code>
-          {`import { Skeleton } from '@vertz/ui/components';
+          {`import { Skeleton } from 'vertz/components';
 
 <Skeleton.Skeleton width="250px" height="20px" />
 <Skeleton.Skeleton width="200px" height="20px" />`}

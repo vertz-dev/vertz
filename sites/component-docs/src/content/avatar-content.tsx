@@ -3,8 +3,6 @@ import { ComponentPreview } from '../components/component-preview';
 import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { avatarImageProps, avatarProps } from '../props/avatar-props';
-
-
 export function Content() {
   return (
     <>
@@ -14,16 +12,10 @@ export function Content() {
           <Avatar.AvatarFallback>CN</Avatar.AvatarFallback>
         </Avatar.Avatar>
       </ComponentPreview>
-
-      <DocH2>Installation</DocH2>
-      <CodeFence>
-        <code>bun add @vertz/ui @vertz/theme-shadcn</code>
-      </CodeFence>
-
       <DocH2>Usage</DocH2>
       <CodeFence>
         <code>
-          {`import { Avatar } from '@vertz/ui/components';
+          {`import { Avatar } from 'vertz/components';
 
 <Avatar.Avatar>
   <Avatar.AvatarImage src="/avatar.png" alt="User avatar" />

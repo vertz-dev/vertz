@@ -1,6 +1,7 @@
 import { useParams } from '@vertz/ui/router';
 import { DocsLayout } from '../components/docs-layout';
 import { PrevNext } from '../components/prev-next';
+import { PrevNextCompact } from '../components/prev-next-compact';
 import { Content as AccordionContent } from '../content/accordion-content';
 import { Content as AlertContent } from '../content/alert-content';
 import { Content as AlertDialogContent } from '../content/alert-dialog-content';
@@ -132,6 +133,11 @@ export function ComponentPage() {
   const description = descriptions[name];
   const ContentComponent = contentMap[name];
 
+  // Reset scroll position when navigating to a new component
+  if (typeof window !== 'undefined') {
+    window.scrollTo(0, 0);
+  }
+
   return (
     <DocsLayout activeName={name}>
       <h1
@@ -155,6 +161,7 @@ export function ComponentPage() {
       >
         {description ?? `Documentation for ${entry.title} is coming soon.`}
       </p>
+      <PrevNextCompact prev={prev} next={next} />
       {ContentComponent ? <ContentComponent /> : null}
       <PrevNext prev={prev} next={next} />
     </DocsLayout>

@@ -142,28 +142,97 @@ export function DocTable({ children }: MdxProps) {
 }
 
 /**
- * CodeFence: MDX `pre` override.
- * When Shiki is enabled, the pre tag already contains highlighted HTML.
- * This wrapper adds consistent styling around the highlighted output.
+ * CodeFence: styled code block with copy-to-clipboard button.
  */
 export function CodeFence({ children, ...props }: MdxProps) {
+  let copied = false;
+
+  function handleCopy(e: MouseEvent) {
+    const btn = e.currentTarget as HTMLElement;
+    const pre = btn.parentElement?.querySelector('pre');
+    const text = pre?.textContent ?? '';
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      copied = true;
+      setTimeout(() => {
+        copied = false;
+      }, 2000);
+    }
+  }
+
   return (
-    <pre
-      {...props}
-      style={{
-        margin: '0 0 16px',
-        padding: '16px',
-        fontSize: '13px',
-        lineHeight: '1.5',
-        overflow: 'auto',
-        borderRadius: '8px',
-        backgroundColor: 'var(--color-muted)',
-        fontFamily: 'var(--font-mono, monospace)',
-        ...(typeof props.style === 'object' ? props.style : {}),
-      }}
-    >
-      {children}
-    </pre>
+    <div style={{ position: 'relative', marginBottom: '16px' }}>
+      <pre
+        {...props}
+        style={{
+          margin: '0',
+          padding: '16px 48px 16px 16px',
+          fontSize: '13px',
+          lineHeight: '1.5',
+          overflow: 'auto',
+          borderRadius: '8px',
+          backgroundColor: 'var(--color-muted)',
+          fontFamily: 'var(--font-mono, monospace)',
+          color: 'var(--color-foreground)',
+          ...(typeof props.style === 'object' ? props.style : {}),
+        }}
+      >
+        {children}
+      </pre>
+      <button
+        type="button"
+        onClick={handleCopy}
+        aria-label="Copy code"
+        style={{
+          position: 'absolute',
+          top: '8px',
+          right: '8px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '32px',
+          height: '32px',
+          border: '1px solid var(--color-border)',
+          borderRadius: '6px',
+          backgroundColor: 'var(--color-background)',
+          color: 'var(--color-muted-foreground)',
+          cursor: 'pointer',
+          opacity: '0.6',
+          transition: 'opacity 0.15s',
+        }}
+      >
+        {copied ? (
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        ) : (
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+          </svg>
+        )}
+      </button>
+    </div>
   );
 }
 

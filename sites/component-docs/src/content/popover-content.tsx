@@ -3,8 +3,6 @@ import { ComponentPreview } from '../components/component-preview';
 import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { popoverProps } from '../props/popover-props';
-
-
 export function Content() {
   return (
     <>
@@ -20,16 +18,10 @@ export function Content() {
           </Popover.Content>
         </Popover>
       </ComponentPreview>
-
-      <DocH2>Installation</DocH2>
-      <CodeFence>
-        <code>bun add @vertz/ui @vertz/theme-shadcn</code>
-      </CodeFence>
-
       <DocH2>Usage</DocH2>
       <CodeFence>
         <code>
-          {`import { Popover, Button } from '@vertz/ui/components';
+          {`import { Popover, Button } from 'vertz/components';
 
 <Popover>
   <Popover.Trigger>

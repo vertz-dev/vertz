@@ -3,8 +3,6 @@ import { ComponentPreview } from '../components/component-preview';
 import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { commandItemProps, commandProps } from '../props/command-props';
-
-
 export function Content() {
   return (
     <>
@@ -21,16 +19,10 @@ export function Content() {
           </Command.List>
         </Command>
       </ComponentPreview>
-
-      <DocH2>Installation</DocH2>
-      <CodeFence>
-        <code>bun add @vertz/ui @vertz/theme-shadcn</code>
-      </CodeFence>
-
       <DocH2>Usage</DocH2>
       <CodeFence>
         <code>
-          {`import { Command } from '@vertz/ui/components';
+          {`import { Command } from 'vertz/components';
 
 <Command placeholder="Type a command...">
   <Command.Input />

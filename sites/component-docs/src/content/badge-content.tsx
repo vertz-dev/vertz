@@ -3,24 +3,16 @@ import { ComponentPreview } from '../components/component-preview';
 import { CodeFence, DocH2, DocH3 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { badgeProps } from '../props/badge-props';
-
-
 export function Content() {
   return (
     <>
       <ComponentPreview>
         <Badge>Badge</Badge>
       </ComponentPreview>
-
-      <DocH2>Installation</DocH2>
-      <CodeFence>
-        <code>bun add @vertz/ui @vertz/theme-shadcn</code>
-      </CodeFence>
-
       <DocH2>Usage</DocH2>
       <CodeFence>
         <code>
-          {`import { Badge } from '@vertz/ui/components';
+          {`import { Badge } from 'vertz/components';
 
 <Badge>Badge</Badge>`}
         </code>

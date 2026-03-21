@@ -3,8 +3,6 @@ import { ComponentPreview } from '../components/component-preview';
 import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { separatorProps } from '../props/separator-props';
-
-
 export function Content() {
   return (
     <>
@@ -41,16 +39,10 @@ export function Content() {
           </div>
         </div>
       </ComponentPreview>
-
-      <DocH2>Installation</DocH2>
-      <CodeFence>
-        <code>bun add @vertz/ui @vertz/theme-shadcn</code>
-      </CodeFence>
-
       <DocH2>Usage</DocH2>
       <CodeFence>
         <code>
-          {`import { Separator } from '@vertz/ui/components';
+          {`import { Separator } from 'vertz/components';
 
 <Separator />
 <Separator orientation="vertical" />`}

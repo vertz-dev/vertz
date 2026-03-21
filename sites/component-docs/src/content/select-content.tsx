@@ -17,16 +17,10 @@ export function Content() {
           </Select.Content>
         </Select>
       </ComponentPreview>
-
-      <DocH2>Installation</DocH2>
-      <CodeFence>
-        <code>bun add @vertz/ui @vertz/theme-shadcn</code>
-      </CodeFence>
-
       <DocH2>Usage</DocH2>
       <CodeFence>
         <code>
-          {`import { Select } from '@vertz/ui/components';
+          {`import { Select } from 'vertz/components';
 
 <Select placeholder="Choose..." onValueChange={(value) => console.log(value)}>
   <Select.Trigger />

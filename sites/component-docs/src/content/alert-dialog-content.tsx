@@ -26,16 +26,10 @@ export function Content() {
           </AlertDialog.Content>
         </AlertDialog>
       </ComponentPreview>
-
-      <DocH2>Installation</DocH2>
-      <CodeFence>
-        <code>bun add @vertz/ui @vertz/theme-shadcn</code>
-      </CodeFence>
-
       <DocH2>Usage</DocH2>
       <CodeFence>
         <code>
-          {`import { AlertDialog, Button } from '@vertz/ui/components';
+          {`import { AlertDialog, Button } from 'vertz/components';
 
 <AlertDialog>
   <AlertDialog.Trigger>

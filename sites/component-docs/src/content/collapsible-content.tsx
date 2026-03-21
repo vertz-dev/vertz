@@ -3,8 +3,6 @@ import { ComponentPreview } from '../components/component-preview';
 import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { collapsibleProps } from '../props/collapsible-props';
-
-
 export function Content() {
   return (
     <>
@@ -27,16 +25,10 @@ export function Content() {
           </Collapsible.Content>
         </Collapsible>
       </ComponentPreview>
-
-      <DocH2>Installation</DocH2>
-      <CodeFence>
-        <code>bun add @vertz/ui @vertz/theme-shadcn</code>
-      </CodeFence>
-
       <DocH2>Usage</DocH2>
       <CodeFence>
         <code>
-          {`import { Collapsible, Button } from '@vertz/ui/components';
+          {`import { Collapsible, Button } from 'vertz/components';
 
 <Collapsible>
   <Collapsible.Trigger>

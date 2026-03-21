@@ -40,4 +40,22 @@ export const appGlobals = globalCss({
     color: 'var(--color-foreground)',
     fontWeight: '500',
   },
+  '.cmd-item': {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    width: '100%',
+    padding: '8px 12px',
+    fontSize: '14px',
+    color: 'var(--color-foreground)',
+    backgroundColor: 'transparent',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    textAlign: 'left',
+    fontFamily: 'inherit',
+  },
+  '.cmd-item:hover, .cmd-item[data-selected="true"]': {
+    backgroundColor: 'var(--color-accent)',
+  },
 });

@@ -3,8 +3,6 @@ import { ComponentPreview } from '../components/component-preview';
 import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { drawerProps } from '../props/drawer-props';
-
-
 export function Content() {
   return (
     <>
@@ -25,16 +23,10 @@ export function Content() {
           </Drawer.Content>
         </Drawer>
       </ComponentPreview>
-
-      <DocH2>Installation</DocH2>
-      <CodeFence>
-        <code>bun add @vertz/ui @vertz/theme-shadcn</code>
-      </CodeFence>
-
       <DocH2>Usage</DocH2>
       <CodeFence>
         <code>
-          {`import { Drawer, Button } from '@vertz/ui/components';
+          {`import { Drawer, Button } from 'vertz/components';
 
 <Drawer>
   <Drawer.Trigger>
