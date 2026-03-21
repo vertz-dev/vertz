@@ -96,10 +96,12 @@ export function IssueListPage() {
       )}
 
       {!issues.loading && !issues.error && issues.data?.items.length === 0 && (
-        <EmptyState data-testid="issues-empty">
-          <EmptyState.Title>No issues yet</EmptyState.Title>
-          <EmptyState.Description>Create your first issue to get started.</EmptyState.Description>
-        </EmptyState>
+        <div data-testid="issues-empty">
+          <EmptyState>
+            <EmptyState.Title>No issues yet</EmptyState.Title>
+            <EmptyState.Description>Create your first issue to get started.</EmptyState.Description>
+          </EmptyState>
+        </div>
       )}
 
       {!issues.loading &&
@@ -107,9 +109,11 @@ export function IssueListPage() {
         filtered &&
         filtered.length === 0 &&
         issues.data?.items.length !== 0 && (
-          <EmptyState data-testid="filter-empty">
-            <EmptyState.Description>No issues match the selected filter.</EmptyState.Description>
-          </EmptyState>
+          <div data-testid="filter-empty">
+            <EmptyState>
+              <EmptyState.Description>No issues match the selected filter.</EmptyState.Description>
+            </EmptyState>
+          </div>
         )}
 
       {filtered && filtered.length > 0 && (

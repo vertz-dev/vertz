@@ -217,8 +217,11 @@ export type {
   ComposedSkeletonProps,
   ComposedSkeletonTextProps,
   SkeletonCircleClasses,
+  SkeletonCircleClassKey,
   SkeletonClasses,
+  SkeletonClassKey,
   SkeletonTextClasses,
+  SkeletonTextClassKey,
 } from './skeleton/skeleton-composed';
 export { ComposedSkeleton } from './skeleton/skeleton-composed';
 export type { SliderElements, SliderOptions, SliderState } from './slider/slider';

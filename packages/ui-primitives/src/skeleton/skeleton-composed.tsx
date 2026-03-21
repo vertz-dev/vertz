@@ -56,7 +56,7 @@ export interface ComposedSkeletonTextProps {
   lastLineWidth?: string;
   /** Height of each line. Default: '1rem' */
   height?: string;
-  /** Gap between lines. Default: '0.5rem' */
+  /** Gap between lines. Overrides the CSS class gap when provided. */
   gap?: string;
 }
 
@@ -64,32 +64,29 @@ function SkeletonText(props: ComposedSkeletonTextProps = {}) {
   const lineCount = props.lines ?? 3;
   const lastWidth = props.lastLineWidth ?? '75%';
   const lineHeight = props.height;
-  const container = (
-    <div
-      class={cn(props.classes?.root, props.className ?? props.class)}
-      aria-hidden="true"
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: props.gap || undefined,
-      }}
-    />
-  );
 
+  const lines: Node[] = [];
   for (let i = 0; i < lineCount; i++) {
-    const line = (
+    lines.push(
       <div
         class={cn(props.classes?.line)}
         style={{
           width: i === lineCount - 1 ? lastWidth : undefined,
           height: lineHeight || undefined,
         }}
-      />
+      />,
     );
-    container.appendChild(line);
   }
 
-  return container;
+  return (
+    <div
+      class={cn(props.classes?.root, props.className ?? props.class)}
+      aria-hidden="true"
+      style={{ gap: props.gap || undefined }}
+    >
+      {lines}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -112,19 +109,12 @@ export interface ComposedSkeletonCircleProps {
 }
 
 function SkeletonCircle(props: ComposedSkeletonCircleProps = {}) {
-  const classes = props.classes;
-  const className = props.className;
-  const classProp = props.class;
   const size = props.size ?? '2.5rem';
   return (
     <div
-      class={cn(classes?.root, className ?? classProp)}
+      class={cn(props.classes?.root, props.className ?? props.class)}
       aria-hidden="true"
-      style={{
-        width: size,
-        height: size,
-        borderRadius: '50%',
-      }}
+      style={{ width: size, height: size }}
     />
   );
 }

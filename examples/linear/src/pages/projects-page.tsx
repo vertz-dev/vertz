@@ -33,10 +33,14 @@ export function ProjectsPage() {
       {projects.loading && <ProjectGridSkeleton />}
 
       {!projects.loading && projects.data?.items.length === 0 && (
-        <EmptyState data-testid="projects-empty">
-          <EmptyState.Title>No projects yet</EmptyState.Title>
-          <EmptyState.Description>Create your first project to get started.</EmptyState.Description>
-        </EmptyState>
+        <div data-testid="projects-empty">
+          <EmptyState>
+            <EmptyState.Title>No projects yet</EmptyState.Title>
+            <EmptyState.Description>
+              Create your first project to get started.
+            </EmptyState.Description>
+          </EmptyState>
+        </div>
       )}
 
       <div className={styles.grid}>

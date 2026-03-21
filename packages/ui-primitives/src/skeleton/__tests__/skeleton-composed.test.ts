@@ -115,6 +115,26 @@ describe('Skeleton.Text sub-component', () => {
       });
     });
   });
+
+  describe('Given Skeleton.Text with lines=0', () => {
+    describe('When rendered', () => {
+      it('Then renders an empty container with no children', () => {
+        const el = ComposedSkeleton.Text({ lines: 0 });
+        expect(el.children.length).toBe(0);
+        expect(el.getAttribute('aria-hidden')).toBe('true');
+      });
+    });
+  });
+
+  describe('Given Skeleton.Text with lines=1', () => {
+    describe('When rendered', () => {
+      it('Then renders a single line with lastLineWidth applied', () => {
+        const el = ComposedSkeleton.Text({ lines: 1 });
+        expect(el.children.length).toBe(1);
+        expect((el.children[0] as HTMLElement).style.width).toBe('75%');
+      });
+    });
+  });
 });
 
 describe('Skeleton.Circle sub-component', () => {
@@ -130,11 +150,6 @@ describe('Skeleton.Circle sub-component', () => {
         const el = ComposedSkeleton.Circle({ size: '40px' });
         expect(el.style.width).toBe('40px');
         expect(el.style.height).toBe('40px');
-      });
-
-      it('Then sets border-radius to 50%', () => {
-        const el = ComposedSkeleton.Circle({ size: '40px' });
-        expect(el.style.borderRadius).toBe('50%');
       });
 
       it('Then applies classes.root', () => {
