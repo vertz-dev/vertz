@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
+import { createDescriptor } from '@vertz/fetch';
 import { signal } from '../../runtime/signal';
 import type { SSRRenderContext } from '../../ssr/ssr-render-context';
-import { createTestSSRContext, disableTestSSR, enableTestSSR } from '../../ssr/test-ssr-helpers';
+import { disableTestSSR, enableTestSSR } from '../../ssr/test-ssr-helpers';
 import { MemoryCache } from '../cache';
 import { query } from '../query';
 
@@ -131,6 +132,68 @@ describe('query() SSR behavior', () => {
     query(() => Promise.resolve('data'), { key: 'override-timeout-test', ssrTimeout: 500 });
     expect(ctx.queries).toHaveLength(1);
     expect(ctx.queries[0]?.timeout).toBe(500);
+  });
+
+  it('decomposes descriptor-in-thunk during SSR and registers promise', () => {
+    const descriptor = createDescriptor(
+      'GET',
+      '/tasks',
+      () => Promise.resolve({ ok: true as const, data: { data: ['task-1'] } }),
+      undefined,
+      { entityType: 'tasks', kind: 'list' },
+    );
+
+    const result = query(() => descriptor, { ssrTimeout: 100 });
+
+    expect(ctx.queries).toHaveLength(1);
+    expect(ctx.queries[0]?.timeout).toBe(100);
+    // idle starts true — no data yet
+    expect(result.idle.value).toBe(true);
+  });
+
+  it('descriptor-in-thunk SSR resolve callback sets idle=false and populates data', () => {
+    const descriptor = createDescriptor(
+      'GET',
+      '/tasks',
+      () => Promise.resolve({ ok: true as const, data: { data: ['resolved-task'] } }),
+      undefined,
+      { entityType: 'tasks', kind: 'list' },
+    );
+
+    const result = query(() => descriptor);
+
+    expect(ctx.queries).toHaveLength(1);
+
+    // Simulate renderToHTML resolving the SSR promise
+    ctx.queries[0]?.resolve(['resolved-task']);
+
+    expect(result.data.value).toEqual(['resolved-task']);
+    expect(result.loading.value).toBe(false);
+    expect(result.idle.value).toBe(false);
+  });
+
+  it('SSR cache hit (pass 2) serves data immediately and sets idle=false', () => {
+    const cache = new MemoryCache<string[]>();
+    const cacheKey = 'ssr-cache-hit-test';
+
+    // Simulate pass 1 already resolved — cache is pre-populated
+    cache.set(cacheKey, ['cached-task']);
+
+    const descriptor = createDescriptor(
+      'GET',
+      '/tasks',
+      () => Promise.resolve({ ok: true as const, data: { data: ['fresh'] } }),
+      undefined,
+      { entityType: 'tasks', kind: 'list' },
+    );
+
+    const result = query(() => descriptor, { cache, key: cacheKey });
+
+    // Pass 2: data served from cache, no SSR promise registered
+    expect(ctx.queries).toHaveLength(0);
+    expect(result.data.value).toEqual(['cached-task']);
+    expect(result.loading.value).toBe(false);
+    expect(result.idle.value).toBe(false);
   });
 });
 
