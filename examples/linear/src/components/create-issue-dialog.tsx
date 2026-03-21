@@ -1,13 +1,13 @@
 import type { DialogHandle } from '@vertz/ui';
 import { form } from '@vertz/ui';
-import { Button } from '@vertz/ui/components';
+import { Button, Dialog } from '@vertz/ui/components';
 import { api } from '../api/client';
 import { PRIORITIES } from '../lib/issue-config';
-import { dialogStyles, formStyles, inputStyles, labelStyles } from '../styles/components';
+import { formStyles, inputStyles, labelStyles } from '../styles/components';
 
 interface CreateIssueDialogProps {
   projectId: string;
-  dialog: DialogHandle<boolean>;
+  dialog: DialogHandle<void>;
 }
 
 export function CreateIssueDialog({ projectId, dialog }: CreateIssueDialogProps) {
@@ -19,31 +19,21 @@ export function CreateIssueDialog({ projectId, dialog }: CreateIssueDialogProps)
       status: 'backlog',
       priority: 'none',
     },
-    onSuccess: () => dialog.close(true),
+    onSuccess: () => dialog.close(),
   });
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: dialog overlay backdrop
-    <div
-      className={dialogStyles.overlay}
-      data-state="open"
-      role="presentation"
-      onClick={(e: MouseEvent) => {
-        if (e.target === e.currentTarget) dialog.close(false);
-      }}
-      onKeyDown={(e: KeyboardEvent) => {
-        if (e.key === 'Escape') dialog.close(false);
-      }}
-    >
-      <div
-        className={dialogStyles.panel}
-        role="dialog"
-        aria-modal="true"
-        aria-label="New Issue"
-        data-state="open"
-      >
-        <h3 className={dialogStyles.title}>New Issue</h3>
-        <form action={createForm.action} method={createForm.method} onSubmit={createForm.onSubmit}>
+    <>
+      <Dialog.Header>
+        <Dialog.Title>New Issue</Dialog.Title>
+      </Dialog.Header>
+      <Dialog.Body>
+        <form
+          id="create-issue-form"
+          action={createForm.action}
+          method={createForm.method}
+          onSubmit={createForm.onSubmit}
+        >
           <input type="hidden" name="projectId" value={projectId} />
 
           <div className={formStyles.field}>
@@ -86,17 +76,20 @@ export function CreateIssueDialog({ projectId, dialog }: CreateIssueDialogProps)
               ))}
             </select>
           </div>
-
-          <footer className={dialogStyles.footer}>
-            <Button intent="outline" size="sm" onClick={() => dialog.close(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" intent="primary" size="sm" disabled={createForm.submitting.value}>
-              {createForm.submitting ? 'Creating...' : 'Create Issue'}
-            </Button>
-          </footer>
         </form>
-      </div>
-    </div>
+      </Dialog.Body>
+      <Dialog.Footer>
+        <Dialog.Cancel>Cancel</Dialog.Cancel>
+        <Button
+          type="submit"
+          form="create-issue-form"
+          intent="primary"
+          size="sm"
+          disabled={createForm.submitting.value}
+        >
+          {createForm.submitting ? 'Creating...' : 'Create Issue'}
+        </Button>
+      </Dialog.Footer>
+    </>
   );
 }

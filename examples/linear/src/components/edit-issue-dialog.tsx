@@ -1,11 +1,11 @@
 import type { DialogHandle } from '@vertz/ui';
 import { css } from '@vertz/ui';
-import { Button } from '@vertz/ui/components';
+import { Button, Dialog } from '@vertz/ui/components';
 import { api } from '../api/client';
 import { editIssueSchema } from '../lib/edit-issue-schema';
 import { PRIORITIES, STATUSES } from '../lib/issue-config';
 import type { Issue } from '../lib/types';
-import { dialogStyles, formStyles, inputStyles, labelStyles } from '../styles/components';
+import { formStyles, inputStyles, labelStyles } from '../styles/components';
 
 const styles = css({
   formError: ['text:sm', 'text:destructive', 'mb:4'],
@@ -13,7 +13,7 @@ const styles = css({
 
 interface EditIssueDialogProps {
   issue: Issue;
-  dialog: DialogHandle<boolean>;
+  dialog: DialogHandle<void>;
 }
 
 export function EditIssueDialog({ issue, dialog }: EditIssueDialogProps) {
@@ -52,31 +52,16 @@ export function EditIssueDialog({ issue, dialog }: EditIssueDialogProps) {
       return;
     }
 
-    dialog.close(true);
+    dialog.close();
   };
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: dialog overlay backdrop
-    <div
-      className={dialogStyles.overlay}
-      data-state="open"
-      role="presentation"
-      onClick={(e: MouseEvent) => {
-        if (e.target === e.currentTarget) dialog.close(false);
-      }}
-      onKeyDown={(e: KeyboardEvent) => {
-        if (e.key === 'Escape') dialog.close(false);
-      }}
-    >
-      <div
-        className={dialogStyles.panel}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Edit Issue"
-        data-state="open"
-      >
-        <h3 className={dialogStyles.title}>Edit Issue</h3>
-        <form onSubmit={handleSubmit}>
+    <>
+      <Dialog.Header>
+        <Dialog.Title>Edit Issue</Dialog.Title>
+      </Dialog.Header>
+      <Dialog.Body>
+        <form id="edit-issue-form" onSubmit={handleSubmit}>
           {formError && <div className={styles.formError}>{formError}</div>}
 
           <div className={formStyles.field}>
@@ -143,17 +128,20 @@ export function EditIssueDialog({ issue, dialog }: EditIssueDialogProps) {
               ))}
             </select>
           </div>
-
-          <footer className={dialogStyles.footer}>
-            <Button intent="outline" size="sm" onClick={() => dialog.close(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" intent="primary" size="sm" disabled={submitting}>
-              {submitting ? 'Saving...' : 'Save Changes'}
-            </Button>
-          </footer>
         </form>
-      </div>
-    </div>
+      </Dialog.Body>
+      <Dialog.Footer>
+        <Dialog.Cancel>Cancel</Dialog.Cancel>
+        <Button
+          type="submit"
+          form="edit-issue-form"
+          intent="primary"
+          size="sm"
+          disabled={submitting}
+        >
+          {submitting ? 'Saving...' : 'Save Changes'}
+        </Button>
+      </Dialog.Footer>
+    </>
   );
 }
