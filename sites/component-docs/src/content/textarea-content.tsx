@@ -1,6 +1,7 @@
 import { Textarea } from '@vertz/ui/components';
+import { CodeBlock } from '../components/code-block';
 import { ComponentPreview } from '../components/component-preview';
-import { CodeFence, DocH2, DocH3 } from '../components/mdx-components';
+import { DocH2, DocH3 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { textareaProps } from '../props/textarea-props';
 export function Content() {
@@ -10,13 +11,12 @@ export function Content() {
         <Textarea placeholder="Type your message here..." />
       </ComponentPreview>
       <DocH2>Usage</DocH2>
-      <CodeFence>
-        <code>
-          {`import { Textarea } from 'vertz/components';
+      <CodeBlock
+        code={`import { Textarea } from 'vertz/components';
 
 <Textarea placeholder="Type your message..." />`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
 
       <DocH2>Examples</DocH2>
 

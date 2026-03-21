@@ -1,6 +1,7 @@
 import { Menubar } from '@vertz/ui/components';
+import { CodeBlock } from '../components/code-block';
 import { ComponentPreview } from '../components/component-preview';
-import { CodeFence, DocH2 } from '../components/mdx-components';
+import { DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { menubarMenuProps, menubarProps } from '../props/menubar-props';
 
@@ -28,9 +29,8 @@ export function Content() {
         </Menubar>
       </ComponentPreview>
       <DocH2>Usage</DocH2>
-      <CodeFence>
-        <code>
-          {`import { Menubar } from 'vertz/components';
+      <CodeBlock
+        code={`import { Menubar } from 'vertz/components';
 
 <Menubar>
   <Menubar.Menu value="file">
@@ -41,8 +41,8 @@ export function Content() {
     </Menubar.Content>
   </Menubar.Menu>
 </Menubar>`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
 
       <DocH2>API Reference</DocH2>
       <PropsTable props={menubarProps} />

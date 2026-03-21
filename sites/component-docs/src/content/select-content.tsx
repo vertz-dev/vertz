@@ -1,6 +1,7 @@
 import { Select } from '@vertz/ui/components';
+import { CodeBlock } from '../components/code-block';
 import { ComponentPreview } from '../components/component-preview';
-import { CodeFence, DocH2 } from '../components/mdx-components';
+import { DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { selectItemProps, selectProps } from '../props/select-props';
 
@@ -18,9 +19,8 @@ export function Content() {
         </Select>
       </ComponentPreview>
       <DocH2>Usage</DocH2>
-      <CodeFence>
-        <code>
-          {`import { Select } from 'vertz/components';
+      <CodeBlock
+        code={`import { Select } from 'vertz/components';
 
 <Select placeholder="Choose..." onValueChange={(value) => console.log(value)}>
   <Select.Trigger />
@@ -33,8 +33,8 @@ export function Content() {
     <Select.Item value="other">Other</Select.Item>
   </Select.Content>
 </Select>`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
 
       <DocH2>API Reference</DocH2>
       <PropsTable props={selectProps} />

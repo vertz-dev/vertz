@@ -1,4 +1,9 @@
-import { createContext, getInjectedCSS, ThemeProvider, useContext } from '@vertz/ui';
+import {
+  createContext,
+  getInjectedCSS,
+  ThemeProvider,
+  useContext,
+} from '@vertz/ui';
 import { createRouter, defineRoutes, RouterView } from '@vertz/ui/router';
 import { ComponentPage } from './pages/component-page';
 import { IndexRedirect } from './pages/index-redirect';
@@ -70,7 +75,7 @@ export function App() {
   return (
     <ThemeContext.Provider value={{ theme: currentTheme, toggle }}>
       <ThemeProvider theme={currentTheme}>
-        <RouterView router={router} fallback={() => <IndexRedirect />} />
+        <RouterView router={router} fallback={() => <div>Page not found</div>} />
       </ThemeProvider>
     </ThemeContext.Provider>
   );

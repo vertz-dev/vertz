@@ -1,30 +1,50 @@
 import { ToggleGroup } from '@vertz/ui/components';
+import { CodeBlock } from '../components/code-block';
 import { ComponentPreview } from '../components/component-preview';
-import { CodeFence, DocH2 } from '../components/mdx-components';
+import { DocH2, DocParagraph } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { toggleGroupItemProps, toggleGroupProps } from '../props/toggle-group-props';
 export function Content() {
   return (
     <>
       <ComponentPreview>
-        <ToggleGroup type="single" defaultValue={['center']}>
-          <ToggleGroup.Item value="left">Left</ToggleGroup.Item>
-          <ToggleGroup.Item value="center">Center</ToggleGroup.Item>
-          <ToggleGroup.Item value="right">Right</ToggleGroup.Item>
+        <ToggleGroup type="multiple" defaultValue={['bold']}>
+          <ToggleGroup.Item value="bold">Bold</ToggleGroup.Item>
+          <ToggleGroup.Item value="italic">Italic</ToggleGroup.Item>
+          <ToggleGroup.Item value="underline">Underline</ToggleGroup.Item>
         </ToggleGroup>
       </ComponentPreview>
       <DocH2>Usage</DocH2>
-      <CodeFence>
-        <code>
-          {`import { ToggleGroup } from 'vertz/components';
+      <CodeBlock
+        code={`import { ToggleGroup } from 'vertz/components';
 
-<ToggleGroup type="single" defaultValue={['center']}>
-  <ToggleGroup.Item value="left">Left</ToggleGroup.Item>
-  <ToggleGroup.Item value="center">Center</ToggleGroup.Item>
-  <ToggleGroup.Item value="right">Right</ToggleGroup.Item>
+<ToggleGroup type="multiple" defaultValue={['bold']}>
+  <ToggleGroup.Item value="bold">Bold</ToggleGroup.Item>
+  <ToggleGroup.Item value="italic">Italic</ToggleGroup.Item>
+  <ToggleGroup.Item value="underline">Underline</ToggleGroup.Item>
 </ToggleGroup>`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
+
+      <DocH2>Single Selection</DocH2>
+      <DocParagraph>
+        Use type="single" when only one option should be active at a time.
+      </DocParagraph>
+      <ComponentPreview>
+        <ToggleGroup type="single" defaultValue={['list']}>
+          <ToggleGroup.Item value="grid">Grid</ToggleGroup.Item>
+          <ToggleGroup.Item value="list">List</ToggleGroup.Item>
+          <ToggleGroup.Item value="kanban">Kanban</ToggleGroup.Item>
+        </ToggleGroup>
+      </ComponentPreview>
+      <CodeBlock
+        code={`<ToggleGroup type="single" defaultValue={['list']}>
+  <ToggleGroup.Item value="grid">Grid</ToggleGroup.Item>
+  <ToggleGroup.Item value="list">List</ToggleGroup.Item>
+  <ToggleGroup.Item value="kanban">Kanban</ToggleGroup.Item>
+</ToggleGroup>`}
+        lang="tsx"
+      />
 
       <DocH2>API Reference</DocH2>
       <PropsTable props={toggleGroupProps} />

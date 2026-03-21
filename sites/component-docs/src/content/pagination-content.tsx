@@ -1,6 +1,7 @@
 import { Pagination } from '@vertz/ui/components';
+import { CodeBlock } from '../components/code-block';
 import { ComponentPreview } from '../components/component-preview';
-import { CodeFence, DocH2 } from '../components/mdx-components';
+import { DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { paginationProps } from '../props/pagination-props';
 export function Content() {
@@ -18,9 +19,8 @@ export function Content() {
         />
       </ComponentPreview>
       <DocH2>Usage</DocH2>
-      <CodeFence>
-        <code>
-          {`import { Pagination } from 'vertz/components';
+      <CodeBlock
+        code={`import { Pagination } from 'vertz/components';
 
 let page = 1;
 
@@ -29,8 +29,8 @@ let page = 1;
   totalPages={10}
   onPageChange={(p) => { page = p; }}
 />`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
 
       <DocH2>API Reference</DocH2>
       <PropsTable props={paginationProps} />

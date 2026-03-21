@@ -1,7 +1,8 @@
-import { useDialogStack } from '@vertz/ui';
+import { DialogStackProvider, useDialogStack } from '@vertz/ui';
 import { Button } from '@vertz/ui/components';
+import { CodeBlock } from '../components/code-block';
 import { ComponentPreview } from '../components/component-preview';
-import { CodeFence, DocH2 } from '../components/mdx-components';
+import { DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { confirmProps } from '../props/alert-dialog-props';
 
@@ -31,14 +32,13 @@ function ConfirmExample() {
 
 export function Content() {
   return (
-    <>
+    <DialogStackProvider>
       <ComponentPreview>
         <ConfirmExample />
       </ComponentPreview>
       <DocH2>Usage</DocH2>
-      <CodeFence>
-        <code>
-          {`import { useDialogStack } from '@vertz/ui';
+      <CodeBlock
+        code={`import { useDialogStack } from '@vertz/ui';
 import { Button } from '@vertz/ui/components';
 
 function DeleteButton() {
@@ -59,11 +59,11 @@ function DeleteButton() {
 
   return <Button intent="destructive" onClick={handleDelete}>Delete</Button>;
 }`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
 
       <DocH2>API Reference</DocH2>
       <PropsTable props={confirmProps} />
-    </>
+    </DialogStackProvider>
   );
 }

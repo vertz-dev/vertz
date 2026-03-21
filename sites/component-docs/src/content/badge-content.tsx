@@ -1,6 +1,7 @@
 import { Badge } from '@vertz/ui/components';
+import { CodeBlock } from '../components/code-block';
 import { ComponentPreview } from '../components/component-preview';
-import { CodeFence, DocH2, DocH3 } from '../components/mdx-components';
+import { DocH2, DocH3 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { badgeProps } from '../props/badge-props';
 export function Content() {
@@ -10,13 +11,12 @@ export function Content() {
         <Badge>Badge</Badge>
       </ComponentPreview>
       <DocH2>Usage</DocH2>
-      <CodeFence>
-        <code>
-          {`import { Badge } from 'vertz/components';
+      <CodeBlock
+        code={`import { Badge } from 'vertz/components';
 
 <Badge>Badge</Badge>`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
 
       <DocH2>Examples</DocH2>
 

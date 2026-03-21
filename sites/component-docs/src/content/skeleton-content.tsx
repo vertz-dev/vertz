@@ -1,6 +1,7 @@
 import { Skeleton } from '@vertz/ui/components';
+import { CodeBlock } from '../components/code-block';
 import { ComponentPreview } from '../components/component-preview';
-import { CodeFence, DocH2, DocH3 } from '../components/mdx-components';
+import { DocH2, DocH3 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { skeletonCircleProps, skeletonProps, skeletonTextProps } from '../props/skeleton-props';
 export function Content() {
@@ -14,14 +15,13 @@ export function Content() {
         </div>
       </ComponentPreview>
       <DocH2>Usage</DocH2>
-      <CodeFence>
-        <code>
-          {`import { Skeleton } from 'vertz/components';
+      <CodeBlock
+        code={`import { Skeleton } from 'vertz/components';
 
 <Skeleton width="250px" height="20px" />
 <Skeleton width="200px" height="20px" />`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
 
       <DocH2>Examples</DocH2>
 
@@ -29,15 +29,14 @@ export function Content() {
       <ComponentPreview>
         <Skeleton.Text />
       </ComponentPreview>
-      <CodeFence>
-        <code>
-          {`{/* 3 lines by default, last line shorter */}
+      <CodeBlock
+        code={`{/* 3 lines by default, last line shorter */}
 <Skeleton.Text />
 
 {/* Custom line count and width */}
 <Skeleton.Text lines={5} lastLineWidth="50%" />`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
 
       <DocH3>Circle skeleton</DocH3>
       <ComponentPreview>
@@ -47,13 +46,12 @@ export function Content() {
           <Skeleton.Circle size="64px" />
         </div>
       </ComponentPreview>
-      <CodeFence>
-        <code>
-          {`<Skeleton.Circle />
+      <CodeBlock
+        code={`<Skeleton.Circle />
 <Skeleton.Circle size="48px" />
 <Skeleton.Circle size="64px" />`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
 
       <DocH3>Card skeleton</DocH3>
       <ComponentPreview>

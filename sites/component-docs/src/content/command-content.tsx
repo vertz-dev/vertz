@@ -1,6 +1,7 @@
 import { Command } from '@vertz/ui/components';
+import { CodeBlock } from '../components/code-block';
 import { ComponentPreview } from '../components/component-preview';
-import { CodeFence, DocH2 } from '../components/mdx-components';
+import { DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { commandItemProps, commandProps } from '../props/command-props';
 export function Content() {
@@ -20,9 +21,8 @@ export function Content() {
         </Command>
       </ComponentPreview>
       <DocH2>Usage</DocH2>
-      <CodeFence>
-        <code>
-          {`import { Command } from 'vertz/components';
+      <CodeBlock
+        code={`import { Command } from 'vertz/components';
 
 <Command placeholder="Type a command...">
   <Command.Input />
@@ -34,8 +34,8 @@ export function Content() {
     </Command.Group>
   </Command.List>
 </Command>`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
 
       <DocH2>API Reference</DocH2>
       <PropsTable props={commandProps} />

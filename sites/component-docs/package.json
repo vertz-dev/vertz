@@ -16,7 +16,8 @@
     "@vertz/theme-shadcn": "workspace:*",
     "@vertz/ui": "workspace:*",
     "@vertz/ui-primitives": "workspace:*",
-    "@vertz/ui-server": "workspace:*"
+    "@vertz/ui-server": "workspace:*",
+    "shiki": "^4.0.1"
   },
   "devDependencies": {
     "@vertz/cli": "workspace:*",

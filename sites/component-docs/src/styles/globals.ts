@@ -58,4 +58,19 @@ export const appGlobals = globalCss({
   '.cmd-item:hover, .cmd-item[data-selected="true"]': {
     backgroundColor: 'var(--color-accent)',
   },
+  '.code-block-highlighted pre': {
+    margin: '0',
+    padding: '16px 48px 16px 16px',
+    fontSize: '13px',
+    lineHeight: '1.5',
+    overflow: 'auto',
+    borderRadius: '8px',
+    fontFamily: 'var(--font-mono, monospace)',
+    backgroundColor: 'var(--color-muted)',
+    color: 'var(--color-foreground)',
+  },
+  '.code-block-highlighted pre:focus-visible': {
+    outline: '2px solid var(--color-primary)',
+    outlineOffset: '-2px',
+  },
 });

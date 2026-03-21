@@ -1,6 +1,7 @@
 import { Table } from '@vertz/ui/components';
+import { CodeBlock } from '../components/code-block';
 import { ComponentPreview } from '../components/component-preview';
-import { CodeFence, DocH2 } from '../components/mdx-components';
+import { DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { tableProps } from '../props/table-props';
 export function Content() {
@@ -39,9 +40,8 @@ export function Content() {
         </Table>
       </ComponentPreview>
       <DocH2>Usage</DocH2>
-      <CodeFence>
-        <code>
-          {`import { Table } from 'vertz/components';
+      <CodeBlock
+        code={`import { Table } from 'vertz/components';
 
 <Table>
   <Table.Header>
@@ -57,8 +57,8 @@ export function Content() {
     </Table.Row>
   </Table.Body>
 </Table>`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
 
       <DocH2>API Reference</DocH2>
       <PropsTable props={tableProps} />
