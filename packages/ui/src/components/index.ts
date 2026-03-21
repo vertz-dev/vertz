@@ -131,8 +131,9 @@ export const Separator: ThemeComponentMap['Separator'] = /* #__PURE__ */ createC
   'Separator',
 ) as ThemeComponentMap['Separator'];
 
-export const Breadcrumb: ThemeComponentMap['Breadcrumb'] = /* #__PURE__ */ createComponentProxy(
+export const Breadcrumb: ThemeComponentMap['Breadcrumb'] = /* #__PURE__ */ createCallableSuiteProxy(
   'Breadcrumb',
+  ['Item'],
 ) as ThemeComponentMap['Breadcrumb'];
 
 export const Pagination: ThemeComponentMap['Pagination'] = /* #__PURE__ */ createComponentProxy(

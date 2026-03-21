@@ -29,7 +29,12 @@ export function createBreadcrumbStyles(): CSSOutput<BreadcrumbBlocks> {
         },
       },
     ],
-    breadcrumbItem: ['inline-flex', 'items:center', 'gap:1.5'],
+    breadcrumbItem: [
+      'inline-flex',
+      'items:center',
+      'gap:1.5',
+      { '&:first-child > [role="presentation"]': { display: 'none' } },
+    ],
     breadcrumbLink: ['transition:colors', 'text:foreground', { '&:hover': ['text:foreground'] }],
     breadcrumbPage: ['font:normal', 'text:foreground'],
     breadcrumbSeparator: [],

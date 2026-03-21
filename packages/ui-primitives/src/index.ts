@@ -27,7 +27,7 @@ export { ComposedBadge } from './badge/badge-composed';
 export type {
   BreadcrumbClasses,
   BreadcrumbClassKey,
-  BreadcrumbItem,
+  BreadcrumbItemProps,
   ComposedBreadcrumbProps,
 } from './breadcrumb/breadcrumb-composed';
 export { ComposedBreadcrumb } from './breadcrumb/breadcrumb-composed';
