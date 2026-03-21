@@ -38,6 +38,7 @@ export const components: ComponentEntry[] = [
   { name: 'avatar', title: 'Avatar', category: 'Data Display' },
   { name: 'badge', title: 'Badge', category: 'Data Display' },
   { name: 'calendar', title: 'Calendar', category: 'Data Display' },
+  { name: 'empty-state', title: 'EmptyState', category: 'Data Display' },
   { name: 'progress', title: 'Progress', category: 'Data Display' },
 
   // ── Feedback ──────────────────────────────────────────────

@@ -259,13 +259,51 @@ import { Table } from '@vertz/ui/components';
 
 ### Skeleton
 
-Loading placeholder with pulse animation.
+Loading placeholder with built-in pulse animation. Comes with `Text` and `Circle` sub-components for common patterns.
 
 ```tsx
 import { Skeleton } from '@vertz/ui/components';
 
-<Skeleton.Skeleton width="200px" height="16px" />
-<Skeleton.Skeleton width="150px" height="16px" />
+{/* Basic box skeleton */}
+<Skeleton width="200px" height="16px" />
+
+{/* Multi-line text skeleton (3 lines by default, last line shorter) */}
+<Skeleton.Text />
+
+{/* Custom line count and last-line width */}
+<Skeleton.Text lines={5} lastLineWidth="50%" />
+
+{/* Circular skeleton for avatars */}
+<Skeleton.Circle />
+<Skeleton.Circle size="48px" />
+```
+
+### EmptyState
+
+Compound component for empty-data placeholders with icon, title, description, and action slots.
+
+```tsx
+import { Button, EmptyState } from '@vertz/ui/components';
+
+<EmptyState>
+  <EmptyState.Icon>
+    <InboxIcon />
+  </EmptyState.Icon>
+  <EmptyState.Title>No issues yet</EmptyState.Title>
+  <EmptyState.Description>Create your first issue to get started.</EmptyState.Description>
+  <EmptyState.Action>
+    <Button intent="primary" size="sm">New Issue</Button>
+  </EmptyState.Action>
+</EmptyState>
+```
+
+All slots are optional — use only what you need:
+
+```tsx
+<EmptyState>
+  <EmptyState.Title>No results</EmptyState.Title>
+  <EmptyState.Description>Try adjusting your filters.</EmptyState.Description>
+</EmptyState>
 ```
 
 ---

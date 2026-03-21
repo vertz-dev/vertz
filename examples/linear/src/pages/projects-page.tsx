@@ -1,11 +1,10 @@
 import { css, Link, query, useDialogStack } from '@vertz/ui';
-import { Button } from '@vertz/ui/components';
+import { Button, EmptyState } from '@vertz/ui/components';
 import { api } from '../api/client';
 import { CreateProjectDialog } from '../components/create-project-dialog';
 import { ProjectGridSkeleton } from '../components/loading-skeleton';
 import { ProjectCard } from '../components/project-card';
 import type { Project } from '../lib/types';
-import { emptyStateStyles } from '../styles/components';
 
 const styles = css({
   container: ['p:6'],
@@ -34,9 +33,13 @@ export function ProjectsPage() {
       {projects.loading && <ProjectGridSkeleton />}
 
       {!projects.loading && projects.data?.items.length === 0 && (
-        <div className={emptyStateStyles.container} data-testid="projects-empty">
-          <h2 className={emptyStateStyles.title}>No projects yet</h2>
-          <p className={emptyStateStyles.description}>Create your first project to get started.</p>
+        <div data-testid="projects-empty">
+          <EmptyState>
+            <EmptyState.Title>No projects yet</EmptyState.Title>
+            <EmptyState.Description>
+              Create your first project to get started.
+            </EmptyState.Description>
+          </EmptyState>
         </div>
       )}
 

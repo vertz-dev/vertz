@@ -16,6 +16,7 @@ export { createDatePickerStyles } from './date-picker';
 export { createDialogStyles } from './dialog';
 export { createDrawerStyles } from './drawer';
 export { createDropdownMenuStyles } from './dropdown-menu';
+export { createEmptyStateStyles } from './empty-state';
 export { createFormGroup } from './form-group';
 export { createHoverCardStyles } from './hover-card';
 export { createInput } from './input';

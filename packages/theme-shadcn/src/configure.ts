@@ -7,7 +7,9 @@ import type {
   ComposedLabelProps,
   ComposedPaginationProps,
   ComposedSeparatorProps,
+  ComposedSkeletonCircleProps,
   ComposedSkeletonProps,
+  ComposedSkeletonTextProps,
   ComposedTextareaProps,
   StyledPrimitive,
   ToastOptions,
@@ -19,6 +21,7 @@ import {
   ComposedBreadcrumb,
   ComposedButton,
   ComposedCard,
+  ComposedEmptyState,
   ComposedFormGroup,
   ComposedInput,
   ComposedLabel,
@@ -105,6 +108,7 @@ import {
   createDialogStyles,
   createDrawerStyles,
   createDropdownMenuStyles,
+  createEmptyStateStyles,
   createFormGroup,
   createHoverCardStyles,
   createInput,
@@ -303,9 +307,21 @@ export interface ThemeStyles {
     readonly fallbackXl: string;
     readonly css: string;
   };
+  /** EmptyState css() styles. */
+  emptyState: {
+    readonly root: string;
+    readonly icon: string;
+    readonly title: string;
+    readonly description: string;
+    readonly action: string;
+    readonly css: string;
+  };
   /** Skeleton css() styles. */
   skeleton: {
-    readonly base: string;
+    readonly root: string;
+    readonly textRoot: string;
+    readonly textLine: string;
+    readonly circleRoot: string;
     readonly css: string;
   };
   /** Table css() styles. */
@@ -473,8 +489,13 @@ export interface ThemeComponents {
   FormGroup: StyledPrimitive<typeof ComposedFormGroup>;
   /** Avatar with sub-components (Avatar.Image, Avatar.Fallback). */
   Avatar: StyledPrimitive<typeof ComposedAvatar>;
+  /** EmptyState component — placeholder for empty content areas with Icon, Title, Description, Action. */
+  EmptyState: StyledPrimitive<typeof ComposedEmptyState>;
   /** Skeleton component — loading placeholder with pulse animation. */
-  Skeleton: (props: Omit<ComposedSkeletonProps, 'classes'>) => HTMLElement;
+  Skeleton: ((props: Omit<ComposedSkeletonProps, 'classes'>) => HTMLElement) & {
+    Text: (props: Omit<ComposedSkeletonTextProps, 'classes'>) => HTMLElement;
+    Circle: (props: Omit<ComposedSkeletonCircleProps, 'classes'>) => HTMLElement;
+  };
   /** Table suite with sub-components (Table.Header, Table.Body, Table.Row, etc.). */
   Table: StyledPrimitive<typeof ComposedTable>;
   /** Themed primitive factories. */
@@ -525,6 +546,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
   const toastStyles = createToastStyles();
   const tooltipStyles = createTooltipStyles();
   const avatarStyles = createAvatarStyles();
+  const emptyStateStyles = createEmptyStateStyles();
   const skeletonStyles = createSkeletonStyles();
   const tableStyles = createTableStyles();
   const sheetStyles = createSheetStyles();
@@ -570,6 +592,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
     toast: toastStyles,
     tooltip: tooltipStyles,
     avatar: avatarStyles,
+    emptyState: emptyStateStyles,
     skeleton: skeletonStyles,
     table: tableStyles,
     sheet: sheetStyles,
@@ -673,7 +696,22 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
       image: avatarStyles.image,
       fallback: avatarStyles.fallback,
     }),
-    Skeleton: withStyles(ComposedSkeleton, { base: skeletonStyles.base }),
+    EmptyState: withStyles(ComposedEmptyState, {
+      root: emptyStateStyles.root,
+      icon: emptyStateStyles.icon,
+      title: emptyStateStyles.title,
+      description: emptyStateStyles.description,
+      action: emptyStateStyles.action,
+    }),
+    Skeleton: Object.assign(withStyles(ComposedSkeleton, { root: skeletonStyles.root }), {
+      Text: withStyles(ComposedSkeleton.Text, {
+        root: skeletonStyles.textRoot,
+        line: skeletonStyles.textLine,
+      }),
+      Circle: withStyles(ComposedSkeleton.Circle, {
+        root: skeletonStyles.circleRoot,
+      }),
+    }) as ThemeComponents['Skeleton'],
     Table: withStyles(ComposedTable, {
       root: tableStyles.root,
       header: tableStyles.header,

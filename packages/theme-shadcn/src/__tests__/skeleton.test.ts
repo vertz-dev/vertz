@@ -5,9 +5,20 @@ import { createSkeletonStyles } from '../styles/skeleton';
 describe('skeleton styles', () => {
   const skeleton = createSkeletonStyles();
 
-  it('has base block', () => {
-    expect(typeof skeleton.base).toBe('string');
-    expect(skeleton.base.length).toBeGreaterThan(0);
+  it('has root block', () => {
+    expect(typeof skeleton.root).toBe('string');
+    expect(skeleton.root.length).toBeGreaterThan(0);
+  });
+
+  it('has textRoot and textLine blocks', () => {
+    expect(typeof skeleton.textRoot).toBe('string');
+    expect(typeof skeleton.textLine).toBe('string');
+    expect(skeleton.textLine.length).toBeGreaterThan(0);
+  });
+
+  it('has circleRoot block', () => {
+    expect(typeof skeleton.circleRoot).toBe('string');
+    expect(skeleton.circleRoot.length).toBeGreaterThan(0);
   });
 
   it('CSS contains pulse animation', () => {
@@ -19,10 +30,10 @@ describe('Skeleton component', () => {
   const theme = configureTheme();
   const Skeleton = theme.components.Skeleton;
 
-  it('returns a div element with base class', () => {
+  it('returns a div element with root class', () => {
     const el = Skeleton({});
     expect(el.tagName).toBe('DIV');
-    expect(el.className).toContain(theme.styles.skeleton.base);
+    expect(el.className).toContain(theme.styles.skeleton.root);
   });
 
   it('sets aria-hidden="true"', () => {
@@ -45,6 +56,6 @@ describe('Skeleton component', () => {
   it('appends user class', () => {
     const el = Skeleton({ className: 'custom-skeleton' });
     expect(el.className).toContain('custom-skeleton');
-    expect(el.className).toContain(theme.styles.skeleton.base);
+    expect(el.className).toContain(theme.styles.skeleton.root);
   });
 });

@@ -119,6 +119,12 @@ export type {
 } from './dropdown-menu/dropdown-menu-composed';
 export { ComposedDropdownMenu } from './dropdown-menu/dropdown-menu-composed';
 export type {
+  ComposedEmptyStateProps,
+  EmptyStateClasses,
+  EmptyStateClassKey,
+} from './empty-state/empty-state-composed';
+export { ComposedEmptyState } from './empty-state/empty-state-composed';
+export type {
   ComposedFormGroupProps,
   FormGroupClasses,
   FormGroupClassKey,
@@ -206,7 +212,17 @@ export type { SheetElements, SheetOptions, SheetSide, SheetState } from './sheet
 export { Sheet } from './sheet/sheet';
 export type { ComposedSheetProps, SheetClasses } from './sheet/sheet-composed';
 export { ComposedSheet } from './sheet/sheet-composed';
-export type { ComposedSkeletonProps, SkeletonClasses } from './skeleton/skeleton-composed';
+export type {
+  ComposedSkeletonCircleProps,
+  ComposedSkeletonProps,
+  ComposedSkeletonTextProps,
+  SkeletonCircleClasses,
+  SkeletonCircleClassKey,
+  SkeletonClasses,
+  SkeletonClassKey,
+  SkeletonTextClasses,
+  SkeletonTextClassKey,
+} from './skeleton/skeleton-composed';
 export { ComposedSkeleton } from './skeleton/skeleton-composed';
 export type { SliderElements, SliderOptions, SliderState } from './slider/slider';
 export { Slider } from './slider/slider';
