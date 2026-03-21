@@ -1,4 +1,5 @@
 import type { ChildValue } from '@vertz/ui';
+import { cn } from '../composed/cn';
 
 export interface PaginationClasses {
   nav?: string;
@@ -70,13 +71,13 @@ interface PageButtonProps {
 function PageButton({ page, currentPage, onPageChange, classes }: PageButtonProps) {
   if (page === currentPage) {
     return (
-      <button type="button" class={classes?.linkActive || undefined} aria-current="page">
+      <button type="button" class={cn(classes?.linkActive)} aria-current="page">
         {String(page)}
       </button>
     );
   }
   return (
-    <button type="button" class={classes?.link || undefined} onClick={() => onPageChange(page)}>
+    <button type="button" class={cn(classes?.link)} onClick={() => onPageChange(page)}>
       {String(page)}
     </button>
   );
@@ -94,8 +95,6 @@ function ComposedPaginationRoot({
   nextContent = 'Next',
   ellipsisContent = '...',
 }: ComposedPaginationProps) {
-  const effectiveCls = className ?? classProp;
-  const navClass = [classes?.nav, effectiveCls].filter(Boolean).join(' ');
   const range = generatePaginationRange(currentPage, totalPages, siblingCount);
 
   // Build page items imperatively to avoid .map() index issues with compiler
@@ -103,15 +102,15 @@ function ComposedPaginationRoot({
   for (const page of range) {
     if (page === '...') {
       pageItems.push(
-        <li class={classes?.item || undefined}>
-          <span aria-hidden="true" class={classes?.ellipsis || undefined}>
+        <li class={cn(classes?.item)}>
+          <span aria-hidden="true" class={cn(classes?.ellipsis)}>
             {ellipsisContent}
           </span>
         </li>,
       );
     } else {
       pageItems.push(
-        <li class={classes?.item || undefined}>
+        <li class={cn(classes?.item)}>
           <PageButton
             page={page}
             currentPage={currentPage}
@@ -124,12 +123,12 @@ function ComposedPaginationRoot({
   }
 
   return (
-    <nav aria-label="Pagination" class={navClass || undefined}>
-      <ul class={classes?.list || undefined}>
-        <li class={classes?.item || undefined}>
+    <nav aria-label="Pagination" class={cn(classes?.nav, className ?? classProp)}>
+      <ul class={cn(classes?.list)}>
+        <li class={cn(classes?.item)}>
           <button
             type="button"
-            class={classes?.navButton || undefined}
+            class={cn(classes?.navButton)}
             style={{ paddingLeft: '0.375rem', paddingRight: '0.625rem' }}
             aria-label="Previous page"
             disabled={currentPage <= 1}
@@ -139,10 +138,10 @@ function ComposedPaginationRoot({
           </button>
         </li>
         {pageItems}
-        <li class={classes?.item || undefined}>
+        <li class={cn(classes?.item)}>
           <button
             type="button"
-            class={classes?.navButton || undefined}
+            class={cn(classes?.navButton)}
             style={{ paddingLeft: '0.625rem', paddingRight: '0.375rem' }}
             aria-label="Next page"
             disabled={currentPage >= totalPages}

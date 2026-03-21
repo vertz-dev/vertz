@@ -9,6 +9,7 @@
 
 import type { ChildValue, Ref } from '@vertz/ui';
 import { createContext, onMount, ref, useContext } from '@vertz/ui';
+import { cn } from '../composed/cn';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
@@ -136,9 +137,6 @@ function MenubarTrigger({ children, className: cls, class: classProp }: SlotProp
   // when called outside both Menu and Menubar.
   const menuCtx = useMenuContext('Trigger');
   const barCtx = useMenubarContext('Trigger');
-  const effectiveCls = cls ?? classProp;
-  const triggerClass = [menuCtx.classes?.trigger, effectiveCls].filter(Boolean).join(' ');
-
   const el = (
     <button
       type="button"
@@ -150,7 +148,7 @@ function MenubarTrigger({ children, className: cls, class: classProp }: SlotProp
       data-value={menuCtx.menuValue}
       aria-expanded="false"
       data-state="closed"
-      class={triggerClass || undefined}
+      class={cn(menuCtx.classes?.trigger, cls ?? classProp)}
     >
       {children ?? menuCtx.menuValue}
     </button>
@@ -191,9 +189,6 @@ function MenubarTrigger({ children, className: cls, class: classProp }: SlotProp
 function MenubarContent({ children, className: cls, class: classProp }: SlotProps) {
   const menuCtx = useMenuContext('Content');
   const barCtx = useMenubarContext('Content');
-  const effectiveCls = cls ?? classProp;
-  const contentClass = [menuCtx.classes?.content, effectiveCls].filter(Boolean).join(' ');
-
   const el = (
     <div
       role="menu"
@@ -203,7 +198,7 @@ function MenubarContent({ children, className: cls, class: classProp }: SlotProp
       aria-hidden="true"
       data-state="closed"
       style={{ display: 'none' }}
-      class={contentClass || undefined}
+      class={cn(menuCtx.classes?.content, cls ?? classProp)}
     >
       {children}
     </div>
@@ -281,8 +276,6 @@ function MenubarContent({ children, className: cls, class: classProp }: SlotProp
 function MenubarItem({ value, children, className: cls, class: classProp }: ItemProps) {
   const barCtx = useMenubarContext('Item');
   const menuCtx = useMenuContext('Item');
-  const effectiveCls = cls ?? classProp;
-  const itemClass = [menuCtx.classes?.item, effectiveCls].filter(Boolean).join(' ');
 
   return (
     <div
@@ -290,7 +283,7 @@ function MenubarItem({ value, children, className: cls, class: classProp }: Item
       data-menubar-item=""
       data-value={value}
       tabindex="-1"
-      class={itemClass || undefined}
+      class={cn(menuCtx.classes?.item, cls ?? classProp)}
       onClick={() => {
         barCtx.getOnSelect()?.(value);
         barCtx.closeAll();
@@ -303,11 +296,9 @@ function MenubarItem({ value, children, className: cls, class: classProp }: Item
 
 function MenubarGroup({ label, children, className: cls, class: classProp }: GroupProps) {
   const menuCtx = useMenuContext('Group');
-  const effectiveCls = cls ?? classProp;
-  const groupClass = [menuCtx.classes?.group, effectiveCls].filter(Boolean).join(' ');
 
   return (
-    <div role="group" aria-label={label} class={groupClass || undefined}>
+    <div role="group" aria-label={label} class={cn(menuCtx.classes?.group, cls ?? classProp)}>
       {children}
     </div>
   );
@@ -315,11 +306,9 @@ function MenubarGroup({ label, children, className: cls, class: classProp }: Gro
 
 function MenubarLabel({ children, className: cls, class: classProp }: SlotProps) {
   const { classes } = useMenuContext('Label');
-  const effectiveCls = cls ?? classProp;
-  const labelClass = [classes?.label, effectiveCls].filter(Boolean).join(' ');
 
   return (
-    <div role="none" class={labelClass || undefined}>
+    <div role="none" class={cn(classes?.label, cls ?? classProp)}>
       {children}
     </div>
   );
@@ -327,10 +316,8 @@ function MenubarLabel({ children, className: cls, class: classProp }: SlotProps)
 
 function MenubarSeparator({ className: cls, class: classProp }: SlotProps) {
   const { classes } = useMenuContext('Separator');
-  const effectiveCls = cls ?? classProp;
-  const sepClass = [classes?.separator, effectiveCls].filter(Boolean).join(' ');
 
-  return <hr role="separator" class={sepClass || undefined} />;
+  return <hr role="separator" class={cn(classes?.separator, cls ?? classProp)} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -505,7 +492,7 @@ function ComposedMenubarRoot({ children, classes, onSelect, positioning }: Compo
         ref={rootRef}
         role="menubar"
         id={rootId}
-        class={classes?.root || undefined}
+        class={cn(classes?.root)}
         onKeydown={(event: KeyboardEvent) => {
           // Handle ArrowRight/ArrowLeft on the root for trigger-level navigation
           if (state.activeMenu && isKey(event, Keys.ArrowRight)) {

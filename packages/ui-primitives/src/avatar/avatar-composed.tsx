@@ -5,6 +5,7 @@
 
 import type { ChildValue } from '@vertz/ui';
 import { createContext, useContext } from '@vertz/ui';
+import { cn } from '../composed/cn';
 
 // ---------------------------------------------------------------------------
 // Class distribution
@@ -52,16 +53,12 @@ interface AvatarImageProps {
 
 function AvatarImage({ src, alt, className, class: classProp }: AvatarImageProps) {
   const ctx = useContext(AvatarContext);
-  const effectiveCls = className ?? classProp;
-  const combined = [ctx?.classes?.image, effectiveCls].filter(Boolean).join(' ');
-  return <img src={src} alt={alt} class={combined || undefined} />;
+  return <img src={src} alt={alt} class={cn(ctx?.classes?.image, className ?? classProp)} />;
 }
 
 function AvatarFallback({ children, className, class: classProp }: SlotProps) {
   const ctx = useContext(AvatarContext);
-  const effectiveCls = className ?? classProp;
-  const combined = [ctx?.classes?.fallback, effectiveCls].filter(Boolean).join(' ');
-  return <div class={combined || undefined}>{children}</div>;
+  return <div class={cn(ctx?.classes?.fallback, className ?? classProp)}>{children}</div>;
 }
 
 // ---------------------------------------------------------------------------
@@ -82,11 +79,9 @@ function ComposedAvatarRoot({
   className,
   class: classProp,
 }: ComposedAvatarProps) {
-  const effectiveCls = className ?? classProp;
-  const combinedClass = [classes?.root, effectiveCls].filter(Boolean).join(' ');
   return (
     <AvatarContext.Provider value={{ classes }}>
-      <div class={combinedClass || undefined}>{children}</div>
+      <div class={cn(classes?.root, className ?? classProp)}>{children}</div>
     </AvatarContext.Provider>
   );
 }

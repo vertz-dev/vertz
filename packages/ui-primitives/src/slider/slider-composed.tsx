@@ -6,6 +6,7 @@
 
 import type { ChildValue, Ref } from '@vertz/ui';
 import { ref } from '@vertz/ui';
+import { cn } from '../composed/cn';
 import { setValueRange } from '../utils/aria';
 import { uniqueId } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
@@ -93,7 +94,7 @@ function ComposedSliderRoot({
     <div
       id={uniqueId('slider')}
       data-state={disabled ? 'disabled' : 'active'}
-      class={classes?.root}
+      class={cn(classes?.root)}
       onPointerdown={(event: PointerEvent) => {
         if (disabled) return;
         event.preventDefault();
@@ -111,7 +112,7 @@ function ComposedSliderRoot({
         document.addEventListener('pointerup', onUp);
       }}
     >
-      <div ref={trackRef} data-part="track" style={{ position: 'relative' }} class={classes?.track}>
+      <div ref={trackRef} data-part="track" style={{ position: 'relative' }} class={cn(classes?.track)}>
         <div
           ref={fillRef}
           data-part="fill"
@@ -121,7 +122,7 @@ function ComposedSliderRoot({
             borderRadius: 'inherit',
             width: `${initialPct}%`,
           }}
-          class={classes?.range}
+          class={cn(classes?.range)}
         />
         <div
           ref={thumbRef}
@@ -137,7 +138,7 @@ function ComposedSliderRoot({
             transform: 'translate(-50%, -50%)',
             left: `${initialPct}%`,
           }}
-          class={classes?.thumb}
+          class={cn(classes?.thumb)}
           onKeydown={(event: KeyboardEvent) => {
             if (disabled) return;
             if (isKey(event, Keys.ArrowRight, Keys.ArrowUp)) {

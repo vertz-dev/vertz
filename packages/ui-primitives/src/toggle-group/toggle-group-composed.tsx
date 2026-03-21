@@ -6,6 +6,7 @@
 
 import type { ChildValue } from '@vertz/ui';
 import { createContext, useContext } from '@vertz/ui';
+import { cn } from '../composed/cn';
 import { uniqueId } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
@@ -77,7 +78,7 @@ function ToggleGroupItem({ value, children }: ToggleGroupItemProps) {
       disabled={ctx.disabled}
       aria-disabled={ctx.disabled ? 'true' : undefined}
       tabindex={isFirst ? '0' : '-1'}
-      class={ctx.classes?.item}
+      class={cn(ctx.classes?.item)}
       onClick={() => ctx.toggle(value)}
     >
       {children}
@@ -157,7 +158,7 @@ function ComposedToggleGroupRoot({
         id={uniqueId('toggle-group')}
         data-orientation={orientation}
         data-togglegroup-root=""
-        class={classes?.root}
+        class={cn(classes?.root)}
         onKeydown={(event: KeyboardEvent) => {
           if (
             !isKey(

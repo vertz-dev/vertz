@@ -6,6 +6,7 @@
 
 import type { ChildValue, Ref } from '@vertz/ui';
 import { createContext, ref, useContext } from '@vertz/ui';
+import { cn } from '../composed/cn';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
@@ -103,9 +104,6 @@ function PopoverContent({ children, className: cls, class: classProp }: SlotProp
     console.warn('Duplicate <Popover.Content> detected \u2013 only the first is used');
   }
 
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
-
   return (
     <div
       ref={ctx.contentRef}
@@ -115,7 +113,7 @@ function PopoverContent({ children, className: cls, class: classProp }: SlotProp
       aria-hidden="true"
       data-state="closed"
       style={{ display: 'none' }}
-      class={combined || undefined}
+      class={cn(ctx.classes?.content, cls ?? classProp)}
     >
       {children}
     </div>

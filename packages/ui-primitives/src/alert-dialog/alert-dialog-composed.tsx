@@ -7,6 +7,7 @@
 
 import type { ChildValue, Ref } from '@vertz/ui';
 import { createContext, ref, useContext } from '@vertz/ui';
+import { cn } from '../composed/cn';
 import { linkedIds } from '../utils/id';
 
 // ---------------------------------------------------------------------------
@@ -95,8 +96,6 @@ function AlertDialogTrigger({ children }: SlotProps) {
 
 function AlertDialogContent({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useAlertDialogContext('Content');
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
   // Use static data-state to avoid reactive element replacement.
   // showDialog()/hideDialog() manage data-state imperatively for animations.
@@ -108,7 +107,7 @@ function AlertDialogContent({ children, className: cls, class: classProp }: Slot
       aria-labelledby={ctx.titleId}
       aria-describedby={ctx.descriptionId}
       data-state="closed"
-      class={combined || undefined}
+      class={cn(ctx.classes?.content, cls ?? classProp)}
       onCancel={(e: Event) => {
         // AlertDialog blocks Escape dismiss — prevent the native close.
         e.preventDefault();
@@ -121,10 +120,8 @@ function AlertDialogContent({ children, className: cls, class: classProp }: Slot
 
 function AlertDialogTitle({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useAlertDialogContext('Title');
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.title, effectiveCls].filter(Boolean).join(' ');
   return (
-    <h2 id={ctx.titleId} data-slot="alertdialog-title" class={combined || undefined}>
+    <h2 id={ctx.titleId} data-slot="alertdialog-title" class={cn(ctx.classes?.title, cls ?? classProp)}>
       {children}
     </h2>
   );
@@ -132,10 +129,8 @@ function AlertDialogTitle({ children, className: cls, class: classProp }: SlotPr
 
 function AlertDialogDescription({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useAlertDialogContext('Description');
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.description, effectiveCls].filter(Boolean).join(' ');
   return (
-    <p id={ctx.descriptionId} data-slot="alertdialog-description" class={combined || undefined}>
+    <p id={ctx.descriptionId} data-slot="alertdialog-description" class={cn(ctx.classes?.description, cls ?? classProp)}>
       {children}
     </p>
   );
@@ -143,16 +138,12 @@ function AlertDialogDescription({ children, className: cls, class: classProp }: 
 
 function AlertDialogHeader({ children, className: cls, class: classProp }: SlotProps) {
   const { classes } = useAlertDialogContext('Header');
-  const effectiveCls = cls ?? classProp;
-  const combined = [classes?.header, effectiveCls].filter(Boolean).join(' ');
-  return <div class={combined || undefined}>{children}</div>;
+  return <div class={cn(classes?.header, cls ?? classProp)}>{children}</div>;
 }
 
 function AlertDialogFooter({ children, className: cls, class: classProp }: SlotProps) {
   const { classes } = useAlertDialogContext('Footer');
-  const effectiveCls = cls ?? classProp;
-  const combined = [classes?.footer, effectiveCls].filter(Boolean).join(' ');
-  return <div class={combined || undefined}>{children}</div>;
+  return <div class={cn(classes?.footer, cls ?? classProp)}>{children}</div>;
 }
 
 function AlertDialogCancel({
@@ -163,13 +154,11 @@ function AlertDialogCancel({
   disabled,
 }: ButtonSlotProps) {
   const ctx = useAlertDialogContext('Cancel');
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.cancel, effectiveCls].filter(Boolean).join(' ');
   return (
     <button
       type="button"
       data-slot="alertdialog-cancel"
-      class={combined || undefined}
+      class={cn(ctx.classes?.cancel, cls ?? classProp)}
       onClick={() => {
         onClick?.();
         ctx.close();
@@ -189,13 +178,11 @@ function AlertDialogAction({
   disabled,
 }: ButtonSlotProps) {
   const ctx = useAlertDialogContext('Action');
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.action, effectiveCls].filter(Boolean).join(' ');
   return (
     <button
       type="button"
       data-slot="alertdialog-action"
-      class={combined || undefined}
+      class={cn(ctx.classes?.action, cls ?? classProp)}
       onClick={() => {
         onClick?.();
         ctx.onAction?.();

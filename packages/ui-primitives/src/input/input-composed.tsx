@@ -1,3 +1,4 @@
+import { cn } from '../composed/cn';
 import type { ComposedPrimitive } from '../composed/with-styles';
 
 export interface InputClasses {
@@ -20,9 +21,7 @@ export interface ComposedInputProps {
 }
 
 function ComposedInputRoot({ classes, className, class: classProp, ...props }: ComposedInputProps) {
-  const effectiveCls = className ?? classProp;
-  const combinedClass = [classes?.base, effectiveCls].filter(Boolean).join(' ');
-  return <input class={combinedClass || undefined} {...props} />;
+  return <input class={cn(classes?.base, className ?? classProp)} {...props} />;
 }
 
 export const ComposedInput: ComposedPrimitive<InputClassKey, HTMLElement> =

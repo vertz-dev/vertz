@@ -7,6 +7,7 @@
 
 import type { ChildValue } from '@vertz/ui';
 import { createContext, useContext } from '@vertz/ui';
+import { cn } from '../composed/cn';
 
 // ---------------------------------------------------------------------------
 // Class distribution
@@ -95,15 +96,13 @@ function ResizablePanelPanel({
     );
   }
   const index = ctx.registerPanel({ defaultSize, minSize, maxSize });
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.panel, effectiveCls].filter(Boolean).join(' ');
 
   return (
     <div
       data-part="panel"
       data-group={ctx.groupId}
       style={{ flex: `${ctx.getSizeForPanel(index)} 1 0`, minWidth: 0, minHeight: 0 }}
-      class={combined || undefined}
+      class={cn(ctx.classes?.panel, cls ?? classProp)}
     >
       {children}
     </div>
@@ -119,8 +118,6 @@ function ResizablePanelHandle({ className: cls, class: classProp }: HandleSlotPr
     );
   }
   const handleIndex = ctx.registerHandle();
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.handle, effectiveCls].filter(Boolean).join(' ');
 
   return (
     <div
@@ -134,7 +131,7 @@ function ResizablePanelHandle({ className: cls, class: classProp }: HandleSlotPr
       aria-valuenow={String(ctx.getAriaForHandle(handleIndex).valuenow)}
       aria-valuemin={String(ctx.getAriaForHandle(handleIndex).valuemin)}
       aria-valuemax={String(ctx.getAriaForHandle(handleIndex).valuemax)}
-      class={combined || undefined}
+      class={cn(ctx.classes?.handle, cls ?? classProp)}
     />
   );
 }

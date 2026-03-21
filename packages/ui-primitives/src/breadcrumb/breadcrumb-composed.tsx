@@ -1,4 +1,5 @@
 import type { ChildValue } from '@vertz/ui';
+import { cn } from '../composed/cn';
 
 export interface BreadcrumbClasses {
   nav?: string;
@@ -32,12 +33,12 @@ interface BreadcrumbLinkProps {
 function BreadcrumbLink({ item, classes }: BreadcrumbLinkProps) {
   if (item.href) {
     return (
-      <a href={item.href} class={classes?.link || undefined}>
+      <a href={item.href} class={cn(classes?.link)}>
         {item.label}
       </a>
     );
   }
-  return <span class={classes?.link || undefined}>{item.label}</span>;
+  return <span class={cn(classes?.link)}>{item.label}</span>;
 }
 
 interface BreadcrumbPageProps {
@@ -47,7 +48,7 @@ interface BreadcrumbPageProps {
 
 function BreadcrumbPage({ item, classes }: BreadcrumbPageProps) {
   return (
-    <span aria-current="page" class={classes?.page || undefined}>
+    <span aria-current="page" class={cn(classes?.page)}>
       {item.label}
     </span>
   );
@@ -60,9 +61,6 @@ function ComposedBreadcrumbRoot({
   className,
   class: classProp,
 }: ComposedBreadcrumbProps) {
-  const effectiveCls = className ?? classProp;
-  const navClass = [classes?.nav, effectiveCls].filter(Boolean).join(' ');
-
   // Pre-process items to build the list elements without using map index
   const listChildren: ChildValue[] = [];
   for (let idx = 0; idx < items.length; idx++) {
@@ -72,18 +70,18 @@ function ComposedBreadcrumbRoot({
 
     if (isLast) {
       listChildren.push(
-        <li class={classes?.item || undefined}>
+        <li class={cn(classes?.item)}>
           <BreadcrumbPage item={item} classes={classes} />
         </li>,
       );
     } else {
       listChildren.push(
-        <li class={classes?.item || undefined}>
+        <li class={cn(classes?.item)}>
           <BreadcrumbLink item={item} classes={classes} />
         </li>,
       );
       listChildren.push(
-        <li role="presentation" aria-hidden="true" class={classes?.separator || undefined}>
+        <li role="presentation" aria-hidden="true" class={cn(classes?.separator)}>
           {separator}
         </li>,
       );
@@ -91,9 +89,9 @@ function ComposedBreadcrumbRoot({
   }
 
   return (
-    <nav aria-label="Breadcrumb" class={navClass || undefined}>
+    <nav aria-label="Breadcrumb" class={cn(classes?.nav, className ?? classProp)}>
       <ol
-        class={classes?.list || undefined}
+        class={cn(classes?.list)}
         style={{ listStyle: 'none', margin: '0', padding: '0' }}
       >
         {listChildren}

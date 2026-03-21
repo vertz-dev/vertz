@@ -5,6 +5,7 @@
 
 import type { ChildValue } from '@vertz/ui';
 import { createContext, useContext } from '@vertz/ui';
+import { cn } from '../composed/cn';
 
 // ---------------------------------------------------------------------------
 // Class distribution
@@ -43,9 +44,7 @@ interface SlotProps {
 
 function FormError({ children, className, class: classProp }: SlotProps) {
   const ctx = useContext(FormGroupContext);
-  const effectiveCls = className ?? classProp;
-  const combined = [ctx?.classes?.error, effectiveCls].filter(Boolean).join(' ');
-  return <span class={combined || undefined}>{children}</span>;
+  return <span class={cn(ctx?.classes?.error, className ?? classProp)}>{children}</span>;
 }
 
 // ---------------------------------------------------------------------------
@@ -66,11 +65,9 @@ function ComposedFormGroupRoot({
   className,
   class: classProp,
 }: ComposedFormGroupProps) {
-  const effectiveCls = className ?? classProp;
-  const combinedClass = [classes?.base, effectiveCls].filter(Boolean).join(' ');
   return (
     <FormGroupContext.Provider value={{ classes }}>
-      <div class={combinedClass || undefined}>{children}</div>
+      <div class={cn(classes?.base, className ?? classProp)}>{children}</div>
     </FormGroupContext.Provider>
   );
 }

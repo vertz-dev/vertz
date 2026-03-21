@@ -4,6 +4,7 @@
  */
 
 import type { ChildValue } from '@vertz/ui';
+import { cn } from '../composed/cn';
 import { uniqueId } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
@@ -56,7 +57,7 @@ function ComposedToggleRoot({
       data-state={pressed ? 'on' : 'off'}
       disabled={disabled}
       aria-disabled={disabled ? 'true' : undefined}
-      class={classes?.root}
+      class={cn(classes?.root)}
       onClick={toggle}
       onKeydown={(e: KeyboardEvent) => {
         if (isKey(e, Keys.Space)) {

@@ -5,6 +5,7 @@
 
 import type { ChildValue } from '@vertz/ui';
 import { createContext, useContext } from '@vertz/ui';
+import { cn } from '../composed/cn';
 
 // ---------------------------------------------------------------------------
 // Class distribution
@@ -48,44 +49,32 @@ interface SlotProps {
 
 function CardHeader({ children, className, class: classProp }: SlotProps) {
   const ctx = useContext(CardContext);
-  const effectiveCls = className ?? classProp;
-  const combined = [ctx?.classes?.header, effectiveCls].filter(Boolean).join(' ');
-  return <div class={combined || undefined}>{children}</div>;
+  return <div class={cn(ctx?.classes?.header, className ?? classProp)}>{children}</div>;
 }
 
 function CardTitle({ children, className, class: classProp }: SlotProps) {
   const ctx = useContext(CardContext);
-  const effectiveCls = className ?? classProp;
-  const combined = [ctx?.classes?.title, effectiveCls].filter(Boolean).join(' ');
-  return <h3 class={combined || undefined}>{children}</h3>;
+  return <h3 class={cn(ctx?.classes?.title, className ?? classProp)}>{children}</h3>;
 }
 
 function CardDescription({ children, className, class: classProp }: SlotProps) {
   const ctx = useContext(CardContext);
-  const effectiveCls = className ?? classProp;
-  const combined = [ctx?.classes?.description, effectiveCls].filter(Boolean).join(' ');
-  return <p class={combined || undefined}>{children}</p>;
+  return <p class={cn(ctx?.classes?.description, className ?? classProp)}>{children}</p>;
 }
 
 function CardContent({ children, className, class: classProp }: SlotProps) {
   const ctx = useContext(CardContext);
-  const effectiveCls = className ?? classProp;
-  const combined = [ctx?.classes?.content, effectiveCls].filter(Boolean).join(' ');
-  return <div class={combined || undefined}>{children}</div>;
+  return <div class={cn(ctx?.classes?.content, className ?? classProp)}>{children}</div>;
 }
 
 function CardFooter({ children, className, class: classProp }: SlotProps) {
   const ctx = useContext(CardContext);
-  const effectiveCls = className ?? classProp;
-  const combined = [ctx?.classes?.footer, effectiveCls].filter(Boolean).join(' ');
-  return <div class={combined || undefined}>{children}</div>;
+  return <div class={cn(ctx?.classes?.footer, className ?? classProp)}>{children}</div>;
 }
 
 function CardAction({ children, className, class: classProp }: SlotProps) {
   const ctx = useContext(CardContext);
-  const effectiveCls = className ?? classProp;
-  const combined = [ctx?.classes?.action, effectiveCls].filter(Boolean).join(' ');
-  return <div class={combined || undefined}>{children}</div>;
+  return <div class={cn(ctx?.classes?.action, className ?? classProp)}>{children}</div>;
 }
 
 // ---------------------------------------------------------------------------
@@ -101,11 +90,9 @@ export interface ComposedCardProps {
 }
 
 function ComposedCardRoot({ children, classes, className, class: classProp }: ComposedCardProps) {
-  const effectiveCls = className ?? classProp;
-  const combinedClass = [classes?.root, effectiveCls].filter(Boolean).join(' ');
   return (
     <CardContext.Provider value={{ classes }}>
-      <div class={combinedClass || undefined}>{children}</div>
+      <div class={cn(classes?.root, className ?? classProp)}>{children}</div>
     </CardContext.Provider>
   );
 }

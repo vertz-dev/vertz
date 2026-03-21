@@ -1,3 +1,4 @@
+import { cn } from '../composed/cn';
 import type { ComposedPrimitive } from '../composed/with-styles';
 
 export interface TextareaClasses {
@@ -26,9 +27,7 @@ function ComposedTextareaRoot({
   value,
   ...props
 }: ComposedTextareaProps) {
-  const effectiveCls = className ?? classProp;
-  const combinedClass = [classes?.base, effectiveCls].filter(Boolean).join(' ');
-  const el = <textarea class={combinedClass || undefined} {...props} />;
+  const el = <textarea class={cn(classes?.base, className ?? classProp)} {...props} />;
   if (value !== undefined) (el as HTMLTextAreaElement).value = value;
   return el;
 }

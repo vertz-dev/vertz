@@ -10,6 +10,7 @@
 
 import type { ChildValue, Ref } from '@vertz/ui';
 import { createContext, ref, useContext } from '@vertz/ui';
+import { cn } from '../composed/cn';
 import { linkedIds } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
@@ -143,14 +144,12 @@ interface ViewportProps {
 
 function NavMenuList({ children, className: cls, class: classProp }: ListProps) {
   const ctx = useNavigationMenuContext('List');
-  const effectiveCls = cls ?? classProp;
-  const listClass = [ctx.classes?.list, effectiveCls].filter(Boolean).join(' ');
 
   return (
     <div
       data-part="nav-list"
       data-navmenu-list=""
-      class={listClass || undefined}
+      class={cn(ctx.classes?.list, cls ?? classProp)}
       onKeydown={(event: KeyboardEvent) => {
         if (!isKey(event, Keys.ArrowLeft, Keys.ArrowRight, Keys.Home, Keys.End)) return;
 
@@ -217,8 +216,6 @@ function NavMenuItem({ value, children }: ItemProps) {
 function NavMenuTrigger({ children, className: cls, class: classProp }: TriggerProps) {
   const ctx = useNavigationMenuContext('Trigger');
   const itemCtx = useNavigationMenuItemContext('Trigger');
-  const effectiveCls = cls ?? classProp;
-  const triggerClass = [ctx.classes?.trigger, effectiveCls].filter(Boolean).join(' ');
 
   return (
     <button
@@ -230,7 +227,7 @@ function NavMenuTrigger({ children, className: cls, class: classProp }: TriggerP
       data-value={itemCtx.value}
       aria-expanded="false"
       data-state="closed"
-      class={triggerClass || undefined}
+      class={cn(ctx.classes?.trigger, cls ?? classProp)}
       onClick={() => {
         if (ctx.getActiveItem() === itemCtx.value) {
           ctx.closeAll();
@@ -273,8 +270,6 @@ function NavMenuTrigger({ children, className: cls, class: classProp }: TriggerP
 function NavMenuContent({ children, className: cls, class: classProp }: ContentProps) {
   const ctx = useNavigationMenuContext('Content');
   const itemCtx = useNavigationMenuItemContext('Content');
-  const effectiveCls = cls ?? classProp;
-  const contentClass = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
   return (
     <div
@@ -286,7 +281,7 @@ function NavMenuContent({ children, className: cls, class: classProp }: ContentP
       aria-hidden="true"
       data-state="closed"
       style={{ display: 'none' }}
-      class={contentClass || undefined}
+      class={cn(ctx.classes?.content, cls ?? classProp)}
       onMouseenter={() => ctx.cancelTimers()}
       onMouseleave={() => {
         ctx.cancelTimers();
@@ -311,11 +306,9 @@ function NavMenuContent({ children, className: cls, class: classProp }: ContentP
 function NavMenuLink({ href, children, className: cls, class: classProp }: LinkProps) {
   const ctx = useNavigationMenuContext('Link');
   useNavigationMenuListContext('Link');
-  const effectiveCls = cls ?? classProp;
-  const linkClass = [ctx.classes?.link, effectiveCls].filter(Boolean).join(' ');
 
   return (
-    <a href={href} data-navmenu-link="" class={linkClass || undefined}>
+    <a href={href} data-navmenu-link="" class={cn(ctx.classes?.link, cls ?? classProp)}>
       {children}
     </a>
   );
@@ -323,11 +316,9 @@ function NavMenuLink({ href, children, className: cls, class: classProp }: LinkP
 
 function NavMenuViewport({ className: cls, class: classProp }: ViewportProps) {
   const ctx = useNavigationMenuContext('Viewport');
-  const effectiveCls = cls ?? classProp;
-  const viewportClass = [ctx.classes?.viewport, effectiveCls].filter(Boolean).join(' ');
 
   return (
-    <div data-part="nav-viewport" data-navmenu-viewport="" class={viewportClass || undefined} />
+    <div data-part="nav-viewport" data-navmenu-viewport="" class={cn(ctx.classes?.viewport, cls ?? classProp)} />
   );
 }
 
@@ -476,7 +467,7 @@ function ComposedNavigationMenuRoot({
 
   return (
     <NavigationMenuContext.Provider value={ctx}>
-      <nav ref={rootRef} id={rootId} class={classes?.root || undefined}>
+      <nav ref={rootRef} id={rootId} class={cn(classes?.root)}>
         {children}
       </nav>
     </NavigationMenuContext.Provider>

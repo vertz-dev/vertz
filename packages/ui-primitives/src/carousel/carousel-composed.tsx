@@ -7,6 +7,7 @@
 
 import type { ChildValue } from '@vertz/ui';
 import { createContext, useContext } from '@vertz/ui';
+import { cn } from '../composed/cn';
 
 // ---------------------------------------------------------------------------
 // Class types
@@ -67,9 +68,6 @@ function CarouselSlide({ children, className: cls, class: classProp }: SlideProp
     );
   }
   const index = ctx.registerSlide();
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.slide, effectiveCls].filter(Boolean).join(' ');
-
   return (
     <div
       role="group"
@@ -78,7 +76,7 @@ function CarouselSlide({ children, className: cls, class: classProp }: SlideProp
       aria-hidden={String(index !== ctx.currentIndex)}
       aria-label={`Slide ${index + 1} of ${ctx.getSlideCount()}`}
       data-state={index === ctx.currentIndex ? 'active' : 'inactive'}
-      class={combined || undefined}
+      class={cn(ctx.classes?.slide, cls ?? classProp)}
     >
       {children}
     </div>
@@ -99,7 +97,7 @@ function CarouselPrevious({ children }: SlotProps) {
       aria-label="Previous slide"
       data-carousel-prev=""
       disabled={!ctx.loop && ctx.currentIndex <= 0}
-      class={ctx.classes?.prevButton}
+      class={cn(ctx.classes?.prevButton)}
     >
       {children ?? '\u2039'}
     </button>
@@ -120,7 +118,7 @@ function CarouselNext({ children }: SlotProps) {
       aria-label="Next slide"
       data-carousel-next=""
       disabled={!ctx.loop && ctx.currentIndex >= ctx.getSlideCount() - 1}
-      class={ctx.classes?.nextButton}
+      class={cn(ctx.classes?.nextButton)}
     >
       {children ?? '\u203A'}
     </button>
@@ -215,11 +213,11 @@ function ComposedCarouselRoot({
         aria-roledescription="carousel"
         data-carousel-root=""
         data-orientation={orientation}
-        class={classes?.root}
+        class={cn(classes?.root)}
         onClick={handleClick}
         onKeydown={handleKeydown}
       >
-        <div data-carousel-viewport="" class={classes?.viewport}>
+        <div data-carousel-viewport="" class={cn(classes?.viewport)}>
           {children}
         </div>
       </div>

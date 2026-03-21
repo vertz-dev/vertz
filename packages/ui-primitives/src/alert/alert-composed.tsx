@@ -6,6 +6,7 @@
 
 import type { ChildValue } from '@vertz/ui';
 import { createContext, useContext } from '@vertz/ui';
+import { cn } from '../composed/cn';
 
 // ---------------------------------------------------------------------------
 // Class distribution
@@ -45,16 +46,12 @@ interface SlotProps {
 
 function AlertTitle({ children, className, class: classProp }: SlotProps) {
   const ctx = useContext(AlertContext);
-  const effectiveCls = className ?? classProp;
-  const combined = [ctx?.classes?.title, effectiveCls].filter(Boolean).join(' ');
-  return <h5 class={combined || undefined}>{children}</h5>;
+  return <h5 class={cn(ctx?.classes?.title, className ?? classProp)}>{children}</h5>;
 }
 
 function AlertDescription({ children, className, class: classProp }: SlotProps) {
   const ctx = useContext(AlertContext);
-  const effectiveCls = className ?? classProp;
-  const combined = [ctx?.classes?.description, effectiveCls].filter(Boolean).join(' ');
-  return <div class={combined || undefined}>{children}</div>;
+  return <div class={cn(ctx?.classes?.description, className ?? classProp)}>{children}</div>;
 }
 
 // ---------------------------------------------------------------------------
@@ -70,11 +67,9 @@ export interface ComposedAlertProps {
 }
 
 function ComposedAlertRoot({ children, classes, className, class: classProp }: ComposedAlertProps) {
-  const effectiveCls = className ?? classProp;
-  const combinedClass = [classes?.root, effectiveCls].filter(Boolean).join(' ');
   return (
     <AlertContext.Provider value={{ classes }}>
-      <div role="alert" class={combinedClass || undefined}>
+      <div role="alert" class={cn(classes?.root, className ?? classProp)}>
         {children}
       </div>
     </AlertContext.Provider>

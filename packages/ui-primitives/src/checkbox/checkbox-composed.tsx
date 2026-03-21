@@ -4,6 +4,7 @@
  */
 
 import type { ChildValue } from '@vertz/ui';
+import { cn } from '../composed/cn';
 import { uniqueId } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 import type { CheckedState } from './checkbox';
@@ -73,7 +74,7 @@ function ComposedCheckboxRoot({
       data-state={dataStateFor(checked)}
       disabled={disabled}
       aria-disabled={disabled ? 'true' : undefined}
-      class={classes?.root}
+      class={cn(classes?.root)}
       onClick={toggle}
       onKeydown={(e: KeyboardEvent) => {
         if (isKey(e, Keys.Space)) {
@@ -85,7 +86,7 @@ function ComposedCheckboxRoot({
       <span
         data-part="indicator"
         data-state={dataStateFor(checked)}
-        class={classes?.indicator}
+        class={cn(classes?.indicator)}
         style={{ width: '100%', height: '100%', pointerEvents: 'none' }}
       >
         <svg

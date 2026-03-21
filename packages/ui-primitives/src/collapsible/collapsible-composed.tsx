@@ -6,6 +6,7 @@
 
 import type { ChildValue, Ref } from '@vertz/ui';
 import { createContext, ref, useContext } from '@vertz/ui';
+import { cn } from '../composed/cn';
 import { setDataState, setExpanded, setHidden, setHiddenAnimated } from '../utils/aria';
 import { linkedIds } from '../utils/id';
 
@@ -69,8 +70,6 @@ interface SlotProps {
 
 function CollapsibleTrigger({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useCollapsibleContext('Trigger');
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.trigger, effectiveCls].filter(Boolean).join(' ');
 
   return (
     <button
@@ -82,7 +81,7 @@ function CollapsibleTrigger({ children, className: cls, class: classProp }: Slot
       data-state={ctx.defaultOpen ? 'open' : 'closed'}
       disabled={ctx.disabled}
       aria-disabled={ctx.disabled ? 'true' : undefined}
-      class={combined || undefined}
+      class={cn(ctx.classes?.trigger, cls ?? classProp)}
       onClick={ctx.toggle}
     >
       {children}
@@ -92,8 +91,6 @@ function CollapsibleTrigger({ children, className: cls, class: classProp }: Slot
 
 function CollapsibleContent({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useCollapsibleContext('Content');
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
   return (
     <div
@@ -103,7 +100,7 @@ function CollapsibleContent({ children, className: cls, class: classProp }: Slot
       aria-hidden={ctx.defaultOpen ? 'false' : 'true'}
       data-state={ctx.defaultOpen ? 'open' : 'closed'}
       style={{ display: ctx.defaultOpen ? '' : 'none' }}
-      class={combined || undefined}
+      class={cn(ctx.classes?.content, cls ?? classProp)}
     >
       {children}
     </div>
@@ -168,7 +165,7 @@ function ComposedCollapsibleRoot({
   };
 
   return (
-    <div data-part="collapsible" class={classes?.root || undefined}>
+    <div data-part="collapsible" class={cn(classes?.root)}>
       <CollapsibleContext.Provider value={ctx}>{children}</CollapsibleContext.Provider>
     </div>
   );

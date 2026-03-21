@@ -5,6 +5,7 @@
 
 import type { ChildValue } from '@vertz/ui';
 import { ref } from '@vertz/ui';
+import { cn } from '../composed/cn';
 
 // ---------------------------------------------------------------------------
 // Class distribution
@@ -158,13 +159,13 @@ function ComposedScrollAreaRoot({
     <div
       data-part="scroll-area"
       style={{ position: 'relative', overflow: 'hidden' }}
-      class={classes?.root || undefined}
+      class={cn(classes?.root)}
     >
       <div
         ref={viewportRef}
         data-part="scroll-area-viewport"
         style={{ overflow: 'scroll', scrollbarWidth: 'none' }}
-        class={classes?.viewport || undefined}
+        class={cn(classes?.viewport)}
         onScroll={handleViewportScroll}
       >
         <div data-part="scroll-area-content">{children}</div>
@@ -175,12 +176,12 @@ function ComposedScrollAreaRoot({
           data-part="scroll-area-scrollbar"
           aria-hidden="true"
           data-orientation="vertical"
-          class={classes?.scrollbar || undefined}
+          class={cn(classes?.scrollbar)}
         >
           <div
             ref={thumbYRef}
             data-part="scroll-area-thumb"
-            class={classes?.thumb || undefined}
+            class={cn(classes?.thumb)}
             onPointerdown={handleThumbYDown}
             onPointermove={handleThumbYMove}
             onPointerup={handleThumbYUp}
@@ -193,12 +194,12 @@ function ComposedScrollAreaRoot({
           data-part="scroll-area-scrollbar"
           aria-hidden="true"
           data-orientation="horizontal"
-          class={classes?.scrollbar || undefined}
+          class={cn(classes?.scrollbar)}
         >
           <div
             ref={thumbXRef}
             data-part="scroll-area-thumb"
-            class={classes?.thumb || undefined}
+            class={cn(classes?.thumb)}
             onPointerdown={handleThumbXDown}
             onPointermove={handleThumbXMove}
             onPointerup={handleThumbXUp}

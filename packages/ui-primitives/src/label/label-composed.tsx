@@ -1,4 +1,5 @@
 import type { ChildValue } from '@vertz/ui';
+import { cn } from '../composed/cn';
 import type { ComposedPrimitive } from '../composed/with-styles';
 
 export interface LabelClasses {
@@ -23,10 +24,8 @@ function ComposedLabelRoot({
   for: htmlFor,
   children,
 }: ComposedLabelProps) {
-  const effectiveCls = className ?? classProp;
-  const combinedClass = [classes?.base, effectiveCls].filter(Boolean).join(' ');
   return (
-    <label class={combinedClass || undefined} for={htmlFor}>
+    <label class={cn(classes?.base, className ?? classProp)} for={htmlFor}>
       {children}
     </label>
   );

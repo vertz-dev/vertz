@@ -1,3 +1,4 @@
+import { cn } from '../composed/cn';
 import type { ComposedPrimitive } from '../composed/with-styles';
 
 export interface SkeletonClasses {
@@ -17,11 +18,9 @@ export interface ComposedSkeletonProps {
 
 function ComposedSkeletonRoot(props: ComposedSkeletonProps = {}) {
   const { classes, className, class: classProp, width, height } = props;
-  const effectiveCls = className ?? classProp;
-  const combinedClass = [classes?.base, effectiveCls].filter(Boolean).join(' ');
   return (
     <div
-      class={combinedClass || undefined}
+      class={cn(classes?.base, className ?? classProp)}
       aria-hidden="true"
       style={{
         width: width || undefined,

@@ -1,4 +1,5 @@
 import type { ChildValue } from '@vertz/ui';
+import { cn } from '../composed/cn';
 import type { ComposedPrimitive } from '../composed/with-styles';
 
 export interface ButtonClasses {
@@ -27,12 +28,10 @@ function ComposedButtonRoot({
   type,
   ...rest
 }: ComposedButtonProps) {
-  const effectiveCls = className ?? classProp;
-  const combinedClass = [classes?.base, effectiveCls].filter(Boolean).join(' ');
   return (
     <button
       type={type ?? 'button'}
-      class={combinedClass || undefined}
+      class={cn(classes?.base, className ?? classProp)}
       disabled={disabled || undefined}
       {...rest}
     >

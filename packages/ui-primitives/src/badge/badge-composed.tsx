@@ -1,4 +1,5 @@
 import type { ChildValue } from '@vertz/ui';
+import { cn } from '../composed/cn';
 import type { ComposedPrimitive } from '../composed/with-styles';
 
 export interface BadgeClasses {
@@ -25,10 +26,8 @@ function ComposedBadgeRoot({
   style,
   ...rest
 }: ComposedBadgeProps) {
-  const effectiveCls = className ?? classProp;
-  const combinedClass = [classes?.base, effectiveCls].filter(Boolean).join(' ');
   return (
-    <span class={combinedClass || undefined} style={style} {...rest}>
+    <span class={cn(classes?.base, className ?? classProp)} style={style} {...rest}>
       {children}
     </span>
   );

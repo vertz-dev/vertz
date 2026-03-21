@@ -1,5 +1,6 @@
 import type { ChildValue } from '@vertz/ui';
 import { createContext, useContext } from '@vertz/ui';
+import { cn } from '../composed/cn';
 
 export interface TableClasses {
   root?: string;
@@ -27,31 +28,23 @@ const TableContext = createContext<{ classes?: TableClasses } | undefined>(
 
 function TableHeader({ children, className, class: classProp }: SlotProps) {
   const ctx = useContext(TableContext);
-  const effectiveCls = className ?? classProp;
-  const combined = [ctx?.classes?.header, effectiveCls].filter(Boolean).join(' ');
-  return <thead class={combined || undefined}>{children}</thead>;
+  return <thead class={cn(ctx?.classes?.header, className ?? classProp)}>{children}</thead>;
 }
 
 function TableBody({ children, className, class: classProp }: SlotProps) {
   const ctx = useContext(TableContext);
-  const effectiveCls = className ?? classProp;
-  const combined = [ctx?.classes?.body, effectiveCls].filter(Boolean).join(' ');
-  return <tbody class={combined || undefined}>{children}</tbody>;
+  return <tbody class={cn(ctx?.classes?.body, className ?? classProp)}>{children}</tbody>;
 }
 
 function TableRow({ children, className, class: classProp }: SlotProps) {
   const ctx = useContext(TableContext);
-  const effectiveCls = className ?? classProp;
-  const combined = [ctx?.classes?.row, effectiveCls].filter(Boolean).join(' ');
-  return <tr class={combined || undefined}>{children}</tr>;
+  return <tr class={cn(ctx?.classes?.row, className ?? classProp)}>{children}</tr>;
 }
 
 function TableHead({ children, className, class: classProp }: SlotProps) {
   const ctx = useContext(TableContext);
-  const effectiveCls = className ?? classProp;
-  const combined = [ctx?.classes?.head, effectiveCls].filter(Boolean).join(' ');
   return (
-    <th scope="col" class={combined || undefined}>
+    <th scope="col" class={cn(ctx?.classes?.head, className ?? classProp)}>
       {children}
     </th>
   );
@@ -59,23 +52,17 @@ function TableHead({ children, className, class: classProp }: SlotProps) {
 
 function TableCell({ children, className, class: classProp }: SlotProps) {
   const ctx = useContext(TableContext);
-  const effectiveCls = className ?? classProp;
-  const combined = [ctx?.classes?.cell, effectiveCls].filter(Boolean).join(' ');
-  return <td class={combined || undefined}>{children}</td>;
+  return <td class={cn(ctx?.classes?.cell, className ?? classProp)}>{children}</td>;
 }
 
 function TableCaption({ children, className, class: classProp }: SlotProps) {
   const ctx = useContext(TableContext);
-  const effectiveCls = className ?? classProp;
-  const combined = [ctx?.classes?.caption, effectiveCls].filter(Boolean).join(' ');
-  return <caption class={combined || undefined}>{children}</caption>;
+  return <caption class={cn(ctx?.classes?.caption, className ?? classProp)}>{children}</caption>;
 }
 
 function TableFooter({ children, className, class: classProp }: SlotProps) {
   const ctx = useContext(TableContext);
-  const effectiveCls = className ?? classProp;
-  const combined = [ctx?.classes?.footer, effectiveCls].filter(Boolean).join(' ');
-  return <tfoot class={combined || undefined}>{children}</tfoot>;
+  return <tfoot class={cn(ctx?.classes?.footer, className ?? classProp)}>{children}</tfoot>;
 }
 
 export interface ComposedTableProps {
@@ -86,12 +73,10 @@ export interface ComposedTableProps {
 }
 
 function ComposedTableRoot({ children, classes, className, class: classProp }: ComposedTableProps) {
-  const effectiveCls = className ?? classProp;
-  const combinedClass = [classes?.root, effectiveCls].filter(Boolean).join(' ');
   return (
     <TableContext.Provider value={{ classes }}>
       <div style={{ position: 'relative', width: '100%', overflowX: 'auto' }}>
-        <table style={{ borderCollapse: 'collapse' }} class={combinedClass || undefined}>
+        <table style={{ borderCollapse: 'collapse' }} class={cn(classes?.root, className ?? classProp)}>
           {children}
         </table>
       </div>
