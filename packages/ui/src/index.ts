@@ -81,6 +81,7 @@ export type { DialogComponent, DialogHandle, DialogResult, DialogStack } from '.
 export {
   createDialogStack,
   DialogStackContext,
+  DialogStackProvider,
   useDialogStack,
 } from './dialog';
 // Render adapter

@@ -1,6 +1,7 @@
 import type { ContextScope } from '../component/context';
 import { createContext, getContextScope, setContextScope, useContext } from '../component/context';
 import { onAnimationsComplete } from '../dom/animation';
+import { __element, __insert } from '../dom/element';
 import { popScope, pushScope, runCleanups } from '../runtime/disposal';
 import type { DisposeFn } from '../runtime/signal-types';
 
@@ -82,6 +83,30 @@ interface StackEntry {
   cleanups: DisposeFn[];
   dismissible: boolean;
   settled: boolean;
+}
+
+// ── Provider ──
+
+/**
+ * Manages the dialog container element and provides DialogStack via context.
+ *
+ * Creates a hydration-safe container div via `__element`, initializes the
+ * dialog stack, and wraps children in `DialogStackContext.Provider`.
+ * The container renders after children — dialogs portal into it.
+ */
+export function DialogStackProvider({ children }: { children?: unknown }): HTMLElement {
+  const container = __element('div', { 'data-dialog-container': '' }) as HTMLDivElement;
+  const stack = createDialogStack(container);
+
+  return DialogStackContext.Provider({
+    value: stack,
+    children: () => {
+      const frag = document.createDocumentFragment();
+      __insert(frag, children as Node | string | (() => unknown) | null | undefined);
+      frag.appendChild(container);
+      return frag;
+    },
+  });
 }
 
 // ── Implementation ──
