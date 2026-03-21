@@ -29,6 +29,7 @@ export class DbUserStore implements UserStore {
       password_hash: string | null;
       role: string;
       email_verified: number | boolean;
+      last_tenant_id: string | null;
       created_at: string;
       updated_at: string;
     }>(sql`SELECT * FROM auth_users WHERE email = ${email.toLowerCase()} LIMIT 1`);
@@ -50,6 +51,7 @@ export class DbUserStore implements UserStore {
       password_hash: string | null;
       role: string;
       email_verified: number | boolean;
+      last_tenant_id: string | null;
       created_at: string;
       updated_at: string;
     }>(sql`SELECT * FROM auth_users WHERE id = ${id} LIMIT 1`);
@@ -76,6 +78,13 @@ export class DbUserStore implements UserStore {
     assertWrite(result, 'updateEmailVerified');
   }
 
+  async updateLastTenantId(userId: string, tenantId: string): Promise<void> {
+    const result = await this.db.query(
+      sql`UPDATE auth_users SET last_tenant_id = ${tenantId}, updated_at = ${new Date().toISOString()} WHERE id = ${userId}`,
+    );
+    assertWrite(result, 'updateLastTenantId');
+  }
+
   async deleteUser(id: string): Promise<void> {
     const result = await this.db.query(sql`DELETE FROM auth_users WHERE id = ${id}`);
     assertWrite(result, 'deleteUser');
@@ -86,6 +95,7 @@ export class DbUserStore implements UserStore {
     email: string;
     role: string;
     email_verified: number | boolean;
+    last_tenant_id: string | null;
     created_at: string;
     updated_at: string;
   }): AuthUser {
@@ -94,6 +104,7 @@ export class DbUserStore implements UserStore {
       email: row.email,
       role: row.role,
       emailVerified: row.email_verified === 1 || row.email_verified === true,
+      lastTenantId: row.last_tenant_id ?? undefined,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
     };

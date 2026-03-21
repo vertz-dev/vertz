@@ -226,18 +226,24 @@ describe('adaptIR', () => {
       expect(signIn?.hasBody).toBe(true);
     });
 
-    it('includes switchTenant for tenant feature', () => {
+    it('includes switchTenant and listTenants for tenant feature', () => {
       const appIR = makeAppIR({ auth: { features: ['tenant'] } });
       const result = adaptIR(appIR);
 
       const opIds = result.auth.operations.map((o) => o.operationId);
       expect(opIds).toContain('switchTenant');
+      expect(opIds).toContain('listTenants');
       expect(opIds).not.toContain('signIn');
 
       const switchTenant = result.auth.operations.find((o) => o.operationId === 'switchTenant');
       expect(switchTenant?.method).toBe('POST');
       expect(switchTenant?.path).toBe('/switch-tenant');
       expect(switchTenant?.hasBody).toBe(true);
+
+      const listTenants = result.auth.operations.find((o) => o.operationId === 'listTenants');
+      expect(listTenants?.method).toBe('GET');
+      expect(listTenants?.path).toBe('/tenants');
+      expect(listTenants?.hasBody).toBe(false);
     });
 
     it('includes providers for providers feature', () => {
@@ -262,6 +268,7 @@ describe('adaptIR', () => {
       expect(opIds).toContain('signIn');
       expect(opIds).toContain('signUp');
       expect(opIds).toContain('switchTenant');
+      expect(opIds).toContain('listTenants');
       expect(opIds).toContain('providers');
       expect(opIds).toContain('signOut');
       expect(opIds).toContain('session');

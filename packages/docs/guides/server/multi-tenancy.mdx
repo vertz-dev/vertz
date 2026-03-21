@@ -1,0 +1,210 @@
+---
+title: Multi-Tenancy
+description: "Tenant switching, listing, last-accessed tracking, and auto-resolve for multi-tenant apps"
+---
+
+Vertz supports multi-tenant applications where a single user belongs to multiple tenants (organizations, workspaces, teams). The `tenant` config in `createAuth()` enables:
+
+- **Tenant-scoped JWTs** — each session is scoped to one tenant at a time
+- **Tenant switching** — users switch between tenants without re-authenticating
+- **Tenant listing** — fetch all tenants a user belongs to
+- **Auto-resolve** — automatically select the right tenant on login (last-accessed or custom logic)
+- **Last-accessed tracking** — the server remembers which tenant the user last switched to
+
+## Quick start
+
+```ts
+import { createAuth, createServer } from 'vertz/server';
+
+const auth = createAuth({
+  session: { strategy: 'jwt', ttl: '60s' },
+  tenant: {
+    // Required — verify the user belongs to the target tenant
+    verifyMembership: async (userId, tenantId) => {
+      const member = await db.query(
+        'SELECT 1 FROM tenant_members WHERE user_id = ? AND tenant_id = ?',
+        [userId, tenantId],
+      );
+      return member.length > 0;
+    },
+
+    // Optional — list all tenants for the user
+    listTenants: async (userId) => {
+      return db.query(
+        'SELECT t.id, t.name, t.logo FROM tenants t JOIN tenant_members tm ON t.id = tm.tenant_id WHERE tm.user_id = ?',
+        [userId],
+      );
+    },
+
+    // Optional — custom logic to pick the default tenant
+    resolveDefault: async (userId, tenants) => {
+      // Example: prefer the tenant marked as primary
+      const primary = tenants.find((t) => t.isPrimary);
+      return primary?.id;
+    },
+  },
+});
+
+const app = createServer({ entities: [/* ... */], db, auth });
+```
+
+This generates:
+
+```
+GET  /api/auth/tenants        → List tenants + resolve default
+POST /api/auth/switch-tenant  → Switch tenant (re-issues JWT)
+```
+
+## Configuration
+
+### `tenant.verifyMembership` (required)
+
+Called before every tenant switch. Return `false` to deny — the endpoint returns `403`.
+
+```ts
+verifyMembership: async (userId: string, tenantId: string) => boolean
+```
+
+### `tenant.listTenants` (optional)
+
+Enables the `GET /api/auth/tenants` endpoint. Without this, the endpoint returns `404`.
+
+```ts
+listTenants: async (userId: string) => TenantInfo[]
+```
+
+`TenantInfo` requires `id` and `name`. You can add any extra fields (logo, plan, role) — they pass through to the client:
+
+```ts
+interface TenantInfo {
+  id: string;
+  name: string;
+  [key: string]: unknown; // logo, plan, memberCount, etc.
+}
+```
+
+### `tenant.resolveDefault` (optional)
+
+Determines which tenant to auto-select when a session has no `tenantId` (e.g., right after login). Called during `GET /api/auth/tenants`.
+
+```ts
+resolveDefault: async (userId: string, tenants: TenantInfo[]) => string | undefined
+```
+
+**Default behavior** (when `resolveDefault` is not provided):
+1. Use `lastTenantId` (the last tenant the user switched to)
+2. Fall back to the first tenant in the list
+3. Return `undefined` if the user has no tenants
+
+## How it works
+
+### Tenant-scoped JWTs
+
+When a user switches tenants, the server issues a new JWT with `tenantId` in the payload. All subsequent requests carry this scoped JWT. Entity access rules can use `rules.where({ tenantId: rules.user.tenantId })` to filter data by the current tenant.
+
+The `tenantId` is preserved across token refreshes — switching tenant once persists until the user explicitly switches again.
+
+### Last-accessed tracking
+
+Every successful tenant switch updates the user's `lastTenantId` in the user store. This is used by the default `resolveDefault` strategy and is returned in the `GET /api/auth/tenants` response.
+
+## Endpoints
+
+### `GET /api/auth/tenants`
+
+Returns the user's tenants, current session tenant, last-accessed tenant, and the resolved default.
+
+**Response:**
+
+```json
+{
+  "tenants": [
+    { "id": "org-1", "name": "Acme Corp", "logo": "/logos/acme.png" },
+    { "id": "org-2", "name": "Startup Inc" }
+  ],
+  "currentTenantId": "org-1",
+  "lastTenantId": "org-1",
+  "resolvedDefaultId": "org-1"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `tenants` | `TenantInfo[]` | All tenants the user belongs to |
+| `currentTenantId` | `string \| undefined` | Tenant in the current JWT (if any) |
+| `lastTenantId` | `string \| undefined` | Last tenant the user switched to |
+| `resolvedDefaultId` | `string \| undefined` | Recommended tenant to auto-select |
+
+**Errors:**
+
+| Status | When |
+|--------|------|
+| `401` | No valid session |
+| `404` | `listTenants` not configured |
+
+### `POST /api/auth/switch-tenant`
+
+Switches the session to a different tenant. Issues a new JWT scoped to the target tenant.
+
+**Request:**
+
+```json
+{ "tenantId": "org-2" }
+```
+
+**Response:**
+
+```json
+{
+  "tenantId": "org-2",
+  "user": { "id": "user-1", "email": "alice@example.com" },
+  "expiresAt": 1711036800000
+}
+```
+
+New session cookies (`vertz.sid`, `vertz.ref`) are set automatically.
+
+**Errors:**
+
+| Status | When |
+|--------|------|
+| `401` | No valid session |
+| `403` | User is not a member of the target tenant |
+| `404` | Tenant config not enabled |
+
+## Entity tenant scoping
+
+Entities with a `tenantId` field are automatically scoped by the framework. The access system adds `rules.where({ tenantId: rules.user.tenantId })` to all operations, so queries only return rows belonging to the current tenant.
+
+```ts
+const projects = entity('projects', {
+  model: projectsModel,
+  access: {
+    list: rules.authenticated(),
+    // tenantId filtering is automatic — no need to add it manually
+  },
+});
+```
+
+To opt out for cross-tenant entities:
+
+```ts
+entity('system-template', {
+  tenantScoped: false,
+  // ...
+});
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Client-Side Tenants" icon="building" href="/guides/ui/multi-tenancy">
+    TenantProvider, useTenant(), and TenantSwitcher component.
+  </Card>
+  <Card title="Authentication" icon="lock" href="/guides/server/auth">
+    JWT sessions, RBAC, plans, and full auth configuration.
+  </Card>
+  <Card title="Access Control" icon="shield" href="/guides/ui/access-control">
+    Use entitlements and access rules in your UI.
+  </Card>
+</CardGroup>

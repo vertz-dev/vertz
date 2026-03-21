@@ -24,6 +24,7 @@ export function generateAuthDDL(dialect: DbDialectName): string[] {
   password_hash ${t.text()},
   role ${t.text()} NOT NULL DEFAULT 'user',
   email_verified ${t.boolean(false)},
+  last_tenant_id ${t.text()},
   created_at ${t.timestamp()},
   updated_at ${t.timestamp()}
 )`);

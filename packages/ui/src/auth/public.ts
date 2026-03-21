@@ -47,5 +47,12 @@ export type {
 } from './auth-types';
 export { createAccessProvider } from './create-access-provider';
 export { getProviderIcon } from './provider-icons';
+export type {
+  ListTenantsResponse,
+  TenantContextValue,
+  TenantInfo,
+  TenantProviderProps,
+} from './tenant-context';
+export { TenantContext, TenantProvider, useTenant } from './tenant-context';
 export { getUserDisplayName, getUserInitials } from './user-display';
 export { getUserIcon } from './user-icon';

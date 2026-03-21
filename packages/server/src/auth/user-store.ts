@@ -40,6 +40,13 @@ export class InMemoryUserStore implements UserStore {
     }
   }
 
+  async updateLastTenantId(userId: string, tenantId: string): Promise<void> {
+    const user = this.byId.get(userId);
+    if (user) {
+      user.lastTenantId = tenantId;
+    }
+  }
+
   async deleteUser(id: string): Promise<void> {
     const user = this.byId.get(id);
     if (user) {

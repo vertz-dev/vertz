@@ -119,6 +119,8 @@ export interface UserStore {
   findById(id: string): Promise<AuthUser | null>;
   updatePasswordHash(userId: string, passwordHash: string): Promise<void>;
   updateEmailVerified(userId: string, verified: boolean): Promise<void>;
+  /** Update the last tenant the user switched to. */
+  updateLastTenantId(userId: string, tenantId: string): Promise<void>;
   /** Delete a user by id. Used for rollback when onUserCreated fails. */
   deleteUser(id: string): Promise<void>;
 }
@@ -383,10 +385,21 @@ export interface AuthConfig {
   _entityProxy?: Record<string, AuthEntityProxy>;
 }
 
+/** Tenant info returned by listTenants callback. */
+export interface TenantInfo {
+  id: string;
+  name: string;
+  [key: string]: unknown;
+}
+
 /** Configuration for multi-tenant session switching. */
 export interface TenantConfig {
   /** Verify that user has membership in the target tenant. Return false to deny. */
   verifyMembership: (userId: string, tenantId: string) => Promise<boolean>;
+  /** List tenants the user belongs to. Enables GET /api/auth/tenants endpoint. */
+  listTenants?: (userId: string) => Promise<TenantInfo[]>;
+  /** Resolve which tenant to auto-switch to when session has no tenantId. Falls back to lastTenantId > first tenant. */
+  resolveDefault?: (userId: string, tenants: TenantInfo[]) => Promise<string | undefined>;
 }
 
 /** Access control configuration for JWT acl claim computation. */
@@ -408,6 +421,7 @@ export interface AuthUser {
   email: string;
   role: string;
   emailVerified?: boolean;
+  lastTenantId?: string;
   createdAt: Date;
   updatedAt: Date;
 }

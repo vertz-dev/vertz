@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { createAuth } from '../index';
-import type { AuthInstance, SwitchTenantInput } from '../types';
+import type { AuthInstance, TenantInfo } from '../types';
 import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';
 
 // ---------------------------------------------------------------------------
@@ -232,6 +232,231 @@ describe('Feature: Tenant switching (POST /auth/switch-tenant)', () => {
         const data = await switchRes2.json();
         expect(data.tenantId).toBe('tenant-b');
       });
+    });
+  });
+
+  describe('Given switchTenant updates lastTenantId', () => {
+    let auth: AuthInstance;
+
+    beforeEach(() => {
+      auth = createAuth({
+        session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
+        emailPassword: { enabled: true },
+        privateKey: TEST_PRIVATE_KEY,
+        publicKey: TEST_PUBLIC_KEY,
+        isProduction: false,
+        tenant: {
+          verifyMembership: async (_userId: string, tenantId: string) => {
+            return tenantId === 'tenant-a' || tenantId === 'tenant-b';
+          },
+          listTenants: async (_userId: string): Promise<TenantInfo[]> => {
+            return [
+              { id: 'tenant-a', name: 'Tenant A' },
+              { id: 'tenant-b', name: 'Tenant B' },
+            ];
+          },
+        },
+      });
+    });
+
+    afterEach(() => {
+      auth.dispose();
+    });
+
+    it('Then GET /tenants returns updated lastTenantId after switch', async () => {
+      const signupRes = await signUp(auth);
+      const cookies = getCookies(signupRes);
+
+      // Switch to tenant-a
+      const switchRes = await auth.handler(
+        makeRequest('POST', '/switch-tenant', { tenantId: 'tenant-a' }, cookies),
+      );
+      expect(switchRes.status).toBe(200);
+      const switchCookies = getCookies(switchRes);
+
+      // GET /tenants should reflect lastTenantId
+      const tenantsRes = await auth.handler(
+        makeRequest('GET', '/tenants', undefined, switchCookies),
+      );
+      expect(tenantsRes.status).toBe(200);
+      const data = await tenantsRes.json();
+      expect(data.lastTenantId).toBe('tenant-a');
+
+      // Switch to tenant-b
+      const switchRes2 = await auth.handler(
+        makeRequest('POST', '/switch-tenant', { tenantId: 'tenant-b' }, switchCookies),
+      );
+      const switchCookies2 = getCookies(switchRes2);
+
+      // GET /tenants should now reflect tenant-b
+      const tenantsRes2 = await auth.handler(
+        makeRequest('GET', '/tenants', undefined, switchCookies2),
+      );
+      const data2 = await tenantsRes2.json();
+      expect(data2.lastTenantId).toBe('tenant-b');
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/auth/tenants
+// ---------------------------------------------------------------------------
+
+describe('Feature: List tenants (GET /auth/tenants)', () => {
+  describe('Given listTenants is configured', () => {
+    let auth: AuthInstance;
+
+    beforeEach(() => {
+      auth = createAuth({
+        session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
+        emailPassword: { enabled: true },
+        privateKey: TEST_PRIVATE_KEY,
+        publicKey: TEST_PUBLIC_KEY,
+        isProduction: false,
+        tenant: {
+          verifyMembership: async () => true,
+          listTenants: async (_userId: string): Promise<TenantInfo[]> => {
+            return [
+              { id: 'org-1', name: 'Acme Corp', avatarUrl: 'https://example.com/acme.png' },
+              { id: 'org-2', name: 'Side Project' },
+            ];
+          },
+        },
+      });
+    });
+
+    afterEach(() => {
+      auth.dispose();
+    });
+
+    describe('When GET /tenants is called with valid session', () => {
+      it('Then returns tenants, currentTenantId, lastTenantId, resolvedDefaultId', async () => {
+        const signupRes = await signUp(auth);
+        const cookies = getCookies(signupRes);
+
+        const res = await auth.handler(makeRequest('GET', '/tenants', undefined, cookies));
+        expect(res.status).toBe(200);
+
+        const data = await res.json();
+        expect(data.tenants).toHaveLength(2);
+        expect(data.tenants[0].id).toBe('org-1');
+        expect(data.tenants[0].name).toBe('Acme Corp');
+        expect(data.tenants[0].avatarUrl).toBe('https://example.com/acme.png');
+        expect(data.tenants[1].id).toBe('org-2');
+        expect(data.currentTenantId).toBeUndefined();
+        expect(data.lastTenantId).toBeUndefined();
+        // Default resolve: no lastTenantId, so first tenant
+        expect(data.resolvedDefaultId).toBe('org-1');
+      });
+    });
+
+    describe('When GET /tenants is called without session', () => {
+      it('Then returns 401', async () => {
+        const res = await auth.handler(makeRequest('GET', '/tenants'));
+        expect(res.status).toBe(401);
+      });
+    });
+  });
+
+  describe('Given listTenants is NOT configured', () => {
+    let auth: AuthInstance;
+
+    beforeEach(() => {
+      auth = createAuth({
+        session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
+        emailPassword: { enabled: true },
+        privateKey: TEST_PRIVATE_KEY,
+        publicKey: TEST_PUBLIC_KEY,
+        isProduction: false,
+        tenant: {
+          verifyMembership: async () => true,
+        },
+      });
+    });
+
+    afterEach(() => {
+      auth.dispose();
+    });
+
+    describe('When GET /tenants is called', () => {
+      it('Then returns 404', async () => {
+        const signupRes = await signUp(auth);
+        const cookies = getCookies(signupRes);
+
+        const res = await auth.handler(makeRequest('GET', '/tenants', undefined, cookies));
+        expect(res.status).toBe(404);
+      });
+    });
+  });
+
+  describe('Given resolveDefault is provided', () => {
+    let auth: AuthInstance;
+
+    beforeEach(() => {
+      auth = createAuth({
+        session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
+        emailPassword: { enabled: true },
+        privateKey: TEST_PRIVATE_KEY,
+        publicKey: TEST_PUBLIC_KEY,
+        isProduction: false,
+        tenant: {
+          verifyMembership: async () => true,
+          listTenants: async (): Promise<TenantInfo[]> => {
+            return [
+              { id: 'org-1', name: 'First' },
+              { id: 'org-2', name: 'Second' },
+            ];
+          },
+          resolveDefault: async (_userId, _tenants) => {
+            return 'org-2'; // Always resolve to second tenant
+          },
+        },
+      });
+    });
+
+    afterEach(() => {
+      auth.dispose();
+    });
+
+    it('Then resolvedDefaultId comes from resolveDefault callback', async () => {
+      const signupRes = await signUp(auth);
+      const cookies = getCookies(signupRes);
+
+      const res = await auth.handler(makeRequest('GET', '/tenants', undefined, cookies));
+      const data = await res.json();
+      expect(data.resolvedDefaultId).toBe('org-2');
+    });
+  });
+
+  describe('Given user has 0 tenants', () => {
+    let auth: AuthInstance;
+
+    beforeEach(() => {
+      auth = createAuth({
+        session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
+        emailPassword: { enabled: true },
+        privateKey: TEST_PRIVATE_KEY,
+        publicKey: TEST_PUBLIC_KEY,
+        isProduction: false,
+        tenant: {
+          verifyMembership: async () => true,
+          listTenants: async (): Promise<TenantInfo[]> => [],
+        },
+      });
+    });
+
+    afterEach(() => {
+      auth.dispose();
+    });
+
+    it('Then returns empty tenants and undefined resolvedDefaultId', async () => {
+      const signupRes = await signUp(auth);
+      const cookies = getCookies(signupRes);
+
+      const res = await auth.handler(makeRequest('GET', '/tenants', undefined, cookies));
+      const data = await res.json();
+      expect(data.tenants).toHaveLength(0);
+      expect(data.resolvedDefaultId).toBeUndefined();
     });
   });
 });

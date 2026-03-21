@@ -670,20 +670,22 @@ export function createAuth(config: AuthConfig): AuthInstance {
       }
     }
 
-    // Preserve fva claim from the old session JWT (if present)
+    // Preserve fva and tenantId claims from the old session JWT (if present)
     let existingFva: number | undefined;
+    let existingTenantId: string | undefined;
     const oldTokens = await sessionStore.getCurrentTokens(storedSession.id);
     if (oldTokens) {
       const oldPayload = await verifyJWT(oldTokens.jwt, publicKey);
       existingFva = oldPayload?.fva;
+      existingTenantId = oldPayload?.tenantId;
     }
 
     // Generate new tokens (rotation)
-    const newTokens = await createSessionTokens(
-      user,
-      storedSession.id,
-      existingFva !== undefined ? { fva: existingFva } : undefined,
-    );
+    const extraClaims =
+      existingFva !== undefined || existingTenantId !== undefined
+        ? { fva: existingFva, tenantId: existingTenantId }
+        : undefined;
+    const newTokens = await createSessionTokens(user, storedSession.id, extraClaims);
     const newRefreshHash = await sha256Hex(newTokens.refreshToken);
 
     await sessionStore.updateSession(storedSession.id, {
@@ -2359,6 +2361,51 @@ export function createAuth(config: AuthConfig): AuthInstance {
         });
       }
 
+      // Route: GET /api/auth/tenants
+      if (method === 'GET' && path === '/tenants') {
+        if (!tenantConfig?.listTenants) {
+          return new Response(JSON.stringify({ error: 'Not found' }), {
+            status: 404,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        const sessionResult = await getSession(request.headers);
+        if (!sessionResult.ok || !sessionResult.data) {
+          return new Response(
+            JSON.stringify({ error: { code: 'SESSION_EXPIRED', message: 'Not authenticated' } }),
+            {
+              status: 401,
+              headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+            },
+          );
+        }
+
+        const userId = sessionResult.data.user.id;
+        const currentTenantId = sessionResult.data.payload.tenantId;
+        const tenants = await tenantConfig.listTenants(userId);
+
+        // Load fresh user to get lastTenantId
+        const freshUser = await userStore.findById(userId);
+        const lastTenantId = freshUser?.lastTenantId;
+
+        let resolvedDefaultId: string | undefined;
+        if (tenantConfig.resolveDefault) {
+          resolvedDefaultId = await tenantConfig.resolveDefault(userId, tenants);
+        } else {
+          // Default strategy: last tenant > first in list
+          resolvedDefaultId = lastTenantId ?? tenants[0]?.id;
+        }
+
+        return new Response(
+          JSON.stringify({ tenants, currentTenantId, lastTenantId, resolvedDefaultId }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          },
+        );
+      }
+
       // Route: POST /api/auth/switch-tenant
       if (method === 'POST' && path === '/switch-tenant') {
         if (!tenantConfig) {
@@ -2420,6 +2467,9 @@ export function createAuth(config: AuthConfig): AuthInstance {
           lastActiveAt: new Date(),
           currentTokens: { jwt: tokens.jwt, refreshToken: tokens.refreshToken },
         });
+
+        // Track last tenant for auto-resolve on next login
+        await userStore.updateLastTenantId(userId, tenantId);
 
         const headers = new Headers({
           'Content-Type': 'application/json',
@@ -2762,6 +2812,8 @@ export type {
   StoredEmailVerification,
   StoredPasswordReset,
   StoredSession,
+  TenantConfig,
+  TenantInfo,
   UserStore,
   UserTableEntry,
 } from './types';
