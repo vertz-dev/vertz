@@ -3,6 +3,16 @@ import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disp
 import { domEffect, signal } from '../runtime/signal';
 import type { DisposeFn, Signal } from '../runtime/signal-types';
 
+/** Deduplicate the "no key" warning — fire once per application, not per list. */
+let unkeyedListWarned = false;
+
+/**
+ * @internal Reset the warning flag — for tests only.
+ */
+export function _resetUnkeyedListWarning(): void {
+  unkeyedListWarned = false;
+}
+
 /**
  * Create a reactive proxy over an item signal.
  * Property accesses read from `itemSignal.value`, so any domEffect
@@ -101,7 +111,8 @@ export function __list<T>(
   // triggering reactive bindings inside the node via the proxy.
   const itemSignalMap = new Map<string | number, Signal<T>>();
 
-  if (!keyFn) {
+  if (!keyFn && !unkeyedListWarned) {
+    unkeyedListWarned = true;
     console.warn(
       '[vertz] .map() without a key prop uses full-replacement mode (slower). ' +
         'Add a key prop to list items for efficient updates: ' +
@@ -136,14 +147,21 @@ export function __list<T>(
       // are already in the correct order.
       for (const [i, item] of newItems.entries()) {
         const key = keyFn ? keyFn(item, i) : i;
-        const itemSig = signal(item);
-        const proxy = createItemProxy(itemSig);
         const scope = pushScope();
-        const node = renderFn(proxy);
+        if (keyFn) {
+          // Keyed: wrap in proxy for reactive updates on key reuse
+          const itemSig = signal(item);
+          const proxy = createItemProxy(itemSig);
+          const node = renderFn(proxy);
+          itemSignalMap.set(key, itemSig);
+          nodeMap.set(key, node);
+        } else {
+          // Unkeyed: no proxy needed — nodes will be fully replaced on updates
+          const node = renderFn(item);
+          nodeMap.set(key, node);
+        }
         popScope();
-        nodeMap.set(key, node);
         scopeMap.set(key, scope);
-        itemSignalMap.set(key, itemSig);
       }
       // Compute offset: total children minus list-managed children
       startOffset = container.childNodes.length - nodeMap.size;
@@ -172,11 +190,11 @@ export function __list<T>(
         const node = renderFn(item);
         popScope();
         container.appendChild(node);
-        // Use a unique counter as internal map key for cleanup tracking
         const internalKey = nodeMap.size;
         nodeMap.set(internalKey, node);
         scopeMap.set(internalKey, scope);
       }
+      fixUpSelectValue(container);
       return;
     }
 
@@ -233,15 +251,7 @@ export function __list<T>(
       }
     }
 
-    // Fix up <select> elements: some DOM implementations (happy-dom) lose
-    // option.selected IDL state when options are inserted sequentially.
-    // Re-apply from the selected attribute which __prop mirrors.
-    if (container.tagName === 'SELECT') {
-      const selected = container.querySelector('option[selected]') as HTMLOptionElement | null;
-      if (selected) {
-        Reflect.set(container, 'value', selected.value);
-      }
-    }
+    fixUpSelectValue(container);
   });
   popScope();
 
@@ -258,4 +268,18 @@ export function __list<T>(
   _tryOnCleanup(wrapper);
 
   return wrapper;
+}
+
+/**
+ * Fix up <select> elements: some DOM implementations (happy-dom) lose
+ * option.selected IDL state when options are inserted sequentially.
+ * Re-apply from the selected attribute which __prop mirrors.
+ */
+function fixUpSelectValue(container: HTMLElement): void {
+  if (container.tagName === 'SELECT') {
+    const selected = container.querySelector('option[selected]') as HTMLOptionElement | null;
+    if (selected) {
+      Reflect.set(container, 'value', selected.value);
+    }
+  }
 }
