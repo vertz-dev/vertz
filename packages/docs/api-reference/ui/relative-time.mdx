@@ -1,0 +1,151 @@
+---
+title: Relative Time
+description: "API reference for formatRelativeTime() and <RelativeTime> — locale-aware relative time formatting with auto-updating"
+---
+
+Format timestamps as human-readable relative strings like "2 hours ago" or "in 5 minutes". Uses `Intl.RelativeTimeFormat` for proper i18n — zero hand-rolled formatting strings.
+
+## formatRelativeTime()
+
+Pure utility function. Accepts `Date`, ISO string, or epoch milliseconds:
+
+```tsx
+import { formatRelativeTime } from '@vertz/ui';
+
+formatRelativeTime(new Date());                    // "now"
+formatRelativeTime('2026-03-21T10:00:00Z');        // "2 hours ago"
+formatRelativeTime(Date.now() - 86400000);         // "yesterday"
+
+// With locale
+formatRelativeTime(date, { locale: 'pt-BR' });     // "há 2 horas"
+
+// Force numeric output
+formatRelativeTime(date, { numeric: 'always' });   // "1 day ago" instead of "yesterday"
+```
+
+### Signature
+
+```ts
+type DateInput = Date | string | number;
+
+function formatRelativeTime(
+  date: DateInput,
+  options?: FormatRelativeTimeOptions,
+): string;
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `locale` | `string` | Intl default | BCP 47 locale tag (e.g., `'en-US'`, `'pt-BR'`) |
+| `numeric` | `'auto' \| 'always'` | `'auto'` | `'auto'` produces "yesterday", `'always'` produces "1 day ago" |
+| `now` | `Date` | `new Date()` | Reference time for calculating the difference. Useful for testing. |
+
+### Thresholds
+
+The function picks the most appropriate unit based on elapsed time:
+
+| Elapsed Time | Unit | Example |
+|---|---|---|
+| < 10 seconds | second | "now" |
+| < 60 seconds | second | "30 seconds ago" |
+| < 60 minutes | minute | "5 minutes ago" |
+| < 24 hours | hour | "2 hours ago" |
+| < 7 days | day | "3 days ago" |
+| < 30 days | week | "2 weeks ago" |
+| < 365 days | month | "4 months ago" |
+| >= 365 days | year | "2 years ago" |
+
+Future dates work the same way: "in 5 minutes", "in 2 hours".
+
+<Note>
+All output comes from `Intl.RelativeTimeFormat` including the "now" case (`format(0, 'second')`). This means every string is locale-aware — no English-only special cases.
+</Note>
+
+---
+
+## RelativeTime
+
+Auto-updating component that renders a `<time>` element. The displayed text refreshes automatically using adaptive intervals.
+
+```tsx
+import { RelativeTime } from '@vertz/ui';
+
+// Basic usage
+<RelativeTime date={comment.createdAt} />
+
+// With locale
+<RelativeTime date={comment.createdAt} locale="pt-BR" />
+
+// Custom update interval
+<RelativeTime date={comment.createdAt} updateInterval={30000} />
+
+// With styling
+<RelativeTime date={comment.createdAt} className="text-muted" />
+```
+
+### Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `date` | `DateInput` | **(required)** | The date to format. Accepts `Date`, ISO string, or epoch ms. |
+| `locale` | `string` | Intl default | BCP 47 locale tag |
+| `numeric` | `'auto' \| 'always'` | `'auto'` | Passed to `Intl.RelativeTimeFormat` |
+| `updateInterval` | `number` | adaptive | Update interval in ms. Overrides the adaptive default. |
+| `className` | `string` | — | CSS class for the `<time>` element |
+| `title` | `string \| false` | Full formatted date | Tooltip on hover. Set to `false` to disable. |
+
+### Rendered HTML
+
+```html
+<time datetime="2026-03-21T10:00:00.000Z" title="March 21, 2026, 10:00:00 AM">
+  2 hours ago
+</time>
+```
+
+The `datetime` attribute always contains the ISO string for machine readability. The `title` attribute defaults to the full formatted date via `Intl.DateTimeFormat`.
+
+### Adaptive Update Intervals
+
+When `updateInterval` is not set, the component picks a smart interval based on elapsed time:
+
+| Elapsed Time | Update Interval |
+|---|---|
+| < 1 minute | Every 10 seconds |
+| < 1 hour | Every 1 minute |
+| < 1 day | Every 1 hour |
+| >= 1 day | No updates (static) |
+
+Old timestamps stop updating entirely — zero timer overhead.
+
+<Tip>
+The component uses `setTimeout` chains (not `setInterval`) so the interval can adapt as time elapses. A timestamp that was "30 seconds ago" updates every 10s, but once it crosses into minutes, the interval relaxes to every 60s.
+</Tip>
+
+### SSR Behavior
+
+During SSR, the component renders the static formatted text. The update timer only starts on the client via `onMount()`. There may be a minor text drift between SSR and client hydration if a threshold boundary is crossed (e.g., SSR renders "4 minutes ago", client hydrates with "5 minutes ago"). This is acceptable — the `datetime` attribute is always correct, and the text updates on the next tick.
+
+---
+
+## Types
+
+```ts
+type DateInput = Date | string | number;
+
+interface FormatRelativeTimeOptions {
+  locale?: string;
+  numeric?: 'auto' | 'always';
+  now?: Date;
+}
+
+interface RelativeTimeProps {
+  date: DateInput;
+  locale?: string;
+  numeric?: 'auto' | 'always';
+  updateInterval?: number;
+  className?: string;
+  title?: string | false;
+}
+```

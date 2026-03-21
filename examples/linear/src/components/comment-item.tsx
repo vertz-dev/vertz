@@ -1,5 +1,4 @@
-import { css } from '@vertz/ui';
-import { formatRelativeTime } from '../lib/format';
+import { css, formatRelativeTime } from '@vertz/ui';
 import type { Comment } from '../lib/types';
 
 const styles = css({

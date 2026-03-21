@@ -134,6 +134,7 @@
               "api-reference/ui/form",
               "api-reference/ui/context",
               "api-reference/ui/mount",
+              "api-reference/ui/relative-time",
               "api-reference/ui/foreign"
             ]
           }

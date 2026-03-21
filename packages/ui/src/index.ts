@@ -106,6 +106,9 @@ export type { FormDataOptions } from './form/form-data';
 export { formDataToObject } from './form/form-data';
 export type { FormSchema, ValidationResult } from './form/validation';
 export { validate } from './form/validation';
+// Formatting
+export type { DateInput, FormatRelativeTimeOptions, RelativeTimeProps } from './format';
+export { formatRelativeTime, RelativeTime } from './format';
 // Hydration (public API only)
 export type {
   ComponentFunction,
