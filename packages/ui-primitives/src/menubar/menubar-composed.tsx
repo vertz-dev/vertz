@@ -378,22 +378,10 @@ function ComposedMenubarRoot({ children, classes, onSelect, positioning }: Compo
 
     state.activeMenu = null;
 
-    if (positioning) {
-      state.floatingCleanup?.();
-      state.floatingCleanup = null;
-      state.dismissCleanup?.();
-      state.dismissCleanup = null;
-    } else {
-      document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }
-
-  function handleClickOutside(event: MouseEvent): void {
-    const root = getRootEl();
-    const target = event.target as Node;
-    if (root && !root.contains(target)) {
-      closeAll();
-    }
+    state.floatingCleanup?.();
+    state.floatingCleanup = null;
+    state.dismissCleanup?.();
+    state.dismissCleanup = null;
   }
 
   function openMenu(value: string): void {
@@ -418,10 +406,8 @@ function ComposedMenubarRoot({ children, classes, onSelect, positioning }: Compo
         prevContent.setAttribute('aria-hidden', 'true');
         prevContent.style.display = 'none';
       }
-      if (positioning) {
-        state.floatingCleanup?.();
-        state.floatingCleanup = null;
-      }
+      state.floatingCleanup?.();
+      state.floatingCleanup = null;
     }
 
     const trigger = root.querySelector<HTMLElement>(
@@ -439,8 +425,10 @@ function ComposedMenubarRoot({ children, classes, onSelect, positioning }: Compo
     content.setAttribute('data-state', 'open');
     content.style.display = '';
 
-    if (positioning) {
-      const result = createFloatingPosition(trigger, content, positioning);
+    {
+      const floatingOpts = positioning ?? { placement: 'bottom-start', offset: 4 };
+      content.style.position = 'fixed';
+      const result = createFloatingPosition(trigger, content, floatingOpts);
       state.floatingCleanup = result.cleanup;
       if (!state.dismissCleanup) {
         state.dismissCleanup = createDismiss({
@@ -449,8 +437,6 @@ function ComposedMenubarRoot({ children, classes, onSelect, positioning }: Compo
           escapeKey: false,
         });
       }
-    } else {
-      document.addEventListener('mousedown', handleClickOutside);
     }
 
     // Focus first item in the content

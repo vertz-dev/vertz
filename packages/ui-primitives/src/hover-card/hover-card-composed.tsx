@@ -4,10 +4,11 @@
  * No registration phase, no resolveChildren, no internal API imports.
  */
 
-import type { ChildValue } from '@vertz/ui';
-import { createContext, useContext } from '@vertz/ui';
+import type { ChildValue, Ref } from '@vertz/ui';
+import { createContext, ref, useContext } from '@vertz/ui';
 import { cn } from '../composed/cn';
 import type { FloatingOptions } from '../utils/floating';
+import { createFloatingPosition, resolveLayoutElement } from '../utils/floating';
 import { uniqueId } from '../utils/id';
 
 // ---------------------------------------------------------------------------
@@ -25,8 +26,10 @@ export type HoverCardClassKey = keyof HoverCardClasses;
 // ---------------------------------------------------------------------------
 
 interface HoverCardContextValue {
-  isOpen: boolean;
+  isOpen: () => boolean;
   contentId: string;
+  triggerRef: Ref<HTMLSpanElement>;
+  contentRef: Ref<HTMLDivElement>;
   classes?: HoverCardClasses;
   show: () => void;
   hide: () => void;
@@ -74,13 +77,14 @@ function HoverCardTrigger({ children }: SlotProps) {
   const childEl = childNodes.find((c): c is HTMLElement => c instanceof HTMLElement);
   if (childEl) {
     childEl.setAttribute('aria-haspopup', 'dialog');
-    childEl.setAttribute('aria-expanded', ctx.isOpen ? 'true' : 'false');
+    childEl.setAttribute('aria-expanded', ctx.isOpen() ? 'true' : 'false');
     childEl.addEventListener('focus', () => ctx.showImmediate());
     childEl.addEventListener('blur', () => ctx.hide());
   }
 
   return (
     <span
+      ref={ctx.triggerRef}
       style={{ display: 'contents' }}
       data-hovercard-trigger=""
       onMouseenter={() => ctx.show()}
@@ -95,14 +99,16 @@ function HoverCardTrigger({ children }: SlotProps) {
 
 function HoverCardContent({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useHoverCardContext('Content');
+  const isOpen = ctx.isOpen();
   return (
     <div
+      ref={ctx.contentRef}
       role="dialog"
       id={ctx.contentId}
       data-hovercard-content=""
-      aria-hidden={ctx.isOpen ? 'false' : 'true'}
-      data-state={ctx.isOpen ? 'open' : 'closed'}
-      style={{ display: ctx.isOpen ? '' : 'none' }}
+      aria-hidden={isOpen ? 'false' : 'true'}
+      data-state={isOpen ? 'open' : 'closed'}
+      style={{ display: isOpen ? '' : 'none' }}
       class={cn(ctx.classes?.content, cls ?? classProp)}
       onMouseenter={() => ctx.cancelCloseTimer()}
       onMouseleave={() => ctx.hide()}
@@ -133,9 +139,11 @@ function ComposedHoverCardRoot({
   openDelay = 700,
   closeDelay = 300,
   onOpenChange,
-  positioning: _positioning,
+  positioning,
 }: ComposedHoverCardProps) {
   const contentId = uniqueId('hovercard');
+  const triggerRef: Ref<HTMLSpanElement> = ref();
+  const contentRef: Ref<HTMLDivElement> = ref();
 
   let isOpen = false;
 
@@ -164,12 +172,29 @@ function ComposedHoverCardRoot({
     }
   }
 
+  function applyFloating(): void {
+    const triggerSpan = triggerRef.current;
+    const contentEl = contentRef.current;
+    if (!triggerSpan || !contentEl) return;
+    const triggerEl = resolveLayoutElement(triggerSpan);
+    contentEl.style.position = 'fixed';
+    const floatingOpts = positioning ?? { placement: 'bottom', offset: 4 };
+    const result = createFloatingPosition(triggerEl, contentEl, floatingOpts);
+    timers.floatingCleanup = result.cleanup;
+  }
+
+  function cleanupFloating(): void {
+    timers.floatingCleanup?.();
+    timers.floatingCleanup = null;
+  }
+
   function show(): void {
     cancelTimers();
     if (isOpen) return;
     timers.open = setTimeout(() => {
       timers.open = null;
       isOpen = true;
+      applyFloating();
       onOpenChange?.(true);
     }, openDelay);
   }
@@ -177,6 +202,7 @@ function ComposedHoverCardRoot({
   function showImmediate(): void {
     cancelTimers();
     isOpen = true;
+    applyFloating();
     onOpenChange?.(true);
   }
 
@@ -186,8 +212,7 @@ function ComposedHoverCardRoot({
     timers.close = setTimeout(() => {
       timers.close = null;
       isOpen = false;
-      timers.floatingCleanup?.();
-      timers.floatingCleanup = null;
+      cleanupFloating();
       onOpenChange?.(false);
     }, closeDelay);
   }
@@ -195,14 +220,15 @@ function ComposedHoverCardRoot({
   function hideImmediate(): void {
     cancelTimers();
     isOpen = false;
-    timers.floatingCleanup?.();
-    timers.floatingCleanup = null;
+    cleanupFloating();
     onOpenChange?.(false);
   }
 
   const ctx: HoverCardContextValue = {
-    isOpen,
+    isOpen: () => isOpen,
     contentId,
+    triggerRef,
+    contentRef,
     classes,
     show,
     hide,

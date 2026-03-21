@@ -101,6 +101,26 @@ export function createFloatingPosition(
 }
 
 /**
+ * Walk through display:contents wrappers to find the first descendant
+ * with an actual layout box (non-zero bounding rect).
+ * Returns the element itself if it already has a layout box.
+ */
+export function resolveLayoutElement(el: HTMLElement): HTMLElement {
+  const style = globalThis.getComputedStyle?.(el);
+  if (style?.display !== 'contents') return el;
+  // BFS through children to find first element with a layout box
+  const queue: HTMLElement[] = [...(el.children as unknown as HTMLElement[])];
+  while (queue.length > 0) {
+    const child = queue.shift()!;
+    if (!(child instanceof HTMLElement)) continue;
+    const childStyle = getComputedStyle(child);
+    if (childStyle.display !== 'contents') return child;
+    queue.push(...(child.children as unknown as HTMLElement[]));
+  }
+  return el;
+}
+
+/**
  * Create a virtual element for positioning at mouse coordinates (e.g., context menu).
  */
 export function virtualElement(x: number, y: number): VirtualElement {

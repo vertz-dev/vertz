@@ -10,7 +10,7 @@ import { createContext, ref, useContext } from '@vertz/ui';
 import { cn } from '../composed/cn';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
-import { createFloatingPosition } from '../utils/floating';
+import { createFloatingPosition, resolveLayoutElement } from '../utils/floating';
 import { linkedIds } from '../utils/id';
 import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
@@ -259,9 +259,11 @@ function ComposedDropdownMenuRoot({
 
   function getTriggerEl(): HTMLElement | null {
     const content = getContentEl();
-    return content?.parentElement?.querySelector(
+    const triggerSpan = content?.parentElement?.querySelector(
       '[data-dropdownmenu-trigger]',
     ) as HTMLElement | null;
+    if (!triggerSpan) return null;
+    return resolveLayoutElement(triggerSpan);
   }
 
   function updateActiveItem(items: HTMLElement[], index: number): void {
@@ -295,13 +297,15 @@ function ComposedDropdownMenuRoot({
     const triggerEl = getTriggerEl();
     if (!contentEl) return;
 
-    if (positioning) {
-      const ref = positioning.referenceElement ?? triggerEl ?? contentEl;
-      const result = createFloatingPosition(ref, contentEl, positioning);
+    {
+      const floatingOpts = positioning ?? { placement: 'bottom-start', offset: 4 };
+      const refEl = floatingOpts.referenceElement ?? triggerEl ?? contentEl;
+      contentEl.style.position = 'fixed';
+      const result = createFloatingPosition(refEl, contentEl, floatingOpts);
       state.floatingCleanup = result.cleanup;
       state.dismissCleanup = createDismiss({
         onDismiss: close,
-        insideElements: [ref, contentEl, ...(triggerEl ? [triggerEl] : [])],
+        insideElements: [refEl, contentEl, ...(triggerEl ? [triggerEl] : [])],
         escapeKey: false,
       });
     }

@@ -8,7 +8,7 @@ import type { ChildValue, Ref } from '@vertz/ui';
 import { createContext, ref, useContext } from '@vertz/ui';
 import { cn } from '../composed/cn';
 import type { FloatingOptions } from '../utils/floating';
-import { createFloatingPosition } from '../utils/floating';
+import { createFloatingPosition, resolveLayoutElement } from '../utils/floating';
 import { uniqueId } from '../utils/id';
 
 // ---------------------------------------------------------------------------
@@ -24,7 +24,7 @@ export interface TooltipClasses {
 // ---------------------------------------------------------------------------
 
 interface TooltipContextValue {
-  isOpen: boolean;
+  isOpen: () => boolean;
   contentId: string;
   contentRef: Ref<HTMLDivElement>;
   classes?: TooltipClasses;
@@ -96,15 +96,16 @@ function TooltipContent({ children, className: cls, class: classProp }: SlotProp
   const ctx = useTooltipContext('Content');
   const idx = ctx._contentCount.value++;
   if (idx > 0) console.warn('Duplicate <Tooltip.Content> detected – only the first is used');
+  const isOpen = ctx.isOpen();
   return (
     <div
       ref={ctx.contentRef}
       role="tooltip"
       id={ctx.contentId}
       data-tooltip-content=""
-      aria-hidden={ctx.isOpen ? 'false' : 'true'}
-      data-state={ctx.isOpen ? 'open' : 'closed'}
-      style={{ display: ctx.isOpen ? '' : 'none' }}
+      aria-hidden={isOpen ? 'false' : 'true'}
+      data-state={isOpen ? 'open' : 'closed'}
+      style={{ display: isOpen ? '' : 'none' }}
       class={cn(ctx.classes?.content, cls ?? classProp)}
     >
       {children}
@@ -146,14 +147,16 @@ function ComposedTooltipRoot({
   };
 
   function applyPositioning(): void {
-    if (!positioning) return;
     const content = contentRef.current;
-    const trigger = content?.parentElement?.querySelector(
+    const triggerSpan = content?.parentElement?.querySelector(
       '[data-tooltip-trigger]',
     ) as HTMLElement | null;
-    if (!trigger || !content) return;
+    if (!triggerSpan || !content) return;
 
-    const result = createFloatingPosition(trigger, content, positioning);
+    const trigger = resolveLayoutElement(triggerSpan);
+    content.style.position = 'fixed';
+    const floatingOpts = positioning ?? { placement: 'top', offset: 4 };
+    const result = createFloatingPosition(trigger, content, floatingOpts);
     state.floatingCleanup = result.cleanup;
   }
 
@@ -177,7 +180,7 @@ function ComposedTooltipRoot({
   }
 
   const ctx: TooltipContextValue = {
-    isOpen,
+    isOpen: () => isOpen,
     contentId,
     contentRef,
     classes,

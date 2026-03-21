@@ -240,38 +240,34 @@ describe('Calendar', () => {
 
   describe('Given a Calendar with day buttons', () => {
     describe('When destroy() is called', () => {
-      it('Then removes click event listeners from day buttons', () => {
-        const { root, grid, destroy } = Calendar.Root({
+      it('Then can be called without error (no-op, JSX handles cleanup)', () => {
+        const { root, destroy } = Calendar.Root({
           defaultMonth: new Date(2024, 5, 1),
         });
         container.appendChild(root);
 
-        const buttons = grid.querySelectorAll('td button');
-        const spies = Array.from(buttons).map((btn) => vi.spyOn(btn, 'removeEventListener'));
-
-        destroy();
-
-        for (const spy of spies) {
-          expect(spy).toHaveBeenCalledWith('click', expect.any(Function));
-        }
+        expect(() => destroy()).not.toThrow();
       });
     });
 
     describe('When navigating to a new month', () => {
-      it('Then cleans up old day button listeners before rebuilding', () => {
+      it('Then replaces old day buttons with new ones for the new month', () => {
         const { root, grid, nextButton } = Calendar.Root({
           defaultMonth: new Date(2024, 5, 1),
         });
         container.appendChild(root);
 
-        const oldButtons = grid.querySelectorAll('td button');
-        const spies = Array.from(oldButtons).map((btn) => vi.spyOn(btn, 'removeEventListener'));
+        const oldButtons = Array.from(grid.querySelectorAll('td button'));
+        const oldDateAttrs = oldButtons.map((btn) => btn.getAttribute('data-date'));
 
         nextButton.click();
 
-        for (const spy of spies) {
-          expect(spy).toHaveBeenCalledWith('click', expect.any(Function));
-        }
+        const newButtons = Array.from(grid.querySelectorAll('td button'));
+        const newDateAttrs = newButtons.map((btn) => btn.getAttribute('data-date'));
+
+        // Old June buttons should be replaced with July buttons
+        expect(newDateAttrs).not.toEqual(oldDateAttrs);
+        expect(newDateAttrs.some((d) => d?.startsWith('2024-07'))).toBe(true);
       });
     });
   });

@@ -39,22 +39,6 @@ function createComponentProxy(name: string): unknown {
   };
 }
 
-/** Creates a proxy object for a suite component (Card, Alert, etc.). */
-function createSuiteProxy(name: string, subComponents: readonly string[]): unknown {
-  const suite: Record<string, unknown> = {};
-  for (const sub of subComponents) {
-    Object.defineProperty(suite, sub, {
-      get: () => {
-        const parent = _getComponent(name);
-        return Reflect.get(parent as object, sub);
-      },
-      enumerable: true,
-      configurable: true,
-    });
-  }
-  return suite;
-}
-
 /** Creates a callable proxy with sub-component getters for primitives (Dialog, Select, etc.). */
 function createCompoundProxy(name: string, subComponents: readonly string[]): unknown {
   const root = (...args: unknown[]) => {
@@ -71,6 +55,31 @@ function createCompoundProxy(name: string, subComponents: readonly string[]): un
     Object.defineProperty(root, sub, {
       get: () => {
         const parent = _getPrimitive(name);
+        return Reflect.get(parent as object, sub);
+      },
+      enumerable: true,
+      configurable: true,
+    });
+  }
+  return root;
+}
+
+/** Creates a callable proxy with sub-component getters for themed components (FormGroup, etc.). */
+function createCallableSuiteProxy(name: string, subComponents: readonly string[]): unknown {
+  const root = (...args: unknown[]) => {
+    const fn = _getComponent(name);
+    if (typeof fn !== 'function') {
+      throw new Error(
+        `Component "${name}" is not callable in the registered theme. ` +
+          `Check that your theme package provides this component.`,
+      );
+    }
+    return (fn as (...a: unknown[]) => unknown)(...args);
+  };
+  for (const sub of subComponents) {
+    Object.defineProperty(root, sub, {
+      get: () => {
+        const parent = _getComponent(name);
         return Reflect.get(parent as object, sub);
       },
       enumerable: true,
@@ -134,47 +143,43 @@ export const Pagination: ThemeComponentMap['Pagination'] = /* #__PURE__ */ creat
 // Suite components (object with sub-component getters)
 // ---------------------------------------------------------------------------
 
-export const Alert: ThemeComponentMap['Alert'] = /* #__PURE__ */ createSuiteProxy('Alert', [
-  'Alert',
-  'AlertTitle',
-  'AlertDescription',
+export const Alert: ThemeComponentMap['Alert'] = /* #__PURE__ */ createCallableSuiteProxy('Alert', [
+  'Title',
+  'Description',
 ]) as ThemeComponentMap['Alert'];
 
-export const Card: ThemeComponentMap['Card'] = /* #__PURE__ */ createSuiteProxy('Card', [
-  'Card',
-  'CardHeader',
-  'CardTitle',
-  'CardDescription',
-  'CardContent',
-  'CardFooter',
-  'CardAction',
+export const Card: ThemeComponentMap['Card'] = /* #__PURE__ */ createCallableSuiteProxy('Card', [
+  'Header',
+  'Title',
+  'Description',
+  'Content',
+  'Footer',
+  'Action',
 ]) as ThemeComponentMap['Card'];
 
-export const FormGroup: ThemeComponentMap['FormGroup'] = /* #__PURE__ */ createSuiteProxy(
+export const FormGroup: ThemeComponentMap['FormGroup'] = /* #__PURE__ */ createCallableSuiteProxy(
   'FormGroup',
-  ['FormGroup', 'FormError'],
+  ['FormError'],
 ) as ThemeComponentMap['FormGroup'];
 
-export const Avatar: ThemeComponentMap['Avatar'] = /* #__PURE__ */ createSuiteProxy('Avatar', [
+export const Avatar: ThemeComponentMap['Avatar'] = /* #__PURE__ */ createCallableSuiteProxy(
   'Avatar',
-  'AvatarImage',
-  'AvatarFallback',
-]) as ThemeComponentMap['Avatar'];
+  ['Image', 'Fallback'],
+) as ThemeComponentMap['Avatar'];
 
-export const Skeleton: ThemeComponentMap['Skeleton'] = /* #__PURE__ */ createSuiteProxy(
+export const Skeleton: ThemeComponentMap['Skeleton'] = /* #__PURE__ */ createCallableSuiteProxy(
   'Skeleton',
-  ['Skeleton'],
+  [],
 ) as ThemeComponentMap['Skeleton'];
 
-export const Table: ThemeComponentMap['Table'] = /* #__PURE__ */ createSuiteProxy('Table', [
-  'Table',
-  'TableHeader',
-  'TableBody',
-  'TableRow',
-  'TableHead',
-  'TableCell',
-  'TableCaption',
-  'TableFooter',
+export const Table: ThemeComponentMap['Table'] = /* #__PURE__ */ createCallableSuiteProxy('Table', [
+  'Header',
+  'Body',
+  'Row',
+  'Head',
+  'Cell',
+  'Caption',
+  'Footer',
 ]) as ThemeComponentMap['Table'];
 
 // ---------------------------------------------------------------------------

@@ -274,7 +274,7 @@ describe('Composed Menubar', () => {
       trigger.click();
       expect(content.getAttribute('data-state')).toBe('open');
 
-      document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
       expect(content.getAttribute('data-state')).toBe('closed');
     });
   });
