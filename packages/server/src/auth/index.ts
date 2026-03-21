@@ -562,11 +562,22 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
   async function getSession(headers: Headers): Promise<Result<Session | null, AuthError>> {
     const cookieName = cookieConfig.name || 'vertz.sid';
+
+    // 1. Try cookie first (browser-based auth)
     const cookieEntry = headers
       .get('cookie')
       ?.split(';')
       .find((c) => c.trim().startsWith(`${cookieName}=`));
-    const token = cookieEntry ? cookieEntry.trim().slice(`${cookieName}=`.length) : undefined;
+    let token = cookieEntry ? cookieEntry.trim().slice(`${cookieName}=`.length) : undefined;
+
+    // 2. Fall back to Authorization: Bearer <token> (API clients, mobile, S2S)
+    // Case-insensitive per RFC 7235 — accept "bearer", "Bearer", "BEARER", etc.
+    if (!token) {
+      const authHeader = headers.get('authorization');
+      if (authHeader && /^bearer /i.test(authHeader)) {
+        token = authHeader.slice(7).trim() || undefined;
+      }
+    }
 
     if (!token) {
       return ok(null);
