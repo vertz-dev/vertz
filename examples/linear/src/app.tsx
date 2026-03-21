@@ -11,8 +11,7 @@
 import {
   ANIMATION_DURATION,
   ANIMATION_EASING,
-  createDialogStack,
-  DialogStackContext,
+  DialogStackProvider,
   fadeOut,
   getInjectedCSS,
   globalCss,
@@ -89,28 +88,13 @@ export function App() {
     document.documentElement.setAttribute('data-theme', 'dark');
   }
 
-  // Dialog container: During SSR, create a fresh div (DOM shim). On the client,
-  // claim the existing SSR-rendered div by its data attribute — document.createElement
-  // would produce a NEW detached div that __append skips during hydration (no-op),
-  // leaving the dialog stack appending to a node not in the DOM.
-  const dialogContainer = isBrowser()
-    ? ((document.querySelector('[data-dialog-container]') as HTMLDivElement) ??
-      document.createElement('div'))
-    : document.createElement('div');
-  dialogContainer.setAttribute('data-dialog-container', '');
-  const dialogStack = createDialogStack(dialogContainer);
-
   return (
     <AuthProvider auth={api.auth}>
       <RouterContext.Provider value={appRouter}>
         <ThemeProvider theme="dark">
-          <DialogStackContext.Provider value={dialogStack}>
-            {/* biome-ignore lint/complexity/noUselessFragments: Provider requires single root */}
-            <>
-              <RouterView router={appRouter} fallback={() => <div>Page not found</div>} />
-              {dialogContainer}
-            </>
-          </DialogStackContext.Provider>
+          <DialogStackProvider>
+            <RouterView router={appRouter} fallback={() => <div>Page not found</div>} />
+          </DialogStackProvider>
         </ThemeProvider>
       </RouterContext.Provider>
     </AuthProvider>

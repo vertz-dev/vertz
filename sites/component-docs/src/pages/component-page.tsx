@@ -18,6 +18,7 @@ import { Content as CommandContent } from '../content/command-content';
 import { Content as ContextMenuContent } from '../content/context-menu-content';
 import { Content as DatePickerContent } from '../content/date-picker-content';
 import { Content as DialogContent } from '../content/dialog-content';
+import { Content as DialogStackContent } from '../content/dialog-stack-content';
 import { Content as DrawerContent } from '../content/drawer-content';
 import { Content as DropdownMenuContent } from '../content/dropdown-menu-content';
 import { Content as FormGroupContent } from '../content/form-group-content';
@@ -61,6 +62,7 @@ const contentMap: Record<
   breadcrumb: BreadcrumbContent,
   pagination: PaginationContent,
   dialog: DialogContent,
+  'dialog-stack': DialogStackContent,
   'alert-dialog': AlertDialogContent,
   select: SelectContent,
   tabs: TabsContent,

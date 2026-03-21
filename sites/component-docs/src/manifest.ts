@@ -44,6 +44,7 @@ export const components: ComponentEntry[] = [
   { name: 'alert', title: 'Alert', category: 'Feedback' },
   { name: 'alert-dialog', title: 'AlertDialog', category: 'Feedback' },
   { name: 'dialog', title: 'Dialog', category: 'Feedback' },
+  { name: 'dialog-stack', title: 'DialogStack', category: 'Feedback' },
   { name: 'drawer', title: 'Drawer', category: 'Feedback' },
   { name: 'sheet', title: 'Sheet', category: 'Feedback' },
   { name: 'toast', title: 'Toast', category: 'Feedback' },

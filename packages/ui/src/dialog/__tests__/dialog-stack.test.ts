@@ -4,7 +4,12 @@ import { __element } from '../../dom/element';
 import { __on } from '../../dom/events';
 import { form, type SdkMethod } from '../../form/form';
 import type { DialogHandle, DialogStack } from '../dialog-stack';
-import { createDialogStack, DialogStackContext, useDialogStack } from '../dialog-stack';
+import {
+  createDialogStack,
+  DialogStackContext,
+  DialogStackProvider,
+  useDialogStack,
+} from '../dialog-stack';
 
 describe('DialogStack', () => {
   let container: HTMLDivElement;
@@ -485,5 +490,136 @@ describe('DialogStack', () => {
     dialogs!.open(MyDialog, {});
 
     expect(capturedProject).toBe('my-project');
+  });
+});
+
+describe('Feature: DialogStackProvider', () => {
+  describe('Given a DialogStackProvider wrapping children', () => {
+    describe('When useDialogStack() is called inside children', () => {
+      it('Then returns a working DialogStack', () => {
+        let dialogs: DialogStack | undefined;
+
+        DialogStackProvider({
+          children: () => {
+            dialogs = useDialogStack();
+          },
+        });
+
+        expect(dialogs).toBeDefined();
+        expect(dialogs!.size).toBe(0);
+      });
+    });
+
+    describe('When a dialog is opened via stack.open()', () => {
+      it('Then the dialog renders inside the container div', () => {
+        let dialogs: DialogStack | undefined;
+
+        const wrapper = document.createElement('div');
+        const result = DialogStackProvider({
+          children: () => {
+            dialogs = useDialogStack();
+            return document.createElement('span');
+          },
+        });
+        wrapper.appendChild(result);
+        document.body.appendChild(wrapper);
+
+        function SimpleDialog({ dialog }: { dialog: DialogHandle<void> }) {
+          const el = document.createElement('div');
+          el.setAttribute('data-testid', 'dialog-content');
+          return el;
+        }
+
+        dialogs!.open(SimpleDialog, {});
+
+        const dialogContainer = wrapper.querySelector('[data-dialog-container]');
+        expect(dialogContainer).toBeTruthy();
+        expect(dialogContainer!.querySelector('[data-testid="dialog-content"]')).toBeTruthy();
+
+        document.body.removeChild(wrapper);
+      });
+
+      it('Then the container div has data-dialog-container attribute', () => {
+        const wrapper = document.createElement('div');
+        const result = DialogStackProvider({
+          children: () => document.createElement('span'),
+        });
+        wrapper.appendChild(result);
+
+        const containerDiv = wrapper.querySelector('[data-dialog-container]');
+        expect(containerDiv).toBeTruthy();
+        expect(containerDiv!.tagName).toBe('DIV');
+      });
+    });
+
+    describe('When a dialog is closed', () => {
+      it('Then the dialog is removed and promise resolves', async () => {
+        let dialogs: DialogStack | undefined;
+
+        const wrapper = document.createElement('div');
+        const result = DialogStackProvider({
+          children: () => {
+            dialogs = useDialogStack();
+            return document.createElement('span');
+          },
+        });
+        wrapper.appendChild(result);
+        document.body.appendChild(wrapper);
+
+        function SimpleDialog({ dialog }: { dialog: DialogHandle<boolean> }) {
+          const btn = document.createElement('button');
+          btn.setAttribute('data-testid', 'close-btn');
+          btn.addEventListener('click', () => dialog.close(true));
+          return btn;
+        }
+
+        const promise = dialogs!.open(SimpleDialog, {});
+
+        wrapper.querySelector('[data-testid="close-btn"]')!.click();
+        const dialogResult = await promise;
+
+        expect(dialogResult).toEqual({ ok: true, data: true });
+        expect(dialogs!.size).toBe(0);
+
+        document.body.removeChild(wrapper);
+      });
+    });
+
+    describe('When useDialogStack() is called from a nested context', () => {
+      it('Then opened dialogs can access the context from the call site', () => {
+        const ProjectContext = createContext<string>();
+        let capturedProject: string | undefined;
+
+        function MyDialog({ dialog }: { dialog: DialogHandle<void> }) {
+          capturedProject = useContext(ProjectContext);
+          return document.createElement('div');
+        }
+
+        let dialogs: DialogStack | undefined;
+
+        DialogStackProvider({
+          children: () => {
+            ProjectContext.Provider('test-project', () => {
+              dialogs = useDialogStack();
+            });
+          },
+        });
+
+        // Called outside any Provider (simulates onClick handler)
+        dialogs!.open(MyDialog, {});
+
+        expect(capturedProject).toBe('test-project');
+      });
+    });
+  });
+
+  describe('Given DialogStackProvider is NOT in the tree', () => {
+    describe('When useDialogStack() is called', () => {
+      it('Then throws "must be called within DialogStackProvider"', () => {
+        expect(() => useDialogStack()).toThrow(
+          'useDialogStack() must be called within DialogStackProvider',
+        );
+      });
+    });
   });
 });

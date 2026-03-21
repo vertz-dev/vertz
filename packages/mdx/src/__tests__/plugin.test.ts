@@ -1,14 +1,21 @@
-import { describe, expect, it } from 'bun:test';
+import { beforeAll, describe, expect, it } from 'bun:test';
 import { createMdxPlugin } from '../index';
 
-// Helper: build an MDX file through the plugin, marking jsx-runtime as external
+// Shared default plugin — reuses the same Shiki highlighter across tests.
+// Without this, each test creates a new plugin instance that re-initializes
+// Shiki's WASM + grammar loading, causing >30s timeouts on CI runners.
+const defaultPlugin = createMdxPlugin();
+
+// Helper: build an MDX file through the plugin, marking jsx-runtime as external.
+// Uses the shared default plugin unless custom options require a new instance.
 async function buildMdx(content: string, options?: Parameters<typeof createMdxPlugin>[0]) {
   const path = `/tmp/vertz-mdx-test-${Date.now()}-${Math.random().toString(36).slice(2)}.mdx`;
   await Bun.write(path, content);
 
+  const plugin = options ? createMdxPlugin(options) : defaultPlugin;
   const result = await Bun.build({
     entrypoints: [path],
-    plugins: [createMdxPlugin(options)],
+    plugins: [plugin],
     target: 'bun',
     external: ['@vertz/ui', '@vertz/ui-server'],
   });
@@ -29,16 +36,18 @@ describe('createMdxPlugin', () => {
 });
 
 describe('MDX compilation via Bun plugin', () => {
-  it(
-    'compiles a simple MDX file to a JS module with MDXContent',
-    async () => {
-      const output = await buildMdx('# Hello World\n\nA paragraph.');
+  // Pre-warm the shared plugin: first Bun.build() + Shiki init is slow on CI
+  // runners (~15-30s). Paying the cost here prevents individual tests from timing out.
+  beforeAll(async () => {
+    await buildMdx('# warm');
+  }, 60_000);
 
-      expect(output).toContain('MDXContent');
-      expect(output).toMatch(/jsx|jsxs|Fragment/);
-    },
-    { timeout: 30_000 },
-  );
+  it('compiles a simple MDX file to a JS module with MDXContent', async () => {
+    const output = await buildMdx('# Hello World\n\nA paragraph.');
+
+    expect(output).toContain('MDXContent');
+    expect(output).toMatch(/jsx|jsxs|Fragment/);
+  });
 
   it('defaults jsxImportSource to @vertz/ui', async () => {
     const output = await buildMdx('# Hello');
