@@ -339,13 +339,11 @@ describe('templates', () => {
       expect(result).toContain('api.tasks.update');
     });
 
-    it('uses AlertDialog for delete confirmation', () => {
+    it('uses dialogs.confirm() for delete confirmation', () => {
       const result = homePageTemplate();
       expect(result).toContain('api.tasks.delete');
-      expect(result).toContain('AlertDialog');
-      expect(result).toContain('AlertDialog.Trigger');
-      expect(result).toContain('AlertDialog.Action');
-      expect(result).not.toContain('confirm(');
+      expect(result).toContain('dialogs.confirm');
+      expect(result).toContain('useDialogStack');
     });
 
     it('shows remaining task count', () => {
@@ -486,7 +484,7 @@ describe('templates', () => {
       const result = uiDevelopmentRuleTemplate();
       expect(result).toContain('css(');
       expect(result).toContain('@vertz/ui/components');
-      expect(result).toContain('AlertDialog');
+      expect(result).toContain('useDialogStack');
     });
 
     it('documents JSX conventions', () => {
