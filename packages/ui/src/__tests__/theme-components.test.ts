@@ -55,16 +55,19 @@ describe('@vertz/ui/components proxies', () => {
   });
 
   describe('suite component proxies', () => {
-    it('Card proxy exposes sub-components via getters', async () => {
+    it('Card proxy is callable and exposes sub-components via short names', async () => {
       const mockCard = () => ({ type: 'card' });
-      const mockCardHeader = () => ({ type: 'card-header' });
-      const cardSuite = { Card: mockCard, CardHeader: mockCardHeader };
+      const mockHeader = () => ({ type: 'card-header' });
+      const cardSuite = Object.assign(mockCard, { Header: mockHeader });
       registerTheme({ components: { Card: cardSuite } });
 
       const { Card } = await import('../components/index');
-      const card = Card as { Card: () => unknown; CardHeader: () => unknown };
-      expect(card.Card).toBe(mockCard);
-      expect(card.CardHeader).toBe(mockCardHeader);
+      expect(typeof Card).toBe('function');
+      const result = (Card as (...args: unknown[]) => { type: string })({});
+      expect(result.type).toBe('card');
+
+      const card = Card as unknown as { Header: () => { type: string } };
+      expect(card.Header).toBe(mockHeader);
     });
   });
 
