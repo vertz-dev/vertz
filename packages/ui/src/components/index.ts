@@ -80,6 +80,31 @@ function createCompoundProxy(name: string, subComponents: readonly string[]): un
   return root;
 }
 
+/** Creates a callable proxy with sub-component getters for themed components (FormGroup, etc.). */
+function createCallableSuiteProxy(name: string, subComponents: readonly string[]): unknown {
+  const root = (...args: unknown[]) => {
+    const fn = _getComponent(name);
+    if (typeof fn !== 'function') {
+      throw new Error(
+        `Component "${name}" is not callable in the registered theme. ` +
+          `Check that your theme package provides this component.`,
+      );
+    }
+    return (fn as (...a: unknown[]) => unknown)(...args);
+  };
+  for (const sub of subComponents) {
+    Object.defineProperty(root, sub, {
+      get: () => {
+        const parent = _getComponent(name);
+        return Reflect.get(parent as object, sub);
+      },
+      enumerable: true,
+      configurable: true,
+    });
+  }
+  return root;
+}
+
 /** Creates a proxy function for a simple primitive (Checkbox, Switch, etc.). */
 function createPrimitiveProxy(name: string): unknown {
   return (...args: unknown[]) => {
@@ -150,9 +175,9 @@ export const Card: ThemeComponentMap['Card'] = /* #__PURE__ */ createSuiteProxy(
   'CardAction',
 ]) as ThemeComponentMap['Card'];
 
-export const FormGroup: ThemeComponentMap['FormGroup'] = /* #__PURE__ */ createSuiteProxy(
+export const FormGroup: ThemeComponentMap['FormGroup'] = /* #__PURE__ */ createCallableSuiteProxy(
   'FormGroup',
-  ['FormGroup', 'FormError'],
+  ['FormError'],
 ) as ThemeComponentMap['FormGroup'];
 
 export const Avatar: ThemeComponentMap['Avatar'] = /* #__PURE__ */ createSuiteProxy('Avatar', [
