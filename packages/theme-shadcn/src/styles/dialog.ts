@@ -1,5 +1,5 @@
-import type { CSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import type { CSSOutput, GlobalCSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
+import { css, globalCss } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
 type DialogBlocks = {
@@ -166,4 +166,114 @@ export function createDialogStyles(): CSSOutput<DialogBlocks> {
     footer: s.dialogFooter,
     css: s.css,
   } as CSSOutput<DialogBlocks>;
+}
+
+/**
+ * Global CSS for stack-rendered dialogs.
+ *
+ * The DialogStack in @vertz/ui renders `<dialog data-dialog-wrapper>` with
+ * `<div data-part="panel">` inside. These styles target the data attributes
+ * rather than class names, since the stack creates elements imperatively.
+ */
+export function createDialogGlobalStyles(): GlobalCSSOutput {
+  return globalCss({
+    // ── Dialog wrapper (native <dialog>) ──
+    'dialog[data-dialog-wrapper]': {
+      background: 'transparent',
+      border: 'none',
+      padding: '0',
+      maxWidth: '100vw',
+      maxHeight: '100vh',
+      overflow: 'visible',
+    },
+    'dialog[data-dialog-wrapper]::backdrop': {
+      backgroundColor: 'oklch(0 0 0 / 10%)',
+      backdropFilter: 'blur(4px)',
+      WebkitBackdropFilter: 'blur(4px)',
+    },
+    'dialog[data-dialog-wrapper][data-state="open"]::backdrop': {
+      animation: 'vz-fade-in 100ms ease-out forwards',
+    },
+    'dialog[data-dialog-wrapper][data-state="closed"]::backdrop': {
+      animation: 'vz-fade-out 100ms ease-out forwards',
+    },
+    // ── Panel ──
+    'dialog[data-dialog-wrapper] > [data-part="panel"]': {
+      display: 'grid',
+      gap: '1rem',
+      width: '100%',
+      maxWidth: 'calc(100% - 2rem)',
+      boxShadow: '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent)',
+      borderRadius: '0.75rem',
+      padding: '1rem',
+      fontSize: '0.875rem',
+      margin: 'auto',
+      height: 'fit-content',
+      outline: 'none',
+      containerType: 'inline-size',
+      backgroundColor: 'var(--color-background)',
+    },
+    // ── Panel open/close animations ──
+    'dialog[data-dialog-wrapper][data-state="open"] > [data-part="panel"]': {
+      animation: 'vz-zoom-in 100ms ease-out forwards',
+    },
+    'dialog[data-dialog-wrapper][data-state="closed"] > [data-part="panel"]': {
+      animation: 'vz-zoom-out 100ms ease-out forwards',
+    },
+    // ── Sub-component parts ──
+    'dialog[data-dialog-wrapper] [data-part="header"]': {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '0.5rem',
+    },
+    'dialog[data-dialog-wrapper] [data-part="title"]': {
+      fontSize: '1rem',
+      lineHeight: '1',
+      fontWeight: '500',
+    },
+    'dialog[data-dialog-wrapper] [data-part="description"]': {
+      fontSize: '0.875rem',
+      color: 'var(--color-muted-foreground)',
+    },
+    'dialog[data-dialog-wrapper] [data-part="body"]': {
+      overflow: 'auto',
+    },
+    'dialog[data-dialog-wrapper] [data-part="footer"]': {
+      display: 'flex',
+      gap: '0.5rem',
+      flexDirection: 'column-reverse',
+      backgroundColor: 'color-mix(in oklch, var(--color-muted) 50%, transparent)',
+      margin: '0 -1rem -1rem -1rem',
+      borderRadius: '0 0 0.75rem 0.75rem',
+      borderTop: '1px solid var(--color-border)',
+      padding: '1rem',
+    },
+    'dialog[data-dialog-wrapper] [data-part="close"]': {
+      position: 'absolute',
+      top: '0.5rem',
+      right: '0.5rem',
+      opacity: '0.7',
+      transition: 'opacity 150ms',
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      width: '1rem',
+      height: '1rem',
+      background: 'none',
+      border: 'none',
+      color: 'currentColor',
+      padding: '0',
+      cursor: 'pointer',
+      borderRadius: '0.125rem',
+    },
+    'dialog[data-dialog-wrapper] [data-part="cancel"]': {
+      background: 'none',
+      border: '1px solid var(--color-border)',
+      borderRadius: '0.375rem',
+      padding: '0.5rem 1rem',
+      cursor: 'pointer',
+      fontSize: '0.875rem',
+      color: 'var(--color-foreground)',
+    },
+  });
 }

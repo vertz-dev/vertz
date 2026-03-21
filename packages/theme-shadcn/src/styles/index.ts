@@ -13,7 +13,7 @@ export { createCollapsibleStyles } from './collapsible';
 export { createCommandStyles } from './command';
 export { createContextMenuStyles } from './context-menu';
 export { createDatePickerStyles } from './date-picker';
-export { createDialogStyles } from './dialog';
+export { createDialogGlobalStyles, createDialogStyles } from './dialog';
 export { createDrawerStyles } from './drawer';
 export { createDropdownMenuStyles } from './dropdown-menu';
 export { createEmptyStateStyles } from './empty-state';

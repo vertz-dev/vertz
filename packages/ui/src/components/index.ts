@@ -89,6 +89,22 @@ function createCallableSuiteProxy(name: string, subComponents: readonly string[]
   return root;
 }
 
+/** Creates a non-callable proxy with sub-component getters for primitives (Dialog sub-components). */
+function createPrimitiveSuiteProxy(name: string, subComponents: readonly string[]): unknown {
+  const suite: Record<string, unknown> = {};
+  for (const sub of subComponents) {
+    Object.defineProperty(suite, sub, {
+      get: () => {
+        const parent = _getPrimitive(name);
+        return Reflect.get(parent as object, sub);
+      },
+      enumerable: true,
+      configurable: true,
+    });
+  }
+  return suite;
+}
+
 /** Creates a proxy function for a simple primitive (Checkbox, Switch, etc.). */
 function createPrimitiveProxy(name: string): unknown {
   return (...args: unknown[]) => {
@@ -197,15 +213,10 @@ export const AlertDialog: ThemeComponentMap['AlertDialog'] = /* #__PURE__ */ cre
   ['Trigger', 'Content', 'Header', 'Title', 'Description', 'Footer', 'Cancel', 'Action'],
 ) as ThemeComponentMap['AlertDialog'];
 
-export const Dialog: ThemeComponentMap['Dialog'] = /* #__PURE__ */ createCompoundProxy('Dialog', [
-  'Trigger',
-  'Content',
-  'Header',
-  'Title',
-  'Description',
-  'Footer',
-  'Close',
-]) as ThemeComponentMap['Dialog'];
+export const Dialog: ThemeComponentMap['Dialog'] = /* #__PURE__ */ createPrimitiveSuiteProxy(
+  'Dialog',
+  ['Header', 'Title', 'Description', 'Footer', 'Body', 'Close', 'Cancel'],
+) as ThemeComponentMap['Dialog'];
 
 export const DropdownMenu: ThemeComponentMap['DropdownMenu'] = /* #__PURE__ */ createCompoundProxy(
   'DropdownMenu',

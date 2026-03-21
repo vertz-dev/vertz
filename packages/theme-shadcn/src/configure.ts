@@ -105,6 +105,7 @@ import {
   createCommandStyles,
   createContextMenuStyles,
   createDatePickerStyles,
+  createDialogGlobalStyles,
   createDialogStyles,
   createDrawerStyles,
   createDropdownMenuStyles,
@@ -530,6 +531,8 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
   const separatorStyles = createSeparator();
   const formGroupStyles = createFormGroup();
   const dialogStyles = createDialogStyles();
+  // Inject global CSS for stack-rendered dialogs (targets data attributes)
+  createDialogGlobalStyles();
   const dropdownMenuStyles = createDropdownMenuStyles();
   const selectStyles = createSelectStyles();
   const tabsStyles = createTabsStyles();
@@ -724,7 +727,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
     }),
     primitives: {
       AlertDialog: createThemedAlertDialog(alertDialogStyles),
-      Dialog: createThemedDialog(dialogStyles),
+      Dialog: createThemedDialog(),
       DropdownMenu: createThemedDropdownMenu(dropdownMenuStyles),
       Select: createThemedSelect(selectStyles),
       Tabs: createThemedTabs(tabsStyles),

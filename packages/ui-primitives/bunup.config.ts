@@ -112,6 +112,7 @@ export default defineConfig({
     'src/index.ts',
     'src/utils.ts',
     'src/composed/with-styles.ts',
+    'src/dialog/dialog-stack-parts.tsx',
     ...componentEntries,
     ...composedEntries,
   ],

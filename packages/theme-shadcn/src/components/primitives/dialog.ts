@@ -1,22 +1,16 @@
 import type { ChildValue } from '@vertz/ui';
-import { ComposedDialog, withStyles } from '@vertz/ui-primitives';
-
-interface DialogStyleClasses {
-  readonly overlay: string;
-  readonly panel: string;
-  readonly header: string;
-  readonly title: string;
-  readonly description: string;
-  readonly close: string;
-  readonly footer: string;
-}
+import type { JSX } from '@vertz/ui/jsx-runtime';
+import {
+  StackDialogBody,
+  StackDialogCancel,
+  StackDialogClose,
+  StackDialogDescription,
+  StackDialogFooter,
+  StackDialogHeader,
+  StackDialogTitle,
+} from '@vertz/ui-primitives';
 
 // ── Props ──────────────────────────────────────────────────
-
-export interface DialogRootProps {
-  children?: ChildValue;
-  onOpenChange?: (open: boolean) => void;
-}
 
 export interface DialogSlotProps {
   children?: ChildValue;
@@ -25,35 +19,28 @@ export interface DialogSlotProps {
   class?: string;
 }
 
-export interface DialogContentProps extends DialogSlotProps {
-  showClose?: boolean;
-}
-
 // ── Component type ─────────────────────────────────────────
 
 export interface ThemedDialogComponent {
-  (props: DialogRootProps): HTMLElement;
-  Trigger: (props: DialogSlotProps) => HTMLElement;
-  Content: (props: DialogContentProps) => HTMLElement;
-  Header: (props: DialogSlotProps) => HTMLElement;
-  Title: (props: DialogSlotProps) => HTMLElement;
-  Description: (props: DialogSlotProps) => HTMLElement;
-  Footer: (props: DialogSlotProps) => HTMLElement;
-  Close: (props: DialogSlotProps) => HTMLElement;
+  Header: (props: DialogSlotProps) => JSX.Element;
+  Title: (props: DialogSlotProps) => JSX.Element;
+  Description: (props: DialogSlotProps) => JSX.Element;
+  Footer: (props: DialogSlotProps) => JSX.Element;
+  Body: (props: DialogSlotProps) => JSX.Element;
+  Close: (props: DialogSlotProps) => JSX.Element;
+  Cancel: (props: DialogSlotProps) => JSX.Element;
 }
 
 // ── Factory ────────────────────────────────────────────────
 
-export function createThemedDialog(styles: DialogStyleClasses): ThemedDialogComponent {
-  // withStyles pre-binds classes onto the Root. Sub-components read classes
-  // from context, so they get styling automatically.
-  return withStyles(ComposedDialog, {
-    overlay: styles.overlay,
-    content: styles.panel,
-    close: styles.close,
-    header: styles.header,
-    title: styles.title,
-    description: styles.description,
-    footer: styles.footer,
-  }) as unknown as ThemedDialogComponent;
+export function createThemedDialog(): ThemedDialogComponent {
+  return {
+    Header: StackDialogHeader,
+    Title: StackDialogTitle,
+    Description: StackDialogDescription,
+    Footer: StackDialogFooter,
+    Body: StackDialogBody,
+    Close: StackDialogClose,
+    Cancel: StackDialogCancel,
+  };
 }

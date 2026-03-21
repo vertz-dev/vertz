@@ -107,6 +107,16 @@ export { Dialog } from './dialog/dialog';
 // Composed primitives
 export type { ComposedDialogProps, DialogClasses } from './dialog/dialog-composed';
 export { ComposedDialog } from './dialog/dialog-composed';
+// Stack-aware dialog sub-components
+export {
+  StackDialogBody,
+  StackDialogCancel,
+  StackDialogClose,
+  StackDialogDescription,
+  StackDialogFooter,
+  StackDialogHeader,
+  StackDialogTitle,
+} from './dialog/dialog-stack-parts';
 export type {
   DropdownMenuElements,
   DropdownMenuOptions,

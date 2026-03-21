@@ -39,7 +39,7 @@ export type {
   ThemedDatePickerComponent,
 } from './date-picker';
 export { createThemedDatePicker } from './date-picker';
-export type { DialogRootProps, DialogSlotProps, ThemedDialogComponent } from './dialog';
+export type { DialogSlotProps, ThemedDialogComponent } from './dialog';
 export { createThemedDialog } from './dialog';
 export type {
   DrawerRootProps,

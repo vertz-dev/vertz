@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'bun:test';
 import { createAccordionStyles } from '../styles/accordion';
 import { createAlertDialogStyles } from '../styles/alert-dialog';
 import { createCheckboxStyles } from '../styles/checkbox';
-import { createDialogStyles } from '../styles/dialog';
 import { createDropdownMenuStyles } from '../styles/dropdown-menu';
 import { createPopoverStyles } from '../styles/popover';
 import { createProgressStyles } from '../styles/progress';
@@ -513,135 +512,32 @@ describe('createThemedAlertDialog', () => {
 // ── Dialog ─────────────────────────────────────────────────
 
 describe('createThemedDialog', () => {
-  it('has Trigger, Content, Title, Description, Footer, Close sub-components', async () => {
+  it('has Header, Title, Description, Footer, Body, Close, Cancel sub-components', async () => {
     const { createThemedDialog } = await import('../components/primitives/dialog');
-    const styles = createDialogStyles();
-    const Dialog = createThemedDialog(styles);
+    const Dialog = createThemedDialog();
 
-    expect(typeof Dialog.Trigger).toBe('function');
-    expect(typeof Dialog.Content).toBe('function');
+    expect(typeof Dialog.Header).toBe('function');
     expect(typeof Dialog.Title).toBe('function');
     expect(typeof Dialog.Description).toBe('function');
     expect(typeof Dialog.Footer).toBe('function');
+    expect(typeof Dialog.Body).toBe('function');
     expect(typeof Dialog.Close).toBe('function');
+    expect(typeof Dialog.Cancel).toBe('function');
   });
 
-  it('renders the dialog content element', async () => {
+  it('does not have Trigger or Content (removed in stack consolidation)', async () => {
     const { createThemedDialog } = await import('../components/primitives/dialog');
-    const styles = createDialogStyles();
-    const Dialog = createThemedDialog(styles);
+    const Dialog = createThemedDialog();
 
-    const trigger = document.createElement('button');
-    const root = Dialog({
-      children: () => {
-        const t = Dialog.Trigger({ children: [trigger] });
-        const c = Dialog.Content({
-          children: [Dialog.Title({ children: ['Test Title'] })],
-        });
-        return [t, c];
-      },
-    });
-    document.body.appendChild(root);
-
-    const content = root.querySelector('[role="dialog"]');
-    expect(content).toBeTruthy();
-
-    document.body.removeChild(root);
+    expect((Dialog as Record<string, unknown>).Trigger).toBeUndefined();
+    expect((Dialog as Record<string, unknown>).Content).toBeUndefined();
   });
 
-  it('applies theme classes to panel and close button', async () => {
+  it('is not callable (no root function)', async () => {
     const { createThemedDialog } = await import('../components/primitives/dialog');
-    const styles = createDialogStyles();
-    const Dialog = createThemedDialog(styles);
+    const Dialog = createThemedDialog();
 
-    const trigger = document.createElement('button');
-    const root = Dialog({
-      children: () => {
-        const t = Dialog.Trigger({ children: [trigger] });
-        const c = Dialog.Content({ children: ['Hello'] });
-        return [t, c];
-      },
-    });
-    document.body.appendChild(root);
-
-    const content = root.querySelector('[role="dialog"]') as HTMLElement;
-    expect(content.className).toContain(styles.panel);
-
-    const closeBtn = content.querySelector(`.${styles.close}`);
-    expect(closeBtn).toBeTruthy();
-
-    document.body.removeChild(root);
-  });
-
-  it('trigger click opens the dialog', async () => {
-    const { createThemedDialog } = await import('../components/primitives/dialog');
-    const styles = createDialogStyles();
-    const Dialog = createThemedDialog(styles);
-
-    const btn = document.createElement('button');
-    const onOpenChange = vi.fn();
-    const root = Dialog({
-      onOpenChange,
-      children: () => {
-        const t = Dialog.Trigger({ children: [btn] });
-        const c = Dialog.Content({ children: ['Content'] });
-        return [t, c];
-      },
-    });
-    document.body.appendChild(root);
-
-    btn.click();
-    expect(onOpenChange).toHaveBeenCalledWith(true);
-
-    document.body.removeChild(root);
-  });
-
-  it('close button closes the dialog', async () => {
-    const { createThemedDialog } = await import('../components/primitives/dialog');
-    const styles = createDialogStyles();
-    const Dialog = createThemedDialog(styles);
-
-    const btn = document.createElement('button');
-    const onOpenChange = vi.fn();
-    let closeEl!: HTMLElement;
-
-    const root = Dialog({
-      onOpenChange,
-      children: () => {
-        const t = Dialog.Trigger({ children: [btn] });
-        closeEl = Dialog.Close({ children: ['Dismiss'] });
-        const c = Dialog.Content({
-          children: [Dialog.Title({ children: ['Title'] }), Dialog.Footer({ children: [closeEl] })],
-        });
-        return [t, c];
-      },
-    });
-    document.body.appendChild(root);
-
-    btn.click();
-    closeEl.click();
-    await flush();
-    expect(onOpenChange).toHaveBeenCalledWith(false);
-
-    document.body.removeChild(root);
-  });
-
-  it('returns a wrapper element containing the trigger', async () => {
-    const { createThemedDialog } = await import('../components/primitives/dialog');
-    const styles = createDialogStyles();
-    const Dialog = createThemedDialog(styles);
-
-    const btn = document.createElement('button');
-    const root = Dialog({
-      children: () => {
-        const t = Dialog.Trigger({ children: [btn] });
-        const c = Dialog.Content({ children: ['Content'] });
-        return [t, c];
-      },
-    });
-
-    expect(root).toBeInstanceOf(HTMLElement);
-    expect(root.contains(btn)).toBe(true);
+    expect(typeof Dialog).toBe('object');
   });
 });
 

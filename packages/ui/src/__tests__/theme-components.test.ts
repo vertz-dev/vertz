@@ -27,30 +27,32 @@ describe('@vertz/ui/components proxies', () => {
     });
   });
 
-  describe('compound primitive proxies', () => {
-    it('Dialog proxy is callable and has sub-component getters', async () => {
-      const mockTrigger = () => ({ type: 'trigger' });
-      const mockContent = () => ({ type: 'content' });
-      const mockDialog = Object.assign(() => ({ type: 'dialog-root' }), {
-        Trigger: mockTrigger,
-        Content: mockContent,
-      });
+  describe('primitive suite proxies', () => {
+    it('Dialog proxy is non-callable and has sub-component getters', async () => {
+      const mockTitle = () => ({ type: 'title' });
+      const mockClose = () => ({ type: 'close' });
+      const mockCancel = () => ({ type: 'cancel' });
+      const mockDialog = {
+        Title: mockTitle,
+        Close: mockClose,
+        Cancel: mockCancel,
+      };
       registerTheme({ components: { primitives: { Dialog: mockDialog } } });
 
       const { Dialog } = await import('../components/index');
       const dialog = Dialog as {
-        (props: unknown): { type: string };
-        Trigger: () => { type: string };
-        Content: () => { type: string };
+        Title: () => { type: string };
+        Close: () => { type: string };
+        Cancel: () => { type: string };
       };
 
-      // Root is callable
-      const root = dialog({});
-      expect(root.type).toBe('dialog-root');
+      // Not callable — stack handles opening
+      expect(typeof Dialog).not.toBe('function');
 
       // Sub-components are accessible
-      expect(dialog.Trigger).toBe(mockTrigger);
-      expect(dialog.Content).toBe(mockContent);
+      expect(dialog.Title).toBe(mockTitle);
+      expect(dialog.Close).toBe(mockClose);
+      expect(dialog.Cancel).toBe(mockCancel);
     });
   });
 
