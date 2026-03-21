@@ -113,7 +113,14 @@ function DatePickerContent({ children, className: cls, class: classProp }: SlotP
       data-datepicker-content=""
       aria-hidden={isOpen ? 'false' : 'true'}
       data-state={isOpen ? 'open' : 'closed'}
-      style={{ display: isOpen ? '' : 'none' }}
+      style={{
+        display: isOpen ? '' : 'none',
+        position: 'absolute',
+        top: '100%',
+        left: '0',
+        zIndex: '50',
+        marginTop: '4px',
+      }}
       class={cn(ctx.classes?.content, cls ?? classProp)}
     >
       {children}
@@ -328,7 +335,7 @@ function ComposedDatePickerRoot({
 
   return (
     <DatePickerContext.Provider value={ctx}>
-      <span style={{ display: 'contents' }} data-datepicker-root="">
+      <span style={{ position: 'relative', display: 'inline-block' }} data-datepicker-root="">
         {children ?? (
           <>
             <DatePickerTrigger />

@@ -84,11 +84,14 @@ interface GroupProps extends SlotProps {
 
 function MenuTrigger({ children }: SlotProps) {
   const ctx = useDropdownMenuContext('Trigger');
+  const triggerRef: Ref<HTMLSpanElement> = ref();
 
   // Forward ARIA attrs and events to the user's child element.
   onMount(() => {
-    const childNodes = Array.isArray(children) ? children : [children];
-    const childEl = childNodes.find((c): c is HTMLElement => c instanceof HTMLElement);
+    const wrapper = triggerRef.current;
+    if (!wrapper) return;
+    // Find the first interactive child element in the DOM (not from props)
+    const childEl = wrapper.querySelector('button, [role="button"], a') as HTMLElement | null;
     if (!childEl) return;
 
     childEl.setAttribute('aria-haspopup', 'menu');
@@ -115,6 +118,7 @@ function MenuTrigger({ children }: SlotProps) {
 
   return (
     <span
+      ref={triggerRef}
       style={{ display: 'contents' }}
       data-dropdownmenu-trigger=""
       aria-haspopup="menu"
