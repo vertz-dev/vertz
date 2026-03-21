@@ -146,14 +146,15 @@ function ComposedTooltipRoot({
   };
 
   function applyPositioning(): void {
-    if (!positioning) return;
     const content = contentRef.current;
     const trigger = content?.parentElement?.querySelector(
       '[data-tooltip-trigger]',
     ) as HTMLElement | null;
     if (!trigger || !content) return;
 
-    const result = createFloatingPosition(trigger, content, positioning);
+    content.style.position = 'fixed';
+    const floatingOpts = positioning ?? { placement: 'top', offset: 4 };
+    const result = createFloatingPosition(trigger, content, floatingOpts);
     state.floatingCleanup = result.cleanup;
   }
 

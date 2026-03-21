@@ -295,13 +295,15 @@ function ComposedDropdownMenuRoot({
     const triggerEl = getTriggerEl();
     if (!contentEl) return;
 
-    if (positioning) {
-      const ref = positioning.referenceElement ?? triggerEl ?? contentEl;
-      const result = createFloatingPosition(ref, contentEl, positioning);
+    {
+      const floatingOpts = positioning ?? { placement: 'bottom-start', offset: 4 };
+      const refEl = floatingOpts.referenceElement ?? triggerEl ?? contentEl;
+      contentEl.style.position = 'fixed';
+      const result = createFloatingPosition(refEl, contentEl, floatingOpts);
       state.floatingCleanup = result.cleanup;
       state.dismissCleanup = createDismiss({
         onDismiss: close,
-        insideElements: [ref, contentEl, ...(triggerEl ? [triggerEl] : [])],
+        insideElements: [refEl, contentEl, ...(triggerEl ? [triggerEl] : [])],
         escapeKey: false,
       });
     }

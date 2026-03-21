@@ -4,10 +4,11 @@
  * No registration phase, no resolveChildren, no internal API imports.
  */
 
-import type { ChildValue } from '@vertz/ui';
-import { createContext, useContext } from '@vertz/ui';
+import type { ChildValue, Ref } from '@vertz/ui';
+import { createContext, ref, useContext } from '@vertz/ui';
 import { cn } from '../composed/cn';
 import type { FloatingOptions } from '../utils/floating';
+import { createFloatingPosition } from '../utils/floating';
 import { uniqueId } from '../utils/id';
 
 // ---------------------------------------------------------------------------
@@ -27,6 +28,8 @@ export type HoverCardClassKey = keyof HoverCardClasses;
 interface HoverCardContextValue {
   isOpen: boolean;
   contentId: string;
+  triggerRef: Ref<HTMLSpanElement>;
+  contentRef: Ref<HTMLDivElement>;
   classes?: HoverCardClasses;
   show: () => void;
   hide: () => void;
@@ -81,6 +84,7 @@ function HoverCardTrigger({ children }: SlotProps) {
 
   return (
     <span
+      ref={ctx.triggerRef}
       style={{ display: 'contents' }}
       data-hovercard-trigger=""
       onMouseenter={() => ctx.show()}
@@ -97,6 +101,7 @@ function HoverCardContent({ children, className: cls, class: classProp }: SlotPr
   const ctx = useHoverCardContext('Content');
   return (
     <div
+      ref={ctx.contentRef}
       role="dialog"
       id={ctx.contentId}
       data-hovercard-content=""
@@ -133,9 +138,11 @@ function ComposedHoverCardRoot({
   openDelay = 700,
   closeDelay = 300,
   onOpenChange,
-  positioning: _positioning,
+  positioning,
 }: ComposedHoverCardProps) {
   const contentId = uniqueId('hovercard');
+  const triggerRef: Ref<HTMLSpanElement> = ref();
+  const contentRef: Ref<HTMLDivElement> = ref();
 
   let isOpen = false;
 
@@ -164,12 +171,28 @@ function ComposedHoverCardRoot({
     }
   }
 
+  function applyFloating(): void {
+    const triggerEl = triggerRef.current;
+    const contentEl = contentRef.current;
+    if (!triggerEl || !contentEl) return;
+    contentEl.style.position = 'fixed';
+    const floatingOpts = positioning ?? { placement: 'bottom', offset: 4 };
+    const result = createFloatingPosition(triggerEl, contentEl, floatingOpts);
+    timers.floatingCleanup = result.cleanup;
+  }
+
+  function cleanupFloating(): void {
+    timers.floatingCleanup?.();
+    timers.floatingCleanup = null;
+  }
+
   function show(): void {
     cancelTimers();
     if (isOpen) return;
     timers.open = setTimeout(() => {
       timers.open = null;
       isOpen = true;
+      applyFloating();
       onOpenChange?.(true);
     }, openDelay);
   }
@@ -177,6 +200,7 @@ function ComposedHoverCardRoot({
   function showImmediate(): void {
     cancelTimers();
     isOpen = true;
+    applyFloating();
     onOpenChange?.(true);
   }
 
@@ -186,8 +210,7 @@ function ComposedHoverCardRoot({
     timers.close = setTimeout(() => {
       timers.close = null;
       isOpen = false;
-      timers.floatingCleanup?.();
-      timers.floatingCleanup = null;
+      cleanupFloating();
       onOpenChange?.(false);
     }, closeDelay);
   }
@@ -195,14 +218,15 @@ function ComposedHoverCardRoot({
   function hideImmediate(): void {
     cancelTimers();
     isOpen = false;
-    timers.floatingCleanup?.();
-    timers.floatingCleanup = null;
+    cleanupFloating();
     onOpenChange?.(false);
   }
 
   const ctx: HoverCardContextValue = {
     isOpen,
     contentId,
+    triggerRef,
+    contentRef,
     classes,
     show,
     hide,
