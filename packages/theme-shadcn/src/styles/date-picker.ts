@@ -50,6 +50,7 @@ export function createDatePickerStyles(): CSSOutput<DatePickerBlocks> {
       'border:1',
       'border:border',
       'shadow:md',
+      'overflow-hidden',
       { '&': { padding: '0' } },
     ],
   });
