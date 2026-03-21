@@ -12,6 +12,8 @@ export function Content() {
       <ComponentPreview>
         <div
           style={{
+            display: 'flex',
+            flexDirection: 'column',
             height: '18rem',
             width: '14rem',
             border: '1px solid var(--color-border)',
