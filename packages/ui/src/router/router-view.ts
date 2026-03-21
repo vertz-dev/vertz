@@ -1,3 +1,4 @@
+import { ErrorBoundary } from '../component/error-boundary';
 import {
   beginDeferringMounts,
   discardDeferredMounts,
@@ -15,6 +16,9 @@ import type { Router } from './navigate';
 import { OutletContext } from './outlet';
 import { RouterContext } from './router-context';
 
+/** Error fallback component signature used by errorFallback and errorComponent. */
+type ErrorFallbackFn = (props: { error: Error; retry: () => void }) => Node;
+
 /** Per-level state for matched chain diffing. */
 interface LevelState {
   route: CompiledRoute;
@@ -23,7 +27,14 @@ interface LevelState {
 
 export interface RouterViewProps {
   router: Router;
+  /** Rendered when no route matches (404). */
   fallback?: () => Node;
+  /**
+   * Global error fallback for all routes. When set, every route component is
+   * automatically wrapped in an ErrorBoundary using this fallback.
+   * Per-route `errorComponent` takes precedence over this.
+   */
+  errorFallback?: ErrorFallbackFn;
 }
 
 /**
@@ -37,7 +48,7 @@ export interface RouterViewProps {
  * domEffect runs the component factory (to attach reactivity/event handlers)
  * but skips clearing the container.
  */
-export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
+export function RouterView({ router, fallback, errorFallback }: RouterViewProps): HTMLElement {
   const container = __element('div');
   // Track whether the first render is during hydration — if so, don't
   // clear the container (SSR children are already in the DOM).
@@ -94,7 +105,13 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
         const newLevels = buildLevels(newMatched);
 
         // Get the new child factory starting from the divergence point
-        const newChildFactory = buildInsideOutFactory(newMatched, newLevels, divergeAt, router);
+        const newChildFactory = buildInsideOutFactory(
+          newMatched,
+          newLevels,
+          divergeAt,
+          router,
+          errorFallback,
+        );
 
         // Update the parent's childSignal to swap in the new subtree
         const parentLevel = prevLevels[divergeAt - 1]!;
@@ -137,7 +154,7 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
 
         // Build the full inside-out chain
         const levels = buildLevels(newMatched);
-        const rootFactory = buildInsideOutFactory(newMatched, levels, 0, router);
+        const rootFactory = buildInsideOutFactory(newMatched, levels, 0, router, errorFallback);
 
         let asyncRoute = false;
         RouterContext.Provider(router, () => {
@@ -276,6 +293,7 @@ function buildInsideOutFactory(
   levels: LevelState[],
   startAt: number,
   router: Router,
+  errorFallback?: ErrorFallbackFn,
 ): () => Node | Promise<{ default: () => Node }> {
   const ssrCtx = getSSRContext();
 
@@ -322,17 +340,41 @@ function buildInsideOutFactory(
     };
   };
 
+  /** Resolve the error fallback for a route: per-route errorComponent takes precedence. */
+  const resolveFallback = (route: CompiledRoute): ErrorFallbackFn | undefined =>
+    route.errorComponent ?? errorFallback;
+
+  /**
+   * Optionally wrap a sync component factory in ErrorBoundary.
+   * If no fallback is configured, returns the factory unchanged.
+   */
+  const maybeWrapInBoundary = (
+    componentFn: () => Node | Promise<{ default: () => Node }>,
+    fb: ErrorFallbackFn | undefined,
+  ): (() => Node | Promise<{ default: () => Node }>) => {
+    if (!fb) return componentFn;
+    return () =>
+      ErrorBoundary({
+        children: componentFn as () => HTMLElement,
+        fallback: (error, retry) => fb({ error, retry }) as HTMLElement,
+      });
+  };
+
   // Start from the leaf and build upward to startAt
-  let factory: () => Node | Promise<{ default: () => Node }> = wrapForSSR(
-    matched[matched.length - 1]!.route,
-    matched.length - 1,
+  const leafRoute = matched[matched.length - 1]!.route;
+  let factory: () => Node | Promise<{ default: () => Node }> = maybeWrapInBoundary(
+    wrapForSSR(leafRoute, matched.length - 1),
+    resolveFallback(leafRoute),
   );
 
   for (let i = matched.length - 2; i >= startAt; i--) {
     const level = levels[i]!;
     const childFactory = factory;
     level.childSignal!.value = childFactory;
-    const parentComponent = wrapForSSR(level.route, i);
+    const parentComponent = maybeWrapInBoundary(
+      wrapForSSR(level.route, i),
+      resolveFallback(level.route),
+    );
     const cs = level.childSignal!;
     factory = () => {
       let result!: Node;

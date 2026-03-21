@@ -2,6 +2,8 @@ export type { ChildrenAccessor, ChildValue } from './children';
 export { children, resolveChildren } from './children';
 export type { Context } from './context';
 export { createContext, useContext } from './context';
+export type { ErrorFallbackProps } from './default-error-fallback';
+export { DefaultErrorFallback } from './default-error-fallback';
 export type { ErrorBoundaryProps } from './error-boundary';
 export { ErrorBoundary } from './error-boundary';
 export { onMount } from './lifecycle';

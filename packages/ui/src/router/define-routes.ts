@@ -29,7 +29,7 @@ export interface RouteConfig<
     signal: AbortSignal;
   }) => Promise<TLoaderData> | TLoaderData;
   /** Optional error component rendered when loader throws. */
-  errorComponent?: (error: Error) => Node;
+  errorComponent?: (props: { error: Error; retry: () => void }) => Node;
   /** Optional path params schema for validation/parsing. */
   params?: ParamSchema<TParams>;
   /** Optional search params schema for validation/coercion. */
@@ -64,7 +64,7 @@ export interface RouteConfigLike {
    * against this constraint's `params: Record<string, string>`.
    */
   loader?(ctx: { params: Record<string, string>; signal: AbortSignal }): unknown;
-  errorComponent?: (error: Error) => Node;
+  errorComponent?: (props: { error: Error; retry: () => void }) => Node;
   params?: ParamSchema<unknown>;
   searchParams?: SearchParamSchema<unknown>;
   children?: Record<string, RouteConfigLike>;
@@ -100,7 +100,7 @@ export interface CompiledRoute {
     params: Record<string, string>;
     signal: AbortSignal;
   }) => Promise<unknown> | unknown;
-  errorComponent?: RouteConfig['errorComponent'];
+  errorComponent?: (props: { error: Error; retry: () => void }) => Node;
   /** Optional path params schema for validation/parsing. */
   params?: ParamSchema<unknown>;
   searchParams?: RouteConfig['searchParams'];

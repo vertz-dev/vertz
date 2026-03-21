@@ -1290,6 +1290,187 @@ describe('RouterView', () => {
     router.dispose();
   });
 
+  test('errorFallback catches sync route error and renders fallback', () => {
+    const routes = defineRoutes({
+      '/': {
+        component: () => {
+          throw new Error('route exploded');
+        },
+      },
+    });
+    const router = createRouter(routes, '/');
+    let view: HTMLElement;
+    RouterContext.Provider(router, () => {
+      view = RouterView({
+        router,
+        errorFallback: ({ error, retry }) => {
+          const el = document.createElement('div');
+          el.setAttribute('data-testid', 'error-fallback');
+          el.textContent = `Error: ${error.message}`;
+          return el;
+        },
+      });
+    });
+    expect(view!.querySelector('[data-testid="error-fallback"]')).not.toBeNull();
+    expect(view!.textContent).toContain('Error: route exploded');
+    router.dispose();
+  });
+
+  test('errorFallback retry re-renders the route component', () => {
+    let attempts = 0;
+    let retryFn: (() => void) | undefined;
+    const routes = defineRoutes({
+      '/': {
+        component: () => {
+          attempts++;
+          if (attempts < 2) {
+            throw new Error('not ready');
+          }
+          const el = document.createElement('div');
+          el.textContent = 'Success';
+          return el;
+        },
+      },
+    });
+    const router = createRouter(routes, '/');
+    let view: HTMLElement;
+    RouterContext.Provider(router, () => {
+      view = RouterView({
+        router,
+        errorFallback: ({ error, retry }) => {
+          retryFn = retry;
+          const el = document.createElement('div');
+          el.textContent = `Error: ${error.message}`;
+          return el;
+        },
+      });
+    });
+    expect(view!.textContent).toContain('Error: not ready');
+    expect(retryFn).toBeDefined();
+    retryFn!();
+    expect(view!.textContent).toContain('Success');
+    router.dispose();
+  });
+
+  test('per-route errorComponent overrides global errorFallback', () => {
+    const routes = defineRoutes({
+      '/': {
+        component: () => {
+          throw new Error('boom');
+        },
+        errorComponent: ({ error }) => {
+          const el = document.createElement('div');
+          el.setAttribute('data-testid', 'route-error');
+          el.textContent = `Route error: ${error.message}`;
+          return el;
+        },
+      },
+    });
+    const router = createRouter(routes, '/');
+    let view: HTMLElement;
+    RouterContext.Provider(router, () => {
+      view = RouterView({
+        router,
+        errorFallback: ({ error }) => {
+          const el = document.createElement('div');
+          el.setAttribute('data-testid', 'global-error');
+          el.textContent = `Global error: ${error.message}`;
+          return el;
+        },
+      });
+    });
+    expect(view!.querySelector('[data-testid="route-error"]')).not.toBeNull();
+    expect(view!.querySelector('[data-testid="global-error"]')).toBeNull();
+    expect(view!.textContent).toContain('Route error: boom');
+    router.dispose();
+  });
+
+  test('no errorFallback: error propagates normally', () => {
+    const routes = defineRoutes({
+      '/': {
+        component: () => {
+          throw new Error('unhandled');
+        },
+      },
+    });
+    const router = createRouter(routes, '/');
+    expect(() => {
+      RouterContext.Provider(router, () => {
+        RouterView({ router });
+      });
+    }).toThrow('unhandled');
+    router.dispose();
+  });
+
+  test('errorFallback: route that renders successfully is not affected', () => {
+    const routes = defineRoutes({
+      '/': {
+        component: () => {
+          const el = document.createElement('div');
+          el.textContent = 'OK';
+          return el;
+        },
+      },
+    });
+    const router = createRouter(routes, '/');
+    let view: HTMLElement;
+    RouterContext.Provider(router, () => {
+      view = RouterView({
+        router,
+        errorFallback: ({ error }) => {
+          const el = document.createElement('div');
+          el.textContent = `Error: ${error.message}`;
+          return el;
+        },
+      });
+    });
+    expect(view!.textContent).toBe('OK');
+    router.dispose();
+  });
+
+  test('errorFallback with nested routes: leaf error does not take down parent layout', () => {
+    const routes = defineRoutes({
+      '/dashboard': {
+        component: () => {
+          const layout = document.createElement('div');
+          layout.className = 'dashboard-layout';
+          const header = document.createElement('h1');
+          header.textContent = 'Dashboard';
+          layout.appendChild(header);
+          layout.appendChild(Outlet());
+          return layout;
+        },
+        children: {
+          '/settings': {
+            component: () => {
+              throw new Error('settings broke');
+            },
+          },
+        },
+      },
+    });
+    const router = createRouter(routes, '/dashboard/settings');
+    let view: HTMLElement;
+    RouterContext.Provider(router, () => {
+      view = RouterView({
+        router,
+        errorFallback: ({ error }) => {
+          const el = document.createElement('div');
+          el.setAttribute('data-testid', 'error-fallback');
+          el.textContent = `Error: ${error.message}`;
+          return el;
+        },
+      });
+    });
+    // Parent layout should still be rendered
+    expect(view!.querySelector('.dashboard-layout')).not.toBeNull();
+    expect(view!.textContent).toContain('Dashboard');
+    // Error fallback should be in the Outlet area
+    expect(view!.querySelector('[data-testid="error-fallback"]')).not.toBeNull();
+    expect(view!.textContent).toContain('Error: settings broke');
+    router.dispose();
+  });
+
   test('sync route with mismatched tag during hydration appears in DOM (#1368)', () => {
     // SSR rendered a <div>, but the sync route creates a <span>
     const root = document.createElement('div');
