@@ -24,17 +24,25 @@ export interface ResolvedPropFields {
 export interface ReExportEntry {
   /** Exported name (or '*' for star re-exports) */
   name: string;
+  /** Original name in the source module (differs from `name` for `export { A as B }`) */
+  originalName: string;
   /** Import specifier (e.g., './issue-row') */
   source: string;
 }
 
 type ImportResolver = (specifier: string, fromFile: string) => string | undefined;
 
+/** Fast regex check for re-export patterns — avoids full parse for non-barrel files. */
+const RE_EXPORT_PATTERN = /export\s+(?:\{|\*)\s*.*?\bfrom\b/;
+
 /**
  * Parse re-export statements from source text.
- * Detects: `export { Foo } from './bar'` and `export * from './bar'`
+ * Detects: `export { Foo } from './bar'`, `export { A as B } from './bar'`,
+ * and `export * from './bar'`.
  */
 function parseReExports(sourceText: string, filePath: string): ReExportEntry[] {
+  if (!RE_EXPORT_PATTERN.test(sourceText)) return [];
+
   const sourceFile = ts.createSourceFile(filePath, sourceText, ts.ScriptTarget.Latest, true);
   const reExports: ReExportEntry[] = [];
 
@@ -44,11 +52,16 @@ function parseReExports(sourceText: string, filePath: string): ReExportEntry[] {
 
     if (!stmt.exportClause) {
       // export * from './bar'
-      reExports.push({ name: '*', source });
+      reExports.push({ name: '*', originalName: '*', source });
     } else if (ts.isNamedExports(stmt.exportClause)) {
-      // export { Foo, Bar } from './bar'
+      // export { Foo } from './bar' or export { Foo as Bar } from './bar'
       for (const el of stmt.exportClause.elements) {
-        reExports.push({ name: el.name.getText(sourceFile), source });
+        const exportedName = el.name.getText(sourceFile);
+        // propertyName is set when using `as` alias: export { Original as Alias }
+        const originalName = el.propertyName
+          ? el.propertyName.getText(sourceFile)
+          : exportedName;
+        reExports.push({ name: exportedName, originalName, source });
       }
     }
   }
@@ -91,15 +104,22 @@ export class FieldSelectionManifest {
     const oldComponents = this.fileComponents.get(filePath);
     const newComponents = analyzeComponentPropFields(filePath, sourceText);
 
-    const changed = !componentsEqual(oldComponents, newComponents);
-    if (changed) {
+    const componentsChanged = !componentsEqual(oldComponents, newComponents);
+    if (componentsChanged) {
       this.fileComponents.set(filePath, newComponents);
-      this.resolvedCache.clear();
     }
 
-    // Always update re-exports
-    const reExports = parseReExports(sourceText, filePath);
-    this.fileReExports.set(filePath, reExports);
+    const oldReExports = this.fileReExports.get(filePath);
+    const newReExports = parseReExports(sourceText, filePath);
+    const reExportsChanged = !reExportsEqual(oldReExports, newReExports);
+    if (reExportsChanged) {
+      this.fileReExports.set(filePath, newReExports);
+    }
+
+    const changed = componentsChanged || reExportsChanged;
+    if (changed) {
+      this.resolvedCache.clear();
+    }
 
     return { changed };
   }
@@ -135,6 +155,8 @@ export class FieldSelectionManifest {
 
   /**
    * Follow re-export chains to find the defining file of a component.
+   * Handles renamed re-exports: `export { Internal as Public } from './bar'`
+   * by using `originalName` to look up the component in the target file.
    */
   private followReExports(
     filePath: string,
@@ -155,15 +177,19 @@ export class FieldSelectionManifest {
       const targetPath = this.importResolver(re.source, filePath);
       if (!targetPath) continue;
 
+      // For renamed re-exports (export { A as B }), look up using the original name
+      // For star re-exports, use the component name as-is
+      const targetName = re.name === '*' ? componentName : re.originalName;
+
       // Try direct lookup at the target
       const targetComponents = this.fileComponents.get(targetPath);
       if (targetComponents) {
-        const component = targetComponents.find((c) => c.componentName === componentName);
+        const component = targetComponents.find((c) => c.componentName === targetName);
         if (component) return component.props[propName];
       }
 
-      // Recurse for chained re-exports
-      const result = this.followReExports(targetPath, componentName, propName, visited);
+      // Recurse for chained re-exports (using the target name)
+      const result = this.followReExports(targetPath, targetName, propName, visited);
       if (result) return result;
     }
 
@@ -270,8 +296,31 @@ function componentsEqual(a: ComponentPropFields[] | undefined, b: ComponentPropF
       for (let k = 0; k < aFieldsSorted.length; k++) {
         if (aFieldsSorted[k] !== bFieldsSorted[k]) return false;
       }
+      // Compare forwarded props
+      if (aProp.forwarded.length !== bProp.forwarded.length) return false;
+      for (let f = 0; f < aProp.forwarded.length; f++) {
+        const af = aProp.forwarded[f]!;
+        const bf = bProp.forwarded[f]!;
+        if (af.componentName !== bf.componentName) return false;
+        if (af.importSource !== bf.importSource) return false;
+        if (af.propName !== bf.propName) return false;
+      }
     }
   }
 
+  return true;
+}
+
+/**
+ * Compare two re-export arrays for equality.
+ */
+function reExportsEqual(a: ReExportEntry[] | undefined, b: ReExportEntry[]): boolean {
+  if (!a) return b.length === 0;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i]!.name !== b[i]!.name) return false;
+    if (a[i]!.originalName !== b[i]!.originalName) return false;
+    if (a[i]!.source !== b[i]!.source) return false;
+  }
   return true;
 }

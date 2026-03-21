@@ -252,6 +252,135 @@ describe('FieldSelectionManifest', () => {
     });
   });
 
+  describe('Given a chained re-export (barrel → barrel → component)', () => {
+    it('Then follows the chain to resolve fields', () => {
+      const manifest = new FieldSelectionManifest();
+      const resolveImport = (spec: string, from: string): string | undefined => {
+        if (spec === './components' && from === '/src/index.ts') return '/src/components/index.ts';
+        if (spec === './issue-row' && from === '/src/components/index.ts') {
+          return '/src/components/issue-row.tsx';
+        }
+        return undefined;
+      };
+      manifest.setImportResolver(resolveImport);
+
+      // Top-level barrel
+      manifest.registerFile('/src/index.ts', `export { IssueRow } from './components';`);
+
+      // Sub-barrel
+      manifest.registerFile(
+        '/src/components/index.ts',
+        `export { IssueRow } from './issue-row';`,
+      );
+
+      // Actual component
+      manifest.registerFile(
+        '/src/components/issue-row.tsx',
+        `
+        export function IssueRow({ issue }: Props) {
+          return <div>{issue.title}</div>;
+        }
+      `,
+      );
+
+      const fields = manifest.getResolvedPropFields('/src/index.ts', 'IssueRow', 'issue');
+
+      expect(fields).toBeDefined();
+      expect(fields!.fields).toContain('title');
+    });
+  });
+
+  describe('Given circular re-exports', () => {
+    it('Then does not infinite loop and returns undefined', () => {
+      const manifest = new FieldSelectionManifest();
+      const resolveImport = (spec: string, from: string): string | undefined => {
+        if (spec === './b' && from === '/src/a.ts') return '/src/b.ts';
+        if (spec === './a' && from === '/src/b.ts') return '/src/a.ts';
+        return undefined;
+      };
+      manifest.setImportResolver(resolveImport);
+
+      manifest.registerFile('/src/a.ts', `export { Foo } from './b';`);
+      manifest.registerFile('/src/b.ts', `export { Foo } from './a';`);
+
+      // Should not hang — circular reference returns undefined gracefully
+      const fields = manifest.getResolvedPropFields('/src/a.ts', 'Foo', 'data');
+      expect(fields).toBeUndefined();
+    });
+  });
+
+  describe('Given a renamed re-export (export { A as B })', () => {
+    it('Then resolves using the original name in the target file', () => {
+      const manifest = new FieldSelectionManifest();
+      const resolveImport = (spec: string, from: string): string | undefined => {
+        if (spec === './internal' && from === '/src/index.ts') return '/src/internal.tsx';
+        return undefined;
+      };
+      manifest.setImportResolver(resolveImport);
+
+      // Barrel renames the export
+      manifest.registerFile(
+        '/src/index.ts',
+        `export { IssueRowInternal as IssueRow } from './internal';`,
+      );
+
+      // Component uses internal name
+      manifest.registerFile(
+        '/src/internal.tsx',
+        `
+        export function IssueRowInternal({ issue }: Props) {
+          return <div>{issue.title}<span>{issue.priority}</span></div>;
+        }
+      `,
+      );
+
+      const fields = manifest.getResolvedPropFields('/src/index.ts', 'IssueRow', 'issue');
+
+      expect(fields).toBeDefined();
+      expect(fields!.fields).toContain('title');
+      expect(fields!.fields).toContain('priority');
+    });
+  });
+
+  describe('Given updateFile changes re-exports', () => {
+    it('Then reports changed and clears cache', () => {
+      const manifest = new FieldSelectionManifest();
+      const resolveImport = (spec: string, from: string): string | undefined => {
+        if (spec === './issue-row' && from === '/src/index.ts') return '/src/issue-row.tsx';
+        if (spec === './issue-card' && from === '/src/index.ts') return '/src/issue-card.tsx';
+        return undefined;
+      };
+      manifest.setImportResolver(resolveImport);
+
+      manifest.registerFile(
+        '/src/issue-row.tsx',
+        `export function IssueRow({ issue }: Props) { return <div>{issue.title}</div>; }`,
+      );
+      manifest.registerFile(
+        '/src/issue-card.tsx',
+        `export function IssueCard({ issue }: Props) { return <div>{issue.number}</div>; }`,
+      );
+
+      // Initial: only exports IssueRow
+      manifest.registerFile('/src/index.ts', `export { IssueRow } from './issue-row';`);
+
+      const before = manifest.getResolvedPropFields('/src/index.ts', 'IssueCard', 'issue');
+      expect(before).toBeUndefined();
+
+      // Update: now also exports IssueCard
+      const result = manifest.updateFile(
+        '/src/index.ts',
+        `export { IssueRow } from './issue-row';\nexport { IssueCard } from './issue-card';`,
+      );
+
+      expect(result.changed).toBe(true);
+
+      const after = manifest.getResolvedPropFields('/src/index.ts', 'IssueCard', 'issue');
+      expect(after).toBeDefined();
+      expect(after!.fields).toContain('number');
+    });
+  });
+
   describe('Given a file is deleted', () => {
     it('Then removes it from the manifest', () => {
       const manifest = new FieldSelectionManifest();

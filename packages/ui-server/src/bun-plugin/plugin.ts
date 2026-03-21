@@ -558,8 +558,8 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
       manifestsRecord = null; // Invalidate cached Record view
     }
 
-    // Update field selection manifest incrementally
-    if (filePath.endsWith('.tsx')) {
+    // Update field selection manifest incrementally (.tsx for components, .ts for barrel re-exports)
+    if (filePath.endsWith('.tsx') || filePath.endsWith('.ts')) {
       fieldSelectionManifest.updateFile(filePath, sourceText);
     }
 
