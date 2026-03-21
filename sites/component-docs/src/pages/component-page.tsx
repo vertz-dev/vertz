@@ -21,6 +21,7 @@ import { Content as DialogContent } from '../content/dialog-content';
 import { Content as DialogStackContent } from '../content/dialog-stack-content';
 import { Content as DrawerContent } from '../content/drawer-content';
 import { Content as DropdownMenuContent } from '../content/dropdown-menu-content';
+import { Content as EmptyStateContent } from '../content/empty-state-content';
 import { Content as FormGroupContent } from '../content/form-group-content';
 import { Content as HoverCardContent } from '../content/hover-card-content';
 import { Content as InputContent } from '../content/input-content';
@@ -80,6 +81,7 @@ const contentMap: Record<
   'resizable-panel': ResizablePanelContent,
   'scroll-area': ScrollAreaContent,
   skeleton: SkeletonContent,
+  'empty-state': EmptyStateContent,
   avatar: AvatarContent,
   calendar: CalendarContent,
   progress: ProgressContent,

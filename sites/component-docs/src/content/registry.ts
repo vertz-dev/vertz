@@ -35,6 +35,7 @@ export const descriptions: Record<string, string> = {
   skeleton: 'A placeholder to show while content is loading.',
   // Data Display components
   avatar: 'An image element with a fallback for representing the user.',
+  'empty-state': 'A placeholder for empty data with icon, title, description, and action slots.',
   calendar: 'A date calendar component for selecting dates.',
   progress: 'Displays an indicator showing the completion progress of a task.',
   // Feedback components
