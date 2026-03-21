@@ -537,7 +537,8 @@ describe('createAccessContext', () => {
     it('can() returns true when within limit', async () => {
       const { accessDef, closureStore, roleStore, subscriptionStore, walletStore, orgResolver } =
         setupWithLimits();
-      const now = new Date();
+      const today = new Date();
+      const now = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 15, 12, 0, 0));
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
       await subscriptionStore.assign('org-1', 'free', now);
@@ -566,7 +567,8 @@ describe('createAccessContext', () => {
     it('can() returns false when limit reached', async () => {
       const { accessDef, closureStore, roleStore, subscriptionStore, walletStore, orgResolver } =
         setupWithLimits();
-      const now = new Date();
+      const today = new Date();
+      const now = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 15, 12, 0, 0));
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
       await subscriptionStore.assign('org-1', 'free', now);
@@ -618,7 +620,8 @@ describe('createAccessContext', () => {
     it('check() returns limit_reached with meta when limit exceeded', async () => {
       const { accessDef, closureStore, roleStore, subscriptionStore, walletStore, orgResolver } =
         setupWithLimits();
-      const now = new Date();
+      const today = new Date();
+      const now = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 15, 12, 0, 0));
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
       await subscriptionStore.assign('org-1', 'free', now);
@@ -697,7 +700,8 @@ describe('createAccessContext', () => {
     it('denies when per-brand limit is exceeded even if tenant-level is within', async () => {
       const { accessDef, closureStore, roleStore, subscriptionStore, walletStore, orgResolver } =
         setupMultiLimit();
-      const now = new Date();
+      const today = new Date();
+      const now = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 15, 12, 0, 0));
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
       await subscriptionStore.assign('org-1', 'free', now);
@@ -727,7 +731,8 @@ describe('createAccessContext', () => {
     it('check() denial meta includes the per-brand limit as the blocker', async () => {
       const { accessDef, closureStore, roleStore, subscriptionStore, walletStore, orgResolver } =
         setupMultiLimit();
-      const now = new Date();
+      const today = new Date();
+      const now = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 15, 12, 0, 0));
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
       await subscriptionStore.assign('org-1', 'free', now);
@@ -953,7 +958,8 @@ describe('createAccessContext', () => {
     it('add-on limit increases effective max', async () => {
       const { accessDef, closureStore, roleStore, subscriptionStore, walletStore, orgResolver } =
         setupWithAddOns();
-      const now = new Date();
+      const today = new Date();
+      const now = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 15, 12, 0, 0));
       await closureStore.addResource('organization', 'org-1');
       await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
       await subscriptionStore.assign('org-1', 'free', now);

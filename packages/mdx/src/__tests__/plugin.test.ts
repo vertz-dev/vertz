@@ -9,29 +9,37 @@ const jsxImportSourcePlugin = createMdxPlugin({ jsxImportSource: '@vertz/ui-serv
 const noFrontmatterPlugin = createMdxPlugin({ remarkFrontmatter: false });
 const noShikiPlugin = createMdxPlugin({ shikiTheme: false });
 
-// Map of serialized options to pre-created plugins for test reuse
-const pluginCache = new Map<string, ReturnType<typeof createMdxPlugin>>();
-pluginCache.set(JSON.stringify({ jsxImportSource: '@vertz/ui-server' }), jsxImportSourcePlugin);
-pluginCache.set(JSON.stringify({ remarkFrontmatter: false }), noFrontmatterPlugin);
-pluginCache.set(JSON.stringify({ shikiTheme: false }), noShikiPlugin);
+// Helper: resolve a pre-created plugin for the given options, or create a new one.
+function resolvePlugin(options?: Parameters<typeof createMdxPlugin>[0]) {
+  if (!options) return defaultPlugin;
+  // Match known option combinations to pre-created instances
+  if (options.jsxImportSource === '@vertz/ui-server' && Object.keys(options).length === 1)
+    return jsxImportSourcePlugin;
+  if (options.remarkFrontmatter === false && Object.keys(options).length === 1)
+    return noFrontmatterPlugin;
+  if (options.shikiTheme === false && Object.keys(options).length === 1) return noShikiPlugin;
+  // Empty remarkPlugins/rehypePlugins arrays are semantically identical to default
+  const isEmptyArrayOnly =
+    Object.keys(options).length === 1 &&
+    (('remarkPlugins' in options &&
+      Array.isArray(options.remarkPlugins) &&
+      options.remarkPlugins.length === 0) ||
+      ('rehypePlugins' in options &&
+        Array.isArray(options.rehypePlugins) &&
+        options.rehypePlugins.length === 0));
+  if (isEmptyArrayOnly) return defaultPlugin;
+  // Unknown combination — create a new plugin (will cold-init Shiki if enabled)
+  return createMdxPlugin(options);
+}
 
 // Helper: build an MDX file through the plugin, marking jsx-runtime as external.
-// Uses pre-created plugins where possible, falls back to new instances.
 async function buildMdx(content: string, options?: Parameters<typeof createMdxPlugin>[0]) {
   const path = `/tmp/vertz-mdx-test-${Date.now()}-${Math.random().toString(36).slice(2)}.mdx`;
   await Bun.write(path, content);
 
-  let plugin: ReturnType<typeof createMdxPlugin>;
-  if (!options) {
-    plugin = defaultPlugin;
-  } else {
-    const key = JSON.stringify(options);
-    plugin = pluginCache.get(key) ?? createMdxPlugin(options);
-  }
-
   const result = await Bun.build({
     entrypoints: [path],
-    plugins: [plugin],
+    plugins: [resolvePlugin(options)],
     target: 'bun',
     external: ['@vertz/ui', '@vertz/ui-server'],
   });
