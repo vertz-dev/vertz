@@ -205,7 +205,7 @@ export const Table: ThemeComponentMap['Table'] = /* #__PURE__ */ createCallableS
 ]) as ThemeComponentMap['Table'];
 
 // ---------------------------------------------------------------------------
-// Compound primitives (callable + sub-component getters)
+// Primitives (compound callables + suite proxies)
 // ---------------------------------------------------------------------------
 
 export const Dialog: ThemeComponentMap['Dialog'] = /* #__PURE__ */ createPrimitiveSuiteProxy(

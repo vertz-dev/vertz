@@ -290,6 +290,13 @@ export function createDialogStack(container: HTMLElement): DialogStack {
 
       // Mount
       panel.appendChild(entry.node);
+
+      // Auto-assign ARIA IDs to title/description elements for aria-labelledby/describedby
+      const titleTarget = panel.querySelector('[data-part="title"]');
+      if (titleTarget && !titleTarget.id) titleTarget.id = `${dialogId}-title`;
+      const descTarget = panel.querySelector('[data-part="description"]');
+      if (descTarget && !descTarget.id) descTarget.id = `${dialogId}-desc`;
+
       container.appendChild(dialogEl);
       entries.push(entry);
       updateDepthAttributes();
@@ -299,7 +306,7 @@ export function createDialogStack(container: HTMLElement): DialogStack {
     });
   }
 
-  function closeEntry(entry: StackEntry, result: unknown): void {
+  function removeEntry(entry: StackEntry, resolution: DialogResult<unknown>): void {
     if (entry.settled) return;
     const idx = entries.indexOf(entry);
     if (idx === -1) return;
@@ -332,8 +339,16 @@ export function createDialogStack(container: HTMLElement): DialogStack {
       }
       updateDepthAttributes();
 
-      entry.resolve({ ok: true, data: result });
+      entry.resolve(resolution);
     });
+  }
+
+  function closeEntry(entry: StackEntry, result: unknown): void {
+    removeEntry(entry, { ok: true, data: result });
+  }
+
+  function dismissEntry(entry: StackEntry): void {
+    removeEntry(entry, { ok: false });
   }
 
   function updateDepthAttributes(): void {
@@ -373,38 +388,4 @@ export function createDialogStack(container: HTMLElement): DialogStack {
       }
     },
   };
-
-  function dismissEntry(entry: StackEntry): void {
-    if (entry.settled) return;
-    const idx = entries.indexOf(entry);
-    if (idx === -1) return;
-    entry.settled = true;
-
-    entry.dialogEl.setAttribute('data-state', 'closed');
-    entry.dialogEl.setAttribute('inert', '');
-
-    onAnimationsComplete(entry.dialogEl, () => {
-      runCleanups(entry.cleanups);
-
-      if (entry.dialogEl.open) {
-        entry.dialogEl.close();
-      }
-
-      if (entry.dialogEl.parentNode === container) {
-        container.removeChild(entry.dialogEl);
-      }
-
-      const entryIdx = entries.indexOf(entry);
-      if (entryIdx !== -1) {
-        entries.splice(entryIdx, 1);
-      }
-
-      if (entries.length > 0) {
-        entries[entries.length - 1]!.dialogEl.setAttribute('data-state', 'open');
-      }
-      updateDepthAttributes();
-
-      entry.resolve({ ok: false });
-    });
-  }
 }

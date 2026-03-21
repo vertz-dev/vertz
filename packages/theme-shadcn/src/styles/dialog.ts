@@ -1,5 +1,5 @@
 import type { CSSOutput, GlobalCSSOutput, StyleEntry, StyleValue } from '@vertz/ui';
-import { css, globalCss } from '@vertz/ui';
+import { css, globalCss, injectCSS } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
 type DialogBlocks = {
@@ -176,7 +176,7 @@ export function createDialogStyles(): CSSOutput<DialogBlocks> {
  * rather than class names, since the stack creates elements imperatively.
  */
 export function createDialogGlobalStyles(): GlobalCSSOutput {
-  return globalCss({
+  const output = globalCss({
     // ── Dialog wrapper (native <dialog>) ──
     'dialog[data-dialog-wrapper]': {
       background: 'transparent',
@@ -199,6 +199,7 @@ export function createDialogGlobalStyles(): GlobalCSSOutput {
     },
     // ── Panel ──
     'dialog[data-dialog-wrapper] > [data-part="panel"]': {
+      position: 'relative',
       display: 'grid',
       gap: '1rem',
       width: '100%',
@@ -275,5 +276,49 @@ export function createDialogGlobalStyles(): GlobalCSSOutput {
       fontSize: '0.875rem',
       color: 'var(--color-foreground)',
     },
+    // ── Confirm dialog buttons ──
+    'dialog[data-dialog-wrapper] [data-part="confirm-cancel"]': {
+      background: 'none',
+      border: '1px solid var(--color-border)',
+      borderRadius: '0.375rem',
+      padding: '0.5rem 1rem',
+      cursor: 'pointer',
+      fontSize: '0.875rem',
+      color: 'var(--color-foreground)',
+    },
+    'dialog[data-dialog-wrapper] [data-part="confirm-action"]': {
+      border: 'none',
+      borderRadius: '0.375rem',
+      padding: '0.5rem 1rem',
+      cursor: 'pointer',
+      fontSize: '0.875rem',
+      fontWeight: '500',
+      color: 'var(--color-primary-foreground)',
+      backgroundColor: 'var(--color-primary)',
+    },
+    'dialog[data-dialog-wrapper] [data-part="confirm-action"][data-intent="danger"]': {
+      color: 'var(--color-destructive-foreground)',
+      backgroundColor: 'var(--color-destructive)',
+    },
   });
+
+  // Responsive and container queries — globalCss() only supports flat selector maps,
+  // so inject @media/@container rules directly.
+  injectCSS(
+    `
+@media (min-width: 640px) {
+  dialog[data-dialog-wrapper] > [data-part="panel"] {
+    max-width: 24rem;
+  }
+}
+@container (min-width: 20rem) {
+  dialog[data-dialog-wrapper] [data-part="footer"] {
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+}
+  `.trim(),
+  );
+
+  return output;
 }

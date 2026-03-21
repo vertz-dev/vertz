@@ -681,6 +681,53 @@ describe('DialogStack', () => {
       expect(dialogId).toMatch(/^dlg-\d+$/);
     });
 
+    it('auto-assigns ARIA IDs to title and description elements', () => {
+      const stack = createDialogStack(container);
+
+      function SimpleDialog({ dialog }: { dialog: DialogHandle<void> }) {
+        const frag = document.createDocumentFragment();
+        const title = document.createElement('h2');
+        title.setAttribute('data-part', 'title');
+        title.textContent = 'Test Title';
+        frag.appendChild(title);
+        const desc = document.createElement('p');
+        desc.setAttribute('data-part', 'description');
+        desc.textContent = 'Test Description';
+        frag.appendChild(desc);
+        return frag;
+      }
+
+      stack.open(SimpleDialog, {});
+
+      const panel = container.querySelector('[data-part="panel"]') as HTMLElement;
+      const labelledBy = panel.getAttribute('aria-labelledby')!;
+      const describedBy = panel.getAttribute('aria-describedby')!;
+
+      const titleEl = panel.querySelector('[data-part="title"]') as HTMLElement;
+      const descEl = panel.querySelector('[data-part="description"]') as HTMLElement;
+
+      expect(titleEl.id).toBe(labelledBy);
+      expect(descEl.id).toBe(describedBy);
+    });
+
+    it('does not overwrite existing IDs on title/description elements', () => {
+      const stack = createDialogStack(container);
+
+      function SimpleDialog({ dialog }: { dialog: DialogHandle<void> }) {
+        const frag = document.createDocumentFragment();
+        const title = document.createElement('h2');
+        title.setAttribute('data-part', 'title');
+        title.id = 'custom-title-id';
+        frag.appendChild(title);
+        return frag;
+      }
+
+      stack.open(SimpleDialog, {});
+
+      const titleEl = container.querySelector('[data-part="title"]') as HTMLElement;
+      expect(titleEl.id).toBe('custom-title-id');
+    });
+
     it('calls showModal() on the dialog element', () => {
       const stack = createDialogStack(container);
       let showModalCalled = false;
@@ -928,6 +975,23 @@ describe('Feature: dialogs.confirm()', () => {
           '[data-part="confirm-action"]',
         ) as HTMLButtonElement;
         expect(confirmBtn.getAttribute('data-intent')).toBe('danger');
+      });
+    });
+
+    describe('When confirm() is called with title and description', () => {
+      it('Then title and description elements have ARIA-matching IDs', () => {
+        const stack = createDialogStack(container);
+        stack.confirm({ title: 'Delete?', description: 'Cannot undo.' });
+
+        const panel = container.querySelector('[data-part="panel"]') as HTMLElement;
+        const labelledBy = panel.getAttribute('aria-labelledby')!;
+        const describedBy = panel.getAttribute('aria-describedby')!;
+
+        const titleEl = panel.querySelector('[data-part="title"]') as HTMLElement;
+        const descEl = panel.querySelector('[data-part="description"]') as HTMLElement;
+
+        expect(titleEl.id).toBe(labelledBy);
+        expect(descEl.id).toBe(describedBy);
       });
     });
 
