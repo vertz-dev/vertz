@@ -1,10 +1,38 @@
 import { onCleanup } from '@vertz/ui';
 import { useRouter } from '@vertz/ui/router';
-import { components } from '../manifest';
+import { type ComponentEntry, components } from '../manifest';
 
 interface CommandPaletteProps {
   open: boolean;
   onClose: () => void;
+}
+
+interface CommandItemProps {
+  entry: ComponentEntry;
+  isSelected: boolean;
+  onSelect: () => void;
+}
+
+function CommandItem({ entry, isSelected, onSelect }: CommandItemProps) {
+  return (
+    <button
+      type="button"
+      className="cmd-item"
+      data-selected={isSelected ? 'true' : undefined}
+      onClick={onSelect}
+    >
+      <span
+        style={{
+          fontSize: '12px',
+          color: 'var(--color-muted-foreground)',
+          minWidth: '80px',
+        }}
+      >
+        {entry.category}
+      </span>
+      {entry.title}
+    </button>
+  );
 }
 
 function getFilteredComponents(query: string) {
@@ -14,36 +42,38 @@ function getFilteredComponents(query: string) {
 
 export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   let query = '';
-  let selectedIndex = 0;
+  let selectedName = components[0]?.name ?? '';
 
   const filtered = getFilteredComponents(query);
 
   const { navigate } = useRouter();
 
-  function selectItem(index: number) {
-    const item = filtered[index];
+  function selectByName(name: string) {
+    const item = components.find((c) => c.name === name);
     if (item) {
       navigate({ to: `/components/${item.name}` });
       query = '';
-      selectedIndex = 0;
+      selectedName = components[0]?.name ?? '';
       onClose();
     }
   }
 
   function handleKeyDown(e: KeyboardEvent) {
-    // Only handle when palette is visible
-    const backdrop = document.querySelector('[data-backdrop]') as HTMLElement;
-    if (!backdrop || backdrop.style.display === 'none') return;
+    if (!open) return;
 
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      selectedIndex = Math.min(selectedIndex + 1, filtered.length - 1);
+      const currentIdx = filtered.findIndex((c) => c.name === selectedName);
+      const nextIdx = Math.min(currentIdx + 1, filtered.length - 1);
+      selectedName = filtered[nextIdx]?.name ?? selectedName;
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      selectedIndex = Math.max(selectedIndex - 1, 0);
+      const currentIdx = filtered.findIndex((c) => c.name === selectedName);
+      const nextIdx = Math.max(currentIdx - 1, 0);
+      selectedName = filtered[nextIdx]?.name ?? selectedName;
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      selectItem(selectedIndex);
+      selectByName(selectedName);
     } else if (e.key === 'Escape') {
       e.preventDefault();
       onClose();
@@ -58,7 +88,8 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   function handleInput(e: Event) {
     query = (e.target as HTMLInputElement).value;
-    selectedIndex = 0;
+    const newFiltered = getFilteredComponents(query);
+    selectedName = newFiltered[0]?.name ?? '';
   }
 
   function handleBackdropClick(e: MouseEvent) {
@@ -155,24 +186,13 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
               No results found.
             </div>
           )}
-          {filtered.map((entry, i) => (
-            <button
-              type="button"
-              className="cmd-item"
-              data-selected={i === selectedIndex ? 'true' : undefined}
-              onClick={() => selectItem(i)}
-            >
-              <span
-                style={{
-                  fontSize: '12px',
-                  color: 'var(--color-muted-foreground)',
-                  minWidth: '80px',
-                }}
-              >
-                {entry.category}
-              </span>
-              {entry.title}
-            </button>
+          {filtered.map((entry) => (
+            <CommandItem
+              key={entry.name}
+              entry={entry}
+              isSelected={entry.name === selectedName}
+              onSelect={() => selectByName(entry.name)}
+            />
           ))}
         </div>
       </div>

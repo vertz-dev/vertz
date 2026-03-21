@@ -198,106 +198,89 @@ function CalendarRoot(options: CalendarOptions = {}): CalendarElements & {
     onValueChange?.(state.value.peek());
   }
 
-  const gridCleanups: (() => void)[] = [];
-
-  function cleanupGridListeners(): void {
-    for (const cleanup of gridCleanups) cleanup();
-    gridCleanups.length = 0;
-  }
-
-  function buildGrid(): void {
-    cleanupGridListeners();
-    grid.innerHTML = '';
-    const display = state.displayMonth.peek();
-    const year = display.getFullYear();
-    const month = display.getMonth();
+  function computeGridRows(year: number, month: number): Date[][] {
     const daysInMonth = getDaysInMonth(year, month);
-
-    // Header row
-    const thead = document.createElement('thead');
-    const headerRow = document.createElement('tr');
-    for (let i = 0; i < 7; i++) {
-      const dayIndex = (weekStartsOn + i) % 7;
-      const th = document.createElement('th');
-      th.setAttribute('scope', 'col');
-      th.textContent = DAY_NAMES[dayIndex] ?? '';
-      headerRow.appendChild(th);
-    }
-    thead.appendChild(headerRow);
-    grid.appendChild(thead);
-
-    // Body
-    const tbody = document.createElement('tbody');
     const firstDay = new Date(year, month, 1);
     const firstDayOfWeek = firstDay.getDay();
     const offset = (firstDayOfWeek - weekStartsOn + 7) % 7;
-
     const startDate = addDays(firstDay, -offset);
-    let currentDate = startDate;
-
     const totalCells = offset + daysInMonth;
     const totalRows = Math.ceil(totalCells / 7);
 
+    const rows: Date[][] = [];
+    let current = startDate;
     for (let row = 0; row < totalRows; row++) {
-      const tr = document.createElement('tr');
+      const rowDates: Date[] = [];
       for (let col = 0; col < 7; col++) {
-        const td = document.createElement('td');
-        td.setAttribute('role', 'gridcell');
+        rowDates.push(new Date(current));
+        current = addDays(current, 1);
+      }
+      rows.push(rowDates);
+    }
+    return rows;
+  }
 
-        const btn = document.createElement('button');
-        btn.setAttribute('type', 'button');
+  function buildDayButton(cellDate: Date, month: number): HTMLElement {
+    const dateStr = cellDate.toISOString().split('T')[0] ?? '';
+    const isOutside = cellDate.getMonth() !== month;
+    const rangeVal =
+      mode === 'range' ? (state.value.peek() as { from: Date; to: Date } | null) : null;
 
-        const cellDate = new Date(currentDate);
-        btn.textContent = String(cellDate.getDate());
-        btn.setAttribute('data-date', cellDate.toISOString().split('T')[0] ?? '');
-
-        const isOutside = cellDate.getMonth() !== month;
-        if (isOutside) {
-          btn.setAttribute('data-outside-month', 'true');
+    return (
+      <button
+        type="button"
+        data-date={dateStr}
+        data-outside-month={isOutside ? 'true' : undefined}
+        data-today={isSameDay(cellDate, now) ? 'true' : undefined}
+        aria-disabled={isDateDisabled(cellDate) ? 'true' : undefined}
+        aria-selected={isSelected(cellDate) ? 'true' : undefined}
+        data-range-start={
+          rangeVal && 'from' in rangeVal && isSameDay(cellDate, rangeVal.from) ? 'true' : undefined
         }
-
-        if (isSameDay(cellDate, now)) {
-          btn.setAttribute('data-today', 'true');
+        data-range-end={
+          rangeVal && 'to' in rangeVal && isSameDay(cellDate, rangeVal.to) ? 'true' : undefined
         }
-
-        if (isDateDisabled(cellDate)) {
-          btn.setAttribute('aria-disabled', 'true');
-        }
-
-        if (isSelected(cellDate)) {
-          btn.setAttribute('aria-selected', 'true');
-        }
-
-        if (mode === 'range') {
-          const val = state.value.peek() as { from: Date; to: Date } | null;
-          if (val && 'from' in val) {
-            if (isSameDay(cellDate, val.from)) {
-              btn.setAttribute('data-range-start', 'true');
-            }
-            if (isSameDay(cellDate, val.to)) {
-              btn.setAttribute('data-range-end', 'true');
-            }
-            if (isInRange(cellDate)) {
-              btn.setAttribute('data-in-range', 'true');
-            }
-          }
-        }
-
-        const handleClick = () => {
+        data-in-range={rangeVal && isInRange(cellDate) ? 'true' : undefined}
+        onClick={() => {
           selectDate(cellDate);
           rebuildGrid();
-        };
-        btn.addEventListener('click', handleClick);
-        gridCleanups.push(() => btn.removeEventListener('click', handleClick));
+        }}
+      >
+        {cellDate.getDate()}
+      </button>
+    ) as HTMLElement;
+  }
 
-        td.appendChild(btn);
-        tr.appendChild(td);
-        currentDate = addDays(currentDate, 1);
-      }
-      tbody.appendChild(tr);
-    }
+  function buildGrid(): void {
+    const display = state.displayMonth.peek();
+    const year = display.getFullYear();
+    const month = display.getMonth();
+    const rows = computeGridRows(year, month);
 
-    grid.appendChild(tbody);
+    const thead = (
+      <thead>
+        <tr>
+          {Array.from({ length: 7 }, (_, i) => {
+            const dayIndex = (weekStartsOn + i) % 7;
+            return <th scope="col">{DAY_NAMES[dayIndex] ?? ''}</th>;
+          })}
+        </tr>
+      </thead>
+    ) as HTMLElement;
+
+    const tbody = (
+      <tbody>
+        {rows.map((rowDates) => (
+          <tr>
+            {rowDates.map((cellDate) => (
+              <td role="gridcell">{buildDayButton(cellDate, month)}</td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    ) as HTMLElement;
+
+    grid.replaceChildren(thead, tbody);
   }
 
   function rebuildGrid(): void {
@@ -383,9 +366,9 @@ function CalendarRoot(options: CalendarOptions = {}): CalendarElements & {
 
   const root = CalendarRootEl(header, grid);
 
-  /** Remove manually-added event listeners. JSX-wired handlers are cleaned up by DOM removal. */
+  /** No-op — JSX-wired event handlers are cleaned up automatically by DOM removal. */
   function destroy(): void {
-    cleanupGridListeners();
+    // Retained for API compatibility. JSX onClick handlers do not need manual cleanup.
   }
 
   applyAttrs(root, attrs);
