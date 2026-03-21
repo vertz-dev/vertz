@@ -7,22 +7,22 @@ export function Content() {
   return (
     <>
       <ComponentPreview>
-        <Alert.Alert>
-          <Alert.AlertTitle>Heads up!</Alert.AlertTitle>
-          <Alert.AlertDescription>
+        <Alert>
+          <Alert.Title>Heads up!</Alert.Title>
+          <Alert.Description>
             You can add components to your app using the CLI.
-          </Alert.AlertDescription>
-        </Alert.Alert>
+          </Alert.Description>
+        </Alert>
       </ComponentPreview>
       <DocH2>Usage</DocH2>
       <CodeFence>
         <code>
           {`import { Alert } from 'vertz/components';
 
-<Alert.Alert>
-  <Alert.AlertTitle>Title</Alert.AlertTitle>
-  <Alert.AlertDescription>Description</Alert.AlertDescription>
-</Alert.Alert>`}
+<Alert>
+  <Alert.Title>Title</Alert.Title>
+  <Alert.Description>Description</Alert.Description>
+</Alert>`}
         </code>
       </CodeFence>
 
@@ -30,12 +30,12 @@ export function Content() {
 
       <DocH3>Destructive</DocH3>
       <ComponentPreview>
-        <Alert.Alert variant="destructive">
-          <Alert.AlertTitle>Error</Alert.AlertTitle>
-          <Alert.AlertDescription>
+        <Alert variant="destructive">
+          <Alert.Title>Error</Alert.Title>
+          <Alert.Description>
             Your session has expired. Please log in again.
-          </Alert.AlertDescription>
-        </Alert.Alert>
+          </Alert.Description>
+        </Alert>
       </ComponentPreview>
 
       <DocH2>API Reference</DocH2>

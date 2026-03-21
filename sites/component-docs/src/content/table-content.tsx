@@ -7,56 +7,56 @@ export function Content() {
   return (
     <>
       <ComponentPreview>
-        <Table.Table>
-          <Table.TableHeader>
-            <Table.TableRow>
-              <Table.TableHead>Invoice</Table.TableHead>
-              <Table.TableHead>Status</Table.TableHead>
-              <Table.TableHead>Method</Table.TableHead>
-              <Table.TableHead>Amount</Table.TableHead>
-            </Table.TableRow>
-          </Table.TableHeader>
-          <Table.TableBody>
-            <Table.TableRow>
-              <Table.TableCell>INV001</Table.TableCell>
-              <Table.TableCell>Paid</Table.TableCell>
-              <Table.TableCell>Credit Card</Table.TableCell>
-              <Table.TableCell>$250.00</Table.TableCell>
-            </Table.TableRow>
-            <Table.TableRow>
-              <Table.TableCell>INV002</Table.TableCell>
-              <Table.TableCell>Pending</Table.TableCell>
-              <Table.TableCell>PayPal</Table.TableCell>
-              <Table.TableCell>$150.00</Table.TableCell>
-            </Table.TableRow>
-            <Table.TableRow>
-              <Table.TableCell>INV003</Table.TableCell>
-              <Table.TableCell>Unpaid</Table.TableCell>
-              <Table.TableCell>Bank Transfer</Table.TableCell>
-              <Table.TableCell>$350.00</Table.TableCell>
-            </Table.TableRow>
-          </Table.TableBody>
-        </Table.Table>
+        <Table>
+          <Table.Header>
+            <Table.Row>
+              <Table.Head>Invoice</Table.Head>
+              <Table.Head>Status</Table.Head>
+              <Table.Head>Method</Table.Head>
+              <Table.Head>Amount</Table.Head>
+            </Table.Row>
+          </Table.Header>
+          <Table.Body>
+            <Table.Row>
+              <Table.Cell>INV001</Table.Cell>
+              <Table.Cell>Paid</Table.Cell>
+              <Table.Cell>Credit Card</Table.Cell>
+              <Table.Cell>$250.00</Table.Cell>
+            </Table.Row>
+            <Table.Row>
+              <Table.Cell>INV002</Table.Cell>
+              <Table.Cell>Pending</Table.Cell>
+              <Table.Cell>PayPal</Table.Cell>
+              <Table.Cell>$150.00</Table.Cell>
+            </Table.Row>
+            <Table.Row>
+              <Table.Cell>INV003</Table.Cell>
+              <Table.Cell>Unpaid</Table.Cell>
+              <Table.Cell>Bank Transfer</Table.Cell>
+              <Table.Cell>$350.00</Table.Cell>
+            </Table.Row>
+          </Table.Body>
+        </Table>
       </ComponentPreview>
       <DocH2>Usage</DocH2>
       <CodeFence>
         <code>
           {`import { Table } from 'vertz/components';
 
-<Table.Table>
-  <Table.TableHeader>
-    <Table.TableRow>
-      <Table.TableHead>Name</Table.TableHead>
-      <Table.TableHead>Email</Table.TableHead>
-    </Table.TableRow>
-  </Table.TableHeader>
-  <Table.TableBody>
-    <Table.TableRow>
-      <Table.TableCell>Alice</Table.TableCell>
-      <Table.TableCell>alice@example.com</Table.TableCell>
-    </Table.TableRow>
-  </Table.TableBody>
-</Table.Table>`}
+<Table>
+  <Table.Header>
+    <Table.Row>
+      <Table.Head>Name</Table.Head>
+      <Table.Head>Email</Table.Head>
+    </Table.Row>
+  </Table.Header>
+  <Table.Body>
+    <Table.Row>
+      <Table.Cell>Alice</Table.Cell>
+      <Table.Cell>alice@example.com</Table.Cell>
+    </Table.Row>
+  </Table.Body>
+</Table>`}
         </code>
       </CodeFence>
 

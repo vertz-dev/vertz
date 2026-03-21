@@ -7,41 +7,41 @@ export function Content() {
   return (
     <>
       <ComponentPreview>
-        <Card.Card>
-          <Card.CardHeader>
-            <Card.CardTitle>Card Title</Card.CardTitle>
-            <Card.CardDescription>Card Description</Card.CardDescription>
-          </Card.CardHeader>
-          <Card.CardContent>
+        <Card>
+          <Card.Header>
+            <Card.Title>Card Title</Card.Title>
+            <Card.Description>Card Description</Card.Description>
+          </Card.Header>
+          <Card.Content>
             <p style={{ fontSize: '14px', color: 'var(--color-muted-foreground)', margin: '0' }}>
               Card content goes here.
             </p>
-          </Card.CardContent>
-          <Card.CardFooter>
+          </Card.Content>
+          <Card.Footer>
             <Button intent="outline" size="sm">
               Cancel
             </Button>
             <Button size="sm">Save</Button>
-          </Card.CardFooter>
-        </Card.Card>
+          </Card.Footer>
+        </Card>
       </ComponentPreview>
       <DocH2>Usage</DocH2>
       <CodeFence>
         <code>
           {`import { Card } from 'vertz/components';
 
-<Card.Card>
-  <Card.CardHeader>
-    <Card.CardTitle>Title</Card.CardTitle>
-    <Card.CardDescription>Description</Card.CardDescription>
-  </Card.CardHeader>
-  <Card.CardContent>
+<Card>
+  <Card.Header>
+    <Card.Title>Title</Card.Title>
+    <Card.Description>Description</Card.Description>
+  </Card.Header>
+  <Card.Content>
     Content here
-  </Card.CardContent>
-  <Card.CardFooter>
+  </Card.Content>
+  <Card.Footer>
     Footer actions
-  </Card.CardFooter>
-</Card.Card>`}
+  </Card.Footer>
+</Card>`}
         </code>
       </CodeFence>
 

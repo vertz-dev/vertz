@@ -8,9 +8,9 @@ export function Content() {
     <>
       <ComponentPreview>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <Skeleton.Skeleton width="250px" height="20px" />
-          <Skeleton.Skeleton width="200px" height="20px" />
-          <Skeleton.Skeleton width="150px" height="20px" />
+          <Skeleton width="250px" height="20px" />
+          <Skeleton width="200px" height="20px" />
+          <Skeleton width="150px" height="20px" />
         </div>
       </ComponentPreview>
       <DocH2>Usage</DocH2>
@@ -18,8 +18,8 @@ export function Content() {
         <code>
           {`import { Skeleton } from 'vertz/components';
 
-<Skeleton.Skeleton width="250px" height="20px" />
-<Skeleton.Skeleton width="200px" height="20px" />`}
+<Skeleton width="250px" height="20px" />
+<Skeleton width="200px" height="20px" />`}
         </code>
       </CodeFence>
 

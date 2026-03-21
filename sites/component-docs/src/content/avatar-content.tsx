@@ -7,20 +7,20 @@ export function Content() {
   return (
     <>
       <ComponentPreview>
-        <Avatar.Avatar>
-          <Avatar.AvatarImage src="https://github.com/shadcn.png" alt="User avatar" />
-          <Avatar.AvatarFallback>CN</Avatar.AvatarFallback>
-        </Avatar.Avatar>
+        <Avatar>
+          <Avatar.Image src="https://github.com/shadcn.png" alt="User avatar" />
+          <Avatar.Fallback>CN</Avatar.Fallback>
+        </Avatar>
       </ComponentPreview>
       <DocH2>Usage</DocH2>
       <CodeFence>
         <code>
           {`import { Avatar } from 'vertz/components';
 
-<Avatar.Avatar>
-  <Avatar.AvatarImage src="/avatar.png" alt="User avatar" />
-  <Avatar.AvatarFallback>CN</Avatar.AvatarFallback>
-</Avatar.Avatar>`}
+<Avatar>
+  <Avatar.Image src="/avatar.png" alt="User avatar" />
+  <Avatar.Fallback>CN</Avatar.Fallback>
+</Avatar>`}
         </code>
       </CodeFence>
 
