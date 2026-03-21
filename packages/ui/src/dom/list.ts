@@ -78,14 +78,15 @@ function createItemProxy<T>(itemSignal: Signal<T>): T {
  * @param items - A signal or getter function containing the array of items.
  *   The compiler generates `() => signal.value` as a getter; the runtime
  *   also accepts a raw Signal for direct use in tests.
- * @param keyFn - Extracts a unique key from each item (receives item and index)
+ * @param keyFn - Extracts a unique key from each item (receives item and index).
+ *   Pass `null` for unkeyed lists — triggers full-replacement mode (safe but slower).
  * @param renderFn - Creates a DOM node for an item (called once per key)
  * @returns A dispose function to stop the reactive list reconciliation
  */
 export function __list<T>(
   container: HTMLElement,
   items: Signal<T[]> | (() => T[]),
-  keyFn: (item: T, index: number) => string | number,
+  keyFn: ((item: T, index: number) => string | number) | null,
   renderFn: (item: T) => Node,
 ): DisposeFn {
   // Normalize items access: compiler passes a getter `() => signal.value`,
@@ -99,6 +100,14 @@ export function __list<T>(
   // Map from key to the item signal — updated when the item at a key changes,
   // triggering reactive bindings inside the node via the proxy.
   const itemSignalMap = new Map<string | number, Signal<T>>();
+
+  if (!keyFn) {
+    console.warn(
+      '[vertz] .map() without a key prop uses full-replacement mode (slower). ' +
+        'Add a key prop to list items for efficient updates: ' +
+        '{items.map(item => <Item key={item.id} />)}',
+    );
+  }
 
   const isHydrationRun = getIsHydrating();
 
@@ -126,7 +135,7 @@ export function __list<T>(
       // and populate nodeMap/scopeMap. Skip DOM reconciliation — nodes
       // are already in the correct order.
       for (const [i, item] of newItems.entries()) {
-        const key = keyFn(item, i);
+        const key = keyFn ? keyFn(item, i) : i;
         const itemSig = signal(item);
         const proxy = createItemProxy(itemSig);
         const scope = pushScope();
@@ -141,6 +150,35 @@ export function __list<T>(
       return;
     }
     isFirstRun = false;
+
+    // Unkeyed mode: full replacement — dispose all existing nodes,
+    // create all new ones. Safe default when no key prop is provided.
+    if (!keyFn) {
+      // Dispose all existing item scopes
+      for (const scope of scopeMap.values()) {
+        runCleanups(scope);
+      }
+      scopeMap.clear();
+      // Remove all existing list-managed nodes from DOM
+      for (const node of nodeMap.values()) {
+        node.parentNode?.removeChild(node);
+      }
+      nodeMap.clear();
+      itemSignalMap.clear();
+
+      // Create fresh nodes for all items
+      for (const item of newItems) {
+        const scope = pushScope();
+        const node = renderFn(item);
+        popScope();
+        container.appendChild(node);
+        // Use a unique counter as internal map key for cleanup tracking
+        const internalKey = nodeMap.size;
+        nodeMap.set(internalKey, node);
+        scopeMap.set(internalKey, scope);
+      }
+      return;
+    }
 
     const newKeySet = new Set(newItems.map((item, i) => keyFn(item, i)));
 

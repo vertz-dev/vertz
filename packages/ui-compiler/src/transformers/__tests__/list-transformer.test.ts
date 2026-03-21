@@ -37,7 +37,7 @@ function App() {
       expect(result.code).toContain('TodoItem(');
     });
 
-    it('uses index as key when no key prop is provided', () => {
+    it('emits null keyFn when no key prop is provided', () => {
       const result = compile(
         `
 function App() {
@@ -48,8 +48,8 @@ function App() {
       );
 
       expect(result.code).toContain('__list(');
-      // Should use index-based key function when no key prop
-      // The key function should use the index parameter or generate a fallback
+      // Should emit null (not an index-based fallback) for safe full-replacement mode
+      expect(result.code).toMatch(/__list\([^,]+,\s*\(\)\s*=>[^,]+,\s*null\s*,/);
     });
 
     it('includes index param in key function when key={i} uses the index', () => {
@@ -116,10 +116,10 @@ function App() {
 
       expect(result.code).toContain('__list(');
       // The outer <div> has no key prop — key is on the nested <span>
-      // Should fallback to index-based key, NOT extract item.id from nested <span>
+      // Should fallback to null (not extract item.id from nested <span>)
       expect(result.code).not.toMatch(/\(item\)\s*=>\s*item\.id/);
-      // Should use index-based key fallback
-      expect(result.code).toMatch(/=>\s*__i/);
+      // Should use null keyFn for safe full-replacement mode
+      expect(result.code).toMatch(/__list\([^,]+,\s*\(\)\s*=>[^,]+,\s*null\s*,/);
     });
 
     it('does not pass key as a component prop', () => {

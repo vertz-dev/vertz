@@ -831,11 +831,8 @@ function extractKeyFunction(
     }
   }
 
-  // Fallback: use index if available, otherwise use a stringified item
-  if (indexParam) {
-    return `(_item, ${indexParam}) => ${indexParam}`;
-  }
-  return `(_item, __i) => __i`;
+  // No key prop found — emit null for safe full-replacement mode in __list
+  return 'null';
 }
 
 /**
