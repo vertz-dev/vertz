@@ -27,12 +27,15 @@ import type {
   ComposedAvatar,
   ComposedBreadcrumbProps,
   ComposedCard,
+  ComposedEmptyState,
   ComposedFormGroup,
   ComposedInputProps,
   ComposedLabelProps,
   ComposedPaginationProps,
   ComposedSeparatorProps,
+  ComposedSkeletonCircleProps,
   ComposedSkeletonProps,
+  ComposedSkeletonTextProps,
   ComposedTable,
   ComposedTextareaProps,
   StyledPrimitive,
@@ -88,7 +91,11 @@ declare module '@vertz/ui/components' {
     Card: StyledPrimitive<typeof ComposedCard>;
     FormGroup: StyledPrimitive<typeof ComposedFormGroup>;
     Avatar: StyledPrimitive<typeof ComposedAvatar>;
-    Skeleton: (props: Omit<ComposedSkeletonProps, 'classes'>) => HTMLElement;
+    EmptyState: StyledPrimitive<typeof ComposedEmptyState>;
+    Skeleton: ((props: Omit<ComposedSkeletonProps, 'classes'>) => HTMLElement) & {
+      Text: (props: Omit<ComposedSkeletonTextProps, 'classes'>) => HTMLElement;
+      Circle: (props: Omit<ComposedSkeletonCircleProps, 'classes'>) => HTMLElement;
+    };
     Table: StyledPrimitive<typeof ComposedTable>;
 
     // Compound primitives (callable + sub-components)

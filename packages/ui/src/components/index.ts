@@ -167,9 +167,14 @@ export const Avatar: ThemeComponentMap['Avatar'] = /* #__PURE__ */ createCallabl
   ['Image', 'Fallback'],
 ) as ThemeComponentMap['Avatar'];
 
+export const EmptyState: ThemeComponentMap['EmptyState'] = /* #__PURE__ */ createCallableSuiteProxy(
+  'EmptyState',
+  ['Icon', 'Title', 'Description', 'Action'],
+) as ThemeComponentMap['EmptyState'];
+
 export const Skeleton: ThemeComponentMap['Skeleton'] = /* #__PURE__ */ createCallableSuiteProxy(
   'Skeleton',
-  [],
+  ['Text', 'Circle'],
 ) as ThemeComponentMap['Skeleton'];
 
 export const Table: ThemeComponentMap['Table'] = /* #__PURE__ */ createCallableSuiteProxy('Table', [
