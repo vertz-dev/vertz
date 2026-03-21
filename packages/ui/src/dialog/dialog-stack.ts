@@ -14,6 +14,23 @@ export const DialogStackContext: Context<DialogStack> = createContext<DialogStac
   '@vertz/ui::DialogStackContext',
 );
 
+export const DialogHandleContext: Context<DialogHandle<unknown>> = createContext<
+  DialogHandle<unknown>
+>(undefined, '@vertz/ui::DialogHandleContext');
+
+export const DialogIdContext: Context<string> = createContext<string>(
+  undefined,
+  '@vertz/ui::DialogIdContext',
+);
+
+export function useDialog<T = void>(): DialogHandle<T> {
+  const handle = useContext(DialogHandleContext);
+  if (!handle) {
+    throw new Error('useDialog() must be called within a dialog opened via DialogStack');
+  }
+  return handle as DialogHandle<T>;
+}
+
 export function useDialogStack(): DialogStack {
   const stack = useContext(DialogStackContext);
   if (!stack) {
@@ -30,8 +47,9 @@ export function useDialogStack(): DialogStack {
     open<TResult, TProps>(
       component: DialogComponent<TResult, TProps>,
       props: TProps,
+      options?: DialogOpenOptions,
     ): Promise<DialogResult<TResult>> {
-      return stack.openWithScope(component, props, capturedScope);
+      return stack.openWithScope(component, props, capturedScope, options);
     },
     openWithScope: stack.openWithScope,
     get size() {
@@ -55,10 +73,16 @@ export type DialogComponent<TResult, TProps = Record<string, never>> = (
 
 export type DialogResult<T> = { readonly ok: true; readonly data: T } | { readonly ok: false };
 
+export interface DialogOpenOptions {
+  /** Whether the dialog can be dismissed by backdrop click or Escape. Default: true */
+  dismissible?: boolean;
+}
+
 export interface DialogStack {
   open<TResult, TProps>(
     component: DialogComponent<TResult, TProps>,
     props: TProps,
+    options?: DialogOpenOptions,
   ): Promise<DialogResult<TResult>>;
 
   /** @internal — used by useDialogStack() to pass captured context scope */
@@ -66,6 +90,7 @@ export interface DialogStack {
     component: DialogComponent<TResult, TProps>,
     props: TProps,
     scope: ContextScope | null,
+    options?: DialogOpenOptions,
   ): Promise<DialogResult<TResult>>;
 
   readonly size: number;
@@ -77,7 +102,8 @@ export interface DialogStack {
 
 interface StackEntry {
   id: number;
-  wrapper: HTMLDivElement;
+  dialogEl: HTMLDialogElement;
+  panel: HTMLDivElement;
   node: Node;
   resolve: (result: DialogResult<unknown>) => void;
   cleanups: DisposeFn[];
@@ -119,26 +145,39 @@ export function createDialogStack(container: HTMLElement): DialogStack {
     component: DialogComponent<TResult, TProps>,
     props: TProps,
     capturedScope?: ContextScope | null,
+    options?: DialogOpenOptions,
   ): Promise<DialogResult<TResult>> {
     return new Promise<DialogResult<TResult>>((resolve) => {
       // Background current top entry
       if (entries.length > 0) {
-        entries[entries.length - 1]!.wrapper.setAttribute('data-state', 'background');
+        entries[entries.length - 1]!.dialogEl.setAttribute('data-state', 'background');
       }
 
-      // Create wrapper
-      const wrapper = document.createElement('div');
-      wrapper.setAttribute('data-dialog-wrapper', '');
-      wrapper.setAttribute('data-state', 'open');
-      wrapper.setAttribute('data-dialog-depth', '0');
+      const dialogId = `dlg-${nextId}`;
+
+      // Create native <dialog> wrapper
+      const dialogEl = document.createElement('dialog');
+      dialogEl.setAttribute('data-dialog-wrapper', '');
+      dialogEl.setAttribute('data-state', 'open');
+      dialogEl.setAttribute('data-dialog-depth', '0');
+
+      // Create panel div with ARIA attributes
+      const panel = document.createElement('div');
+      panel.setAttribute('data-part', 'panel');
+      panel.setAttribute('role', 'dialog');
+      panel.setAttribute('aria-modal', 'true');
+      panel.setAttribute('aria-labelledby', `${dialogId}-title`);
+      panel.setAttribute('aria-describedby', `${dialogId}-desc`);
+      dialogEl.appendChild(panel);
 
       const entry: StackEntry = {
         id: nextId++,
-        wrapper,
+        dialogEl,
+        panel,
         node: null!,
         resolve: resolve as (result: DialogResult<unknown>) => void,
         cleanups: [],
-        dismissible: true,
+        dismissible: options?.dismissible !== false,
         settled: false,
       };
 
@@ -152,28 +191,47 @@ export function createDialogStack(container: HTMLElement): DialogStack {
         }) as DialogHandle<TResult>['close'],
       };
 
-      entry.node = component({ ...props, dialog: handle });
+      // Provide contexts, then render component inside them
+      DialogHandleContext.Provider(handle as DialogHandle<unknown>, () => {
+        DialogIdContext.Provider(dialogId, () => {
+          entry.node = component({ ...props, dialog: handle });
+        });
+      });
 
       entry.cleanups = [...scope];
       popScope();
       setContextScope(prevScope);
 
-      // Escape key handler — only dismisses if this is the topmost entry
-      if (entry.dismissible) {
-        wrapper.addEventListener('keydown', (e: KeyboardEvent) => {
-          if (e.key === 'Escape' && entries[entries.length - 1] === entry) {
-            e.preventDefault();
-            e.stopPropagation();
-            dismissEntry(entry);
-          }
-        });
-      }
+      // Always prevent native cancel (Escape) — we manage close ourselves
+      dialogEl.addEventListener('cancel', (e: Event) => {
+        e.preventDefault();
+        if (entry.dismissible && entries[entries.length - 1] === entry) {
+          dismissEntry(entry);
+        }
+      });
+
+      // Backdrop click — dismiss if click is outside the panel
+      dialogEl.addEventListener('click', (e: MouseEvent) => {
+        if (!entry.dismissible) return;
+        const rect = panel.getBoundingClientRect();
+        const isOutside =
+          e.clientX < rect.left ||
+          e.clientX > rect.right ||
+          e.clientY < rect.top ||
+          e.clientY > rect.bottom;
+        if (isOutside) {
+          dismissEntry(entry);
+        }
+      });
 
       // Mount
-      wrapper.appendChild(entry.node);
-      container.appendChild(wrapper);
+      panel.appendChild(entry.node);
+      container.appendChild(dialogEl);
       entries.push(entry);
       updateDepthAttributes();
+
+      // Open as modal for focus trap + top layer
+      dialogEl.showModal();
     });
   }
 
@@ -183,14 +241,20 @@ export function createDialogStack(container: HTMLElement): DialogStack {
     if (idx === -1) return;
     entry.settled = true;
 
-    // Set closed state for exit animation
-    entry.wrapper.setAttribute('data-state', 'closed');
+    // Set closed state for exit animation + prevent interaction
+    entry.dialogEl.setAttribute('data-state', 'closed');
+    entry.dialogEl.setAttribute('inert', '');
 
-    onAnimationsComplete(entry.wrapper, () => {
+    onAnimationsComplete(entry.dialogEl, () => {
       runCleanups(entry.cleanups);
 
-      if (entry.wrapper.parentNode === container) {
-        container.removeChild(entry.wrapper);
+      // Close the native dialog
+      if (entry.dialogEl.open) {
+        entry.dialogEl.close();
+      }
+
+      if (entry.dialogEl.parentNode === container) {
+        container.removeChild(entry.dialogEl);
       }
 
       const entryIdx = entries.indexOf(entry);
@@ -200,7 +264,7 @@ export function createDialogStack(container: HTMLElement): DialogStack {
 
       // Reveal previous entry
       if (entries.length > 0) {
-        entries[entries.length - 1]!.wrapper.setAttribute('data-state', 'open');
+        entries[entries.length - 1]!.dialogEl.setAttribute('data-state', 'open');
       }
       updateDepthAttributes();
 
@@ -210,7 +274,7 @@ export function createDialogStack(container: HTMLElement): DialogStack {
 
   function updateDepthAttributes(): void {
     for (let i = 0; i < entries.length; i++) {
-      entries[i]!.wrapper.setAttribute('data-dialog-depth', String(entries.length - 1 - i));
+      entries[i]!.dialogEl.setAttribute('data-dialog-depth', String(entries.length - 1 - i));
     }
   }
 
@@ -218,15 +282,17 @@ export function createDialogStack(container: HTMLElement): DialogStack {
     open<TResult, TProps>(
       component: DialogComponent<TResult, TProps>,
       props: TProps,
+      options?: DialogOpenOptions,
     ): Promise<DialogResult<TResult>> {
-      return open(component, props);
+      return open(component, props, undefined, options);
     },
     openWithScope<TResult, TProps>(
       component: DialogComponent<TResult, TProps>,
       props: TProps,
       scope: ContextScope | null,
+      options?: DialogOpenOptions,
     ): Promise<DialogResult<TResult>> {
-      return open(component, props, scope);
+      return open(component, props, scope, options);
     },
     get size() {
       return entries.length;
@@ -244,12 +310,18 @@ export function createDialogStack(container: HTMLElement): DialogStack {
     if (idx === -1) return;
     entry.settled = true;
 
-    entry.wrapper.setAttribute('data-state', 'closed');
-    onAnimationsComplete(entry.wrapper, () => {
+    entry.dialogEl.setAttribute('data-state', 'closed');
+    entry.dialogEl.setAttribute('inert', '');
+
+    onAnimationsComplete(entry.dialogEl, () => {
       runCleanups(entry.cleanups);
 
-      if (entry.wrapper.parentNode === container) {
-        container.removeChild(entry.wrapper);
+      if (entry.dialogEl.open) {
+        entry.dialogEl.close();
+      }
+
+      if (entry.dialogEl.parentNode === container) {
+        container.removeChild(entry.dialogEl);
       }
 
       const entryIdx = entries.indexOf(entry);
@@ -258,7 +330,7 @@ export function createDialogStack(container: HTMLElement): DialogStack {
       }
 
       if (entries.length > 0) {
-        entries[entries.length - 1]!.wrapper.setAttribute('data-state', 'open');
+        entries[entries.length - 1]!.dialogEl.setAttribute('data-state', 'open');
       }
       updateDepthAttributes();
 

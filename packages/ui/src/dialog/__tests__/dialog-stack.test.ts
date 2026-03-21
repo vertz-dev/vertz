@@ -6,8 +6,10 @@ import { form, type SdkMethod } from '../../form/form';
 import type { DialogHandle, DialogStack } from '../dialog-stack';
 import {
   createDialogStack,
+  DialogIdContext,
   DialogStackContext,
   DialogStackProvider,
+  useDialog,
   useDialogStack,
 } from '../dialog-stack';
 
@@ -271,8 +273,9 @@ describe('DialogStack', () => {
 
     const promise = stack.open(SimpleDialog, {});
 
-    const wrapper = container.querySelector('[data-dialog-wrapper]') as HTMLElement;
-    wrapper.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    // Dispatch cancel event on the <dialog> element (native Escape triggers this)
+    const dialogEl = container.querySelector('dialog') as HTMLDialogElement;
+    dialogEl.dispatchEvent(new Event('cancel', { bubbles: false }));
 
     const result = await promise;
     expect(result).toEqual({ ok: false });
@@ -311,13 +314,11 @@ describe('DialogStack', () => {
     stack.open(DialogA, {});
     stack.open(DialogB, {});
 
-    // Dispatch Escape on dialog A's wrapper — should not dismiss A
-    const wrapperA = container.querySelector('[data-dialog-wrapper]') as HTMLElement;
-    wrapperA.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    // Dispatch cancel on dialog A — should not dismiss A (B is topmost)
+    const dialogA = container.querySelector('dialog') as HTMLDialogElement;
+    dialogA.dispatchEvent(new Event('cancel', { bubbles: false }));
 
     // B should still be on top, stack size unchanged
-    // (In practice the focus trap prevents this, but the handler
-    // should only dismiss if the entry is the topmost)
     expect(stack.size).toBe(2);
   });
 
@@ -331,13 +332,13 @@ describe('DialogStack', () => {
     }
 
     const promise = stack.open(SimpleDialog, {});
-    const wrapper = container.querySelector('[data-dialog-wrapper]') as HTMLElement;
+    const dialogEl = container.querySelector('dialog') as HTMLDialogElement;
 
     // Close via dialog.close()
     closeHandle!();
 
-    // Then try to dismiss via Escape — should be ignored (settled flag prevents it)
-    wrapper.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    // Then try to dismiss via cancel — should be ignored (settled flag prevents it)
+    dialogEl.dispatchEvent(new Event('cancel', { bubbles: false }));
 
     const result = await promise;
     expect(result).toEqual({ ok: true, data: true });
@@ -490,6 +491,224 @@ describe('DialogStack', () => {
     dialogs!.open(MyDialog, {});
 
     expect(capturedProject).toBe('my-project');
+  });
+
+  describe('Native <dialog> wrapper', () => {
+    it('wraps content in a native <dialog> element', () => {
+      const stack = createDialogStack(container);
+
+      function SimpleDialog({ dialog }: { dialog: DialogHandle<void> }) {
+        const el = document.createElement('div');
+        el.setAttribute('data-testid', 'content');
+        return el;
+      }
+
+      stack.open(SimpleDialog, {});
+
+      const dialogEl = container.querySelector('dialog');
+      expect(dialogEl).toBeTruthy();
+      expect(dialogEl!.querySelector('[data-testid="content"]')).toBeTruthy();
+    });
+
+    it('renders a panel div with role="dialog" and aria-modal="true" inside the <dialog>', () => {
+      const stack = createDialogStack(container);
+
+      function SimpleDialog({ dialog }: { dialog: DialogHandle<void> }) {
+        return document.createElement('div');
+      }
+
+      stack.open(SimpleDialog, {});
+
+      const panel = container.querySelector('[data-part="panel"]') as HTMLElement;
+      expect(panel).toBeTruthy();
+      expect(panel.getAttribute('role')).toBe('dialog');
+      expect(panel.getAttribute('aria-modal')).toBe('true');
+    });
+
+    it('sets aria-labelledby and aria-describedby with dialog ID on the panel', () => {
+      const stack = createDialogStack(container);
+
+      function SimpleDialog({ dialog }: { dialog: DialogHandle<void> }) {
+        return document.createElement('div');
+      }
+
+      stack.open(SimpleDialog, {});
+
+      const panel = container.querySelector('[data-part="panel"]') as HTMLElement;
+      const labelledBy = panel.getAttribute('aria-labelledby');
+      const describedBy = panel.getAttribute('aria-describedby');
+
+      expect(labelledBy).toMatch(/^dlg-\d+-title$/);
+      expect(describedBy).toMatch(/^dlg-\d+-desc$/);
+    });
+
+    it('dismisses the dialog when clicking on the dialog backdrop', async () => {
+      const stack = createDialogStack(container);
+
+      function SimpleDialog({ dialog }: { dialog: DialogHandle<void> }) {
+        return document.createElement('div');
+      }
+
+      const promise = stack.open(SimpleDialog, {});
+
+      const dialogEl = container.querySelector('dialog') as HTMLDialogElement;
+      const panel = dialogEl.querySelector('[data-part="panel"]') as HTMLElement;
+
+      // Simulate click outside the panel (on the backdrop)
+      // Use coordinates that fall outside the panel's bounding rect
+      const panelRect = panel.getBoundingClientRect();
+      dialogEl.dispatchEvent(
+        new MouseEvent('click', {
+          bubbles: true,
+          clientX: panelRect.left - 10,
+          clientY: panelRect.top - 10,
+        }),
+      );
+
+      const result = await promise;
+      expect(result).toEqual({ ok: false });
+    });
+
+    it('does not dismiss when clicking inside the panel', () => {
+      const stack = createDialogStack(container);
+
+      function SimpleDialog({ dialog }: { dialog: DialogHandle<void> }) {
+        return document.createElement('div');
+      }
+
+      stack.open(SimpleDialog, {});
+
+      const panel = container.querySelector('[data-part="panel"]') as HTMLElement;
+
+      // Click on the panel itself — should NOT dismiss
+      panel.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+      expect(stack.size).toBe(1);
+    });
+
+    it('does not dismiss on backdrop click when dismissible is false', () => {
+      const stack = createDialogStack(container);
+
+      function SimpleDialog({ dialog }: { dialog: DialogHandle<void> }) {
+        return document.createElement('div');
+      }
+
+      stack.open(SimpleDialog, {}, { dismissible: false });
+
+      const dialogEl = container.querySelector('dialog') as HTMLDialogElement;
+      const panel = dialogEl.querySelector('[data-part="panel"]') as HTMLElement;
+      const panelRect = panel.getBoundingClientRect();
+
+      dialogEl.dispatchEvent(
+        new MouseEvent('click', {
+          bubbles: true,
+          clientX: panelRect.left - 10,
+          clientY: panelRect.top - 10,
+        }),
+      );
+
+      expect(stack.size).toBe(1);
+    });
+
+    it('does not dismiss on Escape when dismissible is false', () => {
+      const stack = createDialogStack(container);
+
+      function SimpleDialog({ dialog }: { dialog: DialogHandle<void> }) {
+        return document.createElement('div');
+      }
+
+      stack.open(SimpleDialog, {}, { dismissible: false });
+
+      const dialogEl = container.querySelector('dialog') as HTMLDialogElement;
+      dialogEl.dispatchEvent(new Event('cancel', { bubbles: false }));
+
+      expect(stack.size).toBe(1);
+    });
+
+    it('still allows explicit dialog.close() when dismissible is false', async () => {
+      const stack = createDialogStack(container);
+      let closeHandle: (() => void) | undefined;
+
+      function SimpleDialog({ dialog }: { dialog: DialogHandle<boolean> }) {
+        closeHandle = () => dialog.close(true);
+        return document.createElement('div');
+      }
+
+      const promise = stack.open(SimpleDialog, {}, { dismissible: false });
+      closeHandle!();
+
+      const result = await promise;
+      expect(result).toEqual({ ok: true, data: true });
+    });
+
+    it('provides DialogHandle via context — useDialog() returns the handle', async () => {
+      const stack = createDialogStack(container);
+      let hookHandle: DialogHandle<boolean> | undefined;
+
+      function SimpleDialog({ dialog }: { dialog: DialogHandle<boolean> }) {
+        hookHandle = useDialog<boolean>();
+        return document.createElement('div');
+      }
+
+      const promise = stack.open(SimpleDialog, {});
+
+      expect(hookHandle).toBeDefined();
+      // The hook should return the same close behavior as the prop
+      hookHandle!.close(true);
+
+      const result = await promise;
+      expect(result).toEqual({ ok: true, data: true });
+    });
+
+    it('useDialog() throws when called outside a dialog', () => {
+      expect(() => useDialog()).toThrow(
+        'useDialog() must be called within a dialog opened via DialogStack',
+      );
+    });
+
+    it('provides dialog ID via context for ARIA integration', () => {
+      const stack = createDialogStack(container);
+      let dialogId: string | undefined;
+
+      function SimpleDialog({ dialog }: { dialog: DialogHandle<void> }) {
+        dialogId = useContext(DialogIdContext);
+        return document.createElement('div');
+      }
+
+      stack.open(SimpleDialog, {});
+
+      expect(dialogId).toBeDefined();
+      expect(dialogId).toMatch(/^dlg-\d+$/);
+    });
+
+    it('calls showModal() on the dialog element', () => {
+      const stack = createDialogStack(container);
+      let showModalCalled = false;
+
+      // Monkey-patch showModal since happy-dom may not fully support it
+      const origCreateElement = document.createElement.bind(document);
+      const origCreate = document.createElement;
+      document.createElement = ((tag: string) => {
+        const el = origCreateElement(tag);
+        if (tag === 'dialog') {
+          const origShowModal = el.showModal?.bind(el);
+          (el as HTMLDialogElement).showModal = () => {
+            showModalCalled = true;
+            origShowModal?.();
+          };
+        }
+        return el;
+      }) as typeof document.createElement;
+
+      function SimpleDialog({ dialog }: { dialog: DialogHandle<void> }) {
+        return document.createElement('div');
+      }
+
+      stack.open(SimpleDialog, {});
+
+      document.createElement = origCreate;
+      expect(showModalCalled).toBe(true);
+    });
   });
 });
 
