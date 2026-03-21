@@ -10,6 +10,8 @@ export type { OAuthButtonsProps } from './oauth-buttons';
 export { OAuthButtons } from './oauth-buttons';
 export type { ProtectedRouteProps } from './protected-route';
 export { ProtectedRoute } from './protected-route';
+export type { TenantSwitcherProps } from './tenant-switcher';
+export { TenantSwitcher } from './tenant-switcher';
 export type { UserAvatarProps } from './user-avatar';
 export { UserAvatar } from './user-avatar';
 export type { UserNameProps } from './user-name';
