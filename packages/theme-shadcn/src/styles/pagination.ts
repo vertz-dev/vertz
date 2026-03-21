@@ -84,6 +84,7 @@ export function createPaginationStyles(): CSSOutput<PaginationBlocks> {
       'border:1',
       'border:border',
       'bg:background',
+      'text:foreground',
       'cursor:pointer',
       focusRing,
       {

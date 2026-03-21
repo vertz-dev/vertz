@@ -20,6 +20,13 @@ describe('date-picker styles', () => {
     expect(typeof styles.css).toBe('string');
     expect(styles.css.length).toBeGreaterThan(0);
   });
+
+  it('trigger CSS sets explicit foreground color for text contrast', () => {
+    const triggerClass = styles.trigger;
+    const triggerRules = styles.css.split('}').filter((rule) => rule.includes(triggerClass));
+    const triggerCSS = triggerRules.join('}');
+    expect(triggerCSS).toMatch(/\bcolor:\s*var\(--color-foreground\)/);
+  });
 });
 
 describe('themed DatePicker', () => {

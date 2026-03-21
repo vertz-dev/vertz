@@ -22,6 +22,7 @@ export function createMenubarStyles(): CSSOutput<MenubarBlocks> {
       'border:1',
       'border:border',
       'bg:background',
+      'text:foreground',
       'p:1',
       { '&': { 'column-gap': '0.25rem' } },
     ],

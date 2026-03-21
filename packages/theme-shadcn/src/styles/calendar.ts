@@ -31,6 +31,7 @@ export function createCalendarStyles(): CSSOutput<CalendarBlocks> {
     calendarRoot: [
       'w:fit',
       'bg:background',
+      'text:foreground',
       'rounded:lg',
       'border:1',
       'border:border',

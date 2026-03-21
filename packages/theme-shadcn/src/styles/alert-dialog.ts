@@ -46,6 +46,7 @@ export function createAlertDialogStyles(): CSSOutput<AlertDialogBlocks> {
     ],
     alertDialogPanel: [
       'bg:background',
+      'text:foreground',
       'gap:4',
       {
         // Native <dialog> uses showModal() for top-layer rendering.
@@ -88,6 +89,7 @@ export function createAlertDialogStyles(): CSSOutput<AlertDialogBlocks> {
       },
     ],
     alertDialogTitle: [
+      'text:foreground',
       {
         // Nova: text-base font-medium
         '&': {
@@ -124,6 +126,7 @@ export function createAlertDialogStyles(): CSSOutput<AlertDialogBlocks> {
       'border:1',
       'border:input',
       'bg:background',
+      'text:foreground',
       'px:4',
       'py:2',
       'text:sm',

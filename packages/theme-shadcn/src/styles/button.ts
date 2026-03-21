@@ -54,6 +54,7 @@ const intentVariants: Record<string, StyleEntry[]> = {
   outline: [
     'border:border',
     'bg:background',
+    'text:foreground',
     { '&:hover': ['bg:muted', 'text:foreground'] },
     { [DARK]: [bgOpacity('input', 30), 'border:input'] },
     { [`${DARK}:hover`]: [bgOpacity('input', 50)] },

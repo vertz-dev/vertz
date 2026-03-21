@@ -63,6 +63,29 @@ describe('alert-dialog', () => {
   it('panel CSS does not hide elements with data-state="open" (div role="dialog" support)', () => {
     expect(alertDialog.css).toContain(':not([open]):not([data-state="open"])');
   });
+
+  it('panel CSS sets explicit text color for top-layer rendering', () => {
+    // <dialog> elements in the top-layer may not inherit body color.
+    // The panel must set text:foreground explicitly (like Sheet/Drawer panels do).
+    const panelClass = alertDialog.panel;
+    const panelRules = alertDialog.css.split('}').filter((rule) => rule.includes(panelClass));
+    const panelCSS = panelRules.join('}');
+    expect(panelCSS).toMatch(/\bcolor:\s*var\(--color-foreground\)/);
+  });
+
+  it('title CSS sets explicit foreground color', () => {
+    const titleClass = alertDialog.title;
+    const titleRules = alertDialog.css.split('}').filter((rule) => rule.includes(titleClass));
+    const titleCSS = titleRules.join('}');
+    expect(titleCSS).toMatch(/\bcolor:\s*var\(--color-foreground\)/);
+  });
+
+  it('cancel button CSS sets explicit foreground color', () => {
+    const cancelClass = alertDialog.cancel;
+    const cancelRules = alertDialog.css.split('}').filter((rule) => rule.includes(cancelClass));
+    const cancelCSS = cancelRules.join('}');
+    expect(cancelCSS).toMatch(/\bcolor:\s*var\(--color-foreground\)/);
+  });
 });
 
 describe('dialog', () => {
@@ -105,6 +128,24 @@ describe('dialog', () => {
     // The :not([open]) rule must also exclude [data-state="open"] so that
     // non-native <div role="dialog"> elements using panel styles remain visible.
     expect(dialog.css).toContain(':not([open]):not([data-state="open"])');
+  });
+
+  it('panel CSS sets explicit text color for top-layer rendering', () => {
+    // <dialog> elements in the top-layer may not inherit body color.
+    // The panel must set text:foreground explicitly (like Sheet/Drawer panels do).
+    const panelClass = dialog.panel;
+    const panelRules = dialog.css.split('}').filter((rule) => rule.includes(panelClass));
+    const panelCSS = panelRules.join('}');
+    // Must contain a `color:` property (not just in box-shadow) set to foreground
+    expect(panelCSS).toMatch(/\bcolor:\s*var\(--color-foreground\)/);
+  });
+
+  it('title CSS sets explicit foreground color', () => {
+    // Title text must be explicitly colored, not rely on inheritance.
+    const titleClass = dialog.title;
+    const titleRules = dialog.css.split('}').filter((rule) => rule.includes(titleClass));
+    const titleCSS = titleRules.join('}');
+    expect(titleCSS).toMatch(/\bcolor:\s*var\(--color-foreground\)/);
   });
 });
 
