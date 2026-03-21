@@ -6,29 +6,28 @@ export function BreadcrumbDemo() {
     <div className={demoStyles.col}>
       <div className={demoStyles.section}>
         <div className={demoStyles.sectionTitle}>Default</div>
-        <Breadcrumb
-          items={[
-            { label: 'Home', href: '/' },
-            { label: 'Components', href: '/components' },
-            { label: 'Breadcrumb' },
-          ]}
-        />
+        <Breadcrumb>
+          <Breadcrumb.Item href="/">Home</Breadcrumb.Item>
+          <Breadcrumb.Item href="/components">Components</Breadcrumb.Item>
+          <Breadcrumb.Item current>Breadcrumb</Breadcrumb.Item>
+        </Breadcrumb>
       </div>
       <div className={demoStyles.section}>
         <div className={demoStyles.sectionTitle}>Two levels</div>
-        <Breadcrumb items={[{ label: 'Dashboard', href: '/' }, { label: 'Settings' }]} />
+        <Breadcrumb>
+          <Breadcrumb.Item href="/">Dashboard</Breadcrumb.Item>
+          <Breadcrumb.Item current>Settings</Breadcrumb.Item>
+        </Breadcrumb>
       </div>
       <div className={demoStyles.section}>
         <div className={demoStyles.sectionTitle}>Deep nesting</div>
-        <Breadcrumb
-          items={[
-            { label: 'Home', href: '/' },
-            { label: 'Projects', href: '/projects' },
-            { label: 'Vertz', href: '/projects/vertz' },
-            { label: 'Settings', href: '/projects/vertz/settings' },
-            { label: 'Members' },
-          ]}
-        />
+        <Breadcrumb>
+          <Breadcrumb.Item href="/">Home</Breadcrumb.Item>
+          <Breadcrumb.Item href="/projects">Projects</Breadcrumb.Item>
+          <Breadcrumb.Item href="/projects/vertz">Vertz</Breadcrumb.Item>
+          <Breadcrumb.Item href="/projects/vertz/settings">Settings</Breadcrumb.Item>
+          <Breadcrumb.Item current>Members</Breadcrumb.Item>
+        </Breadcrumb>
       </div>
     </div>
   );

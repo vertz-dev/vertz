@@ -25,7 +25,7 @@ import type {} from '@vertz/ui/components';
 
 import type {
   ComposedAvatar,
-  ComposedBreadcrumbProps,
+  ComposedBreadcrumb,
   ComposedCard,
   ComposedFormGroup,
   ComposedInputProps,
@@ -80,7 +80,7 @@ declare module '@vertz/ui/components' {
     Textarea: (props: Omit<ComposedTextareaProps, 'classes'>) => HTMLElement;
     Label: (props: Omit<ComposedLabelProps, 'classes'>) => HTMLElement;
     Separator: (props: Omit<ComposedSeparatorProps, 'classes'>) => HTMLElement;
-    Breadcrumb: (props: Omit<ComposedBreadcrumbProps, 'classes'>) => HTMLElement;
+    Breadcrumb: StyledPrimitive<typeof ComposedBreadcrumb>;
     Pagination: (props: Omit<ComposedPaginationProps, 'classes'>) => HTMLElement;
 
     // Compound composed components

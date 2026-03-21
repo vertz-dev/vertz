@@ -1,5 +1,17 @@
+/**
+ * Composed Breadcrumb — compound component with context-based class distribution.
+ * Sub-components: Item.
+ *
+ * Uses Link from @vertz/ui for SPA navigation when `href` prop is provided.
+ */
+
 import type { ChildValue } from '@vertz/ui';
+import { createContext, Link, useContext } from '@vertz/ui';
 import { cn } from '../composed/cn';
+
+// ---------------------------------------------------------------------------
+// Class distribution
+// ---------------------------------------------------------------------------
 
 export interface BreadcrumbClasses {
   nav?: string;
@@ -12,96 +24,118 @@ export interface BreadcrumbClasses {
 
 export type BreadcrumbClassKey = keyof BreadcrumbClasses;
 
-export interface BreadcrumbItem {
-  label: string;
-  href?: string;
+// ---------------------------------------------------------------------------
+// Context
+// ---------------------------------------------------------------------------
+
+interface BreadcrumbContextValue {
+  classes?: BreadcrumbClasses;
+  separator: string;
 }
 
-export interface ComposedBreadcrumbProps {
-  items: BreadcrumbItem[];
-  separator?: string;
-  classes?: BreadcrumbClasses;
+const BreadcrumbContext = createContext<BreadcrumbContextValue | undefined>(
+  undefined,
+  '@vertz/ui-primitives::BreadcrumbContext',
+);
+
+// ---------------------------------------------------------------------------
+// Sub-component props
+// ---------------------------------------------------------------------------
+
+export interface BreadcrumbItemProps {
+  children?: string | Node | (() => string | Node);
+  /** Target path — renders as Link (SPA navigation). Omit for non-linked items. */
+  href?: string;
+  /** Marks this item as the current page (aria-current="page", no link). */
+  current?: boolean;
   className?: string;
+  /** @deprecated Use `className` instead. */
   class?: string;
 }
 
-interface BreadcrumbLinkProps {
-  item: BreadcrumbItem;
-  classes?: BreadcrumbClasses;
-}
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
 
-function BreadcrumbLink({ item, classes }: BreadcrumbLinkProps) {
-  if (item.href) {
-    return (
-      <a href={item.href} class={cn(classes?.link)}>
-        {item.label}
-      </a>
+function BreadcrumbItem({
+  children,
+  href,
+  current,
+  className,
+  class: classProp,
+}: BreadcrumbItemProps) {
+  const ctx = useContext(BreadcrumbContext);
+  const separatorText = ctx?.separator ?? '/';
+
+  if (href && current) {
+    console.warn(
+      'Breadcrumb.Item: both "href" and "current" are set. "current" takes precedence — the link will not render.',
     );
   }
-  return <span class={cn(classes?.link)}>{item.label}</span>;
-}
 
-interface BreadcrumbPageProps {
-  item: BreadcrumbItem;
-  classes?: BreadcrumbClasses;
-}
-
-function BreadcrumbPage({ item, classes }: BreadcrumbPageProps) {
-  return (
-    <span aria-current="page" class={cn(classes?.page)}>
-      {item.label}
+  const content = current ? (
+    <span aria-current="page" class={cn(ctx?.classes?.page, className ?? classProp)}>
+      {children}
     </span>
+  ) : href ? (
+    <Link
+      href={href}
+      className={cn(ctx?.classes?.link, className ?? classProp)}
+      children={children ?? ''}
+    />
+  ) : (
+    <span class={cn(ctx?.classes?.link, className ?? classProp)}>{children}</span>
+  );
+
+  return (
+    <li class={cn(ctx?.classes?.item)}>
+      <span role="presentation" aria-hidden="true" class={cn(ctx?.classes?.separator)}>
+        {separatorText}
+      </span>
+      {content}
+    </li>
   );
 }
 
+// ---------------------------------------------------------------------------
+// Root
+// ---------------------------------------------------------------------------
+
+export interface ComposedBreadcrumbProps {
+  children?: ChildValue;
+  /** Separator character between items. Default: "/" */
+  separator?: string;
+  classes?: BreadcrumbClasses;
+  className?: string;
+  /** @deprecated Use `className` instead. */
+  class?: string;
+}
+
 function ComposedBreadcrumbRoot({
-  items,
+  children,
   separator = '/',
   classes,
   className,
   class: classProp,
 }: ComposedBreadcrumbProps) {
-  // Pre-process items to build the list elements without using map index
-  const listChildren: ChildValue[] = [];
-  for (let idx = 0; idx < items.length; idx++) {
-    const item = items[idx];
-    if (!item) continue;
-    const isLast = idx === items.length - 1;
-
-    if (isLast) {
-      listChildren.push(
-        <li class={cn(classes?.item)}>
-          <BreadcrumbPage item={item} classes={classes} />
-        </li>,
-      );
-    } else {
-      listChildren.push(
-        <li class={cn(classes?.item)}>
-          <BreadcrumbLink item={item} classes={classes} />
-        </li>,
-      );
-      listChildren.push(
-        <li role="presentation" aria-hidden="true" class={cn(classes?.separator)}>
-          {separator}
-        </li>,
-      );
-    }
-  }
-
   return (
-    <nav aria-label="Breadcrumb" class={cn(classes?.nav, className ?? classProp)}>
-      <ol
-        class={cn(classes?.list)}
-        style={{ listStyle: 'none', margin: '0', padding: '0' }}
-      >
-        {listChildren}
-      </ol>
-    </nav>
+    <BreadcrumbContext.Provider value={{ classes, separator }}>
+      <nav aria-label="Breadcrumb" class={cn(classes?.nav, className ?? classProp)}>
+        <ol class={cn(classes?.list)} style={{ listStyle: 'none', margin: '0', padding: '0' }}>
+          {children}
+        </ol>
+      </nav>
+    </BreadcrumbContext.Provider>
   );
 }
 
-export const ComposedBreadcrumb = ComposedBreadcrumbRoot as ((
-  props: ComposedBreadcrumbProps,
-) => HTMLElement) & {
+// ---------------------------------------------------------------------------
+// Export as callable with sub-component properties
+// ---------------------------------------------------------------------------
+
+export const ComposedBreadcrumb = Object.assign(ComposedBreadcrumbRoot, {
+  Item: BreadcrumbItem,
+}) as ((props: ComposedBreadcrumbProps) => HTMLElement) & {
   __classKeys?: BreadcrumbClassKey;
+  Item: (props: BreadcrumbItemProps) => HTMLElement;
 };

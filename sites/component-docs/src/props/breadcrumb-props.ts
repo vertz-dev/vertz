@@ -2,10 +2,10 @@ import type { PropDefinition } from '../types';
 
 export const breadcrumbProps: PropDefinition[] = [
   {
-    name: 'items',
-    type: 'BreadcrumbItem[]',
-    default: '[]',
-    description: 'Array of breadcrumb items to display.',
+    name: 'children',
+    type: 'Breadcrumb.Item[]',
+    default: '\u2014',
+    description: 'Breadcrumb items as sub-components.',
   },
   {
     name: 'separator',

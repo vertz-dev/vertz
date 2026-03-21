@@ -2,7 +2,6 @@ import type { VariantFunction } from '@vertz/ui';
 import type {
   ComposedAlertProps,
   ComposedBadgeProps,
-  ComposedBreadcrumbProps,
   ComposedButtonProps,
   ComposedInputProps,
   ComposedLabelProps,
@@ -456,8 +455,8 @@ export interface ThemeComponents {
   Button: (props: ThemedButtonProps) => HTMLElement;
   /** Badge component with color variants. */
   Badge: (props: ThemedBadgeProps) => HTMLElement;
-  /** Breadcrumb component — navigation breadcrumb trail. */
-  Breadcrumb: (props: Omit<ComposedBreadcrumbProps, 'classes'>) => HTMLElement;
+  /** Breadcrumb suite with Item sub-component for router-integrated navigation. */
+  Breadcrumb: StyledPrimitive<typeof ComposedBreadcrumb>;
   /** Card suite with sub-components (Card.Header, Card.Title, etc.). */
   Card: StyledPrimitive<typeof ComposedCard>;
   /** Input component with theme styles. */
@@ -627,18 +626,14 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
       const style = color ? badgeColorInlineStyles[color] : undefined;
       return ComposedBadge({ ...rest, classes: { base: badgeStyles({ color }) }, style });
     },
-    Breadcrumb: (props: Omit<ComposedBreadcrumbProps, 'classes'>) =>
-      ComposedBreadcrumb({
-        ...props,
-        classes: {
-          nav: breadcrumbStyles.nav,
-          list: breadcrumbStyles.list,
-          item: breadcrumbStyles.item,
-          link: breadcrumbStyles.link,
-          page: breadcrumbStyles.page,
-          separator: breadcrumbStyles.separator,
-        },
-      }),
+    Breadcrumb: withStyles(ComposedBreadcrumb, {
+      nav: breadcrumbStyles.nav,
+      list: breadcrumbStyles.list,
+      item: breadcrumbStyles.item,
+      link: breadcrumbStyles.link,
+      page: breadcrumbStyles.page,
+      separator: breadcrumbStyles.separator,
+    }),
     Card: withStyles(ComposedCard, {
       root: cardStyles.root,
       header: cardStyles.header,

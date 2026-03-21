@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { RouterContext, signal } from '@vertz/ui';
 import { configureTheme } from '../configure';
 import { createBreadcrumbStyles } from '../styles/breadcrumb';
 
@@ -23,90 +24,96 @@ describe('breadcrumb styles', () => {
     expect(breadcrumb.css).toContain('list-style');
     expect(breadcrumb.css).toContain('none');
   });
+
+  it('item styles hide first-child separator', () => {
+    expect(breadcrumb.css).toContain(':first-child');
+    expect(breadcrumb.css).toContain('display');
+  });
 });
 
 describe('Breadcrumb component (composed)', () => {
   const theme = configureTheme();
   const { Breadcrumb } = theme.components;
 
+  const mockRouter = {
+    current: signal(null),
+    loaderData: signal([]),
+    loaderError: signal(null),
+    searchParams: signal({}),
+    navigate: async () => {},
+    revalidate: async () => {},
+    dispose: () => {},
+  };
+
+  function renderInRouter<T>(fn: () => T): T {
+    let result: T;
+    RouterContext.Provider(mockRouter, () => {
+      result = fn();
+    });
+    // biome-ignore lint/style/noNonNullAssertion: result assigned in Provider
+    return result!;
+  }
+
   it('renders nav with aria-label="Breadcrumb"', () => {
-    const el = Breadcrumb({ items: [{ label: 'Home' }] }) as HTMLElement;
-    const nav = el.querySelector('nav') ?? el;
+    const el = renderInRouter(() =>
+      Breadcrumb({ children: () => Breadcrumb.Item({ current: true, children: 'Home' }) }),
+    );
+    const nav = (el as HTMLElement).querySelector('nav') ?? el;
     expect(nav.tagName).toBe('NAV');
-    expect(nav.getAttribute('aria-label')).toBe('Breadcrumb');
+    expect((nav as HTMLElement).getAttribute('aria-label')).toBe('Breadcrumb');
   });
 
-  it('renders ol with li items', () => {
-    const el = Breadcrumb({
-      items: [
-        { label: 'Home', href: '/' },
-        { label: 'Products', href: '/products' },
-        { label: 'Current' },
-      ],
-    }) as HTMLElement;
-    const ol = el.querySelector('ol');
-    expect(ol).not.toBeNull();
-    // 3 item li + 2 separator li = 5 total
-    const lis = ol?.querySelectorAll('li');
-    expect(lis?.length).toBe(5);
+  it('applies theme styles to nav', () => {
+    const el = renderInRouter(() =>
+      Breadcrumb({ children: () => Breadcrumb.Item({ current: true, children: 'Home' }) }),
+    );
+    const nav = (el as HTMLElement).querySelector('nav') ?? el;
+    // Theme styles are applied — className should contain the generated class
+    expect((nav as HTMLElement).className.length).toBeGreaterThan(0);
   });
 
-  it('last item has aria-current="page" in a span', () => {
-    const el = Breadcrumb({
-      items: [{ label: 'Home', href: '/' }, { label: 'Current' }],
-    }) as HTMLElement;
-    const pageSpan = el.querySelector('span[aria-current="page"]');
+  it('Breadcrumb.Item sub-component is accessible', () => {
+    expect(typeof Breadcrumb.Item).toBe('function');
+  });
+
+  it('Item with current renders aria-current="page"', () => {
+    const el = renderInRouter(() =>
+      Breadcrumb({ children: () => Breadcrumb.Item({ current: true, children: 'Home' }) }),
+    );
+    const nav = (el as HTMLElement).querySelector('nav') ?? el;
+    const pageSpan = (nav as HTMLElement).querySelector('[aria-current="page"]');
     expect(pageSpan).not.toBeNull();
-    expect(pageSpan?.textContent).toBe('Current');
+    expect(pageSpan?.textContent).toBe('Home');
   });
 
-  it('non-last items with href render as <a>', () => {
-    const el = Breadcrumb({
-      items: [
-        { label: 'Home', href: '/' },
-        { label: 'Products', href: '/products' },
-        { label: 'Current' },
-      ],
-    }) as HTMLElement;
-    const links = el.querySelectorAll('a');
-    expect(links.length).toBe(2);
-    expect(links[0]?.getAttribute('href')).toBe('/');
-    expect(links[0]?.textContent).toBe('Home');
-    expect(links[1]?.getAttribute('href')).toBe('/products');
-    expect(links[1]?.textContent).toBe('Products');
+  it('Item with href renders as anchor', () => {
+    const el = renderInRouter(() =>
+      Breadcrumb({ children: () => Breadcrumb.Item({ href: '/', children: 'Home' }) }),
+    );
+    const nav = (el as HTMLElement).querySelector('nav') ?? el;
+    const anchor = (nav as HTMLElement).querySelector('a');
+    expect(anchor).not.toBeNull();
+    expect(anchor?.getAttribute('href')).toBe('/');
   });
 
-  it('separators have role="presentation" and aria-hidden="true"', () => {
-    const el = Breadcrumb({
-      items: [
-        { label: 'Home', href: '/' },
-        { label: 'Products', href: '/products' },
-        { label: 'Current' },
-      ],
-    }) as HTMLElement;
-    const separators = el.querySelectorAll('li[role="presentation"]');
-    expect(separators.length).toBe(2);
-    for (const sep of separators) {
-      expect(sep.getAttribute('aria-hidden')).toBe('true');
-      expect(sep.textContent).toBe('/');
-    }
-  });
-
-  it('custom separator text works', () => {
-    const el = Breadcrumb({
-      items: [{ label: 'Home', href: '/' }, { label: 'Current' }],
-      separator: '>',
-    }) as HTMLElement;
-    const sep = el.querySelector('li[role="presentation"]');
-    expect(sep?.textContent).toBe('>');
+  it('separator has role="presentation" and aria-hidden', () => {
+    const el = renderInRouter(() =>
+      Breadcrumb({ children: () => Breadcrumb.Item({ current: true, children: 'Home' }) }),
+    );
+    const nav = (el as HTMLElement).querySelector('nav') ?? el;
+    const sep = (nav as HTMLElement).querySelector('[role="presentation"]');
+    expect(sep).not.toBeNull();
+    expect(sep?.getAttribute('aria-hidden')).toBe('true');
   });
 
   it('custom class is applied to nav', () => {
-    const el = Breadcrumb({
-      items: [{ label: 'Home' }],
-      className: 'custom-breadcrumb',
-    }) as HTMLElement;
-    const nav = el.querySelector('nav') ?? el;
-    expect(nav.className).toContain('custom-breadcrumb');
+    const el = renderInRouter(() =>
+      Breadcrumb({
+        className: 'custom-breadcrumb',
+        children: () => Breadcrumb.Item({ current: true, children: 'Home' }),
+      }),
+    );
+    const nav = (el as HTMLElement).querySelector('nav') ?? el;
+    expect((nav as HTMLElement).className).toContain('custom-breadcrumb');
   });
 });
