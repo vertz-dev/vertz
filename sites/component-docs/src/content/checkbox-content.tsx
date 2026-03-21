@@ -8,13 +8,19 @@ export function Content() {
   return (
     <>
       <ComponentPreview>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Checkbox id="terms" />
-          {/* biome-ignore lint/a11y/noLabelWithoutControl: Checkbox is a custom form control */}
-          <label htmlFor="terms" style={{ color: 'var(--color-foreground)', fontSize: '14px' }}>
-            Accept terms and conditions
-          </label>
-        </div>
+        {/* biome-ignore lint/a11y/noLabelWithoutControl: Checkbox is a custom form control */}
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            color: 'var(--color-foreground)',
+            fontSize: '14px',
+          }}
+        >
+          <Checkbox />
+          Accept terms and conditions
+        </label>
       </ComponentPreview>
       <DocH2>Usage</DocH2>
       <CodeFence>
