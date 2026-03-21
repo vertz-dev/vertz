@@ -37,8 +37,6 @@ export interface QueryOptions<T> {
   initialData?: T;
   /** Debounce re-fetches triggered by reactive dependency changes (ms). */
   debounce?: number;
-  /** When false, the query will not fetch. Defaults to true. */
-  enabled?: boolean;
   /** Explicit cache key. When omitted, derived from the thunk. */
   key?: string;
   /** Custom cache store. Defaults to a shared in-memory Map. */
@@ -70,6 +68,8 @@ export interface QueryResult<T, E = unknown> {
   readonly revalidating: Unwrapped<ReadonlySignal<boolean>>;
   /** The error from the latest failed fetch, or undefined. */
   readonly error: Unwrapped<ReadonlySignal<E | undefined>>;
+  /** True when the query has never fetched (thunk returned null or not yet run). */
+  readonly idle: Unwrapped<ReadonlySignal<boolean>>;
   /** Manually trigger a refetch (clears cache for this key). */
   refetch: () => void;
   /** Alias for refetch — revalidate the cached data. */
@@ -139,9 +139,13 @@ export function query<T, E>(
   descriptor: QueryDescriptor<T, E>,
   options?: Omit<QueryOptions<T>, 'key'>,
 ): QueryResult<T, E>;
-export function query<T>(thunk: () => Promise<T>, options?: QueryOptions<T>): QueryResult<T>;
+export function query<T, E>(
+  thunk: () => QueryDescriptor<T, E> | null,
+  options?: Omit<QueryOptions<T>, 'key'>,
+): QueryResult<T, E>;
+export function query<T>(thunk: () => Promise<T> | null, options?: QueryOptions<T>): QueryResult<T>;
 export function query<T, E = unknown>(
-  source: QueryDescriptor<T, E> | (() => Promise<T>),
+  source: QueryDescriptor<T, E> | (() => QueryDescriptor<T, E> | Promise<T> | null),
   options: QueryOptions<T> = {},
 ): QueryResult<T, E> {
   if (isQueryDescriptor<T, E>(source)) {
@@ -156,15 +160,21 @@ export function query<T, E = unknown>(
     ) as QueryResult<T, E>;
   }
 
-  const thunk = source as () => Promise<T>;
+  const thunk = source as () => QueryDescriptor<T, E> | Promise<T> | null;
   const {
     initialData,
     debounce: debounceMs,
-    enabled = true,
     key: customKey,
     cache = getDefaultCache() as CacheStore<T>,
-    _entityMeta: entityMeta,
+    _entityMeta: optionsEntityMeta,
   } = options;
+
+  // enabled is always true — conditional fetching is handled via null-return from thunk.
+  const enabled = true;
+
+  // Entity metadata — set from options (descriptor overload) or lazily from
+  // a descriptor returned by the thunk (descriptor-in-thunk pattern).
+  let entityMeta: EntityQueryMeta | undefined = optionsEntityMeta;
 
   const baseKey = deriveKey(thunk);
 
@@ -209,15 +219,20 @@ export function query<T, E = unknown>(
 
   /**
    * Call the thunk while capturing the values of all signals it reads.
-   * Returns the thunk's promise and updates `depHashSignal` with a
+   * Returns the raw thunk result and updates `depHashSignal` with a
    * deterministic hash of the captured values.
+   *
+   * The caller must classify the result:
+   * - `null` → skip fetch (thunk says "not ready")
+   * - `QueryDescriptor` → decompose into promise + key + entity metadata
+   * - `Promise<T>` → existing fetch behavior
    */
-  function callThunkWithCapture(): Promise<T> {
+  function callThunkWithCapture(): QueryDescriptor<T, E> | Promise<T> | null {
     const captured: unknown[] = [];
     const prevCb = setReadValueCallback((v) => captured.push(v));
-    let promise: Promise<T>;
+    let result: QueryDescriptor<T, E> | Promise<T> | null;
     try {
-      promise = thunk();
+      result = thunk();
     } finally {
       setReadValueCallback(prevCb);
     }
@@ -226,7 +241,7 @@ export function query<T, E = unknown>(
     untrack(() => {
       depHashSignal.value = hashString(serialized);
     });
-    return promise;
+    return result;
   }
 
   // -- Reactive signals --
@@ -234,6 +249,7 @@ export function query<T, E = unknown>(
   const loading: Signal<boolean> = signal<boolean>(initialData === undefined && enabled);
   const revalidating: Signal<boolean> = signal<boolean>(false);
   const error: Signal<unknown> = signal<unknown>(undefined);
+  const idle: Signal<boolean> = signal<boolean>(initialData === undefined);
 
   // Entity-backed source switcher: when entityMeta is present,
   // data reads from EntityStore instead of rawData.
@@ -275,7 +291,13 @@ export function query<T, E = unknown>(
   // Track referenced entity keys for ref counting (Phase 4)
   const referencedKeys = new Set<string>();
 
-  const data: ReadonlySignal<T | undefined> = entityMeta
+  // Capture the initial entity metadata for the data computed.
+  // For the direct descriptor overload, this is set immediately.
+  // For descriptor-in-thunk, it starts undefined and the data computed
+  // uses rawData directly until entity metadata is lazily set.
+  const initialEntityMeta = entityMeta;
+
+  const data: ReadonlySignal<T | undefined> = initialEntityMeta
     ? computed(() => {
         if (!entityBacked.value) return rawData.value;
         // Subscribe to rawData so refetches trigger re-evaluation.
@@ -285,15 +307,15 @@ export function query<T, E = unknown>(
         const store = getEntityStore();
         const newKeys = new Set<string>();
 
-        if (entityMeta.kind === 'get' && entityMeta.id) {
-          const entity = store.get(entityMeta.entityType, entityMeta.id).value;
+        if (initialEntityMeta.kind === 'get' && initialEntityMeta.id) {
+          const entity = store.get(initialEntityMeta.entityType, initialEntityMeta.id).value;
           if (!entity) {
             updateRefCounts(store, referencedKeys, newKeys);
             return undefined;
           }
           const resolved = resolveReferences(
             entity as Record<string, unknown>,
-            entityMeta.entityType,
+            initialEntityMeta.entityType,
             store,
             undefined,
             newKeys,
@@ -302,16 +324,16 @@ export function query<T, E = unknown>(
           return resolved;
         }
         // For list queries, reconstruct envelope + items from store
-        const queryKey = customKey ?? entityMeta.entityType;
+        const queryKey = customKey ?? initialEntityMeta.entityType;
         const ids = store.queryIndices.get(queryKey);
         if (ids) {
           const items = ids
             .map((id) => {
-              const entity = store.get(entityMeta.entityType, id).value;
+              const entity = store.get(initialEntityMeta.entityType, id).value;
               if (!entity) return null;
               return resolveReferences(
                 entity as Record<string, unknown>,
-                entityMeta.entityType,
+                initialEntityMeta.entityType,
                 store,
                 undefined,
                 newKeys,
@@ -342,37 +364,59 @@ export function query<T, E = unknown>(
   const ssrTimeout = options.ssrTimeout ?? getGlobalSSRTimeout() ?? 300;
   if (isSSR() && enabled && ssrTimeout !== 0 && initialData === undefined) {
     // Call the thunk to derive cache key from dependency values.
-    const promise = callThunkWithCapture();
-    const key = untrack(() => getCacheKey());
+    const ssrRaw = callThunkWithCapture();
 
-    // Check cache first — pass 2 hits this when data was resolved between passes.
-    const cached = cache.get(key);
-    if (cached !== undefined) {
-      // Cache hit: populate signals immediately and suppress the thunk promise.
-      promise.catch(() => {});
-      normalizeToEntityStore(cached);
-      rawData.value = cached;
-      loading.value = false;
+    // Null return: thunk says "not ready" — skip SSR data loading.
+    // Dependent chains won't resolve during SSR (known limitation).
+    if (ssrRaw === null) {
+      // No SSR promise registered — the client will fetch when deps are ready.
     } else {
-      // Cache miss: register promise for renderToHTML() to await.
-      // Suppress unhandled rejection — SSR queries that reject are expected
-      // (renderToHTML handles them via Promise.allSettled).
-      promise.catch(() => {});
-      const ctx = getSSRContext();
-      if (ctx) {
-        ctx.queries.push({
-          promise,
-          timeout: ssrTimeout,
-          resolve: (result: unknown) => {
-            normalizeToEntityStore(result as T);
-            rawData.value = result as T;
-            loading.value = false;
-            cache.set(key, result as T);
-          },
-          key,
+      // Decompose descriptor if needed.
+      let ssrPromise: Promise<T>;
+      if (isQueryDescriptor<T, E>(ssrRaw)) {
+        const fetchResult = ssrRaw._fetch();
+        ssrPromise = fetchResult.then((result: Result<T, E>) => {
+          if (!result.ok) throw result.error;
+          return result.data;
         });
+        if (ssrRaw._entity && !entityMeta) {
+          entityMeta = ssrRaw._entity;
+        }
+      } else {
+        ssrPromise = ssrRaw as Promise<T>;
       }
-    }
+      const key = untrack(() => getCacheKey());
+
+      // Check cache first — pass 2 hits this when data was resolved between passes.
+      const cached = cache.get(key);
+      if (cached !== undefined) {
+        // Cache hit: populate signals immediately and suppress the thunk promise.
+        ssrPromise.catch(() => {});
+        normalizeToEntityStore(cached);
+        rawData.value = cached;
+        loading.value = false;
+        idle.value = false;
+      } else {
+        // Cache miss: register promise for renderToHTML() to await.
+        // Suppress unhandled rejection — SSR queries that reject are expected
+        // (renderToHTML handles them via Promise.allSettled).
+        ssrPromise.catch(() => {});
+        const ctx = getSSRContext();
+        if (ctx) {
+          ctx.queries.push({
+            promise: ssrPromise,
+            timeout: ssrTimeout,
+            resolve: (result: unknown) => {
+              normalizeToEntityStore(result as T);
+              rawData.value = result as T;
+              loading.value = false;
+              cache.set(key, result as T);
+            },
+            key,
+          });
+        }
+      }
+    } // end: ssrRaw !== null
   }
 
   // -- Client-side SSR hydration --
@@ -619,8 +663,15 @@ export function query<T, E = unknown>(
           }
         } else {
           // Derived key: call thunk to discover the key, then check cache.
-          const trackPromise = callThunkWithCapture();
-          trackPromise.catch(() => {});
+          const trackRaw = callThunkWithCapture();
+          if (trackRaw === null) {
+            // Thunk not ready — defer to next effect run.
+            isFirst = false;
+            return;
+          }
+          if (!isQueryDescriptor(trackRaw)) {
+            (trackRaw as Promise<T>).catch(() => {});
+          }
           const derivedKey = untrack(() => getCacheKey());
           const cached = untrack(() => cache.get(derivedKey));
           if (cached !== undefined) {
@@ -662,17 +713,58 @@ export function query<T, E = unknown>(
       // signals read by the thunk are captured as effect dependencies.
       // callThunkWithCapture also records the actual signal values to
       // produce a deterministic cache key based on dependency values.
-      const promise = callThunkWithCapture();
+      const raw = callThunkWithCapture();
 
-      // Snapshot the cache key for this effect run. The depHashSignal was
-      // updated by callThunkWithCapture, so the key now reflects the actual
-      // signal values the thunk read.
-      const key = untrack(() => getCacheKey());
+      // Null return: thunk says "not ready" — skip fetch, deps are tracked.
+      if (raw === null) {
+        clearTimeout(debounceTimer);
+        untrack(() => {
+          loading.value = false;
+        });
+        isFirst = false;
+        return;
+      }
+
+      // Classify the result: QueryDescriptor or Promise.
+      // MUST check isQueryDescriptor FIRST — QueryDescriptor extends PromiseLike,
+      // and accidentally .then()-ing it would trigger a double-fetch.
+      let promise: Promise<T>;
+      let effectKey: string | undefined;
+      let effectEntityMeta: EntityQueryMeta | undefined;
+
+      if (isQueryDescriptor<T, E>(raw)) {
+        effectKey = raw._key;
+        effectEntityMeta = raw._entity;
+        const fetchResult = raw._fetch();
+        promise = fetchResult.then((result: Result<T, E>) => {
+          if (!result.ok) throw result.error;
+          return result.data;
+        });
+        // Lazy entity metadata setup on first descriptor return
+        if (effectEntityMeta && !entityMeta) {
+          entityMeta = effectEntityMeta;
+          if (!isSSR()) {
+            unsubscribeBus = getMutationEventBus().subscribe(entityMeta.entityType, refetch);
+            unregisterFromRegistry = registerActiveQuery(entityMeta, refetch);
+          }
+        }
+      } else {
+        promise = raw as Promise<T>;
+      }
+
+      // Mark the query as no longer idle — a fetch is about to start.
+      untrack(() => {
+        idle.value = false;
+      });
+
+      // Snapshot the cache key for this effect run. For descriptor-in-thunk,
+      // use the descriptor's _key. Otherwise use the dep-hash-derived key.
+      const key = effectKey ?? untrack(() => getCacheKey());
 
       // Deduplication check for derived keys: now that the thunk has been
       // called and the dep hash updated, check if an in-flight request
       // exists for this key.
-      if (!customKey) {
+      if (!customKey && !effectKey) {
         const existing = untrack(() => getInflight().get(key) as Promise<T> | undefined);
         if (existing) {
           promise.catch(() => {});
@@ -703,13 +795,14 @@ export function query<T, E = unknown>(
       // - On subsequent runs with custom keys: skip — the key is static, so
       //   a cache hit would prevent re-fetching when deps change.
       const isNavigation = ssrHydrationCleanup !== null;
-      const shouldCheckCache = isNavigation || (isFirst ? !!customKey : !customKey);
+      const shouldCheckCache = effectKey || isNavigation || (isFirst ? !!customKey : !customKey);
       if (shouldCheckCache) {
         const cached = untrack(() => cache.get(key));
         if (cached !== undefined) {
           retainKey(key);
           promise.catch(() => {});
           untrack(() => {
+            normalizeToEntityStore(cached);
             rawData.value = cached;
             loading.value = false;
             error.value = undefined;
@@ -815,6 +908,7 @@ export function query<T, E = unknown>(
     loading: loading as unknown as Unwrapped<ReadonlySignal<boolean>>,
     revalidating: revalidating as unknown as Unwrapped<ReadonlySignal<boolean>>,
     error: error as unknown as Unwrapped<ReadonlySignal<E | undefined>>,
+    idle: idle as unknown as Unwrapped<ReadonlySignal<boolean>>,
     refetch,
     revalidate: refetch,
     dispose,

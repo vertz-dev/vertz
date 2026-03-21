@@ -492,7 +492,7 @@ describe('manifest-resolver', () => {
 
       if (useTasks.reactivity.type === 'signal-api') {
         expect(useTasks.reactivity.signalProperties).toEqual(
-          new Set(['data', 'loading', 'error', 'revalidating']),
+          new Set(['data', 'loading', 'error', 'revalidating', 'idle']),
         );
         expect(useTasks.reactivity.plainProperties).toEqual(
           new Set(['refetch', 'revalidate', 'dispose']),

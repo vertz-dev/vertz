@@ -92,21 +92,20 @@ describe('query()', () => {
     expect(result.data.value).toBe(2);
   });
 
-  test('enabled=false skips fetching', async () => {
+  test('null-return thunk skips fetching', async () => {
     let callCount = 0;
-    const result = query(
-      () => {
-        callCount++;
-        return Promise.resolve('data');
-      },
-      { enabled: false },
-    );
+    const result = query(() => {
+      callCount++;
+      return null as Promise<string> | null;
+    });
 
     vi.advanceTimersByTime(0);
     await Promise.resolve();
-    expect(callCount).toBe(0);
+    // Thunk was called once (for dep tracking) but fetch was skipped
+    expect(callCount).toBe(1);
     expect(result.data.value).toBeUndefined();
     expect(result.loading.value).toBe(false);
+    expect(result.idle.value).toBe(true);
   });
 
   test('initialData populates data without fetching', async () => {
@@ -694,19 +693,10 @@ describe('query()', () => {
     expect(fetchFn).toHaveBeenCalled();
   });
 
-  test('enabled: false does not fetch with descriptor', async () => {
+  test('null-return thunk does not fetch descriptor', async () => {
     const fetchFn = vi.fn().mockResolvedValue(ok('data'));
-    const descriptor = {
-      _tag: 'QueryDescriptor' as const,
-      _key: 'GET:/tasks',
-      _fetch: fetchFn,
-      // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
-      then(onFulfilled: any, onRejected: any) {
-        return this._fetch().then(onFulfilled, onRejected);
-      },
-    };
 
-    const result = query(descriptor, { enabled: false });
+    const result = query(() => null as Promise<string> | null);
 
     vi.advanceTimersByTime(0);
     await Promise.resolve();
@@ -714,6 +704,7 @@ describe('query()', () => {
     expect(fetchFn).not.toHaveBeenCalled();
     expect(result.data.value).toBeUndefined();
     expect(result.loading.value).toBe(false);
+    expect(result.idle.value).toBe(true);
   });
 
   test('backward compat: query(thunk) still works', async () => {
@@ -1219,19 +1210,20 @@ describe('query()', () => {
     result.dispose();
   });
 
-  test('enabled: false with refetchInterval does not poll', async () => {
+  test('null-return thunk with refetchInterval does not poll', async () => {
     let callCount = 0;
     const result = query(
       () => {
         callCount++;
-        return Promise.resolve(callCount);
+        return null as Promise<number> | null;
       },
-      { key: 'interval-disabled', refetchInterval: 1000, enabled: false },
+      { key: 'interval-disabled', refetchInterval: 1000 },
     );
 
     vi.advanceTimersByTime(10000);
     await Promise.resolve();
-    expect(callCount).toBe(0);
+    // Thunk was called once for dep tracking but fetch was skipped
+    expect(callCount).toBe(1);
 
     result.dispose();
   });
@@ -2031,6 +2023,159 @@ describe('query()', () => {
 
       qB.dispose();
       qC.dispose();
+    });
+  });
+
+  describe('null-return conditional queries', () => {
+    test('thunk returning null sets idle=true, loading=false, data=undefined', () => {
+      const result = query(() => null as Promise<string> | null);
+
+      expect(result.idle.value).toBe(true);
+      expect(result.loading.value).toBe(false);
+      expect(result.data.value).toBeUndefined();
+      expect(result.error.value).toBeUndefined();
+
+      result.dispose();
+    });
+
+    test('reactive transition: null → Promise triggers fetch when signal changes', async () => {
+      resetDefaultQueryCache();
+      const dep = signal<string | undefined>(undefined);
+
+      const result = query(() => {
+        const id = dep.value;
+        if (!id) return null;
+        return Promise.resolve(`data-${id}`);
+      });
+
+      // Initially idle, no fetch
+      expect(result.idle.value).toBe(true);
+      expect(result.loading.value).toBe(false);
+      expect(result.data.value).toBeUndefined();
+
+      // Change the dependency → thunk returns a Promise
+      dep.value = 'abc';
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+
+      expect(result.idle.value).toBe(false);
+      expect(result.data.value).toBe('data-abc');
+      expect(result.loading.value).toBe(false);
+
+      result.dispose();
+    });
+
+    test('descriptor-in-thunk: uses descriptor _key and _entity metadata', async () => {
+      resetDefaultQueryCache();
+      resetEntityStore();
+
+      const dep = signal<string | undefined>(undefined);
+      const fetchFn = vi.fn().mockResolvedValue(ok({ id: 'task-1', title: 'Test Task' }));
+
+      const result = query(() => {
+        const id = dep.value;
+        if (!id) return null;
+        return {
+          _tag: 'QueryDescriptor' as const,
+          _key: `GET:/tasks/${id}`,
+          _fetch: fetchFn,
+          _entity: { entityType: 'task', kind: 'get' as const, id },
+          // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike mock
+          then(onFulfilled: any, onRejected: any) {
+            return this._fetch().then(onFulfilled, onRejected);
+          },
+        };
+      });
+
+      // Initially idle — descriptor not returned yet
+      expect(result.idle.value).toBe(true);
+      expect(fetchFn).not.toHaveBeenCalled();
+
+      // Change dep → descriptor is returned → fetch fires
+      dep.value = 'task-1';
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(result.idle.value).toBe(false);
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+      expect(result.data.value).toEqual({ id: 'task-1', title: 'Test Task' });
+      expect(result.loading.value).toBe(false);
+
+      // Verify entity was normalized to the store
+      const store = getEntityStore();
+      expect(store.get('task', 'task-1').value).toEqual({ id: 'task-1', title: 'Test Task' });
+
+      result.dispose();
+    });
+
+    test('null-return clears pending debounce timer', async () => {
+      resetDefaultQueryCache();
+      const dep = signal<string | undefined>('initial');
+      let startFetchCount = 0;
+
+      const result = query(
+        () => {
+          const id = dep.value;
+          if (!id) return null;
+          startFetchCount++;
+          return Promise.resolve(`data-${id}`);
+        },
+        { debounce: 200 },
+      );
+
+      // Initial fetch is debounced — advance debounce timer to let it fire
+      vi.advanceTimersByTime(200);
+      await Promise.resolve();
+      expect(result.data.value).toBe('data-initial');
+      const initialFetchCount = startFetchCount;
+
+      // Change dep → new debounce starts (effect runs, thunk called for tracking)
+      dep.value = 'changed';
+      // startFetchCount incremented because thunk ran (for dep tracking), but
+      // the fetch is debounced — it won't fire until 200ms from now.
+
+      // Before debounce fires, set dep to undefined → null return clears debounce
+      dep.value = undefined;
+
+      // Advance past the debounce window — the timer should have been cleared
+      vi.advanceTimersByTime(500);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // The data should still be 'data-initial' — the debounced 'changed' fetch was cancelled
+      expect(result.data.value).toBe('data-initial');
+
+      result.dispose();
+    });
+
+    test('idle never transitions back to true once false', async () => {
+      resetDefaultQueryCache();
+      const dep = signal<string | undefined>('first');
+
+      const result = query(() => {
+        const id = dep.value;
+        if (!id) return null;
+        return Promise.resolve(`data-${id}`);
+      });
+
+      // First run fetches
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      expect(result.idle.value).toBe(false);
+      expect(result.data.value).toBe('data-first');
+
+      // Set dep to undefined → null return
+      dep.value = undefined;
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+
+      // idle should still be false — query has fetched before
+      expect(result.idle.value).toBe(false);
+      // Data is stale from last fetch
+      expect(result.data.value).toBe('data-first');
+
+      result.dispose();
     });
   });
 });

@@ -194,7 +194,7 @@ describe('ReactivityAnalyzer', () => {
     expect(syntheticVar).toBeDefined();
     expect(syntheticVar?.kind).toBe('static');
     expect(syntheticVar?.signalProperties).toEqual(
-      new Set(['data', 'loading', 'error', 'revalidating']),
+      new Set(['data', 'idle', 'loading', 'error', 'revalidating']),
     );
     expect(syntheticVar?.plainProperties).toEqual(new Set(['refetch', 'revalidate', 'dispose']));
   });
