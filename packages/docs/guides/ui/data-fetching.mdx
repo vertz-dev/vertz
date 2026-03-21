@@ -76,6 +76,50 @@ const tasks = query(api.tasks.list({ status: statusFilter }));
 
 The dependency tracking happens automatically — any signal read before the first `await` in the thunk becomes a dependency.
 
+## Loading related data
+
+Use `include` to fetch related data in a single query instead of making separate API calls and joining them client-side:
+
+```tsx
+// Without include — 3 separate queries + manual client-side join
+const issues = query(api.issues.list({ where: { projectId } }));
+const labels = query(api.labels.list({ where: { projectId } }));
+const issueLabels = query(api.issueLabels.list());
+// ... then manually match labels to issues in the UI
+
+// With include — 1 query, relations resolved server-side
+const issues = query(
+  api.issues.list({
+    where: { projectId },
+    include: { labels: true },
+  }),
+);
+// issues.data.items[0].labels — Label[] already resolved
+```
+
+Nest includes to load deeper relations:
+
+```tsx
+const issue = query(
+  api.issues.get(issueId, {
+    include: {
+      project: true,
+      comments: {
+        orderBy: { createdAt: 'desc' },
+        limit: 20,
+        include: { author: true },
+      },
+      labels: true,
+    },
+  }),
+);
+// issue.data.project.name
+// issue.data.comments[0].author.name
+// issue.data.labels[0].color
+```
+
+Relations must be exposed in the entity's `expose.include` config on the server — see [Fields, Relations & Filters](/guides/server/entity-exposure#relation-exposure-include).
+
 ## Pattern matching with queryMatch
 
 Use `queryMatch()` to render different content for each query state:

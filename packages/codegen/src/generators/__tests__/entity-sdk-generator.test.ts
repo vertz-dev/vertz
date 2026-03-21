@@ -761,7 +761,7 @@ describe('EntitySdkGenerator', () => {
       );
     });
 
-    it('get() accepts optional options parameter with select', () => {
+    it('get() accepts optional options parameter with select and extra props', () => {
       const ir = createBasicIR([
         {
           entityName: 'user',
@@ -781,7 +781,9 @@ describe('EntitySdkGenerator', () => {
       const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
       const userFile = files.find((f) => f.path === 'entities/user.ts');
 
-      expect(userFile?.content).toContain('id: string, options?: { select?: Record<K, true> }');
+      expect(userFile?.content).toContain(
+        'id: string, options?: { select?: Record<K, true> } & Record<string, unknown>',
+      );
       expect(userFile?.content).toContain('resolveVertzQL');
     });
 
@@ -902,7 +904,7 @@ describe('EntitySdkGenerator', () => {
       expect(userFile?.content).toContain('client.get<Pick<UserResponse, K>>');
     });
 
-    it('get() options parameter includes typed select', () => {
+    it('get() options parameter includes typed select and Record<string, unknown>', () => {
       const ir = createBasicIR([
         {
           entityName: 'user',
@@ -922,7 +924,9 @@ describe('EntitySdkGenerator', () => {
       const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
       const userFile = files.find((f) => f.path === 'entities/user.ts');
 
-      expect(userFile?.content).toContain('id: string, options?: { select?: Record<K, true> }');
+      expect(userFile?.content).toContain(
+        'id: string, options?: { select?: Record<K, true> } & Record<string, unknown>',
+      );
     });
 
     it('preserves non-generic list signature when output schema is undefined', () => {
