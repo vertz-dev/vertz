@@ -11,16 +11,17 @@ import type { ChildValue } from '@vertz/ui';
 // ---------------------------------------------------------------------------
 
 /**
- * A composed primitive is a callable function with a `__classKeys` phantom brand
- * that defines the valid class keys for that component.
+ * A composed primitive is a callable function with phantom brands
+ * that define the valid class keys and element return type for that component.
  */
-export interface ComposedPrimitive<K extends string = string> {
+export interface ComposedPrimitive<K extends string = string, E extends Element = HTMLElement> {
   (props: {
     children?: ChildValue;
     classes?: Partial<Record<K, string>>;
     [key: string]: unknown;
-  }): HTMLElement;
+  }): E;
   __classKeys?: K;
+  __elementType?: E;
 }
 
 /**
@@ -29,13 +30,19 @@ export interface ComposedPrimitive<K extends string = string> {
 export type ClassesOf<C> = C extends ComposedPrimitive<infer K> ? Record<K, string> : never;
 
 /**
+ * Extract the element return type from a composed primitive's phantom brand.
+ */
+export type ElementOf<C> = C extends ComposedPrimitive<string, infer E> ? E : HTMLElement;
+
+/**
  * Return type of withStyles: a callable that accepts all props except `classes`,
  * plus all sub-component properties from the original component.
+ * Preserves the element return type from the underlying composed primitive.
  */
 export type StyledPrimitive<C extends ComposedPrimitive> = ((
   props: Omit<Parameters<C>[0], 'classes'>,
-) => HTMLElement) &
-  Omit<C, '__classKeys' | keyof CallableFunction>;
+) => ElementOf<C>) &
+  Omit<C, '__classKeys' | '__elementType' | keyof CallableFunction>;
 
 // ---------------------------------------------------------------------------
 // withStyles
@@ -56,7 +63,13 @@ export function withStyles<C extends ComposedPrimitive>(
   // Copy all sub-component properties (Trigger, Content, Title, etc.)
   const subComponents: Record<string, unknown> = {};
   for (const key of Object.getOwnPropertyNames(component)) {
-    if (key !== 'length' && key !== 'name' && key !== 'prototype' && key !== '__classKeys') {
+    if (
+      key !== 'length' &&
+      key !== 'name' &&
+      key !== 'prototype' &&
+      key !== '__classKeys' &&
+      key !== '__elementType'
+    ) {
       subComponents[key] = (component as Record<string, unknown>)[key];
     }
   }

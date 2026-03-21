@@ -1,25 +1,35 @@
 import type { VariantFunction } from '@vertz/ui';
-import type { ToastOptions } from '@vertz/ui-primitives';
-import type { AlertComponents } from './components/alert';
-import { createAlertComponents } from './components/alert';
-import type { AvatarComponents } from './components/avatar';
-import { createAvatarComponents } from './components/avatar';
-import type { BadgeProps } from './components/badge';
-import { createBadgeComponent } from './components/badge';
-import type { BreadcrumbComponents } from './components/breadcrumb';
-import { createBreadcrumbComponent } from './components/breadcrumb';
-import type { ButtonProps } from './components/button';
-import { createButtonComponent } from './components/button';
-import type { CardComponents } from './components/card';
-import { createCardComponents } from './components/card';
-import type { FormGroupComponents } from './components/form-group';
-import { createFormGroupComponents } from './components/form-group';
-import type { InputProps } from './components/input';
-import { createInputComponent } from './components/input';
-import type { LabelProps } from './components/label';
-import { createLabelComponent } from './components/label';
-import type { PaginationComponents } from './components/pagination';
-import { createPaginationComponent } from './components/pagination';
+import type {
+  ComposedAlertProps,
+  ComposedBadgeProps,
+  ComposedBreadcrumbProps,
+  ComposedButtonProps,
+  ComposedInputProps,
+  ComposedLabelProps,
+  ComposedPaginationProps,
+  ComposedSeparatorProps,
+  ComposedSkeletonProps,
+  ComposedTextareaProps,
+  StyledPrimitive,
+  ToastOptions,
+} from '@vertz/ui-primitives';
+import {
+  ComposedAlert,
+  ComposedAvatar,
+  ComposedBadge,
+  ComposedBreadcrumb,
+  ComposedButton,
+  ComposedCard,
+  ComposedFormGroup,
+  ComposedInput,
+  ComposedLabel,
+  ComposedPagination,
+  ComposedSeparator,
+  ComposedSkeleton,
+  ComposedTable,
+  ComposedTextarea,
+  withStyles,
+} from '@vertz/ui-primitives';
 import type { ThemedAccordionComponent } from './components/primitives/accordion';
 import { createThemedAccordion } from './components/primitives/accordion';
 import type { ThemedAlertDialogComponent } from './components/primitives/alert-dialog';
@@ -77,14 +87,6 @@ import type { ThemedToggleGroupComponent } from './components/primitives/toggle-
 import { createThemedToggleGroup } from './components/primitives/toggle-group';
 import type { ThemedTooltipComponent } from './components/primitives/tooltip';
 import { createThemedTooltip } from './components/primitives/tooltip';
-import type { SeparatorProps } from './components/separator';
-import { createSeparatorComponent } from './components/separator';
-import type { SkeletonComponents } from './components/skeleton';
-import { createSkeletonComponents } from './components/skeleton';
-import type { TableComponents } from './components/table';
-import { createTableComponents } from './components/table';
-import type { TextareaProps } from './components/textarea';
-import { createTextareaComponent } from './components/textarea';
 import {
   createAccordionStyles,
   createAlertDialogStyles,
@@ -427,36 +429,55 @@ export interface ThemedPrimitives {
   ToggleGroup: ThemedToggleGroupComponent;
 }
 
+/** Props for the themed Button component (extends composed primitive props with variant support). */
+export interface ThemedButtonProps extends Omit<ComposedButtonProps, 'classes'> {
+  intent?: string;
+  size?: string;
+}
+
+/** Props for the themed Badge component (extends composed primitive props with color variant). */
+export interface ThemedBadgeProps extends Omit<ComposedBadgeProps, 'classes'> {
+  color?: string;
+}
+
+/** Props for the themed Alert component (extends composed primitive props with variant support). */
+export interface ThemedAlertProps extends Omit<ComposedAlertProps, 'classes'> {
+  variant?: 'default' | 'destructive';
+}
+
 /** Component functions returned by configureTheme(). */
 export interface ThemeComponents {
-  /** Alert suite — Alert, AlertTitle, AlertDescription. */
-  Alert: AlertComponents;
-  /** Button component — returns HTMLButtonElement with theme styles. */
-  Button: (props: ButtonProps) => HTMLButtonElement;
-  /** Badge component — returns HTMLSpanElement with theme styles. */
-  Badge: (props: BadgeProps) => HTMLSpanElement;
+  /** Alert component with variant support and sub-components (Alert.Title, Alert.Description). */
+  Alert: ((props: ThemedAlertProps) => HTMLElement) & {
+    Title: typeof ComposedAlert.Title;
+    Description: typeof ComposedAlert.Description;
+  };
+  /** Button component with intent/size variants. */
+  Button: (props: ThemedButtonProps) => HTMLElement;
+  /** Badge component with color variants. */
+  Badge: (props: ThemedBadgeProps) => HTMLElement;
   /** Breadcrumb component — navigation breadcrumb trail. */
-  Breadcrumb: BreadcrumbComponents;
-  /** Card suite — Card, CardHeader, CardTitle, etc. */
-  Card: CardComponents;
-  /** Input component — returns HTMLInputElement with theme styles. */
-  Input: (props: InputProps) => HTMLInputElement;
-  /** Textarea component — returns HTMLTextAreaElement with theme styles. */
-  Textarea: (props: TextareaProps) => HTMLTextAreaElement;
-  /** Label component — returns HTMLLabelElement with theme styles. */
-  Label: (props: LabelProps) => HTMLLabelElement;
+  Breadcrumb: (props: Omit<ComposedBreadcrumbProps, 'classes'>) => HTMLElement;
+  /** Card suite with sub-components (Card.Header, Card.Title, etc.). */
+  Card: StyledPrimitive<typeof ComposedCard>;
+  /** Input component with theme styles. */
+  Input: (props: Omit<ComposedInputProps, 'classes'>) => HTMLElement;
+  /** Textarea component with theme styles. */
+  Textarea: (props: Omit<ComposedTextareaProps, 'classes'>) => HTMLElement;
+  /** Label component with theme styles. */
+  Label: (props: Omit<ComposedLabelProps, 'classes'>) => HTMLElement;
   /** Pagination component — page navigation controls. */
-  Pagination: PaginationComponents;
-  /** Separator component — returns HTMLHRElement with theme styles. */
-  Separator: (props: SeparatorProps) => HTMLHRElement;
-  /** FormGroup suite — FormGroup and FormError. */
-  FormGroup: FormGroupComponents;
-  /** Avatar suite — Avatar, AvatarImage, AvatarFallback. */
-  Avatar: AvatarComponents;
+  Pagination: (props: Omit<ComposedPaginationProps, 'classes'>) => HTMLElement;
+  /** Separator component with theme styles. */
+  Separator: (props: Omit<ComposedSeparatorProps, 'classes'>) => HTMLElement;
+  /** FormGroup with sub-components (FormGroup.FormError). */
+  FormGroup: StyledPrimitive<typeof ComposedFormGroup>;
+  /** Avatar with sub-components (Avatar.Image, Avatar.Fallback). */
+  Avatar: StyledPrimitive<typeof ComposedAvatar>;
   /** Skeleton component — loading placeholder with pulse animation. */
-  Skeleton: SkeletonComponents;
-  /** Table suite — Table, TableHeader, TableBody, TableRow, etc. */
-  Table: TableComponents;
+  Skeleton: (props: Omit<ComposedSkeletonProps, 'classes'>) => HTMLElement;
+  /** Table suite with sub-components (Table.Header, Table.Body, Table.Row, etc.). */
+  Table: StyledPrimitive<typeof ComposedTable>;
   /** Themed primitive factories. */
   primitives: ThemedPrimitives;
 }
@@ -571,22 +592,103 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
     toggleGroup: toggleGroupStyles,
   };
 
+  // Inline color styles for Badge (defined once, not per-call)
+  const badgeColorInlineStyles: Record<string, Record<string, string>> = {
+    blue: { backgroundColor: 'oklch(0.55 0.15 250)', color: '#fff' },
+    green: { backgroundColor: 'oklch(0.55 0.15 155)', color: '#fff' },
+    yellow: { backgroundColor: 'oklch(0.75 0.15 85)', color: 'oklch(0.25 0.05 85)' },
+  };
+
+  // Alert variant wrapper — selects class set based on variant prop
+  const DefaultAlert = withStyles(ComposedAlert, {
+    root: alertStyles.root,
+    title: alertStyles.title,
+    description: alertStyles.description,
+  });
+  const DestructiveAlert = withStyles(ComposedAlert, {
+    root: [alertStyles.root, alertStyles.destructive].join(' '),
+    title: alertStyles.title,
+    description: alertStyles.description,
+  });
+  function ThemedAlert({ variant, ...rest }: ThemedAlertProps) {
+    return (variant === 'destructive' ? DestructiveAlert : DefaultAlert)(rest);
+  }
+  const Alert = Object.assign(ThemedAlert, {
+    Title: ComposedAlert.Title,
+    Description: ComposedAlert.Description,
+  }) as ThemeComponents['Alert'];
+
   // Build component functions
   const components: ThemeComponents = {
-    Alert: createAlertComponents(alertStyles),
-    Button: createButtonComponent(buttonStyles),
-    Badge: createBadgeComponent(badgeStyles),
-    Breadcrumb: createBreadcrumbComponent(breadcrumbStyles),
-    Card: createCardComponents(cardStyles),
-    Input: createInputComponent(inputStyles),
-    Textarea: createTextareaComponent(textareaStyles),
-    Label: createLabelComponent(labelStyles),
-    Pagination: createPaginationComponent(paginationStyles),
-    Separator: createSeparatorComponent(separatorStyles),
-    FormGroup: createFormGroupComponents(formGroupStyles),
-    Avatar: createAvatarComponents(avatarStyles),
-    Skeleton: createSkeletonComponents(skeletonStyles),
-    Table: createTableComponents(tableStyles),
+    Alert,
+    Button: ({ intent, size, ...rest }: ThemedButtonProps) =>
+      ComposedButton({ ...rest, classes: { base: buttonStyles({ intent, size }) } }),
+    Badge: ({ color, ...rest }: ThemedBadgeProps) => {
+      const style = color ? badgeColorInlineStyles[color] : undefined;
+      return ComposedBadge({ ...rest, classes: { base: badgeStyles({ color }) }, style });
+    },
+    Breadcrumb: (props: Omit<ComposedBreadcrumbProps, 'classes'>) =>
+      ComposedBreadcrumb({
+        ...props,
+        classes: {
+          nav: breadcrumbStyles.nav,
+          list: breadcrumbStyles.list,
+          item: breadcrumbStyles.item,
+          link: breadcrumbStyles.link,
+          page: breadcrumbStyles.page,
+          separator: breadcrumbStyles.separator,
+        },
+      }),
+    Card: withStyles(ComposedCard, {
+      root: cardStyles.root,
+      header: cardStyles.header,
+      title: cardStyles.title,
+      description: cardStyles.description,
+      content: cardStyles.content,
+      footer: cardStyles.footer,
+      action: cardStyles.action,
+    }),
+    Input: withStyles(ComposedInput, { base: inputStyles.base }),
+    Textarea: withStyles(ComposedTextarea, { base: textareaStyles.base }),
+    Label: withStyles(ComposedLabel, { base: labelStyles.base }),
+    Pagination: (props: Omit<ComposedPaginationProps, 'classes'>) =>
+      ComposedPagination({
+        ...props,
+        classes: {
+          nav: paginationStyles.nav,
+          list: paginationStyles.list,
+          item: paginationStyles.item,
+          link: paginationStyles.link,
+          linkActive: paginationStyles.linkActive,
+          navButton: paginationStyles.navButton,
+          ellipsis: paginationStyles.ellipsis,
+        },
+      }),
+    Separator: withStyles(ComposedSeparator, {
+      base: separatorStyles.base,
+      horizontal: separatorStyles.horizontal,
+      vertical: separatorStyles.vertical,
+    }),
+    FormGroup: withStyles(ComposedFormGroup, {
+      base: formGroupStyles.base,
+      error: formGroupStyles.error,
+    }),
+    Avatar: withStyles(ComposedAvatar, {
+      root: avatarStyles.root,
+      image: avatarStyles.image,
+      fallback: avatarStyles.fallback,
+    }),
+    Skeleton: withStyles(ComposedSkeleton, { base: skeletonStyles.base }),
+    Table: withStyles(ComposedTable, {
+      root: tableStyles.root,
+      header: tableStyles.header,
+      body: tableStyles.body,
+      row: tableStyles.row,
+      head: tableStyles.head,
+      cell: tableStyles.cell,
+      caption: tableStyles.caption,
+      footer: tableStyles.footer,
+    }),
     primitives: {
       AlertDialog: createThemedAlertDialog(alertDialogStyles),
       Dialog: createThemedDialog(dialogStyles),

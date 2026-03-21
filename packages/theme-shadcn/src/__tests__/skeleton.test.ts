@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { createSkeletonComponents } from '../components/skeleton';
+import { configureTheme } from '../configure';
 import { createSkeletonStyles } from '../styles/skeleton';
 
 describe('skeleton styles', () => {
@@ -15,18 +15,18 @@ describe('skeleton styles', () => {
   });
 });
 
-describe('Skeleton components', () => {
-  const styles = createSkeletonStyles();
-  const { Skeleton } = createSkeletonComponents(styles);
+describe('Skeleton component', () => {
+  const theme = configureTheme();
+  const Skeleton = theme.components.Skeleton;
 
-  it('returns an HTMLDivElement with base class', () => {
-    const el = Skeleton();
-    expect(el).toBeInstanceOf(HTMLDivElement);
-    expect(el.className).toContain(styles.base);
+  it('returns a div element with base class', () => {
+    const el = Skeleton({});
+    expect(el.tagName).toBe('DIV');
+    expect(el.className).toContain(theme.styles.skeleton.base);
   });
 
   it('sets aria-hidden="true"', () => {
-    const el = Skeleton();
+    const el = Skeleton({});
     expect(el.getAttribute('aria-hidden')).toBe('true');
   });
 
@@ -37,14 +37,14 @@ describe('Skeleton components', () => {
   });
 
   it('does not set style when width/height omitted', () => {
-    const el = Skeleton();
+    const el = Skeleton({});
     expect(el.style.width).toBe('');
     expect(el.style.height).toBe('');
   });
 
   it('appends user class', () => {
-    const el = Skeleton({ class: 'custom-skeleton' });
+    const el = Skeleton({ className: 'custom-skeleton' });
     expect(el.className).toContain('custom-skeleton');
-    expect(el.className).toContain(styles.base);
+    expect(el.className).toContain(theme.styles.skeleton.base);
   });
 });

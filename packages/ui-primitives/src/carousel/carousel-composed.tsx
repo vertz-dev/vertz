@@ -219,10 +219,7 @@ function ComposedCarouselRoot({
         onClick={handleClick}
         onKeydown={handleKeydown}
       >
-        <div
-          data-carousel-viewport=""
-          class={classes?.viewport}
-        >
+        <div data-carousel-viewport="" class={classes?.viewport}>
           {children}
         </div>
       </div>

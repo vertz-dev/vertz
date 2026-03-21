@@ -40,11 +40,7 @@ interface ResizablePanelContextValue {
   groupId: string;
   orientation: 'horizontal' | 'vertical';
   classes?: ResizablePanelClasses;
-  registerPanel: (opts: {
-    defaultSize?: number;
-    minSize?: number;
-    maxSize?: number;
-  }) => number;
+  registerPanel: (opts: { defaultSize?: number; minSize?: number; maxSize?: number }) => number;
   registerHandle: () => number;
   getSizeForPanel: (index: number) => number;
   getAriaForHandle: (index: number) => {
@@ -272,12 +268,20 @@ function ComposedResizablePanelRoot({
 
     if (ke.key === growKey) {
       ke.preventDefault();
-      const delta = Math.min(STEP, rightStart - rightConfig.minSize, leftConfig.maxSize - leftStart);
+      const delta = Math.min(
+        STEP,
+        rightStart - rightConfig.minSize,
+        leftConfig.maxSize - leftStart,
+      );
       newLeft += delta;
       newRight -= delta;
     } else if (ke.key === shrinkKey) {
       ke.preventDefault();
-      const delta = Math.min(STEP, leftStart - leftConfig.minSize, rightConfig.maxSize - rightStart);
+      const delta = Math.min(
+        STEP,
+        leftStart - leftConfig.minSize,
+        rightConfig.maxSize - rightStart,
+      );
       newLeft -= delta;
       newRight += delta;
     } else if (ke.key === 'Home') {

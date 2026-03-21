@@ -23,16 +23,20 @@ import type {} from '@vertz/ui/components';
 //
 // ---------------------------------------------------------------------------
 
-import type { AlertComponents } from './components/alert';
-import type { AvatarComponents } from './components/avatar';
-import type { BadgeProps } from './components/badge';
-import type { BreadcrumbComponents } from './components/breadcrumb';
-import type { ButtonProps } from './components/button';
-import type { CardComponents } from './components/card';
-import type { FormGroupComponents } from './components/form-group';
-import type { InputProps } from './components/input';
-import type { LabelProps } from './components/label';
-import type { PaginationComponents } from './components/pagination';
+import type {
+  ComposedAvatar,
+  ComposedBreadcrumbProps,
+  ComposedCard,
+  ComposedFormGroup,
+  ComposedInputProps,
+  ComposedLabelProps,
+  ComposedPaginationProps,
+  ComposedSeparatorProps,
+  ComposedSkeletonProps,
+  ComposedTable,
+  ComposedTextareaProps,
+  StyledPrimitive,
+} from '@vertz/ui-primitives';
 import type { ThemedAccordionComponent } from './components/primitives/accordion';
 import type { ThemedAlertDialogComponent } from './components/primitives/alert-dialog';
 import type { ThemedCalendarComponent } from './components/primitives/calendar';
@@ -60,31 +64,32 @@ import type { ThemedTabsComponent } from './components/primitives/tabs';
 import type { ThemedToggleComponent } from './components/primitives/toggle';
 import type { ThemedToggleGroupComponent } from './components/primitives/toggle-group';
 import type { ThemedTooltipComponent } from './components/primitives/tooltip';
-import type { SeparatorProps } from './components/separator';
-import type { SkeletonComponents } from './components/skeleton';
-import type { TableComponents } from './components/table';
-import type { TextareaProps } from './components/textarea';
-import type { ThemedPrimitives } from './configure';
+import type {
+  ThemeComponents,
+  ThemedBadgeProps,
+  ThemedButtonProps,
+  ThemedPrimitives,
+} from './configure';
 
 declare module '@vertz/ui/components' {
   interface ThemeComponentMap {
     // Direct components
-    Button: (props: ButtonProps) => HTMLButtonElement;
-    Badge: (props: BadgeProps) => HTMLSpanElement;
-    Input: (props: InputProps) => HTMLInputElement;
-    Textarea: (props: TextareaProps) => HTMLTextAreaElement;
-    Label: (props: LabelProps) => HTMLLabelElement;
-    Separator: (props: SeparatorProps) => HTMLHRElement;
-    Breadcrumb: BreadcrumbComponents;
-    Pagination: PaginationComponents;
+    Button: (props: ThemedButtonProps) => HTMLElement;
+    Badge: (props: ThemedBadgeProps) => HTMLElement;
+    Input: (props: Omit<ComposedInputProps, 'classes'>) => HTMLElement;
+    Textarea: (props: Omit<ComposedTextareaProps, 'classes'>) => HTMLElement;
+    Label: (props: Omit<ComposedLabelProps, 'classes'>) => HTMLElement;
+    Separator: (props: Omit<ComposedSeparatorProps, 'classes'>) => HTMLElement;
+    Breadcrumb: (props: Omit<ComposedBreadcrumbProps, 'classes'>) => HTMLElement;
+    Pagination: (props: Omit<ComposedPaginationProps, 'classes'>) => HTMLElement;
 
-    // Suite components
-    Alert: AlertComponents;
-    Card: CardComponents;
-    FormGroup: FormGroupComponents;
-    Avatar: AvatarComponents;
-    Skeleton: SkeletonComponents;
-    Table: TableComponents;
+    // Compound composed components
+    Alert: ThemeComponents['Alert'];
+    Card: StyledPrimitive<typeof ComposedCard>;
+    FormGroup: StyledPrimitive<typeof ComposedFormGroup>;
+    Avatar: StyledPrimitive<typeof ComposedAvatar>;
+    Skeleton: (props: Omit<ComposedSkeletonProps, 'classes'>) => HTMLElement;
+    Table: StyledPrimitive<typeof ComposedTable>;
 
     // Compound primitives (callable + sub-components)
     AlertDialog: ThemedAlertDialogComponent;

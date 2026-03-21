@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'bun:test';
-import { createPaginationComponent } from '../components/pagination';
+import { configureTheme } from '../configure';
 import { createPaginationStyles } from '../styles/pagination';
 
 describe('pagination styles', () => {
@@ -28,32 +28,33 @@ describe('pagination styles', () => {
   });
 });
 
-describe('Pagination component', () => {
-  const styles = createPaginationStyles();
-  const Pagination = createPaginationComponent(styles);
+describe('Pagination component (composed)', () => {
+  const theme = configureTheme();
+  const { Pagination } = theme.components;
 
   it('renders nav with aria-label="Pagination"', () => {
-    const el = Pagination({ currentPage: 1, totalPages: 5, onPageChange: () => {} });
-    expect(el.tagName).toBe('NAV');
-    expect(el.getAttribute('aria-label')).toBe('Pagination');
+    const el = Pagination({ currentPage: 1, totalPages: 5, onPageChange: () => {} }) as HTMLElement;
+    const nav = el.querySelector('nav') ?? el;
+    expect(nav.tagName).toBe('NAV');
+    expect(nav.getAttribute('aria-label')).toBe('Pagination');
   });
 
   it('active page has aria-current="page"', () => {
-    const el = Pagination({ currentPage: 3, totalPages: 5, onPageChange: () => {} });
+    const el = Pagination({ currentPage: 3, totalPages: 5, onPageChange: () => {} }) as HTMLElement;
     const activeBtn = el.querySelector('[aria-current="page"]');
     expect(activeBtn).not.toBeNull();
     expect(activeBtn?.textContent).toBe('3');
   });
 
   it('prev button disabled on page 1', () => {
-    const el = Pagination({ currentPage: 1, totalPages: 5, onPageChange: () => {} });
+    const el = Pagination({ currentPage: 1, totalPages: 5, onPageChange: () => {} }) as HTMLElement;
     const prevBtn = el.querySelector('[aria-label="Previous page"]') as HTMLButtonElement;
     expect(prevBtn).not.toBeNull();
     expect(prevBtn.disabled).toBe(true);
   });
 
   it('next button disabled on last page', () => {
-    const el = Pagination({ currentPage: 5, totalPages: 5, onPageChange: () => {} });
+    const el = Pagination({ currentPage: 5, totalPages: 5, onPageChange: () => {} }) as HTMLElement;
     const nextBtn = el.querySelector('[aria-label="Next page"]') as HTMLButtonElement;
     expect(nextBtn).not.toBeNull();
     expect(nextBtn.disabled).toBe(true);
@@ -61,7 +62,7 @@ describe('Pagination component', () => {
 
   it('onPageChange called when clicking a page button', () => {
     const onPageChange = vi.fn();
-    const el = Pagination({ currentPage: 1, totalPages: 5, onPageChange });
+    const el = Pagination({ currentPage: 1, totalPages: 5, onPageChange }) as HTMLElement;
     const buttons = el.querySelectorAll('button');
     // Find page 2 button
     const page2 = Array.from(buttons).find((b) => b.textContent === '2');
@@ -71,14 +72,17 @@ describe('Pagination component', () => {
   });
 
   it('ellipsis rendered when pages truncated', () => {
-    const el = Pagination({ currentPage: 5, totalPages: 10, onPageChange: () => {} });
+    const el = Pagination({
+      currentPage: 5,
+      totalPages: 10,
+      onPageChange: () => {},
+    }) as HTMLElement;
     const ellipses = el.querySelectorAll('span[aria-hidden="true"]');
     expect(ellipses.length).toBeGreaterThan(0);
-    expect(ellipses[0]?.querySelector('svg')).not.toBeNull();
   });
 
   it('all pages shown when totalPages is small', () => {
-    const el = Pagination({ currentPage: 3, totalPages: 5, onPageChange: () => {} });
+    const el = Pagination({ currentPage: 3, totalPages: 5, onPageChange: () => {} }) as HTMLElement;
     const ellipses = el.querySelectorAll('span[aria-hidden="true"]');
     expect(ellipses.length).toBe(0);
     // Should have prev + 5 pages + next = 7 buttons

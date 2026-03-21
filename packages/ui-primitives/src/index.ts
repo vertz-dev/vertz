@@ -5,6 +5,8 @@ export type { AccordionElements, AccordionOptions, AccordionState } from './acco
 export { Accordion } from './accordion/accordion';
 export type { AccordionClasses, ComposedAccordionProps } from './accordion/accordion-composed';
 export { ComposedAccordion } from './accordion/accordion-composed';
+export type { AlertClasses, AlertClassKey, ComposedAlertProps } from './alert/alert-composed';
+export { ComposedAlert } from './alert/alert-composed';
 export type {
   AlertDialogElements,
   AlertDialogOptions,
@@ -16,14 +18,29 @@ export type {
   ComposedAlertDialogProps,
 } from './alert-dialog/alert-dialog-composed';
 export { ComposedAlertDialog } from './alert-dialog/alert-dialog-composed';
+export type { AvatarClasses, AvatarClassKey, ComposedAvatarProps } from './avatar/avatar-composed';
+export { ComposedAvatar } from './avatar/avatar-composed';
 export type { BadgeElements, BadgeOptions } from './badge/badge';
 export { Badge } from './badge/badge';
+export type { BadgeClasses, ComposedBadgeProps } from './badge/badge-composed';
+export { ComposedBadge } from './badge/badge-composed';
+export type {
+  BreadcrumbClasses,
+  BreadcrumbClassKey,
+  BreadcrumbItem,
+  ComposedBreadcrumbProps,
+} from './breadcrumb/breadcrumb-composed';
+export { ComposedBreadcrumb } from './breadcrumb/breadcrumb-composed';
 export type { ButtonOptions } from './button/button';
 export { Button } from './button/button';
+export type { ButtonClasses, ComposedButtonProps } from './button/button-composed';
+export { ComposedButton } from './button/button-composed';
 export type { CalendarElements, CalendarOptions, CalendarState } from './calendar/calendar';
 export { Calendar } from './calendar/calendar';
 export type { CalendarClasses, ComposedCalendarProps } from './calendar/calendar-composed';
 export { ComposedCalendar } from './calendar/calendar-composed';
+export type { CardClasses, CardClassKey, ComposedCardProps } from './card/card-composed';
+export { ComposedCard } from './card/card-composed';
 export type { CarouselElements, CarouselOptions, CarouselState } from './carousel/carousel';
 export { Carousel } from './carousel/carousel';
 export type { CarouselClasses, ComposedCarouselProps } from './carousel/carousel-composed';
@@ -55,7 +72,12 @@ export { Command } from './command/command';
 export type { CommandClasses, ComposedCommandProps } from './command/command-composed';
 export { ComposedCommand } from './command/command-composed';
 // Composed utilities
-export type { ClassesOf, ComposedPrimitive, StyledPrimitive } from './composed/with-styles';
+export type {
+  ClassesOf,
+  ComposedPrimitive,
+  ElementOf,
+  StyledPrimitive,
+} from './composed/with-styles';
 export { withStyles } from './composed/with-styles';
 export type {
   ContextMenuElements,
@@ -96,6 +118,12 @@ export type {
   DropdownMenuClasses,
 } from './dropdown-menu/dropdown-menu-composed';
 export { ComposedDropdownMenu } from './dropdown-menu/dropdown-menu-composed';
+export type {
+  ComposedFormGroupProps,
+  FormGroupClasses,
+  FormGroupClassKey,
+} from './form-group/form-group-composed';
+export { ComposedFormGroup } from './form-group/form-group-composed';
 export type { HoverCardElements, HoverCardOptions, HoverCardState } from './hover-card/hover-card';
 export { HoverCard } from './hover-card/hover-card';
 export type {
@@ -104,6 +132,10 @@ export type {
   HoverCardClassKey,
 } from './hover-card/hover-card-composed';
 export { ComposedHoverCard } from './hover-card/hover-card-composed';
+export type { ComposedInputProps, InputClasses } from './input/input-composed';
+export { ComposedInput } from './input/input-composed';
+export type { ComposedLabelProps, LabelClasses } from './label/label-composed';
+export { ComposedLabel } from './label/label-composed';
 export type { MenuElements, MenuOptions, MenuState } from './menu/menu';
 export { Menu } from './menu/menu';
 export type { MenubarElements, MenubarOptions, MenubarState } from './menubar/menubar';
@@ -121,6 +153,12 @@ export type {
   NavigationMenuClasses,
 } from './navigation-menu/navigation-menu-composed';
 export { ComposedNavigationMenu } from './navigation-menu/navigation-menu-composed';
+export type {
+  ComposedPaginationProps,
+  PaginationClasses,
+  PaginationClassKey,
+} from './pagination/pagination-composed';
+export { ComposedPagination } from './pagination/pagination-composed';
 export type { PopoverElements, PopoverOptions, PopoverState } from './popover/popover';
 export { Popover } from './popover/popover';
 export type { ComposedPopoverProps, PopoverClasses } from './popover/popover-composed';
@@ -162,10 +200,14 @@ export type { SelectElements, SelectOptions, SelectState } from './select/select
 export { Select } from './select/select';
 export type { ComposedSelectProps, SelectClasses } from './select/select-composed';
 export { ComposedSelect } from './select/select-composed';
+export type { ComposedSeparatorProps, SeparatorClasses } from './separator/separator-composed';
+export { ComposedSeparator } from './separator/separator-composed';
 export type { SheetElements, SheetOptions, SheetSide, SheetState } from './sheet/sheet';
 export { Sheet } from './sheet/sheet';
 export type { ComposedSheetProps, SheetClasses } from './sheet/sheet-composed';
 export { ComposedSheet } from './sheet/sheet-composed';
+export type { ComposedSkeletonProps, SkeletonClasses } from './skeleton/skeleton-composed';
+export { ComposedSkeleton } from './skeleton/skeleton-composed';
 export type { SliderElements, SliderOptions, SliderState } from './slider/slider';
 export { Slider } from './slider/slider';
 export type { ComposedSliderProps, SliderClasses } from './slider/slider-composed';
@@ -174,10 +216,18 @@ export type { SwitchOptions } from './switch/switch';
 export { Switch } from './switch/switch';
 export type { ComposedSwitchProps, SwitchClasses } from './switch/switch-composed';
 export { ComposedSwitch } from './switch/switch-composed';
+export type {
+  ComposedTableProps,
+  TableClasses,
+  TableClassKey,
+} from './table/table-composed';
+export { ComposedTable } from './table/table-composed';
 export type { TabsElements, TabsOptions, TabsState } from './tabs/tabs';
 export { Tabs } from './tabs/tabs';
 export type { ComposedTabsProps, TabsClasses } from './tabs/tabs-composed';
 export { ComposedTabs } from './tabs/tabs-composed';
+export type { ComposedTextareaProps, TextareaClasses } from './textarea/textarea-composed';
+export { ComposedTextarea } from './textarea/textarea-composed';
 export type { ToastElements, ToastMessage, ToastOptions, ToastState } from './toast/toast';
 export { Toast } from './toast/toast';
 export type { ToggleOptions } from './toggle/toggle';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { createBreadcrumbComponent } from '../components/breadcrumb';
+import { configureTheme } from '../configure';
 import { createBreadcrumbStyles } from '../styles/breadcrumb';
 
 describe('breadcrumb styles', () => {
@@ -25,14 +25,15 @@ describe('breadcrumb styles', () => {
   });
 });
 
-describe('Breadcrumb component', () => {
-  const styles = createBreadcrumbStyles();
-  const Breadcrumb = createBreadcrumbComponent(styles);
+describe('Breadcrumb component (composed)', () => {
+  const theme = configureTheme();
+  const { Breadcrumb } = theme.components;
 
   it('renders nav with aria-label="Breadcrumb"', () => {
-    const el = Breadcrumb({ items: [{ label: 'Home' }] });
-    expect(el.tagName).toBe('NAV');
-    expect(el.getAttribute('aria-label')).toBe('Breadcrumb');
+    const el = Breadcrumb({ items: [{ label: 'Home' }] }) as HTMLElement;
+    const nav = el.querySelector('nav') ?? el;
+    expect(nav.tagName).toBe('NAV');
+    expect(nav.getAttribute('aria-label')).toBe('Breadcrumb');
   });
 
   it('renders ol with li items', () => {
@@ -42,7 +43,7 @@ describe('Breadcrumb component', () => {
         { label: 'Products', href: '/products' },
         { label: 'Current' },
       ],
-    });
+    }) as HTMLElement;
     const ol = el.querySelector('ol');
     expect(ol).not.toBeNull();
     // 3 item li + 2 separator li = 5 total
@@ -53,7 +54,7 @@ describe('Breadcrumb component', () => {
   it('last item has aria-current="page" in a span', () => {
     const el = Breadcrumb({
       items: [{ label: 'Home', href: '/' }, { label: 'Current' }],
-    });
+    }) as HTMLElement;
     const pageSpan = el.querySelector('span[aria-current="page"]');
     expect(pageSpan).not.toBeNull();
     expect(pageSpan?.textContent).toBe('Current');
@@ -66,7 +67,7 @@ describe('Breadcrumb component', () => {
         { label: 'Products', href: '/products' },
         { label: 'Current' },
       ],
-    });
+    }) as HTMLElement;
     const links = el.querySelectorAll('a');
     expect(links.length).toBe(2);
     expect(links[0]?.getAttribute('href')).toBe('/');
@@ -82,7 +83,7 @@ describe('Breadcrumb component', () => {
         { label: 'Products', href: '/products' },
         { label: 'Current' },
       ],
-    });
+    }) as HTMLElement;
     const separators = el.querySelectorAll('li[role="presentation"]');
     expect(separators.length).toBe(2);
     for (const sep of separators) {
@@ -95,7 +96,7 @@ describe('Breadcrumb component', () => {
     const el = Breadcrumb({
       items: [{ label: 'Home', href: '/' }, { label: 'Current' }],
       separator: '>',
-    });
+    }) as HTMLElement;
     const sep = el.querySelector('li[role="presentation"]');
     expect(sep?.textContent).toBe('>');
   });
@@ -103,8 +104,9 @@ describe('Breadcrumb component', () => {
   it('custom class is applied to nav', () => {
     const el = Breadcrumb({
       items: [{ label: 'Home' }],
-      class: 'custom-breadcrumb',
-    });
-    expect(el.className).toContain('custom-breadcrumb');
+      className: 'custom-breadcrumb',
+    }) as HTMLElement;
+    const nav = el.querySelector('nav') ?? el;
+    expect(nav.className).toContain('custom-breadcrumb');
   });
 });
