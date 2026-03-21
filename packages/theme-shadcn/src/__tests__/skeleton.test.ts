@@ -10,6 +10,17 @@ describe('skeleton styles', () => {
     expect(skeleton.root.length).toBeGreaterThan(0);
   });
 
+  it('has textRoot and textLine blocks', () => {
+    expect(typeof skeleton.textRoot).toBe('string');
+    expect(typeof skeleton.textLine).toBe('string');
+    expect(skeleton.textLine.length).toBeGreaterThan(0);
+  });
+
+  it('has circleRoot block', () => {
+    expect(typeof skeleton.circleRoot).toBe('string');
+    expect(skeleton.circleRoot.length).toBeGreaterThan(0);
+  });
+
   it('CSS contains pulse animation', () => {
     expect(skeleton.css).toContain('vz-skeleton-pulse');
   });
