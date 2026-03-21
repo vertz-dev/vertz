@@ -144,19 +144,17 @@ export const Pagination: ThemeComponentMap['Pagination'] = /* #__PURE__ */ creat
 // ---------------------------------------------------------------------------
 
 export const Alert: ThemeComponentMap['Alert'] = /* #__PURE__ */ createCallableSuiteProxy('Alert', [
-  'Alert',
-  'AlertTitle',
-  'AlertDescription',
+  'Title',
+  'Description',
 ]) as ThemeComponentMap['Alert'];
 
 export const Card: ThemeComponentMap['Card'] = /* #__PURE__ */ createCallableSuiteProxy('Card', [
-  'Card',
-  'CardHeader',
-  'CardTitle',
-  'CardDescription',
-  'CardContent',
-  'CardFooter',
-  'CardAction',
+  'Header',
+  'Title',
+  'Description',
+  'Content',
+  'Footer',
+  'Action',
 ]) as ThemeComponentMap['Card'];
 
 export const FormGroup: ThemeComponentMap['FormGroup'] = /* #__PURE__ */ createCallableSuiteProxy(
@@ -166,23 +164,22 @@ export const FormGroup: ThemeComponentMap['FormGroup'] = /* #__PURE__ */ createC
 
 export const Avatar: ThemeComponentMap['Avatar'] = /* #__PURE__ */ createCallableSuiteProxy(
   'Avatar',
-  ['Avatar', 'AvatarImage', 'AvatarFallback'],
+  ['Image', 'Fallback'],
 ) as ThemeComponentMap['Avatar'];
 
 export const Skeleton: ThemeComponentMap['Skeleton'] = /* #__PURE__ */ createCallableSuiteProxy(
   'Skeleton',
-  ['Skeleton'],
+  [],
 ) as ThemeComponentMap['Skeleton'];
 
 export const Table: ThemeComponentMap['Table'] = /* #__PURE__ */ createCallableSuiteProxy('Table', [
-  'Table',
-  'TableHeader',
-  'TableBody',
-  'TableRow',
-  'TableHead',
-  'TableCell',
-  'TableCaption',
-  'TableFooter',
+  'Header',
+  'Body',
+  'Row',
+  'Head',
+  'Cell',
+  'Caption',
+  'Footer',
 ]) as ThemeComponentMap['Table'];
 
 // ---------------------------------------------------------------------------
