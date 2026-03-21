@@ -38,7 +38,7 @@ import { Button, Input, Dialog, Select } from '@vertz/ui/components';
 
 <Note>
 **Direct components** (`Button`, `Card`, etc.) are simple styled wrappers.
-**Primitive components** (`Dialog`, `Select`, etc.) are themed wrappers around `@vertz/ui-primitives` with compound sub-components (e.g., `Dialog.Trigger`, `Dialog.Content`).
+**Primitive components** (`Dialog`, `Select`, etc.) are themed wrappers around `@vertz/ui-primitives` with compound sub-components (e.g., `Dialog.Title`, `Dialog.Footer`, `Select.Content`).
 </Note>
 
 ---
@@ -312,53 +312,61 @@ All slots are optional — use only what you need:
 
 ### Dialog
 
-Modal dialog with backdrop.
+All dialogs use `useDialogStack()` with native `<dialog>` + `showModal()`. Dialog sub-components
+(`Dialog.Header`, `Dialog.Title`, etc.) are used inside the dialog component.
 
 ```tsx
-import { Button } from '@vertz/ui/components';
-import { Dialog } from '@vertz/ui/components';
+import { useDialogStack } from '@vertz/ui';
+import type { DialogHandle } from '@vertz/ui';
+import { Button, Dialog } from '@vertz/ui/components';
 
-<Dialog>
-  <Dialog.Trigger>
-    <Button intent="outline" size="md">Edit Profile</Button>
-  </Dialog.Trigger>
-  <Dialog.Content>
-    <Dialog.Header>
-      <Dialog.Title>Edit profile</Dialog.Title>
-      <Dialog.Description>Make changes to your profile here.</Dialog.Description>
-    </Dialog.Header>
-    {/* Form fields go here */}
-    <Dialog.Footer>
-      <Button intent="outline" size="md">Cancel</Button>
-      <Button intent="primary" size="md">Save changes</Button>
-    </Dialog.Footer>
-  </Dialog.Content>
-</Dialog>
+function EditProfileDialog({ dialog }: { dialog: DialogHandle<void> }) {
+  return (
+    <>
+      <Dialog.Header>
+        <Dialog.Title>Edit profile</Dialog.Title>
+        <Dialog.Description>Make changes to your profile here.</Dialog.Description>
+      </Dialog.Header>
+      <Dialog.Body>{/* Form fields go here */}</Dialog.Body>
+      <Dialog.Footer>
+        <Dialog.Cancel>Cancel</Dialog.Cancel>
+        <Button intent="primary" size="md" onClick={() => dialog.close()}>Save changes</Button>
+      </Dialog.Footer>
+    </>
+  );
+}
+
+// Open via DialogStack
+const dialogs = useDialogStack();
+await dialogs.open(EditProfileDialog, {});
 ```
 
-### AlertDialog
+### Confirm Dialog
 
-Confirmation dialog requiring action.
+Quick confirmation via `useDialogStack().confirm()`:
 
 ```tsx
+import { useDialogStack } from '@vertz/ui';
 import { Button } from '@vertz/ui/components';
-import { AlertDialog } from '@vertz/ui/components';
 
-<AlertDialog>
-  <AlertDialog.Trigger>
-    <Button intent="destructive" size="md">Delete Account</Button>
-  </AlertDialog.Trigger>
-  <AlertDialog.Content>
-    <AlertDialog.Title>Are you absolutely sure?</AlertDialog.Title>
-    <AlertDialog.Description>
-      This action cannot be undone.
-    </AlertDialog.Description>
-    <AlertDialog.Footer>
-      <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-      <AlertDialog.Action>Continue</AlertDialog.Action>
-    </AlertDialog.Footer>
-  </AlertDialog.Content>
-</AlertDialog>
+function DeleteButton() {
+  const dialogs = useDialogStack();
+
+  async function handleDelete() {
+    const confirmed = await dialogs.confirm({
+      title: 'Are you absolutely sure?',
+      description: 'This action cannot be undone.',
+      confirm: 'Continue',
+      cancel: 'Cancel',
+      intent: 'danger',
+    });
+    if (confirmed) {
+      // perform delete
+    }
+  }
+
+  return <Button intent="destructive" size="md" onClick={handleDelete}>Delete Account</Button>;
+}
 ```
 
 ### Sheet

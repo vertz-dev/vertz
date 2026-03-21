@@ -77,11 +77,21 @@ export {
   zoomOut,
 } from './css';
 // Dialog stack
-export type { DialogComponent, DialogHandle, DialogResult, DialogStack } from './dialog';
+export type {
+  ConfirmOptions,
+  DialogComponent,
+  DialogHandle,
+  DialogOpenOptions,
+  DialogResult,
+  DialogStack,
+} from './dialog';
 export {
   createDialogStack,
+  DialogHandleContext,
+  DialogIdContext,
   DialogStackContext,
   DialogStackProvider,
+  useDialog,
   useDialogStack,
 } from './dialog';
 // Render adapter

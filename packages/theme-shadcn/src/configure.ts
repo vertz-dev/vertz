@@ -34,8 +34,6 @@ import {
 } from '@vertz/ui-primitives';
 import type { ThemedAccordionComponent } from './components/primitives/accordion';
 import { createThemedAccordion } from './components/primitives/accordion';
-import type { ThemedAlertDialogComponent } from './components/primitives/alert-dialog';
-import { createThemedAlertDialog } from './components/primitives/alert-dialog';
 import type { ThemedCalendarComponent } from './components/primitives/calendar';
 import { createThemedCalendar } from './components/primitives/calendar';
 import type { ThemedCarouselComponent } from './components/primitives/carousel';
@@ -91,7 +89,6 @@ import type { ThemedTooltipComponent } from './components/primitives/tooltip';
 import { createThemedTooltip } from './components/primitives/tooltip';
 import {
   createAccordionStyles,
-  createAlertDialogStyles,
   createAlertStyles,
   createAvatarStyles,
   createBadge,
@@ -105,6 +102,7 @@ import {
   createCommandStyles,
   createContextMenuStyles,
   createDatePickerStyles,
+  createDialogGlobalStyles,
   createDialogStyles,
   createDrawerStyles,
   createDropdownMenuStyles,
@@ -261,17 +259,6 @@ export interface ThemeStyles {
     readonly thumb: string;
     readonly css: string;
   };
-  /** AlertDialog css() styles. */
-  alertDialog: {
-    readonly overlay: string;
-    readonly panel: string;
-    readonly title: string;
-    readonly description: string;
-    readonly footer: string;
-    readonly cancel: string;
-    readonly action: string;
-    readonly css: string;
-  };
   /** Accordion css() styles. */
   accordion: {
     readonly item: string;
@@ -384,9 +371,7 @@ export interface ThemeStyles {
 
 /** Themed primitive factories returned by configureTheme(). */
 export interface ThemedPrimitives {
-  /** Themed AlertDialog — composable JSX component with AlertDialog.Trigger, AlertDialog.Content, etc. */
-  AlertDialog: ThemedAlertDialogComponent;
-  /** Themed Dialog — composable JSX component with Dialog.Trigger, Dialog.Content, Dialog.Title, Dialog.Description, Dialog.Footer. */
+  /** Themed Dialog — stack-aware sub-components: Dialog.Header, Dialog.Title, Dialog.Description, Dialog.Footer, Dialog.Body, Dialog.Close, Dialog.Cancel. */
   Dialog: ThemedDialogComponent;
   /** Themed DropdownMenu — composable JSX component with DropdownMenu.Trigger, DropdownMenu.Content, etc. */
   DropdownMenu: ThemedDropdownMenuComponent;
@@ -530,6 +515,8 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
   const separatorStyles = createSeparator();
   const formGroupStyles = createFormGroup();
   const dialogStyles = createDialogStyles();
+  // Inject global CSS for stack-rendered dialogs (targets data attributes)
+  createDialogGlobalStyles();
   const dropdownMenuStyles = createDropdownMenuStyles();
   const selectStyles = createSelectStyles();
   const tabsStyles = createTabsStyles();
@@ -540,7 +527,6 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
   const radioGroupStyles = createRadioGroupStyles();
   const sliderStyles = createSliderStyles();
   const alertStyles = createAlertStyles();
-  const alertDialogStyles = createAlertDialogStyles();
   const accordionStyles = createAccordionStyles();
   const textareaStyles = createTextarea();
   const toastStyles = createToastStyles();
@@ -569,7 +555,6 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
 
   const styles: ThemeStyles = {
     alert: alertStyles,
-    alertDialog: alertDialogStyles,
     button: buttonStyles,
     badge: badgeStyles,
     card: cardStyles,
@@ -723,8 +708,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
       footer: tableStyles.footer,
     }),
     primitives: {
-      AlertDialog: createThemedAlertDialog(alertDialogStyles),
-      Dialog: createThemedDialog(dialogStyles),
+      Dialog: createThemedDialog(),
       DropdownMenu: createThemedDropdownMenu(dropdownMenuStyles),
       Select: createThemedSelect(selectStyles),
       Tabs: createThemedTabs(tabsStyles),

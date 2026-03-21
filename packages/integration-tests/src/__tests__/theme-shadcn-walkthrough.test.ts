@@ -187,7 +187,7 @@ describe('Theme Shadcn Walkthrough', () => {
 
   it('components.primitives has all themed primitive factories', () => {
     const { components } = configureTheme();
-    expect(typeof components.primitives.Dialog).toBe('function');
+    expect(typeof components.primitives.Dialog).toBe('object');
     expect(typeof components.primitives.Select).toBe('function');
     expect(typeof components.primitives.Tabs).toBe('function');
     expect(typeof components.primitives.Checkbox).toBe('function');

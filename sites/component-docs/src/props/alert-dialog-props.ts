@@ -1,22 +1,40 @@
 import type { PropDefinition } from '../types';
 
-export const alertDialogProps: PropDefinition[] = [
+export const confirmProps: PropDefinition[] = [
   {
-    name: 'onOpenChange',
-    type: '(open: boolean) => void',
+    name: 'title',
+    type: 'string',
     default: '\u2014',
-    description: 'Callback when the dialog opens or closes.',
+    description: 'Title text for the confirmation dialog.',
   },
   {
-    name: 'onAction',
-    type: '() => void',
+    name: 'description',
+    type: 'string',
     default: '\u2014',
-    description: 'Callback when the action button is clicked.',
+    description: 'Optional description text displayed below the title.',
   },
   {
-    name: 'children',
-    type: 'ChildValue',
-    default: '\u2014',
-    description: 'Dialog content including Trigger, Content, and action sub-components.',
+    name: 'confirm',
+    type: 'string',
+    default: '"Confirm"',
+    description: 'Label for the confirm button.',
+  },
+  {
+    name: 'cancel',
+    type: 'string',
+    default: '"Cancel"',
+    description: 'Label for the cancel button.',
+  },
+  {
+    name: 'intent',
+    type: "'primary' | 'danger'",
+    default: "'primary'",
+    description: 'Visual intent of the confirm button.',
+  },
+  {
+    name: 'dismissible',
+    type: 'boolean',
+    default: 'false',
+    description: 'Whether the dialog can be dismissed by backdrop click or Escape.',
   },
 ];

@@ -2,36 +2,15 @@ import type { PropDefinition } from '../types';
 
 export const dialogProps: PropDefinition[] = [
   {
-    name: 'onOpenChange',
-    type: '(open: boolean) => void',
+    name: 'dialog',
+    type: 'DialogHandle<T>',
     default: '\u2014',
-    description: 'Callback when the dialog opens or closes.',
+    description: 'Handle provided by DialogStack to close the dialog with a result.',
   },
   {
-    name: 'children',
-    type: 'ChildValue',
-    default: '\u2014',
-    description: 'Dialog content including Trigger and Content sub-components.',
-  },
-];
-
-export const dialogContentProps: PropDefinition[] = [
-  {
-    name: 'showClose',
+    name: 'dismissible',
     type: 'boolean',
     default: 'true',
-    description: 'Whether to show the close button.',
-  },
-  {
-    name: 'className',
-    type: 'string',
-    default: '\u2014',
-    description: 'Additional CSS classes.',
-  },
-  {
-    name: 'children',
-    type: 'ChildValue',
-    default: '\u2014',
-    description: 'Content to render inside the dialog.',
+    description: 'Whether the dialog can be dismissed by backdrop click or Escape.',
   },
 ];

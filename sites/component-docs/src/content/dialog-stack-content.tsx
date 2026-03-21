@@ -1,4 +1,3 @@
-import { Button } from '@vertz/ui/components';
 import { CodeFence, DocH2, DocH3 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import {
@@ -19,10 +18,10 @@ export function Content() {
           margin: '0 0 24px',
         }}
       >
-        The Dialog Stack provides an imperative, promise-based API for opening dialogs
-        programmatically. Unlike the declarative {'<Dialog>'} component, the dialog stack is
-        designed for workflows where you need to await a user's response — such as confirmation
-        dialogs, form submissions, or multi-step flows.
+        The Dialog Stack is the single pattern for all dialogs in Vertz. It provides an imperative,
+        promise-based API with automatic overlay, focus trapping, and stacking via native{' '}
+        {'<dialog>'}. Use it for confirmations, form submissions, multi-step flows, or any modal
+        interaction.
       </p>
 
       <DocH2>Usage</DocH2>
@@ -56,6 +55,7 @@ export function App() {
       <CodeFence>
         <code>
           {`import type { DialogHandle } from '@vertz/ui';
+import { Dialog, Button } from '@vertz/ui/components';
 
 interface ConfirmDialogProps {
   message: string;
@@ -64,19 +64,18 @@ interface ConfirmDialogProps {
 
 function ConfirmDialog({ message, dialog }: ConfirmDialogProps) {
   return (
-    <div className={overlayStyles}>
-      <div className={panelStyles} role="dialog" aria-modal="true">
-        <p>{message}</p>
-        <footer>
-          <Button intent="outline" onClick={() => dialog.close(false)}>
-            Cancel
-          </Button>
-          <Button intent="danger" onClick={() => dialog.close(true)}>
-            Confirm
-          </Button>
-        </footer>
-      </div>
-    </div>
+    <>
+      <Dialog.Header>
+        <Dialog.Title>Confirm</Dialog.Title>
+        <Dialog.Description>{message}</Dialog.Description>
+      </Dialog.Header>
+      <Dialog.Footer>
+        <Dialog.Cancel>Cancel</Dialog.Cancel>
+        <Button intent="danger" onClick={() => dialog.close(true)}>
+          Confirm
+        </Button>
+      </Dialog.Footer>
+    </>
   );
 }`}
         </code>
@@ -150,36 +149,6 @@ function DeleteButton({ itemId }: { itemId: string }) {
         <code>data-state="open"</code> while previous ones get <code>data-state="background"</code>.
         The Escape key only dismisses the topmost dialog.
       </p>
-
-      <DocH2>Dialog Stack vs Dialog</DocH2>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '16px',
-          fontSize: '14px',
-          lineHeight: '1.7',
-          color: 'var(--color-muted-foreground)',
-          margin: '0 0 24px',
-        }}
-      >
-        <div>
-          <strong style={{ color: 'var(--color-foreground)' }}>{'<Dialog>'}</strong>
-          <ul style={{ paddingLeft: '20px', margin: '8px 0 0' }}>
-            <li>Declarative (JSX-based)</li>
-            <li>Trigger opens/closes</li>
-            <li>Best for simple modals</li>
-          </ul>
-        </div>
-        <div>
-          <strong style={{ color: 'var(--color-foreground)' }}>useDialogStack()</strong>
-          <ul style={{ paddingLeft: '20px', margin: '8px 0 0' }}>
-            <li>Imperative (promise-based)</li>
-            <li>Await user response</li>
-            <li>Best for forms, confirmations, multi-step</li>
-          </ul>
-        </div>
-      </div>
 
       <DocH2>API Reference</DocH2>
 

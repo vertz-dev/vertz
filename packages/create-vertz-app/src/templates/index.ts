@@ -341,7 +341,7 @@ Theme components are pre-configured with the app's design tokens and provide con
 Import components from \`@vertz/ui/components\` — the centralized entrypoint:
 
 \`\`\`tsx
-import { Button, Input, AlertDialog } from '@vertz/ui/components';
+import { Button, Input, Dialog } from '@vertz/ui/components';
 
 // RIGHT — use theme components
 <Button intent="primary" size="md">Submit</Button>
@@ -357,42 +357,57 @@ import { Button, Input, AlertDialog } from '@vertz/ui/components';
 **Direct**: \`Button\`, \`Input\`, \`Label\`, \`Badge\`, \`Textarea\`,
 \`Card\` suite, \`Table\` suite, \`Avatar\` suite, \`FormGroup\` suite
 
-**Primitives**: \`AlertDialog\`, \`Dialog\`, \`Tabs\`,
+**Primitives**: \`Dialog\`, \`Tabs\`,
 \`Select\`, \`DropdownMenu\`, \`Popover\`, \`Sheet\`, \`Tooltip\`, \`Accordion\`
-— all with sub-components (\`.Trigger\`, \`.Content\`, \`.Footer\`, etc.)
+— all with sub-components (\`.Title\`, \`.Content\`, \`.Footer\`, etc.)
 
 ## Dialogs
 
-### Composable \`<AlertDialog>\` for inline confirmations
+### \`useDialogStack()\` for all dialogs
+
+All dialogs use the DialogStack pattern — imperative, promise-based, with automatic
+overlay, focus trapping, and stacking via native \`<dialog>\`.
 
 \`\`\`tsx
-import { Button, AlertDialog } from '@vertz/ui/components';
-
-<AlertDialog>
-  <AlertDialog.Trigger>
-    <Button intent="danger" size="sm">Delete</Button>
-  </AlertDialog.Trigger>
-  <AlertDialog.Content>
-    <AlertDialog.Title>Delete task?</AlertDialog.Title>
-    <AlertDialog.Description>This action cannot be undone.</AlertDialog.Description>
-    <AlertDialog.Footer>
-      <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-      <AlertDialog.Action onClick={handleDelete}>Delete</AlertDialog.Action>
-    </AlertDialog.Footer>
-  </AlertDialog.Content>
-</AlertDialog>
-\`\`\`
-
-### \`useDialogStack()\` for imperative/stacked dialogs
-
-Use when you need promise-based results or dialogs opened from event handlers:
-
-\`\`\`tsx
-import { useDialogStack } from 'vertz/ui';
+import { useDialogStack } from '@vertz/ui';
 
 const dialogs = useDialogStack();
-const confirmed = await dialogs.open(ConfirmDialog, { message: 'Delete?' });
+
+// Quick confirmation
+const confirmed = await dialogs.confirm({
+  title: 'Delete task?',
+  description: 'This action cannot be undone.',
+  confirm: 'Delete',
+  cancel: 'Cancel',
+  intent: 'danger',
+});
 if (confirmed) handleDelete();
+\`\`\`
+
+### Custom dialog components
+
+\`\`\`tsx
+import { useDialogStack, useDialog } from '@vertz/ui';
+import { Dialog } from '@vertz/ui/components';
+
+function EditDialog({ task, dialog }: { task: Task; dialog: DialogHandle<Task> }) {
+  return (
+    <>
+      <Dialog.Header>
+        <Dialog.Title>Edit Task</Dialog.Title>
+      </Dialog.Header>
+      <Dialog.Body>...</Dialog.Body>
+      <Dialog.Footer>
+        <Dialog.Cancel>Cancel</Dialog.Cancel>
+        <Button onClick={() => dialog.close(updatedTask)}>Save</Button>
+      </Dialog.Footer>
+    </>
+  );
+}
+
+// Open it
+const result = await dialogs.open(EditDialog, { task });
+if (result.ok) saveTask(result.data);
 \`\`\`
 
 ## Styling
@@ -827,7 +842,7 @@ export const themeGlobals = config.globals;
 /**
  * src/pages/home.tsx — full CRUD task list with form, checkbox toggle,
  * delete confirmation dialog, and animated list transitions.
- * Demonstrates theme components (Button, Input, AlertDialog) over raw HTML.
+ * Demonstrates theme components (Button, Input) and DialogStack confirmation.
  */
 export function homePageTemplate(): string {
   return `import {
@@ -841,9 +856,9 @@ export function homePageTemplate(): string {
   query,
   queryMatch,
   slideInFromTop,
+  useDialogStack,
 } from 'vertz/ui';
 import { Button } from '@vertz/ui/components';
-import { AlertDialog } from '@vertz/ui/components';
 import { api } from '../client';
 
 // Global CSS for list item enter/exit animations
@@ -904,12 +919,23 @@ interface TaskItemProps {
 }
 
 function TaskItem({ id, title, completed }: TaskItemProps) {
+  const dialogs = useDialogStack();
+
   const handleToggle = async () => {
     await api.tasks.update(id, { completed: !completed });
   };
 
   const handleDelete = async () => {
-    await api.tasks.delete(id);
+    const confirmed = await dialogs.confirm({
+      title: 'Delete task?',
+      description: 'This action cannot be undone.',
+      confirm: 'Delete',
+      cancel: 'Cancel',
+      intent: 'danger',
+    });
+    if (confirmed) {
+      await api.tasks.delete(id);
+    }
   };
 
   return (
@@ -923,21 +949,7 @@ function TaskItem({ id, title, completed }: TaskItemProps) {
       <span className={completed ? styles.labelDone : styles.label}>
         {title}
       </span>
-      <AlertDialog onAction={handleDelete}>
-        <AlertDialog.Trigger>
-          <Button intent="ghost" size="sm">Delete</Button>
-        </AlertDialog.Trigger>
-        <AlertDialog.Content>
-          <AlertDialog.Title>Delete task?</AlertDialog.Title>
-          <AlertDialog.Description>
-            This action cannot be undone.
-          </AlertDialog.Description>
-          <AlertDialog.Footer>
-            <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-            <AlertDialog.Action>Delete</AlertDialog.Action>
-          </AlertDialog.Footer>
-        </AlertDialog.Content>
-      </AlertDialog>
+      <Button intent="ghost" size="sm" onClick={handleDelete}>Delete</Button>
     </div>
   );
 }

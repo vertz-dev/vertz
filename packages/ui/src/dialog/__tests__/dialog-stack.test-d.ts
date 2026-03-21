@@ -77,6 +77,20 @@ declare const voidHandle: DialogHandle<void>;
 // Positive: close accepts no arguments
 voidHandle.close();
 
+// ─── DialogOpenOptions — optional third parameter ─────────────────
+
+// Positive: open() accepts options as third parameter
+const _optionsPromise: Promise<DialogResult<string>> = stack.open(
+  component,
+  { msg: 'hi' },
+  { dismissible: false },
+);
+void _optionsPromise;
+
+// Positive: open() accepts no options (backward compat)
+const _noOptionsPromise: Promise<DialogResult<string>> = stack.open(component, { msg: 'hi' });
+void _noOptionsPromise;
+
 // ─── readonly fields ──────────────────────────────────────────────
 
 if (result.ok) {
