@@ -8,7 +8,7 @@ import type { ChildValue, Ref } from '@vertz/ui';
 import { createContext, ref, useContext } from '@vertz/ui';
 import { cn } from '../composed/cn';
 import type { FloatingOptions } from '../utils/floating';
-import { createFloatingPosition } from '../utils/floating';
+import { createFloatingPosition, resolveLayoutElement } from '../utils/floating';
 import { uniqueId } from '../utils/id';
 
 // ---------------------------------------------------------------------------
@@ -152,9 +152,7 @@ function ComposedTooltipRoot({
     ) as HTMLElement | null;
     if (!triggerSpan || !content) return;
 
-    // Trigger span uses display:contents (no layout box).
-    // Use its first child element for positioning.
-    const trigger = (triggerSpan.firstElementChild as HTMLElement) ?? triggerSpan;
+    const trigger = resolveLayoutElement(triggerSpan);
     content.style.position = 'fixed';
     const floatingOpts = positioning ?? { placement: 'top', offset: 4 };
     const result = createFloatingPosition(trigger, content, floatingOpts);

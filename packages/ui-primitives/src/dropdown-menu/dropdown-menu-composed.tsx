@@ -10,7 +10,7 @@ import { createContext, ref, useContext } from '@vertz/ui';
 import { cn } from '../composed/cn';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
-import { createFloatingPosition } from '../utils/floating';
+import { createFloatingPosition, resolveLayoutElement } from '../utils/floating';
 import { linkedIds } from '../utils/id';
 import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
@@ -263,9 +263,7 @@ function ComposedDropdownMenuRoot({
       '[data-dropdownmenu-trigger]',
     ) as HTMLElement | null;
     if (!triggerSpan) return null;
-    // The trigger span uses display:contents (no layout box).
-    // Return its first child element for positioning.
-    return (triggerSpan.firstElementChild as HTMLElement) ?? triggerSpan;
+    return resolveLayoutElement(triggerSpan);
   }
 
   function updateActiveItem(items: HTMLElement[], index: number): void {
