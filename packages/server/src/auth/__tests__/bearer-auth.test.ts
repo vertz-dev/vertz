@@ -177,6 +177,56 @@ describe('Feature: Bearer token auth in getSession()', () => {
     });
   });
 
+  describe('Given an Authorization: Bearer header with an expired JWT', () => {
+    describe('When getSession is called', () => {
+      it('Then returns null (unauthenticated)', async () => {
+        // Create auth with a very short TTL so the JWT expires quickly
+        const shortAuth = createTestAuth({
+          session: { strategy: 'jwt', ttl: '1s', refreshTtl: '7d' },
+        });
+        const jwt = await signUpAndGetJwt(shortAuth, 'expired@test.com');
+
+        // Wait for JWT to expire
+        await new Promise((resolve) => setTimeout(resolve, 1100));
+
+        const result = await shortAuth.api.getSession(
+          new Headers({ Authorization: `Bearer ${jwt}` }),
+        );
+
+        expect(result.ok).toBe(true);
+        expect(result.data).toBeNull();
+      });
+    });
+  });
+
+  describe('Given a lowercase "bearer" scheme (RFC 7235 case-insensitive)', () => {
+    describe('When getSession is called', () => {
+      it('Then resolves the token correctly', async () => {
+        const jwt = await signUpAndGetJwt(auth, 'lowercase@test.com');
+
+        const result = await auth.api.getSession(new Headers({ Authorization: `bearer ${jwt}` }));
+
+        expect(result.ok).toBe(true);
+        expect(result.data).not.toBeNull();
+        expect(result.data!.user.email).toBe('lowercase@test.com');
+      });
+    });
+  });
+
+  describe('Given an uppercase "BEARER" scheme', () => {
+    describe('When getSession is called', () => {
+      it('Then resolves the token correctly', async () => {
+        const jwt = await signUpAndGetJwt(auth, 'uppercase@test.com');
+
+        const result = await auth.api.getSession(new Headers({ Authorization: `BEARER ${jwt}` }));
+
+        expect(result.ok).toBe(true);
+        expect(result.data).not.toBeNull();
+        expect(result.data!.user.email).toBe('uppercase@test.com');
+      });
+    });
+  });
+
   describe('Given a Bearer-authenticated request to GET /api/auth/session', () => {
     describe('When the auth handler processes it', () => {
       it('Then returns the session data', async () => {
