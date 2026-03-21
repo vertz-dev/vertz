@@ -28,6 +28,10 @@ void _loading;
 const _revalidating: boolean = result.revalidating;
 void _revalidating;
 
+// idle is Unwrapped<ReadonlySignal<boolean>> which equals boolean
+const _idle: boolean = result.idle;
+void _idle;
+
 // error is Unwrapped<ReadonlySignal<unknown | undefined>> which equals unknown
 const _error: unknown = result.error;
 void _error;
@@ -86,7 +90,6 @@ void _badInitial;
 const _validOpts: QueryOptions<number> = {
   initialData: 42,
   debounce: 300,
-  enabled: true,
   key: 'my-key',
 };
 void _validOpts;
@@ -129,7 +132,6 @@ void _descriptorData;
 query(descriptor, { key: 'manual-key' });
 
 // descriptor overload still allows other options
-query(descriptor, { enabled: false });
 query(descriptor, { debounce: 300 });
 
 // ─── query() — descriptor error type flows through ───────────────
@@ -198,3 +200,31 @@ if (_paginatedData) {
   void _users;
   void _page;
 }
+
+// ─── query() — null-return overloads ──────────────────────────────
+
+// Thunk returning Promise | null — infers T from Promise
+declare const condition: boolean;
+const nullableThunk = query(() => (condition ? Promise.resolve('hello') : null));
+const _nullableData: string | undefined = nullableThunk.data;
+void _nullableData;
+
+// idle signal is available
+const _nullableIdle: boolean = nullableThunk.idle;
+void _nullableIdle;
+
+// Thunk returning QueryDescriptor | null — preserves T and E types
+declare const conditionalDescriptor: QueryDescriptor<string[], CustomError>;
+const descriptorThunk = query(() => (condition ? conditionalDescriptor : null));
+const _descriptorThunkData: string[] | undefined = descriptorThunk.data;
+void _descriptorThunkData;
+
+// Error type is preserved through descriptor-in-thunk overload
+const _descriptorThunkError: CustomError | undefined = descriptorThunk.error;
+void _descriptorThunkError;
+
+// @ts-expect-error - thunk must return Promise, QueryDescriptor, or null — not a raw value
+query(() => 42);
+
+// @ts-expect-error - thunk must return Promise, QueryDescriptor, or null — not a string
+query(() => 'hello');

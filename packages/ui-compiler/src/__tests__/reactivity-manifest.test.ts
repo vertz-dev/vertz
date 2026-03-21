@@ -120,7 +120,7 @@ describe('reactivity-manifest', () => {
       expect(q.reactivity.type).toBe('signal-api');
       if (q.reactivity.type === 'signal-api') {
         expect(q.reactivity.signalProperties).toEqual(
-          new Set(['data', 'loading', 'error', 'revalidating']),
+          new Set(['data', 'idle', 'loading', 'error', 'revalidating']),
         );
         expect(q.reactivity.plainProperties).toEqual(new Set(['refetch', 'revalidate', 'dispose']));
       }

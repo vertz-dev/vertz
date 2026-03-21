@@ -29,7 +29,7 @@
       "kind": "function",
       "reactivity": {
         "plainProperties": ["refetch", "revalidate", "dispose"],
-        "signalProperties": ["data", "loading", "error", "revalidating"],
+        "signalProperties": ["data", "loading", "error", "revalidating", "idle"],
         "type": "signal-api"
       }
     },

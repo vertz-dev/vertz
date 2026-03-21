@@ -75,7 +75,7 @@ export function queryMatch<T, E>(
 
     // Determine branch
     // Priority: loading → error → data.
-    // Fall back to loading when data is still undefined (e.g., enabled:false
+    // Fall back to loading when data is still undefined (e.g., idle query
     // or timing gap between loading=false and data being set).
     let branch: Branch;
     if (isLoading || (err === undefined && dataValue === undefined)) {
