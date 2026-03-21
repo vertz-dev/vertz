@@ -141,6 +141,7 @@ Standard post-merge process:
 - josh builds demo app + DX Journal
 - Archive tickets
 - Update dashboard
+- **Archive plans and reviews to wiki** — move completed plan and retrospective from `plans/` to the GitHub wiki (see "Wiki Archival" below)
 
 ## What This Replaces
 
@@ -167,3 +168,42 @@ Standard post-merge process:
 - Created when a feature starts, deleted when the feature merges to main
 - **Not committed to main** — these are working artifacts, not permanent history
 - The final PR description summarizes the reviews for the permanent record
+
+## Wiki Archival
+
+Completed plans and post-implementation reviews are archived to the **GitHub wiki** (`vertz-dev/vertz.wiki.git`) to keep the repo lean. Active plans stay in `plans/` until their feature is merged.
+
+### Naming Convention
+
+| Type | Wiki filename | Source |
+|------|--------------|--------|
+| Design plan | `plan-<feature-name>.md` | `plans/<feature>.md` or `plans/archived/<feature>.md` |
+| Post-implementation review | `review-<feature-name>.md` | `plans/post-implementation-reviews/<feature>.md` |
+| Decision record | `decision-<topic>.md` | Ad-hoc |
+
+### Archival Process (after PR merge)
+
+```bash
+# Clone the wiki repo
+git clone https://github.com/vertz-dev/vertz.wiki.git /tmp/vertz-wiki
+
+# Copy completed plan and review
+cp plans/<feature>.md /tmp/vertz-wiki/plan-<feature>.md
+cp plans/post-implementation-reviews/<feature>.md /tmp/vertz-wiki/review-<feature>.md
+
+# Update Home.md index with new entries
+# Commit and push
+cd /tmp/vertz-wiki
+git add . && git commit -m "archive: <feature-name>"
+git push
+
+# Back in the main repo: move plan to plans/archived/ or delete
+# (plans/archived/ is a transitional holding area — wiki is the permanent archive)
+```
+
+### Rules
+
+- **Active plans** (`plans/`) — currently being implemented, stay in the repo
+- **Completed plans** — moved to wiki after merge, removed from repo (or moved to `plans/archived/` if wiki push isn't possible)
+- **Home.md** in the wiki — always kept up-to-date with a table of all archived plans and reviews
+- Agents can fetch archived plans on demand: `git clone https://github.com/vertz-dev/vertz.wiki.git /tmp/vertz-wiki`
