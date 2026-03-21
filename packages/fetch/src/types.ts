@@ -72,6 +72,8 @@ export interface EntityQueryMeta {
   readonly entityType: string;
   readonly kind: 'get' | 'list';
   readonly id?: string;
+  /** Whether this entity is tenant-scoped. Set by codegen from entity manifest. */
+  readonly tenantScoped?: boolean;
 }
 
 /** Metadata for mutation descriptors. */

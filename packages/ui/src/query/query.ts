@@ -742,7 +742,11 @@ export function query<T, E = unknown>(
         entityMeta = effectEntityMeta;
         if (!isSSR()) {
           unsubscribeBus = getMutationEventBus().subscribe(entityMeta.entityType, refetch);
-          unregisterFromRegistry = registerActiveQuery(entityMeta, refetch);
+          unregisterFromRegistry = registerActiveQuery(
+            entityMeta,
+            refetch,
+            createClearData(entityMeta),
+          );
         }
       }
     } else {
@@ -883,6 +887,28 @@ export function query<T, E = unknown>(
     inflightKeys.clear();
   }
 
+  /**
+   * Create a clearData callback for tenant-switch invalidation.
+   * Resets the query to a "no data / loading" state before refetch,
+   * preventing stale cross-tenant data from being visible.
+   */
+  function createClearData(meta: EntityQueryMeta): () => void {
+    return () => {
+      untrack(() => {
+        entityBacked.value = false;
+        rawData.value = undefined;
+        loading.value = true;
+      });
+      // Use the actual cache key (may be dep-hash-derived) for cache deletion.
+      const cacheKey = untrack(() => getCacheKey());
+      cache.delete(cacheKey);
+      // queryIndices and envelopeStore are keyed by entity type or custom key.
+      const queryKey = customKey ?? meta.entityType;
+      getEntityStore().queryIndices.clear(queryKey);
+      getQueryEnvelopeStore().delete(queryKey);
+    };
+  }
+
   // Subscribe to MutationEventBus for same-type revalidation.
   // When a mutation commits for this entity type, revalidate the query.
   // Skip during SSR — mutations don't fire server-side, and subscriptions
@@ -891,7 +917,7 @@ export function query<T, E = unknown>(
   let unregisterFromRegistry: (() => void) | undefined;
   if (entityMeta && !isSSR()) {
     unsubscribeBus = getMutationEventBus().subscribe(entityMeta.entityType, refetch);
-    unregisterFromRegistry = registerActiveQuery(entityMeta, refetch);
+    unregisterFromRegistry = registerActiveQuery(entityMeta, refetch, createClearData(entityMeta));
   }
 
   // Auto-register disposal with the current scope (component/page/app).

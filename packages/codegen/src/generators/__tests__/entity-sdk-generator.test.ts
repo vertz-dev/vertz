@@ -734,6 +734,128 @@ describe('EntitySdkGenerator', () => {
     expect(taskFile?.content).toContain("url: '/tasks/:id', method: 'DELETE' as const");
   });
 
+  describe('tenantScoped metadata in descriptors', () => {
+    it('emits tenantScoped: true for tenant-scoped entity list/get descriptors', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'task',
+          tenantScoped: true,
+          operations: [
+            {
+              kind: 'list',
+              method: 'GET',
+              path: '/tasks',
+              operationId: 'listTask',
+              outputSchema: 'TaskResponse',
+            },
+            {
+              kind: 'get',
+              method: 'GET',
+              path: '/tasks/:id',
+              operationId: 'getTask',
+              outputSchema: 'TaskResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const taskFile = files.find((f) => f.path === 'entities/task.ts');
+
+      expect(taskFile?.content).toContain('tenantScoped: true');
+    });
+
+    it('emits tenantScoped: false for non-tenant-scoped entity list/get descriptors', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'template',
+          tenantScoped: false,
+          operations: [
+            {
+              kind: 'list',
+              method: 'GET',
+              path: '/templates',
+              operationId: 'listTemplate',
+              outputSchema: 'TemplateResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const templateFile = files.find((f) => f.path === 'entities/template.ts');
+
+      expect(templateFile?.content).toContain('tenantScoped: false');
+    });
+
+    it('emits tenantScoped: false when tenantScoped is undefined (default)', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'setting',
+          operations: [
+            {
+              kind: 'list',
+              method: 'GET',
+              path: '/settings',
+              operationId: 'listSetting',
+              outputSchema: 'SettingResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const settingFile = files.find((f) => f.path === 'entities/setting.ts');
+
+      expect(settingFile?.content).toContain('tenantScoped: false');
+    });
+
+    it('does NOT emit tenantScoped in mutation descriptors (create/update/delete)', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'task',
+          tenantScoped: true,
+          operations: [
+            {
+              kind: 'create',
+              method: 'POST',
+              path: '/tasks',
+              operationId: 'createTask',
+              inputSchema: 'CreateTaskInput',
+              outputSchema: 'TaskResponse',
+            },
+            {
+              kind: 'update',
+              method: 'PATCH',
+              path: '/tasks/:id',
+              operationId: 'updateTask',
+              inputSchema: 'UpdateTaskInput',
+              outputSchema: 'TaskResponse',
+            },
+            {
+              kind: 'delete',
+              method: 'DELETE',
+              path: '/tasks/:id',
+              operationId: 'deleteTask',
+              outputSchema: 'TaskResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const taskFile = files.find((f) => f.path === 'entities/task.ts');
+
+      // Mutation descriptors use createMutationDescriptor, not createDescriptor
+      // tenantScoped should NOT appear in mutation metadata
+      expect(taskFile?.content).not.toContain('tenantScoped');
+    });
+  });
+
   describe('VertzQL field selection', () => {
     it('list() uses resolveVertzQL to encode select into q= param', () => {
       const ir = createBasicIR([

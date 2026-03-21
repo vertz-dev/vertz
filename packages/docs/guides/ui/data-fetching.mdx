@@ -299,6 +299,19 @@ Existing data stays visible while the refetch happens in the background (SWR pat
 
 <Note>`invalidate()` is an escape hatch. In most cases, automatic revalidation from entity mutations handles everything. Use it only for operations outside the standard entity CRUD flow.</Note>
 
+### Tenant-scoped invalidation
+
+When using multi-tenancy, `switchTenant()` automatically invalidates all tenant-scoped queries (clearing cached data before refetching). If you need to manually trigger this:
+
+```tsx
+import { invalidateTenantQueries } from 'vertz/ui';
+
+// Clears data + refetches all active tenant-scoped queries
+invalidateTenantQueries();
+```
+
+Unlike `invalidate()`, this clears cached data immediately (no SWR stale window) — users never see data from the wrong tenant.
+
 ## Optimistic updates
 
 Entity mutations automatically apply optimistic updates — the UI reflects changes instantly while the server request is in flight:

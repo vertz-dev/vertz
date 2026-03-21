@@ -1,7 +1,8 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, mock, vi } from 'bun:test';
 import { err, ok } from '@vertz/fetch';
 import { useContext } from '../../component/context';
 import type { SdkMethodWithMeta } from '../../form/form';
+import { registerActiveQuery, resetQueryRegistry } from '../../query/invalidate';
 import { computed, signal } from '../../runtime/signal';
 import type { Signal } from '../../runtime/signal-types';
 import type { AuthContextValue } from '../auth-context';
@@ -244,6 +245,104 @@ describe('TenantContext', () => {
           children: () => null as unknown as HTMLElement,
         }),
       ).toThrow('TenantProvider must be rendered inside AuthProvider');
+    });
+
+    describe('auto-invalidation on tenant switch', () => {
+      beforeEach(() => {
+        resetQueryRegistry();
+      });
+      afterEach(() => {
+        resetQueryRegistry();
+      });
+
+      it('invalidates tenant-scoped queries after successful switch', async () => {
+        const tenantRefetch = vi.fn();
+        const globalRefetch = vi.fn();
+
+        registerActiveQuery(
+          { entityType: 'tasks', kind: 'list', tenantScoped: true },
+          tenantRefetch,
+        );
+        registerActiveQuery(
+          { entityType: 'settings', kind: 'get', id: 'global', tenantScoped: false },
+          globalRefetch,
+        );
+
+        const switchMock = mock(async () =>
+          ok({
+            tenantId: 'org-2',
+            user: { id: '1', email: 'a@b.com', role: 'user' },
+            expiresAt: 0,
+          }),
+        );
+
+        const ctx = setupTenantProvider({
+          switchTenantResult: switchMock,
+        });
+
+        const switchTenant = ctx.switchTenant as (tenantId: string) => Promise<{ ok: boolean }>;
+        await switchTenant('org-2');
+
+        expect(tenantRefetch).toHaveBeenCalledOnce();
+        expect(globalRefetch).not.toHaveBeenCalled();
+      });
+
+      it('does NOT invalidate queries when switch fails', async () => {
+        const tenantRefetch = vi.fn();
+
+        registerActiveQuery(
+          { entityType: 'tasks', kind: 'list', tenantScoped: true },
+          tenantRefetch,
+        );
+
+        const switchMock = mock(async () =>
+          err(
+            Object.assign(new Error('Forbidden'), {
+              code: 'AUTH_FORBIDDEN',
+              statusCode: 403,
+            }),
+          ),
+        );
+
+        const ctx = setupTenantProvider({
+          switchTenantResult: switchMock,
+        });
+
+        const switchTenant = ctx.switchTenant as (tenantId: string) => Promise<{ ok: boolean }>;
+        await switchTenant('org-2');
+
+        expect(tenantRefetch).not.toHaveBeenCalled();
+      });
+
+      it('invalidation fires BEFORE onSwitchComplete callback', async () => {
+        const order: string[] = [];
+
+        registerActiveQuery({ entityType: 'tasks', kind: 'list', tenantScoped: true }, () =>
+          order.push('invalidate'),
+        );
+
+        const onSwitchComplete = mock((tenantId: string) => {
+          order.push('onSwitchComplete');
+        });
+
+        const switchMock = mock(async () =>
+          ok({
+            tenantId: 'org-2',
+            user: { id: '1', email: 'a@b.com', role: 'user' },
+            expiresAt: 0,
+          }),
+        );
+
+        const ctx = setupTenantProvider({
+          switchTenantResult: switchMock,
+          onSwitchComplete,
+        });
+
+        const switchTenant = ctx.switchTenant as (tenantId: string) => Promise<{ ok: boolean }>;
+        await switchTenant('org-2');
+
+        expect(order).toEqual(['invalidate', 'onSwitchComplete']);
+      });
     });
   });
 });

@@ -2,8 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 import { createDescriptor } from '@vertz/fetch';
 import { popScope, pushScope, runCleanups } from '../../runtime/disposal';
 import type { DisposeFn } from '../../runtime/signal-types';
+import { disableTestSSR, enableTestSSR } from '../../ssr/test-ssr-helpers';
 import { resetMutationEventBus } from '../../store/mutation-event-bus-singleton';
-import { __registrySize, invalidate, registerActiveQuery, resetQueryRegistry } from '../invalidate';
+import {
+  __registrySize,
+  invalidate,
+  invalidateTenantQueries,
+  registerActiveQuery,
+  resetQueryRegistry,
+} from '../invalidate';
 import { query, resetDefaultQueryCache } from '../query';
 
 describe('invalidate()', () => {
@@ -271,6 +278,224 @@ describe('invalidate()', () => {
       await Promise.resolve();
       // Should NOT have refetched after dispose
       expect(callCount).toBe(1);
+    });
+  });
+
+  describe('integration: invalidateTenantQueries() with query()', () => {
+    let scope: DisposeFn[];
+
+    beforeEach(() => {
+      scope = pushScope();
+    });
+    afterEach(() => {
+      popScope();
+      runCleanups(scope);
+    });
+
+    it('clears data and sets loading before refetch on tenant-scoped query', async () => {
+      let callCount = 0;
+      const descriptor = createDescriptor(
+        'GET',
+        '/tasks',
+        () => {
+          callCount++;
+          return Promise.resolve({
+            ok: true as const,
+            data: { data: { items: [{ id: '1', title: `call-${callCount}` }] } },
+          });
+        },
+        undefined,
+        { entityType: 'tasks', kind: 'list', tenantScoped: true },
+      );
+
+      const result = query(descriptor);
+      // Signals are not auto-unwrapped outside reactive context
+      const loadingSig = result.loading as unknown as { value: boolean };
+      const dataSig = result.data as unknown as { value: unknown };
+
+      // Wait for initial fetch to complete (needs multiple microtick flushes)
+      vi.advanceTimersByTime(0);
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+      expect(callCount).toBe(1);
+      expect(loadingSig.value).toBe(false);
+      expect(dataSig.value).toBeDefined();
+
+      // Trigger tenant invalidation — should clear data + refetch
+      invalidateTenantQueries();
+
+      // After clearData, data should be undefined and loading should be true
+      expect(dataSig.value).toBeUndefined();
+      expect(loadingSig.value).toBe(true);
+
+      // Let the refetch complete
+      vi.advanceTimersByTime(0);
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+      expect(callCount).toBe(2);
+      expect(loadingSig.value).toBe(false);
+      expect(dataSig.value).toBeDefined();
+    });
+
+    it('does NOT clear data on non-tenant-scoped query', async () => {
+      let callCount = 0;
+      const descriptor = createDescriptor(
+        'GET',
+        '/settings',
+        () => {
+          callCount++;
+          return Promise.resolve({
+            ok: true as const,
+            data: { data: { items: [{ id: '1', name: 'global' }] } },
+          });
+        },
+        undefined,
+        { entityType: 'settings', kind: 'list', tenantScoped: false },
+      );
+
+      const result = query(descriptor);
+      const loadingSig = result.loading as unknown as { value: boolean };
+
+      vi.advanceTimersByTime(0);
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+      expect(callCount).toBe(1);
+      expect(loadingSig.value).toBe(false);
+
+      invalidateTenantQueries();
+
+      // Non-tenant query should be untouched
+      expect(loadingSig.value).toBe(false);
+      expect(callCount).toBe(1);
+    });
+  });
+
+  describe('invalidateTenantQueries()', () => {
+    describe('Given registered queries with mixed tenantScoped flags', () => {
+      it('Then only queries with tenantScoped=true call refetch', () => {
+        const taskRefetch = vi.fn();
+        const templateRefetch = vi.fn();
+
+        registerActiveQuery({ entityType: 'tasks', kind: 'list', tenantScoped: true }, taskRefetch);
+        registerActiveQuery(
+          { entityType: 'templates', kind: 'list', tenantScoped: false },
+          templateRefetch,
+        );
+
+        invalidateTenantQueries();
+
+        expect(taskRefetch).toHaveBeenCalledOnce();
+        expect(templateRefetch).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('Given registered queries where none are tenantScoped', () => {
+      it('Then no queries are refetched', () => {
+        const refetch1 = vi.fn();
+        const refetch2 = vi.fn();
+
+        registerActiveQuery({ entityType: 'settings', kind: 'get', id: 'global' }, refetch1);
+        registerActiveQuery(
+          { entityType: 'templates', kind: 'list', tenantScoped: false },
+          refetch2,
+        );
+
+        invalidateTenantQueries();
+
+        expect(refetch1).not.toHaveBeenCalled();
+        expect(refetch2).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('Given both get and list tenant-scoped queries', () => {
+      it('Then both get and list queries call refetch', () => {
+        const listRefetch = vi.fn();
+        const getRefetch = vi.fn();
+
+        registerActiveQuery({ entityType: 'tasks', kind: 'list', tenantScoped: true }, listRefetch);
+        registerActiveQuery(
+          { entityType: 'tasks', kind: 'get', id: '1', tenantScoped: true },
+          getRefetch,
+        );
+
+        invalidateTenantQueries();
+
+        expect(listRefetch).toHaveBeenCalledOnce();
+        expect(getRefetch).toHaveBeenCalledOnce();
+      });
+    });
+
+    describe('Given queries with clearData callbacks', () => {
+      it('Then clearData is called before refetch for tenant-scoped queries', () => {
+        const order: string[] = [];
+        const clearData = vi.fn(() => order.push('clear'));
+        const refetch = vi.fn(() => order.push('refetch'));
+
+        registerActiveQuery(
+          { entityType: 'tasks', kind: 'list', tenantScoped: true },
+          refetch,
+          clearData,
+        );
+
+        invalidateTenantQueries();
+
+        expect(clearData).toHaveBeenCalledOnce();
+        expect(refetch).toHaveBeenCalledOnce();
+        expect(order).toEqual(['clear', 'refetch']);
+      });
+
+      it('Then clearData is NOT called for non-tenant-scoped queries', () => {
+        const clearData = vi.fn();
+        const refetch = vi.fn();
+
+        registerActiveQuery(
+          { entityType: 'templates', kind: 'list', tenantScoped: false },
+          refetch,
+          clearData,
+        );
+
+        invalidateTenantQueries();
+
+        expect(clearData).not.toHaveBeenCalled();
+        expect(refetch).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('Given a query registered without clearData callback', () => {
+      it('Then refetch is still called (clearData is optional)', () => {
+        const refetch = vi.fn();
+
+        registerActiveQuery({ entityType: 'tasks', kind: 'list', tenantScoped: true }, refetch);
+
+        invalidateTenantQueries();
+
+        expect(refetch).toHaveBeenCalledOnce();
+      });
+    });
+
+    describe('Given queries with tenantScoped undefined (legacy)', () => {
+      it('Then they are NOT affected (undefined !== true)', () => {
+        const refetch = vi.fn();
+
+        registerActiveQuery({ entityType: 'tasks', kind: 'list' }, refetch);
+
+        invalidateTenantQueries();
+
+        expect(refetch).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('Given SSR context is active', () => {
+      afterEach(() => {
+        disableTestSSR();
+      });
+
+      it('Then it is a no-op — does not call refetch', () => {
+        const refetch = vi.fn();
+        registerActiveQuery({ entityType: 'tasks', kind: 'list', tenantScoped: true }, refetch);
+
+        enableTestSSR();
+        invalidateTenantQueries();
+
+        expect(refetch).not.toHaveBeenCalled();
+      });
     });
   });
 
