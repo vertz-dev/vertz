@@ -41,177 +41,6 @@ describe('encodeVertzQL', () => {
   });
 });
 
-describe('resolveVertzQL', () => {
-  it('returns undefined when query is undefined', () => {
-    expect(resolveVertzQL(undefined)).toBeUndefined();
-  });
-
-  it('passes through query as-is when no VertzQL keys present', () => {
-    const query = { status: 'active', page: 1 };
-
-    expect(resolveVertzQL(query)).toEqual({ status: 'active', page: 1 });
-  });
-
-  it('extracts select from query and encodes as q= param', () => {
-    const query = { select: { id: true, name: true } };
-    const result = resolveVertzQL(query);
-
-    expect(result).toBeDefined();
-    expect(result?.select).toBeUndefined();
-    expect(result?.q).toBeDefined();
-    expect(decodeBase64url(result?.q as string)).toEqual({
-      select: { id: true, name: true },
-    });
-  });
-
-  it('preserves other query params alongside q=', () => {
-    const query = { status: 'active', select: { id: true } };
-    const result = resolveVertzQL(query);
-
-    expect(result).toBeDefined();
-    expect(result?.status).toBe('active');
-    expect(result?.select).toBeUndefined();
-    expect(result?.q).toBeDefined();
-  });
-
-  it('extracts include from query and encodes as q= param', () => {
-    const query = { include: { posts: true } };
-    const result = resolveVertzQL(query);
-
-    expect(result).toBeDefined();
-    expect(result?.include).toBeUndefined();
-    expect(decodeBase64url(result?.q as string)).toEqual({
-      include: { posts: true },
-    });
-  });
-
-  it('combines select and include into single q= param', () => {
-    const query = {
-      select: { id: true, name: true },
-      include: { posts: true },
-    };
-    const result = resolveVertzQL(query);
-
-    expect(result).toBeDefined();
-    expect(result?.select).toBeUndefined();
-    expect(result?.include).toBeUndefined();
-    expect(decodeBase64url(result?.q as string)).toEqual({
-      select: { id: true, name: true },
-      include: { posts: true },
-    });
-  });
-
-  it('extracts where from query and encodes inside q= param', () => {
-    const query = { where: { projectId: '123' } };
-    const result = resolveVertzQL(query);
-
-    expect(result).toBeDefined();
-    expect(result?.where).toBeUndefined();
-    expect(result?.q).toBeDefined();
-    expect(decodeBase64url(result?.q as string)).toEqual({
-      where: { projectId: '123' },
-    });
-  });
-
-  it('extracts orderBy from query and encodes inside q= param', () => {
-    const query = { orderBy: { createdAt: 'desc' } };
-    const result = resolveVertzQL(query);
-
-    expect(result).toBeDefined();
-    expect(result?.orderBy).toBeUndefined();
-    expect(result?.q).toBeDefined();
-    expect(decodeBase64url(result?.q as string)).toEqual({
-      orderBy: { createdAt: 'desc' },
-    });
-  });
-
-  it('extracts limit from query and encodes inside q= param', () => {
-    const query = { limit: 10 };
-    const result = resolveVertzQL(query);
-
-    expect(result).toBeDefined();
-    expect(result?.limit).toBeUndefined();
-    expect(result?.q).toBeDefined();
-    expect(decodeBase64url(result?.q as string)).toEqual({
-      limit: 10,
-    });
-  });
-
-  it('combines all five VertzQL keys into single q= param', () => {
-    const query = {
-      select: { id: true, title: true },
-      include: { comments: true },
-      where: { status: 'active' },
-      orderBy: { createdAt: 'desc' },
-      limit: 25,
-      page: 2,
-    };
-    const result = resolveVertzQL(query);
-
-    expect(result).toBeDefined();
-    expect(result?.select).toBeUndefined();
-    expect(result?.include).toBeUndefined();
-    expect(result?.where).toBeUndefined();
-    expect(result?.orderBy).toBeUndefined();
-    expect(result?.limit).toBeUndefined();
-    expect(result?.page).toBe(2);
-    expect(decodeBase64url(result?.q as string)).toEqual({
-      select: { id: true, title: true },
-      include: { comments: true },
-      where: { status: 'active' },
-      orderBy: { createdAt: 'desc' },
-      limit: 25,
-    });
-  });
-
-  it('returns same reference when no VertzQL keys present (no-op)', () => {
-    const query = { status: 'active' };
-    const result = resolveVertzQL(query);
-
-    expect(result).toBe(query);
-  });
-
-  it('different selections produce different q= values (cache key differentiation)', () => {
-    const q1 = resolveVertzQL({ select: { id: true, name: true } });
-    const q2 = resolveVertzQL({ select: { id: true, email: true } });
-
-    expect(q1?.q).not.toBe(q2?.q);
-  });
-});
-
-describe('encodeVertzQL with top-level where/orderBy/limit (#1637)', () => {
-  it('encodes where as a top-level VertzQL key', () => {
-    const result = encodeVertzQL({ where: { projectId: '123' } });
-
-    expect(decodeBase64url(result)).toEqual({ where: { projectId: '123' } });
-  });
-
-  it('encodes orderBy as a top-level VertzQL key', () => {
-    const result = encodeVertzQL({ orderBy: { createdAt: 'desc' } });
-
-    expect(decodeBase64url(result)).toEqual({ orderBy: { createdAt: 'desc' } });
-  });
-
-  it('encodes limit as a top-level VertzQL key', () => {
-    const result = encodeVertzQL({ limit: 10 });
-
-    expect(decodeBase64url(result)).toEqual({ limit: 10 });
-  });
-
-  it('encodes all five VertzQL keys together', () => {
-    const params = {
-      select: { id: true, title: true },
-      include: { comments: true },
-      where: { status: 'active' },
-      orderBy: { createdAt: 'desc' },
-      limit: 25,
-    };
-    const result = encodeVertzQL(params);
-
-    expect(decodeBase64url(result)).toEqual(params);
-  });
-});
-
 describe('encodeVertzQL with where/orderBy/limit in include (#1130)', () => {
   it('encodes include with where, orderBy, and limit', () => {
     const result = encodeVertzQL({
@@ -282,35 +111,7 @@ describe('encodeVertzQL with where/orderBy/limit in include (#1130)', () => {
   });
 });
 
-describe('resolveVertzQL with nested include options (#1130)', () => {
-  it('extracts include with where/orderBy/limit into q= param', () => {
-    const query = {
-      include: {
-        comments: {
-          where: { status: 'published' },
-          orderBy: { createdAt: 'desc' },
-          limit: 10,
-        },
-      },
-    };
-    const result = resolveVertzQL(query);
-
-    expect(result?.include).toBeUndefined();
-    expect(result?.q).toBeDefined();
-    expect(decodeBase64url(result?.q as string)).toEqual({
-      include: {
-        comments: {
-          where: { status: 'published' },
-          orderBy: { createdAt: 'desc' },
-          limit: 10,
-        },
-      },
-    });
-  });
-});
-
 describe('encodeVertzQL round-trip with server decode logic', () => {
-  // Mirrors the server's parseVertzQL base64url decode logic
   function serverDecode(encoded: string): Record<string, unknown> {
     const b64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
     const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
@@ -341,39 +142,318 @@ describe('encodeVertzQL round-trip with server decode logic', () => {
     expect(decoded.select).toEqual({ id: true, name: true });
     expect(decoded.include).toEqual({ posts: true });
   });
+});
 
-  it('round-trips where filter (#1637)', () => {
-    const encoded = encodeVertzQL({ where: { projectId: '123' } });
-    const decoded = serverDecode(encoded);
+// ---------------------------------------------------------------------------
+// resolveVertzQL — only select/include go into q=, the rest stay as flat params
+// ---------------------------------------------------------------------------
 
-    expect(decoded.where).toEqual({ projectId: '123' });
+describe('resolveVertzQL', () => {
+  it('returns undefined when query is undefined', () => {
+    expect(resolveVertzQL(undefined)).toBeUndefined();
   });
 
-  it('round-trips orderBy (#1637)', () => {
-    const encoded = encodeVertzQL({ orderBy: { createdAt: 'desc' } });
-    const decoded = serverDecode(encoded);
+  it('passes through query as-is when no VertzQL keys present', () => {
+    const query = { status: 'active', page: 1 };
 
-    expect(decoded.orderBy).toEqual({ createdAt: 'desc' });
+    expect(resolveVertzQL(query)).toEqual({ status: 'active', page: 1 });
   });
 
-  it('round-trips limit (#1637)', () => {
-    const encoded = encodeVertzQL({ limit: 10 });
-    const decoded = serverDecode(encoded);
+  it('returns same reference when no VertzQL keys present (no-op)', () => {
+    const query = { status: 'active' };
+    const result = resolveVertzQL(query);
 
-    expect(decoded.limit).toBe(10);
+    expect(result).toBe(query);
   });
 
-  it('round-trips all five VertzQL keys (#1637)', () => {
-    const params = {
+  it('extracts select from query and encodes as q= param', () => {
+    const query = { select: { id: true, name: true } };
+    const result = resolveVertzQL(query);
+
+    expect(result).toBeDefined();
+    expect(result?.select).toBeUndefined();
+    expect(result?.q).toBeDefined();
+    expect(decodeBase64url(result?.q as string)).toEqual({
+      select: { id: true, name: true },
+    });
+  });
+
+  it('extracts include from query and encodes as q= param', () => {
+    const query = { include: { posts: true } };
+    const result = resolveVertzQL(query);
+
+    expect(result).toBeDefined();
+    expect(result?.include).toBeUndefined();
+    expect(decodeBase64url(result?.q as string)).toEqual({
+      include: { posts: true },
+    });
+  });
+
+  it('combines select and include into single q= param', () => {
+    const query = {
+      select: { id: true, name: true },
+      include: { posts: true },
+    };
+    const result = resolveVertzQL(query);
+
+    expect(result?.select).toBeUndefined();
+    expect(result?.include).toBeUndefined();
+    expect(decodeBase64url(result?.q as string)).toEqual({
+      select: { id: true, name: true },
+      include: { posts: true },
+    });
+  });
+
+  it('extracts include with nested where/orderBy/limit into q= param', () => {
+    const query = {
+      include: {
+        comments: {
+          where: { status: 'published' },
+          orderBy: { createdAt: 'desc' },
+          limit: 10,
+        },
+      },
+    };
+    const result = resolveVertzQL(query);
+
+    expect(result?.include).toBeUndefined();
+    expect(result?.q).toBeDefined();
+    expect(decodeBase64url(result?.q as string)).toEqual({
+      include: {
+        comments: {
+          where: { status: 'published' },
+          orderBy: { createdAt: 'desc' },
+          limit: 10,
+        },
+      },
+    });
+  });
+
+  it('preserves other query params alongside q=', () => {
+    const query = { status: 'active', select: { id: true } };
+    const result = resolveVertzQL(query);
+
+    expect(result?.status).toBe('active');
+    expect(result?.select).toBeUndefined();
+    expect(result?.q).toBeDefined();
+  });
+
+  it('different selections produce different q= values (cache key differentiation)', () => {
+    const q1 = resolveVertzQL({ select: { id: true, name: true } });
+    const q2 = resolveVertzQL({ select: { id: true, email: true } });
+
+    expect(q1?.q).not.toBe(q2?.q);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveVertzQL — where flattened to bracket notation (NOT encoded in q)
+// ---------------------------------------------------------------------------
+
+describe('resolveVertzQL where flattening (#1666)', () => {
+  it('flattens simple where equality to bracket notation', () => {
+    const result = resolveVertzQL({ where: { projectId: '123' } });
+
+    expect(result?.q).toBeUndefined();
+    expect(result?.where).toBeUndefined();
+    expect(result?.['where[projectId]']).toBe('123');
+  });
+
+  it('flattens multiple where fields to separate bracket keys', () => {
+    const result = resolveVertzQL({ where: { status: 'active', projectId: '456' } });
+
+    expect(result?.q).toBeUndefined();
+    expect(result?.['where[status]']).toBe('active');
+    expect(result?.['where[projectId]']).toBe('456');
+  });
+
+  it('flattens where operator filters to nested bracket notation', () => {
+    const result = resolveVertzQL({ where: { age: { gt: 18 } } });
+
+    expect(result?.q).toBeUndefined();
+    expect(result?.['where[age][gt]']).toBe('18');
+  });
+
+  it('flattens where with multiple operators on same field', () => {
+    const result = resolveVertzQL({
+      where: { createdAt: { gte: '2024-01-01', lte: '2024-12-31' } },
+    });
+
+    expect(result?.['where[createdAt][gte]']).toBe('2024-01-01');
+    expect(result?.['where[createdAt][lte]']).toBe('2024-12-31');
+  });
+
+  it('flattens where with mix of equality and operator filters', () => {
+    const result = resolveVertzQL({
+      where: { status: 'active', priority: { gte: 3 } },
+    });
+
+    expect(result?.['where[status]']).toBe('active');
+    expect(result?.['where[priority][gte]']).toBe('3');
+  });
+
+  it('flattens where with numeric equality value', () => {
+    const result = resolveVertzQL({ where: { count: 42 } });
+
+    expect(result?.['where[count]']).toBe('42');
+  });
+
+  it('skips where fields with null values', () => {
+    const result = resolveVertzQL({ where: { deletedAt: null, status: 'active' } });
+
+    expect(result?.['where[deletedAt]']).toBeUndefined();
+    expect(result?.['where[status]']).toBe('active');
+  });
+
+  it('skips where fields with undefined values', () => {
+    const result = resolveVertzQL({ where: { name: undefined, status: 'active' } });
+
+    expect(result?.['where[name]']).toBeUndefined();
+    expect(result?.['where[status]']).toBe('active');
+  });
+
+  it('flattens where alongside q= for select/include', () => {
+    const result = resolveVertzQL({
+      select: { id: true, title: true },
+      where: { projectId: '123' },
+    });
+
+    expect(result?.q).toBeDefined();
+    expect(decodeBase64url(result?.q as string)).toEqual({
+      select: { id: true, title: true },
+    });
+    expect(result?.['where[projectId]']).toBe('123');
+    expect(result?.where).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveVertzQL — orderBy flattened to colon format (NOT encoded in q)
+// ---------------------------------------------------------------------------
+
+describe('resolveVertzQL orderBy flattening (#1666)', () => {
+  it('flattens single orderBy to colon format', () => {
+    const result = resolveVertzQL({ orderBy: { createdAt: 'desc' } });
+
+    expect(result?.q).toBeUndefined();
+    expect(result?.orderBy).toBe('createdAt:desc');
+  });
+
+  it('flattens orderBy asc direction', () => {
+    const result = resolveVertzQL({ orderBy: { name: 'asc' } });
+
+    expect(result?.orderBy).toBe('name:asc');
+  });
+
+  it('flattens multiple orderBy fields as comma-separated', () => {
+    const result = resolveVertzQL({ orderBy: { createdAt: 'desc', name: 'asc' } });
+
+    expect(result?.orderBy).toBe('createdAt:desc,name:asc');
+  });
+
+  it('flattens orderBy alongside q= for select/include', () => {
+    const result = resolveVertzQL({
+      include: { comments: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    expect(result?.q).toBeDefined();
+    expect(decodeBase64url(result?.q as string)).toEqual({
+      include: { comments: true },
+    });
+    expect(result?.orderBy).toBe('createdAt:desc');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveVertzQL — limit stays as flat number (NOT encoded in q)
+// ---------------------------------------------------------------------------
+
+describe('resolveVertzQL limit flattening (#1666)', () => {
+  it('keeps limit as a flat number param', () => {
+    const result = resolveVertzQL({ limit: 10 });
+
+    expect(result?.q).toBeUndefined();
+    expect(result?.limit).toBe(10);
+  });
+
+  it('keeps limit alongside q= for select/include', () => {
+    const result = resolveVertzQL({
+      select: { id: true },
+      limit: 25,
+    });
+
+    expect(result?.q).toBeDefined();
+    expect(decodeBase64url(result?.q as string)).toEqual({
+      select: { id: true },
+    });
+    expect(result?.limit).toBe(25);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveVertzQL — combined scenarios
+// ---------------------------------------------------------------------------
+
+describe('resolveVertzQL combined flat params (#1666)', () => {
+  it('keeps where/orderBy/limit as flat params with select/include in q=', () => {
+    const query = {
       select: { id: true, title: true },
       include: { comments: true },
-      where: { status: 'active', projectId: '456' },
+      where: { status: 'active' },
+      orderBy: { createdAt: 'desc' },
+      limit: 25,
+      page: 2,
+    };
+    const result = resolveVertzQL(query);
+
+    // select and include are in q=
+    expect(result?.q).toBeDefined();
+    expect(decodeBase64url(result?.q as string)).toEqual({
+      select: { id: true, title: true },
+      include: { comments: true },
+    });
+
+    // where is flattened to bracket notation
+    expect(result?.['where[status]']).toBe('active');
+
+    // orderBy is flattened to colon format
+    expect(result?.orderBy).toBe('createdAt:desc');
+
+    // limit stays as number
+    expect(result?.limit).toBe(25);
+
+    // non-VertzQL params pass through
+    expect(result?.page).toBe(2);
+
+    // original keys removed
+    expect(result?.select).toBeUndefined();
+    expect(result?.include).toBeUndefined();
+    expect(result?.where).toBeUndefined();
+  });
+
+  it('works with only where/orderBy/limit (no q= generated)', () => {
+    const result = resolveVertzQL({
+      where: { projectId: '123' },
       orderBy: { createdAt: 'desc' },
       limit: 50,
-    };
-    const encoded = encodeVertzQL(params);
-    const decoded = serverDecode(encoded);
+    });
 
-    expect(decoded).toEqual(params);
+    expect(result?.q).toBeUndefined();
+    expect(result?.['where[projectId]']).toBe('123');
+    expect(result?.orderBy).toBe('createdAt:desc');
+    expect(result?.limit).toBe(50);
+  });
+
+  it('preserves non-VertzQL params alongside flattened params', () => {
+    const result = resolveVertzQL({
+      where: { status: 'active' },
+      page: 2,
+      cursor: 'abc',
+    });
+
+    expect(result?.['where[status]']).toBe('active');
+    expect(result?.page).toBe(2);
+    expect(result?.cursor).toBe('abc');
   });
 });
