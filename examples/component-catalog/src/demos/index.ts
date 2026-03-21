@@ -263,10 +263,10 @@ export const componentRegistry: ComponentEntry[] = [
     demo: DialogDemo,
   },
   {
-    name: 'AlertDialog',
+    name: 'Confirm Dialog',
     slug: 'alert-dialog',
     category: 'overlay',
-    description: 'Confirmation dialog requiring action.',
+    description: 'Confirmation dialog via DialogStack.',
     demo: AlertDialogDemo,
   },
   {

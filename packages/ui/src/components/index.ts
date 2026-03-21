@@ -208,11 +208,6 @@ export const Table: ThemeComponentMap['Table'] = /* #__PURE__ */ createCallableS
 // Compound primitives (callable + sub-component getters)
 // ---------------------------------------------------------------------------
 
-export const AlertDialog: ThemeComponentMap['AlertDialog'] = /* #__PURE__ */ createCompoundProxy(
-  'AlertDialog',
-  ['Trigger', 'Content', 'Header', 'Title', 'Description', 'Footer', 'Cancel', 'Action'],
-) as ThemeComponentMap['AlertDialog'];
-
 export const Dialog: ThemeComponentMap['Dialog'] = /* #__PURE__ */ createPrimitiveSuiteProxy(
   'Dialog',
   ['Header', 'Title', 'Description', 'Footer', 'Body', 'Close', 'Cancel'],

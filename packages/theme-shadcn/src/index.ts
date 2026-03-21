@@ -41,7 +41,6 @@ import type {
   StyledPrimitive,
 } from '@vertz/ui-primitives';
 import type { ThemedAccordionComponent } from './components/primitives/accordion';
-import type { ThemedAlertDialogComponent } from './components/primitives/alert-dialog';
 import type { ThemedCalendarComponent } from './components/primitives/calendar';
 import type { ThemedCarouselComponent } from './components/primitives/carousel';
 import type { ThemedCheckboxComponent } from './components/primitives/checkbox';
@@ -99,7 +98,6 @@ declare module '@vertz/ui/components' {
     Table: StyledPrimitive<typeof ComposedTable>;
 
     // Compound primitives (callable + sub-components)
-    AlertDialog: ThemedAlertDialogComponent;
     Dialog: ThemedDialogComponent;
     DropdownMenu: ThemedDropdownMenuComponent;
     Select: ThemedSelectComponent;

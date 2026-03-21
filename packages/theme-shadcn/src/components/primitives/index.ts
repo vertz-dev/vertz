@@ -5,13 +5,6 @@ export type {
   ThemedAccordionComponent,
 } from './accordion';
 export { createThemedAccordion } from './accordion';
-export type {
-  AlertDialogButtonSlotProps,
-  AlertDialogRootProps,
-  AlertDialogSlotProps,
-  ThemedAlertDialogComponent,
-} from './alert-dialog';
-export { createThemedAlertDialog } from './alert-dialog';
 export { createThemedCalendar } from './calendar';
 export type { CarouselRootProps, CarouselSlotProps, ThemedCarouselComponent } from './carousel';
 export { createThemedCarousel } from './carousel';

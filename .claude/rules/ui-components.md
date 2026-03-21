@@ -153,7 +153,7 @@ export const themeStyles = config.styles;
 Import components from `@vertz/ui/components` — the centralized entrypoint:
 
 ```tsx
-import { Button, Input, AlertDialog } from '@vertz/ui/components';
+import { Button, Input, Dialog } from '@vertz/ui/components';
 
 // RIGHT — use theme components
 <Button intent="primary" size="md">Submit</Button>
@@ -168,7 +168,7 @@ import { Button, Input, AlertDialog } from '@vertz/ui/components';
 
 **Direct**: `Button`, `Input`, `Label`, `Badge`, `Textarea`, `Card` suite, `Table` suite, `Avatar` suite, `FormGroup` suite
 
-**Primitives**: `AlertDialog`, `Dialog`, `Tabs`, `Select`, `DropdownMenu`, `Popover`, `Sheet`, `Tooltip`, `Accordion` — all with sub-components (`.Trigger`, `.Content`, `.Footer`, etc.)
+**Primitives**: `Dialog`, `Tabs`, `Select`, `DropdownMenu`, `Popover`, `Sheet`, `Tooltip`, `Accordion` — all with sub-components (`.Title`, `.Content`, `.Footer`, etc.)
 
 ### When to Use `css()` Instead
 
@@ -176,35 +176,50 @@ Use `css()` for layout-specific styles that don't correspond to a theme componen
 
 ## Dialogs
 
-### Composable `<AlertDialog>` for inline confirmations
+All dialogs use `useDialogStack()` — the single dialog pattern. DialogStack provides
+imperative, promise-based dialogs with automatic overlay, focus trapping, and stacking
+via native `<dialog>`.
 
-```tsx
-import { Button, AlertDialog } from '@vertz/ui/components';
-
-<AlertDialog>
-  <AlertDialog.Trigger>
-    <Button intent="danger" size="sm">Delete</Button>
-  </AlertDialog.Trigger>
-  <AlertDialog.Content>
-    <AlertDialog.Title>Delete task?</AlertDialog.Title>
-    <AlertDialog.Description>This action cannot be undone.</AlertDialog.Description>
-    <AlertDialog.Footer>
-      <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-      <AlertDialog.Action onClick={handleDelete}>Delete</AlertDialog.Action>
-    </AlertDialog.Footer>
-  </AlertDialog.Content>
-</AlertDialog>
-```
-
-### `useDialogStack()` for imperative/stacked dialogs
-
-Use when you need promise-based results, multiple stacked dialogs, or dialogs opened from event handlers:
+### `dialogs.confirm()` for confirmations
 
 ```tsx
 const dialogs = useDialogStack();
 
-const confirmed = await dialogs.open(ConfirmDialog, { message: 'Delete?' });
+const confirmed = await dialogs.confirm({
+  title: 'Delete task?',
+  description: 'This action cannot be undone.',
+  confirm: 'Delete',
+  cancel: 'Cancel',
+  intent: 'danger',
+});
 if (confirmed) handleDelete();
+```
+
+### `useDialogStack()` for custom dialogs
+
+Use when you need custom dialog content with promise-based results:
+
+```tsx
+import { useDialogStack, useDialog } from '@vertz/ui';
+import { Dialog } from '@vertz/ui/components';
+
+function EditDialog({ task, dialog }: { task: Task; dialog: DialogHandle<Task> }) {
+  return (
+    <>
+      <Dialog.Header>
+        <Dialog.Title>Edit Task</Dialog.Title>
+      </Dialog.Header>
+      <Dialog.Body>...</Dialog.Body>
+      <Dialog.Footer>
+        <Dialog.Cancel>Cancel</Dialog.Cancel>
+        <Button onClick={() => dialog.close(updatedTask)}>Save</Button>
+      </Dialog.Footer>
+    </>
+  );
+}
+
+const result = await dialogs.open(EditDialog, { task });
+if (result.ok) saveTask(result.data);
 ```
 
 ## Styling

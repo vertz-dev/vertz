@@ -1,4 +1,5 @@
 export type {
+  ConfirmOptions,
   DialogComponent,
   DialogHandle,
   DialogOpenOptions,

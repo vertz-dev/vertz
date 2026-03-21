@@ -1,53 +1,69 @@
-import { AlertDialog, Button } from '@vertz/ui/components';
+import { useDialogStack } from '@vertz/ui';
+import { Button } from '@vertz/ui/components';
 import { ComponentPreview } from '../components/component-preview';
 import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
-import { alertDialogProps } from '../props/alert-dialog-props';
+import { confirmProps } from '../props/alert-dialog-props';
+
+function ConfirmExample() {
+  const dialogs = useDialogStack();
+
+  async function handleDelete() {
+    const confirmed = await dialogs.confirm({
+      title: 'Are you absolutely sure?',
+      description:
+        'This action cannot be undone. This will permanently delete your account and remove your data from our servers.',
+      confirm: 'Continue',
+      cancel: 'Cancel',
+      intent: 'danger',
+    });
+    if (confirmed) {
+      // handle delete
+    }
+  }
+
+  return (
+    <Button intent="destructive" onClick={handleDelete}>
+      Delete Account
+    </Button>
+  );
+}
 
 export function Content() {
   return (
     <>
       <ComponentPreview>
-        <AlertDialog>
-          <AlertDialog.Trigger>
-            <Button intent="destructive">Delete Account</Button>
-          </AlertDialog.Trigger>
-          <AlertDialog.Content>
-            <AlertDialog.Title>Are you absolutely sure?</AlertDialog.Title>
-            <AlertDialog.Description>
-              This action cannot be undone. This will permanently delete your account and remove
-              your data from our servers.
-            </AlertDialog.Description>
-            <AlertDialog.Footer>
-              <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-              <AlertDialog.Action>Continue</AlertDialog.Action>
-            </AlertDialog.Footer>
-          </AlertDialog.Content>
-        </AlertDialog>
+        <ConfirmExample />
       </ComponentPreview>
       <DocH2>Usage</DocH2>
       <CodeFence>
         <code>
-          {`import { AlertDialog, Button } from 'vertz/components';
+          {`import { useDialogStack } from '@vertz/ui';
+import { Button } from '@vertz/ui/components';
 
-<AlertDialog>
-  <AlertDialog.Trigger>
-    <Button intent="destructive">Delete</Button>
-  </AlertDialog.Trigger>
-  <AlertDialog.Content>
-    <AlertDialog.Title>Are you sure?</AlertDialog.Title>
-    <AlertDialog.Description>This cannot be undone.</AlertDialog.Description>
-    <AlertDialog.Footer>
-      <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-      <AlertDialog.Action onClick={handleDelete}>Delete</AlertDialog.Action>
-    </AlertDialog.Footer>
-  </AlertDialog.Content>
-</AlertDialog>`}
+function DeleteButton() {
+  const dialogs = useDialogStack();
+
+  async function handleDelete() {
+    const confirmed = await dialogs.confirm({
+      title: 'Are you sure?',
+      description: 'This cannot be undone.',
+      confirm: 'Delete',
+      cancel: 'Cancel',
+      intent: 'danger',
+    });
+    if (confirmed) {
+      // perform delete
+    }
+  }
+
+  return <Button intent="destructive" onClick={handleDelete}>Delete</Button>;
+}`}
         </code>
       </CodeFence>
 
       <DocH2>API Reference</DocH2>
-      <PropsTable props={alertDialogProps} />
+      <PropsTable props={confirmProps} />
     </>
   );
 }

@@ -1,6 +1,5 @@
 export { createAccordionStyles } from './accordion';
 export { createAlertStyles } from './alert';
-export { createAlertDialogStyles } from './alert-dialog';
 export { createAvatarStyles } from './avatar';
 export { badgeConfig, createBadge } from './badge';
 export { createBreadcrumbStyles } from './breadcrumb';

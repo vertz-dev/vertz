@@ -336,29 +336,32 @@ import { Dialog } from '@vertz/ui/components';
 </Dialog>
 ```
 
-### AlertDialog
+### Confirm Dialog
 
-Confirmation dialog requiring action.
+Quick confirmation via `useDialogStack().confirm()`:
 
 ```tsx
+import { useDialogStack } from '@vertz/ui';
 import { Button } from '@vertz/ui/components';
-import { AlertDialog } from '@vertz/ui/components';
 
-<AlertDialog>
-  <AlertDialog.Trigger>
-    <Button intent="destructive" size="md">Delete Account</Button>
-  </AlertDialog.Trigger>
-  <AlertDialog.Content>
-    <AlertDialog.Title>Are you absolutely sure?</AlertDialog.Title>
-    <AlertDialog.Description>
-      This action cannot be undone.
-    </AlertDialog.Description>
-    <AlertDialog.Footer>
-      <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-      <AlertDialog.Action>Continue</AlertDialog.Action>
-    </AlertDialog.Footer>
-  </AlertDialog.Content>
-</AlertDialog>
+function DeleteButton() {
+  const dialogs = useDialogStack();
+
+  async function handleDelete() {
+    const confirmed = await dialogs.confirm({
+      title: 'Are you absolutely sure?',
+      description: 'This action cannot be undone.',
+      confirm: 'Continue',
+      cancel: 'Cancel',
+      intent: 'danger',
+    });
+    if (confirmed) {
+      // perform delete
+    }
+  }
+
+  return <Button intent="destructive" size="md" onClick={handleDelete}>Delete Account</Button>;
+}
 ```
 
 ### Sheet

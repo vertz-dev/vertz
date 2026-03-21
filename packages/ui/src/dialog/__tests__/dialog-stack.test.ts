@@ -842,3 +842,111 @@ describe('Feature: DialogStackProvider', () => {
     });
   });
 });
+
+describe('Feature: dialogs.confirm()', () => {
+  let container: HTMLDivElement;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+  });
+
+  afterEach(() => {
+    document.body.removeChild(container);
+  });
+
+  describe('Given a dialog stack', () => {
+    describe('When confirm() is called and user clicks the confirm button', () => {
+      it('Then returns true', async () => {
+        const stack = createDialogStack(container);
+        const resultPromise = stack.confirm({ title: 'Delete?' });
+
+        // Find the confirm button in the rendered dialog
+        const confirmBtn = container.querySelector(
+          '[data-part="confirm-action"]',
+        ) as HTMLButtonElement;
+        expect(confirmBtn).toBeTruthy();
+        confirmBtn.click();
+
+        const result = await resultPromise;
+        expect(result).toBe(true);
+      });
+    });
+
+    describe('When confirm() is called and user clicks the cancel button', () => {
+      it('Then returns false', async () => {
+        const stack = createDialogStack(container);
+        const resultPromise = stack.confirm({ title: 'Delete?' });
+
+        const cancelBtn = container.querySelector(
+          '[data-part="confirm-cancel"]',
+        ) as HTMLButtonElement;
+        expect(cancelBtn).toBeTruthy();
+        cancelBtn.click();
+
+        const result = await resultPromise;
+        expect(result).toBe(false);
+      });
+    });
+
+    describe('When confirm() is called with custom labels', () => {
+      it('Then uses the provided confirm and cancel labels', () => {
+        const stack = createDialogStack(container);
+        stack.confirm({ title: 'Sure?', confirm: 'Yes', cancel: 'No' });
+
+        const confirmBtn = container.querySelector(
+          '[data-part="confirm-action"]',
+        ) as HTMLButtonElement;
+        const cancelBtn = container.querySelector(
+          '[data-part="confirm-cancel"]',
+        ) as HTMLButtonElement;
+        expect(confirmBtn.textContent).toBe('Yes');
+        expect(cancelBtn.textContent).toBe('No');
+      });
+    });
+
+    describe('When confirm() is called with a title and description', () => {
+      it('Then renders title and description elements', () => {
+        const stack = createDialogStack(container);
+        stack.confirm({ title: 'Delete?', description: 'This cannot be undone.' });
+
+        const title = container.querySelector('[data-part="title"]') as HTMLElement;
+        const desc = container.querySelector('[data-part="description"]') as HTMLElement;
+        expect(title).toBeTruthy();
+        expect(title.textContent).toBe('Delete?');
+        expect(desc).toBeTruthy();
+        expect(desc.textContent).toBe('This cannot be undone.');
+      });
+    });
+
+    describe('When confirm() is called with intent "danger"', () => {
+      it('Then confirm button has data-intent="danger"', () => {
+        const stack = createDialogStack(container);
+        stack.confirm({ title: 'Delete?', intent: 'danger' });
+
+        const confirmBtn = container.querySelector(
+          '[data-part="confirm-action"]',
+        ) as HTMLButtonElement;
+        expect(confirmBtn.getAttribute('data-intent')).toBe('danger');
+      });
+    });
+
+    describe('When confirm() is called', () => {
+      it('Then the dialog is non-dismissible by default', () => {
+        const stack = createDialogStack(container);
+        stack.confirm({ title: 'Sure?' });
+
+        // The dialog should be open
+        const dialog = container.querySelector('dialog') as HTMLDialogElement;
+        expect(dialog).toBeTruthy();
+
+        // Dispatch cancel event (simulates Escape) — should NOT dismiss
+        const cancelEvent = new Event('cancel', { cancelable: true });
+        dialog.dispatchEvent(cancelEvent);
+
+        // Dialog should still be there
+        expect(container.querySelector('dialog')).toBeTruthy();
+      });
+    });
+  });
+});

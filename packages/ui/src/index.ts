@@ -78,6 +78,7 @@ export {
 } from './css';
 // Dialog stack
 export type {
+  ConfirmOptions,
   DialogComponent,
   DialogHandle,
   DialogOpenOptions,

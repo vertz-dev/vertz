@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'bun:test';
 import { createAccordionStyles } from '../styles/accordion';
-import { createAlertDialogStyles } from '../styles/alert-dialog';
 import { createCheckboxStyles } from '../styles/checkbox';
 import { createDialogStyles } from '../styles/dialog';
 import { createPopoverStyles } from '../styles/popover';
@@ -34,57 +33,6 @@ describe('popover', () => {
 
   it('CSS constrains content width to fit-content', () => {
     expect(popover.css).toContain('fit-content');
-  });
-});
-
-describe('alert-dialog', () => {
-  const alertDialog = createAlertDialogStyles();
-
-  it('has overlay, panel, title, description, footer, cancel, and action blocks', () => {
-    expect(typeof alertDialog.overlay).toBe('string');
-    expect(typeof alertDialog.panel).toBe('string');
-    expect(typeof alertDialog.title).toBe('string');
-    expect(typeof alertDialog.description).toBe('string');
-    expect(typeof alertDialog.footer).toBe('string');
-    expect(typeof alertDialog.cancel).toBe('string');
-    expect(typeof alertDialog.action).toBe('string');
-  });
-
-  it('all class names are non-empty', () => {
-    expect(alertDialog.overlay.length).toBeGreaterThan(0);
-    expect(alertDialog.panel.length).toBeGreaterThan(0);
-    expect(alertDialog.title.length).toBeGreaterThan(0);
-    expect(alertDialog.description.length).toBeGreaterThan(0);
-    expect(alertDialog.footer.length).toBeGreaterThan(0);
-    expect(alertDialog.cancel.length).toBeGreaterThan(0);
-    expect(alertDialog.action.length).toBeGreaterThan(0);
-  });
-
-  it('panel CSS does not hide elements with data-state="open" (div role="dialog" support)', () => {
-    expect(alertDialog.css).toContain(':not([open]):not([data-state="open"])');
-  });
-
-  it('panel CSS sets explicit text color for top-layer rendering', () => {
-    // <dialog> elements in the top-layer may not inherit body color.
-    // The panel must set text:foreground explicitly (like Sheet/Drawer panels do).
-    const panelClass = alertDialog.panel;
-    const panelRules = alertDialog.css.split('}').filter((rule) => rule.includes(panelClass));
-    const panelCSS = panelRules.join('}');
-    expect(panelCSS).toMatch(/\bcolor:\s*var\(--color-foreground\)/);
-  });
-
-  it('title CSS sets explicit foreground color', () => {
-    const titleClass = alertDialog.title;
-    const titleRules = alertDialog.css.split('}').filter((rule) => rule.includes(titleClass));
-    const titleCSS = titleRules.join('}');
-    expect(titleCSS).toMatch(/\bcolor:\s*var\(--color-foreground\)/);
-  });
-
-  it('cancel button CSS sets explicit foreground color', () => {
-    const cancelClass = alertDialog.cancel;
-    const cancelRules = alertDialog.css.split('}').filter((rule) => rule.includes(cancelClass));
-    const cancelCSS = cancelRules.join('}');
-    expect(cancelCSS).toMatch(/\bcolor:\s*var\(--color-foreground\)/);
   });
 });
 

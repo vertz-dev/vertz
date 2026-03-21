@@ -52,6 +52,9 @@ export function useDialogStack(): DialogStack {
       return stack.openWithScope(component, props, capturedScope, options);
     },
     openWithScope: stack.openWithScope,
+    confirm(opts: ConfirmOptions): Promise<boolean> {
+      return stack.confirm(opts);
+    },
     get size() {
       return stack.size;
     },
@@ -78,6 +81,15 @@ export interface DialogOpenOptions {
   dismissible?: boolean;
 }
 
+export interface ConfirmOptions {
+  title: string;
+  description?: string;
+  confirm?: string;
+  cancel?: string;
+  intent?: 'primary' | 'danger';
+  dismissible?: boolean;
+}
+
 export interface DialogStack {
   open<TResult, TProps>(
     component: DialogComponent<TResult, TProps>,
@@ -92,6 +104,8 @@ export interface DialogStack {
     scope: ContextScope | null,
     options?: DialogOpenOptions,
   ): Promise<DialogResult<TResult>>;
+
+  confirm(options: ConfirmOptions): Promise<boolean>;
 
   readonly size: number;
 
@@ -133,6 +147,56 @@ export function DialogStackProvider({ children }: { children?: unknown }): HTMLE
       return frag;
     },
   });
+}
+
+// ── Built-in confirm component (imperative DOM — no compiler) ──
+
+function ConfirmDialogComponent({
+  title,
+  description,
+  confirm: confirmLabel = 'Confirm',
+  cancel: cancelLabel = 'Cancel',
+  intent = 'primary',
+  dialog,
+}: ConfirmOptions & { dialog: DialogHandle<boolean> }): Node {
+  const frag = document.createDocumentFragment();
+
+  // Title
+  const titleEl = document.createElement('h2');
+  titleEl.setAttribute('data-part', 'title');
+  titleEl.textContent = title;
+  frag.appendChild(titleEl);
+
+  // Description (optional)
+  if (description) {
+    const descEl = document.createElement('p');
+    descEl.setAttribute('data-part', 'description');
+    descEl.textContent = description;
+    frag.appendChild(descEl);
+  }
+
+  // Footer
+  const footer = document.createElement('div');
+  footer.setAttribute('data-part', 'footer');
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.setAttribute('type', 'button');
+  cancelBtn.setAttribute('data-part', 'confirm-cancel');
+  cancelBtn.textContent = cancelLabel;
+  cancelBtn.addEventListener('click', () => dialog.close(false));
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.setAttribute('type', 'button');
+  confirmBtn.setAttribute('data-part', 'confirm-action');
+  confirmBtn.setAttribute('data-intent', intent);
+  confirmBtn.textContent = confirmLabel;
+  confirmBtn.addEventListener('click', () => dialog.close(true));
+
+  footer.appendChild(cancelBtn);
+  footer.appendChild(confirmBtn);
+  frag.appendChild(footer);
+
+  return frag;
 }
 
 // ── Implementation ──
@@ -293,6 +357,12 @@ export function createDialogStack(container: HTMLElement): DialogStack {
       options?: DialogOpenOptions,
     ): Promise<DialogResult<TResult>> {
       return open(component, props, scope, options);
+    },
+    async confirm(opts: ConfirmOptions): Promise<boolean> {
+      const result = await open<boolean, ConfirmOptions>(ConfirmDialogComponent, opts, undefined, {
+        dismissible: opts.dismissible ?? false,
+      });
+      return result.ok ? result.data : false;
     },
     get size() {
       return entries.length;
