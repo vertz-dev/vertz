@@ -50,6 +50,7 @@ The returned object has reactive properties that auto-update in the DOM — the 
 | `loading` | `boolean` | `true` during the initial fetch |
 | `revalidating` | `boolean` | `true` during background refetch (stale-while-revalidate) |
 | `error` | `E \| undefined` | Error from the last failed fetch |
+| `idle` | `boolean` | `true` when the query has never fetched (e.g. thunk returned `null`) |
 | `refetch()` | `() => void` | Re-execute the query (shows loading state) |
 | `revalidate()` | `() => void` | Background refetch (keeps current data visible) |
 | `dispose()` | `() => void` | Cancel the query and clean up subscriptions |
@@ -66,7 +67,6 @@ The returned object has reactive properties that auto-update in the DOM — the 
 |--------|------|---------|-------------|
 | `key` | `string` | — | Cache key (auto-inferred from SDK descriptors) |
 | `initialData` | `T` | — | Initial data to use before the first fetch completes |
-| `enabled` | `boolean` | `true` | When `false`, the query doesn't execute |
 | `debounce` | `number` | — | Debounce interval in ms before executing |
 | `cache` | `CacheStore<T>` | — | Custom cache store |
 | `ssrTimeout` | `number` | — | Max time to wait for the query during SSR (ms) |
@@ -114,7 +114,6 @@ const tasks = query(api.tasks.list(), { ssrTimeout: 500 });
 interface QueryOptions<T> {
   initialData?: T;
   debounce?: number;
-  enabled?: boolean;
   key?: string;
   cache?: CacheStore<T>;
   ssrTimeout?: number;
@@ -126,6 +125,7 @@ interface QueryResult<T, E = unknown> {
   readonly loading: boolean;
   readonly revalidating: boolean;
   readonly error: E | undefined;
+  readonly idle: boolean;
   refetch: () => void;
   revalidate: () => void;
   dispose: () => void;

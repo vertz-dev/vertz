@@ -40,7 +40,7 @@ const data = query(() => fetch('/api/data').then(r => r.json()), {
 
 ## Reactive properties
 
-A query result exposes four reactive properties:
+A query result exposes five reactive properties:
 
 | Property | Type | Description |
 |----------|------|-------------|
@@ -48,6 +48,7 @@ A query result exposes four reactive properties:
 | `loading` | `boolean` | `true` only on initial load (not during revalidation) |
 | `revalidating` | `boolean` | `true` when refetching with existing data |
 | `error` | `Error \| undefined` | The error from the last failed fetch |
+| `idle` | `boolean` | `true` when the query has never fetched (thunk returned `null`) |
 
 These are reactive — use them directly in JSX and event handlers:
 
@@ -135,6 +136,54 @@ const status = query(api.jobs.status(jobId), {
 
 Polling automatically pauses when the browser tab is hidden and resumes when visible.
 
+## Conditional queries
+
+Since `query()` is not a hook, you can call it conditionally. But when you need a query that starts idle and fetches later based on a reactive condition, return `null` from the thunk to skip fetching:
+
+```tsx
+let selectedTaskId: string | null = null;
+
+const task = query(() => {
+  if (!selectedTaskId) return null;
+  return api.tasks.get(selectedTaskId);
+});
+```
+
+When the thunk returns `null`, the query stays idle — `loading` is `false`, `data` is `undefined`, and `idle` is `true`. As soon as the reactive dependency changes and the thunk returns a real value, the query fetches automatically:
+
+```tsx
+// Before selection: task.idle === true, task.loading === false
+selectedTaskId = 'task-123';
+// After: task.idle === false, task.loading === true, then task.data is populated
+```
+
+The `idle` property distinguishes "hasn't fetched yet" from "fetched but got no results" — useful for showing different UI states:
+
+```tsx
+{task.idle && <div>Select a task to view details</div>}
+{task.loading && <div>Loading...</div>}
+{task.data && <TaskDetail task={task.data} />}
+```
+
+### Dependent query chains
+
+Use null-return queries to chain dependent fetches — a query that depends on another query's result:
+
+```tsx
+const project = query(api.projects.get(projectId));
+
+const owner = query(() => {
+  if (!project.data) return null;
+  return api.users.get(project.data.ownerId);
+});
+
+// owner stays idle until project.data is available, then fetches automatically
+```
+
+<Note>
+`idle` is a one-way flag — once the query fetches for the first time, `idle` becomes `false` and never returns to `true`, even if the thunk returns `null` again later. This prevents UI flicker when conditions change temporarily.
+</Note>
+
 ## Options
 
 ```tsx
@@ -144,9 +193,6 @@ const tasks = query(api.tasks.list(), {
 
   // Debounce re-fetches when dependencies change
   debounce: 300,
-
-  // Disable fetching until a condition is met
-  enabled: !!selectedId,
 
   // Poll at a fixed interval
   refetchInterval: 5000,
