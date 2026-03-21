@@ -29,6 +29,7 @@ import { handleDevImageProxy } from './dev-image-proxy';
 import { DiagnosticsCollector } from './diagnostics-collector';
 import { installFetchProxy, runWithScopedFetch } from './fetch-scope';
 import { extractFontMetrics } from './font-metrics';
+import { createReadyGate } from './ready-gate';
 import { createSourceMapResolver, readLineText } from './source-map-resolver';
 import { createAccessSetScript } from './ssr-access-set';
 import type { SSRModule } from './ssr-render';
@@ -1286,6 +1287,19 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     let bundledScriptUrl: string | null = null;
     let hmrBootstrapScript: string | null = null;
 
+    // Ready gate: defers WebSocket 'connected' messages until discoverHMRAssets()
+    // completes. Re-declared per start() call so each restart gets a fresh gate.
+    // The gate is one-shot — subsequent discoverHMRAssets() calls (file-change-
+    // triggered) do NOT re-gate because readyGate stays open.
+    // Timeout: if discovery hangs (e.g., self-fetch deadlock), unblock clients
+    // after 5s so they degrade gracefully instead of waiting forever.
+    const readyGate = createReadyGate({
+      timeoutMs: 5000,
+      onTimeoutWarning: () => {
+        console.warn('[Server] HMR asset discovery timed out — unblocking clients');
+      },
+    });
+
     // Build routes object conditionally (Bun doesn't accept undefined route values).
     // biome-ignore lint/suspicious/noExplicitAny: Bun routes are dynamically composed from user config
     const routes: Record<string, any> = {
@@ -1631,15 +1645,19 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
           wsClients.add(ws);
           diagnostics.recordWebSocketChange(wsClients.size);
           logger.log('ws', 'client-connected', { total: wsClients.size });
-          ws.sendText(JSON.stringify({ type: 'connected' }));
-          if (currentError) {
-            ws.sendText(
-              JSON.stringify({
-                type: 'error',
-                category: currentError.category,
-                errors: currentError.errors,
-              }),
-            );
+          // Gate defers 'connected' until discoverHMRAssets() completes
+          // so bundledScriptUrl is set before clients reload the page.
+          if (!readyGate.onOpen(ws)) {
+            ws.sendText(JSON.stringify({ type: 'connected' }));
+            if (currentError) {
+              ws.sendText(
+                JSON.stringify({
+                  type: 'error',
+                  category: currentError.category,
+                  errors: currentError.errors,
+                }),
+              );
+            }
           }
         },
         message(ws, msg) {
@@ -1748,6 +1766,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
         },
         close(ws) {
           wsClients.delete(ws);
+          readyGate.onClose(ws);
           diagnostics.recordWebSocketChange(wsClients.size);
         },
       },
@@ -1762,8 +1781,16 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
       console.log(`[Server] SSR+HMR dev server running at http://${host}:${server.port}`);
     }
 
-    // Self-fetch /__vertz_hmr to discover the bundled script URL and HMR bootstrap
-    await discoverHMRAssets();
+    // Self-fetch /__vertz_hmr to discover the bundled script URL and HMR bootstrap.
+    // The ready gate has a built-in 5s timeout; the finally block ensures the gate
+    // opens even if discoverHMRAssets() throws unexpectedly.
+    try {
+      await discoverHMRAssets();
+    } finally {
+      if (!readyGate.isReady) {
+        readyGate.open(currentError);
+      }
+    }
 
     async function discoverHMRAssets(): Promise<void> {
       try {
