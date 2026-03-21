@@ -36,6 +36,18 @@ describe('carousel styles', () => {
   it('CSS contains data-state selectors', () => {
     expect(carousel.css).toContain('[data-state=');
   });
+
+  it('prev/next button CSS sets explicit foreground color for text contrast', () => {
+    const prevClass = carousel.prevButton;
+    const prevRules = carousel.css.split('}').filter((rule) => rule.includes(prevClass));
+    const prevCSS = prevRules.join('}');
+    expect(prevCSS).toMatch(/\bcolor:\s*var\(--color-foreground\)/);
+
+    const nextClass = carousel.nextButton;
+    const nextRules = carousel.css.split('}').filter((rule) => rule.includes(nextClass));
+    const nextCSS = nextRules.join('}');
+    expect(nextCSS).toMatch(/\bcolor:\s*var\(--color-foreground\)/);
+  });
 });
 
 describe('themed carousel', () => {

@@ -38,6 +38,13 @@ describe('menubar styles', () => {
   it('CSS contains data-state="open" selector', () => {
     expect(menubar.css).toContain('[data-state="open"]');
   });
+
+  it('root CSS sets explicit foreground color for text contrast', () => {
+    const rootClass = menubar.root;
+    const rootRules = menubar.css.split('}').filter((rule) => rule.includes(rootClass));
+    const rootCSS = rootRules.join('}');
+    expect(rootCSS).toMatch(/\bcolor:\s*var\(--color-foreground\)/);
+  });
 });
 
 describe('themed Menubar (JSX component)', () => {

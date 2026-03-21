@@ -26,6 +26,15 @@ describe('pagination styles', () => {
     expect(pagination.css).toContain(':focus-visible');
     expect(pagination.css).toContain(':hover');
   });
+
+  it('linkActive CSS sets explicit foreground color for text contrast', () => {
+    const linkActiveClass = pagination.linkActive;
+    const linkActiveRules = pagination.css
+      .split('}')
+      .filter((rule) => rule.includes(linkActiveClass));
+    const linkActiveCSS = linkActiveRules.join('}');
+    expect(linkActiveCSS).toMatch(/\bcolor:\s*var\(--color-foreground\)/);
+  });
 });
 
 describe('Pagination component (composed)', () => {

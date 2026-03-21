@@ -27,6 +27,7 @@ export function createDatePickerStyles(): CSSOutput<DatePickerBlocks> {
       'border:1',
       'border:input',
       'bg:background',
+      'text:foreground',
       'text:sm',
       'font:normal',
       'cursor:pointer',

@@ -46,6 +46,7 @@ export function createDialogStyles(): CSSOutput<DialogBlocks> {
     ],
     dialogPanel: [
       'bg:background',
+      'text:foreground',
       'gap:4',
       {
         // Native <dialog> uses showModal() for top-layer rendering.
@@ -98,6 +99,7 @@ export function createDialogStyles(): CSSOutput<DialogBlocks> {
       },
     ],
     dialogTitle: [
+      'text:foreground',
       {
         // Nova: text-base font-medium (smaller/lighter than base text-lg font-semibold)
         '&': {

@@ -35,6 +35,13 @@ describe('calendar styles', () => {
     expect(typeof styles.css).toBe('string');
     expect(styles.css.length).toBeGreaterThan(0);
   });
+
+  it('root CSS sets explicit foreground color for text contrast', () => {
+    const rootClass = styles.root;
+    const rootRules = styles.css.split('}').filter((rule) => rule.includes(rootClass));
+    const rootCSS = rootRules.join('}');
+    expect(rootCSS).toMatch(/\bcolor:\s*var\(--color-foreground\)/);
+  });
 });
 
 describe('themed Calendar', () => {
