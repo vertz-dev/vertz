@@ -99,6 +99,12 @@ export interface BunDevServerOptions {
    * @default false
    */
   watchDeps?: boolean | string[];
+  /**
+   * Resolve theme from request for SSR. Returns the value for `data-theme`
+   * on the `<html>` tag and patches any `data-theme` attributes in the SSR body.
+   * Use this to read a theme cookie and eliminate dark→light flash on reload.
+   */
+  themeFromRequest?: (request: Request) => string | null | undefined;
 }
 
 export interface ErrorDetail {
@@ -283,6 +289,8 @@ export interface SSRPageHtmlOptions {
   headTags?: string;
   /** Pre-built session + access set script tags for SSR injection. */
   sessionScript?: string;
+  /** Theme value for `data-theme` attribute on `<html>`. */
+  htmlDataTheme?: string;
 }
 
 /**
@@ -600,14 +608,17 @@ export function generateSSRPageHtml({
   editor = 'vscode',
   headTags = '',
   sessionScript = '',
+  htmlDataTheme,
 }: SSRPageHtmlOptions): string {
   const ssrDataScript =
     ssrData.length > 0
       ? `<script>window.__VERTZ_SSR_DATA__=${safeSerialize(ssrData)};</script>`
       : '';
 
+  const htmlAttrs = htmlDataTheme ? ` data-theme="${htmlDataTheme}"` : '';
+
   return `<!doctype html>
-<html lang="en">
+<html lang="en"${htmlAttrs}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -772,6 +783,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     headTags: headTagsOption = '',
     sessionResolver,
     watchDeps,
+    themeFromRequest,
   } = options;
 
   const faviconTag = detectFaviconTag(projectRoot);
@@ -1464,6 +1476,9 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
           console.log(`[Server] SSR: ${pathname}`);
         }
 
+        // Resolve theme from request for SSR (e.g., from cookies)
+        const ssrTheme = themeFromRequest?.(request) ?? undefined;
+
         try {
           // Scope fetch interception per-request via AsyncLocalStorage.
           // API requests (e.g. query() calling fetch('/api/todos')) route
@@ -1548,17 +1563,24 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
               });
             }
 
+            // Patch data-theme attributes in SSR body to match the resolved theme.
+            // ThemeProvider renders data-theme="dark" by default — replace with cookie value.
+            const bodyHtml = ssrTheme
+              ? result.html.replace(/data-theme="[^"]*"/, `data-theme="${ssrTheme}"`)
+              : result.html;
+
             const scriptTag = buildScriptTag(bundledScriptUrl, hmrBootstrapScript, clientSrc);
             const combinedHeadTags = [headTags, result.headTags].filter(Boolean).join('\n');
             const html = generateSSRPageHtml({
               title,
               css: result.css,
-              bodyHtml: result.html,
+              bodyHtml,
               ssrData: result.ssrData,
               scriptTag,
               editor,
               headTags: combinedHeadTags,
               sessionScript,
+              htmlDataTheme: ssrTheme,
             });
 
             return new Response(html, {
@@ -1591,6 +1613,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
             scriptTag,
             editor,
             headTags,
+            htmlDataTheme: ssrTheme,
           });
 
           return new Response(fallbackHtml, {
