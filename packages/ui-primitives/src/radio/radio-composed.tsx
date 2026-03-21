@@ -5,6 +5,7 @@
 
 import type { ChildValue } from '@vertz/ui';
 import { createContext, useContext } from '@vertz/ui';
+import { cn } from '../composed/cn';
 import { uniqueId } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
@@ -79,15 +80,15 @@ function RadioGroupItem({ value, disabled, children }: RadioGroupItemProps) {
         data-state={isChecked ? 'checked' : 'unchecked'}
         tabindex={isChecked ? '0' : '-1'}
         aria-disabled={isDisabled ? 'true' : undefined}
-        class={ctx.classes?.item}
+        class={cn(ctx.classes?.item)}
         style={{ pointerEvents: isDisabled ? 'none' : undefined, position: 'relative' }}
       >
         <span
           data-part="indicator"
           data-state={isChecked ? 'checked' : 'unchecked'}
-          class={ctx.classes?.indicator}
+          class={cn(ctx.classes?.indicator)}
         >
-          <span data-part="indicator-icon" class={ctx.classes?.indicatorIcon} />
+          <span data-part="indicator-icon" class={cn(ctx.classes?.indicatorIcon)} />
         </span>
       </div>
       {children && <span>{children}</span>}
@@ -130,7 +131,7 @@ function ComposedRadioGroupRoot({
       <div
         role="radiogroup"
         id={uniqueId('radiogroup')}
-        class={classes?.root}
+        class={cn(classes?.root)}
         data-radiogroup-root=""
         onKeydown={(event: KeyboardEvent) => {
           const root = event.currentTarget as HTMLElement;

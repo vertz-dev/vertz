@@ -6,6 +6,7 @@
 
 import type { ChildValue, Ref } from '@vertz/ui';
 import { createContext, ref, useContext } from '@vertz/ui';
+import { cn } from '../composed/cn';
 import { linkedIds } from '../utils/id';
 
 // ---------------------------------------------------------------------------
@@ -95,8 +96,6 @@ function DialogContent({
   showClose = true,
 }: DialogContentProps) {
   const ctx = useDialogContext('Content');
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
   // Use static data-state to avoid reactive element replacement.
   // showDialog()/hideDialog() manage data-state imperatively for animations.
@@ -108,7 +107,7 @@ function DialogContent({
       aria-labelledby={ctx.titleId}
       aria-describedby={ctx.descriptionId}
       data-state="closed"
-      class={combined || undefined}
+      class={cn(ctx.classes?.content, cls ?? classProp)}
       onCancel={(e: Event) => {
         // Prevent native close so the CSS exit animation can play.
         e.preventDefault();
@@ -125,7 +124,7 @@ function DialogContent({
         <button
           type="button"
           data-slot="dialog-close"
-          class={ctx.classes?.close || undefined}
+          class={cn(ctx.classes?.close)}
           aria-label="Close"
           onClick={() => ctx.close()}
         >
@@ -155,10 +154,8 @@ function DialogContent({
 
 function DialogTitle({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useDialogContext('Title');
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.title, effectiveCls].filter(Boolean).join(' ');
   return (
-    <h2 id={ctx.titleId} class={combined || undefined}>
+    <h2 id={ctx.titleId} class={cn(ctx.classes?.title, cls ?? classProp)}>
       {children}
     </h2>
   );
@@ -166,10 +163,8 @@ function DialogTitle({ children, className: cls, class: classProp }: SlotProps) 
 
 function DialogDescription({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useDialogContext('Description');
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.description, effectiveCls].filter(Boolean).join(' ');
   return (
-    <p id={ctx.descriptionId} class={combined || undefined}>
+    <p id={ctx.descriptionId} class={cn(ctx.classes?.description, cls ?? classProp)}>
       {children}
     </p>
   );
@@ -177,27 +172,21 @@ function DialogDescription({ children, className: cls, class: classProp }: SlotP
 
 function DialogHeader({ children, className: cls, class: classProp }: SlotProps) {
   const { classes } = useDialogContext('Header');
-  const effectiveCls = cls ?? classProp;
-  const combined = [classes?.header, effectiveCls].filter(Boolean).join(' ');
-  return <div class={combined || undefined}>{children}</div>;
+  return <div class={cn(classes?.header, cls ?? classProp)}>{children}</div>;
 }
 
 function DialogFooter({ children, className: cls, class: classProp }: SlotProps) {
   const { classes } = useDialogContext('Footer');
-  const effectiveCls = cls ?? classProp;
-  const combined = [classes?.footer, effectiveCls].filter(Boolean).join(' ');
-  return <div class={combined || undefined}>{children}</div>;
+  return <div class={cn(classes?.footer, cls ?? classProp)}>{children}</div>;
 }
 
 function DialogClose({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useDialogContext('Close');
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.close, effectiveCls].filter(Boolean).join(' ');
   return (
     <button
       type="button"
       data-slot="dialog-close"
-      class={combined || undefined}
+      class={cn(ctx.classes?.close, cls ?? classProp)}
       aria-label={children ? undefined : 'Close'}
       onClick={() => ctx.close()}
     >

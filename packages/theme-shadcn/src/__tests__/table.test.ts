@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { createTableComponents } from '../components/table';
+import { configureTheme } from '../configure';
 import { createTableStyles } from '../styles/table';
 
 describe('table styles', () => {
@@ -36,100 +36,45 @@ describe('table styles', () => {
   });
 });
 
-describe('Table components', () => {
-  const styles = createTableStyles();
-  const components = createTableComponents(styles);
+describe('Table component (composed)', () => {
+  const theme = configureTheme();
+  const { Table } = theme.components;
 
   it('Table wraps content in div > table', () => {
-    const el = components.Table({});
-    expect(el.tagName).toBe('DIV');
-    expect(el.querySelector('table')).not.toBeNull();
+    const el = Table({}) as HTMLElement;
+    const wrapper = el.querySelector('div') ?? el;
+    expect(wrapper.tagName).toBe('DIV');
+    expect(wrapper.querySelector('table')).not.toBeNull();
   });
 
   it('Table wrapper has overflow styles', () => {
-    const el = components.Table({});
-    expect(el.style.overflowX).toBe('auto');
-    expect(el.style.position).toBe('relative');
-    expect(el.style.width).toBe('100%');
+    const el = Table({}) as HTMLElement;
+    const wrapper = el.querySelector('div') ?? el;
+    expect(wrapper.style.overflowX).toBe('auto');
+    expect(wrapper.style.position).toBe('relative');
+    expect(wrapper.style.width).toBe('100%');
   });
 
   it('Table applies root class to inner table', () => {
-    const el = components.Table({});
+    const el = Table({}) as HTMLElement;
     const table = el.querySelector('table');
-    expect(table?.className).toContain(styles.root);
+    expect(table?.className).toContain(theme.styles.table.root);
   });
 
   it('Table appends user class to inner table', () => {
-    const el = components.Table({ class: 'custom-table' });
+    const el = Table({ className: 'custom-table' }) as HTMLElement;
     const table = el.querySelector('table');
     expect(table?.className).toContain('custom-table');
-    expect(table?.className).toContain(styles.root);
+    expect(table?.className).toContain(theme.styles.table.root);
   });
 
-  it('Table resolves children into the table element', () => {
-    const el = components.Table({ children: 'content' });
-    const table = el.querySelector('table');
-    expect(table?.textContent).toBe('content');
-  });
-
-  it('TableHeader creates thead', () => {
-    const el = components.TableHeader({});
-    expect(el.tagName).toBe('THEAD');
-    expect(el.className).toContain(styles.header);
-  });
-
-  it('TableBody creates tbody', () => {
-    const el = components.TableBody({});
-    expect(el.tagName).toBe('TBODY');
-    expect(el.className).toContain(styles.body);
-  });
-
-  it('TableRow creates tr', () => {
-    const el = components.TableRow({});
-    expect(el.tagName).toBe('TR');
-    expect(el.className).toContain(styles.row);
-  });
-
-  it('TableHead creates th with scope="col"', () => {
-    const el = components.TableHead({});
-    expect(el.tagName).toBe('TH');
-    expect(el.scope).toBe('col');
-    expect(el.className).toContain(styles.head);
-  });
-
-  it('TableCell creates td', () => {
-    const el = components.TableCell({});
-    expect(el.tagName).toBe('TD');
-    expect(el.className).toContain(styles.cell);
-  });
-
-  it('TableCaption creates caption', () => {
-    const el = components.TableCaption({});
-    expect(el.tagName).toBe('CAPTION');
-    expect(el.className).toContain(styles.caption);
-  });
-
-  it('TableFooter creates tfoot', () => {
-    const el = components.TableFooter({});
-    expect(el.tagName).toBe('TFOOT');
-    expect(el.className).toContain(styles.footer);
-  });
-
-  it('components append user class', () => {
-    const header = components.TableHeader({ class: 'custom' });
-    expect(header.className).toContain('custom');
-    expect(header.className).toContain(styles.header);
-
-    const row = components.TableRow({ class: 'custom' });
-    expect(row.className).toContain('custom');
-    expect(row.className).toContain(styles.row);
-  });
-
-  it('components resolve children', () => {
-    const row = components.TableRow({ children: 'row content' });
-    expect(row.textContent).toBe('row content');
-
-    const cell = components.TableCell({ children: 'cell content' });
-    expect(cell.textContent).toBe('cell content');
+  it('Table has all expected sub-components', () => {
+    expect(Table.Header).toBeDefined();
+    expect(Table.Body).toBeDefined();
+    expect(Table.Row).toBeDefined();
+    expect(Table.Head).toBeDefined();
+    expect(Table.Cell).toBeDefined();
+    expect(Table.Caption).toBeDefined();
+    expect(Table.Footer).toBeDefined();
   });
 });

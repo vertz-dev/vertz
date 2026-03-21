@@ -7,6 +7,7 @@
 
 import type { ChildValue } from '@vertz/ui';
 import { createContext, useContext } from '@vertz/ui';
+import { cn } from '../composed/cn';
 import { uniqueId } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
@@ -110,8 +111,6 @@ interface CommandSeparatorProps {
 
 function CommandInput({ className: cls, class: classProp }: CommandInputProps) {
   const ctx = useCommandContext('Input');
-  const effectiveCls = cls ?? classProp;
-  const inputClass = [ctx.classes?.input, effectiveCls].filter(Boolean).join(' ');
 
   return (
     <input
@@ -122,7 +121,7 @@ function CommandInput({ className: cls, class: classProp }: CommandInputProps) {
       aria-controls={ctx.listId}
       data-command-input=""
       placeholder={ctx.placeholder}
-      class={inputClass || undefined}
+      class={cn(ctx.classes?.input, cls ?? classProp)}
       onInput={(e: Event) => {
         ctx.handleInput(e.target as HTMLInputElement);
       }}
@@ -135,11 +134,9 @@ function CommandInput({ className: cls, class: classProp }: CommandInputProps) {
 
 function CommandList({ children, className: cls, class: classProp }: CommandListProps) {
   const ctx = useCommandContext('List');
-  const effectiveCls = cls ?? classProp;
-  const listClass = [ctx.classes?.list, effectiveCls].filter(Boolean).join(' ');
 
   return (
-    <div role="listbox" id={ctx.listId} class={listClass || undefined}>
+    <div role="listbox" id={ctx.listId} class={cn(ctx.classes?.list, cls ?? classProp)}>
       {children}
     </div>
   );
@@ -147,8 +144,6 @@ function CommandList({ children, className: cls, class: classProp }: CommandList
 
 function CommandEmpty({ children, className: cls, class: classProp }: CommandEmptyProps) {
   const ctx = useCommandContext('Empty');
-  const effectiveCls = cls ?? classProp;
-  const emptyClass = [ctx.classes?.empty, effectiveCls].filter(Boolean).join(' ');
 
   return (
     <div
@@ -156,7 +151,7 @@ function CommandEmpty({ children, className: cls, class: classProp }: CommandEmp
       data-command-empty=""
       aria-hidden="true"
       style="display: none"
-      class={emptyClass || undefined}
+      class={cn(ctx.classes?.empty, cls ?? classProp)}
     >
       {children}
     </div>
@@ -171,8 +166,6 @@ function CommandItem({
   class: classProp,
 }: CommandItemProps) {
   const ctx = useCommandContext('Item');
-  const effectiveCls = cls ?? classProp;
-  const itemClass = [ctx.classes?.item, effectiveCls].filter(Boolean).join(' ');
   const isInitialActive = ctx.claimInitialActive();
 
   return (
@@ -181,7 +174,7 @@ function CommandItem({
       data-value={value}
       aria-selected={isInitialActive ? 'true' : 'false'}
       data-keywords={keywords && keywords.length > 0 ? keywords.join(' ') : undefined}
-      class={itemClass || undefined}
+      class={cn(ctx.classes?.item, cls ?? classProp)}
       onClick={() => {
         ctx.getOnSelect()?.(value);
       }}
@@ -193,9 +186,6 @@ function CommandItem({
 
 function CommandGroup({ label, children, className: cls, class: classProp }: CommandGroupProps) {
   const ctx = useCommandContext('Group');
-  const effectiveCls = cls ?? classProp;
-  const groupClass = [ctx.classes?.group, effectiveCls].filter(Boolean).join(' ');
-  const headingClass = ctx.classes?.groupHeading || undefined;
   const headingId = uniqueId('command-group');
 
   return (
@@ -203,9 +193,9 @@ function CommandGroup({ label, children, className: cls, class: classProp }: Com
       role="group"
       aria-labelledby={headingId}
       data-command-group=""
-      class={groupClass || undefined}
+      class={cn(ctx.classes?.group, cls ?? classProp)}
     >
-      <div id={headingId} data-command-group-heading="" class={headingClass}>
+      <div id={headingId} data-command-group-heading="" class={cn(ctx.classes?.groupHeading)}>
         {label}
       </div>
       {children}
@@ -215,9 +205,7 @@ function CommandGroup({ label, children, className: cls, class: classProp }: Com
 
 function CommandSeparator({ className: cls, class: classProp }: CommandSeparatorProps) {
   const ctx = useCommandContext('Separator');
-  const effectiveCls = cls ?? classProp;
-  const sepClass = [ctx.classes?.separator, effectiveCls].filter(Boolean).join(' ');
-  return <hr role="separator" class={sepClass || undefined} />;
+  return <hr role="separator" class={cn(ctx.classes?.separator, cls ?? classProp)} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -396,7 +384,7 @@ function ComposedCommandRoot({
 
   return (
     <CommandContext.Provider value={ctx}>
-      <div id={rootId} class={classes?.root || undefined}>
+      <div id={rootId} class={cn(classes?.root)}>
         {children}
       </div>
     </CommandContext.Provider>

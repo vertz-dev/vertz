@@ -3,6 +3,8 @@
  * and class distribution. Supports single, range, and multiple selection modes.
  */
 
+import { cn } from '../composed/cn';
+
 const MONTH_NAMES = [
   'January',
   'February',
@@ -215,7 +217,7 @@ function DayCell({
   return (
     <button
       type="button"
-      class={classes?.dayButton}
+      class={cn(classes?.dayButton)}
       data-date={dateStr}
       data-outside-month={isOutside ? 'true' : undefined}
       data-today={isToday ? 'true' : undefined}
@@ -468,12 +470,12 @@ function ComposedCalendarRoot({
   );
 
   return (
-    <div class={classes?.root}>
-      <div class={classes?.header} data-caption-layout={captionLayout}>
+    <div class={cn(classes?.root)}>
+      <div class={cn(classes?.header)} data-caption-layout={captionLayout}>
         {showButtons && (
           <button
             type="button"
-            class={classes?.navButton}
+            class={cn(classes?.navButton)}
             aria-label="Previous month"
             aria-disabled={isAtMinBoundary ? 'true' : undefined}
             onClick={() => {
@@ -487,7 +489,7 @@ function ComposedCalendarRoot({
           <>
             <select
               aria-label="Select month"
-              class={classes?.monthSelect}
+              class={cn(classes?.monthSelect)}
               value={String(displayMonth.getMonth())}
               onChange={handleMonthSelect}
             >
@@ -502,7 +504,7 @@ function ComposedCalendarRoot({
             </select>
             <select
               aria-label="Select year"
-              class={classes?.yearSelect}
+              class={cn(classes?.yearSelect)}
               value={String(displayMonth.getFullYear())}
               onChange={handleYearSelect}
             >
@@ -512,12 +514,12 @@ function ComposedCalendarRoot({
             </select>
           </>
         ) : (
-          <div class={classes?.title}>{titleText}</div>
+          <div class={cn(classes?.title)}>{titleText}</div>
         )}
         {showButtons && (
           <button
             type="button"
-            class={classes?.navButton}
+            class={cn(classes?.navButton)}
             aria-label="Next month"
             aria-disabled={isAtMaxBoundary ? 'true' : undefined}
             onClick={() => {
@@ -528,11 +530,11 @@ function ComposedCalendarRoot({
           </button>
         )}
       </div>
-      <table role="grid" class={classes?.grid} onKeydown={handleGridKeydown}>
+      <table role="grid" class={cn(classes?.grid)} onKeydown={handleGridKeydown}>
         <thead>
           <tr>
             {dayHeaders.map((day) => (
-              <th scope="col" class={classes?.headCell}>
+              <th scope="col" class={cn(classes?.headCell)}>
                 {day}
               </th>
             ))}
@@ -542,7 +544,7 @@ function ComposedCalendarRoot({
           {rows.map((rowDates) => (
             <tr>
               {rowDates.map((cellDate) => (
-                <td role="gridcell" class={classes?.cell}>
+                <td role="gridcell" class={cn(classes?.cell)}>
                   <DayCell
                     cellDate={cellDate}
                     displayMonth={displayMonth}

@@ -6,6 +6,7 @@
 
 import type { ChildValue } from '@vertz/ui';
 import { createContext, useContext } from '@vertz/ui';
+import { cn } from '../composed/cn';
 import { uniqueId } from '../utils/id';
 import { handleListNavigation } from '../utils/keyboard';
 
@@ -73,15 +74,13 @@ interface ContentProps extends SlotProps {
 
 function TabsList({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useTabsContext('List');
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.list, effectiveCls].filter(Boolean).join(' ');
 
   return (
     <div
       role="tablist"
       data-tabs-list=""
       aria-orientation={ctx.orientation === 'vertical' ? 'vertical' : undefined}
-      class={combined || undefined}
+      class={cn(ctx.classes?.list, cls ?? classProp)}
       onKeydown={(event: KeyboardEvent) => {
         const list = event.currentTarget as HTMLElement;
         const triggers = [...list.querySelectorAll<HTMLElement>('[role="tab"]')];
@@ -99,8 +98,6 @@ function TabsList({ children, className: cls, class: classProp }: SlotProps) {
 
 function TabsTrigger({ value, children, className: cls, class: classProp }: TriggerProps) {
   const ctx = useTabsContext('Trigger');
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.trigger, effectiveCls].filter(Boolean).join(' ');
   const isActive = ctx.activeValue === value;
 
   return (
@@ -114,7 +111,7 @@ function TabsTrigger({ value, children, className: cls, class: classProp }: Trig
       aria-selected={isActive ? 'true' : 'false'}
       data-state={isActive ? 'active' : 'inactive'}
       tabindex={isActive ? '0' : '-1'}
-      class={combined || undefined}
+      class={cn(ctx.classes?.trigger, cls ?? classProp)}
       onClick={() => ctx.select(value)}
     >
       {children}
@@ -124,8 +121,6 @@ function TabsTrigger({ value, children, className: cls, class: classProp }: Trig
 
 function TabsContent({ value, children, className: cls, class: classProp }: ContentProps) {
   const ctx = useTabsContext('Content');
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.panel, effectiveCls].filter(Boolean).join(' ');
   const isActive = ctx.activeValue === value;
 
   return (
@@ -139,7 +134,7 @@ function TabsContent({ value, children, className: cls, class: classProp }: Cont
       aria-hidden={isActive ? 'false' : 'true'}
       data-state={isActive ? 'active' : 'inactive'}
       style={{ display: isActive ? '' : 'none' }}
-      class={combined || undefined}
+      class={cn(ctx.classes?.panel, cls ?? classProp)}
     >
       {children}
     </div>

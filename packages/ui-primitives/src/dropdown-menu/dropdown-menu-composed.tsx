@@ -7,6 +7,7 @@
 
 import type { ChildValue, Ref } from '@vertz/ui';
 import { createContext, onMount, ref, useContext } from '@vertz/ui';
+import { cn } from '../composed/cn';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
@@ -135,9 +136,6 @@ function MenuContent({ children, className: cls, class: classProp }: SlotProps) 
     console.warn('Duplicate <DropdownMenu.Content> detected \u2013 only the first is used');
   }
 
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
-
   return (
     <div
       ref={ctx.contentRef}
@@ -148,7 +146,7 @@ function MenuContent({ children, className: cls, class: classProp }: SlotProps) 
       aria-hidden={ctx.isOpen ? 'false' : 'true'}
       data-state={ctx.isOpen ? 'open' : 'closed'}
       style={{ display: ctx.isOpen ? '' : 'none' }}
-      class={combined || undefined}
+      class={cn(ctx.classes?.content, cls ?? classProp)}
       onKeydown={(event: KeyboardEvent) => {
         if (isKey(event, Keys.Escape)) {
           event.preventDefault();
@@ -194,15 +192,13 @@ function MenuContent({ children, className: cls, class: classProp }: SlotProps) 
 
 function MenuItem({ value, children, className: cls, class: classProp }: ItemProps) {
   const ctx = useDropdownMenuContext('Item');
-  const effectiveCls = cls ?? classProp;
-  const itemClass = [ctx.classes?.item, effectiveCls].filter(Boolean).join(' ');
 
   return (
     <div
       role="menuitem"
       data-value={value}
       tabindex="-1"
-      class={itemClass || undefined}
+      class={cn(ctx.classes?.item, cls ?? classProp)}
       onClick={() => {
         ctx.onSelect?.(value);
         ctx.close();
@@ -215,11 +211,9 @@ function MenuItem({ value, children, className: cls, class: classProp }: ItemPro
 
 function MenuGroup({ label, children, className: cls, class: classProp }: GroupProps) {
   const ctx = useDropdownMenuContext('Group');
-  const effectiveCls = cls ?? classProp;
-  const groupClass = [ctx.classes?.group, effectiveCls].filter(Boolean).join(' ');
 
   return (
-    <div role="group" aria-label={label} class={groupClass || undefined}>
+    <div role="group" aria-label={label} class={cn(ctx.classes?.group, cls ?? classProp)}>
       {children}
     </div>
   );
@@ -227,11 +221,9 @@ function MenuGroup({ label, children, className: cls, class: classProp }: GroupP
 
 function MenuLabel({ children, className: cls, class: classProp }: SlotProps) {
   const { classes } = useDropdownMenuContext('Label');
-  const effectiveCls = cls ?? classProp;
-  const labelClass = [classes?.label, effectiveCls].filter(Boolean).join(' ');
 
   return (
-    <div role="none" class={labelClass || undefined}>
+    <div role="none" class={cn(classes?.label, cls ?? classProp)}>
       {children}
     </div>
   );
@@ -239,10 +231,8 @@ function MenuLabel({ children, className: cls, class: classProp }: SlotProps) {
 
 function MenuSeparator({ className: cls, class: classProp }: SlotProps) {
   const { classes } = useDropdownMenuContext('Separator');
-  const effectiveCls = cls ?? classProp;
-  const sepClass = [classes?.separator, effectiveCls].filter(Boolean).join(' ');
 
-  return <hr role="separator" class={sepClass || undefined} />;
+  return <hr role="separator" class={cn(classes?.separator, cls ?? classProp)} />;
 }
 
 // ---------------------------------------------------------------------------

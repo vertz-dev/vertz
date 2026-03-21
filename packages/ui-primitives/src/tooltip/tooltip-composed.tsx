@@ -6,6 +6,7 @@
 
 import type { ChildValue, Ref } from '@vertz/ui';
 import { createContext, ref, useContext } from '@vertz/ui';
+import { cn } from '../composed/cn';
 import type { FloatingOptions } from '../utils/floating';
 import { createFloatingPosition } from '../utils/floating';
 import { uniqueId } from '../utils/id';
@@ -95,9 +96,6 @@ function TooltipContent({ children, className: cls, class: classProp }: SlotProp
   const ctx = useTooltipContext('Content');
   const idx = ctx._contentCount.value++;
   if (idx > 0) console.warn('Duplicate <Tooltip.Content> detected – only the first is used');
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
-
   return (
     <div
       ref={ctx.contentRef}
@@ -107,7 +105,7 @@ function TooltipContent({ children, className: cls, class: classProp }: SlotProp
       aria-hidden={ctx.isOpen ? 'false' : 'true'}
       data-state={ctx.isOpen ? 'open' : 'closed'}
       style={{ display: ctx.isOpen ? '' : 'none' }}
-      class={combined || undefined}
+      class={cn(ctx.classes?.content, cls ?? classProp)}
     >
       {children}
     </div>

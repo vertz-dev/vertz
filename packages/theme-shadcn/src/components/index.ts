@@ -1,24 +1,2 @@
-export type { AvatarComponents, AvatarImageProps, AvatarProps } from './avatar';
-export { createAvatarComponents } from './avatar';
-export type { BadgeProps } from './badge';
-export { createBadgeComponent } from './badge';
-export type { BreadcrumbComponents, BreadcrumbItem, BreadcrumbProps } from './breadcrumb';
-export { createBreadcrumbComponent } from './breadcrumb';
-export type { ButtonProps } from './button';
-export { createButtonComponent } from './button';
-export type { CardComponents, CardProps } from './card';
-export { createCardComponents } from './card';
-export type { FormErrorProps, FormGroupComponents, FormGroupProps } from './form-group';
-export { createFormGroupComponents } from './form-group';
-export type { InputProps } from './input';
-export { createInputComponent } from './input';
-export type { LabelProps } from './label';
-export { createLabelComponent } from './label';
-export type { PaginationComponents, PaginationProps } from './pagination';
-export { createPaginationComponent } from './pagination';
-export type { SeparatorProps } from './separator';
-export { createSeparatorComponent } from './separator';
-export type { SkeletonComponents, SkeletonProps } from './skeleton';
-export { createSkeletonComponents } from './skeleton';
-export type { TableComponents, TableProps } from './table';
-export { createTableComponents } from './table';
+// Component factories have been moved to @vertz/ui-primitives as composed components.
+// This file is kept for the primitives/ subdirectory re-exports.

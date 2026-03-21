@@ -169,19 +169,19 @@ describe('Theme Shadcn Walkthrough', () => {
     expect(typeof result.components.Separator).toBe('function');
   });
 
-  it('components.Card has all sub-component factories', () => {
+  it('components.Card is callable with sub-component properties', () => {
     const { components } = configureTheme();
-    expect(typeof components.Card.Card).toBe('function');
-    expect(typeof components.Card.CardHeader).toBe('function');
-    expect(typeof components.Card.CardTitle).toBe('function');
-    expect(typeof components.Card.CardDescription).toBe('function');
-    expect(typeof components.Card.CardContent).toBe('function');
-    expect(typeof components.Card.CardFooter).toBe('function');
+    expect(typeof components.Card).toBe('function');
+    expect(typeof components.Card.Header).toBe('function');
+    expect(typeof components.Card.Title).toBe('function');
+    expect(typeof components.Card.Description).toBe('function');
+    expect(typeof components.Card.Content).toBe('function');
+    expect(typeof components.Card.Footer).toBe('function');
   });
 
-  it('components.FormGroup has FormGroup and FormError factories', () => {
+  it('components.FormGroup is callable with FormError sub-component', () => {
     const { components } = configureTheme();
-    expect(typeof components.FormGroup.FormGroup).toBe('function');
+    expect(typeof components.FormGroup).toBe('function');
     expect(typeof components.FormGroup.FormError).toBe('function');
   });
 

@@ -6,6 +6,7 @@
 
 import type { ChildValue, Ref } from '@vertz/ui';
 import { createContext, ref, useContext } from '@vertz/ui';
+import { cn } from '../composed/cn';
 import { linkedIds } from '../utils/id';
 import type { SheetSide } from './sheet';
 
@@ -97,9 +98,6 @@ function SheetContent({
 }: SheetContentProps) {
   const ctx = useSheetContext('Content');
 
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
-
   // Use static data-state to avoid reactive element replacement.
   // showDialog()/hideDialog() manage data-state imperatively for animations.
   const el = (
@@ -112,7 +110,7 @@ function SheetContent({
       aria-describedby={ctx.descriptionId}
       data-side={ctx.side}
       data-state="closed"
-      class={combined || undefined}
+      class={cn(ctx.classes?.content, cls ?? classProp)}
       onCancel={(e: Event) => {
         e.preventDefault();
         ctx.close();
@@ -125,7 +123,7 @@ function SheetContent({
         <button
           type="button"
           data-slot="sheet-close"
-          class={ctx.classes?.close || undefined}
+          class={cn(ctx.classes?.close)}
           aria-label="Close"
           onClick={() => ctx.close()}
         >
@@ -155,10 +153,8 @@ function SheetContent({
 
 function SheetTitle({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useSheetContext('Title');
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.title, effectiveCls].filter(Boolean).join(' ');
   return (
-    <h2 id={ctx.titleId} class={combined || undefined}>
+    <h2 id={ctx.titleId} class={cn(ctx.classes?.title, cls ?? classProp)}>
       {children}
     </h2>
   );
@@ -166,10 +162,8 @@ function SheetTitle({ children, className: cls, class: classProp }: SlotProps) {
 
 function SheetDescription({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useSheetContext('Description');
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.description, effectiveCls].filter(Boolean).join(' ');
   return (
-    <p id={ctx.descriptionId} class={combined || undefined}>
+    <p id={ctx.descriptionId} class={cn(ctx.classes?.description, cls ?? classProp)}>
       {children}
     </p>
   );
@@ -177,13 +171,11 @@ function SheetDescription({ children, className: cls, class: classProp }: SlotPr
 
 function SheetClose({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useSheetContext('Close');
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.close, effectiveCls].filter(Boolean).join(' ');
   return (
     <button
       type="button"
       data-slot="sheet-close"
-      class={combined || undefined}
+      class={cn(ctx.classes?.close, cls ?? classProp)}
       aria-label={children ? undefined : 'Close'}
       onClick={() => ctx.close()}
     >

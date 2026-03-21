@@ -7,6 +7,7 @@
 
 import type { ChildValue, Ref } from '@vertz/ui';
 import { createContext, ref, useContext } from '@vertz/ui';
+import { cn } from '../composed/cn';
 import { setDataState, setExpanded, setHidden, setHiddenAnimated } from '../utils/aria';
 import { uniqueId } from '../utils/id';
 import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
@@ -145,7 +146,7 @@ function AccordionItem({ value, children }: ItemProps) {
 
   return (
     <AccordionItemContext.Provider value={itemCtx}>
-      <div data-accordion-item="" data-value={value} class={ctx.classes?.item}>
+      <div data-accordion-item="" data-value={value} class={cn(ctx.classes?.item)}>
         {children}
       </div>
     </AccordionItemContext.Provider>
@@ -161,8 +162,6 @@ function AccordionTrigger({ children, className: cls, class: classProp }: SlotPr
         'Ensure it is a direct or nested child of an Accordion Item component.',
     );
   }
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.trigger, effectiveCls].filter(Boolean).join(' ');
   const initiallyOpen = ctx.isOpen();
 
   return (
@@ -175,7 +174,7 @@ function AccordionTrigger({ children, className: cls, class: classProp }: SlotPr
       data-value={ctx.value}
       aria-expanded={initiallyOpen ? 'true' : 'false'}
       data-state={initiallyOpen ? 'open' : 'closed'}
-      class={combined || undefined}
+      class={cn(ctx.classes?.trigger, cls ?? classProp)}
       onClick={() => ctx.toggle()}
     >
       {children}
@@ -191,9 +190,6 @@ function AccordionContent({ children, className: cls, class: classProp }: SlotPr
         'Ensure it is a direct or nested child of an Accordion Item component.',
     );
   }
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
-
   // Attributes are set imperatively below — NOT in JSX — to avoid the
   // compiler making them reactive.  When ctx.isOpen() changes, reactive
   // JSX would synchronously set style="display:none" *before* the toggle
@@ -206,7 +202,7 @@ function AccordionContent({ children, className: cls, class: classProp }: SlotPr
       id={ctx.contentId}
       data-accordion-content=""
       aria-labelledby={ctx.triggerId}
-      class={combined || undefined}
+      class={cn(ctx.classes?.content, cls ?? classProp)}
     >
       <div data-part="content-inner">{children}</div>
     </div>

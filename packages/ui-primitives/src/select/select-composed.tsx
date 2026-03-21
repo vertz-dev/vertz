@@ -7,6 +7,7 @@
 
 import type { ChildValue, Ref } from '@vertz/ui';
 import { createContext, onMount, ref, useContext } from '@vertz/ui';
+import { cn } from '../composed/cn';
 import { setHiddenAnimated } from '../utils/aria';
 import { createDismiss } from '../utils/dismiss';
 import type { FloatingOptions } from '../utils/floating';
@@ -88,8 +89,6 @@ interface GroupProps extends SlotProps {
 
 function SelectTrigger({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useSelectContext('Trigger');
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.trigger, effectiveCls].filter(Boolean).join(' ');
   const displayText = children ?? (ctx.selectedValue() || ctx.placeholder || '');
 
   return (
@@ -101,7 +100,7 @@ function SelectTrigger({ children, className: cls, class: classProp }: SlotProps
       aria-haspopup="listbox"
       aria-expanded="false"
       data-state="closed"
-      class={combined || undefined}
+      class={cn(ctx.classes?.trigger, cls ?? classProp)}
       onClick={() => ctx.toggle()}
       onKeydown={(event: KeyboardEvent) => {
         if (isKey(event, Keys.ArrowDown, Keys.ArrowUp, Keys.Enter, Keys.Space)) {
@@ -150,9 +149,6 @@ function SelectContent({ children, className: cls, class: classProp }: SlotProps
   if (instanceIndex > 0) {
     console.warn('Duplicate <Select.Content> detected \u2013 only the first is used');
   }
-
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
 
   // Wire keyboard handler on the connected content element.
   // Click selection is handled by SelectItem's inline onClick — no
@@ -204,7 +200,7 @@ function SelectContent({ children, className: cls, class: classProp }: SlotProps
       aria-hidden="true"
       data-state="closed"
       style={{ display: 'none' }}
-      class={combined || undefined}
+      class={cn(ctx.classes?.content, cls ?? classProp)}
     >
       {children}
     </div>
@@ -213,8 +209,6 @@ function SelectContent({ children, className: cls, class: classProp }: SlotProps
 
 function SelectItem({ value, children, className: cls, class: classProp }: ItemProps) {
   const ctx = useSelectContext('Item');
-  const effectiveCls = cls ?? classProp;
-  const itemClass = [ctx.classes?.item, effectiveCls].filter(Boolean).join(' ');
   const isSelected = ctx.selectedValue() === value;
 
   return (
@@ -224,14 +218,14 @@ function SelectItem({ value, children, className: cls, class: classProp }: ItemP
       tabindex="-1"
       aria-selected={isSelected ? 'true' : 'false'}
       data-state={isSelected ? 'active' : 'inactive'}
-      class={itemClass || undefined}
+      class={cn(ctx.classes?.item, cls ?? classProp)}
       onClick={() => ctx.selectItem(value)}
     >
       {children ?? value}
       <span
         data-part="indicator"
         style={{ display: isSelected ? '' : 'none' }}
-        class={ctx.classes?.itemIndicator || undefined}
+        class={cn(ctx.classes?.itemIndicator)}
       />
     </div>
   );
@@ -239,12 +233,10 @@ function SelectItem({ value, children, className: cls, class: classProp }: ItemP
 
 function SelectGroup({ label, children, className: cls, class: classProp }: GroupProps) {
   const ctx = useSelectContext('Group');
-  const effectiveCls = cls ?? classProp;
-  const groupClass = [ctx.classes?.group, effectiveCls].filter(Boolean).join(' ');
 
   return (
-    <div role="group" aria-label={label} class={groupClass || undefined}>
-      <div data-part="group-label" role="none" class={ctx.classes?.label || undefined}>
+    <div role="group" aria-label={label} class={cn(ctx.classes?.group, cls ?? classProp)}>
+      <div data-part="group-label" role="none" class={cn(ctx.classes?.label)}>
         {label}
       </div>
       {children}
@@ -254,10 +246,8 @@ function SelectGroup({ label, children, className: cls, class: classProp }: Grou
 
 function SelectSeparator({ className: cls, class: classProp }: SlotProps) {
   const { classes } = useSelectContext('Separator');
-  const effectiveCls = cls ?? classProp;
-  const sepClass = [classes?.separator, effectiveCls].filter(Boolean).join(' ');
 
-  return <hr role="separator" class={sepClass || undefined} />;
+  return <hr role="separator" class={cn(classes?.separator, cls ?? classProp)} />;
 }
 
 // ---------------------------------------------------------------------------

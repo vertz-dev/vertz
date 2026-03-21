@@ -14,9 +14,7 @@ export function createCarouselStyles(): CSSOutput<CarouselBlocks> {
   const s = css({
     carouselRoot: ['relative'],
     carouselViewport: ['overflow-hidden'],
-    carouselSlide: [
-      { '&[data-state="inactive"]': [{ display: 'none' }] },
-    ],
+    carouselSlide: [{ '&[data-state="inactive"]': [{ display: 'none' }] }],
     carouselPrevButton: [
       'absolute',
       'h:8',

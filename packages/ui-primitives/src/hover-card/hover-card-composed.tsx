@@ -6,6 +6,7 @@
 
 import type { ChildValue } from '@vertz/ui';
 import { createContext, useContext } from '@vertz/ui';
+import { cn } from '../composed/cn';
 import type { FloatingOptions } from '../utils/floating';
 import { uniqueId } from '../utils/id';
 
@@ -94,9 +95,6 @@ function HoverCardTrigger({ children }: SlotProps) {
 
 function HoverCardContent({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useHoverCardContext('Content');
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
-
   return (
     <div
       role="dialog"
@@ -105,7 +103,7 @@ function HoverCardContent({ children, className: cls, class: classProp }: SlotPr
       aria-hidden={ctx.isOpen ? 'false' : 'true'}
       data-state={ctx.isOpen ? 'open' : 'closed'}
       style={{ display: ctx.isOpen ? '' : 'none' }}
-      class={combined || undefined}
+      class={cn(ctx.classes?.content, cls ?? classProp)}
       onMouseenter={() => ctx.cancelCloseTimer()}
       onMouseleave={() => ctx.hide()}
       onFocusin={() => ctx.cancelCloseTimer()}

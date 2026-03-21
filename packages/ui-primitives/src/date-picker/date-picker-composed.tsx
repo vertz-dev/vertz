@@ -10,6 +10,7 @@
 import type { ChildValue, Ref } from '@vertz/ui';
 import { createContext, onMount, ref, useContext } from '@vertz/ui';
 import type { CalendarClasses, ComposedCalendarProps } from '../calendar/calendar-composed';
+import { cn } from '../composed/cn';
 import { ComposedCalendar } from '../calendar/calendar-composed';
 import { createDismiss } from '../utils/dismiss';
 import { linkedIds } from '../utils/id';
@@ -73,8 +74,6 @@ function DatePickerTrigger({ children, className: cls, class: classProp }: SlotP
         'Ensure it is a direct or nested child of the DatePicker root component.',
     );
   }
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.trigger, effectiveCls].filter(Boolean).join(' ');
   const isOpen = ctx.isOpen();
   const hasVal = ctx.hasValue();
   const text = ctx.displayText();
@@ -88,7 +87,7 @@ function DatePickerTrigger({ children, className: cls, class: classProp }: SlotP
       aria-expanded={isOpen ? 'true' : 'false'}
       data-state={isOpen ? 'open' : 'closed'}
       data-placeholder={hasVal ? undefined : 'true'}
-      class={combined || undefined}
+      class={cn(ctx.classes?.trigger, cls ?? classProp)}
       onClick={() => ctx.toggle()}
     >
       {children ?? text}
@@ -104,8 +103,6 @@ function DatePickerContent({ children, className: cls, class: classProp }: SlotP
         'Ensure it is a direct or nested child of the DatePicker root component.',
     );
   }
-  const effectiveCls = cls ?? classProp;
-  const combined = [ctx.classes?.content, effectiveCls].filter(Boolean).join(' ');
   const isOpen = ctx.isOpen();
 
   return (
@@ -117,7 +114,7 @@ function DatePickerContent({ children, className: cls, class: classProp }: SlotP
       aria-hidden={isOpen ? 'false' : 'true'}
       data-state={isOpen ? 'open' : 'closed'}
       style={{ display: isOpen ? '' : 'none' }}
-      class={combined || undefined}
+      class={cn(ctx.classes?.content, cls ?? classProp)}
     >
       {children}
     </div>

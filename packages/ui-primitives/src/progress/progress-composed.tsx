@@ -5,6 +5,7 @@
  */
 
 import type { ChildValue } from '@vertz/ui';
+import { cn } from '../composed/cn';
 import { uniqueId } from '../utils/id';
 
 // ---------------------------------------------------------------------------
@@ -60,9 +61,9 @@ function ComposedProgressRoot({
       aria-valuemin={String(min)}
       aria-valuemax={String(max)}
       data-state={dataStateFor(pct)}
-      class={classes?.root}
+      class={cn(classes?.root)}
     >
-      <div data-part="indicator" style={{ width: `${pct}%` }} class={classes?.indicator} />
+      <div data-part="indicator" style={{ width: `${pct}%` }} class={cn(classes?.indicator)} />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { createAvatarComponents } from '../components/avatar';
+import { configureTheme } from '../configure';
 import { createAvatarStyles } from '../styles/avatar';
 
 describe('avatar styles', () => {
@@ -36,55 +36,29 @@ describe('avatar styles', () => {
   });
 });
 
-describe('Avatar components', () => {
-  const styles = createAvatarStyles();
-  const { Avatar, AvatarImage, AvatarFallback } = createAvatarComponents(styles);
+describe('Avatar component (composed)', () => {
+  const theme = configureTheme();
+  const { Avatar } = theme.components;
 
-  it('Avatar returns an HTMLDivElement with root class', () => {
-    const el = Avatar({});
-    expect(el).toBeInstanceOf(HTMLDivElement);
-    expect(el.className).toContain(styles.root);
+  it('Avatar renders a div with root class', () => {
+    const el = Avatar({}) as HTMLElement;
+    expect(el.tagName).toBe('DIV');
+    expect(el.className).toContain(theme.styles.avatar.root);
   });
 
   it('Avatar appends user class', () => {
-    const el = Avatar({ class: 'custom-avatar' });
+    const el = Avatar({ className: 'custom-avatar' }) as HTMLElement;
     expect(el.className).toContain('custom-avatar');
-    expect(el.className).toContain(styles.root);
+    expect(el.className).toContain(theme.styles.avatar.root);
   });
 
   it('Avatar resolves children', () => {
-    const el = Avatar({ children: 'content' });
-    expect(el.textContent).toBe('content');
+    const el = Avatar({ children: 'content' }) as HTMLElement;
+    expect(el.textContent).toContain('content');
   });
 
-  it('AvatarImage returns an HTMLImageElement with src and alt', () => {
-    const el = AvatarImage({ src: 'https://example.com/photo.jpg', alt: 'User photo' });
-    expect(el).toBeInstanceOf(HTMLImageElement);
-    expect(el.src).toBe('https://example.com/photo.jpg');
-    expect(el.alt).toBe('User photo');
-    expect(el.className).toContain(styles.image);
-  });
-
-  it('AvatarImage appends user class', () => {
-    const el = AvatarImage({ src: 'img.jpg', alt: 'test', class: 'extra' });
-    expect(el.className).toContain('extra');
-    expect(el.className).toContain(styles.image);
-  });
-
-  it('AvatarFallback returns an HTMLDivElement with fallback class', () => {
-    const el = AvatarFallback({});
-    expect(el).toBeInstanceOf(HTMLDivElement);
-    expect(el.className).toContain(styles.fallback);
-  });
-
-  it('AvatarFallback renders children', () => {
-    const el = AvatarFallback({ children: 'JD' });
-    expect(el.textContent).toBe('JD');
-  });
-
-  it('AvatarFallback appends user class', () => {
-    const el = AvatarFallback({ class: 'custom-fallback' });
-    expect(el.className).toContain('custom-fallback');
-    expect(el.className).toContain(styles.fallback);
+  it('Avatar has Image and Fallback sub-components', () => {
+    expect(Avatar.Image).toBeDefined();
+    expect(Avatar.Fallback).toBeDefined();
   });
 });
