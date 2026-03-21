@@ -1428,6 +1428,73 @@ describe('RouterView', () => {
     router.dispose();
   });
 
+  test('errorFallback: navigating away from errored route cleans up and renders new route', async () => {
+    const routes = defineRoutes({
+      '/': {
+        component: () => {
+          throw new Error('home broke');
+        },
+      },
+      '/about': {
+        component: () => {
+          const el = document.createElement('div');
+          el.textContent = 'About Page';
+          return el;
+        },
+      },
+    });
+    const router = createRouter(routes, '/');
+    let view: HTMLElement;
+    RouterContext.Provider(router, () => {
+      view = RouterView({
+        router,
+        errorFallback: ({ error }) => {
+          const el = document.createElement('div');
+          el.textContent = `Error: ${error.message}`;
+          return el;
+        },
+      });
+    });
+    expect(view!.textContent).toContain('Error: home broke');
+
+    // Navigate to a working route
+    await router.navigate({ to: '/about' });
+    expect(view!.textContent).toBe('About Page');
+    expect(view!.textContent).not.toContain('Error');
+    router.dispose();
+  });
+
+  test('errorFallback catches lazy route error after resolution', async () => {
+    const routes = defineRoutes({
+      '/': {
+        component: () =>
+          Promise.resolve({
+            default: () => {
+              throw new Error('lazy boom');
+            },
+          }),
+      },
+    });
+    const router = createRouter(routes, '/');
+    let view: HTMLElement;
+    RouterContext.Provider(router, () => {
+      view = RouterView({
+        router,
+        errorFallback: ({ error }) => {
+          const el = document.createElement('div');
+          el.setAttribute('data-testid', 'error-fallback');
+          el.textContent = `Error: ${error.message}`;
+          return el;
+        },
+      });
+    });
+    // Wait for lazy resolution
+    await new Promise((r) => setTimeout(r, 10));
+    expect(view!.querySelector('[data-testid="error-fallback"]')).not.toBeNull();
+    expect(view!.textContent).toContain('Error: lazy boom');
+    router.dispose();
+  });
+
   test('errorFallback with nested routes: leaf error does not take down parent layout', () => {
     const routes = defineRoutes({
       '/dashboard': {

@@ -140,7 +140,8 @@ describe('matchRoute', () => {
   });
 
   test('matches route with error component', () => {
-    const errorComp = () => document.createElement('div');
+    const errorComp = ({ error }: { error: Error; retry: () => void }) =>
+      document.createElement('div');
     const routes = defineRoutes({
       '/users': {
         component: () => document.createElement('div'),

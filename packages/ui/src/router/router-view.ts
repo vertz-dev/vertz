@@ -1,3 +1,4 @@
+import type { ErrorFallbackProps } from '../component/default-error-fallback';
 import { ErrorBoundary } from '../component/error-boundary';
 import {
   beginDeferringMounts,
@@ -16,8 +17,8 @@ import type { Router } from './navigate';
 import { OutletContext } from './outlet';
 import { RouterContext } from './router-context';
 
-/** Error fallback component signature used by errorFallback and errorComponent. */
-type ErrorFallbackFn = (props: { error: Error; retry: () => void }) => Node;
+/** Error fallback component signature, reuses ErrorFallbackProps from DefaultErrorFallback. */
+type ErrorFallbackFn = (props: ErrorFallbackProps) => Node;
 
 /** Per-level state for matched chain diffing. */
 interface LevelState {
@@ -156,6 +157,9 @@ export function RouterView({ router, fallback, errorFallback }: RouterViewProps)
         const levels = buildLevels(newMatched);
         const rootFactory = buildInsideOutFactory(newMatched, levels, 0, router, errorFallback);
 
+        // Resolve error fallback for the leaf route (used by lazy route error handling).
+        const lazyFallback = match ? (match.route.errorComponent ?? errorFallback) : undefined;
+
         let asyncRoute = false;
         RouterContext.Provider(router, () => {
           const result = rootFactory();
@@ -213,6 +217,31 @@ export function RouterView({ router, fallback, errorFallback }: RouterViewProps)
                     node = (mod as { default: () => Node }).default();
                     container.appendChild(node);
                   });
+                }
+              } catch (thrown: unknown) {
+                // Lazy route component threw after resolution — render error
+                // fallback if configured, otherwise re-throw.
+                if (lazyFallback) {
+                  const error = thrown instanceof Error ? thrown : new Error(String(thrown));
+                  while (container.firstChild) {
+                    container.removeChild(container.firstChild);
+                  }
+                  const fallbackNode = lazyFallback({
+                    error,
+                    retry: () => {
+                      try {
+                        const retryNode = (mod as { default: () => Node }).default();
+                        if (fallbackNode.parentNode) {
+                          fallbackNode.parentNode.replaceChild(retryNode, fallbackNode);
+                        }
+                      } catch {
+                        // Retry failed — keep the fallback
+                      }
+                    },
+                  });
+                  container.appendChild(fallbackNode);
+                } else {
+                  throw thrown;
                 }
               } finally {
                 popScope();
@@ -353,6 +382,10 @@ function buildInsideOutFactory(
     fb: ErrorFallbackFn | undefined,
   ): (() => Node | Promise<{ default: () => Node }>) => {
     if (!fb) return componentFn;
+    // Cast is safe: ErrorBoundary's try/catch intercepts sync throws from
+    // children(). If children() returns a Promise (lazy route), ErrorBoundary
+    // passes it through unchanged — async errors are handled separately in
+    // the .then() callbacks of RouterView/Outlet.
     return () =>
       ErrorBoundary({
         children: componentFn as () => HTMLElement,
