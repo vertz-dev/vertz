@@ -302,6 +302,13 @@ function transformJsxElement(
   const attrs = openingElement.getAttributes();
   const deferredStmts: string[] = [];
   for (const attr of attrs) {
+    if (attr.isKind(SyntaxKind.JsxSpreadAttribute)) {
+      const expr = attr.getExpression();
+      // Read from MagicString to pick up .value transforms from signal transformer
+      const exprText = source.slice(expr.getStart(), expr.getEnd());
+      statements.push(`__spread(${elVar}, ${exprText})`);
+      continue;
+    }
     if (!attr.isKind(SyntaxKind.JsxAttribute)) continue;
     const attrStmt = processAttribute(attr, elVar, source, jsxMap, tagName);
     if (!attrStmt) continue;
@@ -363,6 +370,13 @@ function transformSelfClosingElement(
 
   const attrs = node.getAttributes();
   for (const attr of attrs) {
+    if (attr.isKind(SyntaxKind.JsxSpreadAttribute)) {
+      const expr = attr.getExpression();
+      // Read from MagicString to pick up .value transforms from signal transformer
+      const exprText = source.slice(expr.getStart(), expr.getEnd());
+      statements.push(`__spread(${elVar}, ${exprText})`);
+      continue;
+    }
     if (!attr.isKind(SyntaxKind.JsxAttribute)) continue;
     const attrStmt = processAttribute(attr, elVar, source, jsxMap, tagName);
     if (attrStmt) statements.push(attrStmt);
@@ -981,14 +995,26 @@ function buildPropsObject(
 ): string {
   // Use getAttributes() for direct attributes only — getDescendantsOfKind()
   // would descend into nested JSX inside arrow functions within prop values.
-  const attrs =
+  // Note: the fallback branch (getDescendantsOfKind) is unreachable in practice
+  // since callers always pass JsxOpeningElement or JsxSelfClosingElement.
+  // It does not handle JsxSpreadAttribute, but that's fine since it's dead code.
+  const allAttrs =
     element.isKind(SyntaxKind.JsxOpeningElement) || element.isKind(SyntaxKind.JsxSelfClosingElement)
-      ? element.getAttributes().filter((a) => a.isKind(SyntaxKind.JsxAttribute))
+      ? element.getAttributes()
       : element.getDescendantsOfKind(SyntaxKind.JsxAttribute);
-  if (attrs.length === 0 && (!extraEntries || extraEntries.size === 0)) return '{}';
+  if (allAttrs.length === 0 && (!extraEntries || extraEntries.size === 0)) return '{}';
 
   const props: string[] = [];
-  for (const attr of attrs) {
+  for (const attr of allAttrs) {
+    // Handle spread attributes: {...expr} → ...expr in the object literal
+    if (attr.isKind(SyntaxKind.JsxSpreadAttribute)) {
+      const expr = attr.getExpression();
+      // Read from MagicString to pick up .value transforms from signal transformer
+      const exprText = source.slice(expr.getStart(), expr.getEnd());
+      props.push(`...${exprText}`);
+      continue;
+    }
+    if (!attr.isKind(SyntaxKind.JsxAttribute)) continue;
     const name = attr.getNameNode().getText();
     // key is a framework concept (used by __list reconciliation), not a component prop
     if (name === 'key') continue;

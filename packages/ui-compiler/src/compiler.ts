@@ -186,6 +186,7 @@ const DOM_HELPERS = [
   '__on',
   '__pushMountFrame',
   '__show',
+  '__spread',
   '__classList',
   '__staticText',
   '__styleStr',

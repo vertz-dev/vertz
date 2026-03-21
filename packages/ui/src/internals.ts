@@ -55,6 +55,7 @@ export {
 export { __on } from './dom/events';
 export { clearChildren, insertBefore, removeNode } from './dom/insert';
 export { __list } from './dom/list';
+export { __spread } from './dom/spread';
 export { __styleStr } from './dom/style';
 // Environment detection (used by internal packages for SSR/browser checks)
 export { isBrowser } from './env/is-browser';
