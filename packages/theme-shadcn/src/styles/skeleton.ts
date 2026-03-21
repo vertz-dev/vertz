@@ -2,7 +2,7 @@ import type { CSSOutput, StyleEntry } from '@vertz/ui';
 import { css, keyframes } from '@vertz/ui';
 
 type SkeletonBlocks = {
-  base: StyleEntry[];
+  root: StyleEntry[];
 };
 
 const pulse = keyframes('vz-skeleton-pulse', {
@@ -13,6 +13,6 @@ const pulse = keyframes('vz-skeleton-pulse', {
 /** Create skeleton css() styles. */
 export function createSkeletonStyles(): CSSOutput<SkeletonBlocks> {
   return css({
-    base: ['bg:muted', 'rounded:md', { '&': { animation: `${pulse} 2s ease-in-out infinite` } }],
+    root: ['bg:muted', 'rounded:md', { '&': { animation: `${pulse} 2s ease-in-out infinite` } }],
   });
 }

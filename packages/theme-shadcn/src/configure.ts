@@ -306,7 +306,7 @@ export interface ThemeStyles {
   };
   /** Skeleton css() styles. */
   skeleton: {
-    readonly base: string;
+    readonly root: string;
     readonly css: string;
   };
   /** Table css() styles. */
@@ -678,7 +678,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
       image: avatarStyles.image,
       fallback: avatarStyles.fallback,
     }),
-    Skeleton: withStyles(ComposedSkeleton, { base: skeletonStyles.base }),
+    Skeleton: withStyles(ComposedSkeleton, { root: skeletonStyles.root }),
     Table: withStyles(ComposedTable, {
       root: tableStyles.root,
       header: tableStyles.header,
