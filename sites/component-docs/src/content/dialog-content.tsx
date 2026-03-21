@@ -46,15 +46,16 @@ export function Content() {
 
 <Dialog>
   <Dialog.Trigger>
-    <Button>Open</Button>
+    <Button intent="outline">Edit Profile</Button>
   </Dialog.Trigger>
   <Dialog.Content>
     <Dialog.Header>
-      <Dialog.Title>Title</Dialog.Title>
-      <Dialog.Description>Description</Dialog.Description>
+      <Dialog.Title>Edit profile</Dialog.Title>
+      <Dialog.Description>Make changes here.</Dialog.Description>
     </Dialog.Header>
     <Dialog.Footer>
-      <Dialog.Close>Cancel</Dialog.Close>
+      <Button intent="outline">Cancel</Button>
+      <Button intent="primary">Save changes</Button>
     </Dialog.Footer>
   </Dialog.Content>
 </Dialog>`}
