@@ -11,6 +11,8 @@ export const descriptions: Record<string, string> = {
   pagination: 'Pagination with page navigation, previous and next links.',
   // Compound / suite components
   dialog: 'A window overlaid on the primary window, rendering content on top.',
+  'dialog-stack':
+    'An imperative, promise-based API for opening dialogs and awaiting user responses.',
   'alert-dialog':
     'A modal dialog that interrupts the user with important content and expects a response.',
   select: 'Displays a list of options for the user to pick from, triggered by a button.',
