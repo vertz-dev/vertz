@@ -51,6 +51,7 @@
               "guides/ui/styling",
               "guides/ui/routing",
               "guides/ui/data-fetching",
+              "guides/ui/auto-field-selection",
               "guides/ui/forms",
               "guides/ui/auth",
               "guides/ui/multi-tenancy",
