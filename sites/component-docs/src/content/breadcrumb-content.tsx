@@ -7,26 +7,22 @@ export function Content() {
   return (
     <>
       <ComponentPreview>
-        <Breadcrumb
-          items={[
-            { label: 'Home', href: '/' },
-            { label: 'Components', href: '/components' },
-            { label: 'Breadcrumb' },
-          ]}
-        />
+        <Breadcrumb>
+          <Breadcrumb.Item href="/">Home</Breadcrumb.Item>
+          <Breadcrumb.Item href="/components">Components</Breadcrumb.Item>
+          <Breadcrumb.Item current>Breadcrumb</Breadcrumb.Item>
+        </Breadcrumb>
       </ComponentPreview>
       <DocH2>Usage</DocH2>
       <CodeFence>
         <code>
           {`import { Breadcrumb } from 'vertz/components';
 
-<Breadcrumb
-  items={[
-    { label: 'Home', href: '/' },
-    { label: 'Settings', href: '/settings' },
-    { label: 'Profile' },
-  ]}
-/>`}
+<Breadcrumb>
+  <Breadcrumb.Item href="/">Home</Breadcrumb.Item>
+  <Breadcrumb.Item href="/settings">Settings</Breadcrumb.Item>
+  <Breadcrumb.Item current>Profile</Breadcrumb.Item>
+</Breadcrumb>`}
         </code>
       </CodeFence>
 
@@ -34,14 +30,11 @@ export function Content() {
 
       <DocH3>Custom Separator</DocH3>
       <ComponentPreview>
-        <Breadcrumb
-          separator=">"
-          items={[
-            { label: 'Home', href: '/' },
-            { label: 'Products', href: '/products' },
-            { label: 'Widget' },
-          ]}
-        />
+        <Breadcrumb separator=">">
+          <Breadcrumb.Item href="/">Home</Breadcrumb.Item>
+          <Breadcrumb.Item href="/products">Products</Breadcrumb.Item>
+          <Breadcrumb.Item current>Widget</Breadcrumb.Item>
+        </Breadcrumb>
       </ComponentPreview>
 
       <DocH2>API Reference</DocH2>
