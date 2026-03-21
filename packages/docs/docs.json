@@ -53,6 +53,7 @@
               "guides/ui/data-fetching",
               "guides/ui/forms",
               "guides/ui/auth",
+              "guides/ui/multi-tenancy",
               "guides/ui/ssr",
               "guides/ui/access-control"
             ]
@@ -80,6 +81,7 @@
               "guides/server/entities",
               "guides/server/entity-exposure",
               "guides/server/auth",
+              "guides/server/multi-tenancy",
               "guides/server/codegen",
               "guides/server/oauth",
               "guides/server/services",
