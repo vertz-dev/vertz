@@ -11,10 +11,9 @@
  * recovery with retry.
  */
 
-import { createRouter, defineRoutes, ErrorBoundary, onMount, useRouter } from '@vertz/ui';
+import { createRouter, defineRoutes, onMount, useRouter } from '@vertz/ui';
 import { ProtectedRoute } from '@vertz/ui-auth';
 import { WorkspaceShell } from './components/auth-guard';
-import { ErrorFallback } from './components/error-fallback';
 import { AuthLoadingSkeleton } from './components/loading-skeleton';
 import { ProjectLayout } from './components/project-layout';
 import { IssueDetailPage } from './pages/issue-detail-page';
@@ -53,39 +52,19 @@ export const routes = defineRoutes({
         component: () => <IndexRedirect />,
       },
       '/projects': {
-        component: () => (
-          <ErrorBoundary
-            fallback={(error, retry) => <ErrorFallback error={error} retry={retry} />}
-            children={() => <ProjectsPage />}
-          />
-        ),
+        component: () => <ProjectsPage />,
       },
       '/projects/:projectId': {
         component: () => <ProjectLayout />,
         children: {
           '/': {
-            component: () => (
-              <ErrorBoundary
-                fallback={(error, retry) => <ErrorFallback error={error} retry={retry} />}
-                children={() => <IssueListPage />}
-              />
-            ),
+            component: () => <IssueListPage />,
           },
           '/board': {
-            component: () => (
-              <ErrorBoundary
-                fallback={(error, retry) => <ErrorFallback error={error} retry={retry} />}
-                children={() => <ProjectBoardPage />}
-              />
-            ),
+            component: () => <ProjectBoardPage />,
           },
           '/issues/:issueId': {
-            component: () => (
-              <ErrorBoundary
-                fallback={(error, retry) => <ErrorFallback error={error} retry={retry} />}
-                children={() => <IssueDetailPage />}
-              />
-            ),
+            component: () => <IssueDetailPage />,
           },
         },
       },

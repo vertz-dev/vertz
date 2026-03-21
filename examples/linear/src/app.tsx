@@ -11,6 +11,7 @@
 import {
   ANIMATION_DURATION,
   ANIMATION_EASING,
+  DefaultErrorFallback,
   DialogStackProvider,
   fadeOut,
   getInjectedCSS,
@@ -93,7 +94,11 @@ export function App() {
       <RouterContext.Provider value={appRouter}>
         <ThemeProvider theme="dark">
           <DialogStackProvider>
-            <RouterView router={appRouter} fallback={() => <div>Page not found</div>} />
+            <RouterView
+              router={appRouter}
+              fallback={() => <div>Page not found</div>}
+              errorFallback={DefaultErrorFallback}
+            />
           </DialogStackProvider>
         </ThemeProvider>
       </RouterContext.Provider>
