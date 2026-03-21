@@ -8,11 +8,12 @@
  */
 
 import type { ChildValue, Ref } from '@vertz/ui';
-import { createContext, onMount, ref, useContext } from '@vertz/ui';
+import { createContext, ref, useContext } from '@vertz/ui';
 import type { CalendarClasses, ComposedCalendarProps } from '../calendar/calendar-composed';
-import { cn } from '../composed/cn';
 import { ComposedCalendar } from '../calendar/calendar-composed';
+import { cn } from '../composed/cn';
 import { createDismiss } from '../utils/dismiss';
+import { createFloatingPosition } from '../utils/floating';
 import { linkedIds } from '../utils/id';
 
 // ---------------------------------------------------------------------------
@@ -37,6 +38,7 @@ interface DatePickerContextValue {
   hasValue: () => boolean;
   displayText: () => string;
   contentId: string;
+  triggerRef: Ref<HTMLButtonElement>;
   contentRef: Ref<HTMLDivElement>;
   classes?: DatePickerClasses;
   open: () => void;
@@ -80,6 +82,7 @@ function DatePickerTrigger({ children, className: cls, class: classProp }: SlotP
 
   return (
     <button
+      ref={ctx.triggerRef}
       type="button"
       data-datepicker-trigger=""
       aria-haspopup="dialog"
@@ -115,11 +118,7 @@ function DatePickerContent({ children, className: cls, class: classProp }: SlotP
       data-state={isOpen ? 'open' : 'closed'}
       style={{
         display: isOpen ? '' : 'none',
-        position: 'absolute',
-        top: '100%',
-        left: '0',
         zIndex: '50',
-        marginTop: '4px',
       }}
       class={cn(ctx.classes?.content, cls ?? classProp)}
     >
@@ -225,6 +224,7 @@ function ComposedDatePickerRoot({
   captionLayout,
 }: ComposedDatePickerProps) {
   const ids = linkedIds('datepicker');
+  const triggerRef: Ref<HTMLButtonElement> = ref();
   const contentRef: Ref<HTMLDivElement> = ref();
 
   let isOpen = false;
@@ -235,36 +235,40 @@ function ComposedDatePickerRoot({
   const state: {
     value: Date | { from: Date; to: Date } | null;
     dismissCleanup: (() => void) | null;
+    floatingCleanup: (() => void) | null;
   } = {
     value: defaultValue ?? null,
     dismissCleanup: null,
+    floatingCleanup: null,
   };
-
-  // Wire dismiss handler on connected content element.
-  onMount(() => {
-    const open = isOpen;
-    if (!open) return;
-
-    const contentEl = contentRef.current;
-    const triggerEl = contentEl?.parentElement?.querySelector(
-      '[data-datepicker-trigger]',
-    ) as HTMLElement | null;
-    if (!contentEl) return;
-
-    state.dismissCleanup = createDismiss({
-      onDismiss: close,
-      insideElements: [contentEl, ...(triggerEl ? [triggerEl] : [])],
-      escapeKey: true,
-    });
-  });
 
   function open(): void {
     isOpen = true;
+
+    const triggerEl = triggerRef.current;
+    const contentEl = contentRef.current;
+    if (triggerEl && contentEl) {
+      contentEl.style.position = 'fixed';
+      const result = createFloatingPosition(triggerEl, contentEl, {
+        placement: 'bottom-start',
+        offset: 4,
+      });
+      state.floatingCleanup = result.cleanup;
+
+      state.dismissCleanup = createDismiss({
+        onDismiss: close,
+        insideElements: [triggerEl, contentEl],
+        escapeKey: true,
+      });
+    }
+
     onOpenChange?.(true);
   }
 
   function close(): void {
     isOpen = false;
+    state.floatingCleanup?.();
+    state.floatingCleanup = null;
     state.dismissCleanup?.();
     state.dismissCleanup = null;
     onOpenChange?.(false);
@@ -326,6 +330,7 @@ function ComposedDatePickerRoot({
     hasValue: () => hasValue,
     displayText: () => displayText,
     contentId: ids.contentId,
+    triggerRef,
     contentRef,
     classes,
     open,
