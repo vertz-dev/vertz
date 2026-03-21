@@ -108,6 +108,54 @@ When two modules re-export from each other (directly or through a chain), the co
 
 This is rare in practice, but can happen with complex barrel file structures.
 
+### Render callbacks and query indirection
+
+Direct expressions and `.map()` callbacks on query data are **fully optimized** — the compiler traces field access through them automatically:
+
+```tsx
+// ✅ OPTIMIZED — compiler traces .map() callback field access
+{issues.data?.items.map(issue => (
+  <li>{issue.title} — {issue.status}</li>
+))}
+// Injects: select: { id: true, title: true, status: true }
+
+// ✅ OPTIMIZED — cross-file prop passing works too
+{issues.data?.items.map(issue => (
+  <IssueRow issue={issue} />
+))}
+// Compiler follows import to IssueRow, merges its field accesses
+```
+
+However, when query data passes through an **indirection layer** — a function call or component that renames the parameter — the compiler loses the connection between the callback parameter and the original query variable:
+
+```tsx
+// OPAQUE — queryMatch renames 'issues' to 'response' inside the data handler
+{queryMatch(issues, {
+  data: (response) => response.items.map(i => <span>{i.title}</span>),
+})}
+
+// OPAQUE — ListTransition children callback renames items to 'issue'
+<ListTransition each={issues.data.items} keyFn={(i) => i.id}>
+  {(issue) => <IssueRow issue={issue} />}
+</ListTransition>
+
+// OPAQUE — any render-function prop or children callback with query data
+<Table data={users} renderRow={(row) => <span>{row.name}</span>} />
+```
+
+**This only affects field selection, not reactivity.** Your app works correctly — data updates reactively as expected. The query just fetches all fields instead of only the ones you use.
+
+**Prefer direct `.map()` on the query result** for optimal field selection:
+
+```tsx
+// ✅ OPTIMIZED — .map() directly on query data, compiler traces field access
+{issues.data?.items.map(issue => (
+  <IssueRow issue={issue} />
+))}
+```
+
+When you need animated transitions, use `ListTransition` — your app still works correctly, you just won't get automatic field narrowing for that query. You can always add a manual `select` if needed.
+
 ### Spread, dynamic access, and function calls
 
 These patterns within your own code also trigger opaque fallback:
