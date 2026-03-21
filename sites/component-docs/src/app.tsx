@@ -52,13 +52,10 @@ export function App() {
   let currentTheme: 'dark' | 'light' = getInitialTheme();
 
   function toggle() {
-    const next = currentTheme === 'dark' ? 'light' : 'dark';
-    // DOM update + localStorage BEFORE signal write (compiler may stop after signal write)
-    document.querySelectorAll('[data-theme]').forEach((el) => {
-      el.setAttribute('data-theme', next);
-    });
-    localStorage.setItem('vertz-docs-theme', next);
-    currentTheme = next;
+    currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('vertz-docs-theme', currentTheme);
+    }
   }
 
   return (

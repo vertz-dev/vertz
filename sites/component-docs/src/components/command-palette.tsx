@@ -1,3 +1,4 @@
+import { onCleanup } from '@vertz/ui';
 import { useRouter } from '@vertz/ui/router';
 import { components } from '../manifest';
 
@@ -6,9 +7,6 @@ interface CommandPaletteProps {
   onClose: () => void;
 }
 
-let keyboardNavInstalled = false;
-let closeRef: (() => void) | null = null;
-
 function getFilteredComponents(query: string) {
   if (!query) return components;
   return components.filter((c) => c.title.toLowerCase().includes(query.toLowerCase()));
@@ -16,80 +14,57 @@ function getFilteredComponents(query: string) {
 
 export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   let query = '';
+  let selectedIndex = 0;
 
   const filtered = getFilteredComponents(query);
 
   const { navigate } = useRouter();
 
-  // Update module-level ref so global listener always calls current onClose
-  closeRef = onClose;
+  function selectItem(index: number) {
+    const item = filtered[index];
+    if (item) {
+      navigate({ to: `/components/${item.name}` });
+      query = '';
+      selectedIndex = 0;
+      onClose();
+    }
+  }
+
+  function handleKeyDown(e: KeyboardEvent) {
+    // Only handle when palette is visible
+    const backdrop = document.querySelector('[data-backdrop]') as HTMLElement;
+    if (!backdrop || backdrop.style.display === 'none') return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      selectedIndex = Math.min(selectedIndex + 1, filtered.length - 1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      selectedIndex = Math.max(selectedIndex - 1, 0);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      selectItem(selectedIndex);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      onClose();
+    }
+  }
+
+  // Component-scoped listener with cleanup — no duplicates on re-mount
+  if (typeof document !== 'undefined') {
+    document.addEventListener('keydown', handleKeyDown, true);
+    onCleanup(() => document.removeEventListener('keydown', handleKeyDown, true));
+  }
+
+  function handleInput(e: Event) {
+    query = (e.target as HTMLInputElement).value;
+    selectedIndex = 0;
+  }
 
   function handleBackdropClick(e: MouseEvent) {
     if ((e.target as HTMLElement).dataset.backdrop) {
       onClose();
     }
-  }
-
-  // Attach keyboard navigation via native listener (Vertz onKeyDown doesn't work reliably)
-  // Guard against duplicate registration on re-mount
-  if (typeof document !== 'undefined' && !keyboardNavInstalled) {
-    keyboardNavInstalled = true;
-    document.addEventListener(
-      'keydown',
-      (e) => {
-        const listEl = document.querySelector('[data-cmd-list]');
-        if (!listEl) return;
-        // Only handle when palette is visible
-        const backdrop = document.querySelector('[data-backdrop]') as HTMLElement;
-        if (!backdrop || backdrop.style.display === 'none') return;
-
-        if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          const items = listEl.querySelectorAll('.cmd-item');
-          const current = listEl.querySelector('.cmd-item[data-selected="true"]');
-          const idx = current ? Array.from(items).indexOf(current) : -1;
-          const next = Math.min(idx + 1, items.length - 1);
-          items.forEach((item) => item.removeAttribute('data-selected'));
-          if (items[next]) {
-            items[next].setAttribute('data-selected', 'true');
-            items[next].scrollIntoView({ block: 'nearest' });
-          }
-        } else if (e.key === 'ArrowUp') {
-          e.preventDefault();
-          const items = listEl.querySelectorAll('.cmd-item');
-          const current = listEl.querySelector('.cmd-item[data-selected="true"]');
-          const idx = current ? Array.from(items).indexOf(current) : 1;
-          const next = Math.max(idx - 1, 0);
-          items.forEach((item) => item.removeAttribute('data-selected'));
-          if (items[next]) {
-            items[next].setAttribute('data-selected', 'true');
-            items[next].scrollIntoView({ block: 'nearest' });
-          }
-        } else if (e.key === 'Enter') {
-          const current = listEl.querySelector('.cmd-item[data-selected="true"]') as HTMLElement;
-          if (current) {
-            e.preventDefault();
-            current.click();
-          }
-        } else if (e.key === 'Escape') {
-          e.preventDefault();
-          closeRef?.();
-        }
-      },
-      true,
-    );
-  }
-
-  function handleInput(e: Event) {
-    query = (e.target as HTMLInputElement).value;
-    // After re-render, select first item
-    setTimeout(() => {
-      const listEl = document.querySelector('[data-cmd-list]');
-      if (!listEl) return;
-      const items = listEl.querySelectorAll('.cmd-item');
-      items.forEach((item) => item.removeAttribute('data-selected'));
-      if (items[0]) items[0].setAttribute('data-selected', 'true');
-    }, 0);
   }
 
   return (
@@ -180,15 +155,12 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
               No results found.
             </div>
           )}
-          {filtered.map((entry) => (
+          {filtered.map((entry, i) => (
             <button
               type="button"
               className="cmd-item"
-              onClick={() => {
-                navigate({ to: `/components/${entry.name}` });
-                query = '';
-                onClose();
-              }}
+              data-selected={i === selectedIndex ? 'true' : undefined}
+              onClick={() => selectItem(i)}
             >
               <span
                 style={{
