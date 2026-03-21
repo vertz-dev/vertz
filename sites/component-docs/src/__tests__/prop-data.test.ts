@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { accordionItemProps, accordionProps } from '../props/accordion-props';
-import { alertDialogProps } from '../props/alert-dialog-props';
+import { confirmProps } from '../props/alert-dialog-props';
 import { alertProps } from '../props/alert-props';
 import { avatarImageProps, avatarProps } from '../props/avatar-props';
 import { badgeProps } from '../props/badge-props';
@@ -14,7 +14,7 @@ import { collapsibleProps } from '../props/collapsible-props';
 import { commandItemProps, commandProps } from '../props/command-props';
 import { contextMenuItemProps, contextMenuProps } from '../props/context-menu-props';
 import { datePickerProps } from '../props/date-picker-props';
-import { dialogContentProps, dialogProps } from '../props/dialog-props';
+import { dialogProps } from '../props/dialog-props';
 import { drawerProps } from '../props/drawer-props';
 import { dropdownMenuItemProps, dropdownMenuProps } from '../props/dropdown-menu-props';
 import { formErrorProps, formGroupProps } from '../props/form-group-props';
@@ -78,8 +78,7 @@ describe('Prop data files', () => {
   validateProps('paginationProps', paginationProps);
   // Compound / suite components
   validateProps('dialogProps', dialogProps);
-  validateProps('dialogContentProps', dialogContentProps);
-  validateProps('alertDialogProps', alertDialogProps);
+  validateProps('confirmProps', confirmProps);
   validateProps('selectProps', selectProps);
   validateProps('selectItemProps', selectItemProps);
   validateProps('tabsProps', tabsProps);
