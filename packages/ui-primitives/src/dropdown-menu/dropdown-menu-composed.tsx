@@ -259,9 +259,13 @@ function ComposedDropdownMenuRoot({
 
   function getTriggerEl(): HTMLElement | null {
     const content = getContentEl();
-    return content?.parentElement?.querySelector(
+    const triggerSpan = content?.parentElement?.querySelector(
       '[data-dropdownmenu-trigger]',
     ) as HTMLElement | null;
+    if (!triggerSpan) return null;
+    // The trigger span uses display:contents (no layout box).
+    // Return its first child element for positioning.
+    return (triggerSpan.firstElementChild as HTMLElement) ?? triggerSpan;
   }
 
   function updateActiveItem(items: HTMLElement[], index: number): void {

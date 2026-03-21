@@ -172,9 +172,12 @@ function ComposedHoverCardRoot({
   }
 
   function applyFloating(): void {
-    const triggerEl = triggerRef.current;
+    const triggerSpan = triggerRef.current;
     const contentEl = contentRef.current;
-    if (!triggerEl || !contentEl) return;
+    if (!triggerSpan || !contentEl) return;
+    // Trigger span uses display:contents (no layout box).
+    // Use its first child element for positioning.
+    const triggerEl = (triggerSpan.firstElementChild as HTMLElement) ?? triggerSpan;
     contentEl.style.position = 'fixed';
     const floatingOpts = positioning ?? { placement: 'bottom', offset: 4 };
     const result = createFloatingPosition(triggerEl, contentEl, floatingOpts);

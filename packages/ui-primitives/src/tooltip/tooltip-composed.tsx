@@ -147,11 +147,14 @@ function ComposedTooltipRoot({
 
   function applyPositioning(): void {
     const content = contentRef.current;
-    const trigger = content?.parentElement?.querySelector(
+    const triggerSpan = content?.parentElement?.querySelector(
       '[data-tooltip-trigger]',
     ) as HTMLElement | null;
-    if (!trigger || !content) return;
+    if (!triggerSpan || !content) return;
 
+    // Trigger span uses display:contents (no layout box).
+    // Use its first child element for positioning.
+    const trigger = (triggerSpan.firstElementChild as HTMLElement) ?? triggerSpan;
     content.style.position = 'fixed';
     const floatingOpts = positioning ?? { placement: 'top', offset: 4 };
     const result = createFloatingPosition(trigger, content, floatingOpts);
