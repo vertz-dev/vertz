@@ -1,4 +1,4 @@
-import { Button, DatePicker } from '@vertz/ui/components';
+import { DatePicker } from '@vertz/ui/components';
 import { ComponentPreview } from '../components/component-preview';
 import { CodeFence, DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
@@ -7,14 +7,7 @@ export function Content() {
   return (
     <>
       <ComponentPreview>
-        <DatePicker placeholder="Pick a date">
-          <DatePicker.Trigger>
-            <Button intent="outline" size="md">
-              Pick a date
-            </Button>
-          </DatePicker.Trigger>
-          <DatePicker.Content />
-        </DatePicker>
+        <DatePicker placeholder="Pick a date" />
       </ComponentPreview>
       <DocH2>Usage</DocH2>
       <CodeFence>

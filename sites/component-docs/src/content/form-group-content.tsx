@@ -7,22 +7,22 @@ export function Content() {
   return (
     <>
       <ComponentPreview>
-        <FormGroup.FormGroup>
+        <FormGroup>
           <Label>Email</Label>
           <Input placeholder="you@example.com" />
           <FormGroup.FormError>Please enter a valid email address.</FormGroup.FormError>
-        </FormGroup.FormGroup>
+        </FormGroup>
       </ComponentPreview>
       <DocH2>Usage</DocH2>
       <CodeFence>
         <code>
           {`import { FormGroup, Input, Label } from 'vertz/components';
 
-<FormGroup.FormGroup>
+<FormGroup>
   <Label>Email</Label>
   <Input placeholder="you@example.com" />
   <FormGroup.FormError>Please enter a valid email.</FormGroup.FormError>
-</FormGroup.FormGroup>`}
+</FormGroup>`}
         </code>
       </CodeFence>
 
