@@ -1,8 +1,5 @@
 import type { AppBuilder, AppConfig, EntityRouteEntry } from '@vertz/core';
-import {
-  createServer as coreCreateServer,
-  createMiddleware as createCoreMiddleware,
-} from '@vertz/core';
+import { createServer as coreCreateServer } from '@vertz/core';
 import {
   createDatabaseBridgeAdapter,
   type DatabaseClient,
@@ -21,6 +18,7 @@ import { DbUserStore } from './auth/db-user-store';
 import { createAuth } from './auth/index';
 import { createJWKSClient } from './auth/jwks-client';
 import { resolveSessionForSSR as createSSRResolver } from './auth/resolve-session-for-ssr';
+import { createAuthSessionMiddleware } from './auth/session-middleware';
 import type { AuthConfig, AuthInstance } from './auth/types';
 import type { EntityOperations } from './entity/entity-operations';
 import { EntityRegistry } from './entity/entity-registry';
@@ -504,25 +502,7 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
 
     // Auto-wire auth session middleware so entity/service handlers
     // receive ctx.userId, ctx.tenantId, ctx.roles from the JWT.
-    const authSessionMiddleware = createCoreMiddleware({
-      name: 'vertz-auth-session',
-      handler: async (ctx: Record<string, unknown>) => {
-        const raw = ctx.raw as { headers?: Headers } | undefined;
-        if (!raw?.headers) return {};
-
-        const result = await auth.api.getSession(raw.headers);
-        if (!result.ok || !result.data) return {};
-
-        return {
-          userId: result.data.user.id,
-          tenantId: result.data.payload.tenantId ?? null,
-          roles: [result.data.user.role],
-          user: result.data.user,
-          session: result.data,
-        };
-      },
-    });
-    app.middlewares([authSessionMiddleware]);
+    app.middlewares([createAuthSessionMiddleware(auth.api)]);
 
     // Guard: requestHandler only works with default /api prefix because
     // the auth handler hardcodes url.pathname.replace('/api/auth', '') internally.
