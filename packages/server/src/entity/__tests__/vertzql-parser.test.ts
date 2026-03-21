@@ -1346,6 +1346,69 @@ describe('Feature: q= param extracts where/orderBy/limit/offset (#1243)', () => 
 });
 
 // ---------------------------------------------------------------------------
+// Client-produced pattern: flat where/orderBy/limit + q= with select/include
+// ---------------------------------------------------------------------------
+
+describe('Feature: flat params + q= with select/include (#1666)', () => {
+  describe('Given the full client pattern: where[]+orderBy+limit+q(select,include)', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then merges all sources into a single VertzQLOptions', () => {
+        const structural = {
+          select: { id: true, title: true },
+          include: { comments: true },
+        };
+        const q = btoa(JSON.stringify(structural));
+
+        const result = parseVertzQL({
+          'where[status]': 'active',
+          'where[priority][gte]': '3',
+          orderBy: 'createdAt:desc',
+          limit: '25',
+          q,
+        });
+
+        expect(result.select).toEqual({ id: true, title: true });
+        expect(result.include).toEqual({ comments: true });
+        expect(result.where).toEqual({
+          status: 'active',
+          priority: { gte: '3' },
+        });
+        expect(result.orderBy).toEqual({ createdAt: 'desc' });
+        expect(result.limit).toBe(25);
+      });
+    });
+  });
+
+  describe('Given comma-separated orderBy with multiple fields', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then parses all orderBy fields', () => {
+        const result = parseVertzQL({ orderBy: 'createdAt:desc,name:asc' });
+
+        expect(result.orderBy).toEqual({ createdAt: 'desc', name: 'asc' });
+      });
+    });
+  });
+
+  describe('Given flat params only (no q=)', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then parses where/orderBy/limit without q', () => {
+        const result = parseVertzQL({
+          'where[projectId]': '123',
+          orderBy: 'name:asc',
+          limit: '50',
+        });
+
+        expect(result.where).toEqual({ projectId: '123' });
+        expect(result.orderBy).toEqual({ name: 'asc' });
+        expect(result.limit).toBe(50);
+        expect(result.select).toBeUndefined();
+        expect(result.include).toBeUndefined();
+      });
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Security: q= parameter hardening
 // ---------------------------------------------------------------------------
 

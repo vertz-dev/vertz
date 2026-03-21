@@ -116,12 +116,15 @@ export function parseVertzQL(query: Record<string, string>): VertzQLOptions {
       continue;
     }
 
-    // orderBy=field:dir
+    // orderBy=field:dir or orderBy=field1:dir1,field2:dir2
     if (key === 'orderBy') {
-      const [field, dir] = value.split(':');
-      if (field) {
-        if (!result.orderBy) result.orderBy = {};
-        result.orderBy[field] = dir === 'desc' ? 'desc' : 'asc';
+      const entries = value.split(',');
+      for (const entry of entries) {
+        const [field, dir] = entry.split(':');
+        if (field) {
+          if (!result.orderBy) result.orderBy = {};
+          result.orderBy[field] = dir === 'desc' ? 'desc' : 'asc';
+        }
       }
       continue;
     }
