@@ -108,6 +108,41 @@ When two modules re-export from each other (directly or through a chain), the co
 
 This is rare in practice, but can happen with complex barrel file structures.
 
+### Render callbacks and pattern matching
+
+When you pass a query to a component and render data via a callback, the compiler can't trace which fields are accessed inside the callback:
+
+```tsx
+// OPAQUE — compiler can't trace from query prop to children callback
+<DataView query={issues}>
+  {(response) => response.items.map(i => <span>{i.title}</span>)}
+</DataView>
+
+// OPAQUE — same gap applies to queryMatch data handler
+{queryMatch(issues, {
+  data: (response) => response.items.map(i => <span>{i.title}</span>),
+})}
+
+// OPAQUE — any render-function prop with query data
+<Table data={users} renderRow={(row) => <span>{row.name}</span>} />
+```
+
+**This only affects field selection, not reactivity.** Your app works correctly — data updates reactively as expected. The query just fetches all fields instead of only the ones you use.
+
+**Prefer direct expressions** for optimal field selection:
+
+```tsx
+// ✅ OPTIMIZED — compiler traces field access directly
+{issues.loading && <Skeleton />}
+{issues.error && <ErrorFallback error={issues.error} />}
+{issues.data?.items.map(issue => (
+  <li>{issue.title} — {issue.status}</li>
+))}
+// Injects: select: { id: true, title: true, status: true }
+```
+
+The direct expression pattern gives the compiler full visibility. Keep query data access in the same file where `query()` is called, and pass entity data to child components via props (which the compiler can follow cross-file).
+
 ### Spread, dynamic access, and function calls
 
 These patterns within your own code also trigger opaque fallback:
