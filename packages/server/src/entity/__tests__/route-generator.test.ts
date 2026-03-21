@@ -2,6 +2,7 @@ import { describe, expect, it, mock } from 'bun:test';
 import { d } from '@vertz/db';
 import { rules } from '../../auth/rules';
 import type { EntityDbAdapter } from '../crud-pipeline';
+import type { EntityOperations } from '../entity-operations';
 import { EntityRegistry } from '../entity-registry';
 import { generateEntityRoutes } from '../route-generator';
 import type { EntityDefinition } from '../types';
@@ -82,6 +83,30 @@ function buildEntityDef(overrides: Partial<EntityDefinition> = {}): EntityDefini
   } as EntityDefinition;
 }
 
+function stubEntityOps(): EntityOperations {
+  return {
+    async get() {
+      return {} as never;
+    },
+    async list() {
+      return { items: [], total: 0, limit: 20, nextCursor: null, hasNextPage: false };
+    },
+    async create() {
+      return {} as never;
+    },
+    async update() {
+      return {} as never;
+    },
+    async delete() {},
+  } as EntityOperations;
+}
+
+function createTestRegistry(entityName = 'users'): EntityRegistry {
+  const registry = new EntityRegistry();
+  registry.register(entityName, stubEntityOps());
+  return registry;
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -91,7 +116,7 @@ describe('generateEntityRoutes', () => {
     it('generates 5 CRUD routes for an entity with all access rules', () => {
       const def = buildEntityDef();
       const db = createMockDb();
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const methods = routes.map((r) => `${r.method} ${r.path}`);
@@ -107,7 +132,7 @@ describe('generateEntityRoutes', () => {
     it('uses PATCH for updates, not PUT', () => {
       const def = buildEntityDef();
       const db = createMockDb();
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const updateRoute = routes.find(
@@ -119,7 +144,7 @@ describe('generateEntityRoutes', () => {
     it('uses custom apiPrefix when provided', () => {
       const def = buildEntityDef();
       const db = createMockDb();
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db, { apiPrefix: '/v1' });
 
       expect(routes[0]?.path).toMatch(/^\/v1\/users/);
@@ -145,7 +170,7 @@ describe('generateEntityRoutes', () => {
       } as unknown as Partial<EntityDefinition>);
 
       const db = createMockDb();
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const actionRoute = routes.find((r) => r.path.includes('resetPassword'));
@@ -164,7 +189,7 @@ describe('generateEntityRoutes', () => {
       });
 
       const db = createMockDb();
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const methods = routes.map((r) => `${r.method} ${r.path}`);
@@ -187,7 +212,7 @@ describe('generateEntityRoutes', () => {
       });
 
       const db = createMockDb();
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       // Delete route should still exist (to return 405)
@@ -202,7 +227,7 @@ describe('generateEntityRoutes', () => {
       const db = createMockDb([
         { id: '1', email: 'a@b.com', name: 'Alice', passwordHash: 'secret', role: 'admin' },
       ]);
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
@@ -231,7 +256,7 @@ describe('generateEntityRoutes', () => {
         { id: '2', email: 'b@b.com', name: 'Bob', passwordHash: 'secret' },
         { id: '3', email: 'c@b.com', name: 'Charlie', passwordHash: 'secret' },
       ]);
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
@@ -257,7 +282,7 @@ describe('generateEntityRoutes', () => {
         { id: '1', email: 'a@b.com', name: 'Alice', passwordHash: 'secret', role: 'admin' },
         { id: '2', email: 'b@b.com', name: 'Bob', passwordHash: 'secret', role: 'viewer' },
       ]);
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
@@ -281,7 +306,7 @@ describe('generateEntityRoutes', () => {
         { id: '1', email: 'a@b.com', name: 'Alice', passwordHash: 'secret' },
         { id: '2', email: 'b@b.com', name: 'Bob', passwordHash: 'secret' },
       ]);
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
@@ -307,7 +332,7 @@ describe('generateEntityRoutes', () => {
         { id: '2', email: 'b@b.com', name: 'Bob', passwordHash: 'secret' },
         { id: '3', email: 'c@b.com', name: 'Charlie', passwordHash: 'secret' },
       ]);
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
@@ -331,7 +356,7 @@ describe('generateEntityRoutes', () => {
         { id: '1', email: 'a@b.com', name: 'Alice', passwordHash: 'secret' },
         { id: '2', email: 'b@b.com', name: 'Bob', passwordHash: 'secret' },
       ]);
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
@@ -352,7 +377,7 @@ describe('generateEntityRoutes', () => {
       const db = createMockDb([
         { id: '1', email: 'a@b.com', name: 'Alice', passwordHash: 'secret' },
       ]);
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const getRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users/:id');
@@ -372,7 +397,7 @@ describe('generateEntityRoutes', () => {
     it('get handler returns 404 for missing record', async () => {
       const def = buildEntityDef();
       const db = createMockDb([]);
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const getRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users/:id');
@@ -391,7 +416,7 @@ describe('generateEntityRoutes', () => {
     it('create handler returns 201 with created record', async () => {
       const def = buildEntityDef();
       const db = createMockDb();
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const createRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users');
@@ -416,7 +441,7 @@ describe('generateEntityRoutes', () => {
       const db = createMockDb();
       db.create = createSpy;
 
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const createRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users');
@@ -437,7 +462,7 @@ describe('generateEntityRoutes', () => {
     it('update handler returns 200 with updated record', async () => {
       const def = buildEntityDef();
       const db = createMockDb([{ id: '1', email: 'a@b.com', name: 'Alice' }]);
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const updateRoute = routes.find((r) => r.method === 'PATCH');
@@ -456,7 +481,7 @@ describe('generateEntityRoutes', () => {
     it('delete handler returns 204 with null body', async () => {
       const def = buildEntityDef();
       const db = createMockDb([{ id: '1', email: 'a@b.com', name: 'Alice' }]);
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const deleteRoute = routes.find((r) => r.method === 'DELETE');
@@ -481,7 +506,7 @@ describe('generateEntityRoutes', () => {
         },
       });
       const db = createMockDb([{ id: '1' }]);
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const deleteRoute = routes.find((r) => r.method === 'DELETE');
@@ -508,7 +533,7 @@ describe('generateEntityRoutes', () => {
         },
       });
       const db = createMockDb();
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
@@ -536,7 +561,7 @@ describe('generateEntityRoutes', () => {
         },
       });
       const db = createMockDb();
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const getRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users/:id');
@@ -564,7 +589,7 @@ describe('generateEntityRoutes', () => {
         },
       });
       const db = createMockDb();
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const createRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users');
@@ -592,7 +617,7 @@ describe('generateEntityRoutes', () => {
         },
       });
       const db = createMockDb();
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const updateRoute = routes.find((r) => r.method === 'PATCH');
@@ -629,7 +654,7 @@ describe('generateEntityRoutes', () => {
       } as unknown as Partial<EntityDefinition>);
 
       const db = createMockDb();
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const actionRoute = routes.find((r) => r.path.includes('resetPassword'));
@@ -652,7 +677,7 @@ describe('generateEntityRoutes', () => {
       db.list = async () => {
         throw new Error('DB connection lost');
       };
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
@@ -674,7 +699,7 @@ describe('generateEntityRoutes', () => {
       db.get = async () => {
         throw new Error('DB connection lost');
       };
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const getRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users/:id');
@@ -696,7 +721,7 @@ describe('generateEntityRoutes', () => {
       db.create = async () => {
         throw new Error('DB connection lost');
       };
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const createRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users');
@@ -718,7 +743,7 @@ describe('generateEntityRoutes', () => {
       db.update = async () => {
         throw new Error('DB connection lost');
       };
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const updateRoute = routes.find((r) => r.method === 'PATCH');
@@ -740,7 +765,7 @@ describe('generateEntityRoutes', () => {
       db.delete = async () => {
         throw new Error('DB connection lost');
       };
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const deleteRoute = routes.find((r) => r.method === 'DELETE');
@@ -778,7 +803,7 @@ describe('generateEntityRoutes', () => {
       } as unknown as Partial<EntityDefinition>);
 
       const db = createMockDb([{ id: '1', email: 'a@b.com', name: 'Alice' }]);
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const actionRoute = routes.find((r) => r.path.includes('resetPassword'));
@@ -805,7 +830,7 @@ describe('generateEntityRoutes', () => {
         },
       });
       const db = createMockDb();
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
@@ -842,7 +867,7 @@ describe('generateEntityRoutes', () => {
       } as unknown as Partial<EntityDefinition>);
 
       const db = createMockDb([{ id: '1', email: 'a@b.com', name: 'Alice' }]);
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const actionRoute = routes.find((r) => r.path.includes('resetPassword'));
@@ -877,7 +902,7 @@ describe('generateEntityRoutes', () => {
       } as unknown as Partial<EntityDefinition>);
 
       const db = createMockDb();
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const statsRoute = routes.find((r) => r.path.includes('stats') && !r.path.includes('query'));
@@ -904,7 +929,7 @@ describe('generateEntityRoutes', () => {
       } as unknown as Partial<EntityDefinition>);
 
       const db = createMockDb();
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const bulkRoute = routes.find((r) => r.path.includes('bulk-delete'));
@@ -931,7 +956,7 @@ describe('generateEntityRoutes', () => {
       } as unknown as Partial<EntityDefinition>);
 
       const db = createMockDb();
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const statsRoute = routes.find((r) => r.path.includes('stats'));
@@ -968,7 +993,7 @@ describe('Feature: Include pass-through in route handlers (#1130)', () => {
         const def = buildEntityDef({
           expose: { select: { id: true, name: true }, include: { posts: true } },
         });
-        const registry = new EntityRegistry();
+        const registry = createTestRegistry();
         const routes = generateEntityRoutes(def, registry, db);
         const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
 
@@ -1015,7 +1040,7 @@ describe('Feature: Include pass-through in route handlers (#1130)', () => {
             },
           },
         });
-        const registry = new EntityRegistry();
+        const registry = createTestRegistry();
         const routes = generateEntityRoutes(def, registry, db);
         const queryRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users/query');
 
@@ -1066,7 +1091,7 @@ describe('Feature: Include pass-through in route handlers (#1130)', () => {
         const def = buildEntityDef({
           expose: { select: { id: true, name: true }, include: { posts: true } },
         });
-        const registry = new EntityRegistry();
+        const registry = createTestRegistry();
         const routes = generateEntityRoutes(def, registry, db);
         const getRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users/:id');
 
@@ -1106,7 +1131,7 @@ describe('Feature: Include pass-through in route handlers (#1130)', () => {
         const db = createMockDb([
           { id: 'u1', name: 'Alice', email: 'a@b.com', role: 'admin', passwordHash: 'h' },
         ]);
-        const registry = new EntityRegistry();
+        const registry = createTestRegistry();
         const routes = generateEntityRoutes(def, registry, db);
         const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
 
@@ -1132,7 +1157,7 @@ describe('Feature: Include pass-through in route handlers (#1130)', () => {
         const db = createMockDb([
           { id: 'u1', name: 'Alice', email: 'a@b.com', role: 'admin', passwordHash: 'h' },
         ]);
-        const registry = new EntityRegistry();
+        const registry = createTestRegistry();
         const routes = generateEntityRoutes(def, registry, db);
         const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
 
@@ -1155,7 +1180,7 @@ describe('Feature: Include pass-through in route handlers (#1130)', () => {
         const db = createMockDb([
           { id: 'u1', name: 'Alice', email: 'a@b.com', role: 'admin', passwordHash: 'h' },
         ]);
-        const registry = new EntityRegistry();
+        const registry = createTestRegistry();
         const routes = generateEntityRoutes(def, registry, db);
         const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
 
@@ -1205,7 +1230,7 @@ describe('Feature: Expose descriptor runtime evaluation', () => {
             },
           },
         } as Partial<EntityDefinition>);
-        const registry = new EntityRegistry();
+        const registry = createTestRegistry();
         const routes = generateEntityRoutes(def, registry, db);
         const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
 
@@ -1250,7 +1275,7 @@ describe('Feature: Expose descriptor runtime evaluation', () => {
             },
           },
         } as Partial<EntityDefinition>);
-        const registry = new EntityRegistry();
+        const registry = createTestRegistry();
         const routes = generateEntityRoutes(def, registry, db);
         const getRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users/:id');
 
@@ -1288,7 +1313,7 @@ describe('Feature: Expose descriptor runtime evaluation', () => {
             },
           },
         } as Partial<EntityDefinition>);
-        const registry = new EntityRegistry();
+        const registry = createTestRegistry();
         const routes = generateEntityRoutes(def, registry, db);
         const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
 
@@ -1325,7 +1350,7 @@ describe('Feature: Expose descriptor runtime evaluation', () => {
             },
           },
         } as Partial<EntityDefinition>);
-        const registry = new EntityRegistry();
+        const registry = createTestRegistry();
         const routes = generateEntityRoutes(def, registry, db);
         const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
 
@@ -1358,7 +1383,7 @@ describe('Feature: Expose descriptor runtime evaluation', () => {
             select: { id: true, name: true, email: true },
           },
         } as Partial<EntityDefinition>);
-        const registry = new EntityRegistry();
+        const registry = createTestRegistry();
         const routes = generateEntityRoutes(def, registry, db);
         const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
 
@@ -1394,7 +1419,7 @@ describe('Feature: Expose descriptor runtime evaluation', () => {
             },
           },
         } as Partial<EntityDefinition>);
-        const registry = new EntityRegistry();
+        const registry = createTestRegistry();
         const routes = generateEntityRoutes(def, registry, db);
         const queryRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users/query');
 
@@ -1431,7 +1456,7 @@ describe('Feature: Expose descriptor runtime evaluation', () => {
             },
           },
         } as Partial<EntityDefinition>);
-        const registry = new EntityRegistry();
+        const registry = createTestRegistry();
         const routes = generateEntityRoutes(def, registry, db);
         const queryRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users/query');
 
@@ -1465,7 +1490,7 @@ describe('Feature: Expose descriptor runtime evaluation', () => {
             },
           },
         } as Partial<EntityDefinition>);
-        const registry = new EntityRegistry();
+        const registry = createTestRegistry();
         const routes = generateEntityRoutes(def, registry, db);
         const createRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users');
 
@@ -1492,7 +1517,7 @@ describe('Feature: Expose descriptor runtime evaluation', () => {
       it('Then returns 400 with a BadRequest error', async () => {
         const db = createMockDb([{ id: '1', name: 'Alice', email: 'a@b.com', role: 'viewer' }]);
         const def = buildEntityDef();
-        const registry = new EntityRegistry();
+        const registry = createTestRegistry();
         const routes = generateEntityRoutes(def, registry, db);
         const queryRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users/query');
 
@@ -1518,7 +1543,7 @@ describe('Feature: Expose descriptor runtime evaluation', () => {
       it('Then accepts the cursor and returns 200', async () => {
         const db = createMockDb([{ id: '1', name: 'Alice', email: 'a@b.com', role: 'viewer' }]);
         const def = buildEntityDef();
-        const registry = new EntityRegistry();
+        const registry = createTestRegistry();
         const routes = generateEntityRoutes(def, registry, db);
         const queryRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users/query');
 
@@ -1541,7 +1566,7 @@ describe('Feature: Expose descriptor runtime evaluation', () => {
       it('Then returns 400 with a type error', async () => {
         const db = createMockDb([{ id: '1', name: 'Alice', email: 'a@b.com', role: 'viewer' }]);
         const def = buildEntityDef();
-        const registry = new EntityRegistry();
+        const registry = createTestRegistry();
         const routes = generateEntityRoutes(def, registry, db);
         const queryRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users/query');
 
@@ -1578,7 +1603,7 @@ describe('Feature: Expose descriptor runtime evaluation', () => {
             },
           },
         } as Partial<EntityDefinition>);
-        const registry = new EntityRegistry();
+        const registry = createTestRegistry();
         const routes = generateEntityRoutes(def, registry, db);
         const updateRoute = routes.find((r) => r.method === 'PATCH');
 
@@ -1612,7 +1637,7 @@ describe('Feature: Expose descriptor runtime evaluation', () => {
         }));
         const db = createMockDb(items);
         const def = buildEntityDef();
-        const registry = new EntityRegistry();
+        const registry = createTestRegistry();
         const routes = generateEntityRoutes(def, registry, db);
         const queryRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users/query');
 
@@ -1638,7 +1663,7 @@ describe('Feature: Expose descriptor runtime evaluation', () => {
           { id: '1', email: 'a@b.com', name: 'A', passwordHash: 'h', role: 'viewer' },
         ]);
         const def = buildEntityDef();
-        const registry = new EntityRegistry();
+        const registry = createTestRegistry();
         const routes = generateEntityRoutes(def, registry, db);
         const queryRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users/query');
 
@@ -1664,7 +1689,7 @@ describe('Feature: Expose descriptor runtime evaluation', () => {
           { id: '1', email: 'a@b.com', name: 'A', passwordHash: 'h', role: 'viewer' },
         ]);
         const def = buildEntityDef();
-        const registry = new EntityRegistry();
+        const registry = createTestRegistry();
         const routes = generateEntityRoutes(def, registry, db);
         const queryRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users/query');
 
@@ -1698,7 +1723,7 @@ describe('Feature: Expose descriptor runtime evaluation', () => {
           },
         });
         const db = createMockDb();
-        const registry = new EntityRegistry();
+        const registry = createTestRegistry();
         const routes = generateEntityRoutes(def, registry, db);
 
         // Only one POST /query route should exist (the 405 handler)
@@ -1736,11 +1761,124 @@ describe('Feature: Expose descriptor runtime evaluation', () => {
         },
       });
       const db = createMockDb();
-      const registry = new EntityRegistry();
+      const registry = createTestRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
       const queryRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users/query');
       expect(queryRoute).toBeUndefined();
+    });
+  });
+
+  describe('ctx.entity population', () => {
+    it('before.create hook receives populated ctx.entity with CRUD methods', async () => {
+      let capturedEntity: unknown = null;
+      const def = buildEntityDef({
+        before: {
+          create: (data: unknown, ctx: { entity: unknown }) => {
+            capturedEntity = ctx.entity;
+            return data;
+          },
+        },
+      });
+      const db = createMockDb();
+      const registry = createTestRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const createRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users');
+      await createRoute!.handler({ body: { email: 'a@b.com', name: 'Alice' } });
+
+      expect(capturedEntity).not.toBeNull();
+      expect(typeof (capturedEntity as Record<string, unknown>).get).toBe('function');
+      expect(typeof (capturedEntity as Record<string, unknown>).list).toBe('function');
+      expect(typeof (capturedEntity as Record<string, unknown>).create).toBe('function');
+      expect(typeof (capturedEntity as Record<string, unknown>).update).toBe('function');
+      expect(typeof (capturedEntity as Record<string, unknown>).delete).toBe('function');
+    });
+
+    it('after.create hook receives populated ctx.entity', async () => {
+      let capturedEntity: unknown = null;
+      const def = buildEntityDef({
+        after: {
+          create: (_result: unknown, ctx: { entity: unknown }) => {
+            capturedEntity = ctx.entity;
+          },
+        },
+      });
+      const db = createMockDb();
+      const registry = createTestRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const createRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users');
+      await createRoute!.handler({ body: { email: 'a@b.com', name: 'Alice' } });
+
+      expect(capturedEntity).not.toBeNull();
+      expect(typeof (capturedEntity as Record<string, unknown>).get).toBe('function');
+    });
+
+    it('after.update hook receives populated ctx.entity', async () => {
+      let capturedEntity: unknown = null;
+      const def = buildEntityDef({
+        after: {
+          update: (_prev: unknown, _next: unknown, ctx: { entity: unknown }) => {
+            capturedEntity = ctx.entity;
+          },
+        },
+      });
+      const db = createMockDb([
+        { id: '1', email: 'a@b.com', name: 'Alice', passwordHash: 'secret', role: 'admin' },
+      ]);
+      const registry = createTestRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const updateRoute = routes.find((r) => r.method === 'PATCH' && r.path === '/api/users/:id');
+      await updateRoute!.handler({ params: { id: '1' }, body: { name: 'Bob' } });
+
+      expect(capturedEntity).not.toBeNull();
+      expect(typeof (capturedEntity as Record<string, unknown>).update).toBe('function');
+    });
+
+    it('after.delete hook receives populated ctx.entity', async () => {
+      let capturedEntity: unknown = null;
+      const def = buildEntityDef({
+        after: {
+          delete: (_row: unknown, ctx: { entity: unknown }) => {
+            capturedEntity = ctx.entity;
+          },
+        },
+      });
+      const db = createMockDb([
+        { id: '1', email: 'a@b.com', name: 'Alice', passwordHash: 'secret', role: 'admin' },
+      ]);
+      const registry = createTestRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const deleteRoute = routes.find((r) => r.method === 'DELETE' && r.path === '/api/users/:id');
+      await deleteRoute!.handler({ params: { id: '1' } });
+
+      expect(capturedEntity).not.toBeNull();
+      expect(typeof (capturedEntity as Record<string, unknown>).delete).toBe('function');
+    });
+
+    it('ctx.entity is the same instance from the registry', async () => {
+      const ops = stubEntityOps();
+      let capturedEntity: unknown = null;
+      const def = buildEntityDef({
+        before: {
+          create: (data: unknown, ctx: { entity: unknown }) => {
+            capturedEntity = ctx.entity;
+            return data;
+          },
+        },
+      });
+      const db = createMockDb();
+      const registry = new EntityRegistry();
+      registry.register('users', ops);
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const createRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users');
+      await createRoute!.handler({ body: { email: 'a@b.com', name: 'Alice' } });
+
+      expect(capturedEntity).toBe(ops);
     });
   });
 });
