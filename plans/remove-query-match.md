@@ -120,7 +120,9 @@ Removing `queryMatch` *reduces* compiler complexity. Fewer special-cases, fewer 
 
 ## Unknowns
 
-None. This is a pure deletion with a clear replacement pattern.
+### Bare signal API variable as function argument
+
+Removing `containsSignalApiReference` means `{myHelper(tasks)}` (passing a query result as a bare argument without accessing signal properties at the call site) is no longer classified as reactive by the JSX analyzer. The mitigation is that users should access signal properties at the call site: `{myHelper(tasks.data, tasks.error)}`. Since `queryMatch` was the only known API using this pattern and it's being removed, this is a theoretical concern — no user code is affected.
 
 ## Type Flow Map
 

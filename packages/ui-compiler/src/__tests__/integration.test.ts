@@ -393,7 +393,7 @@ function TaskList() {
     );
 
     // tasks.data is a signal property access — should still be __child (reactive)
-    // but via containsSignalApiPropertyAccess, not containsSignalApiReference
+    // via containsSignalApiPropertyAccess
     expect(result.code).toContain('__child(');
     expect(result.code).toContain('tasks.data.value');
     expect(result.diagnostics).toHaveLength(0);
