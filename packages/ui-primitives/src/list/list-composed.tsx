@@ -277,7 +277,7 @@ function calcInsertionIndex(items: HTMLElement[], clientY: number): number {
     const midY = rect.top + rect.height / 2;
     if (clientY <= midY) return i;
   }
-  return items.length - 1;
+  return items.length;
 }
 
 /**
@@ -408,12 +408,13 @@ function setupDragSort(
       draggedItem.style.transition = '';
       dropIndicator.hide();
 
-      // Calculate destination index
+      // Calculate destination index (insertion-before → destination-after-removal)
       const currentItems = [...ulEl.querySelectorAll('[data-sortable-item]')] as HTMLElement[];
-      const toIndex = calcInsertionIndex(currentItems, upEvent.clientY);
+      const insertionIndex = calcInsertionIndex(currentItems, upEvent.clientY);
+      const destIndex = insertionIndex > fromIndex ? insertionIndex - 1 : insertionIndex;
 
-      if (fromIndex !== toIndex) {
-        getOnReorder()?.(fromIndex, toIndex);
+      if (fromIndex !== destIndex) {
+        getOnReorder()?.(fromIndex, destIndex);
       }
     };
 
@@ -470,11 +471,24 @@ function ComposedListRoot({
 // Export as callable with sub-component properties
 // ---------------------------------------------------------------------------
 
+/**
+ * Reorder an array by moving an item from one index to another.
+ * Returns a new array without mutating the original.
+ */
+function reorder<T>(arr: readonly T[], from: number, to: number): T[] {
+  const result = [...arr];
+  const moved = result.splice(from, 1)[0] as T;
+  result.splice(to, 0, moved);
+  return result;
+}
+
 export const ComposedList = Object.assign(ComposedListRoot, {
   Item: ListItem,
   DragHandle: ListDragHandle,
+  reorder,
 }) as ((props: ComposedListProps) => HTMLElement) & {
   __classKeys?: ListClassKey;
   Item: (props: SlotProps) => HTMLElement;
   DragHandle: (props: SlotProps) => HTMLElement;
+  reorder: <T>(arr: readonly T[], from: number, to: number) => T[];
 };

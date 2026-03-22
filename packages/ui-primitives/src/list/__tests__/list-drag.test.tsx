@@ -87,6 +87,31 @@ afterEach(() => {
 // Tests
 // ---------------------------------------------------------------------------
 
+describe('Feature: List.reorder utility', () => {
+  it('moves item forward', () => {
+    expect(ComposedList.reorder(['A', 'B', 'C'], 0, 2)).toEqual(['B', 'C', 'A']);
+  });
+
+  it('moves item backward', () => {
+    expect(ComposedList.reorder(['A', 'B', 'C'], 2, 0)).toEqual(['C', 'A', 'B']);
+  });
+
+  it('returns a new array without mutating original', () => {
+    const original = ['A', 'B', 'C'];
+    const result = ComposedList.reorder(original, 0, 2);
+    expect(result).not.toBe(original);
+    expect(original).toEqual(['A', 'B', 'C']);
+  });
+
+  it('handles adjacent swap forward', () => {
+    expect(ComposedList.reorder(['A', 'B', 'C'], 0, 1)).toEqual(['B', 'A', 'C']);
+  });
+
+  it('handles adjacent swap backward', () => {
+    expect(ComposedList.reorder(['A', 'B', 'C'], 1, 0)).toEqual(['B', 'A', 'C']);
+  });
+});
+
 describe('Feature: List drag-and-sort', () => {
   describe('Given sortable={false}', () => {
     it('Then DragHandle does not get data-sortable attribute', () => {
@@ -118,14 +143,15 @@ describe('Feature: List drag-and-sort', () => {
         const items = ul.querySelectorAll('li');
         mockItemRects(items);
 
-        // Drag directly on item (no handle)
+        // Drag directly on item (no handle) — clientY=100 is at C's midpoint
+        // insertionIndex=2 (before C), fromIndex=0, dest=2-1=1
         items[0].dispatchEvent(
           new PointerEvent('pointerdown', { clientX: 100, clientY: 20, bubbles: true }),
         );
         document.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 100 }));
 
         expect(calls.length).toBe(1);
-        expect(calls[0]).toEqual({ from: 0, to: 2 });
+        expect(calls[0]).toEqual({ from: 0, to: 1 });
       });
     });
   });
@@ -181,7 +207,8 @@ describe('Feature: List drag-and-sort', () => {
         const items = ul.querySelectorAll('li');
         mockItemRects(items);
 
-        // Simulate drag: pick up first item via handle, move to third position
+        // Simulate drag: pick up first item via handle, move to C's midpoint
+        // insertionIndex=2 (before C), fromIndex=0, dest=2-1=1
         handles[0].dispatchEvent(
           new PointerEvent('pointerdown', { clientX: 100, clientY: 20, bubbles: true }),
         );
@@ -189,7 +216,7 @@ describe('Feature: List drag-and-sort', () => {
         document.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 100 }));
 
         expect(calls.length).toBe(1);
-        expect(calls[0]).toEqual({ from: 0, to: 2 });
+        expect(calls[0]).toEqual({ from: 0, to: 1 });
       });
 
       it('Then data-dragging attribute is set during drag', () => {
@@ -211,6 +238,104 @@ describe('Feature: List drag-and-sort', () => {
         document.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 20 }));
 
         expect(items[0].hasAttribute('data-dragging')).toBe(false);
+      });
+    });
+
+    describe('When dragging item A just past B midpoint (destination-after-removal)', () => {
+      it('Then onReorder is called with (0, 1) — not raw insertion index (0, 2)', () => {
+        const calls: Array<{ from: number; to: number }> = [];
+        const ul = RenderSortableListWithHandles({
+          onReorder: (from, to) => calls.push({ from, to }),
+        });
+        appendToBody(ul);
+
+        const handles = ul.querySelectorAll('[data-list-drag-handle]');
+        const items = ul.querySelectorAll('li');
+        mockItemRects(items);
+
+        // Drag from item A (y=20) to just past B's midpoint (y=61)
+        handles[0].dispatchEvent(
+          new PointerEvent('pointerdown', { clientX: 100, clientY: 20, bubbles: true }),
+        );
+        document.dispatchEvent(new PointerEvent('pointermove', { clientX: 100, clientY: 61 }));
+        document.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 61 }));
+
+        expect(calls.length).toBe(1);
+        // insertionIndex=2 (before C), fromIndex=0, dest=2-1=1
+        expect(calls[0]).toEqual({ from: 0, to: 1 });
+      });
+    });
+
+    describe('When dragging item A below all items', () => {
+      it('Then onReorder is called with (0, 2) — destination after removal', () => {
+        const calls: Array<{ from: number; to: number }> = [];
+        const ul = RenderSortableListWithHandles({
+          onReorder: (from, to) => calls.push({ from, to }),
+        });
+        appendToBody(ul);
+
+        const handles = ul.querySelectorAll('[data-list-drag-handle]');
+        const items = ul.querySelectorAll('li');
+        mockItemRects(items);
+
+        // Drag from item A (y=20) to below all items (y=130)
+        handles[0].dispatchEvent(
+          new PointerEvent('pointerdown', { clientX: 100, clientY: 20, bubbles: true }),
+        );
+        document.dispatchEvent(new PointerEvent('pointermove', { clientX: 100, clientY: 130 }));
+        document.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 130 }));
+
+        expect(calls.length).toBe(1);
+        // insertionIndex=3 (items.length), fromIndex=0, dest=3-1=2
+        expect(calls[0]).toEqual({ from: 0, to: 2 });
+      });
+    });
+
+    describe('When dragging last item below all items (no-op)', () => {
+      it('Then onReorder is NOT called', () => {
+        const calls: Array<{ from: number; to: number }> = [];
+        const ul = RenderSortableListWithHandles({
+          onReorder: (from, to) => calls.push({ from, to }),
+        });
+        appendToBody(ul);
+
+        const handles = ul.querySelectorAll('[data-list-drag-handle]');
+        const items = ul.querySelectorAll('li');
+        mockItemRects(items);
+
+        // Drag item C (last) to below all items
+        handles[2].dispatchEvent(
+          new PointerEvent('pointerdown', { clientX: 100, clientY: 100, bubbles: true }),
+        );
+        document.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 130 }));
+
+        // insertionIndex=3, fromIndex=2, dest=3-1=2=fromIndex → no-op
+        expect(calls.length).toBe(0);
+      });
+    });
+
+    describe('When dragging item C before item A (upward)', () => {
+      it('Then onReorder is called with (2, 0)', () => {
+        const calls: Array<{ from: number; to: number }> = [];
+        const ul = RenderSortableListWithHandles({
+          onReorder: (from, to) => calls.push({ from, to }),
+        });
+        appendToBody(ul);
+
+        const handles = ul.querySelectorAll('[data-list-drag-handle]');
+        const items = ul.querySelectorAll('li');
+        mockItemRects(items);
+
+        // Drag from item C (y=100) to above A's midpoint (y=10)
+        handles[2].dispatchEvent(
+          new PointerEvent('pointerdown', { clientX: 100, clientY: 100, bubbles: true }),
+        );
+        document.dispatchEvent(new PointerEvent('pointermove', { clientX: 100, clientY: 10 }));
+        document.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 10 }));
+
+        expect(calls.length).toBe(1);
+        // insertionIndex=0, fromIndex=2, 0 is not > 2 → dest=0
+        expect(calls[0]).toEqual({ from: 2, to: 0 });
       });
     });
 

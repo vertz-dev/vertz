@@ -70,10 +70,7 @@ function SortableListDemo() {
   ];
 
   function handleReorder(from: number, to: number) {
-    const updated = [...items];
-    const [moved] = updated.splice(from, 1);
-    updated.splice(to, 0, moved);
-    items = updated;
+    items = List.reorder(items, from, to);
   }
 
   return (
