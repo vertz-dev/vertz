@@ -47,7 +47,6 @@ In design discussion — not yet approved for implementation.
 | [auto-migrate-dev-server](./auto-migrate-dev-server.md) | Wire auto-migrate into dev server pipeline |
 | [browser-platform-apis](./browser-platform-apis.md) | Replace JS polyfills with native browser APIs |
 | [canvas-phase-2](./canvas-phase-2.md) | JSX-based canvas rendering on PixiJS |
-| [catalog-router-refactor](./catalog-router-refactor.md) | Replace manual routing in catalog with RouterView |
 | [component-streaming](./component-streaming.md) | Stream resolved data for slow SSR queries |
 | [design-schema-migrations](./design-schema-migrations.md) | Schema migration system design |
 | [entity-todo-cloudflare-deployment](./entity-todo-cloudflare-deployment.md) | Deploy entity-todo on Cloudflare Workers |
