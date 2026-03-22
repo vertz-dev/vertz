@@ -677,6 +677,59 @@ describe('Feature: Animated drag-sort item shifting', () => {
     });
   });
 
+  describe('Given prefers-reduced-motion is enabled', () => {
+    it('Then shift transforms are applied instantly (transition: none)', () => {
+      // Mock matchMedia to return reduced motion
+      const originalMatchMedia = globalThis.matchMedia;
+      globalThis.matchMedia = ((query: string) => ({
+        matches: query === '(prefers-reduced-motion: reduce)',
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+        onchange: null,
+        dispatchEvent: () => false,
+      })) as typeof globalThis.matchMedia;
+
+      try {
+        const ul = RenderAnimatedSortableList({ onReorder: () => {} });
+        appendToBody(ul);
+
+        const handles = ul.querySelectorAll('[data-list-drag-handle]');
+        const items = ul.querySelectorAll('li');
+        mockItemRects(items);
+
+        (ul as HTMLElement).getBoundingClientRect = () =>
+          ({
+            top: 0,
+            left: 0,
+            bottom: 120,
+            right: 200,
+            width: 200,
+            height: 120,
+            x: 0,
+            y: 0,
+            toJSON: () => {},
+          }) as DOMRect;
+
+        handles[0].dispatchEvent(
+          new PointerEvent('pointerdown', { clientX: 100, clientY: 20, bubbles: true }),
+        );
+
+        document.dispatchEvent(new PointerEvent('pointermove', { clientX: 100, clientY: 61 }));
+
+        // Items should shift but with no transition (instant)
+        expect(items[1].style.transform).toBe('translateY(-40px)');
+        expect(items[1].style.transition).toBe('none');
+
+        document.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 61 }));
+      } finally {
+        globalThis.matchMedia = originalMatchMedia;
+      }
+    });
+  });
+
   describe('Given a sortable list with animate=false', () => {
     describe('When the user drags an item', () => {
       it('Then non-dragged items do not get shift transforms', () => {

@@ -334,6 +334,7 @@ function applyShiftTransforms(
   animate: boolean | AnimateConfig,
 ): void {
   const { duration, easing } = resolveAnimateConfig(animate);
+  const reducedMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
 
   for (let i = 0; i < allItems.length; i++) {
     if (i === fromIndex) continue; // Skip the dragged item itself
@@ -352,11 +353,12 @@ function applyShiftTransforms(
     }
 
     const item = allItems[i]!;
+    const transition = reducedMotion ? 'none' : `transform ${duration}ms ${easing}`;
     if (shift !== 0) {
-      item.style.transition = `transform ${duration}ms ${easing}`;
+      item.style.transition = transition;
       item.style.transform = `translateY(${shift}px)`;
     } else {
-      item.style.transition = `transform ${duration}ms ${easing}`;
+      item.style.transition = transition;
       item.style.transform = '';
     }
   }
