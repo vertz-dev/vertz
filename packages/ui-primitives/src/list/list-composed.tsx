@@ -206,6 +206,7 @@ function createAnimationHooks(animate: boolean | AnimateConfig): ListAnimationHo
       if (node instanceof Element) {
         const el = node as HTMLElement;
         const rect = node.getBoundingClientRect();
+        const reducedMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
 
         // Snapshot remaining items BEFORE taking the exiting item out of flow
         const remainingRects = new Map<string | number, DOMRect>();
@@ -213,56 +214,39 @@ function createAnimationHooks(animate: boolean | AnimateConfig): ListAnimationHo
           remainingRects.set(k, n.getBoundingClientRect());
         }
 
-        // Take exiting item out of flow so remaining items shift immediately
-        el.style.position = 'absolute';
-        el.style.left = `${rect.left}px`;
-        el.style.top = `${rect.top}px`;
-        el.style.width = `${rect.width}px`;
-        el.style.height = `${rect.height}px`;
-        el.style.margin = '0';
-        el.style.zIndex = '0';
+        // Animate the exiting item: fade out + collapse height in-place.
+        // We keep the item in flow and animate its height to 0 so the items
+        // below slide up smoothly at the same time.
+        el.style.overflow = 'hidden';
         el.style.pointerEvents = 'none';
+        el.style.borderBottomWidth = '0';
         node.setAttribute('data-presence', 'exit');
 
-        // Force reflow so remaining items are at their new positions
-        void el.offsetHeight;
+        if (!reducedMotion) {
+          // Set explicit height so we can transition to 0
+          el.style.height = `${rect.height}px`;
+          el.style.transition = 'none';
+          el.style.opacity = '1';
 
-        // FLIP remaining items from their old positions to new positions
-        if (!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
-          for (const [k, n] of itemNodes) {
-            const firstRect = remainingRects.get(k);
-            if (!firstRect) continue;
+          // Force reflow then animate to collapsed
+          void el.offsetHeight;
+          el.style.transition =
+            `height ${duration}ms ${easing}, opacity ${duration}ms ${easing}, ` +
+            `padding ${duration}ms ${easing}`;
+          el.style.height = '0';
+          el.style.paddingTop = '0';
+          el.style.paddingBottom = '0';
+          el.style.opacity = '0';
 
-            const lastRect = n.getBoundingClientRect();
-            const deltaY = firstRect.top - lastRect.top;
-            if (Math.abs(deltaY) < 0.5) continue;
+          el.addEventListener('transitionend', () => done(), { once: true });
 
-            (n as HTMLElement).style.transform = `translateY(${deltaY}px)`;
-            (n as HTMLElement).style.transition = 'none';
-
-            requestAnimationFrame(() => {
-              (n as HTMLElement).style.transition = `transform ${duration}ms ${easing}`;
-              (n as HTMLElement).style.transform = '';
-              n.addEventListener(
-                'transitionend',
-                () => {
-                  (n as HTMLElement).style.transition = '';
-                  (n as HTMLElement).style.transform = '';
-                },
-                { once: true },
-              );
-            });
-          }
+          // Safety timeout in case transitionend doesn't fire
+          setTimeout(() => done(), duration + 50);
+        } else {
+          done();
         }
 
-        // Wait for exit CSS animation, then call done() to remove from DOM
-        if (typeof node.getAnimations === 'function') {
-          const anims = node.getAnimations();
-          if (anims.length > 0) {
-            Promise.all(anims.map((a) => a.finished.catch(() => {}))).then(() => done());
-            return;
-          }
-        }
+        return;
       }
       done();
     },
@@ -403,7 +387,8 @@ function setupDragSort(
       // Show drop indicator at the target position
       const currentItems = [...ulEl.querySelectorAll('[data-sortable-item]')] as HTMLElement[];
       const toIndex = calcInsertionIndex(currentItems, moveEvent.clientY);
-      const indicatorTarget = (toIndex < currentItems.length ? currentItems[toIndex] : null) ?? null;
+      const indicatorTarget =
+        (toIndex < currentItems.length ? currentItems[toIndex] : null) ?? null;
 
       // Don't show indicator at the dragged item's own position
       if (indicatorTarget !== draggedItem) {

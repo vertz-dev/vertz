@@ -13,11 +13,6 @@ const listEnter = keyframes('vz-list-enter', {
   to: { opacity: '1', transform: 'translateY(0)' },
 });
 
-const listExit = keyframes('vz-list-exit', {
-  from: { opacity: '1', transform: 'translateY(0)' },
-  to: { opacity: '0', transform: 'translateY(-0.5rem)' },
-});
-
 /** Create list css() styles. */
 export function createListStyles(): CSSOutput<ListBlocks> {
   const s = css({
@@ -56,10 +51,7 @@ export function createListStyles(): CSSOutput<ListBlocks> {
       },
       { '&[data-presence="enter"]': [animationDecl(`${listEnter} 200ms ease-out`)] },
       {
-        '&[data-presence="exit"]': [
-          animationDecl(`${listExit} 200ms ease-out forwards`),
-          { overflow: 'hidden' },
-        ],
+        '&[data-presence="exit"]': [{ overflow: 'hidden', 'pointer-events': 'none' }],
       },
     ],
     listDragHandle: [
