@@ -7,6 +7,7 @@ import { SSRNode } from './ssr-node';
  * hydration cursor can claim during mount.
  */
 export class SSRComment extends SSRNode {
+  override nodeType = 8; // COMMENT_NODE
   text: string;
 
   constructor(text: string) {

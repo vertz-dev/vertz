@@ -239,4 +239,66 @@ describe('Child node rendering', () => {
 
     result.dispose();
   });
+
+  test('__child() handles array containing DocumentFragment children', () => {
+    const parent = document.createElement('div');
+
+    // Simulate what happens when children include a __child() result (DocumentFragment)
+    // followed by other nodes — the bug was that inserting a DocumentFragment empties it
+    // and leaves parentNode = null, crashing the next sibling insertion.
+    const innerChild = __child(() => 'inner content');
+    const span = document.createElement('span');
+    span.textContent = 'after fragment';
+
+    const result = __child(() => [innerChild, span]);
+    parent.appendChild(result);
+
+    // Both the inner content and the span should be present
+    expect(parent.textContent).toContain('inner content');
+    expect(parent.textContent).toContain('after fragment');
+
+    result.dispose();
+  });
+
+  test('__child() re-renders correctly when value changes from DocumentFragment array', () => {
+    const parent = document.createElement('div');
+    const s = signal(0);
+
+    const result = __child(() => {
+      if (s.value === 0) {
+        const inner = __child(() => 'fragment content');
+        const span = document.createElement('span');
+        span.textContent = 'after';
+        return [inner, span];
+      }
+      return 'simple text';
+    });
+    parent.appendChild(result);
+
+    expect(parent.textContent).toContain('fragment content');
+    expect(parent.textContent).toContain('after');
+
+    // Re-render: old DocumentFragment children should be cleaned up
+    s.value = 1;
+    expect(parent.textContent).toBe('simple text');
+
+    result.dispose();
+  });
+
+  test('__child() handles array with multiple DocumentFragment children', () => {
+    const parent = document.createElement('div');
+
+    const child1 = __child(() => 'first');
+    const child2 = __child(() => 'second');
+    const child3 = __child(() => 'third');
+
+    const result = __child(() => [child1, child2, child3]);
+    parent.appendChild(result);
+
+    expect(parent.textContent).toContain('first');
+    expect(parent.textContent).toContain('second');
+    expect(parent.textContent).toContain('third');
+
+    result.dispose();
+  });
 });

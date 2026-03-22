@@ -2,6 +2,7 @@
  * Base Node class for SSR — matches the browser's Node interface minimally
  */
 export class SSRNode {
+  nodeType = 1; // ELEMENT_NODE default, overridden by subclasses
   childNodes: SSRNode[] = [];
   parentNode: SSRNode | null = null;
 
