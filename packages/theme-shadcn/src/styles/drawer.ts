@@ -67,7 +67,7 @@ export function createDrawerStyles(): CSSOutput<DrawerBlocks> {
           margin: '0',
           outline: 'none',
           border: 'none',
-          'border-radius': '0 0.75rem 0.75rem 0',
+          'border-radius': '0 calc(var(--radius) * 2) calc(var(--radius) * 2) 0',
         },
         '&:not([open]):not([data-state="open"])': { display: 'none' },
         '&::backdrop': {
@@ -100,7 +100,7 @@ export function createDrawerStyles(): CSSOutput<DrawerBlocks> {
           margin: '0',
           outline: 'none',
           border: 'none',
-          'border-radius': '0.75rem 0 0 0.75rem',
+          'border-radius': 'calc(var(--radius) * 2) 0 0 calc(var(--radius) * 2)',
         },
         '&:not([open]):not([data-state="open"])': { display: 'none' },
         '&::backdrop': {
@@ -131,7 +131,7 @@ export function createDrawerStyles(): CSSOutput<DrawerBlocks> {
           margin: '0',
           outline: 'none',
           border: 'none',
-          'border-radius': '0 0 0.75rem 0.75rem',
+          'border-radius': '0 0 calc(var(--radius) * 2) calc(var(--radius) * 2)',
         },
         '&:not([open]):not([data-state="open"])': { display: 'none' },
         '&::backdrop': {
@@ -162,7 +162,7 @@ export function createDrawerStyles(): CSSOutput<DrawerBlocks> {
           margin: '0',
           outline: 'none',
           border: 'none',
-          'border-radius': '0.75rem 0.75rem 0 0',
+          'border-radius': 'calc(var(--radius) * 2) calc(var(--radius) * 2) 0 0',
         },
         '&:not([open]):not([data-state="open"])': { display: 'none' },
         '&::backdrop': {

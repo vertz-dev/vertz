@@ -27,21 +27,24 @@ describe('ToggleGroup', () => {
   });
 
   it('items have aria-pressed="false" by default', () => {
-    const { Item } = ToggleGroup.Root();
+    const { root, Item } = ToggleGroup.Root();
     const item = Item('a');
+    root.appendChild(item);
     expect(item.getAttribute('aria-pressed')).toBe('false');
   });
 
   it('items have data-state="off" by default', () => {
-    const { Item } = ToggleGroup.Root();
+    const { root, Item } = ToggleGroup.Root();
     const item = Item('a');
+    root.appendChild(item);
     expect(item.getAttribute('data-state')).toBe('off');
   });
 
   it('single mode: click item selects it', () => {
-    const { Item } = ToggleGroup.Root();
+    const { root, Item } = ToggleGroup.Root();
     const item = Item('a');
-    container.appendChild(item);
+    root.appendChild(item);
+    container.appendChild(root);
 
     item.click();
     expect(item.getAttribute('aria-pressed')).toBe('true');
@@ -52,6 +55,8 @@ describe('ToggleGroup', () => {
     const { root, Item } = ToggleGroup.Root();
     const itemA = Item('a');
     const itemB = Item('b');
+    root.appendChild(itemA);
+    root.appendChild(itemB);
     container.appendChild(root);
 
     itemA.click();
@@ -68,6 +73,8 @@ describe('ToggleGroup', () => {
     const { root, Item, state } = ToggleGroup.Root({ type: 'multiple' });
     const itemA = Item('a');
     const itemB = Item('b');
+    root.appendChild(itemA);
+    root.appendChild(itemB);
     container.appendChild(root);
 
     itemA.click();
@@ -80,7 +87,9 @@ describe('ToggleGroup', () => {
   it('multiple mode: click selected item deselects it', () => {
     const { root, Item, state } = ToggleGroup.Root({ type: 'multiple' });
     const itemA = Item('a');
-    Item('b');
+    const itemB = Item('b');
+    root.appendChild(itemA);
+    root.appendChild(itemB);
     container.appendChild(root);
 
     itemA.click();
@@ -93,9 +102,11 @@ describe('ToggleGroup', () => {
   });
 
   it('applies roving tabindex to items', () => {
-    const { Item } = ToggleGroup.Root();
+    const { root, Item } = ToggleGroup.Root();
     const itemA = Item('a');
     const itemB = Item('b');
+    root.appendChild(itemA);
+    root.appendChild(itemB);
 
     expect(itemA.getAttribute('tabindex')).toBe('0');
     expect(itemB.getAttribute('tabindex')).toBe('-1');
@@ -105,6 +116,8 @@ describe('ToggleGroup', () => {
     const { root, Item } = ToggleGroup.Root();
     const itemA = Item('a');
     const itemB = Item('b');
+    root.appendChild(itemA);
+    root.appendChild(itemB);
     container.appendChild(root);
 
     itemA.focus();
@@ -119,6 +132,7 @@ describe('ToggleGroup', () => {
     const onValueChange = vi.fn();
     const { root, Item } = ToggleGroup.Root({ onValueChange });
     const item = Item('a');
+    root.appendChild(item);
     container.appendChild(root);
 
     item.click();
@@ -129,9 +143,11 @@ describe('ToggleGroup', () => {
   });
 
   it('supports defaultValue: items start selected', () => {
-    const { Item, state } = ToggleGroup.Root({ defaultValue: ['b'] });
+    const { root, Item, state } = ToggleGroup.Root({ defaultValue: ['b'] });
     const itemA = Item('a');
     const itemB = Item('b');
+    root.appendChild(itemA);
+    root.appendChild(itemB);
 
     expect(itemA.getAttribute('aria-pressed')).toBe('false');
     expect(itemB.getAttribute('aria-pressed')).toBe('true');
@@ -142,6 +158,7 @@ describe('ToggleGroup', () => {
   it('disabled: does not toggle on click', () => {
     const { root, Item, state } = ToggleGroup.Root({ disabled: true });
     const item = Item('a');
+    root.appendChild(item);
     container.appendChild(root);
 
     expect(item.disabled).toBe(true);

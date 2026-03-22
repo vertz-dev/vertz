@@ -727,7 +727,10 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
       Collapsible: createThemedCollapsible(collapsibleStyles),
       Command: createThemedCommand(commandStyles),
       ContextMenu: createThemedContextMenu(contextMenuStyles),
-      DatePicker: createThemedDatePicker(datePickerStyles, calendarStyles),
+      DatePicker: createThemedDatePicker(datePickerStyles, {
+        ...calendarStyles,
+        root: calendarStyles.rootNoBorder,
+      }),
       Drawer: createThemedDrawer(drawerStyles),
       HoverCard: createThemedHoverCard(hoverCardStyles),
       Menubar: createThemedMenubar(menubarStyles),

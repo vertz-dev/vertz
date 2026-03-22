@@ -1,4 +1,5 @@
-import { CodeFence, DocH2, DocH3 } from '../components/mdx-components';
+import { CodeBlock } from '../components/code-block';
+import { DocH2, DocH3 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import {
   dialogHandleProps,
@@ -26,9 +27,8 @@ export function Content() {
 
       <DocH2>Usage</DocH2>
       <DocH3>1. Wrap your app with DialogStackProvider</DocH3>
-      <CodeFence>
-        <code>
-          {`import { DialogStackProvider } from '@vertz/ui';
+      <CodeBlock
+        code={`import { DialogStackProvider } from '@vertz/ui';
 
 export function App() {
   return (
@@ -37,8 +37,8 @@ export function App() {
     </DialogStackProvider>
   );
 }`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
 
       <DocH3>2. Create a dialog component</DocH3>
       <p
@@ -52,9 +52,8 @@ export function App() {
         Dialog components receive a <code>dialog</code> prop with a <code>close()</code> method. The
         value passed to <code>close()</code> becomes the result returned to the caller.
       </p>
-      <CodeFence>
-        <code>
-          {`import type { DialogHandle } from '@vertz/ui';
+      <CodeBlock
+        code={`import type { DialogHandle } from '@vertz/ui';
 import { Dialog, Button } from '@vertz/ui/components';
 
 interface ConfirmDialogProps {
@@ -78,13 +77,12 @@ function ConfirmDialog({ message, dialog }: ConfirmDialogProps) {
     </>
   );
 }`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
 
       <DocH3>3. Open dialogs with useDialogStack()</DocH3>
-      <CodeFence>
-        <code>
-          {`import { useDialogStack } from '@vertz/ui';
+      <CodeBlock
+        code={`import { useDialogStack } from '@vertz/ui';
 
 function DeleteButton({ itemId }: { itemId: string }) {
   const dialogs = useDialogStack();
@@ -101,8 +99,8 @@ function DeleteButton({ itemId }: { itemId: string }) {
 
   return <Button intent="danger" onClick={handleClick}>Delete</Button>;
 }`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
 
       <DocH2>Key Concepts</DocH2>
 

@@ -139,7 +139,6 @@ function AccordionRoot(options: AccordionOptions = {}): AccordionElements & {
 
     itemMap.set(value, { trigger, content });
     triggers.push(trigger);
-    root.appendChild(item);
 
     if (isOpen) {
       requestAnimationFrame(() => {

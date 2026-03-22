@@ -33,6 +33,7 @@ describe('Combobox', () => {
     container.appendChild(input);
     container.appendChild(listbox);
     const opt = Option('apple', 'Apple');
+    listbox.appendChild(opt);
 
     expect(opt.getAttribute('role')).toBe('option');
     expect(opt.getAttribute('data-value')).toBe('apple');
@@ -42,7 +43,7 @@ describe('Combobox', () => {
     const { input, listbox, state, Option } = Combobox.Root();
     container.appendChild(input);
     container.appendChild(listbox);
-    Option('apple', 'Apple');
+    listbox.appendChild(Option('apple', 'Apple'));
 
     input.value = 'a';
     input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -56,7 +57,8 @@ describe('Combobox', () => {
     container.appendChild(input);
     container.appendChild(listbox);
     const optA = Option('apple', 'Apple');
-    Option('banana', 'Banana');
+    listbox.appendChild(optA);
+    listbox.appendChild(Option('banana', 'Banana'));
 
     input.focus();
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
@@ -70,8 +72,8 @@ describe('Combobox', () => {
     const { input, listbox, state, Option } = Combobox.Root({ onValueChange });
     container.appendChild(input);
     container.appendChild(listbox);
-    Option('apple', 'Apple');
-    Option('banana', 'Banana');
+    listbox.appendChild(Option('apple', 'Apple'));
+    listbox.appendChild(Option('banana', 'Banana'));
 
     input.focus();
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
@@ -88,6 +90,7 @@ describe('Combobox', () => {
     container.appendChild(input);
     container.appendChild(listbox);
     const opt = Option('apple', 'Apple');
+    listbox.appendChild(opt);
 
     opt.click();
     expect(state.value.peek()).toBe('apple');
@@ -98,7 +101,7 @@ describe('Combobox', () => {
     const { input, listbox, state, Option } = Combobox.Root();
     container.appendChild(input);
     container.appendChild(listbox);
-    Option('apple', 'Apple');
+    listbox.appendChild(Option('apple', 'Apple'));
 
     // Open first
     input.value = 'a';

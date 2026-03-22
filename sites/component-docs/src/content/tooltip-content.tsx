@@ -1,6 +1,7 @@
 import { Button, Tooltip } from '@vertz/ui/components';
+import { CodeBlock } from '../components/code-block';
 import { ComponentPreview } from '../components/component-preview';
-import { CodeFence, DocH2 } from '../components/mdx-components';
+import { DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { tooltipProps } from '../props/tooltip-props';
 export function Content() {
@@ -15,9 +16,8 @@ export function Content() {
         </Tooltip>
       </ComponentPreview>
       <DocH2>Usage</DocH2>
-      <CodeFence>
-        <code>
-          {`import { Tooltip, Button } from 'vertz/components';
+      <CodeBlock
+        code={`import { Tooltip, Button } from 'vertz/components';
 
 <Tooltip>
   <Tooltip.Trigger>
@@ -25,8 +25,8 @@ export function Content() {
   </Tooltip.Trigger>
   <Tooltip.Content>This is a tooltip</Tooltip.Content>
 </Tooltip>`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
 
       <DocH2>API Reference</DocH2>
       <PropsTable props={tooltipProps} />

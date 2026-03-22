@@ -3,6 +3,7 @@ import { css } from '@vertz/ui';
 
 type CalendarBlocks = {
   root: StyleEntry[];
+  rootNoBorder: StyleEntry[];
   header: StyleEntry[];
   title: StyleEntry[];
   navButton: StyleEntry[];
@@ -35,6 +36,18 @@ export function createCalendarStyles(): CSSOutput<CalendarBlocks> {
       'rounded:lg',
       'border:1',
       'border:border',
+      {
+        '&': {
+          padding: '0.5rem',
+        },
+      },
+    ],
+    /* root without border — used when calendar is embedded (e.g. inside DatePicker popover) */
+    calendarRootNoBorder: [
+      'w:fit',
+      'bg:background',
+      'text:foreground',
+      'rounded:md',
       {
         '&': {
           padding: '0.5rem',
@@ -212,6 +225,7 @@ export function createCalendarStyles(): CSSOutput<CalendarBlocks> {
   });
   return {
     root: s.calendarRoot,
+    rootNoBorder: s.calendarRootNoBorder,
     header: s.calendarHeader,
     title: s.calendarTitle,
     navButton: s.calendarNavButton,

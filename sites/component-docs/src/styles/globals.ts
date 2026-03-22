@@ -1,19 +1,12 @@
 import { globalCss } from '@vertz/ui';
 
 export const appGlobals = globalCss({
-  '@font-face': {
-    fontFamily: "'Geist Variable'",
-    fontStyle: 'normal',
-    fontDisplay: 'swap',
-    fontWeight: '100 900',
-    src: "url('https://cdn.jsdelivr.net/fontsource/fonts/geist:vf@latest/latin-wght-normal.woff2') format('woff2-variations')",
-  },
   html: {
     scrollBehavior: 'smooth',
   },
   'html body': {
     backgroundColor: 'var(--color-background)',
-    fontFamily: "'Geist Variable', ui-sans-serif, system-ui, sans-serif",
+    fontFamily: 'var(--font-sans)',
     color: 'var(--color-foreground)',
     WebkitFontSmoothing: 'antialiased',
     MozOsxFontSmoothing: 'grayscale',
@@ -57,5 +50,20 @@ export const appGlobals = globalCss({
   },
   '.cmd-item:hover, .cmd-item[data-selected="true"]': {
     backgroundColor: 'var(--color-accent)',
+  },
+  '.code-block-highlighted pre': {
+    margin: '0',
+    padding: '16px 48px 16px 16px',
+    fontSize: '13px',
+    lineHeight: '1.5',
+    overflow: 'auto',
+    borderRadius: '8px',
+    fontFamily: 'var(--font-mono, monospace)',
+    backgroundColor: 'var(--color-muted)',
+    color: 'var(--color-foreground)',
+  },
+  '.code-block-highlighted pre:focus-visible': {
+    outline: '2px solid var(--color-primary)',
+    outlineOffset: '-2px',
   },
 });

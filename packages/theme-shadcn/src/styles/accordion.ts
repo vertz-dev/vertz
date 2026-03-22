@@ -30,10 +30,13 @@ export function createAccordionStyles(): CSSOutput<AccordionBlocks> {
       'px:2',
       'text:sm',
       'font:medium',
+      'text:foreground',
       'cursor:pointer',
+      'bg:transparent',
       {
         '&': {
-          'border-radius': '0.5rem',
+          border: 'none',
+          'border-radius': 'calc(var(--radius) * 1.33)',
           'padding-top': '0.625rem',
           'padding-bottom': '0.625rem',
         },
@@ -43,6 +46,7 @@ export function createAccordionStyles(): CSSOutput<AccordionBlocks> {
     accordionContent: [
       'overflow-hidden',
       'text:sm',
+      'text:muted-foreground',
       {
         '&[data-state="open"]': [animationDecl(`${accordionDown} 200ms ease-out forwards`)],
       },

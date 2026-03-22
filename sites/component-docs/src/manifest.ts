@@ -15,6 +15,7 @@ export const components: ComponentEntry[] = [
   // ── Form ──────────────────────────────────────────────────
   { name: 'button', title: 'Button', category: 'Form' },
   { name: 'checkbox', title: 'Checkbox', category: 'Form' },
+  { name: 'combobox', title: 'Combobox', category: 'Form' },
   { name: 'date-picker', title: 'DatePicker', category: 'Form' },
   { name: 'form-group', title: 'FormGroup', category: 'Form' },
   { name: 'input', title: 'Input', category: 'Form' },
@@ -61,6 +62,7 @@ export const components: ComponentEntry[] = [
   // ── Overlay ───────────────────────────────────────────────
   { name: 'context-menu', title: 'ContextMenu', category: 'Overlay' },
   { name: 'dropdown-menu', title: 'DropdownMenu', category: 'Overlay' },
+  { name: 'menu', title: 'Menu', category: 'Overlay' },
   { name: 'hover-card', title: 'HoverCard', category: 'Overlay' },
   { name: 'popover', title: 'Popover', category: 'Overlay' },
   { name: 'tooltip', title: 'Tooltip', category: 'Overlay' },

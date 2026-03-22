@@ -1,6 +1,7 @@
 import { Button } from '@vertz/ui/components';
+import { CodeBlock } from '../components/code-block';
 import { ComponentPreview } from '../components/component-preview';
-import { CodeFence, DocH2, DocH3 } from '../components/mdx-components';
+import { DocH2, DocH3 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { buttonProps } from '../props/button-props';
 export function Content() {
@@ -12,13 +13,12 @@ export function Content() {
         </Button>
       </ComponentPreview>
       <DocH2>Usage</DocH2>
-      <CodeFence>
-        <code>
-          {`import { Button } from 'vertz/components';
+      <CodeBlock
+        code={`import { Button } from 'vertz/components';
 
 <Button intent="primary">Click me</Button>`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
 
       <DocH2>Examples</DocH2>
 

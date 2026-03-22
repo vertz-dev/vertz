@@ -121,7 +121,6 @@ function RadioRoot(options: RadioOptions = {}): RadioElements & {
 
     items.push(item);
     itemValues.push(value);
-    root.appendChild(item);
 
     setRovingTabindex(items, itemValues.indexOf(state.value.peek()));
 

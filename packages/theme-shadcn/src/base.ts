@@ -40,10 +40,12 @@ export interface ResolvedThemeBase {
   globals: GlobalCSSOutput;
 }
 
-const RADIUS_VALUES: Record<string, string> = {
+export const RADIUS_VALUES: Record<'none' | 'sm' | 'md' | 'lg' | 'xl', string> = {
+  none: '0rem',
   sm: '0.25rem',
   md: '0.375rem',
-  lg: '0.5rem',
+  lg: '0.625rem',
+  xl: '1rem',
 };
 
 /**

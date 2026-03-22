@@ -13,7 +13,7 @@ describe('s()', () => {
   it('converts kebab-case CSS properties to camelCase', () => {
     const result = s(['rounded:lg']);
     expect(result).toEqual({
-      borderRadius: '0.5rem',
+      borderRadius: 'calc(var(--radius) * 1.33)',
     });
   });
 

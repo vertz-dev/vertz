@@ -1,5 +1,6 @@
 import { Link } from '@vertz/ui/router';
 import { useTheme } from '../app';
+import { ThemeCustomizer } from './theme-customizer';
 
 interface HeaderProps {
   onSearchOpen?: () => void;
@@ -106,6 +107,9 @@ export function Header({ onSearchOpen }: HeaderProps) {
               {'\u2318K'}
             </kbd>
           </button>
+
+          {/* Theme customizer */}
+          <ThemeCustomizer />
 
           {/* Theme toggle */}
           <button

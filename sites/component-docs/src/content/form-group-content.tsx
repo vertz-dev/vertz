@@ -1,6 +1,7 @@
 import { FormGroup, Input, Label } from '@vertz/ui/components';
+import { CodeBlock } from '../components/code-block';
 import { ComponentPreview } from '../components/component-preview';
-import { CodeFence, DocH2 } from '../components/mdx-components';
+import { DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { formErrorProps, formGroupProps } from '../props/form-group-props';
 export function Content() {
@@ -14,17 +15,16 @@ export function Content() {
         </FormGroup>
       </ComponentPreview>
       <DocH2>Usage</DocH2>
-      <CodeFence>
-        <code>
-          {`import { FormGroup, Input, Label } from 'vertz/components';
+      <CodeBlock
+        code={`import { FormGroup, Input, Label } from 'vertz/components';
 
 <FormGroup>
   <Label>Email</Label>
   <Input placeholder="you@example.com" />
   <FormGroup.FormError>Please enter a valid email.</FormGroup.FormError>
 </FormGroup>`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
 
       <DocH2>API Reference</DocH2>
       <PropsTable props={formGroupProps} />

@@ -19,9 +19,11 @@ describe('Tabs', () => {
   });
 
   it('creates tabs with correct ARIA roles', () => {
-    const { root, Tab } = Tabs.Root({ defaultValue: 'tab1' });
+    const { root, list, Tab } = Tabs.Root({ defaultValue: 'tab1' });
     container.appendChild(root);
     const { trigger, panel } = Tab('tab1', 'Tab 1');
+    list.appendChild(trigger);
+    root.appendChild(panel);
 
     expect(trigger.getAttribute('role')).toBe('tab');
     expect(panel.getAttribute('role')).toBe('tabpanel');
@@ -31,10 +33,14 @@ describe('Tabs', () => {
 
   it('sets active tab on click', () => {
     const onValueChange = vi.fn();
-    const { root, state, Tab } = Tabs.Root({ defaultValue: 'tab1', onValueChange });
+    const { root, list, state, Tab } = Tabs.Root({ defaultValue: 'tab1', onValueChange });
     container.appendChild(root);
-    Tab('tab1', 'Tab 1');
-    const { trigger: t2 } = Tab('tab2', 'Tab 2');
+    const { trigger: t1, panel: p1 } = Tab('tab1', 'Tab 1');
+    list.appendChild(t1);
+    root.appendChild(p1);
+    const { trigger: t2, panel: p2 } = Tab('tab2', 'Tab 2');
+    list.appendChild(t2);
+    root.appendChild(p2);
 
     t2.click();
     expect(state.value.peek()).toBe('tab2');
@@ -42,20 +48,28 @@ describe('Tabs', () => {
   });
 
   it('shows only active panel', () => {
-    const { root, Tab } = Tabs.Root({ defaultValue: 'tab1' });
+    const { root, list, Tab } = Tabs.Root({ defaultValue: 'tab1' });
     container.appendChild(root);
-    const { panel: p1 } = Tab('tab1', 'Tab 1');
-    const { panel: p2 } = Tab('tab2', 'Tab 2');
+    const { trigger: t1, panel: p1 } = Tab('tab1', 'Tab 1');
+    list.appendChild(t1);
+    root.appendChild(p1);
+    const { trigger: t2, panel: p2 } = Tab('tab2', 'Tab 2');
+    list.appendChild(t2);
+    root.appendChild(p2);
 
     expect(p1.getAttribute('aria-hidden')).toBe('false');
     expect(p2.getAttribute('aria-hidden')).toBe('true');
   });
 
   it('applies data-state on triggers', () => {
-    const { root, Tab } = Tabs.Root({ defaultValue: 'tab1' });
+    const { root, list, Tab } = Tabs.Root({ defaultValue: 'tab1' });
     container.appendChild(root);
-    const { trigger: t1 } = Tab('tab1', 'Tab 1');
-    const { trigger: t2 } = Tab('tab2', 'Tab 2');
+    const { trigger: t1, panel: p1 } = Tab('tab1', 'Tab 1');
+    list.appendChild(t1);
+    root.appendChild(p1);
+    const { trigger: t2, panel: p2 } = Tab('tab2', 'Tab 2');
+    list.appendChild(t2);
+    root.appendChild(p2);
 
     expect(t1.getAttribute('data-state')).toBe('active');
     expect(t2.getAttribute('data-state')).toBe('inactive');
@@ -64,8 +78,12 @@ describe('Tabs', () => {
   it('navigates with ArrowRight', () => {
     const { root, list, Tab } = Tabs.Root({ defaultValue: 'tab1' });
     container.appendChild(root);
-    const { trigger: t1 } = Tab('tab1', 'Tab 1');
-    const { trigger: t2 } = Tab('tab2', 'Tab 2');
+    const { trigger: t1, panel: p1 } = Tab('tab1', 'Tab 1');
+    list.appendChild(t1);
+    root.appendChild(p1);
+    const { trigger: t2, panel: p2 } = Tab('tab2', 'Tab 2');
+    list.appendChild(t2);
+    root.appendChild(p2);
 
     t1.focus();
 
@@ -76,8 +94,12 @@ describe('Tabs', () => {
   it('navigates with ArrowLeft', () => {
     const { root, list, Tab } = Tabs.Root({ defaultValue: 'tab2' });
     container.appendChild(root);
-    const { trigger: t1 } = Tab('tab1', 'Tab 1');
-    const { trigger: t2 } = Tab('tab2', 'Tab 2');
+    const { trigger: t1, panel: p1 } = Tab('tab1', 'Tab 1');
+    list.appendChild(t1);
+    root.appendChild(p1);
+    const { trigger: t2, panel: p2 } = Tab('tab2', 'Tab 2');
+    list.appendChild(t2);
+    root.appendChild(p2);
 
     t2.focus();
 
@@ -86,10 +108,14 @@ describe('Tabs', () => {
   });
 
   it('uses aria-selected on active tab', () => {
-    const { root, Tab } = Tabs.Root({ defaultValue: 'tab1' });
+    const { root, list, Tab } = Tabs.Root({ defaultValue: 'tab1' });
     container.appendChild(root);
-    const { trigger: t1 } = Tab('tab1', 'Tab 1');
-    const { trigger: t2 } = Tab('tab2', 'Tab 2');
+    const { trigger: t1, panel: p1 } = Tab('tab1', 'Tab 1');
+    list.appendChild(t1);
+    root.appendChild(p1);
+    const { trigger: t2, panel: p2 } = Tab('tab2', 'Tab 2');
+    list.appendChild(t2);
+    root.appendChild(p2);
 
     expect(t1.getAttribute('aria-selected')).toBe('true');
     expect(t2.getAttribute('aria-selected')).toBe('false');
@@ -103,8 +129,12 @@ describe('Tabs', () => {
   it('navigates with ArrowDown when vertical', () => {
     const { root, list, Tab } = Tabs.Root({ defaultValue: 'tab1', orientation: 'vertical' });
     container.appendChild(root);
-    const { trigger: t1 } = Tab('tab1', 'Tab 1');
-    const { trigger: t2 } = Tab('tab2', 'Tab 2');
+    const { trigger: t1, panel: p1 } = Tab('tab1', 'Tab 1');
+    list.appendChild(t1);
+    root.appendChild(p1);
+    const { trigger: t2, panel: p2 } = Tab('tab2', 'Tab 2');
+    list.appendChild(t2);
+    root.appendChild(p2);
 
     t1.focus();
     list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
@@ -114,8 +144,12 @@ describe('Tabs', () => {
   it('navigates with ArrowUp when vertical', () => {
     const { root, list, Tab } = Tabs.Root({ defaultValue: 'tab2', orientation: 'vertical' });
     container.appendChild(root);
-    const { trigger: t1 } = Tab('tab1', 'Tab 1');
-    const { trigger: t2 } = Tab('tab2', 'Tab 2');
+    const { trigger: t1, panel: p1 } = Tab('tab1', 'Tab 1');
+    list.appendChild(t1);
+    root.appendChild(p1);
+    const { trigger: t2, panel: p2 } = Tab('tab2', 'Tab 2');
+    list.appendChild(t2);
+    root.appendChild(p2);
 
     t2.focus();
     list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
@@ -125,10 +159,14 @@ describe('Tabs', () => {
   describe('Given Tabs with multiple tabs', () => {
     describe('When destroy() is called', () => {
       it('Then removes click event listeners from triggers', () => {
-        const { root, Tab, destroy } = Tabs.Root({ defaultValue: 'tab1' });
+        const { root, list, Tab, destroy } = Tabs.Root({ defaultValue: 'tab1' });
         container.appendChild(root);
-        const { trigger: t1 } = Tab('tab1', 'Tab 1');
-        const { trigger: t2 } = Tab('tab2', 'Tab 2');
+        const { trigger: t1, panel: p1 } = Tab('tab1', 'Tab 1');
+        list.appendChild(t1);
+        root.appendChild(p1);
+        const { trigger: t2, panel: p2 } = Tab('tab2', 'Tab 2');
+        list.appendChild(t2);
+        root.appendChild(p2);
 
         const spy1 = vi.spyOn(t1, 'removeEventListener');
         const spy2 = vi.spyOn(t2, 'removeEventListener');

@@ -34,7 +34,7 @@ describe('ContextMenu', () => {
     const { trigger, content, state, Item } = ContextMenu.Root();
     container.appendChild(trigger);
     container.appendChild(content);
-    Item('a', 'A');
+    content.appendChild(Item('a', 'A'));
 
     trigger.dispatchEvent(
       new MouseEvent('contextmenu', { clientX: 100, clientY: 200, bubbles: true }),
@@ -48,7 +48,7 @@ describe('ContextMenu', () => {
     const { trigger, content, Item } = ContextMenu.Root();
     container.appendChild(trigger);
     container.appendChild(content);
-    Item('a', 'A');
+    content.appendChild(Item('a', 'A'));
 
     trigger.dispatchEvent(
       new MouseEvent('contextmenu', { clientX: 150, clientY: 250, bubbles: true }),
@@ -64,6 +64,7 @@ describe('ContextMenu', () => {
     container.appendChild(trigger);
     container.appendChild(content);
     const item = Item('edit', 'Edit');
+    content.appendChild(item);
 
     expect(item.getAttribute('role')).toBe('menuitem');
     expect(item.getAttribute('data-value')).toBe('edit');
@@ -73,7 +74,7 @@ describe('ContextMenu', () => {
     const { trigger, content, state, Item } = ContextMenu.Root();
     container.appendChild(trigger);
     container.appendChild(content);
-    Item('a', 'A');
+    content.appendChild(Item('a', 'A'));
 
     trigger.dispatchEvent(
       new MouseEvent('contextmenu', { clientX: 100, clientY: 200, bubbles: true }),
@@ -89,8 +90,8 @@ describe('ContextMenu', () => {
     const { trigger, content, state, Item } = ContextMenu.Root({ onSelect });
     container.appendChild(trigger);
     container.appendChild(content);
-    Item('a', 'A');
-    Item('b', 'B');
+    content.appendChild(Item('a', 'A'));
+    content.appendChild(Item('b', 'B'));
 
     trigger.dispatchEvent(
       new MouseEvent('contextmenu', { clientX: 100, clientY: 200, bubbles: true }),
@@ -106,8 +107,8 @@ describe('ContextMenu', () => {
     const { trigger, content, state, Item } = ContextMenu.Root({ onSelect });
     container.appendChild(trigger);
     container.appendChild(content);
-    Item('a', 'A');
-    Item('b', 'B');
+    content.appendChild(Item('a', 'A'));
+    content.appendChild(Item('b', 'B'));
 
     trigger.dispatchEvent(
       new MouseEvent('contextmenu', { clientX: 100, clientY: 200, bubbles: true }),
@@ -123,7 +124,9 @@ describe('ContextMenu', () => {
     container.appendChild(trigger);
     container.appendChild(content);
     const itemA = Item('a', 'A');
+    content.appendChild(itemA);
     const itemB = Item('b', 'B');
+    content.appendChild(itemB);
 
     trigger.dispatchEvent(
       new MouseEvent('contextmenu', { clientX: 100, clientY: 200, bubbles: true }),
@@ -138,7 +141,7 @@ describe('ContextMenu', () => {
     const { trigger, content, state, Item } = ContextMenu.Root();
     container.appendChild(trigger);
     container.appendChild(content);
-    Item('a', 'A');
+    content.appendChild(Item('a', 'A'));
 
     trigger.dispatchEvent(
       new MouseEvent('contextmenu', { clientX: 100, clientY: 200, bubbles: true }),
@@ -153,7 +156,7 @@ describe('ContextMenu', () => {
     const { trigger, content, state, Item } = ContextMenu.Root();
     container.appendChild(trigger);
     container.appendChild(content);
-    Item('a', 'A');
+    content.appendChild(Item('a', 'A'));
 
     trigger.dispatchEvent(
       new MouseEvent('contextmenu', { clientX: 100, clientY: 200, bubbles: true }),
@@ -174,6 +177,7 @@ describe('ContextMenu', () => {
       new MouseEvent('contextmenu', { clientX: 100, clientY: 200, bubbles: true }),
     );
     const item = Item('edit', 'Edit');
+    content.appendChild(item);
     item.click();
 
     expect(onSelect).toHaveBeenCalledWith('edit');
@@ -185,6 +189,7 @@ describe('ContextMenu', () => {
     container.appendChild(content);
 
     const group = Group('Actions');
+    content.appendChild(group.el);
     expect(group.el.getAttribute('role')).toBe('group');
     expect(group.el.getAttribute('aria-label')).toBe('Actions');
     expect(content.contains(group.el)).toBe(true);
@@ -194,9 +199,10 @@ describe('ContextMenu', () => {
     const { trigger, content, Item, Separator } = ContextMenu.Root();
     container.appendChild(trigger);
     container.appendChild(content);
-    Item('a', 'A');
+    content.appendChild(Item('a', 'A'));
     const sep = Separator();
-    Item('b', 'B');
+    content.appendChild(sep);
+    content.appendChild(Item('b', 'B'));
 
     expect(sep.getAttribute('role')).toBe('separator');
     expect(content.contains(sep)).toBe(true);
@@ -208,6 +214,7 @@ describe('ContextMenu', () => {
     container.appendChild(content);
 
     const label = Label('Section');
+    content.appendChild(label);
     expect(label.textContent).toBe('Section');
     expect(label.getAttribute('role')).toBe('none');
     expect(content.contains(label)).toBe(true);

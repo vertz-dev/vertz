@@ -1,6 +1,7 @@
 import { Button, Toast } from '@vertz/ui/components';
+import { CodeBlock } from '../components/code-block';
 import { ComponentPreview } from '../components/component-preview';
-import { CodeFence, DocH2 } from '../components/mdx-components';
+import { DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { toastProps } from '../props/toast-props';
 export function Content() {
@@ -18,14 +19,13 @@ export function Content() {
         </Button>
       </ComponentPreview>
       <DocH2>Usage</DocH2>
-      <CodeFence>
-        <code>
-          {`import { Toast } from 'vertz/components';
+      <CodeBlock
+        code={`import { Toast } from 'vertz/components';
 
 const toast = Toast();
 toast.announce('This is a toast notification.');`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
 
       <DocH2>API Reference</DocH2>
       <PropsTable props={toastProps} />

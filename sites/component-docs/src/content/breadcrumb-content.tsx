@@ -1,6 +1,7 @@
 import { Breadcrumb } from '@vertz/ui/components';
+import { CodeBlock } from '../components/code-block';
 import { ComponentPreview } from '../components/component-preview';
-import { CodeFence, DocH2, DocH3 } from '../components/mdx-components';
+import { DocH2, DocH3 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { breadcrumbProps } from '../props/breadcrumb-props';
 export function Content() {
@@ -14,17 +15,16 @@ export function Content() {
         </Breadcrumb>
       </ComponentPreview>
       <DocH2>Usage</DocH2>
-      <CodeFence>
-        <code>
-          {`import { Breadcrumb } from 'vertz/components';
+      <CodeBlock
+        code={`import { Breadcrumb } from 'vertz/components';
 
 <Breadcrumb>
   <Breadcrumb.Item href="/">Home</Breadcrumb.Item>
   <Breadcrumb.Item href="/settings">Settings</Breadcrumb.Item>
   <Breadcrumb.Item current>Profile</Breadcrumb.Item>
 </Breadcrumb>`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
 
       <DocH2>Examples</DocH2>
 

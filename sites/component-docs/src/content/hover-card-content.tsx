@@ -1,6 +1,7 @@
 import { HoverCard } from '@vertz/ui/components';
+import { CodeBlock } from '../components/code-block';
 import { ComponentPreview } from '../components/component-preview';
-import { CodeFence, DocH2 } from '../components/mdx-components';
+import { DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { hoverCardProps } from '../props/hover-card-props';
 export function Content() {
@@ -29,9 +30,8 @@ export function Content() {
         </HoverCard>
       </ComponentPreview>
       <DocH2>Usage</DocH2>
-      <CodeFence>
-        <code>
-          {`import { HoverCard } from 'vertz/components';
+      <CodeBlock
+        code={`import { HoverCard } from 'vertz/components';
 
 <HoverCard>
   <HoverCard.Trigger>
@@ -41,8 +41,8 @@ export function Content() {
     Preview content here
   </HoverCard.Content>
 </HoverCard>`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
 
       <DocH2>API Reference</DocH2>
       <PropsTable props={hoverCardProps} />

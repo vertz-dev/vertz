@@ -158,6 +158,9 @@ function ScrollAreaRoot(options: ScrollAreaOptions = {}): ScrollAreaElements & {
 
   const content = (<div />) as HTMLDivElement;
 
+  const showY = orientation === 'vertical' || orientation === 'both';
+  const showX = orientation === 'horizontal' || orientation === 'both';
+
   const viewport = (
     <div style={{ overflow: 'scroll' }} onScroll={handleViewportScroll}>
       {content}
@@ -167,12 +170,12 @@ function ScrollAreaRoot(options: ScrollAreaOptions = {}): ScrollAreaElements & {
   viewport.style.scrollbarWidth = 'none';
 
   const root = (
-    <div style={{ position: 'relative', overflow: 'hidden' }}>{viewport}</div>
+    <div style={{ position: 'relative', overflow: 'hidden' }}>
+      {viewport}
+      {showY && scrollbarY}
+      {showX && scrollbarX}
+    </div>
   ) as HTMLDivElement;
-
-  // Append scrollbars conditionally via imperative DOM
-  if (orientation === 'vertical' || orientation === 'both') root.appendChild(scrollbarY);
-  if (orientation === 'horizontal' || orientation === 'both') root.appendChild(scrollbarX);
 
   applyAttrs(root, attrs);
 

@@ -21,26 +21,32 @@ describe('NavigationMenu', () => {
   });
 
   it('triggers have aria-expanded="false" by default', () => {
-    const { root, Item } = NavigationMenu.Root();
+    const { root, list, viewport, Item } = NavigationMenu.Root();
     container.appendChild(root);
-    const { trigger } = Item('products', 'Products');
+    const { trigger, content } = Item('products', 'Products');
+    list.appendChild(trigger);
+    viewport.appendChild(content);
 
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
   });
 
   it('content is hidden by default', () => {
-    const { root, Item } = NavigationMenu.Root();
+    const { root, list, viewport, Item } = NavigationMenu.Root();
     container.appendChild(root);
-    const { content } = Item('products', 'Products');
+    const { trigger, content } = Item('products', 'Products');
+    list.appendChild(trigger);
+    viewport.appendChild(content);
 
     expect(content.getAttribute('aria-hidden')).toBe('true');
     expect(content.style.display).toBe('none');
   });
 
   it('click opens content and sets aria-expanded="true"', () => {
-    const { root, Item } = NavigationMenu.Root();
+    const { root, list, viewport, Item } = NavigationMenu.Root();
     container.appendChild(root);
     const { trigger, content } = Item('products', 'Products');
+    list.appendChild(trigger);
+    viewport.appendChild(content);
 
     trigger.click();
 
@@ -51,9 +57,11 @@ describe('NavigationMenu', () => {
   });
 
   it('click again closes content', () => {
-    const { root, Item } = NavigationMenu.Root();
+    const { root, list, viewport, Item } = NavigationMenu.Root();
     container.appendChild(root);
-    const { trigger } = Item('products', 'Products');
+    const { trigger, content } = Item('products', 'Products');
+    list.appendChild(trigger);
+    viewport.appendChild(content);
 
     trigger.click();
     trigger.click();
@@ -63,10 +71,14 @@ describe('NavigationMenu', () => {
   });
 
   it('ArrowRight navigates between triggers', () => {
-    const { root, list, Item } = NavigationMenu.Root();
+    const { root, list, viewport, Item } = NavigationMenu.Root();
     container.appendChild(root);
-    const { trigger: t1 } = Item('products', 'Products');
-    const { trigger: t2 } = Item('resources', 'Resources');
+    const { trigger: t1, content: c1 } = Item('products', 'Products');
+    list.appendChild(t1);
+    viewport.appendChild(c1);
+    const { trigger: t2, content: c2 } = Item('resources', 'Resources');
+    list.appendChild(t2);
+    viewport.appendChild(c2);
 
     t1.focus();
 
@@ -75,10 +87,14 @@ describe('NavigationMenu', () => {
   });
 
   it('ArrowLeft navigates between triggers', () => {
-    const { root, list, Item } = NavigationMenu.Root();
+    const { root, list, viewport, Item } = NavigationMenu.Root();
     container.appendChild(root);
-    const { trigger: t1 } = Item('products', 'Products');
-    const { trigger: t2 } = Item('resources', 'Resources');
+    const { trigger: t1, content: c1 } = Item('products', 'Products');
+    list.appendChild(t1);
+    viewport.appendChild(c1);
+    const { trigger: t2, content: c2 } = Item('resources', 'Resources');
+    list.appendChild(t2);
+    viewport.appendChild(c2);
 
     t2.focus();
 
@@ -87,9 +103,11 @@ describe('NavigationMenu', () => {
   });
 
   it('Enter opens panel and focuses first focusable inside', () => {
-    const { root, Item } = NavigationMenu.Root();
+    const { root, list, viewport, Item } = NavigationMenu.Root();
     container.appendChild(root);
     const { trigger, content } = Item('products', 'Products');
+    list.appendChild(trigger);
+    viewport.appendChild(content);
     const link = document.createElement('a');
     link.href = '#';
     link.textContent = 'First link';
@@ -112,9 +130,11 @@ describe('NavigationMenu', () => {
   });
 
   it('Escape closes panel', () => {
-    const { root, state, Item } = NavigationMenu.Root();
+    const { root, list, viewport, state, Item } = NavigationMenu.Root();
     container.appendChild(root);
-    const { trigger } = Item('products', 'Products');
+    const { trigger, content } = Item('products', 'Products');
+    list.appendChild(trigger);
+    viewport.appendChild(content);
 
     trigger.click();
     expect(state.activeItem.peek()).toBe('products');
@@ -125,10 +145,14 @@ describe('NavigationMenu', () => {
   });
 
   it('only one panel open at a time', () => {
-    const { root, Item } = NavigationMenu.Root();
+    const { root, list, viewport, Item } = NavigationMenu.Root();
     container.appendChild(root);
     const { trigger: t1, content: c1 } = Item('products', 'Products');
+    list.appendChild(t1);
+    viewport.appendChild(c1);
     const { trigger: t2, content: c2 } = Item('resources', 'Resources');
+    list.appendChild(t2);
+    viewport.appendChild(c2);
 
     t1.click();
     expect(t1.getAttribute('aria-expanded')).toBe('true');
@@ -142,9 +166,11 @@ describe('NavigationMenu', () => {
   });
 
   it('hover with delay opens content', () => {
-    const { root, Item } = NavigationMenu.Root({ delayOpen: 200 });
+    const { root, list, viewport, Item } = NavigationMenu.Root({ delayOpen: 200 });
     container.appendChild(root);
     const { trigger, content } = Item('products', 'Products');
+    list.appendChild(trigger);
+    viewport.appendChild(content);
 
     trigger.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
 
@@ -158,9 +184,11 @@ describe('NavigationMenu', () => {
   });
 
   it('hover from trigger to content cancels close (grace period)', () => {
-    const { root, Item } = NavigationMenu.Root({ delayOpen: 200, delayClose: 300 });
+    const { root, list, viewport, Item } = NavigationMenu.Root({ delayOpen: 200, delayClose: 300 });
     container.appendChild(root);
     const { trigger, content } = Item('products', 'Products');
+    list.appendChild(trigger);
+    viewport.appendChild(content);
 
     // Open via hover
     trigger.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
@@ -180,9 +208,10 @@ describe('NavigationMenu', () => {
   });
 
   it('Link creates an <a> element with href', () => {
-    const { root, Link } = NavigationMenu.Root();
+    const { root, list, Link } = NavigationMenu.Root();
     container.appendChild(root);
     const link = Link('/about', 'About');
+    list.appendChild(link);
 
     expect(link.tagName).toBe('A');
     expect(link.getAttribute('href')).toBe('/about');
@@ -190,9 +219,11 @@ describe('NavigationMenu', () => {
   });
 
   it('Escape from content closes panel and returns focus to trigger', () => {
-    const { root, Item } = NavigationMenu.Root();
+    const { root, list, viewport, Item } = NavigationMenu.Root();
     container.appendChild(root);
     const { trigger, content } = Item('products', 'Products');
+    list.appendChild(trigger);
+    viewport.appendChild(content);
     const link = document.createElement('a');
     link.href = '#';
     content.appendChild(link);

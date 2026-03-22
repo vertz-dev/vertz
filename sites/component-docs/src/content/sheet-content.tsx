@@ -1,6 +1,7 @@
 import { Button, Input, Label, Sheet } from '@vertz/ui/components';
+import { CodeBlock } from '../components/code-block';
 import { ComponentPreview } from '../components/component-preview';
-import { CodeFence, DocH2 } from '../components/mdx-components';
+import { DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { sheetContentProps, sheetProps } from '../props/sheet-props';
 export function Content() {
@@ -31,9 +32,8 @@ export function Content() {
         </Sheet>
       </ComponentPreview>
       <DocH2>Usage</DocH2>
-      <CodeFence>
-        <code>
-          {`import { Sheet, Button } from 'vertz/components';
+      <CodeBlock
+        code={`import { Sheet, Button } from 'vertz/components';
 
 <Sheet>
   <Sheet.Trigger>
@@ -45,8 +45,8 @@ export function Content() {
     <Sheet.Close>Close</Sheet.Close>
   </Sheet.Content>
 </Sheet>`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
 
       <DocH2>API Reference</DocH2>
       <PropsTable props={sheetProps} />

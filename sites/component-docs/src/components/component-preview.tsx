@@ -1,3 +1,5 @@
+import { CodeBlock } from './code-block';
+
 interface ComponentPreviewProps {
   /** Path to the example source file (resolved at build time). */
   file?: string;
@@ -52,19 +54,7 @@ export function ComponentPreview({ __source, children }: ComponentPreviewProps) 
             {showCode ? 'Hide Code' : 'View Code'}
           </button>
           <div style={{ display: showCode ? 'block' : 'none' }}>
-            <pre
-              style={{
-                margin: '0',
-                padding: '16px',
-                fontSize: '13px',
-                lineHeight: '1.5',
-                overflow: 'auto',
-                backgroundColor: 'var(--color-muted)',
-                fontFamily: 'var(--font-mono, monospace)',
-              }}
-            >
-              <code>{__source}</code>
-            </pre>
+            <CodeBlock code={__source} lang="tsx" style={{ marginBottom: '0' }} />
           </div>
         </div>
       ) : null}

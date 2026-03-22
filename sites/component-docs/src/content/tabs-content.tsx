@@ -1,6 +1,7 @@
 import { Tabs } from '@vertz/ui/components';
+import { CodeBlock } from '../components/code-block';
 import { ComponentPreview } from '../components/component-preview';
-import { CodeFence, DocH2, DocParagraph } from '../components/mdx-components';
+import { DocH2, DocParagraph } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { tabsContentProps, tabsProps, tabsTriggerProps } from '../props/tabs-props';
 export function Content() {
@@ -21,9 +22,8 @@ export function Content() {
         </Tabs>
       </ComponentPreview>
       <DocH2>Usage</DocH2>
-      <CodeFence>
-        <code>
-          {`import { Tabs } from 'vertz/components';
+      <CodeBlock
+        code={`import { Tabs } from 'vertz/components';
 
 <Tabs defaultValue="tab1">
   <Tabs.List>
@@ -33,8 +33,8 @@ export function Content() {
   <Tabs.Content value="tab1">Content 1</Tabs.Content>
   <Tabs.Content value="tab2">Content 2</Tabs.Content>
 </Tabs>`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
 
       <DocH2>API Reference</DocH2>
       <PropsTable props={tabsProps} />

@@ -1,6 +1,7 @@
 import { ContextMenu } from '@vertz/ui/components';
+import { CodeBlock } from '../components/code-block';
 import { ComponentPreview } from '../components/component-preview';
-import { CodeFence, DocH2 } from '../components/mdx-components';
+import { DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { contextMenuItemProps, contextMenuProps } from '../props/context-menu-props';
 export function Content() {
@@ -31,9 +32,8 @@ export function Content() {
         </ContextMenu>
       </ComponentPreview>
       <DocH2>Usage</DocH2>
-      <CodeFence>
-        <code>
-          {`import { ContextMenu } from 'vertz/components';
+      <CodeBlock
+        code={`import { ContextMenu } from 'vertz/components';
 
 <ContextMenu>
   <ContextMenu.Trigger>
@@ -46,8 +46,8 @@ export function Content() {
     <ContextMenu.Item value="delete">Delete</ContextMenu.Item>
   </ContextMenu.Content>
 </ContextMenu>`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
 
       <DocH2>API Reference</DocH2>
       <PropsTable props={contextMenuProps} />

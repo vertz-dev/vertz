@@ -35,7 +35,12 @@ export function createScrollAreaStyles(): CSSOutput<ScrollAreaBlocks> {
         ],
       },
     ],
-    scrollAreaThumb: ['relative', 'flex-1', 'rounded:full', 'bg:border'],
+    scrollAreaThumb: [
+      'relative',
+      'flex-1',
+      'rounded:full',
+      { '&': { 'background-color': 'color-mix(in oklch, var(--color-foreground) 40%, transparent)' } },
+    ],
   });
   return {
     root: s.scrollAreaRoot,

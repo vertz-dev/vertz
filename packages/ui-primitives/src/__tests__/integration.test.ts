@@ -63,8 +63,10 @@ describe('Integration Tests', () => {
     container.appendChild(trigger);
     container.appendChild(content);
     const itemA = Item('apple', 'Apple');
+    content.appendChild(itemA);
     const itemB = Item('banana', 'Banana');
-    Item('cherry', 'Cherry');
+    content.appendChild(itemB);
+    content.appendChild(Item('cherry', 'Cherry'));
 
     // Open select
     trigger.click();
@@ -89,8 +91,13 @@ describe('Integration Tests', () => {
     const { root, list, Tab } = Tabs.Root({ defaultValue: 'tab1' });
     container.appendChild(root);
     const { trigger: t1, panel: p1 } = Tab('tab1', 'Tab 1');
+    list.appendChild(t1);
+    root.appendChild(p1);
     const { trigger: t2, panel: p2 } = Tab('tab2', 'Tab 2');
+    list.appendChild(t2);
+    root.appendChild(p2);
     const { trigger: t3 } = Tab('tab3', 'Tab 3');
+    list.appendChild(t3);
 
     // Verify ARIA roles
     expect(list.getAttribute('role')).toBe('tablist');

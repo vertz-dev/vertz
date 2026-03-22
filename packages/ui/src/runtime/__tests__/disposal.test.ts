@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import {
   _tryOnCleanup,
   DisposalScopeError,
@@ -8,7 +8,22 @@ import {
   runCleanups,
 } from '../disposal';
 
+// Drain any disposal scopes leaked by prior tests. A leaked scope makes
+// onCleanup() succeed instead of throwing, breaking the "outside scope" tests.
+function drainLeakedScopes() {
+  for (let i = 0; i < 20; i++) {
+    try {
+      popScope();
+    } catch {
+      break;
+    }
+  }
+}
+
 describe('onCleanup outside disposal scope', () => {
+  beforeEach(() => {
+    drainLeakedScopes();
+  });
   it('throws DisposalScopeError when called outside any scope', () => {
     expect(() => {
       onCleanup(() => {});

@@ -24,6 +24,7 @@ describe('Menu', () => {
     container.appendChild(trigger);
     container.appendChild(content);
     const item = Item('edit', 'Edit');
+    content.appendChild(item);
 
     expect(item.getAttribute('role')).toBe('menuitem');
     expect(item.getAttribute('data-value')).toBe('edit');
@@ -33,7 +34,7 @@ describe('Menu', () => {
     const { trigger, content, state, Item } = Menu.Root();
     container.appendChild(trigger);
     container.appendChild(content);
-    Item('a', 'A');
+    content.appendChild(Item('a', 'A'));
 
     trigger.click();
     expect(state.open.peek()).toBe(true);
@@ -48,6 +49,7 @@ describe('Menu', () => {
 
     trigger.click();
     const item = Item('edit', 'Edit');
+    content.appendChild(item);
     item.click();
 
     expect(onSelect).toHaveBeenCalledWith('edit');
@@ -57,7 +59,7 @@ describe('Menu', () => {
     const { trigger, content, state, Item } = Menu.Root();
     container.appendChild(trigger);
     container.appendChild(content);
-    Item('a', 'A');
+    content.appendChild(Item('a', 'A'));
 
     trigger.click();
     expect(state.open.peek()).toBe(true);
@@ -71,7 +73,9 @@ describe('Menu', () => {
     container.appendChild(trigger);
     container.appendChild(content);
     const itemA = Item('a', 'A');
+    content.appendChild(itemA);
     const itemB = Item('b', 'B');
+    content.appendChild(itemB);
 
     trigger.click();
 
@@ -89,8 +93,8 @@ describe('Menu', () => {
     const { trigger, content, Item } = Menu.Root({ onSelect });
     container.appendChild(trigger);
     container.appendChild(content);
-    Item('a', 'A');
-    Item('b', 'B');
+    content.appendChild(Item('a', 'A'));
+    content.appendChild(Item('b', 'B'));
 
     trigger.click();
 
@@ -105,7 +109,7 @@ describe('Menu', () => {
     const { trigger, content, state, Item } = Menu.Root();
     container.appendChild(trigger);
     container.appendChild(content);
-    Item('a', 'A');
+    content.appendChild(Item('a', 'A'));
 
     trigger.click();
     expect(state.open.peek()).toBe(true);
@@ -120,6 +124,7 @@ describe('Menu', () => {
     container.appendChild(trigger);
     container.appendChild(content);
     const item = Item('a', 'A');
+    content.appendChild(item);
 
     trigger.click();
     expect(state.open.peek()).toBe(true);
@@ -135,6 +140,7 @@ describe('Menu', () => {
     container.appendChild(content);
 
     const group = Group('Actions');
+    content.appendChild(group.el);
     expect(group.el.getAttribute('role')).toBe('group');
     expect(group.el.getAttribute('aria-label')).toBe('Actions');
     expect(content.contains(group.el)).toBe(true);
@@ -144,9 +150,10 @@ describe('Menu', () => {
     const { trigger, content, Item, Separator } = Menu.Root();
     container.appendChild(trigger);
     container.appendChild(content);
-    Item('a', 'A');
+    content.appendChild(Item('a', 'A'));
     const sep = Separator();
-    Item('b', 'B');
+    content.appendChild(sep);
+    content.appendChild(Item('b', 'B'));
 
     expect(sep.getAttribute('role')).toBe('separator');
     expect(content.contains(sep)).toBe(true);
@@ -158,6 +165,7 @@ describe('Menu', () => {
     container.appendChild(content);
 
     const label = Label('Section');
+    content.appendChild(label);
     expect(label.textContent).toBe('Section');
     expect(label.getAttribute('role')).toBe('none');
     expect(content.contains(label)).toBe(true);
@@ -167,9 +175,10 @@ describe('Menu', () => {
     const { trigger, content, Item } = Menu.Root();
     container.appendChild(trigger);
     container.appendChild(content);
-    Item('copy', 'Copy');
+    content.appendChild(Item('copy', 'Copy'));
     const deleteItem = Item('delete', 'Delete');
-    Item('edit', 'Edit');
+    content.appendChild(deleteItem);
+    content.appendChild(Item('edit', 'Edit'));
 
     trigger.click();
 

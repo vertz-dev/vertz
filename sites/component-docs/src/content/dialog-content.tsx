@@ -1,8 +1,9 @@
 import type { DialogHandle } from '@vertz/ui';
-import { useDialogStack } from '@vertz/ui';
+import { DialogStackProvider, useDialogStack } from '@vertz/ui';
 import { Button, Dialog, Input, Label } from '@vertz/ui/components';
+import { CodeBlock } from '../components/code-block';
 import { ComponentPreview } from '../components/component-preview';
-import { CodeFence, DocH2 } from '../components/mdx-components';
+import { DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { dialogProps } from '../props/dialog-props';
 
@@ -49,14 +50,13 @@ function DialogPreview() {
 
 export function Content() {
   return (
-    <>
+    <DialogStackProvider>
       <ComponentPreview>
         <DialogPreview />
       </ComponentPreview>
       <DocH2>Usage</DocH2>
-      <CodeFence>
-        <code>
-          {`import { useDialogStack } from '@vertz/ui';
+      <CodeBlock
+        code={`import { useDialogStack } from '@vertz/ui';
 import type { DialogHandle } from '@vertz/ui';
 import { Dialog, Button } from '@vertz/ui/components';
 
@@ -79,11 +79,11 @@ function EditProfileDialog({ dialog }: { dialog: DialogHandle<void> }) {
 // Open via DialogStack
 const dialogs = useDialogStack();
 await dialogs.open(EditProfileDialog, {});`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
 
       <DocH2>API Reference</DocH2>
       <PropsTable props={dialogProps} />
-    </>
+    </DialogStackProvider>
   );
 }

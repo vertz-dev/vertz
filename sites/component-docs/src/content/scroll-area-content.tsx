@@ -1,6 +1,7 @@
 import { ScrollArea, Separator } from '@vertz/ui/components';
+import { CodeBlock } from '../components/code-block';
 import { ComponentPreview } from '../components/component-preview';
-import { CodeFence, DocH2 } from '../components/mdx-components';
+import { DocH2 } from '../components/mdx-components';
 import { PropsTable } from '../components/props-table';
 import { scrollAreaProps } from '../props/scroll-area-props';
 
@@ -51,17 +52,16 @@ export function Content() {
         </div>
       </ComponentPreview>
       <DocH2>Usage</DocH2>
-      <CodeFence>
-        <code>
-          {`import { ScrollArea } from 'vertz/components';
+      <CodeBlock
+        code={`import { ScrollArea } from 'vertz/components';
 
 <ScrollArea>
   <div style={{ height: '200px' }}>
     Scrollable content here...
   </div>
 </ScrollArea>`}
-        </code>
-      </CodeFence>
+        lang="tsx"
+      />
 
       <DocH2>API Reference</DocH2>
       <PropsTable props={scrollAreaProps} />

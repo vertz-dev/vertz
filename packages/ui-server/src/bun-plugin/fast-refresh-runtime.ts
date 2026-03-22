@@ -76,8 +76,10 @@ interface ComponentRecord {
   factory: (...args: unknown[]) => HTMLElement;
   /** All tracked live instances of this component. */
   instances: ComponentInstance[];
-  /** Content hash for change detection (prevents cascading re-mounts). */
+  /** Per-component content hash for change detection. */
   hash?: string;
+  /** Whether this component's code changed in the current re-evaluation. */
+  dirty: boolean;
 }
 
 // moduleId → componentName → ComponentRecord
@@ -144,16 +146,15 @@ export function __$refreshReg(
   const existing = mod.get(name);
   if (existing) {
     // HMR re-evaluation — update factory, keep instances.
-    // When a content hash is provided, skip the update if unchanged.
-    // This prevents cascading re-mounts when Bun re-evaluates all modules
-    // in a single chunk even though only one file actually changed.
+    // Per-component hash: skip if this component's code didn't change.
     if (hash && existing.hash === hash) return;
     existing.factory = factory;
     existing.hash = hash;
+    existing.dirty = true;
     dirtyModules.add(moduleId);
   } else {
     // First load — create record (not dirty, nothing to re-mount)
-    mod.set(name, { factory, instances: [], hash });
+    mod.set(name, { factory, instances: [], hash, dirty: false });
   }
 }
 
@@ -222,6 +223,12 @@ export function __$refreshPerform(moduleId: string): void {
   performingRefresh = true;
 
   for (const [name, record] of mod) {
+    // Per-component dirty check: only re-mount components whose code changed.
+    // This prevents parent refreshes from overwriting child state when both
+    // components live in the same file but only one was edited.
+    if (!record.dirty) continue;
+    record.dirty = false;
+
     const { factory, instances } = record;
     const updatedInstances: ComponentInstance[] = [];
 

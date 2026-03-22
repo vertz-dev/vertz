@@ -31,7 +31,7 @@ export function createCheckboxStyles(): CSSOutput<CheckboxBlocks> {
       'border:input',
       'cursor:pointer',
       'transition:colors',
-      { '&': { padding: '0', background: 'transparent', 'border-radius': '4px' } },
+      { '&': { padding: '0', background: 'transparent', 'border-radius': 'calc(var(--radius) * 0.67)' } },
       { [DARK]: [bgOpacity('input', 30)] },
       focusRing,
       { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },

@@ -1,3 +1,4 @@
+export { RADIUS_VALUES } from './base';
 export type {
   ResolvedTheme,
   ResolvedThemeBase,
@@ -8,6 +9,8 @@ export type {
   ThemeStyles,
 } from './configure';
 export { configureTheme } from './configure';
+export type { PaletteName } from './tokens';
+export { palettes } from './tokens';
 
 // Ensure @vertz/ui/components is loaded for module augmentation below
 import type {} from '@vertz/ui/components';

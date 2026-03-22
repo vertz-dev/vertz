@@ -21,6 +21,13 @@ export function Sidebar({ activeName }: SidebarProps) {
         flexShrink: '0',
       }}
     >
+      <Link
+        href="/overview"
+        className={activeName === '__overview' ? 'sidebar-link-active' : 'sidebar-link'}
+      >
+        Overview
+      </Link>
+      <div style={{ height: '8px' }} />
       {Array.from(grouped.entries()).map(([category, entries]) => (
         <div>
           <div
