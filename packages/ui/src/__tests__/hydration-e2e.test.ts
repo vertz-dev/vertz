@@ -112,7 +112,7 @@ describe('tolerant hydration e2e', () => {
 
   it('conditional content preserved during tolerant hydration', () => {
     // SSR output: div with a conditional comment anchor + visible span
-    root.innerHTML = '<div><!-- conditional --><span>visible</span></div>';
+    root.innerHTML = '<div><!-- conditional --><span>visible</span><!-- /conditional --></div>';
 
     const ssrSpan = root.querySelector('span') as HTMLElement;
 
@@ -149,7 +149,7 @@ describe('tolerant hydration e2e', () => {
     // SSR output: button with conditional comment anchor + text "Add Todo"
     // This mirrors the entity-todo form button:
     //   {submitting ? 'Adding...' : 'Add Todo'}
-    root.innerHTML = '<button><!--conditional-->Add Todo</button>';
+    root.innerHTML = '<button><!--conditional-->Add Todo<!--/conditional--></button>';
 
     const submitting = signal(false);
     const App = () => {
@@ -298,6 +298,8 @@ describe('tolerant hydration e2e', () => {
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
       '<path d="M5 12l5 5L20 7"></path>' +
       '</svg>' +
+      '<!-- /conditional -->' +
+      '<!-- /conditional -->' +
       '</span>' +
       '</button>';
 
@@ -378,7 +380,12 @@ describe('tolerant hydration e2e', () => {
     // Regression: __child did not run scope cleanup between evaluations,
     // so nested __conditional effects survived and produced orphaned DOM.
     root.innerHTML =
-      '<div>' + '<!--child-->' + '<!-- conditional -->' + '<span>hello</span>' + '</div>';
+      '<div>' +
+      '<!--child-->' +
+      '<!-- conditional -->' +
+      '<span>hello</span>' +
+      '<!-- /conditional -->' +
+      '</div>';
 
     const show = signal(true);
     const label = signal('hello');
