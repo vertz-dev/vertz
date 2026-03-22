@@ -403,7 +403,7 @@ function setupDragSort(
       // Show drop indicator at the target position
       const currentItems = [...ulEl.querySelectorAll('[data-sortable-item]')] as HTMLElement[];
       const toIndex = calcInsertionIndex(currentItems, moveEvent.clientY);
-      const indicatorTarget = toIndex < currentItems.length ? currentItems[toIndex] : null;
+      const indicatorTarget = (toIndex < currentItems.length ? currentItems[toIndex] : null) ?? null;
 
       // Don't show indicator at the dragged item's own position
       if (indicatorTarget !== draggedItem) {
