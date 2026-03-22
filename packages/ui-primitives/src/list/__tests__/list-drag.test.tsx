@@ -37,6 +37,25 @@ function RenderSortableListWithHandles(props: { onReorder: (from: number, to: nu
   );
 }
 
+function RenderAnimatedSortableList(props: { onReorder: (from: number, to: number) => void }) {
+  return (
+    <ComposedList sortable={true} animate={true} onReorder={props.onReorder}>
+      <ComposedList.Item>
+        <ComposedList.DragHandle>drag</ComposedList.DragHandle>
+        Item A
+      </ComposedList.Item>
+      <ComposedList.Item>
+        <ComposedList.DragHandle>drag</ComposedList.DragHandle>
+        Item B
+      </ComposedList.Item>
+      <ComposedList.Item>
+        <ComposedList.DragHandle>drag</ComposedList.DragHandle>
+        Item C
+      </ComposedList.Item>
+    </ComposedList>
+  );
+}
+
 function RenderNonSortableList() {
   return (
     <ComposedList sortable={false}>
@@ -109,6 +128,10 @@ describe('Feature: List.reorder utility', () => {
 
   it('handles adjacent swap backward', () => {
     expect(ComposedList.reorder(['A', 'B', 'C'], 1, 0)).toEqual(['B', 'A', 'C']);
+  });
+
+  it('handles single-element array (no-op)', () => {
+    expect(ComposedList.reorder(['A'], 0, 0)).toEqual(['A']);
   });
 });
 
@@ -357,6 +380,172 @@ describe('Feature: List drag-and-sort', () => {
         document.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 20 }));
 
         expect(calls.length).toBe(0);
+      });
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 2: Animated item shifting during drag
+// ---------------------------------------------------------------------------
+
+describe('Feature: Animated drag-sort item shifting', () => {
+  describe('Given a sortable animated list [A(h=40), B(h=40), C(h=40)]', () => {
+    describe('When dragging A past B midpoint (downward)', () => {
+      it('Then B shifts up by dragged item height', () => {
+        const ul = RenderAnimatedSortableList({ onReorder: () => {} });
+        appendToBody(ul);
+
+        const handles = ul.querySelectorAll('[data-list-drag-handle]');
+        const items = ul.querySelectorAll('li');
+        mockItemRects(items);
+
+        // Start drag on item A
+        handles[0].dispatchEvent(
+          new PointerEvent('pointerdown', { clientX: 100, clientY: 20, bubbles: true }),
+        );
+
+        // Move past B's midpoint (y=61, past midY=60)
+        document.dispatchEvent(new PointerEvent('pointermove', { clientX: 100, clientY: 61 }));
+
+        // B should shift up by A's height (40px)
+        expect(items[1].style.transform).toBe('translateY(-40px)');
+        // C should not shift
+        expect(items[2].style.transform).toBe('');
+
+        // Cleanup
+        document.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 61 }));
+      });
+    });
+
+    describe('When dragging A past C midpoint (downward)', () => {
+      it('Then both B and C shift up by dragged item height', () => {
+        const ul = RenderAnimatedSortableList({ onReorder: () => {} });
+        appendToBody(ul);
+
+        const handles = ul.querySelectorAll('[data-list-drag-handle]');
+        const items = ul.querySelectorAll('li');
+        mockItemRects(items);
+
+        handles[0].dispatchEvent(
+          new PointerEvent('pointerdown', { clientX: 100, clientY: 20, bubbles: true }),
+        );
+
+        // Move past C's midpoint (y=101, past midY=100)
+        document.dispatchEvent(new PointerEvent('pointermove', { clientX: 100, clientY: 101 }));
+
+        expect(items[1].style.transform).toBe('translateY(-40px)');
+        expect(items[2].style.transform).toBe('translateY(-40px)');
+
+        document.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 101 }));
+      });
+    });
+
+    describe('When dragging A past B then back above B midpoint', () => {
+      it('Then B transform is cleared', () => {
+        const ul = RenderAnimatedSortableList({ onReorder: () => {} });
+        appendToBody(ul);
+
+        const handles = ul.querySelectorAll('[data-list-drag-handle]');
+        const items = ul.querySelectorAll('li');
+        mockItemRects(items);
+
+        handles[0].dispatchEvent(
+          new PointerEvent('pointerdown', { clientX: 100, clientY: 20, bubbles: true }),
+        );
+
+        // Move past B
+        document.dispatchEvent(new PointerEvent('pointermove', { clientX: 100, clientY: 61 }));
+        expect(items[1].style.transform).toBe('translateY(-40px)');
+
+        // Move back above B's midpoint
+        document.dispatchEvent(new PointerEvent('pointermove', { clientX: 100, clientY: 20 }));
+        expect(items[1].style.transform).toBe('');
+
+        document.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 20 }));
+      });
+    });
+
+    describe('When dragging C upward past B midpoint', () => {
+      it('Then B shifts down by dragged item height', () => {
+        const ul = RenderAnimatedSortableList({ onReorder: () => {} });
+        appendToBody(ul);
+
+        const handles = ul.querySelectorAll('[data-list-drag-handle]');
+        const items = ul.querySelectorAll('li');
+        mockItemRects(items);
+
+        // Start drag on item C
+        handles[2].dispatchEvent(
+          new PointerEvent('pointerdown', { clientX: 100, clientY: 100, bubbles: true }),
+        );
+
+        // Move above B's midpoint (y=59, above midY=60)
+        document.dispatchEvent(new PointerEvent('pointermove', { clientX: 100, clientY: 59 }));
+
+        // A should not shift (above the target range)
+        expect(items[0].style.transform).toBe('');
+        // B should shift down by C's height (40px)
+        expect(items[1].style.transform).toBe('translateY(40px)');
+
+        document.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 59 }));
+      });
+    });
+
+    describe('When dropping after shift transforms are applied', () => {
+      it('Then all shift transforms are cleared before onReorder fires', () => {
+        const calls: Array<{ from: number; to: number }> = [];
+        const ul = RenderAnimatedSortableList({
+          onReorder: (from, to) => {
+            // At the time onReorder fires, transforms should be cleared
+            const items = ul.querySelectorAll('li');
+            for (const item of items) {
+              expect(item.style.transform).toBe('');
+            }
+            calls.push({ from, to });
+          },
+        });
+        appendToBody(ul);
+
+        const handles = ul.querySelectorAll('[data-list-drag-handle]');
+        const items = ul.querySelectorAll('li');
+        mockItemRects(items);
+
+        handles[0].dispatchEvent(
+          new PointerEvent('pointerdown', { clientX: 100, clientY: 20, bubbles: true }),
+        );
+        document.dispatchEvent(new PointerEvent('pointermove', { clientX: 100, clientY: 61 }));
+
+        // Verify shifts are applied during drag
+        expect(items[1].style.transform).toBe('translateY(-40px)');
+
+        // Drop
+        document.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 61 }));
+
+        expect(calls.length).toBe(1);
+      });
+    });
+  });
+
+  describe('Given a sortable list with animate=false', () => {
+    describe('When the user drags an item', () => {
+      it('Then non-dragged items do not get shift transforms', () => {
+        const ul = RenderSortableListWithHandles({ onReorder: () => {} });
+        appendToBody(ul);
+
+        const handles = ul.querySelectorAll('[data-list-drag-handle]');
+        const items = ul.querySelectorAll('li');
+        mockItemRects(items);
+
+        handles[0].dispatchEvent(
+          new PointerEvent('pointerdown', { clientX: 100, clientY: 20, bubbles: true }),
+        );
+        document.dispatchEvent(new PointerEvent('pointermove', { clientX: 100, clientY: 61 }));
+
+        // Non-animated list: B should NOT shift
+        expect(items[1].style.transform).toBe('');
+
+        document.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 61 }));
       });
     });
   });

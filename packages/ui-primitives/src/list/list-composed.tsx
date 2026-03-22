@@ -268,19 +268,6 @@ function findSortableItem(target: EventTarget | null, root: Element): HTMLElemen
 }
 
 /**
- * Calculate the insertion index based on pointer Y position and item midpoints.
- */
-function calcInsertionIndex(items: HTMLElement[], clientY: number): number {
-  if (items.length === 0) return 0;
-  for (const [i, item] of items.entries()) {
-    const rect = item.getBoundingClientRect();
-    const midY = rect.top + rect.height / 2;
-    if (clientY <= midY) return i;
-  }
-  return items.length;
-}
-
-/**
  * Create and manage a drop indicator line shown between items during drag.
  */
 function createDropIndicator(): {
@@ -335,10 +322,51 @@ function createDropIndicator(): {
  * Set up drag-and-sort event delegation on the list root element.
  * Uses pointerdown on [data-sortable] elements within the list.
  */
+/**
+ * Calculate which items should shift and in which direction during an animated drag.
+ * Items between fromIndex and targetInsertionIndex shift by ±draggedHeight.
+ */
+function applyShiftTransforms(
+  allItems: HTMLElement[],
+  fromIndex: number,
+  targetInsertionIndex: number,
+  draggedHeight: number,
+  animate: boolean | AnimateConfig,
+): void {
+  const { duration, easing } = resolveAnimateConfig(animate);
+
+  for (let i = 0; i < allItems.length; i++) {
+    if (i === fromIndex) continue; // Skip the dragged item itself
+
+    let shift = 0;
+    if (targetInsertionIndex > fromIndex) {
+      // Dragging downward: items between (fromIndex, targetInsertionIndex) shift up
+      if (i > fromIndex && i < targetInsertionIndex) {
+        shift = -draggedHeight;
+      }
+    } else if (targetInsertionIndex < fromIndex) {
+      // Dragging upward: items between [targetInsertionIndex, fromIndex) shift down
+      if (i >= targetInsertionIndex && i < fromIndex) {
+        shift = draggedHeight;
+      }
+    }
+
+    const item = allItems[i]!;
+    if (shift !== 0) {
+      item.style.transition = `transform ${duration}ms ${easing}`;
+      item.style.transform = `translateY(${shift}px)`;
+    } else {
+      item.style.transition = `transform ${duration}ms ${easing}`;
+      item.style.transform = '';
+    }
+  }
+}
+
 function setupDragSort(
   ulEl: HTMLElement,
   getSortable: () => boolean,
   getOnReorder: () => ((fromIndex: number, toIndex: number) => void) | undefined,
+  getAnimate: () => boolean | AnimateConfig,
 ): void {
   const dropIndicator = createDropIndicator();
 
@@ -365,6 +393,9 @@ function setupDragSort(
 
     e.preventDefault();
 
+    const animate = getAnimate();
+    const useAnimatedShift = !!animate;
+
     // Capture starting pointer position for translate
     const startY = e.clientY;
 
@@ -376,6 +407,30 @@ function setupDragSort(
     const fromIndex = allItems.indexOf(draggedItem);
     if (fromIndex === -1) return;
 
+    // Snapshot item rects at drag start — used for all calculations during drag
+    const snapshotRects = allItems.map((item) => item.getBoundingClientRect());
+    const draggedHeight = snapshotRects[fromIndex]!.height;
+
+    // Set will-change hint on all items for GPU compositing
+    if (useAnimatedShift) {
+      for (const item of allItems) {
+        item.style.willChange = 'transform';
+      }
+    }
+
+    /**
+     * Calculate insertion index from snapshotted rects (not live DOM).
+     */
+    function calcInsertionFromSnapshot(clientY: number): number {
+      if (snapshotRects.length === 0) return 0;
+      for (let i = 0; i < snapshotRects.length; i++) {
+        const rect = snapshotRects[i]!;
+        const midY = rect.top + rect.height / 2;
+        if (clientY <= midY) return i;
+      }
+      return snapshotRects.length;
+    }
+
     const onMove = (moveEvent: PointerEvent) => {
       moveEvent.preventDefault();
 
@@ -384,17 +439,21 @@ function setupDragSort(
       draggedItem.style.transform = `translateY(${deltaY}px)`;
       draggedItem.style.transition = 'none';
 
-      // Show drop indicator at the target position
-      const currentItems = [...ulEl.querySelectorAll('[data-sortable-item]')] as HTMLElement[];
-      const toIndex = calcInsertionIndex(currentItems, moveEvent.clientY);
-      const indicatorTarget =
-        (toIndex < currentItems.length ? currentItems[toIndex] : null) ?? null;
+      const targetInsertionIndex = calcInsertionFromSnapshot(moveEvent.clientY);
 
-      // Don't show indicator at the dragged item's own position
-      if (indicatorTarget !== draggedItem) {
-        dropIndicator.show(ulEl, indicatorTarget);
+      if (useAnimatedShift) {
+        // Animated: shift non-dragged items with transforms
+        applyShiftTransforms(allItems, fromIndex, targetInsertionIndex, draggedHeight, animate);
       } else {
-        dropIndicator.hide();
+        // Non-animated fallback: show drop indicator line
+        const indicatorTarget =
+          (targetInsertionIndex < allItems.length ? allItems[targetInsertionIndex] : null) ?? null;
+
+        if (indicatorTarget !== draggedItem) {
+          dropIndicator.show(ulEl, indicatorTarget);
+        } else {
+          dropIndicator.hide();
+        }
       }
     };
 
@@ -402,15 +461,24 @@ function setupDragSort(
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
 
-      // Clean up visual state
+      // Clean up visual state on dragged item
       draggedItem.removeAttribute('data-dragging');
       draggedItem.style.transform = '';
       draggedItem.style.transition = '';
+
+      if (useAnimatedShift) {
+        // Clear all shift transforms instantly (transition: none prevents snap-back)
+        for (const item of allItems) {
+          item.style.transition = 'none';
+          item.style.transform = '';
+          item.style.willChange = '';
+        }
+      }
+
       dropIndicator.hide();
 
       // Calculate destination index (insertion-before → destination-after-removal)
-      const currentItems = [...ulEl.querySelectorAll('[data-sortable-item]')] as HTMLElement[];
-      const insertionIndex = calcInsertionIndex(currentItems, upEvent.clientY);
+      const insertionIndex = calcInsertionFromSnapshot(upEvent.clientY);
       const destIndex = insertionIndex > fromIndex ? insertionIndex - 1 : insertionIndex;
 
       if (fromIndex !== destIndex) {
@@ -451,6 +519,7 @@ function ComposedListRoot({
           ul,
           () => sortable,
           () => onReorder,
+          () => animate,
         );
       }
     });
@@ -477,6 +546,7 @@ function ComposedListRoot({
  */
 function reorder<T>(arr: readonly T[], from: number, to: number): T[] {
   const result = [...arr];
+  // Safe: callers guarantee 0 <= from < arr.length
   const moved = result.splice(from, 1)[0] as T;
   result.splice(to, 0, moved);
   return result;
