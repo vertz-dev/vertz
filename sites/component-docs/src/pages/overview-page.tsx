@@ -112,19 +112,8 @@ function ButtonsDemo() {
 }
 
 function InputsDemo() {
-  let name = "John Dossssdsdsadsajygudsayudsae";
-  let counter = 0;
-  function handleClick() {
-    counter++;
-  }
   return (
     <div style={cardStyle}>
-      <p>Countedsdsa: {counter}</p>
-      <p>
-        Name: {name.length} {name}
-      </p>
-      <button onClick={handleClick}>Click me</button>
-      <p style={cardTitleStyle}>Inputs (counter preserved!)</p>
       <p style={cardDescStyle}>Text fields and textareas.</p>
       <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
