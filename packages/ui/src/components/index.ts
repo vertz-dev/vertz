@@ -280,6 +280,11 @@ export const Carousel: ThemeComponentMap['Carousel'] = /* #__PURE__ */ createCom
   ['Slide', 'Previous', 'Next'],
 ) as ThemeComponentMap['Carousel'];
 
+export const List: ThemeComponentMap['List'] = /* #__PURE__ */ createCompoundProxy('List', [
+  'Item',
+  'DragHandle',
+]) as ThemeComponentMap['List'];
+
 // ---------------------------------------------------------------------------
 // Simple primitives (just callable, no sub-components)
 // ---------------------------------------------------------------------------
