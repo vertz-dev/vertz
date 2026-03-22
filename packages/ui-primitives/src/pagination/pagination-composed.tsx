@@ -83,6 +83,41 @@ function PageButton({ page, currentPage, onPageChange, classes }: PageButtonProp
   );
 }
 
+/**
+ * Build page item elements. Extracted as a helper so the call happens
+ * inside the <ul> JSX subtree — this ensures __element("li") calls
+ * execute within the <ul> hydration cursor scope instead of at the
+ * parent level, which would cause hydration mismatches.
+ */
+function buildPageItems(
+  range: (number | '...')[],
+  classes: PaginationClasses | undefined,
+  currentPage: number,
+  onPageChange: (page: number) => void,
+  ellipsisContent: ChildValue,
+): ChildValue[] {
+  return range.map((page) =>
+    page === '...'
+      ? (
+          <li class={cn(classes?.item)}>
+            <span aria-hidden="true" class={cn(classes?.ellipsis)}>
+              {ellipsisContent}
+            </span>
+          </li>
+        )
+      : (
+          <li class={cn(classes?.item)}>
+            <PageButton
+              page={page}
+              currentPage={currentPage}
+              onPageChange={onPageChange}
+              classes={classes}
+            />
+          </li>
+        ),
+  );
+}
+
 function ComposedPaginationRoot({
   currentPage,
   totalPages,
@@ -97,30 +132,13 @@ function ComposedPaginationRoot({
 }: ComposedPaginationProps) {
   const range = generatePaginationRange(currentPage, totalPages, siblingCount);
 
-  // Build page items imperatively to avoid .map() index issues with compiler
-  const pageItems: ChildValue[] = [];
-  for (const page of range) {
-    if (page === '...') {
-      pageItems.push(
-        <li class={cn(classes?.item)}>
-          <span aria-hidden="true" class={cn(classes?.ellipsis)}>
-            {ellipsisContent}
-          </span>
-        </li>,
-      );
-    } else {
-      pageItems.push(
-        <li class={cn(classes?.item)}>
-          <PageButton
-            page={page}
-            currentPage={currentPage}
-            onPageChange={onPageChange}
-            classes={classes}
-          />
-        </li>,
-      );
-    }
-  }
+  // Thunk ensures element creation is deferred until __insert calls it
+  // inside the <ul> hydration scope. Without this, the for loop executes
+  // before the <ul> is entered, causing __element("li") to claim nodes
+  // at the wrong cursor level — a hydration mismatch where the Next
+  // button replaces page 1's text.
+  const pageItems = () =>
+    buildPageItems(range, classes, currentPage, onPageChange, ellipsisContent);
 
   return (
     <nav aria-label="Pagination" class={cn(classes?.nav, className ?? classProp)}>
