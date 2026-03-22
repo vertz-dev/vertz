@@ -68,13 +68,25 @@ interface SlotProps {
 
 function ListItem({ children, className, class: classProp }: SlotProps) {
   const ctx = useListContext('Item');
-  return <li class={cn(ctx.classes?.item, className ?? classProp)}>{children}</li>;
+  return (
+    <li
+      class={cn(ctx.classes?.item, className ?? classProp)}
+      data-sortable-item={ctx.sortable ? '' : undefined}
+      data-sortable={ctx.sortable ? '' : undefined}
+    >
+      {children}
+    </li>
+  );
 }
 
 function ListDragHandle({ children, className, class: classProp }: SlotProps) {
   const ctx = useListContext('DragHandle');
   return (
-    <div data-list-drag-handle="" class={cn(ctx.classes?.dragHandle, className ?? classProp)}>
+    <div
+      data-list-drag-handle=""
+      data-sortable={ctx.sortable ? '' : undefined}
+      class={cn(ctx.classes?.dragHandle, className ?? classProp)}
+    >
       {children}
     </div>
   );
@@ -216,6 +228,88 @@ function createAnimationHooks(animate: boolean | AnimateConfig): ListAnimationHo
   };
 }
 
+// ---------------------------------------------------------------------------
+// Drag-and-sort
+// ---------------------------------------------------------------------------
+
+/**
+ * Find the containing `[data-sortable-item]` element from an event target.
+ */
+function findSortableItem(target: EventTarget | null, root: Element): HTMLElement | null {
+  if (!(target instanceof HTMLElement)) return null;
+  const item = target.closest('[data-sortable-item]');
+  if (item instanceof HTMLElement && root.contains(item)) return item;
+  return null;
+}
+
+/**
+ * Calculate the insertion index based on pointer Y position and item midpoints.
+ */
+function calcInsertionIndex(items: HTMLElement[], clientY: number): number {
+  for (const [i, item] of items.entries()) {
+    const rect = item.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    if (clientY <= midY) return i;
+  }
+  return items.length - 1;
+}
+
+/**
+ * Set up drag-and-sort event delegation on the list root element.
+ * Uses pointerdown on [data-sortable] elements within the list.
+ */
+function setupDragSort(
+  ulEl: HTMLElement,
+  getSortable: () => boolean,
+  getOnReorder: () => ((fromIndex: number, toIndex: number) => void) | undefined,
+): void {
+  ulEl.addEventListener('pointerdown', (e: PointerEvent) => {
+    if (!getSortable()) return;
+
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+
+    // Only handle events on [data-sortable] elements
+    const sortableEl = target.closest('[data-sortable]');
+    if (!sortableEl || !ulEl.contains(sortableEl)) return;
+
+    const draggedItem = findSortableItem(target, ulEl);
+    if (!draggedItem) return;
+
+    e.preventDefault();
+
+    // Mark as dragging
+    draggedItem.setAttribute('data-dragging', '');
+
+    // Get all sortable items and find the dragged index
+    const allItems = [...ulEl.querySelectorAll('[data-sortable-item]')] as HTMLElement[];
+    const fromIndex = allItems.indexOf(draggedItem);
+    if (fromIndex === -1) return;
+
+    const onMove = (moveEvent: PointerEvent) => {
+      moveEvent.preventDefault();
+    };
+
+    const onUp = (upEvent: PointerEvent) => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+
+      draggedItem.removeAttribute('data-dragging');
+
+      // Calculate destination index
+      const currentItems = [...ulEl.querySelectorAll('[data-sortable-item]')] as HTMLElement[];
+      const toIndex = calcInsertionIndex(currentItems, upEvent.clientY);
+
+      if (fromIndex !== toIndex) {
+        getOnReorder()?.(fromIndex, toIndex);
+      }
+    };
+
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  });
+}
+
 function ComposedListRoot({
   children,
   classes,
@@ -234,13 +328,32 @@ function ComposedListRoot({
 
   const animHooks = animate ? createAnimationHooks(animate) : undefined;
 
-  return (
+  const root = (
     <ListContext.Provider value={ctx}>
       <ListAnimationContext.Provider value={animHooks}>
         <ul class={cn(classes?.root, className ?? classProp)}>{children}</ul>
       </ListAnimationContext.Provider>
     </ListContext.Provider>
-  );
+  ) as HTMLElement;
+
+  // Set up drag-and-sort if sortable
+  if (sortable) {
+    // The Provider JSX returns an HTMLElement (the <ul> itself),
+    // so root is always the <ul>. querySelector is the fallback.
+    const actualUl =
+      root instanceof HTMLElement && root.tagName === 'UL'
+        ? root
+        : root.querySelector('ul');
+    if (actualUl instanceof HTMLElement) {
+      setupDragSort(
+        actualUl,
+        () => sortable,
+        () => onReorder,
+      );
+    }
+  }
+
+  return root;
 }
 
 // ---------------------------------------------------------------------------
