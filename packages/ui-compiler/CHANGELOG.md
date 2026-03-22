@@ -1,5 +1,24 @@
 # @vertz/ui-compiler
 
+## 0.2.24
+
+### Patch Changes
+
+- [#1704](https://github.com/vertz-dev/vertz/pull/1704) [`0e33400`](https://github.com/vertz-dev/vertz/commit/0e33400d96a9f778f3b936124d7544804f731db9) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui): full-replacement mode for unkeyed lists prevents stale DOM
+
+  When no `key` prop is provided on list items, `__list` now uses full-replacement mode (dispose all nodes, create all new) instead of reusing by position index. This prevents stale DOM content when list items are filtered, reordered, or replaced. A dev warning is emitted once to encourage adding keys for optimal performance.
+
+- [#1684](https://github.com/vertz-dev/vertz/pull/1684) [`e24615a`](https://github.com/vertz-dev/vertz/commit/e24615a8619ae84b993c18dbdca2671ca254f9bb) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui-compiler): support JSX spread attributes on intrinsic elements and components
+
+  JSX spread attributes (`<button {...rest}>`, `<Button {...props}>`) were silently dropped by the compiler. Spread attributes now work correctly:
+
+  - **Component calls**: spread emits `...expr` in the props object literal
+  - **Intrinsic elements**: spread emits `__spread(el, props)` runtime call that handles event handlers, style, class/className, ref, SVG attributes, and standard HTML attributes
+  - **theme-shadcn Button**: removed `applyProps` workaround in favor of native JSX spread
+
+- Updated dependencies [[`a73dd79`](https://github.com/vertz-dev/vertz/commit/a73dd792de1876513914b89ef896fc88243b4cc8), [`d58a100`](https://github.com/vertz-dev/vertz/commit/d58a100f18762189be4319b58a4b86f8a774ac95), [`0e33400`](https://github.com/vertz-dev/vertz/commit/0e33400d96a9f778f3b936124d7544804f731db9), [`e24615a`](https://github.com/vertz-dev/vertz/commit/e24615a8619ae84b993c18dbdca2671ca254f9bb), [`adea2f1`](https://github.com/vertz-dev/vertz/commit/adea2f15f306d09ecebc56fc1f3841ff4b14b2ba)]:
+  - @vertz/ui@0.2.24
+
 ## 0.2.23
 
 ### Patch Changes

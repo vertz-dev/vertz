@@ -1,5 +1,29 @@
 # @vertz/theme-shadcn
 
+## 0.2.24
+
+### Patch Changes
+
+- [#1712](https://github.com/vertz-dev/vertz/pull/1712) [`a73dd79`](https://github.com/vertz-dev/vertz/commit/a73dd792de1876513914b89ef896fc88243b4cc8) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(ui): add EmptyState compound component and Skeleton.Text/Circle sub-components
+
+  New `EmptyState` compound component with Icon, Title, Description, and Action slots for empty-data placeholders. New `Skeleton.Text` (multi-line text placeholder) and `Skeleton.Circle` (circular avatar placeholder) sub-components. Skeleton `base` class key renamed to `root` for consistency.
+
+- [#1710](https://github.com/vertz-dev/vertz/pull/1710) [`bc21689`](https://github.com/vertz-dev/vertz/commit/bc21689349e116a76a33290f64152ec50087ae01) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(theme-shadcn): add explicit text:foreground to components with bg:background
+
+  Components that set `bg:background` without a corresponding `text:foreground` could show black text on dark backgrounds when rendered in the browser's top-layer (e.g., Dialog/AlertDialog via `showModal()`). Fixed by adding explicit `text:foreground` to all affected components: Dialog, AlertDialog, Calendar, Carousel, Menubar, DatePicker, Pagination, and Button outline variant.
+
+- [#1684](https://github.com/vertz-dev/vertz/pull/1684) [`e24615a`](https://github.com/vertz-dev/vertz/commit/e24615a8619ae84b993c18dbdca2671ca254f9bb) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui-compiler): support JSX spread attributes on intrinsic elements and components
+
+  JSX spread attributes (`<button {...rest}>`, `<Button {...props}>`) were silently dropped by the compiler. Spread attributes now work correctly:
+
+  - **Component calls**: spread emits `...expr` in the props object literal
+  - **Intrinsic elements**: spread emits `__spread(el, props)` runtime call that handles event handlers, style, class/className, ref, SVG attributes, and standard HTML attributes
+  - **theme-shadcn Button**: removed `applyProps` workaround in favor of native JSX spread
+
+- Updated dependencies [[`a73dd79`](https://github.com/vertz-dev/vertz/commit/a73dd792de1876513914b89ef896fc88243b4cc8), [`d58a100`](https://github.com/vertz-dev/vertz/commit/d58a100f18762189be4319b58a4b86f8a774ac95), [`0e33400`](https://github.com/vertz-dev/vertz/commit/0e33400d96a9f778f3b936124d7544804f731db9), [`e24615a`](https://github.com/vertz-dev/vertz/commit/e24615a8619ae84b993c18dbdca2671ca254f9bb), [`adea2f1`](https://github.com/vertz-dev/vertz/commit/adea2f15f306d09ecebc56fc1f3841ff4b14b2ba)]:
+  - @vertz/ui-primitives@0.2.24
+  - @vertz/ui@0.2.24
+
 ## 0.2.23
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # @vertz-examples/task-manager
 
+## 0.2.24
+
+### Patch Changes
+
+- Updated dependencies [[`a73dd79`](https://github.com/vertz-dev/vertz/commit/a73dd792de1876513914b89ef896fc88243b4cc8), [`de3cb15`](https://github.com/vertz-dev/vertz/commit/de3cb15e9ecad1a4cec60cc21b6a9236fd4e6324), [`d58a100`](https://github.com/vertz-dev/vertz/commit/d58a100f18762189be4319b58a4b86f8a774ac95), [`0e33400`](https://github.com/vertz-dev/vertz/commit/0e33400d96a9f778f3b936124d7544804f731db9), [`bc21689`](https://github.com/vertz-dev/vertz/commit/bc21689349e116a76a33290f64152ec50087ae01), [`e24615a`](https://github.com/vertz-dev/vertz/commit/e24615a8619ae84b993c18dbdca2671ca254f9bb), [`adea2f1`](https://github.com/vertz-dev/vertz/commit/adea2f15f306d09ecebc56fc1f3841ff4b14b2ba), [`99c90d9`](https://github.com/vertz-dev/vertz/commit/99c90d9d9176722d60d998a5a8d1eeaf4146c8de)]:
+  - @vertz/ui-primitives@0.2.24
+  - @vertz/theme-shadcn@0.2.24
+  - @vertz/ui@0.2.24
+  - @vertz/ui-server@0.2.24
+  - @vertz/fetch@0.2.24
+  - @vertz/errors@0.2.24
+  - @vertz/icons@0.2.24
+
 ## 0.2.23
 
 ### Patch Changes

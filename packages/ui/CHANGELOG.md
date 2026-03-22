@@ -1,5 +1,43 @@
 # @vertz/ui
 
+## 0.2.24
+
+### Patch Changes
+
+- [#1712](https://github.com/vertz-dev/vertz/pull/1712) [`a73dd79`](https://github.com/vertz-dev/vertz/commit/a73dd792de1876513914b89ef896fc88243b4cc8) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(ui): add EmptyState compound component and Skeleton.Text/Circle sub-components
+
+  New `EmptyState` compound component with Icon, Title, Description, and Action slots for empty-data placeholders. New `Skeleton.Text` (multi-line text placeholder) and `Skeleton.Circle` (circular avatar placeholder) sub-components. Skeleton `base` class key renamed to `root` for consistency.
+
+- [#1685](https://github.com/vertz-dev/vertz/pull/1685) [`d58a100`](https://github.com/vertz-dev/vertz/commit/d58a100f18762189be4319b58a4b86f8a774ac95) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui): register \_\_on event listener cleanup with disposal scope
+
+  Event listeners attached via `__on()` (the compiler's output for `onClick`, `onSubmit`, etc.) now register their cleanup function with the current disposal scope. This ensures listeners are properly removed when components or dialogs are unmounted, preventing memory leaks in dynamically-opened dialogs.
+
+- [#1704](https://github.com/vertz-dev/vertz/pull/1704) [`0e33400`](https://github.com/vertz-dev/vertz/commit/0e33400d96a9f778f3b936124d7544804f731db9) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui): full-replacement mode for unkeyed lists prevents stale DOM
+
+  When no `key` prop is provided on list items, `__list` now uses full-replacement mode (dispose all nodes, create all new) instead of reusing by position index. This prevents stale DOM content when list items are filtered, reordered, or replaced. A dev warning is emitted once to encourage adding keys for optimal performance.
+
+- [#1684](https://github.com/vertz-dev/vertz/pull/1684) [`e24615a`](https://github.com/vertz-dev/vertz/commit/e24615a8619ae84b993c18dbdca2671ca254f9bb) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui-compiler): support JSX spread attributes on intrinsic elements and components
+
+  JSX spread attributes (`<button {...rest}>`, `<Button {...props}>`) were silently dropped by the compiler. Spread attributes now work correctly:
+
+  - **Component calls**: spread emits `...expr` in the props object literal
+  - **Intrinsic elements**: spread emits `__spread(el, props)` runtime call that handles event handlers, style, class/className, ref, SVG attributes, and standard HTML attributes
+  - **theme-shadcn Button**: removed `applyProps` workaround in favor of native JSX spread
+
+- [#1707](https://github.com/vertz-dev/vertz/pull/1707) [`adea2f1`](https://github.com/vertz-dev/vertz/commit/adea2f15f306d09ecebc56fc1f3841ff4b14b2ba) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Auto-invalidate tenant-scoped queries on tenant switch. When `switchTenant()` succeeds, all active queries with `tenantScoped: true` metadata are automatically cleared and refetched, preventing stale cross-tenant data from being visible.
+
+  **What changed:**
+
+  - `EntityQueryMeta` now includes an optional `tenantScoped` boolean field
+  - `registerActiveQuery()` accepts an optional `clearData` callback for data clearing before refetch
+  - `invalidateTenantQueries()` exported from `@vertz/ui` — clears data + refetches all tenant-scoped queries
+  - `TenantProvider.switchTenant()` calls `invalidateTenantQueries()` automatically on success
+  - Codegen emits `tenantScoped: true/false` in entity SDK descriptors based on entity configuration
+  - `QueryEnvelopeStore` gains a `delete(queryKey)` method for per-key cleanup
+
+- Updated dependencies [[`adea2f1`](https://github.com/vertz-dev/vertz/commit/adea2f15f306d09ecebc56fc1f3841ff4b14b2ba), [`99c90d9`](https://github.com/vertz-dev/vertz/commit/99c90d9d9176722d60d998a5a8d1eeaf4146c8de)]:
+  - @vertz/fetch@0.2.24
+
 ## 0.2.23
 
 ### Patch Changes

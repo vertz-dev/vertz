@@ -1,5 +1,23 @@
 # @vertz/server
 
+## 0.2.24
+
+### Patch Changes
+
+- [#1686](https://github.com/vertz-dev/vertz/pull/1686) [`15dbd75`](https://github.com/vertz-dev/vertz/commit/15dbd75e6e8f2fa5d96c28f498b0d3cac0603945) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(server): extract auth session middleware and add integration tests
+
+  `createServer()` with `auth` now auto-wires a session middleware that bridges JWT session data (`userId`, `tenantId`, `roles`) into the entity/service handler context. The inline middleware has been extracted to `createAuthSessionMiddleware()` in the auth module for testability and separation of concerns.
+
+- [#1705](https://github.com/vertz-dev/vertz/pull/1705) [`61cd174`](https://github.com/vertz-dev/vertz/commit/61cd174a6f54f756d019533089c65c02ef76900f) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix entity route handlers receiving empty `ctx.entity` instead of actual entity operations from the registry. The `makeEntityCtx` helper now always resolves entity operations via `registry.get()` instead of silently falling back to an empty object. Hooks (`before.create`, `after.update`, etc.) and action handlers now correctly receive `ctx.entity` with all CRUD methods populated.
+
+- [#1692](https://github.com/vertz-dev/vertz/pull/1692) [`99c90d9`](https://github.com/vertz-dev/vertz/commit/99c90d9d9176722d60d998a5a8d1eeaf4146c8de) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix resolveVertzQL to keep where/orderBy/limit as flat query params instead of encoding them in the base64 q= parameter. Only select and include are encoded in q= (structural, not human-readable). Where is flattened to bracket notation (where[field]=value), orderBy to colon format (orderBy=field:dir), and limit stays as a raw number. Server parser updated to support comma-separated multi-field orderBy.
+
+- Updated dependencies []:
+  - @vertz/core@0.2.24
+  - @vertz/db@0.2.24
+  - @vertz/errors@0.2.24
+  - @vertz/schema@0.2.24
+
 ## 0.2.23
 
 ### Patch Changes

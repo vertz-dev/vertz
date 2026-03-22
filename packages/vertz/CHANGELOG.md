@@ -1,5 +1,23 @@
 # vertz
 
+## 0.2.24
+
+### Patch Changes
+
+- Updated dependencies [[`15dbd75`](https://github.com/vertz-dev/vertz/commit/15dbd75e6e8f2fa5d96c28f498b0d3cac0603945), [`a73dd79`](https://github.com/vertz-dev/vertz/commit/a73dd792de1876513914b89ef896fc88243b4cc8), [`de3cb15`](https://github.com/vertz-dev/vertz/commit/de3cb15e9ecad1a4cec60cc21b6a9236fd4e6324), [`61cd174`](https://github.com/vertz-dev/vertz/commit/61cd174a6f54f756d019533089c65c02ef76900f), [`d58a100`](https://github.com/vertz-dev/vertz/commit/d58a100f18762189be4319b58a4b86f8a774ac95), [`0e33400`](https://github.com/vertz-dev/vertz/commit/0e33400d96a9f778f3b936124d7544804f731db9), [`e24615a`](https://github.com/vertz-dev/vertz/commit/e24615a8619ae84b993c18dbdca2671ca254f9bb), [`adea2f1`](https://github.com/vertz-dev/vertz/commit/adea2f15f306d09ecebc56fc1f3841ff4b14b2ba), [`99c90d9`](https://github.com/vertz-dev/vertz/commit/99c90d9d9176722d60d998a5a8d1eeaf4146c8de)]:
+  - @vertz/server@0.2.24
+  - @vertz/ui-primitives@0.2.24
+  - @vertz/ui@0.2.24
+  - @vertz/ui-server@0.2.24
+  - @vertz/ui-compiler@0.2.24
+  - @vertz/fetch@0.2.24
+  - @vertz/cloudflare@0.2.24
+  - @vertz/db@0.2.24
+  - @vertz/errors@0.2.24
+  - @vertz/schema@0.2.24
+  - @vertz/testing@0.2.24
+  - @vertz/tui@0.2.24
+
 ## 0.2.23
 
 ### Patch Changes

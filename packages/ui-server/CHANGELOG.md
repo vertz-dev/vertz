@@ -1,5 +1,24 @@
 # @vertz/ui-server
 
+## 0.2.24
+
+### Patch Changes
+
+- [#1695](https://github.com/vertz-dev/vertz/pull/1695) [`de3cb15`](https://github.com/vertz-dev/vertz/commit/de3cb15e9ecad1a4cec60cc21b6a9236fd4e6324) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix auto field selection not tracking field accesses in child components. Previously, when query data was passed to child components via props, the child's field accesses were silently missed, causing the query to under-fetch (only fields accessed directly in the parent were included in `select`).
+
+  **What changed:**
+
+  - Cross-file field resolution now falls back to fetching all fields (opaque) when a child component's field accesses can't be determined, instead of silently under-fetching
+  - Barrel file re-exports (`export { Foo } from './bar'`) are now followed to find the actual component definition
+  - Renamed re-exports (`export { Internal as Public }`) are handled correctly
+  - The plugin pre-pass now scans `.ts` files (not just `.tsx`) to capture barrel file re-exports
+  - HMR updates now process `.ts` file changes for field selection manifest updates
+
+- Updated dependencies [[`a73dd79`](https://github.com/vertz-dev/vertz/commit/a73dd792de1876513914b89ef896fc88243b4cc8), [`d58a100`](https://github.com/vertz-dev/vertz/commit/d58a100f18762189be4319b58a4b86f8a774ac95), [`0e33400`](https://github.com/vertz-dev/vertz/commit/0e33400d96a9f778f3b936124d7544804f731db9), [`e24615a`](https://github.com/vertz-dev/vertz/commit/e24615a8619ae84b993c18dbdca2671ca254f9bb), [`adea2f1`](https://github.com/vertz-dev/vertz/commit/adea2f15f306d09ecebc56fc1f3841ff4b14b2ba)]:
+  - @vertz/ui@0.2.24
+  - @vertz/ui-compiler@0.2.24
+  - @vertz/core@0.2.24
+
 ## 0.2.23
 
 ### Patch Changes
