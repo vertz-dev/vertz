@@ -9,6 +9,7 @@
 
 import type { DatabaseClient } from '@vertz/db';
 import { isOk, unwrap } from '@vertz/schema';
+import type { RoleAssignmentStore } from '@vertz/server';
 import {
   type commentsModel,
   type issueLabelsModel,
@@ -30,7 +31,10 @@ type SeedModels = {
   issueLabels: typeof issueLabelsModel;
 };
 
-export async function seedDatabase(db: DatabaseClient<SeedModels>) {
+export async function seedDatabase(
+  db: DatabaseClient<SeedModels>,
+  roleStore?: RoleAssignmentStore,
+) {
   const result = await db.projects.count();
   if (isOk(result) && result.data > 0) return;
 
@@ -52,14 +56,12 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
       data: [
         {
           id: 'seed-alice',
-          workspaceId: W,
           name: 'Alice Chen',
           email: 'alice@example.com',
           avatarUrl: null,
         },
         {
           id: 'seed-bob',
-          workspaceId: W,
           name: 'Bob Martinez',
           email: 'bob@example.com',
           avatarUrl: null,
@@ -67,6 +69,15 @@ export async function seedDatabase(db: DatabaseClient<SeedModels>) {
       ],
     }),
   );
+
+  // --- Role Assignments ---
+  // Workspace membership is tracked via role assignments, not a column on users.
+  // seed-alice is an owner, seed-bob is a member.
+  // Uses the framework's DbRoleAssignmentStore — no raw SQL.
+  if (roleStore) {
+    await roleStore.assign('seed-alice', 'workspace', W, 'owner');
+    await roleStore.assign('seed-bob', 'workspace', W, 'member');
+  }
 
   // --- Projects ---
   unwrap(

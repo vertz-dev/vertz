@@ -15,7 +15,12 @@ import {
   ok,
   type Result,
 } from '@vertz/errors';
-import { enforceAccess, extractWhereConditions } from './access-enforcer';
+import { createAccessContext } from '../auth/access-context';
+import {
+  type EnforceAccessOptions,
+  enforceAccess,
+  extractWhereConditions,
+} from './access-enforcer';
 import {
   applySelect,
   narrowRelationFields,
@@ -103,12 +108,25 @@ export type QueryParentIdsFn = (
   where: Record<string, unknown>,
 ) => Promise<string[]>;
 
+/** Access config subset needed by the CRUD pipeline for entitlement evaluation. */
+export interface CrudAccessConfig {
+  definition: import('../auth/define-access').AccessDefinition;
+  roleStore: import('../auth/role-assignment-store').RoleAssignmentStore;
+  closureStore: import('../auth/closure-store').ClosureStore;
+  flagStore?: import('../auth/flag-store').FlagStore;
+  subscriptionStore?: import('../auth/subscription-store').SubscriptionStore;
+}
+
 /** Options for the CRUD pipeline factory. */
 export interface CrudPipelineOptions {
   /** Tenant chain for indirectly scoped entities. */
   tenantChain?: TenantChain | null;
   /** Resolves parent IDs for indirect tenant chain traversal. */
   queryParentIds?: QueryParentIdsFn;
+  /** Access config — enables entitlement evaluation via AccessContext. */
+  accessConfig?: CrudAccessConfig;
+  /** The resource type for the tenant root (e.g., 'workspace'). Used for entitlement RBAC checks. */
+  tenantResourceType?: string;
 }
 
 export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
@@ -122,6 +140,30 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
   const tenantChain = options?.tenantChain ?? def.tenantChain ?? null;
   const isIndirectlyScoped = tenantChain !== null;
   const queryParentIds = options?.queryParentIds ?? null;
+  const accessConfig = options?.accessConfig ?? null;
+  const tenantResourceType = options?.tenantResourceType ?? null;
+
+  /** Builds enforce access options with entitlement evaluation for the given request context. */
+  function buildAccessOptions(ctx: EntityContext): EnforceAccessOptions {
+    if (!accessConfig || !ctx.userId) return {};
+    const accessCtx = createAccessContext({
+      userId: ctx.userId,
+      accessDef: accessConfig.definition,
+      roleStore: accessConfig.roleStore,
+      closureStore: accessConfig.closureStore,
+      flagStore: accessConfig.flagStore,
+      subscriptionStore: accessConfig.subscriptionStore,
+    });
+    return {
+      can: (entitlement: string) =>
+        accessCtx.can(
+          entitlement,
+          tenantResourceType && ctx.tenantId
+            ? { type: tenantResourceType, id: ctx.tenantId }
+            : undefined,
+        ),
+    };
+  }
   // Extract expose.select keys for applySelect (which checks key presence, not values).
   // Include relation keys from expose.include so they pass through applySelect.
   const exposeSelect = def.expose?.select
@@ -219,8 +261,10 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
     async list(ctx, options) {
       // Extract where conditions from access rules and push to DB query
       const accessWhere = extractWhereConditions('list', def.access, ctx);
+      const accessOpts = buildAccessOptions(ctx);
       const accessResult = await enforceAccess('list', def.access, ctx, undefined, {
         skipWhere: accessWhere !== null,
+        ...accessOpts,
       });
       if (!accessResult.ok) return err(accessResult.error);
 
@@ -278,7 +322,13 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
         return notFound(id);
       }
 
-      const accessResult = await enforceAccess('get', def.access, ctx, row);
+      const accessResult = await enforceAccess(
+        'get',
+        def.access,
+        ctx,
+        row,
+        buildAccessOptions(ctx),
+      );
       if (!accessResult.ok) return err(accessResult.error);
 
       return ok({
@@ -294,7 +344,13 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
     },
 
     async create(ctx, data) {
-      const accessResult = await enforceAccess('create', def.access, ctx);
+      const accessResult = await enforceAccess(
+        'create',
+        def.access,
+        ctx,
+        undefined,
+        buildAccessOptions(ctx),
+      );
       if (!accessResult.ok) return err(accessResult.error);
 
       let input = stripReadOnlyFields(table, data);
@@ -380,7 +436,13 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
         return notFound(id);
       }
 
-      const accessResult = await enforceAccess('update', def.access, ctx, existing);
+      const accessResult = await enforceAccess(
+        'update',
+        def.access,
+        ctx,
+        existing,
+        buildAccessOptions(ctx),
+      );
       if (!accessResult.ok) return err(accessResult.error);
 
       let input = stripReadOnlyFields(table, data);
@@ -426,7 +488,13 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
         return notFound(id);
       }
 
-      const accessResult = await enforceAccess('delete', def.access, ctx, existing);
+      const accessResult = await enforceAccess(
+        'delete',
+        def.access,
+        ctx,
+        existing,
+        buildAccessOptions(ctx),
+      );
       if (!accessResult.ok) return err(accessResult.error);
 
       await db.delete(id);

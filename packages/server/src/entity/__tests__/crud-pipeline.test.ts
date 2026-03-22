@@ -1,6 +1,9 @@
 import { describe, expect, it, mock } from 'bun:test';
 import { d } from '@vertz/db';
 import { EntityForbiddenError, EntityNotFoundError, unwrap } from '@vertz/errors';
+import { InMemoryClosureStore } from '../../auth/closure-store';
+import { defineAccess } from '../../auth/define-access';
+import { InMemoryRoleAssignmentStore } from '../../auth/role-assignment-store';
 import { rules } from '../../auth/rules';
 import { createEntityContext } from '../context';
 import { createCrudHandlers } from '../crud-pipeline';
@@ -1839,6 +1842,115 @@ describe('Feature: CRUD pipeline', () => {
         expect(result.ok).toBe(false);
         if (!result.ok) {
           expect(result.error).toBeInstanceOf(EntityNotFoundError);
+        }
+      });
+    });
+  });
+
+  // --- Entitlement-based access via accessConfig ---
+
+  describe('Given an entity with rules.entitlement() access and accessConfig wired', () => {
+    const accessDef = defineAccess({
+      entities: {
+        workspace: { roles: ['owner', 'member'] },
+      },
+      entitlements: {
+        'workspace:read': { roles: ['owner', 'member'] },
+        'workspace:manage': { roles: ['owner'] },
+      },
+    });
+
+    const entitlementDef = entity('users', {
+      model: usersModel,
+      access: {
+        list: rules.entitlement('workspace:read'),
+        get: rules.entitlement('workspace:read'),
+        create: rules.entitlement('workspace:manage'),
+      },
+    });
+
+    describe('When user has the required role for the entitlement', () => {
+      it('Then list succeeds', async () => {
+        const db = createStubDb();
+        const roleStore = new InMemoryRoleAssignmentStore();
+        const closureStore = new InMemoryClosureStore();
+        await roleStore.assign('user-1', 'workspace', 'ws-1', 'member');
+
+        const handlers = createCrudHandlers(entitlementDef, db, {
+          accessConfig: {
+            definition: accessDef,
+            roleStore,
+            closureStore,
+          },
+          tenantResourceType: 'workspace',
+        });
+
+        const ctx = makeCtx({ tenantId: 'ws-1' });
+        const result = await handlers.list(ctx);
+        expect(result.ok).toBe(true);
+      });
+    });
+
+    describe('When user does NOT have the required role for the entitlement', () => {
+      it('Then list returns 403', async () => {
+        const db = createStubDb();
+        const roleStore = new InMemoryRoleAssignmentStore();
+        const closureStore = new InMemoryClosureStore();
+        // user-1 has no role assignments
+
+        const handlers = createCrudHandlers(entitlementDef, db, {
+          accessConfig: {
+            definition: accessDef,
+            roleStore,
+            closureStore,
+          },
+          tenantResourceType: 'workspace',
+        });
+
+        const ctx = makeCtx({ tenantId: 'ws-1' });
+        const result = await handlers.list(ctx);
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityForbiddenError);
+        }
+      });
+    });
+
+    describe('When user has member role but entitlement requires owner', () => {
+      it('Then create returns 403', async () => {
+        const db = createStubDb();
+        const roleStore = new InMemoryRoleAssignmentStore();
+        const closureStore = new InMemoryClosureStore();
+        await roleStore.assign('user-1', 'workspace', 'ws-1', 'member');
+
+        const handlers = createCrudHandlers(entitlementDef, db, {
+          accessConfig: {
+            definition: accessDef,
+            roleStore,
+            closureStore,
+          },
+          tenantResourceType: 'workspace',
+        });
+
+        const ctx = makeCtx({ tenantId: 'ws-1' });
+        const result = await handlers.create(ctx, { email: 'new@test.com', name: 'New' });
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityForbiddenError);
+        }
+      });
+    });
+
+    describe('When no accessConfig is provided (backward compat)', () => {
+      it('Then entitlement rules always deny', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(entitlementDef, db);
+
+        const ctx = makeCtx({ tenantId: 'ws-1' });
+        const result = await handlers.list(ctx);
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityForbiddenError);
         }
       });
     });

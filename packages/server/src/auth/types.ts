@@ -217,6 +217,12 @@ export interface OAuthStateData {
 // Auth-Entity Bridge Types
 // ============================================================================
 
+/** Role assignment operations exposed to auth callbacks. */
+export interface AuthCallbackRoles {
+  assign(userId: string, resourceType: string, resourceId: string, role: string): Promise<void>;
+  revoke(userId: string, resourceType: string, resourceId: string, role: string): Promise<void>;
+}
+
 /** Context provided to auth lifecycle callbacks. */
 export interface AuthCallbackContext {
   /**
@@ -225,6 +231,11 @@ export interface AuthCallbackContext {
    * so access rules like rules.authenticated() would block the callback.
    */
   entities: Record<string, AuthEntityProxy>;
+  /**
+   * Role assignment operations — available when auth.access is configured.
+   * Use to assign roles during user creation (e.g., assign 'member' on a workspace).
+   */
+  roles: AuthCallbackRoles | undefined;
 }
 
 /** Minimal CRUD interface for entity access within auth callbacks. */
@@ -373,8 +384,9 @@ export interface AuthConfig {
   passwordResetStore?: PasswordResetStore;
   /** Access control configuration — enables ACL claim in JWT */
   access?: AuthAccessConfig;
-  /** Tenant switching configuration — enables POST /auth/switch-tenant */
-  tenant?: TenantConfig;
+  /** Tenant switching configuration — enables POST /auth/switch-tenant.
+   *  Set to `false` to explicitly disable auto-wired tenant (when auth.access + .tenant() table). */
+  tenant?: TenantConfig | false;
   /**
    * Called after a new user is created in the auth system.
    * Fires before the session is created.
@@ -402,11 +414,15 @@ export interface TenantConfig {
   resolveDefault?: (userId: string, tenants: TenantInfo[]) => Promise<string | undefined>;
 }
 
-/** Access control configuration for JWT acl claim computation. */
+/** Access control configuration for JWT acl claim computation.
+ *  When used with `createServer()` and a DatabaseClient, `roleStore` and
+ *  `closureStore` are auto-wired from the DB and don't need to be provided. */
 export interface AuthAccessConfig {
   definition: import('./define-access').AccessDefinition;
-  roleStore: import('./role-assignment-store').RoleAssignmentStore;
-  closureStore: import('./closure-store').ClosureStore;
+  /** Role assignment store — auto-wired from DB by `createServer()` when omitted. */
+  roleStore?: import('./role-assignment-store').RoleAssignmentStore;
+  /** Closure store for hierarchy — auto-wired from DB by `createServer()` when omitted. */
+  closureStore?: import('./closure-store').ClosureStore;
   flagStore?: import('./flag-store').FlagStore;
   subscriptionStore?: import('./subscription-store').SubscriptionStore;
   walletStore?: import('./wallet-store').WalletStore;

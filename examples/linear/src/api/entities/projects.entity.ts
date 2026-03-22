@@ -4,11 +4,14 @@ import { projectsModel } from '../schema';
 export const projects = entity('projects', {
   model: projectsModel,
   access: {
-    list: rules.authenticated(),
-    get: rules.authenticated(),
-    create: rules.authenticated(),
-    update: rules.all(rules.authenticated(), rules.where({ createdBy: rules.user.id })),
-    delete: rules.all(rules.authenticated(), rules.where({ createdBy: rules.user.id })),
+    list: rules.entitlement('project:read'),
+    get: rules.entitlement('project:read'),
+    create: rules.entitlement('workspace:create-project'),
+    update: rules.all(
+      rules.entitlement('project:update'),
+      rules.where({ createdBy: rules.user.id }),
+    ),
+    delete: rules.entitlement('workspace:delete-project'),
   },
   before: {
     create: (data, ctx) => {

@@ -4,10 +4,10 @@ import { labelsModel } from '../schema';
 export const labels = entity('labels', {
   model: labelsModel,
   access: {
-    list: rules.authenticated(),
-    get: rules.authenticated(),
-    create: rules.authenticated(),
-    update: rules.authenticated(),
-    delete: rules.authenticated(),
+    list: rules.entitlement('project:read'),
+    get: rules.entitlement('project:read'),
+    create: rules.entitlement('project:update'),
+    update: rules.entitlement('project:update'),
+    delete: rules.entitlement('project:update'),
   },
 });

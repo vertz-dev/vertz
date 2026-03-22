@@ -4,11 +4,17 @@ import { commentsModel } from '../schema';
 export const comments = entity('comments', {
   model: commentsModel,
   access: {
-    list: rules.authenticated(),
-    get: rules.authenticated(),
-    create: rules.authenticated(),
-    update: rules.all(rules.authenticated(), rules.where({ authorId: rules.user.id })),
-    delete: rules.all(rules.authenticated(), rules.where({ authorId: rules.user.id })),
+    list: rules.entitlement('comment:read'),
+    get: rules.entitlement('comment:read'),
+    create: rules.entitlement('comment:create'),
+    update: rules.all(
+      rules.entitlement('comment:create'),
+      rules.where({ authorId: rules.user.id }),
+    ),
+    delete: rules.all(
+      rules.entitlement('comment:delete'),
+      rules.where({ authorId: rules.user.id }),
+    ),
   },
   expose: {
     select: {

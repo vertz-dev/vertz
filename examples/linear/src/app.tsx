@@ -24,7 +24,7 @@ import {
   zoomIn,
   zoomOut,
 } from '@vertz/ui';
-import { AuthProvider } from '@vertz/ui/auth';
+import { AuthProvider, TenantProvider } from '@vertz/ui/auth';
 import { api } from './api/client';
 import { appRouter } from './router';
 import { linearTheme, themeGlobals } from './styles/theme';
@@ -91,17 +91,19 @@ export function App() {
 
   return (
     <AuthProvider auth={api.auth}>
-      <RouterContext.Provider value={appRouter}>
-        <ThemeProvider theme="dark">
-          <DialogStackProvider>
-            <RouterView
-              router={appRouter}
-              fallback={() => <div>Page not found</div>}
-              errorFallback={DefaultErrorFallback}
-            />
-          </DialogStackProvider>
-        </ThemeProvider>
-      </RouterContext.Provider>
+      <TenantProvider listTenants={api.auth.listTenants} switchTenant={api.auth.switchTenant}>
+        <RouterContext.Provider value={appRouter}>
+          <ThemeProvider theme="dark">
+            <DialogStackProvider>
+              <RouterView
+                router={appRouter}
+                fallback={() => <div>Page not found</div>}
+                errorFallback={DefaultErrorFallback}
+              />
+            </DialogStackProvider>
+          </ThemeProvider>
+        </RouterContext.Provider>
+      </TenantProvider>
     </AuthProvider>
   );
 }

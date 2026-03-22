@@ -20,22 +20,23 @@ export const workspacesTable = d
 export const workspacesModel = d.model(workspacesTable);
 
 // ---------------------------------------------------------------------------
-// Users — developer-owned table, populated via onUserCreated callback
+// Users — developer-owned table, populated via onUserCreated callback.
+// Cross-tenant: users exist independently of workspaces. Membership is
+// tracked via auth_role_assignments, not a column on this table.
 // ---------------------------------------------------------------------------
 
-export const usersTable = d.table('users', {
-  id: d.text().primary(),
-  workspaceId: d.text().default(''),
-  name: d.text(),
-  email: d.text().unique(),
-  avatarUrl: d.text().nullable(),
-  createdAt: d.timestamp().default('now').readOnly(),
-  updatedAt: d.timestamp().autoUpdate(),
-});
+export const usersTable = d
+  .table('users', {
+    id: d.text().primary(),
+    name: d.text(),
+    email: d.text().unique(),
+    avatarUrl: d.text().nullable(),
+    createdAt: d.timestamp().default('now').readOnly(),
+    updatedAt: d.timestamp().autoUpdate(),
+  })
+  .shared();
 
-export const usersModel = d.model(usersTable, {
-  workspace: d.ref.one(() => workspacesTable, 'workspaceId'),
-});
+export const usersModel = d.model(usersTable);
 
 // ---------------------------------------------------------------------------
 // Projects

@@ -240,12 +240,30 @@ export function createAuth(config: AuthConfig): AuthInstance {
     config.passwordResetStore ??
     (passwordResetEnabled ? new InMemoryPasswordResetStore() : undefined);
 
-  // Tenant switching
-  const tenantConfig = config.tenant;
+  // Tenant switching (false is handled by createServer — filter it out here for safety)
+  const tenantConfig = config.tenant || undefined;
+
+  // Resolve access stores — required when access is configured.
+  // createServer auto-wires these from the DB; direct createAuth callers must provide them.
+  const resolvedAccess = config.access
+    ? {
+        ...config.access,
+        roleStore: config.access.roleStore,
+        closureStore: config.access.closureStore,
+      }
+    : undefined;
 
   // Auth-entity bridge callback
   const onUserCreated = config.onUserCreated;
   const entityProxy = config._entityProxy ?? {};
+  const callbackRoles = resolvedAccess?.roleStore
+    ? {
+        assign: (userId: string, resourceType: string, resourceId: string, role: string) =>
+          resolvedAccess.roleStore!.assign(userId, resourceType, resourceId, role),
+        revoke: (userId: string, resourceType: string, resourceId: string, role: string) =>
+          resolvedAccess.roleStore!.revoke(userId, resourceType, resourceId, role),
+      }
+    : undefined;
 
   // Rate limiting
   const rateLimitStore = config.rateLimitStore ?? new InMemoryRateLimitStore();
@@ -272,14 +290,14 @@ export function createAuth(config: AuthConfig): AuthInstance {
     // Compute ACL claim if access config is present
     let aclClaim: { acl: { set?: EncodedAccessSet; hash: string; overflow: boolean } } | object =
       {};
-    if (config.access) {
+    if (resolvedAccess?.roleStore && resolvedAccess.closureStore) {
       const accessSet = await computeAccessSet({
         userId: user.id,
-        accessDef: config.access.definition,
-        roleStore: config.access.roleStore,
-        closureStore: config.access.closureStore,
-        flagStore: config.access.flagStore,
-        subscriptionStore: config.access?.subscriptionStore,
+        accessDef: resolvedAccess.definition,
+        roleStore: resolvedAccess.roleStore,
+        closureStore: resolvedAccess.closureStore,
+        flagStore: resolvedAccess.flagStore,
+        subscriptionStore: resolvedAccess.subscriptionStore,
         tenantId: null,
       });
       const encoded = encodeAccessSet(accessSet);
@@ -410,7 +428,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
     // Fire onUserCreated callback for email/password sign-ups
     if (onUserCreated) {
-      const callbackCtx: AuthCallbackContext = { entities: entityProxy };
+      const callbackCtx: AuthCallbackContext = { entities: entityProxy, roles: callbackRoles };
       const payload: OnUserCreatedPayload = {
         user,
         provider: null,
@@ -1069,7 +1087,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
       // Route: GET /api/auth/access-set
       if (method === 'GET' && path === '/access-set') {
-        if (!config.access) {
+        if (!resolvedAccess?.roleStore || !resolvedAccess.closureStore) {
           return new Response(JSON.stringify({ error: 'Access control not configured' }), {
             status: 404,
             headers: { 'Content-Type': 'application/json', ...securityHeaders() },
@@ -1086,11 +1104,11 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
         const accessSet = await computeAccessSet({
           userId: sessionResult.data.user.id,
-          accessDef: config.access.definition,
-          roleStore: config.access.roleStore,
-          closureStore: config.access.closureStore,
-          flagStore: config.access.flagStore,
-          subscriptionStore: config.access?.subscriptionStore,
+          accessDef: resolvedAccess.definition,
+          roleStore: resolvedAccess.roleStore,
+          closureStore: resolvedAccess.closureStore,
+          flagStore: resolvedAccess.flagStore,
+          subscriptionStore: resolvedAccess.subscriptionStore,
           tenantId: sessionResult.data.payload?.tenantId ?? null,
         });
 
@@ -1467,7 +1485,10 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
               // Fire onUserCreated callback for new OAuth users
               if (onUserCreated) {
-                const callbackCtx: AuthCallbackContext = { entities: entityProxy };
+                const callbackCtx: AuthCallbackContext = {
+                  entities: entityProxy,
+                  roles: callbackRoles,
+                };
                 const payload: OnUserCreatedPayload = {
                   user: newUser,
                   provider: { id: provider.id, name: provider.name },
