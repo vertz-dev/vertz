@@ -67,6 +67,12 @@ export type {
   ComboboxState,
 } from './combobox/combobox';
 export { Combobox } from './combobox/combobox';
+export type {
+  ComboboxClasses,
+  ComboboxClassKey,
+  ComposedComboboxProps,
+} from './combobox/combobox-composed';
+export { ComposedCombobox } from './combobox/combobox-composed';
 export type { CommandElements, CommandOptions, CommandState } from './command/command';
 export { Command } from './command/command';
 export type { CommandClasses, ComposedCommandProps } from './command/command-composed';
@@ -154,6 +160,8 @@ export type { ComposedLabelProps, LabelClasses } from './label/label-composed';
 export { ComposedLabel } from './label/label-composed';
 export type { MenuElements, MenuOptions, MenuState } from './menu/menu';
 export { Menu } from './menu/menu';
+export type { ComposedMenuProps, MenuClasses, MenuClassKey } from './menu/menu-composed';
+export { ComposedMenu } from './menu/menu-composed';
 export type { MenubarElements, MenubarOptions, MenubarState } from './menubar/menubar';
 export { Menubar } from './menubar/menubar';
 export type { ComposedMenubarProps, MenubarClasses } from './menubar/menubar-composed';

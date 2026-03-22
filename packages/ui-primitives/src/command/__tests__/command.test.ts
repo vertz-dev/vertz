@@ -30,25 +30,29 @@ describe('Command', () => {
   });
 
   it('items have role="option"', () => {
-    const { Item } = Command.Root();
+    const { list, Item } = Command.Root();
     const item = Item('apple', 'Apple');
+    list.appendChild(item);
     expect(item.getAttribute('role')).toBe('option');
     expect(item.getAttribute('data-value')).toBe('apple');
     expect(item.textContent).toBe('Apple');
   });
 
   it('first item has aria-selected="true" (active by default)', () => {
-    const { Item } = Command.Root();
+    const { list, Item } = Command.Root();
     const item1 = Item('apple', 'Apple');
-    Item('banana', 'Banana');
+    list.appendChild(item1);
+    list.appendChild(Item('banana', 'Banana'));
     expect(item1.getAttribute('aria-selected')).toBe('true');
   });
 
   it('ArrowDown moves to next item', () => {
-    const { input, Item } = Command.Root();
+    const { input, list, Item } = Command.Root();
     container.appendChild(input);
     const item1 = Item('apple', 'Apple');
+    list.appendChild(item1);
     const item2 = Item('banana', 'Banana');
+    list.appendChild(item2);
 
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
 
@@ -57,10 +61,12 @@ describe('Command', () => {
   });
 
   it('ArrowUp moves to previous item', () => {
-    const { input, state, Item } = Command.Root();
+    const { input, list, state, Item } = Command.Root();
     container.appendChild(input);
     const item1 = Item('apple', 'Apple');
+    list.appendChild(item1);
     const item2 = Item('banana', 'Banana');
+    list.appendChild(item2);
 
     // Move down first
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
@@ -75,20 +81,22 @@ describe('Command', () => {
 
   it('Enter fires onSelect with active item value', () => {
     const onSelect = vi.fn();
-    const { input, Item } = Command.Root({ onSelect });
+    const { input, list, Item } = Command.Root({ onSelect });
     container.appendChild(input);
-    Item('apple', 'Apple');
-    Item('banana', 'Banana');
+    list.appendChild(Item('apple', 'Apple'));
+    list.appendChild(Item('banana', 'Banana'));
 
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     expect(onSelect).toHaveBeenCalledWith('apple');
   });
 
   it('typing filters items — non-matching are hidden', () => {
-    const { input, Item } = Command.Root();
+    const { input, list, Item } = Command.Root();
     container.appendChild(input);
     const apple = Item('apple', 'Apple');
+    list.appendChild(apple);
     const banana = Item('banana', 'Banana');
+    list.appendChild(banana);
 
     input.value = 'app';
     input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -98,11 +106,14 @@ describe('Command', () => {
   });
 
   it('ArrowDown skips hidden items', () => {
-    const { input, state, Item } = Command.Root();
+    const { input, list, state, Item } = Command.Root();
     container.appendChild(input);
     const apple = Item('apple', 'Apple');
+    list.appendChild(apple);
     const banana = Item('banana', 'Banana');
+    list.appendChild(banana);
     const cherry = Item('cherry', 'Cherry');
+    list.appendChild(cherry);
 
     // Filter to hide banana (only apple and cherry visible)
     input.value = 'e';
@@ -124,8 +135,9 @@ describe('Command', () => {
   });
 
   it('groups have role="group" and aria-labelledby', () => {
-    const { Group } = Command.Root();
+    const { list, Group } = Command.Root();
     const group = Group('Fruits');
+    list.appendChild(group.el);
 
     expect(group.el.getAttribute('role')).toBe('group');
     const labelId = group.el.getAttribute('aria-labelledby');
@@ -137,11 +149,12 @@ describe('Command', () => {
   });
 
   it('group headings auto-hide when all items filtered out', () => {
-    const { input, Group } = Command.Root();
+    const { input, list, Group } = Command.Root();
     container.appendChild(input);
     const group = Group('Fruits');
-    group.Item('apple', 'Apple');
-    group.Item('banana', 'Banana');
+    list.appendChild(group.el);
+    group.el.appendChild(group.Item('apple', 'Apple'));
+    group.el.appendChild(group.Item('banana', 'Banana'));
 
     // Filter with something that won't match
     input.value = 'xyz';
@@ -154,9 +167,9 @@ describe('Command', () => {
   });
 
   it('empty state shown when no matches', () => {
-    const { input, empty, Item } = Command.Root();
+    const { input, list, empty, Item } = Command.Root();
     container.appendChild(input);
-    Item('apple', 'Apple');
+    list.appendChild(Item('apple', 'Apple'));
 
     expect(empty.getAttribute('aria-hidden')).toBe('true');
 
@@ -182,9 +195,10 @@ describe('Command', () => {
   });
 
   it('keywords match during filter', () => {
-    const { input, Item } = Command.Root();
+    const { input, list, Item } = Command.Root();
     container.appendChild(input);
     const item = Item('calc', 'Calculator', ['math', 'numbers']);
+    list.appendChild(item);
 
     input.value = 'math';
     input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -194,8 +208,9 @@ describe('Command', () => {
 
   it('click on item fires onSelect', () => {
     const onSelect = vi.fn();
-    const { Item } = Command.Root({ onSelect });
+    const { list, Item } = Command.Root({ onSelect });
     const item = Item('apple', 'Apple');
+    list.appendChild(item);
 
     item.click();
     expect(onSelect).toHaveBeenCalledWith('apple');
@@ -207,8 +222,9 @@ describe('Command', () => {
   });
 
   it('separator has role="separator"', () => {
-    const { Separator } = Command.Root();
+    const { list, Separator } = Command.Root();
     const sep = Separator();
+    list.appendChild(sep);
     expect(sep.getAttribute('role')).toBe('separator');
   });
 

@@ -14,6 +14,7 @@ import { Content as CardContent } from '../content/card-content';
 import { Content as CarouselContent } from '../content/carousel-content';
 import { Content as CheckboxContent } from '../content/checkbox-content';
 import { Content as CollapsibleContent } from '../content/collapsible-content';
+import { Content as ComboboxContent } from '../content/combobox-content';
 import { Content as CommandContent } from '../content/command-content';
 import { Content as ContextMenuContent } from '../content/context-menu-content';
 import { Content as DatePickerContent } from '../content/date-picker-content';
@@ -26,6 +27,7 @@ import { Content as FormGroupContent } from '../content/form-group-content';
 import { Content as HoverCardContent } from '../content/hover-card-content';
 import { Content as InputContent } from '../content/input-content';
 import { Content as LabelContent } from '../content/label-content';
+import { Content as MenuContent } from '../content/menu-content';
 import { Content as MenubarContent } from '../content/menubar-content';
 import { Content as NavigationMenuContent } from '../content/navigation-menu-content';
 import { Content as PaginationContent } from '../content/pagination-content';
@@ -72,6 +74,7 @@ const contentMap: Record<
   table: TableContent,
   alert: AlertContent,
   checkbox: CheckboxContent,
+  combobox: ComboboxContent,
   'date-picker': DatePickerContent,
   'form-group': FormGroupContent,
   'radio-group': RadioGroupContent,
@@ -89,6 +92,7 @@ const contentMap: Record<
   sheet: SheetContent,
   toast: ToastContent,
   command: CommandContent,
+  menu: MenuContent,
   menubar: MenubarContent,
   'navigation-menu': NavigationMenuContent,
   'context-menu': ContextMenuContent,

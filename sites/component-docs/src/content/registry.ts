@@ -23,6 +23,7 @@ export const descriptions: Record<string, string> = {
   alert: 'Displays a callout for important information.',
   // Form components
   checkbox: 'A control that allows the user to toggle between checked and not checked.',
+  combobox: 'An autocomplete input with a dropdown list of filterable options.',
   'date-picker': 'A date picker component with calendar dropdown for selecting dates.',
   'form-group': 'Groups a form label, input, and error message together.',
   'radio-group': 'A set of checkable buttons where only one can be checked at a time.',
@@ -49,6 +50,7 @@ export const descriptions: Record<string, string> = {
   // Overlay components
   'context-menu': 'A menu that appears on right-click with contextual actions.',
   'dropdown-menu': 'A menu of actions triggered by a button, displayed as a dropdown.',
+  menu: 'A base menu primitive with keyboard navigation, used by DropdownMenu and ContextMenu.',
   'hover-card': 'A card that appears on hover to preview content.',
   popover: 'A floating panel anchored to a trigger element.',
   tooltip: 'A small popup that provides additional information on hover.',

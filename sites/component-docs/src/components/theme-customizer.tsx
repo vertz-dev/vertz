@@ -24,12 +24,10 @@ const NEUTRAL_OPTIONS: { name: PaletteName; label: string; swatch: string }[] = 
 
 const RADIUS_OPTIONS: { value: string; label: string }[] = [
   { value: 'none', label: '0' },
-  { value: 'xs', label: '0.125' },
   { value: 'sm', label: '0.25' },
   { value: 'md', label: '0.375' },
   { value: 'lg', label: '0.625' },
   { value: 'xl', label: '1.0' },
-  { value: '2xl', label: '1.5' },
 ];
 
 const ACCENT_OPTIONS: { name: AccentName; label: string }[] = [
@@ -63,6 +61,7 @@ function getCurrentMode(): 'dark' | 'light' {
 
 export function ThemeCustomizer() {
   let isOpen = false;
+  let isPinned = false;
   let copied = false;
 
   // Local reactive state — compiler transforms `let` to signals
@@ -192,12 +191,12 @@ export function ThemeCustomizer() {
         </svg>
       </button>
 
-      {/* Backdrop */}
+      {/* Backdrop — only closes panel when not pinned */}
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: backdrop dismiss pattern */}
       {/* biome-ignore lint/a11y/noStaticElementInteractions: backdrop dismiss pattern */}
       <div
         style={{
-          display: isOpen ? 'block' : 'none',
+          display: isOpen && !isPinned ? 'block' : 'none',
           position: 'fixed',
           inset: '0',
           zIndex: '99',
@@ -232,38 +231,77 @@ export function ThemeCustomizer() {
           <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--color-foreground)' }}>
             Customize Theme
           </span>
-          <button
-            type="button"
-            onClick={() => {
-              isOpen = false;
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '24px',
-              height: '24px',
-              border: 'none',
-              background: 'none',
-              color: 'var(--color-muted-foreground)',
-              cursor: 'pointer',
-              borderRadius: '4px',
-            }}
-            aria-label="Close customizer"
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              aria-hidden="true"
+          <div style={{ display: 'flex', gap: '4px' }}>
+            <button
+              type="button"
+              onClick={() => {
+                isPinned = !isPinned;
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '24px',
+                height: '24px',
+                border: 'none',
+                background: 'none',
+                color: isPinned ? 'var(--color-primary)' : 'var(--color-muted-foreground)',
+                cursor: 'pointer',
+                borderRadius: '4px',
+                transform: isPinned ? 'none' : 'rotate(45deg)',
+                transition: 'color 150ms, transform 150ms',
+              }}
+              aria-label={isPinned ? 'Unpin customizer' : 'Pin customizer'}
+              title={isPinned ? 'Unpin — clicking outside will close' : 'Pin — keep open while browsing'}
             >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill={isPinned ? 'currentColor' : 'none'}
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M12 17v5" />
+                <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16h14v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                isOpen = false;
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '24px',
+                height: '24px',
+                border: 'none',
+                background: 'none',
+                color: 'var(--color-muted-foreground)',
+                cursor: 'pointer',
+                borderRadius: '4px',
+              }}
+              aria-label="Close customizer"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Neutral section */}

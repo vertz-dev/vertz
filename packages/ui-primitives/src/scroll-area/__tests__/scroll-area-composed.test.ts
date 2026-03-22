@@ -120,6 +120,34 @@ describe('ComposedScrollArea', () => {
     }
   });
 
+  it('vertical scrollbar is absolutely positioned on the right edge', async () => {
+    const { ComposedScrollArea } = await import('../scroll-area-composed');
+    const root = ComposedScrollArea({ children: [] });
+    container.appendChild(root);
+
+    const scrollbar = root.querySelector(
+      '[data-part="scroll-area-scrollbar"][data-orientation="vertical"]',
+    ) as HTMLElement;
+    expect(scrollbar.style.position).toBe('absolute');
+    expect(scrollbar.style.top).toBe('0px');
+    expect(scrollbar.style.right).toBe('0px');
+    expect(scrollbar.style.bottom).toBe('0px');
+  });
+
+  it('horizontal scrollbar is absolutely positioned on the bottom edge', async () => {
+    const { ComposedScrollArea } = await import('../scroll-area-composed');
+    const root = ComposedScrollArea({ orientation: 'horizontal', children: [] });
+    container.appendChild(root);
+
+    const scrollbar = root.querySelector(
+      '[data-part="scroll-area-scrollbar"][data-orientation="horizontal"]',
+    ) as HTMLElement;
+    expect(scrollbar.style.position).toBe('absolute');
+    expect(scrollbar.style.bottom).toBe('0px');
+    expect(scrollbar.style.left).toBe('0px');
+    expect(scrollbar.style.right).toBe('0px');
+  });
+
   it('distributes scrollbar class', async () => {
     const { ComposedScrollArea } = await import('../scroll-area-composed');
     const root = ComposedScrollArea({

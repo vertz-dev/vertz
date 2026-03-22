@@ -87,7 +87,6 @@ function ResizablePanelRoot(options: ResizablePanelOptions = {}): ResizablePanel
     }
     updateSizes(sizes);
 
-    root.appendChild(el);
     return el;
   }
 
@@ -195,7 +194,6 @@ function ResizablePanelRoot(options: ResizablePanelOptions = {}): ResizablePanel
     ) as HTMLDivElement;
 
     handles.push(handle);
-    root.appendChild(handle);
     return handle;
   }
 

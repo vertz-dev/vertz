@@ -8,20 +8,31 @@ import type { ComponentInfo } from '@vertz/ui-compiler';
  * Adding imports to @vertz/ui/internals would cause those chunks to appear in
  * HMR updates, triggering full page reloads.
  */
-export function generateRefreshPreamble(moduleId: string, contentHash?: string): string {
+export function generateRefreshPreamble(moduleId: string): string {
   const escapedId = moduleId.replace(/['\\]/g, '\\$&');
-  let code =
-    `const __$fr = globalThis[Symbol.for('vertz:fast-refresh')];\n` +
-    `const { __$refreshReg, __$refreshTrack, __$refreshPerform, ` +
-    `pushScope: __$pushScope, popScope: __$popScope, ` +
-    `_tryOnCleanup: __$tryCleanup, runCleanups: __$runCleanups, ` +
-    `getContextScope: __$getCtx, setContextScope: __$setCtx, ` +
-    `startSignalCollection: __$startSigCol, stopSignalCollection: __$stopSigCol } = __$fr;\n` +
-    `const __$moduleId = '${escapedId}';\n`;
-  if (contentHash) {
-    code += `const __$moduleHash = '${contentHash}';\n`;
-  }
-  return code;
+  // Use `?? {}` so destructuring is safe on the server side where the
+  // Fast Refresh runtime isn't loaded. Default values make every function
+  // a no-op on the server — the wrapper still executes but has no effect.
+  const noop = '() => {}';
+  const noopArr = '() => []';
+  const noopNull = '() => null';
+  const noopPassthrough = '(_m, _n, el) => el';
+  return (
+    `const __$fr = globalThis[Symbol.for('vertz:fast-refresh')] ?? {};\n` +
+    `const { ` +
+    `__$refreshReg = ${noop}, ` +
+    `__$refreshTrack = ${noopPassthrough}, ` +
+    `__$refreshPerform = ${noop}, ` +
+    `pushScope: __$pushScope = ${noopArr}, ` +
+    `popScope: __$popScope = ${noop}, ` +
+    `_tryOnCleanup: __$tryCleanup = ${noop}, ` +
+    `runCleanups: __$runCleanups = ${noop}, ` +
+    `getContextScope: __$getCtx = ${noopNull}, ` +
+    `setContextScope: __$setCtx = ${noopNull}, ` +
+    `startSignalCollection: __$startSigCol = ${noop}, ` +
+    `stopSignalCollection: __$stopSigCol = ${noopArr} } = __$fr;\n` +
+    `const __$moduleId = '${escapedId}';\n`
+  );
 }
 
 /**
@@ -30,8 +41,12 @@ export function generateRefreshPreamble(moduleId: string, contentHash?: string):
  * For each component, generates:
  * 1. A wrapper function that captures disposal scope and context
  * 2. Registration call to track the component in the registry
+ *
+ * Uses a per-component hash so only components whose code actually changed
+ * are marked dirty and re-mounted. This prevents parent component refreshes
+ * from overwriting child component state when both are in the same file.
  */
-export function generateRefreshWrapper(componentName: string): string {
+export function generateRefreshWrapper(componentName: string, componentHash: string): string {
   return (
     `\nconst __$orig_${componentName} = ${componentName};\n` +
     `${componentName} = function(...__$args) {\n` +
@@ -46,7 +61,7 @@ export function generateRefreshWrapper(componentName: string): string {
     `  }\n` +
     `  return __$refreshTrack(__$moduleId, '${componentName}', __$ret, __$args, __$scope, __$ctx, __$sigs);\n` +
     `};\n` +
-    `__$refreshReg(__$moduleId, '${componentName}', ${componentName}, __$moduleHash);\n`
+    `__$refreshReg(__$moduleId, '${componentName}', ${componentName}, '${componentHash}');\n`
   );
 }
 
@@ -64,19 +79,26 @@ export function generateRefreshPerform(): string {
  * Generate all Fast Refresh code for a module with detected components.
  *
  * Returns null if no components were detected (no Fast Refresh needed).
+ * Uses per-component hashing: each component gets a hash of its own body,
+ * so only the changed component is marked dirty and re-mounted.
  */
 export function generateRefreshCode(
   moduleId: string,
   components: ComponentInfo[],
-  contentHash?: string,
+  source: string,
 ): { preamble: string; epilogue: string } | null {
   if (components.length === 0) return null;
 
-  const preamble = generateRefreshPreamble(moduleId, contentHash);
+  const preamble = generateRefreshPreamble(moduleId);
 
   let epilogue = '';
   for (const comp of components) {
-    epilogue += generateRefreshWrapper(comp.name);
+    // Hash each component's body individually so only changed components
+    // are marked dirty. This prevents parent refreshes from overwriting
+    // child state when both components live in the same file.
+    const body = source.slice(comp.bodyStart, comp.bodyEnd);
+    const hash = Bun.hash(body).toString(36);
+    epilogue += generateRefreshWrapper(comp.name, hash);
   }
   epilogue += generateRefreshPerform();
 

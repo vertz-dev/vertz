@@ -14,61 +14,66 @@ describe('ResizablePanel', () => {
   });
 
   it('handle has role="separator"', () => {
-    const { Panel, Handle } = ResizablePanel.Root();
-    Panel();
+    const { root, Panel, Handle } = ResizablePanel.Root();
+    root.appendChild(Panel());
     const handle = Handle();
-    Panel();
+    root.appendChild(handle);
+    root.appendChild(Panel());
     expect(handle.getAttribute('role')).toBe('separator');
   });
 
   it('handle has tabindex="0"', () => {
-    const { Panel, Handle } = ResizablePanel.Root();
-    Panel();
+    const { root, Panel, Handle } = ResizablePanel.Root();
+    root.appendChild(Panel());
     const handle = Handle();
-    Panel();
+    root.appendChild(handle);
+    root.appendChild(Panel());
     expect(handle.getAttribute('tabindex')).toBe('0');
   });
 
   it('handle has aria-valuenow, aria-valuemin, aria-valuemax', () => {
-    const { Panel, Handle } = ResizablePanel.Root();
-    Panel();
+    const { root, Panel, Handle } = ResizablePanel.Root();
+    root.appendChild(Panel());
     const handle = Handle();
-    Panel();
+    root.appendChild(handle);
+    root.appendChild(Panel());
     expect(handle.getAttribute('aria-valuenow')).toBe('50');
     expect(handle.getAttribute('aria-valuemin')).toBe('0');
     expect(handle.getAttribute('aria-valuemax')).toBe('100');
   });
 
   it('data-state="idle" by default', () => {
-    const { Panel, Handle } = ResizablePanel.Root();
-    Panel();
+    const { root, Panel, Handle } = ResizablePanel.Root();
+    root.appendChild(Panel());
     const handle = Handle();
-    Panel();
+    root.appendChild(handle);
+    root.appendChild(Panel());
     expect(handle.getAttribute('data-state')).toBe('idle');
   });
 
   it('two panels default to 50/50 sizes', () => {
-    const { Panel, Handle, state } = ResizablePanel.Root();
-    Panel();
-    Handle();
-    Panel();
+    const { root, Panel, Handle, state } = ResizablePanel.Root();
+    root.appendChild(Panel());
+    root.appendChild(Handle());
+    root.appendChild(Panel());
     expect(state.sizes.peek()).toEqual([50, 50]);
   });
 
   it('panel with defaultSize uses specified size', () => {
-    const { Panel, Handle, state } = ResizablePanel.Root();
-    Panel({ defaultSize: 30 });
-    Handle();
-    Panel({ defaultSize: 70 });
+    const { root, Panel, Handle, state } = ResizablePanel.Root();
+    root.appendChild(Panel({ defaultSize: 30 }));
+    root.appendChild(Handle());
+    root.appendChild(Panel({ defaultSize: 70 }));
     expect(state.sizes.peek()).toEqual([30, 70]);
   });
 
   it('ArrowRight increases left panel (horizontal)', () => {
     const { root, Panel, Handle, state } = ResizablePanel.Root();
     container.appendChild(root);
-    Panel();
+    root.appendChild(Panel());
     const handle = Handle();
-    Panel();
+    root.appendChild(handle);
+    root.appendChild(Panel());
 
     handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
     expect(state.sizes.peek()[0]).toBe(55);
@@ -78,9 +83,10 @@ describe('ResizablePanel', () => {
   it('ArrowLeft decreases left panel', () => {
     const { root, Panel, Handle, state } = ResizablePanel.Root();
     container.appendChild(root);
-    Panel();
+    root.appendChild(Panel());
     const handle = Handle();
-    Panel();
+    root.appendChild(handle);
+    root.appendChild(Panel());
 
     handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
     expect(state.sizes.peek()[0]).toBe(45);
@@ -90,9 +96,10 @@ describe('ResizablePanel', () => {
   it('Home collapses left panel to minimum', () => {
     const { root, Panel, Handle, state } = ResizablePanel.Root();
     container.appendChild(root);
-    Panel({ minSize: 10 });
+    root.appendChild(Panel({ minSize: 10 }));
     const handle = Handle();
-    Panel();
+    root.appendChild(handle);
+    root.appendChild(Panel());
 
     handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
     expect(state.sizes.peek()[0]).toBe(10);
@@ -102,9 +109,10 @@ describe('ResizablePanel', () => {
   it('End expands left panel to fill available space', () => {
     const { root, Panel, Handle, state } = ResizablePanel.Root();
     container.appendChild(root);
-    Panel();
+    root.appendChild(Panel());
     const handle = Handle();
-    Panel({ minSize: 10 });
+    root.appendChild(handle);
+    root.appendChild(Panel({ minSize: 10 }));
 
     handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
     expect(state.sizes.peek()[0]).toBe(90);
@@ -114,9 +122,10 @@ describe('ResizablePanel', () => {
   it('min/max constraints are respected', () => {
     const { root, Panel, Handle, state } = ResizablePanel.Root();
     container.appendChild(root);
-    Panel({ minSize: 20, maxSize: 80 });
+    root.appendChild(Panel({ minSize: 20, maxSize: 80 }));
     const handle = Handle();
-    Panel({ minSize: 20, maxSize: 80 });
+    root.appendChild(handle);
+    root.appendChild(Panel({ minSize: 20, maxSize: 80 }));
 
     // Try to push left panel past maxSize with many ArrowRight presses
     for (let i = 0; i < 20; i++) {
@@ -130,9 +139,10 @@ describe('ResizablePanel', () => {
     const onResize = vi.fn();
     const { root, Panel, Handle } = ResizablePanel.Root({ onResize });
     container.appendChild(root);
-    Panel();
+    root.appendChild(Panel());
     const handle = Handle();
-    Panel();
+    root.appendChild(handle);
+    root.appendChild(Panel());
 
     // Reset mock after initial panel setup calls
     onResize.mockClear();
@@ -145,9 +155,10 @@ describe('ResizablePanel', () => {
     const { root, Panel, Handle } = ResizablePanel.Root({
       orientation: 'vertical',
     });
-    Panel();
+    root.appendChild(Panel());
     const handle = Handle();
-    Panel();
+    root.appendChild(handle);
+    root.appendChild(Panel());
 
     expect(root.getAttribute('data-orientation')).toBe('vertical');
     expect(handle.getAttribute('data-orientation')).toBe('vertical');

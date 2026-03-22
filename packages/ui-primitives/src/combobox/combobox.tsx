@@ -177,7 +177,6 @@ function ComboboxRoot(options: ComboboxOptions = {}): ComboboxElements & {
     ) as HTMLDivElement;
 
     optionElements.push(opt);
-    listbox.appendChild(opt);
     return opt;
   }
 

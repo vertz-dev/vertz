@@ -377,16 +377,21 @@ export const SPACING_SCALE: Record<string, string> = {
 /** Border radius values. */
 export type RadiusValue = 'none' | 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | 'full';
 
-/** Border radius scale — matches Tailwind v4 / shadcn. */
+/**
+ * Border radius scale — derived from the `--radius` CSS custom property.
+ *
+ * All levels (except none/full) are proportional to `--radius` (default 0.375rem).
+ * Changing `--radius` on a theme element scales every component's border-radius.
+ */
 export const RADIUS_SCALE: Record<string, string> = {
   none: '0',
-  xs: '0.125rem',
-  sm: '0.25rem',
-  md: '0.375rem',
-  lg: '0.5rem',
-  xl: '0.75rem',
-  '2xl': '1rem',
-  '3xl': '1.5rem',
+  xs: 'calc(var(--radius) * 0.33)',
+  sm: 'calc(var(--radius) * 0.67)',
+  md: 'var(--radius)',
+  lg: 'calc(var(--radius) * 1.33)',
+  xl: 'calc(var(--radius) * 2)',
+  '2xl': 'calc(var(--radius) * 2.67)',
+  '3xl': 'calc(var(--radius) * 4)',
   full: '9999px',
 };
 

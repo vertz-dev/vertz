@@ -154,8 +154,6 @@ function TabsRoot(options: TabsOptions = {}): TabsElements & {
     triggers.push(trig);
     panels.push(panel);
     tabValues.push(value);
-    list.appendChild(trig);
-    root.appendChild(panel);
 
     setRovingTabindex(
       triggers,

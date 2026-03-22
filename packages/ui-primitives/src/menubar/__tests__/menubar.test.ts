@@ -22,7 +22,9 @@ describe('Menubar', () => {
     const { root, Menu } = Menubar.Root();
     container.appendChild(root);
     const file = Menu('file', 'File');
+    root.appendChild(file.trigger);
     const edit = Menu('edit', 'Edit');
+    root.appendChild(edit.trigger);
 
     expect(file.trigger.getAttribute('role')).toBe('menuitem');
     expect(file.trigger.getAttribute('aria-haspopup')).toBe('menu');
@@ -34,6 +36,7 @@ describe('Menubar', () => {
     const { root, Menu } = Menubar.Root();
     container.appendChild(root);
     const file = Menu('file', 'File');
+    root.appendChild(file.trigger);
 
     expect(file.content.getAttribute('role')).toBe('menu');
   });
@@ -42,7 +45,8 @@ describe('Menubar', () => {
     const { root, state, Menu } = Menubar.Root();
     container.appendChild(root);
     const file = Menu('file', 'File');
-    file.Item('new', 'New');
+    root.appendChild(file.trigger);
+    file.content.appendChild(file.Item('new', 'New'));
 
     file.trigger.click();
     expect(state.activeMenu.peek()).toBe('file');
@@ -57,9 +61,11 @@ describe('Menubar', () => {
     const { root, state, Menu } = Menubar.Root();
     container.appendChild(root);
     const file = Menu('file', 'File');
+    root.appendChild(file.trigger);
     container.appendChild(file.content);
     const itemNew = file.Item('new', 'New');
-    file.Item('open', 'Open');
+    file.content.appendChild(itemNew);
+    file.content.appendChild(file.Item('open', 'Open'));
 
     file.trigger.focus();
     file.trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
@@ -73,8 +79,10 @@ describe('Menubar', () => {
     const { root, state, Menu } = Menubar.Root({ onSelect });
     container.appendChild(root);
     const file = Menu('file', 'File');
+    root.appendChild(file.trigger);
     container.appendChild(file.content);
     const itemNew = file.Item('new', 'New');
+    file.content.appendChild(itemNew);
 
     file.trigger.click();
     expect(state.activeMenu.peek()).toBe('file');
@@ -90,8 +98,9 @@ describe('Menubar', () => {
     const { root, state, Menu } = Menubar.Root();
     container.appendChild(root);
     const file = Menu('file', 'File');
+    root.appendChild(file.trigger);
     container.appendChild(file.content);
-    file.Item('new', 'New');
+    file.content.appendChild(file.Item('new', 'New'));
 
     file.trigger.click();
     expect(state.activeMenu.peek()).toBe('file');
@@ -106,11 +115,14 @@ describe('Menubar', () => {
     const { root, state, Menu } = Menubar.Root();
     container.appendChild(root);
     const file = Menu('file', 'File');
+    root.appendChild(file.trigger);
     container.appendChild(file.content);
-    file.Item('new', 'New');
+    file.content.appendChild(file.Item('new', 'New'));
     const edit = Menu('edit', 'Edit');
+    root.appendChild(edit.trigger);
     container.appendChild(edit.content);
     const undo = edit.Item('undo', 'Undo');
+    edit.content.appendChild(undo);
 
     file.trigger.click();
     expect(state.activeMenu.peek()).toBe('file');
@@ -129,11 +141,14 @@ describe('Menubar', () => {
     const { root, state, Menu } = Menubar.Root();
     container.appendChild(root);
     const file = Menu('file', 'File');
+    root.appendChild(file.trigger);
     container.appendChild(file.content);
-    file.Item('new', 'New');
+    file.content.appendChild(file.Item('new', 'New'));
     const edit = Menu('edit', 'Edit');
+    root.appendChild(edit.trigger);
     container.appendChild(edit.content);
     const undo = edit.Item('undo', 'Undo');
+    edit.content.appendChild(undo);
 
     // Open file menu and navigate ArrowRight from within content
     file.trigger.click();
@@ -147,11 +162,13 @@ describe('Menubar', () => {
     const { root, state, Menu } = Menubar.Root();
     container.appendChild(root);
     const file = Menu('file', 'File');
+    root.appendChild(file.trigger);
     container.appendChild(file.content);
-    file.Item('new', 'New');
+    file.content.appendChild(file.Item('new', 'New'));
     const edit = Menu('edit', 'Edit');
+    root.appendChild(edit.trigger);
     container.appendChild(edit.content);
-    edit.Item('undo', 'Undo');
+    edit.content.appendChild(edit.Item('undo', 'Undo'));
 
     file.trigger.click();
     expect(state.activeMenu.peek()).toBe('file');
@@ -167,8 +184,9 @@ describe('Menubar', () => {
     const { root, state, Menu } = Menubar.Root();
     container.appendChild(root);
     const file = Menu('file', 'File');
+    root.appendChild(file.trigger);
     container.appendChild(file.content);
-    file.Item('new', 'New');
+    file.content.appendChild(file.Item('new', 'New'));
 
     file.trigger.click();
     expect(state.activeMenu.peek()).toBe('file');

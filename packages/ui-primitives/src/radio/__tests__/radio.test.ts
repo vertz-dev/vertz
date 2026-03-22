@@ -22,6 +22,7 @@ describe('Radio', () => {
     const { root, Item } = Radio.Root();
     container.appendChild(root);
     const item = Item('opt1', 'Option 1');
+    root.appendChild(item);
 
     expect(item.getAttribute('role')).toBe('radio');
     expect(item.getAttribute('data-value')).toBe('opt1');
@@ -32,7 +33,9 @@ describe('Radio', () => {
     const { root, state, Item } = Radio.Root({ onValueChange });
     container.appendChild(root);
     const item = Item('opt1', 'Option 1');
-    Item('opt2', 'Option 2');
+    root.appendChild(item);
+    const item2 = Item('opt2', 'Option 2');
+    root.appendChild(item2);
 
     item.click();
     expect(state.value.peek()).toBe('opt1');
@@ -44,7 +47,9 @@ describe('Radio', () => {
     const { root, state, Item } = Radio.Root();
     container.appendChild(root);
     const item1 = Item('opt1', 'Option 1');
+    root.appendChild(item1);
     const item2 = Item('opt2', 'Option 2');
+    root.appendChild(item2);
 
     item1.click();
     expect(item1.getAttribute('aria-checked')).toBe('true');
@@ -60,7 +65,9 @@ describe('Radio', () => {
     const { root, Item } = Radio.Root({ defaultValue: 'opt2' });
     container.appendChild(root);
     const item1 = Item('opt1', 'Option 1');
+    root.appendChild(item1);
     const item2 = Item('opt2', 'Option 2');
+    root.appendChild(item2);
 
     expect(item1.getAttribute('aria-checked')).toBe('false');
     expect(item2.getAttribute('aria-checked')).toBe('true');
@@ -70,7 +77,9 @@ describe('Radio', () => {
     const { root, Item } = Radio.Root();
     container.appendChild(root);
     const item1 = Item('opt1', 'Option 1');
+    root.appendChild(item1);
     const item2 = Item('opt2', 'Option 2');
+    root.appendChild(item2);
 
     item1.focus();
     root.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
@@ -81,7 +90,9 @@ describe('Radio', () => {
     const { root, Item } = Radio.Root({ defaultValue: 'opt1' });
     container.appendChild(root);
     const item1 = Item('opt1', 'Option 1');
+    root.appendChild(item1);
     const item2 = Item('opt2', 'Option 2');
+    root.appendChild(item2);
 
     expect(item1.getAttribute('data-state')).toBe('checked');
     expect(item2.getAttribute('data-state')).toBe('unchecked');
@@ -92,6 +103,7 @@ describe('Radio', () => {
       const { root, Item } = Radio.Root();
       container.appendChild(root);
       const item = Item('opt1', 'Option 1', { disabled: true });
+      root.appendChild(item);
 
       expect(item.getAttribute('aria-disabled')).toBe('true');
     });
@@ -100,6 +112,7 @@ describe('Radio', () => {
       const { root, Item } = Radio.Root();
       container.appendChild(root);
       const item = Item('opt1', 'Option 1', { disabled: true });
+      root.appendChild(item);
 
       expect(item.getAttribute('data-disabled')).toBe('');
     });
@@ -108,8 +121,10 @@ describe('Radio', () => {
       const onValueChange = vi.fn();
       const { root, state, Item } = Radio.Root({ onValueChange });
       container.appendChild(root);
-      Item('opt1', 'Option 1', { disabled: true });
-      Item('opt2', 'Option 2');
+      const item1 = Item('opt1', 'Option 1', { disabled: true });
+      root.appendChild(item1);
+      const item2 = Item('opt2', 'Option 2');
+      root.appendChild(item2);
 
       // Click the disabled item
       root
@@ -124,10 +139,11 @@ describe('Radio', () => {
       const { root, Item } = Radio.Root();
       container.appendChild(root);
       const item1 = Item('opt1', 'Option 1');
-      Item('opt2', 'Option 2', { disabled: true });
+      root.appendChild(item1);
+      const disabledItem = Item('opt2', 'Option 2', { disabled: true });
+      root.appendChild(disabledItem);
       const item3 = Item('opt3', 'Option 3');
-
-      container.appendChild(root);
+      root.appendChild(item3);
       item1.focus();
       root.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
 
@@ -138,8 +154,11 @@ describe('Radio', () => {
       const { root, Item } = Radio.Root();
       container.appendChild(root);
       const item1 = Item('opt1', 'Option 1');
-      Item('opt2', 'Option 2', { disabled: true });
+      root.appendChild(item1);
+      const disabledItem2 = Item('opt2', 'Option 2', { disabled: true });
+      root.appendChild(disabledItem2);
       const item3 = Item('opt3', 'Option 3');
+      root.appendChild(item3);
 
       item3.focus();
       root.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
@@ -151,8 +170,11 @@ describe('Radio', () => {
       const { root, Item } = Radio.Root();
       container.appendChild(root);
       const item1 = Item('opt1', 'Option 1');
+      root.appendChild(item1);
       const item2 = Item('opt2', 'Option 2');
-      Item('opt3', 'Option 3', { disabled: true });
+      root.appendChild(item2);
+      const disabledItem3 = Item('opt3', 'Option 3', { disabled: true });
+      root.appendChild(disabledItem3);
 
       item2.focus();
       root.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
@@ -163,9 +185,12 @@ describe('Radio', () => {
     it('skips disabled items with Home key', () => {
       const { root, Item } = Radio.Root();
       container.appendChild(root);
-      Item('opt1', 'Option 1', { disabled: true });
+      const disabledItem1 = Item('opt1', 'Option 1', { disabled: true });
+      root.appendChild(disabledItem1);
       const item2 = Item('opt2', 'Option 2');
+      root.appendChild(item2);
       const item3 = Item('opt3', 'Option 3');
+      root.appendChild(item3);
 
       item3.focus();
       root.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
@@ -177,8 +202,11 @@ describe('Radio', () => {
       const { root, Item } = Radio.Root();
       container.appendChild(root);
       const item1 = Item('opt1', 'Option 1');
-      Item('opt2', 'Option 2');
-      Item('opt3', 'Option 3', { disabled: true });
+      root.appendChild(item1);
+      const item2 = Item('opt2', 'Option 2');
+      root.appendChild(item2);
+      const disabledItem3 = Item('opt3', 'Option 3', { disabled: true });
+      root.appendChild(disabledItem3);
 
       item1.focus();
       root.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
@@ -193,7 +221,9 @@ describe('Radio', () => {
         const { root, Item, destroy } = Radio.Root();
         container.appendChild(root);
         const item1 = Item('opt1', 'Option 1');
+        root.appendChild(item1);
         const item2 = Item('opt2', 'Option 2');
+        root.appendChild(item2);
 
         const spy1 = vi.spyOn(item1, 'removeEventListener');
         const spy2 = vi.spyOn(item2, 'removeEventListener');

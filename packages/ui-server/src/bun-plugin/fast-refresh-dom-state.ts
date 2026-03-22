@@ -60,20 +60,37 @@ export function captureDOMState(element: Element): DOMStateSnapshot {
   };
 }
 
+/**
+ * Derive a stable key for matching an input between old and new DOM trees.
+ * Tries: name → id → placeholder → positional fallback (tagName:index).
+ */
+function formFieldKey(el: Element, index: number): string {
+  const name = el.getAttribute('name');
+  if (name) return `name:${name}`;
+
+  const id = el.getAttribute('id');
+  if (id) return `id:${id}`;
+
+  const placeholder = el.getAttribute('placeholder');
+  if (placeholder) return `placeholder:${placeholder}`;
+
+  // Positional fallback: tagName + index among siblings of same type
+  return `pos:${el.tagName.toLowerCase()}:${index}`;
+}
+
 function captureFormFields(element: Element): Map<string, FormFieldSnapshot> {
   const fields = new Map<string, FormFieldSnapshot>();
   const inputs = element.querySelectorAll('input, textarea, select');
 
-  for (const el of inputs) {
-    const name = el.getAttribute('name');
-    if (!name) continue;
-
+  for (let i = 0; i < inputs.length; i++) {
+    const el = inputs[i]!;
     const type = (el as HTMLInputElement).type ?? '';
 
     // Skip file inputs — browser security prevents restoring their value
     if (type === 'file') continue;
 
-    fields.set(name, {
+    const key = formFieldKey(el, i);
+    fields.set(key, {
       value: (el as HTMLInputElement | HTMLTextAreaElement).value ?? '',
       checked: (el as HTMLInputElement).checked ?? false,
       selectedIndex: (el as HTMLSelectElement).selectedIndex ?? -1,
@@ -162,11 +179,10 @@ function restoreFormFields(element: Element, fields: Map<string, FormFieldSnapsh
 
   const inputs = element.querySelectorAll('input, textarea, select');
 
-  for (const el of inputs) {
-    const name = el.getAttribute('name');
-    if (!name) continue;
-
-    const saved = fields.get(name);
+  for (let i = 0; i < inputs.length; i++) {
+    const el = inputs[i]!;
+    const key = formFieldKey(el, i);
+    const saved = fields.get(key);
     if (!saved) continue;
 
     // Skip file inputs

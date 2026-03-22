@@ -118,7 +118,6 @@ function ToggleGroupRoot(options: ToggleGroupOptions = {}): ToggleGroupElements 
 
     items.push(item);
     setRovingTabindex(items, 0);
-    root.appendChild(item);
     return item;
   }
 

@@ -246,7 +246,7 @@ function MenubarRoot(options: MenubarOptions = {}): MenubarElements & {
       />
     ) as HTMLDivElement;
 
-    function createItem(val: string, itemLabel?: string, parent?: HTMLElement): HTMLDivElement {
+    function createItem(val: string, itemLabel?: string): HTMLDivElement {
       const item = (
         <div
           role="menuitem"
@@ -263,7 +263,6 @@ function MenubarRoot(options: MenubarOptions = {}): MenubarElements & {
       ) as HTMLDivElement;
 
       menuItems.push(item);
-      (parent ?? content).appendChild(item);
       return item;
     }
 
@@ -276,23 +275,19 @@ function MenubarRoot(options: MenubarOptions = {}): MenubarElements & {
       Item: (value: string, label?: string) => HTMLDivElement;
     } {
       const el = (<div role="group" aria-label={groupLabel} />) as HTMLDivElement;
-      content.appendChild(el);
       return {
         el,
-        Item: (val: string, l?: string) => createItem(val, l, el),
+        Item: (val: string, l?: string) => createItem(val, l),
       };
     }
 
     function Separator(): HTMLHRElement {
-      const hr = (<hr role="separator" />) as HTMLHRElement;
-      content.appendChild(hr);
-      return hr;
+      return (<hr role="separator" />) as HTMLHRElement;
     }
 
     triggers.push(trigger);
     setRovingTabindex(triggers, 0);
     menus.set(value, { trigger, content, items: menuItems });
-    root.appendChild(trigger);
 
     return { trigger, content, Item, Group, Separator };
   }

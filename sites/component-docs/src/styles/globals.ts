@@ -1,19 +1,12 @@
 import { globalCss } from '@vertz/ui';
 
 export const appGlobals = globalCss({
-  '@font-face': {
-    fontFamily: "'Geist Variable'",
-    fontStyle: 'normal',
-    fontDisplay: 'swap',
-    fontWeight: '100 900',
-    src: "url('https://cdn.jsdelivr.net/fontsource/fonts/geist:vf@latest/latin-wght-normal.woff2') format('woff2-variations')",
-  },
   html: {
     scrollBehavior: 'smooth',
   },
   'html body': {
     backgroundColor: 'var(--color-background)',
-    fontFamily: "'Geist Variable', ui-sans-serif, system-ui, sans-serif",
+    fontFamily: 'var(--font-sans)',
     color: 'var(--color-foreground)',
     WebkitFontSmoothing: 'antialiased',
     MozOsxFontSmoothing: 'grayscale',

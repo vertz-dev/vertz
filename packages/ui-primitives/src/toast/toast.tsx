@@ -1,11 +1,6 @@
 /**
  * Toast primitive - live region announcements with aria-live.
  * Uses aria-live="polite" for non-intrusive announcements.
- *
- * Uses direct DOM creation instead of JSX because Toast is an imperative factory
- * whose elements exist outside the component render tree. JSX compiles to __element()
- * calls that participate in the hydration cursor, causing misalignment when Toast({})
- * is called during component initialization (before the JSX return statement).
  */
 
 import type { Signal } from '@vertz/ui';
@@ -34,34 +29,30 @@ export interface ToastElements {
   region: HTMLDivElement;
 }
 
-function createRegionElement(politeness: string): HTMLDivElement {
-  const el = document.createElement('div');
-  el.setAttribute('role', 'status');
-  el.setAttribute('aria-live', politeness);
-  el.setAttribute('aria-atomic', 'false');
-  el.setAttribute('data-state', 'empty');
-  return el;
+function RegionElement(politeness: string): HTMLDivElement {
+  return (
+    <div role="status" aria-live={politeness} aria-atomic="false" data-state="empty" />
+  ) as HTMLDivElement;
 }
 
-function createMessageElement(id: string, content: string): HTMLDivElement {
-  const el = document.createElement('div');
-  el.setAttribute('role', 'status');
-  el.setAttribute('data-toast-id', id);
-  el.setAttribute('data-state', 'open');
-  el.textContent = content;
-  return el;
+function MessageElement(id: string, content: string): HTMLDivElement {
+  return (
+    <div role="status" data-toast-id={id} data-state="open">
+      {content}
+    </div>
+  ) as HTMLDivElement;
 }
 
 function ToastRoot(options: ToastOptions = {}) {
   const { duration = 5000, politeness = 'polite', ...attrs } = options;
   const state: ToastState = { messages: signal<ToastMessage[]>([]) };
 
-  const region = createRegionElement(politeness);
+  const region = RegionElement(politeness);
   applyAttrs(region, attrs);
 
   function announce(content: string): ToastMessage {
     const id = uniqueId('toast');
-    const el = createMessageElement(id, content);
+    const el = MessageElement(id, content);
 
     const msg: ToastMessage = { id, content, el };
     state.messages.value = [...state.messages.peek(), msg];

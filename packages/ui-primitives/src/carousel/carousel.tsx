@@ -126,7 +126,6 @@ function CarouselRoot(options: CarouselOptions = {}): CarouselElements & {
     const slide = (<div role="group" aria-roledescription="slide" />) as HTMLDivElement;
     slides.push(slide);
     state.slideCount.value = slides.length;
-    viewport.appendChild(slide);
     updateSlideVisibility();
     return slide;
   }

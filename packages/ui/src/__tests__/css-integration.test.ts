@@ -29,7 +29,7 @@ describe('CSS Integration Tests', () => {
     expect(result.css).toContain(`.${cardClass} {`);
     expect(result.css).toContain('padding: 1rem;');
     expect(result.css).toContain('background-color: var(--color-background);');
-    expect(result.css).toContain('border-radius: 0.5rem;');
+    expect(result.css).toContain('border-radius: calc(var(--radius) * 1.33);');
     expect(result.css).toContain('box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);');
 
     // Title rules
@@ -142,7 +142,7 @@ describe('CSS Integration Tests', () => {
     expect(result.css).toContain(`.${className} {`);
     expect(result.css).toContain('padding: 1rem;');
     expect(result.css).toContain('background-color: var(--color-background);');
-    expect(result.css).toContain('border-radius: 0.5rem;');
+    expect(result.css).toContain('border-radius: calc(var(--radius) * 1.33);');
 
     // Pseudo state
     expect(result.css).toContain(`.${className}:hover {`);

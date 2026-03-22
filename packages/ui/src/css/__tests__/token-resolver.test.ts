@@ -127,9 +127,11 @@ describe('resolveToken', () => {
   });
 
   describe('border-radius', () => {
-    it('resolves rounded:lg to 0.5rem', () => {
+    it('resolves rounded:lg to calc expression based on --radius', () => {
       const result = resolveToken({ property: 'rounded', value: 'lg', pseudo: null });
-      expect(result.declarations).toEqual([{ property: 'border-radius', value: '0.5rem' }]);
+      expect(result.declarations).toEqual([
+        { property: 'border-radius', value: 'calc(var(--radius) * 1.33)' },
+      ]);
     });
 
     it('resolves rounded:full to 9999px', () => {

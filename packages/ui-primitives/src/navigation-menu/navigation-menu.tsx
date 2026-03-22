@@ -242,16 +242,12 @@ function NavigationMenuRoot(options: NavigationMenuOptions = {}): NavigationMenu
     triggers.push(trigger);
     setRovingTabindex(triggers, 0);
     items.set(value, { trigger, content: contentEl });
-    list.appendChild(trigger);
-    viewport.appendChild(contentEl);
 
     return { trigger, content: contentEl };
   }
 
   function Link(href: string, label: string): HTMLElement {
-    const a = NavMenuLink(href, label);
-    list.appendChild(a);
-    return a;
+    return NavMenuLink(href, label);
   }
 
   applyAttrs(root, attrs);

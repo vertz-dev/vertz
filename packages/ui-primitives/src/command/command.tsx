@@ -163,12 +163,7 @@ function CommandRoot(options: CommandOptions = {}): CommandElements & {
 
   applyAttrs(root, attrs);
 
-  function createItem(
-    value: string,
-    label?: string,
-    keywords?: string[],
-    parent?: HTMLElement,
-  ): HTMLDivElement {
+  function createItem(value: string, label?: string, keywords?: string[]): HTMLDivElement {
     const item = (
       <div
         role="option"
@@ -184,7 +179,6 @@ function CommandRoot(options: CommandOptions = {}): CommandElements & {
     ) as HTMLDivElement;
 
     allItems.push(item);
-    (parent ?? list).appendChild(item);
     updateActiveItem();
     return item;
   }
@@ -210,12 +204,10 @@ function CommandRoot(options: CommandOptions = {}): CommandElements & {
     const groupItems: HTMLDivElement[] = [];
     groups.set(el, { heading, items: groupItems });
 
-    list.appendChild(el);
-
     return {
       el,
       Item: (value: string, itemLabel?: string, keywords?: string[]) => {
-        const item = createItem(value, itemLabel, keywords, el);
+        const item = createItem(value, itemLabel, keywords);
         groupItems.push(item);
         return item;
       },
@@ -223,9 +215,7 @@ function CommandRoot(options: CommandOptions = {}): CommandElements & {
   }
 
   function Separator(): HTMLHRElement {
-    const hr = (<hr role="separator" />) as HTMLHRElement;
-    list.appendChild(hr);
-    return hr;
+    return (<hr role="separator" />) as HTMLHRElement;
   }
 
   return { root, input, list, empty, state, Item, Group, Separator };

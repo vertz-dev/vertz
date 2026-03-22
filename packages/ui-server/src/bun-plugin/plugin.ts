@@ -420,11 +420,11 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
 
           if (fastRefresh) {
             const components = componentAnalyzer.analyze(hydrationSourceFile);
-            // Content hash prevents cascading re-mounts: when Bun re-evaluates all
-            // modules in a single chunk, only the module whose content actually changed
-            // gets marked dirty. Unchanged modules skip __$refreshPerform entirely.
-            const contentHash = Bun.hash(source).toString(36);
-            const refreshCode = generateRefreshCode(args.path, components, contentHash);
+            // Per-component hashing: each component gets a hash of its own body,
+            // so only the actually-changed component is marked dirty and re-mounted.
+            // This prevents parent component refreshes from overwriting child state
+            // when both components live in the same file.
+            const refreshCode = generateRefreshCode(args.path, components, source);
             if (refreshCode) {
               refreshPreamble = refreshCode.preamble;
               refreshEpilogue = refreshCode.epilogue;
@@ -464,8 +464,11 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
 
           if (hmr) {
             // Bun statically analyzes import.meta.hot.accept() calls.
-            // It MUST be called directly (no optional chaining, no variable indirection).
-            contents += '\nimport.meta.hot.accept();\n';
+            // The `if` guard is safe — Bun's static analysis detects accept()
+            // inside if-guards. It MUST NOT use optional chaining or variable
+            // indirection. The guard is needed because this code also runs on
+            // the server side where import.meta.hot is undefined.
+            contents += '\nif (import.meta.hot) import.meta.hot.accept();\n';
           }
 
           contents += sourceMapComment;

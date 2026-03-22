@@ -208,7 +208,7 @@ function MenuRoot(options: MenuOptions = {}): MenuElements & {
     />
   ) as HTMLDivElement;
 
-  function createItem(value: string, label?: string, parent?: HTMLElement): HTMLDivElement {
+  function createItem(value: string, label?: string): HTMLDivElement {
     const item = (
       <div
         role="menuitem"
@@ -224,7 +224,6 @@ function MenuRoot(options: MenuOptions = {}): MenuElements & {
     ) as HTMLDivElement;
 
     items.push(item);
-    (parent ?? content).appendChild(item);
     return item;
   }
 
@@ -237,23 +236,18 @@ function MenuRoot(options: MenuOptions = {}): MenuElements & {
     Item: (value: string, label?: string) => HTMLDivElement;
   } {
     const el = (<div role="group" aria-label={label} />) as HTMLDivElement;
-    content.appendChild(el);
     return {
       el,
-      Item: (value: string, itemLabel?: string) => createItem(value, itemLabel, el),
+      Item: (value: string, itemLabel?: string) => createItem(value, itemLabel),
     };
   }
 
   function Separator(): HTMLHRElement {
-    const hr = (<hr role="separator" />) as HTMLHRElement;
-    content.appendChild(hr);
-    return hr;
+    return (<hr role="separator" />) as HTMLHRElement;
   }
 
   function Label(text: string): HTMLDivElement {
-    const el = (<div role="none">{text}</div>) as HTMLDivElement;
-    content.appendChild(el);
-    return el;
+    return (<div role="none">{text}</div>) as HTMLDivElement;
   }
 
   applyAttrs(trigger, attrs);

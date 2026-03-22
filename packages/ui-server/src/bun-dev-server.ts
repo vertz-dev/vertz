@@ -106,6 +106,16 @@ export interface BunDevServerOptions {
    * Use this to read a theme cookie and eliminate dark→light flash on reload.
    */
   themeFromRequest?: (request: Request) => string | null | undefined;
+  /**
+   * Called when the SSR module fails to recover from a broken state and a
+   * process restart is needed. Bun's ESM module cache retains failed imports
+   * process-wide — the only way to clear it is to restart the process.
+   *
+   * The dev server calls stop() before invoking this callback.
+   * Typically, the callback calls `process.exit(75)` and a supervisor
+   * script restarts the process.
+   */
+  onRestartNeeded?: () => void;
 }
 
 export interface ErrorDetail {
@@ -785,6 +795,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     sessionResolver,
     watchDeps,
     themeFromRequest,
+    onRestartNeeded,
   } = options;
 
   const faviconTag = detectFaviconTag(projectRoot);
@@ -807,6 +818,10 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
   let srcWatcherRef: ReturnType<typeof watch> | null = null;
   let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
   let stopped = false;
+  // Set when SSR module failed to load and we're using a fallback ({}).
+  // The file watcher checks this to trigger a full restart instead of
+  // re-importing (Bun's ESM cache retains failed resolutions).
+  let ssrFallback = false;
 
   // ── WebSocket error channel state ────────────────────────────
   const wsClients = new Set<import('bun').ServerWebSocket<unknown>>();
@@ -1203,14 +1218,20 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
       });
     }
 
-    // Register the Vertz compiler plugin for SSR transforms (no HMR on server side).
+    // Register the Vertz compiler plugin — processes BOTH SSR and client .tsx files.
+    // Bun's global plugin() applies to all module loading (runtime import() + dev bundler).
+    // HMR + Fast Refresh are enabled so the client-side dev bundler injects:
+    //   - import.meta.hot.accept() — modules self-accept HMR updates
+    //   - __$refreshReg/__$refreshTrack wrappers — component instance tracking
+    // On the server side, these are safe: import.meta.hot is guarded, and the
+    // Fast Refresh preamble uses no-op defaults when the runtime isn't loaded.
     // Only create the plugin once — the registered plugin's onLoad closure captures
     // a manifests Map. Creating a new plugin instance would create a new Map, causing
     // manifest updates from the file watcher to go to the wrong instance.
     if (!pluginsRegistered) {
       const { plugin: serverPlugin, updateManifest } = createVertzBunPlugin({
-        hmr: false,
-        fastRefresh: false,
+        hmr: true,
+        fastRefresh: true,
         logger,
         diagnostics,
       });
@@ -1220,19 +1241,45 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     pluginsRegistered = true;
     const updateServerManifest = stableUpdateManifest!;
 
-    // Load SSR module
+    // Load SSR module — during soft restart (same process), use a wrapper
+    // with a timestamp to attempt cache busting. This works when the ESM cache
+    // doesn't have a failed entry. For truly stale ESM caches (failed modules),
+    // a full process restart is needed (handled by onRestartNeeded callback).
     let ssrMod: SSRModule;
     try {
-      ssrMod = await import(entryPath);
+      if (isRestarting) {
+        mkdirSync(devDir, { recursive: true });
+        const ssrBootPath = resolve(devDir, 'ssr-reload-entry.ts');
+        const ts = Date.now();
+        writeFileSync(ssrBootPath, `export * from '${entryPath}';\n`);
+        ssrMod = await import(`${ssrBootPath}?t=${ts}`);
+      } else {
+        ssrMod = await import(entryPath);
+      }
+      ssrFallback = false;
       if (logRequests) {
         console.log('[Server] SSR module loaded');
       }
     } catch (e) {
       console.error('[Server] Failed to load SSR module:', e);
       if (isRestarting) {
-        throw e;
+        // Use a fallback module so the server still starts — the HTTP server
+        // stays alive, file watchers detect fixes, and the error overlay works.
+        // Without this, a restart with a broken SSR module kills the server
+        // permanently (no listener, no watcher, no recovery path).
+        ssrFallback = true;
+        ssrMod = {} as SSRModule;
+        const errMsg = e instanceof Error ? e.message : String(e);
+        const errStack = e instanceof Error ? e.stack : undefined;
+        const { message: _, ...loc } = errStack ? parseSourceFromStack(errStack) : { message: '' };
+        // Defer broadcast until the server is listening (broadcastError
+        // needs wsClients, which are populated after Bun.serve()).
+        queueMicrotask(() => {
+          broadcastError('ssr', [{ message: errMsg, ...loc, stack: errStack }]);
+        });
+      } else {
+        process.exit(1);
       }
-      process.exit(1);
     }
 
     // Extract font fallback metrics once at startup (zero-CLS font loading)
@@ -1597,6 +1644,10 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
               htmlDataTheme: ssrTheme,
             });
 
+            // Clear any stale SSR error from a previous render so the error
+            // overlay doesn't persist after a successful reload (e.g. "Retry").
+            clearError();
+
             return new Response(html, {
               status: 200,
               headers: {
@@ -1927,6 +1978,28 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
           // synchronous context stack used by Provider/useContext. The wrapper
           // is a `.ts` file (no plugin needed) that re-exports from the real
           // entry, keeping the `.tsx` import path clean for the plugin.
+          // If SSR is using a fallback module (broken entry), a file change
+          // likely means the user fixed the error. Bun's ESM loader caches
+          // failed module evaluations by resolved file path — re-importing
+          // the same path (even with ?t= timestamps or file copies) returns
+          // the cached failure because transitive dependencies also reference
+          // the original module. The only reliable fix is a process restart
+          // to get a fresh ESM module cache.
+          if (ssrFallback) {
+            if (onRestartNeeded) {
+              if (logRequests) {
+                console.log('[Server] SSR in fallback mode — requesting process restart');
+              }
+              await devServer.stop();
+              onRestartNeeded();
+              return;
+            }
+            // No restart callback — try normal re-import as best effort
+            if (logRequests) {
+              console.log('[Server] SSR in fallback mode — attempting re-import (best effort)');
+            }
+          }
+
           const cacheCleared = clearSSRRequireCache();
           logger.log('watcher', 'cache-cleared', { entries: cacheCleared });
           const ssrWrapperPath = resolve(devDir, 'ssr-reload-entry.ts');
@@ -1936,6 +2009,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
           try {
             const freshMod: SSRModule = await import(`${ssrWrapperPath}?t=${Date.now()}`);
             ssrMod = freshMod;
+            ssrFallback = false;
             if (freshMod.theme?.fonts) {
               try {
                 fontFallbackMetrics = await extractFontMetrics(freshMod.theme.fonts, projectRoot);
@@ -1963,6 +2037,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
             try {
               const freshMod: SSRModule = await import(`${ssrWrapperPath}?t=${Date.now()}`);
               ssrMod = freshMod;
+              ssrFallback = false;
               if (freshMod.theme?.fonts) {
                 try {
                   fontFallbackMetrics = await extractFontMetrics(freshMod.theme.fonts, projectRoot);
@@ -1987,7 +2062,9 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
                 ? parseSourceFromStack(errStack)
                 : { message: '' };
               broadcastError('ssr', [{ message: errMsg, ...loc2, stack: errStack }]);
-              // Keep using the old module — last known good
+              // Flag for process restart on next file change — Bun's ESM cache
+              // retains failed module evaluations and can't be cleared in-process.
+              ssrFallback = true;
             }
           }
         }, 100);
@@ -2074,6 +2151,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
       lastBroadcastedError = '';
       lastChangedFile = '';
       clearGraceUntil = 0;
+      ssrFallback = false;
       terminalDedup.reset();
       clearSSRRequireCache();
       sourceMapResolver.invalidate();

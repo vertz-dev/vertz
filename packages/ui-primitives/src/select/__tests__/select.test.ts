@@ -31,8 +31,8 @@ describe('Select', () => {
     const { trigger, content, state, Item } = Select.Root();
     container.appendChild(trigger);
     container.appendChild(content);
-    Item('a', 'Option A');
-    Item('b', 'Option B');
+    content.appendChild(Item('a', 'Option A'));
+    content.appendChild(Item('b', 'Option B'));
 
     trigger.click();
     expect(state.open.peek()).toBe(true);
@@ -45,6 +45,7 @@ describe('Select', () => {
     container.appendChild(trigger);
     container.appendChild(content);
     const itemA = Item('a', 'Option A');
+    content.appendChild(itemA);
 
     expect(itemA.getAttribute('role')).toBe('option');
     expect(itemA.getAttribute('data-value')).toBe('a');
@@ -59,6 +60,7 @@ describe('Select', () => {
 
     trigger.click();
     const itemB = Item('b', 'Option B');
+    content.appendChild(itemB);
     itemB.click();
 
     expect(state.value.peek()).toBe('b');
@@ -71,7 +73,9 @@ describe('Select', () => {
     container.appendChild(trigger);
     container.appendChild(content);
     const itemA = Item('a', 'A');
+    content.appendChild(itemA);
     const itemB = Item('b', 'B');
+    content.appendChild(itemB);
 
     trigger.click();
 
@@ -89,8 +93,8 @@ describe('Select', () => {
     const { trigger, content, state, Item } = Select.Root({ onValueChange });
     container.appendChild(trigger);
     container.appendChild(content);
-    Item('a', 'A');
-    Item('b', 'B');
+    content.appendChild(Item('a', 'A'));
+    content.appendChild(Item('b', 'B'));
 
     trigger.click();
 
@@ -105,7 +109,7 @@ describe('Select', () => {
     const { trigger, content, state, Item } = Select.Root();
     container.appendChild(trigger);
     container.appendChild(content);
-    Item('a', 'A');
+    content.appendChild(Item('a', 'A'));
 
     trigger.click();
     expect(state.open.peek()).toBe(true);
@@ -119,7 +123,9 @@ describe('Select', () => {
     container.appendChild(trigger);
     container.appendChild(content);
     const itemA = Item('a', 'A');
+    content.appendChild(itemA);
     const itemB = Item('b', 'B');
+    content.appendChild(itemB);
 
     expect(itemA.getAttribute('data-state')).toBe('active');
     expect(itemB.getAttribute('data-state')).toBe('inactive');
@@ -131,6 +137,7 @@ describe('Select', () => {
     container.appendChild(content);
 
     const group = Group('Fruits');
+    content.appendChild(group.el);
     expect(group.el.getAttribute('role')).toBe('group');
     expect(group.el.getAttribute('aria-label')).toBe('Fruits');
     expect(content.contains(group.el)).toBe(true);
@@ -142,8 +149,11 @@ describe('Select', () => {
     container.appendChild(content);
 
     const fruits = Group('Fruits');
+    content.appendChild(fruits.el);
     const apple = fruits.Item('apple', 'Apple');
+    fruits.el.appendChild(apple);
     const banana = fruits.Item('banana', 'Banana');
+    fruits.el.appendChild(banana);
 
     trigger.click();
 
@@ -160,9 +170,10 @@ describe('Select', () => {
     const { trigger, content, Item, Separator } = Select.Root();
     container.appendChild(trigger);
     container.appendChild(content);
-    Item('a', 'A');
+    content.appendChild(Item('a', 'A'));
     const sep = Separator();
-    Item('b', 'B');
+    content.appendChild(sep);
+    content.appendChild(Item('b', 'B'));
 
     expect(sep.getAttribute('role')).toBe('separator');
     expect(content.contains(sep)).toBe(true);
@@ -172,9 +183,10 @@ describe('Select', () => {
     const { trigger, content, Item } = Select.Root();
     container.appendChild(trigger);
     container.appendChild(content);
-    Item('apple', 'Apple');
+    content.appendChild(Item('apple', 'Apple'));
     const banana = Item('banana', 'Banana');
-    Item('cherry', 'Cherry');
+    content.appendChild(banana);
+    content.appendChild(Item('cherry', 'Cherry'));
 
     trigger.click();
 

@@ -155,6 +155,9 @@ function ComposedScrollAreaRoot({
   const showY = orientation === 'vertical' || orientation === 'both';
   const showX = orientation === 'horizontal' || orientation === 'both';
 
+  // Sync thumb sizes once the component is in the DOM
+  queueMicrotask(() => handleViewportScroll());
+
   return (
     <div
       data-part="scroll-area"
@@ -176,6 +179,7 @@ function ComposedScrollAreaRoot({
           data-part="scroll-area-scrollbar"
           aria-hidden="true"
           data-orientation="vertical"
+          style={{ position: 'absolute', top: '0', right: '0', bottom: '0' }}
           class={cn(classes?.scrollbar)}
         >
           <div
@@ -194,6 +198,7 @@ function ComposedScrollAreaRoot({
           data-part="scroll-area-scrollbar"
           aria-hidden="true"
           data-orientation="horizontal"
+          style={{ position: 'absolute', bottom: '0', left: '0', right: '0' }}
           class={cn(classes?.scrollbar)}
         >
           <div

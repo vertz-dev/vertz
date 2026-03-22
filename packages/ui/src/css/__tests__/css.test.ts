@@ -231,7 +231,7 @@ describe('css()', () => {
     );
 
     expect(result.css).toContain('padding: 1rem');
-    expect(result.css).toContain('border-radius: 0.5rem');
+    expect(result.css).toContain('border-radius: calc(var(--radius) * 1.33)');
     expect(result.css).toContain('font-size: 1.25rem');
     expect(result.css).toContain('font-weight: 700');
     expect(result.css).toContain('color: var(--color-foreground)');
