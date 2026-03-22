@@ -445,7 +445,7 @@ describe('List.reorder()', () => {
 **Key design decisions:**
 - **Snapshotted rects:** All item rects are captured once at drag start. `calcInsertionIndex` uses these cached rects for all `pointermove` calculations. No `getBoundingClientRect()` during drag.
 - **Shift direction:** Items between `fromIndex` and `targetIndex` shift by `±draggedItemHeight`. If target > from, items shift up (`-draggedHeight`). If target < from, items shift down (`+draggedHeight`).
-- **Drag cancellation on reactive update:** If `__listValue` reconciles during an active drag (items array changed externally), the drag is cancelled (transforms cleared, event listeners removed).
+- **Drag cancellation on reactive update (future work):** If `__listValue` reconciles during an active drag (items array changed externally), the drag should ideally be cancelled (transforms cleared, event listeners removed). This is not implemented in this iteration — behavior is undefined if the items array changes mid-drag. Listed in Non-Goals as "Reactive updates during drag".
 
 **Files:**
 - `packages/ui-primitives/src/list/list-composed.tsx` — refactor `setupDragSort()`:

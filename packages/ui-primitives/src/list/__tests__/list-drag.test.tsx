@@ -77,10 +77,18 @@ const ITEM_RECTS = [
   { top: 80, bottom: 120, left: 0, right: 200, width: 200, height: 40, x: 0, y: 80 },
 ];
 
-function mockItemRects(items: NodeListOf<Element>): void {
+/** Variable-height rects: A=30px, B=60px, C=50px */
+const VARIABLE_RECTS = [
+  { top: 0, bottom: 30, left: 0, right: 200, width: 200, height: 30, x: 0, y: 0 },
+  { top: 30, bottom: 90, left: 0, right: 200, width: 200, height: 60, x: 0, y: 30 },
+  { top: 90, bottom: 140, left: 0, right: 200, width: 200, height: 50, x: 0, y: 90 },
+];
+
+function mockItemRects(items: NodeListOf<Element>, rects?: typeof ITEM_RECTS): void {
+  const rectSource = rects ?? ITEM_RECTS;
   for (const [i, item] of [...items].entries()) {
     (item as HTMLElement).getBoundingClientRect = () =>
-      ({ ...ITEM_RECTS[i], toJSON: () => {} }) as DOMRect;
+      ({ ...rectSource[i], toJSON: () => {} }) as DOMRect;
   }
 }
 
@@ -749,6 +757,131 @@ describe('Feature: Animated drag-sort item shifting', () => {
         expect(items[1].style.transform).toBe('');
 
         document.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 61 }));
+      });
+
+      it('Then a drop indicator is shown during drag', () => {
+        const ul = RenderSortableListWithHandles({ onReorder: () => {} });
+        appendToBody(ul);
+
+        const handles = ul.querySelectorAll('[data-list-drag-handle]');
+        const items = ul.querySelectorAll('li');
+        mockItemRects(items);
+
+        handles[0].dispatchEvent(
+          new PointerEvent('pointerdown', { clientX: 100, clientY: 20, bubbles: true }),
+        );
+        document.dispatchEvent(new PointerEvent('pointermove', { clientX: 100, clientY: 61 }));
+
+        // Drop indicator should be visible in the DOM
+        const indicator = ul.querySelector('[data-drop-indicator]');
+        expect(indicator).toBeTruthy();
+
+        document.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 61 }));
+
+        // After drop, indicator should be removed
+        expect(ul.querySelector('[data-drop-indicator]')).toBeNull();
+      });
+    });
+  });
+
+  describe('Given a sortable animated list with variable-height items [A(30), B(60), C(50)]', () => {
+    describe('When dragging A past B midpoint (downward)', () => {
+      it('Then B shifts up by A height (30px), not B height', () => {
+        const ul = RenderAnimatedSortableList({ onReorder: () => {} });
+        appendToBody(ul);
+
+        const handles = ul.querySelectorAll('[data-list-drag-handle]');
+        const items = ul.querySelectorAll('li');
+        mockItemRects(items, VARIABLE_RECTS);
+
+        // Start drag on item A
+        handles[0].dispatchEvent(
+          new PointerEvent('pointerdown', { clientX: 100, clientY: 15, bubbles: true }),
+        );
+
+        // Move past B's midpoint (B: top=30, h=60, midY=60 → y=61)
+        document.dispatchEvent(new PointerEvent('pointermove', { clientX: 100, clientY: 61 }));
+
+        // B should shift up by A's height (30px), not its own height
+        expect(items[1].style.transform).toBe('translateY(-30px)');
+        // C should not shift
+        expect(items[2].style.transform).toBe('');
+
+        document.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 61 }));
+      });
+    });
+  });
+
+  describe('Given a sortable list, dragging first item above all items', () => {
+    describe('When drag A to above A (no movement)', () => {
+      it('Then onReorder is NOT called (no-op)', () => {
+        const calls: Array<{ from: number; to: number }> = [];
+        const ul = RenderSortableListWithHandles({
+          onReorder: (from, to) => calls.push({ from, to }),
+        });
+        appendToBody(ul);
+
+        const handles = ul.querySelectorAll('[data-list-drag-handle]');
+        const items = ul.querySelectorAll('li');
+        mockItemRects(items);
+
+        // Drag item A (y=20) upward above all items (y=-10)
+        handles[0].dispatchEvent(
+          new PointerEvent('pointerdown', { clientX: 100, clientY: 20, bubbles: true }),
+        );
+        document.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: -10 }));
+
+        // insertionIndex=0, fromIndex=0, dest=0=fromIndex → no-op
+        expect(calls.length).toBe(0);
+      });
+    });
+  });
+
+  describe('Given a sortable animated list, dragging C upward past both B and A', () => {
+    describe('When dragging C above A midpoint', () => {
+      it('Then both A and B shift down by C height', () => {
+        const ul = RenderAnimatedSortableList({ onReorder: () => {} });
+        appendToBody(ul);
+
+        const handles = ul.querySelectorAll('[data-list-drag-handle]');
+        const items = ul.querySelectorAll('li');
+        mockItemRects(items);
+
+        // Start drag on item C
+        handles[2].dispatchEvent(
+          new PointerEvent('pointerdown', { clientX: 100, clientY: 100, bubbles: true }),
+        );
+
+        // Move above A's midpoint (y=19, above midY=20)
+        document.dispatchEvent(new PointerEvent('pointermove', { clientX: 100, clientY: 19 }));
+
+        // A should shift down by C's height (40px)
+        expect(items[0].style.transform).toBe('translateY(40px)');
+        // B should shift down by C's height (40px)
+        expect(items[1].style.transform).toBe('translateY(40px)');
+
+        document.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 19 }));
+      });
+
+      it('Then onReorder is called with (2, 0)', () => {
+        const calls: Array<{ from: number; to: number }> = [];
+        const ul = RenderAnimatedSortableList({
+          onReorder: (from, to) => calls.push({ from, to }),
+        });
+        appendToBody(ul);
+
+        const handles = ul.querySelectorAll('[data-list-drag-handle]');
+        const items = ul.querySelectorAll('li');
+        mockItemRects(items);
+
+        handles[2].dispatchEvent(
+          new PointerEvent('pointerdown', { clientX: 100, clientY: 100, bubbles: true }),
+        );
+        document.dispatchEvent(new PointerEvent('pointermove', { clientX: 100, clientY: 19 }));
+        document.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 19 }));
+
+        expect(calls.length).toBe(1);
+        expect(calls[0]).toEqual({ from: 2, to: 0 });
       });
     });
   });
