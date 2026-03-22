@@ -18,6 +18,8 @@ function baseConfig(overrides?: Partial<AuthConfig>): AuthConfig {
     },
     privateKey: TEST_PRIVATE_KEY,
     publicKey: TEST_PUBLIC_KEY,
+    issuer: 'https://test.example.com',
+    audience: 'test',
     isProduction: false,
     ...overrides,
   };

@@ -343,6 +343,17 @@ export interface AuthConfig {
   /** Custom claims function for JWT payload */
   claims?: (user: AuthUser) => Record<string, unknown>;
   /**
+   * JWT `iss` (issuer) claim. Identifies who issued the token.
+   * Required in production. Defaults to `'vertz-dev'` in development.
+   * Unrelated to `mfa.issuer` (TOTP authenticator display name).
+   */
+  issuer?: string;
+  /**
+   * JWT `aud` (audience) claim. Identifies intended token recipients.
+   * Required in production. Defaults to `'vertz-dev'` in development.
+   */
+  audience?: string;
+  /**
    * Whether the app runs in production mode.
    * Controls security enforcement (key pair requirement, CSRF validation).
    * Defaults to true when process.env is unavailable (secure-by-default for edge runtimes).
@@ -448,6 +459,8 @@ export interface SessionPayload {
   role: string;
   iat: number;
   exp: number;
+  iss?: string; // Issuer — who issued the token
+  aud?: string | string[]; // Audience — intended recipients (RFC 7519 §4.1.3 allows array)
   jti: string; // JWT ID — unique token identifier
   sid: string; // Session ID — links JWT to session record
   tenantId?: string; // Current tenant scope — set via switch-tenant

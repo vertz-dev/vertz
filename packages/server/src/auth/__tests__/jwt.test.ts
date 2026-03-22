@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from 'bun:test';
 import { createPrivateKey, createPublicKey, generateKeyPairSync } from 'node:crypto';
+import * as jose from 'jose';
 import { createJWT, parseDuration, verifyJWT } from '../jwt';
 import type { AuthUser } from '../types';
 import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';
@@ -58,24 +59,63 @@ describe('createJWT', () => {
     expect(jwt.split('.')).toHaveLength(3);
   });
 
-  it('includes custom claims', async () => {
-    const jwt = await createJWT(testUser, privateKey, 60_000, () => ({
-      jti: 'test-jti',
-      sid: 'test-sid',
-    }));
+  it('includes custom claims via options object', async () => {
+    const jwt = await createJWT(testUser, privateKey, 60_000, {
+      claims: () => ({
+        jti: 'test-jti',
+        sid: 'test-sid',
+      }),
+    });
 
     const payload = await verifyJWT(jwt, publicKey);
     expect(payload?.jti).toBe('test-jti');
     expect(payload?.sid).toBe('test-sid');
   });
+
+  it('sets iss claim when issuer is provided', async () => {
+    const token = await createJWT(testUser, privateKey, 60_000, {
+      claims: () => ({ jti: 'jti-iss', sid: 'sid-iss' }),
+      issuer: 'https://myapp.example.com',
+    });
+
+    const decoded = jose.decodeJwt(token);
+    expect(decoded.iss).toBe('https://myapp.example.com');
+  });
+
+  it('sets aud claim when audience is provided', async () => {
+    const token = await createJWT(testUser, privateKey, 60_000, {
+      claims: () => ({ jti: 'jti-aud', sid: 'sid-aud' }),
+      audience: 'myapp',
+    });
+
+    const decoded = jose.decodeJwt(token);
+    expect(decoded.aud).toBe('myapp');
+  });
+
+  it('does not set iss or aud when no options provided', async () => {
+    const token = await createJWT(testUser, privateKey, 60_000);
+
+    const decoded = jose.decodeJwt(token);
+    expect(decoded.iss).toBeUndefined();
+    expect(decoded.aud).toBeUndefined();
+  });
+
+  it('does not set iss or aud when only claims callback provided', async () => {
+    const token = await createJWT(testUser, privateKey, 60_000, {
+      claims: () => ({ jti: 'jti-no-iss', sid: 'sid-no-iss' }),
+    });
+
+    const decoded = jose.decodeJwt(token);
+    expect(decoded.iss).toBeUndefined();
+    expect(decoded.aud).toBeUndefined();
+  });
 });
 
 describe('verifyJWT', () => {
   it('returns payload for valid token', async () => {
-    const jwt = await createJWT(testUser, privateKey, 60_000, () => ({
-      jti: 'jti-1',
-      sid: 'sid-1',
-    }));
+    const jwt = await createJWT(testUser, privateKey, 60_000, {
+      claims: () => ({ jti: 'jti-1', sid: 'sid-1' }),
+    });
 
     const payload = await verifyJWT(jwt, publicKey);
     expect(payload).not.toBeNull();
@@ -87,10 +127,9 @@ describe('verifyJWT', () => {
   });
 
   it('returns null for expired token', async () => {
-    const jwt = await createJWT(testUser, privateKey, 1, () => ({
-      jti: 'jti-exp',
-      sid: 'sid-exp',
-    }));
+    const jwt = await createJWT(testUser, privateKey, 1, {
+      claims: () => ({ jti: 'jti-exp', sid: 'sid-exp' }),
+    });
 
     // Wait for expiration
     await new Promise((resolve) => setTimeout(resolve, 1100));
@@ -100,10 +139,9 @@ describe('verifyJWT', () => {
   });
 
   it('returns null for wrong key', async () => {
-    const jwt = await createJWT(testUser, privateKey, 60_000, () => ({
-      jti: 'jti-2',
-      sid: 'sid-2',
-    }));
+    const jwt = await createJWT(testUser, privateKey, 60_000, {
+      claims: () => ({ jti: 'jti-2', sid: 'sid-2' }),
+    });
 
     // Generate a different key pair
     const { publicKey: otherPub } = generateKeyPairSync('rsa', {
@@ -118,10 +156,9 @@ describe('verifyJWT', () => {
   });
 
   it('returns null for tampered token', async () => {
-    const jwt = await createJWT(testUser, privateKey, 60_000, () => ({
-      jti: 'jti-3',
-      sid: 'sid-3',
-    }));
+    const jwt = await createJWT(testUser, privateKey, 60_000, {
+      claims: () => ({ jti: 'jti-3', sid: 'sid-3' }),
+    });
 
     const tampered = `${jwt.slice(0, -5)}XXXXX`;
     const payload = await verifyJWT(tampered, publicKey);
@@ -138,6 +175,86 @@ describe('verifyJWT', () => {
     const jwt = await createJWT(testUser, privateKey, 60_000);
 
     const payload = await verifyJWT(jwt, publicKey);
+    expect(payload).toBeNull();
+  });
+
+  it('returns payload when iss/aud match expected values', async () => {
+    const token = await createJWT(testUser, privateKey, 60_000, {
+      claims: () => ({ jti: 'jti-match', sid: 'sid-match' }),
+      issuer: 'https://myapp.example.com',
+      audience: 'myapp',
+    });
+
+    const payload = await verifyJWT(token, publicKey, {
+      issuer: 'https://myapp.example.com',
+      audience: 'myapp',
+    });
+    expect(payload).not.toBeNull();
+    expect(payload?.sub).toBe('user-123');
+  });
+
+  it('returns null when issuer does not match', async () => {
+    const token = await createJWT(testUser, privateKey, 60_000, {
+      claims: () => ({ jti: 'jti-iss-bad', sid: 'sid-iss-bad' }),
+      issuer: 'https://staging.example.com',
+      audience: 'myapp',
+    });
+
+    const payload = await verifyJWT(token, publicKey, {
+      issuer: 'https://production.example.com',
+      audience: 'myapp',
+    });
+    expect(payload).toBeNull();
+  });
+
+  it('returns null when audience does not match', async () => {
+    const token = await createJWT(testUser, privateKey, 60_000, {
+      claims: () => ({ jti: 'jti-aud-bad', sid: 'sid-aud-bad' }),
+      issuer: 'https://myapp.example.com',
+      audience: 'wrong-audience',
+    });
+
+    const payload = await verifyJWT(token, publicKey, {
+      issuer: 'https://myapp.example.com',
+      audience: 'myapp',
+    });
+    expect(payload).toBeNull();
+  });
+
+  it('returns null when token lacks iss/aud but options require them', async () => {
+    const token = await createJWT(testUser, privateKey, 60_000, {
+      claims: () => ({ jti: 'jti-no-claims', sid: 'sid-no-claims' }),
+    });
+
+    const payload = await verifyJWT(token, publicKey, {
+      issuer: 'https://myapp.example.com',
+      audience: 'myapp',
+    });
+    expect(payload).toBeNull();
+  });
+
+  it('returns payload when token has iss/aud but no verify options', async () => {
+    const token = await createJWT(testUser, privateKey, 60_000, {
+      claims: () => ({ jti: 'jti-no-opts', sid: 'sid-no-opts' }),
+      issuer: 'https://myapp.example.com',
+      audience: 'myapp',
+    });
+
+    const payload = await verifyJWT(token, publicKey);
+    expect(payload).not.toBeNull();
+    expect(payload?.sub).toBe('user-123');
+  });
+
+  it('returns null when iss/aud are correct but jti/sid are missing', async () => {
+    const token = await createJWT(testUser, privateKey, 60_000, {
+      issuer: 'https://myapp.example.com',
+      audience: 'myapp',
+    });
+
+    const payload = await verifyJWT(token, publicKey, {
+      issuer: 'https://myapp.example.com',
+      audience: 'myapp',
+    });
     expect(payload).toBeNull();
   });
 });

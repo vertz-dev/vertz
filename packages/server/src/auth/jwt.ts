@@ -21,15 +21,21 @@ export function parseDuration(duration: string | number): number {
   return value * multipliers[unit] * 1000;
 }
 
+export interface CreateJWTOptions {
+  claims?: (user: AuthUser) => Record<string, unknown>;
+  issuer?: string;
+  audience?: string;
+}
+
 export async function createJWT(
   user: AuthUser,
   privateKey: KeyObject,
   ttl: number,
-  customClaims?: (user: AuthUser) => Record<string, unknown>,
+  options?: CreateJWTOptions,
 ): Promise<string> {
-  const claims = customClaims ? customClaims(user) : {};
+  const claims = options?.claims ? options.claims(user) : {};
 
-  const jwt = await new jose.SignJWT({
+  const builder = new jose.SignJWT({
     sub: user.id,
     email: user.email,
     role: user.role,
@@ -37,21 +43,35 @@ export async function createJWT(
   })
     .setProtectedHeader({ alg: 'RS256' })
     .setIssuedAt()
-    .setExpirationTime(`${Math.floor(ttl / 1000)}s`)
-    .sign(privateKey);
+    .setExpirationTime(`${Math.floor(ttl / 1000)}s`);
 
-  return jwt;
+  if (options?.issuer) {
+    builder.setIssuer(options.issuer);
+  }
+  if (options?.audience) {
+    builder.setAudience(options.audience);
+  }
+
+  return builder.sign(privateKey);
+}
+
+export interface VerifyJWTOptions {
+  issuer?: string;
+  audience?: string;
 }
 
 export async function verifyJWT(
   token: string,
   publicKey: KeyObject,
+  options?: VerifyJWTOptions,
 ): Promise<SessionPayload | null> {
   try {
     const { payload } = await jose.jwtVerify(token, publicKey, {
       algorithms: ['RS256'],
+      issuer: options?.issuer,
+      audience: options?.audience,
     });
-    // Runtime validation: ensure required Phase 2 claims are present
+    // Runtime validation: ensure required claims are present
     if (
       typeof payload.sub !== 'string' ||
       typeof payload.email !== 'string' ||

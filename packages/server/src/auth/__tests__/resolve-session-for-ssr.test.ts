@@ -30,11 +30,13 @@ function createRequest(cookieHeader?: string): Request {
 async function createValidJWT(
   customClaims?: (user: AuthUser) => Record<string, unknown>,
 ): Promise<string> {
-  return createJWT(testUser, createPrivateKey(TEST_PRIVATE_KEY), 60_000, (user) => ({
-    jti: 'jti-test',
-    sid: 'sid-test',
-    ...customClaims?.(user),
-  }));
+  return createJWT(testUser, createPrivateKey(TEST_PRIVATE_KEY), 60_000, {
+    claims: (user) => ({
+      jti: 'jti-test',
+      sid: 'sid-test',
+      ...customClaims?.(user),
+    }),
+  });
 }
 
 function createResolver() {
@@ -114,10 +116,12 @@ describe('resolveSessionForSSR', () => {
     describe('When resolveSessionForSSR is called', () => {
       it('Then returns null', async () => {
         // Create JWT with 1ms TTL and wait for expiration
-        const jwt = await createJWT(testUser, createPrivateKey(TEST_PRIVATE_KEY), 1, () => ({
-          jti: 'jti-expired',
-          sid: 'sid-expired',
-        }));
+        const jwt = await createJWT(testUser, createPrivateKey(TEST_PRIVATE_KEY), 1, {
+          claims: () => ({
+            jti: 'jti-expired',
+            sid: 'sid-expired',
+          }),
+        });
         await new Promise((resolve) => setTimeout(resolve, 1100));
 
         const request = createRequest(`${COOKIE_NAME}=${jwt}`);
