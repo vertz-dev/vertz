@@ -207,6 +207,18 @@ describe('Subpath Exports — package.json exports map', () => {
   });
 });
 
+describe('Removed exports — ListTransition', () => {
+  test('ListTransition is not exported from main barrel', async () => {
+    const main = (await import('../index')) as Record<string, unknown>;
+    expect(main.ListTransition).toBeUndefined();
+  });
+
+  test('ListTransitionProps type is not re-exported', async () => {
+    const main = (await import('../index')) as Record<string, unknown>;
+    expect(main.ListTransitionProps).toBeUndefined();
+  });
+});
+
 describe('Subpath Exports — main barrel backward compat', () => {
   test('main barrel re-exports all router symbols', async () => {
     const main = await import('../index');

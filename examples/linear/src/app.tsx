@@ -37,7 +37,7 @@ const appGlobals = globalCss({
 });
 
 // ── Presence animation globals ─────────────────────────────
-// ListTransition and Presence set data-presence="enter"/"exit" on elements.
+// List and Presence set data-presence="enter"/"exit" on elements.
 // These rules drive the CSS animations for those states.
 
 void globalCss({

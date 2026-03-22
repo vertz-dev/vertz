@@ -848,7 +848,6 @@ export function homePageTemplate(): string {
   return `import {
   ANIMATION_DURATION,
   ANIMATION_EASING,
-  ListTransition,
   css,
   fadeOut,
   form,
@@ -857,7 +856,7 @@ export function homePageTemplate(): string {
   slideInFromTop,
   useDialogStack,
 } from 'vertz/ui';
-import { Button } from '@vertz/ui/components';
+import { Button, List } from '@vertz/ui/components';
 import { api } from '../client';
 
 // Global CSS for list item enter/exit animations
@@ -1001,17 +1000,17 @@ export function HomePage() {
             </div>
           )}
           <div data-testid="task-list" className={styles.list}>
-            <ListTransition
-              each={tasksQuery.data.items}
-              keyFn={(task) => task.id}
-              children={(task) => (
-                <TaskItem
-                  id={task.id}
-                  title={task.title}
-                  completed={task.completed}
-                />
-              )}
-            />
+            <List animate>
+              {tasksQuery.data.items.map((task) => (
+                <List.Item key={task.id}>
+                  <TaskItem
+                    id={task.id}
+                    title={task.title}
+                    completed={task.completed}
+                  />
+                </List.Item>
+              ))}
+            </List>
           </div>
           {tasksQuery.data.items.length > 0 && (
             <div className={styles.count}>

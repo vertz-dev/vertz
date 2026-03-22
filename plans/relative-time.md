@@ -167,7 +167,7 @@ Both are exported from `@vertz/ui` (the main barrel):
 import { formatRelativeTime, RelativeTime } from '@vertz/ui';
 ```
 
-**Not from `@vertz/ui/components`.** The component proxy system (`@vertz/ui/components`) is for theme-bound components. `RelativeTime` has no theming — it renders a plain `<time>` element. This is consistent with how `Image`, `Link`, `ErrorBoundary`, `Suspense`, `Foreign`, `Presence`, `ListTransition`, and `Island` are exported directly from `@vertz/ui`.
+**Not from `@vertz/ui/components`.** The component proxy system (`@vertz/ui/components`) is for theme-bound components. `RelativeTime` has no theming — it renders a plain `<time>` element. This is consistent with how `Image`, `Link`, `ErrorBoundary`, `Suspense`, `Foreign`, `Presence`, and `Island` are exported directly from `@vertz/ui`.
 
 ---
 

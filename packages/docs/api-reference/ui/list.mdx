@@ -141,34 +141,3 @@ import { List } from '@vertz/ui/components';
 </List>
 ```
 
-## Migration from ListTransition
-
-`ListTransition` is deprecated. Migrate to `<List animate>`:
-
-```tsx
-// Before (deprecated)
-import { ListTransition } from '@vertz/ui';
-
-<ListTransition
-  each={items}
-  keyFn={(item) => item.id}
-  children={(item) => <TodoItem task={item} />}
-/>
-
-// After
-import { List } from '@vertz/ui/components';
-
-<List animate>
-  {items.map(item => (
-    <List.Item key={item.id}>
-      <TodoItem task={item} />
-    </List.Item>
-  ))}
-</List>
-```
-
-Key differences:
-- `<List>` uses `.map()` children instead of `each`/`keyFn`/`children` props
-- `.map()` preserves VertzQL auto field selection
-- `<List>` adds FLIP reorder animations (not just enter/exit)
-- `<List>` supports drag-and-sort via `sortable` prop

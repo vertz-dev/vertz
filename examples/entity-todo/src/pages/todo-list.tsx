@@ -5,7 +5,7 @@
  * - query() with descriptor-based data fetching
  * - Direct conditional rendering for loading/error/data states
  * - Automatic optimistic updates — no refetch callbacks needed for any CRUD operation
- * - ListTransition for animated list item enter/exit
+ * - <List animate> for animated list item enter/exit
  */
 
 import {
@@ -14,10 +14,10 @@ import {
   css,
   fadeOut,
   globalCss,
-  ListTransition,
   query,
   slideInFromTop,
 } from '@vertz/ui';
+import { List } from '@vertz/ui/components';
 import type { TodosResponse } from '../api/client';
 import { api } from '../api/client';
 import { TodoForm } from '../components/todo-form';
@@ -76,13 +76,13 @@ export function TodoListPage() {
               </div>
             )}
             <div data-testid="todo-list" className={pageStyles.todoList}>
-              <ListTransition
-                each={todosQuery.data.items}
-                keyFn={(todo: TodosResponse) => todo.id}
-                children={(todo: TodosResponse) => (
-                  <TodoItem id={todo.id} title={todo.title} completed={todo.completed} />
-                )}
-              />
+              <List animate>
+                {todosQuery.data.items.map((todo: TodosResponse) => (
+                  <List.Item key={todo.id}>
+                    <TodoItem id={todo.id} title={todo.title} completed={todo.completed} />
+                  </List.Item>
+                ))}
+              </List>
             </div>
           </>
         )}

@@ -12,8 +12,6 @@ export { ErrorBoundary } from './component/error-boundary';
 export type { ForeignProps } from './component/foreign';
 export { Foreign } from './component/foreign';
 export { onMount } from './component/lifecycle';
-export type { ListTransitionProps } from './component/list-transition';
-export { ListTransition } from './component/list-transition';
 export type { PresenceProps } from './component/presence';
 export { Presence } from './component/presence';
 export type { Ref } from './component/refs';
