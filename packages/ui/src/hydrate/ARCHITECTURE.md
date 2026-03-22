@@ -39,7 +39,7 @@ or **manipulates the stack**:
 | `__element(tag)` | `claimElement(tag)` → returns matching element | **Advances** to nextSibling |
 | `__staticText(text)` | `claimText()` → returns text node | **Advances** to nextSibling |
 | `__text(fn)` | `claimText()` + `deferredDomEffect` (deferred until `endHydration` flush) | **Advances** to nextSibling |
-| `__child(fn)` | `claimElement('span')` + **pause** hydration + CSR render inside + **resume** | **Advances** past span; inner content is CSR |
+| `__child(fn)` | `claimComment('child')` anchor + end marker + **pause** hydration + CSR render between markers + **resume** | **Advances** past markers; inner content is CSR |
 | `__insert(parent, value)` | **Resolves** functions/arrays, claims text for primitives | **Advances** only for text claims |
 | `__append(parent, child)` | **No-op** (child already in DOM) | None |
 | `__enterChildren(el)` | `enterChildren(el)` | **Pushes** cursor to stack, cursor = el.firstChild |
@@ -92,15 +92,15 @@ This was the root cause of #842.
 
 `__child(() => expr)` wraps reactive expressions. During hydration:
 
-1. Claims the `<span style="display:contents">` wrapper from SSR
-2. **Clears** the wrapper's SSR children (JSX in callbacks isn't hydration-aware)
+1. Claims the `<!--child-->` anchor comment and `<!--/child-->` end marker from SSR
+2. **Clears** content between markers (JSX in callbacks isn't hydration-aware)
 3. **Pauses** hydration (`isHydrating = false`, cursor preserved)
-4. Runs `fn()` via CSR path → creates fresh DOM inside wrapper
+4. Runs `fn()` via CSR path → inserts fresh DOM between markers
 5. **Resumes** hydration (`isHydrating = true`)
-6. Parent-level cursor continues from where it left off
+6. Parent-level cursor continues from the end marker's next sibling
 
 This means content inside `__child` is always CSR-rendered, even during
-hydration. The wrapper element itself is adopted from SSR.
+hydration. The comment markers are adopted from SSR.
 
 ## Typical Element Lifecycle
 
