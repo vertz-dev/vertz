@@ -1,4 +1,5 @@
 import {
+  claimComment,
   claimElement,
   claimText,
   enterChildren,
@@ -14,38 +15,6 @@ import { getAdapter, isRenderNode } from './adapter';
 import { isSVGTag, normalizeSVGAttr, SVG_NS } from './svg-tags';
 
 const MAX_THUNK_DEPTH = 100;
-
-/**
- * Resolve a value that may be a thunk (function), nested thunks, arrays,
- * or a primitive into concrete Nodes and append them to a parent.
- *
- * Uses the DOM adapter (not raw `document`) for text node creation,
- * consistent with the rest of element.ts.
- */
-function resolveAndAppend(parent: Node, value: unknown, depth = 0): void {
-  if (depth >= MAX_THUNK_DEPTH) {
-    throw new Error('resolveAndAppend: max recursion depth exceeded — possible circular thunk');
-  }
-  if (value == null || typeof value === 'boolean') {
-    return;
-  }
-  if (typeof value === 'function') {
-    resolveAndAppend(parent, (value as () => unknown)(), depth + 1);
-    return;
-  }
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      resolveAndAppend(parent, item, depth);
-    }
-    return;
-  }
-  if (isRenderNode(value)) {
-    parent.appendChild(value as Node);
-    return;
-  }
-  const text = typeof value === 'string' ? value : String(value);
-  parent.appendChild(getAdapter().createTextNode(text) as unknown as Node);
-}
 
 /** A Text node that also carries a dispose function for cleanup. */
 export interface DisposableText extends Text {
@@ -79,6 +48,102 @@ export function __text(fn: () => string): DisposableText {
   return node;
 }
 
+/** A Node that also carries a dispose function for cleanup. */
+export interface DisposableChild extends Node {
+  dispose: DisposeFn;
+}
+
+/**
+ * Resolve a value (thunks, arrays, nodes, primitives) and insert each
+ * produced node as a sibling after an anchor, tracking them in the
+ * managed array. Insertion order is preserved by inserting after the
+ * last managed node (or the anchor if none yet).
+ */
+function resolveAndInsertAfter(anchor: Node, value: unknown, managed: Node[], depth = 0): void {
+  if (depth >= MAX_THUNK_DEPTH) {
+    throw new Error(
+      'resolveAndInsertAfter: max recursion depth exceeded — possible circular thunk',
+    );
+  }
+  if (value == null || typeof value === 'boolean') return;
+  if (typeof value === 'function') {
+    resolveAndInsertAfter(anchor, (value as () => unknown)(), managed, depth + 1);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      resolveAndInsertAfter(anchor, item, managed, depth);
+    }
+    return;
+  }
+  // Leaf: node or primitive
+  const node = isRenderNode(value)
+    ? (value as Node)
+    : (getAdapter().createTextNode(
+        typeof value === 'string' ? value : String(value),
+      ) as unknown as Node);
+  // Insert after the last managed node, or after the anchor if none yet
+  const insertAfter = (managed.length > 0 ? managed[managed.length - 1] : anchor) as Node;
+  insertAfter.parentNode!.insertBefore(node, insertAfter.nextSibling);
+  managed.push(node);
+}
+
+/**
+ * Shared reactive effect logic for __child (both CSR and hydration paths).
+ * Manages content as siblings after a comment anchor, tracking nodes
+ * in the managed array for cleanup.
+ */
+function childEffect(
+  anchor: Node,
+  fn: () => Node | string | number | boolean | null | undefined,
+  managed: Node[],
+  childCleanups: { value: DisposeFn[] },
+): DisposeFn {
+  return domEffect(() => {
+    // Dispose nested effects (e.g., __conditional domEffects) from the
+    // previous fn() evaluation. Without this, old conditionals' effects
+    // stay alive and produce orphaned/duplicate DOM nodes.
+    runCleanups(childCleanups.value);
+
+    const scope = pushScope();
+    const value = fn();
+    popScope();
+    childCleanups.value = scope;
+
+    // Stable-node optimization: if fn() returns the same Node reference
+    // that's already the sole managed node, skip DOM work.
+    // Critical for queryMatch, which returns a cached wrapper.
+    if (managed.length === 1 && isRenderNode(value) && managed[0] === value) {
+      return;
+    }
+
+    // Text-in-place optimization: update existing text node data directly
+    // instead of removing + creating a new Text node.
+    if (
+      managed.length === 1 &&
+      managed[0]!.nodeType === 3 &&
+      !isRenderNode(value) &&
+      value != null &&
+      typeof value !== 'boolean' &&
+      typeof value !== 'function'
+    ) {
+      const text = typeof value === 'string' ? value : String(value);
+      (managed[0] as Text).data = text;
+      return;
+    }
+
+    // Remove old managed nodes
+    for (const node of managed) {
+      node.parentNode?.removeChild(node);
+    }
+    managed.length = 0;
+
+    // Resolve and insert new content after anchor.
+    // Handles thunks, arrays, nodes, and primitives.
+    resolveAndInsertAfter(anchor, value, managed);
+  });
+}
+
 /**
  * Create a reactive child node that updates when dependencies change.
  * Unlike __text(), this handles both Node values (appended directly)
@@ -87,26 +152,35 @@ export function __text(fn: () => string): DisposableText {
  * This prevents HTMLElements from being stringified to "[object HTMLElement]"
  * when used as JSX expression children like {someElement}.
  *
- * Returns a wrapper element with `display: contents` and a `dispose` property.
+ * Uses a comment anchor (<!--child-->) with sibling-based content management.
+ * Content nodes are inserted after the anchor and tracked for cleanup.
+ * Returns a DocumentFragment (CSR) or the claimed comment (hydration),
+ * with a `dispose` property for lifecycle management.
  */
 export function __child(
   fn: () => Node | string | number | boolean | null | undefined,
-): HTMLElement & {
-  dispose: DisposeFn;
-} {
-  let wrapper: HTMLElement & { dispose: DisposeFn };
-
+): DisposableChild {
   if (getIsHydrating()) {
-    const claimed = claimElement('span');
+    const claimed = claimComment();
     if (claimed) {
-      wrapper = claimed as HTMLElement & { dispose: DisposeFn };
+      const anchor = claimed as unknown as Node;
+      const managed: Node[] = [];
+      const childCleanups = { value: [] as DisposeFn[] };
 
-      // Clear SSR children — they will be re-rendered via CSR below.
-      // The JSX runtime (used for JSX inside callbacks like queryMatch handlers)
-      // is not hydration-aware, so attempting to hydrate these children would
-      // create detached DOM nodes with dead event handlers. See #826.
-      while (wrapper.firstChild) {
-        wrapper.removeChild(wrapper.firstChild);
+      // Clear SSR content after the comment anchor — it will be re-rendered
+      // via CSR below. JSX inside callbacks (e.g., queryMatch handlers) is not
+      // hydration-aware, so attempting to hydrate would create detached DOM
+      // nodes with dead event handlers. See #826.
+      // Stop at the next <!--child--> comment (sibling __child boundary) but
+      // remove other comments (e.g., <!-- conditional -->) which are content.
+      let sibling = anchor.nextSibling;
+      while (sibling) {
+        if (sibling.nodeType === 8 && (sibling as Comment).data.trim() === 'child') {
+          break;
+        }
+        const next = sibling.nextSibling;
+        sibling.parentNode?.removeChild(sibling);
+        sibling = next;
       }
 
       // Pause hydration so fn() creates fresh DOM via CSR path.
@@ -114,117 +188,56 @@ export function __child(
       // before any browser paint — no visual flash.
       pauseHydration();
       try {
-        let childCleanups: DisposeFn[] = [];
-        wrapper.dispose = domEffect(() => {
-          // Dispose nested effects (e.g., __conditional domEffects) from the
-          // previous fn() evaluation. Without this, old conditionals' effects
-          // stay alive and produce orphaned/duplicate DOM nodes.
-          runCleanups(childCleanups);
-
-          // Pause hydration on every re-run, not just the first.
-          // When a signal change triggers a re-run while hydration is still
-          // active (e.g., router outlet switching routes before endHydration),
-          // child components must render via CSR — there are no SSR nodes to
-          // claim for the new content.
-          const needsPause = getIsHydrating();
-          if (needsPause) pauseHydration();
-          try {
-            const scope = pushScope();
-            const value = fn();
-            popScope();
-            childCleanups = scope;
-
-            // Stable-node optimization (same as CSR path)
-            if (
-              isRenderNode(value) &&
-              wrapper.childNodes.length === 1 &&
-              wrapper.firstChild === value
-            ) {
-              return;
+        const dispose = childEffect(
+          anchor,
+          ((originalFn) => () => {
+            // Pause hydration on every re-run, not just the first.
+            // When a signal change triggers a re-run while hydration is still
+            // active (e.g., router outlet switching routes before endHydration),
+            // child components must render via CSR.
+            const needsPause = getIsHydrating();
+            if (needsPause) pauseHydration();
+            try {
+              return originalFn();
+            } finally {
+              if (needsPause) resumeHydration();
             }
+          })(fn),
+          managed,
+          childCleanups,
+        );
 
-            // Text-in-place optimization (same as CSR path)
-            if (
-              !isRenderNode(value) &&
-              value != null &&
-              typeof value !== 'boolean' &&
-              wrapper.childNodes.length === 1 &&
-              wrapper.firstChild!.nodeType === 3
-            ) {
-              const text = typeof value === 'string' ? value : String(value);
-              (wrapper.firstChild as Text).data = text;
-              return;
-            }
-
-            // Clear previous content
-            while (wrapper.firstChild) {
-              wrapper.removeChild(wrapper.firstChild);
-            }
-
-            // Resolve any value: thunks, arrays, nodes, primitives, null/boolean
-            resolveAndAppend(wrapper, value);
-          } finally {
-            if (needsPause) resumeHydration();
-          }
-        });
+        const result = Object.assign(anchor, {
+          dispose: () => {
+            runCleanups(childCleanups.value);
+            dispose();
+          },
+        }) as DisposableChild;
+        return result;
       } finally {
         resumeHydration();
       }
-      return wrapper;
     }
   }
 
-  // CSR path: create new span wrapper
-  wrapper = getAdapter().createElement('span') as unknown as HTMLElement & { dispose: DisposeFn };
-  wrapper.style.display = 'contents';
+  // CSR path: create comment anchor inside a DocumentFragment
+  const anchor = getAdapter().createComment('child') as unknown as Node;
+  const fragment = getAdapter().createDocumentFragment() as unknown as DocumentFragment;
+  fragment.appendChild(anchor);
 
-  let childCleanups: DisposeFn[] = [];
-  wrapper.dispose = domEffect(() => {
-    // Dispose nested effects (e.g., __conditional domEffects) from the
-    // previous fn() evaluation. Without this, old conditionals' effects
-    // stay alive and produce orphaned/duplicate DOM nodes.
-    runCleanups(childCleanups);
+  const managed: Node[] = [];
+  const childCleanups = { value: [] as DisposeFn[] };
 
-    const scope = pushScope();
-    const value = fn();
-    popScope();
-    childCleanups = scope;
+  const dispose = childEffect(anchor, fn, managed, childCleanups);
 
-    // Stable-node optimization: if fn() returns the same Node reference
-    // that's already the sole child, skip the nuke-and-replace cycle.
-    // This is critical for queryMatch, which returns a cached wrapper —
-    // without this check, __child would detach and re-attach it on every
-    // signal change, disrupting internal state (e.g., __list reconciliation).
-    if (isRenderNode(value) && wrapper.childNodes.length === 1 && wrapper.firstChild === value) {
-      return;
-    }
+  const result = Object.assign(fragment, {
+    dispose: () => {
+      runCleanups(childCleanups.value);
+      dispose();
+    },
+  }) as unknown as DisposableChild;
 
-    // Text-in-place optimization: if the new value is a primitive and the
-    // current content is a single Text node, update node.data directly
-    // instead of removing + creating a new Text node.
-    if (
-      !isRenderNode(value) &&
-      value != null &&
-      typeof value !== 'boolean' &&
-      typeof value !== 'function' &&
-      wrapper.childNodes.length === 1 &&
-      wrapper.firstChild!.nodeType === 3
-    ) {
-      const text = typeof value === 'string' ? value : String(value);
-      (wrapper.firstChild as Text).data = text;
-      return;
-    }
-
-    // Clear previous content
-    while (wrapper.firstChild) {
-      wrapper.removeChild(wrapper.firstChild);
-    }
-
-    // Resolve any value: thunks, arrays, nodes, primitives, null/boolean
-    resolveAndAppend(wrapper, value);
-  });
-
-  return wrapper;
+  return result;
 }
 
 /**

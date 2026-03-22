@@ -158,8 +158,7 @@ describe('Foreign — integration', () => {
   });
 
   it('Foreign coexists with reactive siblings during hydration', () => {
-    root.innerHTML =
-      '<div><div class="external"></div><span><span style="display: contents">0</span></span></div>';
+    root.innerHTML = '<div><div class="external"></div><span><!--child-->0</span></div>';
 
     const count = signal(0);
     let foreignReady = false;
@@ -198,7 +197,8 @@ describe('Foreign — integration', () => {
     expect(foreignReady).toBe(true);
     // Reactive sibling works correctly
     count.value = 42;
-    expect(root.querySelector('span span')?.textContent).toBe('42');
+    // With comment markers, the reactive text is a direct child of the outer <span>
+    expect(root.querySelector('span')?.textContent).toBe('42');
   });
 
   it('Foreign with button sibling — events work after hydration', () => {

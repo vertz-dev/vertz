@@ -30,166 +30,201 @@ describe('Child node rendering', () => {
     expect(typeof parent.textContent).toBe('string');
   });
 
+  test('__child() returns a DocumentFragment containing a comment anchor', () => {
+    const result = __child(() => 'hello');
+    const parent = document.createElement('div');
+    parent.appendChild(result);
+
+    // The parent should contain a comment anchor followed by a text node
+    const comment = parent.childNodes[0];
+    expect(comment.nodeType).toBe(8); // Comment node
+    expect((comment as Comment).data).toBe('child');
+
+    // Content is a sibling of the comment, not inside a span
+    const content = parent.childNodes[1];
+    expect(content.nodeType).toBe(3); // Text node
+    expect(content.textContent).toBe('hello');
+
+    // No span wrapper in the DOM
+    expect(parent.querySelector('span')).toBeNull();
+
+    result.dispose();
+  });
+
   test('__child() appends HTMLElement directly, not as string', () => {
     const parent = document.createElement('div');
     const child = document.createElement('span');
     child.textContent = 'child content';
 
-    // __child() checks if value is a Node and appends directly (inside a wrapper)
-    const wrapper = __child(() => child);
-    parent.appendChild(wrapper);
+    // __child() inserts the Node as a sibling after the comment anchor
+    const result = __child(() => child);
+    parent.appendChild(result);
 
-    // The child element should be inside the wrapper (not stringified)
+    // The child element should be after the comment anchor (not stringified)
     expect(parent.textContent).toBe('child content');
     expect(parent.innerHTML).not.toContain('[object HTMLElement]');
-    expect(wrapper.children.length).toBe(1);
-    expect(wrapper.children[0]).toBe(child);
+    // comment + child element
+    expect(parent.childNodes.length).toBe(2);
+    expect(parent.childNodes[1]).toBe(child);
 
-    wrapper.dispose();
+    result.dispose();
   });
 
   test('__child() converts primitives to text nodes', () => {
     const parent = document.createElement('div');
 
     // String
-    const strMarker = __child(() => 'hello');
-    parent.appendChild(strMarker);
+    const strResult = __child(() => 'hello');
+    parent.appendChild(strResult);
     expect(parent.textContent).toBe('hello');
-    strMarker.dispose();
+    strResult.dispose();
 
     // Number
     parent.textContent = '';
-    const numMarker = __child(() => 42);
-    parent.appendChild(numMarker);
+    const numResult = __child(() => 42);
+    parent.appendChild(numResult);
     expect(parent.textContent).toBe('42');
-    numMarker.dispose();
+    numResult.dispose();
   });
 
   test('__child() handles null and undefined', () => {
     const parent = document.createElement('div');
 
-    const marker = __child(() => null);
-    parent.appendChild(marker);
+    const result = __child(() => null);
+    parent.appendChild(result);
+    // Only the comment anchor, no content
+    expect(parent.childNodes.length).toBe(1);
+    expect(parent.childNodes[0].nodeType).toBe(8); // Comment
     expect(parent.textContent).toBe('');
 
-    marker.dispose();
+    result.dispose();
   });
 
   test('__child() updates text content in-place when fn() returns a string', () => {
     const name = signal('Jane');
+    const parent = document.createElement('div');
 
-    const wrapper = __child(() => `Hello ${name.value}`);
+    const result = __child(() => `Hello ${name.value}`);
+    parent.appendChild(result);
 
-    // Initial render: wrapper has a single text node
-    expect(wrapper.textContent).toBe('Hello Jane');
-    expect(wrapper.childNodes.length).toBe(1);
-    const textNode = wrapper.firstChild!;
+    // Initial render: comment + text node
+    expect(parent.textContent).toBe('Hello Jane');
+    const textNode = parent.childNodes[1]; // after comment
     expect(textNode.nodeType).toBe(3); // Text node
 
     // Update signal — text should update in-place (same text node)
     name.value = 'Bob';
-    expect(wrapper.textContent).toBe('Hello Bob');
-    expect(wrapper.childNodes.length).toBe(1);
-    expect(wrapper.firstChild).toBe(textNode); // Same text node reference
+    expect(parent.textContent).toBe('Hello Bob');
+    expect(parent.childNodes[1]).toBe(textNode); // Same text node reference
 
-    wrapper.dispose();
+    result.dispose();
   });
 
   test('__child() updates text in-place for number-to-string transitions', () => {
     const val = signal<string | number>('hello');
+    const parent = document.createElement('div');
 
-    const wrapper = __child(() => val.value);
+    const result = __child(() => val.value);
+    parent.appendChild(result);
 
-    expect(wrapper.textContent).toBe('hello');
-    const textNode = wrapper.firstChild!;
+    expect(parent.textContent).toBe('hello');
+    const textNode = parent.childNodes[1]; // after comment
 
     // Change to number — should still update in-place
     val.value = 42;
-    expect(wrapper.textContent).toBe('42');
-    expect(wrapper.firstChild).toBe(textNode); // Same text node
+    expect(parent.textContent).toBe('42');
+    expect(parent.childNodes[1]).toBe(textNode); // Same text node
 
     // Back to string
     val.value = 'world';
-    expect(wrapper.textContent).toBe('world');
-    expect(wrapper.firstChild).toBe(textNode); // Same text node
+    expect(parent.textContent).toBe('world');
+    expect(parent.childNodes[1]).toBe(textNode); // Same text node
 
-    wrapper.dispose();
+    result.dispose();
   });
 
   test('__child() transitions from text to null correctly', () => {
     const val = signal<string | null>('hello');
+    const parent = document.createElement('div');
 
-    const wrapper = __child(() => val.value);
+    const result = __child(() => val.value);
+    parent.appendChild(result);
 
-    expect(wrapper.textContent).toBe('hello');
-    expect(wrapper.childNodes.length).toBe(1);
+    expect(parent.textContent).toBe('hello');
+    expect(parent.childNodes.length).toBe(2); // comment + text
 
-    // Transition to null — should clear the text node
+    // Transition to null — should remove the text node
     val.value = null;
-    expect(wrapper.textContent).toBe('');
-    expect(wrapper.childNodes.length).toBe(0);
+    expect(parent.textContent).toBe('');
+    expect(parent.childNodes.length).toBe(1); // only comment
 
     // Back to text — creates a new text node
     val.value = 'world';
-    expect(wrapper.textContent).toBe('world');
-    expect(wrapper.childNodes.length).toBe(1);
+    expect(parent.textContent).toBe('world');
+    expect(parent.childNodes.length).toBe(2); // comment + text
 
-    wrapper.dispose();
+    result.dispose();
   });
 
   test('__child() transitions from text to Node correctly', () => {
     const node = document.createElement('span');
     node.textContent = 'element';
     const val = signal<string | Node>('text');
+    const parent = document.createElement('div');
 
-    const wrapper = __child(() => val.value);
+    const result = __child(() => val.value);
+    parent.appendChild(result);
 
-    expect(wrapper.textContent).toBe('text');
-    expect(wrapper.childNodes.length).toBe(1);
-    expect(wrapper.firstChild!.nodeType).toBe(3); // Text node
+    expect(parent.textContent).toBe('text');
+    expect(parent.childNodes.length).toBe(2); // comment + text
+    expect(parent.childNodes[1].nodeType).toBe(3); // Text node
 
     // Transition to Node — should replace text with the element
     val.value = node;
-    expect(wrapper.textContent).toBe('element');
-    expect(wrapper.childNodes.length).toBe(1);
-    expect(wrapper.firstChild).toBe(node);
+    expect(parent.textContent).toBe('element');
+    expect(parent.childNodes.length).toBe(2); // comment + element
+    expect(parent.childNodes[1]).toBe(node);
 
-    wrapper.dispose();
+    result.dispose();
   });
 
   test('__child() handles falsy number 0 correctly in text fast-path', () => {
     const val = signal<number>(1);
+    const parent = document.createElement('div');
 
-    const wrapper = __child(() => val.value);
+    const result = __child(() => val.value);
+    parent.appendChild(result);
 
-    expect(wrapper.textContent).toBe('1');
-    const textNode = wrapper.firstChild!;
+    expect(parent.textContent).toBe('1');
+    const textNode = parent.childNodes[1]; // after comment
 
     // 0 is falsy but should render as "0", not empty
     val.value = 0;
-    expect(wrapper.textContent).toBe('0');
-    expect(wrapper.firstChild).toBe(textNode); // Same text node — in-place update
+    expect(parent.textContent).toBe('0');
+    expect(parent.childNodes[1]).toBe(textNode); // Same text node — in-place update
 
-    wrapper.dispose();
+    result.dispose();
   });
 
   test('__child() skips DOM operations when fn() returns same Node reference', () => {
     const s = signal(0);
     const stableNode = document.createElement('div');
     stableNode.textContent = 'stable';
+    const parent = document.createElement('div');
 
-    const wrapper = __child(() => {
+    const result = __child(() => {
       s.value; // subscribe to signal
       return stableNode;
     });
+    parent.appendChild(result);
 
-    // Initial render: stableNode is inside wrapper
-    expect(wrapper.children[0]).toBe(stableNode);
+    // Initial render: stableNode is after the comment anchor
+    expect(parent.childNodes[1]).toBe(stableNode);
 
     // Spy on removeChild after initial render
     let removeCount = 0;
-    const origRemoveChild = wrapper.removeChild.bind(wrapper);
-    wrapper.removeChild = <T extends Node>(child: T): T => {
+    const origRemoveChild = parent.removeChild.bind(parent);
+    parent.removeChild = <T extends Node>(child: T): T => {
       removeCount++;
       return origRemoveChild(child);
     };
@@ -199,9 +234,9 @@ describe('Child node rendering', () => {
 
     // Should NOT have removed anything (stable-node optimization)
     expect(removeCount).toBe(0);
-    expect(wrapper.children[0]).toBe(stableNode);
-    expect(wrapper.children.length).toBe(1);
+    expect(parent.childNodes[1]).toBe(stableNode);
+    expect(parent.childNodes.length).toBe(2); // comment + stableNode
 
-    wrapper.dispose();
+    result.dispose();
   });
 });

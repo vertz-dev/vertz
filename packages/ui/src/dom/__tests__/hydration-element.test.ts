@@ -141,88 +141,76 @@ describe('DOM helpers — hydration branches', () => {
   });
 
   describe('__child', () => {
-    it('adopts existing span wrapper during hydration', () => {
+    it('claims comment anchor during hydration', () => {
       const root = document.createElement('div');
-      const span = document.createElement('span');
-      span.style.display = 'contents';
-      span.textContent = 'hello';
-      root.appendChild(span);
+      // SSR output: <!--child-->hello
+      root.appendChild(document.createComment('child'));
+      root.appendChild(document.createTextNode('hello'));
+      const existingComment = root.firstChild as Comment;
       startHydration(root);
 
-      const wrapper = __child(() => 'hello');
-      expect(wrapper).toBe(span);
+      const result = __child(() => 'hello');
+      // Result should be the claimed comment node
+      expect(result).toBe(existingComment);
     });
 
-    it('creates new wrapper when claim fails during hydration', () => {
+    it('falls back to CSR when no comment to claim during hydration', () => {
       const root = document.createElement('div');
-      // Only a text node, no span to claim
+      // Only a text node, no comment to claim
       root.appendChild(document.createTextNode('just text'));
       startHydration(root);
 
-      const wrapper = __child(() => 'fallback');
-      // Should have created a new span wrapper since no span was found
-      expect(wrapper.tagName).toBe('SPAN');
-      expect(wrapper.style.display).toBe('contents');
-      expect(wrapper.textContent).toBe('fallback');
+      const result = __child(() => 'fallback');
+      // Should have created a new fragment with comment anchor
+      expect(result.textContent).toBe('fallback');
     });
 
-    it('attaches reactive effect to adopted wrapper', () => {
+    it('attaches reactive effect to claimed comment anchor', () => {
       const root = document.createElement('div');
-      const span = document.createElement('span');
-      span.style.display = 'contents';
-      span.textContent = 'hello';
-      root.appendChild(span);
+      root.appendChild(document.createComment('child'));
+      root.appendChild(document.createTextNode('hello'));
       startHydration(root);
 
       const text = signal('hello');
-      const wrapper = __child(() => text.value);
-      expect(wrapper).toBe(span);
+      const result = __child(() => text.value);
 
       // Reactive update after hydration ends
       endHydration();
       text.value = 'world';
-      expect(wrapper.textContent).toBe('world');
+      // Content after the comment should be updated
+      expect((result as Comment).nextSibling?.textContent).toBe('world');
     });
 
-    it('clears SSR children and re-renders via CSR during hydration', () => {
+    it('clears SSR content after comment and re-renders via CSR during hydration', () => {
       const root = document.createElement('div');
-      const span = document.createElement('span');
-      span.style.display = 'contents';
-      span.textContent = 'ssr-content';
-      root.appendChild(span);
+      root.appendChild(document.createComment('child'));
+      root.appendChild(document.createTextNode('ssr-content'));
       startHydration(root);
 
-      const wrapper = __child(() => 'csr-content');
-      expect(wrapper).toBe(span);
-      // SSR content should be replaced with CSR-rendered content
-      expect(wrapper.textContent).toBe('csr-content');
+      const result = __child(() => 'csr-content');
+      // SSR text should be replaced with CSR-rendered content
+      expect((result as Comment).nextSibling?.textContent).toBe('csr-content');
     });
 
     it('renders Node children via CSR during hydration (not claimed from SSR)', () => {
       const root = document.createElement('div');
-      const span = document.createElement('span');
-      span.style.display = 'contents';
+      root.appendChild(document.createComment('child'));
       const ssrChild = document.createElement('article');
       ssrChild.textContent = 'ssr';
-      span.appendChild(ssrChild);
-      root.appendChild(span);
+      root.appendChild(ssrChild);
       startHydration(root);
 
       const csrChild = document.createElement('article');
       csrChild.textContent = 'csr';
-      const wrapper = __child(() => csrChild);
-      expect(wrapper).toBe(span);
+      const result = __child(() => csrChild);
       // Should contain the CSR-created node, not the SSR one
-      expect(wrapper.firstChild).toBe(csrChild);
-      expect(wrapper.textContent).toBe('csr');
+      expect((result as Comment).nextSibling).toBe(csrChild);
     });
 
     it('event handlers on CSR-rendered children work during hydration', () => {
       const root = document.createElement('div');
-      const span = document.createElement('span');
-      span.style.display = 'contents';
-      span.innerHTML = '<button>click me</button>';
-      root.appendChild(span);
+      root.appendChild(document.createComment('child'));
+      root.appendChild(document.createTextNode('placeholder'));
       startHydration(root);
 
       let clicked = false;
@@ -231,57 +219,53 @@ describe('DOM helpers — hydration branches', () => {
       button.addEventListener('click', () => {
         clicked = true;
       });
-      const wrapper = __child(() => button);
-      expect(wrapper).toBe(span);
+      const result = __child(() => button);
 
       // The button should be the CSR-created one with the event handler
-      const btn = wrapper.querySelector('button')!;
+      const btn = (result as Comment).nextSibling as HTMLElement;
       expect(btn).toBe(button);
       btn.click();
       expect(clicked).toBe(true);
     });
 
-    it('hydration cursor advances past span for siblings after __child()', () => {
+    it('hydration cursor advances past comment for siblings after __child()', () => {
       const root = document.createElement('div');
-      root.innerHTML = '<span style="display:contents">child</span><p>sibling</p>';
+      // SSR output: <!--child-->child text<p>sibling</p>
+      root.appendChild(document.createComment('child'));
+      root.appendChild(document.createTextNode('child'));
+      const p = document.createElement('p');
+      p.textContent = 'sibling';
+      root.appendChild(p);
       startHydration(root);
 
       __child(() => 'child');
 
-      // Cursor should have advanced past the span — next claim should find <p>
-      const p = __element('p');
-      expect(p).not.toBeNull();
-      expect(p.tagName).toBe('P');
+      // Cursor should have advanced past the comment — next claim should find <p>
+      const claimed = __element('p');
+      expect(claimed).not.toBeNull();
+      expect(claimed.tagName).toBe('P');
     });
 
     it('reactive updates work after hydration on CSR-rendered children', () => {
       const root = document.createElement('div');
-      const span = document.createElement('span');
-      span.style.display = 'contents';
-      span.textContent = 'initial';
-      root.appendChild(span);
+      root.appendChild(document.createComment('child'));
+      root.appendChild(document.createTextNode('initial'));
       startHydration(root);
 
       const text = signal('hello');
-      const wrapper = __child(() => text.value);
-      expect(wrapper).toBe(span);
-      expect(wrapper.textContent).toBe('hello');
+      const result = __child(() => text.value);
+      expect((result as Comment).nextSibling?.textContent).toBe('hello');
 
       // End hydration and trigger reactive update
       endHydration();
       text.value = 'updated';
-      expect(wrapper.textContent).toBe('updated');
+      expect((result as Comment).nextSibling?.textContent).toBe('updated');
     });
 
     it('ref and getElementById point to same element after hydration (#1517)', () => {
-      // __child CSR-renders content during hydration. The CSR-created elements
-      // are appended to the claimed wrapper and ARE connected to the DOM.
-      // Both ref and getElementById should return the same element.
       const root = document.createElement('div');
-      root.innerHTML =
-        '<span style="display:contents">' +
-        '<dialog id="test-dlg"><button>Close</button></dialog>' +
-        '</span>';
+      root.appendChild(document.createComment('child'));
+      root.appendChild(document.createTextNode('placeholder'));
       document.body.appendChild(root);
 
       startHydration(root);
@@ -306,17 +290,15 @@ describe('DOM helpers — hydration branches', () => {
     });
 
     it('JSX event handlers fire on CSR element inside __child (#1517)', () => {
-      // Event handlers attached via __on inside __child target CSR elements
-      // that are connected to the DOM via the claimed wrapper.
       const root = document.createElement('div');
-      root.innerHTML =
-        '<span style="display:contents">' + '<button id="test-btn">Click</button>' + '</span>';
+      root.appendChild(document.createComment('child'));
+      root.appendChild(document.createTextNode('placeholder'));
       document.body.appendChild(root);
 
       startHydration(root);
 
       let clicked = false;
-      const wrapper = __child(() => {
+      const result = __child(() => {
         const btn = document.createElement('button');
         btn.id = 'test-btn';
         btn.textContent = 'Click';
@@ -329,7 +311,7 @@ describe('DOM helpers — hydration branches', () => {
       endHydration();
 
       // The CSR button is in the DOM and has the event handler
-      const btn = wrapper.querySelector('button')!;
+      const btn = (result as Comment).nextSibling as HTMLElement;
       expect(btn.isConnected).toBe(true);
       btn.click();
       expect(clicked).toBe(true);
@@ -448,10 +430,12 @@ describe('DOM helpers — hydration branches', () => {
     });
 
     it('all existing __child behavior works in CSR', () => {
-      const wrapper = __child(() => 'test');
-      expect(wrapper.tagName).toBe('SPAN');
-      expect(wrapper.style.display).toBe('contents');
-      expect(wrapper.textContent).toBe('test');
+      const parent = document.createElement('div');
+      const result = __child(() => 'test');
+      parent.appendChild(result);
+      // Comment anchor + text content
+      expect(parent.childNodes[0].nodeType).toBe(8); // Comment
+      expect(parent.textContent).toBe('test');
     });
 
     it('all existing __insert behavior works in CSR', () => {

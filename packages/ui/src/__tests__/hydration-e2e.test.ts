@@ -378,12 +378,7 @@ describe('tolerant hydration e2e', () => {
     // Regression: __child did not run scope cleanup between evaluations,
     // so nested __conditional effects survived and produced orphaned DOM.
     root.innerHTML =
-      '<div>' +
-      '<span style="display: contents">' +
-      '<!-- conditional -->' +
-      '<span>hello</span>' +
-      '</span>' +
-      '</div>';
+      '<div>' + '<!--child-->' + '<!-- conditional -->' + '<span>hello</span>' + '</div>';
 
     const show = signal(true);
     const label = signal('hello');
@@ -416,24 +411,24 @@ describe('tolerant hydration e2e', () => {
 
     mount(App);
 
-    const wrapper = root.querySelector('span[style*="contents"]')!;
-    expect(wrapper).toBeTruthy();
-    expect(wrapper.textContent).toContain('hello');
+    const parentDiv = root.querySelector('div')!;
+    expect(parentDiv).toBeTruthy();
+    expect(parentDiv.textContent).toContain('hello');
 
     // Toggle off
     show.value = false;
     // The span should be gone (replaced by a comment or empty)
-    expect(wrapper.querySelectorAll('span')).toHaveLength(0);
+    expect(parentDiv.querySelectorAll('span')).toHaveLength(0);
 
     // Toggle back on — should have exactly one span, not duplicates
     show.value = true;
-    expect(wrapper.querySelectorAll('span')).toHaveLength(1);
-    expect(wrapper.textContent).toContain('hello');
+    expect(parentDiv.querySelectorAll('span')).toHaveLength(1);
+    expect(parentDiv.textContent).toContain('hello');
 
     // Change label — should update, not create extra nodes
     label.value = 'world';
-    expect(wrapper.querySelectorAll('span')).toHaveLength(1);
-    expect(wrapper.textContent).toContain('world');
+    expect(parentDiv.querySelectorAll('span')).toHaveLength(1);
+    expect(parentDiv.textContent).toContain('world');
   });
 
   it('hydrateConditional falls back to CSR when no SSR comment anchor', () => {

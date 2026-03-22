@@ -390,22 +390,24 @@ describe('hydration-context', () => {
       warnSpy.mockRestore();
     });
 
-    it('skips __child wrapper children (span display:contents)', () => {
+    it('skips CSR content after claimed <!--child--> comment anchor', () => {
       const root = document.createElement('div');
-      // Simulate SSR with a __child wrapper: <span style="display: contents"><p>inner</p></span>
-      const wrapper = document.createElement('span');
-      wrapper.style.display = 'contents';
-      wrapper.innerHTML = '<p>inner</p>';
-      root.appendChild(wrapper);
+      // Simulate SSR with a __child comment: <!--child--><p>csr-content</p>
+      const comment = document.createComment('child');
+      root.appendChild(comment);
+      const p = document.createElement('p');
+      p.textContent = 'csr-content';
+      root.appendChild(p);
       startHydration(root);
 
-      // Claim the wrapper span (as __child would)
-      claimElement('span');
+      // Claim the comment anchor (as __child would)
+      claimComment();
 
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       endHydration();
 
-      // Inner <p> should NOT trigger an unclaimed warning — it's CSR content
+      // <p> after the claimed <!--child--> comment should NOT trigger an unclaimed warning
+      // — it's CSR-managed content
       const claimWarns = warnSpy.mock.calls.filter(
         (args) => typeof args[0] === 'string' && args[0].includes('not claimed'),
       );

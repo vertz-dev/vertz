@@ -229,16 +229,18 @@ export function claimText(): Text | null {
       return text;
     }
 
-    // Stop at element nodes — don't consume them.
+    // Stop at element and comment nodes — don't consume them.
     // Adjacent text content (e.g. "Page Views" + ":") merges into a single
     // browser text node, so a subsequent claimText() may find nothing.
     // If we skipped past element nodes here, a following claimElement() would
     // miss the element (the Counter hydration bug).
-    if (currentNode.nodeType === Node.ELEMENT_NODE) {
+    // Comment nodes are anchors for __child (<!--child-->) and __conditional
+    // (<!-- conditional -->), so they must also not be skipped.
+    if (currentNode.nodeType === Node.ELEMENT_NODE || currentNode.nodeType === Node.COMMENT_NODE) {
       break;
     }
 
-    // Skip other node types (comments, processing instructions, etc.)
+    // Skip other node types (processing instructions, etc.)
     currentNode = currentNode.nextSibling;
   }
 
@@ -325,16 +327,23 @@ function findUnclaimedNodes(root: Element, claimed: WeakSet<Node>): Node[] {
         }
       }
 
-      // Skip children of claimed <span style="display: contents"> wrappers
-      // These are __child wrappers whose inner content is CSR-rendered
+      // Skip siblings after a claimed <!--child--> comment anchor.
+      // These are CSR-rendered content managed by __child and should not
+      // be reported as unclaimed SSR nodes.
       if (
-        child.nodeType === Node.ELEMENT_NODE &&
+        child.nodeType === Node.COMMENT_NODE &&
         claimed.has(child) &&
-        (child as HTMLElement).tagName === 'SPAN' &&
-        (child as HTMLElement).style.display === 'contents'
+        (child as Comment).data.trim() === 'child'
       ) {
-        // Don't walk into this node's children — they are CSR content
+        // Skip all following siblings until the next <!--child--> comment
+        // or end of parent — they are CSR-managed content.
         child = child.nextSibling;
+        while (child) {
+          if (child.nodeType === Node.COMMENT_NODE && (child as Comment).data.trim() === 'child') {
+            break; // Next __child boundary — stop skipping
+          }
+          child = child.nextSibling;
+        }
         continue;
       }
 
