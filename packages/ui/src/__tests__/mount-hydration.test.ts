@@ -267,8 +267,7 @@ describe('mount() — tolerant hydration', () => {
 
   it('onClick works when button follows span with reactive children (Counter pattern)', () => {
     // SSR HTML: span contains static text + reactive __child wrapper span, then sibling button
-    root.innerHTML =
-      '<div><span>Count: <span style="display: contents">0</span></span><button>+</button></div>';
+    root.innerHTML = '<div><span>Count: <!--child-->0</span><button>+</button></div>';
 
     const ssrDiv = root.firstChild as HTMLElement;
     const ssrButton = ssrDiv.querySelector('button')!;
@@ -327,7 +326,7 @@ describe('mount() — tolerant hydration', () => {
     root.innerHTML =
       '<div class="layout"><div class="sidebar">Sidebar</div>' +
       '<div class="content"><div class="page"><h1>Settings</h1>' +
-      '<div><span>Saves:<span style="display: contents">0</span></span>' +
+      '<div><span>Saves:<!--child-->0</span>' +
       '<button>+</button></div></div></div></div>';
 
     const ssrButton = root.querySelector('button')!;
@@ -429,8 +428,7 @@ describe('mount() — tolerant hydration', () => {
   });
 
   it('Counter pattern produces no claim verification warnings', () => {
-    root.innerHTML =
-      '<div><span>Count: <span style="display: contents">0</span></span><button>+</button></div>';
+    root.innerHTML = '<div><span>Count: <!--child-->0</span><button>+</button></div>';
 
     const count = signal(0);
 
@@ -476,7 +474,7 @@ describe('mount() — tolerant hydration', () => {
     root.innerHTML =
       '<div class="layout"><div class="sidebar">Sidebar</div>' +
       '<div class="content"><div class="page"><h1>Settings</h1>' +
-      '<div><span>Saves:<span style="display: contents">0</span></span>' +
+      '<div><span>Saves:<!--child-->0</span>' +
       '<button>+</button></div></div></div></div>';
 
     const count = signal(0);
@@ -627,8 +625,7 @@ describe('mount() — tolerant hydration', () => {
 
   it('hydrates correctly with mixed __insert (static) and __child (reactive) children', () => {
     // SSR output: HEADER is a bare text node (via __insert), reactive value is in <span>
-    root.innerHTML =
-      '<div><h1>My Tasks</h1><span><span style="display: contents">0</span></span></div>';
+    root.innerHTML = '<div><h1>My Tasks</h1><span><!--child-->0</span></div>';
 
     const count = signal(0);
 
@@ -665,7 +662,8 @@ describe('mount() — tolerant hydration', () => {
 
     // (b) reactive child updates after hydration
     count.value = 42;
-    expect(root.querySelector('span span')?.textContent).toBe('42');
+    // With comment markers, the reactive text is a direct child of the outer <span>
+    expect(root.querySelector('span')?.textContent).toBe('42');
 
     // (c) no hydration warnings
     const claimWarns = warnSpy.mock.calls.filter(
@@ -678,8 +676,7 @@ describe('mount() — tolerant hydration', () => {
 
   it('onClick works with Fast Refresh wrapper on Counter pattern', () => {
     // Same SSR HTML as Counter pattern test
-    root.innerHTML =
-      '<div><span>Count: <span style="display: contents">0</span></span><button>+</button></div>';
+    root.innerHTML = '<div><span>Count: <!--child-->0</span><button>+</button></div>';
 
     const ssrButton = (root.firstChild as HTMLElement).querySelector('button')!;
 
@@ -1032,7 +1029,7 @@ describe('mount() — post-hydration onMount timing', () => {
 
   it('onMount inside __child is still deferred during hydration', () => {
     // SSR: the __child wrapper span contains "hello"
-    root.innerHTML = '<div><span style="display: contents">hello</span></div>';
+    root.innerHTML = '<div><!--child-->hello</div>';
 
     let mountRanDuringHydration: boolean | null = null;
 

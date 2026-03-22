@@ -11,26 +11,27 @@ describe('__child() resolves children thunks', () => {
     // and renders {children} in JSX — compiler wraps as __child(() => children)
     // where children is itself a function
     const thunk = () => childEl;
-    const wrapper = __child(() => thunk);
-    parent.appendChild(wrapper);
+    const result = __child(() => thunk);
+    parent.appendChild(result);
 
     expect(parent.textContent).toBe('hello from thunk');
     expect(parent.innerHTML).not.toContain('[object Object]');
     expect(parent.innerHTML).not.toContain('=>');
-    expect(wrapper.children[0]).toBe(childEl);
+    // comment anchor + child element
+    expect(parent.childNodes[1]).toBe(childEl);
 
-    wrapper.dispose();
+    result.dispose();
   });
 
   test('resolves a thunk returning a string', () => {
     const parent = document.createElement('div');
     const thunk = () => 'text from thunk';
-    const wrapper = __child(() => thunk);
-    parent.appendChild(wrapper);
+    const result = __child(() => thunk);
+    parent.appendChild(result);
 
     expect(parent.textContent).toBe('text from thunk');
 
-    wrapper.dispose();
+    result.dispose();
   });
 
   test('resolves a thunk returning an array of nodes', () => {
@@ -42,13 +43,14 @@ describe('__child() resolves children thunks', () => {
 
     // Compiler wraps multiple children as: children: () => [child1, child2]
     const thunk = () => [a, b];
-    const wrapper = __child(() => thunk);
-    parent.appendChild(wrapper);
+    const result = __child(() => thunk);
+    parent.appendChild(result);
 
     expect(parent.textContent).toBe('firstsecond');
-    expect(wrapper.children.length).toBe(2);
+    // comment anchor + 2 child elements
+    expect(parent.childNodes.length).toBe(3);
 
-    wrapper.dispose();
+    result.dispose();
   });
 
   test('resolves nested thunks', () => {
@@ -59,12 +61,12 @@ describe('__child() resolves children thunks', () => {
     // thunk returning a thunk returning a node
     const inner = () => el;
     const outer = () => inner;
-    const wrapper = __child(() => outer);
-    parent.appendChild(wrapper);
+    const result = __child(() => outer);
+    parent.appendChild(result);
 
     expect(parent.textContent).toBe('nested');
 
-    wrapper.dispose();
+    result.dispose();
   });
 });
 
@@ -78,14 +80,15 @@ describe('__child() resolves arrays', () => {
 
     // Simulates: {items.map(i => <span>{i}</span>)} in JSX
     // The compiler wraps this as __child(() => items.map(...)) when reactive
-    const wrapper = __child(() => [a, b] as unknown as Node);
-    parent.appendChild(wrapper);
+    const result = __child(() => [a, b] as unknown as Node);
+    parent.appendChild(result);
 
     expect(parent.textContent).toBe('AB');
     expect(parent.innerHTML).not.toContain('[object Object]');
-    expect(wrapper.children.length).toBe(2);
+    // comment anchor + 2 elements
+    expect(parent.childNodes.length).toBe(3);
 
-    wrapper.dispose();
+    result.dispose();
   });
 });
 
