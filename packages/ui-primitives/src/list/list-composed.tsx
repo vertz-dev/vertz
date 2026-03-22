@@ -72,7 +72,6 @@ function ListItem({ children, className, class: classProp }: SlotProps) {
     <li
       class={cn(ctx.classes?.item, className ?? classProp)}
       data-sortable-item={ctx.sortable ? '' : undefined}
-      data-sortable={ctx.sortable ? '' : undefined}
     >
       {children}
     </li>
@@ -157,21 +156,21 @@ function createAnimationHooks(animate: boolean | AnimateConfig): ListAnimationHo
 
         if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5) continue;
 
-        el.setAttribute(
-          'style',
-          `transform: translate(${deltaX}px, ${deltaY}px); transition: none;`,
-        );
+        (el as HTMLElement).style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+        (el as HTMLElement).style.transition = 'none';
 
         requestAnimationFrame(() => {
           (el as HTMLElement).style.transition = `transform ${duration}ms ${easing}`;
           (el as HTMLElement).style.transform = '';
 
-          const onEnd = () => {
-            (el as HTMLElement).style.transition = '';
-            (el as HTMLElement).style.transform = '';
-            el.removeEventListener('transitionend', onEnd);
-          };
-          el.addEventListener('transitionend', onEnd, { once: true });
+          el.addEventListener(
+            'transitionend',
+            () => {
+              (el as HTMLElement).style.transition = '';
+              (el as HTMLElement).style.transform = '';
+            },
+            { once: true },
+          );
         });
       }
     },
@@ -246,6 +245,7 @@ function findSortableItem(target: EventTarget | null, root: Element): HTMLElemen
  * Calculate the insertion index based on pointer Y position and item midpoints.
  */
 function calcInsertionIndex(items: HTMLElement[], clientY: number): number {
+  if (items.length === 0) return 0;
   for (const [i, item] of items.entries()) {
     const rect = item.getBoundingClientRect();
     const midY = rect.top + rect.height / 2;
@@ -269,9 +269,17 @@ function setupDragSort(
     const target = e.target as HTMLElement | null;
     if (!target) return;
 
-    // Only handle events on [data-sortable] elements
-    const sortableEl = target.closest('[data-sortable]');
-    if (!sortableEl || !ulEl.contains(sortableEl)) return;
+    // Check if drag was initiated from a drag handle or directly on an item
+    const hasHandles = ulEl.querySelector('[data-list-drag-handle][data-sortable]') !== null;
+    if (hasHandles) {
+      // When handles exist, only allow drag from handle elements
+      const handle = target.closest('[data-list-drag-handle][data-sortable]');
+      if (!handle || !ulEl.contains(handle)) return;
+    } else {
+      // When no handles, allow drag from sortable items directly
+      const item = target.closest('[data-sortable-item]');
+      if (!item || !ulEl.contains(item)) return;
+    }
 
     const draggedItem = findSortableItem(target, ulEl);
     if (!draggedItem) return;
@@ -341,9 +349,7 @@ function ComposedListRoot({
     // The Provider JSX returns an HTMLElement (the <ul> itself),
     // so root is always the <ul>. querySelector is the fallback.
     const actualUl =
-      root instanceof HTMLElement && root.tagName === 'UL'
-        ? root
-        : root.querySelector('ul');
+      root instanceof HTMLElement && root.tagName === 'UL' ? root : root.querySelector('ul');
     if (actualUl instanceof HTMLElement) {
       setupDragSort(
         actualUl,
