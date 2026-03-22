@@ -10,11 +10,53 @@ export interface DisposableNode extends Node {
 }
 
 /**
+ * Remove all nodes between `start` and `end` (exclusive).
+ * Both start and end must share the same parentNode.
+ */
+function clearBetween(start: Node, end: Node): void {
+  let current = start.nextSibling;
+  while (current && current !== end) {
+    const next = current.nextSibling;
+    current.parentNode?.removeChild(current);
+    current = next;
+  }
+}
+
+/**
+ * Insert content before the end marker.
+ * Handles: null/boolean (nothing), Node/DocumentFragment (insertBefore),
+ * primitives (text node).
+ * No-ops if endMarker is not yet attached to the DOM.
+ */
+function insertContentBefore(endMarker: Node, branchResult: unknown): void {
+  if (branchResult == null || typeof branchResult === 'boolean') return;
+  const parent = endMarker.parentNode;
+  if (!parent) return;
+  if (isRenderNode(branchResult)) {
+    parent.insertBefore(branchResult as Node, endMarker);
+    return;
+  }
+  const text = getAdapter().createTextNode(String(branchResult)) as unknown as Node;
+  parent.insertBefore(text, endMarker);
+}
+
+/**
+ * Append branch content to a DocumentFragment for initial assembly.
+ * Handles: null/boolean (nothing), Node/DocumentFragment (appendChild),
+ * primitives (text node).
+ */
+function appendBranchContent(fragment: DocumentFragment, branchResult: unknown): void {
+  if (branchResult == null || typeof branchResult === 'boolean') return;
+  if (isRenderNode(branchResult)) {
+    fragment.appendChild(branchResult as Node);
+    return;
+  }
+  fragment.appendChild(getAdapter().createTextNode(String(branchResult)) as unknown as Node);
+}
+
+/**
  * Normalize a branch result into a single replaceable Node.
- *
- * DocumentFragments (nodeType 11) lose their children after insertion,
- * breaking subsequent replaceChild calls (currentNode.parentNode is null).
- * Wrap them in a display:contents span so the parent reference stays valid.
+ * Used by the hydration path only (Phase 2 will remove this).
  */
 function normalizeNode(branchResult: unknown): Node {
   if (branchResult == null || typeof branchResult === 'boolean') {
@@ -172,17 +214,21 @@ function hydrateConditional(
 }
 
 /**
- * CSR path for __conditional (original behavior).
+ * CSR path for __conditional.
+ * Uses comment end markers to define region boundaries instead of span wrappers.
+ * Content is managed between <!--conditional--> and <!--/conditional--> markers.
  */
 function csrConditional(
   condFn: () => boolean,
   trueFn: () => Node | null,
   falseFn: () => Node | null,
 ): DisposableNode {
-  // Use a comment node as a stable anchor/placeholder
   const anchor = getAdapter().createComment('conditional') as unknown as Comment;
-  let currentNode: Node | null = null;
+  const endMarker = getAdapter().createComment('/conditional') as unknown as Comment;
   let branchCleanups: DisposeFn[] = [];
+  let isFirstRun = true;
+  // Stores branch result from first synchronous domEffect run for fragment assembly.
+  let firstRunResult: unknown;
 
   // Wrap the outer effect in its own scope so that any parent disposal scope
   // captures the outerScope — not the raw effect dispose.
@@ -199,40 +245,38 @@ function csrConditional(
     popScope();
     branchCleanups = scope;
 
-    const newNode = normalizeNode(branchResult);
-
-    if (currentNode?.parentNode) {
-      // Replace old node with new node
-      currentNode.parentNode.replaceChild(newNode, currentNode);
-    } else if (anchor.parentNode) {
-      // First render after anchor is in the DOM: insert after anchor
-      anchor.parentNode.insertBefore(newNode, anchor.nextSibling);
+    if (isFirstRun) {
+      isFirstRun = false;
+      // Stash result — fragment is assembled after domEffect returns.
+      // Uses appendChild (not insertBefore) to avoid SSR shim sync issue.
+      firstRunResult = branchResult;
+      return;
     }
 
-    currentNode = newNode;
+    // Subsequent runs: clear region between markers and insert new content
+    clearBetween(anchor, endMarker);
+    insertContentBefore(endMarker, branchResult);
   });
   popScope();
 
-  const wrapper = () => {
+  const disposeFn = () => {
     // Run cleanups for the currently active branch
     runCleanups(branchCleanups);
     // Dispose the outer scope (stops the effect)
     runCleanups(outerScope);
   };
 
-  // Register the full wrapper with any active parent scope (if one exists).
-  // When __conditional is called at the top level, no parent scope exists — that's fine,
-  // the caller is responsible for calling dispose() manually.
-  _tryOnCleanup(wrapper);
+  // Register the full disposer with any active parent scope (if one exists).
+  _tryOnCleanup(disposeFn);
 
-  // Return a fragment containing both anchor and initial rendered content
+  // Build fragment in order: anchor → content → endMarker.
+  // Uses appendChild to keep SSR shim's children array in sync.
   const fragment = getAdapter().createDocumentFragment() as unknown as DocumentFragment;
   fragment.appendChild(anchor);
-  if (currentNode) {
-    fragment.appendChild(currentNode);
-  }
+  appendBranchContent(fragment, firstRunResult);
+  fragment.appendChild(endMarker);
 
   // Attach dispose to the fragment for lifecycle management
-  const result: DisposableNode = Object.assign(fragment, { dispose: wrapper });
+  const result: DisposableNode = Object.assign(fragment, { dispose: disposeFn });
   return result;
 }

@@ -4,6 +4,96 @@ import { domEffect, signal } from '../../runtime/signal';
 import { __conditional } from '../conditional';
 
 describe('__conditional', () => {
+  it('produces anchor comment + content + end marker comment (no span wrapper)', () => {
+    const show = signal(true);
+    const container = document.createElement('div');
+    const fragment = __conditional(
+      () => show.value,
+      () => {
+        const span = document.createElement('span');
+        span.textContent = 'visible';
+        return span;
+      },
+      () => null,
+    );
+    container.appendChild(fragment);
+
+    // Collect all comment nodes
+    const comments: Comment[] = [];
+    for (const node of container.childNodes) {
+      if (node.nodeType === 8) comments.push(node as Comment);
+    }
+    // Should have anchor + end marker
+    expect(comments.length).toBe(2);
+    expect(comments[0].data).toBe('conditional');
+    expect(comments[1].data).toBe('/conditional');
+
+    // No span with display:contents
+    const spans = container.querySelectorAll('span');
+    for (const span of spans) {
+      expect(span.style.display).not.toBe('contents');
+    }
+  });
+
+  it('branch switch keeps content between markers', () => {
+    const show = signal(true);
+    const container = document.createElement('div');
+    const fragment = __conditional(
+      () => show.value,
+      () => {
+        const span = document.createElement('span');
+        span.textContent = 'yes';
+        return span;
+      },
+      () => {
+        const span = document.createElement('span');
+        span.textContent = 'no';
+        return span;
+      },
+    );
+    container.appendChild(fragment);
+
+    // Verify structure: anchor, content, end marker
+    expect(container.childNodes.length).toBe(3);
+    expect((container.childNodes[0] as Comment).data).toBe('conditional');
+    expect(container.childNodes[1].textContent).toBe('yes');
+    expect((container.childNodes[2] as Comment).data).toBe('/conditional');
+
+    // Switch branch
+    show.value = false;
+
+    // Structure preserved: anchor, NEW content, end marker
+    expect(container.childNodes.length).toBe(3);
+    expect((container.childNodes[0] as Comment).data).toBe('conditional');
+    expect(container.childNodes[1].textContent).toBe('no');
+    expect((container.childNodes[2] as Comment).data).toBe('/conditional');
+  });
+
+  it('null branch leaves only anchor and end marker (adjacent)', () => {
+    const show = signal(true);
+    const container = document.createElement('div');
+    const fragment = __conditional(
+      () => show.value,
+      () => null as unknown as Node,
+      () => {
+        const span = document.createElement('span');
+        span.textContent = 'fallback';
+        return span;
+      },
+    );
+    container.appendChild(fragment);
+
+    // Null branch: only anchor + end marker
+    expect(container.childNodes.length).toBe(2);
+    expect((container.childNodes[0] as Comment).data).toBe('conditional');
+    expect((container.childNodes[1] as Comment).data).toBe('/conditional');
+
+    // Switch to non-null branch
+    show.value = false;
+    expect(container.childNodes.length).toBe(3);
+    expect(container.textContent).toBe('fallback');
+  });
+
   it('renders the true branch when condition is true', () => {
     const show = signal(true);
     const container = document.createElement('div');
