@@ -71,7 +71,7 @@ Today this is partially mitigated by PR #926's literal/non-literal JSX strategy 
 2. **Computed classification** -- `const x = importedHelper()` is classified as static because the compiler doesn't know the helper returns reactive values
 3. **Diagnostics** -- the compiler can't warn about misuse of reactive APIs from other files
 
-**Evidence:** This problem is forward-looking -- no external user bug reports exist (no external users yet). The primary use cases are utility functions that compose reactive values (e.g., a `transitionList` helper, a `queryMatch` pattern) and re-exported framework APIs through barrel files. Pre-v1 is the right time to fix compiler fundamentals.
+**Evidence:** This problem is forward-looking -- no external user bug reports exist (no external users yet). The primary use cases are utility functions that compose reactive values (e.g., a `transitionList` helper) and re-exported framework APIs through barrel files. Pre-v1 is the right time to fix compiler fundamentals.
 
 **Important architectural note:** Wrapping `query()` or `form()` in custom hooks is **discouraged** in Vertz. The generated SDK is the right abstraction for data fetching — it handles typing, filters, and all the verbose parts. `query()` is a primitive meant to be used directly inside components. Wrapping it in a hook like `useTasks()` creates problems:
 
@@ -528,7 +528,7 @@ Cross-file reactivity analysis moves more correctness checks to compile time. To
 
 ### "One way to do things" (Principle 2)
 
-The manifest system means reactive utilities work correctly regardless of which file they're defined in. A `transitionList()` helper or a `queryMatch()` pattern that returns reactive values will get correct auto-unwrapping and computed classification, whether defined inline or imported from a utility file. Today, extracting reactive logic into a shared utility silently breaks the compiler. After this change, the abstraction is transparent.
+The manifest system means reactive utilities work correctly regardless of which file they're defined in. A `transitionList()` helper that returns reactive values will get correct auto-unwrapping and computed classification, whether defined inline or imported from a utility file. Today, extracting reactive logic into a shared utility silently breaks the compiler. After this change, the abstraction is transparent.
 
 ### "Compile-time over runtime" (Principle 3)
 

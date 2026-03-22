@@ -126,7 +126,6 @@ function childEffect(
 
     // Stable-node optimization: if fn() returns the same Node reference
     // that's already the sole managed node, skip DOM work.
-    // Critical for queryMatch, which returns a cached wrapper.
     if (managed.length === 1 && isRenderNode(value) && managed[0] === value) {
       return;
     }
@@ -182,9 +181,9 @@ export function __child(
       const childCleanups = { value: [] as DisposeFn[] };
 
       // Clear SSR content after the comment anchor — it will be re-rendered
-      // via CSR below. JSX inside callbacks (e.g., queryMatch handlers) is not
-      // hydration-aware, so attempting to hydrate would create detached DOM
-      // nodes with dead event handlers. See #826.
+      // via CSR below. JSX inside callbacks is not hydration-aware, so
+      // attempting to hydrate would create detached DOM nodes with dead
+      // event handlers. See #826.
       // Stop at the next <!--child--> comment (sibling __child boundary) but
       // remove other comments (e.g., <!-- conditional -->) which are content.
       let sibling = anchor.nextSibling;

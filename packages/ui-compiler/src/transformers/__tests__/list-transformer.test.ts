@@ -152,8 +152,8 @@ function App() {
       );
 
       // __list() handles static arrays gracefully — domEffect runs once, never re-fires.
-      // Always transforming .map() ensures callback parameters from APIs like queryMatch()
-      // (reactive proxies at runtime but opaque to the compiler) get proper list reconciliation.
+      // Always transforming .map() is the safe default since the source may be a
+      // computed/derived value that's reactive at runtime but opaque to the compiler.
       expect(result.code).toContain('__list(');
     });
   });
@@ -176,26 +176,7 @@ function App() {
     });
   });
 
-  describe('.map() on callback parameters (queryMatch pattern)', () => {
-    it('transforms .map() on callback parameter inside function call to __list()', () => {
-      const result = compile(
-        `
-import { query, queryMatch } from '@vertz/ui';
-function App() {
-  const q = query(() => fetch('/api'));
-  return <div>{queryMatch(q, {
-    loading: () => <span>Loading</span>,
-    error: (e) => <span>Error</span>,
-    data: (response) => <ul>{response.items.map(item => <li key={item.id}>{item.name}</li>)}</ul>,
-  })}</div>;
-}
-        `.trim(),
-      );
-
-      expect(result.code).toContain('__list(');
-      expect(result.code).toContain('item.id');
-    });
-
+  describe('.map() on callback parameters', () => {
     it('transforms .map() on const array variable to __list()', () => {
       const result = compile(
         `

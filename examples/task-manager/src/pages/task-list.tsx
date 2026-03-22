@@ -4,7 +4,7 @@
  * Demonstrates:
  * - JSX for page layout and component composition
  * - query() for reactive data fetching
- * - queryMatch() for exclusive-state pattern matching (loading/error/data)
+ * - Direct conditional rendering for loading/error/data states
  * - Compiler `let` → signal transform for local filter state
  * - Compiler `const` → computed transform for derived values from query()
  * - Compiler list transform: {items.map(...)} → __list()
@@ -12,7 +12,7 @@
  */
 
 import { InboxIcon, PlusIcon } from '@vertz/icons';
-import { query, queryMatch, useRouter } from '@vertz/ui';
+import { query, useRouter } from '@vertz/ui';
 import { api } from '../api/mock-data';
 import { TaskCard } from '../components/task-card';
 import type { Task, TaskStatus } from '../lib/types';
@@ -21,8 +21,8 @@ import { button, emptyStateStyles, layoutStyles } from '../styles/components';
 /**
  * Render the task list page.
  *
- * Uses queryMatch() for exclusive-state rendering of the task list
- * content area. The filter bar and header remain outside the match.
+ * Uses direct conditional rendering for loading/error/data states.
+ * The filter bar and header remain outside the conditionals.
  * Navigation is accessed via useRouter() context — no props needed.
  */
 export function TaskListPage() {
@@ -32,7 +32,7 @@ export function TaskListPage() {
   // Local state: compiler transforms `let` to signal()
   let statusFilter: TaskStatus | 'all' = 'all';
 
-  // query() — non-destructured form to pass the full QueryResult to queryMatch()
+  // query() — compiler auto-unwraps signal properties in JSX
   const tasksQuery = query(api.tasks.list());
 
   // Derived value — the compiler classifies this as computed (depends on
@@ -86,48 +86,46 @@ export function TaskListPage() {
           </button>
         ))}
       </div>
-      {queryMatch(tasksQuery, {
-        loading: () => <div data-testid="loading">Loading tasks...</div>,
-        error: (err) => (
-          <div style={{ color: 'var(--color-destructive)' }} data-testid="error">
-            {`Failed to load tasks: ${err instanceof Error ? err.message : String(err)}`}
-          </div>
-        ),
-        data: () => (
-          <>
-            {filteredTasks.length === 0 && (
-              <div className={emptyStateStyles.container}>
-                <div className={emptyStateStyles.icon}>
-                  <InboxIcon size={48} />
-                </div>
-                <h3 className={emptyStateStyles.title}>No tasks found</h3>
-                <p className={emptyStateStyles.description}>
-                  Create your first task to get started.
-                </p>
-                <button
-                  type="button"
-                  className={button({ intent: 'primary', size: 'md' })}
-                  onClick={() => navigate({ to: '/tasks/new' })}
-                >
-                  Create Task
-                </button>
+      {tasksQuery.loading && <div data-testid="loading">Loading tasks...</div>}
+      {tasksQuery.error && (
+        <div style={{ color: 'var(--color-destructive)' }} data-testid="error">
+          {`Failed to load tasks: ${tasksQuery.error instanceof Error ? tasksQuery.error.message : String(tasksQuery.error)}`}
+        </div>
+      )}
+      {tasksQuery.data && (
+        <>
+          {filteredTasks.length === 0 && (
+            <div className={emptyStateStyles.container}>
+              <div className={emptyStateStyles.icon}>
+                <InboxIcon size={48} />
               </div>
-            )}
-            <div
-              data-testid="task-list"
-              style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
-            >
-              {filteredTasks.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  onClick={(id) => navigate({ to: '/tasks/:id', params: { id } })}
-                />
-              ))}
+              <h3 className={emptyStateStyles.title}>No tasks found</h3>
+              <p className={emptyStateStyles.description}>
+                Create your first task to get started.
+              </p>
+              <button
+                type="button"
+                className={button({ intent: 'primary', size: 'md' })}
+                onClick={() => navigate({ to: '/tasks/new' })}
+              >
+                Create Task
+              </button>
             </div>
-          </>
-        ),
-      })}
+          )}
+          <div
+            data-testid="task-list"
+            style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+          >
+            {filteredTasks.map((task) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                onClick={(id) => navigate({ to: '/tasks/:id', params: { id } })}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

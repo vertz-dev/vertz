@@ -74,7 +74,6 @@ export class JsxAnalyzer {
         plainPropVars,
         fieldSignalPropVars,
       );
-      const hasSignalApiRef = containsSignalApiReference(expr, signalApiVars);
       const hasReactiveSourceAccess = containsReactiveSourceAccess(expr, reactiveSourceVars);
 
       // Check callback-local reactive consts
@@ -84,7 +83,6 @@ export class JsxAnalyzer {
       const reactive =
         uniqueDeps.length > 0 ||
         hasSignalApiAccess ||
-        hasSignalApiRef ||
         hasReactiveSourceAccess ||
         hasCallbackReactive;
 
@@ -186,29 +184,6 @@ function containsSignalApiPropertyAccess(
     if (intermediateBlocked) continue;
 
     return true;
-  }
-  return false;
-}
-
-/**
- * Check if a signal API variable is passed as an argument to a function call
- * (e.g., `queryMatch(todosQuery, ...)`). When a signal API variable is passed
- * as an argument, the callee will internally read reactive properties,
- * so the expression is reactive.
- *
- * Does NOT match property accesses like `todosQuery.data` or `taskForm.title`
- * — those are handled by containsSignalApiPropertyAccess.
- */
-function containsSignalApiReference(node: Node, signalApiVars: Map<string, Set<string>>): boolean {
-  if (signalApiVars.size === 0) return false;
-
-  const callExprs = node.getDescendantsOfKind(SyntaxKind.CallExpression);
-  for (const call of callExprs) {
-    for (const arg of call.getArguments()) {
-      if (arg.isKind(SyntaxKind.Identifier) && signalApiVars.has(arg.getText())) {
-        return true;
-      }
-    }
   }
   return false;
 }

@@ -107,11 +107,11 @@ describe('JsxAnalyzer', () => {
     expect(result?.[0]?.reactive).toBe(true);
   });
 
-  it('classifies signal API variable passed as function argument as reactive', () => {
+  it('classifies signal API property access in JSX as reactive', () => {
     const code = `
       function TodoList() {
         const todosQuery = query(() => api.todos.list());
-        return <div>{queryMatch(todosQuery, { data: (todos) => <ul /> })}</div>;
+        return <div>{todosQuery.data && <ul />}</div>;
       }
     `;
     const variables: VariableInfo[] = [
@@ -124,9 +124,9 @@ describe('JsxAnalyzer', () => {
       },
     ];
     const [result] = analyze(code, variables);
-    const queryMatchExpr = result?.find((e) => e.reactive);
-    expect(queryMatchExpr).toBeDefined();
-    expect(queryMatchExpr?.reactive).toBe(true);
+    const reactiveExpr = result?.find((e) => e.reactive);
+    expect(reactiveExpr).toBeDefined();
+    expect(reactiveExpr?.reactive).toBe(true);
   });
 
   it('does NOT classify signal API variable in property access only as signal API ref', () => {

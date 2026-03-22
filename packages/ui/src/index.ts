@@ -12,8 +12,6 @@ export { ErrorBoundary } from './component/error-boundary';
 export type { ForeignProps } from './component/foreign';
 export { Foreign } from './component/foreign';
 export { onMount } from './component/lifecycle';
-export type { ListAnimationHooks } from './dom/list-animation-context';
-export { ListAnimationContext } from './dom/list-animation-context';
 export type { ListTransitionProps } from './component/list-transition';
 export { ListTransition } from './component/list-transition';
 export type { PresenceProps } from './component/presence';
@@ -105,6 +103,8 @@ export { getAdapter, isRenderNode, RENDER_NODE_BRAND, setAdapter } from './dom/a
 export { onAnimationsComplete } from './dom/animation';
 export { createDOMAdapter } from './dom/dom-adapter';
 export { __append, __element, __enterChildren, __exitChildren, __staticText } from './dom/element';
+export type { ListAnimationHooks } from './dom/list-animation-context';
+export { ListAnimationContext } from './dom/list-animation-context';
 export { isBrowser } from './env/is-browser';
 // Forms
 export type { FieldState } from './form/field-state';
@@ -145,11 +145,10 @@ export { mount } from './mount';
 export type {
   CacheStore,
   QueryDescriptor,
-  QueryMatchHandlers,
   QueryOptions,
   QueryResult,
 } from './query';
-export { invalidate, invalidateTenantQueries, isQueryDescriptor, query, queryMatch } from './query';
+export { invalidate, invalidateTenantQueries, isQueryDescriptor, query } from './query';
 // Router
 export type {
   CompiledRoute,

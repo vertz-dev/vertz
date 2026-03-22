@@ -277,10 +277,12 @@ describe('templates', () => {
   });
 
   describe('homePageTemplate', () => {
-    it('uses query and queryMatch', () => {
+    it('uses query with direct conditionals', () => {
       const result = homePageTemplate();
       expect(result).toContain('query');
-      expect(result).toContain('queryMatch');
+      expect(result).toContain('tasksQuery.loading');
+      expect(result).toContain('tasksQuery.error');
+      expect(result).toContain('tasksQuery.data');
     });
 
     it('uses api.tasks', () => {
@@ -477,7 +479,7 @@ describe('templates', () => {
     it('documents query() for data fetching', () => {
       const result = uiDevelopmentRuleTemplate();
       expect(result).toContain('query(');
-      expect(result).toContain('queryMatch(');
+      expect(result).toContain('tasks.loading');
     });
 
     it('documents css() for styling and theme components', () => {
