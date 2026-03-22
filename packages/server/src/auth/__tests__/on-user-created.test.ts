@@ -3,8 +3,11 @@
  */
 
 import { describe, expect, it } from 'bun:test';
+import { InMemoryClosureStore } from '../closure-store';
+import { defineAccess } from '../define-access';
 import { createAuth } from '../index';
-import type { AuthConfig, AuthInstance, OnUserCreatedPayload } from '../types';
+import { InMemoryRoleAssignmentStore } from '../role-assignment-store';
+import type { AuthCallbackContext, AuthConfig, AuthInstance, OnUserCreatedPayload } from '../types';
 import { InMemoryUserStore } from '../user-store';
 import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';
 
@@ -173,5 +176,97 @@ describe('onUserCreated — email/password sign-up', () => {
     expect(payload.signUpData).not.toHaveProperty('id');
     // Normal extra fields should be present
     expect(payload.signUpData.name).toBe('Test');
+  });
+});
+
+describe('onUserCreated — ctx.roles', () => {
+  const accessDef = defineAccess({
+    entities: {
+      workspace: { roles: ['owner', 'member'] },
+    },
+    entitlements: {
+      'workspace:read': { roles: ['owner', 'member'] },
+    },
+  });
+
+  it('provides ctx.roles.assign when auth.access is configured', async () => {
+    const userStore = new InMemoryUserStore();
+    const roleStore = new InMemoryRoleAssignmentStore();
+    const closureStore = new InMemoryClosureStore();
+    let receivedCtx: AuthCallbackContext | null = null;
+
+    const auth = createTestAuth({
+      userStore,
+      access: { definition: accessDef, roleStore, closureStore },
+      onUserCreated: async (_payload, ctx) => {
+        receivedCtx = ctx;
+      },
+    });
+
+    await auth.handler(
+      new Request('http://localhost/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'test@example.com', password: 'password123' }),
+      }),
+    );
+
+    expect(receivedCtx).not.toBeNull();
+    expect(receivedCtx!.roles).toBeDefined();
+    expect(typeof receivedCtx!.roles.assign).toBe('function');
+    expect(typeof receivedCtx!.roles.revoke).toBe('function');
+  });
+
+  it('ctx.roles.assign delegates to the role store', async () => {
+    const userStore = new InMemoryUserStore();
+    const roleStore = new InMemoryRoleAssignmentStore();
+    const closureStore = new InMemoryClosureStore();
+    let assignedUserId: string | null = null;
+
+    const auth = createTestAuth({
+      userStore,
+      access: { definition: accessDef, roleStore, closureStore },
+      onUserCreated: async (payload, ctx) => {
+        assignedUserId = payload.user.id;
+        await ctx.roles!.assign(payload.user.id, 'workspace', 'ws-1', 'member');
+      },
+    });
+
+    await auth.handler(
+      new Request('http://localhost/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'test@example.com', password: 'password123' }),
+      }),
+    );
+
+    // The role assignment should be in the store
+    expect(assignedUserId).not.toBeNull();
+    const roles = await roleStore.getRoles(assignedUserId!, 'workspace', 'ws-1');
+    expect(roles).toContain('member');
+  });
+
+  it('ctx.roles is undefined when auth.access is NOT configured', async () => {
+    const userStore = new InMemoryUserStore();
+    let receivedCtx: AuthCallbackContext | null = null;
+
+    const auth = createTestAuth({
+      userStore,
+      // No access config
+      onUserCreated: async (_payload, ctx) => {
+        receivedCtx = ctx;
+      },
+    });
+
+    await auth.handler(
+      new Request('http://localhost/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'test@example.com', password: 'password123' }),
+      }),
+    );
+
+    expect(receivedCtx).not.toBeNull();
+    expect(receivedCtx!.roles).toBeUndefined();
   });
 });

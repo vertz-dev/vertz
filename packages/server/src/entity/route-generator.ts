@@ -28,6 +28,10 @@ export interface EntityRouteOptions {
   tenantChain?: TenantChain | null;
   /** Resolves parent IDs for indirect tenant chain traversal. */
   queryParentIds?: import('./crud-pipeline').QueryParentIdsFn;
+  /** Access config — enables entitlement evaluation in CRUD pipeline. */
+  accessConfig?: import('./crud-pipeline').CrudAccessConfig;
+  /** The resource type for the tenant root (e.g., 'workspace'). */
+  tenantResourceType?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -141,6 +145,8 @@ export function generateEntityRoutes(
   const crudHandlers = createCrudHandlers(def, db, {
     tenantChain,
     queryParentIds: options?.queryParentIds,
+    accessConfig: options?.accessConfig,
+    tenantResourceType: options?.tenantResourceType,
   });
   const inject = def.inject ?? {};
   const registryProxy =

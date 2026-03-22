@@ -234,6 +234,9 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
     validateAuthModels(db as unknown as AuthDbClient);
   }
 
+  // Tenant resource type derived from tenant graph + access definition (set during entity processing)
+  let tenantResourceType: string | undefined;
+
   // Process entities first (so registry has all entities registered for DI)
   if (config.entities && config.entities.length > 0) {
     let dbFactory: (entityDef: EntityDefinition) => EntityDbAdapter;
@@ -320,6 +323,30 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
       registry.register(entityDef.name, ops);
     }
 
+    // Compute access config for entity CRUD pipeline (enables rules.entitlement() evaluation)
+    const accessConfig = config.auth?.access
+      ? {
+          definition: config.auth.access.definition,
+          roleStore: config.auth.access.roleStore,
+          closureStore: config.auth.access.closureStore,
+          flagStore: config.auth.access.flagStore,
+          subscriptionStore: config.auth.access.subscriptionStore,
+        }
+      : undefined;
+
+    // Derive tenant resource type from tenant graph root + access definition entity names
+    if (hasDbClient && accessConfig) {
+      const dbClient = db as DatabaseClient<Record<string, ModelEntry>>;
+      const tenantRoot = dbClient._internals.tenantGraph.root; // e.g. 'workspaces'
+      if (tenantRoot) {
+        const accessEntityNames = Object.keys(accessConfig.definition.roles);
+        // Match: access entity 'workspace' → table name 'workspaces' (entity + 's')
+        tenantResourceType = accessEntityNames.find(
+          (name) => name === tenantRoot || `${name}s` === tenantRoot,
+        );
+      }
+    }
+
     // Generate routes for each entity
     for (const entityDef of config.entities) {
       const entityDb = dbFactory(entityDef as EntityDefinition);
@@ -328,6 +355,8 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
         apiPrefix,
         tenantChain,
         queryParentIds: tenantChain ? (queryParentIds ?? config._queryParentIds) : undefined,
+        accessConfig,
+        tenantResourceType,
       });
       allRoutes.push(...routes);
     }
@@ -483,6 +512,46 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
   // ---------------------------------------------------------------------------
   if (hasDbClient && config.auth) {
     const dbClient = db as unknown as AuthDbClient;
+
+    // Auto-wire tenant config from access + .tenant() table
+    // When auth.access is configured and schema has a .tenant() root,
+    // auto-enable tenant endpoints using role-based membership.
+    let autoTenant: import('./auth/types').TenantConfig | undefined;
+    if (
+      config.auth.access &&
+      tenantResourceType &&
+      config.auth.tenant === undefined // Don't override explicit tenant config or explicit disable
+    ) {
+      const roleStore = config.auth.access.roleStore;
+      const resourceType = tenantResourceType; // captured after truthiness check
+      autoTenant = {
+        verifyMembership: async (userId: string, tenantId: string) => {
+          const roles = await roleStore.getRoles(userId, resourceType, tenantId);
+          return roles.length > 0;
+        },
+        listTenants: async (userId: string) => {
+          const assignments = await roleStore.getRolesForUser(userId);
+          const tenantIds = assignments
+            .filter((a) => a.resourceType === resourceType)
+            .map((a) => a.resourceId);
+          if (tenantIds.length === 0) return [];
+          // Use entity proxy to fetch tenant details (no raw SQL)
+          const entityProxy = registry.createProxy();
+          // Find the tenant root entity name (plural, e.g., 'workspaces')
+          const tenantEntityName = `${resourceType}s`;
+          const tenantEntity = entityProxy[tenantEntityName];
+          if (!tenantEntity) return tenantIds.map((id) => ({ id, name: id }));
+          const results = await Promise.all(
+            tenantIds.map(async (id) => {
+              const row = (await tenantEntity.get(id)) as Record<string, unknown> | null;
+              return row ? { id, name: (row.name as string) ?? id } : null;
+            }),
+          );
+          return results.filter(Boolean) as import('./auth/types').TenantInfo[];
+        },
+      };
+    }
+
     const authConfig: AuthConfig = {
       ...config.auth,
       // Auto-wire DB-backed stores unless explicitly overridden
@@ -492,10 +561,14 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
       oauthAccountStore:
         config.auth.oauthAccountStore ??
         (config.auth.providers?.length ? new DbOAuthAccountStore(dbClient) : undefined),
-      // Only create entity proxy when onUserCreated callback exists
-      _entityProxy: config.auth.onUserCreated
-        ? (config.auth._entityProxy ?? registry.createProxy())
-        : undefined,
+      // Only create entity proxy when onUserCreated callback exists or when auto-tenant needs it
+      _entityProxy:
+        config.auth.onUserCreated || autoTenant
+          ? (config.auth._entityProxy ?? registry.createProxy())
+          : undefined,
+      // Auto-wire tenant if detected (access + .tenant() table).
+      // tenant: false explicitly disables. Convert to undefined for createAuth.
+      tenant: config.auth.tenant === false ? undefined : (config.auth.tenant ?? autoTenant),
     };
 
     const auth = createAuth(authConfig);

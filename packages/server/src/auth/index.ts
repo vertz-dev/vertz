@@ -240,12 +240,20 @@ export function createAuth(config: AuthConfig): AuthInstance {
     config.passwordResetStore ??
     (passwordResetEnabled ? new InMemoryPasswordResetStore() : undefined);
 
-  // Tenant switching
-  const tenantConfig = config.tenant;
+  // Tenant switching (false is handled by createServer — filter it out here for safety)
+  const tenantConfig = config.tenant || undefined;
 
   // Auth-entity bridge callback
   const onUserCreated = config.onUserCreated;
   const entityProxy = config._entityProxy ?? {};
+  const callbackRoles = config.access?.roleStore
+    ? {
+        assign: (userId: string, resourceType: string, resourceId: string, role: string) =>
+          config.access!.roleStore.assign(userId, resourceType, resourceId, role),
+        revoke: (userId: string, resourceType: string, resourceId: string, role: string) =>
+          config.access!.roleStore.revoke(userId, resourceType, resourceId, role),
+      }
+    : undefined;
 
   // Rate limiting
   const rateLimitStore = config.rateLimitStore ?? new InMemoryRateLimitStore();
@@ -410,7 +418,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
     // Fire onUserCreated callback for email/password sign-ups
     if (onUserCreated) {
-      const callbackCtx: AuthCallbackContext = { entities: entityProxy };
+      const callbackCtx: AuthCallbackContext = { entities: entityProxy, roles: callbackRoles };
       const payload: OnUserCreatedPayload = {
         user,
         provider: null,
@@ -1467,7 +1475,10 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
               // Fire onUserCreated callback for new OAuth users
               if (onUserCreated) {
-                const callbackCtx: AuthCallbackContext = { entities: entityProxy };
+                const callbackCtx: AuthCallbackContext = {
+                  entities: entityProxy,
+                  roles: callbackRoles,
+                };
                 const payload: OnUserCreatedPayload = {
                   user: newUser,
                   provider: { id: provider.id, name: provider.name },
