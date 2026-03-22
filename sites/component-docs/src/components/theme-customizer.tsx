@@ -252,7 +252,9 @@ export function ThemeCustomizer() {
                 transition: 'color 150ms, transform 150ms',
               }}
               aria-label={isPinned ? 'Unpin customizer' : 'Pin customizer'}
-              title={isPinned ? 'Unpin — clicking outside will close' : 'Pin — keep open while browsing'}
+              title={
+                isPinned ? 'Unpin — clicking outside will close' : 'Pin — keep open while browsing'
+              }
             >
               <svg
                 width="14"
@@ -524,7 +526,8 @@ export function ThemeCustomizer() {
             style={{
               marginTop: '8px',
               position: 'relative',
-              backgroundColor: 'var(--color-muted)',
+              backgroundColor: 'var(--color-background)',
+              border: '1px solid var(--color-border)',
               borderRadius: '8px',
               overflow: 'hidden',
             }}

@@ -58,12 +58,20 @@ export const appGlobals = globalCss({
     lineHeight: '1.5',
     overflow: 'auto',
     borderRadius: '8px',
+    border: '1px solid var(--color-border)',
     fontFamily: 'var(--font-mono, monospace)',
-    backgroundColor: 'var(--color-muted)',
+    backgroundColor: 'var(--color-background) !important',
     color: 'var(--color-foreground)',
   },
   '.code-block-highlighted pre:focus-visible': {
     outline: '2px solid var(--color-primary)',
     outlineOffset: '-2px',
+  },
+  // Shiki dual-theme: map CSS variables based on active data-theme
+  '[data-theme="dark"] .shiki span': {
+    color: 'var(--shiki-dark) !important',
+  },
+  '[data-theme="light"] .shiki span': {
+    color: 'var(--shiki-light) !important',
   },
 });

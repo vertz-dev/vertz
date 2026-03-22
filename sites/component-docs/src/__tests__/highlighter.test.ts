@@ -64,9 +64,10 @@ describe('highlighter', () => {
       expect(html).toContain('hello');
     });
 
-    it('highlightCode() produces colored spans for syntax tokens', () => {
+    it('highlightCode() produces spans with dual-theme CSS variables', () => {
       const html = highlightCode('const x = 1;', 'ts');
-      expect(html).toMatch(/style="[^"]*color:/);
+      expect(html).toMatch(/--shiki-dark:/);
+      expect(html).toMatch(/--shiki-light:/);
     });
 
     it('highlightCode() supports tsx language', () => {
@@ -105,9 +106,10 @@ describe('highlighter', () => {
       expect(html).toContain('primary');
     });
 
-    it('highlightCode() uses github-dark theme by default', () => {
+    it('highlightCode() uses dual themes (github-dark + github-light)', () => {
       const html = highlightCode('const x = 1;', 'ts');
       expect(html).toContain('github-dark');
+      expect(html).toContain('github-light');
     });
   });
 });
