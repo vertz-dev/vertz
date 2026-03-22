@@ -59,6 +59,8 @@ For each phase:
 ## Commits
 
 - Format: `<type>(<scope>): <description> [#<ISSUE>]`
+- **Author identity:** Always commit as `Vinicius Dacal <viniciusldacal@gmail.com>`. Use `--author="Vinicius Dacal <viniciusldacal@gmail.com>"` if the worktree git config has a different user. Never commit under a bot identity.
+- Include `Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>` in the commit body.
 - Read the GitHub issue before starting work
 - Reference issue in every commit
 - If commit closes issue, add `Closes #<ISSUE>` in body
