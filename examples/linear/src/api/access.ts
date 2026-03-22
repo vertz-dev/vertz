@@ -15,15 +15,17 @@ export const access = defineAccess({
     },
   },
   entitlements: {
-    // Workspace-level
+    // Workspace-level — uses workspace roles
     'workspace:read': { roles: ['owner', 'admin', 'member'] },
     'workspace:manage': { roles: ['owner', 'admin'] },
+    // Creating/deleting projects is a workspace-level action
+    'workspace:create-project': { roles: ['owner', 'admin', 'member'] },
+    'workspace:delete-project': { roles: ['owner', 'admin'] },
 
-    // Project-level
-    'project:create': { roles: ['owner', 'admin', 'member'] },
+    // Project-level — uses project roles (lead, member).
+    // Workspace roles map to project roles via inherits.
     'project:read': { roles: ['lead', 'member'] },
     'project:update': { roles: ['lead'] },
-    'project:delete': { roles: ['owner', 'admin'] },
 
     // Issue-level (inherits from project roles)
     'issue:create': { roles: ['lead', 'member'] },

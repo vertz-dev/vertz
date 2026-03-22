@@ -29,6 +29,7 @@ import type {
 import type { FlagStore } from './flag-store';
 import type { OverrideStore, TenantOverrides } from './override-store';
 import type { PlanVersionStore } from './plan-version-store';
+import { resolveInheritedRole } from './resolve-inherited-role';
 import type { RoleAssignmentStore } from './role-assignment-store';
 import {
   resolveEffectivePlan,
@@ -157,9 +158,22 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
         accessDef,
         closureStore,
       );
-      if (!effectiveRole || !entDef.roles.includes(effectiveRole)) {
-        return false;
+      if (!effectiveRole) return false;
+
+      // Resolve inheritance when resource type differs from entitlement entity type
+      const entEntityType = entitlement.substring(0, entitlement.indexOf(':'));
+      let roleToCheck = effectiveRole;
+      if (resource.type !== entEntityType) {
+        const inherited = resolveInheritedRole(
+          resource.type,
+          effectiveRole,
+          entEntityType,
+          accessDef,
+        );
+        if (!inherited) return false;
+        roleToCheck = inherited;
       }
+      if (!entDef.roles.includes(roleToCheck)) return false;
     } else if (entDef.roles.length > 0 && !resource) {
       // Global check — no resource context, deny if roles are required
       return false;
@@ -311,7 +325,21 @@ export function createAccessContext(config: AccessContextConfig): AccessContext 
           accessDef,
           closureStore,
         );
-        hasRole = !!effectiveRole && entDef.roles.includes(effectiveRole);
+        if (effectiveRole) {
+          const checkEntEntityType = entitlement.substring(0, entitlement.indexOf(':'));
+          let roleToCheck = effectiveRole;
+          if (resource.type !== checkEntEntityType) {
+            const inherited = resolveInheritedRole(
+              resource.type,
+              effectiveRole,
+              checkEntEntityType,
+              accessDef,
+            );
+            if (inherited) roleToCheck = inherited;
+            else roleToCheck = ''; // Force mismatch
+          }
+          hasRole = entDef.roles.includes(roleToCheck);
+        }
       }
       if (!hasRole) {
         reasons.push('role_required');

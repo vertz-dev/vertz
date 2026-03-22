@@ -6,12 +6,12 @@ export const projects = entity('projects', {
   access: {
     list: rules.entitlement('project:read'),
     get: rules.entitlement('project:read'),
-    create: rules.entitlement('project:create'),
+    create: rules.entitlement('workspace:create-project'),
     update: rules.all(
       rules.entitlement('project:update'),
       rules.where({ createdBy: rules.user.id }),
     ),
-    delete: rules.entitlement('project:delete'),
+    delete: rules.entitlement('workspace:delete-project'),
   },
   before: {
     create: (data, ctx) => {
