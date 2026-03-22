@@ -48,7 +48,9 @@ export function createAccordionStyles(): CSSOutput<AccordionBlocks> {
       'text:sm',
       'text:muted-foreground',
       {
-        '&[data-state="open"]': [animationDecl(`${accordionDown} 200ms ease-out forwards`)],
+        '&[data-state="open"]:not([data-initial])': [
+          animationDecl(`${accordionDown} 200ms ease-out forwards`),
+        ],
       },
       {
         '&[data-state="closed"]': [animationDecl(`${accordionUp} 200ms ease-out forwards`)],

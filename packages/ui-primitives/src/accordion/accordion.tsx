@@ -42,6 +42,8 @@ function AccordionRoot(options: AccordionOptions = {}): AccordionElements & {
     const entry = itemMap.get(val);
     if (!entry) return;
     const { trigger: t, content: c } = entry;
+    // Clear initial-render marker so CSS animations apply from now on
+    c.removeAttribute('data-initial');
     if (open) {
       setHidden(c, false);
     }
@@ -126,6 +128,7 @@ function AccordionRoot(options: AccordionOptions = {}): AccordionElements & {
         aria-labelledby={triggerId}
         aria-hidden={isOpen ? 'false' : 'true'}
         data-state={isOpen ? 'open' : 'closed'}
+        data-initial={isOpen ? '' : undefined}
         style={{ display: isOpen ? '' : 'none' }}
       />
     ) as HTMLDivElement;
