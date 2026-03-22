@@ -46,7 +46,7 @@ export function createRequestContext(url: string): SSRRenderContext {
  *
  * The DOM shim provides `document`, `window`, and other browser globals
  * needed by framework code that directly accesses globals (e.g.,
- * jsx-runtime's document.createElement, presence.ts, list-transition.ts).
+ * jsx-runtime's document.createElement, presence.ts).
  * It is installed once per process — not per-render — because all SSR
  * state is isolated via AsyncLocalStorage (SSRRenderContext).
  */

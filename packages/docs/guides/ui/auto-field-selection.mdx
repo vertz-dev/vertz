@@ -129,11 +129,6 @@ Direct expressions and `.map()` callbacks on query data are **fully optimized** 
 However, when query data passes through an **indirection layer** — a component callback that renames the parameter — the compiler loses the connection between the callback parameter and the original query variable:
 
 ```tsx
-// OPAQUE — ListTransition children callback renames items to 'issue'
-<ListTransition each={issues.data.items} keyFn={(i) => i.id}>
-  {(issue) => <IssueRow issue={issue} />}
-</ListTransition>
-
 // OPAQUE — any render-function prop or children callback with query data
 <Table data={users} renderRow={(row) => <span>{row.name}</span>} />
 ```
@@ -149,7 +144,7 @@ However, when query data passes through an **indirection layer** — a component
 ))}
 ```
 
-When you need animated transitions, use `ListTransition` — your app still works correctly, you just won't get automatic field narrowing for that query. You can always add a manual `select` if needed.
+For animated lists, use `<List animate>` which uses `.map()` children — field selection works automatically.
 
 ### Spread, dynamic access, and function calls
 

@@ -360,9 +360,9 @@ describe('templates', () => {
       expect(result).toContain('hover:bg:accent');
     });
 
-    it('uses ListTransition for animated list', () => {
+    it('uses List animate for animated list', () => {
       const result = homePageTemplate();
-      expect(result).toContain('ListTransition');
+      expect(result).toContain('<List animate>');
       expect(result).toContain('slideInFromTop');
       expect(result).toContain('fadeOut');
     });
