@@ -632,6 +632,15 @@ function transformChildAsValue(
       }
     }
 
+    // List patterns in component children: .map() → __listValue()
+    // Same rationale as __list() in transformChild() — always transform, ungated.
+    {
+      const listCode = tryTransformListValue(exprNode, reactiveNames, jsxMap, source);
+      if (listCode) {
+        return listCode;
+      }
+    }
+
     const exprInfo = jsxMap.get(child.getStart());
     const exprText = sliceWithTransformedJsx(exprNode, reactiveNames, jsxMap, source, formVarNames);
 
@@ -805,6 +814,57 @@ function tryTransformList(
   const renderFn = buildListRenderFunction(callbackBody, itemParam, reactiveNames, jsxMap, source);
 
   return `__list(${parentVar}, () => ${sourceObjText}, ${keyFn}, ${renderFn})`;
+}
+
+/**
+ * Try to transform a .map() call into __listValue() for component children.
+ * Returns the __listValue(...) expression string if the expression matches, null otherwise.
+ *
+ * Unlike tryTransformList() which emits a statement appending to a parentVar,
+ * this returns a value expression suitable for component children thunks.
+ */
+function tryTransformListValue(
+  exprNode: Node,
+  reactiveNames: Set<string>,
+  jsxMap: Map<number, JsxExpressionInfo>,
+  source: MagicString,
+): string | null {
+  if (!exprNode.isKind(SyntaxKind.CallExpression)) return null;
+
+  const propAccess = exprNode.getExpression();
+  if (!propAccess.isKind(SyntaxKind.PropertyAccessExpression)) return null;
+
+  const methodName = propAccess.getNameNode().getText();
+  if (methodName !== 'map') return null;
+
+  const args = exprNode.getArguments();
+  if (args.length === 0) return null;
+
+  const callbackArg = args[0];
+  if (!callbackArg) return null;
+
+  // Get the source object (e.g. "items" or "items.value")
+  const sourceObj = propAccess.getExpression();
+  const sourceObjText = source.slice(sourceObj.getStart(), sourceObj.getEnd());
+
+  // Extract callback parameter name(s)
+  let itemParam: string | null = null;
+  let indexParam: string | null = null;
+  let callbackBody: Node | null = null;
+
+  if (callbackArg.isKind(SyntaxKind.ArrowFunction)) {
+    const params = callbackArg.getParameters();
+    itemParam = params[0]?.getName() ?? null;
+    indexParam = params[1]?.getName() ?? null;
+    callbackBody = callbackArg.getBody();
+  }
+
+  if (!itemParam || !callbackBody) return null;
+
+  const keyFn = extractKeyFunction(callbackBody, itemParam, indexParam);
+  const renderFn = buildListRenderFunction(callbackBody, itemParam, reactiveNames, jsxMap, source);
+
+  return `__listValue(() => ${sourceObjText}, ${keyFn}, ${renderFn})`;
 }
 
 /**
