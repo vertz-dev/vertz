@@ -33,6 +33,7 @@ export interface ThemedListComponent {
   (props: ListRootProps): HTMLElement;
   Item: (props: ListSlotProps) => HTMLElement;
   DragHandle: (props: ListSlotProps) => HTMLElement;
+  reorder: <T>(arr: readonly T[], from: number, to: number) => T[];
 }
 
 // ── Factory ────────────────────────────────────────────────
@@ -64,5 +65,6 @@ export function createThemedList(styles: ListStyleClasses): ThemedListComponent 
   return Object.assign(ListRoot, {
     Item: ComposedList.Item,
     DragHandle: ComposedList.DragHandle,
+    reorder: ComposedList.reorder,
   });
 }
