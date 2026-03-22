@@ -318,14 +318,16 @@ export function createAuth(config: AuthConfig): AuthInstance {
       }
     }
 
-    const jwt = await createJWT(user, privateKey, ttlMs, () => ({
-      ...userClaims,
-      ...fvaClaim,
-      ...tenantClaim,
-      ...aclClaim,
-      jti,
-      sid: sessionId,
-    }));
+    const jwt = await createJWT(user, privateKey, ttlMs, {
+      claims: () => ({
+        ...userClaims,
+        ...fvaClaim,
+        ...tenantClaim,
+        ...aclClaim,
+        jti,
+        sid: sessionId,
+      }),
+    });
 
     const refreshToken = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))))
       .replace(/\+/g, '-')
