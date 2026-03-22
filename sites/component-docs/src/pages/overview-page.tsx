@@ -223,7 +223,7 @@ function ToggleDemo() {
         <Toggle aria-label="Italic">I</Toggle>
         <Toggle aria-label="Underline">U</Toggle>
       </div>
-      <ToggleGroup type="single" defaultValue="center">
+      <ToggleGroup type="single" defaultValue={["center"]}>
         <ToggleGroup.Item value="left">Left</ToggleGroup.Item>
         <ToggleGroup.Item value="center">Center</ToggleGroup.Item>
         <ToggleGroup.Item value="right">Right</ToggleGroup.Item>
@@ -370,24 +370,24 @@ function TableDemo() {
           <Table.Row>
             <Table.Head>Invoice</Table.Head>
             <Table.Head>Status</Table.Head>
-            <Table.Head style={{ textAlign: "right" }}>Amount</Table.Head>
+            <Table.Head>Amount</Table.Head>
           </Table.Row>
         </Table.Header>
         <Table.Body>
           <Table.Row>
             <Table.Cell>INV001</Table.Cell>
             <Table.Cell>Paid</Table.Cell>
-            <Table.Cell style={{ textAlign: "right" }}>$250.00</Table.Cell>
+            <Table.Cell>$250.00</Table.Cell>
           </Table.Row>
           <Table.Row>
             <Table.Cell>INV002</Table.Cell>
             <Table.Cell>Pending</Table.Cell>
-            <Table.Cell style={{ textAlign: "right" }}>$150.00</Table.Cell>
+            <Table.Cell>$150.00</Table.Cell>
           </Table.Row>
           <Table.Row>
             <Table.Cell>INV003</Table.Cell>
             <Table.Cell>Unpaid</Table.Cell>
-            <Table.Cell style={{ textAlign: "right" }}>$350.00</Table.Cell>
+            <Table.Cell>$350.00</Table.Cell>
           </Table.Row>
         </Table.Body>
       </Table>
@@ -436,7 +436,7 @@ function AlertDemo() {
             You can add components to your app using the CLI.
           </Alert.Description>
         </Alert>
-        <Alert intent="destructive">
+        <Alert>
           <Alert.Title>Error</Alert.Title>
           <Alert.Description>
             Your session has expired. Please log in again.
@@ -502,7 +502,7 @@ function SkeletonDemo() {
       <p style={cardTitleStyle}>Skeleton</p>
       <p style={cardDescStyle}>Loading placeholder animations.</p>
       <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-        <Skeleton width="48px" height="48px" style={{ borderRadius: "50%" }} />
+        <Skeleton width="48px" height="48px" className="skeleton-circle" />
         <div
           style={{
             display: "flex",

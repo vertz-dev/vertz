@@ -24,7 +24,6 @@ export function Sidebar({ activeName }: SidebarProps) {
       <Link
         href="/overview"
         className={activeName === '__overview' ? 'sidebar-link-active' : 'sidebar-link'}
-        style={{ fontWeight: '500' }}
       >
         Overview
       </Link>
