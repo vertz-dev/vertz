@@ -157,6 +157,21 @@ export function createAuth(config: AuthConfig): AuthInstance {
     }
   }
 
+  // Validate JWT issuer/audience — required in production, defaults in development
+  const issuer = config.issuer ?? (isProduction ? undefined : 'vertz-dev');
+  const audience = config.audience ?? (isProduction ? undefined : 'vertz-dev');
+
+  if (isProduction && !issuer) {
+    throw new Error(
+      'JWT issuer is required in production. Provide an issuer string via createAuth({ issuer: "https://your-app.com" }).',
+    );
+  }
+  if (isProduction && !audience) {
+    throw new Error(
+      'JWT audience is required in production. Provide an audience string via createAuth({ audience: "your-app" }).',
+    );
+  }
+
   // Validate session strategy
   if (session.strategy !== 'jwt') {
     throw new Error(`Session strategy "${session.strategy}" is not yet supported. Use "jwt".`);
@@ -327,6 +342,8 @@ export function createAuth(config: AuthConfig): AuthInstance {
         jti,
         sid: sessionId,
       }),
+      issuer,
+      audience,
     });
 
     const refreshToken = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))))
@@ -604,7 +621,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
     }
 
     // Phase 2: JWT-only verification — no session Map lookup
-    const payload = await verifyJWT(token, publicKey);
+    const payload = await verifyJWT(token, publicKey, { issuer, audience });
     if (!payload) {
       return ok(null);
     }
@@ -681,7 +698,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
       const currentTokens = await sessionStore.getCurrentTokens(storedSession.id);
       if (currentTokens) {
         // Decode (without verify) to get the payload for the response
-        const payload = await verifyJWT(currentTokens.jwt, publicKey);
+        const payload = await verifyJWT(currentTokens.jwt, publicKey, { issuer, audience });
         // Even if JWT is expired, return the cached tokens — the client will get
         // a fresh JWT on the next refresh after the grace period ends
         return ok({
@@ -706,7 +723,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
     let existingTenantId: string | undefined;
     const oldTokens = await sessionStore.getCurrentTokens(storedSession.id);
     if (oldTokens) {
-      const oldPayload = await verifyJWT(oldTokens.jwt, publicKey);
+      const oldPayload = await verifyJWT(oldTokens.jwt, publicKey, { issuer, audience });
       existingFva = oldPayload?.fva;
       existingTenantId = oldPayload?.tenantId;
     }
@@ -2619,6 +2636,8 @@ export function createAuth(config: AuthConfig): AuthInstance {
     resolveSessionForSSR: createSSRResolver({
       publicKey,
       cookieName: cookieConfig.name || 'vertz.sid',
+      issuer,
+      audience,
     }),
   };
 }

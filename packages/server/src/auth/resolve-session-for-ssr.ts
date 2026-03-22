@@ -18,6 +18,10 @@ export interface ResolveSessionForSSRConfig {
   /** Cloud JWT verifier for RS256 verification (cloud mode). */
   cloudVerifier?: CloudJWTVerifier;
   cookieName: string;
+  /** JWT `iss` claim to validate during verification. */
+  issuer?: string;
+  /** JWT `aud` claim to validate during verification. */
+  audience?: string;
 }
 
 export interface SSRSessionResult {
@@ -74,7 +78,7 @@ function extractAccessSet(acl: AclClaim): AccessSet | null {
 export function resolveSessionForSSR(
   config: ResolveSessionForSSRConfig,
 ): (request: Request) => Promise<SSRSessionResult | null> {
-  const { publicKey, cloudVerifier, cookieName } = config;
+  const { publicKey, cloudVerifier, cookieName, issuer, audience } = config;
 
   // Validate: exactly one verification method must be provided
   if (!publicKey && !cloudVerifier) {
@@ -101,7 +105,7 @@ export function resolveSessionForSSR(
     if (cloudVerifier) {
       payload = await cloudVerifier.verify(token);
     } else {
-      payload = await verifyJWT(token, publicKey!);
+      payload = await verifyJWT(token, publicKey!, { issuer, audience });
     }
     if (!payload) return null;
 

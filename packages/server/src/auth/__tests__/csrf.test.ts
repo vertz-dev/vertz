@@ -8,6 +8,8 @@ function createProductionAuth() {
     session: { strategy: 'jwt', ttl: '7d' },
     privateKey: TEST_PRIVATE_KEY,
     publicKey: TEST_PUBLIC_KEY,
+    issuer: 'https://test.example.com',
+    audience: 'test',
     isProduction: true,
   });
 }
