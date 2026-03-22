@@ -32,6 +32,8 @@ const cardStyle: Record<string, string> = {
   borderRadius: "calc(var(--radius) * 2)",
   padding: "24px",
   backgroundColor: "var(--color-card)",
+  breakInside: "avoid",
+  marginBottom: "16px",
 };
 
 const cardTitleStyle: Record<string, string> = {
@@ -112,19 +114,8 @@ function ButtonsDemo() {
 }
 
 function InputsDemo() {
-  let name = "John Dossssdsdsadsajygudsayudsae";
-  let counter = 0;
-  function handleClick() {
-    counter++;
-  }
   return (
     <div style={cardStyle}>
-      <p>Countedsdsa: {counter}</p>
-      <p>
-        Name: {name.length} {name}
-      </p>
-      <button onClick={handleClick}>Click me</button>
-      <p style={cardTitleStyle}>Inputs (counter preserved!)</p>
       <p style={cardDescStyle}>Text fields and textareas.</p>
       <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
@@ -160,10 +151,14 @@ function SelectionControlsDemo() {
       <p style={cardDescStyle}>Checkboxes, radios, switches, and toggles.</p>
       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <Checkbox defaultChecked />
-          <Label>Accept terms</Label>
-          <Checkbox />
-          <Label>Subscribe</Label>
+          <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", userSelect: "none" }}>
+            <Checkbox defaultChecked />
+            Accept terms
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", userSelect: "none" }}>
+            <Checkbox />
+            Subscribe
+          </label>
         </div>
         <RadioGroup defaultValue="option-1">
           <div style={{ display: "flex", gap: "16px" }}>
@@ -179,10 +174,14 @@ function SelectionControlsDemo() {
           </div>
         </RadioGroup>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <Switch />
-          <Label>Airplane Mode</Label>
-          <Switch defaultChecked />
-          <Label>Notifications</Label>
+          <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", userSelect: "none" }}>
+            <Switch />
+            Airplane Mode
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", userSelect: "none" }}>
+            <Switch defaultChecked />
+            Notifications
+          </label>
         </div>
       </div>
     </div>
@@ -234,7 +233,7 @@ function ToggleDemo() {
 
 function CardDemo() {
   return (
-    <div>
+    <div style={{ breakInside: "avoid", marginBottom: "16px" }}>
       <Card>
         <Card.Header>
           <Card.Title>Create project</Card.Title>
@@ -397,7 +396,7 @@ function TableDemo() {
 
 function AccordionDemo() {
   return (
-    <div style={cardStyle}>
+    <div style={{ ...cardStyle, minHeight: "280px" }}>
       <p style={cardTitleStyle}>Accordion</p>
       <p style={cardDescStyle}>Expandable content sections.</p>
       <Accordion type="single" defaultValue={["item-1"]}>
@@ -449,7 +448,7 @@ function AlertDemo() {
 
 function CalendarDemo() {
   return (
-    <div style={cardStyle}>
+    <div style={{ ...cardStyle, minHeight: "430px" }}>
       <p style={cardTitleStyle}>Calendar</p>
       <p style={cardDescStyle}>Date picker calendar grid.</p>
       <div style={{ display: "flex", justifyContent: "center" }}>
@@ -547,17 +546,24 @@ function BreadcrumbDemo() {
 
 function PaginationDemo() {
   let currentPage = 3;
+  const pageLabel = `Page ${currentPage} of 10`;
   return (
     <div style={cardStyle}>
       <p style={cardTitleStyle}>Pagination</p>
-      <p style={cardDescStyle}>Page navigation controls.</p>
-      <Pagination
-        currentPage={currentPage}
-        totalPages={10}
-        onPageChange={(page: number) => {
-          currentPage = page;
-        }}
-      />
+      <p style={cardDescStyle}>{pageLabel}</p>
+      {() => {
+        // Read signal in domEffect scope to force subscription
+        const page = currentPage;
+        return (
+          <Pagination
+            currentPage={page}
+            totalPages={10}
+            onPageChange={(p: number) => {
+              currentPage = p;
+            }}
+          />
+        );
+      }}
     </div>
   );
 }
@@ -705,7 +711,7 @@ function ColorSwatch({ name }: { name: string }) {
 
 function NotificationsCardDemo() {
   return (
-    <div>
+    <div style={{ breakInside: "avoid", marginBottom: "16px" }}>
       <Card>
         <Card.Header>
           <Card.Title>Notifications</Card.Title>
@@ -800,7 +806,7 @@ function NotificationsCardDemo() {
 
 function TeamCardDemo() {
   return (
-    <div>
+    <div style={{ breakInside: "avoid", marginBottom: "16px" }}>
       <Card>
         <Card.Header>
           <div
@@ -917,9 +923,8 @@ export function OverviewPage() {
         </p>
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: "16px",
+            columnCount: 3,
+            columnGap: "16px",
           }}
         >
           <TypographyDemo />

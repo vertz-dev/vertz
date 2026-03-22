@@ -142,10 +142,9 @@ describe('hydration-context', () => {
     });
 
     it('stops at element nodes so subsequent claimElement can find them', () => {
-      // Reproduces the Counter hydration bug:
-      // SSR: "Page Views:<span style='display:contents'>0</span>"
-      // Browser merges "Page Views" + ":" into one text node "Page Views:"
-      // Client hydration: claimText (for label), claimText (for ":"), claimElement('span')
+      // Reproduces the Counter hydration bug (historical — __child now uses
+      // comment markers instead of span wrappers, but the cursor behavior
+      // tested here is still relevant for any element boundary).
       // Bug: second claimText skipped past the <span>, making claimElement return null.
       const root = document.createElement('div');
       root.appendChild(document.createTextNode('Page Views:'));

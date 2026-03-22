@@ -309,8 +309,8 @@ export function exitChildren(): void {
 
 /**
  * Walk the DOM tree under `root` and collect nodes not present in `claimed`.
- * Skips custom elements (tag contains `-`) and children of claimed
- * `<span style="display: contents">` wrappers (__child CSR content).
+ * Skips custom elements (tag contains `-`) and CSR-managed content between
+ * claimed `<!--child-->` anchor comments and their end markers.
  */
 function findUnclaimedNodes(root: Element, claimed: WeakSet<Node>): Node[] {
   const unclaimed: Node[] = [];

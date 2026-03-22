@@ -22,6 +22,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 import { mount, resetInjectedStyles } from '@vertz/ui';
 import { ComposedAccordion } from '../accordion/accordion-composed';
+import { ComposedPagination } from '../pagination/pagination-composed';
 import { ComposedRadioGroup } from '../radio/radio-composed';
 import { ComposedSelect } from '../select/select-composed';
 import { ComposedTabs } from '../tabs/tabs-composed';
@@ -372,6 +373,112 @@ describe('Composed primitives — hydration', () => {
           // mount completed (no error) — the assertion is in the expect above.
           expect(root.childNodes.length).toBeGreaterThanOrEqual(0);
           warnSpy.mockRestore();
+        });
+      });
+    });
+  });
+
+  // =========================================================================
+  // Pagination — hydration correctness
+  //
+  // Page items are built in a for loop. Without the thunk pattern, elements
+  // are created before the <ul> hydration scope is entered, causing
+  // __element("li") to claim nodes at the wrong cursor level. The Next
+  // button then claims page 1's <li>, replacing "1" with "Next".
+  // =========================================================================
+
+  describe('ComposedPagination', () => {
+    function createPagination(onPageChange?: (page: number) => void) {
+      return ComposedPagination({
+        currentPage: 3,
+        totalPages: 10,
+        onPageChange: onPageChange ?? (() => {}),
+      });
+    }
+
+    describe('Given SSR HTML from a Pagination with currentPage=3, totalPages=10', () => {
+      describe('When hydrated via mount()', () => {
+        it('Then mount() completes without throwing', () => {
+          const ssrHtml = csrHTML(() => createPagination());
+          root.innerHTML = ssrHtml;
+
+          const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+          const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+
+          expect(() => mount(() => createPagination())).not.toThrow();
+
+          warnSpy.mockRestore();
+          debugSpy.mockRestore();
+        });
+
+        it('Then mount() does not trigger hydration fallback', () => {
+          const ssrHtml = csrHTML(() => createPagination());
+          root.innerHTML = ssrHtml;
+
+          const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+          mount(() => createPagination());
+
+          const fallbackWarns = warnSpy.mock.calls.filter(
+            (args) => typeof args[0] === 'string' && args[0].includes('Hydration failed'),
+          );
+          expect(fallbackWarns).toHaveLength(0);
+          warnSpy.mockRestore();
+        });
+
+        it('Then page buttons retain correct text (page 1 is not replaced by "Next")', () => {
+          const ssrHtml = csrHTML(() => createPagination());
+          root.innerHTML = ssrHtml;
+
+          const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+          const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+
+          mount(() => createPagination());
+
+          const buttons = root.querySelectorAll('button');
+          const buttonTexts = Array.from(buttons).map((b) => b.textContent);
+
+          // Expected: Previous, 1, 2, 3, 4, 10, Next (ellipsis is a span, not a button)
+          expect(buttonTexts).toContain('1');
+          expect(buttonTexts).toContain('Next');
+          expect(buttonTexts.filter((t) => t === 'Next')).toHaveLength(1);
+
+          // Page 1 button must exist and have text "1", not "Next"
+          const page1Btn = Array.from(buttons).find((b) => b.textContent === '1');
+          expect(page1Btn).not.toBeNull();
+
+          // Next button must be the last button
+          const lastBtn = buttons[buttons.length - 1];
+          expect(lastBtn?.textContent).toBe('Next');
+          expect(lastBtn?.getAttribute('aria-label')).toBe('Next page');
+
+          warnSpy.mockRestore();
+          debugSpy.mockRestore();
+        });
+
+        it('Then event listeners are attached — clicking a page button fires onPageChange', () => {
+          const ssrHtml = csrHTML(() => createPagination());
+          root.innerHTML = ssrHtml;
+
+          let lastPage: number | undefined;
+          const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+          const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+
+          mount(() =>
+            createPagination((page) => {
+              lastPage = page;
+            }),
+          );
+
+          // Click page 1 button (not active, should have click handler)
+          const buttons = root.querySelectorAll('button');
+          const page1Btn = Array.from(buttons).find((b) => b.textContent === '1');
+          expect(page1Btn).not.toBeNull();
+          page1Btn?.click();
+          expect(lastPage).toBe(1);
+
+          warnSpy.mockRestore();
+          debugSpy.mockRestore();
         });
       });
     });

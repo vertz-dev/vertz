@@ -113,6 +113,8 @@ function AccordionItem({ value, children }: ItemProps) {
 
       const contentEl = contentRef.current;
       if (contentEl) {
+        // Clear initial-render marker so CSS animations apply from now on
+        contentEl.removeAttribute('data-initial');
         if (nowOpen) {
           setHidden(contentEl, false);
           const height = contentEl.scrollHeight;
@@ -213,7 +215,13 @@ function AccordionContent({ children, className: cls, class: classProp }: SlotPr
   const isOpen = ctx.isOpen();
   el.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
   el.setAttribute('data-state', isOpen ? 'open' : 'closed');
-  if (!isOpen) el.style.display = 'none';
+  if (isOpen) {
+    // Suppress the open animation on initial render — the content should
+    // appear already expanded with no height transition.
+    el.setAttribute('data-initial', '');
+  } else {
+    el.style.display = 'none';
+  }
 
   return el;
 }

@@ -24,6 +24,7 @@ const devServer = createBunDevServer({
   ssrModule: true,
   title: 'Vertz UI — Components',
   headTags: `${THEME_INIT_SCRIPT}\n${CUSTOMIZATION_INIT_SCRIPT}`,
+  watchDeps: true,
   themeFromRequest: (request) => {
     const match = request.headers.get('cookie')?.match(/(?:^|; )theme=(light|dark)/);
     return match?.[1] ?? null;
