@@ -55,6 +55,8 @@ export {
 export { __on } from './dom/events';
 export { clearChildren, insertBefore, removeNode } from './dom/insert';
 export { __list } from './dom/list';
+export type { ListAnimationHooks } from './dom/list-animation-context';
+export { ListAnimationContext } from './dom/list-animation-context';
 export { __listValue } from './dom/list-value';
 export { __spread } from './dom/spread';
 export { __styleStr } from './dom/style';

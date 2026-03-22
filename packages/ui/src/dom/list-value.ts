@@ -1,7 +1,10 @@
+import { useContext } from '../component/context';
 import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
 import { domEffect, signal } from '../runtime/signal';
 import type { DisposeFn, Signal } from '../runtime/signal-types';
 import type { DisposableNode } from './conditional';
+import type { ListAnimationHooks } from './list-animation-context';
+import { ListAnimationContext } from './list-animation-context';
 
 /** Deduplicate the "no key" warning — fire once per application, not per list. */
 let unkeyedListValueWarned = false;
@@ -90,6 +93,14 @@ export function __listValue<T>(
   const nodeMap = new Map<string | number, Node>();
   const scopeMap = new Map<string | number, DisposeFn[]>();
   const itemSignalMap = new Map<string | number, Signal<T>>();
+  const exitingNodes = new Set<Node>();
+  const exitingKeyMap = new Map<string | number, Node>();
+  const keyGeneration = new Map<string | number, number>();
+
+  // Read animation hooks from context (synchronous — runs during component init)
+  const animHooks: ListAnimationHooks | undefined = useContext(ListAnimationContext);
+
+  let isFirstRun = true;
 
   if (!keyFn && !unkeyedListValueWarned) {
     unkeyedListValueWarned = true;
@@ -105,7 +116,7 @@ export function __listValue<T>(
     domEffect(() => {
       const newItems = getItems() ?? [];
 
-      // Unkeyed mode: full replacement
+      // Unkeyed mode: full replacement (no animation support)
       if (!keyFn) {
         for (const scope of scopeMap.values()) {
           runCleanups(scope);
@@ -129,9 +140,30 @@ export function __listValue<T>(
         return;
       }
 
+      // First render — no animations
+      if (isFirstRun) {
+        isFirstRun = false;
+        for (const [i, item] of newItems.entries()) {
+          const key = keyFn(item, i);
+          const itemSig = signal(item);
+          const proxy = createItemProxy(itemSig);
+          const scope = pushScope();
+          const node = renderFn(proxy as T);
+          popScope();
+          nodeMap.set(key, node);
+          scopeMap.set(key, scope);
+          itemSignalMap.set(key, itemSig);
+          endMarker.parentNode?.insertBefore(node, endMarker);
+        }
+        return;
+      }
+
+      // Subsequent updates — animation hooks active
+      animHooks?.onBeforeReconcile();
+
       const newKeySet = new Set(newItems.map((item, i) => keyFn(item, i)));
 
-      // Remove nodes whose keys are no longer present
+      // --- Exit: remove nodes whose keys are no longer present ---
       for (const [key, node] of nodeMap) {
         if (!newKeySet.has(key)) {
           const scope = scopeMap.get(key);
@@ -139,18 +171,47 @@ export function __listValue<T>(
             runCleanups(scope);
             scopeMap.delete(key);
           }
-          node.parentNode?.removeChild(node);
           nodeMap.delete(key);
           itemSignalMap.delete(key);
+
+          if (animHooks) {
+            const gen = (keyGeneration.get(key) ?? 0) + 1;
+            keyGeneration.set(key, gen);
+            exitingNodes.add(node);
+            exitingKeyMap.set(key, node);
+
+            animHooks.onItemExit(node, key, () => {
+              if (keyGeneration.get(key) === gen) {
+                node.parentNode?.removeChild(node);
+                exitingNodes.delete(node);
+                exitingKeyMap.delete(key);
+              }
+            });
+          } else {
+            node.parentNode?.removeChild(node);
+          }
         }
       }
 
-      // Create/update nodes
+      // --- Enter/reuse: current items ---
       const desiredNodes: Node[] = [];
+      const enterEntries: Array<{ node: Node; key: string | number }> = [];
       for (const [i, item] of newItems.entries()) {
         const key = keyFn(item, i);
         let node = nodeMap.get(key);
         if (!node) {
+          // Force-remove old exiting node for this key (re-add case)
+          const oldExiting = exitingKeyMap.get(key);
+          if (oldExiting) {
+            oldExiting.parentNode?.removeChild(oldExiting);
+            exitingNodes.delete(oldExiting);
+            exitingKeyMap.delete(key);
+          }
+
+          // Bump generation to invalidate stale exit callbacks
+          const gen = (keyGeneration.get(key) ?? 0) + 1;
+          keyGeneration.set(key, gen);
+
           const itemSig = signal(item);
           const proxy = createItemProxy(itemSig);
           const scope = pushScope();
@@ -159,6 +220,8 @@ export function __listValue<T>(
           nodeMap.set(key, node);
           scopeMap.set(key, scope);
           itemSignalMap.set(key, itemSig);
+
+          enterEntries.push({ node, key });
         } else {
           const itemSig = itemSignalMap.get(key);
           if (itemSig) {
@@ -168,13 +231,15 @@ export function __listValue<T>(
         desiredNodes.push(node);
       }
 
-      // Reconcile: reorder nodes between markers
+      // --- Reconcile: reorder active nodes, skip exiting nodes ---
       const parent = startMarker.parentNode;
       if (parent) {
         let cursor: ChildNode | null = startMarker.nextSibling;
         for (const desired of desiredNodes) {
+          while (cursor && cursor !== endMarker && exitingNodes.has(cursor as Node)) {
+            cursor = cursor.nextSibling;
+          }
           if (cursor === endMarker) {
-            // Past the end — append before end marker
             parent.insertBefore(desired, endMarker);
           } else if (cursor === desired) {
             cursor = cursor.nextSibling;
@@ -183,6 +248,15 @@ export function __listValue<T>(
           }
         }
       }
+
+      // --- Notify animation hooks for enter items ---
+      if (animHooks) {
+        for (const { node, key } of enterEntries) {
+          animHooks.onItemEnter(node, key);
+        }
+      }
+
+      animHooks?.onAfterReconcile();
     });
   } finally {
     popScope();
@@ -193,6 +267,14 @@ export function __listValue<T>(
       runCleanups(scope);
     }
     scopeMap.clear();
+
+    // Force-remove exiting nodes
+    for (const node of exitingNodes) {
+      node.parentNode?.removeChild(node);
+    }
+    exitingNodes.clear();
+    exitingKeyMap.clear();
+
     runCleanups(outerScope);
   };
 

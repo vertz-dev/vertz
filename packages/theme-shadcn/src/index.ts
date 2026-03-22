@@ -55,6 +55,7 @@ import type { ThemedDialogComponent } from './components/primitives/dialog';
 import type { ThemedDrawerComponent } from './components/primitives/drawer';
 import type { ThemedDropdownMenuComponent } from './components/primitives/dropdown-menu';
 import type { ThemedHoverCardComponent } from './components/primitives/hover-card';
+import type { ThemedListComponent } from './components/primitives/list';
 import type { ThemedMenubarComponent } from './components/primitives/menubar';
 import type { ThemedNavigationMenuComponent } from './components/primitives/navigation-menu';
 import type { ThemedPopoverComponent } from './components/primitives/popover';
@@ -124,6 +125,7 @@ declare module '@vertz/ui/components' {
     Toast: ThemedPrimitives['Toast'];
 
     // Compound primitives (callable + sub-components) — continued
+    List: ThemedListComponent;
     Carousel: ThemedCarouselComponent;
 
     // Compound primitives (callable + sub-components) — continued
