@@ -1,6 +1,5 @@
-import { sql } from '@vertz/db/sql';
 import { defineAuth, github } from '@vertz/server';
-import { db } from './db';
+import { access } from './access';
 import { SEED_WORKSPACE_ID } from './schema';
 
 const APP_URL = process.env.APP_URL ?? 'http://localhost:3000';
@@ -19,37 +18,23 @@ export const auth = defineAuth({
   oauthSuccessRedirect: '/projects',
   oauthErrorRedirect: '/login',
 
-  // Tenant switching — enables POST /api/auth/switch-tenant and GET /api/auth/tenants.
-  // Queries the database to verify membership and list workspaces.
-  // resolveDefault is omitted — the built-in strategy uses lastTenantId (persisted
-  // in auth_users during switch-tenant) with fallback to the first tenant in the list.
-  tenant: {
-    verifyMembership: async (userId, tenantId) => {
-      const result = await db.query<{ id: string }>(
-        sql`SELECT id FROM users WHERE id = ${userId} AND workspace_id = ${tenantId} LIMIT 1`,
-      );
-      return result.ok && result.data.rows.length > 0;
-    },
-    listTenants: async (userId) => {
-      const result = await db.query<{ id: string; name: string }>(
-        sql`SELECT w.id, w.name FROM workspaces w
-            INNER JOIN users u ON u.workspace_id = w.id
-            WHERE u.id = ${userId}`,
-      );
-      if (!result.ok) return [];
-      return result.data.rows.map((row) => ({ id: row.id, name: row.name }));
-    },
+  // Access config — enables RBAC, entitlements, and role assignments.
+  // Combined with a .tenant() table in the schema, this auto-enables
+  // tenant endpoints (/auth/tenants, /auth/switch-tenant) with
+  // membership derived from role assignments. No manual tenant config needed.
+  // roleStore and closureStore are auto-wired by createServer() from the DB.
+  access: {
+    definition: access,
   },
 
   // Bridge auth → entity: populate the developer's users table from GitHub profile.
   // Also handles email/password signups (for dev/E2E testing).
-  // workspaceId is set explicitly because the session has no tenant yet at signup time.
+  // Assigns 'member' role on seed workspace via framework API (no workspaceId column).
   onUserCreated: async (payload, ctx) => {
     if (payload.provider) {
       const profile = payload.profile as Record<string, unknown>;
       await ctx.entities.users.create({
         id: payload.user.id,
-        workspaceId: SEED_WORKSPACE_ID,
         email: payload.user.email,
         name: (profile.name as string) ?? (profile.login as string),
         avatarUrl: profile.avatar_url as string,
@@ -57,11 +42,13 @@ export const auth = defineAuth({
     } else {
       await ctx.entities.users.create({
         id: payload.user.id,
-        workspaceId: SEED_WORKSPACE_ID,
         email: payload.user.email,
         name: payload.user.email.split('@')[0],
         avatarUrl: null,
       });
     }
+
+    // Assign 'member' role on seed workspace via framework's role store
+    await ctx.roles!.assign(payload.user.id, 'workspace', SEED_WORKSPACE_ID, 'member');
   },
 });

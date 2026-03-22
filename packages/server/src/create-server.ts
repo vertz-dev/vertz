@@ -11,7 +11,9 @@ import { initializeAuthTables, validateAuthModels } from './auth/auth-tables';
 import { createCloudJWTVerifier } from './auth/cloud-jwt-verifier';
 import { createAuthProxy } from './auth/cloud-proxy';
 import { resolveCloudAuthContext, validateProjectId } from './auth/cloud-startup';
+import { DbClosureStore } from './auth/db-closure-store';
 import { DbOAuthAccountStore } from './auth/db-oauth-account-store';
+import { DbRoleAssignmentStore } from './auth/db-role-assignment-store';
 import { DbSessionStore } from './auth/db-session-store';
 import type { AuthDbClient } from './auth/db-types';
 import { DbUserStore } from './auth/db-user-store';
@@ -236,6 +238,8 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
 
   // Tenant resource type derived from tenant graph + access definition (set during entity processing)
   let tenantResourceType: string | undefined;
+  // Access config for CRUD pipeline, hoisted for reuse in auth wiring
+  let crudAccessConfig: import('./entity/crud-pipeline').CrudAccessConfig | undefined;
 
   // Process entities first (so registry has all entities registered for DI)
   if (config.entities && config.entities.length > 0) {
@@ -323,23 +327,29 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
       registry.register(entityDef.name, ops);
     }
 
-    // Compute access config for entity CRUD pipeline (enables rules.entitlement() evaluation)
-    const accessConfig = config.auth?.access
-      ? {
-          definition: config.auth.access.definition,
-          roleStore: config.auth.access.roleStore,
-          closureStore: config.auth.access.closureStore,
-          flagStore: config.auth.access.flagStore,
-          subscriptionStore: config.auth.access.subscriptionStore,
-        }
-      : undefined;
+    // Compute access config for entity CRUD pipeline (enables rules.entitlement() evaluation).
+    // Auto-wire roleStore and closureStore from DB when not explicitly provided.
+    const authDb = hasDbClient ? (db as unknown as AuthDbClient) : undefined;
+    const resolvedRoleStore =
+      config.auth?.access?.roleStore ?? (authDb && new DbRoleAssignmentStore(authDb));
+    const resolvedClosureStore =
+      config.auth?.access?.closureStore ?? (authDb && new DbClosureStore(authDb));
+    if (config.auth?.access && resolvedRoleStore && resolvedClosureStore) {
+      crudAccessConfig = {
+        definition: config.auth.access.definition,
+        roleStore: resolvedRoleStore,
+        closureStore: resolvedClosureStore,
+        flagStore: config.auth.access.flagStore,
+        subscriptionStore: config.auth.access.subscriptionStore,
+      };
+    }
 
     // Derive tenant resource type from tenant graph root + access definition entity names
-    if (hasDbClient && accessConfig) {
+    if (hasDbClient && crudAccessConfig) {
       const dbClient = db as DatabaseClient<Record<string, ModelEntry>>;
       const tenantRoot = dbClient._internals.tenantGraph.root; // e.g. 'workspaces'
       if (tenantRoot) {
-        const accessEntityNames = Object.keys(accessConfig.definition.roles);
+        const accessEntityNames = Object.keys(crudAccessConfig.definition.roles);
         // Match: access entity 'workspace' → table name 'workspaces' (entity + 's')
         tenantResourceType = accessEntityNames.find(
           (name) => name === tenantRoot || `${name}s` === tenantRoot,
@@ -355,7 +365,7 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
         apiPrefix,
         tenantChain,
         queryParentIds: tenantChain ? (queryParentIds ?? config._queryParentIds) : undefined,
-        accessConfig,
+        accessConfig: crudAccessConfig,
         tenantResourceType,
       });
       allRoutes.push(...routes);
@@ -518,11 +528,11 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
     // auto-enable tenant endpoints using role-based membership.
     let autoTenant: import('./auth/types').TenantConfig | undefined;
     if (
-      config.auth.access &&
+      crudAccessConfig &&
       tenantResourceType &&
       config.auth.tenant === undefined // Don't override explicit tenant config or explicit disable
     ) {
-      const roleStore = config.auth.access.roleStore;
+      const roleStore = crudAccessConfig.roleStore;
       const resourceType = tenantResourceType; // captured after truthiness check
       autoTenant = {
         verifyMembership: async (userId: string, tenantId: string) => {
@@ -552,6 +562,15 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
       };
     }
 
+    // Reuse the auto-wired access stores for auth config (same instances as CRUD pipeline)
+    const authAccessConfig = config.auth.access
+      ? {
+          ...config.auth.access,
+          roleStore: crudAccessConfig?.roleStore ?? config.auth.access.roleStore,
+          closureStore: crudAccessConfig?.closureStore ?? config.auth.access.closureStore,
+        }
+      : undefined;
+
     const authConfig: AuthConfig = {
       ...config.auth,
       // Auto-wire DB-backed stores unless explicitly overridden
@@ -561,6 +580,8 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
       oauthAccountStore:
         config.auth.oauthAccountStore ??
         (config.auth.providers?.length ? new DbOAuthAccountStore(dbClient) : undefined),
+      // Auto-wire access stores (roleStore, closureStore) from DB
+      access: authAccessConfig,
       // Only create entity proxy when onUserCreated callback exists or when auto-tenant needs it
       _entityProxy:
         config.auth.onUserCreated || autoTenant

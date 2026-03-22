@@ -243,15 +243,25 @@ export function createAuth(config: AuthConfig): AuthInstance {
   // Tenant switching (false is handled by createServer — filter it out here for safety)
   const tenantConfig = config.tenant || undefined;
 
+  // Resolve access stores — required when access is configured.
+  // createServer auto-wires these from the DB; direct createAuth callers must provide them.
+  const resolvedAccess = config.access
+    ? {
+        ...config.access,
+        roleStore: config.access.roleStore,
+        closureStore: config.access.closureStore,
+      }
+    : undefined;
+
   // Auth-entity bridge callback
   const onUserCreated = config.onUserCreated;
   const entityProxy = config._entityProxy ?? {};
-  const callbackRoles = config.access?.roleStore
+  const callbackRoles = resolvedAccess?.roleStore
     ? {
         assign: (userId: string, resourceType: string, resourceId: string, role: string) =>
-          config.access!.roleStore.assign(userId, resourceType, resourceId, role),
+          resolvedAccess.roleStore!.assign(userId, resourceType, resourceId, role),
         revoke: (userId: string, resourceType: string, resourceId: string, role: string) =>
-          config.access!.roleStore.revoke(userId, resourceType, resourceId, role),
+          resolvedAccess.roleStore!.revoke(userId, resourceType, resourceId, role),
       }
     : undefined;
 
@@ -280,14 +290,14 @@ export function createAuth(config: AuthConfig): AuthInstance {
     // Compute ACL claim if access config is present
     let aclClaim: { acl: { set?: EncodedAccessSet; hash: string; overflow: boolean } } | object =
       {};
-    if (config.access) {
+    if (resolvedAccess?.roleStore && resolvedAccess.closureStore) {
       const accessSet = await computeAccessSet({
         userId: user.id,
-        accessDef: config.access.definition,
-        roleStore: config.access.roleStore,
-        closureStore: config.access.closureStore,
-        flagStore: config.access.flagStore,
-        subscriptionStore: config.access?.subscriptionStore,
+        accessDef: resolvedAccess.definition,
+        roleStore: resolvedAccess.roleStore,
+        closureStore: resolvedAccess.closureStore,
+        flagStore: resolvedAccess.flagStore,
+        subscriptionStore: resolvedAccess.subscriptionStore,
         tenantId: null,
       });
       const encoded = encodeAccessSet(accessSet);
@@ -1077,7 +1087,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
       // Route: GET /api/auth/access-set
       if (method === 'GET' && path === '/access-set') {
-        if (!config.access) {
+        if (!resolvedAccess?.roleStore || !resolvedAccess.closureStore) {
           return new Response(JSON.stringify({ error: 'Access control not configured' }), {
             status: 404,
             headers: { 'Content-Type': 'application/json', ...securityHeaders() },
@@ -1094,11 +1104,11 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
         const accessSet = await computeAccessSet({
           userId: sessionResult.data.user.id,
-          accessDef: config.access.definition,
-          roleStore: config.access.roleStore,
-          closureStore: config.access.closureStore,
-          flagStore: config.access.flagStore,
-          subscriptionStore: config.access?.subscriptionStore,
+          accessDef: resolvedAccess.definition,
+          roleStore: resolvedAccess.roleStore,
+          closureStore: resolvedAccess.closureStore,
+          flagStore: resolvedAccess.flagStore,
+          subscriptionStore: resolvedAccess.subscriptionStore,
           tenantId: sessionResult.data.payload?.tenantId ?? null,
         });
 

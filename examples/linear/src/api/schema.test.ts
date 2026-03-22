@@ -21,14 +21,12 @@ describe('Schema relations', () => {
   });
 
   describe('Given the users model', () => {
-    it('Then it has a workspace relation pointing to workspacesTable via workspaceId', () => {
-      expect(usersModel.relations.workspace).toBeDefined();
-      expect(usersModel.relations.workspace._type).toBe('one');
-      expect(usersModel.relations.workspace._foreignKey).toBe('workspaceId');
+    it('Then it has no relations (cross-tenant, membership via role assignments)', () => {
+      expect(usersModel.relations).toEqual({});
     });
 
-    it('Then it does not have a _tenant property (tenant is on the table)', () => {
-      expect(usersModel).not.toHaveProperty('_tenant');
+    it('Then it is marked as shared (cross-tenant)', () => {
+      expect(usersModel.table._shared).toBe(true);
     });
   });
 

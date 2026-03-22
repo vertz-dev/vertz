@@ -4,11 +4,11 @@ import { issuesModel } from '../schema';
 export const issues = entity('issues', {
   model: issuesModel,
   access: {
-    list: rules.authenticated(),
-    get: rules.authenticated(),
-    create: rules.authenticated(),
-    update: rules.authenticated(),
-    delete: rules.all(rules.authenticated(), rules.where({ createdBy: rules.user.id })),
+    list: rules.entitlement('issue:read'),
+    get: rules.entitlement('issue:read'),
+    create: rules.entitlement('issue:create'),
+    update: rules.entitlement('issue:update'),
+    delete: rules.all(rules.entitlement('issue:delete'), rules.where({ createdBy: rules.user.id })),
   },
   expose: {
     select: {

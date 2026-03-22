@@ -414,11 +414,15 @@ export interface TenantConfig {
   resolveDefault?: (userId: string, tenants: TenantInfo[]) => Promise<string | undefined>;
 }
 
-/** Access control configuration for JWT acl claim computation. */
+/** Access control configuration for JWT acl claim computation.
+ *  When used with `createServer()` and a DatabaseClient, `roleStore` and
+ *  `closureStore` are auto-wired from the DB and don't need to be provided. */
 export interface AuthAccessConfig {
   definition: import('./define-access').AccessDefinition;
-  roleStore: import('./role-assignment-store').RoleAssignmentStore;
-  closureStore: import('./closure-store').ClosureStore;
+  /** Role assignment store — auto-wired from DB by `createServer()` when omitted. */
+  roleStore?: import('./role-assignment-store').RoleAssignmentStore;
+  /** Closure store for hierarchy — auto-wired from DB by `createServer()` when omitted. */
+  closureStore?: import('./closure-store').ClosureStore;
   flagStore?: import('./flag-store').FlagStore;
   subscriptionStore?: import('./subscription-store').SubscriptionStore;
   walletStore?: import('./wallet-store').WalletStore;

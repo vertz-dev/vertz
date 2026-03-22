@@ -4,9 +4,9 @@ import { issueLabelsModel } from '../schema';
 export const issueLabels = entity('issue-labels', {
   model: issueLabelsModel,
   access: {
-    list: rules.authenticated(),
-    get: rules.authenticated(),
-    create: rules.authenticated(),
-    delete: rules.authenticated(),
+    list: rules.entitlement('issue:read'),
+    get: rules.entitlement('issue:read'),
+    create: rules.entitlement('issue:update'),
+    delete: rules.entitlement('issue:update'),
   },
 });

@@ -6,7 +6,7 @@
  */
 
 import { createDb } from '@vertz/db';
-import { authModels } from '@vertz/server';
+import { type AuthDbClient, authModels, DbRoleAssignmentStore } from '@vertz/server';
 import {
   commentsModel,
   issueLabelsModel,
@@ -38,4 +38,7 @@ export const db = createDb({
 
 // First query triggers autoMigrate (creates tables from model definitions).
 // seedDatabase checks if the database is empty and seeds if needed.
-await seedDatabase(db);
+// Role store is passed to seed workspace membership via role assignments.
+// The cast is safe — db includes authModels which provides auth_sessions.
+const roleStore = new DbRoleAssignmentStore(db as unknown as AuthDbClient);
+await seedDatabase(db, roleStore);

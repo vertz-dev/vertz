@@ -162,12 +162,11 @@ describe('seedDatabase', () => {
 
       it('Then directly-scoped seed records have the seed workspace ID as workspaceId', async () => {
         await seedDatabase(client);
-        for (const countResult of [
-          await client.users.count({ where: { workspaceId: { ne: SEED_WORKSPACE_ID } } }),
+        // Only projects have workspaceId (users are .shared(), membership via role assignments)
+        const count = unwrap(
           await client.projects.count({ where: { workspaceId: { ne: SEED_WORKSPACE_ID } } }),
-        ]) {
-          expect(unwrap(countResult)).toBe(0);
-        }
+        );
+        expect(count).toBe(0);
       });
     });
   });
