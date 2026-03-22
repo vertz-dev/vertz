@@ -41,8 +41,8 @@ describe('fast-refresh-dom-state', () => {
 
       const snapshot = captureDOMState(el);
       expect(snapshot.formFields.size).toBe(2);
-      expect(snapshot.formFields.get('title')?.value).toBe('Hello');
-      expect(snapshot.formFields.get('desc')?.value).toBe('World');
+      expect(snapshot.formFields.get('name:title')?.value).toBe('Hello');
+      expect(snapshot.formFields.get('name:desc')?.value).toBe('World');
     });
 
     it('captures checkbox checked state by name', () => {
@@ -52,7 +52,7 @@ describe('fast-refresh-dom-state', () => {
       cb.checked = true;
 
       const snapshot = captureDOMState(el);
-      expect(snapshot.formFields.get('agree')?.checked).toBe(true);
+      expect(snapshot.formFields.get('name:agree')?.checked).toBe(true);
     });
 
     it('captures select selectedIndex by name', () => {
@@ -62,7 +62,7 @@ describe('fast-refresh-dom-state', () => {
       select.selectedIndex = 1;
 
       const snapshot = captureDOMState(el);
-      expect(snapshot.formFields.get('status')?.selectedIndex).toBe(1);
+      expect(snapshot.formFields.get('name:status')?.selectedIndex).toBe(1);
     });
 
     it('captures textarea values by name', () => {
@@ -72,7 +72,7 @@ describe('fast-refresh-dom-state', () => {
       ta.value = 'Some text content';
 
       const snapshot = captureDOMState(el);
-      expect(snapshot.formFields.get('body')?.value).toBe('Some text content');
+      expect(snapshot.formFields.get('name:body')?.value).toBe('Some text content');
     });
 
     it('restores input text value to matching name in new tree', () => {
@@ -115,14 +115,16 @@ describe('fast-refresh-dom-state', () => {
       expect((newEl.querySelector('[name="body"]') as HTMLTextAreaElement).value).toBe('Notes');
     });
 
-    it('skips inputs without name attribute', () => {
+    it('captures inputs without name attribute using positional fallback', () => {
       const el = document.createElement('div');
       el.innerHTML = '<input value="nameless" /><input name="named" value="yes" />';
+      (el.querySelector('input:first-child') as HTMLInputElement).value = 'nameless';
       (el.querySelector('[name="named"]') as HTMLInputElement).value = 'yes';
 
       const snapshot = captureDOMState(el);
-      expect(snapshot.formFields.size).toBe(1);
-      expect(snapshot.formFields.has('named')).toBe(true);
+      expect(snapshot.formFields.size).toBe(2);
+      expect(snapshot.formFields.has('name:named')).toBe(true);
+      expect(snapshot.formFields.has('pos:input:0')).toBe(true);
     });
 
     it('skips silently when name exists in old tree but not new tree', () => {
@@ -146,8 +148,8 @@ describe('fast-refresh-dom-state', () => {
 
       const snapshot = captureDOMState(el);
       expect(snapshot.formFields.size).toBe(1);
-      expect(snapshot.formFields.has('upload')).toBe(false);
-      expect(snapshot.formFields.has('text')).toBe(true);
+      expect(snapshot.formFields.has('name:upload')).toBe(false);
+      expect(snapshot.formFields.has('name:text')).toBe(true);
     });
   });
 
