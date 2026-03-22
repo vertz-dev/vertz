@@ -204,7 +204,7 @@ You write plain-looking code and the compiler makes it reactive automatically.
 ## Imports
 
 \`\`\`ts
-import { css, query, queryMatch, globalCss, ThemeProvider, variants } from 'vertz/ui';
+import { css, query, globalCss, ThemeProvider, variants } from 'vertz/ui';
 import { api } from '../client';
 \`\`\`
 
@@ -309,20 +309,20 @@ const tasks = query(api.tasks.list());
 The query result has reactive properties (\`.data\`, \`.error\`, \`.loading\`) that the compiler
 auto-unwraps everywhere — just access them directly, the compiler handles the rest.
 
-### \`queryMatch()\` — Pattern matching for query states
+### Rendering query states
+
+Use direct conditional rendering for loading, error, and data states:
 
 \`\`\`tsx
-{queryMatch(tasksQuery, {
-  loading: () => <div>Loading...</div>,
-  error: (err) => <div>Error: {err.message}</div>,
-  data: (response) => (
-    <div>
-      {response.items.map((item) => (
-        <div key={item.id}>{item.title}</div>
-      ))}
-    </div>
-  ),
-})}
+{tasks.loading && <div>Loading...</div>}
+{tasks.error && <div>Error: {tasks.error.message}</div>}
+{tasks.data && (
+  <div>
+    {tasks.data.items.map((item) => (
+      <div key={item.id}>{item.title}</div>
+    ))}
+  </div>
+)}
 \`\`\`
 
 ### Automatic Cache Invalidation
@@ -854,7 +854,6 @@ export function homePageTemplate(): string {
   form,
   globalCss,
   query,
-  queryMatch,
   slideInFromTop,
   useDialogStack,
 } from 'vertz/ui';
@@ -986,43 +985,41 @@ export function HomePage() {
         </Button>
       </form>
 
-      {queryMatch(tasksQuery, {
-        loading: () => (
-          <div className={styles.loading}>Loading tasks...</div>
-        ),
-        error: (err) => (
-          <div className={styles.error}>
-            {err instanceof Error ? err.message : String(err)}
-          </div>
-        ),
-        data: (response) => (
-          <>
-            {response.items.length === 0 && (
-              <div className={styles.empty}>
-                No tasks yet. Add one above!
-              </div>
-            )}
-            <div data-testid="task-list" className={styles.list}>
-              <ListTransition
-                each={response.items}
-                keyFn={(task) => task.id}
-                children={(task) => (
-                  <TaskItem
-                    id={task.id}
-                    title={task.title}
-                    completed={task.completed}
-                  />
-                )}
-              />
+      {tasksQuery.loading && (
+        <div className={styles.loading}>Loading tasks...</div>
+      )}
+      {tasksQuery.error && (
+        <div className={styles.error}>
+          {tasksQuery.error instanceof Error ? tasksQuery.error.message : String(tasksQuery.error)}
+        </div>
+      )}
+      {tasksQuery.data && (
+        <>
+          {tasksQuery.data.items.length === 0 && (
+            <div className={styles.empty}>
+              No tasks yet. Add one above!
             </div>
-            {response.items.length > 0 && (
-              <div className={styles.count}>
-                {response.items.filter((t) => !t.completed).length} remaining
-              </div>
-            )}
-          </>
-        ),
-      })}
+          )}
+          <div data-testid="task-list" className={styles.list}>
+            <ListTransition
+              each={tasksQuery.data.items}
+              keyFn={(task) => task.id}
+              children={(task) => (
+                <TaskItem
+                  id={task.id}
+                  title={task.title}
+                  completed={task.completed}
+                />
+              )}
+            />
+          </div>
+          {tasksQuery.data.items.length > 0 && (
+            <div className={styles.count}>
+              {tasksQuery.data.items.filter((t) => !t.completed).length} remaining
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

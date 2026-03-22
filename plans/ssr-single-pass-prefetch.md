@@ -4,7 +4,37 @@
 
 ## Status
 
-**Draft** — Awaiting design review and sign-off.
+**Draft — Blocked** — Design reviews identified unresolved architectural blockers. See "Unresolved Blockers" below.
+
+**Depends on:** `queryMatch` removal (see `plans/remove-query-match.md`) — must be completed first to simplify the component graph for static analysis.
+
+## Unresolved Blockers (from design review)
+
+Three design reviews (DX, Product/Scope, Technical) were conducted on 2026-03-22. All three flagged the same fundamental issue:
+
+### 1. Prefetch execution mechanism is undefined
+
+The manifest knows *which* queries a route needs (by key) but not *how* to fetch them. The proposed "prefetch mode" (import the page module and run `query()` without rendering) is essentially still a discovery pass — just lighter. The performance model assumes `O(1)` manifest lookup, but the actual cost includes module imports and thunk extraction.
+
+**Must resolve before implementation:** Define precisely what "prefetch mode" means, how query thunks are extracted without full rendering, and update the performance model.
+
+### 2. `access` option dependency direction
+
+`access: rules.authenticated()` on `query()` requires `@vertz/ui` to know about `rules` types. Currently `rules` lives in `@vertz/server`. Either extract rule types to a shared package or accept them as a generic discriminated union on `QueryOptions`.
+
+### 3. Default for unannotated queries
+
+All reviewers agreed that defaulting to `public` (always prefetch) is a footgun — unannotated authenticated queries would fire for anonymous users, causing 401s. Consider defaulting to `authenticated` when auth is configured.
+
+### Items to resolve before implementation begins:
+- [ ] POC: Validate prefetch execution mechanism (choose between lightweight render vs. query registry)
+- [ ] POC: Validate route extraction accuracy on real apps
+- [ ] POC: Validate single-pass output matches two-pass output
+- [ ] Resolve `rules` type dependency direction
+- [ ] Decide `access` default (`public` vs `authenticated`)
+- [ ] Define supported `defineRoutes()` patterns for static analysis
+- [ ] Clarify lazy route loading in single-pass flow
+- [ ] Clarify state-dependent query keys (excluded from manifest?)
 
 ## Problem
 
@@ -329,7 +359,7 @@ describe('Feature: SSR single-pass prefetch', () => {
 ## Manifesto Alignment
 
 ### Principle: Zero Wasted Work
-The core motivation. Today we render twice; tomorrow we render once. Queries the user can't access are skipped entirely — no request, no parse, no cache entry.
+Today we render twice; tomorrow we render once. Queries the user can't access are skipped entirely — no request, no parse, no cache entry.
 
 ### Principle: Compiler Does the Work
 The static analysis extends the existing compiler infrastructure (field selection analyzer, reactivity manifests). Developers write normal `query()` calls; the build step extracts the dependency graph.
@@ -381,6 +411,12 @@ Fail-secure: unknown rule types → don't prefetch (server still handles auth at
 **Question:** How does the manifest handle `component: () => import('./page')`?
 
 **Resolution approach:** The build step resolves dynamic imports to their target files and analyzes them normally. The manifest records the resolved component path. At request time, the SSR pipeline imports the lazy component as part of prefetching (parallel with query fetching).
+
+### 5. Prefetch execution
+
+**Question:** The manifest has query keys but not fetch functions. How does the prefetcher know *how* to fetch?
+
+**Resolution approach:** The prefetcher imports the route's page module(s) and runs the app factory in a lightweight "prefetch mode" where `query()` calls register their thunks but don't subscribe to signals or create DOM. This is similar to Pass 1 today but with the key difference that we already know *which* queries to expect, can fire them immediately, and don't need to render the full component tree. Alternative: queries self-register factories in a global registry at import time (key → thunk mapping), so the prefetcher can call them without importing the full component.
 
 ## Type Flow Map
 
@@ -449,32 +485,130 @@ Anonymous user hitting a page where 3/5 queries require auth:
 Build-time analysis: route extraction, component graph traversal, query collection, manifest output.
 
 **Acceptance criteria:**
-- `defineRoutes()` with static object literals → correct manifest
-- Lazy route components resolved via dynamic import
-- `query()` calls with `key` and `access` options extracted
-- Template literal keys with `useParams()` vars → param slots
-- Warns on unanalyzable patterns (dynamic routes, computed keys)
+
+```typescript
+describe('Feature: Prefetch manifest generation', () => {
+  describe('Given a routes.ts with defineRoutes() using static object literals', () => {
+    describe('When the manifest generator runs', () => {
+      it('Then all static routes are extracted with correct patterns', () => {});
+      it('Then nested routes produce joined patterns (/settings/profile)', () => {});
+    });
+  });
+
+  describe('Given a route component with query() calls', () => {
+    describe('When the component has a query with a static key', () => {
+      it('Then the manifest includes { key: "task-list", access: { type: "public" } }', () => {});
+    });
+    describe('When the component has a query with access: rules.authenticated()', () => {
+      it('Then the manifest includes { key: ..., access: { type: "authenticated" } }', () => {});
+    });
+    describe('When the component has a query with a template literal key using useParams()', () => {
+      it('Then the manifest includes param slots: { key: "task-$id", params: ["id"] }', () => {});
+    });
+  });
+
+  describe('Given a route with component: () => import("./page")', () => {
+    describe('When the manifest generator resolves the dynamic import', () => {
+      it('Then queries from the lazily imported module are included', () => {});
+    });
+  });
+
+  describe('Given a defineRoutes() call with unanalyzable patterns', () => {
+    describe('When routes use spread operators or computed keys', () => {
+      it('Then those routes are excluded from the manifest with a warning', () => {});
+    });
+  });
+});
+```
 
 ### Phase 2: Auth-Aware Prefetcher
 
 Runtime prefetch engine: manifest lookup, auth filtering, parallel query execution, cache population.
 
 **Acceptance criteria:**
-- Anonymous user → only public queries prefetched
-- Authenticated user → public + authenticated queries prefetched
-- Entitlement-gated queries → checked against AccessSet from JWT
-- Route params substituted into query keys
-- Prefetch timeout per-query with graceful degradation
+
+```typescript
+describe('Feature: Auth-aware prefetcher', () => {
+  describe('Given a manifest with public and authenticated queries', () => {
+    describe('When an anonymous user requests the page', () => {
+      it('Then only public queries are prefetched', () => {});
+    });
+    describe('When an authenticated user requests the page', () => {
+      it('Then public + authenticated queries are prefetched', () => {});
+    });
+  });
+
+  describe('Given a manifest with entitlement-gated queries', () => {
+    describe('When the user lacks the entitlement', () => {
+      it('Then the gated query is skipped', () => {});
+    });
+    describe('When the user has the entitlement in their AccessSet', () => {
+      it('Then the gated query is prefetched', () => {});
+    });
+  });
+
+  describe('Given a manifest with composite rules (all/any)', () => {
+    describe('When rules.all(authenticated, entitlement) and user lacks entitlement', () => {
+      it('Then the query is skipped', () => {});
+    });
+    describe('When rules.any(role("admin"), entitlement("x")) and user has role', () => {
+      it('Then the query is prefetched', () => {});
+    });
+  });
+
+  describe('Given a route with parameterized query keys', () => {
+    describe('When /tasks/abc123 is requested', () => {
+      it('Then $id in query key is substituted with abc123', () => {});
+    });
+  });
+
+  describe('Given a query that times out during prefetch', () => {
+    describe('When the timeout fires', () => {
+      it('Then the query result is absent from cache (client fetches on mount)', () => {});
+      it('Then other queries are not affected', () => {});
+    });
+  });
+});
+```
 
 ### Phase 3: Single-Pass SSR Pipeline
 
 New `ssrRenderSinglePass()` alongside existing `ssrRenderToString()`. Fallback to two-pass for unmanifested routes.
 
 **Acceptance criteria:**
-- Manifested route → single render pass, `renderPassCount === 1`
-- Unmanifested route → falls back to two-pass, `renderPassCount === 2`
-- HTML output identical between single-pass and two-pass for same data
-- Performance improvement measurable in benchmarks
+
+```typescript
+describe('Feature: Single-pass SSR render', () => {
+  describe('Given a manifested route with pre-populated cache', () => {
+    describe('When ssrRenderSinglePass() is called', () => {
+      it('Then the app factory is called exactly once', () => {});
+      it('Then renderPassCount === 1', () => {});
+      it('Then HTML output matches two-pass output for same data', () => {});
+      it('Then ssrData contains all prefetched query entries', () => {});
+    });
+  });
+
+  describe('Given a route NOT in the manifest', () => {
+    describe('When ssrRenderSinglePass() is called', () => {
+      it('Then it falls back to ssrRenderToString() (two-pass)', () => {});
+      it('Then renderPassCount === 2', () => {});
+    });
+  });
+
+  describe('Given a manifested route where a prefetch query failed', () => {
+    describe('When the app renders', () => {
+      it('Then the component sees loading/error state for that query', () => {});
+      it('Then other queries have their data available', () => {});
+    });
+  });
+
+  describe('Given SSR with ProtectedRoute redirect', () => {
+    describe('When the redirect fires during single-pass render', () => {
+      it('Then the result contains redirect.to and empty HTML', () => {});
+    });
+  });
+});
+```
 
 ### Phase 4: Developer Experience
 
@@ -483,10 +617,31 @@ New `ssrRenderSinglePass()` alongside existing `ssrRenderToString()`. Fallback t
 - Diagnostic: `/__vertz_prefetch_manifest` endpoint in dev mode
 - Warnings for queries without `access` annotation (suggest adding one)
 
-## Open Questions for Review
+**Acceptance criteria:**
 
-1. **Should `access` on `query()` be required or optional?** Optional (default: public) is backward-compatible but means unannotated queries are always prefetched. Required forces developers to think about auth for every query.
+```typescript
+describe('Feature: DX integration', () => {
+  describe('Given vertz build runs', () => {
+    describe('When the project has a routes.ts with defineRoutes()', () => {
+      it('Then .vertz/prefetch-manifest.json is generated', () => {});
+    });
+  });
 
-2. **Should the manifest include the query's fetch function reference?** Currently the manifest only has the key. The prefetcher needs to know *how* to fetch. Options: (a) import the page module and extract query factories, (b) map keys to API SDK methods via convention, (c) queries self-register their factories at import time.
+  describe('Given the dev server is running', () => {
+    describe('When a route file or query file changes', () => {
+      it('Then the manifest is regenerated automatically', () => {});
+    });
+    describe('When GET /__vertz_prefetch_manifest is called', () => {
+      it('Then the current manifest JSON is returned', () => {});
+    });
+  });
+});
+```
 
-3. **Nested layouts:** A route like `/settings/billing` renders `SettingsLayout` + `BillingPage`. Both may have queries. The manifest should aggregate queries from all components in the matched chain — is the import graph traversal sufficient, or do we need explicit layout→child relationships?
+## Resolved Questions
+
+1. **`access` on `query()` is optional.** Default is `public` (always prefetched). This is backward-compatible and avoids forcing annotations on every query. The build step can warn about unannotated queries as a lint hint.
+
+2. **Manifest includes component paths, not fetch references.** The prefetcher imports the page module to access query thunks. This reuses existing module loading infrastructure and avoids a separate registry.
+
+3. **Nested layouts: import graph traversal is sufficient.** The build step follows imports from the route component file. If `SettingsLayout` imports `BillingPage` (or both are in the matched route chain from `defineRoutes`), their queries are all captured. The manifest aggregates queries from all components in the route's import subgraph.

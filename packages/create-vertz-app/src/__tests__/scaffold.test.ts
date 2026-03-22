@@ -316,7 +316,7 @@ describe('scaffold', () => {
 
       const content = await fs.readFile(projectPath('src', 'pages', 'home.tsx'), 'utf-8');
       expect(content).toContain('query');
-      expect(content).toContain('queryMatch');
+      expect(content).toContain('tasksQuery.data');
       expect(content).toContain('api.tasks');
       expect(content).toContain('export function HomePage()');
     });

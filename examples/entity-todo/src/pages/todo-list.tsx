@@ -3,7 +3,7 @@
  *
  * Demonstrates:
  * - query() with descriptor-based data fetching
- * - queryMatch() for exclusive-state pattern matching (loading/error/data)
+ * - Direct conditional rendering for loading/error/data states
  * - Automatic optimistic updates — no refetch callbacks needed for any CRUD operation
  * - ListTransition for animated list item enter/exit
  */
@@ -16,7 +16,6 @@ import {
   globalCss,
   ListTransition,
   query,
-  queryMatch,
   slideInFromTop,
 } from '@vertz/ui';
 import type { TodosResponse } from '../api/client';
@@ -54,39 +53,39 @@ export function TodoListPage() {
         className={pageStyles.listContainer}
         style={{ opacity: todosQuery.revalidating ? 0.6 : 1 }}
       >
-        {queryMatch(todosQuery, {
-          loading: () => (
-            <div data-testid="loading" className={pageStyles.loading}>
-              Loading todos...
-            </div>
-          ),
-          error: (err) => (
-            <div className={pageStyles.error} data-testid="error">
-              {err instanceof Error ? err.message : String(err)}
-            </div>
-          ),
-          data: (response) => (
-            <>
-              {response.items.length === 0 && (
-                <div className={emptyStateStyles.container}>
-                  <h3 className={emptyStateStyles.heading}>No todos yet</h3>
-                  <p className={emptyStateStyles.description}>
-                    Add your first todo above to get started.
-                  </p>
-                </div>
-              )}
-              <div data-testid="todo-list" className={pageStyles.todoList}>
-                <ListTransition
-                  each={response.items}
-                  keyFn={(todo: TodosResponse) => todo.id}
-                  children={(todo: TodosResponse) => (
-                    <TodoItem id={todo.id} title={todo.title} completed={todo.completed} />
-                  )}
-                />
+        {todosQuery.loading && (
+          <div data-testid="loading" className={pageStyles.loading}>
+            Loading todos...
+          </div>
+        )}
+        {todosQuery.error && (
+          <div className={pageStyles.error} data-testid="error">
+            {todosQuery.error instanceof Error
+              ? todosQuery.error.message
+              : String(todosQuery.error)}
+          </div>
+        )}
+        {todosQuery.data && (
+          <>
+            {todosQuery.data.items.length === 0 && (
+              <div className={emptyStateStyles.container}>
+                <h3 className={emptyStateStyles.heading}>No todos yet</h3>
+                <p className={emptyStateStyles.description}>
+                  Add your first todo above to get started.
+                </p>
               </div>
-            </>
-          ),
-        })}
+            )}
+            <div data-testid="todo-list" className={pageStyles.todoList}>
+              <ListTransition
+                each={todosQuery.data.items}
+                keyFn={(todo: TodosResponse) => todo.id}
+                children={(todo: TodosResponse) => (
+                  <TodoItem id={todo.id} title={todo.title} completed={todo.completed} />
+                )}
+              />
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

@@ -5,9 +5,8 @@
  * JSX list rendering) are applied during `bun test`, matching the
  * behaviour of the Vite plugin at dev/build time.
  *
- * The Vertz compiler does not transform JSX inside `queryMatch()` callback
- * arguments (only top-level component JSX, .map() callbacks, and
- * conditionals). A second pass through Bun.Transpiler handles any
+ * The Vertz compiler transforms top-level component JSX, .map() callbacks,
+ * and conditionals. A second pass through Bun.Transpiler handles any
  * remaining JSX using the @vertz/ui jsx-runtime.
  */
 import { compile } from '@vertz/ui-compiler';
@@ -45,7 +44,6 @@ plugin({
       const result = compile(source, args.path);
 
       // Second pass: transform any remaining JSX the compiler didn't handle
-      // (e.g., JSX inside queryMatch() callbacks)
       let code = jsxTranspiler.transformSync(result.code);
 
       // Inject the JSX adapter if the second pass produced __jsx$ calls

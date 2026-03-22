@@ -565,8 +565,9 @@ function transformChild(
 
     // List patterns: always transform .map() to __list() regardless of reactivity.
     // __list() handles static arrays gracefully (domEffect runs once, never re-fires).
-    // Gating by reactivity misses callback parameters from APIs like queryMatch(),
-    // where the parameter is a reactive proxy at runtime but opaque to the compiler.
+    // The source of .map() may be a computed/derived value that's reactive at runtime
+    // but the compiler can't statically prove it (e.g., signal property chains like
+    // tasks.data.items). Ungated transformation is the safe default.
     // This matches __conditional(), which is also ungated.
     {
       const listCode = tryTransformList(exprNode, reactiveNames, jsxMap, parentVar, source);

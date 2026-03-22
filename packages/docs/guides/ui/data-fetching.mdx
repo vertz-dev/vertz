@@ -120,29 +120,31 @@ const issue = query(
 
 Relations must be exposed in the entity's `expose.include` config on the server — see [Fields, Relations & Filters](/guides/server/entity-exposure#relation-exposure-include).
 
-## Pattern matching with queryMatch
+## Rendering query states
 
-Use `queryMatch()` to render different content for each query state:
+Use direct conditional rendering for loading, error, and data states:
 
 ```tsx
-import { queryMatch } from 'vertz/ui';
-
 export function TaskListPage() {
   const tasks = query(api.tasks.list());
 
-  return queryMatch(tasks, {
-    loading: () => <div>Loading tasks...</div>,
-    error: (err) => <div>Failed: {err.message}</div>,
-    data: (data) => (
-      <ul>
-        {data.items.map((task) => (
-          <TaskCard key={task.id} task={task} />
-        ))}
-      </ul>
-    ),
-  });
+  return (
+    <div>
+      {tasks.loading && <div>Loading tasks...</div>}
+      {tasks.error && <div>Failed: {tasks.error.message}</div>}
+      {tasks.data && (
+        <ul>
+          {tasks.data.items.map((task) => (
+            <TaskCard key={task.id} task={task} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 ```
+
+The compiler auto-unwraps `tasks.loading`, `tasks.error`, and `tasks.data` as signal properties, making each branch reactive.
 
 ## Refetching
 

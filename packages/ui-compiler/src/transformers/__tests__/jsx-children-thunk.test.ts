@@ -132,7 +132,7 @@ describe('JSX inside function call arguments (child expressions)', () => {
   it('transforms JSX in arrow function args to a function call (child expression)', () => {
     const result = transform(
       `function App() {
-  return <div>{queryMatch(query, { loading: () => <div>Loading</div> })}</div>;
+  return <div>{renderState(query, { loading: () => <div>Loading</div> })}</div>;
 }`,
     );
     expect(result).toContain('__element("div")');
@@ -156,7 +156,7 @@ describe('JSX inside function call arguments (child expressions)', () => {
     const result = compile(
       `function App() {
   let count = 0;
-  return <div>{queryMatch(query, { data: () => <span>{count}</span> })}</div>;
+  return <div>{renderState(query, { data: () => <span>{count}</span> })}</div>;
 }`,
     );
     expect(result.code).toContain('__element("span")');
@@ -211,7 +211,7 @@ describe('JSX inside function call arguments (component children / transformChil
   it('transforms JSX in function call args inside component children', () => {
     const result = transform(
       `function App() {
-  return <Wrapper>{queryMatch(query, { loading: () => <div>Loading</div> })}</Wrapper>;
+  return <Wrapper>{renderState(query, { loading: () => <div>Loading</div> })}</Wrapper>;
 }`,
     );
     expect(result).toContain('Wrapper(');

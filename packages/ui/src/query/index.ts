@@ -6,5 +6,3 @@ export { invalidate, invalidateTenantQueries } from './invalidate';
 export { deriveKey } from './key-derivation';
 export type { QueryOptions, QueryResult } from './query';
 export { query } from './query';
-export type { QueryMatchHandlers } from './query-match';
-export { queryMatch } from './query-match';

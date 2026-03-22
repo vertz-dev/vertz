@@ -42,10 +42,6 @@ This is safe because:
 - No consumer code accesses `.style`, `.children`, or `.tagName` on the return value
 - The compiler always passes the result directly to `__append` or returns it from a thunk
 
-### `queryMatch` — separate concern
-
-`queryMatch()` creates its own `<span style="display: contents">` wrapper independently of `__child`. It's a container for branch switching (loading/error/data). This design doc does NOT change `queryMatch` — its span wrapper serves a different purpose (caching by identity via WeakMap). A future design doc can evaluate whether `queryMatch` can also use markers.
-
 ---
 
 ## Manifesto Alignment
@@ -70,7 +66,6 @@ The span wrapper was the simplest initial approach. Now that `__conditional` has
 
 ## Non-Goals
 
-- **Changing `queryMatch`** — its span wrapper is independently useful for branch caching and will be evaluated separately.
 - **Changing `__conditional`** — it already uses comment anchors for CSR. Its hydration-path span wrapping (#1553 fix) is a separate concern.
 - **Changing `__list`** — list reconciliation operates on a container element, not on `__child` wrappers.
 - **Changing the compiler output** — the JSX transformer and signal transformer are untouched. This is purely a runtime change. The compiler still emits `__append(parentVar, __child(() => expr))`.
@@ -467,8 +462,7 @@ if (getIsHydrating()) {
     let childCleanups: DisposeFn[] = [];
 
     // Pause hydration so fn() creates fresh DOM via CSR path.
-    // JSX inside callbacks (e.g., queryMatch handlers) is not
-    // hydration-aware — see #826.
+    // JSX inside callbacks is not hydration-aware — see #826.
     pauseHydration();
     try {
       const dispose = domEffect(() => {
@@ -612,7 +606,6 @@ describe('Phase 3: Cleanup', () => {
 |---|---|---|
 | `anchor.parentNode` is null during first `domEffect` run | Medium | Anchor is inside a DocumentFragment — fragment IS the parent. Content goes into fragment, then `__append` moves everything to real parent. Proven by `__conditional` CSR path. Dev-mode guard throws a clear error if this ever happens. |
 | Managed node tracking leaks (node removed but still in `managed[]`) | Low | `managed` is replaced on every effect run. Old array is discarded. Removal happens first. |
-| `queryMatch` wrapper identity breaks | None | `queryMatch` creates its own span independently. Not affected. |
 | SSR comment serialization breaks | None | SSR shim already serializes comments (`<!--text-->`). Proven by `__conditional`. |
 | Hydration cursor walks past content | Medium | SSR content after comment is cleared and re-rendered via CSR (same as current behavior). `claimComment()` advances cursor past the comment only. |
 | Return type change breaks consumers | Low | Only `__append` consumes the return value. It accepts `Node`. Verified by grep — no external code accesses `.style` or `.children` on `__child` return values. |

@@ -126,14 +126,9 @@ Direct expressions and `.map()` callbacks on query data are **fully optimized** 
 // Compiler follows import to IssueRow, merges its field accesses
 ```
 
-However, when query data passes through an **indirection layer** — a function call or component that renames the parameter — the compiler loses the connection between the callback parameter and the original query variable:
+However, when query data passes through an **indirection layer** — a component callback that renames the parameter — the compiler loses the connection between the callback parameter and the original query variable:
 
 ```tsx
-// OPAQUE — queryMatch renames 'issues' to 'response' inside the data handler
-{queryMatch(issues, {
-  data: (response) => response.items.map(i => <span>{i.title}</span>),
-})}
-
 // OPAQUE — ListTransition children callback renames items to 'issue'
 <ListTransition each={issues.data.items} keyFn={(i) => i.id}>
   {(issue) => <IssueRow issue={issue} />}

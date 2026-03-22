@@ -5,7 +5,7 @@ test.describe('Todo App — Hydration & Interactivity', () => {
     await page.goto('/');
     // Page should render (SSR)
     await expect(page.getByTestId('todo-list-page')).toBeVisible();
-    // Wait for data to load (queryMatch resolves to data state)
+    // Wait for data to load (query resolves to data state)
     await expect(page.getByTestId('todo-list').or(page.getByText('No todos yet'))).toBeVisible({
       timeout: 10000,
     });
