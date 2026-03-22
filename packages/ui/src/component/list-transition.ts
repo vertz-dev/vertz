@@ -1,6 +1,11 @@
 import { listTransition } from '../dom/list-transition';
 import { _tryOnCleanup } from '../runtime/disposal';
 
+/**
+ * @deprecated Use `<List animate>` from `@vertz/ui-primitives` instead.
+ * `<List animate>` provides the same enter/exit animations with FLIP reorder support,
+ * while preserving VertzQL field selection via `.map()` children.
+ */
 export interface ListTransitionProps<T> {
   each: T[];
   keyFn: (item: T, index: number) => string | number;
@@ -14,6 +19,10 @@ export interface ListTransitionProps<T> {
  *
  * Props are accessed as getters (not destructured) so the compiler-generated
  * reactive getters are tracked by the underlying domEffect.
+ *
+ * @deprecated Use `<List animate>` from `@vertz/ui-primitives` instead.
+ * `<List animate>` provides the same enter/exit animations with FLIP reorder
+ * support, while preserving VertzQL field selection via `.map()` children.
  */
 export function ListTransition<T>(props: ListTransitionProps<T>): DocumentFragment {
   const startMarker = document.createComment('lt-start');
