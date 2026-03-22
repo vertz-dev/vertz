@@ -1,4 +1,5 @@
 import { createBunDevServer } from '@vertz/ui-server/bun-dev-server';
+import { generateCustomizationScript } from './customization-script';
 
 const PORT = Number(process.env.PORT) || 4100;
 
@@ -11,13 +12,18 @@ const THEME_INIT_SCRIPT = `<script>
 })();
 </script>`;
 
+// Blocking script that reads the vertz-customization cookie and applies
+// palette/radius/accent CSS variables on <html> before first paint.
+// Must run AFTER THEME_INIT_SCRIPT (reads data-theme for light/dark detection).
+const CUSTOMIZATION_INIT_SCRIPT = generateCustomizationScript();
+
 const devServer = createBunDevServer({
   entry: './src/app.tsx',
   clientEntry: './src/entry-client.ts',
   port: PORT,
   ssrModule: true,
   title: 'Vertz UI — Components',
-  headTags: THEME_INIT_SCRIPT,
+  headTags: `${THEME_INIT_SCRIPT}\n${CUSTOMIZATION_INIT_SCRIPT}`,
   themeFromRequest: (request) => {
     const match = request.headers.get('cookie')?.match(/(?:^|; )theme=(light|dark)/);
     return match?.[1] ?? null;

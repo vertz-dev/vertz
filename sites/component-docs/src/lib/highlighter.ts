@@ -65,13 +65,17 @@ export function __resetHighlighter(): void {
 
 /**
  * Highlight code synchronously. Returns HTML string or null if not initialized.
- * Uses `github-dark` theme by default.
+ * Uses dual themes (github-dark / github-light) with CSS variables so the
+ * syntax colors adapt when the page switches between dark and light mode.
  */
-export function highlightCode(
-  code: string,
-  lang: SupportedLang,
-  theme: string = 'github-dark',
-): string | null {
+export function highlightCode(code: string, lang: SupportedLang): string | null {
   if (!highlighter) return null;
-  return highlighter.codeToHtml(code, { lang, theme });
+  return highlighter.codeToHtml(code, {
+    lang,
+    themes: {
+      dark: 'github-dark',
+      light: 'github-light',
+    },
+    defaultColor: false,
+  });
 }

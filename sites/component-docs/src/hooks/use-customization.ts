@@ -3,7 +3,7 @@ import { palettes } from '@vertz/theme-shadcn';
 import { palettes as twPalettes } from '@vertz/ui';
 
 // Defined locally to avoid stale built-package imports
-const RADIUS_VALUES: Record<string, string> = {
+export const RADIUS_VALUES: Record<string, string> = {
   none: '0rem',
   sm: '0.25rem',
   md: '0.375rem',
@@ -152,10 +152,7 @@ export function getCustomizationCookie(): CustomizationState | null {
       'pink',
       'rose',
     ];
-    if (
-      validPalettes.includes(palette as PaletteName) &&
-      validRadii.includes(radius)
-    ) {
+    if (validPalettes.includes(palette as PaletteName) && validRadii.includes(radius)) {
       return {
         palette: palette as PaletteName,
         radius,

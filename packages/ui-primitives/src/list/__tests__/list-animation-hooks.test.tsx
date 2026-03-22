@@ -95,19 +95,20 @@ describe('ComposedList animation hooks behavior', () => {
         expect(el.getAttribute('data-presence')).toBe('exit');
       });
 
-      it('Then item is taken out of flow with position absolute', () => {
+      it('Then item is styled for collapse animation', () => {
         const hooks = captureAnimationHooks(true);
         const el = document.createElement('li');
 
         hooks?.onItemExit(el, 'key-1', () => {});
-        expect(el.style.position).toBe('absolute');
+        expect(el.style.overflow).toBe('hidden');
         expect(el.style.pointerEvents).toBe('none');
-        // dimensions set from getBoundingClientRect which returns 0 in happy-dom
-        expect(el.style.width).toBe('0px');
+        expect(el.style.borderBottomWidth).toBe('0px');
+        // Height transitions to 0 for collapse effect (browser normalizes to "0px")
         expect(el.style.height).toBe('0px');
+        expect(el.style.opacity).toBe('0');
       });
 
-      it('Then done() is called synchronously when no CSS animations', () => {
+      it('Then done() is called via transitionend or safety timeout', async () => {
         const hooks = captureAnimationHooks(true);
         const el = document.createElement('li');
         const calls: string[] = [];
@@ -116,7 +117,11 @@ describe('ComposedList animation hooks behavior', () => {
           calls.push('done');
         });
 
-        // In happy-dom, getAnimations() returns [] → done() called synchronously
+        // done() is not called synchronously — it waits for transitionend
+        expect(calls).toEqual([]);
+
+        // Simulate transitionend event
+        el.dispatchEvent(new Event('transitionend'));
         expect(calls).toEqual(['done']);
       });
     });

@@ -46,7 +46,8 @@ export function CodeBlock({ code, lang = 'tsx', style }: CodeBlockProps) {
     lineHeight: '1.5',
     overflow: 'auto',
     borderRadius: '8px',
-    backgroundColor: 'var(--color-muted)' as string,
+    backgroundColor: 'var(--color-background)' as string,
+    border: '1px solid var(--color-border)' as string,
     fontFamily: 'var(--font-mono, monospace)' as string,
     color: 'var(--color-foreground)' as string,
   };
@@ -63,6 +64,9 @@ export function CodeBlock({ code, lang = 'tsx', style }: CodeBlockProps) {
             const pre = container.querySelector('pre');
             if (pre) {
               pre.setAttribute('tabindex', '0');
+              // Force background to match page — CSS !important on .code-block-highlighted pre
+              // doesn't reliably override shiki's output in Bun's dev server CSS pipeline.
+              pre.style.setProperty('background-color', 'var(--color-background)', 'important');
             }
           }}
         />
