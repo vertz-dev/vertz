@@ -3,9 +3,20 @@
  */
 
 import { describe, expect, it } from 'bun:test';
+import { createPrivateKey } from 'node:crypto';
 import * as jose from 'jose';
 import { createAuth } from '../index';
+import { createJWT } from '../jwt';
+import type { AuthUser } from '../types';
 import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';
+
+const testUser: AuthUser = {
+  id: 'user-cross-iss',
+  email: 'cross@example.com',
+  role: 'user',
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
 
 function createTestAuth(overrides: Record<string, unknown> = {}) {
   return createAuth({
@@ -151,6 +162,37 @@ describe('Feature: AuthConfig issuer/audience', () => {
         const decoded = jose.decodeJwt(refreshResult.data.tokens?.jwt);
         expect(decoded.iss).toBe('https://myapp.example.com');
         expect(decoded.aud).toBe('myapp');
+
+        auth.dispose();
+      });
+    });
+
+    describe('When a JWT from a different issuer hits the handler', () => {
+      it('Then getSession returns null (rejected)', async () => {
+        const auth = createTestAuth({
+          issuer: 'https://production.example.com',
+          audience: 'myapp',
+        });
+
+        // Create a JWT with the right key but wrong issuer
+        const wrongIssuerJwt = await createJWT(
+          testUser,
+          createPrivateKey(TEST_PRIVATE_KEY),
+          60_000,
+          {
+            claims: () => ({ jti: 'jti-wrong', sid: 'sid-wrong' }),
+            issuer: 'https://staging.example.com',
+            audience: 'myapp',
+          },
+        );
+
+        const request = new Request('http://localhost/api/auth/session', {
+          headers: { cookie: `vertz.sid=${wrongIssuerJwt}` },
+        });
+        const response = await auth.handler(request);
+        const body = await response.json();
+        // Session should be null because issuer doesn't match
+        expect(body.session).toBeNull();
 
         auth.dispose();
       });

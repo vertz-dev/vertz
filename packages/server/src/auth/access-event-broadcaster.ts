@@ -41,6 +41,10 @@ export interface AccessEventBroadcasterConfig {
   path?: string;
   /** Cookie name for session JWT. Defaults to 'vertz.sid'. */
   cookieName?: string;
+  /** JWT `iss` claim to validate during verification. */
+  issuer?: string;
+  /** JWT `aud` claim to validate during verification. */
+  audience?: string;
 }
 
 export interface AccessEventBroadcaster {
@@ -87,7 +91,13 @@ interface BunWebSocket<T> {
 export function createAccessEventBroadcaster(
   config: AccessEventBroadcasterConfig,
 ): AccessEventBroadcaster {
-  const { publicKey, path = '/api/auth/access-events', cookieName = 'vertz.sid' } = config;
+  const {
+    publicKey,
+    path = '/api/auth/access-events',
+    cookieName = 'vertz.sid',
+    issuer,
+    audience,
+  } = config;
 
   // Connection tracking: orgId -> Set<ws>, userId -> Set<ws>
   const connectionsByOrg = new Map<string, Set<BunWebSocket<AccessWsData>>>();
@@ -189,7 +199,7 @@ export function createAccessEventBroadcaster(
     if (!token) return false;
 
     try {
-      const payload = await verifyJWT(token, publicKey);
+      const payload = await verifyJWT(token, publicKey, { issuer, audience });
       if (!payload || !payload.sub) return false;
 
       // Extract orgId from JWT claims — look for org, orgId, or default to ''

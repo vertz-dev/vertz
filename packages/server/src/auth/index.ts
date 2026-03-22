@@ -158,8 +158,8 @@ export function createAuth(config: AuthConfig): AuthInstance {
   }
 
   // Validate JWT issuer/audience — required in production, defaults in development
-  const issuer = config.issuer ?? (isProduction ? undefined : 'vertz-dev');
-  const audience = config.audience ?? (isProduction ? undefined : 'vertz-dev');
+  const issuer = config.issuer?.trim() || (isProduction ? undefined : 'vertz-dev');
+  const audience = config.audience?.trim() || (isProduction ? undefined : 'vertz-dev');
 
   if (isProduction && !issuer) {
     throw new Error(
