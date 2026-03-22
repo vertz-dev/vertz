@@ -527,6 +527,156 @@ describe('Feature: Animated drag-sort item shifting', () => {
     });
   });
 
+  describe('Given a sortable animated list (dragged item lift)', () => {
+    describe('When the user starts dragging item B', () => {
+      it('Then B is positioned absolutely at its original coordinates', () => {
+        const ul = RenderAnimatedSortableList({ onReorder: () => {} });
+        appendToBody(ul);
+
+        const handles = ul.querySelectorAll('[data-list-drag-handle]');
+        const items = ul.querySelectorAll('li');
+        mockItemRects(items);
+
+        // Mock the ul's bounding rect for offset calculations
+        (ul as HTMLElement).getBoundingClientRect = () =>
+          ({
+            top: 0,
+            left: 0,
+            bottom: 120,
+            right: 200,
+            width: 200,
+            height: 120,
+            x: 0,
+            y: 0,
+            toJSON: () => {},
+          }) as DOMRect;
+
+        handles[1].dispatchEvent(
+          new PointerEvent('pointerdown', { clientX: 100, clientY: 60, bubbles: true }),
+        );
+
+        expect(items[1].style.position).toBe('absolute');
+        expect(items[1].style.width).toBe('200px');
+        expect(items[1].style.zIndex).toBe('50');
+
+        document.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 60 }));
+      });
+
+      it('Then a placeholder with matching height is inserted', () => {
+        const ul = RenderAnimatedSortableList({ onReorder: () => {} });
+        appendToBody(ul);
+
+        const handles = ul.querySelectorAll('[data-list-drag-handle]');
+        const items = ul.querySelectorAll('li');
+        mockItemRects(items);
+
+        (ul as HTMLElement).getBoundingClientRect = () =>
+          ({
+            top: 0,
+            left: 0,
+            bottom: 120,
+            right: 200,
+            width: 200,
+            height: 120,
+            x: 0,
+            y: 0,
+            toJSON: () => {},
+          }) as DOMRect;
+
+        handles[1].dispatchEvent(
+          new PointerEvent('pointerdown', { clientX: 100, clientY: 60, bubbles: true }),
+        );
+
+        const placeholder = ul.querySelector('[data-drag-placeholder]');
+        expect(placeholder).toBeTruthy();
+        expect((placeholder as HTMLElement).style.height).toBe('40px');
+        expect((placeholder as HTMLElement).style.visibility).toBe('hidden');
+        // Placeholder must NOT be sortable
+        expect(placeholder?.hasAttribute('data-sortable-item')).toBe(false);
+
+        document.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 60 }));
+      });
+    });
+
+    describe('When the user moves the pointer 50px down', () => {
+      it('Then dragged item top increases by 50px', () => {
+        const ul = RenderAnimatedSortableList({ onReorder: () => {} });
+        appendToBody(ul);
+
+        const handles = ul.querySelectorAll('[data-list-drag-handle]');
+        const items = ul.querySelectorAll('li');
+        mockItemRects(items);
+
+        (ul as HTMLElement).getBoundingClientRect = () =>
+          ({
+            top: 0,
+            left: 0,
+            bottom: 120,
+            right: 200,
+            width: 200,
+            height: 120,
+            x: 0,
+            y: 0,
+            toJSON: () => {},
+          }) as DOMRect;
+
+        handles[1].dispatchEvent(
+          new PointerEvent('pointerdown', { clientX: 100, clientY: 60, bubbles: true }),
+        );
+
+        // Item B starts at top=40 relative to ul (top=0)
+        const initialTop = 40;
+
+        document.dispatchEvent(new PointerEvent('pointermove', { clientX: 100, clientY: 110 }));
+
+        expect(items[1].style.top).toBe(`${initialTop + 50}px`);
+
+        document.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 110 }));
+      });
+    });
+
+    describe('When the user drops', () => {
+      it('Then placeholder is removed and positioning styles are cleared', () => {
+        const ul = RenderAnimatedSortableList({ onReorder: () => {} });
+        appendToBody(ul);
+
+        const handles = ul.querySelectorAll('[data-list-drag-handle]');
+        const items = ul.querySelectorAll('li');
+        mockItemRects(items);
+
+        (ul as HTMLElement).getBoundingClientRect = () =>
+          ({
+            top: 0,
+            left: 0,
+            bottom: 120,
+            right: 200,
+            width: 200,
+            height: 120,
+            x: 0,
+            y: 0,
+            toJSON: () => {},
+          }) as DOMRect;
+
+        handles[1].dispatchEvent(
+          new PointerEvent('pointerdown', { clientX: 100, clientY: 60, bubbles: true }),
+        );
+
+        // Verify placeholder exists during drag
+        expect(ul.querySelector('[data-drag-placeholder]')).toBeTruthy();
+
+        document.dispatchEvent(new PointerEvent('pointerup', { clientX: 100, clientY: 60 }));
+
+        // After drop: placeholder removed, styles cleared
+        expect(ul.querySelector('[data-drag-placeholder]')).toBeNull();
+        expect(items[1].style.position).toBe('');
+        expect(items[1].style.width).toBe('');
+        expect(items[1].style.zIndex).toBe('');
+        expect(items[1].style.top).toBe('');
+        expect(items[1].style.left).toBe('');
+      });
+    });
+  });
+
   describe('Given a sortable list with animate=false', () => {
     describe('When the user drags an item', () => {
       it('Then non-dragged items do not get shift transforms', () => {

@@ -409,13 +409,38 @@ function setupDragSort(
 
     // Snapshot item rects at drag start — used for all calculations during drag
     const snapshotRects = allItems.map((item) => item.getBoundingClientRect());
-    const draggedHeight = snapshotRects[fromIndex]!.height;
+    const draggedRect = snapshotRects[fromIndex]!;
+    const draggedHeight = draggedRect.height;
+    const ulRect = ulEl.getBoundingClientRect();
 
-    // Set will-change hint on all items for GPU compositing
+    // Placeholder element for maintaining list height when item is lifted
+    let placeholder: HTMLElement | null = null;
+
     if (useAnimatedShift) {
+      // Set will-change hint on all items for GPU compositing
       for (const item of allItems) {
         item.style.willChange = 'transform';
       }
+
+      // Lift the dragged item out of flow
+      const draggedWidth = draggedRect.width;
+      const initialTop = draggedRect.top - ulRect.top;
+      const initialLeft = draggedRect.left - ulRect.left;
+
+      // Insert placeholder to maintain list height
+      placeholder = document.createElement('li');
+      placeholder.setAttribute('data-drag-placeholder', '');
+      placeholder.style.height = `${draggedHeight}px`;
+      placeholder.style.visibility = 'hidden';
+      placeholder.style.pointerEvents = 'none';
+      draggedItem.parentNode?.insertBefore(placeholder, draggedItem);
+
+      // Position dragged item absolutely
+      draggedItem.style.position = 'absolute';
+      draggedItem.style.width = `${draggedWidth}px`;
+      draggedItem.style.top = `${initialTop}px`;
+      draggedItem.style.left = `${initialLeft}px`;
+      draggedItem.style.zIndex = '50';
     }
 
     /**
@@ -434,10 +459,17 @@ function setupDragSort(
     const onMove = (moveEvent: PointerEvent) => {
       moveEvent.preventDefault();
 
-      // Translate the dragged item to follow the pointer
       const deltaY = moveEvent.clientY - startY;
-      draggedItem.style.transform = `translateY(${deltaY}px)`;
-      draggedItem.style.transition = 'none';
+
+      if (useAnimatedShift) {
+        // Update absolute position (top) for the lifted item
+        const initialTop = draggedRect.top - ulRect.top;
+        draggedItem.style.top = `${initialTop + deltaY}px`;
+      } else {
+        // Translate the dragged item to follow the pointer
+        draggedItem.style.transform = `translateY(${deltaY}px)`;
+        draggedItem.style.transition = 'none';
+      }
 
       const targetInsertionIndex = calcInsertionFromSnapshot(moveEvent.clientY);
 
@@ -467,6 +499,19 @@ function setupDragSort(
       draggedItem.style.transition = '';
 
       if (useAnimatedShift) {
+        // Remove placeholder
+        if (placeholder?.parentNode) {
+          placeholder.parentNode.removeChild(placeholder);
+          placeholder = null;
+        }
+
+        // Clear absolute positioning on dragged item
+        draggedItem.style.position = '';
+        draggedItem.style.width = '';
+        draggedItem.style.top = '';
+        draggedItem.style.left = '';
+        draggedItem.style.zIndex = '';
+
         // Clear all shift transforms instantly (transition: none prevents snap-back)
         for (const item of allItems) {
           item.style.transition = 'none';
