@@ -29,6 +29,7 @@ export const components: ComponentEntry[] = [
 
   // ── Layout ────────────────────────────────────────────────
   { name: 'card', title: 'Card', category: 'Layout' },
+  { name: 'list', title: 'List', category: 'Layout' },
   { name: 'resizable-panel', title: 'ResizablePanel', category: 'Layout' },
   { name: 'scroll-area', title: 'ScrollArea', category: 'Layout' },
   { name: 'separator', title: 'Separator', category: 'Layout' },

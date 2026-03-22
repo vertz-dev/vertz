@@ -27,6 +27,7 @@ import { Content as FormGroupContent } from '../content/form-group-content';
 import { Content as HoverCardContent } from '../content/hover-card-content';
 import { Content as InputContent } from '../content/input-content';
 import { Content as LabelContent } from '../content/label-content';
+import { Content as ListContent } from '../content/list-content';
 import { Content as MenuContent } from '../content/menu-content';
 import { Content as MenubarContent } from '../content/menubar-content';
 import { Content as NavigationMenuContent } from '../content/navigation-menu-content';
@@ -71,6 +72,7 @@ const contentMap: Record<
   tabs: TabsContent,
   accordion: AccordionContent,
   card: CardContent,
+  list: ListContent,
   table: TableContent,
   alert: AlertContent,
   checkbox: CheckboxContent,

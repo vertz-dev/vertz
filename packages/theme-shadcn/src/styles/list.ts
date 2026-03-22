@@ -1,11 +1,22 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, keyframes } from '@vertz/ui';
+import { animationDecl } from './_helpers';
 
 type ListBlocks = {
   root: StyleEntry[];
   item: StyleEntry[];
   dragHandle: StyleEntry[];
 };
+
+const listEnter = keyframes('vz-list-enter', {
+  from: { opacity: '0', transform: 'translateY(-0.5rem)' },
+  to: { opacity: '1', transform: 'translateY(0)' },
+});
+
+const listExit = keyframes('vz-list-exit', {
+  from: { opacity: '1', transform: 'translateY(0)' },
+  to: { opacity: '0', transform: 'translateY(-0.5rem)' },
+});
 
 /** Create list css() styles. */
 export function createListStyles(): CSSOutput<ListBlocks> {
@@ -19,6 +30,7 @@ export function createListStyles(): CSSOutput<ListBlocks> {
           'list-style': 'none',
           margin: '0',
           padding: '0',
+          position: 'relative',
         },
       },
     ],
@@ -33,9 +45,22 @@ export function createListStyles(): CSSOutput<ListBlocks> {
       'text:sm',
       'text:foreground',
       { '&:last-child': { 'border-bottom': '0' } },
-      { '&[data-dragging]': ['bg:muted', { opacity: '0.5' }] },
-      { '&[data-presence="enter"]': [{ animation: 'fadeIn 200ms ease-out' }] },
-      { '&[data-presence="exit"]': [{ animation: 'fadeOut 200ms ease-out' }] },
+      {
+        '&[data-dragging]': {
+          position: 'relative',
+          'z-index': '50',
+          'box-shadow': '0 4px 12px rgba(0,0,0,0.15)',
+          'background-color': 'var(--color-background)',
+          opacity: '1',
+        },
+      },
+      { '&[data-presence="enter"]': [animationDecl(`${listEnter} 200ms ease-out`)] },
+      {
+        '&[data-presence="exit"]': [
+          animationDecl(`${listExit} 200ms ease-out forwards`),
+          { overflow: 'hidden' },
+        ],
+      },
     ],
     listDragHandle: [
       'flex',

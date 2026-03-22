@@ -95,13 +95,15 @@ describe('ComposedList animation hooks behavior', () => {
         expect(el.getAttribute('data-presence')).toBe('exit');
       });
 
-      it('Then item gets overflow hidden for height collapse animation', () => {
+      it('Then item is taken out of flow with position absolute', () => {
         const hooks = captureAnimationHooks(true);
         const el = document.createElement('li');
 
         hooks?.onItemExit(el, 'key-1', () => {});
-        expect(el.style.overflow).toBe('hidden');
-        // height is set from getBoundingClientRect which returns 0 in happy-dom
+        expect(el.style.position).toBe('absolute');
+        expect(el.style.pointerEvents).toBe('none');
+        // dimensions set from getBoundingClientRect which returns 0 in happy-dom
+        expect(el.style.width).toBe('0px');
         expect(el.style.height).toBe('0px');
       });
 

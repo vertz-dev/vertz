@@ -6,8 +6,8 @@
  * preserving VertzQL field selection while supporting animation and drag-sort.
  */
 
-import type { ChildValue, ListAnimationHooks } from '@vertz/ui';
-import { createContext, ListAnimationContext, useContext } from '@vertz/ui';
+import type { ChildValue, ListAnimationHooks, Ref } from '@vertz/ui';
+import { createContext, ListAnimationContext, onMount, ref, useContext } from '@vertz/ui';
 import { cn } from '../composed/cn';
 
 // ---------------------------------------------------------------------------
@@ -204,16 +204,58 @@ function createAnimationHooks(animate: boolean | AnimateConfig): ListAnimationHo
       itemRects.delete(key);
 
       if (node instanceof Element) {
-        // Set explicit height for collapse animation
+        const el = node as HTMLElement;
         const rect = node.getBoundingClientRect();
-        (node as HTMLElement).style.height = `${rect.height}px`;
-        (node as HTMLElement).style.overflow = 'hidden';
+
+        // Snapshot remaining items BEFORE taking the exiting item out of flow
+        const remainingRects = new Map<string | number, DOMRect>();
+        for (const [k, n] of itemNodes) {
+          remainingRects.set(k, n.getBoundingClientRect());
+        }
+
+        // Take exiting item out of flow so remaining items shift immediately
+        el.style.position = 'absolute';
+        el.style.left = `${rect.left}px`;
+        el.style.top = `${rect.top}px`;
+        el.style.width = `${rect.width}px`;
+        el.style.height = `${rect.height}px`;
+        el.style.margin = '0';
+        el.style.zIndex = '0';
+        el.style.pointerEvents = 'none';
         node.setAttribute('data-presence', 'exit');
 
-        // Wait for CSS animation, then call done() to remove from DOM
-        if ('offsetHeight' in node) {
-          void (node as HTMLElement).offsetHeight;
+        // Force reflow so remaining items are at their new positions
+        void el.offsetHeight;
+
+        // FLIP remaining items from their old positions to new positions
+        if (!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
+          for (const [k, n] of itemNodes) {
+            const firstRect = remainingRects.get(k);
+            if (!firstRect) continue;
+
+            const lastRect = n.getBoundingClientRect();
+            const deltaY = firstRect.top - lastRect.top;
+            if (Math.abs(deltaY) < 0.5) continue;
+
+            (n as HTMLElement).style.transform = `translateY(${deltaY}px)`;
+            (n as HTMLElement).style.transition = 'none';
+
+            requestAnimationFrame(() => {
+              (n as HTMLElement).style.transition = `transform ${duration}ms ${easing}`;
+              (n as HTMLElement).style.transform = '';
+              n.addEventListener(
+                'transitionend',
+                () => {
+                  (n as HTMLElement).style.transition = '';
+                  (n as HTMLElement).style.transform = '';
+                },
+                { once: true },
+              );
+            });
+          }
         }
+
+        // Wait for exit CSS animation, then call done() to remove from DOM
         if (typeof node.getAnimations === 'function') {
           const anims = node.getAnimations();
           if (anims.length > 0) {
@@ -255,6 +297,57 @@ function calcInsertionIndex(items: HTMLElement[], clientY: number): number {
 }
 
 /**
+ * Create and manage a drop indicator line shown between items during drag.
+ */
+function createDropIndicator(): {
+  show: (ulEl: HTMLElement, beforeItem: HTMLElement | null) => void;
+  hide: () => void;
+} {
+  let indicator: HTMLElement | null = null;
+
+  function getOrCreate(): HTMLElement {
+    if (!indicator) {
+      indicator = document.createElement('div');
+      indicator.setAttribute('data-drop-indicator', '');
+      indicator.style.height = '2px';
+      indicator.style.background = 'var(--color-primary, #3b82f6)';
+      indicator.style.borderRadius = '1px';
+      indicator.style.position = 'absolute';
+      indicator.style.left = '0';
+      indicator.style.right = '0';
+      indicator.style.pointerEvents = 'none';
+      indicator.style.zIndex = '100';
+    }
+    return indicator;
+  }
+
+  return {
+    show(ulEl: HTMLElement, beforeItem: HTMLElement | null) {
+      const el = getOrCreate();
+      if (!el.parentNode) ulEl.appendChild(el);
+
+      if (beforeItem) {
+        const ulRect = ulEl.getBoundingClientRect();
+        const itemRect = beforeItem.getBoundingClientRect();
+        el.style.top = `${itemRect.top - ulRect.top - 1}px`;
+      } else {
+        // After the last item
+        const items = ulEl.querySelectorAll('[data-sortable-item]');
+        if (items.length > 0) {
+          const last = items[items.length - 1] as HTMLElement;
+          const ulRect = ulEl.getBoundingClientRect();
+          const lastRect = last.getBoundingClientRect();
+          el.style.top = `${lastRect.bottom - ulRect.top - 1}px`;
+        }
+      }
+    },
+    hide() {
+      indicator?.parentNode?.removeChild(indicator);
+    },
+  };
+}
+
+/**
  * Set up drag-and-sort event delegation on the list root element.
  * Uses pointerdown on [data-sortable] elements within the list.
  */
@@ -263,6 +356,8 @@ function setupDragSort(
   getSortable: () => boolean,
   getOnReorder: () => ((fromIndex: number, toIndex: number) => void) | undefined,
 ): void {
+  const dropIndicator = createDropIndicator();
+
   ulEl.addEventListener('pointerdown', (e: PointerEvent) => {
     if (!getSortable()) return;
 
@@ -286,6 +381,9 @@ function setupDragSort(
 
     e.preventDefault();
 
+    // Capture starting pointer position for translate
+    const startY = e.clientY;
+
     // Mark as dragging
     draggedItem.setAttribute('data-dragging', '');
 
@@ -296,13 +394,34 @@ function setupDragSort(
 
     const onMove = (moveEvent: PointerEvent) => {
       moveEvent.preventDefault();
+
+      // Translate the dragged item to follow the pointer
+      const deltaY = moveEvent.clientY - startY;
+      draggedItem.style.transform = `translateY(${deltaY}px)`;
+      draggedItem.style.transition = 'none';
+
+      // Show drop indicator at the target position
+      const currentItems = [...ulEl.querySelectorAll('[data-sortable-item]')] as HTMLElement[];
+      const toIndex = calcInsertionIndex(currentItems, moveEvent.clientY);
+      const indicatorTarget = toIndex < currentItems.length ? currentItems[toIndex] : null;
+
+      // Don't show indicator at the dragged item's own position
+      if (indicatorTarget !== draggedItem) {
+        dropIndicator.show(ulEl, indicatorTarget);
+      } else {
+        dropIndicator.hide();
+      }
     };
 
     const onUp = (upEvent: PointerEvent) => {
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
 
+      // Clean up visual state
       draggedItem.removeAttribute('data-dragging');
+      draggedItem.style.transform = '';
+      draggedItem.style.transition = '';
+      dropIndicator.hide();
 
       // Calculate destination index
       const currentItems = [...ulEl.querySelectorAll('[data-sortable-item]')] as HTMLElement[];
@@ -335,31 +454,31 @@ function ComposedListRoot({
   };
 
   const animHooks = animate ? createAnimationHooks(animate) : undefined;
+  const ulRef: Ref<HTMLUListElement> = ref();
 
-  const root = (
-    <ListContext.Provider value={ctx}>
-      <ListAnimationContext.Provider value={animHooks}>
-        <ul class={cn(classes?.root, className ?? classProp)}>{children}</ul>
-      </ListAnimationContext.Provider>
-    </ListContext.Provider>
-  ) as HTMLElement;
-
-  // Set up drag-and-sort if sortable
+  // Set up drag-and-sort after mount when the ref is available
   if (sortable) {
-    // The Provider JSX returns an HTMLElement (the <ul> itself),
-    // so root is always the <ul>. querySelector is the fallback.
-    const actualUl =
-      root instanceof HTMLElement && root.tagName === 'UL' ? root : root.querySelector('ul');
-    if (actualUl instanceof HTMLElement) {
-      setupDragSort(
-        actualUl,
-        () => sortable,
-        () => onReorder,
-      );
-    }
+    onMount(() => {
+      const ul = ulRef.current;
+      if (ul) {
+        setupDragSort(
+          ul,
+          () => sortable,
+          () => onReorder,
+        );
+      }
+    });
   }
 
-  return root;
+  return (
+    <ListContext.Provider value={ctx}>
+      <ListAnimationContext.Provider value={animHooks}>
+        <ul ref={ulRef} class={cn(classes?.root, className ?? classProp)}>
+          {children}
+        </ul>
+      </ListAnimationContext.Provider>
+    </ListContext.Provider>
+  );
 }
 
 // ---------------------------------------------------------------------------
