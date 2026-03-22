@@ -33,6 +33,7 @@ export const descriptions: Record<string, string> = {
   // Layout components
   'resizable-panel': 'A group of resizable panels with draggable handles.',
   'scroll-area': 'A scrollable area with custom styled scrollbars.',
+  list: 'A compound component for rendering lists with built-in animation and drag-sort.',
   skeleton: 'A placeholder to show while content is loading.',
   // Data Display components
   avatar: 'An image element with a fallback for representing the user.',

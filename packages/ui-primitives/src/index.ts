@@ -158,6 +158,13 @@ export type { ComposedInputProps, InputClasses } from './input/input-composed';
 export { ComposedInput } from './input/input-composed';
 export type { ComposedLabelProps, LabelClasses } from './label/label-composed';
 export { ComposedLabel } from './label/label-composed';
+export type {
+  AnimateConfig,
+  ComposedListProps,
+  ListClasses,
+  ListClassKey,
+} from './list/list-composed';
+export { ComposedList } from './list/list-composed';
 export type { MenuElements, MenuOptions, MenuState } from './menu/menu';
 export { Menu } from './menu/menu';
 export type { ComposedMenuProps, MenuClasses, MenuClassKey } from './menu/menu-composed';

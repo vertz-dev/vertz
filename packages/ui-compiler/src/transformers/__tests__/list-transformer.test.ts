@@ -344,4 +344,94 @@ function App() {
       expect(internalsImport).toContain('__list');
     });
   });
+
+  describe('.map() in component children (__listValue)', () => {
+    it('transforms .map() inside component children to __listValue()', () => {
+      const result = compile(
+        `
+function Card({ children }) {
+  return <div>{children}</div>;
+}
+function App() {
+  let items = [{ id: 1, name: "a" }];
+  return <Card>{items.map(item => <li key={item.id}>{item.name}</li>)}</Card>;
+}
+        `.trim(),
+      );
+
+      expect(result.code).toContain('__listValue(');
+      expect(result.code).toContain('__element("li")');
+    });
+
+    it('extracts key function from JSX key prop in component children', () => {
+      const result = compile(
+        `
+function Wrapper({ children }) {
+  return <div>{children}</div>;
+}
+function App() {
+  let items = [{ id: 1, text: "hello" }];
+  return <Wrapper>{items.map(item => <span key={item.id}>{item.text}</span>)}</Wrapper>;
+}
+        `.trim(),
+      );
+
+      expect(result.code).toContain('__listValue(');
+      expect(result.code).toMatch(/\(item\)\s*=>\s*item\.id/);
+    });
+
+    it('wraps source array in getter for reactivity', () => {
+      const result = compile(
+        `
+function Wrapper({ children }) {
+  return <div>{children}</div>;
+}
+function App() {
+  let items = [{ id: 1 }];
+  return <Wrapper>{items.map(item => <div key={item.id} />)}</Wrapper>;
+}
+        `.trim(),
+      );
+
+      expect(result.code).toContain('__listValue(');
+      expect(result.code).toMatch(/\(\)\s*=>\s*items\.value/);
+    });
+
+    it('emits null keyFn when no key prop in component children', () => {
+      const result = compile(
+        `
+function Wrapper({ children }) {
+  return <div>{children}</div>;
+}
+function App() {
+  let items = ["a", "b"];
+  return <Wrapper>{items.map(item => <li>{item}</li>)}</Wrapper>;
+}
+        `.trim(),
+      );
+
+      expect(result.code).toContain('__listValue(');
+      expect(result.code).toMatch(/__listValue\(\s*\(\)\s*=>[^,]+,\s*null\s*,/);
+    });
+
+    it('adds __listValue to internals import', () => {
+      const result = compile(
+        `
+function Wrapper({ children }) {
+  return <div>{children}</div>;
+}
+function App() {
+  let items = [{ id: 1 }];
+  return <Wrapper>{items.map(item => <div key={item.id} />)}</Wrapper>;
+}
+        `.trim(),
+      );
+
+      const internalsImport = result.code
+        .split('\n')
+        .find((line) => line.includes("from '@vertz/ui/internals'"));
+      expect(internalsImport).toBeDefined();
+      expect(internalsImport).toContain('__listValue');
+    });
+  });
 });

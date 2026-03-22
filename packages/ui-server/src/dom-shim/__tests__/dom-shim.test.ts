@@ -346,13 +346,30 @@ describe('DOM Shim', () => {
 
   describe('removeDomShim', () => {
     it('should remove all DOM globals', () => {
-      installDomShim();
-      expect(globalThis).toHaveProperty('document');
-      expect(globalThis).toHaveProperty('window');
+      // Clear any pre-existing globals (e.g., from happydom in other test files)
+      // so we can verify the shim cleans up after itself.
+      const saved: Record<string, unknown> = {};
+      for (const g of ['document', 'window'] as const) {
+        if (g in globalThis) {
+          saved[g] = (globalThis as Record<string, unknown>)[g];
+          delete (globalThis as Record<string, unknown>)[g];
+        }
+      }
 
-      removeDomShim();
-      expect(globalThis).not.toHaveProperty('document');
-      expect(globalThis).not.toHaveProperty('window');
+      try {
+        installDomShim();
+        expect(globalThis).toHaveProperty('document');
+        expect(globalThis).toHaveProperty('window');
+
+        removeDomShim();
+        expect(globalThis).not.toHaveProperty('document');
+        expect(globalThis).not.toHaveProperty('window');
+      } finally {
+        // Restore pre-existing globals
+        for (const [g, v] of Object.entries(saved)) {
+          (globalThis as Record<string, unknown>)[g] = v;
+        }
+      }
     });
   });
 
@@ -444,42 +461,63 @@ describe('DOM Shim', () => {
 
   describe('double install / remove idempotency', () => {
     it('should handle installDomShim called twice without removeDomShim', () => {
-      installDomShim();
-      installDomShim(); // second call should not throw or leak
-      expect(document.createElement).toBeDefined();
-      expect(localStorage.getItem('key')).toBeNull();
-      removeDomShim();
-      expect(globalThis).not.toHaveProperty('document');
-      expect(globalThis).not.toHaveProperty('localStorage');
+      // Clear pre-existing globals to test in isolation
+      const saved: Record<string, unknown> = {};
+      for (const g of ['document', 'localStorage'] as const) {
+        if (g in globalThis) {
+          saved[g] = (globalThis as Record<string, unknown>)[g];
+          delete (globalThis as Record<string, unknown>)[g];
+        }
+      }
+
+      try {
+        installDomShim();
+        installDomShim(); // second call should not throw or leak
+        expect(document.createElement).toBeDefined();
+        expect(localStorage.getItem('key')).toBeNull();
+        removeDomShim();
+        expect(globalThis).not.toHaveProperty('document');
+        expect(globalThis).not.toHaveProperty('localStorage');
+      } finally {
+        for (const [g, v] of Object.entries(saved)) {
+          (globalThis as Record<string, unknown>)[g] = v;
+        }
+      }
     });
   });
 
   describe('removeDomShim cleans up browser-only stubs', () => {
     it('should remove globals that were installed by the shim', () => {
-      installDomShim();
-      // These are always installed by the shim (not present in Bun runtime)
-      expect(globalThis).toHaveProperty('localStorage');
-      expect(globalThis).toHaveProperty('sessionStorage');
-      expect(globalThis).toHaveProperty('IntersectionObserver');
-      expect(globalThis).toHaveProperty('ResizeObserver');
-      expect(globalThis).toHaveProperty('MutationObserver');
-      expect(globalThis).toHaveProperty('requestAnimationFrame');
-      expect(globalThis).toHaveProperty('cancelAnimationFrame');
-      expect(globalThis).toHaveProperty('requestIdleCallback');
-      expect(globalThis).toHaveProperty('cancelIdleCallback');
+      // Clear pre-existing globals to test in isolation
+      const globalsToCheck = [
+        'localStorage', 'sessionStorage', 'IntersectionObserver',
+        'ResizeObserver', 'MutationObserver', 'requestAnimationFrame',
+        'cancelAnimationFrame', 'requestIdleCallback', 'cancelIdleCallback',
+      ] as const;
+      const saved: Record<string, unknown> = {};
+      for (const g of globalsToCheck) {
+        if (g in globalThis) {
+          saved[g] = (globalThis as Record<string, unknown>)[g];
+          delete (globalThis as Record<string, unknown>)[g];
+        }
+      }
 
-      removeDomShim();
+      try {
+        installDomShim();
+        for (const g of globalsToCheck) {
+          expect(globalThis).toHaveProperty(g);
+        }
 
-      // Shim-installed globals should be removed
-      expect(globalThis).not.toHaveProperty('localStorage');
-      expect(globalThis).not.toHaveProperty('sessionStorage');
-      expect(globalThis).not.toHaveProperty('IntersectionObserver');
-      expect(globalThis).not.toHaveProperty('ResizeObserver');
-      expect(globalThis).not.toHaveProperty('MutationObserver');
-      expect(globalThis).not.toHaveProperty('requestAnimationFrame');
-      expect(globalThis).not.toHaveProperty('cancelAnimationFrame');
-      expect(globalThis).not.toHaveProperty('requestIdleCallback');
-      expect(globalThis).not.toHaveProperty('cancelIdleCallback');
+        removeDomShim();
+
+        for (const g of globalsToCheck) {
+          expect(globalThis).not.toHaveProperty(g);
+        }
+      } finally {
+        for (const [g, v] of Object.entries(saved)) {
+          (globalThis as Record<string, unknown>)[g] = v;
+        }
+      }
     });
   });
 

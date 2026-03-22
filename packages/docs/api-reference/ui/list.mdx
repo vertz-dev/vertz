@@ -1,0 +1,174 @@
+---
+title: List
+description: "API reference for the <List> compound component with animation and drag-sort"
+---
+
+`<List>` is a compound component for rendering lists with built-in animation and drag-sort support. It works with `.map()` children to preserve VertzQL field selection.
+
+## Basic Usage
+
+```tsx
+import { List } from '@vertz/ui/components';
+
+function TaskList({ tasks }) {
+  return (
+    <List>
+      {tasks.map(task => (
+        <List.Item key={task.id}>{task.title}</List.Item>
+      ))}
+    </List>
+  );
+}
+```
+
+## Animation
+
+Enable FLIP animations for enter, exit, and reorder transitions:
+
+```tsx
+<List animate>
+  {items.map(item => (
+    <List.Item key={item.id}>{item.name}</List.Item>
+  ))}
+</List>
+```
+
+New items get `data-presence="enter"`, removed items get `data-presence="exit"`. Use CSS to define enter/exit animations:
+
+```css
+[data-presence="enter"] {
+  animation: fadeIn 200ms ease-out;
+}
+[data-presence="exit"] {
+  animation: fadeOut 200ms ease-out;
+}
+```
+
+### Custom Animation Config
+
+```tsx
+<List animate={{ duration: 300, easing: 'ease-in-out' }}>
+  {/* ... */}
+</List>
+```
+
+`prefers-reduced-motion` is automatically respected. When the user prefers reduced motion, FLIP reorder animations are skipped.
+
+## Drag-and-Sort
+
+Enable drag reordering with `sortable` and `onReorder`:
+
+```tsx
+function SortableList({ items, onReorder }) {
+  return (
+    <List sortable onReorder={onReorder}>
+      {items.map(item => (
+        <List.Item key={item.id}>
+          <List.DragHandle>&#x2630;</List.DragHandle>
+          {item.name}
+        </List.Item>
+      ))}
+    </List>
+  );
+}
+```
+
+When `sortable` is true:
+- `<List.DragHandle>` elements initiate drag on `pointerdown`
+- If no `<List.DragHandle>` is present, the entire `<List.Item>` acts as the drag handle
+- `onReorder(fromIndex, toIndex)` is called on drop
+- The dragged item receives `data-dragging` during drag
+
+## Sub-components
+
+### List.Item
+
+Renders an `<li>` element with optional class distribution from the theme.
+
+```tsx
+<List.Item className="custom-class">Content</List.Item>
+```
+
+### List.DragHandle
+
+Renders a drag handle element inside a `<List.Item>`. Only active when `sortable` is true.
+
+```tsx
+<List.DragHandle>&#x2630;</List.DragHandle>
+```
+
+## Props
+
+### List (root)
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `classes` | `ListClasses` | — | Class distribution for `root`, `item`, `dragHandle` |
+| `className` | `string` | — | Class for the root `<ul>` element |
+| `animate` | `boolean \| AnimateConfig` | `false` | Enable FLIP animations |
+| `sortable` | `boolean` | `false` | Enable drag-and-sort |
+| `onReorder` | `(from: number, to: number) => void` | — | Called when an item is dragged to a new position |
+
+### AnimateConfig
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `duration` | `number` | `200` | FLIP animation duration in ms |
+| `easing` | `string` | `'ease-out'` | CSS easing function |
+
+### List.Item / List.DragHandle
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `children` | `ChildValue` | Content |
+| `className` | `string` | Additional CSS class |
+
+## Theming
+
+With `@vertz/theme-shadcn`, `List` is automatically styled. The theme provides classes for `root`, `item`, and `dragHandle` slots:
+
+```tsx
+import { List } from '@vertz/ui/components';
+
+// Themed automatically — no manual class distribution needed
+<List animate sortable onReorder={handleReorder}>
+  {items.map(item => (
+    <List.Item key={item.id}>
+      <List.DragHandle>&#x2630;</List.DragHandle>
+      {item.name}
+    </List.Item>
+  ))}
+</List>
+```
+
+## Migration from ListTransition
+
+`ListTransition` is deprecated. Migrate to `<List animate>`:
+
+```tsx
+// Before (deprecated)
+import { ListTransition } from '@vertz/ui';
+
+<ListTransition
+  each={items}
+  keyFn={(item) => item.id}
+  children={(item) => <TodoItem task={item} />}
+/>
+
+// After
+import { List } from '@vertz/ui/components';
+
+<List animate>
+  {items.map(item => (
+    <List.Item key={item.id}>
+      <TodoItem task={item} />
+    </List.Item>
+  ))}
+</List>
+```
+
+Key differences:
+- `<List>` uses `.map()` children instead of `each`/`keyFn`/`children` props
+- `.map()` preserves VertzQL auto field selection
+- `<List>` adds FLIP reorder animations (not just enter/exit)
+- `<List>` supports drag-and-sort via `sortable` prop

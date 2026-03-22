@@ -56,6 +56,8 @@ export type {
   ThemedHoverCardComponent,
 } from './hover-card';
 export { createThemedHoverCard } from './hover-card';
+export type { ListRootProps, ListSlotProps, ThemedListComponent } from './list';
+export { createThemedList } from './list';
 export type {
   MenubarGroupProps,
   MenubarItemProps,

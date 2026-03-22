@@ -136,7 +136,8 @@
               "api-reference/ui/context",
               "api-reference/ui/mount",
               "api-reference/ui/relative-time",
-              "api-reference/ui/foreign"
+              "api-reference/ui/foreign",
+              "api-reference/ui/list"
             ]
           }
         ],

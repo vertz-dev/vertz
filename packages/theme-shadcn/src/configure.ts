@@ -56,6 +56,8 @@ import type { ThemedDropdownMenuComponent } from './components/primitives/dropdo
 import { createThemedDropdownMenu } from './components/primitives/dropdown-menu';
 import type { ThemedHoverCardComponent } from './components/primitives/hover-card';
 import { createThemedHoverCard } from './components/primitives/hover-card';
+import type { ThemedListComponent } from './components/primitives/list';
+import { createThemedList } from './components/primitives/list';
 import type { ThemedMenubarComponent } from './components/primitives/menubar';
 import { createThemedMenubar } from './components/primitives/menubar';
 import type { ThemedNavigationMenuComponent } from './components/primitives/navigation-menu';
@@ -111,6 +113,7 @@ import {
   createHoverCardStyles,
   createInput,
   createLabel,
+  createListStyles,
   createMenubarStyles,
   createNavigationMenuStyles,
   createPaginationStyles,
@@ -353,6 +356,8 @@ export interface ThemeStyles {
   drawer: ReturnType<typeof createDrawerStyles>;
   /** HoverCard css() styles. */
   hoverCard: ReturnType<typeof createHoverCardStyles>;
+  /** List css() styles. */
+  list: ReturnType<typeof createListStyles>;
   /** Menubar css() styles. */
   menubar: ReturnType<typeof createMenubarStyles>;
   /** NavigationMenu css() styles. */
@@ -415,6 +420,8 @@ export interface ThemedPrimitives {
   Drawer: ThemedDrawerComponent;
   /** Themed HoverCard — hover-triggered interactive card. */
   HoverCard: ThemedHoverCardComponent;
+  /** Themed List — compound component with List.Item and List.DragHandle. */
+  List: ThemedListComponent;
   /** Themed Menubar — composable JSX component with Menubar.Menu, Menubar.Trigger, Menubar.Content, etc. */
   Menubar: ThemedMenubarComponent;
   /** Themed NavigationMenu — composable JSX component with NavigationMenu.List, NavigationMenu.Item, etc. */
@@ -545,6 +552,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
   const datePickerStyles = createDatePickerStyles();
   const drawerStyles = createDrawerStyles();
   const hoverCardStyles = createHoverCardStyles();
+  const listStyles = createListStyles();
   const menubarStyles = createMenubarStyles();
   const navigationMenuStyles = createNavigationMenuStyles();
   const paginationStyles = createPaginationStyles();
@@ -590,6 +598,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
     datePicker: datePickerStyles,
     drawer: drawerStyles,
     hoverCard: hoverCardStyles,
+    list: listStyles,
     menubar: menubarStyles,
     navigationMenu: navigationMenuStyles,
     pagination: paginationStyles,
@@ -733,6 +742,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
       }),
       Drawer: createThemedDrawer(drawerStyles),
       HoverCard: createThemedHoverCard(hoverCardStyles),
+      List: createThemedList(listStyles),
       Menubar: createThemedMenubar(menubarStyles),
       NavigationMenu: createThemedNavigationMenu(navigationMenuStyles),
       ResizablePanel: createThemedResizablePanel(resizablePanelStyles),

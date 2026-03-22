@@ -183,6 +183,7 @@ const DOM_HELPERS = [
   '__insert',
   '__conditional',
   '__list',
+  '__listValue',
   '__on',
   '__pushMountFrame',
   '__show',

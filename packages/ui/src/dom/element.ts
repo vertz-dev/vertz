@@ -83,6 +83,20 @@ function resolveAndInsertAfter(anchor: Node, value: unknown, managed: Node[], de
         typeof value === 'string' ? value : String(value),
       ) as unknown as Node);
   // Insert after the last managed node, or after the anchor if none yet
+  // DocumentFragment: browser insertBefore moves children, not the fragment
+  // itself (fragment ends up empty with parentNode = null). The SSR DOM shim
+  // does NOT flatten fragments in insertBefore — it inserts the fragment as
+  // a single opaque node, so content never gets serialized.
+  // Fix both cases by inserting each child individually.
+  if (node.nodeType === 11) {
+    const children = Array.from(node.childNodes);
+    for (const child of children) {
+      const insertAfter = (managed.length > 0 ? managed[managed.length - 1] : anchor) as Node;
+      insertAfter.parentNode!.insertBefore(child as Node, insertAfter.nextSibling);
+      managed.push(child as Node);
+    }
+    return;
+  }
   const insertAfter = (managed.length > 0 ? managed[managed.length - 1] : anchor) as Node;
   insertAfter.parentNode!.insertBefore(node, insertAfter.nextSibling);
   managed.push(node);
