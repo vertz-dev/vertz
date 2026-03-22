@@ -127,12 +127,23 @@ describe('dom-shim coverage: installDomShim internals', () => {
   });
 
   it('cleans up previously tracked globals on double install', () => {
-    installDomShim();
-    // Second install should clean up tracked globals from first install
-    installDomShim();
-    expect(localStorage.getItem('x')).toBeNull();
-    removeDomShim();
-    expect(globalThis).not.toHaveProperty('localStorage');
+    // Clear pre-existing localStorage (e.g., from happydom in other test files)
+    // biome-ignore lint/suspicious/noExplicitAny: test isolation requires dynamic global access
+    const savedLs = 'localStorage' in globalThis ? (globalThis as any).localStorage : undefined;
+    // biome-ignore lint/suspicious/noExplicitAny: test isolation requires dynamic global access
+    if (savedLs !== undefined) delete (globalThis as any).localStorage;
+
+    try {
+      installDomShim();
+      // Second install should clean up tracked globals from first install
+      installDomShim();
+      expect(localStorage.getItem('x')).toBeNull();
+      removeDomShim();
+      expect(globalThis).not.toHaveProperty('localStorage');
+    } finally {
+      // biome-ignore lint/suspicious/noExplicitAny: test isolation requires dynamic global access
+      if (savedLs !== undefined) (globalThis as any).localStorage = savedLs;
+    }
   });
 
   it('cancelAnimationFrame is a no-op', () => {
