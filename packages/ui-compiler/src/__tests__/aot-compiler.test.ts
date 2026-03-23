@@ -49,12 +49,10 @@ function extractAotFn(code: string, fnName: string): string {
 
 /** Strip TS type annotations from a function declaration for JS eval. */
 function stripTypeAnnotations(text: string): string {
-  return text
-    .replace(/\)\s*:\s*string\s*\{/, ') {')
-    .replace(/\(([^)]*)\)/, (_, params: string) => {
-      const stripped = params.replace(/:\s*[^,)]+/g, '');
-      return `(${stripped})`;
-    });
+  return text.replace(/\)\s*:\s*string\s*\{/, ') {').replace(/\(([^)]*)\)/, (_, params: string) => {
+    const stripped = params.replace(/:\s*[^,)]+/g, '');
+    return `(${stripped})`;
+  });
 }
 
 /** Evaluate the generated AOT function by running only __ssr_* functions (no regex). */
@@ -281,13 +279,19 @@ function Status({ isOnline }: { isOnline: boolean }) {
       expect(result.components[0]!.tier).toBe('conditional');
 
       const htmlOn = evalAot(result.code, '__ssr_Status', { __props: { isOnline: true } });
-      expect(htmlOn).toContain('<span class="on">Online</span>');
+      expect(htmlOn).toContain('<!--conditional-->');
+      expect(htmlOn).toContain('<!--/conditional-->');
+      expect(htmlOn).toContain(
+        '<!--conditional--><span class="on">Online</span><!--/conditional-->',
+      );
 
       const htmlOff = evalAot(result.code, '__ssr_Status', { __props: { isOnline: false } });
-      expect(htmlOff).toContain('<span class="off">Offline</span>');
+      expect(htmlOff).toContain(
+        '<!--conditional--><span class="off">Offline</span><!--/conditional-->',
+      );
     });
 
-    it('handles && conditionals', () => {
+    it('handles && conditionals with comment markers', () => {
       const result = compileForSSRAot(
         `
 function Alert({ message }: { message: string | null }) {
@@ -299,13 +303,18 @@ function Alert({ message }: { message: string | null }) {
       expect(result.components[0]!.tier).toBe('conditional');
 
       const htmlWith = evalAot(result.code, '__ssr_Alert', { __props: { message: 'Error!' } });
-      expect(htmlWith).toContain('<span class="alert">Error!</span>');
+      expect(htmlWith).toContain('<!--conditional-->');
+      expect(htmlWith).toContain('<!--/conditional-->');
+      expect(htmlWith).toContain(
+        '<!--conditional--><span class="alert">Error!</span><!--/conditional-->',
+      );
 
       const htmlWithout = evalAot(result.code, '__ssr_Alert', { __props: { message: null } });
+      expect(htmlWithout).toContain('<!--conditional--><!--/conditional-->');
       expect(htmlWithout).not.toContain('<span');
     });
 
-    it('handles list rendering with .map()', () => {
+    it('handles list rendering with .map() and list markers', () => {
       const result = compileForSSRAot(
         `
 function List({ items }: { items: string[] }) {
@@ -319,10 +328,10 @@ function List({ items }: { items: string[] }) {
       const html = evalAot(result.code, '__ssr_List', {
         __props: { items: ['A', 'B', 'C'] },
       });
-      expect(html).toBe('<ul><li>A</li><li>B</li><li>C</li></ul>');
+      expect(html).toBe('<ul><!--list--><li>A</li><li>B</li><li>C</li><!--/list--></ul>');
     });
 
-    it('handles empty list', () => {
+    it('handles empty list with markers', () => {
       const result = compileForSSRAot(
         `
 function List({ items }: { items: string[] }) {
@@ -334,10 +343,10 @@ function List({ items }: { items: string[] }) {
       const html = evalAot(result.code, '__ssr_List', {
         __props: { items: [] },
       });
-      expect(html).toBe('<ul></ul>');
+      expect(html).toBe('<ul><!--list--><!--/list--></ul>');
     });
 
-    it('handles components with interactive state (data-v-id marker)', () => {
+    it('handles components with interactive state (data-v-id and child markers)', () => {
       const result = compileForSSRAot(
         `
 function Counter({ initial }: { initial: number }) {
@@ -349,16 +358,31 @@ function Counter({ initial }: { initial: number }) {
 
       const aotFn = extractAotFn(result.code, '__ssr_Counter');
       expect(aotFn).toContain('data-v-id="Counter"');
+      // Reactive expression should have child markers
+      expect(aotFn).toContain('<!--child-->');
+      expect(aotFn).toContain('<!--/child-->');
 
-      // The AOT function references `count` (the local variable).
-      // In a real AOT pipeline, local variable initialization would be
-      // included in the function body. For eval, we provide count directly.
       const html = evalAot(result.code, '__ssr_Counter', {
         __props: { initial: 42 },
         count: 42,
       });
       expect(html).toContain('data-v-id="Counter"');
-      expect(html).toContain('42');
+      expect(html).toContain('<!--child-->42<!--/child-->');
+    });
+
+    it('does NOT emit child markers for non-reactive expressions', () => {
+      const result = compileForSSRAot(
+        `
+function Greeting({ name }: { name: string }) {
+  return <span>{name}</span>;
+}
+        `.trim(),
+      );
+
+      // No signal variables → no child markers
+      const aotFn = extractAotFn(result.code, '__ssr_Greeting');
+      expect(aotFn).not.toContain('<!--child-->');
+      expect(aotFn).not.toContain('<!--/child-->');
     });
 
     it('handles multiple components in one file', () => {

@@ -82,6 +82,8 @@ export class AotStringTransformer {
   private _components: AotComponentInfo[] = [];
   /** Component names referenced during current transform (for holes tracking). */
   private _currentHoles: Set<string> = new Set();
+  /** Reactive variable names for the current component (signal/computed). */
+  private _reactiveNames: Set<string> = new Set();
 
   get components(): AotComponentInfo[] {
     return this._components;
@@ -122,8 +124,11 @@ export class AotStringTransformer {
     // Check if component is interactive (has signal/let declarations)
     const isInteractive = variables.some((v) => v.kind === 'signal');
 
-    // Reset holes tracking for this component
+    // Reset tracking for this component
     this._currentHoles = new Set();
+    this._reactiveNames = new Set(
+      variables.filter((v) => v.kind === 'signal' || v.kind === 'computed').map((v) => v.name),
+    );
 
     // Build the string expression for the JSX tree
     const stringExpr = this._jsxToString(
@@ -614,6 +619,11 @@ export class AotStringTransformer {
     if (isRawText) {
       return `String(${exprText})`;
     }
+
+    // Wrap reactive expressions with child markers for hydration parity
+    if (this._isReactiveExpression(expr)) {
+      return `'<!--child-->' + __esc(${exprText}) + '<!--/child-->'`;
+    }
     return `__esc(${exprText})`;
   }
 
@@ -632,7 +642,7 @@ export class AotStringTransformer {
     const trueStr = this._expressionNodeToString(whenTrue, variables, s);
     const falseStr = this._expressionNodeToString(whenFalse, variables, s);
 
-    return `(${condText} ? ${trueStr} : ${falseStr})`;
+    return `'<!--conditional-->' + (${condText} ? ${trueStr} : ${falseStr}) + '<!--/conditional-->'`;
   }
 
   private _binaryToString(expr: Node, variables: VariableInfo[], s: MagicString): string {
@@ -651,7 +661,7 @@ export class AotStringTransformer {
     if (opText === '&&') {
       const leftText = s.slice(left.getStart(), left.getEnd());
       const rightStr = this._expressionNodeToString(right, variables, s);
-      return `(${leftText} ? ${rightStr} : '')`;
+      return `'<!--conditional-->' + (${leftText} ? ${rightStr} : '') + '<!--/conditional-->'`;
     }
 
     // For other binary operators, fall back to __esc
@@ -712,7 +722,7 @@ export class AotStringTransformer {
     const jsx = this._findJsx(body);
     if (jsx) {
       const jsxStr = this._jsxToString(jsx, variables, s, null);
-      return `${callerText}.map(${paramName} => ${jsxStr}).join('')`;
+      return `'<!--list-->' + ${callerText}.map(${paramName} => ${jsxStr}).join('') + '<!--/list-->'`;
     }
 
     // If body is a block, try to find return JSX
@@ -724,7 +734,7 @@ export class AotStringTransformer {
         const retJsx = this._findJsx(retExpr);
         if (retJsx) {
           const jsxStr = this._jsxToString(retJsx, variables, s, null);
-          return `${callerText}.map(${paramName} => ${jsxStr}).join('')`;
+          return `'<!--list-->' + ${callerText}.map(${paramName} => ${jsxStr}).join('') + '<!--/list-->'`;
         }
       }
     }
@@ -734,7 +744,9 @@ export class AotStringTransformer {
 
   /**
    * Convert an expression node to a string representation.
-   * If the node is JSX, convert to AOT string. Otherwise, use __esc().
+   * If the node is JSX, convert to AOT string.
+   * If the node is a conditional/binary, recurse with markers.
+   * Otherwise, use __esc().
    */
   private _expressionNodeToString(node: Node, variables: VariableInfo[], s: MagicString): string {
     // Unwrap parenthesized expressions
@@ -751,9 +763,36 @@ export class AotStringTransformer {
       return this._jsxToString(node, variables, s, null);
     }
 
+    // Nested ternary: cond ? a : b
+    if (node.isKind(SyntaxKind.ConditionalExpression)) {
+      return this._ternaryToString(node, variables, s);
+    }
+
+    // Nested binary: expr && <JSX />
+    if (node.isKind(SyntaxKind.BinaryExpression)) {
+      return this._binaryToString(node, variables, s);
+    }
+
     // Non-JSX expression
     const exprText = s.slice(node.getStart(), node.getEnd());
     return `__esc(${exprText})`;
+  }
+
+  /**
+   * Check if an expression references any reactive variable (signal/computed).
+   * Uses AST identifier scanning — no string matching.
+   */
+  private _isReactiveExpression(node: Node): boolean {
+    if (this._reactiveNames.size === 0) return false;
+
+    // Direct identifier reference
+    if (node.isKind(SyntaxKind.Identifier)) {
+      return this._reactiveNames.has(node.getText());
+    }
+
+    // Check all descendant identifiers
+    const identifiers = node.getDescendantsOfKind(SyntaxKind.Identifier);
+    return identifiers.some((id) => this._reactiveNames.has(id.getText()));
   }
 
   /** Check if a CallExpression is a .map() call using AST, not string matching. */
