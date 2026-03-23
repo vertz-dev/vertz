@@ -441,17 +441,19 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
         input = (await def.before.update(input, ctx)) as Record<string, unknown>;
       }
 
-      // Defense-in-depth: pass where conditions to the UPDATE statement itself.
-      // If a concurrent write changes ownership between db.get() and db.update(),
-      // the UPDATE WHERE will match 0 rows and the bridge adapter throws.
+      // Defense-in-depth: when where conditions exist, pass them to the UPDATE
+      // statement. If a concurrent write changes ownership between db.get() and
+      // db.update(), the UPDATE WHERE will match 0 rows and the adapter throws.
       let result: Record<string, unknown>;
-      try {
-        result = hasWhere
-          ? await (db.update as WidenedUpdate)(id, input, { where: dbWhere })
-          : await db.update(id, input);
-      } catch {
-        // TOCTOU race: row changed between get() and update(). Treat as not found.
-        return notFound(id);
+      if (hasWhere) {
+        try {
+          result = await (db.update as WidenedUpdate)(id, input, { where: dbWhere });
+        } catch {
+          // TOCTOU race: row changed between get() and update(). Treat as not found.
+          return notFound(id);
+        }
+      } else {
+        result = await db.update(id, input);
       }
       const strippedExisting = stripHiddenFields(table, existing);
       const strippedResult = stripHiddenFields(table, result);
@@ -497,19 +499,21 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
       });
       if (!accessResult.ok) return err(accessResult.error);
 
-      // Defense-in-depth: pass where conditions to the DELETE statement itself.
-      // Check return value (bridge adapter returns null on failure) AND catch
-      // exceptions for adapters that throw on 0-row matches.
+      // Defense-in-depth: when where conditions exist, pass them to the DELETE
+      // statement. Check return value (bridge adapter returns null on failure)
+      // AND catch exceptions for adapters that throw on 0-row matches.
       let deleted: Record<string, unknown> | null;
-      try {
-        deleted = hasWhere
-          ? await (db.delete as WidenedDelete)(id, { where: dbWhere })
-          : await db.delete(id);
-      } catch {
-        // TOCTOU race: row changed between get() and delete(). Treat as not found.
-        return notFound(id);
+      if (hasWhere) {
+        try {
+          deleted = await (db.delete as WidenedDelete)(id, { where: dbWhere });
+        } catch {
+          // TOCTOU race: row changed between get() and delete(). Treat as not found.
+          return notFound(id);
+        }
+        if (!deleted) return notFound(id);
+      } else {
+        deleted = await db.delete(id);
       }
-      if (!deleted) return notFound(id);
 
       // Fire after.delete (fire-and-forget)
       // Pass stripped data to prevent hidden field leakage
