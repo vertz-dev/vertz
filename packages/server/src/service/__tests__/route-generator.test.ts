@@ -355,7 +355,7 @@ describe('Feature: generateServiceRoutes', () => {
 
   describe('Given a service action handler', () => {
     describe('When the handler accesses ctx.request', () => {
-      it('Then ctx.request has url, method, headers, and body', async () => {
+      it('Then ctx.request has url, method, headers, body, and params', async () => {
         let capturedRequest: unknown;
 
         const svc = service('test', {
@@ -365,7 +365,7 @@ describe('Feature: generateServiceRoutes', () => {
               method: 'POST',
               body: bodySchema,
               response: responseSchema,
-              handler: async (input, ctx) => {
+              handler: async (_input, ctx) => {
                 capturedRequest = ctx.request;
                 return { token: 'tok' };
               },
@@ -391,11 +391,13 @@ describe('Feature: generateServiceRoutes', () => {
           method: string;
           headers: Headers;
           body: unknown;
+          params: Record<string, string>;
         };
         expect(req.url).toBe('http://localhost:3000/api/test/action');
         expect(req.method).toBe('POST');
         expect(req.headers).toBeInstanceOf(Headers);
         expect(req.body).toEqual({ email: 'test@example.com' });
+        expect(req.params).toEqual({});
       });
     });
   });

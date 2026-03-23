@@ -83,9 +83,10 @@ describe('Feature: createServiceContext', () => {
     });
   });
 
-  describe('Given a rawRequest without params', () => {
+  describe('Given a rawRequest without params (defensive fallback)', () => {
     describe('When accessing ctx.request.params', () => {
       it('Then returns an empty object', () => {
+        // Tests defensive fallback — rawRequest.params may be undefined from untyped callers
         const ctx = createServiceContext(
           { userId: 'user-1' },
           {},
@@ -94,6 +95,7 @@ describe('Feature: createServiceContext', () => {
             method: 'POST',
             headers: new Headers(),
             body: undefined,
+            params: undefined as never,
           },
         );
 
