@@ -1,38 +1,84 @@
 import { describe, expect, it } from 'bun:test';
+import { Project, ts } from 'ts-morph';
 import { compileForSSRAot } from '../compiler';
 
-/** Extract the AOT function text from generated code. */
-function extractAotFn(code: string, fnName: string): string {
-  const fnMatch = code.match(new RegExp(`function ${fnName}\\([^)]*\\)[^{]*\\{([\\s\\S]*?)\\n\\}`));
-  if (!fnMatch) throw new Error(`Function ${fnName} not found in generated code`);
-  return fnMatch[0]!;
+/** SSR runtime helpers used by generated AOT functions. */
+const __esc = (value: unknown): string => {
+  if (value == null || value === false) return '';
+  if (Array.isArray(value)) return value.map((v) => __esc(v)).join('');
+  const s = String(value);
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+};
+const __esc_attr = __esc;
+const __ssr_spread = (obj: Record<string, unknown>): string => {
+  return Object.entries(obj)
+    .map(([k, v]) => ` ${k}="${__esc_attr(v)}"`)
+    .join('');
+};
+const __ssr_style_object = (obj: Record<string, unknown>): string => {
+  return Object.entries(obj)
+    .filter(([, v]) => v != null && v !== '')
+    .map(([k, v]) => {
+      const cssKey = k.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
+      return `${cssKey}: ${v}`;
+    })
+    .join('; ');
+};
+
+/** Create a ts-morph Project for parsing generated code (reused across helpers). */
+function parseGeneratedCode(code: string) {
+  const project = new Project({
+    useInMemoryFileSystem: true,
+    compilerOptions: { jsx: ts.JsxEmit.Preserve, strict: true },
+  });
+  // .tsx extension is required so ts-morph correctly parses JSX in the original functions
+  return project.createSourceFile('output.tsx', code);
 }
 
-/** Evaluate the generated AOT function by extracting and running it. */
-function evalAot(code: string, fnName: string, args: Record<string, unknown> = {}): string {
-  // Extract the function body from the generated code
-  const fnMatch = code.match(new RegExp(`function ${fnName}\\([^)]*\\)[^{]*\\{([\\s\\S]*?)\\n\\}`));
-  if (!fnMatch) throw new Error(`Function ${fnName} not found in generated code`);
+/** Extract the AOT function text from generated code using AST (no regex). */
+function extractAotFn(code: string, fnName: string): string {
+  const sf = parseGeneratedCode(code);
+  const fn = sf.getFunction(fnName);
+  if (!fn) throw new Error(`Function ${fnName} not found in generated code`);
+  return fn.getText();
+}
 
-  // Provide helper functions
-  const __esc = (value: unknown): string => {
-    if (value == null || value === false) return '';
-    if (Array.isArray(value)) return value.map((v) => __esc(v)).join('');
-    const s = String(value);
-    return s
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  };
-  const __esc_attr = __esc;
+/** Strip TS type annotations from a function declaration for JS eval. */
+function stripTypeAnnotations(text: string): string {
+  return text
+    .replace(/\)\s*:\s*string\s*\{/, ') {')
+    .replace(/\(([^)]*)\)/, (_, params: string) => {
+      const stripped = params.replace(/:\s*[^,)]+/g, '');
+      return `(${stripped})`;
+    });
+}
+
+/** Evaluate the generated AOT function by running only __ssr_* functions (no regex). */
+function evalAot(code: string, fnName: string, args: Record<string, unknown> = {}): string {
+  const sf = parseGeneratedCode(code);
+  const aotCode = sf
+    .getFunctions()
+    .filter((fn) => fn.getName()?.startsWith('__ssr_'))
+    .map((fn) => stripTypeAnnotations(fn.getText()))
+    .join('\n');
 
   const argNames = Object.keys(args);
   const argValues = Object.values(args);
 
-  // biome-ignore lint/security/noGlobalEval: test helper
-  const fn = new Function('__esc', '__esc_attr', ...argNames, fnMatch[1]!);
-  return fn(__esc, __esc_attr, ...argValues);
+  const wrapper = new Function(
+    '__esc',
+    '__esc_attr',
+    '__ssr_spread',
+    '__ssr_style_object',
+    ...argNames,
+    `${aotCode}\nreturn ${fnName};`,
+  );
+  const fn = wrapper(__esc, __esc_attr, __ssr_spread, __ssr_style_object, ...argValues);
+  return fn(args.__props ?? {});
 }
 
 describe('compileForSSRAot()', () => {
