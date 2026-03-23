@@ -120,7 +120,8 @@ Useful for automated debugging and verifying server state without reading termin
 | Fast Refresh runtime | `packages/ui-server/src/bun-plugin/fast-refresh-runtime.ts` |
 | Fast Refresh codegen | `packages/ui-server/src/bun-plugin/fast-refresh-codegen.ts` |
 | DOM state preservation | `packages/ui-server/src/bun-plugin/fast-refresh-dom-state.ts` |
-| SSR render (two-pass) | `packages/ui-server/src/ssr-render.ts` |
+| SSR render (two-pass, production) | `packages/ui-server/src/ssr-render.ts` |
+| SSR render (single-pass, dev) | `packages/ui-server/src/ssr-single-pass.ts` |
 | Context + Provider | `packages/ui/src/component/context.ts` |
 | Source map resolver | `packages/ui-server/src/source-map-resolver.ts` |
 

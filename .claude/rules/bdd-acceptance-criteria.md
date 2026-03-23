@@ -187,7 +187,7 @@ BDD scenarios become the first tests the agent writes (red phase in TDD):
 
 A feature is done when:
 - [ ] All BDD scenarios pass
-- [ ] Quality gates green (`turbo run lint typecheck test`)
+- [ ] Quality gates green (`bun test && bun run typecheck && bun run lint`)
 - [ ] PR reviewed and merged
 - [ ] Developer Walkthrough passes
 
@@ -271,7 +271,5 @@ describe('Feature: Event emission', () => {
 
 ## Related Documents
 
-- [Task Assignment Checklist](./task-assignment-checklist.md) — Full spawning guide
-- [TDD Workflow](../vertz/.claude/rules/tdd.md) — Red→Green→Refactor process
-- [Design Docs](./design-docs.md) — Design doc requirements
-- [Definition of Done](../vertz/.claude/rules/definition-of-done.md) — Done criteria
+- [TDD Workflow](./tdd.md) — Red→Green→Refactor process
+- [Design & Planning](./design-and-planning.md) — Design doc requirements and definition of done
