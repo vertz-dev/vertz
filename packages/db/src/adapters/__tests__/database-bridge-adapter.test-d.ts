@@ -80,6 +80,47 @@ describe('createDatabaseBridgeAdapter type threading', () => {
 // Negative tests — invalid usage rejected
 // ---------------------------------------------------------------------------
 
+describe('GetOptions accepts optional where', () => {
+  it('compiles with get(id) — backward compatible', () => {
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    adapter.get('u1');
+  });
+
+  it('compiles with get(id, { where }) — new usage', () => {
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    adapter.get('u1', { where: { name: 'Alice' } });
+  });
+
+  it('compiles with get(id, { include, where }) — combined', () => {
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    adapter.get('u1', { include: { posts: true }, where: { email: 'a@b.com' } });
+  });
+});
+
+describe('update() accepts optional UpdateOptions', () => {
+  it('compiles with update(id, data) — backward compatible', () => {
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    adapter.update('u1', { name: 'Updated' });
+  });
+
+  it('compiles with update(id, data, { where }) — new usage', () => {
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    adapter.update('u1', { name: 'Updated' }, { where: { email: 'a@b.com' } });
+  });
+});
+
+describe('delete() accepts optional DeleteOptions', () => {
+  it('compiles with delete(id) — backward compatible', () => {
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    adapter.delete('u1');
+  });
+
+  it('compiles with delete(id, { where }) — new usage', () => {
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    adapter.delete('u1', { where: { name: 'Alice' } });
+  });
+});
+
 describe('createDatabaseBridgeAdapter rejects invalid usage', () => {
   it('rejects a table name not in the models registry', () => {
     // @ts-expect-error — 'posts' is not a registered model

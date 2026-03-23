@@ -83,6 +83,20 @@ export interface ListOptions<TEntry extends ModelEntry = ModelEntry> {
 export interface GetOptions<TEntry extends ModelEntry = ModelEntry> {
   /** Relation include specification for relation loading. */
   include?: ResolveInclude<TEntry>;
+  /** Additional WHERE conditions merged with the id lookup. */
+  where?: ResolveWhere<TEntry>;
+}
+
+/** Options for update-by-id operations. */
+export interface UpdateOptions<TEntry extends ModelEntry = ModelEntry> {
+  /** Additional WHERE conditions merged with the id lookup. */
+  where?: ResolveWhere<TEntry>;
+}
+
+/** Options for delete-by-id operations. */
+export interface DeleteOptions<TEntry extends ModelEntry = ModelEntry> {
+  /** Additional WHERE conditions merged with the id lookup. */
+  where?: ResolveWhere<TEntry>;
 }
 
 // ---------------------------------------------------------------------------
@@ -98,7 +112,11 @@ export interface EntityDbAdapter<TEntry extends ModelEntry = ModelEntry> {
 
   create(data: TEntry['table']['$create_input']): Promise<TEntry['table']['$response']>;
 
-  update(id: string, data: TEntry['table']['$update_input']): Promise<TEntry['table']['$response']>;
+  update(
+    id: string,
+    data: TEntry['table']['$update_input'],
+    options?: UpdateOptions<TEntry>,
+  ): Promise<TEntry['table']['$response']>;
 
-  delete(id: string): Promise<TEntry['table']['$response'] | null>;
+  delete(id: string, options?: DeleteOptions<TEntry>): Promise<TEntry['table']['$response'] | null>;
 }

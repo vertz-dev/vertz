@@ -66,7 +66,7 @@ export function createDatabaseBridgeAdapter<
   return {
     async get(id, options?) {
       const result = await delegate.get({
-        where: { id },
+        where: { ...(options?.where ?? {}), id },
         ...(options?.include && { include: options.include }),
       });
       if (!result.ok) {
@@ -96,16 +96,21 @@ export function createDatabaseBridgeAdapter<
       return result.data as TResponse;
     },
 
-    async update(id, data) {
-      const result = await delegate.update({ where: { id }, data });
+    async update(id, data, options?) {
+      const result = await delegate.update({
+        where: { ...(options?.where ?? {}), id },
+        data,
+      });
       if (!result.ok) {
         throw result.error;
       }
       return result.data as TResponse;
     },
 
-    async delete(id) {
-      const result = await delegate.delete({ where: { id } });
+    async delete(id, options?) {
+      const result = await delegate.delete({
+        where: { ...(options?.where ?? {}), id },
+      });
       if (!result.ok) {
         return null;
       }
