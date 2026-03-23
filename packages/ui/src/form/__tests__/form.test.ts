@@ -5,6 +5,43 @@ import type { SdkMethodWithMeta } from '../form';
 import { form } from '../form';
 import type { FormSchema } from '../validation';
 
+/** Helper: creates a mock HTMLFormElement with event listener support. */
+function createMockFormElement() {
+  const listeners: Record<string, ((e: Event) => void)[]> = {};
+  const mockReset = vi.fn();
+  const el = {
+    addEventListener: vi.fn((type: string, handler: (e: Event) => void) => {
+      if (!listeners[type]) listeners[type] = [];
+      listeners[type].push(handler);
+    }),
+    removeEventListener: vi.fn(),
+    reset: mockReset,
+    dispatchEvent(e: Event) {
+      const handlers = listeners[e.type] || [];
+      for (const h of handlers) h(e);
+    },
+  } as unknown as HTMLFormElement;
+  return { el, listeners, mockReset };
+}
+
+/** Helper: creates an input event targeting a named input. */
+function createInputEvent(name: string, value: string, type = 'input') {
+  const event = new Event(type, { bubbles: true });
+  Object.defineProperty(event, 'target', {
+    value: { name, value },
+  });
+  return event;
+}
+
+/** Helper: creates a focusout event targeting a named input. */
+function createFocusoutEvent(name: string) {
+  const event = new Event('focusout', { bubbles: true });
+  Object.defineProperty(event, 'target', {
+    value: { name },
+  });
+  return event;
+}
+
 /** Helper: creates a mock SDK method with url/method metadata. */
 function mockSdkMethod<TBody, TResult>(config: {
   url: string;
@@ -384,43 +421,6 @@ describe('form', () => {
   });
 
   describe('__bindElement', () => {
-    /** Helper: creates a mock HTMLFormElement with event listener support. */
-    function createMockFormElement() {
-      const listeners: Record<string, ((e: Event) => void)[]> = {};
-      const mockReset = vi.fn();
-      const el = {
-        addEventListener: vi.fn((type: string, handler: (e: Event) => void) => {
-          if (!listeners[type]) listeners[type] = [];
-          listeners[type].push(handler);
-        }),
-        removeEventListener: vi.fn(),
-        reset: mockReset,
-        dispatchEvent(e: Event) {
-          const handlers = listeners[e.type] || [];
-          for (const h of handlers) h(e);
-        },
-      } as unknown as HTMLFormElement;
-      return { el, listeners, mockReset };
-    }
-
-    /** Helper: creates an input event targeting a named input. */
-    function createInputEvent(name: string, value: string, type = 'input') {
-      const event = new Event(type, { bubbles: true });
-      Object.defineProperty(event, 'target', {
-        value: { name, value },
-      });
-      return event;
-    }
-
-    /** Helper: creates a focusout event targeting a named input. */
-    function createFocusoutEvent(name: string) {
-      const event = new Event('focusout', { bubbles: true });
-      Object.defineProperty(event, 'target', {
-        value: { name },
-      });
-      return event;
-    }
-
     it('registers event listeners on element', () => {
       const sdk = mockSdkMethod({
         url: '/api/users',
@@ -889,6 +889,245 @@ describe('form', () => {
       expect(f.email.dirty.peek()).toBe(false);
       expect(f.valid.peek()).toBe(true);
       expect(f.dirty.peek()).toBe(false);
+    });
+  });
+
+  describe('revalidateOn', () => {
+    /** Helper: submits a form with given entries and a failing schema. */
+    async function submitWithErrors(f: ReturnType<typeof form>, entries: Record<string, string>) {
+      const fd = new FormData();
+      for (const [key, value] of Object.entries(entries)) {
+        fd.append(key, value);
+      }
+      await f.submit(fd);
+    }
+
+    describe('revalidateOn: blur (default)', () => {
+      it('revalidates a flagged field on blur and clears the error when valid', async () => {
+        const schema = s.object({ title: s.string().min(1) });
+        const sdk = mockSdkMethod({
+          url: '/api/tasks',
+          method: 'POST',
+          handler: async () => ({ id: 1 }),
+        });
+        const f = form(sdk, { schema });
+        const { el } = createMockFormElement();
+        f.__bindElement(el);
+
+        // Submit with empty title — should set error
+        await submitWithErrors(f, { title: '' });
+        expect(f.title.error.peek()).toBeDefined();
+
+        // Fix the value via input, then blur
+        el.dispatchEvent(createInputEvent('title', 'Valid title'));
+        el.dispatchEvent(createFocusoutEvent('title'));
+
+        // Error should be cleared after blur
+        expect(f.title.error.peek()).toBeUndefined();
+      });
+
+      it('updates the error message on blur when field is still invalid', async () => {
+        const schema = s.object({ title: s.string().min(3) });
+        const sdk = mockSdkMethod({
+          url: '/api/tasks',
+          method: 'POST',
+          handler: async () => ({ id: 1 }),
+        });
+        const f = form(sdk, { schema });
+        const { el } = createMockFormElement();
+        f.__bindElement(el);
+
+        await submitWithErrors(f, { title: '' });
+        const originalError = f.title.error.peek();
+        expect(originalError).toBeDefined();
+
+        // Change value but still invalid (too short)
+        el.dispatchEvent(createInputEvent('title', 'ab'));
+        el.dispatchEvent(createFocusoutEvent('title'));
+
+        // Error should still be present
+        expect(f.title.error.peek()).toBeDefined();
+      });
+
+      it('does NOT revalidate on blur for fields without prior errors', async () => {
+        const schema = s.object({ title: s.string().min(1), description: s.string().optional() });
+        const sdk = mockSdkMethod({
+          url: '/api/tasks',
+          method: 'POST',
+          handler: async () => ({ id: 1 }),
+        });
+        const f = form(sdk, { schema });
+        const { el } = createMockFormElement();
+        f.__bindElement(el);
+
+        // Submit with error only on title
+        await submitWithErrors(f, { title: '' });
+        expect(f.title.error.peek()).toBeDefined();
+
+        // Blur description (no prior error) — should NOT set error
+        el.dispatchEvent(createFocusoutEvent('description'));
+        expect(f.description.error.peek()).toBeUndefined();
+      });
+
+      it('does NOT revalidate on input (typing) — only on blur', async () => {
+        const schema = s.object({ title: s.string().min(1) });
+        const sdk = mockSdkMethod({
+          url: '/api/tasks',
+          method: 'POST',
+          handler: async () => ({ id: 1 }),
+        });
+        const f = form(sdk, { schema });
+        const { el } = createMockFormElement();
+        f.__bindElement(el);
+
+        await submitWithErrors(f, { title: '' });
+        expect(f.title.error.peek()).toBeDefined();
+
+        // Type valid value but don't blur — error should persist
+        el.dispatchEvent(createInputEvent('title', 'Valid title'));
+        expect(f.title.error.peek()).toBeDefined();
+      });
+
+      it('does NOT revalidate before first submit', () => {
+        const schema = s.object({ title: s.string().min(1) });
+        const sdk = mockSdkMethod({
+          url: '/api/tasks',
+          method: 'POST',
+          handler: async () => ({ id: 1 }),
+        });
+        const f = form(sdk, { schema });
+        const { el } = createMockFormElement();
+        f.__bindElement(el);
+
+        // Blur without prior submit — no validation
+        el.dispatchEvent(createInputEvent('title', ''));
+        el.dispatchEvent(createFocusoutEvent('title'));
+        expect(f.title.error.peek()).toBeUndefined();
+      });
+
+      it('sets hasSubmitted on client-side validation failure (not just API success)', async () => {
+        const schema = s.object({ title: s.string().min(1) });
+        const sdk = mockSdkMethod({
+          url: '/api/tasks',
+          method: 'POST',
+          handler: async () => ({ id: 1 }),
+        });
+        const f = form(sdk, { schema });
+        const { el } = createMockFormElement();
+        f.__bindElement(el);
+
+        // Submit with invalid data — validation fails, SDK NOT called
+        await submitWithErrors(f, { title: '' });
+        expect(f.title.error.peek()).toBeDefined();
+
+        // Fix and blur — revalidation should fire because hasSubmitted was set
+        el.dispatchEvent(createInputEvent('title', 'Fixed'));
+        el.dispatchEvent(createFocusoutEvent('title'));
+        expect(f.title.error.peek()).toBeUndefined();
+      });
+
+      it('reset() clears hasSubmitted — no revalidation after reset', async () => {
+        const schema = s.object({ title: s.string().min(1) });
+        const sdk = mockSdkMethod({
+          url: '/api/tasks',
+          method: 'POST',
+          handler: async () => ({ id: 1 }),
+        });
+        const f = form(sdk, { schema });
+        const { el } = createMockFormElement();
+        f.__bindElement(el);
+
+        // Submit → error → reset
+        await submitWithErrors(f, { title: '' });
+        expect(f.title.error.peek()).toBeDefined();
+        f.reset();
+
+        // After reset, blur should NOT trigger revalidation
+        el.dispatchEvent(createInputEvent('title', ''));
+        el.dispatchEvent(createFocusoutEvent('title'));
+        expect(f.title.error.peek()).toBeUndefined();
+      });
+    });
+
+    describe('revalidateOn: change', () => {
+      it('revalidates a flagged field on input event (no blur needed)', async () => {
+        const schema = s.object({ title: s.string().min(1) });
+        const sdk = mockSdkMethod({
+          url: '/api/tasks',
+          method: 'POST',
+          handler: async () => ({ id: 1 }),
+        });
+        const f = form(sdk, { schema, revalidateOn: 'change' });
+        const { el } = createMockFormElement();
+        f.__bindElement(el);
+
+        await submitWithErrors(f, { title: '' });
+        expect(f.title.error.peek()).toBeDefined();
+
+        // Type valid value — error should clear without blur
+        el.dispatchEvent(createInputEvent('title', 'Valid title'));
+        expect(f.title.error.peek()).toBeUndefined();
+      });
+
+      it('revalidates on change event (e.g., select dropdown)', async () => {
+        const schema = s.object({ priority: s.string().min(1) });
+        const sdk = mockSdkMethod({
+          url: '/api/tasks',
+          method: 'POST',
+          handler: async () => ({ id: 1 }),
+        });
+        const f = form(sdk, { schema, revalidateOn: 'change' });
+        const { el } = createMockFormElement();
+        f.__bindElement(el);
+
+        await submitWithErrors(f, { priority: '' });
+        expect(f.priority.error.peek()).toBeDefined();
+
+        // Select a valid option — error should clear
+        el.dispatchEvent(createInputEvent('priority', 'high', 'change'));
+        expect(f.priority.error.peek()).toBeUndefined();
+      });
+    });
+
+    describe('revalidateOn: submit', () => {
+      it('does NOT revalidate on blur — error persists', async () => {
+        const schema = s.object({ title: s.string().min(1) });
+        const sdk = mockSdkMethod({
+          url: '/api/tasks',
+          method: 'POST',
+          handler: async () => ({ id: 1 }),
+        });
+        const f = form(sdk, { schema, revalidateOn: 'submit' });
+        const { el } = createMockFormElement();
+        f.__bindElement(el);
+
+        await submitWithErrors(f, { title: '' });
+        expect(f.title.error.peek()).toBeDefined();
+
+        // Fix and blur — error should persist
+        el.dispatchEvent(createInputEvent('title', 'Fixed'));
+        el.dispatchEvent(createFocusoutEvent('title'));
+        expect(f.title.error.peek()).toBeDefined();
+      });
+
+      it('does NOT revalidate on input — error persists', async () => {
+        const schema = s.object({ title: s.string().min(1) });
+        const sdk = mockSdkMethod({
+          url: '/api/tasks',
+          method: 'POST',
+          handler: async () => ({ id: 1 }),
+        });
+        const f = form(sdk, { schema, revalidateOn: 'submit' });
+        const { el } = createMockFormElement();
+        f.__bindElement(el);
+
+        await submitWithErrors(f, { title: '' });
+        expect(f.title.error.peek()).toBeDefined();
+
+        // Type valid value — error should persist
+        el.dispatchEvent(createInputEvent('title', 'Fixed'));
+        expect(f.title.error.peek()).toBeDefined();
+      });
     });
   });
 });

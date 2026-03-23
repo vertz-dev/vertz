@@ -1,8 +1,39 @@
 import { describe, expect, test, vi } from 'bun:test';
 import { ok } from '@vertz/fetch';
+import { s } from '@vertz/schema';
 import { form } from '../form/form';
 import { formDataToObject } from '../form/form-data';
 import type { FormSchema } from '../form/validation';
+
+/** Helper: creates a mock HTMLFormElement with event dispatch support. */
+function createMockFormElement() {
+  const listeners: Record<string, ((e: Event) => void)[]> = {};
+  const el = {
+    addEventListener: vi.fn((type: string, handler: (e: Event) => void) => {
+      if (!listeners[type]) listeners[type] = [];
+      listeners[type].push(handler);
+    }),
+    removeEventListener: vi.fn(),
+    reset: vi.fn(),
+    dispatchEvent(e: Event) {
+      const handlers = listeners[e.type] || [];
+      for (const h of handlers) h(e);
+    },
+  } as unknown as HTMLFormElement;
+  return el;
+}
+
+function createInputEvent(name: string, value: string, type = 'input') {
+  const event = new Event(type, { bubbles: true });
+  Object.defineProperty(event, 'target', { value: { name, value } });
+  return event;
+}
+
+function createFocusoutEvent(name: string) {
+  const event = new Event('focusout', { bubbles: true });
+  Object.defineProperty(event, 'target', { value: { name } });
+  return event;
+}
 
 /** Helper: creates a mock SDK method with url/method metadata. */
 function mockSdkMethod<TBody, TResult>(config: {
@@ -162,5 +193,151 @@ describe('Integration Tests — Forms', () => {
     expect(deleteForm.action).toBe('/api/users/123');
     expect(deleteForm.method).toBe('DELETE');
     expect(typeof deleteForm.onSubmit).toBe('function');
+  });
+});
+
+describe('Integration Tests — Form Revalidation', () => {
+  test('revalidateOn blur (default) with @vertz/schema clears error on valid blur', async () => {
+    const schema = s.object({ title: s.string().min(1), priority: s.string() });
+    const handler = vi.fn().mockResolvedValue({ id: 1 });
+    const sdk = mockSdkMethod({ url: '/api/tasks', method: 'POST', handler });
+    const f = form(sdk, { schema });
+    const el = createMockFormElement();
+    f.__bindElement(el);
+
+    // Submit with invalid data
+    const fd = new FormData();
+    fd.append('title', '');
+    fd.append('priority', 'low');
+    await f.submit(fd);
+
+    expect(f.title.error.peek()).toBeDefined();
+    expect(f.priority.error.peek()).toBeUndefined();
+
+    // Fix title, blur — error should clear via single-field validation
+    el.dispatchEvent(createInputEvent('title', 'Valid'));
+    el.dispatchEvent(createFocusoutEvent('title'));
+    expect(f.title.error.peek()).toBeUndefined();
+  });
+
+  test('revalidateOn change with @vertz/schema clears error on input', async () => {
+    const schema = s.object({ title: s.string().min(1) });
+    const handler = vi.fn().mockResolvedValue({ id: 1 });
+    const sdk = mockSdkMethod({ url: '/api/tasks', method: 'POST', handler });
+    const f = form(sdk, { schema, revalidateOn: 'change' });
+    const el = createMockFormElement();
+    f.__bindElement(el);
+
+    const fd = new FormData();
+    fd.append('title', '');
+    await f.submit(fd);
+    expect(f.title.error.peek()).toBeDefined();
+
+    // Type valid value — error clears without blur
+    el.dispatchEvent(createInputEvent('title', 'Fixed'));
+    expect(f.title.error.peek()).toBeUndefined();
+  });
+
+  test('revalidateOn submit with @vertz/schema does NOT clear on blur', async () => {
+    const schema = s.object({ title: s.string().min(1) });
+    const handler = vi.fn().mockResolvedValue({ id: 1 });
+    const sdk = mockSdkMethod({ url: '/api/tasks', method: 'POST', handler });
+    const f = form(sdk, { schema, revalidateOn: 'submit' });
+    const el = createMockFormElement();
+    f.__bindElement(el);
+
+    const fd = new FormData();
+    fd.append('title', '');
+    await f.submit(fd);
+    expect(f.title.error.peek()).toBeDefined();
+
+    el.dispatchEvent(createInputEvent('title', 'Fixed'));
+    el.dispatchEvent(createFocusoutEvent('title'));
+    // Error persists — only submit clears it
+    expect(f.title.error.peek()).toBeDefined();
+  });
+
+  test('generic FormSchema without .shape falls back to full validation on blur', async () => {
+    const schema: FormSchema<{ title: string }> = {
+      parse(data: unknown) {
+        const obj = data as { title: string };
+        if (!obj.title || obj.title.length === 0) {
+          const err = new Error('Validation failed');
+          (err as Error & { fieldErrors: Record<string, string> }).fieldErrors = {
+            title: 'Title is required',
+          };
+          return { ok: false, error: err };
+        }
+        return { ok: true, data: obj };
+      },
+    };
+    const handler = vi.fn().mockResolvedValue({ id: 1 });
+    const sdk = mockSdkMethod({ url: '/api/tasks', method: 'POST', handler });
+    const f = form(sdk, { schema });
+    const el = createMockFormElement();
+    f.__bindElement(el);
+
+    const fd = new FormData();
+    fd.append('title', '');
+    await f.submit(fd);
+    expect(f.title.error.peek()).toBe('Title is required');
+
+    // Fix and blur — fallback full validation clears the error
+    el.dispatchEvent(createInputEvent('title', 'Fixed'));
+    el.dispatchEvent(createFocusoutEvent('title'));
+    expect(f.title.error.peek()).toBeUndefined();
+  });
+
+  test('generic schema with nested fields assembles nested object for fallback', async () => {
+    const schema: FormSchema<{ address: { street: string } }> = {
+      parse(data: unknown) {
+        const obj = data as { address?: { street?: string } };
+        if (!obj.address?.street || obj.address.street.length === 0) {
+          const err = new Error('Validation failed');
+          (err as Error & { fieldErrors: Record<string, string> }).fieldErrors = {
+            'address.street': 'Street is required',
+          };
+          return { ok: false, error: err };
+        }
+        return { ok: true, data: data as { address: { street: string } } };
+      },
+    };
+    const handler = vi.fn().mockResolvedValue({ id: 1 });
+    const sdk = mockSdkMethod({ url: '/api/users', method: 'POST', handler });
+    const f = form(sdk, { schema });
+    const el = createMockFormElement();
+    f.__bindElement(el);
+
+    const fd = new FormData();
+    fd.append('address.street', '');
+    await f.submit(fd);
+    expect(f.address.street.error.peek()).toBe('Street is required');
+
+    // Fix and blur — fallback should assemble nested object correctly
+    el.dispatchEvent(createInputEvent('address.street', '123 Main'));
+    el.dispatchEvent(createFocusoutEvent('address.street'));
+    expect(f.address.street.error.peek()).toBeUndefined();
+  });
+
+  test('nested optional field schema revalidates on blur', async () => {
+    const schema = s.object({
+      address: s.object({ street: s.string().min(1) }).optional(),
+    });
+    const handler = vi.fn().mockResolvedValue({ id: 1 });
+    const sdk = mockSdkMethod({ url: '/api/users', method: 'POST', handler });
+    const f = form(sdk, { schema });
+    const el = createMockFormElement();
+    f.__bindElement(el);
+
+    // Submit with empty nested field
+    const fd = new FormData();
+    fd.append('address.street', '');
+    await f.submit(fd);
+    expect(f.address.street.error.peek()).toBeDefined();
+
+    // Fix and blur
+    el.dispatchEvent(createInputEvent('address.street', '123 Main St'));
+    el.dispatchEvent(createFocusoutEvent('address.street'));
+    expect(f.address.street.error.peek()).toBeUndefined();
   });
 });
