@@ -28,6 +28,7 @@ export interface ServiceRequestInfo {
   readonly method: string;
   readonly headers: Headers;
   readonly body: unknown;
+  readonly params: Record<string, string>;
 }
 
 export interface ServiceContext<

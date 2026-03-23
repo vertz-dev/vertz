@@ -465,6 +465,74 @@ describe('Feature: generateServiceRoutes', () => {
     });
   });
 
+  describe('Given a service with a custom path containing :provider param', () => {
+    describe('When the route handler is invoked with a matching URL', () => {
+      it('Then ctx.request.params contains { provider: "github" }', async () => {
+        let capturedParams: unknown;
+
+        const svc = service('auth', {
+          access: { callback: () => true },
+          actions: {
+            callback: {
+              method: 'GET',
+              path: '/api/auth/callback/:provider',
+              response: responseSchema,
+              handler: async (_input, ctx) => {
+                capturedParams = ctx.request.params;
+                return { token: 'tok' };
+              },
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(svc, registry);
+
+        await routes[0]?.handler({
+          params: { provider: 'github' },
+          raw: {
+            url: 'http://localhost:3000/api/auth/callback/github',
+            method: 'GET',
+            headers: new Headers(),
+          },
+        });
+
+        expect(capturedParams).toEqual({ provider: 'github' });
+      });
+    });
+  });
+
+  describe('Given a service with no path params', () => {
+    describe('When the route handler is invoked', () => {
+      it('Then ctx.request.params is an empty object {}', async () => {
+        let capturedParams: unknown;
+
+        const svc = service('auth', {
+          access: { login: () => true },
+          actions: {
+            login: {
+              body: bodySchema,
+              response: responseSchema,
+              handler: async (_input, ctx) => {
+                capturedParams = ctx.request.params;
+                return { token: 'tok' };
+              },
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(svc, registry);
+
+        await routes[0]?.handler({
+          body: { email: 'test@example.com' },
+        });
+
+        expect(capturedParams).toEqual({});
+      });
+    });
+  });
+
   describe('Given an action with JSON body and response (unchanged)', () => {
     describe('When called with valid JSON', () => {
       it('Then behavior is unchanged', async () => {

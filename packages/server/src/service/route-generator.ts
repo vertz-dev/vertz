@@ -108,6 +108,7 @@ export function generateServiceRoutes(
             method: raw?.method ?? '',
             headers: new Headers(ctxHeaders ?? {}),
             body: ctx.body,
+            params: (ctx.params ?? {}) as Record<string, string>,
           };
           const serviceCtx = createServiceContext(requestInfo, registryProxy, rawRequest);
 
