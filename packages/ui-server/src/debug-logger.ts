@@ -2,6 +2,7 @@ import { appendFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 export type DebugCategory =
+  | 'aot'
   | 'fields'
   | 'manifest'
   | 'plugin'

@@ -27,6 +27,7 @@ import { imageContentType, isValidImageName } from './bun-plugin/image-paths';
 import { createDebugLogger } from './debug-logger';
 import { handleDevImageProxy } from './dev-image-proxy';
 import { DiagnosticsCollector } from './diagnostics-collector';
+import { AotDiagnostics } from './ssr-aot-diagnostics';
 import { installFetchProxy, runWithScopedFetch } from './fetch-scope';
 import { extractFontMetrics } from './font-metrics';
 import { createReadyGate } from './ready-gate';
@@ -817,6 +818,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
   mkdirSync(devDir, { recursive: true });
   const logger = createDebugLogger(devDir);
   const diagnostics = new DiagnosticsCollector();
+  const aotDiagnostics = new AotDiagnostics();
 
   let server: ReturnType<typeof Bun.serve> | null = null;
   let srcWatcherRef: ReturnType<typeof watch> | null = null;
@@ -1496,6 +1498,11 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
         // Diagnostics endpoint — JSON snapshot of server state
         if (pathname === '/__vertz_diagnostics') {
           return Response.json(diagnostics.getSnapshot());
+        }
+
+        // AOT SSR diagnostics — component tiers, coverage, divergences
+        if (pathname === '/__vertz_ssr_aot') {
+          return Response.json(aotDiagnostics.getSnapshot());
         }
 
         // Prefetch manifest endpoint — returns current manifest with rebuild metadata

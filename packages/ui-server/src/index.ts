@@ -15,6 +15,8 @@ export type { PrefetchSession, SerializedAccessRule } from './ssr-access-evaluat
 export { evaluateAccessRule, toPrefetchSession } from './ssr-access-evaluator';
 export { createAccessSetScript, getAccessSetForSSR } from './ssr-access-set';
 export { createSSRAdapter } from './ssr-adapter';
+export type { AotDiagnosticsSnapshot } from './ssr-aot-diagnostics';
+export { AotDiagnostics } from './ssr-aot-diagnostics';
 export type {
   AotManifest,
   AotRenderFn,
@@ -22,7 +24,7 @@ export type {
   SSRAotContext,
   SSRRenderAotOptions,
 } from './ssr-aot-pipeline';
-export { createHoles, ssrRenderAot } from './ssr-aot-pipeline';
+export { createHoles, isAotDebugEnabled, ssrRenderAot } from './ssr-aot-pipeline';
 export { __esc, __esc_attr, __ssr_spread, __ssr_style_object } from './ssr-aot-runtime';
 export type { SSRQueryEntry } from './ssr-context';
 export {

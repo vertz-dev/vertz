@@ -15,6 +15,7 @@ import type { SSRAuth } from '@vertz/ui/internals';
 import { installDomShim, toVNode } from './dom-shim';
 import { serializeToHtml } from './html-serializer';
 import type { PrefetchSession } from './ssr-access-evaluator';
+import type { AotDiagnostics } from './ssr-aot-diagnostics';
 import { clearGlobalSSRTimeout, setGlobalSSRTimeout, ssrStorage } from './ssr-context';
 import { createRequestContext, type SSRModule, type SSRRenderResult } from './ssr-render';
 import { matchUrlToPatterns } from './ssr-route-matcher';
@@ -74,6 +75,8 @@ export interface SSRRenderAotOptions {
   ssrAuth?: SSRAuth;
   /** Session data for access rule evaluation. */
   prefetchSession?: PrefetchSession;
+  /** AOT diagnostics collector (dev mode). When provided with VERTZ_DEBUG=aot, enables dual rendering and divergence detection. */
+  diagnostics?: AotDiagnostics;
 }
 
 // ─── createHoles ─────────────────────────────────────────────────
@@ -248,6 +251,18 @@ export async function ssrRenderAot(
     }
     const html = aotEntry.render(data, ctx);
 
+    // 5b. Dev-mode divergence detection: dual render and compare
+    if (options.diagnostics && isAotDebugEnabled()) {
+      try {
+        const domResult = await ssrRenderSinglePass(module, normalizedUrl, fallbackOptions);
+        if (domResult.html !== html) {
+          options.diagnostics.recordDivergence(match.pattern, html, domResult.html);
+        }
+      } catch {
+        // Divergence check is best-effort — don't break AOT render on DOM shim failure
+      }
+    }
+
     // 6. Collect CSS
     const css = collectCSSFromModule(module, options.fallbackMetrics);
 
@@ -269,6 +284,13 @@ export async function ssrRenderAot(
 }
 
 // ─── Internal helpers ────────────────────────────────────────────
+
+/** Check if VERTZ_DEBUG includes the 'aot' category. */
+export function isAotDebugEnabled(): boolean {
+  const env = process.env.VERTZ_DEBUG;
+  if (!env) return false;
+  return env === '1' || env.split(',').includes('aot');
+}
 
 let domShimInstalled = false;
 
