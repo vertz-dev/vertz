@@ -1,6 +1,6 @@
 {
   "name": "@vertz/db",
-  "version": "0.2.24",
+  "version": "0.2.25",
   "type": "module",
   "license": "MIT",
   "description": "Database layer for Vertz — typed queries, migrations, codegen",

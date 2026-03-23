@@ -1,5 +1,61 @@
 # @vertz/create-vertz-app
 
+## 0.2.25
+
+### Patch Changes
+
+- [#1734](https://github.com/vertz-dev/vertz/pull/1734) [`04673a3`](https://github.com/vertz-dev/vertz/commit/04673a32a4849db08d80bb39caf801295fec9832) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Remove deprecated `ListTransition` component — use `<List animate>` instead
+
+  `ListTransition` and `ListTransitionProps` are no longer exported from `@vertz/ui`. Use `<List animate>` from `@vertz/ui/components`:
+
+  ```tsx
+  // Before
+  import { ListTransition } from "@vertz/ui";
+
+  <ListTransition
+    each={items}
+    keyFn={(item) => item.id}
+    children={(item) => <TodoItem task={item} />}
+  />;
+
+  // After
+  import { List } from "@vertz/ui/components";
+
+  <List animate>
+    {items.map((item) => (
+      <List.Item key={item.id}>
+        <TodoItem task={item} />
+      </List.Item>
+    ))}
+  </List>;
+  ```
+
+- [#1732](https://github.com/vertz-dev/vertz/pull/1732) [`841c9ae`](https://github.com/vertz-dev/vertz/commit/841c9ae69b559d25ed443d3c5fa8e21b2fd174bf) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Remove `queryMatch` primitive — use direct conditional rendering instead
+
+  `queryMatch()` has been removed. Replace with direct conditionals on query signal properties:
+
+  ```tsx
+  // Before
+  {
+    queryMatch(tasks, {
+      loading: () => <Spinner />,
+      error: (err) => <Error error={err} />,
+      data: (data) => <List items={data.items} />,
+    });
+  }
+
+  // After
+  {
+    tasks.loading && <Spinner />;
+  }
+  {
+    tasks.error && <Error error={tasks.error} />;
+  }
+  {
+    tasks.data && <List items={tasks.data.items} />;
+  }
+  ```
+
 ## 0.2.24
 
 ## 0.2.23
