@@ -288,6 +288,37 @@ describe('Integration Tests — Form Revalidation', () => {
     expect(f.title.error.peek()).toBeUndefined();
   });
 
+  test('generic schema with nested fields assembles nested object for fallback', async () => {
+    const schema: FormSchema<{ address: { street: string } }> = {
+      parse(data: unknown) {
+        const obj = data as { address?: { street?: string } };
+        if (!obj.address?.street || obj.address.street.length === 0) {
+          const err = new Error('Validation failed');
+          (err as Error & { fieldErrors: Record<string, string> }).fieldErrors = {
+            'address.street': 'Street is required',
+          };
+          return { ok: false, error: err };
+        }
+        return { ok: true, data: data as { address: { street: string } } };
+      },
+    };
+    const handler = vi.fn().mockResolvedValue({ id: 1 });
+    const sdk = mockSdkMethod({ url: '/api/users', method: 'POST', handler });
+    const f = form(sdk, { schema });
+    const el = createMockFormElement();
+    f.__bindElement(el);
+
+    const fd = new FormData();
+    fd.append('address.street', '');
+    await f.submit(fd);
+    expect(f.address.street.error.peek()).toBe('Street is required');
+
+    // Fix and blur — fallback should assemble nested object correctly
+    el.dispatchEvent(createInputEvent('address.street', '123 Main'));
+    el.dispatchEvent(createFocusoutEvent('address.street'));
+    expect(f.address.street.error.peek()).toBeUndefined();
+  });
+
   test('nested optional field schema revalidates on blur', async () => {
     const schema = s.object({
       address: s.object({ street: s.string().min(1) }).optional(),

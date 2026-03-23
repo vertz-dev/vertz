@@ -301,17 +301,35 @@ export function form<TBody, TResult>(
     }
   }
 
+  function assembleFormData(): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+    for (const [name, f] of fieldCache) {
+      const value = f.value.peek();
+      if (!name.includes('.')) {
+        result[name] = value;
+        continue;
+      }
+      // Build nested object from dot-path key
+      const segments = name.split('.');
+      let current: Record<string, unknown> = result;
+      for (let i = 0; i < segments.length - 1; i++) {
+        const seg = segments[i]!;
+        if (!(seg in current) || typeof current[seg] !== 'object' || current[seg] === null) {
+          current[seg] = {};
+        }
+        current = current[seg] as Record<string, unknown>;
+      }
+      current[segments[segments.length - 1]!] = value;
+    }
+    return result;
+  }
+
   function revalidateFieldIfNeeded(fieldName: string): void {
     if (!hasSubmitted || revalidateOn === 'submit' || !resolvedSchema) return;
     const field = fieldCache.get(fieldName);
     if (!field || field.error.peek() === undefined) return;
 
-    // Assemble form data from field cache for fallback validation
-    const formData: Record<string, unknown> = {};
-    for (const [name, f] of fieldCache) {
-      formData[name] = f.value.peek();
-    }
-
+    const formData = assembleFormData();
     const result = validateField(resolvedSchema, fieldName, field.value.peek(), formData);
     field.error.value = result.valid ? undefined : result.error;
   }
@@ -343,7 +361,7 @@ export function form<TBody, TResult>(
     if (!target?.name) return;
     const field = getOrCreateField(target.name);
     field.touched.value = true;
-    if (revalidateOn === 'blur' || revalidateOn === 'change') {
+    if (revalidateOn === 'blur') {
       revalidateFieldIfNeeded(target.name);
     }
   }

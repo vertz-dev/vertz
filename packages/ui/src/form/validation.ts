@@ -94,14 +94,17 @@ function resolveFieldSchema(
     // If this is NOT the last segment, we need to descend into the next level's .shape
     if (i < segments.length - 1) {
       // Unwrap OptionalSchema/DefaultSchema/NullableSchema via .unwrap()
+      let unwrapCount = 0;
       while (
         fieldSchema &&
         typeof fieldSchema === 'object' &&
         'unwrap' in fieldSchema &&
         typeof (fieldSchema as Record<string, unknown>).unwrap === 'function' &&
-        !(fieldSchema as Record<string, unknown>).shape
+        !(fieldSchema as Record<string, unknown>).shape &&
+        unwrapCount < 10
       ) {
         fieldSchema = (fieldSchema as { unwrap(): unknown }).unwrap();
+        unwrapCount++;
       }
 
       // Get .shape for the next level
