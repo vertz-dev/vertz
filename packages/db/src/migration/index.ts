@@ -34,4 +34,16 @@ export { createSnapshot } from './snapshot';
 export { NodeSnapshotStorage } from './snapshot-storage';
 export type { SqlGeneratorContext } from './sql-generator';
 export { generateMigrationSql, generateRollbackSql } from './sql-generator';
+export type {
+  RlsDiffChange,
+  RlsDiffChangeType,
+} from './rls-differ';
+export { diffRlsPolicies } from './rls-differ';
+export type {
+  RlsPolicy,
+  RlsPolicyInput,
+  RlsSnapshot,
+  RlsTablePolicies,
+} from './rls-snapshot';
+export { generateRlsMigrationSql } from './rls-sql-generator';
 export type { SnapshotStorage } from './storage';
