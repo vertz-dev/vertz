@@ -7,7 +7,6 @@
  * Handles:
  * - Connection pool creation from URL + PoolConfig
  * - QueryFn adapter (sql.unsafe with parameter binding)
- * - Proper Date handling (postgres returns strings for timestamps)
  * - Error mapping (postgres.js PostgresError → PgErrorInput shape)
  * - Connection close and health check
  */
@@ -116,28 +115,23 @@ export function createPostgresDriver(url: string, pool?: PoolConfig): PostgresDr
     max: pool?.max ?? 10,
     idle_timeout: pool?.idleTimeout !== undefined ? pool.idleTimeout / 1000 : 30,
     connect_timeout: pool?.connectionTimeout !== undefined ? pool.connectionTimeout / 1000 : 10,
-    // Disable automatic type fetching — we handle type conversion ourselves
-    // to ensure consistent behavior with PGlite tests
+    // Disable automatic type fetching — postgres.js handles standard types
+    // (timestamps → Date, etc.) natively via built-in OID parsers.
+    // fetch_types queries pg_type for custom/extension types on first connect,
+    // which is unnecessary overhead for standard schemas.
     fetch_types: false,
   });
 
   const queryFn: QueryFn = async <T>(sqlStr: string, params: readonly unknown[]) => {
     try {
       // biome-ignore lint/suspicious/noExplicitAny: postgres.js unsafe() expects any[] for dynamic params
-      const result = await sql.unsafe<Record<string, unknown>[]>(sqlStr, params as any[]);
-
-      // Map rows: convert timestamp strings to Date objects
-      const rows = result.map((row) => {
-        const mapped: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(row)) {
-          mapped[key] = coerceValue(value);
-        }
-        return mapped;
-      }) as readonly T[];
+      const result = await sql.unsafe<Record<string, unknown>[]>(sqlStr, params as any[], {
+        prepare: true,
+      });
 
       return {
-        rows,
-        rowCount: result.count ?? rows.length,
+        rows: result as unknown as readonly T[],
+        rowCount: result.count ?? result.length,
       } as ExecutorResult<T>;
     } catch (error: unknown) {
       adaptPostgresError(error);
@@ -162,17 +156,12 @@ export function createPostgresDriver(url: string, pool?: PoolConfig): PostgresDr
         const txQueryFn: QueryFn = async <R>(sqlStr: string, params: readonly unknown[]) => {
           try {
             // biome-ignore lint/suspicious/noExplicitAny: postgres.js unsafe() expects any[] for dynamic params
-            const result = await txSql.unsafe<Record<string, unknown>[]>(sqlStr, params as any[]);
-            const rows = result.map((row) => {
-              const mapped: Record<string, unknown> = {};
-              for (const [key, value] of Object.entries(row)) {
-                mapped[key] = coerceValue(value);
-              }
-              return mapped;
-            }) as readonly R[];
+            const result = await txSql.unsafe<Record<string, unknown>[]>(sqlStr, params as any[], {
+              prepare: true,
+            });
             return {
-              rows,
-              rowCount: result.count ?? rows.length,
+              rows: result as unknown as readonly R[],
+              rowCount: result.count ?? result.length,
             } as ExecutorResult<R>;
           } catch (error: unknown) {
             adaptPostgresError(error);
@@ -204,50 +193,3 @@ export function createPostgresDriver(url: string, pool?: PoolConfig): PostgresDr
   };
 }
 
-// ---------------------------------------------------------------------------
-// Value coercion
-// ---------------------------------------------------------------------------
-
-/**
- * Coerce values returned from PostgreSQL to appropriate JS types.
- *
- * postgres.js returns most types correctly, but when fetch_types is disabled,
- * timestamp values may come as strings. This function ensures:
- * - ISO 8601 timestamp strings → Date objects
- * - Everything else passes through unchanged
- *
- * **⚠️ False-positive risk:** This heuristic coerces ANY string matching the
- * ISO 8601 timestamp pattern (e.g., `"2024-01-15T10:30:00Z"`) into a `Date`,
- * even if the column is a plain `text` type. If you store timestamp-like
- * strings in text columns, they will be silently converted to Date objects.
- *
- * A future iteration may add column-type-aware coercion to eliminate this
- * risk by inspecting the PG column OID or schema metadata.
- */
-function coerceValue(value: unknown): unknown {
-  if (typeof value === 'string' && isTimestampString(value)) {
-    const date = new Date(value);
-    if (!Number.isNaN(date.getTime())) {
-      return date;
-    }
-  }
-  return value;
-}
-
-/**
- * Check if a string looks like an ISO 8601 timestamp from PostgreSQL.
- *
- * Matches patterns like:
- * - "2024-01-15T10:30:00.000Z"
- * - "2024-01-15 10:30:00+00"
- * - "2024-01-15 10:30:00.123456+00:00"
- *
- * **Note:** This is a heuristic check using regex. Any string column value
- * matching this pattern will be coerced to a Date object, which may produce
- * false positives for text columns containing timestamp-formatted strings.
- * See {@link coerceValue} for details on the false-positive risk.
- */
-function isTimestampString(value: string): boolean {
-  // Must start with a date pattern YYYY-MM-DD and contain time separator
-  return /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(value);
-}

@@ -20,12 +20,14 @@ function receivedType(value: unknown): string {
 
 export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>> {
   private readonly _shape: S;
+  private readonly _shapeKeys: Set<string>;
   private _unknownKeys: UnknownKeyMode = 'strip';
   private _catchall: SchemaAny | undefined;
 
   constructor(shape: S) {
     super();
     this._shape = shape;
+    this._shapeKeys = new Set(Object.keys(shape));
   }
 
   get shape(): S {
@@ -46,7 +48,7 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
     }
     const obj = value as Record<string, unknown>;
     const result: Record<string, unknown> = {};
-    const shapeKeys = new Set(Object.keys(this._shape));
+    const shapeKeys = this._shapeKeys;
 
     for (const key of shapeKeys) {
       const schema = this._shape[key];
@@ -63,24 +65,26 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
       ctx.popPath();
     }
 
-    const unknownKeys = Object.keys(obj).filter((k) => !shapeKeys.has(k));
-    if (unknownKeys.length > 0) {
-      if (this._catchall) {
-        for (const key of unknownKeys) {
-          if (key === '__proto__') continue;
-          ctx.pushPath(key);
-          result[key] = this._catchall._runPipeline(obj[key], ctx);
-          ctx.popPath();
-        }
-      } else if (this._unknownKeys === 'strict') {
-        ctx.addIssue({
-          code: ErrorCode.UnrecognizedKeys,
-          message: `Unrecognized key(s) in object: ${unknownKeys.map((k) => `"${k}"`).join(', ')}`,
-        });
-      } else if (this._unknownKeys === 'passthrough') {
-        for (const key of unknownKeys) {
-          if (key === '__proto__') continue;
-          result[key] = obj[key];
+    if (this._unknownKeys !== 'strip' || this._catchall) {
+      const unknownKeys = Object.keys(obj).filter((k) => !shapeKeys.has(k));
+      if (unknownKeys.length > 0) {
+        if (this._catchall) {
+          for (const key of unknownKeys) {
+            if (key === '__proto__') continue;
+            ctx.pushPath(key);
+            result[key] = this._catchall._runPipeline(obj[key], ctx);
+            ctx.popPath();
+          }
+        } else if (this._unknownKeys === 'strict') {
+          ctx.addIssue({
+            code: ErrorCode.UnrecognizedKeys,
+            message: `Unrecognized key(s) in object: ${unknownKeys.map((k) => `"${k}"`).join(', ')}`,
+          });
+        } else if (this._unknownKeys === 'passthrough') {
+          for (const key of unknownKeys) {
+            if (key === '__proto__') continue;
+            result[key] = obj[key];
+          }
         }
       }
     }
