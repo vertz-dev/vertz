@@ -1,18 +1,23 @@
 import type { ValidationIssue } from './errors';
 
 export class ParseContext {
-  readonly issues: ValidationIssue[] = [];
+  private _issues: ValidationIssue[] | null = null;
   private _path: (string | number)[] = [];
 
+  get issues(): ValidationIssue[] {
+    return this._issues ?? [];
+  }
+
   addIssue(issue: Omit<ValidationIssue, 'path'> & { path?: (string | number)[] }): void {
-    this.issues.push({
+    if (this._issues === null) this._issues = [];
+    this._issues.push({
       ...issue,
       path: issue.path ?? [...this._path],
     });
   }
 
   hasIssues(): boolean {
-    return this.issues.length > 0;
+    return this._issues !== null && this._issues.length > 0;
   }
 
   pushPath(segment: string | number): void {

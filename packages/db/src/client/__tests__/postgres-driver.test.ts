@@ -443,7 +443,7 @@ describe('PostgreSQL Driver', () => {
 
       // Result should be just the array of rows (without count)
       expect(result).toEqual(mockRows);
-      expect(mockUnsafe).toHaveBeenCalledWith('SELECT * FROM users', []);
+      expect(mockUnsafe).toHaveBeenCalledWith('SELECT * FROM users', [], { prepare: true });
     });
 
     it('passes params to queryFn', async () => {
@@ -457,13 +457,18 @@ describe('PostgreSQL Driver', () => {
 
       await driver.query('SELECT * FROM users WHERE id = $1', [1]);
 
-      expect(mockUnsafe).toHaveBeenCalledWith('SELECT * FROM users WHERE id = $1', [1]);
+      expect(mockUnsafe).toHaveBeenCalledWith('SELECT * FROM users WHERE id = $1', [1], {
+        prepare: true,
+      });
     });
 
-    it('coerces timestamp strings to Date objects', async () => {
+    it('passes through values without coercion (postgres.js handles types natively)', async () => {
       const { createPostgresDriver } = await import('../postgres-driver');
 
-      const mockRows = [{ id: 1, created: '2024-01-15T10:30:00.000Z' }];
+      // postgres.js returns Date objects natively for timestamp columns;
+      // the driver passes them through without additional coercion
+      const dateValue = new Date('2024-01-15T10:30:00.000Z');
+      const mockRows = [{ id: 1, created: dateValue }];
       const mockResult = Object.assign(mockRows, { count: 1 });
       mockUnsafe.mockResolvedValue(mockResult);
 
@@ -471,8 +476,7 @@ describe('PostgreSQL Driver', () => {
 
       const result = await driver.query<{ id: number; created: Date }>('SELECT * FROM users');
 
-      expect(result[0]?.created).toBeInstanceOf(Date);
-      expect(result[0]?.created.toISOString()).toBe('2024-01-15T10:30:00.000Z');
+      expect(result[0]?.created).toBe(dateValue);
     });
   });
 
@@ -489,7 +493,9 @@ describe('PostgreSQL Driver', () => {
       const result = await driver.execute('DELETE FROM users WHERE id = $1', [1]);
 
       expect(result).toEqual({ rowsAffected: 5 });
-      expect(mockUnsafe).toHaveBeenCalledWith('DELETE FROM users WHERE id = $1', [1]);
+      expect(mockUnsafe).toHaveBeenCalledWith('DELETE FROM users WHERE id = $1', [1], {
+        prepare: true,
+      });
     });
   });
 
@@ -567,14 +573,15 @@ describe('PostgreSQL Driver', () => {
       });
 
       expect(result).toEqual([{ id: 1, name: 'test' }]);
-      expect(txUnsafe).toHaveBeenCalledWith('SELECT * FROM users', []);
+      expect(txUnsafe).toHaveBeenCalledWith('SELECT * FROM users', [], { prepare: true });
 
       await driver.close();
     });
 
-    it('coerces timestamp values in transaction queries', async () => {
+    it('passes through values without coercion in transaction queries', async () => {
+      const dateValue = new Date('2024-01-15T10:30:00.000Z');
       const txUnsafe = mock().mockResolvedValue(
-        Object.assign([{ id: 1, created: '2024-01-15T10:30:00.000Z' }], { count: 1 }),
+        Object.assign([{ id: 1, created: dateValue }], { count: 1 }),
       );
 
       mock.module('postgres', () => ({
@@ -596,8 +603,7 @@ describe('PostgreSQL Driver', () => {
         return queryResult.rows[0]?.created;
       });
 
-      expect(result).toBeInstanceOf(Date);
-      expect((result as Date).toISOString()).toBe('2024-01-15T10:30:00.000Z');
+      expect(result).toBe(dateValue);
 
       await driver.close();
     });
