@@ -16,19 +16,18 @@ For each phase:
 2. **Quality gates** — ALL must pass before review:
    - `bun test` (changed packages)
    - `bun run typecheck` (changed packages)
-   - `bunx biome check --write <changed-files>`
+   - `bunx biome check --fix <changed-files>`
 3. **Commit** — stage and commit all changes for the phase
-4. **Adversarial review** — spawn 4 review agents in parallel (ben, nora, ava, mike):
-   - Each agent reviews from their perspective (see `.claude/agents/` for personas)
+4. **Adversarial review** — spawn 1 review agent:
    - Reviews check: delivers what ticket asks, TDD compliance, no type gaps, no security issues, API matches design doc
-   - Reviews must be adversarial — actively look for mistakes, don't rubber-stamp
+   - Review must be adversarial — actively look for mistakes, don't rubber-stamp
 5. **Fix-review loop** — repeat until all blockers and should-fix items are resolved:
-   a. Fix ALL blocker and should-fix findings from the reviews
+   a. Fix ALL blocker and should-fix findings from the review
    b. Re-run quality gates (test + typecheck + lint)
    c. Commit the fixes
-   d. If any reviewer had blockers, re-run that reviewer's review on the new code
+   d. If the reviewer had blockers, re-run the review on the new code
    e. If re-review finds new blockers, go back to (a)
-   f. Loop exits when all 4 reviewers approve (no remaining blockers)
+   f. Loop exits when the reviewer approves (no remaining blockers)
 6. **Push** — push the branch to origin
 7. **Move to next phase** — no pause, no user prompt needed
 
@@ -70,7 +69,7 @@ For each phase:
 
 - Public API Changes summary (mandatory)
 - E2E acceptance test passing
-- Cross-package typecheck: `bun run typecheck --filter @vertz/integration-tests`
+- Cross-package typecheck: `bun run typecheck`
 - All issues marked done
 - **Docs updated** — if the PR introduces new APIs, changes existing behavior, or adds features, update `packages/docs/` (Mintlify). New APIs get new pages or sections; changed behavior gets existing pages updated; gotchas get noted.
 - Changeset added

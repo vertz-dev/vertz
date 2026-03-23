@@ -84,5 +84,4 @@ entity('system-template', {
 ## Key Files
 
 - Rule builders: `packages/server/src/auth/rules.ts`
-- Access redesign: `plans/access-redesign.md`
 - Entity types: `packages/server/src/entity/types.ts`

@@ -38,16 +38,15 @@ feat/db-integration
 
 ### 3. Full CI Before Every Phase Merge
 
-Before a phase is considered "done" and the next phase starts, run the **full CI pipeline** via Dagger:
+Before a phase is considered "done" and the next phase starts, run the **full quality gates**:
 
 ```bash
-cd /app/vertz
-dagger call ci
+bun test && bun run typecheck && bun run lint
 ```
 
-This runs: lint → build → typecheck → test (with Postgres). It validates the **entire monorepo**, not just the changed package — because changes in one package can break dependents.
+This validates the **entire monorepo**, not just the changed package — because changes in one package can break dependents.
 
-**This is a hard gate.** If `dagger call ci` fails, the phase is not done. Fix the issue, re-run CI, and only then proceed to the next phase.
+**This is a hard gate.** If quality gates fail, the phase is not done. Fix the issue, re-run, and only then proceed to the next phase.
 
 ### 4. Local Phase Review
 
@@ -77,7 +76,7 @@ vertz/reviews/<feature-name>/
 
 ## CI Status
 
-- [x] `dagger call ci` passed at <commit-sha>
+- [x] Quality gates passed at <commit-sha>
 
 ## Review Checklist
 
@@ -102,7 +101,7 @@ vertz/reviews/<feature-name>/
 
 - Reviewer must be a **different bot** than the author
 - Reviewer adversarially looks for bugs, not rubber-stamps
-- If changes are requested, author fixes → re-runs `dagger call ci` → reviewer re-reviews
+- If changes are requested, author fixes → re-runs quality gates → reviewer re-reviews
 - Review file is updated with resolution
 
 ### 5. Final PR to GitHub
@@ -115,7 +114,7 @@ When all phases are complete:
 4. Push the feature branch to GitHub
 5. Open a single PR: `feat/<feature-name>` → `main`
 6. PR description includes:
-   - Public API Changes summary (mandatory per `pr-policies.md`)
+   - Public API Changes summary (mandatory)
    - Summary of all phases with links to local review files
    - E2E acceptance test status
 7. **Monitor GitHub CI** — use `gh pr checks` or `gh run list` to track CI status
@@ -149,7 +148,7 @@ Standard post-merge process:
 |--------|-------|
 | GitHub PR per phase | Local commits + local review markdown |
 | `gh-as.sh` for every PR | Only for final PR to main |
-| GitHub CI per phase | `dagger call ci` locally |
+| GitHub CI per phase | Local quality gates (`bun test && bun run typecheck && bun run lint`) |
 | Wait for GitHub API | Instant local operations |
 | Multiple branches per feature | One feature branch, phases as commit ranges |
 
@@ -157,7 +156,7 @@ Standard post-merge process:
 
 - **TDD is still mandatory.** Red → Green → Refactor for every behavior.
 - **Reviews are still mandatory.** Different bot reviews every phase.
-- **CI must pass.** Full Dagger CI, not just the changed package.
+- **CI must pass.** Full quality gates, not just the changed package.
 - **Human approves final merge to main.** This is the one GitHub PR.
 - **Design docs and retros are still required.** Process quality doesn't change.
 - **Git worktrees** are still used when multiple agents work in parallel.

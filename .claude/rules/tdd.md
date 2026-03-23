@@ -8,7 +8,7 @@ All framework development follows strict Test-Driven Development.
 2. **Green** — Write the MINIMAL code to make that one test pass. **Green means ALL of:**
    - Tests pass (`bun test`)
    - Typecheck passes (`bun run typecheck` on changed packages)
-   - Lint/format passes (`bunx biome check --write <files>`)
+   - Lint/format passes (`bunx biome check --fix <files>`)
    - If any of these fail, you are NOT green. Fix before proceeding.
 3. **Refactor** — Clean up while keeping all checks green
 4. **Repeat** — Go back to step 1 with the next behavior
@@ -56,9 +56,9 @@ After GREEN, run `bun run typecheck` — `@ts-expect-error` only verifies interf
 
 ## Code Coverage
 
-- **Target: 90%+ line coverage for every source file.** Run `bun test --coverage` to verify.
-- Before pushing, check that all changed source files meet the 90% threshold.
-- If a file drops below 90%, add tests for uncovered branches before merging.
+- **Target: 95%+ line coverage for every source file (aim for 100%).** Run `bun test --coverage` to verify.
+- Before pushing, check that all changed source files meet the 95% threshold.
+- If a file drops below 95%, add tests for uncovered branches before merging.
 - Coverage is measured per-file, not per-package — no file gets a free pass because the aggregate is high.
 
 ## Never Skip Quality Gates

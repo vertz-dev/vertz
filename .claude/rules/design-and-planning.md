@@ -32,7 +32,7 @@ Three sign-offs required before implementation:
 
 - Must use public package imports (`@vertz/server`, `@vertz/db`) — never relative
 - Walkthrough test written in Phase 1 as failing test (RED state)
-- Cross-package typecheck mandatory before merge: `bun run typecheck --filter @vertz/integration-tests`
+- Cross-package typecheck mandatory before merge: `bun run typecheck`
 - Types in public signatures → `dependencies` (not `devDependencies`)
 
 ## Definition of Done
