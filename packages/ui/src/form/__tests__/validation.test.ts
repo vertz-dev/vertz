@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { s } from '@vertz/schema';
 import type { FormSchema, ValidationResult } from '../validation';
-import { validate } from '../validation';
+import { validate, validateField } from '../validation';
 
 describe('validate', () => {
   it('returns success with parsed data when schema.parse succeeds', () => {
@@ -229,6 +229,147 @@ describe('validate', () => {
 
       expect(result.success).toBe(false);
       expect(result.errors).toEqual({ title: 'From fieldErrors' });
+    });
+  });
+});
+
+describe('validateField', () => {
+  describe('Given a schema with .shape (duck-typed)', () => {
+    describe('When calling validateField with an invalid value', () => {
+      it('Then returns { valid: false, error: "..." } using shape[field].parse()', () => {
+        const schema = s.object({ title: s.string().min(1) });
+        const result = validateField(schema, 'title', '');
+        expect(result.valid).toBe(false);
+        expect(result.error).toBeDefined();
+      });
+    });
+
+    describe('When calling validateField with a valid value', () => {
+      it('Then returns { valid: true, error: undefined }', () => {
+        const schema = s.object({ title: s.string().min(1) });
+        const result = validateField(schema, 'title', 'Hello');
+        expect(result.valid).toBe(true);
+        expect(result.error).toBeUndefined();
+      });
+    });
+  });
+
+  describe('Given a schema without .shape', () => {
+    describe('When calling validateField with an invalid value and form data', () => {
+      it('Then runs full parse and extracts the field error', () => {
+        const schema: FormSchema<{ title: string }> = {
+          parse(_data: unknown) {
+            const obj = _data as { title: string };
+            if (!obj.title || obj.title.length === 0) {
+              const err = new Error('Validation failed');
+              (err as Error & { fieldErrors: Record<string, string> }).fieldErrors = {
+                title: 'Title is required',
+              };
+              return { ok: false, error: err };
+            }
+            return { ok: true, data: obj };
+          },
+        };
+
+        const result = validateField(schema, 'title', '', { title: '' });
+        expect(result.valid).toBe(false);
+        expect(result.error).toBe('Title is required');
+      });
+    });
+
+    describe('When calling validateField with a valid value and form data', () => {
+      it('Then returns valid (no error for that field in full parse result)', () => {
+        const schema: FormSchema<{ title: string }> = {
+          parse(_data: unknown) {
+            const obj = _data as { title: string };
+            if (!obj.title || obj.title.length === 0) {
+              const err = new Error('Validation failed');
+              (err as Error & { fieldErrors: Record<string, string> }).fieldErrors = {
+                title: 'Title is required',
+              };
+              return { ok: false, error: err };
+            }
+            return { ok: true, data: obj };
+          },
+        };
+
+        const result = validateField(schema, 'title', 'Hello', { title: 'Hello' });
+        expect(result.valid).toBe(true);
+        expect(result.error).toBeUndefined();
+      });
+    });
+  });
+
+  describe('Given a nested field path "address.street"', () => {
+    describe('When calling validateField with an invalid value', () => {
+      it('Then navigates schema.shape.address.shape.street for validation', () => {
+        const schema = s.object({
+          address: s.object({ street: s.string().min(1) }),
+        });
+        const result = validateField(schema, 'address.street', '');
+        expect(result.valid).toBe(false);
+        expect(result.error).toBeDefined();
+      });
+    });
+  });
+
+  describe('Given a nested field wrapped in OptionalSchema', () => {
+    describe('When calling validateField with an invalid value', () => {
+      it('Then unwraps OptionalSchema and validates via inner schema shape', () => {
+        const schema = s.object({
+          address: s.object({ street: s.string().min(1) }).optional(),
+        });
+        const result = validateField(schema, 'address.street', '');
+        expect(result.valid).toBe(false);
+        expect(result.error).toBeDefined();
+      });
+    });
+  });
+
+  describe('Given a nested field where intermediate unwrap fails', () => {
+    describe('When calling validateField with form data', () => {
+      it('Then falls back to full validation and extracts the field error', () => {
+        // Schema with .shape but intermediate field has no .shape and no .unwrap
+        const schema = {
+          shape: {
+            address: { parse: () => ({ ok: false, error: new Error('fail') }) },
+          },
+          parse(_data: unknown) {
+            const err = new Error('Validation failed');
+            (err as Error & { fieldErrors: Record<string, string> }).fieldErrors = {
+              'address.street': 'Street is required',
+            };
+            return { ok: false, error: err };
+          },
+        } as unknown as FormSchema<{ address: { street: string } }>;
+
+        const result = validateField(schema, 'address.street', '', {
+          address: { street: '' },
+        });
+        expect(result.valid).toBe(false);
+        expect(result.error).toBe('Street is required');
+      });
+    });
+  });
+
+  describe('Given a schema with coincidental .shape but no .parse on field', () => {
+    describe('When calling validateField', () => {
+      it('Then falls back to full validation (duck-type guard rejects)', () => {
+        const schema = {
+          shape: { title: 'not-a-schema' },
+          parse(_data: unknown) {
+            const err = new Error('Validation failed');
+            (err as Error & { fieldErrors: Record<string, string> }).fieldErrors = {
+              title: 'Bad title',
+            };
+            return { ok: false, error: err };
+          },
+        } as unknown as FormSchema<{ title: string }>;
+
+        const result = validateField(schema, 'title', '', { title: '' });
+        expect(result.valid).toBe(false);
+        expect(result.error).toBe('Bad title');
+      });
     });
   });
 });

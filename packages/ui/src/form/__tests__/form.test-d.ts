@@ -310,3 +310,17 @@ const sdkReturningPromiseLike: SdkMethod<UserBody, UserResult> = Object.assign(
   { url: '/api/users', method: 'POST' },
 );
 void sdkReturningPromiseLike;
+
+// ─── 25. revalidateOn option type ────────────────────────────────────
+
+// Valid values
+const _optsBlur: FormOptions<UserBody, UserResult> = { revalidateOn: 'blur' };
+const _optsChange: FormOptions<UserBody, UserResult> = { revalidateOn: 'change' };
+const _optsSubmit: FormOptions<UserBody, UserResult> = { revalidateOn: 'submit' };
+void _optsBlur;
+void _optsChange;
+void _optsSubmit;
+
+// @ts-expect-error - 'invalid' is not a valid revalidateOn value
+const _optsInvalid: FormOptions<UserBody, UserResult> = { revalidateOn: 'invalid' };
+void _optsInvalid;

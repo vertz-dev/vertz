@@ -4,7 +4,7 @@ import type { ReadonlySignal, Signal } from '../runtime/signal-types';
 import { createFieldState, type FieldState } from './field-state';
 import { formDataToObject } from './form-data';
 import type { FormSchema } from './validation';
-import { validate } from './validation';
+import { validate, validateField } from './validation';
 
 const FIELD_STATE_SIGNALS = new Set(['error', 'dirty', 'touched', 'value']);
 const FIELD_STATE_METHODS = new Set(['setValue', 'reset']);
@@ -140,6 +140,17 @@ export interface FormOptions<TBody, TResult> {
   onError?: (errors: Record<string, string>) => void;
   /** When true, reset the form after a successful submission. */
   resetOnSuccess?: boolean;
+  /**
+   * Controls when fields with errors are re-validated after the first form submission.
+   *
+   * - `'blur'` (default) — Re-validates flagged fields when the user blurs them.
+   * - `'change'` — Re-validates flagged fields on every input/change event.
+   * - `'submit'` — No re-validation between submissions; errors only update on submit.
+   *
+   * Re-validation only activates after the first submit attempt. Fields without prior
+   * errors are never re-validated on blur/change (no premature validation).
+   */
+  revalidateOn?: 'submit' | 'blur' | 'change';
 }
 
 /**
@@ -169,6 +180,8 @@ export function form<TBody, TResult>(
   // Generation counter — incremented when new fields are added to the cache.
   // Computed signals read this to re-evaluate when the field set changes.
   const fieldGeneration = signal(0);
+  const revalidateOn = options?.revalidateOn ?? 'blur';
+  let hasSubmitted = false;
 
   const dirty = computed(() => {
     fieldGeneration.value; // subscribe to field additions
@@ -243,6 +256,7 @@ export function form<TBody, TResult>(
   const resolvedSchema = options?.schema ?? sdkMethod.meta?.bodySchema;
 
   async function submitPipeline(formData: FormData): Promise<void> {
+    hasSubmitted = true;
     const data = formDataToObject(formData, { nested: true });
 
     if (resolvedSchema) {
@@ -281,9 +295,25 @@ export function form<TBody, TResult>(
   let boundElement: HTMLFormElement | undefined;
 
   function resetForm(): void {
+    hasSubmitted = false;
     for (const field of fieldCache.values()) {
       field.reset();
     }
+  }
+
+  function revalidateFieldIfNeeded(fieldName: string): void {
+    if (!hasSubmitted || revalidateOn === 'submit' || !resolvedSchema) return;
+    const field = fieldCache.get(fieldName);
+    if (!field || field.error.peek() === undefined) return;
+
+    // Assemble form data from field cache for fallback validation
+    const formData: Record<string, unknown> = {};
+    for (const [name, f] of fieldCache) {
+      formData[name] = f.value.peek();
+    }
+
+    const result = validateField(resolvedSchema, fieldName, field.value.peek(), formData);
+    field.error.value = result.valid ? undefined : result.error;
   }
 
   async function submitPipelineWithReset(formData: FormData): Promise<void> {
@@ -303,6 +333,9 @@ export function form<TBody, TResult>(
     if (!target?.name) return;
     const field = getOrCreateField(target.name);
     field.setValue(target.value);
+    if (revalidateOn === 'change') {
+      revalidateFieldIfNeeded(target.name);
+    }
   }
 
   function handleFocusout(e: Event): void {
@@ -310,6 +343,9 @@ export function form<TBody, TResult>(
     if (!target?.name) return;
     const field = getOrCreateField(target.name);
     field.touched.value = true;
+    if (revalidateOn === 'blur' || revalidateOn === 'change') {
+      revalidateFieldIfNeeded(target.name);
+    }
   }
 
   const baseProperties: Record<string, unknown> = {
