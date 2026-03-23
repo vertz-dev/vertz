@@ -620,9 +620,11 @@ export class AotStringTransformer {
       return `String(${exprText})`;
     }
 
-    // Wrap reactive expressions with child markers for hydration parity
+    // Wrap reactive expressions with child marker for hydration parity.
+    // Only a start marker — the DOM shim's __child() emits a single <!--child-->
+    // comment anchor with no end marker.
     if (this._isReactiveExpression(expr)) {
-      return `'<!--child-->' + __esc(${exprText}) + '<!--/child-->'`;
+      return `'<!--child-->' + __esc(${exprText})`;
     }
     return `__esc(${exprText})`;
   }
@@ -781,6 +783,10 @@ export class AotStringTransformer {
   /**
    * Check if an expression references any reactive variable (signal/computed).
    * Uses AST identifier scanning — no string matching.
+   *
+   * Skips identifiers that are the property name (right side) of a
+   * PropertyAccessExpression to avoid false positives like `obj.count`
+   * matching a signal named `count`.
    */
   private _isReactiveExpression(node: Node): boolean {
     if (this._reactiveNames.size === 0) return false;
@@ -790,9 +796,24 @@ export class AotStringTransformer {
       return this._reactiveNames.has(node.getText());
     }
 
-    // Check all descendant identifiers
+    // Check all descendant identifiers, skipping property access names
     const identifiers = node.getDescendantsOfKind(SyntaxKind.Identifier);
-    return identifiers.some((id) => this._reactiveNames.has(id.getText()));
+    return identifiers.some((id) => {
+      if (!this._reactiveNames.has(id.getText())) return false;
+
+      // Skip if this identifier is the property name of a member expression.
+      // In `obj.count`, `count` is the name child of PropertyAccessExpression.
+      const parent = id.getParent();
+      if (parent?.isKind(SyntaxKind.PropertyAccessExpression)) {
+        const children = parent.getChildren();
+        // PropertyAccessExpression children: [object, DotToken, name]
+        // If the identifier is the name (last child), it's a property access, not a variable reference
+        if (children.length >= 3 && children[children.length - 1] === id) {
+          return false;
+        }
+      }
+      return true;
+    });
   }
 
   /** Check if a CallExpression is a .map() call using AST, not string matching. */

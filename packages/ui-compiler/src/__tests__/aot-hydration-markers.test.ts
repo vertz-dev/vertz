@@ -4,10 +4,10 @@
  * Verifies that compiler-generated AOT string-builder functions emit
  * all four hydration marker types that the DOM shim renderer produces:
  *
- * 1. data-v-id     — interactive component root elements
- * 2. <!--conditional--> / <!--/conditional--> — ternary/&& expressions
- * 3. <!--child--> / <!--/child--> — reactive text expressions
- * 4. <!--list--> / <!--/list--> — .map() rendering
+ * 1. data-v-id                                    — interactive component root elements
+ * 2. <!--conditional--> / <!--/conditional-->      — ternary/&& expressions
+ * 3. <!--child-->                                  — reactive text expressions (start anchor only)
+ * 4. <!--list--> / <!--/list-->                    — .map() rendering
  *
  * Phase 3 of AOT-compiled SSR (#1745)
  */
@@ -126,7 +126,7 @@ function Toggle({ label }: { label: string }) {
         expect(html).toContain('data-v-id="Toggle"');
       });
 
-      it('Then reactive expressions get <!--child--> markers', () => {
+      it('Then reactive expressions get a <!--child--> start marker (no end marker)', () => {
         const result = compileForSSRAot(
           `
 function Counter({ initial }: { initial: number }) {
@@ -136,12 +136,15 @@ function Counter({ initial }: { initial: number }) {
           `.trim(),
         );
 
+        // Use different values for initial and count to verify the correct variable is used
         const html = evalAot(result.code, '__ssr_Counter', {
-          __props: { initial: 5 },
-          count: 5,
+          __props: { initial: 0 },
+          count: 7,
         });
-        expect(html).toContain('<!--child-->5<!--/child-->');
-        expect(html).toBe('<div data-v-id="Counter"><span><!--child-->5<!--/child--></span></div>');
+        // DOM shim __child() emits only a start anchor, no end marker
+        expect(html).toContain('<!--child-->7');
+        expect(html).not.toContain('<!--/child-->');
+        expect(html).toBe('<div data-v-id="Counter"><span><!--child-->7</span></div>');
       });
 
       it('Then non-reactive expressions do NOT get child markers', () => {
@@ -158,10 +161,34 @@ function MixedContent({ label }: { label: string }) {
           __props: { label: 'Total' },
           count: 42,
         });
-        // label is a prop (not reactive) → no child markers
-        // count is a signal (reactive) → has child markers
+        // label is a prop (not reactive) - no child markers
+        // count is a signal (reactive) - has child marker
         expect(html).toContain('<span>Total</span>');
-        expect(html).toContain('<span><!--child-->42<!--/child--></span>');
+        expect(html).toContain('<span><!--child-->42</span>');
+      });
+    });
+  });
+
+  describe('Given a property access with same name as a signal', () => {
+    describe('When compiled to AOT', () => {
+      it('Then property access does NOT get child markers (no false positive)', () => {
+        const result = compileForSSRAot(
+          `
+function Component({ config }: { config: { count: string } }) {
+  let count = 0;
+  return <div><span>{config.count}</span><span>{count}</span></div>;
+}
+          `.trim(),
+        );
+
+        const html = evalAot(result.code, '__ssr_Component', {
+          __props: { config: { count: 'total' } },
+          count: 5,
+        });
+        // config.count is a property access, NOT a reactive variable reference
+        expect(html).toContain('<span>total</span>');
+        // count (standalone) IS reactive
+        expect(html).toContain('<span><!--child-->5</span>');
       });
     });
   });
@@ -322,7 +349,7 @@ function InteractivePanel({ title }: { title: string }) {
 
         expect(html).toContain('data-v-id="InteractivePanel"');
         expect(html).toContain('<!--conditional--><!--/conditional-->');
-        // title is a prop → no child markers
+        // title is a prop - no child markers
         expect(html).toContain('<h2>Panel</h2>');
       });
     });
@@ -339,7 +366,6 @@ function NestedCond({ a, b }: { a: boolean; b: boolean }) {
           `.trim(),
         );
 
-        // Check the generated code for nested conditional markers
         const html = evalAot(result.code, '__ssr_NestedCond', {
           __props: { a: true, b: true },
         });
