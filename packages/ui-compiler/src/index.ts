@@ -20,7 +20,7 @@ export { JsxAnalyzer } from './analyzers/jsx-analyzer';
 export { MutationAnalyzer } from './analyzers/mutation-analyzer';
 export { ReactivityAnalyzer } from './analyzers/reactivity-analyzer';
 // Pipeline
-export { compile } from './compiler';
+export { compile, compileForSSRAot } from './compiler';
 // CSS Extraction (zero-runtime)
 export { CSSCodeSplitter } from './css-extraction/code-splitting';
 export { DeadCSSEliminator } from './css-extraction/dead-css';
@@ -62,6 +62,8 @@ export {
 } from './prefetch-manifest';
 // Reactivity manifest
 export { loadFrameworkManifest, loadManifestFromJson } from './reactivity-manifest';
+// Transformers
+export { AotStringTransformer } from './transformers/aot-string-transformer';
 export { ComputedTransformer } from './transformers/computed-transformer';
 export type { CSSTransformResult } from './transformers/css-transformer';
 export { CSSTransformer } from './transformers/css-transformer';
@@ -75,7 +77,6 @@ export type {
   RouteSplittingSkipped,
 } from './transformers/route-splitting-transformer';
 export { transformRouteSplitting } from './transformers/route-splitting-transformer';
-// Transformers
 export { SignalTransformer } from './transformers/signal-transformer';
 // Type Generation
 export type { CSSPropertiesInput } from './type-generation/css-properties';
@@ -83,6 +84,9 @@ export { generateCSSProperties } from './type-generation/css-properties';
 export type { ThemeTypeInput } from './type-generation/theme-types';
 export { generateThemeTypes } from './type-generation/theme-types';
 export type {
+  AotCompileOutput,
+  AotComponentInfo,
+  AotTier,
   CompileOptions,
   CompileOutput,
   CompilerDiagnostic,

@@ -8,13 +8,14 @@ import { BodyJsxDiagnostics } from './diagnostics/body-jsx-diagnostics';
 import { MutationDiagnostics } from './diagnostics/mutation-diagnostics';
 import { PropsDestructuringDiagnostics } from './diagnostics/props-destructuring';
 import { SSRSafetyDiagnostics } from './diagnostics/ssr-safety-diagnostics';
+import { AotStringTransformer } from './transformers/aot-string-transformer';
 import { ComputedTransformer } from './transformers/computed-transformer';
 import { JsxTransformer } from './transformers/jsx-transformer';
 import { MountFrameTransformer } from './transformers/mount-frame-transformer';
 import { MutationTransformer } from './transformers/mutation-transformer';
 import { PropsDestructuringTransformer } from './transformers/props-destructuring-transformer';
 import { SignalTransformer } from './transformers/signal-transformer';
-import type { CompileOptions, CompileOutput, CompilerDiagnostic } from './types';
+import type { AotCompileOutput, CompileOptions, CompileOutput, CompilerDiagnostic } from './types';
 
 /**
  * Main compile pipeline.
@@ -165,6 +166,97 @@ export function compile(
   return {
     code: s.toString(),
     map,
+    diagnostics: allDiagnostics,
+  };
+}
+
+/**
+ * AOT SSR compile pipeline.
+ *
+ * Shares analyzers with compile() but uses AotStringTransformer
+ * instead of signal/computed/JSX transforms. Produces string-builder
+ * functions for SSR — no DOM shim, no virtual DOM.
+ */
+export function compileForSSRAot(
+  source: string,
+  optionsOrFilename?: CompileOptions | string,
+): AotCompileOutput {
+  const options: CompileOptions =
+    typeof optionsOrFilename === 'string'
+      ? { filename: optionsOrFilename }
+      : (optionsOrFilename ?? {});
+  const filename = options.filename ?? 'input.tsx';
+
+  // 1. Parse
+  const project = new Project({
+    useInMemoryFileSystem: true,
+    compilerOptions: {
+      jsx: ts.JsxEmit.Preserve,
+      strict: true,
+    },
+  });
+  const sourceFile = project.createSourceFile(filename, source);
+  const s = new MagicString(source);
+  const allDiagnostics: CompilerDiagnostic[] = [];
+
+  // 2. Component analysis
+  const componentAnalyzer = new ComponentAnalyzer();
+  const components = componentAnalyzer.analyze(sourceFile);
+
+  if (components.length === 0) {
+    return {
+      code: source,
+      map: s.generateMap({ source: filename, includeContent: true }),
+      components: [],
+      diagnostics: [],
+    };
+  }
+
+  // Check for @vertz-no-aot pragma
+  const hasNoAotPragma = /\/\/\s*@vertz-no-aot/.test(source);
+
+  if (hasNoAotPragma) {
+    // All components in this file are runtime-fallback
+    return {
+      code: source,
+      map: s.generateMap({ source: filename, includeContent: true }),
+      components: components.map((c) => ({
+        name: c.name,
+        tier: 'runtime-fallback' as const,
+        holes: [],
+      })),
+      diagnostics: [],
+    };
+  }
+
+  // 2.5. Props destructuring transform (before reactivity analysis)
+  const propsTransformer = new PropsDestructuringTransformer();
+  for (const component of components) {
+    propsTransformer.transform(s, sourceFile, component);
+  }
+
+  const aotTransformer = new AotStringTransformer();
+
+  // Process each component
+  for (const component of components) {
+    // 3. Reactivity analysis (for classification only — no signal/computed transforms)
+    const reactivityAnalyzer = new ReactivityAnalyzer();
+    const variables = reactivityAnalyzer.analyze(sourceFile, component, options.manifests);
+
+    // 4. AOT string transform (replaces signal + computed + JSX transforms)
+    aotTransformer.transform(s, sourceFile, component, variables);
+  }
+
+  // Generate source map and return
+  const map = s.generateMap({
+    source: filename,
+    includeContent: true,
+  });
+
+  return {
+    code: s.toString(),
+    map,
+    components: aotTransformer.components,
     diagnostics: allDiagnostics,
   };
 }
