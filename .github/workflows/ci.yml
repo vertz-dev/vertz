@@ -13,6 +13,10 @@ on:
   # successful rebase+push.
   workflow_dispatch:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # ---------------------------------------------------------------------------
   # Detect whether source files changed.
@@ -95,6 +99,7 @@ jobs:
   check:
     name: Lint, typecheck, test
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: changes
     if: needs.changes.outputs.src == 'true'
 
@@ -121,6 +126,7 @@ jobs:
   coverage:
     name: Coverage report
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [changes, check]
     if: needs.changes.outputs.src == 'true'
 
