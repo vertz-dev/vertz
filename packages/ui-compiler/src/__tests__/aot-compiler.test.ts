@@ -434,6 +434,136 @@ function Widget({ data }: { data: string }) {
     });
   });
 
+  describe('edge cases and security', () => {
+    it('escapes quotes in static string literal attributes', () => {
+      const result = compileForSSRAot(
+        `
+function Quote() {
+  return <div title="it's a &quot;test&quot;">content</div>;
+}
+        `.trim(),
+      );
+
+      const html = evalAot(result.code, '__ssr_Quote');
+      // Single quotes and escaped entities must survive in the output
+      expect(html).toContain('title="');
+      expect(html).toContain('content');
+      // Should not break the JS string literal
+      expect(() => evalAot(result.code, '__ssr_Quote')).not.toThrow();
+    });
+
+    it('classifies components with multiple returns as runtime-fallback', () => {
+      const result = compileForSSRAot(
+        `
+function Comp({ loading }: { loading: boolean }) {
+  if (loading) return <div>Loading...</div>;
+  return <div>Content</div>;
+}
+        `.trim(),
+      );
+
+      expect(result.components[0]!.tier).toBe('runtime-fallback');
+      expect(result.code).not.toContain('__ssr_Comp');
+    });
+
+    it('strips key prop from HTML output', () => {
+      const result = compileForSSRAot(
+        `
+function List({ items }: { items: string[] }) {
+  return <ul>{items.map(item => <li key={item}>{item}</li>)}</ul>;
+}
+        `.trim(),
+      );
+
+      const aotFn = extractAotFn(result.code, '__ssr_List');
+      expect(aotFn).not.toContain('key=');
+    });
+
+    it('strips ref prop from HTML output', () => {
+      const result = compileForSSRAot(
+        `
+function Input() {
+  return <input type="text" ref={() => {}} />;
+}
+        `.trim(),
+      );
+
+      const aotFn = extractAotFn(result.code, '__ssr_Input');
+      expect(aotFn).not.toContain('ref');
+    });
+
+    it('handles dangerouslySetInnerHTML as raw child content', () => {
+      const result = compileForSSRAot(
+        `
+function RawContent({ html }: { html: string }) {
+  return <div dangerouslySetInnerHTML={{ __html: html }} />;
+}
+        `.trim(),
+      );
+
+      const aotFn = extractAotFn(result.code, '__ssr_RawContent');
+      expect(aotFn).not.toContain('dangerouslySetInnerHTML');
+
+      const output = evalAot(result.code, '__ssr_RawContent', {
+        __props: { html: '<strong>bold</strong>' },
+      });
+      expect(output).toBe('<div><strong>bold</strong></div>');
+    });
+
+    it('handles dynamic boolean attributes correctly', () => {
+      const result = compileForSSRAot(
+        `
+function Toggle({ isDisabled }: { isDisabled: boolean }) {
+  return <button disabled={isDisabled}>Click</button>;
+}
+        `.trim(),
+      );
+
+      const htmlEnabled = evalAot(result.code, '__ssr_Toggle', {
+        __props: { isDisabled: false },
+      });
+      expect(htmlEnabled).toBe('<button>Click</button>');
+
+      const htmlDisabled = evalAot(result.code, '__ssr_Toggle', {
+        __props: { isDisabled: true },
+      });
+      expect(htmlDisabled).toBe('<button disabled>Click</button>');
+    });
+
+    it('populates holes array with referenced component names', () => {
+      const result = compileForSSRAot(
+        `
+function Badge({ text }: { text: string }) {
+  return <span class="badge">{text}</span>;
+}
+
+function Card({ title }: { title: string }) {
+  return <div class="card"><Badge text={title} /><Badge text="extra" /></div>;
+}
+        `.trim(),
+      );
+
+      const cardInfo = result.components.find((c) => c.name === 'Card');
+      expect(cardInfo!.holes).toContain('Badge');
+      // No duplicates
+      expect(cardInfo!.holes.filter((h) => h === 'Badge')).toHaveLength(1);
+    });
+
+    it('handles style objects with __ssr_style_object()', () => {
+      const result = compileForSSRAot(
+        `
+function Styled({ bg }: { bg: string }) {
+  return <div style={{ backgroundColor: bg }}>content</div>;
+}
+        `.trim(),
+      );
+
+      const aotFn = extractAotFn(result.code, '__ssr_Styled');
+      expect(aotFn).toContain('__ssr_style_object(');
+      expect(aotFn).not.toContain('[object Object]');
+    });
+  });
+
   describe('diagnostics', () => {
     it('returns diagnostics array', () => {
       const result = compileForSSRAot(

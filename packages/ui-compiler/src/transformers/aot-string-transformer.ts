@@ -30,6 +30,38 @@ const VOID_ELEMENTS = new Set([
 /** Set of raw text elements whose children must not be HTML-escaped. */
 const RAW_TEXT_ELEMENTS = new Set(['script', 'style']);
 
+/** Set of HTML boolean attributes that should be present/absent, not have string values. */
+const BOOLEAN_ATTRIBUTES = new Set([
+  'allowfullscreen',
+  'async',
+  'autofocus',
+  'autoplay',
+  'checked',
+  'controls',
+  'default',
+  'defer',
+  'disabled',
+  'formnovalidate',
+  'hidden',
+  'inert',
+  'ismap',
+  'itemscope',
+  'loop',
+  'multiple',
+  'muted',
+  'nomodule',
+  'novalidate',
+  'open',
+  'playsinline',
+  'readonly',
+  'required',
+  'reversed',
+  'selected',
+]);
+
+/** JSX props that should not appear in HTML output. */
+const SKIP_PROPS = new Set(['key', 'ref', 'dangerouslySetInnerHTML']);
+
 /** Check if a tag name refers to a component (starts with uppercase). */
 function isComponentTag(tagName: string): boolean {
   return (
@@ -48,6 +80,8 @@ function isComponentTag(tagName: string): boolean {
  */
 export class AotStringTransformer {
   private _components: AotComponentInfo[] = [];
+  /** Component names referenced during current transform (for holes tracking). */
+  private _currentHoles: Set<string> = new Set();
 
   get components(): AotComponentInfo[] {
     return this._components;
@@ -62,6 +96,22 @@ export class AotStringTransformer {
     const bodyNode = findBodyNode(sourceFile, component);
     if (!bodyNode) return;
 
+    // Detect multiple return statements → runtime-fallback
+    const returnStmts = bodyNode.getDescendantsOfKind(SyntaxKind.ReturnStatement);
+    const returnsWithJsx = returnStmts.filter((ret) => {
+      const expr = ret.getExpression();
+      return expr && this._findJsx(expr);
+    });
+
+    if (returnsWithJsx.length > 1) {
+      this._components.push({
+        name: component.name,
+        tier: 'runtime-fallback',
+        holes: [],
+      });
+      return;
+    }
+
     // Find the return statement's JSX
     const returnJsx = this._findReturnJsx(bodyNode);
     if (!returnJsx) return;
@@ -69,8 +119,11 @@ export class AotStringTransformer {
     // Determine tier based on variables and JSX analysis
     const tier = this._classifyTier(returnJsx, variables);
 
-    // Check if component is interactive (has let declarations)
-    const isInteractive = this._isInteractive(sourceFile, component);
+    // Check if component is interactive (has signal/let declarations)
+    const isInteractive = variables.some((v) => v.kind === 'signal');
+
+    // Reset holes tracking for this component
+    this._currentHoles = new Set();
 
     // Build the string expression for the JSX tree
     const stringExpr = this._jsxToString(
@@ -92,7 +145,7 @@ export class AotStringTransformer {
     this._components.push({
       name: component.name,
       tier,
-      holes: [],
+      holes: [...this._currentHoles],
     });
   }
 
@@ -121,19 +174,6 @@ export class AotStringTransformer {
     return null;
   }
 
-  private _isInteractive(sourceFile: SourceFile, component: ComponentInfo): boolean {
-    const bodyNode = findBodyNode(sourceFile, component);
-    if (!bodyNode) return false;
-
-    for (const stmt of bodyNode.getChildSyntaxList()?.getChildren() ?? []) {
-      if (!stmt.isKind(SyntaxKind.VariableStatement)) continue;
-      const declList = stmt.getChildrenOfKind(SyntaxKind.VariableDeclarationList)[0];
-      if (!declList) continue;
-      if (declList.getText().startsWith('let ')) return true;
-    }
-    return false;
-  }
-
   private _classifyTier(jsxNode: Node, variables: VariableInfo[]): AotTier {
     const hasReactive = variables.some((v) => v.kind === 'signal' || v.kind === 'computed');
     const hasExpressions = jsxNode.getDescendantsOfKind(SyntaxKind.JsxExpression).length > 0;
@@ -152,8 +192,7 @@ export class AotStringTransformer {
         return 'conditional';
       }
       if (inner.isKind(SyntaxKind.CallExpression)) {
-        const text = inner.getText();
-        if (text.includes('.map(')) return 'conditional';
+        if (this._isMapCall(inner)) return 'conditional';
       }
     }
 
@@ -197,15 +236,25 @@ export class AotStringTransformer {
     const isVoid = VOID_ELEMENTS.has(tagName);
     const isRawText = RAW_TEXT_ELEMENTS.has(tagName);
 
+    const dangerousHtml = this._extractDangerousInnerHTML(openingElement, s);
     const attrs = this._attrsToString(openingElement, variables, s);
     const hydrationAttr = hydrationId ? ` data-v-id="${hydrationId}"` : '';
-    const attrStr = attrs ? ' ' + attrs + hydrationAttr : hydrationAttr;
+    let attrStr: string;
+    if (!attrs) {
+      attrStr = hydrationAttr;
+    } else if (this._isAttrsDynamic(attrs)) {
+      // Dynamic-only attrs handle their own leading space
+      attrStr = attrs + hydrationAttr;
+    } else {
+      attrStr = ' ' + attrs + hydrationAttr;
+    }
 
     if (isVoid) {
       return `'<${tagName}${attrStr}>'`;
     }
 
-    const children = this._childrenToString(node, variables, isRawText, s);
+    // dangerouslySetInnerHTML replaces children with raw HTML
+    const children = dangerousHtml ?? this._childrenToString(node, variables, isRawText, s);
 
     return `'<${tagName}${attrStr}>' + ${children} + '</${tagName}>'`;
   }
@@ -224,12 +273,24 @@ export class AotStringTransformer {
     }
 
     const isVoid = VOID_ELEMENTS.has(tagName);
+    const dangerousHtml = this._extractDangerousInnerHTML(node, s);
     const attrs = this._attrsToString(node, variables, s);
     const hydrationAttr = hydrationId ? ` data-v-id="${hydrationId}"` : '';
-    const attrStr = attrs ? ' ' + attrs + hydrationAttr : hydrationAttr;
+    let attrStr: string;
+    if (!attrs) {
+      attrStr = hydrationAttr;
+    } else if (this._isAttrsDynamic(attrs)) {
+      attrStr = attrs + hydrationAttr;
+    } else {
+      attrStr = ' ' + attrs + hydrationAttr;
+    }
 
     if (isVoid) {
       return `'<${tagName}${attrStr}>'`;
+    }
+
+    if (dangerousHtml) {
+      return `'<${tagName}${attrStr}>' + ${dangerousHtml} + '</${tagName}>'`;
     }
 
     return `'<${tagName}${attrStr}></${tagName}>'`;
@@ -242,6 +303,9 @@ export class AotStringTransformer {
     _variables: VariableInfo[],
     s: MagicString,
   ): string {
+    // Track this component as a hole
+    this._currentHoles.add(tagName);
+
     // Build props object from attributes
     const propsEntries: string[] = [];
     const attrs = openingOrSelfClosing.getChildrenOfKind(SyntaxKind.JsxAttributes)[0];
@@ -311,23 +375,46 @@ export class AotStringTransformer {
     const attrs = node.getChildrenOfKind(SyntaxKind.JsxAttributes)[0];
     if (!attrs) return '';
 
-    const parts: string[] = [];
+    // Separate static attrs (inline in string) from dynamic attrs (need JS expressions)
+    const staticParts: string[] = [];
+    const dynamicSuffix: string[] = [];
     const syntaxList = attrs.getChildrenOfKind(SyntaxKind.SyntaxList)[0];
     const attrNodes = syntaxList ? syntaxList.getChildren() : attrs.getChildren();
 
     for (const attr of attrNodes) {
       if (attr.isKind(SyntaxKind.JsxAttribute)) {
         const attrResult = this._attrToString(attr, variables, s);
-        if (attrResult) parts.push(attrResult);
+        if (!attrResult) continue;
+
+        // Dynamic attrs that break out of the string literal
+        if (attrResult.startsWith("' + ")) {
+          // Boolean attr or spread — already includes leading space in the expression
+          dynamicSuffix.push(attrResult);
+        } else {
+          staticParts.push(attrResult);
+        }
       } else if (attr.isKind(SyntaxKind.JsxSpreadAttribute)) {
         const spreadExpr = asNode(attr.getChildren()[2]);
         if (spreadExpr && spreadExpr.getKind() !== SyntaxKind.CloseBraceToken) {
           const exprText = s.slice(spreadExpr.getStart(), spreadExpr.getEnd());
-          parts.push(`' + __ssr_spread(${exprText}) + '`);
+          dynamicSuffix.push(`' + __ssr_spread(${exprText}) + '`);
         }
       }
     }
-    return parts.join(' ');
+
+    const staticStr = staticParts.join(' ');
+    if (dynamicSuffix.length === 0) return staticStr;
+    // Combine: static attrs followed by dynamic attrs that include their own spacing
+    // Dynamic attrs (boolean, spread) already include leading space in their expressions
+    return staticStr + dynamicSuffix.join('');
+  }
+
+  /**
+   * Returns true if the attrs string is purely dynamic (needs no leading space from caller).
+   * Dynamic-only attr strings start with "' +" and handle their own spacing.
+   */
+  private _isAttrsDynamic(attrStr: string): boolean {
+    return attrStr.startsWith("' + ");
   }
 
   private _attrToString(attr: Node, _variables: VariableInfo[], s: MagicString): string | null {
@@ -341,6 +428,9 @@ export class AotStringTransformer {
       return null;
     }
 
+    // Skip framework-only props
+    if (SKIP_PROPS.has(name)) return null;
+
     // Prop aliasing
     if (name === 'className') name = 'class';
     if (name === 'htmlFor') name = 'for';
@@ -350,7 +440,7 @@ export class AotStringTransformer {
 
     if (stringLiteral) {
       const value = stringLiteral.getLiteralText();
-      return `${name}="${value}"`;
+      return `${name}="${this._escapeAttrValue(value)}"`;
     }
 
     if (initializer) {
@@ -359,10 +449,72 @@ export class AotStringTransformer {
         return name;
       }
       const exprText = s.slice(expr.getStart(), expr.getEnd());
+
+      // style attribute with object value → use __ssr_style_object()
+      if (name === 'style') {
+        return `style="' + __ssr_style_object(${exprText}) + '"`;
+      }
+
+      // Boolean attributes → conditional presence
+      if (BOOLEAN_ATTRIBUTES.has(name.toLowerCase())) {
+        return `' + (${exprText} ? ' ${name}' : '') + '`;
+      }
+
       return `${name}="' + __esc_attr(${exprText}) + '"`;
     }
 
     return name;
+  }
+
+  /** Extract dangerouslySetInnerHTML __html expression from an element. */
+  private _extractDangerousInnerHTML(openingOrSelfClosing: Node, s: MagicString): string | null {
+    const attrs = openingOrSelfClosing.getChildrenOfKind(SyntaxKind.JsxAttributes)[0];
+    if (!attrs) return null;
+
+    const syntaxList = attrs.getChildrenOfKind(SyntaxKind.SyntaxList)[0];
+    const attrNodes = syntaxList ? syntaxList.getChildren() : attrs.getChildren();
+
+    for (const attr of attrNodes) {
+      if (!attr.isKind(SyntaxKind.JsxAttribute)) continue;
+      const nameNode = attr.getChildrenOfKind(SyntaxKind.Identifier)[0];
+      if (!nameNode || nameNode.getText() !== 'dangerouslySetInnerHTML') continue;
+
+      const jsxExpr = attr.getChildrenOfKind(SyntaxKind.JsxExpression)[0];
+      if (!jsxExpr) return null;
+
+      const expr = jsxExpr.getExpression();
+      if (!expr) return null;
+
+      // Look for __html property in the object literal
+      if (expr.isKind(SyntaxKind.ObjectLiteralExpression)) {
+        for (const prop of expr.getProperties()) {
+          if (prop.isKind(SyntaxKind.PropertyAssignment)) {
+            const propName = prop.getNameNode();
+            if (propName && propName.getText() === '__html') {
+              const init = prop.getInitializer();
+              if (init) {
+                return s.slice(init.getStart(), init.getEnd());
+              }
+            }
+          }
+        }
+      }
+
+      // Fallback: use the full expression and access .__html
+      const exprText = s.slice(expr.getStart(), expr.getEnd());
+      return `(${exprText}).__html`;
+    }
+
+    return null;
+  }
+
+  /** Escape a static attribute value for embedding in a JS single-quoted string literal. */
+  private _escapeAttrValue(value: string): string {
+    // The value is inside a JS string literal wrapped in single quotes: '<tag attr="VALUE">'
+    // We need to escape: backslash (JS), single quote (JS), newlines (JS)
+    // HTML attribute escaping (&quot;) is not needed here — the value is already
+    // from a JSX string literal which the developer wrote.
+    return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
   }
 
   private _childrenToString(
@@ -453,7 +605,7 @@ export class AotStringTransformer {
     }
 
     // .map() call: items.map(item => <Li />)
-    if (expr.isKind(SyntaxKind.CallExpression) && expr.getText().includes('.map(')) {
+    if (expr.isKind(SyntaxKind.CallExpression) && this._isMapCall(expr)) {
       return this._mapCallToString(expr, variables, s);
     }
 
@@ -604,6 +756,16 @@ export class AotStringTransformer {
     return `__esc(${exprText})`;
   }
 
+  /** Check if a CallExpression is a .map() call using AST, not string matching. */
+  private _isMapCall(node: Node): boolean {
+    const firstChild = node.getChildren()[0];
+    if (!firstChild || !firstChild.isKind(SyntaxKind.PropertyAccessExpression)) return false;
+    const propName = firstChild.getChildrenOfKind(SyntaxKind.Identifier);
+    // The method name is the last identifier in the property access
+    const methodName = propName[propName.length - 1];
+    return methodName?.getText() === 'map';
+  }
+
   private _cleanJsxText(raw: string): string {
     if (!raw.includes('\n') && !raw.includes('\r')) {
       return raw;
@@ -623,6 +785,10 @@ export class AotStringTransformer {
   }
 
   private _escapeStringLiteral(text: string): string {
-    return text.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
+    return text
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/\n/g, '\\n')
+      .replace(/\r/g, '\\r');
   }
 }
