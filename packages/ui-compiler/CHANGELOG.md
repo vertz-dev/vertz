@@ -1,5 +1,38 @@
 # @vertz/ui-compiler
 
+## 0.2.25
+
+### Patch Changes
+
+- [#1732](https://github.com/vertz-dev/vertz/pull/1732) [`841c9ae`](https://github.com/vertz-dev/vertz/commit/841c9ae69b559d25ed443d3c5fa8e21b2fd174bf) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Remove `queryMatch` primitive — use direct conditional rendering instead
+
+  `queryMatch()` has been removed. Replace with direct conditionals on query signal properties:
+
+  ```tsx
+  // Before
+  {
+    queryMatch(tasks, {
+      loading: () => <Spinner />,
+      error: (err) => <Error error={err} />,
+      data: (data) => <List items={data.items} />,
+    });
+  }
+
+  // After
+  {
+    tasks.loading && <Spinner />;
+  }
+  {
+    tasks.error && <Error error={tasks.error} />;
+  }
+  {
+    tasks.data && <List items={tasks.data.items} />;
+  }
+  ```
+
+- Updated dependencies [[`04673a3`](https://github.com/vertz-dev/vertz/commit/04673a32a4849db08d80bb39caf801295fec9832), [`841c9ae`](https://github.com/vertz-dev/vertz/commit/841c9ae69b559d25ed443d3c5fa8e21b2fd174bf)]:
+  - @vertz/ui@0.2.25
+
 ## 0.2.24
 
 ### Patch Changes

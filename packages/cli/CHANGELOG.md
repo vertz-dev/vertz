@@ -1,5 +1,18 @@
 # @vertz/cli
 
+## 0.2.25
+
+### Patch Changes
+
+- Updated dependencies [[`04673a3`](https://github.com/vertz-dev/vertz/commit/04673a32a4849db08d80bb39caf801295fec9832), [`841c9ae`](https://github.com/vertz-dev/vertz/commit/841c9ae69b559d25ed443d3c5fa8e21b2fd174bf)]:
+  - @vertz/create-vertz-app@0.2.25
+  - @vertz/codegen@0.2.25
+  - @vertz/compiler@0.2.25
+  - @vertz/db@0.2.25
+  - @vertz/errors@0.2.25
+  - @vertz/tui@0.2.25
+  - @vertz/ui-server@0.2.25
+
 ## 0.2.24
 
 ### Patch Changes
