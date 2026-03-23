@@ -1,5 +1,12 @@
 # create-vertz
 
+## 0.2.26
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vertz/create-vertz-app@0.2.26
+
 ## 0.2.25
 
 ### Patch Changes

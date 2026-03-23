@@ -1,5 +1,14 @@
 # @vertz/ui
 
+## 0.2.26
+
+### Patch Changes
+
+- [#1752](https://github.com/vertz-dev/vertz/pull/1752) [`8552f21`](https://github.com/vertz-dev/vertz/commit/8552f217350e2acb0caac26ac215a49736b07e55) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add `revalidateOn` option to `form()` for per-field re-validation after submit. Fields with errors now re-validate on blur (default), change, or only on submit. Includes single-field validation via schema `.shape` traversal with `OptionalSchema`/`DefaultSchema` unwrapping.
+
+- Updated dependencies []:
+  - @vertz/fetch@0.2.26
+
 ## 0.2.25
 
 ### Patch Changes
