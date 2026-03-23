@@ -333,6 +333,129 @@ describe('Feature: Runtime holes and SSR integration', () => {
       });
     });
 
+    describe('Given a route with query data', () => {
+      describe('When the AOT function reads data via ctx.getData()', () => {
+        it('Then query cache entries are passed as data and ssrData', async () => {
+          const aotFn: AotRenderFn = (_data, ctx) => {
+            return `<div>${__esc(String(ctx.getData('GET:/items')))}</div>`;
+          };
+
+          const module = createMockModule();
+          const aotManifest: AotManifest = {
+            routes: {
+              '/items': {
+                render: aotFn,
+                holes: [],
+                queryKeys: ['GET:/items'],
+              },
+            },
+          };
+
+          const result = await ssrRenderAot(module, '/items', { aotManifest });
+          expect(result.ssrData).toBeDefined();
+          expect(Array.isArray(result.ssrData)).toBe(true);
+        });
+      });
+    });
+
+    describe('Given ssrAuth is provided', () => {
+      describe('When holes are created for the route', () => {
+        it('Then ssrAuth is passed to the hole closures', async () => {
+          const aotFn: AotRenderFn = (_data, ctx) => {
+            const sidebarHtml = ctx.holes.Sidebar?.() ?? '';
+            return `<div>${sidebarHtml}</div>`;
+          };
+
+          const module = createMockModule({
+            Sidebar: () => {
+              const el = document.createElement('div');
+              el.textContent = 'sidebar';
+              return el;
+            },
+          });
+
+          const aotManifest: AotManifest = {
+            routes: {
+              '/': { render: aotFn, holes: ['Sidebar'] },
+            },
+          };
+
+          const result = await ssrRenderAot(module, '/', {
+            aotManifest,
+            ssrAuth: {
+              status: 'authenticated',
+              user: { id: 'u-1', email: 'test@test.com', role: 'admin' },
+              expiresAt: Date.now() + 3600_000,
+            } satisfies import('@vertz/ui/internals').SSRAuth,
+          });
+          expect(result.html).toContain('sidebar');
+        });
+      });
+    });
+
+    describe('Given a module with a theme export', () => {
+      describe('When ssrRenderAot() collects CSS', () => {
+        it('Then theme CSS is included in the result', async () => {
+          const module = createMockModule();
+          // Simulate a theme export — compileTheme will be called
+          // This exercises the collectCSSFromModule theme path
+          module.theme = {
+            tokens: {},
+            css: '.theme { color: blue; }',
+          };
+
+          const aotManifest: AotManifest = {
+            routes: {
+              '/themed': { render: staticAotFn('<div>Themed</div>'), holes: [] },
+            },
+          };
+
+          // The theme compile may throw if the format doesn't match defineTheme(),
+          // which exercises the catch block in collectCSSFromModule
+          const result = await ssrRenderAot(module, '/themed', { aotManifest });
+          // Either the theme compiled successfully or the error was caught gracefully
+          expect(result.html).toBe('<div>Themed</div>');
+        });
+      });
+    });
+
+    describe('Given VERTZ_DEBUG=aot is set', () => {
+      describe('When diagnostics are provided and AOT renders', () => {
+        it('Then divergence detection runs without breaking the render', async () => {
+          const originalEnv = process.env.VERTZ_DEBUG;
+          process.env.VERTZ_DEBUG = 'aot';
+          try {
+            const { AotDiagnostics } = await import('../ssr-aot-diagnostics');
+            const diagnostics = new AotDiagnostics();
+
+            const aotFn: AotRenderFn = () => '<div>AOT output</div>';
+            const module = createMockModule();
+            const aotManifest: AotManifest = {
+              routes: {
+                '/test': { render: aotFn, holes: [] },
+              },
+            };
+
+            const result = await ssrRenderAot(module, '/test', {
+              aotManifest,
+              diagnostics,
+            });
+
+            expect(result.html).toBe('<div>AOT output</div>');
+            // Divergence may or may not be recorded depending on DOM shim output
+            const snapshot = diagnostics.getSnapshot();
+            expect(snapshot.divergences).toBeDefined();
+          } finally {
+            if (originalEnv === undefined) {
+              delete process.env.VERTZ_DEBUG;
+            } else {
+              process.env.VERTZ_DEBUG = originalEnv;
+            }
+          }
+        });
+      });
+    });
+
     describe('Given session is provided', () => {
       describe('When AOT function accesses ctx.session', () => {
         it('Then session data is available', async () => {

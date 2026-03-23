@@ -115,6 +115,41 @@ describe('generateAotBuildManifest', () => {
     });
   });
 
+  describe('Given a component that references child components (holes)', () => {
+    describe('When generateAotBuildManifest is called', () => {
+      it('Then logs holes count in classification log', () => {
+        writeFileSync(
+          join(srcDir, 'layout.tsx'),
+          `function Sidebar() { return <aside>Side</aside>; }
+export function Layout() { return <div><main>Content</main><Sidebar /></div>; }`,
+        );
+
+        const result = generateAotBuildManifest(srcDir);
+
+        expect(result.components.Layout).toBeDefined();
+        expect(result.components.Layout.holes).toEqual(['Sidebar']);
+        const layoutLine = result.classificationLog.find((l) => l.startsWith('Layout:'));
+        expect(layoutLine).toContain('1 hole');
+        expect(layoutLine).toContain('Sidebar');
+      });
+
+      it('Then uses plural "holes" for multiple holes', () => {
+        writeFileSync(
+          join(srcDir, 'page.tsx'),
+          `function Header() { return <header>H</header>; }
+function Footer() { return <footer>F</footer>; }
+export function Page() { return <div><Header /><main>Body</main><Footer /></div>; }`,
+        );
+
+        const result = generateAotBuildManifest(srcDir);
+
+        expect(result.components.Page.holes.length).toBe(2);
+        const pageLine = result.classificationLog.find((l) => l.startsWith('Page:'));
+        expect(pageLine).toContain('2 holes');
+      });
+    });
+  });
+
   describe('Given a file that fails to compile', () => {
     describe('When generateAotBuildManifest is called', () => {
       it('Then skips the broken file and continues', () => {
