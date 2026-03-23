@@ -31,10 +31,14 @@ import { installFetchProxy, runWithScopedFetch } from './fetch-scope';
 import { extractFontMetrics } from './font-metrics';
 import { createReadyGate } from './ready-gate';
 import { createSourceMapResolver, readLineText } from './source-map-resolver';
+import { toPrefetchSession } from './ssr-access-evaluator';
 import { createAccessSetScript } from './ssr-access-set';
+import type { PrefetchManifestManager } from './ssr-prefetch-dev';
+import { createPrefetchManifestManager } from './ssr-prefetch-dev';
 import type { SSRModule } from './ssr-render';
-import { ssrRenderToString, ssrStreamNavQueries } from './ssr-render';
+import { ssrStreamNavQueries } from './ssr-render';
 import { createSessionScript } from './ssr-session';
+import { ssrRenderSinglePass } from './ssr-single-pass';
 import { safeSerialize } from './ssr-streaming-runtime';
 import type { UpstreamWatcher } from './upstream-watcher';
 import { createUpstreamWatcher } from './upstream-watcher';
@@ -1292,6 +1296,59 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
       }
     }
 
+    // ── Prefetch manifest manager ──────────────────────────────────
+    // Detects router file, builds initial manifest, enables incremental
+    // rebuilds on file changes for single-pass SSR prefetching.
+    let prefetchManager: PrefetchManifestManager | null = null;
+    const srcDir = resolve(projectRoot, 'src');
+    const routerCandidates = [resolve(srcDir, 'router.tsx'), resolve(srcDir, 'router.ts')];
+    const routerPath = routerCandidates.find((p) => existsSync(p));
+    if (routerPath) {
+      prefetchManager = createPrefetchManifestManager({
+        routerPath,
+        readFile: (path) => {
+          try {
+            return readFileSync(path, 'utf-8');
+          } catch {
+            return undefined;
+          }
+        },
+        resolveImport: (specifier, fromFile) => {
+          if (!specifier.startsWith('.')) return undefined;
+          const dir = dirname(fromFile);
+          const base = resolve(dir, specifier);
+          // Try common extensions
+          for (const ext of ['.tsx', '.ts', '.jsx', '.js']) {
+            const candidate = `${base}${ext}`;
+            if (existsSync(candidate)) return candidate;
+          }
+          // Try index files
+          for (const ext of ['.tsx', '.ts']) {
+            const candidate = resolve(base, `index${ext}`);
+            if (existsSync(candidate)) return candidate;
+          }
+          return undefined;
+        },
+      });
+      try {
+        const buildStart = performance.now();
+        prefetchManager.build();
+        const buildMs = Math.round(performance.now() - buildStart);
+        logger.log('prefetch', 'initial-build', { routerPath, durationMs: buildMs });
+        if (logRequests) {
+          const manifest = prefetchManager.getSSRManifest();
+          const routeCount = manifest?.routePatterns.length ?? 0;
+          console.log(`[Server] Prefetch manifest built (${routeCount} routes, ${buildMs}ms)`);
+        }
+      } catch (e) {
+        console.warn(
+          '[Server] Failed to build prefetch manifest:',
+          e instanceof Error ? e.message : e,
+        );
+        prefetchManager = null;
+      }
+    }
+
     // Generate HMR shell HTML at .vertz/dev/hmr-shell.html
     // This page initializes Bun's HMR system by importing the client entry
     mkdirSync(devDir, { recursive: true });
@@ -1439,6 +1496,17 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
         // Diagnostics endpoint — JSON snapshot of server state
         if (pathname === '/__vertz_diagnostics') {
           return Response.json(diagnostics.getSnapshot());
+        }
+
+        // Prefetch manifest endpoint — returns current manifest with rebuild metadata
+        if (pathname === '/__vertz_prefetch_manifest') {
+          if (!prefetchManager) {
+            return Response.json(
+              { error: 'No prefetch manifest available (router file not found)' },
+              { status: 404 },
+            );
+          }
+          return Response.json(prefetchManager.getSnapshot());
         }
 
         // Dev-mode image proxy — passthrough for runtime image optimization URLs
@@ -1605,10 +1673,12 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
           const doRender = async () => {
             logger.log('ssr', 'render-start', { url: pathname });
             const ssrStart = performance.now();
-            const result = await ssrRenderToString(ssrMod, pathname + url.search, {
+            const result = await ssrRenderSinglePass(ssrMod, pathname + url.search, {
               ssrTimeout: 300,
               fallbackMetrics: fontFallbackMetrics,
               ssrAuth,
+              manifest: prefetchManager?.getSSRManifest(),
+              prefetchSession: toPrefetchSession(ssrAuth),
             });
             logger.log('ssr', 'render-done', {
               url: pathname,
@@ -1870,7 +1940,6 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     }
 
     // Watch for file changes — re-discover hash + re-import SSR module
-    const srcDir = resolve(projectRoot, 'src');
     stopped = false;
 
     if (existsSync(srcDir)) {
@@ -1958,6 +2027,18 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
               const { changed } = updateServerManifest(changedFilePath, source);
               const manifestDurationMs = Math.round(performance.now() - manifestStartMs);
               diagnostics.recordManifestUpdate(lastChangedFile, changed, manifestDurationMs);
+
+              // Rebuild prefetch manifest (incremental for components, full for router)
+              if (prefetchManager) {
+                const prefetchStart = performance.now();
+                prefetchManager.onFileChange(changedFilePath, source);
+                const prefetchMs = Math.round(performance.now() - prefetchStart);
+                logger.log('prefetch', 'rebuild', {
+                  file: lastChangedFile,
+                  durationMs: prefetchMs,
+                  isRouter: changedFilePath === routerPath,
+                });
+              }
             } catch {
               // File may have been deleted between watcher event and read.
               // This is not an error — the manifest will be stale until

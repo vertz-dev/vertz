@@ -44,6 +44,22 @@ export {
   regenerateFileManifest,
   resolveModuleSpecifier,
 } from './manifest-resolver';
+// Prefetch manifest (SSR single-pass static analysis)
+export type {
+  ComponentAnalysis,
+  ExtractedQuery,
+  ExtractedRoute,
+  GeneratePrefetchManifestOptions,
+  ManifestRoute,
+  PrefetchManifest,
+  QueryBindings,
+} from './prefetch-manifest';
+export {
+  analyzeComponentQueries,
+  collectImports,
+  extractRoutes,
+  generatePrefetchManifest,
+} from './prefetch-manifest';
 // Reactivity manifest
 export { loadFrameworkManifest, loadManifestFromJson } from './reactivity-manifest';
 export { ComputedTransformer } from './transformers/computed-transformer';
