@@ -152,6 +152,83 @@ CSS is collected and injected during server rendering:
 
 All CSS is inlined in the HTML response — no extra network requests, no flash of unstyled content.
 
+## AOT-compiled SSR
+
+The default SSR pipeline uses a DOM shim — it runs your component tree through a simulated DOM and serializes the result. This is correct and universal, but for high-traffic pages, Vertz offers **AOT (Ahead-of-Time) compiled SSR** that pre-compiles components into direct string concatenation functions at build time.
+
+### How it works
+
+The compiler analyzes each component and classifies it into a tier:
+
+| Tier | What it means | Example |
+|------|---------------|---------|
+| **Static** | No dynamic data — pure string | `<footer>© 2026</footer>` |
+| **Data-driven** | Uses props/data, but no reactivity | `<h1>{title}</h1>` |
+| **Conditional** | Has ternaries, `&&`, or `.map()` | `{isAdmin && <AdminPanel />}` |
+| **Runtime fallback** | Contains hooks, effects, or complex state — falls back to DOM shim | Components using `useContext()`, `effect()` |
+
+Components in the first three tiers are compiled to string-builder functions:
+
+```tsx
+// Your component:
+function Header({ title }: { title: string }) {
+  return <header><h1>{title}</h1></header>;
+}
+
+// AOT output (simplified):
+function __ssr_Header(__props) {
+  return '<header><h1>' + __esc(__props.title) + '</h1></header>';
+}
+```
+
+No DOM shim, no virtual nodes, no serialization — just string concatenation. This is the same approach used by Svelte and Marko for their SSR compilation.
+
+### Runtime holes
+
+When the AOT compiler encounters a component it can't compile (tier: runtime-fallback), it creates a **hole** — a placeholder that falls back to DOM shim rendering at request time. The AOT function calls into the hole, which runs the component through the standard SSR pipeline and returns HTML:
+
+```tsx
+// AOT function with a hole:
+function __ssr_Dashboard(data, ctx) {
+  return '<div>' +
+    '<h1>Dashboard</h1>' +
+    ctx.holes['SidePanel']() +  // ← runtime fallback
+    '</div>';
+}
+```
+
+Holes share the query cache with the AOT function, so data fetched for the page is available to hole-rendered components without re-fetching.
+
+### Hydration markers
+
+AOT output includes the same hydration comment markers as the DOM shim, ensuring the client-side hydration cursor can walk the server-rendered HTML identically regardless of which SSR path produced it:
+
+- `data-v-id="ComponentName"` — interactive components that need client-side hydration
+- `<!--conditional-->...<!--/conditional-->` — ternary and `&&` expressions
+- `<!--list-->...<!--/list-->` — `.map()` rendered lists
+- `<!--child-->` — reactive text content (start anchor)
+
+### Diagnostics
+
+In development, the AOT pipeline provides diagnostic tools:
+
+**Diagnostic endpoint** — `GET /__vertz_ssr_aot` returns a JSON snapshot with per-component tier classification, AOT coverage percentage, and any divergences detected:
+
+```json
+{
+  "components": {
+    "Header": { "tier": "static", "holes": [] },
+    "Dashboard": { "tier": "conditional", "holes": ["SidePanel"] }
+  },
+  "coverage": { "total": 5, "aot": 4, "runtime": 1, "percentage": 80 },
+  "divergences": []
+}
+```
+
+**Divergence detection** — With `VERTZ_DEBUG=aot`, the server dual-renders each page (AOT + DOM shim) and compares the output. Any mismatch is logged and recorded in the diagnostics snapshot. This catches hydration-breaking differences during development.
+
+**Classification logging** — With `VERTZ_DEBUG=aot`, the build pipeline logs per-component tier classification, making it easy to see which components are AOT-compiled and which fall back to the DOM shim.
+
 ## Server-side navigation
 
 When navigating between pages on the client, Vertz can pre-fetch the next page's data from the server:
