@@ -26,6 +26,7 @@ export interface AotBuildManifest {
  */
 export function generateAotBuildManifest(srcDir: string): AotBuildManifest {
   const components: Record<string, AotBuildComponentEntry> = {};
+  const classificationLog: string[] = [];
   const tsxFiles = collectTsxFiles(srcDir);
 
   for (const filePath of tsxFiles) {
@@ -39,13 +40,14 @@ export function generateAotBuildManifest(srcDir: string): AotBuildManifest {
           holes: comp.holes,
         };
       }
-    } catch {
-      // Skip files that fail to compile
+    } catch (e) {
+      classificationLog.push(
+        `⚠ ${filePath}: ${e instanceof Error ? e.message : 'compilation failed'}`,
+      );
     }
   }
 
   // Generate classification log
-  const classificationLog: string[] = [];
   let aotCount = 0;
   let runtimeCount = 0;
 

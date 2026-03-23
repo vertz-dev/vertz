@@ -35,7 +35,6 @@ describe('AotManifestManager', () => {
           '/app/src/header.tsx': STATIC_COMPONENT,
         };
         const manager = createAotManifestManager({
-          srcDir: '/app/src',
           readFile: (path) => files[path],
           listFiles: () => Object.keys(files),
         });
@@ -54,7 +53,6 @@ describe('AotManifestManager', () => {
           '/app/src/counter.tsx': FALLBACK_COMPONENT,
         };
         const manager = createAotManifestManager({
-          srcDir: '/app/src',
           readFile: (path) => files[path],
           listFiles: () => Object.keys(files),
         });
@@ -71,7 +69,6 @@ describe('AotManifestManager', () => {
           '/app/src/layout.tsx': MULTI_COMPONENT,
         };
         const manager = createAotManifestManager({
-          srcDir: '/app/src',
           readFile: (path) => files[path],
           listFiles: () => Object.keys(files),
         });
@@ -91,7 +88,6 @@ describe('AotManifestManager', () => {
           '/app/src/header.tsx': STATIC_COMPONENT,
         };
         const manager = createAotManifestManager({
-          srcDir: '/app/src',
           readFile: (path) => files[path],
           listFiles: () => Object.keys(files),
         });
@@ -109,7 +105,6 @@ describe('AotManifestManager', () => {
           '/app/src/header.tsx': STATIC_COMPONENT,
         };
         const manager = createAotManifestManager({
-          srcDir: '/app/src',
           readFile: (path) => files[path],
           listFiles: () => Object.keys(files),
         });
@@ -135,7 +130,6 @@ export function Header({ title }: { title: string }) {
           '/app/src/layout.tsx': MULTI_COMPONENT,
         };
         const manager = createAotManifestManager({
-          srcDir: '/app/src',
           readFile: (path) => files[path],
           listFiles: () => Object.keys(files),
         });
@@ -157,7 +151,6 @@ export function Header({ title }: { title: string }) {
           '/app/src/header.tsx': STATIC_COMPONENT,
         };
         const manager = createAotManifestManager({
-          srcDir: '/app/src',
           readFile: (path) => files[path],
           listFiles: () => Object.keys(files),
         });
@@ -178,7 +171,6 @@ export function Header({ title }: { title: string }) {
           '/app/src/counter.tsx': FALLBACK_COMPONENT,
         };
         const manager = createAotManifestManager({
-          srcDir: '/app/src',
           readFile: (path) => files[path],
           listFiles: () => Object.keys(files),
         });
@@ -201,7 +193,6 @@ export function Header({ title }: { title: string }) {
           '/app/src/header.tsx': STATIC_COMPONENT,
         };
         const manager = createAotManifestManager({
-          srcDir: '/app/src',
           readFile: (path) => files[path],
           listFiles: () => Object.keys(files),
         });

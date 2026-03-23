@@ -1371,7 +1371,6 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     // Builds AOT classification for all components, provides diagnostics
     // for the /__vertz_ssr_aot endpoint, rebuilds incrementally on file change.
     aotManifestManager = createAotManifestManager({
-      srcDir,
       readFile: (path) => {
         try {
           return readFileSync(path, 'utf-8');
@@ -2113,8 +2112,10 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
               }
             } catch {
               // File may have been deleted between watcher event and read.
-              // This is not an error — the manifest will be stale until
-              // the next full page refresh (acceptable per design doc).
+              // Notify managers so they can remove stale entries.
+              if (aotManifestManager) {
+                aotManifestManager.onFileChange(changedFilePath, '');
+              }
             }
           }
 

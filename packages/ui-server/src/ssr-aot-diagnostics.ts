@@ -79,10 +79,15 @@ export class AotDiagnostics {
     }
   }
 
-  /** Clear all recorded data (used during hot rebuild). */
+  /** Clear all recorded data (used during full rebuild). */
   clear(): void {
     this._components.clear();
     this._divergences = [];
+  }
+
+  /** Clear only component classifications (preserves divergences). */
+  clearComponents(): void {
+    this._components.clear();
   }
 
   /**

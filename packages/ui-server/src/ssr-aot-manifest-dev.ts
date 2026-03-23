@@ -31,8 +31,6 @@ export interface AotManifestSnapshot {
 }
 
 export interface AotManifestManagerOptions {
-  /** Absolute path to the src directory. */
-  srcDir: string;
   /** Read a file's contents. Returns undefined if file doesn't exist. */
   readFile: (path: string) => string | undefined;
   /** List all files in the source directory (absolute paths). */
@@ -87,8 +85,12 @@ export function createAotManifestManager(options: AotManifestManagerOptions): Ao
     }
   }
 
-  function updateDiagnostics(manifest: AotDevManifest): void {
-    diagnostics.clear();
+  function updateDiagnostics(manifest: AotDevManifest, isFullBuild: boolean): void {
+    if (isFullBuild) {
+      diagnostics.clear();
+    } else {
+      diagnostics.clearComponents();
+    }
     const entries = Object.entries(manifest.components).map(([name, entry]) => ({
       name,
       tier: entry.tier,
@@ -116,7 +118,7 @@ export function createAotManifestManager(options: AotManifestManagerOptions): Ao
 
     // Atomic swap
     currentManifest = { components };
-    updateDiagnostics(currentManifest);
+    updateDiagnostics(currentManifest, true);
     rebuildCount++;
     lastRebuildMs = Math.round(performance.now() - start);
     lastRebuildAt = new Date().toISOString();
@@ -145,7 +147,7 @@ export function createAotManifestManager(options: AotManifestManagerOptions): Ao
 
     // Atomic swap
     currentManifest = { components: newComponents };
-    updateDiagnostics(currentManifest);
+    updateDiagnostics(currentManifest, false);
     rebuildCount++;
     lastRebuildMs = Math.round(performance.now() - start);
     lastRebuildAt = new Date().toISOString();
