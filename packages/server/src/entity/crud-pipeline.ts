@@ -498,16 +498,18 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
       if (!accessResult.ok) return err(accessResult.error);
 
       // Defense-in-depth: pass where conditions to the DELETE statement itself.
+      // Check return value (bridge adapter returns null on failure) AND catch
+      // exceptions for adapters that throw on 0-row matches.
+      let deleted: Record<string, unknown> | null;
       try {
-        if (hasWhere) {
-          await (db.delete as WidenedDelete)(id, { where: dbWhere });
-        } else {
-          await db.delete(id);
-        }
+        deleted = hasWhere
+          ? await (db.delete as WidenedDelete)(id, { where: dbWhere })
+          : await db.delete(id);
       } catch {
         // TOCTOU race: row changed between get() and delete(). Treat as not found.
         return notFound(id);
       }
+      if (!deleted) return notFound(id);
 
       // Fire after.delete (fire-and-forget)
       // Pass stripped data to prevent hidden field leakage
