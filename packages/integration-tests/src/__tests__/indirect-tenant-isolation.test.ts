@@ -157,8 +157,13 @@ function matchesWhere(row: Record<string, unknown>, where: Record<string, unknow
 function createInMemoryAdapter(store: Record<string, unknown>[]): EntityDbAdapter {
   let counter = store.length;
   return {
-    async get(id) {
-      return store.find((r) => r.id === id) ?? null;
+    async get(id, options?) {
+      const row = store.find((r) => r.id === id) ?? null;
+      if (!row) return null;
+      if (options?.where && !matchesWhere(row, options.where as Record<string, unknown>)) {
+        return null;
+      }
+      return row;
     },
     async list(options?: { where?: Record<string, unknown>; limit?: number; after?: string }) {
       let result = [...store];
@@ -181,15 +186,22 @@ function createInMemoryAdapter(store: Record<string, unknown>[]): EntityDbAdapte
       store.push(record);
       return record;
     },
-    async update(id, data) {
+    async update(id, data, options?) {
       const existing = store.find((r) => r.id === id);
       if (!existing) return { id, ...data };
+      if (options?.where && !matchesWhere(existing, options.where as Record<string, unknown>)) {
+        throw new Error('Update matched 0 rows');
+      }
       Object.assign(existing, data);
       return { ...existing };
     },
-    async delete(id) {
+    async delete(id, options?) {
       const idx = store.findIndex((r) => r.id === id);
       if (idx === -1) return null;
+      const row = store[idx]!;
+      if (options?.where && !matchesWhere(row, options.where as Record<string, unknown>)) {
+        return null;
+      }
       return store.splice(idx, 1)[0] ?? null;
     },
   };

@@ -43,7 +43,7 @@ const usersEntity = entity('users', {
 function createInMemoryDb(): EntityDbAdapter {
   const store: Record<string, unknown>[] = [];
   return {
-    async get(id) {
+    async get(id, _options?) {
       return store.find((r) => r.id === id) ?? null;
     },
     async list() {
@@ -54,13 +54,13 @@ function createInMemoryDb(): EntityDbAdapter {
       store.push(record);
       return record;
     },
-    async update(id, data) {
+    async update(id, data, _options?) {
       const existing = store.find((r) => r.id === id);
       if (!existing) return { id, ...data };
       Object.assign(existing, data);
       return { ...existing };
     },
-    async delete(id) {
+    async delete(id, _options?) {
       const idx = store.findIndex((r) => r.id === id);
       if (idx === -1) return null;
       return store.splice(idx, 1)[0] ?? null;

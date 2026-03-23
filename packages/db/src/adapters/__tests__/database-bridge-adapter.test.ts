@@ -162,6 +162,79 @@ describe('createDatabaseBridgeAdapter', () => {
     expect(capturedOptions).toEqual({ where: { id: 'u1' }, data: updateData });
   });
 
+  it('update() merges where option into delegate.update alongside id', async () => {
+    const updateData = { name: 'Alice Updated' };
+    const updatedRecord = { id: 'u1', name: 'Alice Updated', email: 'alice@example.com' };
+    let capturedOptions: unknown;
+
+    const db = createMockDb({
+      update: async (options?: unknown) => {
+        capturedOptions = options;
+        return ok(updatedRecord);
+      },
+    });
+
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    await adapter.update('u1', updateData, { where: { email: 'alice@example.com' } });
+
+    expect(capturedOptions).toEqual({
+      where: { email: 'alice@example.com', id: 'u1' },
+      data: updateData,
+    });
+  });
+
+  it('update() without options still delegates with { id } only', async () => {
+    const updateData = { name: 'Alice Updated' };
+    const updatedRecord = { id: 'u1', name: 'Alice Updated', email: 'alice@example.com' };
+    let capturedOptions: unknown;
+
+    const db = createMockDb({
+      update: async (options?: unknown) => {
+        capturedOptions = options;
+        return ok(updatedRecord);
+      },
+    });
+
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    await adapter.update('u1', updateData);
+
+    expect(capturedOptions).toEqual({ where: { id: 'u1' }, data: updateData });
+  });
+
+  it('delete() merges where option into delegate.delete alongside id', async () => {
+    const deletedRecord = { id: 'u1', name: 'Alice', email: 'alice@example.com' };
+    let capturedOptions: unknown;
+
+    const db = createMockDb({
+      delete: async (options?: unknown) => {
+        capturedOptions = options;
+        return ok(deletedRecord);
+      },
+    });
+
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    await adapter.delete('u1', { where: { name: 'Alice' } });
+
+    expect(capturedOptions).toEqual({ where: { name: 'Alice', id: 'u1' } });
+  });
+
+  it('delete() without options still delegates with { id } only', async () => {
+    const deletedRecord = { id: 'u1', name: 'Alice', email: 'alice@example.com' };
+    let capturedOptions: unknown;
+
+    const db = createMockDb({
+      delete: async (options?: unknown) => {
+        capturedOptions = options;
+        return ok(deletedRecord);
+      },
+    });
+
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    await adapter.delete('u1');
+
+    expect(capturedOptions).toEqual({ where: { id: 'u1' } });
+  });
+
   it('delete() delegates to delegate.delete with { where: { id } } and unwraps Result', async () => {
     const deletedRecord = { id: 'u1', name: 'Alice', email: 'alice@example.com' };
     let capturedOptions: unknown;
@@ -244,6 +317,59 @@ describe('createDatabaseBridgeAdapter', () => {
     await expect(adapter.update('u1', { name: 'Updated' })).rejects.toEqual(errorObj);
   });
 
+  it('get() merges where option into delegate.get alongside id', async () => {
+    let capturedOptions: unknown;
+    const mockUser = { id: 'u1', name: 'Alice', email: 'alice@example.com' };
+    const db = createMockDb({
+      get: async (options?: unknown) => {
+        capturedOptions = options;
+        return ok(mockUser);
+      },
+    });
+
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    await adapter.get('u1', { where: { name: 'Alice' } });
+
+    expect(capturedOptions).toEqual(
+      expect.objectContaining({ where: { name: 'Alice', id: 'u1' } }),
+    );
+  });
+
+  it('get() merges include and where options into delegate.get', async () => {
+    let capturedOptions: unknown;
+    const mockUser = { id: 'u1', name: 'Alice', email: 'alice@example.com' };
+    const db = createMockDb({
+      get: async (options?: unknown) => {
+        capturedOptions = options;
+        return ok(mockUser);
+      },
+    });
+
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    await adapter.get('u1', { include: { posts: true }, where: { email: 'alice@example.com' } });
+
+    expect(capturedOptions).toEqual({
+      where: { email: 'alice@example.com', id: 'u1' },
+      include: { posts: true },
+    });
+  });
+
+  it('get() without where still delegates with { id } only', async () => {
+    let capturedOptions: unknown;
+    const mockUser = { id: 'u1', name: 'Alice', email: 'alice@example.com' };
+    const db = createMockDb({
+      get: async (options?: unknown) => {
+        capturedOptions = options;
+        return ok(mockUser);
+      },
+    });
+
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    await adapter.get('u1');
+
+    expect(capturedOptions).toEqual({ where: { id: 'u1' } });
+  });
+
   it('get() passes include option to delegate.get', async () => {
     let capturedOptions: unknown;
     const mockUser = { id: 'u1', name: 'Alice', email: 'alice@example.com' };
@@ -260,6 +386,23 @@ describe('createDatabaseBridgeAdapter', () => {
     expect(capturedOptions).toEqual(
       expect.objectContaining({ where: { id: 'u1' }, include: { posts: true } }),
     );
+  });
+
+  it('get() id is never overwritten by where conditions (spread order safety)', async () => {
+    let capturedOptions: unknown;
+    const mockUser = { id: 'u1', name: 'Alice', email: 'alice@example.com' };
+    const db = createMockDb({
+      get: async (options?: unknown) => {
+        capturedOptions = options;
+        return ok(mockUser);
+      },
+    });
+
+    const adapter = createDatabaseBridgeAdapter(db, 'users');
+    // Even if where contains 'id', the primary key id should always win
+    await adapter.get('u1', { where: { id: 'malicious-id' } as Record<string, unknown> });
+
+    expect((capturedOptions as { where: Record<string, unknown> }).where.id).toBe('u1');
   });
 
   it('list() passes orderBy and include options to delegate.listAndCount', async () => {

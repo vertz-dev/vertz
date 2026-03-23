@@ -152,9 +152,11 @@ export type { IndexDef, IndexOptions, IndexType, TableDef } from './schema/table
 export type {
   AdapterIncludeEntry,
   AdapterIncludeSpec,
+  DeleteOptions,
   EntityDbAdapter,
   GetOptions,
   ListOptions,
+  UpdateOptions,
 } from './types/adapter';
 // Branded error types
 export type {

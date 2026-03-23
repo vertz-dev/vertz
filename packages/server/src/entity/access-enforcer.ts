@@ -132,8 +132,11 @@ async function evaluateRuleSkipWhere(
     return ok(undefined);
   }
   if (rule.type === 'any') {
+    // INVARIANT: where rules inside 'any' are NEVER extracted to DB
+    // (extractFromDescriptor returns null for 'any'). Evaluate with the
+    // regular evaluator so where conditions are checked in-memory.
     for (const sub of rule.rules) {
-      const result = await evaluateDescriptorSkipWhere(sub, operation, ctx, row, options);
+      const result = await evaluateDescriptor(sub, operation, ctx, row, options);
       if (result.ok) return result;
     }
     return deny(operation);
@@ -195,8 +198,9 @@ function extractFromDescriptor(
     }
 
     default:
-      // Other rule types (public, authenticated, role, entitlement, any, fva)
-      // don't produce WHERE conditions
+      // INVARIANT: Do NOT extract from 'any'. evaluateRuleSkipWhere treats
+      // skipped where branches as ok(), which would short-circuit OR evaluation
+      // and silently grant access. 'any' with 'where' must be evaluated in-memory.
       return null;
   }
 }
