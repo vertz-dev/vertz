@@ -28,6 +28,8 @@ export function createServiceContext(
       return rolesToCheck.some((r) => roles.includes(r));
     },
     entities: registryProxy,
-    request: rawRequest ?? { url: '', method: '', headers: new Headers(), body: undefined },
+    request: rawRequest
+      ? { ...rawRequest, params: rawRequest.params ?? {} }
+      : { url: '', method: '', headers: new Headers(), body: undefined, params: {} },
   };
 }

@@ -355,7 +355,7 @@ describe('Feature: generateServiceRoutes', () => {
 
   describe('Given a service action handler', () => {
     describe('When the handler accesses ctx.request', () => {
-      it('Then ctx.request has url, method, headers, and body', async () => {
+      it('Then ctx.request has url, method, headers, body, and params', async () => {
         let capturedRequest: unknown;
 
         const svc = service('test', {
@@ -365,7 +365,7 @@ describe('Feature: generateServiceRoutes', () => {
               method: 'POST',
               body: bodySchema,
               response: responseSchema,
-              handler: async (input, ctx) => {
+              handler: async (_input, ctx) => {
                 capturedRequest = ctx.request;
                 return { token: 'tok' };
               },
@@ -391,11 +391,13 @@ describe('Feature: generateServiceRoutes', () => {
           method: string;
           headers: Headers;
           body: unknown;
+          params: Record<string, string>;
         };
         expect(req.url).toBe('http://localhost:3000/api/test/action');
         expect(req.method).toBe('POST');
         expect(req.headers).toBeInstanceOf(Headers);
         expect(req.body).toEqual({ email: 'test@example.com' });
+        expect(req.params).toEqual({});
       });
     });
   });
@@ -461,6 +463,74 @@ describe('Feature: generateServiceRoutes', () => {
 
         expect(response.status).toBe(200);
         expect(await response.text()).toBe('<echo><data/></echo>');
+      });
+    });
+  });
+
+  describe('Given a service with a custom path containing :provider param', () => {
+    describe('When the route handler is invoked with a matching URL', () => {
+      it('Then ctx.request.params contains { provider: "github" }', async () => {
+        let capturedParams: unknown;
+
+        const svc = service('auth', {
+          access: { callback: () => true },
+          actions: {
+            callback: {
+              method: 'GET',
+              path: '/api/auth/callback/:provider',
+              response: responseSchema,
+              handler: async (_input, ctx) => {
+                capturedParams = ctx.request.params;
+                return { token: 'tok' };
+              },
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(svc, registry);
+
+        await routes[0]?.handler({
+          params: { provider: 'github' },
+          raw: {
+            url: 'http://localhost:3000/api/auth/callback/github',
+            method: 'GET',
+            headers: new Headers(),
+          },
+        });
+
+        expect(capturedParams).toEqual({ provider: 'github' });
+      });
+    });
+  });
+
+  describe('Given a service with no path params', () => {
+    describe('When the route handler is invoked', () => {
+      it('Then ctx.request.params is an empty object {}', async () => {
+        let capturedParams: unknown;
+
+        const svc = service('auth', {
+          access: { login: () => true },
+          actions: {
+            login: {
+              body: bodySchema,
+              response: responseSchema,
+              handler: async (_input, ctx) => {
+                capturedParams = ctx.request.params;
+                return { token: 'tok' };
+              },
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(svc, registry);
+
+        await routes[0]?.handler({
+          body: { email: 'test@example.com' },
+        });
+
+        expect(capturedParams).toEqual({});
       });
     });
   });

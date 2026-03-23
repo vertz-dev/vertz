@@ -62,4 +62,55 @@ describe('Feature: createServiceContext', () => {
       });
     });
   });
+
+  describe('Given a rawRequest with params', () => {
+    describe('When accessing ctx.request.params', () => {
+      it('Then returns the path params', () => {
+        const ctx = createServiceContext(
+          { userId: 'user-1' },
+          {},
+          {
+            url: 'http://localhost/api/auth/callback/github',
+            method: 'GET',
+            headers: new Headers(),
+            body: undefined,
+            params: { provider: 'github' },
+          },
+        );
+
+        expect(ctx.request.params).toEqual({ provider: 'github' });
+      });
+    });
+  });
+
+  describe('Given a rawRequest without params (defensive fallback)', () => {
+    describe('When accessing ctx.request.params', () => {
+      it('Then returns an empty object', () => {
+        // Tests defensive fallback — rawRequest.params may be undefined from untyped callers
+        const ctx = createServiceContext(
+          { userId: 'user-1' },
+          {},
+          {
+            url: 'http://localhost/api/auth/login',
+            method: 'POST',
+            headers: new Headers(),
+            body: undefined,
+            params: undefined as never,
+          },
+        );
+
+        expect(ctx.request.params).toEqual({});
+      });
+    });
+  });
+
+  describe('Given no rawRequest', () => {
+    describe('When accessing ctx.request.params', () => {
+      it('Then returns an empty object', () => {
+        const ctx = createServiceContext({ userId: 'user-1' }, {});
+
+        expect(ctx.request.params).toEqual({});
+      });
+    });
+  });
 });
