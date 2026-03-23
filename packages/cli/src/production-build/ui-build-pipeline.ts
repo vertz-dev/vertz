@@ -277,6 +277,30 @@ ${modulepreloadLinks}
 
     console.log('  Server entry: dist/server/app.js');
 
+    // ── 5b. AOT manifest generation ──────────────────────────────
+    console.log('📋 Generating AOT manifest...');
+
+    try {
+      const { generateAotBuildManifest } = await import('@vertz/ui-server');
+      const srcDir = resolve(projectRoot, 'src');
+      const aotManifest = generateAotBuildManifest(srcDir);
+      const componentCount = Object.keys(aotManifest.components).length;
+
+      if (componentCount > 0) {
+        const manifestPath = resolve(distServer, 'aot-manifest.json');
+        writeFileSync(manifestPath, JSON.stringify(aotManifest.components, null, 2));
+        for (const line of aotManifest.classificationLog) {
+          console.log(`  ${line}`);
+        }
+      } else {
+        console.log('  No components found for AOT compilation');
+      }
+    } catch (error) {
+      console.log(
+        `  ⚠ AOT manifest generation failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
     // ── 6. Static pre-rendering ──────────────────────────────────
     console.log('📄 Pre-rendering routes...');
 

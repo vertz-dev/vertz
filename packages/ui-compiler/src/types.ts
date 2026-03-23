@@ -8,6 +8,37 @@ export interface CompileOptions {
   manifests?: Record<string, LoadedReactivityManifest>;
 }
 
+/** AOT compilation tier classification. */
+export type AotTier = 'static' | 'data-driven' | 'conditional' | 'runtime-fallback';
+
+/** Per-component AOT compilation result. */
+export interface AotComponentInfo {
+  /** Component function name. */
+  name: string;
+  /** AOT tier classification. */
+  tier: AotTier;
+  /** Component names that need runtime rendering (holes). */
+  holes: string[];
+}
+
+/** Result of a compileForSSRAot() call. */
+export interface AotCompileOutput {
+  /** Transformed source code with AOT string-builder functions. */
+  code: string;
+  /** Source map (v3 JSON). */
+  map: {
+    version: number;
+    sources: string[];
+    sourcesContent?: string[];
+    mappings: string;
+    names: string[];
+  };
+  /** Per-component AOT info. */
+  components: AotComponentInfo[];
+  /** Diagnostics produced during compilation. */
+  diagnostics: CompilerDiagnostic[];
+}
+
 /** Severity of a compiler diagnostic. */
 export type DiagnosticSeverity = 'error' | 'warning' | 'info';
 

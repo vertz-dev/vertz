@@ -1,4 +1,6 @@
 export type { FallbackFontName, FontFallbackMetrics } from '@vertz/ui';
+export type { AotBuildComponentEntry, AotBuildManifest } from './aot-manifest-build';
+export { generateAotBuildManifest } from './aot-manifest-build';
 export { renderAssetTags } from './asset-pipeline';
 export { inlineCriticalCss } from './critical-css';
 export { detectFallbackFont, extractFontMetrics } from './font-metrics';
@@ -15,6 +17,30 @@ export type { PrefetchSession, SerializedAccessRule } from './ssr-access-evaluat
 export { evaluateAccessRule, toPrefetchSession } from './ssr-access-evaluator';
 export { createAccessSetScript, getAccessSetForSSR } from './ssr-access-set';
 export { createSSRAdapter } from './ssr-adapter';
+export type {
+  AotComponentDiagnostic,
+  AotDiagnosticsSnapshot,
+  AotDivergenceEntry,
+  AotTier,
+} from './ssr-aot-diagnostics';
+export { AotDiagnostics } from './ssr-aot-diagnostics';
+export type {
+  AotDevComponentEntry,
+  AotDevManifest,
+  AotManifestManager,
+  AotManifestManagerOptions,
+  AotManifestSnapshot,
+} from './ssr-aot-manifest-dev';
+export { createAotManifestManager } from './ssr-aot-manifest-dev';
+export type {
+  AotManifest,
+  AotRenderFn,
+  AotRouteEntry,
+  SSRAotContext,
+  SSRRenderAotOptions,
+} from './ssr-aot-pipeline';
+export { createHoles, isAotDebugEnabled, ssrRenderAot } from './ssr-aot-pipeline';
+export { __esc, __esc_attr, __ssr_spread, __ssr_style_object } from './ssr-aot-runtime';
 export type { SSRQueryEntry } from './ssr-context';
 export {
   clearGlobalSSRTimeout,
@@ -30,14 +56,14 @@ export type { SSRHandlerOptions } from './ssr-handler';
 export { createSSRHandler } from './ssr-handler';
 export type { GenerateSSRHtmlOptions } from './ssr-html';
 export { generateSSRHtml } from './ssr-html';
+export type { ReconstructedDescriptor } from './ssr-manifest-prefetch';
+export { reconstructDescriptors } from './ssr-manifest-prefetch';
 export type {
   PrefetchManifestManager,
   PrefetchManifestManagerOptions,
   PrefetchManifestSnapshot,
 } from './ssr-prefetch-dev';
 export { createPrefetchManifestManager } from './ssr-prefetch-dev';
-export type { ReconstructedDescriptor } from './ssr-manifest-prefetch';
-export { reconstructDescriptors } from './ssr-manifest-prefetch';
 export type { SSRDiscoverResult, SSRModule, SSRRenderResult } from './ssr-render';
 export { ssrDiscoverQueries, ssrRenderToString } from './ssr-render';
 export type { MatchedRoute } from './ssr-route-matcher';

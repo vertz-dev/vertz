@@ -63,6 +63,26 @@ effect(() => { el.textContent = title.value; });
 
 This is simplified — the actual output handles fragments, components, event delegation, and more. But the principle is the same: no virtual DOM, no diffing, direct DOM mutations.
 
+### 4. AOT SSR compilation
+
+For server-side rendering, the compiler can generate string-builder functions that bypass the DOM shim entirely:
+
+```tsx
+// Your component:
+function Header({ title }: { title: string }) {
+  return <header><h1>{title}</h1></header>;
+}
+
+// AOT SSR output:
+function __ssr_Header(__props) {
+  return '<header><h1>' + __esc(__props.title) + '</h1></header>';
+}
+```
+
+The compiler classifies each component by complexity (static, data-driven, conditional, or runtime-fallback) and generates optimized string functions for the first three tiers. Components that use hooks or effects fall back to the standard DOM shim at render time.
+
+See [SSR — AOT-compiled SSR](/guides/ui/ssr#aot-compiled-ssr) for details.
+
 ## What it doesn't do
 
 The compiler is **per-file, single-pass**. It does not:
