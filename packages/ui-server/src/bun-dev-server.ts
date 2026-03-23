@@ -19,7 +19,7 @@
  */
 
 import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, watch, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, watch, writeFileSync } from 'node:fs';
 import { dirname, normalize, resolve } from 'node:path';
 import type { FontFallbackMetrics } from '@vertz/ui';
 import type { SSRAuth } from '@vertz/ui/internals';
@@ -27,13 +27,14 @@ import { imageContentType, isValidImageName } from './bun-plugin/image-paths';
 import { createDebugLogger } from './debug-logger';
 import { handleDevImageProxy } from './dev-image-proxy';
 import { DiagnosticsCollector } from './diagnostics-collector';
-import { AotDiagnostics } from './ssr-aot-diagnostics';
 import { installFetchProxy, runWithScopedFetch } from './fetch-scope';
 import { extractFontMetrics } from './font-metrics';
 import { createReadyGate } from './ready-gate';
 import { createSourceMapResolver, readLineText } from './source-map-resolver';
 import { toPrefetchSession } from './ssr-access-evaluator';
 import { createAccessSetScript } from './ssr-access-set';
+import type { AotManifestManager } from './ssr-aot-manifest-dev';
+import { createAotManifestManager } from './ssr-aot-manifest-dev';
 import type { PrefetchManifestManager } from './ssr-prefetch-dev';
 import { createPrefetchManifestManager } from './ssr-prefetch-dev';
 import type { SSRModule } from './ssr-render';
@@ -778,6 +779,20 @@ export function clearSSRRequireCache(): number {
   return keys.length;
 }
 
+/** Recursively collect all file paths in a directory. */
+function collectFiles(dir: string): string[] {
+  const files: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = resolve(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...collectFiles(fullPath));
+    } else {
+      files.push(fullPath);
+    }
+  }
+  return files;
+}
+
 /**
  * Create a unified Bun dev server with SSR + HMR.
  *
@@ -818,10 +833,8 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
   mkdirSync(devDir, { recursive: true });
   const logger = createDebugLogger(devDir);
   const diagnostics = new DiagnosticsCollector();
-  // AOT diagnostics — populated by the build pipeline when AOT compilation is wired in.
-  // Currently scaffolding: /__vertz_ssr_aot endpoint exists but returns empty data
-  // until compileForSSRAot() results are fed via aotDiagnostics.recordCompilation().
-  const aotDiagnostics = new AotDiagnostics();
+  // AOT manifest manager — compiles components for AOT SSR classification and diagnostics.
+  let aotManifestManager: AotManifestManager | null = null;
 
   let server: ReturnType<typeof Bun.serve> | null = null;
   let srcWatcherRef: ReturnType<typeof watch> | null = null;
@@ -1354,6 +1367,41 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
       }
     }
 
+    // ── AOT manifest manager ──────────────────────────────────────
+    // Builds AOT classification for all components, provides diagnostics
+    // for the /__vertz_ssr_aot endpoint, rebuilds incrementally on file change.
+    aotManifestManager = createAotManifestManager({
+      srcDir,
+      readFile: (path) => {
+        try {
+          return readFileSync(path, 'utf-8');
+        } catch {
+          return undefined;
+        }
+      },
+      listFiles: () => {
+        try {
+          return collectFiles(srcDir);
+        } catch {
+          return [];
+        }
+      },
+    });
+    try {
+      const aotStart = performance.now();
+      aotManifestManager.build();
+      const aotMs = Math.round(performance.now() - aotStart);
+      logger.log('aot', 'initial-build', { durationMs: aotMs });
+      if (logRequests) {
+        const manifest = aotManifestManager.getManifest();
+        const count = manifest ? Object.keys(manifest.components).length : 0;
+        console.log(`[Server] AOT manifest built (${count} components, ${aotMs}ms)`);
+      }
+    } catch (e) {
+      console.warn('[Server] Failed to build AOT manifest:', e instanceof Error ? e.message : e);
+      aotManifestManager = null;
+    }
+
     // Generate HMR shell HTML at .vertz/dev/hmr-shell.html
     // This page initializes Bun's HMR system by importing the client entry
     mkdirSync(devDir, { recursive: true });
@@ -1505,7 +1553,10 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
 
         // AOT SSR diagnostics — component tiers, coverage, divergences
         if (pathname === '/__vertz_ssr_aot') {
-          return Response.json(aotDiagnostics.getSnapshot());
+          if (!aotManifestManager) {
+            return Response.json({ error: 'AOT manifest manager not available' }, { status: 404 });
+          }
+          return Response.json(aotManifestManager.getDiagnostics().getSnapshot());
         }
 
         // Prefetch manifest endpoint — returns current manifest with rebuild metadata
@@ -2047,6 +2098,17 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
                   file: lastChangedFile,
                   durationMs: prefetchMs,
                   isRouter: changedFilePath === routerPath,
+                });
+              }
+
+              // Rebuild AOT manifest (incremental — only recompile the changed file)
+              if (aotManifestManager) {
+                const aotStart = performance.now();
+                aotManifestManager.onFileChange(changedFilePath, source);
+                const aotMs = Math.round(performance.now() - aotStart);
+                logger.log('aot', 'rebuild', {
+                  file: lastChangedFile,
+                  durationMs: aotMs,
                 });
               }
             } catch {

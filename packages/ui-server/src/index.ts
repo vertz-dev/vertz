@@ -1,4 +1,6 @@
 export type { FallbackFontName, FontFallbackMetrics } from '@vertz/ui';
+export type { AotBuildComponentEntry, AotBuildManifest } from './aot-manifest-build';
+export { generateAotBuildManifest } from './aot-manifest-build';
 export { renderAssetTags } from './asset-pipeline';
 export { inlineCriticalCss } from './critical-css';
 export { detectFallbackFont, extractFontMetrics } from './font-metrics';
@@ -22,6 +24,14 @@ export type {
   AotTier,
 } from './ssr-aot-diagnostics';
 export { AotDiagnostics } from './ssr-aot-diagnostics';
+export type {
+  AotDevComponentEntry,
+  AotDevManifest,
+  AotManifestManager,
+  AotManifestManagerOptions,
+  AotManifestSnapshot,
+} from './ssr-aot-manifest-dev';
+export { createAotManifestManager } from './ssr-aot-manifest-dev';
 export type {
   AotManifest,
   AotRenderFn,
