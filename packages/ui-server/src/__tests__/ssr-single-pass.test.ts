@@ -560,3 +560,240 @@ describe('Feature: Discovery-only single-pass SSR', () => {
     });
   });
 });
+
+// ─── Zero-Discovery SSR ─────────────────────────────────────────
+
+describe('Feature: Zero-discovery SSR rendering', () => {
+  const taskListData = {
+    items: [
+      { id: '1', title: 'Task Alpha' },
+      { id: '2', title: 'Task Beta' },
+    ],
+  };
+
+  function createMockApi() {
+    return {
+      tasks: {
+        list: (queryParams?: Record<string, unknown>) => {
+          return mockDescriptor('GET', '/tasks', taskListData, queryParams);
+        },
+        get: (id: string, options?: Record<string, unknown>) => {
+          return mockDescriptor('GET', `/tasks/${id}`, { id, title: `Task ${id}` }, options);
+        },
+      },
+    };
+  }
+
+  describe('Given manifest with routeEntries and module.api exported', () => {
+    it('Then createApp() is called exactly once (no discovery pass)', async () => {
+      let appCallCount = 0;
+
+      const module: SSRModule = {
+        default: () => {
+          appCallCount++;
+          const tasks = query(mockDescriptor('GET', '/tasks', taskListData));
+          const el = document.createElement('div');
+          if (tasks.data.value) {
+            const data = tasks.data.value as typeof taskListData;
+            el.textContent = data.items.map((t) => t.title).join(', ');
+          }
+          return el;
+        },
+        api: createMockApi(),
+      };
+
+      await ssrRenderSinglePass(module, '/tasks', {
+        manifest: {
+          routePatterns: ['/tasks'],
+          routeEntries: {
+            '/tasks': {
+              queries: [{ descriptorChain: 'api.tasks.list', entity: 'tasks', operation: 'list' }],
+            },
+          },
+        },
+      });
+
+      // Zero-discovery: createApp called exactly once (render only, no discovery)
+      expect(appCallCount).toBe(1);
+    });
+
+    it('Then HTML output contains prefetched data', async () => {
+      const module: SSRModule = {
+        default: () => {
+          const tasks = query(mockDescriptor('GET', '/tasks', taskListData));
+          const el = document.createElement('div');
+          if (tasks.data.value) {
+            const data = tasks.data.value as typeof taskListData;
+            el.textContent = data.items.map((t) => t.title).join(', ');
+          }
+          return el;
+        },
+        api: createMockApi(),
+      };
+
+      const result = await ssrRenderSinglePass(module, '/tasks', {
+        manifest: {
+          routePatterns: ['/tasks'],
+          routeEntries: {
+            '/tasks': {
+              queries: [{ descriptorChain: 'api.tasks.list', entity: 'tasks', operation: 'list' }],
+            },
+          },
+        },
+      });
+
+      expect(result.html).toContain('Task Alpha');
+      expect(result.html).toContain('Task Beta');
+    });
+  });
+
+  describe('Given route NOT in manifest', () => {
+    it('Then falls back to discovery-based single-pass', async () => {
+      let appCallCount = 0;
+
+      const module: SSRModule = {
+        default: () => {
+          appCallCount++;
+          const tasks = query(mockDescriptor('GET', '/tasks', taskListData));
+          const el = document.createElement('div');
+          if (tasks.data.value) {
+            const data = tasks.data.value as typeof taskListData;
+            el.textContent = data.items.map((t) => t.title).join(', ');
+          }
+          return el;
+        },
+        api: createMockApi(),
+      };
+
+      await ssrRenderSinglePass(module, '/unknown-route', {
+        manifest: {
+          routePatterns: ['/tasks'],
+          routeEntries: {
+            '/tasks': {
+              queries: [{ descriptorChain: 'api.tasks.list', entity: 'tasks', operation: 'list' }],
+            },
+          },
+        },
+      });
+
+      // No route match → falls back to discovery (2 calls: discovery + render)
+      expect(appCallCount).toBe(2);
+    });
+  });
+
+  describe('Given module.api is not exported', () => {
+    it('Then falls back to discovery-based single-pass', async () => {
+      let appCallCount = 0;
+
+      const module: SSRModule = {
+        default: () => {
+          appCallCount++;
+          const tasks = query(mockDescriptor('GET', '/tasks', taskListData));
+          const el = document.createElement('div');
+          if (tasks.data.value) {
+            const data = tasks.data.value as typeof taskListData;
+            el.textContent = data.items.map((t) => t.title).join(', ');
+          }
+          return el;
+        },
+        // No api export
+      };
+
+      await ssrRenderSinglePass(module, '/tasks', {
+        manifest: {
+          routePatterns: ['/tasks'],
+          routeEntries: {
+            '/tasks': {
+              queries: [{ descriptorChain: 'api.tasks.list', entity: 'tasks', operation: 'list' }],
+            },
+          },
+        },
+      });
+
+      // No API client → falls back to discovery (2 calls)
+      expect(appCallCount).toBe(2);
+    });
+  });
+
+  describe('Given /tasks/:taskId with parameterized queries', () => {
+    it('Then route params resolve correctly into descriptor factories', async () => {
+      const module: SSRModule = {
+        default: () => {
+          const task = query(
+            mockDescriptor('GET', '/tasks/t-42', { id: 't-42', title: 'Task t-42' }),
+          );
+          const el = document.createElement('div');
+          if (task.data.value) {
+            const data = task.data.value as { id: string; title: string };
+            el.textContent = data.title;
+          }
+          return el;
+        },
+        api: createMockApi(),
+      };
+
+      const result = await ssrRenderSinglePass(module, '/tasks/t-42', {
+        manifest: {
+          routePatterns: ['/tasks/:taskId'],
+          routeEntries: {
+            '/tasks/:taskId': {
+              queries: [
+                {
+                  descriptorChain: 'api.tasks.get',
+                  entity: 'tasks',
+                  operation: 'get',
+                  idParam: 'taskId',
+                },
+              ],
+            },
+          },
+        },
+      });
+
+      expect(result.html).toContain('Task t-42');
+      expect(result.ssrData).toHaveLength(1);
+    });
+  });
+
+  describe('Given manifest query that component conditionally skips', () => {
+    it('Then extra prefetched data is harmless (unused in cache)', async () => {
+      // Module queries tasks but manifest includes BOTH tasks and labels
+      const module: SSRModule = {
+        default: () => {
+          const tasks = query(mockDescriptor('GET', '/tasks', taskListData));
+          const el = document.createElement('div');
+          if (tasks.data.value) {
+            const data = tasks.data.value as typeof taskListData;
+            el.textContent = data.items.map((t) => t.title).join(', ');
+          }
+          return el;
+        },
+        api: {
+          ...createMockApi(),
+          labels: {
+            list: () => mockDescriptor('GET', '/labels', { items: [{ id: 'l1', name: 'bug' }] }),
+          },
+        },
+      };
+
+      const result = await ssrRenderSinglePass(module, '/tasks', {
+        manifest: {
+          routePatterns: ['/tasks'],
+          routeEntries: {
+            '/tasks': {
+              queries: [
+                { descriptorChain: 'api.tasks.list', entity: 'tasks', operation: 'list' },
+                { descriptorChain: 'api.labels.list', entity: 'labels', operation: 'list' },
+              ],
+            },
+          },
+        },
+      });
+
+      // Renders normally — extra prefetched data is harmless
+      expect(result.html).toContain('Task Alpha');
+      // ssrData includes BOTH prefetched queries (even unused ones)
+      expect(result.ssrData).toHaveLength(2);
+    });
+  });
+});

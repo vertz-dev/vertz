@@ -52,6 +52,7 @@ export type {
   GeneratePrefetchManifestOptions,
   ManifestRoute,
   PrefetchManifest,
+  QueryBindings,
 } from './prefetch-manifest';
 export {
   analyzeComponentQueries,

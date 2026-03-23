@@ -230,6 +230,153 @@ describe('Feature: Route extraction from defineRoutes()', () => {
   });
 });
 
+// ─── Query Binding Extraction ────────────────────────────────────
+
+describe('Feature: Enhanced manifest with query bindings', () => {
+  describe('Given query(api.projects.get(projectId)) where projectId from useParams()', () => {
+    const source = `
+      import { query, useParams } from '@vertz/ui';
+      import { api } from '../api';
+
+      export function ProjectLayout() {
+        const { projectId } = useParams();
+        const project = query(api.projects.get(projectId));
+        return <div>{project.data}</div>;
+      }
+    `;
+
+    it('Then has entity="projects", operation="get", idParam="projectId"', () => {
+      const result = analyzeComponentQueries(source, 'src/layout.tsx');
+
+      expect(result.queries).toHaveLength(1);
+      expect(result.queries[0].entity).toBe('projects');
+      expect(result.queries[0].operation).toBe('get');
+      expect(result.queries[0].idParam).toBe('projectId');
+    });
+  });
+
+  describe('Given query(api.issues.list({ where: { projectId }, select: { id: true, title: true } }))', () => {
+    const source = `
+      import { query, useParams } from '@vertz/ui';
+      import { api } from '../api';
+
+      export function IssueListPage() {
+        const { projectId } = useParams();
+        const issues = query(api.issues.list({ where: { projectId }, select: { id: true, title: true } }));
+        return <div>{issues.data}</div>;
+      }
+    `;
+
+    it('Then queryBindings.where = { projectId: "$projectId" }', () => {
+      const result = analyzeComponentQueries(source, 'src/page.tsx');
+
+      expect(result.queries).toHaveLength(1);
+      expect(result.queries[0].queryBindings?.where).toEqual({ projectId: '$projectId' });
+    });
+
+    it('Then queryBindings.select = { id: true, title: true }', () => {
+      const result = analyzeComponentQueries(source, 'src/page.tsx');
+
+      expect(result.queries[0].queryBindings?.select).toEqual({ id: true, title: true });
+    });
+  });
+
+  describe('Given query(api.projects.list()) with no arguments', () => {
+    const source = `
+      import { query } from '@vertz/ui';
+      import { api } from '../api';
+
+      export function ProjectsPage() {
+        const projects = query(api.projects.list());
+        return <div>{projects.data}</div>;
+      }
+    `;
+
+    it('Then entity="projects", operation="list", queryBindings is undefined', () => {
+      const result = analyzeComponentQueries(source, 'src/page.tsx');
+
+      expect(result.queries).toHaveLength(1);
+      expect(result.queries[0].entity).toBe('projects');
+      expect(result.queries[0].operation).toBe('list');
+      expect(result.queries[0].queryBindings).toBeUndefined();
+    });
+  });
+
+  describe('Given query with non-param dynamic value in where clause', () => {
+    const source = `
+      import { query } from '@vertz/ui';
+      import { api } from '../api';
+
+      export function SearchPage() {
+        let searchTerm = '';
+        const results = query(api.issues.list({ where: { title: searchTerm } }));
+        return <div>{results.data}</div>;
+      }
+    `;
+
+    it('Then the where binding value is null (cannot bind statically)', () => {
+      const result = analyzeComponentQueries(source, 'src/page.tsx');
+
+      expect(result.queries).toHaveLength(1);
+      // Non-param variables get null to indicate "dynamic, cannot resolve statically"
+      expect(result.queries[0].queryBindings?.where).toEqual({ title: null });
+    });
+  });
+
+  describe('Given query(api.issues.get(issueId, { select: { id: true } }))', () => {
+    const source = `
+      import { query, useParams } from '@vertz/ui';
+      import { api } from '../api';
+
+      export function IssueDetailPage() {
+        const { issueId } = useParams();
+        const issue = query(api.issues.get(issueId, { select: { id: true, title: true, description: true } }));
+        return <div>{issue.data}</div>;
+      }
+    `;
+
+    it('Then has idParam="issueId" and queryBindings.select', () => {
+      const result = analyzeComponentQueries(source, 'src/page.tsx');
+
+      expect(result.queries).toHaveLength(1);
+      expect(result.queries[0].entity).toBe('issues');
+      expect(result.queries[0].operation).toBe('get');
+      expect(result.queries[0].idParam).toBe('issueId');
+      expect(result.queries[0].queryBindings?.select).toEqual({
+        id: true,
+        title: true,
+        description: true,
+      });
+    });
+  });
+
+  describe('Given query with orderBy and limit', () => {
+    const source = `
+      import { query, useParams } from '@vertz/ui';
+      import { api } from '../api';
+
+      export function RecentIssuesPage() {
+        const { projectId } = useParams();
+        const issues = query(api.issues.list({
+          where: { projectId },
+          orderBy: { createdAt: 'desc' },
+          limit: 10,
+        }));
+        return <div>{issues.data}</div>;
+      }
+    `;
+
+    it('Then queryBindings includes orderBy and limit', () => {
+      const result = analyzeComponentQueries(source, 'src/page.tsx');
+
+      expect(result.queries).toHaveLength(1);
+      expect(result.queries[0].queryBindings?.where).toEqual({ projectId: '$projectId' });
+      expect(result.queries[0].queryBindings?.orderBy).toEqual({ createdAt: 'desc' });
+      expect(result.queries[0].queryBindings?.limit).toBe(10);
+    });
+  });
+});
+
 // ─── Component Query Extraction ─────────────────────────────────
 
 describe('Feature: Component query extraction via AST', () => {
@@ -714,6 +861,78 @@ describe('Feature: Full prefetch manifest generation', () => {
         );
         expect(root).toBeDefined();
         expect(root?.queries).toHaveLength(0);
+      });
+
+      it('Then IssueListPage queries have correct bindings', () => {
+        const manifest = generatePrefetchManifest({
+          routerSource,
+          routerPath,
+          readFile: (path) => {
+            try {
+              return readFileSync(path, 'utf-8');
+            } catch {
+              return undefined;
+            }
+          },
+          resolveImport,
+        });
+
+        const issueList = manifest.routes.find((r) => r.componentName === 'IssueListPage');
+        expect(issueList).toBeDefined();
+
+        // api.issues.list({ where: { projectId }, select: {...}, include: {...} })
+        const issuesQuery = issueList?.queries.find((q) => q.descriptorChain === 'api.issues.list');
+        expect(issuesQuery?.entity).toBe('issues');
+        expect(issuesQuery?.operation).toBe('list');
+        expect(issuesQuery?.queryBindings?.where).toEqual({ projectId: '$projectId' });
+        expect(issuesQuery?.queryBindings?.select).toEqual({
+          id: true,
+          number: true,
+          title: true,
+          status: true,
+          priority: true,
+        });
+        expect(issuesQuery?.queryBindings?.include).toEqual({ labels: true });
+
+        // api.projects.get(projectId)
+        const projectQuery = issueList?.queries.find(
+          (q) => q.descriptorChain === 'api.projects.get',
+        );
+        expect(projectQuery?.entity).toBe('projects');
+        expect(projectQuery?.operation).toBe('get');
+        expect(projectQuery?.idParam).toBe('projectId');
+
+        // api.labels.list({ where: { projectId }, select: {...} })
+        const labelsQuery = issueList?.queries.find((q) => q.descriptorChain === 'api.labels.list');
+        expect(labelsQuery?.entity).toBe('labels');
+        expect(labelsQuery?.operation).toBe('list');
+        expect(labelsQuery?.queryBindings?.where).toEqual({ projectId: '$projectId' });
+        expect(labelsQuery?.queryBindings?.select).toEqual({
+          id: true,
+          name: true,
+          color: true,
+        });
+      });
+
+      it('Then ProjectLayout api.projects.get has idParam="projectId"', () => {
+        const manifest = generatePrefetchManifest({
+          routerSource,
+          routerPath,
+          readFile: (path) => {
+            try {
+              return readFileSync(path, 'utf-8');
+            } catch {
+              return undefined;
+            }
+          },
+          resolveImport,
+        });
+
+        const layout = manifest.routes.find((r) => r.componentName === 'ProjectLayout');
+        const getQuery = layout?.queries.find((q) => q.descriptorChain === 'api.projects.get');
+        expect(getQuery?.entity).toBe('projects');
+        expect(getQuery?.operation).toBe('get');
+        expect(getQuery?.idParam).toBe('projectId');
       });
     });
   });

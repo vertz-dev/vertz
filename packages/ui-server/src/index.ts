@@ -36,6 +36,8 @@ export type {
   PrefetchManifestSnapshot,
 } from './ssr-prefetch-dev';
 export { createPrefetchManifestManager } from './ssr-prefetch-dev';
+export type { ReconstructedDescriptor } from './ssr-manifest-prefetch';
+export { reconstructDescriptors } from './ssr-manifest-prefetch';
 export type { SSRDiscoverResult, SSRModule, SSRRenderResult } from './ssr-render';
 export { ssrDiscoverQueries, ssrRenderToString } from './ssr-render';
 export type { MatchedRoute } from './ssr-route-matcher';

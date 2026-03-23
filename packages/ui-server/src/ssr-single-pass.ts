@@ -8,9 +8,11 @@
  * rendering to a stream. Resolved data is pre-populated into a fresh
  * context's queryCache, and the app renders once with all available data.
  */
+
 import type { FontFallbackMetrics } from '@vertz/ui';
 import { compileTheme } from '@vertz/ui';
 import type { SSRAuth } from '@vertz/ui/internals';
+import type { ExtractedQuery } from '@vertz/ui-compiler';
 import { installDomShim, toVNode } from './dom-shim';
 import { renderToStream } from './render-to-stream';
 import {
@@ -24,12 +26,14 @@ import {
   setGlobalSSRTimeout,
   ssrStorage,
 } from './ssr-context';
+import { reconstructDescriptors } from './ssr-manifest-prefetch';
 import {
   createRequestContext,
   type SSRModule,
   type SSRRenderResult,
   ssrRenderToString,
 } from './ssr-render';
+import { matchUrlToPatterns } from './ssr-route-matcher';
 import { streamToString } from './streaming';
 
 /** Serialized entity access rules from the prefetch manifest. */
@@ -40,6 +44,8 @@ export interface SSRPrefetchManifest {
   routePatterns: string[];
   /** Entity access rules keyed by entity name → operation → serialized rule. */
   entityAccess?: EntityAccessMap;
+  /** Route entries with query binding metadata for zero-discovery prefetch. */
+  routeEntries?: Record<string, { queries: ExtractedQuery[] }>;
 }
 
 export interface SSRSinglePassOptions {
@@ -84,6 +90,16 @@ export async function ssrRenderSinglePass(
   const ssrTimeout = options?.ssrTimeout ?? 300;
 
   ensureDomShim();
+
+  // ── Zero-Discovery Fast Path ──────────────────────────────────
+  // If the manifest has routeEntries and the module exports an API client,
+  // reconstruct descriptors from manifest metadata + route params and skip
+  // the discovery pass entirely (single DOM traversal).
+  const zeroDiscoveryData = attemptZeroDiscovery(normalizedUrl, module, options, ssrTimeout);
+
+  if (zeroDiscoveryData) {
+    return renderWithPrefetchedData(module, normalizedUrl, zeroDiscoveryData, options);
+  }
 
   // ── Phase 1: Discovery ──────────────────────────────────────────
   // Run the app factory in an SSR context to capture query registrations.
@@ -236,6 +252,185 @@ export async function ssrRenderSinglePass(
       const ssrData = discoveredData.resolvedQueries.map(({ key, data }) => ({
         key,
         data: JSON.parse(JSON.stringify(data)),
+      }));
+
+      return {
+        html,
+        css,
+        ssrData,
+        headTags: themePreloadTags,
+        discoveredRoutes: renderCtx.discoveredRoutes,
+        matchedRoutePatterns: renderCtx.matchedRoutePatterns,
+      };
+    } finally {
+      clearGlobalSSRTimeout();
+    }
+  });
+}
+
+// ── Zero-Discovery helpers ──────────────────────────────────────
+
+interface ZeroDiscoveryResult {
+  resolvedQueries: Array<{ key: string; data: unknown }>;
+}
+
+/**
+ * Attempt zero-discovery prefetching: reconstruct descriptors from the manifest
+ * and fetch data without executing the component tree.
+ *
+ * Returns null if zero-discovery is not possible (no manifest, no API client,
+ * no route match, etc.) — caller should fall back to discovery-based approach.
+ */
+function attemptZeroDiscovery(
+  url: string,
+  module: SSRModule,
+  options: SSRSinglePassOptions | undefined,
+  ssrTimeout: number,
+): Promise<ZeroDiscoveryResult> | null {
+  const manifest = options?.manifest;
+  if (!manifest?.routeEntries || !module.api) return null;
+
+  // Match URL to route patterns to get route params
+  const matches = matchUrlToPatterns(url, manifest.routePatterns);
+  if (matches.length === 0) return null;
+
+  // Collect all queries from all matched routes (layouts + page).
+  // Merge route params from the most specific match (last in array).
+  const allQueries: ExtractedQuery[] = [];
+  let mergedParams: Record<string, string> = {};
+
+  for (const match of matches) {
+    const entry = manifest.routeEntries[match.pattern];
+    if (entry) {
+      allQueries.push(...entry.queries);
+    }
+    mergedParams = { ...mergedParams, ...match.params };
+  }
+
+  if (allQueries.length === 0) return null;
+
+  // Reconstruct descriptors from manifest + route params + API client
+  const descriptors = reconstructDescriptors(allQueries, mergedParams, module.api);
+
+  if (descriptors.length === 0) return null;
+
+  // Fire all fetches in parallel with timeout
+  return prefetchFromDescriptors(descriptors, ssrTimeout);
+}
+
+/**
+ * Fire all descriptor fetches in parallel, applying SSR timeout.
+ */
+async function prefetchFromDescriptors(
+  descriptors: Array<{ key: string; fetch: () => Promise<unknown> }>,
+  ssrTimeout: number,
+): Promise<ZeroDiscoveryResult> {
+  const resolvedQueries: Array<{ key: string; data: unknown }> = [];
+
+  await Promise.allSettled(
+    descriptors.map(({ key, fetch: fetchFn }) =>
+      Promise.race([
+        fetchFn().then((result) => {
+          // _fetch() returns Result<T> = { ok: true, data: T } | { ok: false, ... }
+          // The query cache stores the unwrapped data (T), matching what query()
+          // stores during its internal processing in the discovery path.
+          const data = unwrapResult(result);
+          resolvedQueries.push({ key, data });
+          return 'resolved';
+        }),
+        new Promise((r) => setTimeout(r, ssrTimeout)).then(() => 'timeout'),
+      ]),
+    ),
+  );
+
+  return { resolvedQueries };
+}
+
+/**
+ * Unwrap a Result<T> into the data value. If the result is ok, returns
+ * the data. Otherwise returns the raw result (error case).
+ */
+function unwrapResult(result: unknown): unknown {
+  if (result && typeof result === 'object' && 'ok' in result && 'data' in result) {
+    const r = result as Record<string, unknown>;
+    if (r.ok) return r.data;
+  }
+  return result;
+}
+
+/**
+ * Render the app with pre-fetched data (shared by both zero-discovery and discovery paths).
+ */
+async function renderWithPrefetchedData(
+  module: SSRModule,
+  normalizedUrl: string,
+  prefetchedData: ZeroDiscoveryResult | Promise<ZeroDiscoveryResult>,
+  options: SSRSinglePassOptions | undefined,
+): Promise<SSRRenderResult> {
+  const data = await prefetchedData;
+  const ssrTimeout = options?.ssrTimeout ?? 300;
+
+  const renderCtx = createRequestContext(normalizedUrl);
+  if (options?.ssrAuth) {
+    renderCtx.ssrAuth = options.ssrAuth;
+  }
+
+  // Pre-populate the query cache with prefetched data
+  for (const { key, data: queryData } of data.resolvedQueries) {
+    renderCtx.queryCache.set(key, queryData);
+  }
+
+  // No resolved components from discovery — initialize empty Map to signal "pass 2 mode"
+  renderCtx.resolvedComponents = new Map();
+
+  return ssrStorage.run(renderCtx, async () => {
+    try {
+      setGlobalSSRTimeout(ssrTimeout);
+
+      const createApp = resolveAppFactory(module);
+
+      // Compile theme CSS if the module exports a theme
+      let themeCss = '';
+      let themePreloadTags = '';
+      if (module.theme) {
+        try {
+          const compiled = compileTheme(module.theme, {
+            fallbackMetrics: options?.fallbackMetrics,
+          });
+          themeCss = compiled.css;
+          themePreloadTags = compiled.preloadTags;
+        } catch (e) {
+          console.error(
+            '[vertz] Failed to compile theme export. Ensure your theme is created with defineTheme().',
+            e,
+          );
+        }
+      }
+
+      // Single render pass — queries hit pre-populated cache
+      const app = createApp();
+      const vnode = toVNode(app);
+      const stream = renderToStream(vnode);
+      const html = await streamToString(stream);
+
+      // Check for redirect (e.g., ProtectedRoute sets ssrRedirect during render)
+      if (renderCtx.ssrRedirect) {
+        return {
+          html: '',
+          css: '',
+          ssrData: [],
+          headTags: '',
+          redirect: renderCtx.ssrRedirect,
+          discoveredRoutes: renderCtx.discoveredRoutes,
+          matchedRoutePatterns: renderCtx.matchedRoutePatterns,
+        };
+      }
+
+      const css = collectCSS(themeCss, module);
+
+      const ssrData = data.resolvedQueries.map(({ key, data: d }) => ({
+        key,
+        data: JSON.parse(JSON.stringify(d)),
       }));
 
       return {

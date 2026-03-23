@@ -76,8 +76,22 @@ export function createPrefetchManifestManager(
     // This is a planned integration point — the plumbing in filterByEntityAccess
     // and evaluateAccessRule is ready, but the data source (entity defs → serialized
     // rules → manifest) is a separate concern tied to the production build pipeline.
+
+    // Build routeEntries for zero-discovery prefetching.
+    // Each route pattern maps to the combined queries from all routes with that pattern.
+    const routeEntries: Record<string, { queries: (typeof manifest.routes)[0]['queries'] }> = {};
+    for (const route of manifest.routes) {
+      const existing = routeEntries[route.pattern];
+      if (existing) {
+        existing.queries.push(...route.queries);
+      } else {
+        routeEntries[route.pattern] = { queries: [...route.queries] };
+      }
+    }
+
     return {
-      routePatterns: manifest.routes.map((r) => r.pattern),
+      routePatterns: [...new Set(manifest.routes.map((r) => r.pattern))],
+      routeEntries,
     };
   }
 

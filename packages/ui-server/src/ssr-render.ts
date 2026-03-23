@@ -77,6 +77,8 @@ export interface SSRModule {
   getInjectedCSS?: () => string[];
   /** Compiled routes exported from the app for build-time SSG with generateParams. */
   routes?: CompiledRoute[];
+  /** Code-generated API client for manifest-driven zero-discovery prefetching. */
+  api?: Record<string, Record<string, (...args: unknown[]) => unknown>>;
 }
 
 export interface SSRRenderResult {

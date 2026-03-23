@@ -131,6 +131,36 @@ describe('Feature: Prefetch manifest manager', () => {
       expect(projectsRoute?.queries).toHaveLength(1);
       expect(projectsRoute?.queries[0]?.descriptorChain).toBe('api.projects.list');
     });
+
+    it('Then getSSRManifest() includes routeEntries with query bindings', () => {
+      const manager = createTestManager();
+      manager.build();
+
+      const manifest = manager.getSSRManifest();
+      expect(manifest!.routeEntries).toBeDefined();
+      expect(manifest!.routeEntries!['/projects']).toBeDefined();
+      expect(manifest!.routeEntries!['/projects'].queries).toHaveLength(1);
+      expect(manifest!.routeEntries!['/projects'].queries[0].descriptorChain).toBe(
+        'api.projects.list',
+      );
+      expect(manifest!.routeEntries!['/projects'].queries[0].entity).toBe('projects');
+      expect(manifest!.routeEntries!['/projects'].queries[0].operation).toBe('list');
+    });
+
+    it('Then routeEntries includes parameterized route with bindings', () => {
+      const manager = createTestManager();
+      manager.build();
+
+      const manifest = manager.getSSRManifest();
+      const layoutEntry = manifest!.routeEntries!['/projects/:projectId'];
+      expect(layoutEntry).toBeDefined();
+      // Layout has api.projects.get(projectId)
+      const getQuery = layoutEntry.queries.find((q) => q.descriptorChain === 'api.projects.get');
+      expect(getQuery).toBeDefined();
+      expect(getQuery!.entity).toBe('projects');
+      expect(getQuery!.operation).toBe('get');
+      expect(getQuery!.idParam).toBe('projectId');
+    });
   });
 
   describe('Given a component file is saved', () => {

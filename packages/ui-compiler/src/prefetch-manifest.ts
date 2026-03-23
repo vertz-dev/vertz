@@ -9,9 +9,25 @@ import { ts } from 'ts-morph';
 
 // ─── Types ──────────────────────────────────────────────────────
 
+export interface QueryBindings {
+  where?: Record<string, string | null>;
+  select?: Record<string, true>;
+  include?: Record<string, unknown>;
+  orderBy?: Record<string, 'asc' | 'desc'>;
+  limit?: number;
+}
+
 export interface ExtractedQuery {
   /** Descriptor factory chain, e.g. 'api.issues.list' or 'api.projects.get' */
   descriptorChain: string;
+  /** Entity name parsed from the chain, e.g. 'issues' */
+  entity?: string;
+  /** Operation name parsed from the chain, e.g. 'list' or 'get' */
+  operation?: string;
+  /** For get(param) calls — the route param identifier used as the entity ID */
+  idParam?: string;
+  /** Bindings extracted from the descriptor factory arguments (where, select, etc.) */
+  queryBindings?: QueryBindings;
 }
 
 export interface ComponentAnalysis {
@@ -212,21 +228,9 @@ export function analyzeComponentQueries(sourceText: string, filePath: string): C
   const queries: ExtractedQuery[] = [];
   const params: string[] = [];
 
-  function visit(node: ts.Node): void {
-    // Detect query(...) calls
-    if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      node.expression.text === 'query' &&
-      node.arguments.length > 0
-    ) {
-      const chain = extractDescriptorChain(node.arguments[0], sf);
-      if (chain) {
-        queries.push({ descriptorChain: chain });
-      }
-    }
-
-    // Detect useParams() destructuring
+  // First pass: collect useParams() destructured params so we know which
+  // identifiers are route params when we encounter them in query() calls.
+  function collectParams(node: ts.Node): void {
     if (ts.isVariableStatement(node)) {
       for (const decl of node.declarationList.declarations) {
         if (
@@ -244,31 +248,262 @@ export function analyzeComponentQueries(sourceText: string, filePath: string): C
         }
       }
     }
+    ts.forEachChild(node, collectParams);
+  }
+  ts.forEachChild(sf, collectParams);
 
+  // Second pass: extract query() calls with binding information.
+  function visit(node: ts.Node): void {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'query' &&
+      node.arguments.length > 0
+    ) {
+      const queryInfo = extractQueryInfo(node.arguments[0], sf, params);
+      if (queryInfo) {
+        queries.push(queryInfo);
+      }
+    }
     ts.forEachChild(node, visit);
   }
-
   ts.forEachChild(sf, visit);
+
   return { queries, params };
 }
 
 /**
- * Extract the descriptor factory chain from a query() argument.
- * Handles:
- * - api.projects.list()        → 'api.projects.list'
- * - api.projects.get(id)       → 'api.projects.get'
- * - api.issues.list({ ... })   → 'api.issues.list'
+ * Extract full query info from a query() argument: descriptor chain, entity,
+ * operation, ID param binding, and query option bindings (where, select, etc.).
  */
-function extractDescriptorChain(arg: ts.Expression, sf: ts.SourceFile): string | undefined {
+function extractQueryInfo(
+  arg: ts.Expression,
+  sf: ts.SourceFile,
+  routeParams: string[],
+): ExtractedQuery | undefined {
   // query(api.entity.method(...)) — the arg is a call expression
   if (ts.isCallExpression(arg)) {
-    return extractPropertyAccessChain(arg.expression, sf);
+    const chain = extractPropertyAccessChain(arg.expression, sf);
+    if (!chain) return undefined;
+
+    const { entity, operation } = parseEntityOperation(chain);
+    const query: ExtractedQuery = { descriptorChain: chain, entity, operation };
+
+    // Extract argument bindings based on operation type
+    if (operation === 'get' && arg.arguments.length > 0) {
+      // get(id) or get(id, { select: {...} })
+      const idArg = arg.arguments[0];
+      if (ts.isIdentifier(idArg) && routeParams.includes(idArg.text)) {
+        query.idParam = idArg.text;
+      }
+      // Second argument is options object: { select: {...} }
+      if (arg.arguments.length > 1 && ts.isObjectLiteralExpression(arg.arguments[1])) {
+        const bindings = extractObjectBindings(arg.arguments[1], sf, routeParams);
+        if (bindings) query.queryBindings = bindings;
+      }
+    } else if (arg.arguments.length > 0 && ts.isObjectLiteralExpression(arg.arguments[0])) {
+      // list({ where: {...}, select: {...}, ... })
+      const bindings = extractObjectBindings(arg.arguments[0], sf, routeParams);
+      if (bindings) query.queryBindings = bindings;
+    }
+
+    return query;
   }
+
   // query(descriptor) — a variable reference (unusual but possible)
   if (ts.isIdentifier(arg)) {
-    return arg.text;
+    return { descriptorChain: arg.text };
   }
+
   return undefined;
+}
+
+/**
+ * Parse entity name and operation from a descriptor chain.
+ * 'api.projects.list' → { entity: 'projects', operation: 'list' }
+ * 'api.issues.get' → { entity: 'issues', operation: 'get' }
+ */
+function parseEntityOperation(chain: string): { entity?: string; operation?: string } {
+  const parts = chain.split('.');
+  // Expected format: api.<entity>.<operation>
+  if (parts.length >= 3) {
+    return { entity: parts[1], operation: parts[2] };
+  }
+  return {};
+}
+
+/**
+ * Extract query bindings from an object literal argument.
+ * Recognizes: where, select, include, orderBy, limit.
+ */
+function extractObjectBindings(
+  obj: ts.ObjectLiteralExpression,
+  sf: ts.SourceFile,
+  routeParams: string[],
+): QueryBindings | undefined {
+  const bindings: QueryBindings = {};
+  let hasBindings = false;
+
+  for (const prop of obj.properties) {
+    if (!ts.isPropertyAssignment(prop)) continue;
+    const key = prop.name.getText(sf);
+
+    switch (key) {
+      case 'where': {
+        if (ts.isObjectLiteralExpression(prop.initializer)) {
+          bindings.where = extractWhereBindings(prop.initializer, sf, routeParams);
+          hasBindings = true;
+        }
+        break;
+      }
+      case 'select': {
+        if (ts.isObjectLiteralExpression(prop.initializer)) {
+          bindings.select = extractSelectRecord(prop.initializer, sf);
+          hasBindings = true;
+        }
+        break;
+      }
+      case 'include': {
+        if (ts.isObjectLiteralExpression(prop.initializer)) {
+          bindings.include = extractStaticObjectLiteral(prop.initializer, sf);
+          hasBindings = true;
+        }
+        break;
+      }
+      case 'orderBy': {
+        if (ts.isObjectLiteralExpression(prop.initializer)) {
+          bindings.orderBy = extractStaticRecord(prop.initializer, sf) as Record<
+            string,
+            'asc' | 'desc'
+          >;
+          hasBindings = true;
+        }
+        break;
+      }
+      case 'limit': {
+        if (ts.isNumericLiteral(prop.initializer)) {
+          bindings.limit = Number(prop.initializer.text);
+          hasBindings = true;
+        }
+        break;
+      }
+    }
+  }
+
+  return hasBindings ? bindings : undefined;
+}
+
+/**
+ * Extract where clause bindings. Values that reference route params become
+ * '$paramName'; other identifiers become null (dynamic, cannot resolve statically).
+ */
+function extractWhereBindings(
+  obj: ts.ObjectLiteralExpression,
+  sf: ts.SourceFile,
+  routeParams: string[],
+): Record<string, string | null> {
+  const where: Record<string, string | null> = {};
+
+  for (const prop of obj.properties) {
+    // Shorthand property: { projectId } (equivalent to { projectId: projectId })
+    if (ts.isShorthandPropertyAssignment(prop)) {
+      const name = prop.name.getText(sf);
+      where[name] = routeParams.includes(name) ? `$${name}` : null;
+      continue;
+    }
+
+    if (!ts.isPropertyAssignment(prop)) continue;
+    const key = prop.name.getText(sf);
+    const value = prop.initializer;
+
+    if (ts.isIdentifier(value)) {
+      where[key] = routeParams.includes(value.text) ? `$${value.text}` : null;
+    } else if (ts.isStringLiteral(value)) {
+      where[key] = value.text;
+    } else if (ts.isNumericLiteral(value)) {
+      where[key] = value.text;
+    } else {
+      where[key] = null; // Complex expression — cannot resolve statically
+    }
+  }
+
+  return where;
+}
+
+/**
+ * Extract a static Record<string, true> from a select object literal.
+ */
+function extractSelectRecord(
+  obj: ts.ObjectLiteralExpression,
+  sf: ts.SourceFile,
+): Record<string, true> {
+  const record: Record<string, true> = {};
+  for (const prop of obj.properties) {
+    if (!ts.isPropertyAssignment(prop)) continue;
+    const key = prop.name.getText(sf);
+    if (prop.initializer.kind === ts.SyntaxKind.TrueKeyword) {
+      record[key] = true;
+    }
+  }
+  return record;
+}
+
+/**
+ * Extract a static Record<string, unknown> from an object literal (for orderBy).
+ */
+function extractStaticRecord(
+  obj: ts.ObjectLiteralExpression,
+  sf: ts.SourceFile,
+): Record<string, unknown> {
+  const record: Record<string, unknown> = {};
+
+  for (const prop of obj.properties) {
+    if (!ts.isPropertyAssignment(prop)) continue;
+    const key = prop.name.getText(sf);
+    const value = prop.initializer;
+
+    if (value.kind === ts.SyntaxKind.TrueKeyword) {
+      record[key] = true;
+    } else if (value.kind === ts.SyntaxKind.FalseKeyword) {
+      record[key] = false;
+    } else if (ts.isStringLiteral(value)) {
+      record[key] = value.text;
+    } else if (ts.isNumericLiteral(value)) {
+      record[key] = Number(value.text);
+    }
+  }
+
+  return record;
+}
+
+/**
+ * Extract a static object literal (for include — may contain nested objects or booleans).
+ */
+function extractStaticObjectLiteral(
+  obj: ts.ObjectLiteralExpression,
+  sf: ts.SourceFile,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const prop of obj.properties) {
+    if (!ts.isPropertyAssignment(prop)) continue;
+    const key = prop.name.getText(sf);
+    const value = prop.initializer;
+
+    if (value.kind === ts.SyntaxKind.TrueKeyword) {
+      result[key] = true;
+    } else if (value.kind === ts.SyntaxKind.FalseKeyword) {
+      result[key] = false;
+    } else if (ts.isStringLiteral(value)) {
+      result[key] = value.text;
+    } else if (ts.isNumericLiteral(value)) {
+      result[key] = Number(value.text);
+    } else if (ts.isObjectLiteralExpression(value)) {
+      result[key] = extractStaticObjectLiteral(value, sf);
+    }
+  }
+
+  return result;
 }
 
 /**
