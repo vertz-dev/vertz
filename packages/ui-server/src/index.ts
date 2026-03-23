@@ -15,7 +15,12 @@ export type { PrefetchSession, SerializedAccessRule } from './ssr-access-evaluat
 export { evaluateAccessRule, toPrefetchSession } from './ssr-access-evaluator';
 export { createAccessSetScript, getAccessSetForSSR } from './ssr-access-set';
 export { createSSRAdapter } from './ssr-adapter';
-export type { AotDiagnosticsSnapshot } from './ssr-aot-diagnostics';
+export type {
+  AotComponentDiagnostic,
+  AotDiagnosticsSnapshot,
+  AotDivergenceEntry,
+  AotTier,
+} from './ssr-aot-diagnostics';
 export { AotDiagnostics } from './ssr-aot-diagnostics';
 export type {
   AotManifest,

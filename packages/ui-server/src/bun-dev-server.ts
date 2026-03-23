@@ -818,6 +818,9 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
   mkdirSync(devDir, { recursive: true });
   const logger = createDebugLogger(devDir);
   const diagnostics = new DiagnosticsCollector();
+  // AOT diagnostics — populated by the build pipeline when AOT compilation is wired in.
+  // Currently scaffolding: /__vertz_ssr_aot endpoint exists but returns empty data
+  // until compileForSSRAot() results are fed via aotDiagnostics.recordCompilation().
   const aotDiagnostics = new AotDiagnostics();
 
   let server: ReturnType<typeof Bun.serve> | null = null;

@@ -134,6 +134,7 @@ describe('Feature: AOT SSR Diagnostics', () => {
         expect(snapshot.divergences[0]?.component).toBe('UserCard');
         expect(snapshot.divergences[0]?.aotHtml).toBe('<div>aot</div>');
         expect(snapshot.divergences[0]?.domHtml).toBe('<div>dom</div>');
+        expect(snapshot.divergences[0]?.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       });
     });
   });
@@ -148,8 +149,11 @@ describe('Feature: AOT SSR Diagnostics', () => {
 
         const snapshot = diag.getSnapshot();
 
-        // Should keep the last 20 (default max)
-        expect(snapshot.divergences.length).toBeLessThanOrEqual(20);
+        // Should keep exactly the last 20
+        expect(snapshot.divergences).toHaveLength(20);
+        // Oldest surviving entry is Component5 (0-4 were evicted)
+        expect(snapshot.divergences[0]?.component).toBe('Component5');
+        // Most recent entry
         expect(snapshot.divergences[snapshot.divergences.length - 1]?.component).toBe(
           'Component24',
         );

@@ -5,9 +5,12 @@
  * for the `/__vertz_ssr_aot` dev endpoint.
  */
 
+/** AOT tier classification (mirrored from @vertz/ui-compiler to avoid cross-package dependency). */
+export type AotTier = 'static' | 'data-driven' | 'conditional' | 'runtime-fallback';
+
 /** Per-component diagnostic entry in the snapshot. */
 export interface AotComponentDiagnostic {
-  tier: string;
+  tier: AotTier;
   holes: string[];
 }
 
@@ -34,7 +37,7 @@ export interface AotDiagnosticsSnapshot {
 /** Input shape matching AotComponentInfo from @vertz/ui-compiler. */
 interface ComponentInput {
   name: string;
-  tier: string;
+  tier: AotTier;
   holes: string[];
 }
 
