@@ -52,16 +52,33 @@ function createStubDb() {
     },
   };
 
+  /** Checks if a row matches all where conditions. */
+  function matchesWhere(row: Record<string, unknown>, where?: Record<string, unknown>): boolean {
+    if (!where) return true;
+    return Object.entries(where).every(([key, value]) => {
+      if (typeof value === 'object' && value !== null && 'in' in value) {
+        return (value as { in: unknown[] }).in.includes(row[key]);
+      }
+      return row[key] === value;
+    });
+  }
+
   return {
-    get: mock(async (id: string) => rows[id] ?? null),
+    get: mock(
+      async (id: string, options?: { where?: Record<string, unknown>; include?: unknown }) => {
+        const row = rows[id] ?? null;
+        if (!row) return null;
+        // Apply additional where conditions (Phase 2: access where pushed to DB)
+        if (options?.where && !matchesWhere(row, options.where)) return null;
+        return row;
+      },
+    ),
     list: mock(
       async (options?: { where?: Record<string, unknown>; limit?: number; after?: string }) => {
         let result = Object.values(rows);
         const where = options?.where;
         if (where) {
-          result = result.filter((row) =>
-            Object.entries(where).every(([key, value]) => row[key] === value),
-          );
+          result = result.filter((row) => matchesWhere(row, where));
         }
         const total = result.length;
         if (options?.after) {
@@ -81,12 +98,32 @@ function createStubDb() {
       createdAt: '2024-01-01',
       updatedAt: '2024-01-01',
     })),
-    update: mock(async (id: string, data: Record<string, unknown>) => ({
-      ...rows[id],
-      ...data,
-      updatedAt: '2024-01-02',
-    })),
-    delete: mock(async (id: string) => rows[id] ?? null),
+    update: mock(
+      async (
+        id: string,
+        data: Record<string, unknown>,
+        options?: { where?: Record<string, unknown> },
+      ) => {
+        const row = rows[id];
+        // Defense-in-depth: if where conditions don't match, throw (simulates DB RETURNING nothing)
+        if (row && options?.where && !matchesWhere(row, options.where)) {
+          throw new Error('Update matched 0 rows');
+        }
+        return {
+          ...row,
+          ...data,
+          updatedAt: '2024-01-02',
+        };
+      },
+    ),
+    delete: mock(async (id: string, options?: { where?: Record<string, unknown> }) => {
+      const row = rows[id];
+      // Defense-in-depth: if where conditions don't match, throw
+      if (row && options?.where && !matchesWhere(row, options.where)) {
+        throw new Error('Delete matched 0 rows');
+      }
+      return row ?? null;
+    }),
   };
 }
 
@@ -400,7 +437,9 @@ describe('Feature: CRUD pipeline', () => {
 
         expect(result.status).toBe(204);
         expect(result.body).toBeNull();
-        expect(db.delete).toHaveBeenCalledWith('user-1');
+        expect(db.delete.mock.calls[0]![0]).toBe('user-1');
+        // No where conditions for function-based access rules
+        expect(db.delete.mock.calls[0]![1]).toBeUndefined();
       });
     });
   });
@@ -1091,16 +1130,33 @@ describe('Feature: CRUD pipeline', () => {
         'task-2': { id: 'task-2', title: 'Task B', tenantId: 'tenant-b' },
         'task-3': { id: 'task-3', title: 'Task C', tenantId: 'tenant-a' },
       };
+
+      function matchesWhere(
+        row: Record<string, unknown>,
+        where?: Record<string, unknown>,
+      ): boolean {
+        if (!where) return true;
+        return Object.entries(where).every(([key, value]) => {
+          if (typeof value === 'object' && value !== null && 'in' in value) {
+            return (value as { in: unknown[] }).in.includes(row[key]);
+          }
+          return row[key] === value;
+        });
+      }
+
       return {
-        get: mock(async (id: string) => rows[id] ?? null),
+        get: mock(async (id: string, options?: { where?: Record<string, unknown> }) => {
+          const row = rows[id] ?? null;
+          if (!row) return null;
+          if (options?.where && !matchesWhere(row, options.where)) return null;
+          return row;
+        }),
         list: mock(
           async (options?: { where?: Record<string, unknown>; limit?: number; after?: string }) => {
             let result = Object.values(rows);
             const where = options?.where;
             if (where) {
-              result = result.filter((row) =>
-                Object.entries(where).every(([key, value]) => row[key] === value),
-              );
+              result = result.filter((row) => matchesWhere(row, where));
             }
             const total = result.length;
             if (options?.limit !== undefined) {
@@ -1113,11 +1169,26 @@ describe('Feature: CRUD pipeline', () => {
           id: 'new-id',
           ...data,
         })),
-        update: mock(async (id: string, data: Record<string, unknown>) => ({
-          ...rows[id],
-          ...data,
-        })),
-        delete: mock(async (id: string) => rows[id] ?? null),
+        update: mock(
+          async (
+            id: string,
+            data: Record<string, unknown>,
+            options?: { where?: Record<string, unknown> },
+          ) => {
+            const row = rows[id];
+            if (row && options?.where && !matchesWhere(row, options.where)) {
+              throw new Error('Update matched 0 rows');
+            }
+            return { ...row, ...data };
+          },
+        ),
+        delete: mock(async (id: string, options?: { where?: Record<string, unknown> }) => {
+          const row = rows[id];
+          if (row && options?.where && !matchesWhere(row, options.where)) {
+            throw new Error('Delete matched 0 rows');
+          }
+          return row ?? null;
+        }),
       };
     }
 
@@ -1235,16 +1306,33 @@ describe('Feature: CRUD pipeline', () => {
         'proj-2': { id: 'proj-2', title: 'Proj B', workspaceId: 'ws-b' },
         'proj-3': { id: 'proj-3', title: 'Proj C', workspaceId: 'ws-a' },
       };
+
+      function matchesWhere(
+        row: Record<string, unknown>,
+        where?: Record<string, unknown>,
+      ): boolean {
+        if (!where) return true;
+        return Object.entries(where).every(([key, value]) => {
+          if (typeof value === 'object' && value !== null && 'in' in value) {
+            return (value as { in: unknown[] }).in.includes(row[key]);
+          }
+          return row[key] === value;
+        });
+      }
+
       return {
-        get: mock(async (id: string) => rows[id] ?? null),
+        get: mock(async (id: string, options?: { where?: Record<string, unknown> }) => {
+          const row = rows[id] ?? null;
+          if (!row) return null;
+          if (options?.where && !matchesWhere(row, options.where)) return null;
+          return row;
+        }),
         list: mock(
           async (options?: { where?: Record<string, unknown>; limit?: number; after?: string }) => {
             let result = Object.values(rows);
             const where = options?.where;
             if (where) {
-              result = result.filter((row) =>
-                Object.entries(where).every(([key, value]) => row[key] === value),
-              );
+              result = result.filter((row) => matchesWhere(row, where));
             }
             const total = result.length;
             if (options?.limit !== undefined) {
@@ -1257,11 +1345,26 @@ describe('Feature: CRUD pipeline', () => {
           id: 'new-id',
           ...data,
         })),
-        update: mock(async (id: string, data: Record<string, unknown>) => ({
-          ...rows[id],
-          ...data,
-        })),
-        delete: mock(async (id: string) => rows[id] ?? null),
+        update: mock(
+          async (
+            id: string,
+            data: Record<string, unknown>,
+            options?: { where?: Record<string, unknown> },
+          ) => {
+            const row = rows[id];
+            if (row && options?.where && !matchesWhere(row, options.where)) {
+              throw new Error('Update matched 0 rows');
+            }
+            return { ...row, ...data };
+          },
+        ),
+        delete: mock(async (id: string, options?: { where?: Record<string, unknown> }) => {
+          const row = rows[id];
+          if (row && options?.where && !matchesWhere(row, options.where)) {
+            throw new Error('Delete matched 0 rows');
+          }
+          return row ?? null;
+        }),
       };
     }
 
@@ -1593,28 +1696,57 @@ describe('Feature: CRUD pipeline', () => {
         { id: 'task-b1', projectId: 'proj-b', title: 'Task B1' },
       ];
 
+      function matchesWhere(
+        row: Record<string, unknown>,
+        where?: Record<string, unknown>,
+      ): boolean {
+        if (!where) return true;
+        return Object.entries(where).every(([key, value]) => {
+          if (typeof value === 'object' && value !== null && 'in' in value) {
+            return (value as { in: unknown[] }).in.includes(row[key]);
+          }
+          return row[key] === value;
+        });
+      }
+
       return {
-        get: mock(async (id: string) => rows.find((r) => r.id === id) ?? null),
+        get: mock(async (id: string, options?: { where?: Record<string, unknown> }) => {
+          const row = rows.find((r) => r.id === id) ?? null;
+          if (!row) return null;
+          if (options?.where && !matchesWhere(row, options.where)) return null;
+          return row;
+        }),
         list: mock(
           async (options?: { where?: Record<string, unknown>; limit?: number; after?: string }) => {
             let result = [...rows];
             const where = options?.where;
             if (where) {
-              result = result.filter((row) =>
-                Object.entries(where).every(([key, value]) => {
-                  if (typeof value === 'object' && value !== null && 'in' in value) {
-                    return (value as { in: unknown[] }).in.includes(row[key]);
-                  }
-                  return row[key] === value;
-                }),
-              );
+              result = result.filter((row) => matchesWhere(row, where));
             }
             return { data: result, total: result.length };
           },
         ),
         create: mock(async (data: Record<string, unknown>) => ({ id: 'new-id', ...data })),
-        update: mock(async (id: string, data: Record<string, unknown>) => ({ id, ...data })),
-        delete: mock(async (id: string) => rows.find((r) => r.id === id) ?? null),
+        update: mock(
+          async (
+            id: string,
+            data: Record<string, unknown>,
+            options?: { where?: Record<string, unknown> },
+          ) => {
+            const row = rows.find((r) => r.id === id);
+            if (row && options?.where && !matchesWhere(row, options.where)) {
+              throw new Error('Update matched 0 rows');
+            }
+            return { id, ...data };
+          },
+        ),
+        delete: mock(async (id: string, options?: { where?: Record<string, unknown> }) => {
+          const row = rows.find((r) => r.id === id);
+          if (row && options?.where && !matchesWhere(row, options.where)) {
+            throw new Error('Delete matched 0 rows');
+          }
+          return row ?? null;
+        }),
       };
     }
 
@@ -1952,6 +2084,356 @@ describe('Feature: CRUD pipeline', () => {
         if (!result.ok) {
           expect(result.error).toBeInstanceOf(EntityForbiddenError);
         }
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Phase 2: rules.where() pushed to DB for GET/UPDATE/DELETE
+  // ---------------------------------------------------------------------------
+
+  describe('Feature: rules.where() pushed to DB for GET/UPDATE/DELETE', () => {
+    // Fixtures: entity with createdBy-based where rules
+    const whereTable = d.table('tasks', {
+      id: d.uuid().primary(),
+      title: d.text(),
+      createdBy: d.text(),
+      status: d.text().default('draft'),
+    });
+    const whereModel = d.model(whereTable);
+
+    function createWhereStubDb() {
+      const rows: Record<string, Record<string, unknown>> = {
+        'task-1': { id: 'task-1', title: 'My Task', createdBy: 'user-A', status: 'draft' },
+        'task-2': { id: 'task-2', title: 'Other Task', createdBy: 'user-B', status: 'published' },
+      };
+
+      function matchesWhere(
+        row: Record<string, unknown>,
+        where?: Record<string, unknown>,
+      ): boolean {
+        if (!where) return true;
+        return Object.entries(where).every(([key, value]) => {
+          if (typeof value === 'object' && value !== null && 'in' in value) {
+            return (value as { in: unknown[] }).in.includes(row[key]);
+          }
+          return row[key] === value;
+        });
+      }
+
+      return {
+        get: mock(async (id: string, options?: { where?: Record<string, unknown> }) => {
+          const row = rows[id] ?? null;
+          if (!row) return null;
+          if (options?.where && !matchesWhere(row, options.where)) return null;
+          return row;
+        }),
+        list: mock(async (options?: { where?: Record<string, unknown> }) => {
+          let result = Object.values(rows);
+          if (options?.where) {
+            result = result.filter((row) => matchesWhere(row, options.where!));
+          }
+          return { data: result, total: result.length };
+        }),
+        create: mock(async (data: Record<string, unknown>) => ({ id: 'new-id', ...data })),
+        update: mock(
+          async (
+            id: string,
+            data: Record<string, unknown>,
+            options?: { where?: Record<string, unknown> },
+          ) => {
+            const row = rows[id];
+            if (row && options?.where && !matchesWhere(row, options.where)) {
+              throw new Error('Update matched 0 rows');
+            }
+            return { ...row, ...data };
+          },
+        ),
+        delete: mock(async (id: string, options?: { where?: Record<string, unknown> }) => {
+          const row = rows[id];
+          if (row && options?.where && !matchesWhere(row, options.where)) {
+            throw new Error('Delete matched 0 rows');
+          }
+          return row ?? null;
+        }),
+      };
+    }
+
+    // --- GET with rules.where() ---
+
+    describe('Given entity access: { get: rules.where({ createdBy: rules.user.id }) }', () => {
+      const def = entity('tasks', {
+        model: whereModel,
+        access: { get: rules.where({ createdBy: rules.user.id }) },
+      });
+
+      describe('When get() is called by the owner (user-A)', () => {
+        it('Then db.get receives where: { createdBy: userId }', async () => {
+          const db = createWhereStubDb();
+          const handlers = createCrudHandlers(def, db);
+          const ctx = makeCtx({ userId: 'user-A' });
+
+          await handlers.get(ctx, 'task-1');
+
+          const getCall = db.get.mock.calls[0]!;
+          expect(getCall[1]).toEqual(expect.objectContaining({ where: { createdBy: 'user-A' } }));
+        });
+
+        it('Then returns the row (owner match)', async () => {
+          const db = createWhereStubDb();
+          const handlers = createCrudHandlers(def, db);
+          const ctx = makeCtx({ userId: 'user-A' });
+
+          const result = await handlers.get(ctx, 'task-1');
+          expect(result.ok).toBe(true);
+          if (result.ok) {
+            expect(result.data.status).toBe(200);
+            expect(result.data.body).toHaveProperty('title', 'My Task');
+          }
+        });
+      });
+
+      describe('When get() is called by a non-owner (user-A gets task-2)', () => {
+        it('Then returns 404 (not 403) — does not reveal existence', async () => {
+          const db = createWhereStubDb();
+          const handlers = createCrudHandlers(def, db);
+          const ctx = makeCtx({ userId: 'user-A' });
+
+          const result = await handlers.get(ctx, 'task-2');
+          expect(result.ok).toBe(false);
+          if (!result.ok) expect(result.error).toBeInstanceOf(EntityNotFoundError);
+        });
+      });
+    });
+
+    // --- GET with rules.all(authenticated, where) ---
+
+    describe('Given entity access: { get: rules.all(rules.authenticated(), rules.where({ status: "published" })) }', () => {
+      const def = entity('tasks', {
+        model: whereModel,
+        access: {
+          get: rules.all(rules.authenticated(), rules.where({ status: 'published' })),
+        },
+      });
+
+      describe('When authenticated user calls get(draft-task)', () => {
+        it('Then returns 404 (where condition pushed to DB)', async () => {
+          const db = createWhereStubDb();
+          const handlers = createCrudHandlers(def, db);
+          const ctx = makeCtx({ userId: 'user-A' });
+
+          const result = await handlers.get(ctx, 'task-1'); // task-1 is draft
+          expect(result.ok).toBe(false);
+          if (!result.ok) expect(result.error).toBeInstanceOf(EntityNotFoundError);
+        });
+      });
+
+      describe('When unauthenticated user calls get(published-task)', () => {
+        it('Then returns 403 (non-where rule still evaluated in-memory)', async () => {
+          const db = createWhereStubDb();
+          const handlers = createCrudHandlers(def, db);
+          const ctx = makeCtx({ userId: null });
+
+          const result = await handlers.get(ctx, 'task-2'); // task-2 is published
+          expect(result.ok).toBe(false);
+          if (!result.ok) expect(result.error).toBeInstanceOf(EntityForbiddenError);
+        });
+      });
+    });
+
+    // --- GET with no where rules (should be unchanged) ---
+
+    describe('Given entity with no where rules on get (e.g., rules.authenticated())', () => {
+      const def = entity('tasks', {
+        model: whereModel,
+        access: { get: rules.authenticated() },
+      });
+
+      describe('When get() is called', () => {
+        it('Then enforceAccess is called WITHOUT skipWhere', async () => {
+          const db = createWhereStubDb();
+          const handlers = createCrudHandlers(def, db);
+          const ctx = makeCtx({ userId: 'user-A' });
+
+          const result = await handlers.get(ctx, 'task-1');
+          expect(result.ok).toBe(true);
+          // db.get should NOT have where conditions (only id)
+          const getCall = db.get.mock.calls[0]!;
+          expect(getCall[1]).toBeUndefined();
+        });
+      });
+    });
+
+    // --- UPDATE with rules.where() ---
+
+    describe('Given entity access: { update: rules.where({ createdBy: rules.user.id }) }', () => {
+      const def = entity('tasks', {
+        model: whereModel,
+        access: { update: rules.where({ createdBy: rules.user.id }) },
+      });
+
+      describe('When update() is called by the owner', () => {
+        it('Then db.get receives where: { createdBy: userId }', async () => {
+          const db = createWhereStubDb();
+          const handlers = createCrudHandlers(def, db);
+          const ctx = makeCtx({ userId: 'user-A' });
+
+          await handlers.update(ctx, 'task-1', { title: 'Updated' });
+
+          const getCall = db.get.mock.calls[0]!;
+          expect(getCall[1]).toEqual(expect.objectContaining({ where: { createdBy: 'user-A' } }));
+        });
+
+        it('Then db.update receives where: { createdBy: userId } (defense-in-depth)', async () => {
+          const db = createWhereStubDb();
+          const handlers = createCrudHandlers(def, db);
+          const ctx = makeCtx({ userId: 'user-A' });
+
+          await handlers.update(ctx, 'task-1', { title: 'Updated' });
+
+          const updateCall = db.update.mock.calls[0]!;
+          expect(updateCall[2]).toEqual({ where: { createdBy: 'user-A' } });
+        });
+
+        it('Then update succeeds', async () => {
+          const db = createWhereStubDb();
+          const handlers = createCrudHandlers(def, db);
+          const ctx = makeCtx({ userId: 'user-A' });
+
+          const result = await handlers.update(ctx, 'task-1', { title: 'Updated' });
+          expect(result.ok).toBe(true);
+        });
+      });
+
+      describe('When update() is called by a non-owner', () => {
+        it('Then returns 404 (not 403)', async () => {
+          const db = createWhereStubDb();
+          const handlers = createCrudHandlers(def, db);
+          const ctx = makeCtx({ userId: 'user-A' });
+
+          const result = await handlers.update(ctx, 'task-2', { title: 'Hacked' });
+          expect(result.ok).toBe(false);
+          if (!result.ok) expect(result.error).toBeInstanceOf(EntityNotFoundError);
+        });
+
+        it('Then db.update is NOT called', async () => {
+          const db = createWhereStubDb();
+          const handlers = createCrudHandlers(def, db);
+          const ctx = makeCtx({ userId: 'user-A' });
+
+          await handlers.update(ctx, 'task-2', { title: 'Hacked' });
+          expect(db.update).not.toHaveBeenCalled();
+        });
+      });
+    });
+
+    // --- DELETE with rules.where() ---
+
+    describe('Given entity access: { delete: rules.where({ createdBy: rules.user.id }) }', () => {
+      const def = entity('tasks', {
+        model: whereModel,
+        access: { delete: rules.where({ createdBy: rules.user.id }) },
+      });
+
+      describe('When delete() is called by the owner', () => {
+        it('Then deletes successfully', async () => {
+          const db = createWhereStubDb();
+          const handlers = createCrudHandlers(def, db);
+          const ctx = makeCtx({ userId: 'user-A' });
+
+          const result = await handlers.delete(ctx, 'task-1');
+          expect(result.ok).toBe(true);
+          if (result.ok) expect(result.data.status).toBe(204);
+        });
+
+        it('Then db.delete receives where: { createdBy: userId } (defense-in-depth)', async () => {
+          const db = createWhereStubDb();
+          const handlers = createCrudHandlers(def, db);
+          const ctx = makeCtx({ userId: 'user-A' });
+
+          await handlers.delete(ctx, 'task-1');
+
+          const deleteCall = db.delete.mock.calls[0]!;
+          expect(deleteCall[1]).toEqual({ where: { createdBy: 'user-A' } });
+        });
+      });
+
+      describe('When delete() is called by a non-owner', () => {
+        it('Then returns 404 (not 403)', async () => {
+          const db = createWhereStubDb();
+          const handlers = createCrudHandlers(def, db);
+          const ctx = makeCtx({ userId: 'user-A' });
+
+          const result = await handlers.delete(ctx, 'task-2');
+          expect(result.ok).toBe(false);
+          if (!result.ok) expect(result.error).toBeInstanceOf(EntityNotFoundError);
+        });
+
+        it('Then db.delete is NOT called', async () => {
+          const db = createWhereStubDb();
+          const handlers = createCrudHandlers(def, db);
+          const ctx = makeCtx({ userId: 'user-A' });
+
+          await handlers.delete(ctx, 'task-2');
+          expect(db.delete).not.toHaveBeenCalled();
+        });
+      });
+    });
+
+    // --- TOCTOU defense-in-depth ---
+
+    describe('Given TOCTOU race: row ownership changes between get and update', () => {
+      const def = entity('tasks', {
+        model: whereModel,
+        access: {
+          update: rules.where({ createdBy: rules.user.id }),
+          delete: rules.where({ createdBy: rules.user.id }),
+        },
+      });
+
+      describe('When db.get succeeds but db.update throws (simulated race)', () => {
+        it('Then returns 404 (not 500)', async () => {
+          const db = createWhereStubDb();
+          // Override update to always throw (simulates TOCTOU race)
+          db.update.mockImplementation(async () => {
+            throw new Error('Update matched 0 rows');
+          });
+          // Override get to return the row (it existed at check time)
+          db.get.mockImplementation(async () => ({
+            id: 'task-1',
+            title: 'My Task',
+            createdBy: 'user-A',
+            status: 'draft',
+          }));
+          const handlers = createCrudHandlers(def, db);
+          const ctx = makeCtx({ userId: 'user-A' });
+
+          const result = await handlers.update(ctx, 'task-1', { title: 'Updated' });
+          expect(result.ok).toBe(false);
+          if (!result.ok) expect(result.error).toBeInstanceOf(EntityNotFoundError);
+        });
+      });
+
+      describe('When db.get succeeds but db.delete throws (simulated race)', () => {
+        it('Then returns 404 (not 500)', async () => {
+          const db = createWhereStubDb();
+          // Override delete to always throw
+          db.delete.mockImplementation(async () => {
+            throw new Error('Delete matched 0 rows');
+          });
+          db.get.mockImplementation(async () => ({
+            id: 'task-1',
+            title: 'My Task',
+            createdBy: 'user-A',
+            status: 'draft',
+          }));
+          const handlers = createCrudHandlers(def, db);
+          const ctx = makeCtx({ userId: 'user-A' });
+
+          const result = await handlers.delete(ctx, 'task-1');
+          expect(result.ok).toBe(false);
+          if (!result.ok) expect(result.error).toBeInstanceOf(EntityNotFoundError);
+        });
       });
     });
   });

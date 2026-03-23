@@ -34,6 +34,19 @@ import { MAX_CURSOR_LENGTH } from './vertzql-parser';
 // Re-export types from @vertz/db for backward compatibility
 export type { EntityDbAdapter, GetOptions, ListOptions } from '@vertz/db';
 
+// Widened method types for calling db.update/db.delete with options.
+// EntityDbAdapter's deferred conditional types (ResolveWhere) don't resolve
+// when TEntry is the default ModelEntry. These aliases bypass the issue.
+type WidenedUpdate = (
+  id: string,
+  data: Record<string, unknown>,
+  options?: { where: Record<string, unknown> },
+) => Promise<Record<string, unknown>>;
+type WidenedDelete = (
+  id: string,
+  options?: { where: Record<string, unknown> },
+) => Promise<Record<string, unknown> | null>;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -182,15 +195,7 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
     return err(new EntityNotFoundError(`${def.name} with id "${id}" not found`));
   }
 
-  /** Checks if a row belongs to the current tenant. Returns false if cross-tenant. */
-  function isSameTenant(ctx: EntityContext, row: Record<string, unknown>): boolean {
-    if (!isTenantScoped) return true;
-    // Indirect scoping uses subquery filtering, not row-level tenantId check
-    if (isIndirectlyScoped) return true;
-    return row[tenantColumn] === ctx.tenantId;
-  }
-
-  /** Merges tenant filter into a where clause for list queries. */
+  /** Merges tenant filter into a where clause for DB queries (list, get, update, delete). */
   function withTenantFilter(
     ctx: EntityContext,
     where: Record<string, unknown> | undefined,
@@ -234,27 +239,6 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
 
     // The first hop's foreignKey is the column on the entity table
     return { [hops[0]!.foreignKey]: { in: currentIds } };
-  }
-
-  /**
-   * Verifies that a single row belongs to the current tenant via the indirect chain.
-   * Uses the same chain resolution as list filtering — checks if the row's FK
-   * is in the set of allowed parent IDs.
-   */
-  async function verifyIndirectTenantOwnership(
-    ctx: EntityContext,
-    row: Record<string, unknown>,
-  ): Promise<boolean> {
-    if (!isIndirectlyScoped || !tenantChain || !queryParentIds) return true;
-    if (!ctx.tenantId) return false;
-
-    const indirectWhere = await resolveIndirectTenantWhere(ctx);
-    if (!indirectWhere) return false;
-
-    const firstHopFK = tenantChain.hops[0]!.foreignKey;
-    const allowed = indirectWhere[firstHopFK] as { in: string[] } | undefined;
-    if (!allowed) return false;
-    return allowed.in.includes(row[firstHopFK] as string);
   }
 
   return {
@@ -309,26 +293,31 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
     },
 
     async get(ctx, id, options) {
-      const getOptions: GetOptions | undefined = options?.include
-        ? { include: options.include }
-        : undefined;
-      const row = await db.get(id, getOptions);
+      // Extract where conditions from access rules and push to DB query
+      const accessWhere = extractWhereConditions('get', def.access, ctx);
+      const tenantWhere = withTenantFilter(ctx, accessWhere ?? undefined);
+      const indirectWhere = isIndirectlyScoped ? await resolveIndirectTenantWhere(ctx) : null;
+      const dbWhere = indirectWhere ? { ...(tenantWhere ?? {}), ...indirectWhere } : tenantWhere;
+
+      const hasWhere = dbWhere && Object.keys(dbWhere).length > 0;
+      const hasInclude = !!options?.include;
+      const getOpts =
+        hasWhere || hasInclude
+          ? ({
+              ...(hasInclude && { include: options!.include }),
+              ...(hasWhere && { where: dbWhere }),
+            } as Parameters<typeof db.get>[1])
+          : undefined;
+      const row = await db.get(id, getOpts);
       if (!row) return notFound(id);
 
-      // Tenant check before access check — return 404 for cross-tenant (no information leakage)
-      if (!isSameTenant(ctx, row)) return notFound(id);
-      // Indirect tenant check — verify FK chain leads to current tenant
-      if (isIndirectlyScoped && !(await verifyIndirectTenantOwnership(ctx, row))) {
-        return notFound(id);
-      }
-
-      const accessResult = await enforceAccess(
-        'get',
-        def.access,
-        ctx,
-        row,
-        buildAccessOptions(ctx),
-      );
+      // Enforce non-where access rules (authenticated, entitlement, role, fva).
+      // skipWhere is true when extractWhereConditions returned non-null (meaning where
+      // conditions were pushed to DB). null means no where rules exist.
+      const accessResult = await enforceAccess('get', def.access, ctx, row, {
+        skipWhere: accessWhere !== null,
+        ...buildAccessOptions(ctx),
+      });
       if (!accessResult.ok) return err(accessResult.error);
 
       return ok({
@@ -427,22 +416,22 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
     },
 
     async update(ctx, id, data) {
-      const existing = await db.get(id);
+      // Extract where conditions from access rules and push to DB query
+      const accessWhere = extractWhereConditions('update', def.access, ctx);
+      const tenantWhere = withTenantFilter(ctx, accessWhere ?? undefined);
+      const indirectWhere = isIndirectlyScoped ? await resolveIndirectTenantWhere(ctx) : null;
+      const dbWhere = indirectWhere ? { ...(tenantWhere ?? {}), ...indirectWhere } : tenantWhere;
+
+      const hasWhere = dbWhere && Object.keys(dbWhere).length > 0;
+      const whereOpts = hasWhere ? ({ where: dbWhere } as Parameters<typeof db.get>[1]) : undefined;
+
+      const existing = await db.get(id, whereOpts);
       if (!existing) return notFound(id);
 
-      // Tenant check before access check — return 404 for cross-tenant
-      if (!isSameTenant(ctx, existing)) return notFound(id);
-      if (isIndirectlyScoped && !(await verifyIndirectTenantOwnership(ctx, existing))) {
-        return notFound(id);
-      }
-
-      const accessResult = await enforceAccess(
-        'update',
-        def.access,
-        ctx,
-        existing,
-        buildAccessOptions(ctx),
-      );
+      const accessResult = await enforceAccess('update', def.access, ctx, existing, {
+        skipWhere: accessWhere !== null,
+        ...buildAccessOptions(ctx),
+      });
       if (!accessResult.ok) return err(accessResult.error);
 
       let input = stripReadOnlyFields(table, data);
@@ -452,7 +441,18 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
         input = (await def.before.update(input, ctx)) as Record<string, unknown>;
       }
 
-      const result = await db.update(id, input);
+      // Defense-in-depth: pass where conditions to the UPDATE statement itself.
+      // If a concurrent write changes ownership between db.get() and db.update(),
+      // the UPDATE WHERE will match 0 rows and the bridge adapter throws.
+      let result: Record<string, unknown>;
+      try {
+        result = hasWhere
+          ? await (db.update as WidenedUpdate)(id, input, { where: dbWhere })
+          : await db.update(id, input);
+      } catch {
+        // TOCTOU race: row changed between get() and update(). Treat as not found.
+        return notFound(id);
+      }
       const strippedExisting = stripHiddenFields(table, existing);
       const strippedResult = stripHiddenFields(table, result);
 
@@ -479,25 +479,35 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
     },
 
     async delete(ctx, id) {
-      const existing = await db.get(id);
+      // Extract where conditions from access rules and push to DB query
+      const accessWhere = extractWhereConditions('delete', def.access, ctx);
+      const tenantWhere = withTenantFilter(ctx, accessWhere ?? undefined);
+      const indirectWhere = isIndirectlyScoped ? await resolveIndirectTenantWhere(ctx) : null;
+      const dbWhere = indirectWhere ? { ...(tenantWhere ?? {}), ...indirectWhere } : tenantWhere;
+
+      const hasWhere = dbWhere && Object.keys(dbWhere).length > 0;
+      const whereOpts = hasWhere ? ({ where: dbWhere } as Parameters<typeof db.get>[1]) : undefined;
+
+      const existing = await db.get(id, whereOpts);
       if (!existing) return notFound(id);
 
-      // Tenant check before access check — return 404 for cross-tenant
-      if (!isSameTenant(ctx, existing)) return notFound(id);
-      if (isIndirectlyScoped && !(await verifyIndirectTenantOwnership(ctx, existing))) {
-        return notFound(id);
-      }
-
-      const accessResult = await enforceAccess(
-        'delete',
-        def.access,
-        ctx,
-        existing,
-        buildAccessOptions(ctx),
-      );
+      const accessResult = await enforceAccess('delete', def.access, ctx, existing, {
+        skipWhere: accessWhere !== null,
+        ...buildAccessOptions(ctx),
+      });
       if (!accessResult.ok) return err(accessResult.error);
 
-      await db.delete(id);
+      // Defense-in-depth: pass where conditions to the DELETE statement itself.
+      try {
+        if (hasWhere) {
+          await (db.delete as WidenedDelete)(id, { where: dbWhere });
+        } else {
+          await db.delete(id);
+        }
+      } catch {
+        // TOCTOU race: row changed between get() and delete(). Treat as not found.
+        return notFound(id);
+      }
 
       // Fire after.delete (fire-and-forget)
       // Pass stripped data to prevent hidden field leakage

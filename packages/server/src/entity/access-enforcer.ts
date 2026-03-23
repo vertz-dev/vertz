@@ -195,8 +195,9 @@ function extractFromDescriptor(
     }
 
     default:
-      // Other rule types (public, authenticated, role, entitlement, any, fva)
-      // don't produce WHERE conditions
+      // INVARIANT: Do NOT extract from 'any'. evaluateRuleSkipWhere treats
+      // skipped where branches as ok(), which would short-circuit OR evaluation
+      // and silently grant access. 'any' with 'where' must be evaluated in-memory.
       return null;
   }
 }
