@@ -180,6 +180,29 @@ The `action` and `method` properties enable forms that work without JavaScript:
 
 Without JS, the form submits directly to the API endpoint. With JS, `onSubmit` intercepts and handles it client-side with validation.
 
+## Field revalidation
+
+By default, fields with errors are revalidated when the user blurs (leaves) the field — giving immediate feedback without validating fields the user hasn't interacted with yet.
+
+Control this with the `revalidateOn` option:
+
+```tsx
+const taskForm = form(api.tasks.create, {
+  schema: createTaskSchema,
+  revalidateOn: 'blur',    // default — revalidate on blur
+});
+```
+
+| Value | Behavior |
+|-------|----------|
+| `'blur'` (default) | Re-validates errored fields when the user blurs them |
+| `'change'` | Re-validates errored fields on every input or change event |
+| `'submit'` | No re-validation between submissions — errors only update on submit |
+
+Revalidation only activates **after the first form submission**. Before the user submits, no field-level validation feedback is shown. This avoids premature error messages on untouched forms.
+
+Only fields that already have errors are re-validated — fields without errors are not checked until the next submission.
+
 ## Reset
 
 Reset all fields to their initial values:

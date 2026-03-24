@@ -199,7 +199,7 @@ When the registry is populated, the `Entitlement` type narrows from `string` to 
     The access type generator runs as part of the standard Vertz codegen pipeline:
 
     ```bash
-    bunx vertz generate
+    bunx vertz codegen
     ```
 
     This produces `.vertz/generated/access.d.ts`.
@@ -239,7 +239,7 @@ await ctx.authorize('project:create', resource);  // OK
 
 ### Backward compatibility
 
-When no codegen output exists (e.g., before running `bunx vertz generate` for the first time), the `Entitlement` type falls back to `string`. This means:
+When no codegen output exists (e.g., before running `bunx vertz codegen` for the first time), the `Entitlement` type falls back to `string`. This means:
 
 - Existing code works without codegen — no breakage
 - Type narrowing activates only when generated types are present
@@ -301,7 +301,7 @@ const access = defineAccess({
 });
 ```
 
-Running `bunx vertz generate` produces:
+Running `bunx vertz codegen` produces:
 
 ```sql
 -- .vertz/generated/rls-policies.sql
@@ -340,36 +340,49 @@ The generator applies these transformations:
 
 ### Applying the generated policies
 
-The generated `rls-policies.sql` is a reference. You are responsible for applying it to your database and setting up the required session variables. Here's a typical workflow:
+**Recommended: migration integration.** Pass the codegen RLS output to `migrateDev()` and let the migration system handle it:
 
-<Steps>
-  <Step title="Enable RLS on your tables">
-    ```sql
-    ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
-    ALTER TABLE tasks FORCE ROW LEVEL SECURITY;
-    ```
-  </Step>
-  <Step title="Set session variables per request">
-    Your application must set `app.user_id` and `app.tenant_id` on each database connection within a transaction before running queries:
+```ts
+import { migrateDev } from 'vertz/db';
 
-    ```ts
-    await db.execute('BEGIN');
-    await db.execute(`SET LOCAL app.user_id = '${userId}'`);
-    await db.execute(`SET LOCAL app.tenant_id = '${tenantId}'`);
-    // ... run queries ...
-    await db.execute('COMMIT');
-    ```
+await migrateDev({
+  queryFn: db.queryFn,
+  currentSnapshot: db.snapshot,
+  previousSnapshot: loadFromFile(),
+  migrationsDir: './migrations',
+  rlsPolicies: codegenOutput.rlsPolicies,
+});
+```
 
-    `SET LOCAL` scopes the setting to the current transaction — it's automatically cleared on `COMMIT` or `ROLLBACK`.
-  </Step>
-  <Step title="Apply the generated policies">
-    Include the generated SQL in your migration or apply it directly:
+This generates a single migration file containing both schema DDL and RLS policy changes. Subsequent migrations only include incremental RLS diffs. See the [migrations guide](/guides/db/migrations#rls-policy-migrations) for details.
 
-    ```bash
-    psql -d myapp < .vertz/generated/rls-policies.sql
-    ```
-  </Step>
-</Steps>
+**Alternative: manual application.** You can also apply the generated SQL directly:
+
+```bash
+psql -d myapp < .vertz/generated/rls-policies.sql
+```
+
+Either way, you need to enable RLS on the target tables:
+
+```sql
+ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tasks FORCE ROW LEVEL SECURITY;
+```
+
+### Setting session variables per request
+
+RLS policies reference `app.user_id` and `app.tenant_id` via `current_setting()`. These must be set per-request within a transaction using `SET LOCAL`:
+
+```sql
+BEGIN;
+SET LOCAL app.user_id = '<user-uuid>';
+SET LOCAL app.tenant_id = '<tenant-uuid>';
+-- Queries are now filtered by RLS policies
+SELECT * FROM tasks;
+COMMIT;
+```
+
+`SET LOCAL` scopes the variables to the current transaction — they're automatically cleared on commit or rollback. The framework's entity CRUD pipeline handles this automatically when RLS policies are present.
 
 <Note>
   The generated policies use `FOR ALL`, applying to SELECT, INSERT, UPDATE, and DELETE. If you need operation-specific policies (e.g., `FOR SELECT` only), customize the generated SQL before applying.

@@ -329,7 +329,7 @@ access: {
 
 ### `rules.where(conditions)`
 
-Row-level access control. Adds conditions that are evaluated against the entity row. Use `rules.user.id` and `rules.user.tenantId` as dynamic placeholders that resolve to the current user's values at evaluation time.
+Row-level access control. Adds conditions that are checked against the entity row. Use `rules.user.id` and `rules.user.tenantId` as dynamic placeholders that resolve to the current user's values at evaluation time.
 
 ```ts
 access: {
@@ -337,6 +337,29 @@ access: {
   list: rules.where({ tenantId: rules.user.tenantId }),
 }
 ```
+
+#### Database-level enforcement
+
+`rules.where()` conditions are pushed directly into the SQL query for all operations — `list`, `get`, `update`, and `delete`. The row is never fetched from the database unless it matches the access rule.
+
+```ts
+access: {
+  update: rules.all(
+    rules.authenticated(),
+    rules.where({ ownerId: rules.user.id }),
+  ),
+}
+// PATCH /api/tasks/123 →
+// SELECT * FROM tasks WHERE id = '123' AND owner_id = '<current-user-id>'
+// If no row found → 404 (no information leakage about row existence)
+```
+
+This provides two security benefits:
+
+- **Zero row leakage** — the database filters rows before they reach application code. A user can't infer whether a row exists based on 403 vs 404 responses.
+- **TOCTOU protection** — for `update` and `delete`, the where condition is applied to both the initial lookup and the mutation query, preventing race conditions where a concurrent write could change the row between check and action.
+
+<Note>`rules.where()` inside `rules.any()` is still evaluated in memory, not at the database level. Database extraction only works with AND logic (`rules.all()`), because OR logic could bypass enforcement.</Note>
 
 ### `rules.all(...rules)`
 

@@ -80,6 +80,7 @@
             "pages": [
               "guides/server/overview",
               "guides/server/entities",
+              "guides/server/domains",
               "guides/server/entity-exposure",
               "guides/server/auth",
               "guides/server/multi-tenancy",

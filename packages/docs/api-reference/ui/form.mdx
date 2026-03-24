@@ -69,10 +69,9 @@ Access any field by name on the form instance (e.g., `taskForm.title`). Each fie
 | `value` | `T` | Current field value |
 | `error` | `string \| undefined` | Validation error message |
 | `dirty` | `boolean` | `true` if the field has been modified |
-| `touched` | `boolean` | `true` if the field has been interacted with |
-| `pristine` | `boolean` | `true` if the field has not been modified |
-| `setTouched()` | `(touched: boolean) => void` | Mark the field as touched |
-| `validate()` | `(value: T) => void` | Manually trigger validation |
+| `touched` | `boolean` | `true` if the field has been focused and blurred |
+| `setValue()` | `(value: T) => void` | Update value and mark dirty |
+| `reset()` | `() => void` | Reset to initial value, clear error/dirty/touched |
 
 ---
 
@@ -85,6 +84,7 @@ Access any field by name on the form instance (e.g., `taskForm.title`). Each fie
 | `onSuccess` | `(result: TResult) => void` | — | Callback after successful submission |
 | `onError` | `(errors: Record<string, string>) => void` | — | Callback on validation or submission error |
 | `resetOnSuccess` | `boolean` | `false` | Reset fields after successful submission |
+| `revalidateOn` | `'blur' \| 'change' \| 'submit'` | `'blur'` | When to re-validate fields with errors after first submission |
 
 ---
 
@@ -109,6 +109,7 @@ interface FormOptions<TBody, TResult> {
   onSuccess?: (result: TResult) => void;
   onError?: (errors: Record<string, string>) => void;
   resetOnSuccess?: boolean;
+  revalidateOn?: 'blur' | 'change' | 'submit';
 }
 
 type FormInstance<TBody, TResult> = {
@@ -128,9 +129,8 @@ interface FieldState<T = unknown> {
   error: string | undefined;
   dirty: boolean;
   touched: boolean;
-  pristine: boolean;
-  setTouched: (touched: boolean) => void;
-  validate: (value: T) => void;
+  setValue: (value: T) => void;
+  reset: () => void;
 }
 
 interface FormSchema<T> {

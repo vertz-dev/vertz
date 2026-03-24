@@ -1,0 +1,210 @@
+---
+title: Domains
+description: "Group entities and services into bounded contexts with automatic route prefixing"
+---
+
+`domain()` groups related entities and services under a shared namespace. Entities and services inside a domain get route-prefixed with the domain name — no manual path configuration needed.
+
+## Quick start
+
+```ts
+import { createServer, domain, entity, service } from 'vertz/server';
+
+const invoices = entity('invoices', { model: invoicesModel, access: { list: rules.authenticated() } });
+const payments = service('payments', { /* ... */ });
+
+const billing = domain('billing', {
+  entities: [invoices],
+  services: [payments],
+});
+
+const app = createServer({ domains: [billing], db });
+```
+
+This generates:
+
+```
+GET    /api/billing/invoices          → list
+GET    /api/billing/invoices/:id      → get
+POST   /api/billing/payments/charge   → action
+```
+
+Without a domain, the same entity would be at `/api/invoices`. The domain adds the `/billing/` prefix automatically.
+
+## API
+
+```ts
+function domain(name: string, config: DomainConfig): DomainDefinition;
+```
+
+### DomainConfig
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `entities` | `EntityDefinition[]` | No* | Entities in this domain |
+| `services` | `ServiceDefinition[]` | No* | Services in this domain |
+| `middleware` | `NamedMiddlewareDef[]` | No | Domain-scoped middleware |
+
+\* At least one of `entities` or `services` must be provided.
+
+### Name rules
+
+Domain names must match `/^[a-z][a-z0-9-]*$/`:
+
+- Start with a lowercase letter
+- Only lowercase letters, digits, and hyphens
+- No uppercase, no slashes, no underscores
+
+```ts
+domain('billing', { ... })          // ✅
+domain('user-management', { ... })  // ✅
+domain('v2-api', { ... })           // ✅
+domain('Billing', { ... })          // ❌ uppercase
+domain('1billing', { ... })         // ❌ starts with digit
+```
+
+## Route prefixing
+
+All entities and services inside a domain are prefixed with `/api/{domainName}/`:
+
+```ts
+// Top-level entity → /api/users
+const users = entity('users', { ... });
+
+// Domain entity → /api/billing/invoices
+const invoices = entity('invoices', { ... });
+const billing = domain('billing', { entities: [invoices] });
+
+const app = createServer({
+  entities: [users],
+  domains: [billing],
+  db,
+});
+```
+
+Routes generated:
+
+```
+GET /api/users                  → top-level
+GET /api/billing/invoices       → domain-scoped
+```
+
+## Domain middleware
+
+Domains can have their own middleware that runs only for routes inside that domain:
+
+```ts
+import { createMiddleware } from 'vertz/server';
+
+const billingTracker = createMiddleware({
+  name: 'billing-tracker',
+  handler: async () => ({ billingTracked: true }),
+});
+
+const billing = domain('billing', {
+  entities: [invoices],
+  middleware: [billingTracker],
+});
+```
+
+**Execution order:**
+
+1. Global middleware (from `app.middlewares([...])`)
+2. Domain middleware (only for routes in this domain)
+3. Entity/service handler
+
+Domain middleware receives the full context from global middleware (e.g., `userId`, `tenantId`). Each domain's middleware is isolated — it doesn't affect other domains.
+
+## Mixing domains with top-level resources
+
+You can use domains alongside top-level entities and services:
+
+```ts
+const users = entity('users', { ... });          // top-level
+const settings = entity('settings', { ... });     // top-level
+
+const invoices = entity('invoices', { ... });
+const billing = domain('billing', { entities: [invoices] });
+
+const tasks = entity('tasks', { ... });
+const projects = domain('projects', { entities: [tasks] });
+
+const app = createServer({
+  entities: [users, settings],
+  domains: [billing, projects],
+  db,
+});
+```
+
+```
+/api/users               → top-level
+/api/settings            → top-level
+/api/billing/invoices    → billing domain
+/api/projects/tasks      → projects domain
+```
+
+## Cross-domain injection
+
+Entities in one domain can reference entities from another domain using `inject`:
+
+```ts
+const invoices = entity('invoices', { model: invoicesModel, access: { ... } });
+const tasks = entity('tasks', {
+  model: tasksModel,
+  inject: { invoices },
+  access: { ... },
+});
+
+const billing = domain('billing', { entities: [invoices] });
+const projects = domain('projects', { entities: [tasks] });
+
+createServer({ domains: [billing, projects], db });
+```
+
+The `inject` system resolves dependencies across domains — the entity doesn't need to know which domain its dependency lives in.
+
+## Collision detection
+
+The framework validates names at startup and throws clear errors for conflicts:
+
+### Duplicate domain names
+
+```ts
+const d1 = domain('billing', { entities: [invoices1] });
+const d2 = domain('billing', { entities: [invoices2] });
+createServer({ domains: [d1, d2] });
+// ❌ Duplicate domain name "billing"
+```
+
+### Same entity in multiple domains
+
+```ts
+const d1 = domain('billing', { entities: [invoices] });
+const d2 = domain('payments', { entities: [invoices] });
+createServer({ domains: [d1, d2] });
+// ❌ Entity "invoices" appears in both domain "billing" and domain "payments"
+```
+
+### Domain name conflicts with top-level resource
+
+```ts
+const billing = domain('billing', { entities: [invoices] });
+const billingEntity = entity('billing', { ... });
+createServer({ domains: [billing], entities: [billingEntity] });
+// ❌ Domain name "billing" conflicts with top-level entity "billing"
+```
+
+## Tenant scoping
+
+Tenant-scoped entities (with a `tenantId` field) work seamlessly inside domains. The framework's automatic tenant filtering applies regardless of domain membership:
+
+```ts
+const tasks = entity('tasks', {
+  model: tenantScopedModel, // has tenantId column
+  access: { list: rules.authenticated() },
+});
+
+const projects = domain('projects', { entities: [tasks] });
+```
+
+See [Multi-Tenancy](/guides/server/multi-tenancy) for more on tenant scoping.
