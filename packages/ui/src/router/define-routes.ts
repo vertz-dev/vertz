@@ -90,6 +90,23 @@ export type TypedRoutes<T extends Record<string, RouteConfigLike> = RouteDefinit
  */
 export type InferRouteMap<T> = T extends TypedRoutes<infer R> ? R : T;
 
+/**
+ * Extract the search params type from a route definition map for a given path.
+ *
+ * If the route at `TPath` has a `searchParams` schema, resolves to the schema's
+ * output type `T`. Otherwise resolves to `Record<string, string>` (raw URL params).
+ *
+ * Parallel to `ExtractParams<TPath>` which extracts path params from the URL pattern.
+ */
+export type ExtractSearchParams<
+  TPath extends string,
+  TMap extends Record<string, RouteConfigLike> = RouteDefinitionMap,
+> = TPath extends keyof TMap
+  ? TMap[TPath] extends { searchParams: SearchParamSchema<infer T> }
+    ? T
+    : Record<string, string>
+  : Record<string, string>;
+
 /** Internal compiled route. */
 export interface CompiledRoute {
   /** The original path pattern. */
@@ -208,11 +225,13 @@ export function matchRoute(routes: CompiledRoute[], url: string): RouteMatch | n
     }
   }
 
-  // Parse search params through schema if the leaf route has one
+  // Parse search params through schema if any matched route has one,
+  // otherwise fall back to raw string key-value pairs from the URL.
   let search: Record<string, unknown> = {};
-  // Walk matched routes to find a searchParams schema
+  let foundSchema = false;
   for (const m of matched) {
     if (m.route.searchParams) {
+      foundSchema = true;
       const raw: Record<string, string> = {};
       for (const [key, value] of searchParams.entries()) {
         raw[key] = value;
@@ -222,6 +241,11 @@ export function matchRoute(routes: CompiledRoute[], url: string): RouteMatch | n
         search = parseResult.data as Record<string, unknown>;
       }
       break;
+    }
+  }
+  if (!foundSchema) {
+    for (const [key, value] of searchParams.entries()) {
+      search[key] = value;
     }
   }
 
