@@ -12,12 +12,14 @@ import type { FontFallbackMetrics, PreloadItem } from '@vertz/ui';
 import type { SSRAuth } from '@vertz/ui/internals';
 import { escapeAttr } from './html-serializer';
 import { createAccessSetScript } from './ssr-access-set';
+import { buildProgressiveResponse } from './ssr-progressive-response';
 import { compileThemeCached, type SSRModule, ssrStreamNavQueries } from './ssr-render';
 import type { SessionResolver } from './ssr-session';
 import { createSessionScript } from './ssr-session';
 import type { SSRPrefetchManifest } from './ssr-single-pass';
-import { ssrRenderSinglePass } from './ssr-single-pass';
+import { ssrRenderProgressive, ssrRenderSinglePass } from './ssr-single-pass';
 import { injectIntoTemplate } from './template-inject';
+import { splitTemplate } from './template-split';
 
 export interface SSRHandlerOptions {
   /** The loaded SSR module (import('./dist/server/index.js')) */
@@ -71,6 +73,17 @@ export interface SSRHandlerOptions {
    * discovery-then-render approach (cheaper than two-pass).
    */
   manifest?: SSRPrefetchManifest;
+  /**
+   * Enable progressive HTML streaming. Default: false.
+   *
+   * When true, the Response body is a ReadableStream that sends `<head>`
+   * content (CSS, preloads, fonts) before `<body>` rendering is complete.
+   * This improves TTFB and FCP.
+   *
+   * Has no effect on zero-discovery routes (manifest with routeEntries),
+   * which always use buffered rendering.
+   */
+  progressiveHTML?: boolean;
 }
 
 /**
@@ -132,6 +145,7 @@ export function createSSRHandler(
     cacheControl,
     sessionResolver,
     manifest,
+    progressiveHTML,
   } = options;
 
   // Pre-process template: inline CSS assets to eliminate extra requests
@@ -158,6 +172,9 @@ export function createSSRHandler(
   const modulepreloadTags = modulepreload?.length
     ? buildModulepreloadTags(modulepreload)
     : undefined;
+
+  // Pre-split template for progressive streaming (computed once, not per-request)
+  const splitResult = progressiveHTML ? splitTemplate(template, { inlineCSS }) : undefined;
 
   return async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
@@ -199,6 +216,31 @@ export function createSSRHandler(
     }
 
     // Normal HTML request: SSR render
+    // Progressive streaming: use streaming path when enabled and NOT zero-discovery.
+    // Zero-discovery routes always use buffered rendering (redirect safety — see design doc).
+    const useProgressive =
+      progressiveHTML &&
+      splitResult &&
+      !(manifest?.routeEntries && Object.keys(manifest.routeEntries).length > 0);
+
+    if (useProgressive) {
+      return handleProgressiveHTMLRequest(
+        module,
+        splitResult,
+        pathname + url.search,
+        ssrTimeout,
+        nonce,
+        fallbackMetrics,
+        linkHeader,
+        modulepreloadTags,
+        routeChunkManifest,
+        cacheControl,
+        sessionScript,
+        ssrAuth,
+        manifest,
+      );
+    }
+
     return handleHTMLRequest(
       module,
       template,
@@ -244,6 +286,106 @@ async function handleNavRequest(
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
       },
+    });
+  }
+}
+
+/**
+ * Handle a progressive HTML page request.
+ * Streams <head> before <body> rendering completes.
+ */
+async function handleProgressiveHTMLRequest(
+  module: SSRModule,
+  split: { headTemplate: string; tailTemplate: string },
+  url: string,
+  ssrTimeout?: number,
+  nonce?: string,
+  fallbackMetrics?: Record<string, FontFallbackMetrics>,
+  linkHeader?: string,
+  staticModulepreloadTags?: string,
+  routeChunkManifest?: { routes: Record<string, string[]> },
+  cacheControl?: string,
+  sessionScript?: string,
+  ssrAuth?: SSRAuth,
+  manifest?: SSRPrefetchManifest,
+): Promise<Response> {
+  try {
+    const result = await ssrRenderProgressive(module, url, {
+      ssrTimeout,
+      fallbackMetrics,
+      ssrAuth,
+      manifest,
+    });
+
+    // SSR redirect — return 302 without streaming
+    if (result.redirect) {
+      return new Response(null, {
+        status: 302,
+        headers: { Location: result.redirect.to },
+      });
+    }
+
+    // Per-route modulepreload: resolve from matched route patterns (available after discovery)
+    let modulepreloadTags = staticModulepreloadTags;
+    if (routeChunkManifest && result.matchedRoutePatterns?.length) {
+      const chunkPaths = new Set<string>();
+      for (const pattern of result.matchedRoutePatterns) {
+        const chunks = routeChunkManifest.routes[pattern];
+        if (chunks) {
+          for (const chunk of chunks) {
+            chunkPaths.add(chunk);
+          }
+        }
+      }
+      if (chunkPaths.size > 0) {
+        modulepreloadTags = buildModulepreloadTags([...chunkPaths]);
+      }
+    }
+
+    // Build head chunk: template head + CSS + modulepreload + session
+    // Inject before </head> in the headTemplate
+    let headChunk = split.headTemplate;
+    const headCloseIdx = headChunk.lastIndexOf('</head>');
+    if (headCloseIdx !== -1) {
+      const injections: string[] = [];
+      if (result.css) injections.push(result.css);
+      if (result.headTags) injections.push(result.headTags);
+      if (modulepreloadTags) injections.push(modulepreloadTags);
+      if (sessionScript) injections.push(sessionScript);
+
+      if (injections.length > 0) {
+        headChunk =
+          headChunk.slice(0, headCloseIdx) +
+          injections.join('\n') +
+          '\n' +
+          headChunk.slice(headCloseIdx);
+      }
+    } else {
+      // No </head> in head template — append injections at the end
+      if (result.css) headChunk += result.css;
+      if (result.headTags) headChunk += result.headTags;
+      if (modulepreloadTags) headChunk += modulepreloadTags;
+      if (sessionScript) headChunk += sessionScript;
+    }
+
+    // Build response headers
+    const headers: Record<string, string> = {};
+    if (linkHeader) headers.Link = linkHeader;
+    if (cacheControl) headers['Cache-Control'] = cacheControl;
+
+    return buildProgressiveResponse({
+      headChunk,
+      renderStream: result.renderStream!,
+      tailChunk: split.tailTemplate,
+      ssrData: result.ssrData,
+      nonce,
+      headers,
+    });
+  } catch (err) {
+    console.error('[SSR] Render failed:', err instanceof Error ? err.message : err);
+    return new Response('Internal Server Error', {
+      status: 500,
+      headers: { 'Content-Type': 'text/plain' },
     });
   }
 }

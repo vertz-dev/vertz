@@ -104,83 +104,7 @@ export async function ssrRenderSinglePass(
   // ── Phase 1: Discovery ──────────────────────────────────────────
   // Run the app factory in an SSR context to capture query registrations.
   // This builds the DOM tree (via DOM shim) but does NOT render to stream.
-
-  const discoveryCtx = createRequestContext(normalizedUrl);
-  if (options?.ssrAuth) {
-    discoveryCtx.ssrAuth = options.ssrAuth;
-  }
-
-  const discoveredData = await ssrStorage.run(discoveryCtx, async () => {
-    try {
-      setGlobalSSRTimeout(ssrTimeout);
-
-      const createApp = resolveAppFactory(module);
-      createApp();
-
-      // If a redirect was detected during discovery, bail out early
-      if (discoveryCtx.ssrRedirect) {
-        return { redirect: discoveryCtx.ssrRedirect } as const;
-      }
-
-      // Resolve lazy route components discovered during the discovery pass
-      if (discoveryCtx.pendingRouteComponents?.size) {
-        const entries = Array.from(discoveryCtx.pendingRouteComponents.entries());
-        const results = await Promise.allSettled(
-          entries.map(([route, promise]) =>
-            Promise.race([
-              promise.then((mod) => ({ route, factory: mod.default })),
-              new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('lazy route timeout')), ssrTimeout),
-              ),
-            ]),
-          ),
-        );
-        discoveryCtx.resolvedComponents = new Map();
-        for (const result of results) {
-          if (result.status === 'fulfilled') {
-            const { route, factory } = result.value as {
-              route: object;
-              factory: () => Node;
-            };
-            discoveryCtx.resolvedComponents.set(route, factory);
-          }
-        }
-        discoveryCtx.pendingRouteComponents = undefined;
-      }
-
-      // Await registered SSR queries with per-query timeouts.
-      // If entity access rules are provided, filter out ineligible queries.
-      const queries = getSSRQueries();
-      const eligibleQueries = filterByEntityAccess(
-        queries,
-        options?.manifest?.entityAccess,
-        options?.prefetchSession,
-      );
-      const resolvedQueries: Array<{ key: string; data: unknown }> = [];
-
-      if (eligibleQueries.length > 0) {
-        await Promise.allSettled(
-          eligibleQueries.map(({ promise, timeout, resolve, key }) =>
-            Promise.race([
-              promise.then((data) => {
-                resolve(data);
-                resolvedQueries.push({ key, data });
-                return 'resolved';
-              }),
-              new Promise((r) => setTimeout(r, timeout || ssrTimeout)).then(() => 'timeout'),
-            ]),
-          ),
-        );
-      }
-
-      return {
-        resolvedQueries,
-        resolvedComponents: discoveryCtx.resolvedComponents,
-      } as const;
-    } finally {
-      clearGlobalSSRTimeout();
-    }
-  });
+  const discoveredData = await runDiscoveryPhase(normalizedUrl, ssrTimeout, module, options);
 
   // Handle redirect detected during discovery
   if ('redirect' in discoveredData) {
@@ -258,6 +182,219 @@ export async function ssrRenderSinglePass(
         headTags: themePreloadTags,
         discoveredRoutes: renderCtx.discoveredRoutes,
         matchedRoutePatterns: renderCtx.matchedRoutePatterns,
+      };
+    } finally {
+      clearGlobalSSRTimeout();
+    }
+  });
+}
+
+/**
+ * Result type for progressive SSR rendering.
+ * Returns a render stream instead of a buffered HTML string.
+ */
+export interface SSRProgressiveResult {
+  /** CSS `<style>` tags for injection into `<head>`. */
+  css: string;
+  /** SSR data entries for client hydration (injected in tail). */
+  ssrData: Array<{ key: string; data: unknown }>;
+  /** Font preload `<link>` tags for `<head>`. */
+  headTags: string;
+  /** Route patterns that matched the current URL (for per-route modulepreload). */
+  matchedRoutePatterns?: string[];
+  /** Set when ProtectedRoute writes a redirect during SSR. Server should return 302. */
+  redirect?: { to: string };
+  /** Render stream producing app HTML chunks. Undefined when redirect is set. */
+  renderStream?: ReadableStream<Uint8Array>;
+}
+
+/**
+ * Progressive SSR rendering: discovery → prefetch → streaming render.
+ *
+ * Like ssrRenderSinglePass but returns the render stream instead of
+ * stringifying it. This enables the handler to send `<head>` content
+ * immediately while the render stream is still producing body HTML.
+ *
+ * Falls back to undefined renderStream (redirect result) when a redirect
+ * is detected during discovery.
+ *
+ * Does NOT support zero-discovery (manifest routeEntries). The caller
+ * should fall back to the buffered path for zero-discovery routes.
+ */
+export async function ssrRenderProgressive(
+  module: SSRModule,
+  url: string,
+  options?: SSRSinglePassOptions,
+): Promise<SSRProgressiveResult> {
+  const normalizedUrl = url.endsWith('/index.html')
+    ? url.slice(0, -'/index.html'.length) || '/'
+    : url;
+
+  const ssrTimeout = options?.ssrTimeout ?? 300;
+
+  ensureDomShim();
+
+  // ── Phase 1: Discovery (shared with ssrRenderSinglePass) ──────
+  const discoveryResult = await runDiscoveryPhase(normalizedUrl, ssrTimeout, module, options);
+
+  if ('redirect' in discoveryResult) {
+    return {
+      css: '',
+      ssrData: [],
+      headTags: '',
+      redirect: discoveryResult.redirect,
+    };
+  }
+
+  // ── Phase 2: Render (streaming — no stringification) ──────────
+  const renderCtx = createRequestContext(normalizedUrl);
+  if (options?.ssrAuth) {
+    renderCtx.ssrAuth = options.ssrAuth;
+  }
+
+  for (const { key, data } of discoveryResult.resolvedQueries) {
+    renderCtx.queryCache.set(key, data);
+  }
+  renderCtx.resolvedComponents = discoveryResult.resolvedComponents ?? new Map();
+
+  // Enter SSR storage for the render pass
+  return ssrStorage.run(renderCtx, () => {
+    try {
+      setGlobalSSRTimeout(ssrTimeout);
+
+      const createApp = resolveAppFactory(module);
+
+      let themeCss = '';
+      let themePreloadTags = '';
+      if (module.theme) {
+        try {
+          const compiled = compileThemeCached(module.theme, options?.fallbackMetrics);
+          themeCss = compiled.css;
+          themePreloadTags = compiled.preloadTags;
+        } catch (e) {
+          console.error(
+            '[vertz] Failed to compile theme export. Ensure your theme is created with defineTheme().',
+            e,
+          );
+        }
+      }
+
+      // Create app and get render stream — do NOT await/stringify
+      const app = createApp();
+      const vnode = toVNode(app);
+      const renderStream = renderToStream(vnode);
+
+      // Collect CSS now (available after createApp — css() runs at module/import level)
+      const css = collectCSS(themeCss, module);
+
+      const ssrData = discoveryResult.resolvedQueries.map(({ key, data }) => ({
+        key,
+        data,
+      }));
+
+      return {
+        css,
+        ssrData,
+        headTags: themePreloadTags,
+        matchedRoutePatterns: renderCtx.matchedRoutePatterns,
+        renderStream,
+      };
+    } finally {
+      clearGlobalSSRTimeout();
+    }
+  });
+}
+
+// ── Shared Discovery Phase ──────────────────────────────────────
+
+type DiscoveryResult =
+  | { redirect: { to: string } }
+  | {
+      resolvedQueries: Array<{ key: string; data: unknown }>;
+      resolvedComponents?: Map<object, () => Node>;
+    };
+
+/**
+ * Run the SSR discovery phase: execute app factory to capture query
+ * registrations, resolve lazy routes, and prefetch query data.
+ *
+ * Shared by ssrRenderSinglePass and ssrRenderProgressive.
+ */
+async function runDiscoveryPhase(
+  normalizedUrl: string,
+  ssrTimeout: number,
+  module: SSRModule,
+  options?: SSRSinglePassOptions,
+): Promise<DiscoveryResult> {
+  const discoveryCtx = createRequestContext(normalizedUrl);
+  if (options?.ssrAuth) {
+    discoveryCtx.ssrAuth = options.ssrAuth;
+  }
+
+  return ssrStorage.run(discoveryCtx, async () => {
+    try {
+      setGlobalSSRTimeout(ssrTimeout);
+
+      const createApp = resolveAppFactory(module);
+      createApp();
+
+      if (discoveryCtx.ssrRedirect) {
+        return { redirect: discoveryCtx.ssrRedirect };
+      }
+
+      // Resolve lazy route components
+      if (discoveryCtx.pendingRouteComponents?.size) {
+        const entries = Array.from(discoveryCtx.pendingRouteComponents.entries());
+        const results = await Promise.allSettled(
+          entries.map(([route, promise]) =>
+            Promise.race([
+              promise.then((mod) => ({ route, factory: mod.default })),
+              new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('lazy route timeout')), ssrTimeout),
+              ),
+            ]),
+          ),
+        );
+        discoveryCtx.resolvedComponents = new Map();
+        for (const result of results) {
+          if (result.status === 'fulfilled') {
+            const { route, factory } = result.value as {
+              route: object;
+              factory: () => Node;
+            };
+            discoveryCtx.resolvedComponents.set(route, factory);
+          }
+        }
+        discoveryCtx.pendingRouteComponents = undefined;
+      }
+
+      // Prefetch queries with timeouts
+      const queries = getSSRQueries();
+      const eligibleQueries = filterByEntityAccess(
+        queries,
+        options?.manifest?.entityAccess,
+        options?.prefetchSession,
+      );
+      const resolvedQueries: Array<{ key: string; data: unknown }> = [];
+
+      if (eligibleQueries.length > 0) {
+        await Promise.allSettled(
+          eligibleQueries.map(({ promise, timeout, resolve, key }) =>
+            Promise.race([
+              promise.then((data) => {
+                resolve(data);
+                resolvedQueries.push({ key, data });
+                return 'resolved';
+              }),
+              new Promise((r) => setTimeout(r, timeout || ssrTimeout)).then(() => 'timeout'),
+            ]),
+          ),
+        );
+      }
+
+      return {
+        resolvedQueries,
+        resolvedComponents: discoveryCtx.resolvedComponents,
       };
     } finally {
       clearGlobalSSRTimeout();
