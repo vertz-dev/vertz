@@ -919,7 +919,9 @@ export function query<T, E = unknown>(
   // When a mutation commits for this entity type, revalidate the query.
   // Skip during SSR — mutations don't fire server-side, and subscriptions
   // would leak until the bus is reset between requests.
-  if (entityMeta && !isSSR()) {
+  // Guard with !unsubscribeBus: the lazy entity-metadata path inside
+  // lifecycleEffect may have already subscribed (#1819).
+  if (entityMeta && !isSSR() && !unsubscribeBus) {
     unsubscribeBus = getMutationEventBus().subscribe(entityMeta.entityType, refetch);
     unregisterFromRegistry = registerActiveQuery(entityMeta, refetch, createClearData(entityMeta));
   }

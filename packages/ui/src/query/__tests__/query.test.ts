@@ -2223,7 +2223,13 @@ describe('query()', () => {
       // Mutation event should have triggered a refetch
       expect(fetchFn).toHaveBeenCalledTimes(2);
 
+      // Verify dispose fully unsubscribes — no leaked registrations (#1819)
       result.dispose();
+      const callsBeforeEmit = fetchFn.mock.calls.length;
+      getMutationEventBus().emit('brands');
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      expect(fetchFn).toHaveBeenCalledTimes(callsBeforeEmit);
     });
   });
 });
