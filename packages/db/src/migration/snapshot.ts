@@ -36,6 +36,8 @@ export interface SchemaSnapshot {
   version: 1;
   tables: Record<string, TableSnapshot>;
   enums: Record<string, string[]>;
+  /** RLS policy state — optional for backward compatibility with old snapshots. */
+  rls?: import('./rls-snapshot').RlsSnapshot;
 }
 
 function isModelDef(v: unknown): v is ModelDef {

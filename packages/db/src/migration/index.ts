@@ -14,6 +14,18 @@ export {
   writeJournal,
 } from './journal';
 export type {
+  RlsDiffChange,
+  RlsDiffChangeType,
+} from './rls-differ';
+export { diffRlsPolicies } from './rls-differ';
+export type {
+  RlsPolicy,
+  RlsPolicyInput,
+  RlsSnapshot,
+  RlsTablePolicies,
+} from './rls-snapshot';
+export { generateRlsMigrationSql } from './rls-sql-generator';
+export type {
   AppliedMigration,
   ApplyOptions,
   ApplyResult,

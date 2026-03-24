@@ -16,6 +16,9 @@ import {
   generateMigrationSql,
   nextMigrationNumber,
 } from '../migration';
+import { diffRlsPolicies } from '../migration/rls-differ';
+import type { RlsPolicyInput, RlsSnapshot } from '../migration/rls-snapshot';
+import { generateRlsMigrationSql } from '../migration/rls-sql-generator';
 
 export interface RenameSuggestion {
   table: string;
@@ -34,6 +37,8 @@ export interface MigrateDevOptions {
   writeFile: (path: string, content: string) => Promise<void>;
   readFile?: (path: string) => Promise<string>;
   dryRun: boolean;
+  /** RLS policy definitions from codegen — when provided, RLS changes are included in the migration. */
+  rlsPolicies?: RlsPolicyInput;
 }
 
 export interface MigrateDevResult {
@@ -109,10 +114,26 @@ export function generateMigrationName(changes: DiffChange[]): string {
 export async function migrateDev(options: MigrateDevOptions): Promise<MigrateDevResult> {
   const diff = computeDiff(options.previousSnapshot, options.currentSnapshot);
 
-  const sql = generateMigrationSql(diff.changes, {
+  let sql = generateMigrationSql(diff.changes, {
     tables: options.currentSnapshot.tables,
     enums: options.currentSnapshot.enums,
   });
+
+  // Generate RLS policy changes if rlsPolicies are provided
+  let rlsSnapshot: RlsSnapshot | undefined;
+  if (options.rlsPolicies) {
+    // Build current RLS snapshot from the input
+    rlsSnapshot = rlsPolicyInputToSnapshot(options.rlsPolicies);
+
+    // Previous RLS state (from previous snapshot, or empty for old snapshots)
+    const previousRls: RlsSnapshot = options.previousSnapshot.rls ?? { version: 1, tables: {} };
+
+    const rlsChanges = diffRlsPolicies(previousRls, rlsSnapshot);
+    if (rlsChanges.length > 0) {
+      const rlsSql = generateRlsMigrationSql(rlsChanges);
+      sql = sql ? `${sql}\n\n${rlsSql}` : rlsSql;
+    }
+  }
 
   // Extract rename suggestions
   const renames: RenameSuggestion[] = diff.changes
@@ -144,6 +165,11 @@ export async function migrateDev(options: MigrateDevOptions): Promise<MigrateDev
   // Detect collisions between journal entries and existing files
   const collisions = detectCollisions(journal, options.existingFiles);
 
+  // Build result snapshot with RLS state included
+  const resultSnapshot: SchemaSnapshot = rlsSnapshot
+    ? { ...options.currentSnapshot, rls: rlsSnapshot }
+    : options.currentSnapshot;
+
   if (options.dryRun) {
     return {
       migrationFile: filename,
@@ -151,7 +177,7 @@ export async function migrateDev(options: MigrateDevOptions): Promise<MigrateDev
       dryRun: true,
       renames: renames.length > 0 ? renames : undefined,
       collisions: collisions.length > 0 ? collisions : undefined,
-      snapshot: options.currentSnapshot,
+      snapshot: resultSnapshot,
     };
   }
 
@@ -168,9 +194,9 @@ export async function migrateDev(options: MigrateDevOptions): Promise<MigrateDev
   });
   await options.writeFile(journalPath, JSON.stringify(journal, null, 2));
 
-  // Write snapshot
+  // Write snapshot (including RLS state if present)
   const snapshotPath = `${options.migrationsDir}/_snapshot.json`;
-  await options.writeFile(snapshotPath, JSON.stringify(options.currentSnapshot, null, 2));
+  await options.writeFile(snapshotPath, JSON.stringify(resultSnapshot, null, 2));
 
   // Apply migration
   const runner = createMigrationRunner();
@@ -184,6 +210,18 @@ export async function migrateDev(options: MigrateDevOptions): Promise<MigrateDev
     dryRun: false,
     renames: renames.length > 0 ? renames : undefined,
     collisions: collisions.length > 0 ? collisions : undefined,
-    snapshot: options.currentSnapshot,
+    snapshot: resultSnapshot,
   };
+}
+
+/** Converts RlsPolicyInput (from codegen) to an RlsSnapshot (for storage/diffing). */
+function rlsPolicyInputToSnapshot(input: RlsPolicyInput): RlsSnapshot {
+  const tables: RlsSnapshot['tables'] = {};
+  for (const [tableName, tableInput] of Object.entries(input.tables)) {
+    tables[tableName] = {
+      rlsEnabled: tableInput.enableRls,
+      policies: tableInput.policies.map((p) => ({ ...p })),
+    };
+  }
+  return { version: 1, tables };
 }
