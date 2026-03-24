@@ -45,6 +45,7 @@ export interface SidebarTab {
 
 /** Search configuration. */
 export interface SearchConfig {
+  enabled?: boolean;
   placeholder?: string;
 }
 

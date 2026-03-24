@@ -133,6 +133,11 @@ export async function buildDocs(options: BuildDocsOptions): Promise<BuildManifes
     }
   }
 
+  // Run Pagefind for search index (optional — only if search enabled and binary available)
+  if (config.search?.enabled) {
+    await runPagefind(outDir);
+  }
+
   // Write manifest
   const manifest: BuildManifest = {
     name: config.name,
@@ -141,6 +146,24 @@ export async function buildDocs(options: BuildDocsOptions): Promise<BuildManifes
   await Bun.write(join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
 
   return manifest;
+}
+
+/** Run Pagefind to generate the search index. Best-effort — skips if not installed. */
+async function runPagefind(outDir: string): Promise<void> {
+  try {
+    const proc = Bun.spawn(['npx', 'pagefind', '--site', outDir], {
+      stdout: 'ignore',
+      stderr: 'pipe',
+    });
+    const exitCode = await proc.exited;
+    if (exitCode !== 0) {
+      // Pagefind not installed or failed — not a fatal error
+      const stderr = await new Response(proc.stderr).text();
+      console.warn(`[docs] Pagefind search indexing skipped: ${stderr.trim()}`);
+    }
+  } catch {
+    // Binary not found — skip silently
+  }
 }
 
 /** Check if a file path matches any of the LLM exclude patterns. */

@@ -84,7 +84,11 @@ function renderHeader(config: DocsConfig): string {
   if (config.navbar?.cta) {
     ctaHtml = `<a href="${escapeHtml(config.navbar.cta.href)}" style="font-size:14px;font-weight:500;text-decoration:none;padding:6px 16px;border-radius:6px;color:white;background:var(--docs-primary,#2563eb)">${escapeHtml(config.navbar.cta.label)}</a>`;
   }
-  return `<header style="position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:56px;border-bottom:1px solid var(--docs-border,#e5e7eb);background:var(--docs-bg,#ffffff)"><div style="display:flex;align-items:center;gap:24px"><a href="/" style="font-size:18px;font-weight:700;text-decoration:none;color:var(--docs-text,#111827)">${escapeHtml(config.name)}</a><nav style="display:flex;gap:16px">${linksHtml}</nav></div><div style="display:flex;align-items:center;gap:12px">${ctaHtml}</div></header>`;
+  let searchHtml = '';
+  if (config.search?.enabled) {
+    searchHtml = `<button data-search style="display:flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--docs-border,#e5e7eb);border-radius:6px;background:var(--docs-bg,#ffffff);color:var(--docs-muted,#9ca3af);font-size:14px;cursor:pointer">Search<kbd style="font-size:11px;padding:2px 6px;border:1px solid var(--docs-border,#e5e7eb);border-radius:4px;background:var(--docs-bg,#f9fafb)">Cmd+K</kbd></button>`;
+  }
+  return `<header style="position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:56px;border-bottom:1px solid var(--docs-border,#e5e7eb);background:var(--docs-bg,#ffffff)"><div style="display:flex;align-items:center;gap:24px"><a href="/" style="font-size:18px;font-weight:700;text-decoration:none;color:var(--docs-text,#111827)">${escapeHtml(config.name)}</a><nav style="display:flex;gap:16px">${linksHtml}</nav></div><div style="display:flex;align-items:center;gap:12px">${searchHtml}${ctaHtml}</div></header>`;
 }
 
 const LIVE_RELOAD_SCRIPT = `<script>

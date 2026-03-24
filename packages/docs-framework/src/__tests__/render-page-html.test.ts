@@ -97,4 +97,40 @@ describe('renderPageHtml', () => {
     const html = renderPageHtml({ config, route, contentHtml: '', headings: [] });
     expect(html).toContain('EventSource');
   });
+
+  it('includes search button when search is enabled', () => {
+    const searchConfig: DocsConfig = { ...config, search: { enabled: true } };
+    const html = renderPageHtml({ config: searchConfig, route, contentHtml: '', headings: [] });
+    expect(html).toContain('data-search');
+  });
+
+  it('omits search when search is not configured', () => {
+    const html = renderPageHtml({ config, route, contentHtml: '', headings: [] });
+    expect(html).not.toContain('data-search');
+  });
+
+  it('renders navbar links', () => {
+    const navConfig: DocsConfig = {
+      ...config,
+      navbar: {
+        links: [
+          { label: 'GitHub', href: 'https://github.com/vertz-dev' },
+        ],
+      },
+    };
+    const html = renderPageHtml({ config: navConfig, route, contentHtml: '', headings: [] });
+    expect(html).toContain('GitHub');
+    expect(html).toContain('https://github.com/vertz-dev');
+  });
+
+  it('renders navbar CTA button', () => {
+    const ctaConfig: DocsConfig = {
+      ...config,
+      navbar: {
+        cta: { label: 'Get Started', href: '/quickstart' },
+      },
+    };
+    const html = renderPageHtml({ config: ctaConfig, route, contentHtml: '', headings: [] });
+    expect(html).toContain('Get Started');
+  });
 });
