@@ -12,14 +12,11 @@ import type { FontFallbackMetrics, PreloadItem } from '@vertz/ui';
 import type { SSRAuth } from '@vertz/ui/internals';
 import { escapeAttr } from './html-serializer';
 import { createAccessSetScript } from './ssr-access-set';
-import {
-  compileThemeCached,
-  type SSRModule,
-  ssrRenderToString,
-  ssrStreamNavQueries,
-} from './ssr-render';
+import { compileThemeCached, type SSRModule, ssrStreamNavQueries } from './ssr-render';
 import type { SessionResolver } from './ssr-session';
 import { createSessionScript } from './ssr-session';
+import type { SSRPrefetchManifest } from './ssr-single-pass';
+import { ssrRenderSinglePass } from './ssr-single-pass';
 import { injectIntoTemplate } from './template-inject';
 
 export interface SSRHandlerOptions {
@@ -64,6 +61,16 @@ export interface SSRHandlerOptions {
    * optionally `window.__VERTZ_ACCESS_SET__` for instant auth hydration.
    */
   sessionResolver?: SessionResolver;
+  /**
+   * Prefetch manifest for single-pass SSR optimization.
+   *
+   * When provided with route entries and an API client export, enables
+   * zero-discovery rendering — queries are prefetched from the manifest
+   * without executing the component tree, then a single render pass
+   * produces the HTML. Without a manifest, SSR still uses the single-pass
+   * discovery-then-render approach (cheaper than two-pass).
+   */
+  manifest?: SSRPrefetchManifest;
 }
 
 /**
@@ -124,6 +131,7 @@ export function createSSRHandler(
     routeChunkManifest,
     cacheControl,
     sessionResolver,
+    manifest,
   } = options;
 
   // Pre-process template: inline CSS assets to eliminate extra requests
@@ -204,6 +212,7 @@ export function createSSRHandler(
       cacheControl,
       sessionScript,
       ssrAuth,
+      manifest,
     );
   };
 }
@@ -241,7 +250,8 @@ async function handleNavRequest(
 
 /**
  * Handle a normal HTML page request.
- * Renders the app via two-pass SSR and injects into the template.
+ * Renders the app via single-pass SSR (discovery → prefetch → render)
+ * and injects into the template.
  */
 async function handleHTMLRequest(
   module: SSRModule,
@@ -256,9 +266,15 @@ async function handleHTMLRequest(
   cacheControl?: string,
   sessionScript?: string,
   ssrAuth?: SSRAuth,
+  manifest?: SSRPrefetchManifest,
 ): Promise<Response> {
   try {
-    const result = await ssrRenderToString(module, url, { ssrTimeout, fallbackMetrics, ssrAuth });
+    const result = await ssrRenderSinglePass(module, url, {
+      ssrTimeout,
+      fallbackMetrics,
+      ssrAuth,
+      manifest,
+    });
 
     // SSR redirect — return 302 instead of rendered HTML
     if (result.redirect) {

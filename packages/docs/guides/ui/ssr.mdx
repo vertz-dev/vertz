@@ -250,6 +250,65 @@ With `serverNav` enabled:
 
 This gives SPA navigation the data freshness of server rendering.
 
+## Production SSR handler
+
+For production deployments, `createSSRHandler()` creates a web-standard `(Request) => Promise<Response>` handler:
+
+```ts
+import { createSSRHandler } from '@vertz/ui-server';
+
+const module = await import('./dist/server/index.js');
+const template = await Bun.file('./dist/client/index.html').text();
+
+const handler = createSSRHandler({
+  module,
+  template,
+  ssrTimeout: 300,
+});
+
+Bun.serve({
+  fetch(request) {
+    // Serve static files first, then SSR
+    return handler(request);
+  },
+});
+```
+
+The handler uses single-pass rendering: a lightweight discovery pass captures queries without producing HTML, data is prefetched, then a single render pass produces the final output.
+
+### Zero-discovery with a prefetch manifest
+
+When you provide a prefetch manifest, the handler can skip the discovery pass entirely — queries are reconstructed from build-time metadata and prefetched without executing the component tree:
+
+```ts
+import manifest from './dist/server/prefetch-manifest.json';
+
+const handler = createSSRHandler({
+  module,
+  template,
+  manifest,
+  ssrTimeout: 300,
+});
+```
+
+This is the fastest SSR path: one render pass, no discovery, data already cached. The manifest is generated at build time by the Vertz compiler.
+
+### Handler options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `module` | The SSR module (server entry) | Required |
+| `template` | HTML template string | Required |
+| `ssrTimeout` | Per-query timeout in ms | `300` |
+| `manifest` | Prefetch manifest for zero-discovery SSR | — |
+| `inlineCSS` | Map of CSS URLs to content for inlining | — |
+| `nonce` | CSP nonce for inline scripts | — |
+| `fallbackMetrics` | Pre-computed font fallback metrics | — |
+| `modulepreload` | Paths to inject as modulepreload links | — |
+| `routeChunkManifest` | Per-route chunk manifest for targeted preloading | — |
+| `cacheControl` | Cache-Control header for HTML responses | — |
+| `sessionResolver` | Async function to resolve session from request | — |
+
 ## How hydration works
 
 When the client calls `mount()`, it finds server-rendered HTML already in the DOM. Instead of throwing it away and re-creating everything, hydration **walks the existing DOM** and adopts each node — attaching event handlers and reactive effects to what's already there.
