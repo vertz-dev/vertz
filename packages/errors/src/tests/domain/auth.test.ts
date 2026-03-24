@@ -8,6 +8,8 @@ import {
   createRateLimitedError,
   createSessionExpiredError,
   createSessionNotFoundError,
+  createTokenExpiredError,
+  createTokenInvalidError,
   createUserExistsError,
   isAuthValidationError,
   isInvalidCredentialsError,
@@ -16,6 +18,8 @@ import {
   isRateLimitedError,
   isSessionExpiredError,
   isSessionNotFoundError,
+  isTokenExpiredError,
+  isTokenInvalidError,
   isUserExistsError,
 } from '../../domain/auth';
 
@@ -187,6 +191,52 @@ describe('domain/auth', () => {
     });
   });
 
+  describe('TokenExpiredError', () => {
+    it('creates with default message', () => {
+      const error = createTokenExpiredError();
+      expect(error.code).toBe('TOKEN_EXPIRED');
+      expect(error.message).toBe('Token has expired');
+    });
+
+    it('creates with custom message', () => {
+      const error = createTokenExpiredError('Verification token expired');
+      expect(error.message).toBe('Verification token expired');
+    });
+
+    it('type guard returns true for TokenExpiredError', () => {
+      const error = createTokenExpiredError();
+      expect(isTokenExpiredError(error)).toBe(true);
+    });
+
+    it('type guard returns false for other errors', () => {
+      expect(isTokenExpiredError(createInvalidCredentialsError())).toBe(false);
+      expect(isTokenExpiredError(createSessionExpiredError())).toBe(false);
+    });
+  });
+
+  describe('TokenInvalidError', () => {
+    it('creates with default message', () => {
+      const error = createTokenInvalidError();
+      expect(error.code).toBe('TOKEN_INVALID');
+      expect(error.message).toBe('Invalid token');
+    });
+
+    it('creates with custom message', () => {
+      const error = createTokenInvalidError('Reset token not found');
+      expect(error.message).toBe('Reset token not found');
+    });
+
+    it('type guard returns true for TokenInvalidError', () => {
+      const error = createTokenInvalidError();
+      expect(isTokenInvalidError(error)).toBe(true);
+    });
+
+    it('type guard returns false for other errors', () => {
+      expect(isTokenInvalidError(createInvalidCredentialsError())).toBe(false);
+      expect(isTokenInvalidError(createTokenExpiredError())).toBe(false);
+    });
+  });
+
   describe('AuthError union', () => {
     it('accepts all auth error types', () => {
       const errors: AuthError[] = [
@@ -198,9 +248,11 @@ describe('domain/auth', () => {
         createRateLimitedError(),
         createAuthValidationError('Invalid email', 'email'),
         createOAuthError('OAuth failed'),
+        createTokenExpiredError(),
+        createTokenInvalidError(),
       ];
 
-      expect(errors.length).toBe(8);
+      expect(errors.length).toBe(10);
       expect(errors.every((e) => 'code' in e)).toBe(true);
     });
   });
