@@ -100,6 +100,13 @@ export function resolveTenantChain(
   const directlyScopedKeys = new Set(tenantGraph.directlyScoped);
   directlyScopedKeys.add(tenantGraph.root);
 
+  // Multi-level: add all tenant level keys so BFS can traverse through
+  // intermediate tenant levels (e.g., projects → accounts in a 2-level chain).
+  const levels = tenantGraph.levels ?? [];
+  for (const level of levels) {
+    directlyScopedKeys.add(level.key);
+  }
+
   // Set of shared model keys — excluded from traversal
   const sharedKeys = new Set(tenantGraph.shared);
 

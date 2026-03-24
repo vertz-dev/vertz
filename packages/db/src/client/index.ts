@@ -12,5 +12,5 @@ export type { DbDriver } from './driver';
 export type { SessionVars } from './request-scope';
 export { isValidUUID, withSessionVars } from './request-scope';
 export type { D1Database } from './sqlite-driver';
-export type { TenantGraph } from './tenant-graph';
+export type { TenantGraph, TenantLevel } from './tenant-graph';
 export { computeTenantGraph } from './tenant-graph';

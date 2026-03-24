@@ -198,7 +198,13 @@ describe('Tenant Chain Edge Cases', () => {
         };
 
         // Force root to null while keeping entity in indirectlyScoped
-        const graph = { root: null, directlyScoped: [], indirectlyScoped: ['projects'], shared: [] };
+        const graph = {
+          root: null,
+          levels: [],
+          directlyScoped: [],
+          indirectlyScoped: ['projects'],
+          shared: [],
+        };
         const chain = resolveTenantChain('projects', graph, registry);
         expect(chain).toBeNull();
       });
@@ -231,6 +237,15 @@ describe('Tenant Chain Edge Cases', () => {
         // items would normally be directly scoped, but force it into indirectlyScoped
         const graph = {
           root: 'organizations',
+          levels: [
+            {
+              key: 'organizations',
+              tableName: 'organizations',
+              parentFk: null,
+              parentKey: null,
+              depth: 0,
+            },
+          ],
           directlyScoped: [] as string[],
           indirectlyScoped: ['items'],
           shared: [],
@@ -280,6 +295,15 @@ describe('Tenant Chain Edge Cases', () => {
         // Force departments out of directlyScoped so BFS must traverse through it to root
         const graph = {
           root: 'organizations',
+          levels: [
+            {
+              key: 'organizations',
+              tableName: 'organizations',
+              parentFk: null,
+              parentKey: null,
+              depth: 0,
+            },
+          ],
           directlyScoped: [] as string[],
           indirectlyScoped: ['departments', 'teams'],
           shared: [],

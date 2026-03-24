@@ -66,6 +66,7 @@ function extractAccessSet(acl: AclClaim): AccessSet | null {
     ),
     flags: acl.set.flags,
     plan: acl.set.plan,
+    plans: acl.set.plans ?? {},
     computedAt: acl.set.computedAt,
   };
 }

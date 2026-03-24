@@ -5,9 +5,25 @@ import type { ColumnRecord, TableDef } from '../schema/table';
 // TenantGraph — result of tenant analysis
 // ---------------------------------------------------------------------------
 
+/** One level in a multi-level tenant hierarchy. */
+export interface TenantLevel {
+  /** Model key (e.g., 'account', 'project') */
+  readonly key: string;
+  /** Table name */
+  readonly tableName: string;
+  /** FK column to parent level (null for root) */
+  readonly parentFk: string | null;
+  /** Parent level key (null for root) */
+  readonly parentKey: string | null;
+  /** Depth in the hierarchy (0 = root) */
+  readonly depth: number;
+}
+
 export interface TenantGraph {
   /** The tenant root table key (e.g., "organizations"). Null if no tenant declarations exist. */
   readonly root: string | null;
+  /** Ordered chain of tenant levels (root first, leaf last). Single-entry for single-level. */
+  readonly levels: readonly TenantLevel[];
   /** Model keys with a ref.one relation to the tenant root table. */
   readonly directlyScoped: readonly string[];
   /** Model keys reachable from scoped models via relation chains. */
@@ -53,8 +69,8 @@ export function computeTenantGraph(registry: ModelRegistry): TenantGraph {
     tableNameToKey.set(entry.table._name, key);
   }
 
-  // Step 1: Find tenant root and shared tables
-  let root: string | null = null;
+  // Step 1: Find all tenant tables and shared tables
+  const tenantKeys: string[] = [];
   const shared: string[] = [];
 
   for (const [key, entry] of entries) {
@@ -71,33 +87,31 @@ export function computeTenantGraph(registry: ModelRegistry): TenantGraph {
     }
 
     if (entry.table._tenant) {
-      if (root !== null) {
-        const existingRootName = registry[root]?.table._name;
-        throw new Error(
-          `Multiple tables marked as .tenant(): "${existingRootName}" and "${entry.table._name}". ` +
-            'Only one tenant root is supported per application.',
-        );
-      }
-      root = key;
+      tenantKeys.push(key);
     }
   }
 
-  // If no tenant root, return early
-  if (root === null) {
-    return { root: null, directlyScoped: [], indirectlyScoped: [], shared };
+  // If no tenant tables, return early
+  if (tenantKeys.length === 0) {
+    return { root: null, levels: [], directlyScoped: [], indirectlyScoped: [], shared };
   }
+
+  // Step 1b: Resolve tenant hierarchy — build chain from FK relationships
+  const levels = resolveTenantLevels(tenantKeys, registry, tableNameToKey);
+  const root = levels[0]!.key;
 
   const rootEntry = registry[root];
   if (!rootEntry) {
-    return { root: null, directlyScoped: [], indirectlyScoped: [], shared };
+    return { root: null, levels: [], directlyScoped: [], indirectlyScoped: [], shared };
   }
   const rootTableName = rootEntry.table._name;
 
   // Step 2: Find directly scoped models — any model with ref.one → root table
   const directlyScoped: string[] = [];
+  const tenantKeySet = new Set(tenantKeys);
 
   for (const [key, entry] of entries) {
-    if (key === root || shared.includes(key)) continue;
+    if (key === root || shared.includes(key) || tenantKeySet.has(key)) continue;
 
     const refsToRoot: string[] = [];
     for (const [relName, rel] of Object.entries(entry.relations)) {
@@ -119,7 +133,11 @@ export function computeTenantGraph(registry: ModelRegistry): TenantGraph {
 
   // Step 3: Find indirectly scoped models via relation chains
   const scopedTableNames = new Set<string>();
-  scopedTableNames.add(rootTableName);
+  // All tenant-level tables are scoped
+  for (const key of tenantKeys) {
+    const e = registry[key];
+    if (e) scopedTableNames.add(e.table._name);
+  }
   for (const key of directlyScoped) {
     const entry = registry[key];
     if (entry) scopedTableNames.add(entry.table._name);
@@ -133,9 +151,9 @@ export function computeTenantGraph(registry: ModelRegistry): TenantGraph {
   while (changed) {
     changed = false;
     for (const [key, entry] of entries) {
-      // Skip root, directly scoped, shared, and already indirectly scoped
+      // Skip tenant keys, directly scoped, shared, and already indirectly scoped
       if (
-        key === root ||
+        tenantKeySet.has(key) ||
         directlyScoped.includes(key) ||
         shared.includes(key) ||
         indirectlyScopedNames.has(entry.table._name)
@@ -161,8 +179,123 @@ export function computeTenantGraph(registry: ModelRegistry): TenantGraph {
 
   return {
     root,
+    levels,
     directlyScoped,
     indirectlyScoped,
     shared,
   };
+}
+
+// ---------------------------------------------------------------------------
+// resolveTenantLevels — build ordered chain from FK relationships
+// ---------------------------------------------------------------------------
+
+const MAX_TENANT_LEVELS = 4;
+
+function resolveTenantLevels(
+  tenantKeys: string[],
+  registry: ModelRegistry,
+  tableNameToKey: Map<string, string>,
+): TenantLevel[] {
+  if (tenantKeys.length === 1) {
+    const key = tenantKeys[0]!;
+    const entry = registry[key]!;
+    return [{ key, tableName: entry.table._name, parentFk: null, parentKey: null, depth: 0 }];
+  }
+
+  // Build a set of tenant table names for quick lookup
+  const tenantTableNames = new Set<string>();
+  for (const key of tenantKeys) {
+    tenantTableNames.add(registry[key]!.table._name);
+  }
+
+  // For each tenant key, find its parent (another tenant key it has a ref.one to)
+  const parentMap = new Map<string, { parentKey: string; fk: string }>();
+  for (const key of tenantKeys) {
+    const entry = registry[key]!;
+    for (const rel of Object.values(entry.relations)) {
+      if (rel._type !== 'one' || !rel._foreignKey) continue;
+      const targetTableName = rel._target()._name;
+      if (tenantTableNames.has(targetTableName)) {
+        const targetKey = tableNameToKey.get(targetTableName);
+        if (targetKey && tenantKeys.includes(targetKey)) {
+          parentMap.set(key, { parentKey: targetKey, fk: rel._foreignKey });
+          break;
+        }
+      }
+    }
+  }
+
+  // Find the root — the tenant key that is not a child of any other tenant key
+  const childKeys = new Set(parentMap.keys());
+  const roots = tenantKeys.filter((k) => !childKeys.has(k));
+
+  if (roots.length !== 1) {
+    const names = tenantKeys.map((k) => `"${registry[k]!.table._name}"`).join(', ');
+    throw new Error(
+      `Multiple .tenant() tables (${names}) do not form a single FK chain. ` +
+        'Ensure each child .tenant() table has a ref.one relation to its parent .tenant() table.',
+    );
+  }
+
+  // Build the chain from root to leaf
+  const levels: TenantLevel[] = [];
+  const rootKey = roots[0]!;
+  const rootEntry = registry[rootKey]!;
+  levels.push({
+    key: rootKey,
+    tableName: rootEntry.table._name,
+    parentFk: null,
+    parentKey: null,
+    depth: 0,
+  });
+
+  // Build child lookup: parentKey → childKey
+  const childLookup = new Map<string, string>();
+  for (const [childKey, { parentKey }] of parentMap) {
+    if (childLookup.has(parentKey)) {
+      // Fork detected — two children point to the same parent
+      const names = tenantKeys.map((k) => `"${registry[k]!.table._name}"`).join(', ');
+      throw new Error(
+        `Multiple .tenant() tables (${names}) do not form a single FK chain. ` +
+          'Ensure each child .tenant() table has a ref.one relation to its parent .tenant() table.',
+      );
+    }
+    childLookup.set(parentKey, childKey);
+  }
+
+  // Walk from root to leaf
+  let current: string = rootKey;
+  while (childLookup.has(current)) {
+    const childKey = childLookup.get(current)!;
+    const { fk } = parentMap.get(childKey)!;
+    const childEntry = registry[childKey]!;
+    levels.push({
+      key: childKey,
+      tableName: childEntry.table._name,
+      parentFk: fk,
+      parentKey: current,
+      depth: levels.length,
+    });
+    current = childKey;
+  }
+
+  // Validate: all tenant keys should be in the chain
+  if (levels.length !== tenantKeys.length) {
+    const names = tenantKeys.map((k) => `"${registry[k]!.table._name}"`).join(', ');
+    throw new Error(
+      `Multiple .tenant() tables (${names}) do not form a single FK chain. ` +
+        'Ensure each child .tenant() table has a ref.one relation to its parent .tenant() table.',
+    );
+  }
+
+  // Validate depth cap
+  if (levels.length > MAX_TENANT_LEVELS) {
+    throw new Error(
+      `Tenant hierarchy exceeds maximum of ${MAX_TENANT_LEVELS} levels. ` +
+        `Found ${levels.length} levels: ${levels.map((l) => `"${l.tableName}"`).join(' → ')}.`,
+    );
+  }
+
+  return levels;
 }

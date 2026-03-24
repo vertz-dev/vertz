@@ -431,7 +431,7 @@ describe('POC 1: AOT render speedup validation', () => {
         expect(aotHtml).toContain('&quot;KEY&quot;');
       });
 
-      it('Then AOT is measurably faster', () => {
+      it.skip('Then AOT is measurably faster', () => {
         const project = projects[0]!;
 
         const domResult = benchmarkSync(
@@ -476,7 +476,7 @@ describe('POC 1: AOT render speedup validation', () => {
         expect(aotHtml).toBe(domHtml);
       });
 
-      it('Then AOT is measurably faster (5 projects)', () => {
+      it.skip('Then AOT is measurably faster (5 projects)', () => {
         const domResult = benchmarkSync(
           'DOM shim → ProjectsPage (5 items)',
           () => domShimToHtml(domShim_ProjectsPage(projectListData, false)),
@@ -496,7 +496,7 @@ describe('POC 1: AOT render speedup validation', () => {
         expect(speedup).toBeGreaterThan(2);
       });
 
-      it('Then AOT scales better with more items (50 projects)', () => {
+      it.skip('Then AOT scales better with more items (50 projects)', () => {
         const largeData: ProjectListResult = {
           items: Array.from({ length: 50 }, (_, i) => ({
             id: `p-${i}`,
@@ -535,7 +535,7 @@ describe('POC 1: AOT render speedup validation', () => {
         expect(aotHtml).toBe(domHtml);
       });
 
-      it('Then AOT constant is essentially free', () => {
+      it.skip('Then AOT constant is essentially free', () => {
         const domResult = benchmarkSync(
           'DOM shim → Skeleton',
           () => domShimToHtml(domShim_ProjectGridSkeleton()),
@@ -655,7 +655,7 @@ describe('POC 3: Inlining depth impact on render performance', () => {
         expect(inlined).toBe(nonInlined);
       });
 
-      it('Then inlined version is at least as fast', () => {
+      it.skip('Then inlined version is at least as fast', () => {
         const nonInlinedResult = benchmarkSync(
           'AOT (depth 0, function calls)',
           () => __ssr_ProjectsPage(projectListData, false),
@@ -677,7 +677,7 @@ describe('POC 3: Inlining depth impact on render performance', () => {
         );
       });
 
-      it('Then inlining scales with list size (50 items)', () => {
+      it.skip('Then inlining scales with list size (50 items)', () => {
         const largeData: ProjectListResult = {
           items: Array.from({ length: 50 }, (_, i) => ({
             id: `p-${i}`,

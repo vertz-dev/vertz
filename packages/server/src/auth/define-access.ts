@@ -113,6 +113,8 @@ export interface PlanDef {
   grandfathering?: GrandfatheringPolicy;
   /** Add-on only: restricts attachment to tenants on compatible base plans */
   requires?: AddOnRequires;
+  /** Tenant level this plan attaches to. Must match an entity name. */
+  level?: string;
 }
 
 // ============================================================================
@@ -132,6 +134,8 @@ export interface EntitlementDef {
   flags?: string[];
   /** Plan names that gate this entitlement (evaluated in Layer 4) */
   plans?: string[];
+  /** How features resolve across ancestor levels. Default: 'inherit'. */
+  featureResolution?: 'inherit' | 'local';
 }
 
 /** Entitlement callback context — provides `where()` and `user` for attribute rules */
@@ -153,6 +157,8 @@ export interface DefineAccessInput {
   plans?: Record<string, PlanDef>;
   /** Fallback plan name when an org's plan expires. Defaults to 'free'. */
   defaultPlan?: string;
+  /** Default plan per billing level (multi-level). Keys are entity names. */
+  defaultPlans?: Record<string, string>;
   /** Storage config — local DB and/or Vertz Cloud for wallet/billing data */
   storage?: StorageConfig;
 }
@@ -182,6 +188,10 @@ export interface AccessDefinition {
    * Used during can() to find all limits that need to pass for an entitlement.
    */
   readonly _entitlementToLimitKeys: Readonly<Record<string, readonly string[]>>;
+  /** Computed: maps entity name → plan names targeting that level. */
+  readonly _billingLevels: Readonly<Record<string, readonly string[]>>;
+  /** Default plan per billing level (multi-level). */
+  readonly defaultPlans?: Readonly<Record<string, string>>;
   /** Cloud configuration, if storage.cloud was provided */
   readonly _cloudConfig?: Readonly<CloudConfig>;
 }
@@ -351,6 +361,11 @@ export function defineAccess(input: DefineAccessInput): AccessDefinition {
         }
       }
 
+      // Multi-level: plan.level must reference a defined entity
+      if (planDef.level && !entityNameSet.has(planDef.level)) {
+        throw new Error(`Plan '${planName}' level '${planDef.level}' is not a defined entity`);
+      }
+
       // Rule 13: Limit gates must reference a defined entitlement
       if (planDef.limits) {
         for (const [limitKey, limitDef] of Object.entries(planDef.limits)) {
@@ -401,6 +416,20 @@ export function defineAccess(input: DefineAccessInput): AccessDefinition {
             throw new Error(`Add-on '${planName}' requires plan '${reqPlan}' is not defined`);
           }
         }
+      }
+    }
+
+    // Multi-level: plans in the same group must have the same level
+    const groupLevels = new Map<string, { level: string | undefined; planName: string }>();
+    for (const [planName, planDef] of Object.entries(input.plans)) {
+      if (planDef.group) {
+        const existing = groupLevels.get(planDef.group);
+        if (existing && existing.level !== planDef.level) {
+          throw new Error(
+            `Plans '${existing.planName}' and '${planName}': plans in the same group must have the same level (group '${planDef.group}')`,
+          );
+        }
+        groupLevels.set(planDef.group, { level: planDef.level, planName });
       }
     }
 
@@ -456,6 +485,38 @@ export function defineAccess(input: DefineAccessInput): AccessDefinition {
     }
   }
 
+  // ---- Compute _billingLevels: entity name → plan names targeting that level ----
+  const billingLevels: Record<string, string[]> = {};
+  if (input.plans) {
+    for (const [planName, planDef] of Object.entries(input.plans)) {
+      if (planDef.level) {
+        if (!billingLevels[planDef.level]) {
+          billingLevels[planDef.level] = [];
+        }
+        billingLevels[planDef.level].push(planName);
+      }
+    }
+  }
+
+  // ---- Validate defaultPlans ----
+  if (input.defaultPlans) {
+    for (const [entityName, planName] of Object.entries(input.defaultPlans)) {
+      if (!billingLevels[entityName] || billingLevels[entityName].length === 0) {
+        throw new Error(`defaultPlans key '${entityName}' does not match any plan level`);
+      }
+      if (!input.plans || !input.plans[planName]) {
+        throw new Error(`defaultPlans references plan '${planName}' which is not defined`);
+      }
+      // Ensure the default plan targets the correct level
+      const planDef = input.plans[planName];
+      if (planDef.level !== entityName) {
+        throw new Error(
+          `defaultPlans['${entityName}'] references plan '${planName}' which targets level '${planDef.level ?? 'undefined'}', not '${entityName}'`,
+        );
+      }
+    }
+  }
+
   // ---- Validate storage config ----
   if (input.storage?.cloud) {
     validateCloudConfig(input.storage.cloud);
@@ -498,6 +559,10 @@ export function defineAccess(input: DefineAccessInput): AccessDefinition {
         Object.entries(entitlementToLimitKeys).map(([k, v]) => [k, Object.freeze([...v])]),
       ),
     ),
+    _billingLevels: Object.freeze(
+      Object.fromEntries(Object.entries(billingLevels).map(([k, v]) => [k, Object.freeze([...v])])),
+    ),
+    ...(input.defaultPlans ? { defaultPlans: Object.freeze({ ...input.defaultPlans }) } : {}),
     ...(input.storage?.cloud ? { _cloudConfig: Object.freeze({ ...input.storage.cloud }) } : {}),
     ...(input.defaultPlan ? { defaultPlan: input.defaultPlan } : {}),
     ...(input.plans
@@ -511,6 +576,7 @@ export function defineAccess(input: DefineAccessInput): AccessDefinition {
                   ...(planDef.description ? { description: planDef.description } : {}),
                   ...(planDef.group ? { group: planDef.group } : {}),
                   ...(planDef.addOn ? { addOn: planDef.addOn } : {}),
+                  ...(planDef.level ? { level: planDef.level } : {}),
                   ...(planDef.price ? { price: Object.freeze({ ...planDef.price }) } : {}),
                   ...(planDef.features ? { features: Object.freeze([...planDef.features]) } : {}),
                   ...(planDef.limits

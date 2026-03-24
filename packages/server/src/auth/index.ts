@@ -374,7 +374,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
   async function createSessionTokens(
     user: AuthUser,
     sessionId: string,
-    options?: { fva?: number; tenantId?: string },
+    options?: { fva?: number; tenantId?: string; tenantLevel?: string },
   ): Promise<{ jwt: string; refreshToken: string; payload: SessionPayload; expiresAt: Date }> {
     const jti = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + ttlMs);
@@ -382,19 +382,29 @@ export function createAuth(config: AuthConfig): AuthInstance {
     const userClaims = claims ? claims(user) : {};
     const fvaClaim = options?.fva !== undefined ? { fva: options.fva } : {};
     const tenantClaim = options?.tenantId ? { tenantId: options.tenantId } : {};
+    const tenantLevelClaim = options?.tenantLevel ? { tenantLevel: options.tenantLevel } : {};
 
     // Compute ACL claim if access config is present
     let aclClaim: { acl: { set?: EncodedAccessSet; hash: string; overflow: boolean } } | object =
       {};
     if (resolvedAccess?.roleStore && resolvedAccess.closureStore) {
+      const closureStoreRef = resolvedAccess.closureStore;
       const accessSet = await computeAccessSet({
         userId: user.id,
         accessDef: resolvedAccess.definition,
         roleStore: resolvedAccess.roleStore,
-        closureStore: resolvedAccess.closureStore,
+        closureStore: closureStoreRef,
         flagStore: resolvedAccess.flagStore,
         subscriptionStore: resolvedAccess.subscriptionStore,
-        tenantId: null,
+        walletStore: resolvedAccess.walletStore,
+        tenantId: options?.tenantId ?? null,
+        tenantLevel: options?.tenantLevel,
+        ancestorResolver: options?.tenantLevel
+          ? async (_level, id) => {
+              const ancestors = await closureStoreRef.getAncestors(_level, id);
+              return ancestors.filter((a) => a.depth > 0);
+            }
+          : undefined,
       });
       const encoded = encodeAccessSet(accessSet);
       const canonicalJson = JSON.stringify(encoded);
@@ -403,6 +413,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
         entitlements: encoded.entitlements,
         flags: encoded.flags,
         plan: encoded.plan,
+        plans: encoded.plans,
       };
       const hash = await sha256Hex(JSON.stringify(stablePayload));
       const byteLength = new TextEncoder().encode(canonicalJson).length;
@@ -420,6 +431,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
         ...userClaims,
         ...fvaClaim,
         ...tenantClaim,
+        ...tenantLevelClaim,
         ...aclClaim,
         jti,
         sid: sessionId,
@@ -444,6 +456,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
       claims: userClaims || undefined,
       ...(options?.fva !== undefined ? { fva: options.fva } : {}),
       ...(options?.tenantId ? { tenantId: options.tenantId } : {}),
+      ...(options?.tenantLevel ? { tenantLevel: options.tenantLevel } : {}),
       ...aclClaim,
     };
 
@@ -804,20 +817,22 @@ export function createAuth(config: AuthConfig): AuthInstance {
       }
     }
 
-    // Preserve fva and tenantId claims from the old session JWT (if present)
+    // Preserve fva, tenantId, and tenantLevel claims from the old session JWT (if present)
     let existingFva: number | undefined;
     let existingTenantId: string | undefined;
+    let existingTenantLevel: string | undefined;
     const oldTokens = await sessionStore.getCurrentTokens(storedSession.id);
     if (oldTokens) {
       const oldPayload = await verifyJWT(oldTokens.jwt, publicKey, { algorithm, issuer, audience });
       existingFva = oldPayload?.fva;
       existingTenantId = oldPayload?.tenantId;
+      existingTenantLevel = oldPayload?.tenantLevel;
     }
 
     // Generate new tokens (rotation)
     const extraClaims =
       existingFva !== undefined || existingTenantId !== undefined
-        ? { fva: existingFva, tenantId: existingTenantId }
+        ? { fva: existingFva, tenantId: existingTenantId, tenantLevel: existingTenantLevel }
         : undefined;
     const newTokens = await createSessionTokens(user, storedSession.id, extraClaims);
     const newRefreshHash = await sha256Hex(newTokens.refreshToken);
@@ -1207,22 +1222,33 @@ export function createAuth(config: AuthConfig): AuthInstance {
           });
         }
 
+        const tenantLevel = sessionResult.data.payload?.tenantLevel;
+        const closureStoreRef = resolvedAccess.closureStore;
         const accessSet = await computeAccessSet({
           userId: sessionResult.data.user.id,
           accessDef: resolvedAccess.definition,
           roleStore: resolvedAccess.roleStore,
-          closureStore: resolvedAccess.closureStore,
+          closureStore: closureStoreRef,
           flagStore: resolvedAccess.flagStore,
           subscriptionStore: resolvedAccess.subscriptionStore,
+          walletStore: resolvedAccess.walletStore,
           tenantId: sessionResult.data.payload?.tenantId ?? null,
+          tenantLevel,
+          ancestorResolver: tenantLevel
+            ? async (_level, id) => {
+                const ancestors = await closureStoreRef.getAncestors(_level, id);
+                return ancestors.filter((a) => a.depth > 0);
+              }
+            : undefined,
         });
 
         const encoded = encodeAccessSet(accessSet);
-        // Hash only the stable fields (entitlements, flags, plan) — not computedAt
+        // Hash only the stable fields (entitlements, flags, plan, plans) — not computedAt
         const hashPayload = {
           entitlements: encoded.entitlements,
           flags: encoded.flags,
           plan: encoded.plan,
+          plans: encoded.plans,
         };
         const hash = await sha256Hex(JSON.stringify(hashPayload));
 
@@ -2176,10 +2202,15 @@ export function createAuth(config: AuthConfig): AuthInstance {
         }
 
         // Issue new JWT with updated fva and persist to session store
+        // Preserve tenantId and tenantLevel from the current session
         const user = sessionResult.data.user;
         const currentSid = sessionResult.data.payload.sid;
         const fvaTimestamp = Math.floor(Date.now() / 1000);
-        const tokens = await createSessionTokens(user, currentSid, { fva: fvaTimestamp });
+        const tokens = await createSessionTokens(user, currentSid, {
+          fva: fvaTimestamp,
+          tenantId: sessionResult.data.payload.tenantId,
+          tenantLevel: sessionResult.data.payload.tenantLevel,
+        });
         const newRefreshHash = await sha256Hex(tokens.refreshToken);
 
         // Get old refresh hash so we can do proper rotation
@@ -2571,7 +2602,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
           return bodyResult.response;
         }
 
-        const { tenantId } = bodyResult.data;
+        const { tenantId, tenantLevel } = bodyResult.data;
         const userId = sessionResult.data.user.id;
 
         const hasMembership = await tenantConfig.verifyMembership(userId, tenantId);
@@ -2592,6 +2623,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
         const tokens = await createSessionTokens(sessionResult.data.user, currentPayload.sid, {
           fva: currentPayload.fva,
           tenantId,
+          tenantLevel,
         });
 
         // Update session store with new tokens

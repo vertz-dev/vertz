@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import type { AncestorChainEntry } from '../access-set';
 import { computeAccessSet, decodeAccessSet, encodeAccessSet } from '../access-set';
 import { calculateBillingPeriod } from '../billing-period';
 import { InMemoryClosureStore } from '../closure-store';
@@ -706,5 +707,400 @@ describe('JWT access set with plan features', () => {
     expect(JSON.stringify(freeEncoded)).not.toBe(JSON.stringify(proEncoded));
     expect(freeEncoded.plan).toBe('free');
     expect(proEncoded.plan).toBe('pro');
+  });
+});
+
+// ============================================================================
+// Multi-level computeAccessSet (#1787)
+// ============================================================================
+
+describe('Feature: Multi-level computeAccessSet (#1787)', () => {
+  const multiLevelAccessDef = defineAccess({
+    entities: {
+      account: { roles: ['owner', 'admin', 'member'] },
+      project: {
+        roles: ['admin', 'editor', 'viewer'],
+        inherits: { 'account:owner': 'admin', 'account:admin': 'admin' },
+      },
+    },
+    entitlements: {
+      'account:manage': { roles: ['owner', 'admin'] },
+      'account:create-project': { roles: ['member'] },
+      'project:ai-generate': { roles: ['editor'] },
+      'project:view': { roles: ['viewer', 'editor', 'admin'] },
+    },
+    plans: {
+      enterprise: {
+        level: 'account',
+        group: 'account-plans',
+        features: ['account:create-project'],
+      },
+      starter: {
+        level: 'account',
+        group: 'account-plans',
+        features: ['account:create-project'],
+      },
+      pro: {
+        level: 'project',
+        group: 'project-plans',
+        features: ['project:ai-generate'],
+      },
+      free: {
+        level: 'project',
+        group: 'project-plans',
+      },
+    },
+    defaultPlans: {
+      account: 'starter',
+      project: 'free',
+    },
+  });
+
+  function createMultiLevelStores() {
+    const roleStore = new InMemoryRoleAssignmentStore();
+    const closureStore = new InMemoryClosureStore();
+    const subscriptionStore = new InMemorySubscriptionStore();
+    return { roleStore, closureStore, subscriptionStore };
+  }
+
+  function mockAncestorResolver(
+    ancestors: Record<string, AncestorChainEntry[]>,
+  ): (tenantLevel: string, tenantId: string) => Promise<AncestorChainEntry[]> {
+    return async (_level: string, id: string) => ancestors[id] ?? [];
+  }
+
+  describe('Given multi-level plans with ancestorResolver', () => {
+    it('populates plans per billing level', async () => {
+      const { roleStore, closureStore, subscriptionStore } = createMultiLevelStores();
+      await closureStore.addResource('account', 'acct-1');
+      await closureStore.addResource('project', 'proj-1', {
+        parentType: 'account',
+        parentId: 'acct-1',
+      });
+      await roleStore.assign('user-1', 'account', 'acct-1', 'owner');
+
+      await subscriptionStore.assign('acct-1', 'enterprise');
+      await subscriptionStore.assign('proj-1', 'pro');
+
+      const result = await computeAccessSet({
+        userId: 'user-1',
+        accessDef: multiLevelAccessDef,
+        roleStore,
+        closureStore,
+        subscriptionStore,
+        tenantId: 'proj-1',
+        tenantLevel: 'project',
+        ancestorResolver: mockAncestorResolver({
+          'proj-1': [{ type: 'account', id: 'acct-1', depth: 1 }],
+        }),
+      });
+
+      expect(result.plans).toEqual({
+        account: 'enterprise',
+        project: 'pro',
+      });
+      // Backward compat: plan is deepest level's plan
+      expect(result.plan).toBe('pro');
+    });
+  });
+
+  describe('Given multi-level with inherit feature resolution', () => {
+    it('allows feature if any ancestor plan includes it', async () => {
+      const { roleStore, closureStore, subscriptionStore } = createMultiLevelStores();
+      await closureStore.addResource('account', 'acct-1');
+      await closureStore.addResource('project', 'proj-1', {
+        parentType: 'account',
+        parentId: 'acct-1',
+      });
+      // member role is required for account:create-project entitlement
+      await roleStore.assign('user-1', 'account', 'acct-1', 'member');
+
+      // Account on enterprise (has account:create-project feature)
+      await subscriptionStore.assign('acct-1', 'enterprise');
+      // Project on free (no features)
+      await subscriptionStore.assign('proj-1', 'free');
+
+      const result = await computeAccessSet({
+        userId: 'user-1',
+        accessDef: multiLevelAccessDef,
+        roleStore,
+        closureStore,
+        subscriptionStore,
+        tenantId: 'proj-1',
+        tenantLevel: 'project',
+        ancestorResolver: mockAncestorResolver({
+          'proj-1': [{ type: 'account', id: 'acct-1', depth: 1 }],
+        }),
+      });
+
+      // account:create-project is in enterprise's features (account level)
+      // Even though project is on free, inherit mode allows it
+      expect(result.entitlements['account:create-project'].allowed).toBe(true);
+    });
+  });
+
+  describe('Given multi-level with local feature resolution', () => {
+    it('only checks deepest level plan', async () => {
+      // Define access with a 'local' feature resolution entitlement
+      const localAccessDef = defineAccess({
+        entities: {
+          account: { roles: ['owner', 'admin', 'member'] },
+          project: {
+            roles: ['admin', 'editor', 'viewer'],
+            inherits: { 'account:owner': 'admin', 'account:admin': 'admin' },
+          },
+        },
+        entitlements: {
+          'project:ai-generate': {
+            roles: ['editor'],
+            featureResolution: 'local',
+          },
+          'project:view': { roles: ['viewer', 'editor', 'admin'] },
+        },
+        plans: {
+          enterprise: {
+            level: 'account',
+            group: 'account-plans',
+            features: ['project:ai-generate'], // Account plan has it
+          },
+          pro: {
+            level: 'project',
+            group: 'project-plans',
+            features: ['project:ai-generate'],
+          },
+          free: {
+            level: 'project',
+            group: 'project-plans',
+            // No features
+          },
+        },
+      });
+
+      const { roleStore, closureStore, subscriptionStore } = createMultiLevelStores();
+      await closureStore.addResource('account', 'acct-1');
+      await closureStore.addResource('project', 'proj-1', {
+        parentType: 'account',
+        parentId: 'acct-1',
+      });
+      await roleStore.assign('user-1', 'account', 'acct-1', 'owner');
+
+      // Account on enterprise (has project:ai-generate)
+      await subscriptionStore.assign('acct-1', 'enterprise');
+      // Project on free (no features)
+      await subscriptionStore.assign('proj-1', 'free');
+
+      const result = await computeAccessSet({
+        userId: 'user-1',
+        accessDef: localAccessDef,
+        roleStore,
+        closureStore,
+        subscriptionStore,
+        tenantId: 'proj-1',
+        tenantLevel: 'project',
+        ancestorResolver: mockAncestorResolver({
+          'proj-1': [{ type: 'account', id: 'acct-1', depth: 1 }],
+        }),
+      });
+
+      // project:ai-generate has featureResolution: 'local'
+      // Only project's plan (free) is checked — doesn't have it
+      expect(result.entitlements['project:ai-generate'].allowed).toBe(false);
+      expect(result.entitlements['project:ai-generate'].reasons).toContain('plan_required');
+    });
+  });
+
+  describe('Given single-level backward compatibility', () => {
+    it('plans is empty when no ancestorResolver is provided', async () => {
+      const { roleStore, closureStore, subscriptionStore } = createMultiLevelStores();
+      await closureStore.addResource('account', 'acct-1');
+      await roleStore.assign('user-1', 'account', 'acct-1', 'owner');
+      await subscriptionStore.assign('acct-1', 'enterprise');
+
+      const result = await computeAccessSet({
+        userId: 'user-1',
+        accessDef: multiLevelAccessDef,
+        roleStore,
+        closureStore,
+        subscriptionStore,
+        tenantId: 'acct-1',
+        // No ancestorResolver, no tenantLevel — single-level mode
+      });
+
+      expect(result.plans).toEqual({});
+      expect(result.plan).toBe('enterprise');
+    });
+  });
+
+  describe('Given 3-level hierarchy (account → workspace → project)', () => {
+    it('resolves plans and features across all three levels', async () => {
+      const threeLevelAccessDef = defineAccess({
+        entities: {
+          account: { roles: ['owner'] },
+          workspace: {
+            roles: ['admin', 'member'],
+            inherits: { 'account:owner': 'admin' },
+          },
+          project: {
+            roles: ['editor', 'viewer'],
+            inherits: { 'workspace:admin': 'editor', 'workspace:member': 'viewer' },
+          },
+        },
+        entitlements: {
+          'account:billing': { roles: ['owner'] },
+          'workspace:manage': { roles: ['admin'] },
+          'project:deploy': { roles: ['editor'] },
+          'project:custom-domain': { roles: ['editor'], featureResolution: 'local' },
+        },
+        plans: {
+          enterprise: {
+            level: 'account',
+            group: 'account-plans',
+            features: ['account:billing', 'project:deploy', 'project:custom-domain'],
+          },
+          team: {
+            level: 'workspace',
+            group: 'workspace-plans',
+            features: ['workspace:manage', 'project:deploy'],
+          },
+          pro: {
+            level: 'project',
+            group: 'project-plans',
+            features: ['project:deploy', 'project:custom-domain'],
+          },
+          free: {
+            level: 'project',
+            group: 'project-plans',
+          },
+        },
+        defaultPlans: {
+          account: 'enterprise',
+          workspace: 'team',
+          project: 'free',
+        },
+      });
+
+      const { roleStore, closureStore, subscriptionStore } = createMultiLevelStores();
+      await closureStore.addResource('account', 'acct-1');
+      await closureStore.addResource('workspace', 'ws-1', {
+        parentType: 'account',
+        parentId: 'acct-1',
+      });
+      await closureStore.addResource('project', 'proj-1', {
+        parentType: 'workspace',
+        parentId: 'ws-1',
+      });
+      await roleStore.assign('user-1', 'account', 'acct-1', 'owner');
+      await subscriptionStore.assign('acct-1', 'enterprise');
+      await subscriptionStore.assign('ws-1', 'team');
+      await subscriptionStore.assign('proj-1', 'free');
+
+      const result = await computeAccessSet({
+        userId: 'user-1',
+        accessDef: threeLevelAccessDef,
+        roleStore,
+        closureStore,
+        subscriptionStore,
+        tenantId: 'proj-1',
+        tenantLevel: 'project',
+        ancestorResolver: async (_level, id) => {
+          if (id === 'proj-1') {
+            return [
+              { type: 'workspace', id: 'ws-1', depth: 1 },
+              { type: 'account', id: 'acct-1', depth: 2 },
+            ];
+          }
+          return [];
+        },
+      });
+
+      // Plans per all 3 levels
+      expect(result.plans).toEqual({
+        account: 'enterprise',
+        workspace: 'team',
+        project: 'free',
+      });
+      expect(result.plan).toBe('free'); // deepest
+
+      // project:deploy — inherit: enterprise has it, team has it → allowed
+      expect(result.entitlements['project:deploy'].allowed).toBe(true);
+
+      // project:custom-domain — local: only project (free) checked → denied
+      expect(result.entitlements['project:custom-domain'].allowed).toBe(false);
+      expect(result.entitlements['project:custom-domain'].reasons).toContain('plan_required');
+
+      // account:billing — inherit: enterprise has it → allowed
+      expect(result.entitlements['account:billing'].allowed).toBe(true);
+
+      // workspace:manage — not plan-gated → allowed (role-based only)
+      expect(result.entitlements['workspace:manage'].allowed).toBe(true);
+    });
+  });
+
+  describe('Given multi-level with add-on features', () => {
+    it('includes add-on features in effective features per level', async () => {
+      const { roleStore, closureStore, subscriptionStore } = createMultiLevelStores();
+      await closureStore.addResource('account', 'acct-1');
+      await closureStore.addResource('project', 'proj-1', {
+        parentType: 'account',
+        parentId: 'acct-1',
+      });
+      await roleStore.assign('user-1', 'project', 'proj-1', 'editor');
+
+      // Account on starter (no ai-generate feature)
+      await subscriptionStore.assign('acct-1', 'starter');
+      // Project on free (no features)
+      await subscriptionStore.assign('proj-1', 'free');
+      // Add-on on project level that provides ai-generate
+      await subscriptionStore.attachAddOn('proj-1', 'pro');
+
+      const result = await computeAccessSet({
+        userId: 'user-1',
+        accessDef: multiLevelAccessDef,
+        roleStore,
+        closureStore,
+        subscriptionStore,
+        tenantId: 'proj-1',
+        tenantLevel: 'project',
+        ancestorResolver: mockAncestorResolver({
+          'proj-1': [{ type: 'account', id: 'acct-1', depth: 1 }],
+        }),
+      });
+
+      // project:ai-generate is in pro's features, pro is an add-on on project level
+      expect(result.entitlements['project:ai-generate'].allowed).toBe(true);
+    });
+  });
+
+  describe('Given encode/decode with multi-level plans', () => {
+    it('round-trips plans through encoding', async () => {
+      const { roleStore, closureStore, subscriptionStore } = createMultiLevelStores();
+      await closureStore.addResource('account', 'acct-1');
+      await closureStore.addResource('project', 'proj-1', {
+        parentType: 'account',
+        parentId: 'acct-1',
+      });
+      await roleStore.assign('user-1', 'account', 'acct-1', 'owner');
+      await subscriptionStore.assign('acct-1', 'enterprise');
+      await subscriptionStore.assign('proj-1', 'pro');
+
+      const result = await computeAccessSet({
+        userId: 'user-1',
+        accessDef: multiLevelAccessDef,
+        roleStore,
+        closureStore,
+        subscriptionStore,
+        tenantId: 'proj-1',
+        tenantLevel: 'project',
+        ancestorResolver: mockAncestorResolver({
+          'proj-1': [{ type: 'account', id: 'acct-1', depth: 1 }],
+        }),
+      });
+
+      const encoded = encodeAccessSet(result);
+      expect(encoded.plans).toEqual({ account: 'enterprise', project: 'pro' });
+
+      const decoded = decodeAccessSet(encoded, multiLevelAccessDef);
+      expect(decoded.plans).toEqual({ account: 'enterprise', project: 'pro' });
+    });
   });
 });
