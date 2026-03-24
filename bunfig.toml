@@ -3,4 +3,4 @@ peer = true
 
 [test]
 timeout = 120000
-coveragePathIgnorePatterns = ["**/__tests__/**"]
+coveragePathIgnorePatterns = ["**/__tests__/**", "**/generated-*.ts"]
