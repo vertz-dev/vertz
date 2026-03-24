@@ -6,7 +6,7 @@
  *
  * 1. data-v-id                                    — interactive component root elements
  * 2. <!--conditional--> / <!--/conditional-->      — ternary/&& expressions
- * 3. <!--child-->                                  — reactive text expressions (start anchor only)
+ * 3. <!--child--> / <!--/child-->                   — reactive text expressions
  * 4. <!--list--> / <!--/list-->                    — .map() rendering
  *
  * Phase 3 of AOT-compiled SSR (#1745)
@@ -126,7 +126,7 @@ function Toggle({ label }: { label: string }) {
         expect(html).toContain('data-v-id="Toggle"');
       });
 
-      it('Then reactive expressions get a <!--child--> start marker (no end marker)', () => {
+      it('Then reactive expressions get <!--child--> and <!--/child--> markers', () => {
         const result = compileForSSRAot(
           `
 function Counter({ initial }: { initial: number }) {
@@ -141,10 +141,10 @@ function Counter({ initial }: { initial: number }) {
           __props: { initial: 0 },
           count: 7,
         });
-        // DOM shim __child() emits only a start anchor, no end marker
-        expect(html).toContain('<!--child-->7');
-        expect(html).not.toContain('<!--/child-->');
-        expect(html).toBe('<div data-v-id="Counter"><span><!--child-->7</span></div>');
+        // End marker provides precise boundary so hydration cleanup
+        // does not consume adjacent static text. See #1812.
+        expect(html).toContain('<!--child-->7<!--/child-->');
+        expect(html).toBe('<div data-v-id="Counter"><span><!--child-->7<!--/child--></span></div>');
       });
 
       it('Then non-reactive expressions do NOT get child markers', () => {
@@ -164,7 +164,7 @@ function MixedContent({ label }: { label: string }) {
         // label is a prop (not reactive) - no child markers
         // count is a signal (reactive) - has child marker
         expect(html).toContain('<span>Total</span>');
-        expect(html).toContain('<span><!--child-->42</span>');
+        expect(html).toContain('<span><!--child-->42<!--/child--></span>');
       });
     });
   });
@@ -188,7 +188,7 @@ function Component({ config }: { config: { count: string } }) {
         // config.count is a property access, NOT a reactive variable reference
         expect(html).toContain('<span>total</span>');
         // count (standalone) IS reactive
-        expect(html).toContain('<span><!--child-->5</span>');
+        expect(html).toContain('<span><!--child-->5<!--/child--></span>');
       });
     });
   });
@@ -390,6 +390,29 @@ function NestedCond({ a, b }: { a: boolean; b: boolean }) {
         expect(html).toContain('<!--conditional-->');
         expect(html).toContain('<span>None</span>');
         expect(html).toContain('<!--/conditional-->');
+      });
+    });
+  });
+
+  describe('Given adjacent reactive expressions with static text between them (#1812)', () => {
+    describe('When compiled to AOT', () => {
+      it('Then end markers provide precise boundaries preserving static text', () => {
+        const result = compileForSSRAot(
+          `
+function Pagination({ total }: { total: number }) {
+  let page = 1;
+  return <span>Showing {page} of {total}</span>;
+}
+          `.trim(),
+        );
+
+        const html = evalAot(result.code, '__ssr_Pagination', {
+          __props: { total: 10 },
+          page: 1,
+        });
+        // End markers ensure "of" static text is not consumed during hydration
+        expect(html).toContain('<!--child-->1<!--/child-->');
+        expect(html).toContain('of 10');
       });
     });
   });
