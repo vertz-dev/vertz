@@ -116,6 +116,8 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: CI pipeline
+        env:
+          TURBO_CONCURRENCY: 3
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
             bun run ci
