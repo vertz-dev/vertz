@@ -368,5 +368,64 @@ describe('Feature: Edge image optimizer', () => {
         expect(fetchInit.redirect).toBe('manual');
       });
     });
+
+    describe('When request is missing width and height parameters', () => {
+      it('Then returns 400 with missing w/h error', async () => {
+        const response = await handler(makeRequest({ url: 'https://cdn.example.com/photo.jpg' }));
+
+        expect(response.status).toBe(400);
+        const body = (await response.json()) as { error: string };
+        expect(body.error).toContain('"w" and "h"');
+      });
+    });
+
+    describe('When request has an unparseable URL', () => {
+      it('Then returns 400 with invalid url error', async () => {
+        const response = await handler(makeRequest({ url: 'not-a-valid-url', w: '400', h: '300' }));
+
+        expect(response.status).toBe(400);
+        const body = (await response.json()) as { error: string };
+        expect(body.error).toContain('Invalid "url"');
+      });
+    });
+
+    describe('When fetch throws a timeout error', () => {
+      it('Then returns 504 with timeout error', async () => {
+        globalThis.fetch = mock(() => {
+          const err = new DOMException('The operation was aborted', 'TimeoutError');
+          return Promise.reject(err);
+        });
+
+        const response = await handler(
+          makeRequest({
+            url: 'https://cdn.example.com/photo.jpg',
+            w: '400',
+            h: '300',
+          }),
+        );
+
+        expect(response.status).toBe(504);
+        const body = (await response.json()) as { error: string };
+        expect(body.error).toContain('timed out');
+      });
+    });
+
+    describe('When fetch throws a non-timeout error', () => {
+      it('Then returns 502 with fetch failure error', async () => {
+        globalThis.fetch = mock(() => Promise.reject(new Error('Network error')));
+
+        const response = await handler(
+          makeRequest({
+            url: 'https://cdn.example.com/photo.jpg',
+            w: '400',
+            h: '300',
+          }),
+        );
+
+        expect(response.status).toBe(502);
+        const body = (await response.json()) as { error: string };
+        expect(body.error).toContain('Failed to fetch');
+      });
+    });
   });
 });

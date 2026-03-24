@@ -535,6 +535,72 @@ describe('createHandler (config object)', () => {
       });
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // SSR fetch interceptor
+  // ---------------------------------------------------------------------------
+
+  describe('Feature: SSR fetch interceptor routes local API calls through app handler', () => {
+    describe('Given an SSR callback that calls fetch() with a relative API URL', () => {
+      it('Then intercepts the fetch and routes it to the app handler', async () => {
+        const apiHandler = mock().mockResolvedValue(
+          new Response('{"items":["a","b"]}', {
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        );
+
+        const ssrCallback = async (_request: Request) => {
+          // During SSR, fetch data from the API using a relative URL
+          const apiResponse = await fetch('/api/data');
+          const data = await apiResponse.text();
+          return new Response(`<html>${data}</html>`, {
+            headers: { 'Content-Type': 'text/html' },
+          });
+        };
+
+        const worker = createHandler({
+          app: () => mockApp(apiHandler),
+          basePath: '/api',
+          ssr: ssrCallback,
+        });
+
+        const response = await worker.fetch(new Request('https://example.com/'), mockEnv, mockCtx);
+
+        expect(apiHandler).toHaveBeenCalledTimes(1);
+        const calledRequest = apiHandler.mock.calls[0][0] as Request;
+        expect(new URL(calledRequest.url).pathname).toBe('/api/data');
+        const text = await response.text();
+        expect(text).toContain('{"items":["a","b"]}');
+      });
+    });
+
+    describe('Given an SSR callback that calls fetch() with an absolute same-origin API URL', () => {
+      it('Then intercepts the fetch and routes it to the app handler', async () => {
+        const apiHandler = mock().mockResolvedValue(new Response('abs-ok'));
+
+        const ssrCallback = async (request: Request) => {
+          const origin = new URL(request.url).origin;
+          const apiResponse = await fetch(`${origin}/api/items`);
+          const data = await apiResponse.text();
+          return new Response(`<html>${data}</html>`, {
+            headers: { 'Content-Type': 'text/html' },
+          });
+        };
+
+        const worker = createHandler({
+          app: () => mockApp(apiHandler),
+          basePath: '/api',
+          ssr: ssrCallback,
+        });
+
+        const response = await worker.fetch(new Request('https://example.com/'), mockEnv, mockCtx);
+
+        expect(apiHandler).toHaveBeenCalledTimes(1);
+        const text = await response.text();
+        expect(text).toContain('abs-ok');
+      });
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
