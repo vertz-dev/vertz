@@ -1,3 +1,5 @@
+import { builtinComponents } from '../components';
+import { childrenToString } from '../components/children';
 import { parseFrontmatter } from '../mdx/frontmatter';
 import { escapeHtml } from './escape-html';
 
@@ -17,14 +19,6 @@ const VOID_ELEMENTS = new Set([
   'track',
   'wbr',
 ]);
-
-function childrenToString(children: unknown): string {
-  if (children == null || children === false || children === true) return '';
-  if (typeof children === 'string') return children;
-  if (typeof children === 'number') return String(children);
-  if (Array.isArray(children)) return children.map(childrenToString).join('');
-  return String(children);
-}
 
 function propsToAttrs(props: Record<string, unknown>): string {
   const parts: string[] = [];
@@ -84,5 +78,5 @@ export async function compileMdxToHtml(source: string): Promise<string> {
     default: (props: Record<string, unknown>) => string;
   };
 
-  return mod.default({});
+  return mod.default({ components: builtinComponents });
 }

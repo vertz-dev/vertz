@@ -25,6 +25,30 @@ export type {
   ThemeColors,
   ThemeConfig,
 } from './config/types';
+// Built-in MDX components
+export {
+  Accordion,
+  AccordionGroup,
+  builtinComponents,
+  Callout,
+  Card,
+  CardGroup,
+  Check,
+  CodeGroup,
+  Column,
+  Columns,
+  Danger,
+  Frame,
+  Info,
+  Note,
+  Step,
+  Steps,
+  Tab,
+  Tabs,
+  Tip,
+  Warning,
+} from './components';
+export type { CalloutType } from './components/callout';
 export { compileMdxToHtml } from './dev/compile-mdx-html';
 export type { DocsDevServer, DocsDevServerOptions } from './dev/docs-dev-server';
 export { createDocsDevServer } from './dev/docs-dev-server';

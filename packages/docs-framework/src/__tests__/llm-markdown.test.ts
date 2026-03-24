@@ -167,6 +167,80 @@ Second block step X.
     expect(output).toContain('1. **X**');
   });
 
+  it('converts <Danger> component to blockquote', () => {
+    const input = `<Danger>
+Critical issue!
+</Danger>`;
+    const output = mdxToMarkdown(input);
+    expect(output).toBe('> **Danger:** Critical issue!\n');
+  });
+
+  it('converts <Check> component to blockquote', () => {
+    const input = `<Check>
+All good!
+</Check>`;
+    const output = mdxToMarkdown(input);
+    expect(output).toBe('> **Check:** All good!\n');
+  });
+
+  it('converts <Accordion> to bold title + content', () => {
+    const input = `<Accordion title="FAQ Item">
+Answer to the question.
+</Accordion>`;
+    const output = mdxToMarkdown(input);
+    expect(output).toContain('**FAQ Item**');
+    expect(output).toContain('Answer to the question.');
+    expect(output).not.toContain('<Accordion');
+  });
+
+  it('strips AccordionGroup wrapper', () => {
+    const input = `<AccordionGroup>
+<Accordion title="Q1">
+Answer 1
+</Accordion>
+</AccordionGroup>`;
+    const output = mdxToMarkdown(input);
+    expect(output).not.toContain('<AccordionGroup');
+    expect(output).toContain('**Q1**');
+  });
+
+  it('converts <Frame> to content + caption', () => {
+    const input = `<Frame caption="Screenshot">
+![Dashboard](/screenshot.png)
+</Frame>`;
+    const output = mdxToMarkdown(input);
+    expect(output).toContain('![Dashboard](/screenshot.png)');
+    expect(output).toContain('*Screenshot*');
+    expect(output).not.toContain('<Frame');
+  });
+
+  it('strips CardGroup wrapper', () => {
+    const input = `<CardGroup cols={2}>
+<Card title="One">
+First
+</Card>
+</CardGroup>`;
+    const output = mdxToMarkdown(input);
+    expect(output).not.toContain('<CardGroup');
+    expect(output).toContain('**One**');
+  });
+
+  it('strips Columns/Column wrappers', () => {
+    const input = `<Columns>
+<Column>
+Left content.
+</Column>
+<Column>
+Right content.
+</Column>
+</Columns>`;
+    const output = mdxToMarkdown(input);
+    expect(output).not.toContain('<Columns');
+    expect(output).not.toContain('<Column');
+    expect(output).toContain('Left content.');
+    expect(output).toContain('Right content.');
+  });
+
   it('handles multiple conversions in one document', () => {
     const input = `import { Note, Warning } from '@vertz/docs/components';
 

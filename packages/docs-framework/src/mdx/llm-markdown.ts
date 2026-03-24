@@ -16,11 +16,16 @@ export function mdxToMarkdown(content: string): string {
     '',
   );
 
-  // Convert callout components: <Note>, <Warning>, <Tip>, <Info>
+  // Convert callout components: <Note>, <Warning>, <Tip>, <Info>, <Danger>, <Check>
   result = convertCallout(result, 'Note');
   result = convertCallout(result, 'Warning');
   result = convertCallout(result, 'Tip');
   result = convertCallout(result, 'Info');
+  result = convertCallout(result, 'Danger');
+  result = convertCallout(result, 'Check');
+
+  // Convert <Callout type="..." title="..."> to blockquote
+  result = convertGenericCallout(result);
 
   // Convert <Steps>/<Step> to numbered list
   result = convertSteps(result);
@@ -31,8 +36,18 @@ export function mdxToMarkdown(content: string): string {
   // Convert <Card> to bold title + content
   result = convertCards(result);
 
-  // Strip <CodeGroup> wrapper, keep inner code blocks
+  // Convert <Accordion> to bold title + content
+  result = convertAccordions(result);
+
+  // Convert <Frame> to content + caption
+  result = convertFrames(result);
+
+  // Strip wrapper elements, keep inner content
   result = result.replace(/<\/?CodeGroup>/g, '');
+  result = result.replace(/<\/?CardGroup[^>]*>/g, '');
+  result = result.replace(/<\/?AccordionGroup>/g, '');
+  result = result.replace(/<\/?Columns>/g, '');
+  result = result.replace(/<\/?Column>/g, '');
 
   // Clean up excess blank lines
   result = result.replace(/\n{3,}/g, '\n\n');
@@ -92,6 +107,37 @@ function convertCards(content: string): string {
     /<Card\s+title="([^"]*)"[^>]*>\s*\n([\s\S]*?)\n<\/Card>/g,
     (_match, title: string, inner: string) => {
       return `**${title}**\n\n${inner.trim()}`;
+    },
+  );
+}
+
+function convertGenericCallout(content: string): string {
+  // Match <Callout type="..." title="...">content</Callout>
+  return content.replace(
+    /<Callout\s+[^>]*?type="([^"]*)"[^>]*?(?:title="([^"]*)")?[^>]*>\s*\n([\s\S]*?)\n<\/Callout>/g,
+    (_match, type: string, title: string | undefined, inner: string) => {
+      const label = title || type.charAt(0).toUpperCase() + type.slice(1);
+      const text = inner.trim();
+      const lines = text.split('\n');
+      return lines.map((line, i) => (i === 0 ? `> **${label}:** ${line}` : `> ${line}`)).join('\n');
+    },
+  );
+}
+
+function convertAccordions(content: string): string {
+  return content.replace(
+    /<Accordion\s+title="([^"]*)"[^>]*>\s*\n?([\s\S]*?)\n?<\/Accordion>/g,
+    (_match, title: string, inner: string) => {
+      return `**${title}**\n\n${inner.trim()}`;
+    },
+  );
+}
+
+function convertFrames(content: string): string {
+  return content.replace(
+    /<Frame\s+[^>]*?caption="([^"]*)"[^>]*>\s*\n([\s\S]*?)\n<\/Frame>/g,
+    (_match, caption: string, inner: string) => {
+      return `${inner.trim()}\n\n*${caption}*`;
     },
   );
 }
