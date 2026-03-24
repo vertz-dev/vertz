@@ -251,6 +251,27 @@ describe('matchError', () => {
     });
   });
 
+  describe('exhaustive check throws for unhandled error codes', () => {
+    it('throws for an unknown entity error code', () => {
+      // Force an unrecognized code past the type system to exercise the
+      // runtime exhaustiveness guard (lines 138-139).
+      const fakeError = { code: 'UnknownCode', name: 'EntityUnknown', message: 'bad' };
+      expect(() =>
+        matchError(fakeError as unknown as EntityErrorType, {
+          BadRequest: () => 'bad-request',
+          Unauthorized: () => 'unauthorized',
+          Forbidden: () => 'forbidden',
+          NotFound: () => 'not-found',
+          MethodNotAllowed: () => 'method-not-allowed',
+          Conflict: () => 'conflict',
+          ValidationError: () => 'validation',
+          InternalError: () => 'internal',
+          ServiceUnavailable: () => 'unavailable',
+        }),
+      ).toThrow('Unhandled error code: UnknownCode');
+    });
+  });
+
   describe('TypeScript exhaustiveness checking', () => {
     // This test should compile only if all error types are handled
     // If you add a new error type but don't handle it, TypeScript should error
