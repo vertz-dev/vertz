@@ -51,6 +51,7 @@ export type {
   PoolConfig,
   QueryResult,
   TenantGraph,
+  TenantLevel,
   TransactionClient,
 } from './client';
 export { computeTenantGraph, createDb } from './client';

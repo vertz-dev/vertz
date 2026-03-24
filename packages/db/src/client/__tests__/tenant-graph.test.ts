@@ -164,7 +164,7 @@ describe('computeTenantGraph', () => {
     expect(graph.indirectlyScoped).not.toContain('organizations');
   });
 
-  it('throws when multiple tables are marked .tenant()', () => {
+  it('throws when multiple .tenant() tables have no FK chain between them', () => {
     const otherRoot = d
       .table('other_root', {
         id: d.uuid().primary(),
@@ -177,7 +177,147 @@ describe('computeTenantGraph', () => {
       otherRoot: d.model(otherRoot),
     };
 
-    expect(() => computeTenantGraph(registry)).toThrow('Multiple tables marked as .tenant()');
+    expect(() => computeTenantGraph(registry)).toThrow('do not form a single FK chain');
+  });
+
+  // ---------------------------------------------------------------------------
+  // Multi-level tenancy (#1787)
+  // ---------------------------------------------------------------------------
+
+  it('accepts two .tenant() tables linked by ref.one and produces levels', () => {
+    const accounts = d.table('accounts', { id: d.uuid().primary(), name: d.text() }).tenant();
+    const mlProjects = d
+      .table('ml_projects', {
+        id: d.uuid().primary(),
+        accountId: d.uuid(),
+        name: d.text(),
+      })
+      .tenant();
+
+    const registry = {
+      accounts: d.model(accounts),
+      mlProjects: d.model(mlProjects, {
+        account: d.ref.one(() => accounts, 'accountId'),
+      }),
+    };
+
+    const graph = computeTenantGraph(registry);
+    expect(graph.root).toBe('accounts');
+    expect(graph.levels).toHaveLength(2);
+    expect(graph.levels[0]).toEqual({
+      key: 'accounts',
+      tableName: 'accounts',
+      parentFk: null,
+      parentKey: null,
+      depth: 0,
+    });
+    expect(graph.levels[1]).toEqual({
+      key: 'mlProjects',
+      tableName: 'ml_projects',
+      parentFk: 'accountId',
+      parentKey: 'accounts',
+      depth: 1,
+    });
+  });
+
+  it('produces a single-entry levels array for a single .tenant() table', () => {
+    const registry = {
+      organizations: d.model(organizations),
+      users: d.model(users, {
+        organization: d.ref.one(() => organizations, 'organizationId'),
+      }),
+    };
+
+    const graph = computeTenantGraph(registry);
+    expect(graph.root).toBe('organizations');
+    expect(graph.levels).toHaveLength(1);
+    expect(graph.levels[0]).toEqual({
+      key: 'organizations',
+      tableName: 'organizations',
+      parentFk: null,
+      parentKey: null,
+      depth: 0,
+    });
+  });
+
+  it('accepts a 3-level .tenant() chain', () => {
+    const accounts = d.table('accounts', { id: d.uuid().primary(), name: d.text() }).tenant();
+    const mlProjects = d
+      .table('ml_projects', {
+        id: d.uuid().primary(),
+        accountId: d.uuid(),
+        name: d.text(),
+      })
+      .tenant();
+    const customerTenants = d
+      .table('customer_tenants', {
+        id: d.uuid().primary(),
+        projectId: d.uuid(),
+        name: d.text(),
+      })
+      .tenant();
+
+    const registry = {
+      accounts: d.model(accounts),
+      mlProjects: d.model(mlProjects, {
+        account: d.ref.one(() => accounts, 'accountId'),
+      }),
+      customerTenants: d.model(customerTenants, {
+        project: d.ref.one(() => mlProjects, 'projectId'),
+      }),
+    };
+
+    const graph = computeTenantGraph(registry);
+    expect(graph.root).toBe('accounts');
+    expect(graph.levels).toHaveLength(3);
+    expect(graph.levels[0].key).toBe('accounts');
+    expect(graph.levels[0].depth).toBe(0);
+    expect(graph.levels[1].key).toBe('mlProjects');
+    expect(graph.levels[1].depth).toBe(1);
+    expect(graph.levels[1].parentKey).toBe('accounts');
+    expect(graph.levels[2].key).toBe('customerTenants');
+    expect(graph.levels[2].depth).toBe(2);
+    expect(graph.levels[2].parentKey).toBe('mlProjects');
+  });
+
+  it('throws when .tenant() chain exceeds 4 levels', () => {
+    const l1 = d.table('l1', { id: d.uuid().primary() }).tenant();
+    const l2 = d.table('l2', { id: d.uuid().primary(), l1Id: d.uuid() }).tenant();
+    const l3 = d.table('l3', { id: d.uuid().primary(), l2Id: d.uuid() }).tenant();
+    const l4 = d.table('l4', { id: d.uuid().primary(), l3Id: d.uuid() }).tenant();
+    const l5 = d.table('l5', { id: d.uuid().primary(), l4Id: d.uuid() }).tenant();
+
+    const registry = {
+      l1: d.model(l1),
+      l2: d.model(l2, { parent: d.ref.one(() => l1, 'l1Id') }),
+      l3: d.model(l3, { parent: d.ref.one(() => l2, 'l2Id') }),
+      l4: d.model(l4, { parent: d.ref.one(() => l3, 'l3Id') }),
+      l5: d.model(l5, { parent: d.ref.one(() => l4, 'l4Id') }),
+    };
+
+    expect(() => computeTenantGraph(registry)).toThrow('exceeds maximum of 4 levels');
+  });
+
+  it('throws when .tenant() tables form a fork (not a single chain)', () => {
+    const accounts = d.table('accounts', { id: d.uuid().primary() }).tenant();
+    const projectsA = d
+      .table('projects_a', { id: d.uuid().primary(), accountId: d.uuid() })
+      .tenant();
+    const projectsB = d
+      .table('projects_b', { id: d.uuid().primary(), accountId: d.uuid() })
+      .tenant();
+
+    const registry = {
+      accounts: d.model(accounts),
+      projectsA: d.model(projectsA, {
+        account: d.ref.one(() => accounts, 'accountId'),
+      }),
+      projectsB: d.model(projectsB, {
+        account: d.ref.one(() => accounts, 'accountId'),
+      }),
+    };
+
+    expect(() => computeTenantGraph(registry)).toThrow('do not form a single FK chain');
   });
 
   it('throws when a model has two ref.one relations to the tenant root', () => {
