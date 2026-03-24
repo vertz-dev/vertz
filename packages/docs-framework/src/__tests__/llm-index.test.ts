@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import type { LlmConfig } from '../config/types';
-import { generateLlmsTxt } from '../generator/llm-index';
+import { generateLlmsFullTxt, generateLlmsTxt } from '../generator/llm-index';
 import type { PageRoute } from '../routing/resolve';
 
 function makeRoute(overrides: Partial<PageRoute> & { path: string; title: string }): PageRoute {
@@ -50,7 +50,6 @@ describe('generateLlmsTxt', () => {
     ];
     const config: LlmConfig = { title: 'My Docs', description: 'All docs' };
 
-    const { generateLlmsFullTxt } = require('../generator/llm-index');
     const output = generateLlmsFullTxt(pages, config);
     expect(output).toContain('# My Docs');
     expect(output).toContain('# Intro');

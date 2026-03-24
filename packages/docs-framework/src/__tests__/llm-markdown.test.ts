@@ -128,6 +128,45 @@ Learn how to get started.
     expect(output).not.toContain('<Card');
   });
 
+  it('converts single-line callouts', () => {
+    const input = '<Note>Quick note.</Note>';
+    const output = mdxToMarkdown(input);
+    expect(output).toBe('> **Note:** Quick note.\n');
+  });
+
+  it('handles multi-paragraph callouts with proper blockquote', () => {
+    const input = `<Note>
+First paragraph.
+
+Second paragraph.
+</Note>`;
+    const output = mdxToMarkdown(input);
+    expect(output).toContain('> **Note:** First paragraph.');
+    expect(output).toContain('> ');
+    expect(output).toContain('> Second paragraph.');
+  });
+
+  it('resets step numbering between separate Steps blocks', () => {
+    const input = `<Steps>
+<Step title="A">
+First block step A.
+</Step>
+<Step title="B">
+First block step B.
+</Step>
+</Steps>
+
+<Steps>
+<Step title="X">
+Second block step X.
+</Step>
+</Steps>`;
+    const output = mdxToMarkdown(input);
+    expect(output).toContain('1. **A**');
+    expect(output).toContain('2. **B**');
+    expect(output).toContain('1. **X**');
+  });
+
   it('handles multiple conversions in one document', () => {
     const input = `import { Note, Warning } from '@vertz/docs/components';
 

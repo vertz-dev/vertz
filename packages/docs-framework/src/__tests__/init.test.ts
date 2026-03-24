@@ -33,7 +33,7 @@ describe('initDocs', () => {
 
   it('does not overwrite existing config', async () => {
     const configPath = join(tempDir, 'vertz.config.ts');
-    Bun.write(configPath, 'export default { name: "Existing" }');
+    await Bun.write(configPath, 'export default { name: "Existing" }');
     await initDocs(tempDir);
     const content = await Bun.file(configPath).text();
     expect(content).toContain('Existing');

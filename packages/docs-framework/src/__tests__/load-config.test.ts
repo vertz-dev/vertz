@@ -38,4 +38,24 @@ describe('loadDocsConfig', () => {
     expect(config.sidebar).toHaveLength(1);
     expect(config.sidebar[0]?.tab).toBe('Guides');
   });
+
+  it('throws when config exports a non-object', async () => {
+    writeFileSync(join(tempDir, 'vertz.config.ts'), 'export default 42;');
+    expect(loadDocsConfig(tempDir)).rejects.toThrow('must export a default config object');
+  });
+
+  it('throws when config exports null', async () => {
+    writeFileSync(join(tempDir, 'vertz.config.ts'), 'export default null;');
+    expect(loadDocsConfig(tempDir)).rejects.toThrow('must export a default config object');
+  });
+
+  it('throws when config is missing name', async () => {
+    writeFileSync(join(tempDir, 'vertz.config.ts'), 'export default { sidebar: [] };');
+    expect(loadDocsConfig(tempDir)).rejects.toThrow('must have a "name" string field');
+  });
+
+  it('throws when config is missing sidebar', async () => {
+    writeFileSync(join(tempDir, 'vertz.config.ts'), `export default { name: 'Test' };`);
+    expect(loadDocsConfig(tempDir)).rejects.toThrow('must have a "sidebar" array field');
+  });
 });

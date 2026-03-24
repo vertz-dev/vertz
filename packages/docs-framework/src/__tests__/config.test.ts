@@ -5,14 +5,16 @@ describe('defineDocsConfig', () => {
   it('returns the config object unchanged', () => {
     const config = defineDocsConfig({
       name: 'Test Docs',
+      sidebar: [],
     });
 
     expect(config.name).toBe('Test Docs');
   });
 
-  it('accepts minimal config with just name', () => {
-    const config = defineDocsConfig({ name: 'Minimal' });
+  it('accepts minimal config with name and empty sidebar', () => {
+    const config = defineDocsConfig({ name: 'Minimal', sidebar: [] });
     expect(config.name).toBe('Minimal');
+    expect(config.sidebar).toEqual([]);
   });
 
   it('accepts full config with all options', () => {

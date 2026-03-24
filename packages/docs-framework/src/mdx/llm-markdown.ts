@@ -6,11 +6,15 @@
 export function mdxToMarkdown(content: string): string {
   let result = content;
 
-  // Strip import statements
-  result = result.replace(/^import\s+.*$/gm, '');
+  // Strip import statements (including multi-line)
+  result = result.replace(/^import\s+[\s\S]*?from\s+['"][^'"]+['"];?\s*$/gm, '');
+  result = result.replace(/^import\s+['"][^'"]+['"];?\s*$/gm, '');
 
   // Strip export statements (but not export default with content)
-  result = result.replace(/^export\s+(?:const|let|var|function|class|type|interface)\s+.*$/gm, '');
+  result = result.replace(
+    /^export\s+(?:const|let|var|function|class|type|interface)\s+[\s\S]*?;\s*$/gm,
+    '',
+  );
 
   // Convert callout components: <Note>, <Warning>, <Tip>, <Info>
   result = convertCallout(result, 'Note');
@@ -38,25 +42,37 @@ export function mdxToMarkdown(content: string): string {
 }
 
 function convertCallout(content: string, tag: string): string {
-  const re = new RegExp(`<${tag}>\\s*\\n([\\s\\S]*?)\\n</${tag}>`, 'g');
-  return content.replace(re, (_match, inner: string) => {
+  // Match both multi-line and single-line callouts
+  const multiLineRe = new RegExp(`<${tag}>\\s*\\n([\\s\\S]*?)\\n</${tag}>`, 'g');
+  const singleLineRe = new RegExp(`<${tag}>([^<]*)</${tag}>`, 'g');
+
+  // Multi-line first — prefix each line with `>`
+  let result = content.replace(multiLineRe, (_match, inner: string) => {
     const text = inner.trim();
-    return `> **${tag}:** ${text}`;
+    const lines = text.split('\n');
+    return lines.map((line, i) => (i === 0 ? `> **${tag}:** ${line}` : `> ${line}`)).join('\n');
   });
+
+  // Single-line callouts
+  result = result.replace(singleLineRe, (_match, inner: string) => {
+    return `> **${tag}:** ${inner.trim()}`;
+  });
+
+  return result;
 }
 
 function convertSteps(content: string): string {
-  // First convert <Step title="..."> to numbered items
-  let stepIndex = 0;
-  const withSteps = content.replace(
-    /<Step\s+title="([^"]+)">\s*\n([\s\S]*?)\n<\/Step>/g,
-    (_match, title: string, inner: string) => {
-      stepIndex++;
-      return `${stepIndex}. **${title}**\n\n   ${inner.trim()}`;
-    },
-  );
-  // Strip <Steps> wrapper
-  return withSteps.replace(/<\/?Steps>/g, '');
+  // Process each <Steps> block separately to reset numbering
+  return content.replace(/<Steps>([\s\S]*?)<\/Steps>/g, (_match, block: string) => {
+    let stepIndex = 0;
+    return block.replace(
+      /<Step\s+title="([^"]+)">\s*\n([\s\S]*?)\n<\/Step>/g,
+      (_m, title: string, inner: string) => {
+        stepIndex++;
+        return `${stepIndex}. **${title}**\n\n   ${inner.trim()}`;
+      },
+    );
+  });
 }
 
 function convertTabs(content: string): string {
