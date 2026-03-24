@@ -425,6 +425,40 @@ describe('DOM helpers — hydration branches', () => {
       expect(nodes[2]!.nodeType).toBe(8); // Comment
       expect((nodes[2] as Comment).data).toBe('/child');
     });
+
+    it('warns when __child claims a non-child comment during hydration', () => {
+      const root = document.createElement('div');
+      // Only a non-child comment — __child will claim it but warn
+      root.appendChild(document.createComment('conditional'));
+      startHydration(root);
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      __child(() => 'text');
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('__child expected <!--child--> but claimed <!--conditional-->'),
+      );
+      warnSpy.mockRestore();
+    });
+
+    it('dispose cleans up effects on hydrated __child', () => {
+      const root = document.createElement('div');
+      root.appendChild(document.createComment('child'));
+      root.appendChild(document.createTextNode('initial'));
+      root.appendChild(document.createComment('/child'));
+      startHydration(root);
+
+      const s = signal('hello');
+      const result = __child(() => s.value);
+      endHydration();
+
+      // Verify initial content
+      expect((result as Comment).nextSibling?.textContent).toBe('hello');
+
+      // Dispose should stop reactive updates
+      (result as unknown as { dispose: () => void }).dispose();
+      s.value = 'updated';
+      expect((result as Comment).nextSibling?.textContent).toBe('hello');
+    });
   });
 
   describe('__insert', () => {

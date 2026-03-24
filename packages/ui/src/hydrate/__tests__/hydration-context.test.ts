@@ -107,6 +107,29 @@ describe('hydration-context', () => {
       expect(text?.data).toBe('hello');
     });
 
+    it('stops at comment nodes instead of skipping past them', () => {
+      const root = document.createElement('div');
+      root.appendChild(document.createComment('anchor'));
+      root.appendChild(document.createTextNode('after'));
+      startHydration(root);
+
+      // claimText should NOT skip past the comment to reach "after"
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const text = claimText();
+      expect(text).toBeNull();
+      warnSpy.mockRestore();
+
+      // The comment is still claimable
+      const comment = claimComment();
+      expect(comment).not.toBeNull();
+      expect(comment?.data).toBe('anchor');
+
+      // Now "after" text is claimable
+      const text2 = claimText();
+      expect(text2).not.toBeNull();
+      expect(text2?.data).toBe('after');
+    });
+
     it('stops at element nodes instead of skipping past them', () => {
       const root = document.createElement('div');
       root.appendChild(document.createElement('span'));
@@ -139,6 +162,27 @@ describe('hydration-context', () => {
       const result = claimText();
       expect(result).toBeNull();
       warnSpy.mockRestore();
+    });
+
+    it('skips exotic node types (processing instructions) before stopping at comment', () => {
+      const root = document.createElement('div');
+      // Processing instruction (nodeType 7) followed by a comment
+      const pi = document.createProcessingInstruction('xml', 'version="1.0"');
+      root.appendChild(pi);
+      root.appendChild(document.createComment('anchor'));
+      root.appendChild(document.createTextNode('after'));
+      startHydration(root);
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      // claimText should skip PI, then stop at the comment node
+      const text = claimText();
+      expect(text).toBeNull();
+      warnSpy.mockRestore();
+
+      // Comment should still be claimable (cursor restored)
+      const comment = claimComment();
+      expect(comment).not.toBeNull();
+      expect(comment?.data).toBe('anchor');
     });
 
     it('stops at element nodes so subsequent claimElement can find them', () => {
@@ -415,6 +459,53 @@ describe('hydration-context', () => {
       warnSpy.mockRestore();
     });
 
+    it('skips CSR content bounded by <!--/child--> end marker', () => {
+      const root = document.createElement('div');
+      // Simulate SSR with end markers: <!--child-->content<!--/child--><p>after</p>
+      const comment = document.createComment('child');
+      root.appendChild(comment);
+      root.appendChild(document.createTextNode('csr'));
+      root.appendChild(document.createComment('/child'));
+      const p = document.createElement('p');
+      p.textContent = 'after';
+      root.appendChild(p);
+      startHydration(root);
+
+      // Claim the <!--child--> anchor
+      claimComment();
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      endHydration();
+
+      // "csr" text and <!--/child--> should be skipped (CSR-managed).
+      // <p> comes after the end marker and IS unclaimed — should be reported.
+      const claimWarns = warnSpy.mock.calls.filter(
+        (args) => typeof args[0] === 'string' && args[0].includes('not claimed'),
+      );
+      expect(claimWarns).toHaveLength(1);
+      expect(claimWarns[0]?.[0]).toContain('<p>');
+
+      warnSpy.mockRestore();
+    });
+
+    it('reports unclaimed comment nodes in diagnostics', () => {
+      const root = document.createElement('div');
+      root.appendChild(document.createComment('orphan'));
+      startHydration(root);
+
+      // Do NOT claim anything
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+      endHydration();
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('<!-- orphan -->'),
+      );
+
+      warnSpy.mockRestore();
+      debugSpy.mockRestore();
+    });
+
     it('skips browser extension nodes (custom elements)', () => {
       const root = document.createElement('div');
       root.innerHTML = '<span></span>';
@@ -657,6 +748,49 @@ describe('hydration-context', () => {
 
       debugSpy.mockRestore();
       warnSpy.mockRestore();
+    });
+  });
+
+  describe('isDebug browser fallback', () => {
+    it('uses __VERTZ_HYDRATION_DEBUG__ when NODE_ENV is production', () => {
+      const origEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      (globalThis as Record<string, unknown>).__VERTZ_HYDRATION_DEBUG__ = true;
+      try {
+        const root = document.createElement('div');
+        root.innerHTML = '<span></span>';
+        startHydration(root);
+
+        // isDebug() should return true via the globalThis path
+        // claimElement emits debug logs when isDebug() is true
+        const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+        claimElement('span');
+        expect(debugSpy).toHaveBeenCalledWith(
+          expect.stringContaining('claimElement(<span>)'),
+        );
+        debugSpy.mockRestore();
+      } finally {
+        process.env.NODE_ENV = origEnv;
+        delete (globalThis as Record<string, unknown>).__VERTZ_HYDRATION_DEBUG__;
+      }
+    });
+
+    it('isDebug returns false when NODE_ENV is production and flag is not set', () => {
+      const origEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      try {
+        const root = document.createElement('div');
+        root.innerHTML = '<span></span>';
+        startHydration(root);
+
+        const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+        claimElement('span');
+        // No debug output when isDebug() returns false
+        expect(debugSpy).not.toHaveBeenCalled();
+        debugSpy.mockRestore();
+      } finally {
+        process.env.NODE_ENV = origEnv;
+      }
     });
   });
 

@@ -404,8 +404,6 @@ function describeNode(node: Node): string {
     const preview = data.length > 20 ? data.slice(0, 20) + '...' : data;
     return `text("${preview}")`;
   }
-  if (node.nodeType === Node.COMMENT_NODE) {
-    return `<!-- ${(node as Comment).data} -->`;
-  }
-  return `[node type=${node.nodeType}]`;
+  // Comment node — the only remaining type findUnclaimedNodes collects
+  return `<!-- ${(node as Comment).data} -->`;
 }

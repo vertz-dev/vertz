@@ -302,4 +302,14 @@ describe('Child node rendering', () => {
 
     result.dispose();
   });
+
+  test('__child() throws on deeply nested circular thunks (max recursion depth)', () => {
+    const parent = document.createElement('div');
+    // Create a circular thunk that references itself
+    const circular: () => unknown = () => circular;
+    expect(() => {
+      const result = __child(() => circular);
+      parent.appendChild(result);
+    }).toThrow(/max recursion depth exceeded/);
+  });
 });
