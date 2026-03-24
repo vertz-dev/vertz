@@ -201,6 +201,47 @@ describe('resolveTenantChain', () => {
     expect(chain!.tenantColumn).toBe('organizationId');
   });
 
+  it('throws when a table in the chain has a composite primary key', () => {
+    const customOrgs = d
+      .table('orgs', {
+        id: d.uuid().primary(),
+        name: d.text(),
+      })
+      .tenant();
+
+    // Composite PK table in the chain
+    const memberships = d.table(
+      'memberships',
+      {
+        orgId: d.uuid(),
+        userId: d.uuid(),
+        role: d.text(),
+      },
+      { primaryKey: ['orgId', 'userId'] },
+    );
+
+    const assignments = d.table('assignments', {
+      id: d.uuid().primary(),
+      membershipOrgId: d.uuid(),
+      title: d.text(),
+    });
+
+    const compositePkRegistry = {
+      orgs: d.model(customOrgs),
+      memberships: d.model(memberships, {
+        org: d.ref.one(() => customOrgs, 'orgId'),
+      }),
+      assignments: d.model(assignments, {
+        membership: d.ref.one(() => memberships, 'membershipOrgId'),
+      }),
+    };
+    const compositePkGraph = computeTenantGraph(compositePkRegistry);
+
+    expect(() => resolveTenantChain('assignments', compositePkGraph, compositePkRegistry)).toThrow(
+      /composite primary key.*memberships/i,
+    );
+  });
+
   it('ignores shared tables during traversal', () => {
     // taskItems has ref.one to both projects (scoped) and templates (shared)
     const templates = d

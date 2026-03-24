@@ -130,7 +130,7 @@ export function resolveTenantChain(
 
     const targetEntry = registry[targetKey];
     if (!targetEntry) continue;
-    const targetPk = resolvePrimaryKey(targetEntry.table._columns);
+    const targetPk = resolvePrimaryKey(targetEntry.table._columns, targetTableName);
 
     const hop: TenantChainHop = {
       tableName: targetTableName,
@@ -177,7 +177,7 @@ export function resolveTenantChain(
 
       const targetEntry = registry[targetKey];
       if (!targetEntry) continue;
-      const targetPk = resolvePrimaryKey(targetEntry.table._columns);
+      const targetPk = resolvePrimaryKey(targetEntry.table._columns, targetTableName);
 
       const hop: TenantChainHop = {
         tableName: targetTableName,
@@ -208,13 +208,21 @@ export function resolveTenantChain(
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Resolves the PK column name from a table's columns map. */
-function resolvePrimaryKey(columns: Record<string, unknown>): string {
+/** Resolves the PK column name from a table's columns map. Throws for composite PKs. */
+function resolvePrimaryKey(columns: Record<string, unknown>, tableName: string): string {
+  const pkCols: string[] = [];
   for (const [key, col] of Object.entries(columns)) {
     if (col && typeof col === 'object' && '_meta' in col) {
       const meta = (col as { _meta: { primary?: boolean } })._meta;
-      if (meta.primary) return key;
+      if (meta.primary) pkCols.push(key);
     }
   }
-  return 'id';
+  if (pkCols.length > 1) {
+    throw new Error(
+      `Tenant chain resolution does not support composite primary keys. ` +
+        `Table "${tableName}" has composite PK: [${pkCols.join(', ')}]. ` +
+        `Use a surrogate single-column PK instead.`,
+    );
+  }
+  return pkCols[0] ?? 'id';
 }
