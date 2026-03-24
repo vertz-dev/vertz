@@ -277,4 +277,137 @@ describe('resolveTenantChain', () => {
     expect(chain!.hops[0].tableName).toBe('projects');
     expect(chain!.tenantColumn).toBe('organizationId');
   });
+
+  // ---------------------------------------------------------------------------
+  // Multi-level tenancy (#1787) — chain resolution through tenant levels
+  // ---------------------------------------------------------------------------
+
+  describe('multi-level tenant hierarchy', () => {
+    // 2-level: accounts (root) → projects (tenant level 1)
+    const mlAccounts = d.table('ml_accounts', { id: d.uuid().primary(), name: d.text() }).tenant();
+    const mlProjects = d
+      .table('ml_projects', { id: d.uuid().primary(), accountId: d.uuid(), name: d.text() })
+      .tenant();
+    const mlTasks = d.table('ml_tasks', {
+      id: d.uuid().primary(),
+      projectId: d.uuid(),
+      title: d.text(),
+    });
+
+    const mlRegistry = {
+      accounts: d.model(mlAccounts),
+      projects: d.model(mlProjects, {
+        account: d.ref.one(() => mlAccounts, 'accountId'),
+      }),
+      tasks: d.model(mlTasks, {
+        project: d.ref.one(() => mlProjects, 'projectId'),
+      }),
+    };
+
+    const mlGraph = computeTenantGraph(mlRegistry);
+
+    it('classifies entity with ref.one to non-root tenant level as indirectlyScoped', () => {
+      // tasks → projects (tenant level), NOT directly to accounts (root)
+      expect(mlGraph.indirectlyScoped).toContain('tasks');
+      expect(mlGraph.directlyScoped).not.toContain('tasks');
+    });
+
+    it('resolves chain through a non-root tenant level (tasks → projects → accounts)', () => {
+      const chain = resolveTenantChain('tasks', mlGraph, mlRegistry);
+
+      expect(chain).not.toBeNull();
+      expect(chain!.hops).toHaveLength(1);
+      expect(chain!.hops[0]).toEqual({
+        tableName: 'ml_projects',
+        foreignKey: 'projectId',
+        targetColumn: 'id',
+      });
+      // tenantColumn is the FK from projects (non-root tenant level) to accounts (root)
+      expect(chain!.tenantColumn).toBe('accountId');
+    });
+
+    it('resolves multi-hop chain through tenant levels (comments → tasks → projects)', () => {
+      const mlComments = d.table('ml_comments', {
+        id: d.uuid().primary(),
+        taskId: d.uuid(),
+        body: d.text(),
+      });
+
+      const extRegistry = {
+        ...mlRegistry,
+        comments: d.model(mlComments, {
+          task: d.ref.one(() => mlTasks, 'taskId'),
+        }),
+      };
+
+      const extGraph = computeTenantGraph(extRegistry);
+      const chain = resolveTenantChain('comments', extGraph, extRegistry);
+
+      expect(chain).not.toBeNull();
+      expect(chain!.hops).toHaveLength(2);
+      expect(chain!.hops[0]).toEqual({
+        tableName: 'ml_tasks',
+        foreignKey: 'taskId',
+        targetColumn: 'id',
+      });
+      expect(chain!.hops[1]).toEqual({
+        tableName: 'ml_projects',
+        foreignKey: 'projectId',
+        targetColumn: 'id',
+      });
+      expect(chain!.tenantColumn).toBe('accountId');
+    });
+
+    it('resolves chain in 3-level hierarchy (tasks → customerTenants → projects → accounts)', () => {
+      const mlCustomerTenants = d
+        .table('ml_customer_tenants', {
+          id: d.uuid().primary(),
+          projectId: d.uuid(),
+          name: d.text(),
+        })
+        .tenant();
+
+      const mlDeepTasks = d.table('ml_deep_tasks', {
+        id: d.uuid().primary(),
+        customerTenantId: d.uuid(),
+        title: d.text(),
+      });
+
+      const threeLevel = {
+        accounts: d.model(mlAccounts),
+        projects: d.model(mlProjects, {
+          account: d.ref.one(() => mlAccounts, 'accountId'),
+        }),
+        customerTenants: d.model(mlCustomerTenants, {
+          project: d.ref.one(() => mlProjects, 'projectId'),
+        }),
+        tasks: d.model(mlDeepTasks, {
+          customerTenant: d.ref.one(() => mlCustomerTenants, 'customerTenantId'),
+        }),
+      };
+
+      const threeLevelGraph = computeTenantGraph(threeLevel);
+      const chain = resolveTenantChain('tasks', threeLevelGraph, threeLevel);
+
+      expect(chain).not.toBeNull();
+      expect(chain!.hops).toHaveLength(2);
+      expect(chain!.hops[0]).toEqual({
+        tableName: 'ml_customer_tenants',
+        foreignKey: 'customerTenantId',
+        targetColumn: 'id',
+      });
+      expect(chain!.hops[1]).toEqual({
+        tableName: 'ml_projects',
+        foreignKey: 'projectId',
+        targetColumn: 'id',
+      });
+      expect(chain!.tenantColumn).toBe('accountId');
+    });
+
+    it('returns null for non-root tenant level entities (they are tenant levels, not consumers)', () => {
+      // projects is a .tenant() level — not in directlyScoped or indirectlyScoped
+      const chain = resolveTenantChain('projects', mlGraph, mlRegistry);
+      expect(chain).toBeNull();
+    });
+  });
 });

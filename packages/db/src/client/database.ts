@@ -907,7 +907,7 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
   // Log notices for unscoped tables
   if (log && tenantGraph.root !== null) {
     const allScoped = new Set<string>([
-      ...(tenantGraph.root !== null ? [tenantGraph.root] : []),
+      ...tenantGraph.levels.map((l) => l.key),
       ...tenantGraph.directlyScoped,
       ...tenantGraph.indirectlyScoped,
       ...tenantGraph.shared,

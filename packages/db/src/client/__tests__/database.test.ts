@@ -110,6 +110,28 @@ describe('createDb', () => {
     expect(logFn).toHaveBeenCalledWith(expect.stringContaining('audit_logs'));
   });
 
+  it('does not log unscoped warning for non-root tenant levels in multi-level hierarchy', () => {
+    const logFn = mock();
+    const accounts = d.table('ml_accounts', { id: d.uuid().primary(), name: d.text() }).tenant();
+    const mlProjects = d
+      .table('ml_projects', { id: d.uuid().primary(), accountId: d.uuid(), name: d.text() })
+      .tenant();
+
+    createDb({
+      url: 'postgres://localhost:5432/test',
+      models: {
+        accounts: d.model(accounts),
+        mlProjects: d.model(mlProjects, {
+          account: d.ref.one(() => accounts, 'accountId'),
+        }),
+      },
+      log: logFn,
+    });
+
+    // Non-root tenant level (mlProjects) should NOT trigger "no tenant path" warning
+    expect(logFn).not.toHaveBeenCalled();
+  });
+
   it('does not log for tables that are scoped or shared', () => {
     const logFn = mock();
 
