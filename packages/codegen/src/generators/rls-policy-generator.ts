@@ -9,8 +9,6 @@ import type {
 } from '../types';
 import { toSnakeCase } from '../utils/naming';
 
-const VALID_IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
-
 /** Maps entitlement action to Postgres FOR clause. */
 const ACTION_TO_PG_OP: Record<string, string> = {
   list: 'SELECT',
@@ -102,11 +100,9 @@ function extractAction(entitlement: string): string {
   return colonIdx >= 0 ? entitlement.slice(colonIdx + 1) : '';
 }
 
+/** Always quote identifiers to handle SQL reserved words (e.g., order, user, select). */
 function quoteIdentifier(name: string): string {
-  if (!VALID_IDENTIFIER.test(name)) {
-    return `"${name.replace(/"/g, '""')}"`;
-  }
-  return name;
+  return `"${name.replace(/"/g, '""')}"`;
 }
 
 function renderCondition(condition: CodegenWhereCondition): string {

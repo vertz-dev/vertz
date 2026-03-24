@@ -49,7 +49,14 @@ export interface SessionVars {
  * The session variables are transaction-scoped (SET LOCAL) and
  * automatically reset when the transaction commits or rolls back.
  *
- * @param queryFn - The database QueryFn (from driver or PGlite)
+ * IMPORTANT: `queryFn` MUST be connection-scoped (e.g., from
+ * `driver.beginTransaction()` or a single-connection backend like PGlite).
+ * If a pool-level queryFn is passed, BEGIN/SET LOCAL/queries may be routed
+ * to different connections, breaking transaction semantics entirely.
+ * In production, this is called via DatabaseClient.transaction() which
+ * provides a connection-scoped txQueryFn.
+ *
+ * @param queryFn - Connection-scoped QueryFn (NOT a pool-level function)
  * @param vars - Session variables to set (tenantId, userId)
  * @param fn - Callback that receives a transaction-scoped QueryFn
  * @returns The result of the callback

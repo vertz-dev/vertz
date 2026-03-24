@@ -69,7 +69,7 @@ function runTypescriptGenerator(ir: CodegenIR, _config: ResolvedCodegenConfig): 
   const authSdkGen = new AuthSdkGenerator();
   files.push(...authSdkGen.generate(ir, generatorConfig));
 
-  // RLS policies (rls-policies.sql) — opt-in via typescript.rls
+  // RLS policies (rls-policies.json) — opt-in via typescript.rls
   if (_config.typescript?.rls) {
     const rlsPolicyGen = new RlsPolicyGenerator();
     files.push(...rlsPolicyGen.generate(ir, generatorConfig));

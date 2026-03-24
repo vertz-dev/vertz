@@ -152,6 +152,18 @@ describe('Feature: Per-request SET LOCAL scoping', () => {
     });
   });
 
+  describe('Given empty SessionVars', () => {
+    describe('When withSessionVars is called with no vars', () => {
+      it('Then still executes callback successfully (pass-through)', async () => {
+        const result = await withSessionVars(queryFn, {}, async (txFn) => {
+          const res = await txFn('SELECT 1 as val', []);
+          return (res.rows[0] as { val: number }).val;
+        });
+        expect(result).toBe(1);
+      });
+    });
+  });
+
   describe('Given session vars are SET LOCAL (transaction-scoped)', () => {
     describe('When the transaction completes', () => {
       it('Then the setting is not visible outside the transaction', async () => {

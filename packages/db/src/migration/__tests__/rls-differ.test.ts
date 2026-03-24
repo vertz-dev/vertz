@@ -166,6 +166,93 @@ describe('Feature: RLS policy diffing', () => {
     });
   });
 
+  describe('Given policy with changed withCheck clause', () => {
+    describe('When diffRlsPolicies() is called', () => {
+      it('Then returns policy_changed change', () => {
+        const previous: RlsSnapshot = {
+          version: 1,
+          tables: {
+            tasks: {
+              rlsEnabled: true,
+              policies: [
+                {
+                  name: 'tasks_insert_policy',
+                  for: 'INSERT',
+                  using: 'true',
+                  withCheck: "tenant_id = current_setting('app.tenant_id')::UUID",
+                },
+              ],
+            },
+          },
+        };
+        const current: RlsSnapshot = {
+          version: 1,
+          tables: {
+            tasks: {
+              rlsEnabled: true,
+              policies: [
+                {
+                  name: 'tasks_insert_policy',
+                  for: 'INSERT',
+                  using: 'true',
+                  withCheck: "tenant_id = current_setting('app.tenant_id')::UUID AND active = true",
+                },
+              ],
+            },
+          },
+        };
+
+        const changes = diffRlsPolicies(previous, current);
+        const changed = changes.find((c) => c.type === 'policy_changed');
+        expect(changed).toBeDefined();
+        expect(changed?.policy?.withCheck).toContain('AND active = true');
+      });
+    });
+  });
+
+  describe('Given policy with changed FOR clause', () => {
+    describe('When diffRlsPolicies() is called', () => {
+      it('Then returns policy_changed change', () => {
+        const previous: RlsSnapshot = {
+          version: 1,
+          tables: {
+            tasks: {
+              rlsEnabled: true,
+              policies: [
+                {
+                  name: 'tasks_policy',
+                  for: 'SELECT',
+                  using: "tenant_id = current_setting('app.tenant_id')::UUID",
+                },
+              ],
+            },
+          },
+        };
+        const current: RlsSnapshot = {
+          version: 1,
+          tables: {
+            tasks: {
+              rlsEnabled: true,
+              policies: [
+                {
+                  name: 'tasks_policy',
+                  for: 'ALL',
+                  using: "tenant_id = current_setting('app.tenant_id')::UUID",
+                },
+              ],
+            },
+          },
+        };
+
+        const changes = diffRlsPolicies(previous, current);
+        const changed = changes.find((c) => c.type === 'policy_changed');
+        expect(changed).toBeDefined();
+        expect(changed?.policy?.for).toBe('ALL');
+        expect(changed?.oldPolicy?.for).toBe('SELECT');
+      });
+    });
+  });
+
   describe('Given RLS disabled in current (all policies removed, table entry removed)', () => {
     describe('When diffRlsPolicies() is called', () => {
       it('Then returns rls_disabled change', () => {

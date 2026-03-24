@@ -34,6 +34,22 @@ export function diffRlsPolicies(before: RlsSnapshot, after: RlsSnapshot): RlsDif
 
     if (!wasEnabled && afterTable.rlsEnabled) {
       changes.push({ type: 'rls_enabled', table: tableName });
+    } else if (wasEnabled && !afterTable.rlsEnabled) {
+      // RLS explicitly disabled while table entry still exists
+      for (const policy of beforeTable?.policies ?? []) {
+        changes.push({
+          type: 'policy_removed',
+          table: tableName,
+          policy: {
+            name: policy.name,
+            for: policy.for,
+            using: policy.using,
+            withCheck: policy.withCheck,
+          },
+        });
+      }
+      changes.push({ type: 'rls_disabled', table: tableName });
+      continue; // Skip policy diffing — all policies removed
     }
 
     const beforePolicies = beforeTable?.policies ?? [];

@@ -156,7 +156,7 @@ describe('Feature: RLS policy generation', () => {
         const selectPolicy = policies.find((p: { for: string }) => p.for === 'SELECT');
         const updatePolicy = policies.find((p: { for: string }) => p.for === 'UPDATE');
         expect(selectPolicy).toBeDefined();
-        expect(selectPolicy.using).toContain('archived = false');
+        expect(selectPolicy.using).toContain('"archived" = false');
         expect(updatePolicy).toBeDefined();
         expect(updatePolicy.using).toContain("current_setting('app.user_id')");
       });
@@ -267,8 +267,8 @@ describe('Feature: RLS policy generation', () => {
         };
         const input = getPolicyInput(generator, ir);
         const policy = input.tables.tasks.policies[0];
-        expect(policy.using).toContain('archived = false');
-        expect(policy.using).toContain("status = 'active'");
+        expect(policy.using).toContain('"archived" = false');
+        expect(policy.using).toContain('"status" = \'active\'');
       });
     });
   });
