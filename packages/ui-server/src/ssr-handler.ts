@@ -8,12 +8,16 @@
  * Does NOT serve static files — that's the adapter/platform's job.
  */
 
-import { compileTheme, type FontFallbackMetrics, type PreloadItem } from '@vertz/ui';
+import type { FontFallbackMetrics, PreloadItem } from '@vertz/ui';
 import type { SSRAuth } from '@vertz/ui/internals';
 import { escapeAttr } from './html-serializer';
 import { createAccessSetScript } from './ssr-access-set';
-import type { SSRModule } from './ssr-render';
-import { ssrRenderToString, ssrStreamNavQueries } from './ssr-render';
+import {
+  compileThemeCached,
+  type SSRModule,
+  ssrRenderToString,
+  ssrStreamNavQueries,
+} from './ssr-render';
 import type { SessionResolver } from './ssr-session';
 import { createSessionScript } from './ssr-session';
 import { injectIntoTemplate } from './template-inject';
@@ -136,7 +140,7 @@ export function createSSRHandler(
   // Pre-compute Link header from theme's preload items (computed once, not per-request)
   let linkHeader: string | undefined;
   if (module.theme) {
-    const compiled = compileTheme(module.theme, { fallbackMetrics });
+    const compiled = compileThemeCached(module.theme, fallbackMetrics);
     if (compiled.preloadItems.length > 0) {
       linkHeader = buildLinkHeader(compiled.preloadItems);
     }

@@ -1,4 +1,4 @@
-import { compileTheme, type FontFallbackMetrics, getInjectedCSS, type Theme } from '@vertz/ui';
+import { type FontFallbackMetrics, getInjectedCSS, type Theme } from '@vertz/ui';
 import { renderPage } from './render-page';
 import {
   clearGlobalSSRTimeout,
@@ -7,7 +7,7 @@ import {
   setGlobalSSRTimeout,
   ssrStorage,
 } from './ssr-context';
-import { createRequestContext } from './ssr-render';
+import { compileThemeCached, createRequestContext } from './ssr-render';
 import { createSSRDataChunk, getStreamingRuntimeScript } from './ssr-streaming-runtime';
 import { encodeChunk } from './streaming';
 import type { VNode } from './types';
@@ -85,7 +85,7 @@ async function twoPassRender<AppFn extends () => VNode>(
 
   // Compile theme CSS
   const themeCss = options.theme
-    ? compileTheme(options.theme, { fallbackMetrics: options.fallbackMetrics }).css
+    ? compileThemeCached(options.theme, options.fallbackMetrics).css
     : '';
 
   // Combine all CSS into a single string, then wrap in one <style> tag.

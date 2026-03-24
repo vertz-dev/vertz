@@ -20,6 +20,28 @@ import {
 import { safeSerialize } from './ssr-streaming-runtime';
 import { streamToString } from './streaming';
 
+/**
+ * Cache compiled theme results. Theme compilation is deterministic for a
+ * given Theme object and fallback metrics. Since metrics are stable per
+ * server lifetime (computed at startup), we cache on theme identity alone.
+ *
+ * WeakMap ensures automatic cleanup when modules are garbage collected
+ * (e.g., dev HMR reloads creating new theme objects).
+ */
+const compiledThemeCache = new WeakMap<object, ReturnType<typeof compileTheme>>();
+
+export function compileThemeCached(
+  theme: Theme,
+  fallbackMetrics?: Record<string, FontFallbackMetrics>,
+): ReturnType<typeof compileTheme> {
+  const cached = compiledThemeCache.get(theme);
+  if (cached) return cached;
+
+  const compiled = compileTheme(theme, { fallbackMetrics });
+  compiledThemeCache.set(theme, compiled);
+  return compiled;
+}
+
 /** Create a fresh SSRRenderContext for a new request. */
 export function createRequestContext(url: string): SSRRenderContext {
   return {
@@ -188,14 +210,12 @@ export async function ssrRenderToString(
 
       const createApp = resolveAppFactory(module);
 
-      // Compile theme CSS if the module exports a theme
+      // Compile theme CSS if the module exports a theme (cached across requests)
       let themeCss = '';
       let themePreloadTags = '';
       if (module.theme) {
         try {
-          const compiled = compileTheme(module.theme, {
-            fallbackMetrics: options?.fallbackMetrics,
-          });
+          const compiled = compileThemeCached(module.theme, options?.fallbackMetrics);
           themeCss = compiled.css;
           themePreloadTags = compiled.preloadTags;
         } catch (e) {
@@ -283,14 +303,12 @@ export async function ssrRenderToString(
       const html = await streamToString(stream);
       const css = collectCSS(themeCss, module);
 
-      // Serialize resolved query data for client-side hydration
+      // Pass resolved query data for client-side hydration.
+      // Data is JSON-safe (from fetch responses) — safeSerialize in
+      // template-inject handles the final serialization, so no need
+      // for an intermediate JSON.parse(JSON.stringify()) deep clone.
       const ssrData =
-        resolvedQueries.length > 0
-          ? resolvedQueries.map(({ key, data }) => ({
-              key,
-              data: JSON.parse(JSON.stringify(data)),
-            }))
-          : [];
+        resolvedQueries.length > 0 ? resolvedQueries.map(({ key, data }) => ({ key, data })) : [];
 
       return {
         html,
@@ -485,7 +503,7 @@ export async function ssrStreamNavQueries(
             if (settled) return;
             settled = true;
             resolve(data);
-            const entry = { key, data: JSON.parse(JSON.stringify(data)) };
+            const entry = { key, data };
             safeEnqueue(encoder.encode(`event: data\ndata: ${safeSerialize(entry)}\n\n`));
             remaining--;
             checkDone();

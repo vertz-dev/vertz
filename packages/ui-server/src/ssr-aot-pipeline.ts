@@ -10,14 +10,18 @@
  */
 
 import type { FontFallbackMetrics } from '@vertz/ui';
-import { compileTheme } from '@vertz/ui';
 import type { SSRAuth } from '@vertz/ui/internals';
 import { installDomShim, toVNode } from './dom-shim';
 import { serializeToHtml } from './html-serializer';
 import type { PrefetchSession } from './ssr-access-evaluator';
 import type { AotDiagnostics } from './ssr-aot-diagnostics';
 import { clearGlobalSSRTimeout, setGlobalSSRTimeout, ssrStorage } from './ssr-context';
-import { createRequestContext, type SSRModule, type SSRRenderResult } from './ssr-render';
+import {
+  compileThemeCached,
+  createRequestContext,
+  type SSRModule,
+  type SSRRenderResult,
+} from './ssr-render';
 import { matchUrlToPatterns } from './ssr-route-matcher';
 import { type SSRPrefetchManifest, ssrRenderSinglePass } from './ssr-single-pass';
 
@@ -269,7 +273,7 @@ export async function ssrRenderAot(
     // 7. Build ssrData from query cache
     const ssrData: Array<{ key: string; data: unknown }> = [];
     for (const [key, data] of queryCache) {
-      ssrData.push({ key, data: JSON.parse(JSON.stringify(data)) });
+      ssrData.push({ key, data });
     }
 
     return {
@@ -312,7 +316,7 @@ function collectCSSFromModule(
 
   if (module.theme) {
     try {
-      const compiled = compileTheme(module.theme, { fallbackMetrics });
+      const compiled = compileThemeCached(module.theme, fallbackMetrics);
       themeCss = compiled.css;
       preloadTags = compiled.preloadTags;
     } catch (e) {
