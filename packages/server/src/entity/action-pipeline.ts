@@ -7,6 +7,7 @@ import {
   ok,
   type Result,
 } from '@vertz/errors';
+import { isResponseDescriptor } from '../response';
 import { enforceAccess } from './access-enforcer';
 import type { CrudResult, EntityDbAdapter } from './crud-pipeline';
 import { stripHiddenFields } from './field-filter';
@@ -52,7 +53,24 @@ export function createActionHandler<TModel extends ModelDef = ModelDef>(
     const input = parseResult.data;
 
     // Run the handler
-    const rawResult = await actionDef.handler(input, ctx, row);
+    const handlerResult = await actionDef.handler(input, ctx, row);
+
+    // Unwrap ResponseDescriptor if present (before stripHiddenFields)
+    const isResp = isResponseDescriptor(handlerResult);
+    const rawResult = isResp ? handlerResult.data : handlerResult;
+    const customStatus = isResp ? handlerResult.status : undefined;
+    const customHeaders = isResp ? handlerResult.headers : undefined;
+
+    // Filter content-type from custom headers (case-insensitive)
+    let filteredHeaders: Record<string, string> | undefined;
+    if (customHeaders) {
+      filteredHeaders = {};
+      for (const [key, value] of Object.entries(customHeaders)) {
+        if (key.toLowerCase() !== 'content-type') {
+          filteredHeaders[key] = value;
+        }
+      }
+    }
 
     // Strip hidden fields from the result before exposing to hooks or response
     const table = def.model.table;
@@ -72,6 +90,6 @@ export function createActionHandler<TModel extends ModelDef = ModelDef>(
       }
     }
 
-    return ok({ status: 200, body: result });
+    return ok({ status: customStatus ?? 200, body: result, headers: filteredHeaders });
   };
 }
