@@ -222,9 +222,9 @@ function rewriteInternalLinks(content: string): string {
       result.push(line);
       continue;
     }
-    // Rewrite [text](/path) → [text](llm/path.md) and [text](/path#anchor) → [text](llm/path.md#anchor)
+    // Rewrite [text](/path) → [text](llm/path.md) — skip image links (![...])
     result.push(
-      line.replace(/\[([^\]]+)\]\(\/([^)]+)\)/g, (_match, text: string, path: string) => {
+      line.replace(/(?<!!)\[([^\]]+)\]\(\/([^)]+)\)/g, (_match, text: string, path: string) => {
         const hashIdx = path.indexOf('#');
         if (hashIdx === -1) {
           return `[${text}](llm/${path}.md)`;
