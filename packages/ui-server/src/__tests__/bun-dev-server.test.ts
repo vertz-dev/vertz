@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
@@ -11,6 +11,7 @@ import {
   detectFaviconTag,
   formatTerminalRuntimeError,
   generateSSRPageHtml,
+  isReloadStub,
   isStaleGraphError,
   parseHMRAssets,
 } from '../bun-dev-server';
@@ -362,6 +363,26 @@ describe('buildScriptTag', () => {
     const tag = buildScriptTag(null, bootstrap, './src/app.tsx');
 
     expect(tag).not.toContain('bootstrap');
+  });
+
+  it('loader requests auto-restart via WS when no build errors but stub detected', () => {
+    const tag = buildScriptTag('/_bun/client/abc.js', null, './src/app.tsx');
+
+    expect(tag).toContain('_autoRestart');
+    expect(tag).toContain('_canAutoRestart');
+  });
+
+  it('loader shows restart message for stale bundler', () => {
+    const tag = buildScriptTag('/_bun/client/abc.js', null, './src/app.tsx');
+
+    expect(tag).toContain('Dev bundler appears stale');
+  });
+
+  it('loader keeps retry fallback when WS auto-restart unavailable', () => {
+    const tag = buildScriptTag('/_bun/client/abc.js', null, './src/app.tsx');
+
+    // Must still contain retry logic as fallback
+    expect(tag).toContain('__vertz_stub_retry');
   });
 });
 
@@ -1151,6 +1172,37 @@ describe('isStaleGraphError', () => {
 
   it('returns false for empty string', () => {
     expect(isStaleGraphError('')).toBe(false);
+  });
+});
+
+describe('isReloadStub', () => {
+  it('detects Bun reload stub', () => {
+    const stub =
+      'try{location.reload()}catch(_){}\naddEventListener("DOMContentLoaded",function(event){location.reload()})';
+    expect(isReloadStub(stub)).toBe(true);
+  });
+
+  it('rejects valid JS bundle content', () => {
+    expect(isReloadStub('import{signal}from"@vertz/ui";var app=function(){')).toBe(false);
+  });
+
+  it('rejects empty string', () => {
+    expect(isReloadStub('')).toBe(false);
+  });
+
+  it('handles whitespace-prefixed stub', () => {
+    expect(isReloadStub('  try{location.reload()}catch(_){}')).toBe(true);
+  });
+
+  it('detects stub with only the try/catch line', () => {
+    expect(isReloadStub('try{location.reload()}catch(_){}')).toBe(true);
+  });
+});
+
+describe('stale bundler detection', () => {
+  it('source contains restart log message for stale dev bundler', () => {
+    const source = readFileSync(new URL('../bun-dev-server.ts', import.meta.url).pathname, 'utf8');
+    expect(source).toContain('Dev bundler serving reload stub after successful build');
   });
 });
 
