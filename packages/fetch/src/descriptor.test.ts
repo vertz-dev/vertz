@@ -235,6 +235,97 @@ describe('createMutationDescriptor', () => {
     expect(rollbackCalled).toHaveBeenCalledTimes(1);
     expect(handler.commit).not.toHaveBeenCalled();
   });
+
+  it('calls rollback and re-throws when fetch rejects without onRejected', async () => {
+    const fetchError = new Error('Connection refused');
+    const rollbackCalled = mock();
+    const fetchFn = mock().mockRejectedValue(fetchError);
+    const handler: OptimisticHandler = {
+      apply() {
+        return rollbackCalled;
+      },
+      commit: mock(),
+    };
+
+    const descriptor = createMutationDescriptor(
+      'POST',
+      '/todos',
+      fetchFn,
+      { entityType: 'todos', kind: 'create', body: { title: 'Test' } },
+      handler,
+    );
+
+    let caught: unknown;
+    try {
+      await descriptor;
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBe(fetchError);
+    expect(rollbackCalled).toHaveBeenCalledTimes(1);
+    expect(handler.commit).not.toHaveBeenCalled();
+  });
+
+  it('calls rollback and delegates to onRejected when fetch rejects with handler', async () => {
+    const fetchError = new Error('Connection refused');
+    const rollbackCalled = mock();
+    const fetchFn = mock().mockRejectedValue(fetchError);
+    const handler: OptimisticHandler = {
+      apply() {
+        return rollbackCalled;
+      },
+      commit: mock(),
+    };
+
+    const descriptor = createMutationDescriptor(
+      'POST',
+      '/todos',
+      fetchFn,
+      { entityType: 'todos', kind: 'create', body: { title: 'Test' } },
+      handler,
+    );
+
+    const result = await descriptor.then(
+      (r) => r,
+      (err) => ({ ok: false as const, caught: (err as Error).message }),
+    );
+
+    expect(result).toEqual({ ok: false, caught: 'Connection refused' });
+    expect(rollbackCalled).toHaveBeenCalledTimes(1);
+    expect(handler.commit).not.toHaveBeenCalled();
+  });
+
+  it('re-throws when fetch rejects and .then() called without onRejected', async () => {
+    const fetchError = new Error('Connection refused');
+    const rollbackCalled = mock();
+    const fetchFn = mock().mockRejectedValue(fetchError);
+    const handler: OptimisticHandler = {
+      apply() {
+        return rollbackCalled;
+      },
+      commit: mock(),
+    };
+
+    const descriptor = createMutationDescriptor(
+      'POST',
+      '/todos',
+      fetchFn,
+      { entityType: 'todos', kind: 'create', body: { title: 'Test' } },
+      handler,
+    );
+
+    let caught: unknown;
+    try {
+      await descriptor.then((r) => r);
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBe(fetchError);
+    expect(rollbackCalled).toHaveBeenCalledTimes(1);
+    expect(handler.commit).not.toHaveBeenCalled();
+  });
 });
 
 describe('isMutationDescriptor', () => {

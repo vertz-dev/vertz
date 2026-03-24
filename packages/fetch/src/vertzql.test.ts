@@ -166,6 +166,14 @@ describe('resolveVertzQL', () => {
     expect(result).toBe(query);
   });
 
+  it('preserves undefined values for non-VertzQL keys', () => {
+    const query = { status: 'active', filter: undefined };
+    const result = resolveVertzQL(query);
+
+    expect(result).toBe(query);
+    expect(result).toEqual({ status: 'active', filter: undefined });
+  });
+
   it('extracts select from query and encodes as q= param', () => {
     const query = { select: { id: true, name: true } };
     const result = resolveVertzQL(query);
