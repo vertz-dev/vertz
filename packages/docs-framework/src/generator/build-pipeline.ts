@@ -93,7 +93,7 @@ export async function buildDocs(options: BuildDocsOptions): Promise<BuildManifes
     await Bun.write(htmlPath, seoHtml);
 
     // Generate LLM markdown
-    if (config.llm?.enabled) {
+    if (config.llm?.enabled && !isLlmExcluded(route.filePath, config.llm.exclude)) {
       const markdown = mdxToMarkdown(rawContent);
       llmPages.push({ path: route.path, title, markdown });
 
@@ -106,7 +106,8 @@ export async function buildDocs(options: BuildDocsOptions): Promise<BuildManifes
   // Generate llms.txt and llms-full.txt
   if (config.llm?.enabled) {
     const llmConfig = config.llm;
-    const llmsTxt = generateLlmsTxt(routes, llmConfig, baseUrl);
+    const includedRoutes = routes.filter((r) => !isLlmExcluded(r.filePath, llmConfig.exclude));
+    const llmsTxt = generateLlmsTxt(includedRoutes, llmConfig, baseUrl);
     await Bun.write(join(outDir, 'llms.txt'), llmsTxt);
 
     const llmsFullTxt = generateLlmsFullTxt(llmPages, llmConfig);
@@ -140,6 +141,28 @@ export async function buildDocs(options: BuildDocsOptions): Promise<BuildManifes
   await Bun.write(join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
 
   return manifest;
+}
+
+/** Check if a file path matches any of the LLM exclude patterns. */
+function isLlmExcluded(filePath: string, exclude?: string[]): boolean {
+  if (!exclude || exclude.length === 0) return false;
+  // Strip .mdx extension for matching
+  const bare = filePath.replace(/\.mdx$/, '');
+  for (const pattern of exclude) {
+    if (matchGlob(bare, pattern) || matchGlob(filePath, pattern)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Simple glob matching supporting * and **. */
+function matchGlob(str: string, pattern: string): boolean {
+  const regexStr = pattern
+    .replace(/\*\*/g, '<<DOUBLE>>')
+    .replace(/\*/g, '[^/]*')
+    .replace(/<<DOUBLE>>/g, '.*');
+  return new RegExp(`^${regexStr}$`).test(str);
 }
 
 /** Convert a URL path to the LLM output file path. */

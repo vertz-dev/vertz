@@ -166,6 +166,46 @@ Page content.
     expect(html).toContain('http-equiv="refresh"');
   });
 
+  it('excludes pages matching llm.exclude patterns', async () => {
+    mkdirSync(join(tempDir, 'pages', 'internal'), { recursive: true });
+    writeFileSync(join(tempDir, 'pages', 'internal', 'debug.mdx'), '# Debug\n\nInternal page.\n');
+    writeFileSync(
+      join(tempDir, 'vertz.config.ts'),
+      `export default {
+  name: 'Test Docs',
+  sidebar: [{ tab: 'Guides', groups: [{ title: 'Start', pages: ['index.mdx', 'internal/debug.mdx'] }] }],
+  llm: { enabled: true, title: 'Test', description: 'Test', exclude: ['internal/**'] },
+};`,
+    );
+    await buildDocs({ projectDir: tempDir, outDir });
+    // LLM output for excluded page should not exist
+    expect(existsSync(join(outDir, 'llms', 'internal/debug.md'))).toBe(false);
+    // But HTML should still be generated
+    expect(existsSync(join(outDir, 'internal/debug.html'))).toBe(true);
+    // llms.txt should not list excluded page
+    const llmsTxt = await Bun.file(join(outDir, 'llms.txt')).text();
+    expect(llmsTxt).not.toContain('debug');
+  });
+
+  it('adds enriched frontmatter to LLM markdown output', async () => {
+    writeFileSync(
+      join(tempDir, 'pages', 'index.mdx'),
+      `---
+title: Getting Started
+description: Learn how to get started with Vertz.
+---
+
+# Getting Started
+
+Content here.
+`,
+    );
+    await buildDocs({ projectDir: tempDir, outDir });
+    const llmMd = await Bun.file(join(outDir, 'llms', 'home.md')).text();
+    expect(llmMd).toContain('title: Getting Started');
+    expect(llmMd).toContain('description: Learn how to get started with Vertz.');
+  });
+
   it('generates HTML for nested page paths', async () => {
     mkdirSync(join(tempDir, 'pages', 'guides'), { recursive: true });
     writeFileSync(
