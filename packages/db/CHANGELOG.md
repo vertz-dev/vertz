@@ -1,5 +1,15 @@
 # @vertz/db
 
+## 0.2.29
+
+### Patch Changes
+
+- [#1780](https://github.com/vertz-dev/vertz/pull/1780) [`a5a3d78`](https://github.com/vertz-dev/vertz/commit/a5a3d7880cb18dc09c10ea061308188c3560e0f6) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Remove deprecated `d.entry()` helper — use `d.model()` instead
+
+- Updated dependencies []:
+  - @vertz/errors@0.2.29
+  - @vertz/schema@0.2.29
+
 ## 0.2.28
 
 ### Patch Changes

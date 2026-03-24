@@ -1,5 +1,14 @@
 # @vertz/ui
 
+## 0.2.29
+
+### Patch Changes
+
+- [#1781](https://github.com/vertz-dev/vertz/pull/1781) [`7771170`](https://github.com/vertz-dev/vertz/commit/777117093d783aaeecc905ec65c4c85363746494) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add reactive search params via `useSearchParams()` — a Proxy-based API that reads typed, reactive search params from the URL and writes back on assignment. Includes `ExtractSearchParams` type utility for route-path-generic inference, codegen augmentation, and compiler reactive source registration.
+
+- Updated dependencies []:
+  - @vertz/fetch@0.2.29
+
 ## 0.2.28
 
 ### Patch Changes

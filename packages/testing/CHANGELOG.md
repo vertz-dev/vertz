@@ -1,5 +1,16 @@
 # @vertz/testing
 
+## 0.2.29
+
+### Patch Changes
+
+- [#1785](https://github.com/vertz-dev/vertz/pull/1785) [`d195e05`](https://github.com/vertz-dev/vertz/commit/d195e05e2abc759967ef1c82039297e651bd06ed) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add createTestClient() with typed entity/service proxies for 100% type-safe server testing. Entity proxy provides typed create/list/get/update/delete. Service proxy provides direct method access with typed body/response. Adds phantom type pattern to ServiceDefinition for type preservation.
+
+- Updated dependencies [[`0cc2ec8`](https://github.com/vertz-dev/vertz/commit/0cc2ec873c876d9549d0959b7614d823818a8fd9), [`04c9578`](https://github.com/vertz-dev/vertz/commit/04c95786538a722d987fe190f0c0efc4f82cfdce), [`6829e22`](https://github.com/vertz-dev/vertz/commit/6829e2241b7e0f776b093f9a7e408d927f8cd627), [`a5a3d78`](https://github.com/vertz-dev/vertz/commit/a5a3d7880cb18dc09c10ea061308188c3560e0f6), [`d195e05`](https://github.com/vertz-dev/vertz/commit/d195e05e2abc759967ef1c82039297e651bd06ed)]:
+  - @vertz/server@0.2.29
+  - @vertz/db@0.2.29
+  - @vertz/core@0.2.29
+
 ## 0.2.28
 
 ### Patch Changes
