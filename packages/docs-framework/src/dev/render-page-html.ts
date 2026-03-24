@@ -168,9 +168,7 @@ export function renderPageHtml({
   const noindexMeta = noindex ? '<meta name="robots" content="noindex" />\n' : '';
   const headTags = config.head?.length ? `\n${renderHeadTags(config.head)}` : '';
   const analyticsScript = config.analytics ? renderAnalyticsScript(config.analytics) : '';
-  const bannerHtml = config.banner
-    ? Banner({ ...config.banner })
-    : '';
+  const bannerHtml = config.banner ? Banner({ ...config.banner }) : '';
   const pagefindIgnore = hidden ? ' data-pagefind-ignore' : '';
   return `<!DOCTYPE html>
 <html lang="en">
