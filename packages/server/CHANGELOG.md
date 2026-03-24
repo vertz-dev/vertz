@@ -1,5 +1,32 @@
 # @vertz/server
 
+## 0.2.29
+
+### Patch Changes
+
+- [#1789](https://github.com/vertz-dev/vertz/pull/1789) [`0cc2ec8`](https://github.com/vertz-dev/vertz/commit/0cc2ec873c876d9549d0959b7614d823818a8fd9) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(auth): make JWT signing algorithm configurable (ES256, RS256)
+
+  Add `session.algorithm` option to `createAuth()`. Defaults to `'RS256'` (no breaking change). Supports `'ES256'` for smaller signatures and better edge runtime performance.
+
+  - `createJWT()`/`verifyJWT()` accept algorithm parameter
+  - Dev key generation branches on algorithm (RSA vs EC P-256)
+  - Key-algorithm mismatch validated at startup with clear errors
+  - JWKS endpoint dynamically returns correct `alg`/`kty`
+  - `createCloudJWTVerifier` accepts configurable `algorithms` array
+  - SSR resolver threads algorithm through to verification
+
+- [#1773](https://github.com/vertz-dev/vertz/pull/1773) [`04c9578`](https://github.com/vertz-dev/vertz/commit/04c95786538a722d987fe190f0c0efc4f82cfdce) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix resolvePrimaryKey() in tenant-chain to throw for composite primary keys instead of silently picking the first PK column, consistent with the entity CRUD guard.
+
+- [#1784](https://github.com/vertz-dev/vertz/pull/1784) [`6829e22`](https://github.com/vertz-dev/vertz/commit/6829e2241b7e0f776b093f9a7e408d927f8cd627) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Remove `/v1` prefix from cloud auth proxy paths (`/auth/v1/<path>` → `/auth/<path>`)
+
+- [#1785](https://github.com/vertz-dev/vertz/pull/1785) [`d195e05`](https://github.com/vertz-dev/vertz/commit/d195e05e2abc759967ef1c82039297e651bd06ed) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add createTestClient() with typed entity/service proxies for 100% type-safe server testing. Entity proxy provides typed create/list/get/update/delete. Service proxy provides direct method access with typed body/response. Adds phantom type pattern to ServiceDefinition for type preservation.
+
+- Updated dependencies [[`a5a3d78`](https://github.com/vertz-dev/vertz/commit/a5a3d7880cb18dc09c10ea061308188c3560e0f6)]:
+  - @vertz/db@0.2.29
+  - @vertz/core@0.2.29
+  - @vertz/errors@0.2.29
+  - @vertz/schema@0.2.29
+
 ## 0.2.28
 
 ### Patch Changes
