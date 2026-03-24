@@ -219,4 +219,122 @@ describe('resolveParameters', () => {
       CliRuntimeError,
     );
   });
+
+  it('default adapter select returns first choice when choices are provided', async () => {
+    const definition: CommandDefinition = {
+      method: 'POST',
+      path: '/users',
+      description: 'Create user',
+      body: {
+        role: { type: 'string', required: true, enum: ['admin', 'user'] },
+      },
+    };
+
+    // Use default prompt adapter — select should return first choice
+    const result = await resolveParameters(definition, {}, {}, createMockContext());
+    expect(result.role).toBe('admin');
+  });
+
+  it('default adapter select returns first choice via resolver', async () => {
+    const definition: CommandDefinition = {
+      method: 'GET',
+      path: '/users/:id',
+      description: 'Get user',
+      params: {
+        id: { type: 'string', required: true },
+      },
+    };
+
+    const resolver: ParameterResolver = {
+      param: 'id',
+      fetchOptions: mock().mockResolvedValue([
+        { label: 'Alice', value: 'user-1' },
+        { label: 'Bob', value: 'user-2' },
+      ]),
+      prompt: 'Select a user',
+    };
+
+    // Use default prompt adapter — should return first choice
+    const result = await resolveParameters(definition, {}, { id: resolver }, createMockContext());
+    expect(result.id).toBe('user-1');
+  });
+
+  it('passes through non-string flag values without coercion', async () => {
+    const definition: CommandDefinition = {
+      method: 'GET',
+      path: '/users',
+      description: 'List users',
+      query: {
+        verbose: { type: 'boolean', required: false },
+      },
+    };
+
+    // Pass a boolean value (not a string) — coerceValue should return it as-is
+    const flags: Record<string, string | boolean> = { verbose: true };
+    const result = await resolveParameters(definition, flags, {}, createMockContext());
+
+    expect(result.verbose).toBe(true);
+  });
+
+  it('coerces integer type the same as number', async () => {
+    const definition: CommandDefinition = {
+      method: 'GET',
+      path: '/users',
+      description: 'List users',
+      query: {
+        count: { type: 'integer', required: false },
+      },
+    };
+
+    const result = await resolveParameters(definition, { count: '5' }, {}, createMockContext());
+    expect(result.count).toBe(5);
+  });
+
+  it('uses fallback message when field has no description', async () => {
+    const definition: CommandDefinition = {
+      method: 'POST',
+      path: '/users',
+      description: 'Create user',
+      body: {
+        name: { type: 'string', required: true },
+      },
+    };
+
+    const promptAdapter = createMockPromptAdapter({
+      text: mock().mockResolvedValue('Alice'),
+    });
+
+    const result = await resolveParameters(definition, {}, {}, createMockContext(), promptAdapter);
+
+    expect(result.name).toBe('Alice');
+    expect(promptAdapter.text).toHaveBeenCalledWith({
+      message: 'Enter name',
+    });
+  });
+
+  it('uses fallback message for enum select when field has no description', async () => {
+    const definition: CommandDefinition = {
+      method: 'POST',
+      path: '/users',
+      description: 'Create user',
+      body: {
+        role: { type: 'string', required: true, enum: ['admin', 'user'] },
+      },
+    };
+
+    const promptAdapter = createMockPromptAdapter({
+      select: mock().mockResolvedValue('admin'),
+    });
+
+    const result = await resolveParameters(definition, {}, {}, createMockContext(), promptAdapter);
+
+    expect(result.role).toBe('admin');
+    expect(promptAdapter.select).toHaveBeenCalledWith({
+      message: 'Select role',
+      choices: [
+        { label: 'admin', value: 'admin' },
+        { label: 'user', value: 'user' },
+      ],
+    });
+  });
 });

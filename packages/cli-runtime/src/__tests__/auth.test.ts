@@ -1,5 +1,5 @@
 import { describe, expect, it, mock } from 'bun:test';
-import type { ConfigStore, TokenResponse } from '../auth';
+import type { ConfigStore, DeviceCodeResponse, TokenResponse } from '../auth';
 import { AuthError, createAuthManager } from '../auth';
 
 function createMockStore(data: Record<string, string> = {}): ConfigStore {
@@ -90,6 +90,23 @@ describe('createAuthManager', () => {
     });
   });
 
+  describe('default config store', () => {
+    it('uses default no-op store when none is provided', async () => {
+      const auth = createAuthManager({ configDir: '/tmp/test' });
+
+      const credentials = await auth.loadCredentials();
+      expect(credentials).toEqual({});
+
+      // setApiKey writes then reads — default store read always returns null
+      await auth.setApiKey('key');
+      const key = await auth.getApiKey();
+      expect(key).toBeUndefined();
+
+      // clearCredentials calls remove — should not throw
+      await auth.clearCredentials();
+    });
+  });
+
   describe('device code flow', () => {
     it('initiates device code flow with correct parameters', async () => {
       const store = createMockStore();
@@ -128,6 +145,59 @@ describe('createAuthManager', () => {
           scope: 'read write',
         },
       });
+    });
+
+    it('initiates device code flow without scopes', async () => {
+      const store = createMockStore();
+      const auth = createAuthManager({ configDir: '/tmp/test' }, store);
+
+      const mockClient = {
+        request: mock().mockResolvedValue({
+          ok: true,
+          data: {
+            data: {
+              device_code: 'device-123',
+              user_code: 'ABCD-1234',
+              verification_uri: 'https://example.com/verify',
+              expires_in: 300,
+              interval: 5,
+            } satisfies DeviceCodeResponse,
+            status: 200,
+            headers: new Headers(),
+          },
+        }),
+      };
+
+      await auth.initiateDeviceCodeFlow(
+        mockClient as never,
+        'https://example.com/device/code',
+        'client-id',
+      );
+
+      expect(mockClient.request).toHaveBeenCalledWith('POST', 'https://example.com/device/code', {
+        body: { client_id: 'client-id' },
+      });
+    });
+
+    it('throws when device code flow request fails', async () => {
+      const store = createMockStore();
+      const auth = createAuthManager({ configDir: '/tmp/test' }, store);
+
+      const error = new Error('Request failed');
+      const mockClient = {
+        request: mock().mockResolvedValue({
+          ok: false,
+          error,
+        }),
+      };
+
+      await expect(
+        auth.initiateDeviceCodeFlow(
+          mockClient as never,
+          'https://example.com/device/code',
+          'client-id',
+        ),
+      ).rejects.toThrow('Request failed');
     });
   });
 
@@ -259,6 +329,128 @@ describe('createAuthManager', () => {
 
       expect(result.access_token).toBe('polled-token');
       expect(callCount).toBe(3);
+    });
+
+    it('increases interval on slow_down error', async () => {
+      const store = createMockStore();
+      const auth = createAuthManager({ configDir: '/tmp/test' }, store);
+
+      // Override setTimeout to resolve instantly so slow_down +5s doesn't block
+      const origSetTimeout = globalThis.setTimeout;
+      globalThis.setTimeout = ((fn: () => void) => origSetTimeout(fn, 0)) as never;
+
+      let callCount = 0;
+      const mockClient = {
+        request: mock().mockImplementation(async () => {
+          callCount++;
+          if (callCount === 1) {
+            return {
+              ok: false,
+              error: { body: { error: 'slow_down' } },
+            };
+          }
+          return {
+            ok: true,
+            data: {
+              data: {
+                access_token: 'token-after-slowdown',
+                token_type: 'Bearer',
+                expires_in: 3600,
+              },
+              status: 200,
+              headers: new Headers(),
+            },
+          };
+        }),
+      };
+
+      try {
+        const result = await auth.pollForToken(
+          mockClient as never,
+          'https://example.com/token',
+          'device-code',
+          'client-id',
+          0.01,
+          10,
+        );
+
+        expect(result.access_token).toBe('token-after-slowdown');
+        expect(callCount).toBe(2);
+      } finally {
+        globalThis.setTimeout = origSetTimeout;
+      }
+    });
+
+    it('throws on unknown poll error', async () => {
+      const store = createMockStore();
+      const auth = createAuthManager({ configDir: '/tmp/test' }, store);
+
+      const unknownError = { body: { error: 'access_denied' } };
+      const mockClient = {
+        request: mock().mockResolvedValue({
+          ok: false,
+          error: unknownError,
+        }),
+      };
+
+      await expect(
+        auth.pollForToken(
+          mockClient as never,
+          'https://example.com/token',
+          'device-code',
+          'client-id',
+          0.01,
+          10,
+        ),
+      ).rejects.toBe(unknownError);
+    });
+
+    it('returns false from error checks when error has no body', async () => {
+      const store = createMockStore();
+      const auth = createAuthManager({ configDir: '/tmp/test' }, store);
+
+      const errorWithoutBody = { message: 'no body' };
+      const mockClient = {
+        request: mock().mockResolvedValue({
+          ok: false,
+          error: errorWithoutBody,
+        }),
+      };
+
+      await expect(
+        auth.pollForToken(
+          mockClient as never,
+          'https://example.com/token',
+          'device-code',
+          'client-id',
+          0.01,
+          10,
+        ),
+      ).rejects.toBe(errorWithoutBody);
+    });
+
+    it('returns false from error checks when body has no error field', async () => {
+      const store = createMockStore();
+      const auth = createAuthManager({ configDir: '/tmp/test' }, store);
+
+      const errorWithBadBody = { body: { status: 500 } };
+      const mockClient = {
+        request: mock().mockResolvedValue({
+          ok: false,
+          error: errorWithBadBody,
+        }),
+      };
+
+      await expect(
+        auth.pollForToken(
+          mockClient as never,
+          'https://example.com/token',
+          'device-code',
+          'client-id',
+          0.01,
+          10,
+        ),
+      ).rejects.toBe(errorWithBadBody);
     });
 
     it('throws AuthError when device code expires', async () => {
