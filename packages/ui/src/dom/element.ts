@@ -1,4 +1,5 @@
 import {
+  advanceCursor,
   claimComment,
   claimElement,
   claimText,
@@ -176,6 +177,16 @@ export function __child(
   if (getIsHydrating()) {
     const claimed = claimComment();
     if (claimed) {
+      if (
+        typeof process !== 'undefined' &&
+        process.env.NODE_ENV !== 'production' &&
+        claimed.data.trim() !== 'child'
+      ) {
+        console.warn(
+          `[hydrate] __child expected <!--child--> but claimed <!--${claimed.data}-->. ` +
+            'Cursor may be misaligned.',
+        );
+      }
       const anchor = claimed as unknown as Node;
       const managed: Node[] = [];
       const childCleanups = { value: [] as DisposeFn[] };
@@ -184,17 +195,27 @@ export function __child(
       // via CSR below. JSX inside callbacks is not hydration-aware, so
       // attempting to hydrate would create detached DOM nodes with dead
       // event handlers. See #826.
-      // Stop at the next <!--child--> comment (sibling __child boundary) but
-      // remove other comments (e.g., <!-- conditional -->) which are content.
+      // Stop at the <!--/child--> end marker (precise boundary) or the next
+      // <!--child--> comment (legacy fallback for SSR without end markers).
       let sibling = anchor.nextSibling;
       while (sibling) {
+        const next = sibling.nextSibling;
+        // End marker: remove it and stop — content boundary reached.
+        if (sibling.nodeType === 8 && (sibling as Comment).data.trim() === '/child') {
+          sibling.parentNode?.removeChild(sibling);
+          break;
+        }
+        // Next __child boundary (legacy SSR without end markers): stop without removing.
         if (sibling.nodeType === 8 && (sibling as Comment).data.trim() === 'child') {
           break;
         }
-        const next = sibling.nextSibling;
         sibling.parentNode?.removeChild(sibling);
         sibling = next;
       }
+      // Reposition cursor past cleared nodes — the old cursor may point
+      // to a removed node. anchor.nextSibling is now the first node after
+      // the cleared region (e.g., the next static text or <!--child-->).
+      advanceCursor(anchor.nextSibling);
 
       // Pause hydration so fn() creates fresh DOM via CSR path.
       // domEffect runs synchronously on first call, so this completes
@@ -233,10 +254,14 @@ export function __child(
     }
   }
 
-  // CSR path: create comment anchor inside a DocumentFragment
+  // CSR path: create comment anchor inside a DocumentFragment.
+  // End marker (<!--/child-->) provides a precise boundary so hydration
+  // cleanup does not consume adjacent static text. See #1812.
   const anchor = getAdapter().createComment('child') as unknown as Node;
+  const endMarker = getAdapter().createComment('/child') as unknown as Node;
   const fragment = getAdapter().createDocumentFragment() as unknown as DocumentFragment;
   fragment.appendChild(anchor);
+  fragment.appendChild(endMarker);
 
   const managed: Node[] = [];
   const childCleanups = { value: [] as DisposeFn[] };

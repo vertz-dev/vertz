@@ -318,6 +318,147 @@ describe('DOM helpers — hydration branches', () => {
 
       document.body.removeChild(root);
     });
+
+    it('preserves static text between adjacent __child expressions (#1812)', () => {
+      const root = document.createElement('div');
+      // Simulated SSR output with end markers:
+      // <span>Showing 1–<!--child-->1<!--/child--> of <!--child-->1<!--/child--> items</span>
+      const span = document.createElement('span');
+      span.appendChild(document.createTextNode('Showing 1\u2013'));
+      span.appendChild(document.createComment('child'));
+      span.appendChild(document.createTextNode('1'));
+      span.appendChild(document.createComment('/child'));
+      span.appendChild(document.createTextNode(' of '));
+      span.appendChild(document.createComment('child'));
+      span.appendChild(document.createTextNode('1'));
+      span.appendChild(document.createComment('/child'));
+      span.appendChild(document.createTextNode(' items'));
+      root.appendChild(span);
+      startHydration(root);
+
+      // Simulate compiled output for:
+      // <span>Showing 1–{Math.min(20, total)} of {total} items</span>
+      const el = __element('span');
+      __enterChildren(el);
+      __append(el, __staticText('Showing 1\u2013'));
+      __append(
+        el,
+        __child(() => '1'),
+      );
+      __append(el, __staticText(' of '));
+      __append(
+        el,
+        __child(() => '1'),
+      );
+      __append(el, __staticText(' items'));
+      __exitChildren();
+
+      endHydration();
+
+      expect(el.textContent).toBe('Showing 1\u20131 of 1 items');
+    });
+
+    it('handles adjacent __child expressions without static text between them (#1812)', () => {
+      const root = document.createElement('div');
+      // SSR: <span><!--child-->A<!--/child--><!--child-->B<!--/child--></span>
+      const span = document.createElement('span');
+      span.appendChild(document.createComment('child'));
+      span.appendChild(document.createTextNode('A'));
+      span.appendChild(document.createComment('/child'));
+      span.appendChild(document.createComment('child'));
+      span.appendChild(document.createTextNode('B'));
+      span.appendChild(document.createComment('/child'));
+      root.appendChild(span);
+      startHydration(root);
+
+      const el = __element('span');
+      __enterChildren(el);
+      __append(
+        el,
+        __child(() => 'A'),
+      );
+      __append(
+        el,
+        __child(() => 'B'),
+      );
+      __exitChildren();
+
+      endHydration();
+
+      expect(el.textContent).toBe('AB');
+    });
+
+    it('handles __child as last child with end marker (#1812)', () => {
+      const root = document.createElement('div');
+      // SSR: <span>Total: <!--child-->42<!--/child--></span>
+      const span = document.createElement('span');
+      span.appendChild(document.createTextNode('Total: '));
+      span.appendChild(document.createComment('child'));
+      span.appendChild(document.createTextNode('42'));
+      span.appendChild(document.createComment('/child'));
+      root.appendChild(span);
+      startHydration(root);
+
+      const el = __element('span');
+      __enterChildren(el);
+      __append(el, __staticText('Total: '));
+      __append(
+        el,
+        __child(() => '42'),
+      );
+      __exitChildren();
+
+      endHydration();
+
+      expect(el.textContent).toBe('Total: 42');
+    });
+
+    it('CSR path includes end marker in fragment (#1812)', () => {
+      // Not hydrating — pure CSR
+      const result = __child(() => 'content');
+      // Fragment should contain: <!--child-->, "content", <!--/child-->
+      const nodes = Array.from((result as unknown as DocumentFragment).childNodes);
+      expect(nodes.length).toBe(3);
+      expect(nodes[0]!.nodeType).toBe(8); // Comment
+      expect((nodes[0] as Comment).data).toBe('child');
+      expect(nodes[1]!.textContent).toBe('content');
+      expect(nodes[2]!.nodeType).toBe(8); // Comment
+      expect((nodes[2] as Comment).data).toBe('/child');
+    });
+
+    it('warns when __child claims a non-child comment during hydration', () => {
+      const root = document.createElement('div');
+      // Only a non-child comment — __child will claim it but warn
+      root.appendChild(document.createComment('conditional'));
+      startHydration(root);
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      __child(() => 'text');
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('__child expected <!--child--> but claimed <!--conditional-->'),
+      );
+      warnSpy.mockRestore();
+    });
+
+    it('dispose cleans up effects on hydrated __child', () => {
+      const root = document.createElement('div');
+      root.appendChild(document.createComment('child'));
+      root.appendChild(document.createTextNode('initial'));
+      root.appendChild(document.createComment('/child'));
+      startHydration(root);
+
+      const s = signal('hello');
+      const result = __child(() => s.value);
+      endHydration();
+
+      // Verify initial content
+      expect((result as Comment).nextSibling?.textContent).toBe('hello');
+
+      // Dispose should stop reactive updates
+      (result as unknown as { dispose: () => void }).dispose();
+      s.value = 'updated';
+      expect((result as Comment).nextSibling?.textContent).toBe('hello');
+    });
   });
 
   describe('__insert', () => {

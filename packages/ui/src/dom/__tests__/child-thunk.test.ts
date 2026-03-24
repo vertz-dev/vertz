@@ -47,8 +47,8 @@ describe('__child() resolves children thunks', () => {
     parent.appendChild(result);
 
     expect(parent.textContent).toBe('firstsecond');
-    // comment anchor + 2 child elements
-    expect(parent.childNodes.length).toBe(3);
+    // comment anchor + 2 child elements + end marker
+    expect(parent.childNodes.length).toBe(4);
 
     result.dispose();
   });
@@ -85,8 +85,8 @@ describe('__child() resolves arrays', () => {
 
     expect(parent.textContent).toBe('AB');
     expect(parent.innerHTML).not.toContain('[object Object]');
-    // comment anchor + 2 elements
-    expect(parent.childNodes.length).toBe(3);
+    // comment anchor + 2 elements + end marker
+    expect(parent.childNodes.length).toBe(4);
 
     result.dispose();
   });
