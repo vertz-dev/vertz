@@ -13,7 +13,7 @@ export function service<
     // biome-ignore lint/suspicious/noExplicitAny: constraint uses any to accept all action type parameter combinations
     ServiceActionDef<any, any, any>
   >,
->(name: string, config: ServiceConfig<TActions, TInject>): ServiceDefinition {
+>(name: string, config: ServiceConfig<TActions, TInject>): ServiceDefinition<TActions> {
   if (!name || !SERVICE_NAME_PATTERN.test(name)) {
     throw new Error(
       `service() name must be a non-empty lowercase string matching /^[a-z][a-z0-9-]*$/. Got: "${name}"`,
@@ -24,7 +24,7 @@ export function service<
     throw new Error('service() requires at least one action in the actions config.');
   }
 
-  const def: ServiceDefinition = {
+  const def: ServiceDefinition<TActions> = {
     kind: 'service',
     name,
     inject: (config.inject ?? {}) as Record<string, EntityDefinition>,
