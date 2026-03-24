@@ -58,11 +58,12 @@ function resolveRelations(entry: TableDef<ColumnRecord> | ModelDef): Record<stri
   return isModelDef(entry) ? entry.relations : {};
 }
 
-function findPkColumn(table: TableDef<ColumnRecord>): string {
+function findPkColumns(table: TableDef<ColumnRecord>): string[] {
+  const pkCols: string[] = [];
   for (const [colName, col] of Object.entries(table._columns)) {
-    if (col._meta.primary) return colName;
+    if (col._meta.primary) pkCols.push(colName);
   }
-  throw new Error(`Table "${table._name}" has no primary key column`);
+  return pkCols;
 }
 
 function deriveForeignKeys(
@@ -84,14 +85,13 @@ function deriveForeignKeys(
     }
 
     const targetTable = rel._target();
-    let targetColumn: string;
-    try {
-      targetColumn = findPkColumn(targetTable);
-    } catch {
+    const targetPkCols = findPkColumns(targetTable);
+    if (targetPkCols.length === 0) {
       throw new Error(
         `Target table "${targetTable._name}" referenced by relation "${relName}" on table "${table._name}" has no primary key column`,
       );
     }
+    const targetColumn = targetPkCols[0];
 
     foreignKeys.push({
       column: rel._foreignKey,

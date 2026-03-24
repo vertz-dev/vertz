@@ -149,6 +149,20 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
   options?: CrudPipelineOptions,
 ): CrudHandlers<TModel> {
   const table = def.model.table;
+
+  // Guard: entity CRUD does not support composite primary keys
+  const pkCols: string[] = [];
+  for (const key of Object.keys(table._columns)) {
+    const col = table._columns[key] as ColumnBuilder<unknown, ColumnMetadata> | undefined;
+    if (col?._meta.primary) pkCols.push(key);
+  }
+  if (pkCols.length > 1) {
+    throw new Error(
+      `Entity CRUD does not support composite primary keys. ` +
+        `Table "${table._name}" has composite PK: [${pkCols.join(', ')}]. ` +
+        `Use direct database queries or define a surrogate single-column PK.`,
+    );
+  }
   const isTenantScoped = def.tenantScoped;
   const tenantColumn = def.tenantColumn ?? 'tenantId';
   const tenantChain = options?.tenantChain ?? def.tenantChain ?? null;

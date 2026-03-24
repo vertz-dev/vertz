@@ -2641,3 +2641,24 @@ describe('Feature: CRUD pipeline', () => {
     });
   });
 });
+
+describe('composite primary key guard', () => {
+  it('throws when entity uses a composite-PK table', () => {
+    const membersTable = d.table(
+      'tenant_members',
+      {
+        tenantId: d.uuid(),
+        userId: d.uuid(),
+        role: d.text(),
+      },
+      { primaryKey: ['tenantId', 'userId'] },
+    );
+
+    const membersModel = d.model(membersTable);
+    const def = entity('tenant-member', { model: membersModel });
+
+    const stubDb = createStubDb();
+
+    expect(() => createCrudHandlers(def, stubDb)).toThrow(/composite primary key/i);
+  });
+});

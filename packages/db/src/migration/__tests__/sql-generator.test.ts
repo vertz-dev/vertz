@@ -582,3 +582,30 @@ describe('generateRollbackSql', () => {
     expect(sql).toContain('ALTER TYPE "user_role" ADD VALUE \'guest\';');
   });
 });
+
+describe('composite primary keys', () => {
+  it('generates CREATE TABLE with composite PRIMARY KEY', () => {
+    const changes: DiffChange[] = [{ type: 'table_added', table: 'tenant_members' }];
+
+    const sql = generateMigrationSql(changes, {
+      tables: {
+        tenant_members: {
+          columns: {
+            tenantId: { type: 'uuid', nullable: false, primary: true, unique: false },
+            userId: { type: 'uuid', nullable: false, primary: true, unique: false },
+            role: { type: 'text', nullable: false, primary: false, unique: false },
+          },
+          indexes: [],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+    });
+
+    expect(sql).toContain('CREATE TABLE "tenant_members"');
+    expect(sql).toContain('"tenant_id" uuid NOT NULL');
+    expect(sql).toContain('"user_id" uuid NOT NULL');
+    expect(sql).toContain('"role" text NOT NULL');
+    expect(sql).toContain('PRIMARY KEY ("tenant_id", "user_id")');
+  });
+});

@@ -166,6 +166,13 @@ export function computeDiff(before: SchemaSnapshot, after: SchemaSnapshot): Diff
       const afterCol = afterTable.columns[colName];
       if (!beforeCol || !afterCol) continue;
 
+      if (beforeCol.primary !== afterCol.primary) {
+        console.warn(
+          `Primary key change detected on column "${colName}" in table "${tableName}". ` +
+            'ALTER PRIMARY KEY is not supported — recreate the table or manage this migration manually.',
+        );
+      }
+
       if (
         beforeCol.type !== afterCol.type ||
         beforeCol.nullable !== afterCol.nullable ||

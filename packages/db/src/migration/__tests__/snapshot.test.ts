@@ -301,3 +301,51 @@ describe('createSnapshot', () => {
     expect(restored).toEqual(original);
   });
 });
+
+describe('createSnapshot — composite primary keys', () => {
+  it('marks all composite PK columns as primary in snapshot', () => {
+    const tenantMembers = d.table(
+      'tenant_members',
+      {
+        tenantId: d.uuid(),
+        userId: d.uuid(),
+        role: d.text().default('member'),
+      },
+      { primaryKey: ['tenantId', 'userId'] },
+    );
+
+    const snapshot = createSnapshot([tenantMembers]);
+    const cols = snapshot.tables.tenant_members.columns;
+
+    expect(cols.tenantId.primary).toBe(true);
+    expect(cols.userId.primary).toBe(true);
+    expect(cols.role.primary).toBe(false);
+  });
+
+  it('derives FK from relation to composite-PK table using first PK column', () => {
+    const tenantMembers = d.table(
+      'tenant_members',
+      {
+        tenantId: d.uuid(),
+        userId: d.uuid(),
+        role: d.text(),
+      },
+      { primaryKey: ['tenantId', 'userId'] },
+    );
+
+    const logs = d.table('member_logs', {
+      id: d.uuid().primary(),
+      memberId: d.uuid(),
+    });
+
+    const logsModel = d.model(logs, {
+      member: d.ref.one(() => tenantMembers, 'memberId'),
+    });
+
+    const snapshot = createSnapshot([tenantMembers, logsModel]);
+
+    expect(snapshot.tables.member_logs.foreignKeys).toEqual([
+      { column: 'memberId', targetTable: 'tenant_members', targetColumn: 'tenantId' },
+    ]);
+  });
+});

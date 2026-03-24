@@ -137,4 +137,34 @@ describe('query helpers', () => {
       expect(cols).not.toContain('name');
     });
   });
+
+  describe('getPrimaryKeyColumns — composite PK', () => {
+    it('returns all composite PK column names', () => {
+      const tenantMembers = d.table(
+        'tenant_members',
+        {
+          tenantId: d.uuid(),
+          userId: d.uuid(),
+          role: d.text(),
+        },
+        { primaryKey: ['tenantId', 'userId'] },
+      );
+
+      const pkCols = getPrimaryKeyColumns(tenantMembers);
+      expect(pkCols).toEqual(['tenantId', 'userId']);
+    });
+
+    it('returns single PK column for .primary() table', () => {
+      const pkCols = getPrimaryKeyColumns(table);
+      expect(pkCols).toEqual(['id']);
+    });
+
+    it('returns empty array for table with no PK', () => {
+      const noPk = d.table('no_pk', {
+        name: d.text(),
+        value: d.text(),
+      });
+      expect(getPrimaryKeyColumns(noPk)).toEqual([]);
+    });
+  });
 });
