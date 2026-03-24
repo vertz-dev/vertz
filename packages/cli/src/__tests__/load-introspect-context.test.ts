@@ -1,19 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 
 // ---------------------------------------------------------------------------
-// Mock external dependencies before importing the module under test
+// Mock external dependencies before importing the module under test.
+//
+// NOTE: We do NOT vi.mock('jiti') because Bun test runs all files in one
+// process and vi.mock() is global — it would break every other test file
+// that uses jiti (fullstack-server, loader, load-db-context).
+// Instead, we spy on the exported _importConfig helper.
 // ---------------------------------------------------------------------------
 
 const mockQueryFn = vi.fn();
 const mockClose = vi.fn().mockResolvedValue(undefined);
-
-// Mock jiti to return a fake config module
-const mockJitiImport = vi.fn();
-vi.mock('jiti', () => ({
-  createJiti: () => ({
-    import: mockJitiImport,
-  }),
-}));
 
 // Mock the postgres driver so createConnection doesn't need a real DB
 vi.mock('postgres', () => ({
@@ -23,17 +20,21 @@ vi.mock('postgres', () => ({
   }),
 }));
 
-// Now import the function under test
-import { loadIntrospectContext } from '../commands/load-db-context';
+// Now import the module under test
+import * as loadDbContextModule from '../commands/load-db-context';
+
+const { loadIntrospectContext } = loadDbContextModule;
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
 describe('loadIntrospectContext', () => {
+  let importConfigSpy: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
     vi.clearAllMocks();
-    mockJitiImport.mockResolvedValue({
+    importConfigSpy = vi.spyOn(loadDbContextModule, '_importConfig').mockResolvedValue({
       db: {
         dialect: 'postgres',
         url: 'postgres://localhost:5432/testdb',
@@ -57,13 +58,13 @@ describe('loadIntrospectContext', () => {
     expect(typeof ctx.queryFn).toBe('function');
     expect(typeof ctx.close).toBe('function');
     // Should NOT load config when both overrides provided
-    expect(mockJitiImport).not.toHaveBeenCalled();
+    expect(importConfigSpy).not.toHaveBeenCalled();
 
     await ctx.close();
   });
 
   it('uses dialect override from config when only dialect is provided', async () => {
-    mockJitiImport.mockResolvedValue({
+    importConfigSpy.mockResolvedValue({
       db: {
         dialect: 'sqlite',
         url: 'postgres://localhost:5432/testdb',
@@ -82,7 +83,7 @@ describe('loadIntrospectContext', () => {
     const ctx = await loadIntrospectContext();
 
     expect(ctx.dialectName).toBe('postgres');
-    expect(mockJitiImport).toHaveBeenCalled();
+    expect(importConfigSpy).toHaveBeenCalled();
     expect(typeof ctx.queryFn).toBe('function');
 
     await ctx.close();
@@ -92,14 +93,14 @@ describe('loadIntrospectContext', () => {
     const ctx = await loadIntrospectContext({ url: 'postgres://custom:5432/db' });
 
     expect(ctx.dialectName).toBe('postgres');
-    expect(mockJitiImport).toHaveBeenCalled();
+    expect(importConfigSpy).toHaveBeenCalled();
 
     await ctx.close();
   });
 
   it('throws when config file not found and no overrides', async () => {
     // Simulate config import failure + file not found
-    mockJitiImport.mockRejectedValue(new Error('Module not found'));
+    importConfigSpy.mockRejectedValue(new Error('Module not found'));
     // Also need to mock fs.access to throw (file not found)
     vi.spyOn(await import('node:fs/promises'), 'access').mockRejectedValue(
       Object.assign(new Error('ENOENT'), { code: 'ENOENT' }),
@@ -109,7 +110,7 @@ describe('loadIntrospectContext', () => {
   });
 
   it('throws when config has no dialect', async () => {
-    mockJitiImport.mockResolvedValue({
+    importConfigSpy.mockResolvedValue({
       db: { schema: './src/schema.ts' },
     });
 
