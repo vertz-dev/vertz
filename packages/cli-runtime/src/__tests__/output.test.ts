@@ -79,4 +79,34 @@ describe('formatOutput', () => {
     expect(formatOutput('hello', 'human')).toBe('hello');
     expect(formatOutput(42, 'human')).toBe('42');
   });
+
+  it('returns string for null/undefined in table format', () => {
+    expect(formatOutput(null, 'table')).toBe('null');
+    expect(formatOutput(undefined, 'table')).toBe('undefined');
+  });
+
+  it('returns string for table with non-object rows (no columns)', () => {
+    const result = formatOutput([42, 'hello'], 'table');
+    // Non-object rows produce no keys, so columns.length === 0 → String(data)
+    expect(result).toBe('42,hello');
+  });
+
+  it('renders non-object rows in table as string fallback', () => {
+    // Mix of objects and primitives: objects contribute columns, primitives hit String(row)
+    const data = [{ name: 'Alice' }, 'raw-value'];
+    const result = formatOutput(data, 'table');
+    expect(result).toContain('Alice');
+    expect(result).toContain('raw-value');
+  });
+
+  it('formats human-readable array of primitives with index prefix', () => {
+    const data = [42, 'hello'];
+    const result = formatOutput(data, 'human');
+    expect(result).toContain('[1] 42');
+    expect(result).toContain('[2] hello');
+  });
+
+  it('returns string for undefined in human format', () => {
+    expect(formatOutput(undefined, 'human')).toBe('undefined');
+  });
 });

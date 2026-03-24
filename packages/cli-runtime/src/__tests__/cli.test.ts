@@ -218,3 +218,44 @@ describe('command execution', () => {
     expect(errors[0]).toContain('Error:');
   });
 });
+
+describe('default output functions', () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('uses console.log when no output option provided', async () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+
+    const config: CLIConfig = {
+      name: 'testapp',
+      version: '1.0.0',
+      commands: testManifest,
+    };
+
+    const cli = createCLI(config);
+    await cli.run(['--version']);
+
+    expect(logSpy).toHaveBeenCalledWith('testapp v1.0.0');
+    logSpy.mockRestore();
+  });
+
+  it('uses console.error when no errorOutput option provided', async () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    const errorSpy = spyOn(console, 'error').mockImplementation(() => {});
+
+    const config: CLIConfig = {
+      name: 'testapp',
+      version: '1.0.0',
+      commands: testManifest,
+    };
+
+    const cli = createCLI(config);
+    await cli.run(['nonexistent']);
+
+    expect(errorSpy).toHaveBeenCalledWith('Unknown namespace: nonexistent');
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+});
