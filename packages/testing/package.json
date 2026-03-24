@@ -31,11 +31,11 @@
   },
   "dependencies": {
     "@vertz/core": "workspace:^",
+    "@vertz/db": "workspace:^",
     "@vertz/server": "workspace:^"
   },
   "devDependencies": {
     "@types/node": "^25.3.1",
-    "@vertz/db": "workspace:^",
     "@vertz/schema": "workspace:^",
     "bunup": "^0.16.31",
     "typescript": "^5.7.0"
