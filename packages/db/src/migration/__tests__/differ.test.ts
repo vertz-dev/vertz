@@ -737,8 +737,10 @@ describe('composite primary key changes', () => {
     };
 
     const warnSpy = spyOn(console, 'warn');
-    computeDiff(before, after);
+    const result = computeDiff(before, after);
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Primary key change detected'));
+    // PK-only change should NOT emit a column_altered diff (no SQL generated)
+    expect(result.changes.filter((c) => c.type === 'column_altered')).toEqual([]);
     warnSpy.mockRestore();
   });
 

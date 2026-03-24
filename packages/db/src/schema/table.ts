@@ -259,6 +259,10 @@ export function createTable<TColumns extends ColumnRecord>(
   const pkOption = (options as { primaryKey?: readonly string[] } | undefined)?.primaryKey;
   let finalColumns = columns;
 
+  if (pkOption && pkOption.length === 0) {
+    throw new Error(`primaryKey option in table "${name}" must contain at least one column name.`);
+  }
+
   if (pkOption && pkOption.length > 0) {
     // Validate: no column-level .primary() when table-level primaryKey is used
     for (const colName of Object.keys(columns)) {

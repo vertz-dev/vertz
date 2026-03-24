@@ -307,6 +307,19 @@ describe('composite primary keys', () => {
     ).toThrow(/Cannot use both/);
   });
 
+  it('throws when primaryKey is an empty array', () => {
+    expect(() =>
+      d.table(
+        'bad',
+        {
+          tenantId: d.uuid(),
+          userId: d.uuid(),
+        },
+        { primaryKey: [] as any },
+      ),
+    ).toThrow(/at least one column/);
+  });
+
   it('throws when primaryKey references non-existent column', () => {
     expect(() =>
       d.table(
