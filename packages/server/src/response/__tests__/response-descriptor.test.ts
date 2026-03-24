@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { isResponseDescriptor, response } from '../response-descriptor';
+import { filterProtectedHeaders, isResponseDescriptor, response } from '../response-descriptor';
 
 describe('Feature: ResponseDescriptor and response() helper', () => {
   describe('Given response() called with data and options', () => {
@@ -47,6 +47,35 @@ describe('Feature: ResponseDescriptor and response() helper', () => {
         expect(isResponseDescriptor('string')).toBe(false);
         expect(isResponseDescriptor(42)).toBe(false);
       });
+    });
+  });
+});
+
+describe('Feature: filterProtectedHeaders', () => {
+  it('filters out content-type (case-insensitive)', () => {
+    expect(filterProtectedHeaders({ 'Content-Type': 'text/plain', 'X-Custom': 'val' })).toEqual({
+      'X-Custom': 'val',
+    });
+    expect(filterProtectedHeaders({ 'content-type': 'text/plain', 'X-Custom': 'val' })).toEqual({
+      'X-Custom': 'val',
+    });
+    expect(filterProtectedHeaders({ 'CONTENT-TYPE': 'text/plain', 'X-Custom': 'val' })).toEqual({
+      'X-Custom': 'val',
+    });
+  });
+
+  it('returns undefined when input is undefined', () => {
+    expect(filterProtectedHeaders(undefined)).toBeUndefined();
+  });
+
+  it('returns undefined when all headers are filtered out', () => {
+    expect(filterProtectedHeaders({ 'Content-Type': 'text/plain' })).toBeUndefined();
+  });
+
+  it('passes through non-content-type headers unchanged', () => {
+    expect(filterProtectedHeaders({ 'Cache-Control': 'no-cache', 'X-Request-Id': 'abc' })).toEqual({
+      'Cache-Control': 'no-cache',
+      'X-Request-Id': 'abc',
     });
   });
 });

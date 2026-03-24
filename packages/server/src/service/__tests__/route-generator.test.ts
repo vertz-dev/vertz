@@ -667,7 +667,7 @@ describe('Feature: generateServiceRoutes', () => {
 
   describe('Given a handler that tries to override content-type header', () => {
     describe('When the route is invoked', () => {
-      it('Then content-type remains application/json', async () => {
+      it('Then content-type remains application/json (Title-Case)', async () => {
         const svc = service('cloud', {
           access: { data: () => true },
           actions: {
@@ -689,6 +689,30 @@ describe('Feature: generateServiceRoutes', () => {
 
         expect(resp.headers.get('content-type')).toBe('application/json');
         expect(resp.headers.get('X-Custom')).toBe('val');
+      });
+
+      it('Then content-type remains application/json (all-lowercase)', async () => {
+        const svc = service('cloud', {
+          access: { data: () => true },
+          actions: {
+            data: {
+              method: 'GET',
+              response: responseSchema,
+              handler: async () =>
+                response(
+                  { token: 'tok' },
+                  { headers: { 'content-type': 'text/plain', 'X-Other': 'yes' } },
+                ),
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(svc, registry);
+        const resp = await routes[0]?.handler({});
+
+        expect(resp.headers.get('content-type')).toBe('application/json');
+        expect(resp.headers.get('X-Other')).toBe('yes');
       });
     });
   });

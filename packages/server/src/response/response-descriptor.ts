@@ -43,3 +43,20 @@ export function response<T>(
 export function isResponseDescriptor(value: unknown): value is ResponseDescriptor<unknown> {
   return value != null && typeof value === 'object' && RESPONSE_BRAND in value;
 }
+
+/**
+ * Filters protected headers (content-type) from custom headers, case-insensitively.
+ * Returns undefined if input is undefined or all headers are filtered out.
+ */
+export function filterProtectedHeaders(
+  headers: Record<string, string> | undefined,
+): Record<string, string> | undefined {
+  if (!headers) return undefined;
+  const filtered: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() !== 'content-type') {
+      filtered[key] = value;
+    }
+  }
+  return Object.keys(filtered).length > 0 ? filtered : undefined;
+}

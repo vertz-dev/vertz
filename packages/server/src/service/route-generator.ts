@@ -4,7 +4,7 @@ import { enforceAccess } from '../entity/access-enforcer';
 import type { RequestInfo } from '../entity/context';
 import type { EntityOperations } from '../entity/entity-operations';
 import type { EntityRegistry } from '../entity/entity-registry';
-import { isResponseDescriptor } from '../response';
+import { filterProtectedHeaders, isResponseDescriptor } from '../response';
 import { createServiceContext } from './context';
 import type { ServiceDefinition } from './types';
 
@@ -166,18 +166,7 @@ export function generateServiceRoutes(
           const isResp = isResponseDescriptor(rawResult);
           const result = isResp ? rawResult.data : rawResult;
           const customStatus = isResp ? rawResult.status : undefined;
-          const customHeaders = isResp ? rawResult.headers : undefined;
-
-          // Filter content-type from custom headers (case-insensitive)
-          let filteredHeaders: Record<string, string> | undefined;
-          if (customHeaders) {
-            filteredHeaders = {};
-            for (const [key, value] of Object.entries(customHeaders)) {
-              if (key.toLowerCase() !== 'content-type') {
-                filteredHeaders[key] = value;
-              }
-            }
-          }
+          const filteredHeaders = isResp ? filterProtectedHeaders(rawResult.headers) : undefined;
 
           // Validate response
           const responseParsed = handlerDef.response.parse(result);
