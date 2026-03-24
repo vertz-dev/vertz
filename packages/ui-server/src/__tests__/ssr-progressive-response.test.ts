@@ -138,6 +138,22 @@ describe('buildProgressiveResponse', () => {
       expect(chunks.length).toBeGreaterThanOrEqual(1);
     });
 
+    it('escapes error messages containing HTML to prevent XSS', async () => {
+      const response = buildProgressiveResponse({
+        headChunk: '<head>',
+        renderStream: errorStream([], '</script><img onerror="alert(1)">'),
+        tailChunk: '</body>',
+        ssrData: [],
+      });
+
+      const chunks = await collectStreamChunks(response.body!);
+      const allHtml = chunks.join('');
+      // The raw </script> injection must not appear
+      expect(allHtml).not.toContain('</script><img');
+      // Should be escaped via safeSerialize
+      expect(allHtml).toContain('\\u003c');
+    });
+
     it('logs the error to the server console', async () => {
       const spy = spyOn(console, 'error').mockImplementation(() => {});
 
