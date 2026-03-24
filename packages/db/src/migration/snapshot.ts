@@ -9,6 +9,14 @@ export interface ColumnSnapshot {
   unique: boolean;
   default?: string;
   annotations?: string[];
+  /** Postgres udt_name — resolves enum type names and array element types. */
+  udtName?: string;
+  /** character_maximum_length for varchar columns. */
+  length?: number;
+  /** numeric_precision for decimal/numeric columns. */
+  precision?: number;
+  /** numeric_scale for decimal/numeric columns. */
+  scale?: number;
 }
 
 export interface IndexSnapshot {

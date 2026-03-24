@@ -4,6 +4,8 @@ export { type AutoMigrateOptions, autoMigrate } from './auto-migrate';
 export type { ChangeType, DiffChange, DiffResult } from './differ';
 export { computeDiff } from './differ';
 export { formatMigrationFilename, nextMigrationNumber } from './files';
+export type { CodegenOptions, GeneratedFile } from './codegen';
+export { generateSchemaCode } from './codegen';
 export { introspectPostgres, introspectSqlite } from './introspect';
 export type { CollisionInfo, Journal, JournalEntry } from './journal';
 export {
