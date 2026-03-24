@@ -25,6 +25,7 @@ vi.mock('@vertz/ui-server/ssr', () => ({
   discoverRoutes: async () => [],
   filterPrerenderableRoutes: (patterns: string[]) => patterns,
   prerenderRoutes: async () => [],
+  stripScriptsFromStaticHTML: (html: string) => html.replace(/<script[^>]*>.*?<\/script>/g, ''),
 }));
 
 import {

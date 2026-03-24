@@ -10,7 +10,6 @@
  */
 
 import type { FontFallbackMetrics } from '@vertz/ui';
-import { compileTheme } from '@vertz/ui';
 import type { SSRAuth } from '@vertz/ui/internals';
 import type { ExtractedQuery } from '@vertz/ui-compiler';
 import { installDomShim, toVNode } from './dom-shim';
@@ -28,6 +27,7 @@ import {
 } from './ssr-context';
 import { reconstructDescriptors } from './ssr-manifest-prefetch';
 import {
+  compileThemeCached,
   createRequestContext,
   type SSRModule,
   type SSRRenderResult,
@@ -220,14 +220,12 @@ export async function ssrRenderSinglePass(
 
       const createApp = resolveAppFactory(module);
 
-      // Compile theme CSS if the module exports a theme
+      // Compile theme CSS if the module exports a theme (cached across requests)
       let themeCss = '';
       let themePreloadTags = '';
       if (module.theme) {
         try {
-          const compiled = compileTheme(module.theme, {
-            fallbackMetrics: options?.fallbackMetrics,
-          });
+          const compiled = compileThemeCached(module.theme, options?.fallbackMetrics);
           themeCss = compiled.css;
           themePreloadTags = compiled.preloadTags;
         } catch (e) {
@@ -246,12 +244,11 @@ export async function ssrRenderSinglePass(
       const css = collectCSS(themeCss, module);
 
       // Collect SSR data for client-side hydration.
-      // Include both pre-populated data (from discovery) and any new queries
-      // that registered during the render pass (cache misses — e.g., timed-out
-      // queries that weren't in the pre-populated cache).
+      // Data is JSON-safe (from fetch responses) — safeSerialize in
+      // template-inject handles the final serialization.
       const ssrData = discoveredData.resolvedQueries.map(({ key, data }) => ({
         key,
-        data: JSON.parse(JSON.stringify(data)),
+        data,
       }));
 
       return {
@@ -389,14 +386,12 @@ async function renderWithPrefetchedData(
 
       const createApp = resolveAppFactory(module);
 
-      // Compile theme CSS if the module exports a theme
+      // Compile theme CSS if the module exports a theme (cached across requests)
       let themeCss = '';
       let themePreloadTags = '';
       if (module.theme) {
         try {
-          const compiled = compileTheme(module.theme, {
-            fallbackMetrics: options?.fallbackMetrics,
-          });
+          const compiled = compileThemeCached(module.theme, options?.fallbackMetrics);
           themeCss = compiled.css;
           themePreloadTags = compiled.preloadTags;
         } catch (e) {
@@ -430,7 +425,7 @@ async function renderWithPrefetchedData(
 
       const ssrData = data.resolvedQueries.map(({ key, data: d }) => ({
         key,
-        data: JSON.parse(JSON.stringify(d)),
+        data: d,
       }));
 
       return {

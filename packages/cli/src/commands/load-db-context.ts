@@ -24,6 +24,12 @@ import { NodeSnapshotStorage } from '@vertz/db/internals';
 import { createJiti } from 'jiti';
 import type { DbCommandContext } from './db';
 
+/** @internal — exported for test spying (avoids global vi.mock on 'jiti') */
+export function _importConfig(configPath: string): Promise<Record<string, unknown>> {
+  const jiti = createJiti(import.meta.url, { interopDefault: true });
+  return jiti.import(configPath) as Promise<Record<string, unknown>>;
+}
+
 export interface DbConfig {
   dialect: 'sqlite' | 'postgres';
   url?: string;
@@ -60,12 +66,11 @@ export interface IntrospectContext {
 
 export async function loadDbContext(): Promise<DbCommandContext> {
   const configPath = resolve(process.cwd(), 'vertz.config.ts');
-  const jiti = createJiti(import.meta.url, { interopDefault: true });
 
   // Load vertz.config.ts — catch missing file separately for a clear message
   let configModule: Record<string, unknown>;
   try {
-    configModule = (await jiti.import(configPath)) as Record<string, unknown>;
+    configModule = await _importConfig(configPath);
   } catch {
     try {
       await access(configPath);
@@ -113,7 +118,7 @@ export async function loadDbContext(): Promise<DbCommandContext> {
   const schemaPath = resolve(cwd, dbConfig.schema);
   let schemaModule: Record<string, unknown>;
   try {
-    schemaModule = (await jiti.import(schemaPath)) as Record<string, unknown>;
+    schemaModule = await _importConfig(schemaPath);
   } catch {
     try {
       await access(schemaPath);
@@ -326,11 +331,10 @@ export interface AutoMigrateContext {
 
 export async function loadAutoMigrateContext(): Promise<AutoMigrateContext> {
   const configPath = resolve(process.cwd(), 'vertz.config.ts');
-  const jiti = createJiti(import.meta.url, { interopDefault: true });
 
   let configModule: Record<string, unknown>;
   try {
-    configModule = (await jiti.import(configPath)) as Record<string, unknown>;
+    configModule = await _importConfig(configPath);
   } catch {
     try {
       await access(configPath);
@@ -401,11 +405,10 @@ export async function loadIntrospectContext(overrides?: {
   } else {
     // Config mode: load from vertz.config.ts
     const configPath = resolve(process.cwd(), 'vertz.config.ts');
-    const jiti = createJiti(import.meta.url, { interopDefault: true });
 
     let configModule: Record<string, unknown>;
     try {
-      configModule = (await jiti.import(configPath)) as Record<string, unknown>;
+      configModule = await _importConfig(configPath);
     } catch {
       try {
         await access(configPath);
