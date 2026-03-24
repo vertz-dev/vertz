@@ -1,4 +1,7 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createEnv } from '../env-validator';
 
 /**
@@ -9,6 +12,18 @@ function mockSchema<T>(
   validate: (input: unknown) => { ok: true; data: T } | { ok: false; error: { message: string } },
 ) {
   return { safeParse: validate } as import('../../types/env').EnvConfig<T>['schema'];
+}
+
+/** Mock schema that returns the value of a single key as-is. */
+function singleKeySchema<K extends string>(key: K) {
+  return mockSchema<Record<K, string>>((input) => {
+    const rec = input as Record<string, string | undefined>;
+    const val = rec[key];
+    if (val !== undefined) {
+      return { ok: true, data: { [key]: val } as Record<K, string> };
+    }
+    return { ok: false, error: { message: `${key} is required` } };
+  });
 }
 
 describe('createEnv', () => {
@@ -113,5 +128,92 @@ describe('createEnv', () => {
     });
 
     expect(env.TOKEN).toBe('abc123');
+  });
+
+  describe('with load property', () => {
+    let tempDir: string;
+
+    beforeEach(() => {
+      tempDir = mkdtempSync(join(tmpdir(), 'vertz-env-validator-'));
+    });
+
+    afterEach(() => {
+      rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it('file values override process.env values', () => {
+      process.env.PORT = '3000';
+      const envFile = join(tempDir, '.env');
+      writeFileSync(envFile, 'PORT=4000');
+
+      const env = createEnv({
+        load: [envFile],
+        schema: singleKeySchema('PORT'),
+      });
+
+      expect(env.PORT).toBe('4000');
+    });
+
+    it('later files override earlier files', () => {
+      const env1 = join(tempDir, '.env');
+      const env2 = join(tempDir, '.env.local');
+      writeFileSync(env1, 'PORT=3000');
+      writeFileSync(env2, 'PORT=5000');
+
+      const env = createEnv({
+        load: [env1, env2],
+        schema: singleKeySchema('PORT'),
+      });
+
+      expect(env.PORT).toBe('5000');
+    });
+
+    it('explicit env overrides file values', () => {
+      const envFile = join(tempDir, '.env');
+      writeFileSync(envFile, 'PORT=4000');
+
+      const env = createEnv({
+        load: [envFile],
+        schema: singleKeySchema('PORT'),
+        env: { PORT: '9000' },
+      });
+
+      expect(env.PORT).toBe('9000');
+    });
+
+    it('file-only keys are available in the result', () => {
+      delete process.env.SECRET_KEY;
+      const envFile = join(tempDir, '.env');
+      writeFileSync(envFile, 'SECRET_KEY=my-secret');
+
+      const env = createEnv({
+        load: [envFile],
+        schema: singleKeySchema('SECRET_KEY'),
+      });
+
+      expect(env.SECRET_KEY).toBe('my-secret');
+    });
+
+    it('missing load files do not throw', () => {
+      process.env.FOO = 'bar';
+      const missing = join(tempDir, '.env.local');
+
+      const env = createEnv({
+        load: [missing],
+        schema: singleKeySchema('FOO'),
+      });
+
+      expect(env.FOO).toBe('bar');
+    });
+
+    it('omitted load behaves identically to current behavior', () => {
+      process.env.APP = 'vertz';
+
+      const env = createEnv({
+        schema: singleKeySchema('APP'),
+      });
+
+      expect(env.APP).toBe('vertz');
+    });
   });
 });
