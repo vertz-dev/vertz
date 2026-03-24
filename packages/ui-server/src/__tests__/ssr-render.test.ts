@@ -194,6 +194,52 @@ async function streamToText(stream: ReadableStream<Uint8Array>): Promise<string>
   return result;
 }
 
+describe('ssrStreamNavQueries search params', () => {
+  it('preserves search params in SSR context url', async () => {
+    let capturedUrl: string | undefined;
+    const module = {
+      default: () => {
+        const ctx = getSSRContext();
+        capturedUrl = ctx?.url;
+        const el = document.createElement('div');
+        el.textContent = 'App';
+        return el;
+      },
+    };
+
+    const stream = await ssrStreamNavQueries(module, '/search?q=dragon&page=2');
+    await streamToText(stream);
+
+    expect(capturedUrl).toBe('/search?q=dragon&page=2');
+  });
+
+  it('queries can read search params from the SSR context url', async () => {
+    const module = {
+      default: () => {
+        const ctx = getSSRContext();
+        const url = ctx?.url ?? '/';
+        const qIdx = url.indexOf('?');
+        const searchParams = new URLSearchParams(qIdx !== -1 ? url.slice(qIdx + 1) : '');
+        const q = searchParams.get('q') ?? 'none';
+        registerSSRQuery({
+          key: `search-${q}`,
+          promise: Promise.resolve({ results: ['item1'] }),
+          timeout: 300,
+          resolve: () => {},
+        });
+        const el = document.createElement('div');
+        el.textContent = 'App';
+        return el;
+      },
+    };
+
+    const stream = await ssrStreamNavQueries(module, '/search?q=dragon');
+    const text = await streamToText(stream);
+
+    expect(text).toContain('"search-dragon"');
+  });
+});
+
 describe('ssrStreamNavQueries', () => {
   it('returns a ReadableStream with individual SSE events for resolved queries', async () => {
     const module = {

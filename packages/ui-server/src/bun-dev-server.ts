@@ -1611,7 +1611,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
         // Nav pre-fetch (X-Vertz-Nav: 1) — stream SSE events as queries settle
         if (request.headers.get('x-vertz-nav') === '1') {
           try {
-            const stream = await ssrStreamNavQueries(ssrMod, pathname, { navSsrTimeout: 5000 });
+            const stream = await ssrStreamNavQueries(ssrMod, pathname + url.search, { navSsrTimeout: 5000 });
             return new Response(stream, {
               status: 200,
               headers: {

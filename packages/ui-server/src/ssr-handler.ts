@@ -153,7 +153,7 @@ export function createSSRHandler(
 
     // Nav pre-fetch: SSE response — session resolver NOT called
     if (request.headers.get('x-vertz-nav') === '1') {
-      return handleNavRequest(module, pathname, ssrTimeout);
+      return handleNavRequest(module, pathname + url.search, ssrTimeout);
     }
 
     // Resolve session in isolated try/catch (graceful degradation)

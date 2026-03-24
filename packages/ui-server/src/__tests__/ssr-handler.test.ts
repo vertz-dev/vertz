@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import { defineTheme } from '@vertz/ui';
 import type { AuthSdk } from '@vertz/ui/auth';
 import { AuthProvider } from '@vertz/ui/auth';
+import { getSSRContext } from '@vertz/ui/internals';
 import { ProtectedRoute } from '@vertz/ui-auth';
 import { registerSSRQuery } from '../ssr-context';
 import { createSSRHandler } from '../ssr-handler';
@@ -730,6 +731,88 @@ describe('createSSRHandler', () => {
       // No redirect — ssrAuth is undefined, auth stays idle, renders fallback
       expect(response.status).toBe(200);
       expect(response.headers.get('content-type')).toBe('text/html; charset=utf-8');
+    });
+  });
+
+  describe('Feature: SSR nav pre-fetch preserves search params', () => {
+    describe('Given a nav pre-fetch request to /search?q=dragon', () => {
+      describe('When the handler processes the request', () => {
+        it('Then the SSR context url includes search params', async () => {
+          let capturedUrl: string | undefined;
+          const module: SSRModule = {
+            default: () => {
+              const ctx = getSSRContext();
+              capturedUrl = ctx?.url;
+              const el = document.createElement('div');
+              el.textContent = 'App';
+              return el;
+            },
+          };
+
+          const handler = createSSRHandler({ module, template });
+          const request = new Request('http://localhost/search?q=dragon', {
+            headers: { 'X-Vertz-Nav': '1' },
+          });
+          await handler(request);
+
+          expect(capturedUrl).toBe('/search?q=dragon');
+        });
+
+        it('Then queries registered with search-param-dependent keys receive correct context', async () => {
+          let capturedUrl: string | undefined;
+          const module: SSRModule = {
+            default: () => {
+              const ctx = getSSRContext();
+              capturedUrl = ctx?.url;
+              registerSSRQuery({
+                key: `search-${ctx?.url?.split('?q=')[1] ?? 'none'}`,
+                promise: Promise.resolve({ results: ['item1'] }),
+                timeout: 300,
+                resolve: () => {},
+              });
+              const el = document.createElement('div');
+              el.textContent = 'App';
+              return el;
+            },
+          };
+
+          const handler = createSSRHandler({ module, template });
+          const request = new Request('http://localhost/search?q=dragon', {
+            headers: { 'X-Vertz-Nav': '1' },
+          });
+          const response = await handler(request);
+          const body = await response.text();
+
+          expect(capturedUrl).toBe('/search?q=dragon');
+          expect(body).toContain('"search-dragon"');
+        });
+      });
+    });
+
+    describe('Given a nav pre-fetch request to /items?page=2&sort=price&order=desc', () => {
+      describe('When the handler processes the request', () => {
+        it('Then all search params are accessible via ctx.url', async () => {
+          let capturedUrl: string | undefined;
+          const module: SSRModule = {
+            default: () => {
+              const ctx = getSSRContext();
+              capturedUrl = ctx?.url;
+              const el = document.createElement('div');
+              el.textContent = 'App';
+              return el;
+            },
+          };
+
+          const handler = createSSRHandler({ module, template });
+          const request = new Request(
+            'http://localhost/items?page=2&sort=price&order=desc',
+            { headers: { 'X-Vertz-Nav': '1' } },
+          );
+          await handler(request);
+
+          expect(capturedUrl).toBe('/items?page=2&sort=price&order=desc');
+        });
+      });
     });
   });
 });
