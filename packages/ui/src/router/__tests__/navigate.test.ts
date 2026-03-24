@@ -976,25 +976,25 @@ describe('createRouter SSR', () => {
     expect(router.current.peek()?.route.pattern).toBe('/about');
   });
 
-  test('SSR router searchParams.value returns empty for routes without schema', () => {
+  test('SSR router searchParams.value returns raw params for routes without schema', () => {
     enableTestSSR(createTestSSRContext('/tasks?status=done'));
     const routes = defineRoutes({
       '/tasks': { component: () => document.createElement('div') },
     });
     const router = createRouter(routes);
 
-    // Without a searchParams schema, search is empty
-    expect(router.searchParams.value).toEqual({});
+    // Without a searchParams schema, raw string params are returned
+    expect(router.searchParams.value).toEqual({ status: 'done' });
   });
 
-  test('SSR router searchParams.peek() returns empty for routes without schema', () => {
+  test('SSR router searchParams.peek() returns raw params for routes without schema', () => {
     enableTestSSR(createTestSSRContext('/tasks?q=hello'));
     const routes = defineRoutes({
       '/tasks': { component: () => document.createElement('div') },
     });
     const router = createRouter(routes);
 
-    expect(router.searchParams.peek()).toEqual({});
+    expect(router.searchParams.peek()).toEqual({ q: 'hello' });
   });
 
   test('SSR router navigate/revalidate/dispose are no-ops', async () => {

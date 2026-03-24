@@ -50,6 +50,12 @@
       "reactivity": {
         "type": "reactive-source"
       }
+    },
+    "useSearchParams": {
+      "kind": "function",
+      "reactivity": {
+        "type": "reactive-source"
+      }
     }
   },
   "filePath": "@vertz/ui",

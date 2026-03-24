@@ -214,6 +214,86 @@ When a `params` schema is defined on the route config, `useParams()` returns the
 
 ---
 
+## useSearchParams()
+
+Read and write the current route's search (query) params as a reactive proxy. Reads trigger signal tracking; writes batch-navigate to update the URL.
+
+```tsx
+import { useSearchParams } from '@vertz/ui/router';
+
+function SearchPage() {
+  const sp = useSearchParams();
+
+  // Read: reactive — re-renders when URL changes
+  const query = sp.q;
+  const page = sp.page;
+
+  // Write: batched — multiple writes = single URL update
+  sp.q = 'dragon';
+  sp.page = 2;
+
+  // Explicit navigate with push (creates history entry)
+  sp.navigate({ sort: 'price' }, { push: true });
+
+  // Remove a param
+  delete sp.sort;
+}
+```
+
+### With a search params schema
+
+Define a schema on the route to get typed, coerced values:
+
+```tsx
+import { s } from '@vertz/schema';
+import { defineRoutes } from '@vertz/ui/router';
+
+const routes = defineRoutes({
+  '/search': {
+    component: () => SearchPage(),
+    searchParams: s.object({
+      q: s.string().default(''),
+      page: s.coerce.number().default(1),
+    }),
+  },
+});
+
+function SearchPage() {
+  // With route path generic: sp.q is string, sp.page is number
+  const sp = useSearchParams<'/search'>();
+}
+```
+
+### Signatures
+
+```ts
+// Route path generic — infers types from route schema
+function useSearchParams<TPath extends string>(): ReactiveSearchParams<ExtractSearchParams<TPath>>;
+
+// Explicit type assertion
+function useSearchParams<T extends Record<string, unknown>>(): ReactiveSearchParams<T>;
+
+// No generic — returns Record<string, string>
+function useSearchParams(): ReactiveSearchParams<Record<string, string>>;
+```
+
+### ReactiveSearchParams
+
+| Property/Method | Type | Description |
+|-----------------|------|-------------|
+| `sp[key]` | `unknown` | Read a search param (reactive) |
+| `sp[key] = value` | — | Write a search param (batched, replaces URL) |
+| `delete sp[key]` | — | Remove a search param |
+| `sp.navigate(partial, opts?)` | `void` | Merge params and navigate. `{ push: true }` creates history entry |
+| `Object.keys(sp)` | `string[]` | Current param names |
+| `{ ...sp }` | `object` | Snapshot of current params |
+
+### SSR behavior
+
+During SSR, reads return the values from the request URL. Writes throw an error in development to catch accidental server-side mutations.
+
+---
+
 ## createLink()
 
 Create a Link component factory bound to a router's state. Used internally — most apps use the Link component via `RouterView` setup.
@@ -263,6 +343,13 @@ type NavigateInput<TPath extends string> = {
 type RoutePattern<T extends Record<string, RouteConfigLike>> = keyof T & string;
 type RoutePaths<T extends Record<string, RouteConfigLike>> = /* concrete URL union */;
 type ExtractParams<TPath extends string> = /* extracted param object */;
+type ExtractSearchParams<TPath extends string, TMap = RouteDefinitionMap> =
+  /* search param schema output, or Record<string, string> */;
 type InferRouteMap<T> = T extends TypedRoutes<infer R> ? R : T;
 type TypedRoutes<T> = CompiledRoute[] & { readonly __routes: T };
+
+interface ReactiveSearchParams<T = Record<string, unknown>> {
+  navigate(partial: Partial<T>, options?: { push?: boolean }): void;
+  [key: string]: unknown;
+}
 ```
