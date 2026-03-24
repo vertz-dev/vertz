@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'bun:test';
+import { join } from 'node:path';
 import { createCLI } from '../cli';
 
 describe('createCLI', () => {
@@ -843,6 +844,332 @@ describe('createCLI', () => {
       }
 
       expect(logSpy).toHaveBeenCalledWith('All migrations already recorded.');
+    });
+
+    it('db deploy — dry-run path', async () => {
+      const dbMod = await import('../commands/db');
+      deploySpy = vi.spyOn(dbMod, 'dbDeployAction').mockResolvedValue({
+        ok: true,
+        data: { applied: ['001_init'], dryRun: true },
+      } as never) as Mock<(...args: unknown[]) => unknown>;
+
+      const program = createCLI();
+      program.exitOverride();
+      try {
+        await program.parseAsync(['node', 'vertz', 'db', 'deploy', '--dry-run']);
+      } catch {
+        // Commander may throw on exitOverride
+      }
+
+      expect(logSpy).toHaveBeenCalledWith('[dry-run] Would apply: 001_init');
+    });
+
+    it('db migrate — dry-run with no SQL', async () => {
+      const dbMod = await import('../commands/db');
+      migrateSpy = vi.spyOn(dbMod, 'dbMigrateAction').mockResolvedValue({
+        ok: true,
+        data: { migrationFile: '001_noop.sql', sql: '', dryRun: true },
+      } as never) as Mock<(...args: unknown[]) => unknown>;
+
+      const program = createCLI();
+      program.exitOverride();
+      try {
+        await program.parseAsync(['node', 'vertz', 'db', 'migrate', '--dry-run']);
+      } catch {
+        // Commander may throw on exitOverride
+      }
+
+      expect(logSpy).toHaveBeenCalledWith('-- no changes');
+    });
+
+    it('db status — shows only code changes without drift', async () => {
+      const dbMod = await import('../commands/db');
+      statusSpy = vi.spyOn(dbMod, 'dbStatusAction').mockResolvedValue({
+        ok: true,
+        data: {
+          applied: ['001_init'],
+          pending: [],
+          codeChanges: [{ description: 'new column added' }],
+          drift: [],
+        },
+      } as never) as Mock<(...args: unknown[]) => unknown>;
+
+      const program = createCLI();
+      program.exitOverride();
+      try {
+        await program.parseAsync(['node', 'vertz', 'db', 'status']);
+      } catch {
+        // Commander may throw on exitOverride
+      }
+
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Code changes:'));
+      expect(logSpy).toHaveBeenCalledWith('  - new column added');
+      // Should not print "Schema is in sync" since there are code changes
+      expect(logSpy).not.toHaveBeenCalledWith(expect.stringContaining('Schema is in sync'));
+    });
+
+    it('db status — shows only drift without code changes', async () => {
+      const dbMod = await import('../commands/db');
+      statusSpy = vi.spyOn(dbMod, 'dbStatusAction').mockResolvedValue({
+        ok: true,
+        data: {
+          applied: ['001_init'],
+          pending: [],
+          codeChanges: [],
+          drift: [{ description: 'unexpected index' }],
+        },
+      } as never) as Mock<(...args: unknown[]) => unknown>;
+
+      const program = createCLI();
+      program.exitOverride();
+      try {
+        await program.parseAsync(['node', 'vertz', 'db', 'status']);
+      } catch {
+        // Commander may throw on exitOverride
+      }
+
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Drift detected:'));
+      expect(logSpy).toHaveBeenCalledWith('  - unexpected index');
+      expect(logSpy).not.toHaveBeenCalledWith(expect.stringContaining('Schema is in sync'));
+    });
+
+    it('closes connection even when close() throws', async () => {
+      mockCtx.close.mockRejectedValue(new Error('close failed'));
+
+      const dbMod = await import('../commands/db');
+      pushSpy = vi.spyOn(dbMod, 'dbPushAction').mockResolvedValue({
+        ok: true,
+        data: { tablesAffected: [] },
+      } as never) as Mock<(...args: unknown[]) => unknown>;
+
+      const program = createCLI();
+      program.exitOverride();
+      try {
+        await program.parseAsync(['node', 'vertz', 'db', 'push']);
+      } catch {
+        // Commander may throw on exitOverride
+      }
+
+      // Should not throw even though close() fails
+      expect(mockCtx.close).toHaveBeenCalled();
+    });
+  });
+
+  describe('db pull command actions', () => {
+    let exitSpy: Mock<(...args: unknown[]) => unknown>;
+    let errorSpy: Mock<(...args: unknown[]) => unknown>;
+    let logSpy: Mock<(...args: unknown[]) => unknown>;
+    let loadIntrospectSpy: Mock<(...args: unknown[]) => unknown>;
+    let pullSpy: Mock<(...args: unknown[]) => unknown>;
+
+    const mockIntrospectCtx = {
+      queryFn: vi.fn(),
+      dialect: { name: 'sqlite' },
+      dialectName: 'sqlite' as const,
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+
+    beforeEach(async () => {
+      exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never) as Mock<
+        (...args: unknown[]) => unknown
+      >;
+      errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as Mock<
+        (...args: unknown[]) => unknown
+      >;
+      logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as Mock<
+        (...args: unknown[]) => unknown
+      >;
+
+      const loadDbMod = await import('../commands/load-db-context');
+      loadIntrospectSpy = vi
+        .spyOn(loadDbMod, 'loadIntrospectContext')
+        .mockResolvedValue(mockIntrospectCtx as never) as Mock<(...args: unknown[]) => unknown>;
+    });
+
+    afterEach(() => {
+      exitSpy.mockRestore();
+      errorSpy.mockRestore();
+      logSpy.mockRestore();
+      loadIntrospectSpy.mockRestore();
+      pullSpy?.mockRestore();
+      mockIntrospectCtx.close.mockClear();
+    });
+
+    it('calls process.exit(1) when loadIntrospectContext throws', async () => {
+      loadIntrospectSpy.mockRejectedValue(new Error('introspect config error'));
+
+      const program = createCLI();
+      program.exitOverride();
+      try {
+        await program.parseAsync(['node', 'vertz', 'db', 'pull']);
+      } catch {
+        // Commander may throw on exitOverride
+      }
+
+      expect(errorSpy).toHaveBeenCalledWith('Configuration error: introspect config error');
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('db pull — dry-run prints file contents', async () => {
+      const dbMod = await import('../commands/db');
+      pullSpy = vi.spyOn(dbMod, 'dbPullAction').mockResolvedValue({
+        ok: true,
+        data: { files: [{ path: 'schema.ts', content: 'export const users = {}' }] },
+      } as never) as Mock<(...args: unknown[]) => unknown>;
+
+      const program = createCLI();
+      program.exitOverride();
+      try {
+        await program.parseAsync(['node', 'vertz', 'db', 'pull', '--dry-run']);
+      } catch {
+        // Commander may throw on exitOverride
+      }
+
+      expect(logSpy).toHaveBeenCalledWith('// --- schema.ts ---');
+      expect(logSpy).toHaveBeenCalledWith('export const users = {}');
+      expect(mockIntrospectCtx.close).toHaveBeenCalled();
+    });
+
+    it('db pull — prints to stdout when no output specified', async () => {
+      const dbMod = await import('../commands/db');
+      pullSpy = vi.spyOn(dbMod, 'dbPullAction').mockResolvedValue({
+        ok: true,
+        data: { files: [{ path: 'schema.ts', content: 'export const users = {}' }] },
+      } as never) as Mock<(...args: unknown[]) => unknown>;
+
+      const program = createCLI();
+      program.exitOverride();
+      try {
+        await program.parseAsync(['node', 'vertz', 'db', 'pull']);
+      } catch {
+        // Commander may throw on exitOverride
+      }
+
+      expect(logSpy).toHaveBeenCalledWith('export const users = {}');
+      expect(mockIntrospectCtx.close).toHaveBeenCalled();
+    });
+
+    it('db pull — error from action calls process.exit(1)', async () => {
+      const dbMod = await import('../commands/db');
+      pullSpy = vi.spyOn(dbMod, 'dbPullAction').mockResolvedValue({
+        ok: false,
+        error: new Error('pull failed'),
+      } as never) as Mock<(...args: unknown[]) => unknown>;
+
+      const program = createCLI();
+      program.exitOverride();
+      try {
+        await program.parseAsync(['node', 'vertz', 'db', 'pull']);
+      } catch {
+        // Commander may throw on exitOverride
+      }
+
+      expect(errorSpy).toHaveBeenCalledWith('Command failed: pull failed');
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(mockIntrospectCtx.close).toHaveBeenCalled();
+    });
+
+    it('db pull — writes files when output path is specified', async () => {
+      const tmpDir = join(import.meta.dir, `.tmp-cli-pull-test-${Date.now()}`);
+      const outputFile = join(tmpDir, 'generated-schema.ts');
+
+      const dbMod = await import('../commands/db');
+      pullSpy = vi.spyOn(dbMod, 'dbPullAction').mockResolvedValue({
+        ok: true,
+        data: { files: [{ path: 'schema.ts', content: 'export const users = {}' }] },
+      } as never) as Mock<(...args: unknown[]) => unknown>;
+
+      const program = createCLI();
+      program.exitOverride();
+      try {
+        await program.parseAsync(['node', 'vertz', 'db', 'pull', '-o', outputFile, '--force']);
+      } catch {
+        // Commander may throw on exitOverride
+      }
+
+      expect(logSpy).toHaveBeenCalledWith(`Generated: ${outputFile}`);
+      expect(mockIntrospectCtx.close).toHaveBeenCalled();
+
+      // Clean up
+      const { rmSync } = await import('node:fs');
+      rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it('db pull — writes per-table files when output is directory', async () => {
+      const tmpDir = join(import.meta.dir, `.tmp-cli-pull-dir-${Date.now()}`);
+
+      const dbMod = await import('../commands/db');
+      pullSpy = vi.spyOn(dbMod, 'dbPullAction').mockResolvedValue({
+        ok: true,
+        data: {
+          files: [
+            { path: 'users.ts', content: 'export const users = {}' },
+            { path: 'posts.ts', content: 'export const posts = {}' },
+          ],
+        },
+      } as never) as Mock<(...args: unknown[]) => unknown>;
+
+      const program = createCLI();
+      program.exitOverride();
+      try {
+        await program.parseAsync(['node', 'vertz', 'db', 'pull', '-o', `${tmpDir}/`, '--force']);
+      } catch {
+        // Commander may throw on exitOverride
+      }
+
+      expect(logSpy).toHaveBeenCalledWith(`Generated: ${join(tmpDir, 'users.ts')}`);
+      expect(logSpy).toHaveBeenCalledWith(`Generated: ${join(tmpDir, 'posts.ts')}`);
+
+      const { rmSync } = await import('node:fs');
+      rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it('db pull — exits when output file exists without --force', async () => {
+      const { mkdirSync, writeFileSync, rmSync } = await import('node:fs');
+      const tmpDir = join(import.meta.dir, `.tmp-cli-pull-exists-${Date.now()}`);
+      mkdirSync(tmpDir, { recursive: true });
+      const outputFile = join(tmpDir, 'schema.ts');
+      writeFileSync(outputFile, 'existing content');
+
+      const dbMod = await import('../commands/db');
+      pullSpy = vi.spyOn(dbMod, 'dbPullAction').mockResolvedValue({
+        ok: true,
+        data: { files: [{ path: 'schema.ts', content: 'new content' }] },
+      } as never) as Mock<(...args: unknown[]) => unknown>;
+
+      const program = createCLI();
+      program.exitOverride();
+      try {
+        await program.parseAsync(['node', 'vertz', 'db', 'pull', '-o', outputFile]);
+      } catch {
+        // Commander may throw on exitOverride
+      }
+
+      expect(errorSpy).toHaveBeenCalledWith(`File ${outputFile} already exists.`);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+
+      rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it('db pull — close() failure is swallowed', async () => {
+      mockIntrospectCtx.close.mockRejectedValue(new Error('close failed'));
+
+      const dbMod = await import('../commands/db');
+      pullSpy = vi.spyOn(dbMod, 'dbPullAction').mockResolvedValue({
+        ok: true,
+        data: { files: [{ path: 'schema.ts', content: 'export const users = {}' }] },
+      } as never) as Mock<(...args: unknown[]) => unknown>;
+
+      const program = createCLI();
+      program.exitOverride();
+      try {
+        await program.parseAsync(['node', 'vertz', 'db', 'pull']);
+      } catch {
+        // Commander may throw on exitOverride
+      }
+
+      // Should not throw — close error is swallowed
+      expect(exitSpy).not.toHaveBeenCalled();
     });
   });
 });

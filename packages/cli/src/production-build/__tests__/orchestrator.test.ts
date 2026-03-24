@@ -9,6 +9,8 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'bun:test';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { BuildOrchestrator, createBuildOrchestrator } from '../orchestrator';
 import type { BuildConfig, BuildManifest } from '../types';
 
@@ -341,10 +343,136 @@ describe('BuildOrchestrator', () => {
     });
   });
 
+  describe('generated files collection and manifest', () => {
+    const generatedDir = '.vertz/generated';
+
+    beforeEach(async () => {
+      // Create .vertz/generated directory with test files
+      mkdirSync(join(generatedDir, 'sub'), { recursive: true });
+      writeFileSync(join(generatedDir, 'types.d.ts'), 'export type T = string;');
+      writeFileSync(join(generatedDir, 'routes.ts'), 'export const routes = {};');
+      writeFileSync(join(generatedDir, 'openapi.json'), '{}');
+      writeFileSync(join(generatedDir, 'client-sdk.ts'), 'export default {};');
+      writeFileSync(join(generatedDir, 'sub', 'nested.ts'), 'export {};');
+
+      // Ensure mocks are in their default state (may have been corrupted by prior tests)
+      const esbuild = await import('esbuild');
+      (esbuild.build as Mock).mockResolvedValue({
+        errors: [],
+        warnings: [],
+        metafile: {
+          inputs: {},
+          outputs: {
+            '.vertz/build/index.js': { bytes: 1000, inputs: {} },
+          },
+        },
+      });
+    });
+
+    afterEach(() => {
+      rmSync('.vertz', { recursive: true, force: true });
+      rmSync(defaultConfig.outputDir, { recursive: true, force: true });
+    });
+
+    it('should collect generated files for manifest', async () => {
+      orchestrator = new BuildOrchestrator({
+        ...defaultConfig,
+        typecheck: false,
+      });
+
+      const result = await orchestrator.build();
+
+      expect(result.success).toBe(true);
+      expect(result.manifest.generatedFiles.length).toBeGreaterThan(0);
+
+      const filePaths = result.manifest.generatedFiles.map((f) => f.path);
+      expect(filePaths).toContain('types.d.ts');
+      expect(filePaths).toContain('routes.ts');
+    });
+
+    it('should categorize file types correctly', async () => {
+      orchestrator = new BuildOrchestrator({
+        ...defaultConfig,
+        typecheck: false,
+      });
+
+      const result = await orchestrator.build();
+
+      const typeFile = result.manifest.generatedFiles.find((f) => f.path === 'types.d.ts');
+      expect(typeFile?.type).toBe('type');
+
+      const routeFile = result.manifest.generatedFiles.find((f) => f.path === 'routes.ts');
+      expect(routeFile?.type).toBe('route');
+
+      const openapiFile = result.manifest.generatedFiles.find((f) => f.path === 'openapi.json');
+      expect(openapiFile?.type).toBe('openapi');
+
+      const clientFile = result.manifest.generatedFiles.find((f) => f.path === 'client-sdk.ts');
+      expect(clientFile?.type).toBe('client');
+    });
+
+    it('should write manifest.json to output directory', async () => {
+      mkdirSync(defaultConfig.outputDir, { recursive: true });
+
+      orchestrator = new BuildOrchestrator({
+        ...defaultConfig,
+        typecheck: false,
+      });
+
+      const result = await orchestrator.build();
+      expect(result.success).toBe(true);
+
+      const manifestPath = join(defaultConfig.outputDir, 'manifest.json');
+      expect(existsSync(manifestPath)).toBe(true);
+    });
+  });
+
   describe('dispose', () => {
     it('should clean up resources', async () => {
       orchestrator = new BuildOrchestrator(defaultConfig);
       await expect(orchestrator.dispose()).resolves.toBeUndefined();
+    });
+  });
+
+  // NOTE: This describe block MUST be the last one in this suite.
+  // It modifies the module-level createCompiler mock in a way that
+  // vi.restoreAllMocks() may not fully undo, which can break subsequent tests.
+  describe('typecheck failures', () => {
+    it('should fail when typecheck reports errors', async () => {
+      const compilerMod = await import('@vertz/compiler');
+      const mockCreate = compilerMod.createCompiler as Mock;
+      const originalImpl = mockCreate.getMockImplementation();
+
+      let callCount = 0;
+      mockCreate.mockImplementation((...args: unknown[]) => {
+        callCount++;
+        if (callCount <= 1) {
+          return originalImpl ? originalImpl(...args) : mockCreate.mock.results[0]?.value;
+        }
+        return {
+          analyze: vi.fn().mockResolvedValue({ modules: [] }),
+          validate: vi.fn().mockResolvedValue([
+            {
+              severity: 'error',
+              message: 'Type mismatch',
+              file: 'src/app.ts',
+              line: 10,
+              column: 5,
+            },
+          ]),
+        };
+      });
+
+      orchestrator = new BuildOrchestrator({
+        ...defaultConfig,
+        typecheck: true,
+      });
+
+      const result = await orchestrator.build();
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Type checking failed');
+      expect(result.stages.typecheck).toBe(false);
     });
   });
 });
