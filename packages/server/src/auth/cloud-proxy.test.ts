@@ -68,7 +68,7 @@ function createProxy(overrides?: Record<string, unknown>) {
 describe('createAuthProxy', () => {
   // --- Request proxying ---
 
-  it('proxies POST /api/auth/signup to {cloudBaseUrl}/auth/v1/signup', async () => {
+  it('proxies POST /api/auth/signup to {cloudBaseUrl}/auth/signup', async () => {
     mockResponse = { status: 200, body: { user: { id: 'user_1' } } };
     const proxy = createProxy();
 
@@ -79,7 +79,7 @@ describe('createAuthProxy', () => {
     });
 
     await proxy(req);
-    expect(lastRequest!.url).toBe('/auth/v1/signup');
+    expect(lastRequest!.url).toBe('/auth/signup');
     expect(lastRequest!.method).toBe('POST');
   });
 
@@ -385,7 +385,7 @@ describe('createAuthProxy', () => {
       method: 'GET',
     });
     await proxy(req);
-    expect(lastRequest!.url).toBe('/auth/v1/oauth/callback');
+    expect(lastRequest!.url).toBe('/auth/oauth/callback');
     expect(lastRequest!.search).toBe('?code=abc123&state=xyz');
   });
 

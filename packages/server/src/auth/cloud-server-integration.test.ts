@@ -87,7 +87,7 @@ describe('Feature: Cloud auth E2E — config to verified JWT', () => {
 
       // 2. Create JWKS client
       const jwksClient = createJWKSClient({
-        url: `${cloudBaseUrl}/auth/v1/${projectId}/.well-known/jwks.json`,
+        url: `${cloudBaseUrl}/auth/${projectId}/.well-known/jwks.json`,
       });
 
       // 3. Create cloud JWT verifier
@@ -139,7 +139,7 @@ describe('Feature: Cloud auth E2E — config to verified JWT', () => {
   describe('Given cloud JWT with wrong audience', () => {
     it('then verifier returns null (cross-project token rejected)', async () => {
       const jwksClient = createJWKSClient({
-        url: `${cloudBaseUrl}/auth/v1/proj_integration/.well-known/jwks.json`,
+        url: `${cloudBaseUrl}/auth/proj_integration/.well-known/jwks.json`,
       });
 
       // Verifier expects proj_integration audience
