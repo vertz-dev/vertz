@@ -1,5 +1,14 @@
 # @vertz/ui-compiler
 
+## 0.2.28
+
+### Patch Changes
+
+- [#1771](https://github.com/vertz-dev/vertz/pull/1771) [`a5ac6e1`](https://github.com/vertz-dev/vertz/commit/a5ac6e19f5642e3981c0bb96ae8de8bf574c60dc) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix AOT SSR classifier for query() + conditional return patterns: guard patterns (if-return + main return) are now classified as 'conditional' instead of 'runtime-fallback', and ternary/&& returns containing JSX are no longer silently dropped from the components array.
+
+- Updated dependencies []:
+  - @vertz/ui@0.2.28
+
 ## 0.2.27
 
 ### Patch Changes
