@@ -173,8 +173,10 @@ export function createSSRHandler(
     ? buildModulepreloadTags(modulepreload)
     : undefined;
 
-  // Pre-split template for progressive streaming (computed once, not per-request)
-  const splitResult = progressiveHTML ? splitTemplate(template, { inlineCSS }) : undefined;
+  // Pre-split template for progressive streaming (computed once, not per-request).
+  // Note: inlineCSS is already applied to `template` above, so we don't pass it
+  // to splitTemplate again — it would double-process the same links.
+  const splitResult = progressiveHTML ? splitTemplate(template) : undefined;
 
   return async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
