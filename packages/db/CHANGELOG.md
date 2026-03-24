@@ -1,5 +1,39 @@
 # @vertz/db
 
+## 0.2.27
+
+### Patch Changes
+
+- [#1768](https://github.com/vertz-dev/vertz/pull/1768) [`73c2d0d`](https://github.com/vertz-dev/vertz/commit/73c2d0db2f9cdab495ade4ee5815e071f8411587) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(db): add composite primary key support to d.table()
+
+  Tables can now define composite primary keys via a table-level `primaryKey` option:
+
+  ```ts
+  const tenantMembers = d.table(
+    "tenant_members",
+    {
+      tenantId: d.uuid(),
+      userId: d.uuid(),
+      role: d.text().default("member"),
+    },
+    { primaryKey: ["tenantId", "userId"] }
+  );
+  ```
+
+  - `primaryKey` is type-constrained to valid column names (compile-time error for typos)
+  - Composite PK columns are required in `$insert` and `$create_input` (no auto-generation)
+  - Composite PK columns are excluded from `$update` and `$update_input`
+  - Existing `.primary()` API unchanged (backward compatible)
+  - Migration SQL generator already handles composite PKs
+  - Differ warns on PK flag changes (no ALTER SQL emitted)
+  - Entity CRUD pipeline throws clear error for composite-PK tables (not yet supported)
+
+- [#1763](https://github.com/vertz-dev/vertz/pull/1763) [`aa704de`](https://github.com/vertz-dev/vertz/commit/aa704de973e3f661e297d1a3cd2aef6cabdfd02c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add RLS pipeline: snapshot-based policy diffing, migration integration, structured codegen output, and per-request SET LOCAL scoping for tenant isolation
+
+- Updated dependencies []:
+  - @vertz/errors@0.2.27
+  - @vertz/schema@0.2.27
+
 ## 0.2.26
 
 ### Patch Changes

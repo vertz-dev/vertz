@@ -1,5 +1,14 @@
 # @vertz/codegen
 
+## 0.2.27
+
+### Patch Changes
+
+- [#1763](https://github.com/vertz-dev/vertz/pull/1763) [`aa704de`](https://github.com/vertz-dev/vertz/commit/aa704de973e3f661e297d1a3cd2aef6cabdfd02c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add RLS pipeline: snapshot-based policy diffing, migration integration, structured codegen output, and per-request SET LOCAL scoping for tenant isolation
+
+- Updated dependencies []:
+  - @vertz/compiler@0.2.27
+
 ## 0.2.26
 
 ### Patch Changes
