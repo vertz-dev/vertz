@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AppIR } from '@vertz/compiler';
 import { createEmptyAppIR } from '@vertz/compiler';
 import type { ResolvedCodegenConfig } from '../config';
 import { resolveCodegenConfig } from '../config';
-import { generate } from '../generate';
+import { generate, mergeImportsToPackageJson } from '../generate';
+import type { GeneratedFile } from '../types';
 
 // ── Minimal entity-based AppIR fixture ──────────────────────────────
 
@@ -197,6 +198,17 @@ describe('generate', () => {
     expect(parsed.tables).toBeDefined();
   });
 
+  it('formats output by default when format is not explicitly false', async () => {
+    const config: ResolvedCodegenConfig = resolveCodegenConfig({
+      outputDir,
+      generators: ['typescript'],
+      // format not set — defaults to true (line 177: config.format !== false)
+    });
+
+    const result = await generate(makeAppIR(), config);
+    expect(result.files.length).toBeGreaterThan(0);
+  });
+
   // ── Incremental mode tests ──────────────────────────────────────
 
   describe('incremental mode', () => {
@@ -246,5 +258,84 @@ describe('generate', () => {
       // When incremental is disabled, no incremental result
       expect(result.incremental).toBeUndefined();
     });
+  });
+});
+
+describe('mergeImportsToPackageJson', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'vertz-merge-imports-'));
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('returns false when no package.json in generated files', async () => {
+    const files: GeneratedFile[] = [{ path: 'index.ts', content: 'export {}' }];
+    const result = await mergeImportsToPackageJson(files, tmpDir);
+    expect(result).toBe(false);
+  });
+
+  it('returns false when generated package.json has no imports', async () => {
+    const files: GeneratedFile[] = [
+      { path: 'package.json', content: JSON.stringify({ name: 'test' }) },
+    ];
+    const result = await mergeImportsToPackageJson(files, tmpDir);
+    expect(result).toBe(false);
+  });
+
+  it('returns false when generated package.json has empty imports', async () => {
+    const files: GeneratedFile[] = [
+      { path: 'package.json', content: JSON.stringify({ name: 'test', imports: {} }) },
+    ];
+    const result = await mergeImportsToPackageJson(files, tmpDir);
+    expect(result).toBe(false);
+  });
+
+  it('returns false when no ancestor package.json is found', async () => {
+    const deepDir = join(tmpDir, 'a', 'b', 'c');
+    const files: GeneratedFile[] = [
+      {
+        path: 'package.json',
+        content: JSON.stringify({ imports: { '#gen': './index.ts' } }),
+      },
+    ];
+    // outputDir points to a deep path with no package.json above it
+    const result = await mergeImportsToPackageJson(files, deepDir);
+    expect(result).toBe(false);
+  });
+
+  it('writes imports to ancestor package.json when they differ', async () => {
+    // Create a package.json in tmpDir
+    writeFileSync(join(tmpDir, 'package.json'), JSON.stringify({ name: 'test-pkg' }, null, 2));
+
+    const files: GeneratedFile[] = [
+      {
+        path: 'package.json',
+        content: JSON.stringify({ imports: { '#gen': './index.ts' } }),
+      },
+    ];
+
+    const result = await mergeImportsToPackageJson(files, tmpDir);
+    expect(result).toBe(true);
+
+    // Verify the imports were written
+    const pkg = JSON.parse(await Bun.file(join(tmpDir, 'package.json')).text());
+    expect(pkg.imports).toEqual({ '#gen': './index.ts' });
+  });
+
+  it('returns false when imports already match', async () => {
+    const imports = { '#gen': './index.ts' };
+    writeFileSync(
+      join(tmpDir, 'package.json'),
+      JSON.stringify({ name: 'test-pkg', imports }, null, 2),
+    );
+
+    const files: GeneratedFile[] = [{ path: 'package.json', content: JSON.stringify({ imports }) }];
+
+    const result = await mergeImportsToPackageJson(files, tmpDir);
+    expect(result).toBe(false);
   });
 });

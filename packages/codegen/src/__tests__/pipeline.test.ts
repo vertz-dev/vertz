@@ -78,4 +78,23 @@ describe('createCodegenPipeline', () => {
 
     expect(outputDir).toBe('custom/output');
   });
+
+  it('resolveConfig returns full resolved config', () => {
+    const pipeline = createCodegenPipeline();
+    const resolved = pipeline.resolveConfig({
+      generators: ['typescript'],
+      outputDir: 'my/output',
+      typescript: { rls: true },
+    });
+
+    expect(resolved.generators).toEqual(['typescript']);
+    expect(resolved.outputDir).toBe('my/output');
+  });
+
+  it('resolveConfig applies defaults when not specified', () => {
+    const pipeline = createCodegenPipeline();
+    const resolved = pipeline.resolveConfig({ generators: ['typescript'] });
+
+    expect(resolved.outputDir).toBe('.vertz/generated');
+  });
 });
