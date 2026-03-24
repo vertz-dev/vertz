@@ -199,7 +199,7 @@ When the registry is populated, the `Entitlement` type narrows from `string` to 
     The access type generator runs as part of the standard Vertz codegen pipeline:
 
     ```bash
-    bunx vertz generate
+    bunx vertz codegen
     ```
 
     This produces `.vertz/generated/access.d.ts`.
@@ -239,7 +239,7 @@ await ctx.authorize('project:create', resource);  // OK
 
 ### Backward compatibility
 
-When no codegen output exists (e.g., before running `bunx vertz generate` for the first time), the `Entitlement` type falls back to `string`. This means:
+When no codegen output exists (e.g., before running `bunx vertz codegen` for the first time), the `Entitlement` type falls back to `string`. This means:
 
 - Existing code works without codegen — no breakage
 - Type narrowing activates only when generated types are present
@@ -301,7 +301,7 @@ const access = defineAccess({
 });
 ```
 
-Running `bunx vertz generate` produces:
+Running `bunx vertz codegen` produces:
 
 ```sql
 -- .vertz/generated/rls-policies.sql
@@ -371,21 +371,18 @@ ALTER TABLE tasks FORCE ROW LEVEL SECURITY;
 
 ### Setting session variables per request
 
-RLS policies reference `app.user_id` and `app.tenant_id` via `current_setting()`. Use `withSessionVars()` from `@vertz/db` to set these within a transaction:
+RLS policies reference `app.user_id` and `app.tenant_id` via `current_setting()`. These must be set per-request within a transaction using `SET LOCAL`:
 
-```ts
-import { withSessionVars } from 'vertz/db';
-
-const result = await withSessionVars(
-  connectionQueryFn,
-  { tenantId: ctx.tenantId, userId: ctx.userId },
-  async (txQueryFn) => {
-    return await txQueryFn('SELECT * FROM tasks', []);
-  },
-);
+```sql
+BEGIN;
+SET LOCAL app.user_id = '<user-uuid>';
+SET LOCAL app.tenant_id = '<tenant-uuid>';
+-- Queries are now filtered by RLS policies
+SELECT * FROM tasks;
+COMMIT;
 ```
 
-`withSessionVars()` validates UUIDs, wraps the callback in a transaction, and uses `SET LOCAL` so variables are scoped to the transaction and automatically cleared on commit or rollback.
+`SET LOCAL` scopes the variables to the current transaction — they're automatically cleared on commit or rollback. The framework's entity CRUD pipeline handles this automatically when RLS policies are present.
 
 <Note>
   The generated policies use `FOR ALL`, applying to SELECT, INSERT, UPDATE, and DELETE. If you need operation-specific policies (e.g., `FOR SELECT` only), customize the generated SQL before applying.

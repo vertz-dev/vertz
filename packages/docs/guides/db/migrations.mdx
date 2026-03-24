@@ -189,22 +189,18 @@ The snapshot tracks RLS state, so subsequent migrations only include incremental
 
 ### Setting session variables
 
-RLS policies reference PostgreSQL session variables (`app.user_id`, `app.tenant_id`) set via `SET LOCAL`. Use `withSessionVars()` to scope these to a transaction:
+RLS policies reference PostgreSQL session variables (`app.user_id`, `app.tenant_id`) via `current_setting()`. These must be set per-request within a transaction using `SET LOCAL`:
 
-```ts
-import { withSessionVars } from 'vertz/db';
-
-const result = await withSessionVars(
-  connectionQueryFn,
-  { tenantId: ctx.tenantId, userId: ctx.userId },
-  async (txQueryFn) => {
-    // All queries here see app.tenant_id and app.user_id via RLS
-    return await txQueryFn('SELECT * FROM tasks', []);
-  },
-);
+```sql
+BEGIN;
+SET LOCAL app.user_id = '<user-uuid>';
+SET LOCAL app.tenant_id = '<tenant-uuid>';
+-- All queries here are filtered by RLS policies
+SELECT * FROM tasks;
+COMMIT;
 ```
 
-`withSessionVars()` validates UUIDs before executing, wraps the callback in a transaction, and uses `SET LOCAL` so variables are automatically cleared on commit or rollback.
+`SET LOCAL` scopes the variables to the current transaction — they're automatically cleared on commit or rollback. The framework's entity CRUD pipeline sets these automatically when RLS policies are present.
 
 ## Troubleshooting
 
