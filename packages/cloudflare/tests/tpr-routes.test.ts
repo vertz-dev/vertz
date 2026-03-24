@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 import { classifyRoutes } from '../src/tpr-routes.js';
 
 describe('classifyRoutes', () => {
@@ -82,5 +82,45 @@ describe('classifyRoutes', () => {
 
     expect(result.static).toEqual([]);
     expect(result.dynamic).toEqual(['/contact']);
+  });
+
+  it('joins child pattern "/" or "" to non-root parent as parent itself', () => {
+    // Exercises joinPatterns where child is '/' or '' and parent is non-root
+    const routes = [
+      {
+        pattern: '/admin',
+        component: () => null,
+        prerender: true,
+        children: [
+          { pattern: '/', component: () => null, prerender: true },
+          { pattern: '', component: () => null, prerender: true },
+        ],
+      },
+    ];
+
+    const result = classifyRoutes(routes);
+
+    // /admin itself + both children resolve to /admin
+    expect(result.static).toEqual(['/admin', '/admin', '/admin']);
+  });
+
+  it('joins child pattern to non-root parent with slash normalization', () => {
+    // Exercises joinPatterns where parent is non-root and child is a real segment
+    const routes = [
+      {
+        pattern: '/admin',
+        component: () => null,
+        prerender: true,
+        children: [
+          { pattern: 'settings', component: () => null, prerender: true },
+          { pattern: '/users', component: () => null, prerender: true },
+        ],
+      },
+    ];
+
+    const result = classifyRoutes(routes);
+
+    // /admin itself + /admin/settings + /admin/users
+    expect(result.static).toEqual(['/admin', '/admin/settings', '/admin/users']);
   });
 });
