@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from 'bun:test';
 import { signal } from '../../runtime/signal';
 import { defineRoutes } from '../define-routes';
 import { createRouter } from '../navigate';
+import { RouterContext } from '../router-context';
 import { parseSearchParams, useSearchParams } from '../search-params';
 
 describe('parseSearchParams', () => {
@@ -48,7 +49,7 @@ describe('parseSearchParams', () => {
   });
 });
 
-describe('useSearchParams', () => {
+describe('useSearchParams with signal argument', () => {
   test('returns current search params from signal', () => {
     const searchSignal = signal<Record<string, unknown>>({ page: 1 });
     const result = useSearchParams(searchSignal);
@@ -61,6 +62,63 @@ describe('useSearchParams', () => {
 
     searchSignal.value = { page: 2, sort: 'name' };
     expect(useSearchParams(searchSignal)).toEqual({ page: 2, sort: 'name' });
+  });
+});
+
+describe('useSearchParams() standalone (no arguments)', () => {
+  test('throws when called outside RouterContext.Provider', () => {
+    expect(() => useSearchParams()).toThrow(
+      'useSearchParams() must be called within RouterContext.Provider',
+    );
+  });
+
+  test('returns URLSearchParams from current route match', () => {
+    const routes = defineRoutes({
+      '/search': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes, '/search?q=dragon&page=2');
+
+    let result: URLSearchParams | undefined;
+    RouterContext.Provider(router, () => {
+      result = useSearchParams();
+    });
+
+    expect(result).toBeInstanceOf(URLSearchParams);
+    expect(result!.get('q')).toBe('dragon');
+    expect(result!.get('page')).toBe('2');
+    router.dispose();
+  });
+
+  test('returns empty URLSearchParams when no search params in URL', () => {
+    const routes = defineRoutes({
+      '/tasks': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes, '/tasks');
+
+    let result: URLSearchParams | undefined;
+    RouterContext.Provider(router, () => {
+      result = useSearchParams();
+    });
+
+    expect(result).toBeInstanceOf(URLSearchParams);
+    expect(result!.toString()).toBe('');
+    router.dispose();
+  });
+
+  test('returns empty URLSearchParams when no route matches', () => {
+    const routes = defineRoutes({
+      '/tasks': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes, '/nonexistent');
+
+    let result: URLSearchParams | undefined;
+    RouterContext.Provider(router, () => {
+      result = useSearchParams();
+    });
+
+    expect(result).toBeInstanceOf(URLSearchParams);
+    expect(result!.toString()).toBe('');
+    router.dispose();
   });
 });
 

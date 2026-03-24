@@ -2,8 +2,10 @@
  * Search params parsing and reactive access.
  */
 
+import { useContext } from '../component/context';
 import type { ReadonlySignal } from '../runtime/signal-types';
 import type { SearchParamSchema } from './define-routes';
+import { RouterContext } from './router-context';
 
 /**
  * Parse URLSearchParams into a typed object, optionally through a schema.
@@ -31,12 +33,27 @@ export function parseSearchParams<T = Record<string, string>>(
 }
 
 /**
+ * Read the current URL search params from the router context.
+ * Returns the raw `URLSearchParams` from the current matched route.
+ *
+ * Must be called within a `RouterContext.Provider`.
+ */
+export function useSearchParams(): URLSearchParams;
+/**
  * Read the current search params from a reactive signal.
  * Intended to be called inside a reactive context (effect/computed).
  *
  * @param searchSignal - Signal holding the current parsed search params
  * @returns The current search params value
  */
-export function useSearchParams<T>(searchSignal: ReadonlySignal<T>): T {
-  return searchSignal.value;
+export function useSearchParams<T>(searchSignal: ReadonlySignal<T>): T;
+export function useSearchParams<T>(searchSignal?: ReadonlySignal<T>): T | URLSearchParams {
+  if (searchSignal) {
+    return searchSignal.value;
+  }
+  const router = useContext(RouterContext);
+  if (!router) {
+    throw new Error('useSearchParams() must be called within RouterContext.Provider');
+  }
+  return router.current?.searchParams ?? new URLSearchParams();
 }
