@@ -265,6 +265,83 @@ describe('Feature: domain route prefixing', () => {
       expect(() => createServer({ domains: [billing, projects] })).not.toThrow();
     });
   });
+
+  describe('Given duplicate service names across domains', () => {
+    it('Then throws error listing the collision', () => {
+      const paymentsA = service('payments', {
+        access: { charge: () => true },
+        actions: {
+          charge: {
+            response: { parse: (v: unknown) => v },
+            handler: async () => ({}),
+          },
+        },
+      });
+      const paymentsB = service('payments', {
+        access: { refund: () => true },
+        actions: {
+          refund: {
+            response: { parse: (v: unknown) => v },
+            handler: async () => ({}),
+          },
+        },
+      });
+      const domainA = domain('billing', { services: [paymentsA] });
+      const domainB = domain('refunds', { services: [paymentsB] });
+
+      expect(() => createServer({ domains: [domainA, domainB] })).toThrow(
+        /Service "payments" appears in both domain "billing" and domain "refunds"/,
+      );
+    });
+  });
+
+  describe('Given duplicate service name between domain and top-level', () => {
+    it('Then throws error listing the collision', () => {
+      const domainPayments = service('payments', {
+        access: { charge: () => true },
+        actions: {
+          charge: {
+            response: { parse: (v: unknown) => v },
+            handler: async () => ({}),
+          },
+        },
+      });
+      const topLevelPayments = service('payments', {
+        access: { check: () => true },
+        actions: {
+          check: {
+            response: { parse: (v: unknown) => v },
+            handler: async () => ({}),
+          },
+        },
+      });
+      const billing = domain('billing', { services: [domainPayments] });
+
+      expect(() => createServer({ domains: [billing], services: [topLevelPayments] })).toThrow(
+        /Service "payments" appears in both domain "billing" and top-level services/,
+      );
+    });
+  });
+
+  describe('Given tenant-scoped entities in a domain', () => {
+    it('Then tenant chain resolution works across domains (flatten-first)', () => {
+      const tenantTable = d.table('tenanted-tasks', {
+        id: d.uuid().primary(),
+        title: d.text(),
+        tenantId: d.uuid(),
+      });
+      const tenantModel = d.model(tenantTable);
+      const tenantEntity = entity('tenanted-tasks', {
+        model: tenantModel,
+        access: { list: () => true },
+      });
+      const projects = domain('projects', { entities: [tenantEntity] });
+
+      // Should not throw — domain entities are flattened before tenant chain resolution
+      const app = createServer({ domains: [projects] });
+      expect(app).toBeDefined();
+    });
+  });
 });
 
 describe('Feature: domain exports', () => {

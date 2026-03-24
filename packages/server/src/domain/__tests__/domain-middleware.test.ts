@@ -163,6 +163,35 @@ describe('Feature: domain middleware', () => {
       await app.handler(new Request('http://localhost/api/billing/invoices'));
       expect(order).toEqual(['global', 'domain']);
     });
+
+    it('Then global context (userId, tenantId) is available in domain middleware', async () => {
+      let receivedCtx: Record<string, unknown> = {};
+      const globalMw = createMiddleware({
+        name: 'auth-sim',
+        handler: async () => ({ userId: 'user-1', tenantId: 'tenant-1' }),
+      });
+      const domainMw = createMiddleware({
+        name: 'domain-ctx-check',
+        handler: async (ctx: Record<string, unknown>) => {
+          receivedCtx = { ...ctx };
+          return {};
+        },
+      });
+      const inv = entity('invoices', {
+        model: invoicesModel,
+        access: { list: () => true },
+      });
+      const b = domain('billing', {
+        entities: [inv],
+        middleware: [domainMw],
+      });
+      const app = createServer({ domains: [b] });
+      app.middlewares([globalMw]);
+
+      await app.handler(new Request('http://localhost/api/billing/invoices'));
+      expect(receivedCtx.userId).toBe('user-1');
+      expect(receivedCtx.tenantId).toBe('tenant-1');
+    });
   });
 
   describe('Given multiple domains with different middleware', () => {

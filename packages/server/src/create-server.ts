@@ -288,6 +288,17 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
 
       // Flatten domain services
       for (const serviceDef of domainDef.services) {
+        const existingServiceDomain = serviceDomainMap.get(serviceDef.name);
+        if (existingServiceDomain) {
+          throw new Error(
+            `Service "${serviceDef.name}" appears in both domain "${existingServiceDomain}" and domain "${domainDef.name}".`,
+          );
+        }
+        if (topLevelServiceNames.has(serviceDef.name)) {
+          throw new Error(
+            `Service "${serviceDef.name}" appears in both domain "${domainDef.name}" and top-level services.`,
+          );
+        }
         serviceDomainMap.set(serviceDef.name, domainDef.name);
         flattenedServices.push(serviceDef);
       }
