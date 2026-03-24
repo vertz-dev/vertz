@@ -27,33 +27,6 @@ const comments = d.table('comments', {
 });
 
 // ---------------------------------------------------------------------------
-// d.entry() helper
-// ---------------------------------------------------------------------------
-
-describe('d.entry()', () => {
-  it('returns { table, relations: {} } when called with table only', () => {
-    const entry = d.entry(users);
-
-    expect(entry.table).toBe(users);
-    expect(entry.relations).toEqual({});
-  });
-
-  it('returns { table, relations } when called with table and relations', () => {
-    const postRelations = {
-      author: d.ref.one(() => users, 'authorId'),
-      comments: d.ref.many(() => comments, 'postId'),
-    };
-
-    const entry = d.entry(posts, postRelations);
-
-    expect(entry.table).toBe(posts);
-    expect(entry.relations).toBe(postRelations);
-    expect(entry.relations.author._type).toBe('one');
-    expect(entry.relations.comments._type).toBe('many');
-  });
-});
-
-// ---------------------------------------------------------------------------
 // createRegistry()
 // ---------------------------------------------------------------------------
 

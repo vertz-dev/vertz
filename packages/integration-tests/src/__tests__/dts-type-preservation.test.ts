@@ -229,12 +229,6 @@ describe('@vertz/db dist type preservation', () => {
     );
   });
 
-  // ---- d.entry() preserves generics ----
-
-  it('d.entry has generic parameters for table and relations', () => {
-    expect(dts).toMatch(/entry<\s*TTable\s+extends\s+TableDef/);
-  });
-
   // ---- d.ref.one / d.ref.many preserve generics ----
 
   it('d.ref.one returns RelationDef with target generic', () => {

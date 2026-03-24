@@ -30,65 +30,6 @@ const comments = d.table('comments', {
 });
 
 // ---------------------------------------------------------------------------
-// d.entry() type tests
-// ---------------------------------------------------------------------------
-
-describe('d.entry() types', () => {
-  it('returns ModelEntry with empty relations when called with table only', () => {
-    const entry = d.entry(users);
-
-    type _t1 = Expect<Extends<typeof entry, ModelEntry>>;
-    type _t2 = Expect<Equal<typeof entry.table, typeof users>>;
-    // biome-ignore lint/complexity/noBannedTypes: testing that the actual return type is {} (empty relations)
-    type _t3 = Expect<Equal<typeof entry.relations, {}>>;
-  });
-
-  it('returns ModelEntry with typed relations when called with table and relations', () => {
-    const postRelations = {
-      author: d.ref.one(() => users, 'authorId'),
-      comments: d.ref.many(() => comments, 'postId'),
-    };
-
-    const entry = d.entry(posts, postRelations);
-
-    type _t1 = Expect<Extends<typeof entry, ModelEntry>>;
-    type _t2 = Expect<Equal<typeof entry.table, typeof posts>>;
-    type _t3 = Expect<Equal<typeof entry.relations.author._type, 'one'>>;
-    type _t4 = Expect<Equal<typeof entry.relations.comments._type, 'many'>>;
-  });
-
-  it('entry result satisfies Record<string, ModelEntry>', () => {
-    const postRelations = {
-      author: d.ref.one(() => users, 'authorId'),
-    };
-
-    const models = {
-      users: d.entry(users),
-      posts: d.entry(posts, postRelations),
-    } satisfies Record<string, ModelEntry>;
-
-    type _t1 = Expect<Extends<typeof models.users, ModelEntry>>;
-    type _t2 = Expect<Extends<typeof models.posts, ModelEntry>>;
-  });
-
-  it('rejects non-table first argument', () => {
-    // @ts-expect-error -- first argument must be a TableDef
-    d.entry('not a table');
-
-    // @ts-expect-error -- first argument must be a TableDef
-    d.entry(42);
-  });
-
-  it('rejects non-relation-record second argument', () => {
-    // @ts-expect-error -- second argument must be a Record<string, RelationDef>
-    d.entry(users, 'not relations');
-
-    // @ts-expect-error -- second argument must be a Record<string, RelationDef>
-    d.entry(users, { bad: 42 });
-  });
-});
-
-// ---------------------------------------------------------------------------
 // createRegistry() type tests
 // ---------------------------------------------------------------------------
 

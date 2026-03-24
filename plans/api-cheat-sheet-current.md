@@ -104,7 +104,7 @@ export const d: {
     many<TTarget>(target: () => TTarget, foreignKey?: string): ManyRelationDef
   }
   
-  entry<TTable>(table: TTable, relations?): TableEntry<TTable, TRelations>
+  model<TTable>(table: TTable, relations?): ModelDef<TTable, TRelations>
 }
 
 // CRUD queries
@@ -134,7 +134,7 @@ const tasks = d.table('tasks', {
 })
 
 // Relations
-const UserWithTasks = d.entry(users, {
+const UserWithTasks = d.model(users, {
   tasks: d.ref.many(() => tasks, 'userId'),
 })
 ```
