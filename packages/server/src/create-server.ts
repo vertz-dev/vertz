@@ -22,6 +22,7 @@ import { createJWKSClient } from './auth/jwks-client';
 import { resolveSessionForSSR as createSSRResolver } from './auth/resolve-session-for-ssr';
 import { createAuthSessionMiddleware } from './auth/session-middleware';
 import type { AuthConfig, AuthInstance } from './auth/types';
+import type { DomainDefinition } from './domain/types';
 import type { EntityOperations } from './entity/entity-operations';
 import { EntityRegistry } from './entity/entity-registry';
 import { stripHiddenFields } from './entity/field-filter';
@@ -94,6 +95,8 @@ export interface ServerConfig extends Omit<AppConfig, '_entityDbFactory' | 'enti
   entities?: EntityDefinition[];
   /** Standalone service definitions created via service() from @vertz/server */
   services?: ServiceDefinition[];
+  /** Domain definitions created via domain() from @vertz/server */
+  domains?: DomainDefinition[];
   /**
    * Database for entity CRUD operations.
    * Accepts either:
@@ -230,6 +233,69 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
   const hasDbClient = db && isDatabaseClient(db);
 
   // ---------------------------------------------------------------------------
+  // Flatten domains into entities + services arrays
+  // ---------------------------------------------------------------------------
+  const entityDomainMap = new Map<string, string>();
+  const serviceDomainMap = new Map<string, string>();
+
+  if (config.domains && config.domains.length > 0) {
+    const seenDomainNames = new Set<string>();
+    const topLevelEntityNames = new Set((config.entities ?? []).map((e) => e.name));
+    const topLevelServiceNames = new Set((config.services ?? []).map((s) => s.name));
+
+    const flattenedEntities: EntityDefinition[] = [...(config.entities ?? [])];
+    const flattenedServices: ServiceDefinition[] = [...(config.services ?? [])];
+
+    for (const domainDef of config.domains) {
+      // Validate unique domain names
+      if (seenDomainNames.has(domainDef.name)) {
+        throw new Error(`Duplicate domain name "${domainDef.name}".`);
+      }
+      seenDomainNames.add(domainDef.name);
+
+      // Validate domain name doesn't collide with top-level entity/service names
+      if (topLevelEntityNames.has(domainDef.name)) {
+        throw new Error(
+          `Domain name "${domainDef.name}" conflicts with top-level entity "${domainDef.name}". ` +
+            'Route paths would be ambiguous.',
+        );
+      }
+      if (topLevelServiceNames.has(domainDef.name)) {
+        throw new Error(
+          `Domain name "${domainDef.name}" conflicts with top-level service "${domainDef.name}". ` +
+            'Route paths would be ambiguous.',
+        );
+      }
+
+      // Flatten domain entities
+      for (const entityDef of domainDef.entities) {
+        // Check for duplicate entity names across domains
+        const existingDomain = entityDomainMap.get(entityDef.name);
+        if (existingDomain) {
+          throw new Error(
+            `Entity "${entityDef.name}" appears in both domain "${existingDomain}" and domain "${domainDef.name}".`,
+          );
+        }
+        if (topLevelEntityNames.has(entityDef.name)) {
+          throw new Error(
+            `Entity "${entityDef.name}" appears in both domain "${domainDef.name}" and top-level entities.`,
+          );
+        }
+        entityDomainMap.set(entityDef.name, domainDef.name);
+        flattenedEntities.push(entityDef);
+      }
+
+      // Flatten domain services
+      for (const serviceDef of domainDef.services) {
+        serviceDomainMap.set(serviceDef.name, domainDef.name);
+        flattenedServices.push(serviceDef);
+      }
+    }
+
+    config = { ...config, entities: flattenedEntities, services: flattenedServices };
+  }
+
+  // ---------------------------------------------------------------------------
   // Auth model validation — when both db (DatabaseClient) and auth are provided
   // ---------------------------------------------------------------------------
   if (hasDbClient && config.auth) {
@@ -361,8 +427,10 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
     for (const entityDef of config.entities) {
       const entityDb = dbFactory(entityDef as EntityDefinition);
       const tenantChain = tenantChains.get(entityDef.name) ?? null;
+      const domainName = entityDomainMap.get(entityDef.name);
+      const entityApiPrefix = domainName ? `${apiPrefix}/${domainName}` : apiPrefix;
       const routes = generateEntityRoutes(entityDef as EntityDefinition, registry, entityDb, {
-        apiPrefix,
+        apiPrefix: entityApiPrefix,
         tenantChain,
         queryParentIds: tenantChain ? (queryParentIds ?? config._queryParentIds) : undefined,
         accessConfig: crudAccessConfig,
@@ -375,7 +443,9 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
   // Process services after entities (services use registry for entity DI)
   if (config.services && config.services.length > 0) {
     for (const serviceDef of config.services) {
-      const routes = generateServiceRoutes(serviceDef, registry, { apiPrefix });
+      const domainName = serviceDomainMap.get(serviceDef.name);
+      const serviceApiPrefix = domainName ? `${apiPrefix}/${domainName}` : apiPrefix;
+      const routes = generateServiceRoutes(serviceDef, registry, { apiPrefix: serviceApiPrefix });
       allRoutes.push(...routes);
     }
   }

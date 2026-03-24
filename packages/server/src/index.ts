@@ -246,6 +246,9 @@ export { createServer } from './create-server';
 // Config helpers — identity functions for extractable, type-safe config
 export { defineAuth } from './define-auth';
 export { defineEntities } from './define-entities';
+// Domain API
+export type { DomainConfig, DomainDefinition } from './domain';
+export { domain } from './domain';
 // Entity API
 export type {
   AccessRule,
