@@ -167,6 +167,16 @@ export function isStaleGraphError(message: string): boolean {
   return STALE_GRAPH_PATTERNS.some((pattern) => pattern.test(message));
 }
 
+/**
+ * Detect Bun's reload stub — the response served when the dev bundler
+ * fails to compile a client module. The stub is literally:
+ *   try{location.reload()}catch(_){}
+ *   addEventListener("DOMContentLoaded",function(event){location.reload()})
+ */
+export function isReloadStub(text: string): boolean {
+  return text.trimStart().startsWith('try{location.reload()}');
+}
+
 /** A resolved stack frame for terminal logging. */
 interface TerminalStackFrame {
   functionName: string | null;
@@ -736,9 +746,21 @@ const BUILD_ERROR_LOADER = [
   // was served, Bun is transitioning (hash not updated yet) → retry after delay.
   // Use sessionStorage counter to cap retries at 3 and avoid infinite loops.
   "if(j.errors&&j.errors.length>0){showOverlay('Build failed',formatErrors(j.errors),j)}",
+  // No build errors but reload stub detected → dev bundler is stale.
+  // Try auto-restart via WS first; fall back to retry loop if unavailable.
+  // Note: If the overlay runtime hasn't loaded yet (first page load), both
+  // V2._autoRestart and V._canAutoRestart are undefined, so we fall through
+  // to the retry loop. The server-side detection (stale bundler self-fetch)
+  // should catch and restart before the client reaches this fallback.
+  // The final showOverlay call passes restartable=true, but the fallback
+  // showOverlay function (line 725) ignores extra args — known degradation.
+  'else{var V2=window.__vertz_overlay;',
+  'if(V2&&V2._autoRestart&&V2._canAutoRestart&&V2._canAutoRestart()){',
+  "V2._autoRestart();sessionStorage.removeItem('__vertz_stub_retry');",
+  "showOverlay('Restarting dev server','<p style=\"margin:0;color:#666;font-size:12px\">Dev bundler appears stale after adding new files. Restarting...</p>')}",
   "else{var rk='__vertz_stub_retry',rc=+(sessionStorage.getItem(rk)||0);",
   'if(rc<3){sessionStorage.setItem(rk,String(rc+1));setTimeout(function(){location.reload()},2000)}',
-  "else{sessionStorage.removeItem(rk);showOverlay('Build failed','<p style=\"margin:0;color:#666;font-size:12px\">Could not load client bundle. Try reloading manually.</p>')}}",
+  "else{sessionStorage.removeItem(rk);showOverlay('Build failed','<p style=\"margin:0;color:#666;font-size:12px\">Could not load client bundle. Try restarting the dev server.</p>',null,null,true)}}}",
   '}).catch(function(){',
   "showOverlay('Build failed','<p style=\"margin:0;color:#666;font-size:12px\">Check your terminal for details.</p>')})}",
   "else{sessionStorage.removeItem('__vertz_stub_retry');var s=document.createElement('script');s.type='module';s.crossOrigin='';s.src=src;document.body.appendChild(s)}",
@@ -2075,6 +2097,33 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
                 if (stopped) return;
                 await discoverHMRAssets();
                 if (bundledScriptUrl !== prevUrl) break;
+              }
+              // Validate the dev bundler's actual output — if it's serving
+              // the reload stub despite the proactive Bun.build() succeeding,
+              // the dev bundler's module graph is stale (common when new files
+              // are imported for the first time). Auto-restart to get a fresh
+              // module graph.
+              if (bundledScriptUrl && server && !isRestarting) {
+                try {
+                  const bundleRes = await fetch(`http://${host}:${server.port}${bundledScriptUrl}`);
+                  const bundleText = await bundleRes.text();
+                  if (isReloadStub(bundleText)) {
+                    if (canAutoRestart()) {
+                      autoRestartTimestamps.push(Date.now());
+                      if (logRequests) {
+                        console.log(
+                          '[Server] Dev bundler serving reload stub after successful build — restarting',
+                        );
+                      }
+                      devServer.restart();
+                      return;
+                    } else if (logRequests) {
+                      console.log('[Server] Dev bundler stale but auto-restart cap reached');
+                    }
+                  }
+                } catch {
+                  // Self-fetch failed — server may be stopping, ignore
+                }
               }
               // Clear optimistically — if HMR fails, new errors will come in.
               // Don't set grace period: errors from this save cycle are

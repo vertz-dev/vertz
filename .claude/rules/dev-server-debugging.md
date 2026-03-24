@@ -108,6 +108,20 @@ Log file is truncated on server start. Zero overhead when disabled.
 
 Useful for automated debugging and verifying server state without reading terminal output.
 
+## Stale Dev Bundler After Adding New Files
+
+**Symptom:** After creating a new page/component file and importing it from an existing file (e.g., adding a route), HMR fires and SSR refreshes, but the browser shows "Build failed / Could not load client bundle." Manual reload doesn't fix it.
+
+**Root cause:** Bun's persistent dev bundler doesn't reliably update its internal module graph when a new file is imported for the first time. The proactive `Bun.build()` check succeeds (one-shot, fresh context), but the dev bundler serves its reload stub because its module graph is stale.
+
+**Auto-recovery (since #1818 fix):** The dev server now self-fetches the bundle URL after the proactive build check passes. If the response is Bun's reload stub (`try{location.reload()}`), the server auto-restarts to get a fresh module graph.
+
+**Diagnostic:** Terminal log: `[Server] Dev bundler serving reload stub after successful build — restarting`
+
+**If auto-restart cap reached:** After 3 auto-restarts within 10s, the server stops auto-restarting. Terminal shows: `[Server] Dev bundler stale but auto-restart cap reached`. At this point, manually restart the dev server (`Ctrl+C` and re-run `bun run dev`).
+
+**Client-side fallback:** If the server-side detection misses the stale bundler (e.g., user navigates to the page after the watcher cycle completed), the BUILD_ERROR_LOADER requests a server restart via WebSocket. The browser shows "Restarting dev server... Dev bundler appears stale after adding new files."
+
 ## Quick Reference
 
 ### Key File Paths
@@ -139,6 +153,8 @@ Useful for automated debugging and verifying server state without reading termin
 | `[vertz-hmr] Hot updated: <moduleId>` | Fast Refresh re-mounted all instances of components in module |
 | `[vertz-hmr] Error re-mounting <Name>:` | Fast Refresh factory re-execution failed — old instance kept |
 | `[vertz-hmr] Signal count changed in <Name>` | Signal preservation skipped — component state was reset |
+| `[Server] Dev bundler serving reload stub after successful build — restarting` | Stale dev bundler detected — auto-restart triggered |
+| `[Server] Dev bundler stale but auto-restart cap reached` | Auto-restart skipped (3 restarts in 10s) — manual restart needed |
 
 ### Error Channel Categories
 
