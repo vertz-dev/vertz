@@ -1029,6 +1029,38 @@ describe('createSSRHandler', () => {
       reader.releaseLock();
     });
 
+    it('injects CSS into head even when headTemplate has no </head> tag', async () => {
+      // Template without </head> — forces the else branch in handleProgressiveHTMLRequest
+      const templateNoHeadClose = '<html><body><div id="app"><!--ssr-outlet--></div></body></html>';
+      const theme = defineTheme({
+        colors: { primary: { DEFAULT: '#3b82f6' } },
+      });
+      const moduleWithTheme: SSRModule = {
+        default: () => {
+          const el = document.createElement('div');
+          el.textContent = 'No head close';
+          return el;
+        },
+        theme,
+      };
+
+      const handler = createSSRHandler({
+        module: moduleWithTheme,
+        template: templateNoHeadClose,
+        progressiveHTML: true,
+        modulepreload: ['/assets/chunk.js'],
+      });
+      const response = await handler(new Request('http://localhost/'));
+      const reader = response.body!.getReader();
+      const { value } = await reader.read();
+      const firstChunk = new TextDecoder().decode(value);
+
+      // CSS and modulepreload should be appended (no </head> to inject before)
+      expect(firstChunk).toContain('data-vertz-css');
+      expect(firstChunk).toContain('<link rel="modulepreload" href="/assets/chunk.js">');
+      reader.releaseLock();
+    });
+
     it('returns 500 when ssrRenderProgressive throws before streaming', async () => {
       const brokenModule: SSRModule = {
         default: () => {

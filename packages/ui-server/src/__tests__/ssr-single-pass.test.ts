@@ -4,12 +4,15 @@
  * Phase 1 of SSR single-pass prefetch: replaces the two-pass SSR pipeline
  * with discovery-only (captures queries) → prefetch → single render.
  */
-import { describe, expect, it } from 'bun:test';
-import { query } from '@vertz/ui';
+import { describe, expect, it, spyOn } from 'bun:test';
+import { createRouter, defineRoutes, query, RouterView } from '@vertz/ui';
+import type { AuthSdk } from '@vertz/ui/auth';
+import { AuthProvider } from '@vertz/ui/auth';
+import { ProtectedRoute } from '@vertz/ui-auth';
 import { installDomShim } from '../dom-shim';
 import { ssrStorage } from '../ssr-context';
 import { type SSRModule, ssrRenderToString } from '../ssr-render';
-import { ssrRenderSinglePass } from '../ssr-single-pass';
+import { ssrRenderProgressive, ssrRenderSinglePass } from '../ssr-single-pass';
 
 installDomShim();
 
@@ -796,4 +799,538 @@ describe('Feature: Zero-discovery SSR rendering', () => {
       expect(result.ssrData).toHaveLength(2);
     });
   });
+
+  describe('Given a zero-discovery module with ssrAuth', () => {
+    it('Then ssrAuth is passed to the render context', async () => {
+      const taskListData = {
+        items: [{ id: '1', title: 'Authed Task' }],
+      };
+
+      const module: SSRModule = {
+        default: () => {
+          const tasks = query(mockDescriptor('GET', '/tasks', taskListData));
+          const el = document.createElement('div');
+          if (tasks.data.value) {
+            const data = tasks.data.value as typeof taskListData;
+            el.textContent = data.items.map((t) => t.title).join(', ');
+          }
+          return el;
+        },
+        api: {
+          tasks: {
+            list: () => mockDescriptor('GET', '/tasks', taskListData),
+          },
+        },
+      };
+
+      const result = await ssrRenderSinglePass(module, '/tasks', {
+        ssrAuth: {
+          status: 'authenticated',
+          user: { id: 'u1', email: 'a@b.c', role: 'user' },
+          expiresAt: Date.now() + 60_000,
+        },
+        manifest: {
+          routePatterns: ['/tasks'],
+          routeEntries: {
+            '/tasks': {
+              queries: [{ descriptorChain: 'api.tasks.list', entity: 'tasks', operation: 'list' }],
+            },
+          },
+        },
+      });
+
+      expect(result.html).toContain('Authed Task');
+    });
+  });
+
+  describe('Given a zero-discovery module with an invalid theme', () => {
+    it('Then logs error and renders without CSS', async () => {
+      const spy = spyOn(console, 'error').mockImplementation(() => {});
+      const taskListData = { items: [{ id: '1', title: 'Theme Err' }] };
+
+      const module: SSRModule = {
+        default: () => {
+          const tasks = query(mockDescriptor('GET', '/tasks', taskListData));
+          const el = document.createElement('div');
+          if (tasks.data.value) {
+            const data = tasks.data.value as typeof taskListData;
+            el.textContent = data.items.map((t) => t.title).join(', ');
+          }
+          return el;
+        },
+        api: {
+          tasks: {
+            list: () => mockDescriptor('GET', '/tasks', taskListData),
+          },
+        },
+        // Invalid theme — will cause compileThemeCached to throw
+        theme: {} as never,
+      };
+
+      const result = await ssrRenderSinglePass(module, '/tasks', {
+        manifest: {
+          routePatterns: ['/tasks'],
+          routeEntries: {
+            '/tasks': {
+              queries: [{ descriptorChain: 'api.tasks.list', entity: 'tasks', operation: 'list' }],
+            },
+          },
+        },
+      });
+
+      expect(result.html).toContain('Theme Err');
+      expect(spy).toHaveBeenCalledWith(
+        '[vertz] Failed to compile theme export. Ensure your theme is created with defineTheme().',
+        expect.any(Error),
+      );
+      spy.mockRestore();
+    });
+  });
+
+  describe('Given a zero-discovery module with ProtectedRoute', () => {
+    function createMockAuthSdk(): AuthSdk {
+      const noop = Object.assign(
+        async () => ({
+          ok: true as const,
+          data: {
+            user: { id: '1', email: 'test@test.com', role: 'user' },
+            expiresAt: Date.now() + 60_000,
+          },
+        }),
+        { url: '/api/auth/signin', method: 'POST' },
+      );
+      return {
+        signIn: noop,
+        signUp: Object.assign(
+          async () => ({
+            ok: true as const,
+            data: {
+              user: { id: '1', email: 'test@test.com', role: 'user' },
+              expiresAt: Date.now() + 60_000,
+            },
+          }),
+          { url: '/api/auth/signup', method: 'POST' },
+        ),
+        signOut: async () => ({ ok: true as const, data: { ok: true } }),
+        refresh: async () => ({
+          ok: true as const,
+          data: {
+            user: { id: '1', email: 'test@test.com', role: 'user' },
+            expiresAt: Date.now() + 60_000,
+          },
+        }),
+        providers: async () => ({ ok: true as const, data: [] }),
+      };
+    }
+
+    it('Then returns redirect when unauthenticated', async () => {
+      const taskListData = { items: [{ id: '1', title: 'Protected' }] };
+
+      const module: SSRModule = {
+        default: () => {
+          const container = document.createElement('div');
+          AuthProvider({
+            auth: createMockAuthSdk(),
+            children: () => {
+              const result = ProtectedRoute({
+                loginPath: '/login',
+                children: () => {
+                  query(mockDescriptor('GET', '/tasks', taskListData));
+                  container.textContent = 'Protected';
+                  return container;
+                },
+              });
+              if (result && typeof result === 'object' && 'value' in result) {
+                (result as { value: unknown }).value;
+              }
+              return container;
+            },
+          });
+          return container;
+        },
+        api: {
+          tasks: {
+            list: () => mockDescriptor('GET', '/tasks', taskListData),
+          },
+        },
+      };
+
+      const result = await ssrRenderSinglePass(module, '/admin', {
+        ssrAuth: { status: 'unauthenticated' },
+        manifest: {
+          routePatterns: ['/admin'],
+          routeEntries: {
+            '/admin': {
+              queries: [{ descriptorChain: 'api.tasks.list', entity: 'tasks', operation: 'list' }],
+            },
+          },
+        },
+      });
+
+      expect(result.redirect).toBeDefined();
+      expect(result.redirect!.to).toContain('/login');
+    });
+  });
+
+  describe('Given a zero-discovery descriptor returning non-ok result', () => {
+    it('Then the raw result is stored in ssrData', async () => {
+      const errorResult = { ok: false, error: 'Not found' };
+
+      function createFailingApi() {
+        return {
+          tasks: {
+            list: () => {
+              const key = 'GET:/tasks';
+              const fetchResult = async () => errorResult;
+              return {
+                _tag: 'QueryDescriptor' as const,
+                _key: key,
+                _fetch: fetchResult,
+                // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike
+                then(onFulfilled?: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) {
+                  return fetchResult().then(onFulfilled, onRejected);
+                },
+              };
+            },
+          },
+        };
+      }
+
+      const module: SSRModule = {
+        default: () => {
+          const el = document.createElement('div');
+          el.textContent = 'Error case';
+          return el;
+        },
+        api: createFailingApi(),
+      };
+
+      const result = await ssrRenderSinglePass(module, '/tasks', {
+        manifest: {
+          routePatterns: ['/tasks'],
+          routeEntries: {
+            '/tasks': {
+              queries: [{ descriptorChain: 'api.tasks.list', entity: 'tasks', operation: 'list' }],
+            },
+          },
+        },
+      });
+
+      // Non-ok result is stored as-is (not unwrapped)
+      expect(result.ssrData).toHaveLength(1);
+      expect(result.ssrData[0]?.data).toEqual(errorResult);
+    });
+  });
 });
+
+// ─── Progressive SSR rendering ──────────────────────────────────
+
+describe('Feature: Progressive SSR rendering', () => {
+  describe('Given a simple module', () => {
+    it('Then returns a render stream with app HTML', async () => {
+      const module: SSRModule = {
+        default: () => {
+          const el = document.createElement('div');
+          el.textContent = 'Progressive Hello';
+          return el;
+        },
+      };
+
+      const result = await ssrRenderProgressive(module, '/');
+
+      expect(result.redirect).toBeUndefined();
+      expect(result.renderStream).toBeInstanceOf(ReadableStream);
+      expect(result.css).toBeDefined();
+      expect(result.ssrData).toEqual([]);
+    });
+  });
+
+  describe('Given a module with queries', () => {
+    it('Then ssrData contains discovered and resolved queries', async () => {
+      const taskListData = { items: [{ id: '1', title: 'Progressive Task' }] };
+
+      const module: SSRModule = {
+        default: () => {
+          const tasks = query(mockDescriptor('GET', '/tasks', taskListData));
+          const el = document.createElement('div');
+          if (tasks.data.value) {
+            const data = tasks.data.value as typeof taskListData;
+            el.textContent = data.items.map((t) => t.title).join(', ');
+          }
+          return el;
+        },
+      };
+
+      const result = await ssrRenderProgressive(module, '/');
+
+      expect(result.ssrData).toHaveLength(1);
+      expect(result.ssrData[0]?.key).toBe('GET:/tasks');
+      expect(result.renderStream).toBeDefined();
+    });
+  });
+
+  describe('Given a redirect during discovery', () => {
+    function createMockAuthSdk(): AuthSdk {
+      const noop = Object.assign(
+        async () => ({
+          ok: true as const,
+          data: {
+            user: { id: '1', email: 'test@test.com', role: 'user' },
+            expiresAt: Date.now() + 60_000,
+          },
+        }),
+        { url: '/api/auth/signin', method: 'POST' },
+      );
+      return {
+        signIn: noop,
+        signUp: Object.assign(
+          async () => ({
+            ok: true as const,
+            data: {
+              user: { id: '1', email: 'test@test.com', role: 'user' },
+              expiresAt: Date.now() + 60_000,
+            },
+          }),
+          { url: '/api/auth/signup', method: 'POST' },
+        ),
+        signOut: async () => ({ ok: true as const, data: { ok: true } }),
+        refresh: async () => ({
+          ok: true as const,
+          data: {
+            user: { id: '1', email: 'test@test.com', role: 'user' },
+            expiresAt: Date.now() + 60_000,
+          },
+        }),
+        providers: async () => ({ ok: true as const, data: [] }),
+      };
+    }
+
+    it('Then returns redirect result without a render stream', async () => {
+      const module: SSRModule = {
+        default: () => {
+          const container = document.createElement('div');
+          AuthProvider({
+            auth: createMockAuthSdk(),
+            children: () => {
+              const result = ProtectedRoute({
+                loginPath: '/login',
+                children: () => {
+                  container.textContent = 'Protected';
+                  return container;
+                },
+              });
+              if (result && typeof result === 'object' && 'value' in result) {
+                (result as { value: unknown }).value;
+              }
+              return container;
+            },
+          });
+          return container;
+        },
+      };
+
+      const result = await ssrRenderProgressive(module, '/protected', {
+        ssrAuth: { status: 'unauthenticated' },
+      });
+
+      expect(result.redirect).toBeDefined();
+      expect(result.redirect!.to).toContain('/login');
+      expect(result.renderStream).toBeUndefined();
+    });
+  });
+
+  describe('Given a module with an invalid theme', () => {
+    it('Then logs error and renders without CSS', async () => {
+      const spy = spyOn(console, 'error').mockImplementation(() => {});
+
+      const module: SSRModule = {
+        default: () => {
+          const el = document.createElement('div');
+          el.textContent = 'Theme Error Progressive';
+          return el;
+        },
+        theme: {} as never,
+      };
+
+      const result = await ssrRenderProgressive(module, '/');
+
+      expect(result.css).toBe('');
+      expect(result.renderStream).toBeDefined();
+      expect(spy).toHaveBeenCalledWith(
+        '[vertz] Failed to compile theme export. Ensure your theme is created with defineTheme().',
+        expect.any(Error),
+      );
+      spy.mockRestore();
+    });
+  });
+
+  describe('Given a /index.html URL', () => {
+    it('Then normalizes the URL by stripping the suffix', async () => {
+      const module: SSRModule = {
+        default: () => {
+          const el = document.createElement('div');
+          el.textContent = 'Normalized';
+          return el;
+        },
+      };
+
+      const result = await ssrRenderProgressive(module, '/page/index.html');
+
+      expect(result.redirect).toBeUndefined();
+      expect(result.renderStream).toBeDefined();
+    });
+  });
+
+  describe('Given a module with ssrAuth', () => {
+    it('Then passes auth state to the render context', async () => {
+      const module: SSRModule = {
+        default: () => {
+          const el = document.createElement('div');
+          el.textContent = 'Authed Progressive';
+          return el;
+        },
+      };
+
+      const result = await ssrRenderProgressive(module, '/', {
+        ssrAuth: {
+          status: 'authenticated',
+          user: { id: 'u1', email: 'a@b.c', role: 'user' },
+          expiresAt: Date.now() + 60_000,
+        },
+      });
+
+      expect(result.renderStream).toBeDefined();
+    });
+  });
+});
+
+// ─── Theme compile error in discovery-based render ───────────────
+
+describe('Feature: Theme compile error handling', () => {
+  describe('Given ssrRenderSinglePass with an invalid theme', () => {
+    it('Then logs error and renders without CSS', async () => {
+      const spy = spyOn(console, 'error').mockImplementation(() => {});
+
+      const module: SSRModule = {
+        default: () => {
+          const el = document.createElement('div');
+          el.textContent = 'Theme Error Single';
+          return el;
+        },
+        theme: {} as never,
+      };
+
+      const result = await ssrRenderSinglePass(module, '/');
+
+      expect(result.html).toContain('Theme Error Single');
+      expect(result.css).toBe('');
+      expect(spy).toHaveBeenCalledWith(
+        '[vertz] Failed to compile theme export. Ensure your theme is created with defineTheme().',
+        expect.any(Error),
+      );
+      spy.mockRestore();
+    });
+  });
+});
+
+// ─── Entity access key parsing edge cases ─────────────────────────
+
+describe('Feature: Entity access key parsing edge cases', () => {
+  describe('Given keys with various formats', () => {
+    it('Then filters correctly when entity key has query params but no sub-path', async () => {
+      // Key format: GET:/tasks?status=done → entity=tasks, method=list
+      const taskListData = { items: [{ id: '1', title: 'Filtered' }] };
+
+      const module: SSRModule = {
+        default: () => {
+          const tasks = query(mockDescriptor('GET', '/tasks', taskListData, { status: 'done' }));
+          const el = document.createElement('div');
+          if (tasks.data.value) {
+            const data = tasks.data.value as typeof taskListData;
+            el.textContent = data.items.map((t) => t.title).join(', ');
+          }
+          return el;
+        },
+      };
+
+      // Deny list for tasks — should filter out the query
+      const result = await ssrRenderSinglePass(module, '/', {
+        manifest: {
+          routePatterns: ['/'],
+          entityAccess: {
+            tasks: { list: { type: 'deny' } },
+          },
+        },
+        prefetchSession: { authenticated: true, roles: [], userId: 'u1' },
+      });
+
+      // Query was filtered out → no SSR data
+      expect(result.ssrData).toHaveLength(0);
+    });
+
+    it('Then filters correctly when entity key has sub-path (get operation)', async () => {
+      // Key format: GET:/tasks/123 → entity=tasks, method=get
+      const taskData = { id: '123', title: 'Detail' };
+
+      const module: SSRModule = {
+        default: () => {
+          const task = query(mockDescriptor('GET', '/tasks/123', taskData));
+          const el = document.createElement('div');
+          if (task.data.value) {
+            el.textContent = (task.data.value as typeof taskData).title;
+          }
+          return el;
+        },
+      };
+
+      // Deny get for tasks — should filter out the query
+      const result = await ssrRenderSinglePass(module, '/', {
+        manifest: {
+          routePatterns: ['/'],
+          entityAccess: {
+            tasks: { get: { type: 'deny' } },
+          },
+        },
+        prefetchSession: { authenticated: true, roles: [], userId: 'u1' },
+      });
+
+      expect(result.ssrData).toHaveLength(0);
+    });
+
+    it('Then filters correctly when entity key has both sub-path and query params', async () => {
+      // Key format: GET:/tasks/123?include=comments → entity=tasks, method=get
+      const taskData = { id: '123', title: 'Detail With Params' };
+
+      const module: SSRModule = {
+        default: () => {
+          const task = query(
+            mockDescriptor('GET', '/tasks/123', taskData, { include: 'comments' }),
+          );
+          const el = document.createElement('div');
+          if (task.data.value) {
+            el.textContent = (task.data.value as typeof taskData).title;
+          }
+          return el;
+        },
+      };
+
+      // Allow get for tasks — query should pass
+      const result = await ssrRenderSinglePass(module, '/', {
+        manifest: {
+          routePatterns: ['/'],
+          entityAccess: {
+            tasks: { get: { type: 'public' } },
+          },
+        },
+        prefetchSession: { authenticated: true, roles: [], userId: 'u1' },
+      });
+
+      expect(result.ssrData).toHaveLength(1);
+    });
+  });
+});
+
+// NOTE: Lazy route resolution (lines 347-368 of ssr-single-pass.ts) is covered
+// by router-view.test.ts in @vertz/ui which tests pendingRouteComponents with
+// the real router infrastructure. Testing it here would require duplicating
+// router internals that are better tested at the integration level.

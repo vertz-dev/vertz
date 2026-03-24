@@ -42,6 +42,27 @@ describe('splitTemplate', () => {
     });
   });
 
+  describe('Given a template with <div id="app"> containing non-div HTML tags', () => {
+    const template =
+      '<!DOCTYPE html><html><head></head><body><div id="app"><span>inner</span><p>text</p></div></body></html>';
+
+    it('walks past non-div tags and finds the correct closing div', () => {
+      const { headTemplate, tailTemplate } = splitTemplate(template);
+      expect(headTemplate).toBe('<!DOCTYPE html><html><head></head><body><div id="app">');
+      expect(tailTemplate).toBe('</div></body></html>');
+    });
+  });
+
+  describe('Given a template with <div id="app"> but no matching </div>', () => {
+    const template = '<!DOCTYPE html><html><head></head><body><div id="app">unclosed';
+
+    it('falls back to empty tailTemplate (end of string)', () => {
+      const { headTemplate, tailTemplate } = splitTemplate(template);
+      expect(headTemplate).toBe('<!DOCTYPE html><html><head></head><body><div id="app">');
+      expect(tailTemplate).toBe('');
+    });
+  });
+
   describe('Given a template with neither ssr-outlet nor div#app', () => {
     const template = '<!DOCTYPE html><html><head></head><body></body></html>';
 
