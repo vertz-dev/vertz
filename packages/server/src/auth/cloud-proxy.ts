@@ -89,7 +89,7 @@ export function createAuthProxy(options: {
     // Build cloud URL
     const url = new URL(request.url);
     const authPath = url.pathname.replace(/^\/api\/auth/, '');
-    const cloudUrl = `${cloudBaseUrl}/auth/v1${authPath}${url.search}`;
+    const cloudUrl = `${cloudBaseUrl}/auth${authPath}${url.search}`;
 
     // Build headers — whitelist + Vertz headers
     const headers = new Headers();

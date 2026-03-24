@@ -538,7 +538,7 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
 
     // 3. Create JWKS client
     const jwksClient = createJWKSClient({
-      url: `${cloudBaseUrl}/auth/v1/${projectId}/.well-known/jwks.json`,
+      url: `${cloudBaseUrl}/auth/${projectId}/.well-known/jwks.json`,
     });
 
     // 4. Create cloud JWT verifier
