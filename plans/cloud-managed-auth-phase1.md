@@ -247,7 +247,7 @@ interface ResolveSessionForSSRConfig {
 When `config.cloud?.projectId` is set, `createServer()` takes a separate code path:
 
 1. **Validates cloud auth context** — calls `resolveCloudAuthContext({ projectId })`. Throws prescriptive error if no token found.
-2. **Creates JWKS client** — `createJWKSClient({ url: \`\${cloudBaseUrl}/auth/v1/\${projectId}/.well-known/jwks.json\` })`.
+2. **Creates JWKS client** — `createJWKSClient({ url: \`\${cloudBaseUrl}/auth/\${projectId}/.well-known/jwks.json\` })`.
 3. **Creates cloud JWT verifier** — `createCloudJWTVerifier({ jwksClient, issuer: cloudBaseUrl, audience: projectId })`.
 4. **Skips `jwtSecret` requirement** — the existing `createAuth()` validates `jwtSecret` unconditionally and hard-wires HS256. In cloud mode, `createServer()` bypasses `createAuth()` entirely — it constructs a minimal auth surface with only `resolveSessionForSSR` (using the cloud verifier) and the proxy request handler. This avoids retrofitting cloud mode into `createAuth()`'s JWT signing, dev secret auto-generation, and HS256 assumptions. The acceptance criteria validate the observable behavior.
 5. **Wires cloud proxy** — creates `createAuthProxy({ ... })` as the handler for `/api/auth/*` routes, replacing the local auth handler.
@@ -304,11 +304,11 @@ The following cloud endpoints are required for E2E validation (tests mock them, 
 
 | Endpoint | Status | Owner | Needed for |
 |----------|--------|-------|------------|
-| `GET /auth/v1/{projectId}/.well-known/jwks.json` | In progress | platform team | JWKS client |
-| `POST /auth/v1/signup` | In progress | platform team | Auth proxy |
-| `POST /auth/v1/signin` | In progress | platform team | Auth proxy |
-| `GET /auth/v1/oauth/initiate` | In progress | platform team | OAuth proxy |
-| `POST /auth/v1/oauth/callback` | In progress | platform team | OAuth proxy |
+| `GET /auth/{projectId}/.well-known/jwks.json` | In progress | platform team | JWKS client |
+| `POST /auth/signup` | In progress | platform team | Auth proxy |
+| `POST /auth/signin` | In progress | platform team | Auth proxy |
+| `GET /auth/oauth/initiate` | In progress | platform team | OAuth proxy |
+| `POST /auth/oauth/callback` | In progress | platform team | OAuth proxy |
 
 All framework-side tests use mocked HTTP responses — no platform dependency for CI. If platform APIs are not ready when Phase 4 begins, integration tests will use extended mocks; a demo requires the endpoints.
 
@@ -366,7 +366,7 @@ describe('Feature: Cloud-managed auth end-to-end', () => {
     describe('When starting up', () => {
       it('then initializes JWKS client targeting cloud endpoint', () => {
         const config = defineConfig({ cloud: { projectId: 'proj_test123' } });
-        // Server creates JWKS client for https://cloud.vtz.app/auth/v1/proj_test123/.well-known/jwks.json
+        // Server creates JWKS client for https://cloud.vtz.app/auth/proj_test123/.well-known/jwks.json
         // No clientId/clientSecret required on providers
       });
     });
@@ -479,7 +479,7 @@ const auth = defineAuth({
 // 4. Start the server — cloud mode auto-detected from config
 // $ vertz dev
 // [vertz] Cloud mode active (proj_abc123)
-// [vertz] JWKS client initialized: cloud.vtz.app/auth/v1/proj_abc123/.well-known/jwks.json
+// [vertz] JWKS client initialized: cloud.vtz.app/auth/proj_abc123/.well-known/jwks.json
 // [vertz] Auth routes proxied to cloud.vtz.app
 ```
 
@@ -639,7 +639,7 @@ describe('Feature: Cloud auth E2E — config to verified JWT', () => {
   // --- Minimal Proxy ---
   describe('Given cloud mode is active', () => {
     describe('When a POST request hits /api/auth/signup', () => {
-      it('then proxies to {cloudBaseUrl}/auth/v1/signup', () => {});
+      it('then proxies to {cloudBaseUrl}/auth/signup', () => {});
       it('then includes X-Vertz-Project header with projectId', () => {});
       it('then includes Authorization: Bearer header with auth token', () => {});
       it('then only forwards whitelisted headers (Cookie, Content-Type, Accept, X-Forwarded-For, User-Agent)', () => {});
