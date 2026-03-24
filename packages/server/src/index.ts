@@ -108,6 +108,7 @@ export type {
   GrandfatheringState,
   GrandfatheringStore,
   JWKSClient,
+  JWTAlgorithm,
   LimitDef,
   LimitOverride,
   LimitOverrideDef,

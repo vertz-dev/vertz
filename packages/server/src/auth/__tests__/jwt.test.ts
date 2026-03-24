@@ -1,5 +1,5 @@
 /**
- * JWT utility tests — parseDuration, createJWT, verifyJWT (RS256)
+ * JWT utility tests — parseDuration, createJWT, verifyJWT (RS256 + ES256)
  */
 
 import { describe, expect, it } from 'bun:test';
@@ -8,6 +8,15 @@ import * as jose from 'jose';
 import { createJWT, parseDuration, verifyJWT } from '../jwt';
 import type { AuthUser } from '../types';
 import { TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';
+
+// ES256 (EC P-256) key pair for algorithm tests
+const ecKeyPair = generateKeyPairSync('ec', {
+  namedCurve: 'P-256',
+  publicKeyEncoding: { type: 'spki', format: 'pem' },
+  privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+});
+const ecPrivateKey = createPrivateKey(ecKeyPair.privateKey);
+const ecPublicKey = createPublicKey(ecKeyPair.publicKey);
 
 const privateKey = createPrivateKey(TEST_PRIVATE_KEY);
 const publicKey = createPublicKey(TEST_PUBLIC_KEY);
@@ -256,5 +265,63 @@ describe('verifyJWT', () => {
       audience: 'myapp',
     });
     expect(payload).toBeNull();
+  });
+});
+
+describe('createJWT with ES256', () => {
+  it('creates a JWT with alg: "ES256" in the header', async () => {
+    const jwt = await createJWT(testUser, ecPrivateKey, 60_000, {
+      algorithm: 'ES256',
+      claims: () => ({ jti: 'jti-es', sid: 'sid-es' }),
+    });
+
+    const header = jose.decodeProtectedHeader(jwt);
+    expect(header.alg).toBe('ES256');
+  });
+
+  it('verifyJWT with algorithm: "ES256" returns the payload', async () => {
+    const jwt = await createJWT(testUser, ecPrivateKey, 60_000, {
+      algorithm: 'ES256',
+      claims: () => ({ jti: 'jti-es-v', sid: 'sid-es-v' }),
+    });
+
+    const payload = await verifyJWT(jwt, ecPublicKey, { algorithm: 'ES256' });
+    expect(payload).not.toBeNull();
+    expect(payload?.sub).toBe('user-123');
+    expect(payload?.email).toBe('test@example.com');
+    expect(payload?.jti).toBe('jti-es-v');
+    expect(payload?.sid).toBe('sid-es-v');
+  });
+
+  it('returns null when verifying ES256 JWT with algorithm: "RS256"', async () => {
+    const jwt = await createJWT(testUser, ecPrivateKey, 60_000, {
+      algorithm: 'ES256',
+      claims: () => ({ jti: 'jti-mismatch', sid: 'sid-mismatch' }),
+    });
+
+    // Verify with RS256 algorithm — should reject
+    const payload = await verifyJWT(jwt, ecPublicKey, { algorithm: 'RS256' });
+    expect(payload).toBeNull();
+  });
+});
+
+describe('createJWT defaults to RS256 (backward compat)', () => {
+  it('uses RS256 when no algorithm specified', async () => {
+    const jwt = await createJWT(testUser, privateKey, 60_000, {
+      claims: () => ({ jti: 'jti-default', sid: 'sid-default' }),
+    });
+
+    const header = jose.decodeProtectedHeader(jwt);
+    expect(header.alg).toBe('RS256');
+  });
+
+  it('verifyJWT defaults to RS256 when no algorithm specified', async () => {
+    const jwt = await createJWT(testUser, privateKey, 60_000, {
+      claims: () => ({ jti: 'jti-def-v', sid: 'sid-def-v' }),
+    });
+
+    const payload = await verifyJWT(jwt, publicKey);
+    expect(payload).not.toBeNull();
+    expect(payload?.sub).toBe('user-123');
   });
 });

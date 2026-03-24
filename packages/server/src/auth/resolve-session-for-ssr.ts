@@ -10,14 +10,16 @@ import type { KeyObject } from 'node:crypto';
 import type { AccessCheckData, AccessSet } from './access-set';
 import type { CloudJWTVerifier } from './cloud-jwt-verifier';
 import { verifyJWT } from './jwt';
-import type { AclClaim, SessionPayload } from './types';
+import type { AclClaim, JWTAlgorithm, SessionPayload } from './types';
 
 export interface ResolveSessionForSSRConfig {
-  /** RSA public key for RS256 verification (self-hosted mode). */
+  /** Public key for JWT verification (self-hosted mode). */
   publicKey?: KeyObject;
-  /** Cloud JWT verifier for RS256 verification (cloud mode). */
+  /** Cloud JWT verifier (cloud mode). */
   cloudVerifier?: CloudJWTVerifier;
   cookieName: string;
+  /** JWT signing algorithm. Defaults to 'RS256'. */
+  algorithm?: JWTAlgorithm;
   /** JWT `iss` claim to validate during verification. */
   issuer?: string;
   /** JWT `aud` claim to validate during verification. */
@@ -78,7 +80,7 @@ function extractAccessSet(acl: AclClaim): AccessSet | null {
 export function resolveSessionForSSR(
   config: ResolveSessionForSSRConfig,
 ): (request: Request) => Promise<SSRSessionResult | null> {
-  const { publicKey, cloudVerifier, cookieName, issuer, audience } = config;
+  const { publicKey, cloudVerifier, cookieName, algorithm, issuer, audience } = config;
 
   // Validate: exactly one verification method must be provided
   if (!publicKey && !cloudVerifier) {
@@ -100,12 +102,12 @@ export function resolveSessionForSSR(
     const token = cookieEntry.trim().slice(`${cookieName}=`.length);
     if (!token) return null;
 
-    // Verify JWT — cloud verifier (RS256 via JWKS) or local public key (RS256)
+    // Verify JWT — cloud verifier (via JWKS) or local public key
     let payload: SessionPayload | null;
     if (cloudVerifier) {
       payload = await cloudVerifier.verify(token);
     } else {
-      payload = await verifyJWT(token, publicKey!, { issuer, audience });
+      payload = await verifyJWT(token, publicKey!, { algorithm, issuer, audience });
     }
     if (!payload) return null;
 

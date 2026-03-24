@@ -1,6 +1,6 @@
 import { jwtVerify } from 'jose';
 import type { JWKSClient } from './jwks-client';
-import type { SessionPayload } from './types';
+import type { JWTAlgorithm, SessionPayload } from './types';
 
 export interface CloudJWTVerifier {
   verify(token: string): Promise<SessionPayload | null>;
@@ -10,8 +10,14 @@ export function createCloudJWTVerifier(options: {
   jwksClient: JWKSClient;
   issuer?: string;
   audience?: string;
+  /**
+   * Accepted JWT algorithms. Array to allow rotation overlap
+   * (e.g., accepting both RS256 and ES256 during a key migration).
+   * Defaults to ['RS256'].
+   */
+  algorithms?: JWTAlgorithm[];
 }): CloudJWTVerifier {
-  const { jwksClient, issuer, audience } = options;
+  const { jwksClient, issuer, audience, algorithms = ['RS256'] } = options;
 
   return {
     async verify(token: string): Promise<SessionPayload | null> {
@@ -19,7 +25,7 @@ export function createCloudJWTVerifier(options: {
         const { payload } = await jwtVerify(token, jwksClient.getKey, {
           ...(issuer ? { issuer } : {}),
           ...(audience ? { audience } : {}),
-          algorithms: ['RS256'],
+          algorithms,
         });
 
         // Validate required claims
@@ -64,11 +70,13 @@ function isJwtValidationError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   const code = (error as { code?: string }).code;
   // jose uses error codes: ERR_JWT_EXPIRED, ERR_JWS_SIGNATURE_VERIFICATION_FAILED,
-  // ERR_JWT_CLAIM_VALIDATION_FAILED, ERR_JWK_NOT_FOUND (unknown kid)
+  // ERR_JWT_CLAIM_VALIDATION_FAILED, ERR_JWK_NOT_FOUND (unknown kid),
+  // ERR_JOSE_ALG_NOT_ALLOWED (algorithm not in allowed list)
   return (
     code === 'ERR_JWT_EXPIRED' ||
     code === 'ERR_JWS_SIGNATURE_VERIFICATION_FAILED' ||
     code === 'ERR_JWT_CLAIM_VALIDATION_FAILED' ||
-    code === 'ERR_JWK_NOT_FOUND'
+    code === 'ERR_JWK_NOT_FOUND' ||
+    code === 'ERR_JOSE_ALG_NOT_ALLOWED'
   );
 }
