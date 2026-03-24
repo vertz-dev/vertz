@@ -81,10 +81,18 @@ export interface ServiceConfig<
 // ServiceDefinition — the frozen output of service()
 // ---------------------------------------------------------------------------
 
-export interface ServiceDefinition {
+export interface ServiceDefinition<
+  // biome-ignore lint/suspicious/noExplicitAny: constraint uses any to accept all action type parameter combinations
+  TActions extends Record<string, ServiceActionDef<any, any, any>> = Record<
+    string,
+    ServiceActionDef
+  >,
+> {
   readonly kind: 'service';
   readonly name: string;
   readonly inject: Record<string, EntityDefinition>;
   readonly access: Partial<Record<string, AccessRule>>;
   readonly actions: Record<string, ServiceActionDef>;
+  /** @internal Phantom type — carries concrete action types for type extraction. Never accessed at runtime. */
+  readonly __actions?: TActions;
 }

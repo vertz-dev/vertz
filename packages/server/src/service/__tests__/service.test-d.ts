@@ -134,6 +134,60 @@ describe('service() definition type flow', () => {
 });
 
 // ---------------------------------------------------------------------------
+// ServiceDefinition phantom type — TActions preservation (#1779)
+// ---------------------------------------------------------------------------
+
+describe('ServiceDefinition phantom TActions preservation', () => {
+  it('service() return type carries action types via __actions phantom', () => {
+    const def = service('auth', {
+      actions: {
+        login: {
+          body: bodySchema,
+          response: responseSchema,
+          handler: async (input) => ({ token: `tok-${input.email}` }),
+        },
+      },
+    });
+
+    // The phantom __actions should carry the concrete action types
+    type Actions = NonNullable<(typeof def)['__actions']>;
+    type LoginAction = Actions['login'];
+
+    // Input type should be { email: string } (from bodySchema)
+    type LoginInput = LoginAction extends { handler: (input: infer I, ...args: unknown[]) => unknown }
+      ? I
+      : never;
+    const _check: { email: string } = {} as LoginInput;
+    void _check;
+  });
+
+  it('typed ServiceDefinitions are assignable to ServiceDefinition[] (array compat)', () => {
+    const authDef = service('auth', {
+      actions: {
+        login: {
+          body: bodySchema,
+          response: responseSchema,
+          handler: async () => ({ token: 'tok' }),
+        },
+      },
+    });
+
+    const healthDef = service('health', {
+      actions: {
+        check: {
+          response: responseSchema,
+          handler: async () => ({ token: 'ok' }),
+        },
+      },
+    });
+
+    // Both should be assignable to ServiceDefinition[] without type errors
+    const _arr: import('../types').ServiceDefinition[] = [authDef, healthDef];
+    void _arr;
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Content descriptor type flow
 // ---------------------------------------------------------------------------
 

@@ -115,7 +115,7 @@
           },
           {
             "group": "Testing",
-            "pages": ["guides/testing"]
+            "pages": ["guides/testing", "guides/testing-server"]
           }
         ],
         "tab": "Guides"
