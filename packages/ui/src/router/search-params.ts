@@ -4,7 +4,12 @@
 
 import { useContext } from '../component/context';
 import type { ReadonlySignal } from '../runtime/signal-types';
-import type { SearchParamSchema } from './define-routes';
+import type {
+  ExtractSearchParams,
+  RouteConfigLike,
+  RouteDefinitionMap,
+  SearchParamSchema,
+} from './define-routes';
 import type { ReactiveSearchParams } from './reactive-search-params';
 import { RouterContext } from './router-context';
 
@@ -36,12 +41,25 @@ export function parseSearchParams<T = Record<string, string>>(
 /**
  * Read the current search params as a reactive, writable proxy.
  *
+ * Overload 1: `useSearchParams<'/search'>()` — infers search param types from
+ * the route's `searchParams` schema via `ExtractSearchParams`. Requires codegen
+ * augmentation or explicit `TMap` generic for full type inference.
+ *
+ * Overload 2: `useSearchParams<{ q: string; page: number }>()` — explicit type.
+ *
+ * Overload 3: `useSearchParams()` — no generic, returns `Record<string, string>`.
+ *
  * Reads are reactive (trigger signal tracking), writes batch-navigate
  * to update the URL. Must be called within a `RouterContext.Provider`.
  */
 export function useSearchParams<
-  T extends Record<string, unknown> = Record<string, string>,
->(): ReactiveSearchParams<T>;
+  TPath extends string = string,
+  TMap extends Record<string, RouteConfigLike> = RouteDefinitionMap,
+>(): ReactiveSearchParams<ExtractSearchParams<TPath, TMap>>;
+/**
+ * Read the current search params with an explicit type assertion.
+ */
+export function useSearchParams<T extends Record<string, unknown>>(): ReactiveSearchParams<T>;
 /**
  * Read the current search params from a reactive signal.
  *

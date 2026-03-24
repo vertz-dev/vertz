@@ -90,6 +90,23 @@ export type TypedRoutes<T extends Record<string, RouteConfigLike> = RouteDefinit
  */
 export type InferRouteMap<T> = T extends TypedRoutes<infer R> ? R : T;
 
+/**
+ * Extract the search params type from a route definition map for a given path.
+ *
+ * If the route at `TPath` has a `searchParams` schema, resolves to the schema's
+ * output type `T`. Otherwise resolves to `Record<string, string>` (raw URL params).
+ *
+ * Parallel to `ExtractParams<TPath>` which extracts path params from the URL pattern.
+ */
+export type ExtractSearchParams<
+  TPath extends string,
+  TMap extends Record<string, RouteConfigLike> = RouteDefinitionMap,
+> = TPath extends keyof TMap
+  ? TMap[TPath] extends { searchParams: SearchParamSchema<infer T> }
+    ? T
+    : Record<string, string>
+  : Record<string, string>;
+
 /** Internal compiled route. */
 export interface CompiledRoute {
   /** The original path pattern. */

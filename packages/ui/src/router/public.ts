@@ -8,6 +8,7 @@
 
 export type {
   CompiledRoute,
+  ExtractSearchParams,
   InferRouteMap,
   LoaderData,
   MatchedRoute,

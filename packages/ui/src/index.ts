@@ -150,6 +150,7 @@ export { invalidate, invalidateTenantQueries, isQueryDescriptor, query } from '.
 // Router
 export type {
   CompiledRoute,
+  ExtractSearchParams,
   InferRouteMap,
   LoaderData,
   MatchedRoute,

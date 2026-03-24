@@ -430,3 +430,64 @@ declare const _p5CurrentPath: ReadonlySignal<string>;
 declare const _p5Navigate: (url: string) => void;
 const _p5Link = createLink(_p5CurrentPath, _p5Navigate);
 _p5Link({ href: '/anything', children: 'OK' }); // untyped createLink — any string
+
+// ─── Phase 6: ExtractSearchParams + useSearchParams type tests ──────────────
+
+import type { ExtractSearchParams, SearchParamSchema } from '../define-routes';
+import { useSearchParams } from '../search-params';
+
+// Phase 6 Cycle 1: ExtractSearchParams extracts schema output type
+type P6SearchSchema = SearchParamSchema<{ q: string; page: number }>;
+type P6RouteMap = {
+  '/search': { component: () => Node; searchParams: P6SearchSchema };
+  '/home': { component: () => Node };
+};
+
+type P6Extracted = ExtractSearchParams<'/search', P6RouteMap>;
+const _p6Q: P6Extracted['q'] = 'test';
+const _p6Page: P6Extracted['page'] = 42;
+void _p6Q;
+void _p6Page;
+
+// @ts-expect-error - q is string, not number
+const _p6BadQ: P6Extracted['q'] = 42;
+void _p6BadQ;
+
+// Phase 6 Cycle 2: ExtractSearchParams falls back to Record<string, string> when no schema
+type P6NoSchema = ExtractSearchParams<'/home', P6RouteMap>;
+const _p6Raw: P6NoSchema = { anyKey: 'value' };
+void _p6Raw;
+
+// Phase 6 Cycle 3: ExtractSearchParams falls back for unknown routes
+type P6Unknown = ExtractSearchParams<'/nonexistent', P6RouteMap>;
+const _p6UnknownRaw: P6Unknown = { anyKey: 'value' };
+void _p6UnknownRaw;
+
+// Phase 6 Cycle 4: useSearchParams() with no generic returns ReactiveSearchParams<Record<string, string>>
+const _p6Sp = useSearchParams();
+const _p6SpVal: string = _p6Sp.anyKey as string;
+void _p6SpVal;
+
+// Phase 6 Cycle 5: useSearchParams with explicit type assertion
+const _p6Typed = useSearchParams<{ q: string; page: number }>();
+const _p6TypedQ: string = _p6Typed.q as string;
+const _p6TypedPage: number = _p6Typed.page as number;
+void _p6TypedQ;
+void _p6TypedPage;
+
+// Phase 6 Cycle 6: useSearchParams with route path generic + explicit route map
+const _p6RouteTyped = useSearchParams<'/search', P6RouteMap>();
+const _p6RtQ: string = _p6RouteTyped.q as string;
+const _p6RtPage: number = _p6RouteTyped.page as number;
+void _p6RtQ;
+void _p6RtPage;
+
+// Phase 6 Cycle 7: ReactiveSearchParams.navigate is typed
+_p6RouteTyped.navigate({ q: 'dragon' });
+_p6RouteTyped.navigate({ page: 2 }, { push: true });
+
+// Phase 6 Cycle 8: deprecated signal overload still works
+declare const _p6Signal: ReadonlySignal<{ q: string }>;
+const _p6FromSignal = useSearchParams(_p6Signal);
+const _p6FromSignalQ: string = _p6FromSignal.q;
+void _p6FromSignalQ;
