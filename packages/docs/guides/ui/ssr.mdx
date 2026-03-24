@@ -1,6 +1,6 @@
 ---
 title: Server-Side Rendering
-description: "SSR — two-pass rendering, query pre-fetch, and hydration"
+description: "SSR — single-pass rendering, query pre-fetch, and hydration"
 ---
 
 Vertz SSR is built into the stack — not bolted on. The dev server renders every page on the server, pre-fetches query data, and hydrates on the client. No separate SSR configuration needed.
@@ -13,9 +13,12 @@ In frameworks like Next.js, you constantly decide: "Is this a server component o
 
 ## How it works
 
-1. **Discovery pass** — The server renders your app to find all `query()` calls and await their data
-2. **Render pass** — With data resolved, the server renders the final HTML
-3. **Hydration** — The client picks up the server-rendered DOM and data without re-fetching
+1. **Discovery** — A lightweight execution of your app captures all `query()` calls without rendering to HTML
+2. **Prefetch** — The server awaits all discovered queries with per-query timeouts
+3. **Render** — A single render pass with pre-populated data produces the final HTML
+4. **Hydration** — The client picks up the server-rendered DOM and data without re-fetching
+
+The discovery phase runs your component tree just enough to register queries — it doesn't produce HTML. This is significantly cheaper than a full render, and means the actual render only happens once with all data already available.
 
 ## App entry
 
@@ -80,9 +83,9 @@ export function TaskListPage() {
   const tasks = query(api.tasks.list());
 
   // During SSR:
-  // 1. Discovery pass registers this query
-  // 2. Server awaits the data
-  // 3. Render pass uses the resolved data
+  // 1. Discovery captures this query
+  // 2. Server prefetches the data
+  // 3. Single render pass uses the resolved data
   // 4. Client hydrates from server data — no re-fetch
 
   return (
@@ -241,7 +244,7 @@ const appRouter = createRouter(routes, initialPath, {
 
 With `serverNav` enabled:
 1. Client sends a pre-fetch request with `X-Vertz-Nav: 1` header
-2. Server runs the discovery pass for the target page
+2. Server runs discovery and prefetch for the target page
 3. Data streams back via Server-Sent Events
 4. Client receives data before rendering the new page
 

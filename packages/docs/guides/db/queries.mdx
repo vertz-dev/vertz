@@ -336,6 +336,14 @@ const result = await db.query(
 
 Parameters are automatically escaped — no SQL injection risk.
 
+## Prepared statements
+
+All queries to PostgreSQL use prepared statements automatically — no configuration needed. The database driver sends each query with `prepare: true`, which enables PostgreSQL to cache the query plan and reuse it on subsequent executions of the same query shape.
+
+This applies to all query paths: typed client operations (`db.users.list()`), raw SQL (`db.query()`), and queries inside transactions. There is no opt-out — prepared statements are always enabled for PostgreSQL connections.
+
+<Note>SQLite and Cloudflare D1 handle statement caching internally at the driver level, so this optimization is specific to PostgreSQL.</Note>
+
 ## Database support
 
 All databases use the same import and `createDb()` API:

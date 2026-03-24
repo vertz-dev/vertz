@@ -98,6 +98,63 @@ The framework derives different types for different contexts:
 
 You never define these types manually — they're inferred from the column annotations.
 
+## Composite primary keys
+
+For tables with multi-column primary keys (e.g., join tables), use the `primaryKey` table option instead of column-level `.primary()`:
+
+```ts
+const tenantMembers = d.table(
+  'tenant_members',
+  {
+    tenantId: d.uuid(),
+    userId: d.uuid(),
+    role: d.text().default('member'),
+  },
+  { primaryKey: ['tenantId', 'userId'] },
+);
+```
+
+### Type behavior
+
+Composite PK columns affect the derived types:
+
+| Type | Composite PK columns |
+|------|---------------------|
+| `$insert` | **Required** (unless the column has `.default()`) |
+| `$update` / `$update_input` | **Excluded** — PKs are immutable after creation |
+| `$create_input` | **Required** — provided by the caller, not auto-generated |
+| `$infer` | Included (read-side) |
+
+### Validation rules
+
+- Cannot mix column-level `.primary()` and table-level `primaryKey` on the same table
+- `primaryKey` array must contain at least one column
+- All column names must exist in the columns object
+- Invalid column names are caught at compile time via TypeScript
+
+### Entity CRUD limitation
+
+Entity CRUD (`entity()`) does not support composite primary keys — it requires a single-column PK for route parameters like `/api/tasks/:id`. If you need to use a table with a composite PK as an entity, add a surrogate single-column PK and use a unique index for the composite key:
+
+```ts
+const tenantMembers = d.table(
+  'tenant_members',
+  {
+    id: d.uuid().primary({ generate: 'cuid' }),  // surrogate PK for entity CRUD
+    tenantId: d.uuid(),
+    userId: d.uuid(),
+    role: d.text().default('member'),
+  },
+  {
+    indexes: [
+      d.index(['tenantId', 'userId'], { unique: true }),  // composite uniqueness
+    ],
+  },
+);
+```
+
+Tables that genuinely need composite PKs and don't participate in entity CRUD (e.g., join tables) can use `primaryKey` directly and be queried via the raw SQL API.
+
 ## Models
 
 A model combines a table with its relations:

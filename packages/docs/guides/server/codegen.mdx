@@ -340,36 +340,52 @@ The generator applies these transformations:
 
 ### Applying the generated policies
 
-The generated `rls-policies.sql` is a reference. You are responsible for applying it to your database and setting up the required session variables. Here's a typical workflow:
+**Recommended: migration integration.** Pass the codegen RLS output to `migrateDev()` and let the migration system handle it:
 
-<Steps>
-  <Step title="Enable RLS on your tables">
-    ```sql
-    ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
-    ALTER TABLE tasks FORCE ROW LEVEL SECURITY;
-    ```
-  </Step>
-  <Step title="Set session variables per request">
-    Your application must set `app.user_id` and `app.tenant_id` on each database connection within a transaction before running queries:
+```ts
+import { migrateDev } from 'vertz/db';
 
-    ```ts
-    await db.execute('BEGIN');
-    await db.execute(`SET LOCAL app.user_id = '${userId}'`);
-    await db.execute(`SET LOCAL app.tenant_id = '${tenantId}'`);
-    // ... run queries ...
-    await db.execute('COMMIT');
-    ```
+await migrateDev({
+  queryFn: db.queryFn,
+  currentSnapshot: db.snapshot,
+  previousSnapshot: loadFromFile(),
+  migrationsDir: './migrations',
+  rlsPolicies: codegenOutput.rlsPolicies,
+});
+```
 
-    `SET LOCAL` scopes the setting to the current transaction — it's automatically cleared on `COMMIT` or `ROLLBACK`.
-  </Step>
-  <Step title="Apply the generated policies">
-    Include the generated SQL in your migration or apply it directly:
+This generates a single migration file containing both schema DDL and RLS policy changes. Subsequent migrations only include incremental RLS diffs. See the [migrations guide](/guides/db/migrations#rls-policy-migrations) for details.
 
-    ```bash
-    psql -d myapp < .vertz/generated/rls-policies.sql
-    ```
-  </Step>
-</Steps>
+**Alternative: manual application.** You can also apply the generated SQL directly:
+
+```bash
+psql -d myapp < .vertz/generated/rls-policies.sql
+```
+
+Either way, you need to enable RLS on the target tables:
+
+```sql
+ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tasks FORCE ROW LEVEL SECURITY;
+```
+
+### Setting session variables per request
+
+RLS policies reference `app.user_id` and `app.tenant_id` via `current_setting()`. Use `withSessionVars()` from `@vertz/db` to set these within a transaction:
+
+```ts
+import { withSessionVars } from 'vertz/db';
+
+const result = await withSessionVars(
+  connectionQueryFn,
+  { tenantId: ctx.tenantId, userId: ctx.userId },
+  async (txQueryFn) => {
+    return await txQueryFn('SELECT * FROM tasks', []);
+  },
+);
+```
+
+`withSessionVars()` validates UUIDs, wraps the callback in a transaction, and uses `SET LOCAL` so variables are scoped to the transaction and automatically cleared on commit or rollback.
 
 <Note>
   The generated policies use `FOR ALL`, applying to SELECT, INSERT, UPDATE, and DELETE. If you need operation-specific policies (e.g., `FOR SELECT` only), customize the generated SQL before applying.

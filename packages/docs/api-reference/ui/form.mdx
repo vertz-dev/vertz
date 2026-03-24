@@ -85,6 +85,7 @@ Access any field by name on the form instance (e.g., `taskForm.title`). Each fie
 | `onSuccess` | `(result: TResult) => void` | — | Callback after successful submission |
 | `onError` | `(errors: Record<string, string>) => void` | — | Callback on validation or submission error |
 | `resetOnSuccess` | `boolean` | `false` | Reset fields after successful submission |
+| `revalidateOn` | `'blur' \| 'change' \| 'submit'` | `'blur'` | When to re-validate fields with errors after first submission |
 
 ---
 
@@ -109,6 +110,7 @@ interface FormOptions<TBody, TResult> {
   onSuccess?: (result: TResult) => void;
   onError?: (errors: Record<string, string>) => void;
   resetOnSuccess?: boolean;
+  revalidateOn?: 'blur' | 'change' | 'submit';
 }
 
 type FormInstance<TBody, TResult> = {

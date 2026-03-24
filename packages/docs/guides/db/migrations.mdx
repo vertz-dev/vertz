@@ -159,6 +159,53 @@ const status = await migrateStatus({
 });
 ```
 
+## RLS policy migrations
+
+If you use [RLS policy generation](/guides/server/codegen#rls-policy-generation-opt-in) from the codegen system, the migration pipeline can include RLS changes alongside schema changes.
+
+When you pass `rlsPolicies` to `migrateDev()`, it diffs the current RLS state against the previous snapshot and appends the necessary SQL:
+
+```ts
+import { migrateDev } from 'vertz/db';
+
+await migrateDev({
+  queryFn: db.queryFn,
+  currentSnapshot: db.snapshot,
+  previousSnapshot: loadFromFile(),
+  migrationsDir: './migrations',
+  rlsPolicies: codegenOutput.rlsPolicies,  // from codegen
+});
+```
+
+The generated migration includes:
+
+1. Schema DDL changes (table/column modifications)
+2. `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` for new RLS tables
+3. `DROP POLICY` for removed or changed policies
+4. `CREATE POLICY` for new or changed policies
+5. `ALTER TABLE ... DISABLE ROW LEVEL SECURITY` for tables that no longer have policies
+
+The snapshot tracks RLS state, so subsequent migrations only include incremental changes.
+
+### Setting session variables
+
+RLS policies reference PostgreSQL session variables (`app.user_id`, `app.tenant_id`) set via `SET LOCAL`. Use `withSessionVars()` to scope these to a transaction:
+
+```ts
+import { withSessionVars } from 'vertz/db';
+
+const result = await withSessionVars(
+  connectionQueryFn,
+  { tenantId: ctx.tenantId, userId: ctx.userId },
+  async (txQueryFn) => {
+    // All queries here see app.tenant_id and app.user_id via RLS
+    return await txQueryFn('SELECT * FROM tasks', []);
+  },
+);
+```
+
+`withSessionVars()` validates UUIDs before executing, wraps the callback in a transaction, and uses `SET LOCAL` so variables are automatically cleared on commit or rollback.
+
 ## Troubleshooting
 
 ### Snapshot out of sync
