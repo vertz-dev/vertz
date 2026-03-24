@@ -2,6 +2,11 @@ import type { DocsConfig, SidebarTab } from '../config/types';
 import type { TocHeading } from '../mdx/extract-headings';
 import type { PageRoute } from '../routing/resolve';
 import { filePathToTitle, filePathToUrlPath } from '../routing/resolve';
+import {
+  SEARCH_PALETTE_HTML,
+  SEARCH_PALETTE_SCRIPT,
+  SEARCH_PALETTE_STYLES,
+} from '../search/search-palette-script';
 import { escapeHtml } from './escape-html';
 
 export interface RenderPageOptions {
@@ -148,6 +153,10 @@ export function renderPageHtml({
   liveReload = true,
 }: RenderPageOptions): string {
   const reloadScript = liveReload ? LIVE_RELOAD_SCRIPT : '';
+  const searchEnabled = config.search?.enabled === true;
+  const searchStyles = searchEnabled ? SEARCH_PALETTE_STYLES : '';
+  const searchHtml = searchEnabled ? SEARCH_PALETTE_HTML : '';
+  const searchScript = searchEnabled ? SEARCH_PALETTE_SCRIPT : '';
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -155,6 +164,7 @@ export function renderPageHtml({
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${escapeHtml(route.title)} - ${escapeHtml(config.name)}</title>
 ${BASE_STYLES}
+${searchStyles}
 </head>
 <body>
 ${renderHeader(config)}
@@ -167,6 +177,8 @@ ${renderPrevNext(route)}
 </main>
 <aside class="docs-toc">${renderToC(headings)}</aside>
 </div>
+${searchHtml}
+${searchScript}
 ${reloadScript}
 </body>
 </html>`;
