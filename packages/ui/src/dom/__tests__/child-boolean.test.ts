@@ -6,9 +6,10 @@ describe('__child boolean handling', () => {
     const parent = document.createElement('div');
     const result = __child(() => true);
     parent.appendChild(result);
-    // Only the comment anchor, no content
-    expect(parent.childNodes.length).toBe(1);
-    expect(parent.childNodes[0].nodeType).toBe(8); // Comment
+    // Comment anchor + end marker, no content
+    expect(parent.childNodes.length).toBe(2);
+    expect(parent.childNodes[0]?.nodeType).toBe(8); // Comment anchor
+    expect(parent.childNodes[1]?.nodeType).toBe(8); // End marker
     expect(parent.textContent).toBe('');
     result.dispose();
   });
@@ -17,9 +18,10 @@ describe('__child boolean handling', () => {
     const parent = document.createElement('div');
     const result = __child(() => false);
     parent.appendChild(result);
-    // Only the comment anchor, no content
-    expect(parent.childNodes.length).toBe(1);
-    expect(parent.childNodes[0].nodeType).toBe(8); // Comment
+    // Comment anchor + end marker, no content
+    expect(parent.childNodes.length).toBe(2);
+    expect(parent.childNodes[0]?.nodeType).toBe(8); // Comment anchor
+    expect(parent.childNodes[1]?.nodeType).toBe(8); // End marker
     expect(parent.textContent).toBe('');
     result.dispose();
   });

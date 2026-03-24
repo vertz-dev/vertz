@@ -163,6 +163,15 @@ export function resumeHydration(): void {
 }
 
 /**
+ * Advance the hydration cursor to a specific node.
+ * Used by __child() after clearing SSR content to reposition the cursor
+ * past removed nodes.
+ */
+export function advanceCursor(node: Node | null): void {
+  currentNode = node;
+}
+
+/**
  * Claim an element node matching `tag` at the current cursor position.
  * Skips non-matching nodes (browser extensions, whitespace text).
  * Returns null if no matching node is found among remaining siblings.
@@ -335,12 +344,19 @@ function findUnclaimedNodes(root: Element, claimed: WeakSet<Node>): Node[] {
         claimed.has(child) &&
         (child as Comment).data.trim() === 'child'
       ) {
-        // Skip all following siblings until the next <!--child--> comment
-        // or end of parent — they are CSR-managed content.
+        // Skip all following siblings until <!--/child--> end marker,
+        // the next <!--child--> comment, or end of parent.
         child = child.nextSibling;
         while (child) {
-          if (child.nodeType === Node.COMMENT_NODE && (child as Comment).data.trim() === 'child') {
-            break; // Next __child boundary — stop skipping
+          if (child.nodeType === Node.COMMENT_NODE) {
+            const data = (child as Comment).data.trim();
+            if (data === '/child') {
+              child = child.nextSibling; // Skip past end marker
+              break;
+            }
+            if (data === 'child') {
+              break; // Next __child boundary — stop skipping
+            }
           }
           child = child.nextSibling;
         }

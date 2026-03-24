@@ -63,8 +63,8 @@ describe('Child node rendering', () => {
     // The child element should be after the comment anchor (not stringified)
     expect(parent.textContent).toBe('child content');
     expect(parent.innerHTML).not.toContain('[object HTMLElement]');
-    // comment + child element
-    expect(parent.childNodes.length).toBe(2);
+    // comment anchor + child element + end marker
+    expect(parent.childNodes.length).toBe(3);
     expect(parent.childNodes[1]).toBe(child);
 
     result.dispose();
@@ -92,9 +92,10 @@ describe('Child node rendering', () => {
 
     const result = __child(() => null);
     parent.appendChild(result);
-    // Only the comment anchor, no content
-    expect(parent.childNodes.length).toBe(1);
-    expect(parent.childNodes[0].nodeType).toBe(8); // Comment
+    // Comment anchor + end marker, no content
+    expect(parent.childNodes.length).toBe(2);
+    expect(parent.childNodes[0]?.nodeType).toBe(8); // Comment anchor
+    expect(parent.childNodes[1]?.nodeType).toBe(8); // End marker
     expect(parent.textContent).toBe('');
 
     result.dispose();
@@ -151,17 +152,17 @@ describe('Child node rendering', () => {
     parent.appendChild(result);
 
     expect(parent.textContent).toBe('hello');
-    expect(parent.childNodes.length).toBe(2); // comment + text
+    expect(parent.childNodes.length).toBe(3); // comment + text + end marker
 
     // Transition to null — should remove the text node
     val.value = null;
     expect(parent.textContent).toBe('');
-    expect(parent.childNodes.length).toBe(1); // only comment
+    expect(parent.childNodes.length).toBe(2); // comment + end marker
 
     // Back to text — creates a new text node
     val.value = 'world';
     expect(parent.textContent).toBe('world');
-    expect(parent.childNodes.length).toBe(2); // comment + text
+    expect(parent.childNodes.length).toBe(3); // comment + text + end marker
 
     result.dispose();
   });
@@ -176,13 +177,13 @@ describe('Child node rendering', () => {
     parent.appendChild(result);
 
     expect(parent.textContent).toBe('text');
-    expect(parent.childNodes.length).toBe(2); // comment + text
-    expect(parent.childNodes[1].nodeType).toBe(3); // Text node
+    expect(parent.childNodes.length).toBe(3); // comment + text + end marker
+    expect(parent.childNodes[1]?.nodeType).toBe(3); // Text node
 
     // Transition to Node — should replace text with the element
     val.value = node;
     expect(parent.textContent).toBe('element');
-    expect(parent.childNodes.length).toBe(2); // comment + element
+    expect(parent.childNodes.length).toBe(3); // comment + element + end marker
     expect(parent.childNodes[1]).toBe(node);
 
     result.dispose();
@@ -235,7 +236,7 @@ describe('Child node rendering', () => {
     // Should NOT have removed anything (stable-node optimization)
     expect(removeCount).toBe(0);
     expect(parent.childNodes[1]).toBe(stableNode);
-    expect(parent.childNodes.length).toBe(2); // comment + stableNode
+    expect(parent.childNodes.length).toBe(3); // comment + stableNode + end marker
 
     result.dispose();
   });
