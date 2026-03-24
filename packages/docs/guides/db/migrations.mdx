@@ -27,12 +27,14 @@ Vertz handles migrations by diffing your TypeScript schema against the database.
 | `vertz db push` | No | Yes | Quick one-off schema sync without a migration file |
 | `vertz db migrate` | Yes | Yes | Generating a reviewable migration file for production |
 | `vertz db deploy` | No | Yes (pending only) | Production deployments — applies committed migration files |
+| `vertz db pull` | No | No | Generate a schema file from an existing database |
 | `autoMigrate()` | No | Yes | Programmatic dev setup (test suites, scripts). **SQLite only.** |
 
 - **`vertz dev`** — the default for local development. No commands to remember.
 - **`vertz db push`** — useful when you want to apply changes outside the dev server without generating a migration file (e.g., CI test databases).
 - **`vertz db migrate`** — generates a numbered `.sql` file in your migrations directory and applies it. Commit this file to version control.
 - **`vertz db deploy`** — reads migration files from disk and applies any that haven't been applied yet. Never generates new files. Safe for production.
+- **`vertz db pull`** — connects to an existing database and generates a TypeScript schema file. See the [introspection guide](/guides/db/introspection).
 - **`autoMigrate()`** — a programmatic API for test setup or custom scripts. It diffs the schema snapshot and applies changes directly. Currently supports SQLite only — Postgres users should use `vertz db push` or `migrateDev()` instead.
 
 ## File structure
