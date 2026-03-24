@@ -3,6 +3,7 @@ import { d } from '@vertz/db';
 import { content } from '../../content';
 import { entity } from '../../entity/entity';
 import { EntityRegistry } from '../../entity/entity-registry';
+import { response } from '../../response';
 import { generateServiceRoutes } from '../route-generator';
 import { service } from '../service';
 
@@ -551,14 +552,198 @@ describe('Feature: generateServiceRoutes', () => {
 
         const registry = new EntityRegistry();
         const routes = generateServiceRoutes(authService, registry);
-        const response = await routes[0]?.handler({
+        const resp = await routes[0]?.handler({
           body: { email: 'alice@example.com' },
         });
 
-        expect(response.status).toBe(200);
-        expect(response.headers.get('content-type')).toBe('application/json');
-        const body = await response.json();
+        expect(resp.status).toBe(200);
+        expect(resp.headers.get('content-type')).toBe('application/json');
+        const body = await resp.json();
         expect(body.token).toBe('tok-alice@example.com');
+      });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // ResponseDescriptor tests
+  // -------------------------------------------------------------------------
+
+  describe('Given a handler that returns response() with custom headers', () => {
+    describe('When the route is invoked', () => {
+      it('Then HTTP response includes the custom headers', async () => {
+        const svc = service('cloud', {
+          access: { jwks: () => true },
+          actions: {
+            jwks: {
+              method: 'GET',
+              response: responseSchema,
+              handler: async () =>
+                response(
+                  { token: 'key1' },
+                  { headers: { 'Cache-Control': 'public, max-age=3600' } },
+                ),
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(svc, registry);
+        const resp = await routes[0]?.handler({});
+
+        expect(resp.headers.get('Cache-Control')).toBe('public, max-age=3600');
+      });
+
+      it('Then content-type: application/json is preserved', async () => {
+        const svc = service('cloud', {
+          access: { jwks: () => true },
+          actions: {
+            jwks: {
+              method: 'GET',
+              response: responseSchema,
+              handler: async () =>
+                response({ token: 'key1' }, { headers: { 'X-Request-Id': 'req-123' } }),
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(svc, registry);
+        const resp = await routes[0]?.handler({});
+
+        expect(resp.headers.get('content-type')).toBe('application/json');
+      });
+    });
+  });
+
+  describe('Given a handler that returns response() with custom status', () => {
+    describe('When the route is invoked', () => {
+      it('Then HTTP response uses the custom status code', async () => {
+        const svc = service('cloud', {
+          access: { create: () => true },
+          actions: {
+            create: {
+              method: 'POST',
+              body: bodySchema,
+              response: responseSchema,
+              handler: async () => response({ token: 'new' }, { status: 201 }),
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(svc, registry);
+        const resp = await routes[0]?.handler({ body: { email: 'a@b.com' } });
+
+        expect(resp.status).toBe(201);
+      });
+    });
+  });
+
+  describe('Given a handler that returns plain data (backward compat)', () => {
+    describe('When the route is invoked', () => {
+      it('Then response is 200 with application/json (unchanged behavior)', async () => {
+        const svc = service('auth', {
+          access: { login: () => true },
+          actions: {
+            login: {
+              body: bodySchema,
+              response: responseSchema,
+              handler: async () => ({ token: 'tok' }),
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(svc, registry);
+        const resp = await routes[0]?.handler({ body: { email: 'a@b.com' } });
+
+        expect(resp.status).toBe(200);
+        expect(resp.headers.get('content-type')).toBe('application/json');
+        const body = await resp.json();
+        expect(body.token).toBe('tok');
+      });
+    });
+  });
+
+  describe('Given a handler that tries to override content-type header', () => {
+    describe('When the route is invoked', () => {
+      it('Then content-type remains application/json', async () => {
+        const svc = service('cloud', {
+          access: { data: () => true },
+          actions: {
+            data: {
+              method: 'GET',
+              response: responseSchema,
+              handler: async () =>
+                response(
+                  { token: 'tok' },
+                  { headers: { 'Content-Type': 'text/plain', 'X-Custom': 'val' } },
+                ),
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(svc, registry);
+        const resp = await routes[0]?.handler({});
+
+        expect(resp.headers.get('content-type')).toBe('application/json');
+        expect(resp.headers.get('X-Custom')).toBe('val');
+      });
+    });
+  });
+
+  describe('Given a content descriptor response with response() wrapper', () => {
+    describe('When the route is invoked', () => {
+      it('Then custom headers are merged but content-type uses the descriptor', async () => {
+        const svc = service('xml', {
+          access: { metadata: () => true },
+          actions: {
+            metadata: {
+              method: 'GET',
+              response: content.xml(),
+              handler: async () =>
+                response('<EntityDescriptor/>', {
+                  headers: { 'X-Request-Id': 'req-456' },
+                }),
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(svc, registry);
+        const resp = await routes[0]?.handler({});
+
+        expect(resp.status).toBe(200);
+        expect(resp.headers.get('content-type')).toBe('application/xml');
+        expect(resp.headers.get('X-Request-Id')).toBe('req-456');
+        expect(await resp.text()).toBe('<EntityDescriptor/>');
+      });
+    });
+  });
+
+  describe('Given response() with only data (no options)', () => {
+    describe('When the route is invoked', () => {
+      it('Then behaves like plain return (200, application/json)', async () => {
+        const svc = service('cloud', {
+          access: { data: () => true },
+          actions: {
+            data: {
+              method: 'GET',
+              response: responseSchema,
+              handler: async () => response({ token: 'tok' }),
+            },
+          },
+        });
+
+        const registry = new EntityRegistry();
+        const routes = generateServiceRoutes(svc, registry);
+        const resp = await routes[0]?.handler({});
+
+        expect(resp.status).toBe(200);
+        expect(resp.headers.get('content-type')).toBe('application/json');
+        const body = await resp.json();
+        expect(body.token).toBe('tok');
       });
     });
   });
