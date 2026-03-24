@@ -1,5 +1,6 @@
 import type { ModelDef, RelationDef, SchemaLike, TableDef } from '@vertz/db';
 import type { AccessRule as AuthAccessRule } from '../auth/rules';
+import type { ResponseDescriptor } from '../response';
 import type { EntityOperations } from './entity-operations';
 import type { TenantChain } from './tenant-chain';
 
@@ -100,7 +101,11 @@ export interface EntityActionDef<
   readonly path?: string;
   readonly body: SchemaLike<TInput>;
   readonly response: SchemaLike<TOutput>;
-  readonly handler: (input: TInput, ctx: TCtx, row: TResponse | null) => Promise<TOutput>;
+  readonly handler: (
+    input: TInput,
+    ctx: TCtx,
+    row: TResponse | null,
+  ) => Promise<TOutput | ResponseDescriptor<TOutput>>;
 }
 
 // ---------------------------------------------------------------------------

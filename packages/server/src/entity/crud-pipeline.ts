@@ -87,6 +87,7 @@ export interface ListResult<T = Record<string, unknown>> {
 export interface CrudResult<T = unknown> {
   status: number;
   body: T;
+  headers?: Record<string, string>;
 }
 
 export interface CrudHandlers<TModel extends ModelDef = ModelDef> {

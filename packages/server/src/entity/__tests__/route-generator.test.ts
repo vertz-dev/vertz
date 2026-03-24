@@ -1,6 +1,7 @@
 import { describe, expect, it, mock } from 'bun:test';
 import { d } from '@vertz/db';
 import { rules } from '../../auth/rules';
+import { response } from '../../response';
 import type { EntityDbAdapter } from '../crud-pipeline';
 import type { EntityOperations } from '../entity-operations';
 import { EntityRegistry } from '../entity-registry';
@@ -1879,6 +1880,168 @@ describe('Feature: Expose descriptor runtime evaluation', () => {
       await createRoute!.handler({ body: { email: 'a@b.com', name: 'Alice' } });
 
       expect(capturedEntity).toBe(ops);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // ResponseDescriptor tests for entity custom actions
+  // -------------------------------------------------------------------------
+
+  describe('Given an entity action handler that returns response()', () => {
+    describe('When the action route is invoked', () => {
+      it('Then HTTP response includes custom headers', async () => {
+        const def = buildEntityDef({
+          access: {
+            list: () => true,
+            get: () => true,
+            create: () => true,
+            update: () => true,
+            delete: () => true,
+            export: () => true,
+          },
+          actions: {
+            export: {
+              body: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+              response: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+              handler: async () =>
+                response(
+                  { url: 'https://example.com/export.csv' },
+                  { headers: { 'X-Export-Id': 'exp-123' } },
+                ),
+            },
+          },
+        } as unknown as Partial<EntityDefinition>);
+
+        const db = createMockDb([{ id: '1', email: 'a@b.com', name: 'Alice' }]);
+        const registry = createTestRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+
+        const actionRoute = routes.find((r) => r.path.includes('export'));
+        const resp = await actionRoute!.handler({
+          params: { id: '1' },
+          body: {},
+          query: {},
+          headers: {},
+        });
+
+        expect(resp.headers.get('X-Export-Id')).toBe('exp-123');
+        expect(resp.headers.get('content-type')).toBe('application/json');
+        const body = await resp.json();
+        expect(body.url).toBe('https://example.com/export.csv');
+      });
+
+      it('Then HTTP response uses custom status code', async () => {
+        const def = buildEntityDef({
+          access: {
+            list: () => true,
+            get: () => true,
+            create: () => true,
+            update: () => true,
+            delete: () => true,
+            enqueue: () => true,
+          },
+          actions: {
+            enqueue: {
+              body: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+              response: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+              handler: async () => response({ queued: true }, { status: 202 }),
+            },
+          },
+        } as unknown as Partial<EntityDefinition>);
+
+        const db = createMockDb([{ id: '1', email: 'a@b.com', name: 'Alice' }]);
+        const registry = createTestRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+
+        const actionRoute = routes.find((r) => r.path.includes('enqueue'));
+        const resp = await actionRoute!.handler({
+          params: { id: '1' },
+          body: {},
+          query: {},
+          headers: {},
+        });
+
+        expect(resp.status).toBe(202);
+      });
+
+      it('Then content-type: application/json is preserved', async () => {
+        const def = buildEntityDef({
+          access: {
+            list: () => true,
+            get: () => true,
+            create: () => true,
+            update: () => true,
+            delete: () => true,
+            export: () => true,
+          },
+          actions: {
+            export: {
+              body: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+              response: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+              handler: async () =>
+                response(
+                  { url: 'https://example.com/export.csv' },
+                  { headers: { 'Content-Type': 'text/csv' } },
+                ),
+            },
+          },
+        } as unknown as Partial<EntityDefinition>);
+
+        const db = createMockDb([{ id: '1', email: 'a@b.com', name: 'Alice' }]);
+        const registry = createTestRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+
+        const actionRoute = routes.find((r) => r.path.includes('export'));
+        const resp = await actionRoute!.handler({
+          params: { id: '1' },
+          body: {},
+          query: {},
+          headers: {},
+        });
+
+        expect(resp.headers.get('content-type')).toBe('application/json');
+      });
+    });
+  });
+
+  describe('Given an entity action handler that returns plain data', () => {
+    describe('When the action route is invoked', () => {
+      it('Then behavior is unchanged (backward compatible)', async () => {
+        const def = buildEntityDef({
+          access: {
+            list: () => true,
+            get: () => true,
+            create: () => true,
+            update: () => true,
+            delete: () => true,
+            resetPassword: () => true,
+          },
+          actions: {
+            resetPassword: {
+              body: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+              response: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+              handler: async () => ({ success: true }),
+            },
+          },
+        } as unknown as Partial<EntityDefinition>);
+
+        const db = createMockDb([{ id: '1', email: 'a@b.com', name: 'Alice' }]);
+        const registry = createTestRegistry();
+        const routes = generateEntityRoutes(def, registry, db);
+
+        const actionRoute = routes.find((r) => r.path.includes('resetPassword'));
+        const resp = await actionRoute!.handler({
+          params: { id: '1' },
+          body: {},
+          query: {},
+          headers: {},
+        });
+
+        expect(resp.status).toBe(200);
+        expect(resp.headers.get('content-type')).toBe('application/json');
+        const body = await resp.json();
+        expect(body.success).toBe(true);
+      });
     });
   });
 });

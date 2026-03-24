@@ -289,6 +289,9 @@ export {
   stripHiddenFields,
   stripReadOnlyFields,
 } from './entity';
+// Response descriptor
+export type { ResponseDescriptor } from './response';
+export { isResponseDescriptor, response } from './response';
 // Service API
 export type {
   ServiceActionDef,

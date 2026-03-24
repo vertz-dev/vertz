@@ -4,6 +4,7 @@ import { enforceAccess } from '../entity/access-enforcer';
 import type { RequestInfo } from '../entity/context';
 import type { EntityOperations } from '../entity/entity-operations';
 import type { EntityRegistry } from '../entity/entity-registry';
+import { filterProtectedHeaders, isResponseDescriptor } from '../response';
 import { createServiceContext } from './context';
 import type { ServiceDefinition } from './types';
 
@@ -19,11 +20,14 @@ export interface ServiceRouteOptions {
 // Response helpers
 // ---------------------------------------------------------------------------
 
-function jsonResponse(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  });
+function jsonResponse(
+  data: unknown,
+  status = 200,
+  extraHeaders?: Record<string, string>,
+): Response {
+  const headers = new Headers(extraHeaders);
+  headers.set('content-type', 'application/json');
+  return new Response(JSON.stringify(data), { status, headers });
 }
 
 // ---------------------------------------------------------------------------
@@ -156,7 +160,13 @@ export function generateServiceRoutes(
           }
 
           // Execute handler
-          const result = await handlerDef.handler(input, serviceCtx);
+          const rawResult = await handlerDef.handler(input, serviceCtx);
+
+          // Unwrap ResponseDescriptor if present
+          const isResp = isResponseDescriptor(rawResult);
+          const result = isResp ? rawResult.data : rawResult;
+          const customStatus = isResp ? rawResult.status : undefined;
+          const filteredHeaders = isResp ? filterProtectedHeaders(rawResult.headers) : undefined;
 
           // Validate response
           const responseParsed = handlerDef.response.parse(result);
@@ -172,13 +182,15 @@ export function generateServiceRoutes(
           if (isContentDescriptor(handlerDef.response)) {
             const body =
               result instanceof Uint8Array ? (result as unknown as BlobPart) : String(result);
+            const headers = new Headers(filteredHeaders);
+            headers.set('content-type', handlerDef.response._contentType);
             return new Response(body, {
-              status: 200,
-              headers: { 'content-type': handlerDef.response._contentType },
+              status: customStatus ?? 200,
+              headers,
             });
           }
 
-          return jsonResponse(result, 200);
+          return jsonResponse(result, customStatus ?? 200, filteredHeaders);
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Internal server error';
           return jsonResponse({ error: { code: 'InternalServerError', message } }, 500);

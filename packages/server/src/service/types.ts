@@ -1,6 +1,7 @@
 import type { SchemaLike } from '@vertz/db';
 import type { EntityOperations } from '../entity/entity-operations';
 import type { AccessRule, BaseContext, EntityDefinition } from '../entity/types';
+import type { ResponseDescriptor } from '../response';
 
 // ---------------------------------------------------------------------------
 // Inject map — maps local names to EntityDefinitions for typed cross-entity access
@@ -54,7 +55,7 @@ export interface ServiceActionDef<
   readonly path?: string;
   readonly body?: SchemaLike<TInput>;
   readonly response: SchemaLike<TOutput>;
-  readonly handler: (input: TInput, ctx: TCtx) => Promise<TOutput>;
+  readonly handler: (input: TInput, ctx: TCtx) => Promise<TOutput | ResponseDescriptor<TOutput>>;
 }
 
 // ---------------------------------------------------------------------------

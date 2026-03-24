@@ -198,6 +198,59 @@ actions: {
 JSON endpoints **must** always use `s.*` schemas for `body` and `response`. Content descriptors are for non-JSON content types only. This ensures all JSON endpoints are fully validated and typed.
 </Note>
 
+## Custom response headers and status codes
+
+By default, service actions return `200` with `application/json`. To customize the HTTP response headers or status code, wrap your return value with `response()`:
+
+```ts
+import { response, service } from 'vertz/server';
+import { s } from 'vertz/schema';
+
+const cloud = service('cloud', {
+  access: { jwks: () => true, createToken: () => true },
+  actions: {
+    jwks: {
+      method: 'GET',
+      response: s.object({ keys: s.array(jwkSchema) }),
+      handler: async (_input, ctx) => {
+        const keys = await getPublicKeys(ctx);
+        return response({ keys }, {
+          headers: { 'Cache-Control': 'public, max-age=3600' },
+        });
+      },
+    },
+
+    createToken: {
+      body: tokenRequestSchema,
+      response: s.object({ token: s.string() }),
+      handler: async (input) => {
+        const token = await generateToken(input);
+        return response({ token }, { status: 201 });
+      },
+    },
+  },
+});
+```
+
+Plain return values still work — `response()` is purely opt-in:
+
+```ts
+// These two are equivalent:
+handler: async () => ({ token: 'tok' })
+handler: async () => response({ token: 'tok' })
+```
+
+### Rules
+
+- `content-type` is protected and cannot be overridden — the framework always sets it based on the response schema
+- Custom headers are merged onto the response alongside the framework-managed `content-type`
+- Custom `status` overrides the default `200`. Error responses (4xx/5xx from access rules or validation) are not affected
+- `response()` works with both JSON and content descriptor responses
+
+<Note>
+Entity custom actions also support `response()`. The same pattern applies — wrap the return value to set custom headers or status codes.
+</Note>
+
 ## Request metadata
 
 Service handlers can access raw request metadata via `ctx.request`:

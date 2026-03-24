@@ -38,11 +38,14 @@ export interface EntityRouteOptions {
 // Response helpers
 // ---------------------------------------------------------------------------
 
-function jsonResponse(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  });
+function jsonResponse(
+  data: unknown,
+  status = 200,
+  extraHeaders?: Record<string, string>,
+): Response {
+  const headers = new Headers(extraHeaders);
+  headers.set('content-type', 'application/json');
+  return new Response(JSON.stringify(data), { status, headers });
 }
 
 function emptyResponse(status: number): Response {
@@ -606,7 +609,7 @@ export function generateEntityRoutes(
               const { status, body } = entityErrorHandler(result.error);
               return jsonResponse(body, status);
             }
-            return jsonResponse(result.data.body, result.data.status);
+            return jsonResponse(result.data.body, result.data.status, result.data.headers);
           } catch (error) {
             const { status, body } = entityErrorHandler(error);
             return jsonResponse(body, status);
