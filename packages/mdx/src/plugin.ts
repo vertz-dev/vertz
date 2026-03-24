@@ -10,8 +10,14 @@ export interface MdxPluginOptions {
   rehypePlugins?: PluggableList;
   /** Whether to extract YAML frontmatter. Defaults to true. */
   remarkFrontmatter?: boolean;
-  /** Shiki theme for code fence highlighting. Set to false to disable. Defaults to 'github-dark'. */
-  shikiTheme?: string | false;
+  /**
+   * Shiki theme for code fence highlighting.
+   * - `string` — single theme name (e.g., 'github-dark')
+   * - `{ light: string; dark: string }` — dual theme using CSS variables
+   * - `false` — disable syntax highlighting
+   * Defaults to 'github-dark'.
+   */
+  shikiTheme?: string | { light: string; dark: string } | false;
   /** Languages to load for Shiki highlighting. Defaults to ['tsx', 'ts', 'bash', 'json']. */
   shikiLangs?: string[];
 }
@@ -27,8 +33,17 @@ export interface MdxPluginOptions {
 export function createMdxPlugin(options?: MdxPluginOptions): BunPlugin {
   const jsxImportSource = options?.jsxImportSource ?? '@vertz/ui';
   const enableFrontmatter = options?.remarkFrontmatter !== false;
-  const shikiTheme = options?.shikiTheme !== false ? (options?.shikiTheme ?? 'github-dark') : false;
   const shikiLangs = options?.shikiLangs ?? ['tsx', 'ts', 'bash', 'json'];
+
+  // Resolve theme configuration
+  const rawTheme = options?.shikiTheme;
+  const isDualTheme = typeof rawTheme === 'object' && rawTheme !== null && 'light' in rawTheme;
+  const shikiEnabled = rawTheme !== false;
+  const themeNames: string[] = isDualTheme
+    ? [rawTheme.light, rawTheme.dark]
+    : shikiEnabled
+      ? [typeof rawTheme === 'string' ? rawTheme : 'github-dark']
+      : [];
 
   // Shared highlighter instance — created lazily on first .mdx load
   let highlighterPromise: Promise<unknown> | null = null;
@@ -50,13 +65,13 @@ export function createMdxPlugin(options?: MdxPluginOptions): BunPlugin {
 
         // Build rehype plugins
         const rehypePlugins: PluggableList = [...(options?.rehypePlugins ?? [])];
-        if (shikiTheme) {
+        if (shikiEnabled && themeNames.length > 0) {
           // Create shared highlighter on first use
           if (!highlighterPromise) {
             highlighterPromise = (async () => {
               const { createHighlighter } = await import('shiki');
               return createHighlighter({
-                themes: [shikiTheme],
+                themes: themeNames,
                 langs: shikiLangs,
               });
             })().catch((err) => {
@@ -66,10 +81,28 @@ export function createMdxPlugin(options?: MdxPluginOptions): BunPlugin {
           }
           const highlighter = await highlighterPromise;
           const { default: rehypeShiki } = await import('@shikijs/rehype');
-          rehypePlugins.push([
-            rehypeShiki,
-            { highlighter, themes: { dark: shikiTheme }, defaultColor: 'dark' },
-          ]);
+
+          if (isDualTheme) {
+            // Dual theme: CSS variables for light/dark switching
+            rehypePlugins.push([
+              rehypeShiki,
+              {
+                highlighter,
+                themes: { light: rawTheme.light, dark: rawTheme.dark },
+                defaultColor: false,
+              },
+            ]);
+          } else {
+            // Single theme: direct color output
+            rehypePlugins.push([
+              rehypeShiki,
+              {
+                highlighter,
+                themes: { dark: themeNames[0] },
+                defaultColor: 'dark',
+              },
+            ]);
+          }
         }
 
         const compiled = await compile(source, {

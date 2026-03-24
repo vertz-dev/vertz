@@ -17,6 +17,7 @@ import {
   dbStatusAction,
 } from './commands/db';
 import { devAction } from './commands/dev';
+import { docsBuildCommand, docsDevCommand, docsInitCommand } from './commands/docs';
 import { generateAction } from './commands/generate';
 import { loadDbContext, loadIntrospectContext } from './commands/load-db-context';
 import { startAction } from './commands/start';
@@ -452,6 +453,53 @@ export function createCLI(): Command {
         } catch {
           // Connection cleanup failed — not actionable
         }
+      }
+    });
+
+  // Documentation commands
+  const docsCommand = program.command('docs').description('Documentation site commands');
+
+  docsCommand
+    .command('init')
+    .description('Scaffold a new docs project')
+    .option('-d, --dir <dir>', 'Target directory', '.')
+    .action(async (opts) => {
+      const result = await docsInitCommand({ dir: opts.dir });
+      if (!result.ok) {
+        console.error(result.error.message);
+        process.exit(1);
+      }
+    });
+
+  docsCommand
+    .command('build')
+    .description('Build docs for production')
+    .option('-o, --output <dir>', 'Output directory', 'dist')
+    .option('--base-url <url>', 'Base URL for LLM output links')
+    .action(async (opts) => {
+      const result = await docsBuildCommand({
+        output: opts.output,
+        baseUrl: opts.baseUrl,
+      });
+      if (!result.ok) {
+        console.error(result.error.message);
+        process.exit(1);
+      }
+    });
+
+  docsCommand
+    .command('dev')
+    .description('Start docs development server')
+    .option('-p, --port <port>', 'Server port', '3001')
+    .option('--host <host>', 'Server host', 'localhost')
+    .action(async (opts) => {
+      const result = await docsDevCommand({
+        port: parseInt(opts.port, 10),
+        host: opts.host,
+      });
+      if (!result.ok) {
+        console.error(result.error.message);
+        process.exit(1);
       }
     });
 

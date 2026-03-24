@@ -131,6 +131,12 @@ export interface BunDevServerOptions {
    * production handler's `progressiveHTML` option.
    */
   progressiveHTML?: boolean;
+  /**
+   * Additional Bun plugins to register alongside the Vertz compiler plugin.
+   * Use this to add MDX compilation or other custom file type handling.
+   * Plugins are registered once (process-global) on the first `start()` call.
+   */
+  plugins?: import('bun').BunPlugin[];
 }
 
 export interface ErrorDetail {
@@ -1291,6 +1297,13 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
       plugin(serverPlugin);
       stableUpdateManifest = updateManifest;
     }
+    // Register user-supplied plugins (e.g., MDX compilation)
+    if (!pluginsRegistered && options.plugins) {
+      for (const userPlugin of options.plugins) {
+        plugin(userPlugin);
+      }
+    }
+
     pluginsRegistered = true;
     const updateServerManifest = stableUpdateManifest!;
 

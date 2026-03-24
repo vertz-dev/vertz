@@ -65,6 +65,22 @@ describe('createBunDevServer', () => {
     expect(server).toBeDefined();
   });
 
+  it('accepts plugins option for user-supplied Bun plugins', () => {
+    const customPlugin = {
+      name: 'test-mdx-plugin',
+      setup(_build: { onLoad: (filter: unknown, cb: unknown) => void }) {
+        // no-op
+      },
+    };
+
+    const server = createBunDevServer({
+      entry: './src/app.tsx',
+      plugins: [customPlugin],
+    });
+
+    expect(server).toBeDefined();
+  });
+
   it('stop() is safe to call before start()', async () => {
     const server = createBunDevServer({
       entry: './src/app.tsx',

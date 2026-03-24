@@ -165,3 +165,55 @@ const x = 1;
     await expect(buildMdx('<div>unclosed')).rejects.toThrow();
   });
 });
+
+describe('dual Shiki theme support', () => {
+  const dualThemePlugin = createMdxPlugin({
+    shikiTheme: { light: 'github-light', dark: 'github-dark' },
+  });
+
+  beforeAll(async () => {
+    const path = `/tmp/vertz-mdx-dual-warm-${Date.now()}.mdx`;
+    await Bun.write(path, '# warm');
+    await Bun.build({
+      entrypoints: [path],
+      plugins: [dualThemePlugin],
+      target: 'bun',
+      external: ['@vertz/ui'],
+    });
+  }, 120_000);
+
+  it('produces CSS variable-based dual theme output', async () => {
+    const path = `/tmp/vertz-mdx-dual-${Date.now()}.mdx`;
+    await Bun.write(
+      path,
+      `# Code
+
+\`\`\`ts
+const x: number = 42;
+\`\`\``,
+    );
+
+    const result = await Bun.build({
+      entrypoints: [path],
+      plugins: [dualThemePlugin],
+      target: 'bun',
+      external: ['@vertz/ui'],
+    });
+
+    if (!result.success) {
+      throw new Error(`Build failed: ${result.logs.map((l) => l.message).join('\n')}`);
+    }
+
+    const output = await result.outputs[0]!.text();
+
+    // Dual theme uses CSS variables like --shiki-light and --shiki-dark
+    expect(output).toContain('--shiki-');
+  });
+
+  it('accepts shikiTheme as an object with light and dark keys', () => {
+    const plugin = createMdxPlugin({
+      shikiTheme: { light: 'github-light', dark: 'github-dark' },
+    });
+    expect(plugin.name).toBe('vertz-mdx');
+  });
+});
