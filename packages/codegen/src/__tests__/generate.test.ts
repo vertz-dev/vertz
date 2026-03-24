@@ -142,7 +142,7 @@ describe('generate', () => {
 
   // ── RLS opt-in tests ───────────────────────────────────────────
 
-  it('does not generate rls-policies.sql by default', async () => {
+  it('does not generate rls-policies.json by default', async () => {
     const appIR = makeAppIR();
     appIR.access = {
       entities: [{ name: 'task', roles: ['owner'] }],
@@ -164,11 +164,11 @@ describe('generate', () => {
     });
 
     const result = await generate(appIR, config);
-    const rlsFile = result.files.find((f) => f.path === 'rls-policies.sql');
+    const rlsFile = result.files.find((f) => f.path === 'rls-policies.json');
     expect(rlsFile).toBeUndefined();
   });
 
-  it('generates rls-policies.sql when typescript.rls is true', async () => {
+  it('generates rls-policies.json when typescript.rls is true', async () => {
     const appIR = makeAppIR();
     appIR.access = {
       entities: [{ name: 'task', roles: ['owner'] }],
@@ -191,9 +191,10 @@ describe('generate', () => {
     });
 
     const result = await generate(appIR, config);
-    const rlsFile = result.files.find((f) => f.path === 'rls-policies.sql');
+    const rlsFile = result.files.find((f) => f.path === 'rls-policies.json');
     expect(rlsFile).toBeDefined();
-    expect(rlsFile?.content).toContain('CREATE POLICY');
+    const parsed = JSON.parse(rlsFile!.content);
+    expect(parsed.tables).toBeDefined();
   });
 
   // ── Incremental mode tests ──────────────────────────────────────
