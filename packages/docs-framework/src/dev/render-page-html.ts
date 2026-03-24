@@ -9,6 +9,8 @@ export interface RenderPageOptions {
   route: PageRoute;
   contentHtml: string;
   headings: TocHeading[];
+  /** Set to false to omit the live reload script (e.g. for production SSG builds). */
+  liveReload?: boolean;
 }
 
 function renderSidebar(sidebar: SidebarTab[], activePath: string): string {
@@ -143,7 +145,9 @@ export function renderPageHtml({
   route,
   contentHtml,
   headings,
+  liveReload = true,
 }: RenderPageOptions): string {
+  const reloadScript = liveReload ? LIVE_RELOAD_SCRIPT : '';
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -163,7 +167,7 @@ ${renderPrevNext(route)}
 </main>
 <aside class="docs-toc">${renderToC(headings)}</aside>
 </div>
-${LIVE_RELOAD_SCRIPT}
+${reloadScript}
 </body>
 </html>`;
 }

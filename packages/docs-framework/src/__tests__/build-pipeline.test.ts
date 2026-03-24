@@ -200,10 +200,22 @@ description: Learn how to get started with Vertz.
 Content here.
 `,
     );
-    await buildDocs({ projectDir: tempDir, outDir });
+    await buildDocs({ projectDir: tempDir, outDir, baseUrl: 'https://docs.example.com' });
     const llmMd = await Bun.file(join(outDir, 'llms', 'home.md')).text();
+    // Enriched frontmatter includes title, description, category, and url
     expect(llmMd).toContain('title: Getting Started');
     expect(llmMd).toContain('description: Learn how to get started with Vertz.');
+    expect(llmMd).toContain('category: Start');
+    expect(llmMd).toContain('url: https://docs.example.com/');
+  });
+
+  it('enriches LLM frontmatter even when source has no frontmatter', async () => {
+    await buildDocs({ projectDir: tempDir, outDir, baseUrl: 'https://docs.example.com' });
+    const llmMd = await Bun.file(join(outDir, 'llms', 'home.md')).text();
+    // Even without source frontmatter, the build injects category and url
+    expect(llmMd).toContain('category: Start');
+    expect(llmMd).toContain('url: https://docs.example.com/');
+    expect(llmMd).toContain('title: Index');
   });
 
   it('generates HTML for nested page paths', async () => {

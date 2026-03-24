@@ -93,9 +93,21 @@ describe('renderPageHtml', () => {
     expect(html).toContain('<header');
   });
 
-  it('includes live reload script', () => {
+  it('includes live reload script by default', () => {
     const html = renderPageHtml({ config, route, contentHtml: '', headings: [] });
     expect(html).toContain('EventSource');
+  });
+
+  it('omits live reload script when liveReload is false', () => {
+    const html = renderPageHtml({
+      config,
+      route,
+      contentHtml: '',
+      headings: [],
+      liveReload: false,
+    });
+    expect(html).not.toContain('EventSource');
+    expect(html).not.toContain('__docs_reload');
   });
 
   it('includes search button when search is enabled', () => {
@@ -113,9 +125,7 @@ describe('renderPageHtml', () => {
     const navConfig: DocsConfig = {
       ...config,
       navbar: {
-        links: [
-          { label: 'GitHub', href: 'https://github.com/vertz-dev' },
-        ],
+        links: [{ label: 'GitHub', href: 'https://github.com/vertz-dev' }],
       },
     };
     const html = renderPageHtml({ config: navConfig, route, contentHtml: '', headings: [] });

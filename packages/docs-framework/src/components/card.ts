@@ -18,7 +18,7 @@ export function Card(props: Record<string, unknown>): string {
 }
 
 export function CardGroup(props: Record<string, unknown>): string {
-  const cols = props.cols ? Number(props.cols) : 2;
+  const cols = Number(props.cols) || 2;
   const children = childrenToString(props.children);
   return `<div data-card-group style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:12px;margin-bottom:16px">${children}</div>`;
 }

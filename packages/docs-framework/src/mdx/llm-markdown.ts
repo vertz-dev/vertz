@@ -112,10 +112,14 @@ function convertCards(content: string): string {
 }
 
 function convertGenericCallout(content: string): string {
-  // Match <Callout type="..." title="...">content</Callout>
+  // Match <Callout ...>content</Callout> with type and optional title in any order
   return content.replace(
-    /<Callout\s+[^>]*?type="([^"]*)"[^>]*?(?:title="([^"]*)")?[^>]*>\s*\n([\s\S]*?)\n<\/Callout>/g,
-    (_match, type: string, title: string | undefined, inner: string) => {
+    /<Callout\s+([^>]*)>\s*\n([\s\S]*?)\n<\/Callout>/g,
+    (_match, attrs: string, inner: string) => {
+      const typeMatch = attrs.match(/type="([^"]*)"/);
+      const titleMatch = attrs.match(/title="([^"]*)"/);
+      const type = typeMatch?.[1] ?? 'note';
+      const title = titleMatch?.[1];
       const label = title || type.charAt(0).toUpperCase() + type.slice(1);
       const text = inner.trim();
       const lines = text.split('\n');

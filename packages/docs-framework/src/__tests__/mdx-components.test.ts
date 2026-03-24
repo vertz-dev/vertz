@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'bun:test';
+import { Callout } from '../components/callout';
+import { CardGroup } from '../components/card';
+import { Columns } from '../components/columns';
 import { compileMdxToHtml } from '../dev/compile-mdx-html';
 
 describe('Built-in MDX components', () => {
@@ -219,6 +222,28 @@ const x = 1;
       expect(html).toContain('data-columns');
       expect(html).toContain('Left side content.');
       expect(html).toContain('Right side content.');
+    });
+
+    it('respects cols prop', () => {
+      const html = Columns({ cols: 3, children: 'content' });
+      expect(html).toContain('repeat(3,1fr)');
+    });
+
+    it('defaults to 2 columns when cols is not provided', () => {
+      const html = Columns({ children: 'content' });
+      expect(html).toContain('repeat(2,1fr)');
+    });
+  });
+
+  describe('Component edge cases', () => {
+    it('Callout falls back to note style for unknown type', () => {
+      const html = Callout({ type: 'unknown', children: 'test' });
+      expect(html).toContain('data-callout="note"');
+    });
+
+    it('CardGroup defaults cols to 2 for invalid input', () => {
+      const html = CardGroup({ cols: 'abc', children: 'content' });
+      expect(html).toContain('repeat(2,1fr)');
     });
   });
 });

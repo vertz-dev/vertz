@@ -13,7 +13,8 @@ const CALLOUT_STYLES: Record<CalloutType, { border: string; bg: string; icon: st
 };
 
 export function Callout(props: Record<string, unknown>): string {
-  const type = String(props.type ?? 'note') as CalloutType;
+  const rawType = String(props.type ?? 'note');
+  const type: CalloutType = rawType in CALLOUT_STYLES ? (rawType as CalloutType) : 'note';
   const title = props.title ? String(props.title) : undefined;
   const children = childrenToString(props.children);
   const style = CALLOUT_STYLES[type] ?? CALLOUT_STYLES.note;

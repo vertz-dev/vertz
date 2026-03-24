@@ -241,6 +241,22 @@ Right content.
     expect(output).toContain('Right content.');
   });
 
+  it('converts generic <Callout> with title before type', () => {
+    const input = `<Callout title="Custom Label" type="warning">
+Important info.
+</Callout>`;
+    const output = mdxToMarkdown(input);
+    expect(output).toContain('> **Custom Label:** Important info.');
+  });
+
+  it('converts generic <Callout> with type only (no title)', () => {
+    const input = `<Callout type="info">
+Just info.
+</Callout>`;
+    const output = mdxToMarkdown(input);
+    expect(output).toContain('> **Info:** Just info.');
+  });
+
   it('handles multiple conversions in one document', () => {
     const input = `import { Note, Warning } from '@vertz/docs/components';
 

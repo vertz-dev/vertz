@@ -64,7 +64,7 @@ export async function buildDocs(options: BuildDocsOptions): Promise<BuildManifes
     const { data: frontmatter, content: bodyContent } = parseFrontmatter(rawContent);
     const headings = extractHeadings(bodyContent);
     const title = frontmatter.title ?? route.title;
-    const description = frontmatter.description as string | undefined;
+    const description = frontmatter.description || undefined;
 
     manifestRoutes.push({
       path: route.path,
@@ -83,6 +83,7 @@ export async function buildDocs(options: BuildDocsOptions): Promise<BuildManifes
       route: routeWithTitle,
       contentHtml,
       headings,
+      liveReload: false,
     });
 
     // Inject SEO meta tags if description is present
@@ -92,9 +93,15 @@ export async function buildDocs(options: BuildDocsOptions): Promise<BuildManifes
     mkdirSync(dirname(htmlPath), { recursive: true });
     await Bun.write(htmlPath, seoHtml);
 
-    // Generate LLM markdown
+    // Generate LLM markdown with enriched frontmatter
     if (config.llm?.enabled && !isLlmExcluded(route.filePath, config.llm.exclude)) {
-      const markdown = mdxToMarkdown(rawContent);
+      const strippedMarkdown = mdxToMarkdown(rawContent);
+      const markdown = enrichLlmFrontmatter(strippedMarkdown, {
+        title,
+        description,
+        category: route.group,
+        url: baseUrl ? `${baseUrl}${route.path}` : route.path,
+      });
       llmPages.push({ path: route.path, title, markdown });
 
       const llmFilePath = toLlmOutputPath(route.path, outDir);
@@ -151,7 +158,7 @@ export async function buildDocs(options: BuildDocsOptions): Promise<BuildManifes
 /** Run Pagefind to generate the search index. Best-effort — skips if not installed. */
 async function runPagefind(outDir: string): Promise<void> {
   try {
-    const proc = Bun.spawn(['npx', 'pagefind', '--site', outDir], {
+    const proc = Bun.spawn(['bunx', 'pagefind', '--site', outDir], {
       stdout: 'ignore',
       stderr: 'pipe',
     });
@@ -183,9 +190,26 @@ function isLlmExcluded(filePath: string, exclude?: string[]): boolean {
 function matchGlob(str: string, pattern: string): boolean {
   const regexStr = pattern
     .replace(/\*\*/g, '<<DOUBLE>>')
-    .replace(/\*/g, '[^/]*')
+    .replace(/\*/g, '<<SINGLE>>')
+    .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+    .replace(/<<SINGLE>>/g, '[^/]*')
     .replace(/<<DOUBLE>>/g, '.*');
   return new RegExp(`^${regexStr}$`).test(str);
+}
+
+/** Enrich LLM markdown with frontmatter metadata from the build context. */
+function enrichLlmFrontmatter(
+  markdown: string,
+  meta: { title: string; description?: string; category: string; url: string },
+): string {
+  // Strip existing frontmatter (mdxToMarkdown passes it through from source)
+  const stripped = markdown.replace(/^---\n[\s\S]*?\n---\n*/, '');
+  const lines: string[] = ['---', `title: ${meta.title}`];
+  if (meta.description) lines.push(`description: ${meta.description}`);
+  lines.push(`category: ${meta.category}`);
+  lines.push(`url: ${meta.url}`);
+  lines.push('---', '');
+  return lines.join('\n') + stripped;
 }
 
 /** Convert a URL path to the LLM output file path. */
