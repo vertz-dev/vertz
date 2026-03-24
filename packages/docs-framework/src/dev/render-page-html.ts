@@ -146,6 +146,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .docs-content a { color: var(--docs-primary); text-decoration: none; }
 .docs-content a:hover { text-decoration: underline; }
 .docs-content blockquote { border-left: 3px solid var(--docs-primary); padding-left: 16px; margin-bottom: 16px; color: var(--docs-muted); }
+[data-tooltip]:hover > [data-tooltip-text],
+[data-tooltip]:focus-within > [data-tooltip-text] { display: block !important; }
 </style>`;
 
 /**

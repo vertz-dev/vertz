@@ -55,6 +55,14 @@ describe('Search palette script', () => {
   it('includes styles for the search palette', () => {
     expect(SEARCH_PALETTE_STYLES).toContain('[data-search-palette]');
   });
+
+  it('sanitizes Pagefind result data before innerHTML injection', () => {
+    // Script must include an escaping function used on result data
+    expect(SEARCH_PALETTE_SCRIPT).toContain('function esc(');
+    expect(SEARCH_PALETTE_SCRIPT).toContain('esc(item.url');
+    expect(SEARCH_PALETTE_SCRIPT).toContain('esc(item.meta');
+    expect(SEARCH_PALETTE_SCRIPT).toContain('esc(item.excerpt');
+  });
 });
 
 describe('Search palette integration', () => {

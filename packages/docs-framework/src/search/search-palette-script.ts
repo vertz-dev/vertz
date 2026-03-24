@@ -14,6 +14,12 @@ export const SEARCH_PALETTE_SCRIPT = `<script>
   var debounceTimer = null;
   var activeIndex = -1;
 
+  function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
   function open() {
     palette.removeAttribute('hidden');
     palette.setAttribute('aria-hidden', 'false');
@@ -55,9 +61,12 @@ export const SEARCH_PALETTE_SCRIPT = `<script>
     }
     var items = await Promise.all(searchResult.results.slice(0, 10).map(function(r) { return r.data(); }));
     results.innerHTML = items.map(function(item, i) {
-      return '<a href="' + item.url + '" role="option" data-search-result="' + i + '" style="display:block;padding:12px 16px;text-decoration:none;color:var(--docs-text,#111827);border-bottom:1px solid var(--docs-border,#e5e7eb)">' +
-        '<div style="font-weight:500;font-size:14px">' + (item.meta?.title || item.url) + '</div>' +
-        '<div style="font-size:13px;color:var(--docs-muted,#6b7280);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (item.excerpt || '') + '</div>' +
+      var safeUrl = esc(item.url || '');
+      var safeTitle = esc(item.meta?.title || item.url || '');
+      var safeExcerpt = esc(item.excerpt || '');
+      return '<a href="' + safeUrl + '" role="option" data-search-result="' + i + '" style="display:block;padding:12px 16px;text-decoration:none;color:var(--docs-text,#111827);border-bottom:1px solid var(--docs-border,#e5e7eb)">' +
+        '<div style="font-weight:500;font-size:14px">' + safeTitle + '</div>' +
+        '<div style="font-size:13px;color:var(--docs-muted,#6b7280);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + safeExcerpt + '</div>' +
         '</a>';
     }).join('');
     activeIndex = -1;

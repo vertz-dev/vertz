@@ -94,6 +94,13 @@ describe('API docs components', () => {
       expect(html).toContain('More info here');
       expect(html).toContain('Hover me');
     });
+
+    it('exports CSS for hover show/hide', async () => {
+      const { TOOLTIP_STYLES } = await import('../components/tooltip');
+      expect(TOOLTIP_STYLES).toContain('[data-tooltip]:hover');
+      expect(TOOLTIP_STYLES).toContain('[data-tooltip-text]');
+      expect(TOOLTIP_STYLES).toContain('display: block');
+    });
   });
 
   describe('Icon', () => {
@@ -102,6 +109,15 @@ describe('API docs components', () => {
       expect(html).toContain('data-icon');
       // Should contain an SVG or icon indicator
       expect(html).toContain('rocket');
+    });
+
+    it('sanitizes size prop to prevent XSS', () => {
+      const html = Icon({ name: 'test', size: '16px" onmouseover="alert(1)' });
+      // Should parse to a number, not inject the raw string
+      expect(html).not.toContain('onmouseover');
+      expect(html).not.toContain('alert(1)');
+      // NaN from parseInt falls back to 16
+      expect(html).toContain('16px');
     });
   });
 

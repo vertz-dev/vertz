@@ -125,6 +125,20 @@ describe('SSG completions', () => {
     });
   });
 
+  describe('Tooltip hover styles', () => {
+    it('page includes tooltip hover CSS rule', () => {
+      const html = renderPageHtml({
+        config: baseConfig,
+        route: baseRoute,
+        contentHtml: '<p>Content</p>',
+        headings: [],
+        liveReload: false,
+      });
+      expect(html).toContain('[data-tooltip]:hover');
+      expect(html).toContain('[data-tooltip-text]');
+    });
+  });
+
   describe('Banner', () => {
     it('banner renders with text', () => {
       const html = Banner({ text: 'New feature launched!' });
@@ -135,6 +149,17 @@ describe('SSG completions', () => {
     it('banner renders with dismiss button when dismissible', () => {
       const html = Banner({ text: 'Announcement', dismissible: true });
       expect(html).toContain('data-banner-dismiss');
+    });
+
+    it('dismissible banner checks localStorage on page load', () => {
+      const html = Banner({ text: 'Announcement', dismissible: true });
+      expect(html).toContain('localStorage.getItem');
+      expect(html).toContain('banner-dismissed');
+    });
+
+    it('non-dismissible banner does not include localStorage check script', () => {
+      const html = Banner({ text: 'Info', dismissible: false });
+      expect(html).not.toContain('localStorage.getItem');
     });
 
     it('banner renders with link', () => {

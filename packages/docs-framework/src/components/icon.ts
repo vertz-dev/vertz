@@ -7,7 +7,7 @@ import { escapeHtml } from '../dev/escape-html';
  */
 export function Icon(props: Record<string, unknown>): string {
   const name = String(props.name ?? '');
-  const size = props.size ? String(props.size) : '16';
+  const size = String(Number.parseInt(String(props.size ?? '16'), 10) || 16);
 
   // Try to load from lucide-static
   try {
