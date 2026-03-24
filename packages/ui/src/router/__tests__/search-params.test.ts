@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, test, vi } from 'bun:test';
-import { signal } from '../../runtime/signal';
 import { createTestSSRContext, disableTestSSR, enableTestSSR } from '../../ssr/test-ssr-helpers';
 import type { SearchParamSchema } from '../define-routes';
 import { defineRoutes } from '../define-routes';
@@ -51,22 +50,6 @@ describe('parseSearchParams', () => {
   });
 });
 
-describe('useSearchParams', () => {
-  test('returns current search params from signal', () => {
-    const searchSignal = signal<Record<string, unknown>>({ page: 1 });
-    const result = useSearchParams(searchSignal);
-    expect(result).toEqual({ page: 1 });
-  });
-
-  test('reflects signal updates', () => {
-    const searchSignal = signal<Record<string, unknown>>({ page: 1 });
-    expect(useSearchParams(searchSignal)).toEqual({ page: 1 });
-
-    searchSignal.value = { page: 2, sort: 'name' };
-    expect(useSearchParams(searchSignal)).toEqual({ page: 2, sort: 'name' });
-  });
-});
-
 describe('router.searchParams signal', () => {
   test('exposes searchParams signal on router', () => {
     const routes = defineRoutes({
@@ -93,25 +76,6 @@ describe('router.searchParams signal', () => {
     await router.navigate({ to: '/items', search: { page: 3 } });
 
     expect(router.searchParams.value).toEqual({ page: 3 });
-  });
-
-  test('useSearchParams reads from router.searchParams', async () => {
-    const schema = {
-      parse(data: unknown) {
-        const raw = data as Record<string, string>;
-        return { ok: true as const, data: { page: Number(raw.page ?? '1') } };
-      },
-    };
-    const routes = defineRoutes({
-      '/items': { component: () => document.createElement('div'), searchParams: schema },
-    });
-    const router = createRouter(routes, '/items?page=5');
-
-    // Allow initial loaders to settle
-    await new Promise((r) => setTimeout(r, 10));
-
-    const params = useSearchParams(router.searchParams);
-    expect(params).toEqual({ page: 5 });
   });
 
   test('search params schema.parse is called only once per navigation (no double parsing)', async () => {
@@ -265,12 +229,6 @@ describe('useSearchParams() with RouterContext.Provider', () => {
     expect(sp!.q).toBe('dragon');
     expect(sp!.page).toBe(3);
     router.dispose();
-  });
-
-  test('deprecated signal overload still works', () => {
-    const sig = signal<Record<string, unknown>>({ q: 'dragon', page: 1 });
-    const result = useSearchParams(sig);
-    expect(result).toEqual({ q: 'dragon', page: 1 });
   });
 });
 

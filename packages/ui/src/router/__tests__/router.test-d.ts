@@ -485,9 +485,3 @@ void _p6RtPage;
 // Phase 6 Cycle 7: ReactiveSearchParams.navigate is typed
 _p6RouteTyped.navigate({ q: 'dragon' });
 _p6RouteTyped.navigate({ page: 2 }, { push: true });
-
-// Phase 6 Cycle 8: deprecated signal overload still works
-declare const _p6Signal: ReadonlySignal<{ q: string }>;
-const _p6FromSignal = useSearchParams(_p6Signal);
-const _p6FromSignalQ: string = _p6FromSignal.q;
-void _p6FromSignalQ;

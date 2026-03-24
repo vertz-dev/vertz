@@ -3,7 +3,6 @@
  */
 
 import { useContext } from '../component/context';
-import type { ReadonlySignal } from '../runtime/signal-types';
 import type {
   ExtractSearchParams,
   RouteConfigLike,
@@ -60,18 +59,7 @@ export function useSearchParams<
  * Read the current search params with an explicit type assertion.
  */
 export function useSearchParams<T extends Record<string, unknown>>(): ReactiveSearchParams<T>;
-/**
- * Read the current search params from a reactive signal.
- *
- * @deprecated Use the zero-arg `useSearchParams()` overload instead.
- * @param searchSignal - Signal holding the current parsed search params
- * @returns The current search params value
- */
-export function useSearchParams<T>(searchSignal: ReadonlySignal<T>): T;
-export function useSearchParams<T>(searchSignal?: ReadonlySignal<T>): T | ReactiveSearchParams {
-  if (searchSignal) {
-    return searchSignal.value;
-  }
+export function useSearchParams(): ReactiveSearchParams {
   const router = useContext(RouterContext);
   if (!router) {
     throw new Error('useSearchParams() must be called within RouterContext.Provider');
