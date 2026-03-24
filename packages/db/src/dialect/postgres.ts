@@ -11,6 +11,10 @@ export class PostgresDialect implements Dialect {
   readonly supportsArrayOps = true;
   readonly supportsJsonbPath = true;
 
+  constructor() {
+    // Explicit constructor for V8 coverage tracking
+  }
+
   param(index: number): string {
     return `$${index}`;
   }

@@ -11,6 +11,10 @@ export class SqliteDialect implements Dialect {
   readonly supportsArrayOps = false;
   readonly supportsJsonbPath = false;
 
+  constructor() {
+    // Explicit constructor for V8 coverage tracking
+  }
+
   param(_index: number): string {
     return '?';
   }

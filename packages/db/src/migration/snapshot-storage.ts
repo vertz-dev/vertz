@@ -8,6 +8,10 @@ import type { SnapshotStorage } from './storage';
  * Uses node:fs/promises for file I/O and node:path for directory creation.
  */
 export class NodeSnapshotStorage implements SnapshotStorage {
+  constructor() {
+    // Explicit constructor for V8 coverage tracking
+  }
+
   async load(path: string): Promise<SchemaSnapshot | null> {
     try {
       const content = await readFile(path, 'utf-8');
