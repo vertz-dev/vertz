@@ -469,6 +469,7 @@ export interface SessionPayload {
   jti: string; // JWT ID — unique token identifier
   sid: string; // Session ID — links JWT to session record
   tenantId?: string; // Current tenant scope — set via switch-tenant
+  tenantLevel?: string; // Entity type of tenantId (e.g., 'project') — for multi-level hierarchy
   claims?: Record<string, unknown>;
   fva?: number; // Factor verification age — timestamp of last MFA verification
   acl?: AclClaim; // Access set claim — computed entitlements
@@ -573,8 +574,10 @@ export const resetPasswordInputSchema: ObjectSchema<{
 
 export const switchTenantInputSchema: ObjectSchema<{
   tenantId: StringSchema;
+  tenantLevel: OptionalSchema<string, string>;
 }> = s.object({
   tenantId: s.string().min(1),
+  tenantLevel: s.string().min(1).optional(),
 });
 
 export type SwitchTenantInput = Infer<typeof switchTenantInputSchema>;

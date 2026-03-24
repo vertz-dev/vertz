@@ -904,3 +904,179 @@ describe('Feature: Plan validation', () => {
     });
   });
 });
+
+// ============================================================================
+// Multi-level tenancy: PlanDef.level + defaultPlans (#1787)
+// ============================================================================
+
+describe('Feature: Multi-level plan validation (#1787)', () => {
+  const multiLevelEntities = {
+    account: { roles: ['owner', 'admin', 'member'] },
+    project: {
+      roles: ['admin', 'editor', 'viewer'],
+      inherits: { 'account:owner': 'admin', 'account:admin': 'admin' },
+    },
+  };
+  const multiLevelEntitlements = {
+    'account:manage': { roles: ['owner', 'admin'] },
+    'account:create-project': { roles: ['member'] },
+    'project:ai-generate': { roles: ['editor'] },
+  };
+
+  describe('Given plans with valid level fields', () => {
+    it('accepts plans targeting different entity levels', () => {
+      const result = defineAccess({
+        entities: multiLevelEntities,
+        entitlements: multiLevelEntitlements,
+        plans: {
+          enterprise: {
+            level: 'account',
+            group: 'account-plans',
+            features: ['account:create-project'],
+          },
+          starter: {
+            level: 'account',
+            group: 'account-plans',
+            features: ['account:create-project'],
+          },
+          pro: {
+            level: 'project',
+            group: 'project-plans',
+            features: ['project:ai-generate'],
+          },
+          free: {
+            level: 'project',
+            group: 'project-plans',
+          },
+        },
+        defaultPlans: {
+          account: 'starter',
+          project: 'free',
+        },
+      });
+
+      expect(result.plans).toBeDefined();
+      expect(result._billingLevels).toBeDefined();
+      expect(result._billingLevels.account).toEqual(['enterprise', 'starter']);
+      expect(result._billingLevels.project).toEqual(['pro', 'free']);
+    });
+  });
+
+  describe('Given plan level referencing undefined entity', () => {
+    it('throws validation error', () => {
+      expect(() =>
+        defineAccess({
+          entities: multiLevelEntities,
+          entitlements: multiLevelEntitlements,
+          plans: {
+            pro: {
+              level: 'nonexistent',
+              group: 'main',
+              features: ['account:create-project'],
+            },
+          },
+        }),
+      ).toThrow("level 'nonexistent' is not a defined entity");
+    });
+  });
+
+  describe('Given plans in the same group with different levels', () => {
+    it('throws validation error', () => {
+      expect(() =>
+        defineAccess({
+          entities: multiLevelEntities,
+          entitlements: multiLevelEntitlements,
+          plans: {
+            enterprise: {
+              level: 'account',
+              group: 'shared-group',
+              features: ['account:create-project'],
+            },
+            pro: {
+              level: 'project',
+              group: 'shared-group',
+              features: ['project:ai-generate'],
+            },
+          },
+        }),
+      ).toThrow('same group must have the same level');
+    });
+  });
+
+  describe('Given defaultPlans key referencing entity with no plans', () => {
+    it('throws validation error', () => {
+      expect(() =>
+        defineAccess({
+          entities: multiLevelEntities,
+          entitlements: multiLevelEntitlements,
+          plans: {
+            starter: {
+              level: 'account',
+              group: 'account-plans',
+              features: ['account:create-project'],
+            },
+          },
+          defaultPlans: {
+            account: 'starter',
+            project: 'free', // no plans target project level
+          },
+        }),
+      ).toThrow("defaultPlans key 'project'");
+    });
+  });
+
+  describe('Given defaultPlans value referencing nonexistent plan', () => {
+    it('throws validation error', () => {
+      expect(() =>
+        defineAccess({
+          entities: multiLevelEntities,
+          entitlements: multiLevelEntitlements,
+          plans: {
+            starter: {
+              level: 'account',
+              group: 'account-plans',
+              features: ['account:create-project'],
+            },
+          },
+          defaultPlans: {
+            account: 'nonexistent',
+          },
+        }),
+      ).toThrow("defaultPlans references plan 'nonexistent'");
+    });
+  });
+
+  describe('Given featureResolution on entitlements', () => {
+    it('preserves featureResolution in resolved entitlements', () => {
+      const result = defineAccess({
+        entities: multiLevelEntities,
+        entitlements: {
+          'account:manage': { roles: ['owner'], featureResolution: 'local' },
+          'account:create-project': { roles: ['member'] }, // defaults to 'inherit'
+        },
+      });
+
+      expect(result.entitlements['account:manage'].featureResolution).toBe('local');
+      expect(result.entitlements['account:create-project'].featureResolution).toBeUndefined();
+    });
+  });
+
+  describe('Given single-level backward compatibility', () => {
+    it('still works with plans that have no level field', () => {
+      const result = defineAccess({
+        entities: { workspace: { roles: ['admin'] } },
+        entitlements: { 'workspace:create': { roles: ['admin'] } },
+        plans: {
+          pro: { group: 'main', features: ['workspace:create'] },
+          free: { group: 'main' },
+        },
+        defaultPlan: 'free',
+      });
+
+      expect(result.plans).toBeDefined();
+      expect(result.defaultPlan).toBe('free');
+      // _billingLevels should be empty when no levels are specified
+      expect(result._billingLevels).toEqual({});
+    });
+  });
+});

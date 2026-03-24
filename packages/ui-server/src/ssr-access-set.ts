@@ -31,6 +31,7 @@ interface AclClaim {
     >;
     flags: Record<string, boolean>;
     plan: string | null;
+    plans?: Record<string, string | null>;
     computedAt: string;
   };
   hash: string;
@@ -76,6 +77,7 @@ export function getAccessSetForSSR(jwtPayload: Record<string, unknown> | null): 
     ),
     flags: acl.set.flags,
     plan: acl.set.plan,
+    plans: acl.set.plans ?? {},
     computedAt: acl.set.computedAt,
   };
 }

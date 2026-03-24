@@ -374,7 +374,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
   async function createSessionTokens(
     user: AuthUser,
     sessionId: string,
-    options?: { fva?: number; tenantId?: string },
+    options?: { fva?: number; tenantId?: string; tenantLevel?: string },
   ): Promise<{ jwt: string; refreshToken: string; payload: SessionPayload; expiresAt: Date }> {
     const jti = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + ttlMs);
@@ -382,6 +382,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
     const userClaims = claims ? claims(user) : {};
     const fvaClaim = options?.fva !== undefined ? { fva: options.fva } : {};
     const tenantClaim = options?.tenantId ? { tenantId: options.tenantId } : {};
+    const tenantLevelClaim = options?.tenantLevel ? { tenantLevel: options.tenantLevel } : {};
 
     // Compute ACL claim if access config is present
     let aclClaim: { acl: { set?: EncodedAccessSet; hash: string; overflow: boolean } } | object =
@@ -394,7 +395,8 @@ export function createAuth(config: AuthConfig): AuthInstance {
         closureStore: resolvedAccess.closureStore,
         flagStore: resolvedAccess.flagStore,
         subscriptionStore: resolvedAccess.subscriptionStore,
-        tenantId: null,
+        tenantId: options?.tenantId ?? null,
+        tenantLevel: options?.tenantLevel,
       });
       const encoded = encodeAccessSet(accessSet);
       const canonicalJson = JSON.stringify(encoded);
@@ -403,6 +405,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
         entitlements: encoded.entitlements,
         flags: encoded.flags,
         plan: encoded.plan,
+        plans: encoded.plans,
       };
       const hash = await sha256Hex(JSON.stringify(stablePayload));
       const byteLength = new TextEncoder().encode(canonicalJson).length;
@@ -420,6 +423,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
         ...userClaims,
         ...fvaClaim,
         ...tenantClaim,
+        ...tenantLevelClaim,
         ...aclClaim,
         jti,
         sid: sessionId,
@@ -444,6 +448,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
       claims: userClaims || undefined,
       ...(options?.fva !== undefined ? { fva: options.fva } : {}),
       ...(options?.tenantId ? { tenantId: options.tenantId } : {}),
+      ...(options?.tenantLevel ? { tenantLevel: options.tenantLevel } : {}),
       ...aclClaim,
     };
 
@@ -2571,7 +2576,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
           return bodyResult.response;
         }
 
-        const { tenantId } = bodyResult.data;
+        const { tenantId, tenantLevel } = bodyResult.data;
         const userId = sessionResult.data.user.id;
 
         const hasMembership = await tenantConfig.verifyMembership(userId, tenantId);
@@ -2592,6 +2597,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
         const tokens = await createSessionTokens(sessionResult.data.user, currentPayload.sid, {
           fva: currentPayload.fva,
           tenantId,
+          tenantLevel,
         });
 
         // Update session store with new tokens

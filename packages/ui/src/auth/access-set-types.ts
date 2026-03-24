@@ -32,7 +32,10 @@ export interface AccessCheckData {
 export interface AccessSet {
   entitlements: Record<string, AccessCheckData>;
   flags: Record<string, boolean>;
+  /** @deprecated Use `plans` for multi-level. Kept for backward compat. */
   plan: string | null;
+  /** Plan per billing level. Keys are entity names. */
+  plans: Record<string, string | null>;
   computedAt: string;
 }
 

@@ -31,8 +31,18 @@ export interface AccessCheckData {
 export interface AccessSet {
   entitlements: Record<string, AccessCheckData>;
   flags: Record<string, boolean>;
+  /** @deprecated Use `plans` for multi-level. Kept for backward compat — returns deepest level's plan. */
   plan: string | null;
+  /** Plan per billing level. Keys are entity names. */
+  plans: Record<string, string | null>;
   computedAt: string;
+}
+
+/** An entry in the ancestor chain from child to root. */
+export interface AncestorChainEntry {
+  type: string;
+  id: string;
+  depth: number;
 }
 
 export interface ComputeAccessSetConfig {
@@ -50,6 +60,10 @@ export interface ComputeAccessSetConfig {
   orgResolver?: (resource?: ResourceRef) => Promise<string | null>;
   /** Tenant ID — direct tenant ID for global access set (bypass orgResolver) */
   tenantId?: string | null;
+  /** Tenant level — entity type of tenantId (e.g., 'project'). Required for multi-level. */
+  tenantLevel?: string;
+  /** Resolves the ancestor chain from a tenant. Returns entries from child to root. */
+  ancestorResolver?: (tenantLevel: string, tenantId: string) => Promise<AncestorChainEntry[]>;
 }
 
 // ============================================================================
@@ -83,6 +97,7 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
       entitlements,
       flags: {},
       plan: null,
+      plans: {},
       computedAt: new Date().toISOString(),
     };
   }
@@ -180,120 +195,207 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
   }
 
   // Enrich with plan/wallet info if stores are available
+  const resolvedPlans: Record<string, string | null> = {};
+  const isMultiLevel = !!(config.ancestorResolver && config.tenantLevel && tenantId);
+
   if (subscriptionStore && tenantId) {
-    const subscription = await subscriptionStore.get(tenantId);
-    if (subscription) {
-      const effectivePlanId = resolveEffectivePlan(
-        subscription,
-        accessDef.plans,
-        accessDef.defaultPlan,
-      );
-      resolvedPlan = effectivePlanId;
-      if (effectivePlanId) {
-        const planDef = accessDef.plans?.[effectivePlanId];
-        if (planDef) {
-          // Compute effective features (base plan + add-ons)
-          const effectiveFeatures = new Set<string>(planDef.features ?? []);
-          const addOns = await subscriptionStore.getAddOns?.(tenantId);
-          if (addOns) {
-            for (const addOnId of addOns) {
-              const addOnDef = accessDef.plans?.[addOnId];
-              if (addOnDef?.features) {
-                for (const f of addOnDef.features) effectiveFeatures.add(f);
-              }
-            }
+    if (isMultiLevel) {
+      // Multi-level: resolve plans per billing level via ancestor chain
+      const ancestors = await config.ancestorResolver!(config.tenantLevel!, tenantId);
+      // Build the full chain: self + ancestors (sorted child → root by depth)
+      const chain: AncestorChainEntry[] = [
+        { type: config.tenantLevel!, id: tenantId, depth: 0 },
+        ...ancestors.sort((a, b) => a.depth - b.depth),
+      ];
+
+      // Collect effective features across all levels
+      const allEffectiveFeatures = new Set<string>();
+      // Track features per level for 'local' resolution
+      const featuresByLevel = new Map<string, Set<string>>();
+
+      // Deepest level (smallest depth) is the tenant itself
+      let deepestPlan: string | null = null;
+
+      for (const entry of chain) {
+        const levelPlans = accessDef._billingLevels[entry.type];
+        if (!levelPlans?.length) continue;
+
+        const sub = await subscriptionStore.get(entry.id);
+        let planId: string | null = null;
+        if (sub) {
+          planId = resolveEffectivePlan(sub, accessDef.plans, accessDef.defaultPlans?.[entry.type]);
+        } else {
+          // No subscription — use default plan for this level
+          planId = accessDef.defaultPlans?.[entry.type] ?? null;
+        }
+
+        resolvedPlans[entry.type] = planId;
+
+        if (entry.depth === 0) {
+          deepestPlan = planId;
+        }
+
+        if (planId) {
+          const pDef = accessDef.plans?.[planId];
+          if (pDef?.features) {
+            const levelFeatures = new Set<string>(pDef.features);
+            featuresByLevel.set(entry.type, levelFeatures);
+            for (const f of pDef.features) allEffectiveFeatures.add(f);
           }
+        }
+      }
 
-          for (const name of Object.keys(accessDef.entitlements)) {
-            // Plan check: if entitlement is plan-gated, verify effective features include it
-            if (accessDef._planGatedEntitlements.has(name) && !effectiveFeatures.has(name)) {
-              const entry = entitlements[name];
-              const reasons: DenialReason[] = [...entry.reasons];
-              if (!reasons.includes('plan_required')) reasons.push('plan_required');
-              // Collect which plans include this entitlement
-              const requiredPlans: string[] = [];
-              for (const [pName, pDef] of Object.entries(accessDef.plans ?? {})) {
-                if (pDef.features?.includes(name)) requiredPlans.push(pName);
+      resolvedPlan = deepestPlan;
+
+      // Check plan-gated entitlements with inherit/local resolution
+      for (const [name, entDef] of Object.entries(accessDef.entitlements)) {
+        if (!accessDef._planGatedEntitlements.has(name)) continue;
+
+        const resolution = entDef.featureResolution ?? 'inherit';
+        let hasFeature = false;
+
+        if (resolution === 'inherit') {
+          hasFeature = allEffectiveFeatures.has(name);
+        } else {
+          // 'local': only check deepest level's features
+          const deepestType = config.tenantLevel!;
+          const deepestFeatures = featuresByLevel.get(deepestType);
+          hasFeature = deepestFeatures?.has(name) ?? false;
+        }
+
+        if (!hasFeature) {
+          const entry = entitlements[name];
+          const reasons: DenialReason[] = [...entry.reasons];
+          if (!reasons.includes('plan_required')) reasons.push('plan_required');
+          const requiredPlans: string[] = [];
+          for (const [pName, pDef] of Object.entries(accessDef.plans ?? {})) {
+            if (pDef.features?.includes(name)) requiredPlans.push(pName);
+          }
+          entitlements[name] = {
+            ...entry,
+            allowed: false,
+            reasons,
+            reason: reasons[0],
+            meta: { ...entry.meta, requiredPlans },
+          };
+        }
+      }
+    } else {
+      // Single-level: existing behavior
+      const subscription = await subscriptionStore.get(tenantId);
+      if (subscription) {
+        const effectivePlanId = resolveEffectivePlan(
+          subscription,
+          accessDef.plans,
+          accessDef.defaultPlan,
+        );
+        resolvedPlan = effectivePlanId;
+        if (effectivePlanId) {
+          const planDef = accessDef.plans?.[effectivePlanId];
+          if (planDef) {
+            // Compute effective features (base plan + add-ons)
+            const effectiveFeatures = new Set<string>(planDef.features ?? []);
+            const addOns = await subscriptionStore.getAddOns?.(tenantId);
+            if (addOns) {
+              for (const addOnId of addOns) {
+                const addOnDef = accessDef.plans?.[addOnId];
+                if (addOnDef?.features) {
+                  for (const f of addOnDef.features) effectiveFeatures.add(f);
+                }
               }
-              entitlements[name] = {
-                ...entry,
-                allowed: false,
-                reasons,
-                reason: reasons[0],
-                meta: { ...entry.meta, requiredPlans },
-              };
             }
 
-            // Wallet check: add limit info if entitlement has limits
-            const limitKeys = accessDef._entitlementToLimitKeys[name];
-            if (walletStore && limitKeys?.length) {
-              // Use the first limit key for display in access set
-              // (multi-limit detail is for real-time checks, not JWT snapshots)
-              const limitKey = limitKeys[0];
-              const limitDef = planDef.limits?.[limitKey];
-              if (limitDef) {
-                // Compute effective max (base + add-ons + overrides)
-                let effectiveMax = limitDef.max;
-                if (addOns) {
-                  for (const addOnId of addOns) {
-                    const addOnDef = accessDef.plans?.[addOnId];
-                    const addOnLimit = addOnDef?.limits?.[limitKey];
-                    if (addOnLimit) {
-                      if (effectiveMax === -1) break;
-                      effectiveMax += addOnLimit.max;
+            for (const name of Object.keys(accessDef.entitlements)) {
+              // Plan check: if entitlement is plan-gated, verify effective features include it
+              if (accessDef._planGatedEntitlements.has(name) && !effectiveFeatures.has(name)) {
+                const entry = entitlements[name];
+                const reasons: DenialReason[] = [...entry.reasons];
+                if (!reasons.includes('plan_required')) reasons.push('plan_required');
+                // Collect which plans include this entitlement
+                const requiredPlans: string[] = [];
+                for (const [pName, pDef] of Object.entries(accessDef.plans ?? {})) {
+                  if (pDef.features?.includes(name)) requiredPlans.push(pName);
+                }
+                entitlements[name] = {
+                  ...entry,
+                  allowed: false,
+                  reasons,
+                  reason: reasons[0],
+                  meta: { ...entry.meta, requiredPlans },
+                };
+              }
+
+              // Wallet check: add limit info if entitlement has limits
+              const limitKeys = accessDef._entitlementToLimitKeys[name];
+              if (walletStore && limitKeys?.length) {
+                // Use the first limit key for display in access set
+                // (multi-limit detail is for real-time checks, not JWT snapshots)
+                const limitKey = limitKeys[0];
+                const limitDef = planDef.limits?.[limitKey];
+                if (limitDef) {
+                  // Compute effective max (base + add-ons + overrides)
+                  let effectiveMax = limitDef.max;
+                  if (addOns) {
+                    for (const addOnId of addOns) {
+                      const addOnDef = accessDef.plans?.[addOnId];
+                      const addOnLimit = addOnDef?.limits?.[limitKey];
+                      if (addOnLimit) {
+                        if (effectiveMax === -1) break;
+                        effectiveMax += addOnLimit.max;
+                      }
                     }
                   }
-                }
-                const override = subscription.overrides[limitKey];
-                if (override) effectiveMax = Math.max(effectiveMax, override.max);
+                  const override = subscription.overrides[limitKey];
+                  if (override) effectiveMax = Math.max(effectiveMax, override.max);
 
-                if (effectiveMax === -1) {
-                  // Unlimited — no wallet check needed, but report in meta
-                  const entry = entitlements[name];
-                  entitlements[name] = {
-                    ...entry,
-                    meta: {
-                      ...entry.meta,
-                      limit: { key: limitKey, max: -1, consumed: 0, remaining: -1 },
-                    },
-                  };
-                } else {
-                  const period = limitDef.per
-                    ? calculateBillingPeriod(subscription.startedAt, limitDef.per)
-                    : {
-                        periodStart: subscription.startedAt,
-                        periodEnd: new Date('9999-12-31T23:59:59Z'),
-                      };
-                  const consumed = await walletStore.getConsumption(
-                    tenantId,
-                    limitKey,
-                    period.periodStart,
-                    period.periodEnd,
-                  );
-                  const remaining = Math.max(0, effectiveMax - consumed);
-                  const entry = entitlements[name];
-
-                  if (consumed >= effectiveMax) {
-                    const reasons: DenialReason[] = [...entry.reasons];
-                    if (!reasons.includes('limit_reached')) reasons.push('limit_reached');
+                  if (effectiveMax === -1) {
+                    // Unlimited — no wallet check needed, but report in meta
+                    const entry = entitlements[name];
                     entitlements[name] = {
                       ...entry,
-                      allowed: false,
-                      reasons,
-                      reason: reasons[0],
                       meta: {
                         ...entry.meta,
-                        limit: { key: limitKey, max: effectiveMax, consumed, remaining },
+                        limit: { key: limitKey, max: -1, consumed: 0, remaining: -1 },
                       },
                     };
                   } else {
-                    entitlements[name] = {
-                      ...entry,
-                      meta: {
-                        ...entry.meta,
-                        limit: { key: limitKey, max: effectiveMax, consumed, remaining },
-                      },
-                    };
+                    const period = limitDef.per
+                      ? calculateBillingPeriod(subscription.startedAt, limitDef.per)
+                      : {
+                          periodStart: subscription.startedAt,
+                          periodEnd: new Date('9999-12-31T23:59:59Z'),
+                        };
+                    const consumed = await walletStore.getConsumption(
+                      tenantId,
+                      limitKey,
+                      period.periodStart,
+                      period.periodEnd,
+                    );
+                    const remaining = Math.max(0, effectiveMax - consumed);
+                    const entry = entitlements[name];
+
+                    if (consumed >= effectiveMax) {
+                      const reasons: DenialReason[] = [...entry.reasons];
+                      if (!reasons.includes('limit_reached')) reasons.push('limit_reached');
+                      entitlements[name] = {
+                        ...entry,
+                        allowed: false,
+                        reasons,
+                        reason: reasons[0],
+                        meta: {
+                          ...entry.meta,
+                          limit: { key: limitKey, max: effectiveMax, consumed, remaining },
+                        },
+                      };
+                    } else {
+                      entitlements[name] = {
+                        ...entry,
+                        meta: {
+                          ...entry.meta,
+                          limit: { key: limitKey, max: effectiveMax, consumed, remaining },
+                        },
+                      };
+                    }
                   }
                 }
               }
@@ -308,6 +410,7 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
     entitlements,
     flags: resolvedFlags,
     plan: resolvedPlan,
+    plans: resolvedPlans,
     computedAt: new Date().toISOString(),
   };
 }
@@ -321,6 +424,7 @@ export interface EncodedAccessSet {
   entitlements: Record<string, EncodedAccessCheckData>;
   flags: Record<string, boolean>;
   plan: string | null;
+  plans: Record<string, string | null>;
   computedAt: string;
 }
 
@@ -369,6 +473,7 @@ export function encodeAccessSet(set: AccessSet): EncodedAccessSet {
     entitlements,
     flags: { ...set.flags },
     plan: set.plan,
+    plans: { ...set.plans },
     computedAt: set.computedAt,
   };
 }
@@ -405,6 +510,7 @@ export function decodeAccessSet(encoded: EncodedAccessSet, accessDef: AccessDefi
     entitlements,
     flags: { ...encoded.flags },
     plan: encoded.plan,
+    plans: { ...(encoded.plans ?? {}) },
     computedAt: encoded.computedAt,
   };
 }

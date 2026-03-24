@@ -49,6 +49,7 @@ export function createCloudJWTVerifier(options: {
           iat: payload.iat!,
           exp: payload.exp!,
           ...(typeof payload.tenantId === 'string' ? { tenantId: payload.tenantId } : {}),
+          ...(typeof payload.tenantLevel === 'string' ? { tenantLevel: payload.tenantLevel } : {}),
           ...(payload.claims && typeof payload.claims === 'object'
             ? { claims: payload.claims as Record<string, unknown> }
             : {}),
