@@ -86,4 +86,25 @@ Check the guides.
     expect(manifest.routes[0].path).toBe('/');
     expect(manifest.routes[0].headings).toHaveLength(2);
   });
+
+  it('uses frontmatter title when available', async () => {
+    writeFileSync(
+      join(tempDir, 'pages', 'index.mdx'),
+      `---
+title: Custom Home Title
+---
+
+# Welcome
+
+Content here.
+`,
+    );
+    const result = await buildDocs({ projectDir: tempDir, outDir });
+    expect(result.routes[0]?.title).toBe('Custom Home Title');
+  });
+
+  it('falls back to filename-derived title when no frontmatter', async () => {
+    const result = await buildDocs({ projectDir: tempDir, outDir });
+    expect(result.routes[0]?.title).toBe('Index');
+  });
 });

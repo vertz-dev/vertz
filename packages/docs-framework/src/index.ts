@@ -31,6 +31,8 @@ export type { LlmPage } from './generator/llm-index';
 export { generateLlmsFullTxt, generateLlmsTxt } from './generator/llm-index';
 export type { TocHeading } from './mdx/extract-headings';
 export { extractHeadings } from './mdx/extract-headings';
+export type { FrontmatterResult } from './mdx/frontmatter';
+export { parseFrontmatter } from './mdx/frontmatter';
 export { mdxToMarkdown } from './mdx/llm-markdown';
 export type { Breadcrumb, NavLink as PageNavLink, PageRoute } from './routing/resolve';
 export { resolveRoutes } from './routing/resolve';

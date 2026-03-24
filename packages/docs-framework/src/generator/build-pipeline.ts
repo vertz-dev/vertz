@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { loadDocsConfig } from '../config/load';
 import type { TocHeading } from '../mdx/extract-headings';
 import { extractHeadings } from '../mdx/extract-headings';
+import { parseFrontmatter } from '../mdx/frontmatter';
 import { mdxToMarkdown } from '../mdx/llm-markdown';
 import { resolveRoutes } from '../routing/resolve';
 import type { LlmPage } from './llm-index';
@@ -56,11 +57,13 @@ export async function buildDocs(options: BuildDocsOptions): Promise<BuildManifes
     if (!existsSync(filePath)) continue;
 
     const rawContent = await Bun.file(filePath).text();
-    const headings = extractHeadings(rawContent);
+    const { data: frontmatter, content: bodyContent } = parseFrontmatter(rawContent);
+    const headings = extractHeadings(bodyContent);
+    const title = frontmatter.title ?? route.title;
 
     manifestRoutes.push({
       path: route.path,
-      title: route.title,
+      title,
       filePath: route.filePath,
       tab: route.tab,
       group: route.group,
@@ -70,7 +73,7 @@ export async function buildDocs(options: BuildDocsOptions): Promise<BuildManifes
     // Generate LLM markdown
     if (config.llm?.enabled) {
       const markdown = mdxToMarkdown(rawContent);
-      llmPages.push({ path: route.path, title: route.title, markdown });
+      llmPages.push({ path: route.path, title, markdown });
 
       const llmFilePath = toLlmOutputPath(route.path, outDir);
       mkdirSync(dirname(llmFilePath), { recursive: true });
