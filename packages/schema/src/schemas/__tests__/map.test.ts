@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { SchemaType } from '../../core/types';
 import { MapSchema } from '../map';
 import { NumberSchema } from '../number';
 import { StringSchema } from '../string';
@@ -39,5 +40,18 @@ describe('MapSchema', () => {
         items: false,
       },
     });
+  });
+
+  it('metadata.type returns SchemaType.Map', () => {
+    expect(new MapSchema(new StringSchema(), new NumberSchema()).metadata.type).toBe(
+      SchemaType.Map,
+    );
+  });
+
+  it('_clone() preserves metadata', () => {
+    const schema = new MapSchema(new StringSchema(), new NumberSchema()).describe('str-num map');
+    expect(schema.metadata.description).toBe('str-num map');
+    const input = new Map([['a', 1]]);
+    expect(schema.parse(input).data).toEqual(input);
   });
 });

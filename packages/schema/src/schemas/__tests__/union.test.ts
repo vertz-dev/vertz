@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { ErrorCode } from '../../core/errors';
+import { SchemaType } from '../../core/types';
 import { NumberSchema } from '../number';
 import { StringSchema } from '../string';
 import { UnionSchema } from '../union';
@@ -29,5 +30,16 @@ describe('UnionSchema', () => {
     expect(schema.toJSONSchema()).toEqual({
       anyOf: [{ type: 'string' }, { type: 'number' }],
     });
+  });
+
+  it('metadata.type returns SchemaType.Union', () => {
+    const schema = new UnionSchema([new StringSchema(), new NumberSchema()]);
+    expect(schema.metadata.type).toBe(SchemaType.Union);
+  });
+
+  it('_clone() preserves metadata and options', () => {
+    const schema = new UnionSchema([new StringSchema(), new NumberSchema()]).describe('str or num');
+    expect(schema.metadata.description).toBe('str or num');
+    expect(schema.parse('hello').data).toBe('hello');
   });
 });

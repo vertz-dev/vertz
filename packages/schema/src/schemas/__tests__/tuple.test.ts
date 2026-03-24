@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { ErrorCode } from '../../core/errors';
+import { SchemaType } from '../../core/types';
 import { BooleanSchema } from '../boolean';
 import { NumberSchema } from '../number';
 import { StringSchema } from '../string';
@@ -60,6 +61,21 @@ describe('TupleSchema', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.issues[0]?.code).toBe(ErrorCode.InvalidType);
+    }
+  });
+
+  it('metadata.type returns SchemaType.Tuple', () => {
+    expect(new TupleSchema([new StringSchema()]).metadata.type).toBe(SchemaType.Tuple);
+  });
+
+  it('.rest() rejects too few elements', () => {
+    const schema = new TupleSchema([new StringSchema(), new NumberSchema()]).rest(
+      new BooleanSchema(),
+    );
+    const result = schema.safeParse(['only-one']);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.issues[0]?.message).toContain('at least 2');
     }
   });
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { ParseError } from '../../core/errors';
+import { SchemaType } from '../../core/types';
 import { NanSchema } from '../nan';
 
 describe('NanSchema', () => {
@@ -19,5 +20,15 @@ describe('NanSchema', () => {
   it('.toJSONSchema() returns { not: {} } since NaN is not representable in JSON Schema', () => {
     const schema = new NanSchema();
     expect(schema.toJSONSchema()).toEqual({ not: {} });
+  });
+
+  it('metadata.type returns SchemaType.NaN', () => {
+    expect(new NanSchema().metadata.type).toBe(SchemaType.NaN);
+  });
+
+  it('_clone() preserves metadata', () => {
+    const schema = new NanSchema().describe('nan field');
+    expect(schema.metadata.description).toBe('nan field');
+    expect(Number.isNaN(schema.parse(NaN).data)).toBe(true);
   });
 });

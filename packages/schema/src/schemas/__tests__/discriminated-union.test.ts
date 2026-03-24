@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { ErrorCode } from '../../core/errors';
+import { SchemaType } from '../../core/types';
 import { DiscriminatedUnionSchema } from '../discriminated-union';
 import { LiteralSchema } from '../literal';
 import { NumberSchema } from '../number';
@@ -67,5 +68,21 @@ describe('DiscriminatedUnionSchema', () => {
     if (!result.ok) {
       expect(result.error.issues[0]?.code).toBe(ErrorCode.InvalidType);
     }
+  });
+
+  it('metadata.type returns SchemaType.DiscriminatedUnion', () => {
+    const schema = new DiscriminatedUnionSchema('type', [catSchema, dogSchema]);
+    expect(schema.metadata.type).toBe(SchemaType.DiscriminatedUnion);
+  });
+
+  it('_clone() preserves metadata', () => {
+    const schema = new DiscriminatedUnionSchema('type', [catSchema, dogSchema]).describe(
+      'animal union',
+    );
+    expect(schema.metadata.description).toBe('animal union');
+    expect(schema.parse({ type: 'cat', meow: 'loud' }).data).toEqual({
+      type: 'cat',
+      meow: 'loud',
+    });
   });
 });

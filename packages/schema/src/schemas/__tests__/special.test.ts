@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { ParseError } from '../../core/errors';
+import { SchemaType } from '../../core/types';
 import {
   AnySchema,
   NeverSchema,
@@ -66,5 +67,23 @@ describe('Special schemas', () => {
         expect(result.error).toBeInstanceOf(ParseError);
       }
     }
+  });
+
+  it('metadata.type returns correct SchemaType for each special schema', () => {
+    expect(new AnySchema().metadata.type).toBe(SchemaType.Any);
+    expect(new UnknownSchema().metadata.type).toBe(SchemaType.Unknown);
+    expect(new NullSchema().metadata.type).toBe(SchemaType.Null);
+    expect(new UndefinedSchema().metadata.type).toBe(SchemaType.Undefined);
+    expect(new VoidSchema().metadata.type).toBe(SchemaType.Void);
+    expect(new NeverSchema().metadata.type).toBe(SchemaType.Never);
+  });
+
+  it('_clone() preserves metadata for each special schema', () => {
+    expect(new AnySchema().describe('any desc').metadata.description).toBe('any desc');
+    expect(new UnknownSchema().describe('unknown desc').metadata.description).toBe('unknown desc');
+    expect(new NullSchema().describe('null desc').metadata.description).toBe('null desc');
+    expect(new UndefinedSchema().describe('undef desc').metadata.description).toBe('undef desc');
+    expect(new VoidSchema().describe('void desc').metadata.description).toBe('void desc');
+    expect(new NeverSchema().describe('never desc').metadata.description).toBe('never desc');
   });
 });

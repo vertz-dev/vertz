@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { ErrorCode } from '../../core/errors';
+import { SchemaType } from '../../core/types';
 import { ArraySchema } from '../array';
 import { NumberSchema } from '../number';
 import { StringSchema } from '../string';
@@ -75,5 +76,19 @@ describe('ArraySchema', () => {
       minItems: 1,
       maxItems: 10,
     });
+  });
+
+  it('.length() toJSONSchema uses minItems and maxItems with same value', () => {
+    const schema = new ArraySchema(new NumberSchema()).length(5);
+    expect(schema.toJSONSchema()).toEqual({
+      type: 'array',
+      items: { type: 'number' },
+      minItems: 5,
+      maxItems: 5,
+    });
+  });
+
+  it('metadata.type returns SchemaType.Array', () => {
+    expect(new ArraySchema(new StringSchema()).metadata.type).toBe(SchemaType.Array);
   });
 });

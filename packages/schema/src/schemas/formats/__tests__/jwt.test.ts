@@ -15,4 +15,8 @@ describe('JwtSchema', () => {
     expect(schema.safeParse('only-one-part').ok).toBe(false);
     expect(schema.safeParse('two.parts').ok).toBe(false);
   });
+
+  it('toJSONSchema returns base string type (no extra format)', () => {
+    expect(new JwtSchema().toJSONSchema()).toEqual({ type: 'string' });
+  });
 });

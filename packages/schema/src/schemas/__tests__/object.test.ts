@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { ErrorCode, ParseError } from '../../core/errors';
 import { SchemaRegistry } from '../../core/registry';
+import { SchemaType } from '../../core/types';
 import { NumberSchema } from '../number';
 import { ObjectSchema } from '../object';
 import { StringSchema } from '../string';
@@ -275,6 +276,10 @@ describe('ObjectSchema', () => {
     if (!result.ok) {
       expect(result.error.issues[0]?.path).toEqual(['user', 'address', 'city']);
     }
+  });
+
+  it('metadata.type returns SchemaType.Object', () => {
+    expect(new ObjectSchema({ name: new StringSchema() }).metadata.type).toBe(SchemaType.Object);
   });
 
   it('named schemas in shape produce $ref in JSON Schema', () => {
