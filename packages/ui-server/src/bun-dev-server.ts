@@ -122,6 +122,15 @@ export interface BunDevServerOptions {
    * script restarts the process.
    */
   onRestartNeeded?: () => void;
+  /**
+   * Enable progressive HTML streaming in the dev server. Default: false.
+   *
+   * When true, SSR responses stream `<head>` content before `<body>`
+   * rendering completes. Currently reserved for future use — the dev server
+   * always uses buffered rendering. The option is accepted to match the
+   * production handler's `progressiveHTML` option.
+   */
+  progressiveHTML?: boolean;
 }
 
 export interface ErrorDetail {

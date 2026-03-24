@@ -732,4 +732,352 @@ describe('createSSRHandler', () => {
       expect(response.headers.get('content-type')).toBe('text/html; charset=utf-8');
     });
   });
+
+  describe('progressiveHTML', () => {
+    it('returns a streaming Response with ReadableStream body', async () => {
+      const handler = createSSRHandler({
+        module: simpleModule,
+        template,
+        progressiveHTML: true,
+      });
+      const response = await handler(new Request('http://localhost/'));
+
+      expect(response.status).toBe(200);
+      expect(response.body).toBeInstanceOf(ReadableStream);
+    });
+
+    it('first chunk contains head with CSS and opening app div', async () => {
+      const theme = defineTheme({
+        colors: { primary: { DEFAULT: '#3b82f6' } },
+      });
+      const moduleWithTheme: SSRModule = {
+        default: () => {
+          const el = document.createElement('div');
+          el.textContent = 'Streaming';
+          return el;
+        },
+        theme,
+      };
+
+      const handler = createSSRHandler({
+        module: moduleWithTheme,
+        template,
+        progressiveHTML: true,
+      });
+      const response = await handler(new Request('http://localhost/'));
+      const reader = response.body!.getReader();
+      const { value } = await reader.read();
+      const firstChunk = new TextDecoder().decode(value);
+
+      expect(firstChunk).toContain('<head>');
+      expect(firstChunk).toContain('data-vertz-css');
+      expect(firstChunk).toContain('<div id="app">');
+      reader.releaseLock();
+    });
+
+    it('last chunk contains SSR data and closing tags', async () => {
+      let callCount = 0;
+      const moduleWithQuery: SSRModule = {
+        default: () => {
+          callCount++;
+          if (callCount === 1) {
+            registerSSRQuery({
+              key: 'items',
+              promise: Promise.resolve([1, 2, 3]),
+              timeout: 300,
+              resolve: () => {},
+            });
+          }
+          const el = document.createElement('div');
+          el.textContent = 'Content';
+          return el;
+        },
+      };
+
+      const handler = createSSRHandler({
+        module: moduleWithQuery,
+        template,
+        progressiveHTML: true,
+      });
+      const response = await handler(new Request('http://localhost/'));
+
+      const { collectStreamChunks } = await import('../streaming');
+      const chunks = await collectStreamChunks(response.body!);
+      const lastChunk = chunks[chunks.length - 1];
+      expect(lastChunk).toContain('__VERTZ_SSR_DATA__');
+      expect(lastChunk).toContain('</body>');
+    });
+
+    it('returns buffered response when progressiveHTML is not set (default)', async () => {
+      const handler = createSSRHandler({ module: simpleModule, template });
+      const response = await handler(new Request('http://localhost/'));
+
+      // Default: buffered string response
+      const html = await response.text();
+      expect(html).toContain('Hello World');
+      expect(html).toContain('<!DOCTYPE html>');
+    });
+
+    it('returns 302 for redirects without streaming partial HTML', async () => {
+      const redirectModule: SSRModule = {
+        default: () => {
+          const container = document.createElement('div');
+          AuthProvider({
+            auth: createMockAuthSdk(),
+            children: () => {
+              const result = ProtectedRoute({
+                loginPath: '/login',
+                children: () => {
+                  container.textContent = 'Protected';
+                  return container;
+                },
+              });
+              if (result && typeof result === 'object' && 'value' in result) {
+                (result as { value: unknown }).value;
+              }
+              return container;
+            },
+          });
+          return container;
+        },
+      };
+
+      const sessionResolver = async () => null;
+      const handler = createSSRHandler({
+        module: redirectModule,
+        template,
+        progressiveHTML: true,
+        sessionResolver,
+      });
+
+      const response = await handler(new Request('http://localhost/admin'));
+      expect(response.status).toBe(302);
+      expect(response.headers.get('Location')).toBe('/login?returnTo=%2Fadmin');
+    });
+
+    it('includes session script in the head chunk', async () => {
+      const sessionResolver = async () => ({
+        session: {
+          user: { id: 'u1', email: 'a@b.c', role: 'user' },
+          expiresAt: 1700000000000,
+        },
+      });
+
+      const handler = createSSRHandler({
+        module: simpleModule,
+        template,
+        progressiveHTML: true,
+        sessionResolver,
+      });
+      const response = await handler(new Request('http://localhost/'));
+      const reader = response.body!.getReader();
+      const { value } = await reader.read();
+      const firstChunk = new TextDecoder().decode(value);
+
+      expect(firstChunk).toContain('__VERTZ_SESSION__');
+      reader.releaseLock();
+    });
+
+    it('includes Link header with font preloads', async () => {
+      const { font } = await import('@vertz/ui');
+      const sans = font('DM Sans', {
+        weight: '100..1000',
+        src: '/fonts/dm-sans.woff2',
+        fallback: ['system-ui', 'sans-serif'],
+      });
+      const theme = defineTheme({
+        colors: { primary: { 500: '#3b82f6' } },
+        fonts: { sans },
+      });
+
+      const moduleWithFonts: SSRModule = {
+        default: () => {
+          const el = document.createElement('div');
+          el.textContent = 'Fonts';
+          return el;
+        },
+        theme,
+      };
+
+      const handler = createSSRHandler({
+        module: moduleWithFonts,
+        template,
+        progressiveHTML: true,
+      });
+      const response = await handler(new Request('http://localhost/'));
+
+      const linkHeader = response.headers.get('Link');
+      expect(linkHeader).toContain('</fonts/dm-sans.woff2>');
+      expect(linkHeader).toContain('rel=preload');
+    });
+
+    it('falls back to buffered rendering when zero-discovery manifest has routeEntries', async () => {
+      const handler = createSSRHandler({
+        module: simpleModule,
+        template,
+        progressiveHTML: true,
+        manifest: {
+          routeEntries: { '/': ['items'] },
+        },
+      });
+
+      const response = await handler(new Request('http://localhost/'));
+
+      // Should be a buffered string response (not streaming), verified by consuming as text
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('Hello World');
+      expect(html).toContain('<!DOCTYPE html>');
+      expect(html).toContain('</html>');
+    });
+
+    it('injects per-route modulepreload tags in the head chunk', async () => {
+      const { createRouter, defineRoutes, RouterView } = await import('@vertz/ui');
+      const routedModule: SSRModule = {
+        default: () => {
+          const routes = defineRoutes({
+            '/': {
+              component: () => {
+                const el = document.createElement('div');
+                el.textContent = 'Home';
+                return el;
+              },
+            },
+            '/about': {
+              component: () => {
+                const el = document.createElement('div');
+                el.textContent = 'About';
+                return el;
+              },
+            },
+          });
+          const router = createRouter(routes, '/');
+          return RouterView({ router });
+        },
+      };
+
+      const handler = createSSRHandler({
+        module: routedModule,
+        template,
+        progressiveHTML: true,
+        routeChunkManifest: {
+          routes: {
+            '/': ['/assets/chunk-home.js'],
+            '/about': ['/assets/chunk-about.js'],
+          },
+        },
+        modulepreload: [
+          '/assets/chunk-home.js',
+          '/assets/chunk-about.js',
+          '/assets/chunk-extra.js',
+        ],
+      });
+
+      const response = await handler(new Request('http://localhost/'));
+      const reader = response.body!.getReader();
+      const { value } = await reader.read();
+      const firstChunk = new TextDecoder().decode(value);
+
+      // Should have only matched route's chunk in the head
+      expect(firstChunk).toContain('<link rel="modulepreload" href="/assets/chunk-home.js">');
+      expect(firstChunk).not.toContain('chunk-about.js');
+      expect(firstChunk).not.toContain('chunk-extra.js');
+      reader.releaseLock();
+    });
+
+    it('converts non-inlined stylesheet links to async loading when theme present', async () => {
+      const templateWithLinks = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Test</title>
+  <link rel="stylesheet" href="/assets/vendor.css">
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body><div id="app"><!--ssr-outlet--></div></body>
+</html>`;
+
+      const theme = defineTheme({
+        colors: { primary: { DEFAULT: '#3b82f6' } },
+      });
+      const moduleWithTheme: SSRModule = {
+        default: () => {
+          const el = document.createElement('div');
+          el.textContent = 'Themed';
+          return el;
+        },
+        theme,
+      };
+
+      const handler = createSSRHandler({
+        module: moduleWithTheme,
+        template: templateWithLinks,
+        progressiveHTML: true,
+        inlineCSS: { '/assets/app.css': '.app { color: red; }' },
+      });
+
+      const response = await handler(new Request('http://localhost/'));
+      const reader = response.body!.getReader();
+      const { value } = await reader.read();
+      const firstChunk = new TextDecoder().decode(value);
+
+      // app.css should be inlined
+      expect(firstChunk).toContain('<style data-vertz-css>.app { color: red; }</style>');
+      // vendor.css should be converted to async loading
+      expect(firstChunk).toContain('media="print"');
+      expect(firstChunk).toContain('onload="this.media=\'all\'"');
+      expect(firstChunk).toContain('<noscript>');
+      reader.releaseLock();
+    });
+
+    it('injects CSS into head even when headTemplate has no </head> tag', async () => {
+      // Template without </head> — forces the else branch in handleProgressiveHTMLRequest
+      const templateNoHeadClose = '<html><body><div id="app"><!--ssr-outlet--></div></body></html>';
+      const theme = defineTheme({
+        colors: { primary: { DEFAULT: '#3b82f6' } },
+      });
+      const moduleWithTheme: SSRModule = {
+        default: () => {
+          const el = document.createElement('div');
+          el.textContent = 'No head close';
+          return el;
+        },
+        theme,
+      };
+
+      const handler = createSSRHandler({
+        module: moduleWithTheme,
+        template: templateNoHeadClose,
+        progressiveHTML: true,
+        modulepreload: ['/assets/chunk.js'],
+      });
+      const response = await handler(new Request('http://localhost/'));
+      const reader = response.body!.getReader();
+      const { value } = await reader.read();
+      const firstChunk = new TextDecoder().decode(value);
+
+      // CSS and modulepreload should be appended (no </head> to inject before)
+      expect(firstChunk).toContain('data-vertz-css');
+      expect(firstChunk).toContain('<link rel="modulepreload" href="/assets/chunk.js">');
+      reader.releaseLock();
+    });
+
+    it('returns 500 when ssrRenderProgressive throws before streaming', async () => {
+      const brokenModule: SSRModule = {
+        default: () => {
+          throw new Error('Render crash');
+        },
+      };
+
+      const handler = createSSRHandler({
+        module: brokenModule,
+        template,
+        progressiveHTML: true,
+      });
+      const response = await handler(new Request('http://localhost/'));
+
+      expect(response.status).toBe(500);
+      const text = await response.text();
+      expect(text).toBe('Internal Server Error');
+    });
+  });
 });

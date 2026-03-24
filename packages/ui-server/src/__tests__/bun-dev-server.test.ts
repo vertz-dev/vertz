@@ -49,6 +49,16 @@ describe('createBunDevServer', () => {
       title: 'Test App',
       projectRoot: '/tmp/test-project',
       logRequests: false,
+      progressiveHTML: true,
+    });
+
+    expect(server).toBeDefined();
+  });
+
+  it('accepts progressiveHTML option', () => {
+    const server = createBunDevServer({
+      entry: './src/app.tsx',
+      progressiveHTML: true,
     });
 
     expect(server).toBeDefined();
