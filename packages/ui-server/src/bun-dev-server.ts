@@ -1685,6 +1685,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
           // Resolve session in isolated try/catch (graceful degradation)
           let sessionScript = '';
           let ssrAuth: SSRAuth | undefined;
+          let ssrAccessSet: Parameters<typeof toPrefetchSession>[1];
           if (sessionResolver) {
             try {
               const sessionResult = await sessionResolver(request);
@@ -1694,6 +1695,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
                   user: sessionResult.session.user,
                   expiresAt: sessionResult.session.expiresAt,
                 };
+                ssrAccessSet = sessionResult.accessSet;
                 const scripts: string[] = [];
                 scripts.push(createSessionScript(sessionResult.session));
                 if (sessionResult.accessSet != null) {
@@ -1738,7 +1740,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
               fallbackMetrics: fontFallbackMetrics,
               ssrAuth,
               manifest: prefetchManager?.getSSRManifest(),
-              prefetchSession: toPrefetchSession(ssrAuth),
+              prefetchSession: toPrefetchSession(ssrAuth, ssrAccessSet),
             });
             logger.log('ssr', 'render-done', {
               url: pathname,
