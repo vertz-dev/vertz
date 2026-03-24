@@ -102,7 +102,7 @@ export function resolveSessionForSSR(
     const token = cookieEntry.trim().slice(`${cookieName}=`.length);
     if (!token) return null;
 
-    // Verify JWT — cloud verifier (RS256 via JWKS) or local public key (RS256)
+    // Verify JWT — cloud verifier (via JWKS) or local public key
     let payload: SessionPayload | null;
     if (cloudVerifier) {
       payload = await cloudVerifier.verify(token);

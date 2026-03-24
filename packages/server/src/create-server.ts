@@ -542,6 +542,7 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
     });
 
     // 4. Create cloud JWT verifier
+    // TODO(#1783): Forward algorithm from cloud config when Vertz Cloud migrates to ES256
     const cloudVerifier = createCloudJWTVerifier({
       jwksClient,
       issuer: cloudBaseUrl,

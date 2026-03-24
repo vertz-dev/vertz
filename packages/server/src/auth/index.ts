@@ -111,11 +111,11 @@ const CURVE_NAMES: Record<string, string> = {
 
 /** Validate that a KeyObject matches the configured JWT algorithm. */
 function validateKeyAlgorithmMatch(key: KeyObject, algorithm: 'RS256' | 'ES256'): void {
-  const keyType = key.asymmetricKeyType;
+  const keyType = key.asymmetricKeyType ?? 'unknown';
   if (algorithm === 'ES256') {
     if (keyType !== 'ec') {
       throw new Error(
-        `Key type mismatch: algorithm 'ES256' requires an EC (P-256) key pair, but an ${keyType!.toUpperCase()} key was provided.`,
+        `Key type mismatch: algorithm 'ES256' requires an EC (P-256) key pair, but an ${keyType.toUpperCase()} key was provided.`,
       );
     }
     const curve = (key.asymmetricKeyDetails as { namedCurve?: string })?.namedCurve;
@@ -128,7 +128,7 @@ function validateKeyAlgorithmMatch(key: KeyObject, algorithm: 'RS256' | 'ES256')
   } else if (algorithm === 'RS256') {
     if (keyType !== 'rsa') {
       throw new Error(
-        `Key type mismatch: algorithm 'RS256' requires an RSA key pair, but an ${keyType!.toUpperCase()} key was provided.`,
+        `Key type mismatch: algorithm 'RS256' requires an RSA key pair, but an ${keyType.toUpperCase()} key was provided.`,
       );
     }
   }
@@ -155,13 +155,14 @@ export function createAuth(config: AuthConfig): AuthInstance {
   const keyTypeLabel = algorithm === 'ES256' ? 'EC (P-256)' : 'RSA';
 
   // Validate key pair — throw in production, auto-generate in development
-  let privateKey!: KeyObject;
-  let publicKey!: KeyObject;
+  let _privateKey: KeyObject | undefined;
+  let _publicKey: KeyObject | undefined;
 
   if (configPrivateKey && configPublicKey) {
-    privateKey = createPrivateKey(configPrivateKey);
-    publicKey = createPublicKey(configPublicKey);
-    validateKeyAlgorithmMatch(privateKey, algorithm);
+    _privateKey = createPrivateKey(configPrivateKey);
+    _publicKey = createPublicKey(configPublicKey);
+    validateKeyAlgorithmMatch(_privateKey, algorithm);
+    validateKeyAlgorithmMatch(_publicKey, algorithm);
   } else if (configPrivateKey || configPublicKey) {
     throw new Error(
       'Both privateKey and publicKey must be provided together. Provide both PEM strings via createAuth({ privateKey: "...", publicKey: "..." }).',
@@ -185,8 +186,8 @@ export function createAuth(config: AuthConfig): AuthInstance {
           const curve = (loadedPrivateKey.asymmetricKeyDetails as { namedCurve?: string })
             ?.namedCurve;
           if (curve === 'prime256v1') {
-            privateKey = loadedPrivateKey;
-            publicKey = createPublicKey(readFileSync(publicKeyFile, 'utf-8'));
+            _privateKey = loadedPrivateKey;
+            _publicKey = createPublicKey(readFileSync(publicKeyFile, 'utf-8'));
             needsGeneration = false;
           } else {
             console.warn(
@@ -194,13 +195,13 @@ export function createAuth(config: AuthConfig): AuthInstance {
             );
           }
         } else {
-          privateKey = loadedPrivateKey;
-          publicKey = createPublicKey(readFileSync(publicKeyFile, 'utf-8'));
+          _privateKey = loadedPrivateKey;
+          _publicKey = createPublicKey(readFileSync(publicKeyFile, 'utf-8'));
           needsGeneration = false;
         }
       } else {
         console.warn(
-          `[Auth] Dev key pair is ${loadedPrivateKey.asymmetricKeyType!.toUpperCase()} but algorithm is ${algorithm}. Regenerating ${keyTypeLabel} key pair.`,
+          `[Auth] Dev key pair is ${(loadedPrivateKey.asymmetricKeyType ?? 'unknown').toUpperCase()} but algorithm is ${algorithm}. Regenerating ${keyTypeLabel} key pair.`,
         );
       }
     }
@@ -224,10 +225,18 @@ export function createAuth(config: AuthConfig): AuthInstance {
       console.warn(
         `[Auth] Auto-generated dev ${keyTypeLabel} key pair at ${keyDir}. Add this path to .gitignore.`,
       );
-      privateKey = createPrivateKey(keyPair.privateKey);
-      publicKey = createPublicKey(keyPair.publicKey);
+      _privateKey = createPrivateKey(keyPair.privateKey);
+      _publicKey = createPublicKey(keyPair.publicKey);
     }
   }
+
+  // All branches above either assign both keys or throw — narrow for TypeScript
+  if (!_privateKey || !_publicKey) {
+    throw new Error('Internal error: key pair was not initialized.');
+  }
+  // Bind as const so downstream closures see `KeyObject`, not `KeyObject | undefined`
+  const privateKey: KeyObject = _privateKey;
+  const publicKey: KeyObject = _publicKey;
 
   // Validate JWT issuer/audience — required in production, defaults in development
   const issuer = config.issuer?.trim() || (isProduction ? undefined : 'vertz-dev');
