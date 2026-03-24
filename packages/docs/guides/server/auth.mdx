@@ -93,12 +93,27 @@ const auth = createAuth({
 });
 ```
 
-### RSA key pair
+### Key pair & algorithm
 
-All JWT operations use RS256 asymmetric keys.
+JWT operations use asymmetric keys. The algorithm defaults to RS256 but can be changed to ES256:
 
-- **Production:** You must provide `privateKey` and `publicKey` (PEM strings). The auth system throws if they're missing.
-- **Development:** A key pair is auto-generated and saved to `.vertz/jwt-private.pem` and `.vertz/jwt-public.pem`. Add `.vertz/` to your `.gitignore`.
+```ts
+const auth = createAuth({
+  session: {
+    strategy: 'jwt',
+    ttl: '60s',
+    algorithm: 'ES256', // optional — defaults to 'RS256'
+  },
+});
+```
+
+| Algorithm | Key type | Use case |
+|-----------|----------|----------|
+| `RS256` (default) | RSA 2048 | General-purpose, widest compatibility |
+| `ES256` | EC P-256 | Smaller signatures (64 vs 256 bytes), faster on edge runtimes |
+
+- **Production:** You must provide `privateKey` and `publicKey` (PEM strings matching the algorithm). The auth system throws if they're missing or if the key type doesn't match the algorithm.
+- **Development:** A key pair is auto-generated and saved to `.vertz/jwt-private.pem` and `.vertz/jwt-public.pem`. Add `.vertz/` to your `.gitignore`. If you change the algorithm, the dev keys are automatically regenerated.
 
 The public key is served at `GET /api/auth/.well-known/jwks.json` for external verification.
 
