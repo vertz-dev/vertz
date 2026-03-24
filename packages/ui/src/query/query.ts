@@ -632,6 +632,12 @@ export function query<T, E = unknown>(
   // the thunk, so identical dependency values produce the same key.
   // This enables cache hits when switching back to previously-fetched
   // dependency combinations.
+  // Declare mutation-bus and registry handles before the lifecycleEffect so
+  // that the lazy entity-metadata path (line ~744) can assign to them during
+  // the first synchronous effect run without hitting a TDZ error (#1819).
+  let unsubscribeBus: (() => void) | undefined;
+  let unregisterFromRegistry: (() => void) | undefined;
+
   let disposeFn: (() => void) | undefined;
   let isFirst = true;
   disposeFn = lifecycleEffect(() => {
@@ -913,8 +919,6 @@ export function query<T, E = unknown>(
   // When a mutation commits for this entity type, revalidate the query.
   // Skip during SSR — mutations don't fire server-side, and subscriptions
   // would leak until the bus is reset between requests.
-  let unsubscribeBus: (() => void) | undefined;
-  let unregisterFromRegistry: (() => void) | undefined;
   if (entityMeta && !isSSR()) {
     unsubscribeBus = getMutationEventBus().subscribe(entityMeta.entityType, refetch);
     unregisterFromRegistry = registerActiveQuery(entityMeta, refetch, createClearData(entityMeta));
