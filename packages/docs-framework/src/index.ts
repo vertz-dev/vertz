@@ -1,5 +1,5 @@
-export type { DocsBuildOptions, DocsInitOptions } from './cli/actions';
-export { docsBuildAction, docsInitAction } from './cli/actions';
+export type { DocsBuildOptions, DocsDevOptions, DocsInitOptions } from './cli/actions';
+export { docsBuildAction, docsDevAction, docsInitAction } from './cli/actions';
 export { initDocs } from './cli/init';
 export { defineDocsConfig } from './config/define';
 export { loadDocsConfig } from './config/load';
@@ -25,6 +25,11 @@ export type {
   ThemeColors,
   ThemeConfig,
 } from './config/types';
+export { compileMdxToHtml } from './dev/compile-mdx-html';
+export type { DocsDevServer, DocsDevServerOptions } from './dev/docs-dev-server';
+export { createDocsDevServer } from './dev/docs-dev-server';
+export type { RenderPageOptions } from './dev/render-page-html';
+export { renderPageHtml } from './dev/render-page-html';
 export type { BuildDocsOptions, BuildManifest, ManifestRoute } from './generator/build-pipeline';
 export { buildDocs } from './generator/build-pipeline';
 export type { DiscoveredPage } from './generator/discover';

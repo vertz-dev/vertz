@@ -18,7 +18,7 @@ plugin({
         throw new Error(`Vertz compilation errors:\n${messages.join('\n')}`);
       }
 
-      return { contents: result.code, loader: 'tsx' };
+      return { contents: result.code, loader: 'ts' };
     });
   },
 });

@@ -11,7 +11,7 @@ describe('TableOfContents', () => {
       { depth: 3, text: 'Basic Usage', slug: 'basic-usage' },
     ];
 
-    const { container, unmount } = renderTest(<TableOfContents headings={headings} />);
+    const { container, unmount } = renderTest(TableOfContents({ headings }));
     const nav = container.querySelector('nav');
     expect(nav).not.toBeNull();
 
@@ -24,7 +24,7 @@ describe('TableOfContents', () => {
   });
 
   it('renders empty nav when no headings', () => {
-    const { container, unmount } = renderTest(<TableOfContents headings={[]} />);
+    const { container, unmount } = renderTest(TableOfContents({ headings: [] }));
     const links = container.querySelectorAll('a');
     expect(links.length).toBe(0);
 
@@ -37,9 +37,10 @@ describe('TableOfContents', () => {
       { depth: 3, text: 'Nested', slug: 'nested' },
     ];
 
-    const { container, unmount } = renderTest(<TableOfContents headings={headings} />);
+    const { container, unmount } = renderTest(TableOfContents({ headings }));
     const items = container.querySelectorAll('[data-toc-item]');
     expect(items.length).toBe(2);
+    // h3 should have indent
     const nestedItem = items[1];
     expect(nestedItem?.getAttribute('data-depth')).toBe('3');
 

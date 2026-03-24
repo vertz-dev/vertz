@@ -3,18 +3,18 @@ import { docsBuildCommand, docsDevCommand, docsInitCommand } from '../docs';
 
 const mockDocsInitAction = vi.fn();
 const mockDocsBuildAction = vi.fn();
-const mockLoadDocsConfig = vi.fn();
+const mockDocsDevAction = vi.fn();
 
 vi.mock('@vertz/docs-framework', () => ({
   docsInitAction: (...args: unknown[]) => mockDocsInitAction(...args),
   docsBuildAction: (...args: unknown[]) => mockDocsBuildAction(...args),
-  loadDocsConfig: (...args: unknown[]) => mockLoadDocsConfig(...args),
+  docsDevAction: (...args: unknown[]) => mockDocsDevAction(...args),
 }));
 
 beforeEach(() => {
   mockDocsInitAction.mockClear();
   mockDocsBuildAction.mockClear();
-  mockLoadDocsConfig.mockClear();
+  mockDocsDevAction.mockClear();
 });
 
 afterEach(() => {
@@ -107,33 +107,47 @@ describe('docsBuildCommand', () => {
 });
 
 describe('docsDevCommand', () => {
-  it('returns err because dev server is not yet implemented', async () => {
-    mockLoadDocsConfig.mockResolvedValue({});
+  it('calls docsDevAction with project dir, port, and host', async () => {
+    const mockServer = { port: 3001, hostname: 'localhost', stop: vi.fn() };
+    mockDocsDevAction.mockResolvedValue({ ok: true, data: mockServer });
+    vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    const result = await docsDevCommand();
+    // docsDevCommand waits for SIGINT/SIGTERM, so we need to emit it
+    const promise = docsDevCommand();
+    // Give it a tick to register signal handlers, then send SIGINT
+    await new Promise((r) => setTimeout(r, 10));
+    process.emit('SIGINT');
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.message).toContain('not yet implemented');
-      expect(result.error.message).toContain('3001');
-      expect(result.error.message).toContain('localhost');
-    }
+    const result = await promise;
+    expect(result.ok).toBe(true);
+    expect(mockDocsDevAction).toHaveBeenCalledWith({
+      projectDir: expect.stringContaining('/'),
+      port: 3001,
+      host: 'localhost',
+    });
+    expect(mockServer.stop).toHaveBeenCalled();
   });
 
-  it('uses custom port and host in error message', async () => {
-    mockLoadDocsConfig.mockResolvedValue({});
+  it('passes custom port and host', async () => {
+    const mockServer = { port: 4000, hostname: '0.0.0.0', stop: vi.fn() };
+    mockDocsDevAction.mockResolvedValue({ ok: true, data: mockServer });
+    vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    const result = await docsDevCommand({ port: 4000, host: '0.0.0.0' });
+    const promise = docsDevCommand({ port: 4000, host: '0.0.0.0' });
+    await new Promise((r) => setTimeout(r, 10));
+    process.emit('SIGINT');
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.message).toContain('4000');
-      expect(result.error.message).toContain('0.0.0.0');
-    }
+    await promise;
+    expect(mockDocsDevAction).toHaveBeenCalledWith({
+      projectDir: expect.stringContaining('/'),
+      port: 4000,
+      host: '0.0.0.0',
+    });
   });
 
-  it('returns err when config loading fails', async () => {
-    mockLoadDocsConfig.mockRejectedValue(new Error('config not found'));
+  it('returns err when docsDevAction fails', async () => {
+    const error = new Error('config not found');
+    mockDocsDevAction.mockResolvedValue({ ok: false, error });
 
     const result = await docsDevCommand();
 

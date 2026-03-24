@@ -289,6 +289,7 @@
       "name": "@vertz/docs-framework",
       "version": "0.1.0",
       "dependencies": {
+        "@mdx-js/mdx": "^3.0.0",
         "@vertz/errors": "workspace:^",
         "@vertz/mdx": "workspace:^",
         "@vertz/ui": "workspace:^",

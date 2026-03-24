@@ -71,18 +71,30 @@ export async function docsDevCommand(
   const { port = 3001, host = 'localhost' } = options;
 
   try {
-    const { loadDocsConfig } = await import('@vertz/docs-framework');
+    const { docsDevAction } = await import('@vertz/docs-framework');
     const projectDir = process.cwd();
 
-    // Validate config exists and loads
-    await loadDocsConfig(projectDir);
+    const result = await docsDevAction({ projectDir, port, host });
+    if (!result.ok) {
+      return err(result.error);
+    }
 
-    // TODO: Wire up createBunDevServer with MDX plugin and docs layout
-    return err(
-      new Error(
-        `Docs dev server is not yet implemented (port ${port}, host ${host}). Use \`vertz docs build\` for now.`,
-      ),
-    );
+    const server = result.data;
+    console.log(`Docs dev server running at http://${server.hostname}:${server.port}`);
+
+    // Keep the process alive until interrupted
+    await new Promise<void>((resolve) => {
+      process.on('SIGINT', () => {
+        server.stop();
+        resolve();
+      });
+      process.on('SIGTERM', () => {
+        server.stop();
+        resolve();
+      });
+    });
+
+    return ok(undefined);
   } catch (error) {
     return err(error instanceof Error ? error : new Error(String(error)));
   }

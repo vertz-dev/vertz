@@ -4,7 +4,7 @@ import { Header } from '../layout/header';
 
 describe('Header', () => {
   it('renders site name', () => {
-    const { container, unmount } = renderTest(<Header name="Vertz Docs" />);
+    const { container, unmount } = renderTest(Header({ name: 'Vertz Docs' }));
 
     const header = container.querySelector('header');
     expect(header).not.toBeNull();
@@ -15,15 +15,15 @@ describe('Header', () => {
 
   it('renders navbar links', () => {
     const { container, unmount } = renderTest(
-      <Header
-        name="Docs"
-        navbar={{
+      Header({
+        name: 'Docs',
+        navbar: {
           links: [
             { label: 'GitHub', href: 'https://github.com' },
             { label: 'Blog', href: '/blog' },
           ],
-        }}
-      />,
+        },
+      }),
     );
 
     const links = container.querySelectorAll('a');
@@ -34,12 +34,12 @@ describe('Header', () => {
 
   it('renders CTA button when provided', () => {
     const { container, unmount } = renderTest(
-      <Header
-        name="Docs"
-        navbar={{
+      Header({
+        name: 'Docs',
+        navbar: {
           cta: { label: 'Get Started', href: '/quickstart' },
-        }}
-      />,
+        },
+      }),
     );
 
     const cta = container.querySelector('[data-cta]');
