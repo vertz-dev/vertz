@@ -5,7 +5,7 @@ import type { RelationDef } from './relation';
 // Index Definition
 // ---------------------------------------------------------------------------
 
-export type IndexType = 'btree' | 'hash' | 'gin' | 'gist' | 'brin';
+export type IndexType = 'btree' | 'hash' | 'gin' | 'gist' | 'brin' | 'hnsw';
 
 export interface IndexDef {
   readonly columns: readonly string[];

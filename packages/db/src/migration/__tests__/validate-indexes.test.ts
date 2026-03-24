@@ -29,6 +29,7 @@ describe('validateIndexes', () => {
       { columns: ['title'], type: 'hash' },
       { columns: ['title'], type: 'gist' },
       { columns: ['title'], type: 'brin' },
+      { columns: ['title'], type: 'hnsw' },
     ]);
     expect(validateIndexes(tables, 'postgres')).toEqual([]);
   });
@@ -50,6 +51,14 @@ describe('validateIndexes', () => {
     ]);
     const warnings = validateIndexes(tables, 'sqlite');
     expect(warnings).toHaveLength(3);
+  });
+
+  it('warns when using hnsw index type on sqlite', () => {
+    const tables = makeTable([{ columns: ['title'], type: 'hnsw' }]);
+    const warnings = validateIndexes(tables, 'sqlite');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('hnsw');
+    expect(warnings[0]).toContain('sqlite');
   });
 
   it('allows btree on both dialects without warning', () => {
