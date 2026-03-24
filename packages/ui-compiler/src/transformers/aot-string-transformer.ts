@@ -1,8 +1,8 @@
 import type MagicString from 'magic-string';
-import type { Node } from 'ts-morph';
+import type { Node, ReturnStatement } from 'ts-morph';
 import { type SourceFile, SyntaxKind } from 'ts-morph';
 import type { AotComponentInfo, AotTier, ComponentInfo, VariableInfo } from '../types';
-import { findBodyNode } from '../utils';
+import { findBodyNode, isInNestedFunction } from '../utils';
 
 /** Get node as a generic Node to avoid ts-morph's over-narrowing. */
 function asNode(n: unknown): Node {
@@ -98,14 +98,30 @@ export class AotStringTransformer {
     const bodyNode = findBodyNode(sourceFile, component);
     if (!bodyNode) return;
 
-    // Detect multiple return statements → runtime-fallback
-    const returnStmts = bodyNode.getDescendantsOfKind(SyntaxKind.ReturnStatement);
-    const returnsWithJsx = returnStmts.filter((ret) => {
+    // Only count direct returns (not returns inside nested callbacks/functions)
+    const allReturnStmts = bodyNode.getDescendantsOfKind(SyntaxKind.ReturnStatement);
+    const directReturns = allReturnStmts.filter((ret) => !isInNestedFunction(ret, bodyNode));
+    const returnsWithJsx = directReturns.filter((ret) => {
       const expr = ret.getExpression();
       return expr && this._findJsx(expr);
     });
 
     if (returnsWithJsx.length > 1) {
+      // Check for guard pattern: if-return guards + unconditional main return
+      const guardResult = this._analyzeGuardPattern(returnsWithJsx, bodyNode, s);
+      if (guardResult) {
+        const isInteractive = variables.some((v) => v.kind === 'signal');
+        this._resetTracking(variables);
+        const stringExpr = this._guardPatternToString(
+          guardResult,
+          variables,
+          s,
+          isInteractive ? component.name : null,
+        );
+        this._emitAotFunction(s, component, 'conditional', stringExpr);
+        return;
+      }
+      // Not a guard pattern → runtime-fallback
       this._components.push({
         name: component.name,
         tier: 'runtime-fallback',
@@ -116,7 +132,23 @@ export class AotStringTransformer {
 
     // Find the return statement's JSX
     const returnJsx = this._findReturnJsx(bodyNode);
-    if (!returnJsx) return;
+
+    if (!returnJsx) {
+      // Check for conditional return: `return cond ? <A/> : <B/>` or `return expr && <A/>`
+      const conditionalExpr = this._findReturnConditionalExpr(bodyNode);
+      if (conditionalExpr) {
+        this._resetTracking(variables);
+        let stringExpr: string;
+        if (conditionalExpr.isKind(SyntaxKind.ConditionalExpression)) {
+          stringExpr = this._ternaryToString(conditionalExpr, variables, s);
+        } else {
+          stringExpr = this._binaryToString(conditionalExpr, variables, s);
+        }
+        this._emitAotFunction(s, component, 'conditional', stringExpr);
+        return;
+      }
+      return;
+    }
 
     // Determine tier based on variables and JSX analysis
     const tier = this._classifyTier(returnJsx, variables);
@@ -125,10 +157,7 @@ export class AotStringTransformer {
     const isInteractive = variables.some((v) => v.kind === 'signal');
 
     // Reset tracking for this component
-    this._currentHoles = new Set();
-    this._reactiveNames = new Set(
-      variables.filter((v) => v.kind === 'signal' || v.kind === 'computed').map((v) => v.name),
-    );
+    this._resetTracking(variables);
 
     // Build the string expression for the JSX tree
     const stringExpr = this._jsxToString(
@@ -138,20 +167,7 @@ export class AotStringTransformer {
       isInteractive ? component.name : null,
     );
 
-    // Generate the AOT function with props parameter
-    const aotFnName = `__ssr_${component.name}`;
-    const propsParam = component.propsParam;
-    const paramStr = propsParam ? `${propsParam}` : '';
-    const aotFn = `\nfunction ${aotFnName}(${paramStr}): string {\n  return ${stringExpr};\n}\n`;
-
-    // Append the AOT function after the component
-    s.appendRight(component.bodyEnd + 1, aotFn);
-
-    this._components.push({
-      name: component.name,
-      tier,
-      holes: [...this._currentHoles],
-    });
+    this._emitAotFunction(s, component, tier, stringExpr);
   }
 
   private _findReturnJsx(bodyNode: Node): Node | null {
@@ -177,6 +193,156 @@ export class AotStringTransformer {
       return this._findJsx(node.getExpression());
     }
     return null;
+  }
+
+  /** Reset per-component tracking state. */
+  private _resetTracking(variables: VariableInfo[]): void {
+    this._currentHoles = new Set();
+    this._reactiveNames = new Set(
+      variables.filter((v) => v.kind === 'signal' || v.kind === 'computed').map((v) => v.name),
+    );
+  }
+
+  /** Generate AOT function and record component metadata. */
+  private _emitAotFunction(
+    s: MagicString,
+    component: ComponentInfo,
+    tier: AotTier,
+    stringExpr: string,
+  ): void {
+    const aotFnName = `__ssr_${component.name}`;
+    const propsParam = component.propsParam;
+    const paramStr = propsParam ? `${propsParam}` : '';
+    const aotFn = `\nfunction ${aotFnName}(${paramStr}): string {\n  return ${stringExpr};\n}\n`;
+    s.appendRight(component.bodyEnd + 1, aotFn);
+
+    this._components.push({
+      name: component.name,
+      tier,
+      holes: [...this._currentHoles],
+    });
+  }
+
+  /**
+   * Find a return statement whose expression is a ConditionalExpression or
+   * BinaryExpression containing JSX (e.g., `return d ? <A/> : <B/>` or
+   * `return show && <A/>`). These are not caught by _findReturnJsx because
+   * _findJsx only matches direct JSX nodes.
+   */
+  private _findReturnConditionalExpr(bodyNode: Node): Node | null {
+    const allReturns = bodyNode.getDescendantsOfKind(SyntaxKind.ReturnStatement);
+    const directReturns = allReturns.filter((ret) => !isInNestedFunction(ret, bodyNode));
+    for (const ret of directReturns) {
+      const expr = ret.getExpression();
+      if (!expr) continue;
+      const unwrapped = this._unwrapParens(expr);
+      if (
+        (unwrapped.isKind(SyntaxKind.ConditionalExpression) ||
+          unwrapped.isKind(SyntaxKind.BinaryExpression)) &&
+        this._deepContainsJsx(unwrapped)
+      ) {
+        return unwrapped;
+      }
+    }
+    return null;
+  }
+
+  /** Unwrap parenthesized expressions. */
+  private _unwrapParens(node: Node): Node {
+    if (node.isKind(SyntaxKind.ParenthesizedExpression)) {
+      return this._unwrapParens(node.getExpression());
+    }
+    return node;
+  }
+
+  /** Check if a node or any descendant contains JSX. */
+  private _deepContainsJsx(node: Node): boolean {
+    if (
+      node.isKind(SyntaxKind.JsxElement) ||
+      node.isKind(SyntaxKind.JsxSelfClosingElement) ||
+      node.isKind(SyntaxKind.JsxFragment)
+    ) {
+      return true;
+    }
+    return node.getChildren().some((c) => this._deepContainsJsx(c));
+  }
+
+  /**
+   * Analyze a set of JSX return statements for the guard pattern:
+   * one or more if-guarded early returns followed by an unconditional main return.
+   */
+  private _analyzeGuardPattern(
+    returnsWithJsx: Node[],
+    bodyNode: Node,
+    s: MagicString,
+  ): { guards: Array<{ condition: string; jsx: Node }>; mainJsx: Node } | null {
+    const guards: Array<{ condition: string; jsx: Node }> = [];
+
+    // All returns except the last must be inside if-statements
+    for (let i = 0; i < returnsWithJsx.length - 1; i++) {
+      const ret = returnsWithJsx[i]!;
+      const ifStmt = this._findEnclosingIf(ret, bodyNode);
+      if (!ifStmt) return null;
+
+      // IfStatement children: IfKeyword, OpenParen, condition, CloseParen, thenStmt, ...
+      const children = ifStmt.getChildren();
+      const condition = children[2];
+      if (!condition) return null;
+
+      const condText = s.slice(condition.getStart(), condition.getEnd());
+      const retExpr = (ret as ReturnStatement).getExpression();
+      if (!retExpr) return null;
+      const jsx = this._findJsx(retExpr);
+      if (!jsx) return null;
+
+      guards.push({ condition: condText, jsx });
+    }
+
+    // Last return is the main (unconditional) return
+    const lastRet = returnsWithJsx[returnsWithJsx.length - 1]!;
+    // Verify last return is NOT inside an if at the function body level
+    const lastIfStmt = this._findEnclosingIf(lastRet, bodyNode);
+    if (lastIfStmt) return null;
+
+    const lastExpr = (lastRet as ReturnStatement).getExpression();
+    if (!lastExpr) return null;
+    const mainJsx = this._findJsx(lastExpr);
+    if (!mainJsx) return null;
+
+    return { guards, mainJsx };
+  }
+
+  /** Find the nearest enclosing IfStatement between a node and the body boundary. */
+  private _findEnclosingIf(node: Node, bodyNode: Node): Node | null {
+    let current = node.getParent();
+    while (current && current !== bodyNode) {
+      if (current.isKind(SyntaxKind.IfStatement)) return current;
+      current = current.getParent();
+    }
+    return null;
+  }
+
+  /**
+   * Generate string expression for a guard pattern: nested ternary with conditional markers.
+   * `if (!d) return <Loading/>; return <Main/>` →
+   * `'<!--conditional-->' + (!d ? '<div>Loading</div>' : '<div>...</div>') + '<!--/conditional-->'`
+   */
+  private _guardPatternToString(
+    pattern: { guards: Array<{ condition: string; jsx: Node }>; mainJsx: Node },
+    variables: VariableInfo[],
+    s: MagicString,
+    hydrationId: string | null,
+  ): string {
+    const mainStr = this._jsxToString(pattern.mainJsx, variables, s, hydrationId);
+
+    let result = mainStr;
+    for (let i = pattern.guards.length - 1; i >= 0; i--) {
+      const guard = pattern.guards[i]!;
+      const guardStr = this._jsxToString(guard.jsx, variables, s, null);
+      result = `(${guard.condition} ? ${guardStr} : ${result})`;
+    }
+
+    return `'<!--conditional-->' + ${result} + '<!--/conditional-->'`;
   }
 
   private _classifyTier(jsxNode: Node, variables: VariableInfo[]): AotTier {

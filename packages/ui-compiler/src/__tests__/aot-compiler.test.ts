@@ -522,12 +522,26 @@ function Quote() {
       expect(() => evalAot(result.code, '__ssr_Quote')).not.toThrow();
     });
 
-    it('classifies components with multiple returns as runtime-fallback', () => {
+    it('classifies guard pattern (if-return + main return) as conditional', () => {
       const result = compileForSSRAot(
         `
 function Comp({ loading }: { loading: boolean }) {
   if (loading) return <div>Loading...</div>;
   return <div>Content</div>;
+}
+        `.trim(),
+      );
+
+      expect(result.components[0]!.tier).toBe('conditional');
+      expect(result.code).toContain('__ssr_Comp');
+    });
+
+    it('classifies non-guard multiple returns as runtime-fallback', () => {
+      const result = compileForSSRAot(
+        `
+function Comp({ x }: { x: number }) {
+  try { return <div>OK</div>; }
+  catch { return <div>Error</div>; }
 }
         `.trim(),
       );
@@ -631,6 +645,165 @@ function Styled({ bg }: { bg: string }) {
       const aotFn = extractAotFn(result.code, '__ssr_Styled');
       expect(aotFn).toContain('__ssr_style_object(');
       expect(aotFn).not.toContain('[object Object]');
+    });
+  });
+
+  describe('query() + conditional return patterns (#1769)', () => {
+    describe('Given a component with query() and early-return loading guard', () => {
+      describe('When compileForSSRAot processes the file', () => {
+        it('Then classifies the component as conditional (not runtime-fallback)', () => {
+          const result = compileForSSRAot(
+            `
+import { query } from '@vertz/ui';
+export default function F() {
+  const q = query(async () => ({ name: 'x' }), { key: 'x' });
+  const d = q.data;
+  if (!d) return <div>Loading</div>;
+  return <div>{d.name}</div>;
+}
+            `.trim(),
+          );
+
+          expect(result.components).toHaveLength(1);
+          expect(result.components[0]!.name).toBe('F');
+          expect(result.components[0]!.tier).toBe('conditional');
+        });
+
+        it('Then generates an __ssr_ AOT function that handles both branches', () => {
+          const result = compileForSSRAot(
+            `
+import { query } from '@vertz/ui';
+export default function F() {
+  const q = query(async () => ({ name: 'x' }), { key: 'x' });
+  const d = q.data;
+  if (!d) return <div>Loading</div>;
+  return <div>{d.name}</div>;
+}
+            `.trim(),
+          );
+
+          expect(result.code).toContain('__ssr_F');
+          const aotFn = extractAotFn(result.code, '__ssr_F');
+          // Both branches should appear in the AOT function
+          expect(aotFn).toContain('Loading');
+          expect(aotFn).toContain('d.name');
+          expect(aotFn).toContain('<!--conditional-->');
+        });
+      });
+    });
+
+    describe('Given a component with query() and ternary return', () => {
+      describe('When compileForSSRAot processes the file', () => {
+        it('Then the component appears in the components array (not silently dropped)', () => {
+          const result = compileForSSRAot(
+            `
+import { query } from '@vertz/ui';
+export default function F() {
+  const q = query(async () => ({ name: 'x' }), { key: 'x' });
+  const d = q.data;
+  return d ? <div>{d.name}</div> : <div>Loading</div>;
+}
+            `.trim(),
+          );
+
+          expect(result.components).toHaveLength(1);
+        });
+
+        it('Then classifies the component as conditional', () => {
+          const result = compileForSSRAot(
+            `
+import { query } from '@vertz/ui';
+export default function F() {
+  const q = query(async () => ({ name: 'x' }), { key: 'x' });
+  const d = q.data;
+  return d ? <div>{d.name}</div> : <div>Loading</div>;
+}
+            `.trim(),
+          );
+
+          expect(result.components[0]!.tier).toBe('conditional');
+        });
+
+        it('Then generates an __ssr_ AOT function for the ternary', () => {
+          const result = compileForSSRAot(
+            `
+import { query } from '@vertz/ui';
+export default function F() {
+  const q = query(async () => ({ name: 'x' }), { key: 'x' });
+  const d = q.data;
+  return d ? <div>{d.name}</div> : <div>Loading</div>;
+}
+            `.trim(),
+          );
+
+          expect(result.code).toContain('__ssr_F');
+          const aotFn = extractAotFn(result.code, '__ssr_F');
+          expect(aotFn).toContain('<!--conditional-->');
+          expect(aotFn).toContain('Loading');
+          expect(aotFn).toContain('d.name');
+        });
+      });
+    });
+
+    describe('Given a component with query() and .map() in the main return', () => {
+      describe('When compileForSSRAot processes the file', () => {
+        it('Then classifies as conditional and generates string concatenation for the list', () => {
+          const result = compileForSSRAot(
+            `
+import { query } from '@vertz/ui';
+export default function F() {
+  const q = query(async () => ({ items: [] as string[] }), { key: 'x' });
+  const d = q.data;
+  if (!d) return <div>Loading</div>;
+  return <ul>{d.items.map(item => <li>{item}</li>)}</ul>;
+}
+            `.trim(),
+          );
+
+          expect(result.components).toHaveLength(1);
+          expect(result.components[0]!.tier).toBe('conditional');
+          expect(result.code).toContain('__ssr_F');
+          const aotFn = extractAotFn(result.code, '__ssr_F');
+          expect(aotFn).toContain('<!--list-->');
+          expect(aotFn).toContain('Loading');
+        });
+      });
+    });
+
+    describe('Given a component with && and JSX in a return', () => {
+      describe('When compileForSSRAot processes the file', () => {
+        it('Then classifies as conditional and generates the AOT function', () => {
+          const result = compileForSSRAot(
+            `
+export default function F({ show }: { show: boolean }) {
+  return show && <div>Content</div>;
+}
+            `.trim(),
+          );
+
+          expect(result.components).toHaveLength(1);
+          expect(result.components[0]!.tier).toBe('conditional');
+          expect(result.code).toContain('__ssr_F');
+        });
+      });
+    });
+
+    describe('Given a guard pattern with props (no query)', () => {
+      describe('When compileForSSRAot processes the file', () => {
+        it('Then classifies as conditional (not runtime-fallback)', () => {
+          const result = compileForSSRAot(
+            `
+function Comp({ loading }: { loading: boolean }) {
+  if (loading) return <div>Loading...</div>;
+  return <div>Content</div>;
+}
+            `.trim(),
+          );
+
+          expect(result.components[0]!.tier).toBe('conditional');
+          expect(result.code).toContain('__ssr_Comp');
+        });
+      });
     });
   });
 
