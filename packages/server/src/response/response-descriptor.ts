@@ -3,7 +3,7 @@
  * Unlike ContentDescriptor (which tags schema objects), ResponseDescriptor wraps
  * user data — a handler's return value. A symbol brand prevents false positives.
  */
-export const RESPONSE_BRAND = Symbol.for('vertz.response');
+export const RESPONSE_BRAND: unique symbol = Symbol.for('vertz.response');
 
 /**
  * Wraps handler output with optional HTTP response metadata (headers, status).
