@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import path, { resolve } from 'node:path';
 import type { CodegenConfig, CodegenIR } from '@vertz/codegen';
 import { Command } from 'commander';
 import { createJiti } from 'jiti';
@@ -11,13 +11,14 @@ import {
   dbBaselineAction,
   dbDeployAction,
   dbMigrateAction,
+  dbPullAction,
   dbPushAction,
   dbResetAction,
   dbStatusAction,
 } from './commands/db';
 import { devAction } from './commands/dev';
 import { generateAction } from './commands/generate';
-import { loadDbContext } from './commands/load-db-context';
+import { loadDbContext, loadIntrospectContext } from './commands/load-db-context';
 import { startAction } from './commands/start';
 
 const pkg = JSON.parse(readFileSync(resolve(import.meta.dirname, '../package.json'), 'utf-8'));
@@ -369,6 +370,90 @@ export function createCLI(): Command {
         console.log('All migrations already recorded.');
       } else {
         console.log(`Recorded: ${data.recorded.join(', ')}`);
+      }
+    });
+
+  dbCommand
+    .command('pull')
+    .description('Generate schema from existing database')
+    .option('-o, --output <path>', 'Output path (file or directory)')
+    .option('--dry-run', 'Preview generated code without writing files')
+    .option('-f, --force', 'Overwrite existing files')
+    .option('--url <url>', 'Database URL (overrides vertz.config.ts)')
+    .option('--dialect <dialect>', 'Database dialect: sqlite or postgres')
+    .action(async (opts) => {
+      let ctx: Awaited<ReturnType<typeof loadIntrospectContext>>;
+      try {
+        ctx = await loadIntrospectContext({
+          url: opts.url,
+          dialect: opts.dialect,
+        });
+      } catch (error) {
+        console.error(
+          `Configuration error: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        process.exit(1);
+      }
+
+      // Determine output mode from path
+      const outputPath: string | undefined = opts.output;
+      const isDir = outputPath?.endsWith('/') || outputPath?.endsWith(path.sep);
+      const mode = isDir ? 'per-table' : 'single-file';
+
+      try {
+        // Check overwrite safety
+        if (outputPath && !opts.force && !opts.dryRun) {
+          const { access: fsAccess } = await import('node:fs/promises');
+          try {
+            await fsAccess(outputPath);
+            console.error(`File ${outputPath} already exists.`);
+            console.error('Use --dry-run to preview, or --force to overwrite.');
+            process.exit(1);
+          } catch {
+            // File doesn't exist — safe to proceed
+          }
+        }
+
+        const result = await dbPullAction({
+          ctx,
+          output: outputPath,
+          dryRun: opts.dryRun ?? false,
+          force: opts.force ?? false,
+          mode,
+        });
+
+        if (!result.ok) {
+          console.error(`Command failed: ${result.error.message}`);
+          process.exit(1);
+        }
+
+        if (opts.dryRun) {
+          for (const file of result.data.files) {
+            console.log(`// --- ${file.path} ---`);
+            console.log(file.content);
+          }
+        } else if (outputPath) {
+          const { mkdir, writeFile: fsWriteFile } = await import('node:fs/promises');
+          const outputDir = isDir ? outputPath : path.dirname(outputPath);
+          await mkdir(outputDir, { recursive: true });
+
+          for (const file of result.data.files) {
+            const filePath = isDir ? path.join(outputPath, file.path) : outputPath;
+            await fsWriteFile(filePath, file.content, 'utf-8');
+            console.log(`Generated: ${filePath}`);
+          }
+        } else {
+          // No output specified — print to stdout
+          for (const file of result.data.files) {
+            console.log(file.content);
+          }
+        }
+      } finally {
+        try {
+          await ctx.close();
+        } catch {
+          // Connection cleanup failed — not actionable
+        }
       }
     });
 

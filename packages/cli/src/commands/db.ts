@@ -1,6 +1,8 @@
 import type {
   BaselineResult,
+  CodegenOptions,
   Dialect,
+  GeneratedFile,
   MigrateDeployResult,
   MigrateDevResult,
   MigrateStatusResult,
@@ -10,8 +12,19 @@ import type {
   ResetResult,
   SchemaSnapshot,
 } from '@vertz/db';
-import { baseline, migrateDeploy, migrateDev, migrateStatus, push, reset } from '@vertz/db';
+import {
+  baseline,
+  generateSchemaCode,
+  introspectPostgres,
+  introspectSqlite,
+  migrateDeploy,
+  migrateDev,
+  migrateStatus,
+  push,
+  reset,
+} from '@vertz/db';
 import { err, ok, type Result } from '@vertz/errors';
+import type { IntrospectContext } from './load-db-context';
 
 // ---------------------------------------------------------------------------
 // Shared context — assembled by loadDbContext() in cli.ts
@@ -174,4 +187,37 @@ export async function dbBaselineAction(
     return err(new Error(result.error.message));
   }
   return ok(result.data);
+}
+
+// ---------------------------------------------------------------------------
+// vertz db pull
+// ---------------------------------------------------------------------------
+
+export interface DbPullOptions {
+  ctx: IntrospectContext;
+  output: string | undefined;
+  dryRun: boolean;
+  force: boolean;
+  mode: CodegenOptions['mode'];
+}
+
+export interface DbPullResult {
+  files: GeneratedFile[];
+  dryRun: boolean;
+}
+
+export async function dbPullAction(options: DbPullOptions): Promise<Result<DbPullResult, Error>> {
+  try {
+    const introspect = options.ctx.dialectName === 'sqlite' ? introspectSqlite : introspectPostgres;
+    const snapshot = await introspect(options.ctx.queryFn);
+
+    const files = generateSchemaCode(snapshot, {
+      dialect: options.ctx.dialectName,
+      mode: options.mode,
+    });
+
+    return ok({ files, dryRun: options.dryRun });
+  } catch (error) {
+    return err(new Error(error instanceof Error ? error.message : String(error)));
+  }
 }
