@@ -2177,5 +2177,59 @@ describe('query()', () => {
 
       result.dispose();
     });
+
+    test('descriptor-in-thunk with entity metadata does not throw TDZ error on first run (#1819)', async () => {
+      resetDefaultQueryCache();
+      resetMutationEventBus();
+      resetEntityStore();
+
+      const dep = signal(0);
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValue(ok({ items: [{ id: 'b1', name: 'Brand A' }], total: 1 }));
+
+      // Thunk returns a descriptor with _entity metadata immediately (no null guard).
+      // This exercises the lazy entity metadata path (line 741-750 in query.ts)
+      // on the first synchronous effect run — before `let unsubscribeBus` is reached.
+      const result = query(() => ({
+        _tag: 'QueryDescriptor' as const,
+        _key: `GET:/brands?offset=${dep.value}`,
+        _fetch: fetchFn,
+        _entity: { entityType: 'brands', kind: 'list' as const },
+        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike mock
+        then(onFulfilled: any, onRejected: any) {
+          return this._fetch().then(onFulfilled, onRejected);
+        },
+      }));
+
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+      expect(result.data.value).toEqual({ items: [{ id: 'b1', name: 'Brand A' }], total: 1 });
+
+      // Verify mutation bus subscription works (entity metadata was set up)
+      const fetchFn2 = vi
+        .fn()
+        .mockResolvedValue(ok({ items: [{ id: 'b2', name: 'Brand B' }], total: 1 }));
+      fetchFn.mockImplementation(fetchFn2);
+
+      getMutationEventBus().emit('brands');
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // Mutation event should have triggered a refetch
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+
+      // Verify dispose fully unsubscribes — no leaked registrations (#1819)
+      result.dispose();
+      const callsBeforeEmit = fetchFn.mock.calls.length;
+      getMutationEventBus().emit('brands');
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      expect(fetchFn).toHaveBeenCalledTimes(callsBeforeEmit);
+    });
   });
 });
