@@ -157,13 +157,13 @@ describe('RSA key pair handling', () => {
     }
   });
 
-  it('throws when RSA key pair is missing in production', () => {
+  it('throws when key pair is missing in production', () => {
     expect(() =>
       createAuth({
         session: { strategy: 'jwt', ttl: '1h' },
         isProduction: true,
       }),
-    ).toThrow('RSA key pair is required in production');
+    ).toThrow('Key pair is required in production');
   });
 
   it('auto-generates and persists dev keys when key pair is missing in dev mode', () => {

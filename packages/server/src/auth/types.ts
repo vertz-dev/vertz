@@ -341,9 +341,9 @@ export interface PasswordResetStore {
 export interface AuthConfig {
   session: SessionConfig;
   emailPassword?: EmailPasswordConfig;
-  /** RSA private key in PKCS#8 PEM format for JWT signing. Required in production. */
+  /** JWT signing private key in PKCS#8 PEM format (RSA for RS256, EC P-256 for ES256). Required in production. */
   privateKey?: string;
-  /** RSA public key in SPKI PEM format for JWT verification. Required in production. */
+  /** JWT verification public key in SPKI PEM format (RSA for RS256, EC P-256 for ES256). Required in production. */
   publicKey?: string;
   /** Custom claims function for JWT payload */
   claims?: (user: AuthUser) => Record<string, unknown>;

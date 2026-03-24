@@ -102,6 +102,38 @@ import { InMemoryUserStore } from './user-store';
 // Re-export password utilities for backward compatibility
 export { hashPassword, validatePassword, verifyPassword } from './password';
 
+/** Map namedCurve OpenSSL names to friendly names for error messages. */
+const CURVE_NAMES: Record<string, string> = {
+  prime256v1: 'P-256',
+  secp384r1: 'P-384',
+  secp521r1: 'P-521',
+};
+
+/** Validate that a KeyObject matches the configured JWT algorithm. */
+function validateKeyAlgorithmMatch(key: KeyObject, algorithm: 'RS256' | 'ES256'): void {
+  const keyType = key.asymmetricKeyType;
+  if (algorithm === 'ES256') {
+    if (keyType !== 'ec') {
+      throw new Error(
+        `Key type mismatch: algorithm 'ES256' requires an EC (P-256) key pair, but an ${keyType!.toUpperCase()} key was provided.`,
+      );
+    }
+    const curve = (key.asymmetricKeyDetails as { namedCurve?: string })?.namedCurve;
+    if (curve !== 'prime256v1') {
+      const curveName = (curve && CURVE_NAMES[curve]) || curve || 'unknown';
+      throw new Error(
+        `Key type mismatch: algorithm 'ES256' requires an EC P-256 key pair, but an EC ${curveName} key was provided.`,
+      );
+    }
+  } else if (algorithm === 'RS256') {
+    if (keyType !== 'rsa') {
+      throw new Error(
+        `Key type mismatch: algorithm 'RS256' requires an RSA key pair, but an ${keyType!.toUpperCase()} key was provided.`,
+      );
+    }
+  }
+}
+
 export function createAuth(config: AuthConfig): AuthInstance {
   const {
     session,
@@ -117,40 +149,80 @@ export function createAuth(config: AuthConfig): AuthInstance {
     (typeof process === 'undefined' ||
       (process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test'));
 
-  // Validate RSA key pair - throw in production, auto-generate in development
-  let privateKey: KeyObject;
-  let publicKey: KeyObject;
+  // Resolve JWT signing algorithm — defaults to RS256
+  const algorithm = session.algorithm ?? 'RS256';
+  const expectedKeyType = algorithm === 'ES256' ? 'ec' : 'rsa';
+  const keyTypeLabel = algorithm === 'ES256' ? 'EC (P-256)' : 'RSA';
+
+  // Validate key pair — throw in production, auto-generate in development
+  let privateKey!: KeyObject;
+  let publicKey!: KeyObject;
 
   if (configPrivateKey && configPublicKey) {
     privateKey = createPrivateKey(configPrivateKey);
     publicKey = createPublicKey(configPublicKey);
+    validateKeyAlgorithmMatch(privateKey, algorithm);
   } else if (configPrivateKey || configPublicKey) {
     throw new Error(
       'Both privateKey and publicKey must be provided together. Provide both PEM strings via createAuth({ privateKey: "...", publicKey: "..." }).',
     );
   } else if (isProduction) {
     throw new Error(
-      'RSA key pair is required in production. Provide privateKey and publicKey PEM strings via createAuth({ privateKey: "...", publicKey: "..." }).',
+      'Key pair is required in production. Provide privateKey and publicKey PEM strings via createAuth({ privateKey: "...", publicKey: "..." }).',
     );
   } else {
     const keyDir = config.devKeyPath ?? join(process.cwd(), '.vertz');
     const privateKeyFile = join(keyDir, 'jwt-private.pem');
     const publicKeyFile = join(keyDir, 'jwt-public.pem');
 
+    let needsGeneration = true;
+
     if (existsSync(privateKeyFile) && existsSync(publicKeyFile)) {
-      privateKey = createPrivateKey(readFileSync(privateKeyFile, 'utf-8'));
-      publicKey = createPublicKey(readFileSync(publicKeyFile, 'utf-8'));
-    } else {
-      const keyPair = generateKeyPairSync('rsa', {
-        modulusLength: 2048,
-        publicKeyEncoding: { type: 'spki', format: 'pem' },
-        privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
-      });
+      const loadedPrivateKey = createPrivateKey(readFileSync(privateKeyFile, 'utf-8'));
+      if (loadedPrivateKey.asymmetricKeyType === expectedKeyType) {
+        // Existing keys match the configured algorithm
+        if (expectedKeyType === 'ec') {
+          const curve = (loadedPrivateKey.asymmetricKeyDetails as { namedCurve?: string })
+            ?.namedCurve;
+          if (curve === 'prime256v1') {
+            privateKey = loadedPrivateKey;
+            publicKey = createPublicKey(readFileSync(publicKeyFile, 'utf-8'));
+            needsGeneration = false;
+          } else {
+            console.warn(
+              `[Auth] Dev key pair is EC (${curve ?? 'unknown'}) but algorithm is ${algorithm}. Regenerating ${keyTypeLabel} key pair.`,
+            );
+          }
+        } else {
+          privateKey = loadedPrivateKey;
+          publicKey = createPublicKey(readFileSync(publicKeyFile, 'utf-8'));
+          needsGeneration = false;
+        }
+      } else {
+        console.warn(
+          `[Auth] Dev key pair is ${loadedPrivateKey.asymmetricKeyType!.toUpperCase()} but algorithm is ${algorithm}. Regenerating ${keyTypeLabel} key pair.`,
+        );
+      }
+    }
+
+    if (needsGeneration) {
+      const keyPair =
+        algorithm === 'ES256'
+          ? generateKeyPairSync('ec', {
+              namedCurve: 'P-256',
+              publicKeyEncoding: { type: 'spki', format: 'pem' },
+              privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+            })
+          : generateKeyPairSync('rsa', {
+              modulusLength: 2048,
+              publicKeyEncoding: { type: 'spki', format: 'pem' },
+              privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+            });
       mkdirSync(keyDir, { recursive: true });
       writeFileSync(privateKeyFile, keyPair.privateKey as string, 'utf-8');
       writeFileSync(publicKeyFile, keyPair.publicKey as string, 'utf-8');
       console.warn(
-        `[Auth] Auto-generated dev RSA key pair at ${keyDir}. Add this path to .gitignore.`,
+        `[Auth] Auto-generated dev ${keyTypeLabel} key pair at ${keyDir}. Add this path to .gitignore.`,
       );
       privateKey = createPrivateKey(keyPair.privateKey);
       publicKey = createPublicKey(keyPair.publicKey);
@@ -334,6 +406,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
     }
 
     const jwt = await createJWT(user, privateKey, ttlMs, {
+      algorithm,
       claims: () => ({
         ...userClaims,
         ...fvaClaim,
@@ -621,7 +694,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
     }
 
     // Phase 2: JWT-only verification — no session Map lookup
-    const payload = await verifyJWT(token, publicKey, { issuer, audience });
+    const payload = await verifyJWT(token, publicKey, { algorithm, issuer, audience });
     if (!payload) {
       return ok(null);
     }
@@ -698,7 +771,11 @@ export function createAuth(config: AuthConfig): AuthInstance {
       const currentTokens = await sessionStore.getCurrentTokens(storedSession.id);
       if (currentTokens) {
         // Decode (without verify) to get the payload for the response
-        const payload = await verifyJWT(currentTokens.jwt, publicKey, { issuer, audience });
+        const payload = await verifyJWT(currentTokens.jwt, publicKey, {
+          algorithm,
+          issuer,
+          audience,
+        });
         // Even if JWT is expired, return the cached tokens — the client will get
         // a fresh JWT on the next refresh after the grace period ends
         return ok({
@@ -723,7 +800,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
     let existingTenantId: string | undefined;
     const oldTokens = await sessionStore.getCurrentTokens(storedSession.id);
     if (oldTokens) {
-      const oldPayload = await verifyJWT(oldTokens.jwt, publicKey, { issuer, audience });
+      const oldPayload = await verifyJWT(oldTokens.jwt, publicKey, { algorithm, issuer, audience });
       existingFva = oldPayload?.fva;
       existingTenantId = oldPayload?.tenantId;
     }
@@ -2554,7 +2631,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
         const jwk = await exportJWK(publicKey);
         return new Response(
           JSON.stringify({
-            keys: [{ ...jwk, use: 'sig', alg: 'RS256' }],
+            keys: [{ ...jwk, use: 'sig', alg: algorithm }],
           }),
           {
             status: 200,
@@ -2636,6 +2713,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
     resolveSessionForSSR: createSSRResolver({
       publicKey,
       cookieName: cookieConfig.name || 'vertz.sid',
+      algorithm,
       issuer,
       audience,
     }),
