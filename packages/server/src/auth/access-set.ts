@@ -235,13 +235,29 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
           deepestPlan = planId;
         }
 
+        // Collect base plan features
+        const levelFeatures = new Set<string>();
         if (planId) {
           const pDef = accessDef.plans?.[planId];
           if (pDef?.features) {
-            const levelFeatures = new Set<string>(pDef.features);
-            featuresByLevel.set(entry.type, levelFeatures);
-            for (const f of pDef.features) allEffectiveFeatures.add(f);
+            for (const f of pDef.features) levelFeatures.add(f);
           }
+        }
+
+        // Collect add-on features for this level
+        const addOns = await subscriptionStore.getAddOns?.(entry.id);
+        if (addOns) {
+          for (const addOnId of addOns) {
+            const addOnDef = accessDef.plans?.[addOnId];
+            if (addOnDef?.features) {
+              for (const f of addOnDef.features) levelFeatures.add(f);
+            }
+          }
+        }
+
+        if (levelFeatures.size > 0) {
+          featuresByLevel.set(entry.type, levelFeatures);
+          for (const f of levelFeatures) allEffectiveFeatures.add(f);
         }
       }
 
@@ -278,6 +294,86 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
             reason: reasons[0],
             meta: { ...entry.meta, requiredPlans },
           };
+        }
+      }
+
+      // Wallet/limit enrichment: use deepest level's subscription for limit checks
+      if (walletStore && deepestPlan) {
+        const deepestSub = await subscriptionStore.get(tenantId);
+        const deepestPlanDef = accessDef.plans?.[deepestPlan];
+        if (deepestSub && deepestPlanDef) {
+          const deepestAddOns = await subscriptionStore.getAddOns?.(tenantId);
+          for (const name of Object.keys(accessDef.entitlements)) {
+            const limitKeys = accessDef._entitlementToLimitKeys[name];
+            if (!limitKeys?.length) continue;
+
+            const limitKey = limitKeys[0];
+            const limitDef = deepestPlanDef.limits?.[limitKey];
+            if (!limitDef) continue;
+
+            let effectiveMax = limitDef.max;
+            if (deepestAddOns) {
+              for (const addOnId of deepestAddOns) {
+                const addOnDef = accessDef.plans?.[addOnId];
+                const addOnLimit = addOnDef?.limits?.[limitKey];
+                if (addOnLimit) {
+                  if (effectiveMax === -1) break;
+                  effectiveMax += addOnLimit.max;
+                }
+              }
+            }
+            const override = deepestSub.overrides[limitKey];
+            if (override) effectiveMax = Math.max(effectiveMax, override.max);
+
+            if (effectiveMax === -1) {
+              const entry = entitlements[name];
+              entitlements[name] = {
+                ...entry,
+                meta: {
+                  ...entry.meta,
+                  limit: { key: limitKey, max: -1, consumed: 0, remaining: -1 },
+                },
+              };
+            } else {
+              const period = limitDef.per
+                ? calculateBillingPeriod(deepestSub.startedAt, limitDef.per)
+                : {
+                    periodStart: deepestSub.startedAt,
+                    periodEnd: new Date('9999-12-31T23:59:59Z'),
+                  };
+              const consumed = await walletStore.getConsumption(
+                tenantId,
+                limitKey,
+                period.periodStart,
+                period.periodEnd,
+              );
+              const remaining = Math.max(0, effectiveMax - consumed);
+              const entry = entitlements[name];
+
+              if (consumed >= effectiveMax) {
+                const reasons: DenialReason[] = [...entry.reasons];
+                if (!reasons.includes('limit_reached')) reasons.push('limit_reached');
+                entitlements[name] = {
+                  ...entry,
+                  allowed: false,
+                  reasons,
+                  reason: reasons[0],
+                  meta: {
+                    ...entry.meta,
+                    limit: { key: limitKey, max: effectiveMax, consumed, remaining },
+                  },
+                };
+              } else {
+                entitlements[name] = {
+                  ...entry,
+                  meta: {
+                    ...entry.meta,
+                    limit: { key: limitKey, max: effectiveMax, consumed, remaining },
+                  },
+                };
+              }
+            }
+          }
         }
       }
     } else {

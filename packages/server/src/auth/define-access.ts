@@ -507,6 +507,13 @@ export function defineAccess(input: DefineAccessInput): AccessDefinition {
       if (!input.plans || !input.plans[planName]) {
         throw new Error(`defaultPlans references plan '${planName}' which is not defined`);
       }
+      // Ensure the default plan targets the correct level
+      const planDef = input.plans[planName];
+      if (planDef.level !== entityName) {
+        throw new Error(
+          `defaultPlans['${entityName}'] references plan '${planName}' which targets level '${planDef.level ?? 'undefined'}', not '${entityName}'`,
+        );
+      }
     }
   }
 

@@ -1046,6 +1046,26 @@ describe('Feature: Multi-level plan validation (#1787)', () => {
     });
   });
 
+  describe('Given defaultPlans referencing plan with wrong level', () => {
+    it('throws when default plan targets a different level than the key', () => {
+      expect(() =>
+        defineAccess({
+          entities: multiLevelEntities,
+          entitlements: {
+            'account:manage': { roles: ['owner'] },
+          },
+          plans: {
+            enterprise: { level: 'account', group: 'account-plans', features: [] },
+            pro: { level: 'project', group: 'project-plans', features: [] },
+          },
+          defaultPlans: {
+            account: 'pro', // pro targets 'project', not 'account'
+          },
+        }),
+      ).toThrow("defaultPlans['account'] references plan 'pro' which targets level 'project'");
+    });
+  });
+
   describe('Given featureResolution on entitlements', () => {
     it('preserves featureResolution in resolved entitlements', () => {
       const result = defineAccess({

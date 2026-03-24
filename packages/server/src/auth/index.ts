@@ -388,15 +388,19 @@ export function createAuth(config: AuthConfig): AuthInstance {
     let aclClaim: { acl: { set?: EncodedAccessSet; hash: string; overflow: boolean } } | object =
       {};
     if (resolvedAccess?.roleStore && resolvedAccess.closureStore) {
+      const closureStoreRef = resolvedAccess.closureStore;
       const accessSet = await computeAccessSet({
         userId: user.id,
         accessDef: resolvedAccess.definition,
         roleStore: resolvedAccess.roleStore,
-        closureStore: resolvedAccess.closureStore,
+        closureStore: closureStoreRef,
         flagStore: resolvedAccess.flagStore,
         subscriptionStore: resolvedAccess.subscriptionStore,
         tenantId: options?.tenantId ?? null,
         tenantLevel: options?.tenantLevel,
+        ancestorResolver: options?.tenantLevel
+          ? (_level, id) => closureStoreRef.getAncestors(_level, id)
+          : undefined,
       });
       const encoded = encodeAccessSet(accessSet);
       const canonicalJson = JSON.stringify(encoded);
@@ -1212,22 +1216,29 @@ export function createAuth(config: AuthConfig): AuthInstance {
           });
         }
 
+        const tenantLevel = sessionResult.data.payload?.tenantLevel;
+        const closureStoreRef = resolvedAccess.closureStore;
         const accessSet = await computeAccessSet({
           userId: sessionResult.data.user.id,
           accessDef: resolvedAccess.definition,
           roleStore: resolvedAccess.roleStore,
-          closureStore: resolvedAccess.closureStore,
+          closureStore: closureStoreRef,
           flagStore: resolvedAccess.flagStore,
           subscriptionStore: resolvedAccess.subscriptionStore,
           tenantId: sessionResult.data.payload?.tenantId ?? null,
+          tenantLevel,
+          ancestorResolver: tenantLevel
+            ? (_level, id) => closureStoreRef.getAncestors(_level, id)
+            : undefined,
         });
 
         const encoded = encodeAccessSet(accessSet);
-        // Hash only the stable fields (entitlements, flags, plan) — not computedAt
+        // Hash only the stable fields (entitlements, flags, plan, plans) — not computedAt
         const hashPayload = {
           entitlements: encoded.entitlements,
           flags: encoded.flags,
           plan: encoded.plan,
+          plans: encoded.plans,
         };
         const hash = await sha256Hex(JSON.stringify(hashPayload));
 
