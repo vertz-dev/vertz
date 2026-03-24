@@ -1,3 +1,4 @@
+import { Banner } from '../components/banner';
 import type { DocsConfig, SidebarTab } from '../config/types';
 import type { TocHeading } from '../mdx/extract-headings';
 import type { PageRoute } from '../routing/resolve';
@@ -7,6 +8,7 @@ import {
   SEARCH_PALETTE_SCRIPT,
   SEARCH_PALETTE_STYLES,
 } from '../search/search-palette-script';
+import { renderAnalyticsScript, renderHeadTags } from '../ssg/head-injection';
 import { escapeHtml } from './escape-html';
 
 export interface RenderPageOptions {
@@ -16,6 +18,10 @@ export interface RenderPageOptions {
   headings: TocHeading[];
   /** Set to false to omit the live reload script (e.g. for production SSG builds). */
   liveReload?: boolean;
+  /** If true, page is excluded from search index via data-pagefind-ignore. */
+  hidden?: boolean;
+  /** If true, adds robots noindex meta tag. */
+  noindex?: boolean;
 }
 
 function renderSidebar(sidebar: SidebarTab[], activePath: string): string {
@@ -151,22 +157,33 @@ export function renderPageHtml({
   contentHtml,
   headings,
   liveReload = true,
+  hidden = false,
+  noindex = false,
 }: RenderPageOptions): string {
   const reloadScript = liveReload ? LIVE_RELOAD_SCRIPT : '';
   const searchEnabled = config.search?.enabled === true;
   const searchStyles = searchEnabled ? SEARCH_PALETTE_STYLES : '';
   const searchHtml = searchEnabled ? SEARCH_PALETTE_HTML : '';
   const searchScript = searchEnabled ? SEARCH_PALETTE_SCRIPT : '';
+  const noindexMeta = noindex ? '<meta name="robots" content="noindex" />\n' : '';
+  const headTags = config.head?.length ? `\n${renderHeadTags(config.head)}` : '';
+  const analyticsScript = config.analytics ? renderAnalyticsScript(config.analytics) : '';
+  const bannerHtml = config.banner
+    ? Banner({ ...config.banner })
+    : '';
+  const pagefindIgnore = hidden ? ' data-pagefind-ignore' : '';
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>${escapeHtml(route.title)} - ${escapeHtml(config.name)}</title>
+${noindexMeta}<title>${escapeHtml(route.title)} - ${escapeHtml(config.name)}</title>
 ${BASE_STYLES}
-${searchStyles}
+${searchStyles}${headTags}
+${analyticsScript}
 </head>
-<body>
+<body${pagefindIgnore}>
+${bannerHtml}
 ${renderHeader(config)}
 <div class="docs-layout">
 <aside class="docs-sidebar">${renderSidebar(config.sidebar, route.path)}</aside>
