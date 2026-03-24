@@ -1,10 +1,10 @@
 /**
- * JWT utilities — creation and verification using RS256 asymmetric keys
+ * JWT utilities — creation and verification using asymmetric keys (RS256, ES256)
  */
 
 import type { KeyObject } from 'node:crypto';
 import * as jose from 'jose';
-import type { AuthUser, SessionPayload } from './types';
+import type { AuthUser, JWTAlgorithm, SessionPayload } from './types';
 
 export function parseDuration(duration: string | number): number {
   if (typeof duration === 'number') return duration;
@@ -22,6 +22,8 @@ export function parseDuration(duration: string | number): number {
 }
 
 export interface CreateJWTOptions {
+  /** JWT signing algorithm. Defaults to 'RS256'. */
+  algorithm?: JWTAlgorithm;
   claims?: (user: AuthUser) => Record<string, unknown>;
   issuer?: string;
   audience?: string;
@@ -33,6 +35,7 @@ export async function createJWT(
   ttl: number,
   options?: CreateJWTOptions,
 ): Promise<string> {
+  const alg = options?.algorithm ?? 'RS256';
   const claims = options?.claims ? options.claims(user) : {};
 
   const builder = new jose.SignJWT({
@@ -41,7 +44,7 @@ export async function createJWT(
     role: user.role,
     ...claims,
   })
-    .setProtectedHeader({ alg: 'RS256' })
+    .setProtectedHeader({ alg })
     .setIssuedAt()
     .setExpirationTime(`${Math.floor(ttl / 1000)}s`);
 
@@ -56,6 +59,8 @@ export async function createJWT(
 }
 
 export interface VerifyJWTOptions {
+  /** JWT signing algorithm to accept. Defaults to 'RS256'. */
+  algorithm?: JWTAlgorithm;
   issuer?: string;
   audience?: string;
 }
@@ -66,8 +71,9 @@ export async function verifyJWT(
   options?: VerifyJWTOptions,
 ): Promise<SessionPayload | null> {
   try {
+    const alg = options?.algorithm ?? 'RS256';
     const { payload } = await jose.jwtVerify(token, publicKey, {
-      algorithms: ['RS256'],
+      algorithms: [alg],
       issuer: options?.issuer,
       audience: options?.audience,
     });

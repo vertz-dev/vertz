@@ -2837,6 +2837,7 @@ export type {
   EmailPasswordConfig,
   EmailVerificationConfig,
   EmailVerificationStore,
+  JWTAlgorithm,
   MFAStore,
   MfaChallengeData,
   MfaConfig,

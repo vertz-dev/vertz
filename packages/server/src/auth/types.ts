@@ -20,6 +20,9 @@ import type { AccessSet } from './access-set';
 
 export type SessionStrategy = 'jwt' | 'database' | 'hybrid';
 
+/** Supported JWT signing algorithms. */
+export type JWTAlgorithm = 'RS256' | 'ES256';
+
 export interface CookieConfig {
   name?: string;
   httpOnly?: boolean;
@@ -36,6 +39,8 @@ export interface SessionConfig {
   refreshable?: boolean;
   cookie?: CookieConfig;
   refreshName?: string; // Cookie name for refresh token — defaults to 'vertz.ref'
+  /** JWT signing algorithm. Defaults to 'RS256'. */
+  algorithm?: JWTAlgorithm;
 }
 
 // ============================================================================
