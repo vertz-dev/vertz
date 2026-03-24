@@ -84,11 +84,11 @@ export async function docsDevCommand(
 
     // Keep the process alive until interrupted
     await new Promise<void>((resolve) => {
-      process.on('SIGINT', () => {
+      process.once('SIGINT', () => {
         server.stop();
         resolve();
       });
-      process.on('SIGTERM', () => {
+      process.once('SIGTERM', () => {
         server.stop();
         resolve();
       });

@@ -1,4 +1,5 @@
 import { parseFrontmatter } from '../mdx/frontmatter';
+import { escapeHtml } from './escape-html';
 
 const VOID_ELEMENTS = new Set([
   'area',
@@ -16,14 +17,6 @@ const VOID_ELEMENTS = new Set([
   'track',
   'wbr',
 ]);
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 function childrenToString(children: unknown): string {
   if (children == null || children === false || children === true) return '';

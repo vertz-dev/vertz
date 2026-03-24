@@ -2,20 +2,13 @@ import type { DocsConfig, SidebarTab } from '../config/types';
 import type { TocHeading } from '../mdx/extract-headings';
 import type { PageRoute } from '../routing/resolve';
 import { filePathToTitle, filePathToUrlPath } from '../routing/resolve';
+import { escapeHtml } from './escape-html';
 
 export interface RenderPageOptions {
   config: DocsConfig;
   route: PageRoute;
   contentHtml: string;
   headings: TocHeading[];
-}
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 function renderSidebar(sidebar: SidebarTab[], activePath: string): string {

@@ -4,6 +4,7 @@ import { loadDocsConfig } from '../config/load';
 import { extractHeadings } from '../mdx/extract-headings';
 import { type PageRoute, resolveRoutes } from '../routing/resolve';
 import { compileMdxToHtml } from './compile-mdx-html';
+import { escapeHtml } from './escape-html';
 import { renderPageHtml } from './render-page-html';
 
 export interface DocsDevServerOptions {
@@ -44,12 +45,14 @@ export async function createDocsDevServer(options: DocsDevServerOptions): Promis
 
       // SSE endpoint for live reload
       if (pathname === '/__docs_reload') {
+        let streamController: ReadableStreamDefaultController<Uint8Array>;
         const stream = new ReadableStream<Uint8Array>({
           start(controller) {
+            streamController = controller;
             sseClients.add(controller);
           },
-          cancel(controller) {
-            sseClients.delete(controller);
+          cancel() {
+            sseClients.delete(streamController);
           },
         });
         return new Response(stream, {
@@ -69,6 +72,12 @@ export async function createDocsDevServer(options: DocsDevServerOptions): Promis
 
       try {
         const mdxPath = resolve(pagesDir, route.filePath);
+
+        // Guard against path traversal
+        if (!mdxPath.startsWith(pagesDir)) {
+          return new Response('Forbidden', { status: 403 });
+        }
+
         const source = readFileSync(mdxPath, 'utf-8');
         const contentHtml = await compileMdxToHtml(source);
         const headings = extractHeadings(source);
@@ -79,7 +88,7 @@ export async function createDocsDevServer(options: DocsDevServerOptions): Promis
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        return new Response(`<h1>Error</h1><pre>${message}</pre>`, {
+        return new Response(`<h1>Error</h1><pre>${escapeHtml(message)}</pre>`, {
           status: 500,
           headers: { 'content-type': 'text/html' },
         });
