@@ -1,5 +1,6 @@
 import type { AppBuilder, AppConfig, EntityRouteEntry } from '@vertz/core';
 import { createServer as coreCreateServer } from '@vertz/core';
+import type { ResolvedMiddleware } from '@vertz/core/internals';
 import {
   createDatabaseBridgeAdapter,
   type DatabaseClient,
@@ -295,6 +296,21 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
     config = { ...config, entities: flattenedEntities, services: flattenedServices };
   }
 
+  // Resolve domain middleware: NamedMiddlewareDef[] → ResolvedMiddleware[] per domain
+  const domainMiddlewareMap = new Map<string, ResolvedMiddleware[]>();
+  if (config.domains) {
+    for (const domainDef of config.domains) {
+      if (domainDef.middleware.length > 0) {
+        const resolved: ResolvedMiddleware[] = domainDef.middleware.map((mw) => ({
+          name: mw.name,
+          handler: mw.handler,
+          resolvedInject: {},
+        }));
+        domainMiddlewareMap.set(domainDef.name, resolved);
+      }
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Auth model validation — when both db (DatabaseClient) and auth are provided
   // ---------------------------------------------------------------------------
@@ -436,6 +452,13 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
         accessConfig: crudAccessConfig,
         tenantResourceType,
       });
+      // Attach domain middleware to generated routes
+      const domainMw = domainName ? domainMiddlewareMap.get(domainName) : undefined;
+      if (domainMw) {
+        for (const route of routes) {
+          route.middlewares = domainMw;
+        }
+      }
       allRoutes.push(...routes);
     }
   }
@@ -446,6 +469,13 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
       const domainName = serviceDomainMap.get(serviceDef.name);
       const serviceApiPrefix = domainName ? `${apiPrefix}/${domainName}` : apiPrefix;
       const routes = generateServiceRoutes(serviceDef, registry, { apiPrefix: serviceApiPrefix });
+      // Attach domain middleware to generated routes
+      const domainMw = domainName ? domainMiddlewareMap.get(domainName) : undefined;
+      if (domainMw) {
+        for (const route of routes) {
+          route.middlewares = domainMw;
+        }
+      }
       allRoutes.push(...routes);
     }
   }
