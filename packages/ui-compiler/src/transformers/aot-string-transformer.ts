@@ -173,6 +173,7 @@ export class AotStringTransformer {
   private _findReturnJsx(bodyNode: Node): Node | null {
     const returnStmts = bodyNode.getDescendantsOfKind(SyntaxKind.ReturnStatement);
     for (const ret of returnStmts) {
+      if (isInNestedFunction(ret, bodyNode)) continue;
       const expr = ret.getExpression();
       if (!expr) continue;
       const jsx = this._findJsx(expr);
@@ -270,6 +271,9 @@ export class AotStringTransformer {
   /**
    * Analyze a set of JSX return statements for the guard pattern:
    * one or more if-guarded early returns followed by an unconditional main return.
+   *
+   * Only handles flat guard patterns (no nested ifs). Each guard return must be
+   * a direct child of a top-level if-statement in the function body.
    */
   private _analyzeGuardPattern(
     returnsWithJsx: Node[],
@@ -284,18 +288,28 @@ export class AotStringTransformer {
       const ifStmt = this._findEnclosingIf(ret, bodyNode);
       if (!ifStmt) return null;
 
-      // IfStatement children: IfKeyword, OpenParen, condition, CloseParen, thenStmt, ...
+      // Reject nested if-guards: the enclosing if must not itself be inside another if
+      const outerIf = this._findEnclosingIf(ifStmt, bodyNode);
+      if (outerIf) return null;
+
+      // IfStatement children: IfKeyword, OpenParen, condition, CloseParen, thenStmt, [ElseKeyword, elseStmt]
       const children = ifStmt.getChildren();
       const condition = children[2];
       if (!condition) return null;
 
+      // Determine if the return is in the then-branch or else-branch
+      const isElseBranch = this._isInElseBranch(ret, ifStmt);
+
       const condText = s.slice(condition.getStart(), condition.getEnd());
+      // If the return is in the else-branch, negate the condition
+      const guardCondition = isElseBranch ? `!(${condText})` : condText;
+
       const retExpr = (ret as ReturnStatement).getExpression();
       if (!retExpr) return null;
       const jsx = this._findJsx(retExpr);
       if (!jsx) return null;
 
-      guards.push({ condition: condText, jsx });
+      guards.push({ condition: guardCondition, jsx });
     }
 
     // Last return is the main (unconditional) return
@@ -320,6 +334,23 @@ export class AotStringTransformer {
       current = current.getParent();
     }
     return null;
+  }
+
+  /** Check if a return statement is in the else-branch of its enclosing if. */
+  private _isInElseBranch(returnNode: Node, ifStmt: Node): boolean {
+    // Walk up from the return to the if-statement, checking if we pass through an else clause
+    let current = returnNode.getParent();
+    while (current && current !== ifStmt) {
+      // Check if `current` is the else clause of the if-statement
+      const parent = current.getParent();
+      if (parent === ifStmt) {
+        // IfStatement children: IfKeyword(0), OpenParen(1), condition(2), CloseParen(3), thenStmt(4), [ElseKeyword(5), elseStmt(6)]
+        const children = ifStmt.getChildren();
+        return children.length > 5 && current === children[6];
+      }
+      current = parent;
+    }
+    return false;
   }
 
   /**

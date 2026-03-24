@@ -684,10 +684,19 @@ export default function F() {
 
           expect(result.code).toContain('__ssr_F');
           const aotFn = extractAotFn(result.code, '__ssr_F');
-          // Both branches should appear in the AOT function
           expect(aotFn).toContain('Loading');
           expect(aotFn).toContain('d.name');
           expect(aotFn).toContain('<!--conditional-->');
+
+          // Runtime correctness: loading branch
+          const loadingHtml = evalAot(result.code, '__ssr_F', { d: null });
+          expect(loadingHtml).toContain('<!--conditional-->');
+          expect(loadingHtml).toContain('Loading');
+
+          // Runtime correctness: main branch
+          const mainHtml = evalAot(result.code, '__ssr_F', { d: { name: 'Test' } });
+          expect(mainHtml).toContain('Test');
+          expect(mainHtml).not.toContain('Loading');
         });
       });
     });
@@ -741,6 +750,15 @@ export default function F() {
           expect(aotFn).toContain('<!--conditional-->');
           expect(aotFn).toContain('Loading');
           expect(aotFn).toContain('d.name');
+
+          // Runtime correctness: true branch
+          const trueHtml = evalAot(result.code, '__ssr_F', { d: { name: 'World' } });
+          expect(trueHtml).toContain('World');
+          expect(trueHtml).not.toContain('Loading');
+
+          // Runtime correctness: false branch
+          const falseHtml = evalAot(result.code, '__ssr_F', { d: null });
+          expect(falseHtml).toContain('Loading');
         });
       });
     });
@@ -784,6 +802,15 @@ export default function F({ show }: { show: boolean }) {
           expect(result.components).toHaveLength(1);
           expect(result.components[0]!.tier).toBe('conditional');
           expect(result.code).toContain('__ssr_F');
+
+          const htmlShow = evalAot(result.code, '__ssr_F', { __props: { show: true }, show: true });
+          expect(htmlShow).toContain('Content');
+
+          const htmlHide = evalAot(result.code, '__ssr_F', {
+            __props: { show: false },
+            show: false,
+          });
+          expect(htmlHide).not.toContain('Content');
         });
       });
     });
@@ -802,6 +829,110 @@ function Comp({ loading }: { loading: boolean }) {
 
           expect(result.components[0]!.tier).toBe('conditional');
           expect(result.code).toContain('__ssr_Comp');
+
+          const loadingHtml = evalAot(result.code, '__ssr_Comp', {
+            __props: { loading: true },
+            loading: true,
+          });
+          expect(loadingHtml).toContain('Loading...');
+
+          const contentHtml = evalAot(result.code, '__ssr_Comp', {
+            __props: { loading: false },
+            loading: false,
+          });
+          expect(contentHtml).toContain('Content');
+        });
+      });
+    });
+
+    describe('Given multiple guard returns (2+ if-return guards)', () => {
+      describe('When compileForSSRAot processes the file', () => {
+        it('Then generates a nested ternary for all guards', () => {
+          const result = compileForSSRAot(
+            `
+function Comp({ status }: { status: string }) {
+  if (status === 'loading') return <div>Loading...</div>;
+  if (status === 'error') return <div>Error!</div>;
+  return <div>Content</div>;
+}
+            `.trim(),
+          );
+
+          expect(result.components[0]!.tier).toBe('conditional');
+          expect(result.code).toContain('__ssr_Comp');
+
+          const loadingHtml = evalAot(result.code, '__ssr_Comp', {
+            __props: { status: 'loading' },
+            status: 'loading',
+          });
+          expect(loadingHtml).toContain('Loading...');
+
+          const errorHtml = evalAot(result.code, '__ssr_Comp', {
+            __props: { status: 'error' },
+            status: 'error',
+          });
+          expect(errorHtml).toContain('Error!');
+
+          const contentHtml = evalAot(result.code, '__ssr_Comp', {
+            __props: { status: 'ok' },
+            status: 'ok',
+          });
+          expect(contentHtml).toContain('Content');
+        });
+      });
+    });
+
+    describe('Given nested if-guards', () => {
+      describe('When compileForSSRAot processes the file', () => {
+        it('Then falls back to runtime-fallback (not safe to flatten)', () => {
+          const result = compileForSSRAot(
+            `
+function Comp({ a, b }: { a: boolean; b: boolean }) {
+  if (a) {
+    if (b) return <div>Both</div>;
+    return <div>Only A</div>;
+  }
+  return <div>None</div>;
+}
+            `.trim(),
+          );
+
+          expect(result.components[0]!.tier).toBe('runtime-fallback');
+        });
+      });
+    });
+
+    describe('Given a guard return in the else-branch', () => {
+      describe('When compileForSSRAot processes the file', () => {
+        it('Then negates the condition correctly', () => {
+          const result = compileForSSRAot(
+            `
+function Comp({ data }: { data: any }) {
+  if (data) {
+    // process
+  } else {
+    return <div>No data</div>;
+  }
+  return <div>Has data</div>;
+}
+            `.trim(),
+          );
+
+          expect(result.components[0]!.tier).toBe('conditional');
+
+          // data is falsy → "No data"
+          const noDataHtml = evalAot(result.code, '__ssr_Comp', {
+            __props: { data: null },
+            data: null,
+          });
+          expect(noDataHtml).toContain('No data');
+
+          // data is truthy → "Has data"
+          const hasDataHtml = evalAot(result.code, '__ssr_Comp', {
+            __props: { data: { x: 1 } },
+            data: { x: 1 },
+          });
+          expect(hasDataHtml).toContain('Has data');
         });
       });
     });
