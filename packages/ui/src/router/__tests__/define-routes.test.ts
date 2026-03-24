@@ -139,6 +139,22 @@ describe('matchRoute', () => {
     expect(match?.searchParams.get('sort')).toBe('name');
   });
 
+  test('search contains raw string params when no schema is defined', () => {
+    const routes = defineRoutes({
+      '/users': { component: () => document.createElement('div') },
+    });
+    const match = matchRoute(routes, '/users?page=3&sort=name');
+    expect(match?.search).toEqual({ page: '3', sort: 'name' });
+  });
+
+  test('search is empty when URL has no query params', () => {
+    const routes = defineRoutes({
+      '/users': { component: () => document.createElement('div') },
+    });
+    const match = matchRoute(routes, '/users');
+    expect(match?.search).toEqual({});
+  });
+
   test('matches route with error component', () => {
     const errorComp = ({ error }: { error: Error; retry: () => void }) =>
       document.createElement('div');

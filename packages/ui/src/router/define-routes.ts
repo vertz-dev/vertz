@@ -208,11 +208,13 @@ export function matchRoute(routes: CompiledRoute[], url: string): RouteMatch | n
     }
   }
 
-  // Parse search params through schema if the leaf route has one
+  // Parse search params through schema if any matched route has one,
+  // otherwise fall back to raw string key-value pairs from the URL.
   let search: Record<string, unknown> = {};
-  // Walk matched routes to find a searchParams schema
+  let foundSchema = false;
   for (const m of matched) {
     if (m.route.searchParams) {
+      foundSchema = true;
       const raw: Record<string, string> = {};
       for (const [key, value] of searchParams.entries()) {
         raw[key] = value;
@@ -222,6 +224,11 @@ export function matchRoute(routes: CompiledRoute[], url: string): RouteMatch | n
         search = parseResult.data as Record<string, unknown>;
       }
       break;
+    }
+  }
+  if (!foundSchema) {
+    for (const [key, value] of searchParams.entries()) {
+      search[key] = value;
     }
   }
 

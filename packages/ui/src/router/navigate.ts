@@ -19,6 +19,8 @@ import type {
 import { matchRoute } from './define-routes';
 import { executeLoaders } from './loader';
 import type { ExtractParams, RoutePattern } from './params';
+import type { ReactiveSearchParams } from './reactive-search-params';
+import { createReactiveSearchParams } from './reactive-search-params';
 import { prefetchNavData as realPrefetchNavData } from './server-nav';
 import type { ViewTransitionConfig } from './view-transitions';
 import { withViewTransition } from './view-transitions';
@@ -112,6 +114,8 @@ export interface Router<T extends Record<string, RouteConfigLike> = RouteDefinit
   loaderError: Signal<Error | null>;
   /** Parsed search params from the current route (reactive signal). */
   searchParams: Signal<Record<string, unknown>>;
+  /** @internal Reactive search params proxy — accessed via useSearchParams(). */
+  _reactiveSearchParams: ReactiveSearchParams;
   /** Navigate to a route pattern, interpolating params and search into the final URL. */
   navigate<TPath extends RoutePattern<T>>(input: NavigateInput<TPath>): Promise<void>;
   /** Re-run all loaders for the current route. */
@@ -254,7 +258,95 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
       return m;
     }
 
+    const ssrSearchParamsSignal = {
+      get value(): Record<string, unknown> {
+        const ctx = getSSRContext();
+        if (ctx) {
+          const m = matchRoute(routes, ctx.url);
+          return m?.search ?? {};
+        }
+        return fallbackMatch?.search ?? {};
+      },
+      peek(): Record<string, unknown> {
+        const ctx = getSSRContext();
+        if (ctx) {
+          const m = matchRoute(routes, ctx.url);
+          return m?.search ?? {};
+        }
+        return fallbackMatch?.search ?? {};
+      },
+      notify() {},
+    } as Signal<Record<string, unknown>>;
+
+    // SSR reactive search params: read-only, throws on write in dev
+    const ssrReactiveSearchParams = new Proxy({} as ReactiveSearchParams, {
+      get(_target, key: string | symbol) {
+        if (key === 'navigate') {
+          return () => {
+            if (process.env.NODE_ENV !== 'production') {
+              throw new Error(
+                'useSearchParams().navigate() is not supported during SSR. ' +
+                  'Use schema defaults for initial values.',
+              );
+            }
+          };
+        }
+        if (typeof key === 'symbol') return undefined;
+        const ctx = getSSRContext();
+        if (ctx) {
+          const m = matchRoute(routes, ctx.url);
+          return m?.search?.[key];
+        }
+        return fallbackMatch?.search?.[key];
+      },
+      set() {
+        if (process.env.NODE_ENV !== 'production') {
+          throw new Error(
+            'useSearchParams() writes are not supported during SSR. ' +
+              'Use schema defaults for initial values.',
+          );
+        }
+        return true;
+      },
+      deleteProperty() {
+        if (process.env.NODE_ENV !== 'production') {
+          throw new Error(
+            'useSearchParams() writes are not supported during SSR. ' +
+              'Use schema defaults for initial values.',
+          );
+        }
+        return true;
+      },
+      ownKeys() {
+        const ctx = getSSRContext();
+        const search = ctx
+          ? (matchRoute(routes, ctx.url)?.search ?? {})
+          : (fallbackMatch?.search ?? {});
+        return Object.keys(search);
+      },
+      getOwnPropertyDescriptor(_target, key: string | symbol) {
+        if (typeof key === 'symbol') return undefined;
+        const ctx = getSSRContext();
+        const search = ctx
+          ? (matchRoute(routes, ctx.url)?.search ?? {})
+          : (fallbackMatch?.search ?? {});
+        const val = search[key];
+        if (val === undefined) return undefined;
+        return { configurable: true, enumerable: true, writable: true, value: val };
+      },
+      has(_target, key: string | symbol) {
+        if (typeof key === 'symbol') return false;
+        if (key === 'navigate') return true;
+        const ctx = getSSRContext();
+        const search = ctx
+          ? (matchRoute(routes, ctx.url)?.search ?? {})
+          : (fallbackMatch?.search ?? {});
+        return key in search;
+      },
+    });
+
     return {
+      _reactiveSearchParams: ssrReactiveSearchParams,
       current: {
         get value(): RouteMatch | null {
           const ctx = getSSRContext();
@@ -272,25 +364,7 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
         },
         notify() {},
       } as Signal<RouteMatch | null>,
-      searchParams: {
-        get value(): Record<string, unknown> {
-          const ctx = getSSRContext();
-          if (ctx) {
-            const m = matchRoute(routes, ctx.url);
-            return m?.search ?? {};
-          }
-          return fallbackMatch?.search ?? {};
-        },
-        peek(): Record<string, unknown> {
-          const ctx = getSSRContext();
-          if (ctx) {
-            const m = matchRoute(routes, ctx.url);
-            return m?.search ?? {};
-          }
-          return fallbackMatch?.search ?? {};
-        },
-        notify() {},
-      } as Signal<Record<string, unknown>>,
+      searchParams: ssrSearchParamsSignal,
       loaderData: { value: [], peek: () => [], notify() {} } as Signal<unknown[]>,
       loaderError: { value: null, peek: () => null, notify() {} } as Signal<Error | null>,
       navigate: () => Promise.resolve(),
@@ -571,9 +645,12 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     }
   }
 
+  const _reactiveSearchParams = createReactiveSearchParams(_searchParams, navigate);
+
   // Cast is safe: the generic only narrows the route pattern and params shape
   // at the type level. At runtime, navigate receives plain strings and objects.
   return {
+    _reactiveSearchParams,
     current,
     dispose,
     loaderData,
