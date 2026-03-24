@@ -1,6 +1,6 @@
 import type { AppBuilder, AppConfig, EntityRouteEntry } from '@vertz/core';
 import { createServer as coreCreateServer } from '@vertz/core';
-import type { ResolvedMiddleware } from '@vertz/core/internals';
+import { type ResolvedMiddleware, runMiddlewareChain } from '@vertz/core/internals';
 import {
   createDatabaseBridgeAdapter,
   type DatabaseClient,
@@ -463,11 +463,17 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
         accessConfig: crudAccessConfig,
         tenantResourceType,
       });
-      // Attach domain middleware to generated routes
+      // Wrap handlers with domain middleware
       const domainMw = domainName ? domainMiddlewareMap.get(domainName) : undefined;
       if (domainMw) {
         for (const route of routes) {
-          route.middlewares = domainMw;
+          const originalHandler = route.handler;
+          const mw = domainMw;
+          route.handler = async (ctx: Record<string, unknown>) => {
+            const mwState = await runMiddlewareChain(mw, ctx);
+            if (Object.keys(mwState).length === 0) return originalHandler(ctx);
+            return originalHandler({ ...ctx, ...mwState });
+          };
         }
       }
       allRoutes.push(...routes);
@@ -480,11 +486,17 @@ export function createServer(config: ServerConfig): AppBuilder | ServerInstance 
       const domainName = serviceDomainMap.get(serviceDef.name);
       const serviceApiPrefix = domainName ? `${apiPrefix}/${domainName}` : apiPrefix;
       const routes = generateServiceRoutes(serviceDef, registry, { apiPrefix: serviceApiPrefix });
-      // Attach domain middleware to generated routes
+      // Wrap handlers with domain middleware
       const domainMw = domainName ? domainMiddlewareMap.get(domainName) : undefined;
       if (domainMw) {
         for (const route of routes) {
-          route.middlewares = domainMw;
+          const originalHandler = route.handler;
+          const mw = domainMw;
+          route.handler = async (ctx: Record<string, unknown>) => {
+            const mwState = await runMiddlewareChain(mw, ctx);
+            if (Object.keys(mwState).length === 0) return originalHandler(ctx);
+            return originalHandler({ ...ctx, ...mwState });
+          };
         }
       }
       allRoutes.push(...routes);

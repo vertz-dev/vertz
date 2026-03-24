@@ -35,8 +35,6 @@ export interface EntityRouteEntry {
   headersSchema?: SchemaLike;
   responseSchema?: SchemaLike;
   errorsSchema?: Record<number, SchemaLike>;
-  /** Optional route-level middleware (e.g., domain middleware). Runs after global middleware. */
-  middlewares?: import('../middleware/middleware-runner').ResolvedMiddleware[];
 }
 
 export interface AppConfig {

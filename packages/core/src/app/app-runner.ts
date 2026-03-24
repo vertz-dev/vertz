@@ -130,7 +130,7 @@ export function buildHandler(
         handler: route.handler as (ctx: HandlerCtx) => unknown,
         options: {},
         services: {},
-        middlewares: route.middlewares ?? [],
+        middlewares: [],
         paramsSchema: route.paramsSchema,
         bodySchema: route.bodySchema,
         querySchema: route.querySchema,
