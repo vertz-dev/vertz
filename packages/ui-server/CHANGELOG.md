@@ -1,5 +1,16 @@
 # @vertz/ui-server
 
+## 0.2.27
+
+### Patch Changes
+
+- [#1770](https://github.com/vertz-dev/vertz/pull/1770) [`c40f504`](https://github.com/vertz-dev/vertz/commit/c40f5048e8ec551318f8daf4b98349c590c11553) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui-server): populate entitlements in toPrefetchSession from access set
+
+- Updated dependencies []:
+  - @vertz/core@0.2.27
+  - @vertz/ui@0.2.27
+  - @vertz/ui-compiler@0.2.27
+
 ## 0.2.26
 
 ### Patch Changes
