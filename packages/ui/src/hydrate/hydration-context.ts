@@ -344,8 +344,10 @@ function findUnclaimedNodes(root: Element, claimed: WeakSet<Node>): Node[] {
         claimed.has(child) &&
         (child as Comment).data.trim() === 'child'
       ) {
-        // Skip all following siblings until <!--/child--> end marker,
-        // the next <!--child--> comment, or end of parent.
+        // Skip all following siblings until <!--/child--> end marker (if
+        // present), the next <!--child--> comment, or end of parent.
+        // Note: hydration cleanup removes <!--/child--> from the DOM, so
+        // in practice the skip relies on the next <!--child--> boundary.
         child = child.nextSibling;
         while (child) {
           if (child.nodeType === Node.COMMENT_NODE) {

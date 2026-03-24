@@ -177,6 +177,16 @@ export function __child(
   if (getIsHydrating()) {
     const claimed = claimComment();
     if (claimed) {
+      if (
+        typeof process !== 'undefined' &&
+        process.env.NODE_ENV !== 'production' &&
+        claimed.data.trim() !== 'child'
+      ) {
+        console.warn(
+          `[hydrate] __child expected <!--child--> but claimed <!--${claimed.data}-->. ` +
+            'Cursor may be misaligned.',
+        );
+      }
       const anchor = claimed as unknown as Node;
       const managed: Node[] = [];
       const childCleanups = { value: [] as DisposeFn[] };
