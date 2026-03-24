@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it, spyOn } from 'bun:test';
 import { computeDiff } from '../differ';
 import type { SchemaSnapshot } from '../snapshot';
 
@@ -699,5 +699,108 @@ describe('computeDiff', () => {
     expect(rename?.newColumn).toBe('fullName');
     expect(rename?.table).toBe('users');
     expect(rename?.confidence).toBeGreaterThan(0);
+  });
+});
+
+describe('composite primary key changes', () => {
+  it('warns when primary key flag changes on a column', () => {
+    const before: SchemaSnapshot = {
+      version: 1,
+      tables: {
+        items: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: false, unique: false },
+            name: { type: 'text', nullable: false, primary: false, unique: false },
+          },
+          indexes: [],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+      enums: {},
+    };
+
+    const after: SchemaSnapshot = {
+      version: 1,
+      tables: {
+        items: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: true, unique: false },
+            name: { type: 'text', nullable: false, primary: false, unique: false },
+          },
+          indexes: [],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+      enums: {},
+    };
+
+    const warnSpy = spyOn(console, 'warn');
+    const result = computeDiff(before, after);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Primary key change detected'));
+    // PK-only change should NOT emit a column_altered diff (no SQL generated)
+    expect(result.changes.filter((c) => c.type === 'column_altered')).toEqual([]);
+    warnSpy.mockRestore();
+  });
+
+  it('does NOT warn when primary flag stays the same', () => {
+    const before: SchemaSnapshot = {
+      version: 1,
+      tables: {
+        items: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: true, unique: false },
+          },
+          indexes: [],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+      enums: {},
+    };
+
+    const after: SchemaSnapshot = {
+      version: 1,
+      tables: {
+        items: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: true, unique: false },
+          },
+          indexes: [],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+      enums: {},
+    };
+
+    const warnSpy = spyOn(console, 'warn');
+    computeDiff(before, after);
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it('detects addition of table with composite PK', () => {
+    const before = emptySnapshot();
+    const after: SchemaSnapshot = {
+      version: 1,
+      tables: {
+        tenant_members: {
+          columns: {
+            tenantId: { type: 'uuid', nullable: false, primary: true, unique: false },
+            userId: { type: 'uuid', nullable: false, primary: true, unique: false },
+            role: { type: 'text', nullable: false, primary: false, unique: false },
+          },
+          indexes: [],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+      enums: {},
+    };
+
+    const result = computeDiff(before, after);
+    expect(result.changes).toEqual([{ type: 'table_added', table: 'tenant_members' }]);
   });
 });

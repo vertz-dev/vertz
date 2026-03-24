@@ -17,7 +17,15 @@ import { createModel } from './schema/model';
 import type { SchemaLike } from './schema/model-schemas';
 import type { ManyRelationDef, RelationDef } from './schema/relation';
 import { createManyRelation, createOneRelation } from './schema/relation';
-import type { ColumnRecord, IndexDef, IndexOptions, TableDef, TableOptions } from './schema/table';
+import type {
+  ColumnRecord,
+  IndexDef,
+  IndexOptions,
+  MarkAsPrimary,
+  TableDef,
+  TableOptions,
+  TableOptionsWithPK,
+} from './schema/table';
 import { createIndex, createTable } from './schema/table';
 
 // Duck-typing interface so @vertz/db can accept EnumSchema from @vertz/schema
@@ -59,6 +67,11 @@ export const d: {
     name: TName,
     schema: EnumSchemaLike<TValues>,
   ): ColumnBuilder<TValues[number], EnumMeta<TName, TValues>>;
+  table<TColumns extends ColumnRecord, const TPK extends readonly (keyof TColumns & string)[]>(
+    name: string,
+    columns: TColumns,
+    options: TableOptionsWithPK<TColumns, TPK>,
+  ): TableDef<MarkAsPrimary<TColumns, TPK>>;
   table<TColumns extends ColumnRecord>(
     name: string,
     columns: TColumns,
@@ -156,8 +169,7 @@ export const d: {
       enumValues: values,
     });
   },
-  table: <TColumns extends ColumnRecord>(name: string, columns: TColumns, options?: TableOptions) =>
-    createTable(name, columns, options),
+  table: createTable,
   index: (columns: string | string[], options?: IndexOptions) => createIndex(columns, options),
   ref: {
     one: <TTarget extends TableDef<ColumnRecord>, TFK extends string>(

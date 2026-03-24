@@ -148,7 +148,14 @@ export type { ModelDef } from './schema/model';
 export type { ModelSchemas, SchemaLike } from './schema/model-schemas';
 export { createRegistry } from './schema/registry';
 export type { RelationDef } from './schema/relation';
-export type { IndexDef, IndexOptions, IndexType, TableDef } from './schema/table';
+export type {
+  IndexDef,
+  IndexOptions,
+  IndexType,
+  MarkAsPrimary,
+  TableDef,
+  TableOptionsWithPK,
+} from './schema/table';
 export type {
   AdapterIncludeEntry,
   AdapterIncludeSpec,

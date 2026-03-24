@@ -203,9 +203,7 @@ describe('.tenant()', () => {
   });
 
   it('throws when called on a .shared() table', () => {
-    const shared = d
-      .table('shared_items', { id: d.uuid().primary(), name: d.text() })
-      .shared();
+    const shared = d.table('shared_items', { id: d.uuid().primary(), name: d.text() }).shared();
 
     expect(() => shared.tenant()).toThrow(/already marked as \.shared\(\)/);
   });
@@ -213,11 +211,144 @@ describe('.tenant()', () => {
 
 describe('.shared() / .tenant() mutual exclusion', () => {
   it('throws when .shared() is called on a .tenant() table', () => {
-    const tenant = d
-      .table('orgs', { id: d.uuid().primary(), name: d.text() })
-      .tenant();
+    const tenant = d.table('orgs', { id: d.uuid().primary(), name: d.text() }).tenant();
 
     expect(() => tenant.shared()).toThrow(/already marked as \.tenant\(\)/);
+  });
+});
+
+describe('composite primary keys', () => {
+  it('stores _primaryKey with the specified columns', () => {
+    const tenantMembers = d.table(
+      'tenant_members',
+      {
+        tenantId: d.uuid(),
+        userId: d.uuid(),
+        role: d.text().default('member'),
+      },
+      { primaryKey: ['tenantId', 'userId'] },
+    );
+
+    expect(tenantMembers._primaryKey).toEqual(['tenantId', 'userId']);
+  });
+
+  it('marks PK columns as primary: true in metadata', () => {
+    const tenantMembers = d.table(
+      'tenant_members',
+      {
+        tenantId: d.uuid(),
+        userId: d.uuid(),
+        role: d.text().default('member'),
+      },
+      { primaryKey: ['tenantId', 'userId'] },
+    );
+
+    expect(tenantMembers._columns.tenantId._meta.primary).toBe(true);
+    expect(tenantMembers._columns.userId._meta.primary).toBe(true);
+    expect(tenantMembers._columns.role._meta.primary).toBe(false);
+  });
+
+  it('does NOT set hasDefault on composite PK columns', () => {
+    const tenantMembers = d.table(
+      'tenant_members',
+      {
+        tenantId: d.uuid(),
+        userId: d.uuid(),
+        role: d.text().default('member'),
+      },
+      { primaryKey: ['tenantId', 'userId'] },
+    );
+
+    expect(tenantMembers._columns.tenantId._meta.hasDefault).toBe(false);
+    expect(tenantMembers._columns.userId._meta.hasDefault).toBe(false);
+  });
+
+  it('preserves hasDefault on composite PK column with .default()', () => {
+    const events = d.table(
+      'events',
+      {
+        tenantId: d.uuid(),
+        eventDate: d.timestamp().default('now'),
+        name: d.text(),
+      },
+      { primaryKey: ['tenantId', 'eventDate'] },
+    );
+
+    expect(events._columns.tenantId._meta.hasDefault).toBe(false);
+    expect(events._columns.eventDate._meta.hasDefault).toBe(true);
+    expect(events._columns.eventDate._meta.primary).toBe(true);
+  });
+
+  it('leaves non-PK columns unchanged', () => {
+    const tenantMembers = d.table(
+      'tenant_members',
+      {
+        tenantId: d.uuid(),
+        userId: d.uuid(),
+        role: d.text().default('member'),
+      },
+      { primaryKey: ['tenantId', 'userId'] },
+    );
+
+    expect(tenantMembers._columns.role._meta.hasDefault).toBe(true);
+    expect(tenantMembers._columns.role._meta.defaultValue).toBe('member');
+  });
+
+  it('throws when both .primary() and primaryKey are used', () => {
+    expect(() =>
+      d.table(
+        'bad',
+        {
+          id: d.uuid().primary(),
+          name: d.text(),
+        },
+        { primaryKey: ['id', 'name'] },
+      ),
+    ).toThrow(/Cannot use both/);
+  });
+
+  it('throws when primaryKey is an empty array', () => {
+    expect(() =>
+      d.table(
+        'bad',
+        {
+          tenantId: d.uuid(),
+          userId: d.uuid(),
+        },
+        { primaryKey: [] as any },
+      ),
+    ).toThrow(/at least one column/);
+  });
+
+  it('throws when primaryKey references non-existent column', () => {
+    expect(() =>
+      d.table(
+        'bad',
+        {
+          tenantId: d.uuid(),
+          userId: d.uuid(),
+        },
+        { primaryKey: ['tenantId', 'nonExistent'] as any },
+      ),
+    ).toThrow(/does not exist/);
+  });
+
+  it('derives _primaryKey from single .primary() column', () => {
+    const users = d.table('users', {
+      id: d.uuid().primary(),
+      name: d.text(),
+    });
+
+    expect(users._primaryKey).toEqual(['id']);
+  });
+
+  it('sets _primaryKey to empty array when no PK is defined', () => {
+    const noPk = d.table('no_pk', {
+      name: d.text(),
+      value: d.text(),
+    });
+
+    expect(noPk._primaryKey).toEqual([]);
   });
 });
 
