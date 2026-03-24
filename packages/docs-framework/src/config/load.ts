@@ -13,7 +13,8 @@ export async function loadDocsConfig(projectDir: string): Promise<DocsConfig> {
     throw new Error(`No vertz.config.ts found in ${projectDir}`);
   }
 
-  const mod = await import(configPath);
+  // Append timestamp query to bust Bun's module cache
+  const mod = await import(`${configPath}?t=${Date.now()}`);
   const config: DocsConfig = mod.default ?? mod;
 
   return config;

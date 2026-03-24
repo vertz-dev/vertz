@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
-import { generateLlmsTxt } from '../generator/llm-index';
 import type { LlmConfig } from '../config/types';
+import { generateLlmsTxt } from '../generator/llm-index';
 import type { PageRoute } from '../routing/resolve';
 
 function makeRoute(overrides: Partial<PageRoute> & { path: string; title: string }): PageRoute {

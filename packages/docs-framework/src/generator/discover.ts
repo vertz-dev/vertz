@@ -15,7 +15,7 @@ export interface DiscoveredPage {
 export async function discoverPages(pagesDir: string): Promise<DiscoveredPage[]> {
   let entries: Dirent[];
   try {
-    entries = await readdir(pagesDir, { recursive: true, withFileTypes: true }) as Dirent[];
+    entries = (await readdir(pagesDir, { recursive: true, withFileTypes: true })) as Dirent[];
   } catch {
     return [];
   }

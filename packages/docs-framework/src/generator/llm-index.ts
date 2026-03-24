@@ -14,11 +14,7 @@ function toLlmPath(urlPath: string): string {
  * Generate the `llms.txt` index file content.
  * Lists all documentation pages with links to their LLM-friendly markdown versions.
  */
-export function generateLlmsTxt(
-  routes: PageRoute[],
-  config: LlmConfig,
-  baseUrl: string,
-): string {
+export function generateLlmsTxt(routes: PageRoute[], config: LlmConfig, baseUrl: string): string {
   const lines: string[] = [];
 
   lines.push(`# ${config.title ?? 'Documentation'}`);

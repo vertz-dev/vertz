@@ -1,7 +1,3 @@
-export type { DiscoveredPage } from './generator/discover';
-export { discoverPages } from './generator/discover';
-export type { LlmPage } from './generator/llm-index';
-export { generateLlmsFullTxt, generateLlmsTxt } from './generator/llm-index';
 export { initDocs } from './cli/init';
 export { defineDocsConfig } from './config/define';
 export { loadDocsConfig } from './config/load';
@@ -27,6 +23,12 @@ export type {
   ThemeColors,
   ThemeConfig,
 } from './config/types';
+export type { BuildDocsOptions, BuildManifest, ManifestRoute } from './generator/build-pipeline';
+export { buildDocs } from './generator/build-pipeline';
+export type { DiscoveredPage } from './generator/discover';
+export { discoverPages } from './generator/discover';
+export type { LlmPage } from './generator/llm-index';
+export { generateLlmsFullTxt, generateLlmsTxt } from './generator/llm-index';
 export type { TocHeading } from './mdx/extract-headings';
 export { extractHeadings } from './mdx/extract-headings';
 export { mdxToMarkdown } from './mdx/llm-markdown';
