@@ -99,7 +99,7 @@ jobs:
   check:
     name: Lint, typecheck, test
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     needs: changes
     if: needs.changes.outputs.src == 'true'
 
@@ -117,7 +117,7 @@ jobs:
 
       - name: CI pipeline
         env:
-          TURBO_CONCURRENCY: 3
+          TURBO_CONCURRENCY: 2
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
             bun run ci
