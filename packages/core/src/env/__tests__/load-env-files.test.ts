@@ -73,4 +73,12 @@ describe('loadEnvFiles', () => {
       });
     });
   });
+
+  describe('Given a path that is a directory (not a file)', () => {
+    describe('When calling loadEnvFiles([dirPath])', () => {
+      it('Then throws instead of silently skipping', () => {
+        expect(() => loadEnvFiles([tempDir])).toThrow();
+      });
+    });
+  });
 });

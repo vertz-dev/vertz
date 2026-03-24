@@ -10,8 +10,15 @@ export function loadEnvFiles(filePaths: string[]): Record<string, string> {
     try {
       const content = readFileSync(resolved, 'utf-8');
       Object.assign(result, parseEnvFile(content));
-    } catch {
-      // File doesn't exist — skip silently (.env.local may not exist in CI)
+    } catch (err: unknown) {
+      if (
+        err instanceof Error &&
+        'code' in err &&
+        (err as NodeJS.ErrnoException).code === 'ENOENT'
+      ) {
+        continue;
+      }
+      throw err;
     }
   }
 

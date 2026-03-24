@@ -31,9 +31,13 @@ function parseValue(raw: string): string {
     return trimmed.slice(1, -1);
   }
 
-  // Double-quoted: process escape sequences
+  // Double-quoted: single-pass escape processing
   if (trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length >= 2) {
-    return trimmed.slice(1, -1).replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+    return trimmed.slice(1, -1).replace(/\\([n"\\])/g, (_, c) => {
+      if (c === 'n') return '\n';
+      if (c === '"') return '"';
+      return '\\';
+    });
   }
 
   // Unquoted: strip inline comments (` #`) and trim

@@ -58,6 +58,34 @@ describe('parseEnvFile', () => {
         const content = 'FOO="path\\\\to\\\\file"';
         expect(parseEnvFile(content)).toEqual({ FOO: 'path\\to\\file' });
       });
+
+      it('Then handles escaped backslash before n as literal backslash + n', () => {
+        const content = 'FOO="hello\\\\nworld"';
+        expect(parseEnvFile(content)).toEqual({ FOO: 'hello\\nworld' });
+      });
+
+      it('Then preserves # inside double quotes (not treated as comment)', () => {
+        const content = 'FOO="value # not a comment"';
+        expect(parseEnvFile(content)).toEqual({ FOO: 'value # not a comment' });
+      });
+    });
+  });
+
+  describe('Given a value wrapped in single quotes with #', () => {
+    describe('When calling parseEnvFile()', () => {
+      it('Then preserves # inside single quotes (not treated as comment)', () => {
+        const content = "FOO='value # not a comment'";
+        expect(parseEnvFile(content)).toEqual({ FOO: 'value # not a comment' });
+      });
+    });
+  });
+
+  describe('Given content with Windows line endings', () => {
+    describe('When calling parseEnvFile()', () => {
+      it('Then handles \\r\\n line endings', () => {
+        const content = 'FOO=bar\r\nBAZ=qux\r\n';
+        expect(parseEnvFile(content)).toEqual({ FOO: 'bar', BAZ: 'qux' });
+      });
     });
   });
 
