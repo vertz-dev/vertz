@@ -725,3 +725,32 @@ describe('createConnection (postgres)', () => {
     expect(result.rowCount).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// createConnection — postgres error path
+// ---------------------------------------------------------------------------
+
+describe('createConnection (postgres — real import)', () => {
+  it('creates postgres connection and exercises queryFn and close', async () => {
+    // The postgres package IS available in this monorepo.
+    // It creates a lazy client even for invalid URLs — errors only happen on query.
+    const conn = await createConnection({
+      dialect: 'postgres',
+      url: 'postgres://invalid:5432/nonexistent',
+      schema: '',
+    });
+
+    expect(typeof conn.queryFn).toBe('function');
+    expect(typeof conn.close).toBe('function');
+
+    // Exercise queryFn — will throw because the DB doesn't exist
+    await expect(conn.queryFn('SELECT 1', [])).rejects.toThrow();
+
+    // Exercise close — will fail but shouldn't throw uncaught
+    try {
+      await conn.close();
+    } catch {
+      // Expected — can't gracefully close a connection that never connected
+    }
+  });
+});
