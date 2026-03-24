@@ -140,4 +140,65 @@ describe('Trie', () => {
       trie.add('POST', '/users/:userId', () => 'second');
     }).toThrow(/param name mismatch/i);
   });
+
+  it('returns allowed methods for a param route', () => {
+    const trie = new Trie();
+    trie.add('GET', '/users/:id', () => 'get');
+    trie.add('PUT', '/users/:id', () => 'put');
+
+    const methods = trie.getAllowedMethods('/users/42');
+
+    expect(methods).toEqual(expect.arrayContaining(['GET', 'PUT']));
+    expect(methods).toHaveLength(2);
+  });
+
+  it('returns allowed methods for a wildcard route', () => {
+    const trie = new Trie();
+    trie.add('GET', '/files/*', () => 'get');
+    trie.add('DELETE', '/files/*', () => 'delete');
+
+    const methods = trie.getAllowedMethods('/files/docs/readme.md');
+
+    expect(methods).toEqual(expect.arrayContaining(['GET', 'DELETE']));
+    expect(methods).toHaveLength(2);
+  });
+
+  it('returns null when wildcard route exists but method does not match', () => {
+    const trie = new Trie();
+    trie.add('GET', '/files/*', () => 'get');
+
+    expect(trie.match('POST', '/files/a/b')).toBeNull();
+  });
+
+  it('matches root-level wildcard', () => {
+    const trie = new Trie();
+    const handler = () => 'catch-all';
+    trie.add('GET', '/*', handler);
+
+    const result = trie.match('GET', '/anything/here');
+
+    expect(result).not.toBeNull();
+    expect(result?.handler).toBe(handler);
+    expect(result?.params).toEqual({ '*': 'anything/here' });
+  });
+
+  it('reuses existing param child when same name is registered', () => {
+    const trie = new Trie();
+    trie.add('GET', '/users/:id', () => 'get');
+    trie.add('POST', '/users/:id', () => 'post');
+
+    expect(trie.match('GET', '/users/1')?.params).toEqual({ id: '1' });
+    expect(trie.match('POST', '/users/1')?.params).toEqual({ id: '1' });
+  });
+
+  it('findNode falls through static to param match for getAllowedMethods', () => {
+    const trie = new Trie();
+    trie.add('GET', '/items/special', () => 'static');
+    trie.add('POST', '/items/:id', () => 'param');
+
+    // '/items/123' should match through param since static 'special' doesn't match
+    const methods = trie.getAllowedMethods('/items/123');
+
+    expect(methods).toEqual(['POST']);
+  });
 });

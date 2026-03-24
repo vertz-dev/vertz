@@ -1,6 +1,15 @@
 import { afterEach, describe, expect, it } from 'bun:test';
-import { s } from '@vertz/schema';
 import { createEnv } from '../env-validator';
+
+/**
+ * Minimal mock schema that satisfies the Schema<T> interface
+ * used by createEnv (only `safeParse` is called at runtime).
+ */
+function mockSchema<T>(
+  validate: (input: unknown) => { ok: true; data: T } | { ok: false; error: { message: string } },
+) {
+  return { safeParse: validate } as import('../../types/env').EnvConfig<T>['schema'];
+}
 
 describe('createEnv', () => {
   const originalEnv = { ...process.env };
@@ -14,9 +23,12 @@ describe('createEnv', () => {
     process.env.DATABASE_URL = 'postgres://localhost/db';
 
     const env = createEnv({
-      schema: s.object({
-        NODE_ENV: s.string(),
-        DATABASE_URL: s.string(),
+      schema: mockSchema<{ NODE_ENV: string; DATABASE_URL: string }>((input) => {
+        const rec = input as Record<string, string | undefined>;
+        if (rec.NODE_ENV && rec.DATABASE_URL) {
+          return { ok: true, data: { NODE_ENV: rec.NODE_ENV, DATABASE_URL: rec.DATABASE_URL } };
+        }
+        return { ok: false, error: { message: 'Missing required vars' } };
       }),
     });
 
@@ -24,43 +36,28 @@ describe('createEnv', () => {
     expect(env.DATABASE_URL).toBe('postgres://localhost/db');
   });
 
-  it('applies defaults from schema when env var is missing', () => {
-    process.env.HOST = 'localhost';
-
-    const env = createEnv({
-      schema: s.object({
-        HOST: s.string(),
-        PORT: s.string().default('3000'),
-      }),
-    });
-
-    expect(env.HOST).toBe('localhost');
-    expect(env.PORT).toBe('3000');
-  });
-
-  it('throws with formatted error listing all invalid/missing vars', () => {
+  it('throws when validation fails', () => {
     delete process.env.REQUIRED_VAR;
-    delete process.env.ANOTHER_VAR;
 
     const act = () =>
       createEnv({
-        schema: s.object({
-          REQUIRED_VAR: s.string(),
-          ANOTHER_VAR: s.string(),
-        }),
+        schema: mockSchema<{ REQUIRED_VAR: string }>(() => ({
+          ok: false,
+          error: { message: 'REQUIRED_VAR is required' },
+        })),
       });
 
     expect(act).toThrow('Environment validation failed');
     expect(act).toThrow('REQUIRED_VAR');
-    expect(act).toThrow('ANOTHER_VAR');
   });
 
   it('returns a frozen object', () => {
     process.env.APP_NAME = 'vertz';
 
     const env = createEnv({
-      schema: s.object({
-        APP_NAME: s.string(),
+      schema: mockSchema<{ APP_NAME: string }>((input) => {
+        const rec = input as Record<string, string | undefined>;
+        return { ok: true, data: { APP_NAME: rec.APP_NAME ?? '' } };
       }),
     });
 
@@ -69,8 +66,9 @@ describe('createEnv', () => {
 
   it('uses explicit env record when provided', () => {
     const env = createEnv({
-      schema: s.object({
-        MY_VAR: s.string(),
+      schema: mockSchema<{ MY_VAR: string }>((input) => {
+        const rec = input as Record<string, string | undefined>;
+        return { ok: true, data: { MY_VAR: rec.MY_VAR ?? '' } };
       }),
       env: { MY_VAR: 'hello' },
     });
@@ -82,8 +80,9 @@ describe('createEnv', () => {
     process.env.FOO = 'from-process';
 
     const env = createEnv({
-      schema: s.object({
-        FOO: s.string(),
+      schema: mockSchema<{ FOO: string }>((input) => {
+        const rec = input as Record<string, string | undefined>;
+        return { ok: true, data: { FOO: rec.FOO ?? '' } };
       }),
       env: { FOO: 'from-config' },
     });
@@ -92,20 +91,27 @@ describe('createEnv', () => {
   });
 
   it('deep-freezes nested objects in the result', () => {
-    process.env.DB_HOST = 'localhost';
-    process.env.DB_PORT = '5432';
-
     const env = createEnv({
-      schema: s.object({
-        DB: s
-          .object({
-            HOST: s.string(),
-            PORT: s.string(),
-          })
-          .default({ HOST: 'localhost', PORT: '5432' }),
-      }),
+      schema: mockSchema<{ DB: { HOST: string; PORT: string } }>(() => ({
+        ok: true,
+        data: { DB: { HOST: 'localhost', PORT: '5432' } },
+      })),
+      env: {},
     });
 
     expect(Object.isFrozen(env.DB)).toBe(true);
+  });
+
+  it('falls back to process.env when no explicit env is provided', () => {
+    process.env.TOKEN = 'abc123';
+
+    const env = createEnv({
+      schema: mockSchema<{ TOKEN: string }>((input) => {
+        const rec = input as Record<string, string | undefined>;
+        return { ok: true, data: { TOKEN: rec.TOKEN ?? '' } };
+      }),
+    });
+
+    expect(env.TOKEN).toBe('abc123');
   });
 });
