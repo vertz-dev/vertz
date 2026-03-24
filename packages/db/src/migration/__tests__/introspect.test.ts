@@ -224,24 +224,56 @@ describe('introspectPostgres', () => {
 
     expect(snapshot.tables.users).toBeDefined();
     const cols = snapshot.tables.users?.columns;
-    expect(cols?.id).toEqual({ type: 'uuid', nullable: false, primary: true, unique: false });
-    expect(cols?.name).toEqual({ type: 'text', nullable: false, primary: false, unique: false });
-    expect(cols?.email).toEqual({ type: 'text', nullable: false, primary: false, unique: true });
-    expect(cols?.age).toEqual({ type: 'integer', nullable: true, primary: false, unique: false });
-    expect(cols?.score).toEqual({ type: 'real', nullable: true, primary: false, unique: false });
-    expect(cols?.active).toEqual({
+    expect(cols?.id).toMatchObject({
+      type: 'uuid',
+      nullable: false,
+      primary: true,
+      unique: false,
+      udtName: 'uuid',
+    });
+    expect(cols?.name).toMatchObject({
+      type: 'text',
+      nullable: false,
+      primary: false,
+      unique: false,
+      udtName: 'text',
+    });
+    expect(cols?.email).toMatchObject({
+      type: 'text',
+      nullable: false,
+      primary: false,
+      unique: true,
+      udtName: 'text',
+    });
+    expect(cols?.age).toMatchObject({
+      type: 'integer',
+      nullable: true,
+      primary: false,
+      unique: false,
+      udtName: 'int4',
+    });
+    expect(cols?.score).toMatchObject({
+      type: 'real',
+      nullable: true,
+      primary: false,
+      unique: false,
+      udtName: 'float4',
+    });
+    expect(cols?.active).toMatchObject({
       type: 'boolean',
       nullable: false,
       primary: false,
       unique: false,
       default: 'true',
+      udtName: 'bool',
     });
-    expect(cols?.created_at).toEqual({
+    expect(cols?.created_at).toMatchObject({
       type: 'timestamp with time zone',
       nullable: false,
       primary: false,
       unique: false,
       default: 'now()',
+      udtName: 'timestamptz',
     });
   });
 
@@ -334,6 +366,58 @@ describe('introspectPostgres', () => {
 
     expect(snapshot.enums.status).toEqual(['active', 'inactive', 'pending']);
     expect(snapshot.tables.tasks?.columns?.status?.type).toBe('USER-DEFINED');
+  });
+
+  it('captures udtName for enum columns', async () => {
+    const snapshot = await introspectPostgres(queryFn);
+    expect(snapshot.tables.tasks?.columns?.status?.udtName).toBe('status');
+  });
+
+  it('captures character_maximum_length for varchar columns', async () => {
+    await db.exec(`
+      CREATE TABLE profiles (
+        id uuid PRIMARY KEY,
+        display_name varchar(100) NOT NULL,
+        bio varchar(500)
+      )
+    `);
+
+    const snapshot = await introspectPostgres(queryFn);
+    const cols = snapshot.tables.profiles?.columns;
+    expect(cols?.display_name?.length).toBe(100);
+    expect(cols?.bio?.length).toBe(500);
+  });
+
+  it('captures numeric_precision and numeric_scale for decimal columns', async () => {
+    await db.exec(`
+      CREATE TABLE products (
+        id uuid PRIMARY KEY,
+        price numeric(10, 2) NOT NULL,
+        weight numeric(5, 3)
+      )
+    `);
+
+    const snapshot = await introspectPostgres(queryFn);
+    const cols = snapshot.tables.products?.columns;
+    expect(cols?.price?.precision).toBe(10);
+    expect(cols?.price?.scale).toBe(2);
+    expect(cols?.weight?.precision).toBe(5);
+    expect(cols?.weight?.scale).toBe(3);
+  });
+
+  it('captures udtName for array columns', async () => {
+    await db.exec(`
+      CREATE TABLE tags (
+        id uuid PRIMARY KEY,
+        labels text[] NOT NULL,
+        scores integer[]
+      )
+    `);
+
+    const snapshot = await introspectPostgres(queryFn);
+    const cols = snapshot.tables.tags?.columns;
+    expect(cols?.labels?.udtName).toBe('_text');
+    expect(cols?.scores?.udtName).toBe('_int4');
   });
 });
 

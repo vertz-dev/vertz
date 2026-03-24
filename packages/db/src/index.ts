@@ -109,7 +109,10 @@ export {
 } from './errors';
 export { generateId } from './id';
 // Migration types used by CLI consumers
+export type { CodegenOptions, GeneratedFile } from './migration/codegen';
+export { generateSchemaCode } from './migration/codegen';
 export type { MigrationError } from './migration/index';
+export { introspectPostgres, introspectSqlite } from './migration/introspect';
 export type { MigrationFile, MigrationQueryFn } from './migration/runner';
 export { parseMigrationName } from './migration/runner';
 export type { SchemaSnapshot } from './migration/snapshot';

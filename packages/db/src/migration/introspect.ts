@@ -208,7 +208,8 @@ export async function introspectPostgres(queryFn: MigrationQueryFn): Promise<Sch
 
     // Introspect columns
     const { rows: colRows } = await queryFn(
-      `SELECT column_name, data_type, is_nullable, column_default
+      `SELECT column_name, data_type, is_nullable, column_default,
+              udt_name, character_maximum_length, numeric_precision, numeric_scale
        FROM information_schema.columns
        WHERE table_name = $1 AND table_schema = 'public'
        ORDER BY ordinal_position`,
@@ -228,6 +229,25 @@ export async function introspectPostgres(queryFn: MigrationQueryFn): Promise<Sch
 
       if (col.column_default != null) {
         colSnap.default = String(col.column_default);
+      }
+
+      const udtName = col.udt_name as string | null;
+      if (udtName) {
+        colSnap.udtName = udtName;
+      }
+
+      const charMaxLength = col.character_maximum_length as number | null;
+      if (charMaxLength != null) {
+        colSnap.length = charMaxLength;
+      }
+
+      const numPrecision = col.numeric_precision as number | null;
+      const numScale = col.numeric_scale as number | null;
+      if (numPrecision != null) {
+        colSnap.precision = numPrecision;
+      }
+      if (numScale != null) {
+        colSnap.scale = numScale;
       }
 
       columns[colName] = colSnap;

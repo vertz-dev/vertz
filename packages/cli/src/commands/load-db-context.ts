@@ -51,6 +51,13 @@ export interface DbConnection {
   close: () => Promise<void>;
 }
 
+export interface IntrospectContext {
+  queryFn: MigrationQueryFn;
+  dialect: Dialect;
+  dialectName: 'sqlite' | 'postgres';
+  close: () => Promise<void>;
+}
+
 export async function loadDbContext(): Promise<DbCommandContext> {
   const configPath = resolve(process.cwd(), 'vertz.config.ts');
   const jiti = createJiti(import.meta.url, { interopDefault: true });
@@ -372,6 +379,63 @@ export async function loadAutoMigrateContext(): Promise<AutoMigrateContext> {
     snapshotPath,
     dialect: 'sqlite',
     db: connection.queryFn,
+    close: connection.close,
+  };
+}
+
+/**
+ * Lightweight context for db pull — only needs a DB connection, no schema file.
+ * Supports CLI overrides for zero-config usage (--url/--dialect flags).
+ */
+export async function loadIntrospectContext(overrides?: {
+  url?: string;
+  dialect?: 'sqlite' | 'postgres';
+}): Promise<IntrospectContext> {
+  let dialectName: 'sqlite' | 'postgres';
+  let url: string | undefined;
+
+  if (overrides?.dialect && overrides?.url) {
+    // Zero-config mode: use CLI flags directly
+    dialectName = overrides.dialect;
+    url = overrides.url;
+  } else {
+    // Config mode: load from vertz.config.ts
+    const configPath = resolve(process.cwd(), 'vertz.config.ts');
+    const jiti = createJiti(import.meta.url, { interopDefault: true });
+
+    let configModule: Record<string, unknown>;
+    try {
+      configModule = (await jiti.import(configPath)) as Record<string, unknown>;
+    } catch {
+      try {
+        await access(configPath);
+      } catch {
+        throw new Error(
+          'Could not find vertz.config.ts. Either create it or use --url and --dialect flags.',
+        );
+      }
+      throw new Error('Failed to load vertz.config.ts: check for syntax errors.');
+    }
+
+    const dbConfig = configModule.db as DbConfig | undefined;
+    if (!dbConfig?.dialect) {
+      throw new Error(
+        'No `dialect` found in vertz.config.ts db config. Use --dialect flag instead.',
+      );
+    }
+
+    dialectName = overrides?.dialect ?? dbConfig.dialect;
+    url = overrides?.url ?? dbConfig.url;
+  }
+
+  const dialect: Dialect = dialectName === 'sqlite' ? defaultSqliteDialect : defaultPostgresDialect;
+
+  const connection = await createConnection({ dialect: dialectName, url, schema: '' });
+
+  return {
+    queryFn: connection.queryFn,
+    dialect,
+    dialectName,
     close: connection.close,
   };
 }
