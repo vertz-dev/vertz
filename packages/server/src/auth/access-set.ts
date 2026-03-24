@@ -222,11 +222,18 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
 
         const sub = await subscriptionStore.get(entry.id);
         let planId: string | null = null;
+        // Level-specific default avoids resolveEffectivePlan's hardcoded 'free' fallback
+        // which could pick up a plan from the wrong level
+        const levelDefault = accessDef.defaultPlans?.[entry.type];
         if (sub) {
-          planId = resolveEffectivePlan(sub, accessDef.plans, accessDef.defaultPlans?.[entry.type]);
+          planId = resolveEffectivePlan(
+            sub,
+            accessDef.plans,
+            levelDefault ?? accessDef.defaultPlan ?? 'free',
+          );
         } else {
           // No subscription — use default plan for this level
-          planId = accessDef.defaultPlans?.[entry.type] ?? null;
+          planId = levelDefault ?? null;
         }
 
         resolvedPlans[entry.type] = planId;

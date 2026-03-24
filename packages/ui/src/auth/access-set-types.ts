@@ -18,7 +18,7 @@ export interface DenialMeta {
   requiredPlans?: string[];
   requiredRoles?: string[];
   disabledFlags?: string[];
-  limit?: { max: number; consumed: number; remaining: number };
+  limit?: { key?: string; max: number; consumed: number; remaining: number };
   fvaMaxAge?: number;
 }
 

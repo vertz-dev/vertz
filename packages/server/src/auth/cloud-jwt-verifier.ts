@@ -1,6 +1,6 @@
 import { jwtVerify } from 'jose';
 import type { JWKSClient } from './jwks-client';
-import type { JWTAlgorithm, SessionPayload } from './types';
+import type { AclClaim, JWTAlgorithm, SessionPayload } from './types';
 
 export interface CloudJWTVerifier {
   verify(token: string): Promise<SessionPayload | null>;
@@ -52,6 +52,10 @@ export function createCloudJWTVerifier(options: {
           ...(typeof payload.tenantLevel === 'string' ? { tenantLevel: payload.tenantLevel } : {}),
           ...(payload.claims && typeof payload.claims === 'object'
             ? { claims: payload.claims as Record<string, unknown> }
+            : {}),
+          ...(typeof payload.fva === 'number' ? { fva: payload.fva } : {}),
+          ...(payload.acl && typeof payload.acl === 'object'
+            ? { acl: payload.acl as AclClaim }
             : {}),
         } satisfies SessionPayload;
       } catch (error: unknown) {
