@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it, spyOn } from 'bun:test';
 import { buildProgressiveResponse } from '../ssr-progressive-response';
 import { collectStreamChunks } from '../streaming';
 
@@ -136,6 +136,22 @@ describe('buildProgressiveResponse', () => {
       // Should not hang — collectStreamChunks reads to completion
       const chunks = await collectStreamChunks(response.body!);
       expect(chunks.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('logs the error to the server console', async () => {
+      const spy = spyOn(console, 'error').mockImplementation(() => {});
+
+      const response = buildProgressiveResponse({
+        headChunk: '<head>',
+        renderStream: errorStream([], 'stream failure'),
+        tailChunk: '</body>',
+        ssrData: [],
+      });
+
+      await collectStreamChunks(response.body!);
+
+      expect(spy).toHaveBeenCalledWith('[SSR] Render error after head sent:', 'stream failure');
+      spy.mockRestore();
     });
   });
 

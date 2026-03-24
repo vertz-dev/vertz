@@ -131,6 +131,29 @@ function buildModulepreloadTags(paths: string[]): string {
   return paths.map((p) => `<link rel="modulepreload" href="${escapeAttr(p)}">`).join('\n');
 }
 
+/** Resolve per-route modulepreload tags from matched route patterns. */
+function resolveRouteModulepreload(
+  routeChunkManifest: { routes: Record<string, string[]> } | undefined,
+  matchedPatterns: string[] | undefined,
+  fallback: string | undefined,
+): string | undefined {
+  if (routeChunkManifest && matchedPatterns?.length) {
+    const chunkPaths = new Set<string>();
+    for (const pattern of matchedPatterns) {
+      const chunks = routeChunkManifest.routes[pattern];
+      if (chunks) {
+        for (const chunk of chunks) {
+          chunkPaths.add(chunk);
+        }
+      }
+    }
+    if (chunkPaths.size > 0) {
+      return buildModulepreloadTags([...chunkPaths]);
+    }
+  }
+  return fallback;
+}
+
 export function createSSRHandler(
   options: SSRHandlerOptions,
 ): (request: Request) => Promise<Response> {
@@ -177,6 +200,17 @@ export function createSSRHandler(
   // Note: inlineCSS is already applied to `template` above, so we don't pass it
   // to splitTemplate again — it would double-process the same links.
   const splitResult = progressiveHTML ? splitTemplate(template) : undefined;
+
+  // For progressive path: convert remaining stylesheet <link> tags to async loading.
+  // The buffered path handles this inside injectIntoTemplate() when theme CSS is present.
+  // Progressive path pre-processes at creation time since theme availability is static.
+  if (splitResult && module.theme) {
+    splitResult.headTemplate = splitResult.headTemplate.replace(
+      /<link\s+rel="stylesheet"\s+href="([^"]+)"[^>]*>/g,
+      (match, href) =>
+        `<link rel="stylesheet" href="${href}" media="print" onload="this.media='all'">\n    <noscript>${match}</noscript>`,
+    );
+  }
 
   return async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
@@ -328,21 +362,11 @@ async function handleProgressiveHTMLRequest(
     }
 
     // Per-route modulepreload: resolve from matched route patterns (available after discovery)
-    let modulepreloadTags = staticModulepreloadTags;
-    if (routeChunkManifest && result.matchedRoutePatterns?.length) {
-      const chunkPaths = new Set<string>();
-      for (const pattern of result.matchedRoutePatterns) {
-        const chunks = routeChunkManifest.routes[pattern];
-        if (chunks) {
-          for (const chunk of chunks) {
-            chunkPaths.add(chunk);
-          }
-        }
-      }
-      if (chunkPaths.size > 0) {
-        modulepreloadTags = buildModulepreloadTags([...chunkPaths]);
-      }
-    }
+    const modulepreloadTags = resolveRouteModulepreload(
+      routeChunkManifest,
+      result.matchedRoutePatterns,
+      staticModulepreloadTags,
+    );
 
     // Build head chunk: template head + CSS + modulepreload + session
     // Inject before </head> in the headTemplate
@@ -431,21 +455,11 @@ async function handleHTMLRequest(
     // Per-route modulepreload: if a manifest is available and SSR reported
     // matched patterns, inject only the chunks for those routes.
     // Falls back to the static (all-chunks) tags when no manifest or no match.
-    let modulepreloadTags = staticModulepreloadTags;
-    if (routeChunkManifest && result.matchedRoutePatterns?.length) {
-      const chunkPaths = new Set<string>();
-      for (const pattern of result.matchedRoutePatterns) {
-        const chunks = routeChunkManifest.routes[pattern];
-        if (chunks) {
-          for (const chunk of chunks) {
-            chunkPaths.add(chunk);
-          }
-        }
-      }
-      if (chunkPaths.size > 0) {
-        modulepreloadTags = buildModulepreloadTags([...chunkPaths]);
-      }
-    }
+    const modulepreloadTags = resolveRouteModulepreload(
+      routeChunkManifest,
+      result.matchedRoutePatterns,
+      staticModulepreloadTags,
+    );
 
     // Combine head tags: font preloads + modulepreload links
     const allHeadTags = [result.headTags, modulepreloadTags].filter(Boolean).join('\n');

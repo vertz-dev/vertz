@@ -57,8 +57,9 @@ export function buildProgressiveResponse(options: ProgressiveResponseOptions): R
         renderError = err instanceof Error ? err : new Error(String(err));
       }
 
-      // 3. If render errored, emit in-band error script
+      // 3. If render errored, log and emit in-band error script
       if (renderError) {
+        console.error('[SSR] Render error after head sent:', renderError.message);
         const nonceAttr = nonce != null ? ` nonce="${escapeAttr(nonce)}"` : '';
         const errorScript =
           `<script${nonceAttr}>document.dispatchEvent(new CustomEvent('vertz:ssr-error',` +

@@ -910,5 +910,142 @@ describe('createSSRHandler', () => {
       expect(linkHeader).toContain('</fonts/dm-sans.woff2>');
       expect(linkHeader).toContain('rel=preload');
     });
+
+    it('falls back to buffered rendering when zero-discovery manifest has routeEntries', async () => {
+      const handler = createSSRHandler({
+        module: simpleModule,
+        template,
+        progressiveHTML: true,
+        manifest: {
+          routeEntries: { '/': ['items'] },
+        },
+      });
+
+      const response = await handler(new Request('http://localhost/'));
+
+      // Should be a buffered string response (not streaming), verified by consuming as text
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('Hello World');
+      expect(html).toContain('<!DOCTYPE html>');
+      expect(html).toContain('</html>');
+    });
+
+    it('injects per-route modulepreload tags in the head chunk', async () => {
+      const { createRouter, defineRoutes, RouterView } = await import('@vertz/ui');
+      const routedModule: SSRModule = {
+        default: () => {
+          const routes = defineRoutes({
+            '/': {
+              component: () => {
+                const el = document.createElement('div');
+                el.textContent = 'Home';
+                return el;
+              },
+            },
+            '/about': {
+              component: () => {
+                const el = document.createElement('div');
+                el.textContent = 'About';
+                return el;
+              },
+            },
+          });
+          const router = createRouter(routes, '/');
+          return RouterView({ router });
+        },
+      };
+
+      const handler = createSSRHandler({
+        module: routedModule,
+        template,
+        progressiveHTML: true,
+        routeChunkManifest: {
+          routes: {
+            '/': ['/assets/chunk-home.js'],
+            '/about': ['/assets/chunk-about.js'],
+          },
+        },
+        modulepreload: [
+          '/assets/chunk-home.js',
+          '/assets/chunk-about.js',
+          '/assets/chunk-extra.js',
+        ],
+      });
+
+      const response = await handler(new Request('http://localhost/'));
+      const reader = response.body!.getReader();
+      const { value } = await reader.read();
+      const firstChunk = new TextDecoder().decode(value);
+
+      // Should have only matched route's chunk in the head
+      expect(firstChunk).toContain('<link rel="modulepreload" href="/assets/chunk-home.js">');
+      expect(firstChunk).not.toContain('chunk-about.js');
+      expect(firstChunk).not.toContain('chunk-extra.js');
+      reader.releaseLock();
+    });
+
+    it('converts non-inlined stylesheet links to async loading when theme present', async () => {
+      const templateWithLinks = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Test</title>
+  <link rel="stylesheet" href="/assets/vendor.css">
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body><div id="app"><!--ssr-outlet--></div></body>
+</html>`;
+
+      const theme = defineTheme({
+        colors: { primary: { DEFAULT: '#3b82f6' } },
+      });
+      const moduleWithTheme: SSRModule = {
+        default: () => {
+          const el = document.createElement('div');
+          el.textContent = 'Themed';
+          return el;
+        },
+        theme,
+      };
+
+      const handler = createSSRHandler({
+        module: moduleWithTheme,
+        template: templateWithLinks,
+        progressiveHTML: true,
+        inlineCSS: { '/assets/app.css': '.app { color: red; }' },
+      });
+
+      const response = await handler(new Request('http://localhost/'));
+      const reader = response.body!.getReader();
+      const { value } = await reader.read();
+      const firstChunk = new TextDecoder().decode(value);
+
+      // app.css should be inlined
+      expect(firstChunk).toContain('<style data-vertz-css>.app { color: red; }</style>');
+      // vendor.css should be converted to async loading
+      expect(firstChunk).toContain('media="print"');
+      expect(firstChunk).toContain('onload="this.media=\'all\'"');
+      expect(firstChunk).toContain('<noscript>');
+      reader.releaseLock();
+    });
+
+    it('returns 500 when ssrRenderProgressive throws before streaming', async () => {
+      const brokenModule: SSRModule = {
+        default: () => {
+          throw new Error('Render crash');
+        },
+      };
+
+      const handler = createSSRHandler({
+        module: brokenModule,
+        template,
+        progressiveHTML: true,
+      });
+      const response = await handler(new Request('http://localhost/'));
+
+      expect(response.status).toBe(500);
+      const text = await response.text();
+      expect(text).toBe('Internal Server Error');
+    });
   });
 });
