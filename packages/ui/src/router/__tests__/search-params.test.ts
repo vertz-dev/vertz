@@ -1,5 +1,6 @@
-import { describe, expect, test, vi } from 'bun:test';
+import { afterEach, describe, expect, test, vi } from 'bun:test';
 import { signal } from '../../runtime/signal';
+import { createTestSSRContext, disableTestSSR, enableTestSSR } from '../../ssr/test-ssr-helpers';
 import type { SearchParamSchema } from '../define-routes';
 import { defineRoutes } from '../define-routes';
 import { createRouter } from '../navigate';
@@ -274,14 +275,16 @@ describe('useSearchParams() with RouterContext.Provider', () => {
 });
 
 describe('SSR reactive search params safety', () => {
-  // In Bun test env, isBrowser() returns false, so createRouter returns
-  // the SSR variant with a read-only reactive search params proxy.
+  afterEach(() => {
+    disableTestSSR();
+  });
 
   test('SSR proxy reads return correct values', () => {
+    enableTestSSR(createTestSSRContext('/search?q=dragon&page=1'));
     const routes = defineRoutes({
       '/search': { component: () => document.createElement('div') },
     });
-    const router = createRouter(routes, '/search?q=dragon&page=1');
+    const router = createRouter(routes);
 
     let sp: ReturnType<typeof useSearchParams> | undefined;
     RouterContext.Provider(router, () => {
@@ -294,10 +297,11 @@ describe('SSR reactive search params safety', () => {
   });
 
   test('SSR proxy set throws in dev mode', () => {
+    enableTestSSR(createTestSSRContext('/search?q=dragon'));
     const routes = defineRoutes({
       '/search': { component: () => document.createElement('div') },
     });
-    const router = createRouter(routes, '/search?q=dragon');
+    const router = createRouter(routes);
 
     let sp: ReturnType<typeof useSearchParams> | undefined;
     RouterContext.Provider(router, () => {
@@ -310,10 +314,11 @@ describe('SSR reactive search params safety', () => {
   });
 
   test('SSR proxy delete throws in dev mode', () => {
+    enableTestSSR(createTestSSRContext('/search?q=dragon'));
     const routes = defineRoutes({
       '/search': { component: () => document.createElement('div') },
     });
-    const router = createRouter(routes, '/search?q=dragon');
+    const router = createRouter(routes);
 
     let sp: ReturnType<typeof useSearchParams> | undefined;
     RouterContext.Provider(router, () => {
@@ -326,10 +331,11 @@ describe('SSR reactive search params safety', () => {
   });
 
   test('SSR proxy navigate() throws in dev mode', () => {
+    enableTestSSR(createTestSSRContext('/search?q=dragon'));
     const routes = defineRoutes({
       '/search': { component: () => document.createElement('div') },
     });
-    const router = createRouter(routes, '/search?q=dragon');
+    const router = createRouter(routes);
 
     let sp: ReturnType<typeof useSearchParams> | undefined;
     RouterContext.Provider(router, () => {
@@ -342,10 +348,11 @@ describe('SSR reactive search params safety', () => {
   });
 
   test('SSR proxy Object.keys returns param names', () => {
+    enableTestSSR(createTestSSRContext('/search?q=dragon&page=1'));
     const routes = defineRoutes({
       '/search': { component: () => document.createElement('div') },
     });
-    const router = createRouter(routes, '/search?q=dragon&page=1');
+    const router = createRouter(routes);
 
     let sp: ReturnType<typeof useSearchParams> | undefined;
     RouterContext.Provider(router, () => {
