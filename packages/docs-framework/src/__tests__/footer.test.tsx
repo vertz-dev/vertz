@@ -4,7 +4,7 @@ import { Footer } from '../layout/footer';
 
 describe('Footer', () => {
   it('renders footer element', () => {
-    const { container, unmount } = renderTest(Footer({}));
+    const { container, unmount } = renderTest(<Footer />);
     const footer = container.querySelector('footer');
     expect(footer).not.toBeNull();
     unmount();
@@ -12,8 +12,8 @@ describe('Footer', () => {
 
   it('renders link groups', () => {
     const { container, unmount } = renderTest(
-      Footer({
-        links: [
+      <Footer
+        links={[
           {
             title: 'Resources',
             items: [
@@ -25,8 +25,8 @@ describe('Footer', () => {
             title: 'Community',
             items: [{ label: 'Discord', href: 'https://discord.gg' }],
           },
-        ],
-      }),
+        ]}
+      />,
     );
 
     const groups = container.querySelectorAll('[data-footer-group]');
@@ -40,12 +40,12 @@ describe('Footer', () => {
 
   it('renders social links', () => {
     const { container, unmount } = renderTest(
-      Footer({
-        socials: {
+      <Footer
+        socials={{
           github: 'https://github.com/vertz',
           twitter: 'https://twitter.com/vertz',
-        },
-      }),
+        }}
+      />,
     );
 
     const socialLinks = container.querySelectorAll('[data-social]');

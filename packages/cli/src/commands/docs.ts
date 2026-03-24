@@ -77,12 +77,12 @@ export async function docsDevCommand(
     // Validate config exists and loads
     await loadDocsConfig(projectDir);
 
-    console.log(`Starting docs dev server at http://${host}:${port}`);
-
     // TODO: Wire up createBunDevServer with MDX plugin and docs layout
-    // This will be implemented when the layout components are ready
-    console.log('Docs dev server is not yet implemented. Use `vertz docs build` for now.');
-    return ok(undefined);
+    return err(
+      new Error(
+        `Docs dev server is not yet implemented (port ${port}, host ${host}). Use \`vertz docs build\` for now.`,
+      ),
+    );
   } catch (error) {
     return err(error instanceof Error ? error : new Error(String(error)));
   }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { renderTest } from '@vertz/ui/test';
-import { Breadcrumbs } from '../layout/breadcrumbs';
 import type { Breadcrumb } from '../routing/resolve';
+import { Breadcrumbs } from '../layout/breadcrumbs';
 
 describe('Breadcrumbs', () => {
   it('renders breadcrumb items with links', () => {
@@ -11,7 +11,7 @@ describe('Breadcrumbs', () => {
       { label: 'Advanced', path: '/guides/advanced' },
     ];
 
-    const { container, unmount } = renderTest(Breadcrumbs({ items: crumbs }));
+    const { container, unmount } = renderTest(<Breadcrumbs items={crumbs} />);
     const nav = container.querySelector('nav');
     expect(nav).not.toBeNull();
 
@@ -25,7 +25,7 @@ describe('Breadcrumbs', () => {
   });
 
   it('renders empty nav when no breadcrumbs', () => {
-    const { container, unmount } = renderTest(Breadcrumbs({ items: [] }));
+    const { container, unmount } = renderTest(<Breadcrumbs items={[]} />);
     const nav = container.querySelector('nav');
     expect(nav).not.toBeNull();
     const links = container.querySelectorAll('a');
@@ -40,8 +40,7 @@ describe('Breadcrumbs', () => {
       { label: 'Guides', path: '/guides' },
     ];
 
-    const { container, unmount } = renderTest(Breadcrumbs({ items: crumbs }));
-    // Should have a separator element (span with / or ›)
+    const { container, unmount } = renderTest(<Breadcrumbs items={crumbs} />);
     const separators = container.querySelectorAll('[data-separator]');
     expect(separators.length).toBe(1);
 

@@ -1,26 +1,14 @@
 import type { SidebarTab } from '../config/types';
+import { filePathToTitle, filePathToUrlPath } from '../routing/resolve';
 
 export interface SidebarProps {
   tabs: SidebarTab[];
   activePath: string;
 }
 
-/** Convert a page reference (e.g. 'quickstart') to a URL path. */
-function pageToPath(page: string): string {
-  const clean = page.replace(/\.mdx$/, '');
-  return clean === 'index' ? '/' : `/${clean}`;
-}
-
-/** Convert a page reference to a display title. */
-function pageToTitle(page: string): string {
-  const clean = page.replace(/\.mdx$/, '');
-  if (clean === 'index') return 'Home';
-  return clean.charAt(0).toUpperCase() + clean.slice(1);
-}
-
 function SidebarLink({ page, activePath }: { page: string; activePath: string }) {
-  const path = pageToPath(page);
-  const title = pageToTitle(page);
+  const path = filePathToUrlPath(page);
+  const title = filePathToTitle(page);
   const isActive = path === activePath;
 
   return (

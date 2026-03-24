@@ -30,6 +30,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@vertz/errors": "workspace:^",
     "@vertz/mdx": "workspace:^",
     "@vertz/ui": "workspace:^"
   },

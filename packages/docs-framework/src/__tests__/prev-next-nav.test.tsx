@@ -5,10 +5,10 @@ import { PrevNextNav } from '../layout/prev-next-nav';
 describe('PrevNextNav', () => {
   it('renders prev and next links when both exist', () => {
     const { container, unmount } = renderTest(
-      PrevNextNav({
-        prev: { path: '/intro', title: 'Introduction' },
-        next: { path: '/advanced', title: 'Advanced' },
-      }),
+      <PrevNextNav
+        prev={{ path: '/intro', title: 'Introduction' }}
+        next={{ path: '/advanced', title: 'Advanced' }}
+      />,
     );
 
     const nav = container.querySelector('nav');
@@ -26,9 +26,7 @@ describe('PrevNextNav', () => {
 
   it('renders only next link when prev is undefined', () => {
     const { container, unmount } = renderTest(
-      PrevNextNav({
-        next: { path: '/quickstart', title: 'Quickstart' },
-      }),
+      <PrevNextNav next={{ path: '/quickstart', title: 'Quickstart' }} />,
     );
 
     const links = container.querySelectorAll('a');
@@ -40,9 +38,7 @@ describe('PrevNextNav', () => {
 
   it('renders only prev link when next is undefined', () => {
     const { container, unmount } = renderTest(
-      PrevNextNav({
-        prev: { path: '/', title: 'Home' },
-      }),
+      <PrevNextNav prev={{ path: '/', title: 'Home' }} />,
     );
 
     const links = container.querySelectorAll('a');
@@ -53,7 +49,7 @@ describe('PrevNextNav', () => {
   });
 
   it('renders empty nav when neither exists', () => {
-    const { container, unmount } = renderTest(PrevNextNav({}));
+    const { container, unmount } = renderTest(<PrevNextNav />);
 
     const nav = container.querySelector('nav');
     expect(nav).not.toBeNull();

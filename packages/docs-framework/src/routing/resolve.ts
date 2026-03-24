@@ -30,7 +30,7 @@ export interface PageRoute {
  * - `quickstart.mdx` → `/quickstart`
  * - `guides/advanced.mdx` → `/guides/advanced`
  */
-function filePathToUrlPath(filePath: string): string {
+export function filePathToUrlPath(filePath: string): string {
   const withoutExt = filePath.replace(/\.mdx$/, '');
   if (withoutExt === 'index') return '/';
   return `/${withoutExt}`;
@@ -38,12 +38,17 @@ function filePathToUrlPath(filePath: string): string {
 
 /**
  * Derive a human-readable title from a file name.
- * `quickstart.mdx` → `Quickstart`, `advanced.mdx` → `Advanced`
+ * `quickstart.mdx` → `Quickstart`
+ * `getting-started` → `Getting Started`
+ * `guides/advanced.mdx` → `Advanced`
  */
-function filePathToTitle(filePath: string): string {
+export function filePathToTitle(filePath: string): string {
   const basename = filePath.split('/').pop() ?? filePath;
   const withoutExt = basename.replace(/\.mdx$/, '');
-  return withoutExt.charAt(0).toUpperCase() + withoutExt.slice(1);
+  return withoutExt
+    .split('-')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
 }
 
 /**

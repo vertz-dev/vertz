@@ -6,7 +6,7 @@ import { Sidebar } from './sidebar';
 export interface DocsLayoutProps {
   config: DocsConfig;
   activePath: string;
-  content: unknown;
+  content: string | Node;
 }
 
 export function DocsLayout({ config, activePath, content }: DocsLayoutProps) {

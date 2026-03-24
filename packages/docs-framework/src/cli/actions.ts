@@ -1,9 +1,8 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { err, ok, type Result } from '@vertz/errors';
 import { buildDocs } from '../generator/build-pipeline';
 import { initDocs } from './init';
-
-type Result<T> = { ok: true; data: T } | { ok: false; error: Error };
 
 export interface DocsInitOptions {
   projectDir: string;
@@ -18,22 +17,22 @@ export interface DocsBuildOptions {
 /**
  * CLI action: scaffold a new docs project.
  */
-export async function docsInitAction(options: DocsInitOptions): Promise<Result<void>> {
+export async function docsInitAction(options: DocsInitOptions): Promise<Result<void, Error>> {
   try {
     if (!existsSync(options.projectDir)) {
-      return { ok: false, error: new Error(`Directory does not exist: ${options.projectDir}`) };
+      return err(new Error(`Directory does not exist: ${options.projectDir}`));
     }
     await initDocs(options.projectDir);
-    return { ok: true, data: undefined };
+    return ok(undefined);
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error : new Error(String(error)) };
+    return err(error instanceof Error ? error : new Error(String(error)));
   }
 }
 
 /**
  * CLI action: build the docs site.
  */
-export async function docsBuildAction(options: DocsBuildOptions): Promise<Result<void>> {
+export async function docsBuildAction(options: DocsBuildOptions): Promise<Result<void, Error>> {
   try {
     const outDir = options.outputDir ?? join(options.projectDir, 'dist');
     await buildDocs({
@@ -41,8 +40,8 @@ export async function docsBuildAction(options: DocsBuildOptions): Promise<Result
       outDir,
       baseUrl: options.baseUrl,
     });
-    return { ok: true, data: undefined };
+    return ok(undefined);
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error : new Error(String(error)) };
+    return err(error instanceof Error ? error : new Error(String(error)));
   }
 }

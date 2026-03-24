@@ -5,7 +5,7 @@ export interface HeaderProps {
   navbar?: NavbarConfig;
 }
 
-function NavLink({ label, href }: { label: string; href: string }) {
+function NavbarLink({ label, href }: { label: string; href: string }) {
   return (
     <a
       href={href}
@@ -71,7 +71,7 @@ export function Header({ name, navbar }: HeaderProps) {
         {navbar?.links && (
           <nav style={{ display: 'flex', gap: '16px' }}>
             {navbar.links.map((link) => (
-              <NavLink label={link.label} href={link.href} />
+              <NavbarLink label={link.label} href={link.href} />
             ))}
           </nav>
         )}

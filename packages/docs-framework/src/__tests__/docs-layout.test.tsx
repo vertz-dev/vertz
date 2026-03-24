@@ -16,7 +16,7 @@ const minimalConfig: DocsConfig = {
 describe('DocsLayout', () => {
   it('renders header with site name', () => {
     const { container, unmount } = renderTest(
-      DocsLayout({ config: minimalConfig, activePath: '/', content: 'Hello world' }),
+      <DocsLayout config={minimalConfig} activePath="/" content="Hello world" />,
     );
 
     const header = container.querySelector('header');
@@ -28,7 +28,7 @@ describe('DocsLayout', () => {
 
   it('renders sidebar with navigation', () => {
     const { container, unmount } = renderTest(
-      DocsLayout({ config: minimalConfig, activePath: '/', content: 'Hello world' }),
+      <DocsLayout config={minimalConfig} activePath="/" content="Hello world" />,
     );
 
     const sidebar = container.querySelector('[data-sidebar]');
@@ -41,7 +41,7 @@ describe('DocsLayout', () => {
 
   it('renders main content area', () => {
     const { container, unmount } = renderTest(
-      DocsLayout({ config: minimalConfig, activePath: '/', content: 'Page content here' }),
+      <DocsLayout config={minimalConfig} activePath="/" content="Page content here" />,
     );
 
     const main = container.querySelector('main');
@@ -59,7 +59,7 @@ describe('DocsLayout', () => {
     };
 
     const { container, unmount } = renderTest(
-      DocsLayout({ config, activePath: '/', content: 'test' }),
+      <DocsLayout config={config} activePath="/" content="test" />,
     );
 
     const footer = container.querySelector('footer');

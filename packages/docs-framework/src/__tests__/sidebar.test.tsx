@@ -15,15 +15,13 @@ describe('Sidebar', () => {
       },
     ];
 
-    const { container, unmount } = renderTest(Sidebar({ tabs, activePath: '/' }));
+    const { container, unmount } = renderTest(<Sidebar tabs={tabs} activePath="/" />);
     const nav = container.querySelector('nav');
     expect(nav).not.toBeNull();
 
-    // Should render group titles
     const groups = container.querySelectorAll('[data-sidebar-group]');
     expect(groups.length).toBe(2);
 
-    // Should render page links
     const links = container.querySelectorAll('a');
     expect(links.length).toBe(3);
 
@@ -38,7 +36,7 @@ describe('Sidebar', () => {
       },
     ];
 
-    const { container, unmount } = renderTest(Sidebar({ tabs, activePath: '/quickstart' }));
+    const { container, unmount } = renderTest(<Sidebar tabs={tabs} activePath="/quickstart" />);
 
     const activeLink = container.querySelector('[data-active="true"]');
     expect(activeLink).not.toBeNull();
@@ -48,9 +46,40 @@ describe('Sidebar', () => {
   });
 
   it('renders empty nav when no tabs', () => {
-    const { container, unmount } = renderTest(Sidebar({ tabs: [], activePath: '/' }));
+    const { container, unmount } = renderTest(<Sidebar tabs={[]} activePath="/" />);
     const links = container.querySelectorAll('a');
     expect(links.length).toBe(0);
+
+    unmount();
+  });
+
+  it('handles hyphenated page names', () => {
+    const tabs: SidebarTab[] = [
+      {
+        tab: 'Guides',
+        groups: [{ title: 'Default', pages: ['getting-started'] }],
+      },
+    ];
+
+    const { container, unmount } = renderTest(<Sidebar tabs={tabs} activePath="/" />);
+    const link = container.querySelector('a');
+    expect(link?.textContent).toBe('Getting Started');
+
+    unmount();
+  });
+
+  it('handles nested page paths', () => {
+    const tabs: SidebarTab[] = [
+      {
+        tab: 'Guides',
+        groups: [{ title: 'Default', pages: ['guides/advanced'] }],
+      },
+    ];
+
+    const { container, unmount } = renderTest(<Sidebar tabs={tabs} activePath="/" />);
+    const link = container.querySelector('a');
+    expect(link?.textContent).toBe('Advanced');
+    expect(link?.getAttribute('href')).toBe('/guides/advanced');
 
     unmount();
   });
