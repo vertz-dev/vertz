@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { ErrorCode } from '../../core/errors';
+import { SchemaType } from '../../core/types';
 import { IntersectionSchema } from '../intersection';
 import { NumberSchema } from '../number';
 import { ObjectSchema } from '../object';
@@ -34,5 +35,19 @@ describe('IntersectionSchema', () => {
         { type: 'object', properties: { age: { type: 'number' } }, required: ['age'] },
       ],
     });
+  });
+
+  it('metadata.type returns SchemaType.Intersection', () => {
+    const left = new ObjectSchema({ name: new StringSchema() });
+    const right = new ObjectSchema({ age: new NumberSchema() });
+    expect(new IntersectionSchema(left, right).metadata.type).toBe(SchemaType.Intersection);
+  });
+
+  it('_clone() preserves metadata', () => {
+    const left = new ObjectSchema({ name: new StringSchema() });
+    const right = new ObjectSchema({ age: new NumberSchema() });
+    const schema = new IntersectionSchema(left, right).describe('name+age');
+    expect(schema.metadata.description).toBe('name+age');
+    expect(schema.parse({ name: 'Alice', age: 30 }).data).toEqual({ name: 'Alice', age: 30 });
   });
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { NullableSchema } from '../../core/schema';
+import { SchemaType } from '../../core/types';
 import { LazySchema } from '../lazy';
 import { ObjectSchema } from '../object';
 import { StringSchema } from '../string';
@@ -88,5 +89,16 @@ describe('LazySchema', () => {
     if (!result.ok) {
       expect(result.error.issues[0].path).toEqual(['children', 'value']);
     }
+  });
+
+  it('metadata.type returns SchemaType.Lazy', () => {
+    const schema = new LazySchema(() => new StringSchema());
+    expect(schema.metadata.type).toBe(SchemaType.Lazy);
+  });
+
+  it('_clone() preserves metadata', () => {
+    const schema = new LazySchema(() => new StringSchema()).describe('lazy string');
+    expect(schema.metadata.description).toBe('lazy string');
+    expect(schema.parse('hello').data).toBe('hello');
   });
 });

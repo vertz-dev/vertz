@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { SchemaType } from '../../core/types';
 import { SetSchema } from '../set';
 import { StringSchema } from '../string';
 
@@ -55,5 +56,9 @@ describe('SetSchema', () => {
       minItems: 3,
       maxItems: 3,
     });
+  });
+
+  it('metadata.type returns SchemaType.Set', () => {
+    expect(new SetSchema(new StringSchema()).metadata.type).toBe(SchemaType.Set);
   });
 });

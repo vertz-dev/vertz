@@ -12,4 +12,8 @@ describe('CuidSchema', () => {
     expect(schema.safeParse('not-a-cuid').ok).toBe(false);
     expect(schema.safeParse('xjld2cyuq0000t3rmniod1foy').ok).toBe(false); // wrong prefix
   });
+
+  it('toJSONSchema returns base string type (no extra format)', () => {
+    expect(new CuidSchema().toJSONSchema()).toEqual({ type: 'string' });
+  });
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { ErrorCode } from '../../core/errors';
+import { SchemaType } from '../../core/types';
 import { NumberSchema } from '../number';
 import { RecordSchema } from '../record';
 import { StringSchema } from '../string';
@@ -60,5 +61,23 @@ describe('RecordSchema', () => {
       type: 'object',
       additionalProperties: { type: 'number' },
     });
+  });
+
+  it('metadata.type returns SchemaType.Record', () => {
+    expect(new RecordSchema(new NumberSchema()).metadata.type).toBe(SchemaType.Record);
+  });
+
+  it('_clone() preserves value-only record metadata', () => {
+    const schema = new RecordSchema(new NumberSchema()).describe('value-only');
+    expect(schema.metadata.description).toBe('value-only');
+    expect(schema.parse({ a: 1 }).data).toEqual({ a: 1 });
+  });
+
+  it('_clone() preserves key+value record metadata', () => {
+    const schema = new RecordSchema(new StringSchema().min(2), new NumberSchema()).describe(
+      'key-value',
+    );
+    expect(schema.metadata.description).toBe('key-value');
+    expect(schema.parse({ ab: 1 }).data).toEqual({ ab: 1 });
   });
 });

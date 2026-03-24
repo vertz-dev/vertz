@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { ErrorCode } from '../../core/errors';
+import { SchemaType } from '../../core/types';
 import { LiteralSchema } from '../literal';
 
 describe('LiteralSchema', () => {
@@ -28,5 +29,15 @@ describe('LiteralSchema', () => {
     expect(new LiteralSchema(42).toJSONSchema()).toEqual({ const: 42 });
     expect(new LiteralSchema(true).toJSONSchema()).toEqual({ const: true });
     expect(new LiteralSchema(null).toJSONSchema()).toEqual({ const: null });
+  });
+
+  it('metadata.type returns SchemaType.Literal', () => {
+    expect(new LiteralSchema('hello').metadata.type).toBe(SchemaType.Literal);
+  });
+
+  it('_clone() preserves metadata and value', () => {
+    const schema = new LiteralSchema('hello').describe('greeting');
+    expect(schema.metadata.description).toBe('greeting');
+    expect(schema.parse('hello').data).toBe('hello');
   });
 });

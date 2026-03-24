@@ -12,4 +12,8 @@ describe('NanoidSchema', () => {
     expect(schema.safeParse('too-short').ok).toBe(false);
     expect(schema.safeParse('V1StGXR8_Z5jdHi6B-myT!').ok).toBe(false); // invalid char
   });
+
+  it('toJSONSchema returns base string type (no extra format)', () => {
+    expect(new NanoidSchema().toJSONSchema()).toEqual({ type: 'string' });
+  });
 });

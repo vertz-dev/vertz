@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { SchemaType } from '../../core/types';
 import { InstanceOfSchema } from '../instanceof';
 
 describe('InstanceOfSchema', () => {
@@ -19,5 +20,19 @@ describe('InstanceOfSchema', () => {
     class Dog extends Animal {}
     const schema = new InstanceOfSchema(Animal);
     expect(schema.parse(new Dog()).data).toBeInstanceOf(Animal);
+  });
+
+  it('metadata.type returns SchemaType.InstanceOf', () => {
+    expect(new InstanceOfSchema(Date).metadata.type).toBe(SchemaType.InstanceOf);
+  });
+
+  it('toJSONSchema() returns empty object', () => {
+    expect(new InstanceOfSchema(Date).toJSONSchema()).toEqual({});
+  });
+
+  it('_clone() preserves metadata and class reference', () => {
+    const schema = new InstanceOfSchema(Date).describe('date instance');
+    expect(schema.metadata.description).toBe('date instance');
+    expect(schema.parse(new Date()).data).toBeInstanceOf(Date);
   });
 });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { SchemaType } from '../../core/types';
 import { CustomSchema } from '../custom';
 
 describe('CustomSchema', () => {
@@ -17,5 +18,22 @@ describe('CustomSchema', () => {
     if (!result.ok) {
       expect(result.error.issues[0].message).toBe('Must be positive');
     }
+  });
+
+  it('metadata.type returns SchemaType.Custom', () => {
+    const schema = new CustomSchema<number>((v) => typeof v === 'number');
+    expect(schema.metadata.type).toBe(SchemaType.Custom);
+  });
+
+  it('toJSONSchema() returns empty object', () => {
+    const schema = new CustomSchema<number>((v) => typeof v === 'number');
+    expect(schema.toJSONSchema()).toEqual({});
+  });
+
+  it('_clone() preserves metadata and check function', () => {
+    const schema = new CustomSchema<number>((v) => typeof v === 'number').describe('custom num');
+    expect(schema.metadata.description).toBe('custom num');
+    expect(schema.parse(42).data).toBe(42);
+    expect(schema.safeParse('nope').ok).toBe(false);
   });
 });

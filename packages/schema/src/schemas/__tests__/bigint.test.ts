@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { ParseError } from '../../core/errors';
+import { SchemaType } from '../../core/types';
 import { BigIntSchema } from '../bigint';
 
 describe('BigIntSchema', () => {
@@ -17,5 +18,15 @@ describe('BigIntSchema', () => {
     }
 
     expect(schema.toJSONSchema()).toEqual({ type: 'integer', format: 'int64' });
+  });
+
+  it('metadata.type returns SchemaType.BigInt', () => {
+    expect(new BigIntSchema().metadata.type).toBe(SchemaType.BigInt);
+  });
+
+  it('_clone() preserves metadata', () => {
+    const schema = new BigIntSchema().describe('bigint field');
+    expect(schema.metadata.description).toBe('bigint field');
+    expect(schema.parse(1n).data).toBe(1n);
   });
 });

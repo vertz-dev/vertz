@@ -123,3 +123,35 @@ describe('coerced schemas inherit constraint methods', () => {
     expect(new CoercedDateSchema().toJSONSchema()).toEqual({ type: 'string', format: 'date-time' });
   });
 });
+
+describe('coerced schema _clone() preserves metadata', () => {
+  it('CoercedStringSchema._clone() preserves description', () => {
+    const schema = new CoercedStringSchema().describe('coerced str');
+    expect(schema.metadata.description).toBe('coerced str');
+    expect(schema.parse(42).data).toBe('42');
+  });
+
+  it('CoercedNumberSchema._clone() preserves description', () => {
+    const schema = new CoercedNumberSchema().describe('coerced num');
+    expect(schema.metadata.description).toBe('coerced num');
+    expect(schema.parse('42').data).toBe(42);
+  });
+
+  it('CoercedBooleanSchema._clone() preserves description', () => {
+    const schema = new CoercedBooleanSchema().describe('coerced bool');
+    expect(schema.metadata.description).toBe('coerced bool');
+    expect(schema.parse(1).data).toBe(true);
+  });
+
+  it('CoercedBigIntSchema._clone() preserves description', () => {
+    const schema = new CoercedBigIntSchema().describe('coerced bigint');
+    expect(schema.metadata.description).toBe('coerced bigint');
+    expect(schema.parse('42').data).toBe(42n);
+  });
+
+  it('CoercedDateSchema._clone() preserves description', () => {
+    const schema = new CoercedDateSchema().describe('coerced date');
+    expect(schema.metadata.description).toBe('coerced date');
+    expect(schema.parse('2024-01-01').data).toBeInstanceOf(Date);
+  });
+});

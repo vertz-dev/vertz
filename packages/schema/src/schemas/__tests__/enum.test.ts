@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { ErrorCode } from '../../core/errors';
+import { SchemaType } from '../../core/types';
 import { EnumSchema } from '../enum';
 
 describe('EnumSchema', () => {
@@ -47,5 +48,15 @@ describe('EnumSchema', () => {
         expect(result.error.issues[0]?.code).toBe(ErrorCode.InvalidEnumValue);
       }
     }
+  });
+
+  it('metadata.type returns SchemaType.Enum', () => {
+    expect(new EnumSchema(['a', 'b']).metadata.type).toBe(SchemaType.Enum);
+  });
+
+  it('_clone() preserves metadata and values', () => {
+    const schema = new EnumSchema(['red', 'green', 'blue']).describe('color enum');
+    expect(schema.metadata.description).toBe('color enum');
+    expect(schema.parse('red').data).toBe('red');
   });
 });

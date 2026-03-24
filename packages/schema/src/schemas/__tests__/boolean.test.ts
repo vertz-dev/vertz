@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { ParseError } from '../../core/errors';
+import { SchemaType } from '../../core/types';
 import { BooleanSchema } from '../boolean';
 
 describe('BooleanSchema', () => {
@@ -15,5 +16,15 @@ describe('BooleanSchema', () => {
         expect(result.error).toBeInstanceOf(ParseError);
       }
     }
+  });
+
+  it('metadata.type returns SchemaType.Boolean', () => {
+    expect(new BooleanSchema().metadata.type).toBe(SchemaType.Boolean);
+  });
+
+  it('_clone() preserves metadata', () => {
+    const schema = new BooleanSchema().describe('bool field');
+    expect(schema.metadata.description).toBe('bool field');
+    expect(schema.parse(true).data).toBe(true);
   });
 });

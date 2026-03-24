@@ -12,4 +12,8 @@ describe('UlidSchema', () => {
     expect(schema.safeParse('not-a-ulid').ok).toBe(false);
     expect(schema.safeParse('01ARZ3NDEKTSV4RRFFQ69G5FA').ok).toBe(false); // too short
   });
+
+  it('toJSONSchema returns base string type (no extra format)', () => {
+    expect(new UlidSchema().toJSONSchema()).toEqual({ type: 'string' });
+  });
 });
