@@ -261,8 +261,7 @@ describe('Service proxy', () => {
     const client = createTestClient(server);
     const health = client.service(healthService);
 
-    // biome-ignore lint/suspicious/noExplicitAny: testing runtime behavior for non-existent action
-    expect((health as any).nonExistent).toBeUndefined();
+    expect((health as Record<string, unknown>).nonExistent).toBeUndefined();
   });
 });
 

@@ -16,27 +16,34 @@ import type {
 // Path resolution — discover entity/service routes from server.router.routes
 // ---------------------------------------------------------------------------
 
+/**
+ * Matches a path segment boundary: the entity name must be preceded by '/'
+ * and followed by end-of-string or another '/'.
+ * E.g. for entity "todos": matches "/api/todos" but not "/api/all-todos".
+ */
 function resolveEntityBasePath(server: AppBuilder, entityName: string): string {
   const routes = server.router.routes;
-  // Entity list route pattern: GET <prefix>/<entityName>
-  const listRoute = routes.find((r) => r.method === 'GET' && r.path.endsWith(`/${entityName}`));
+  const suffix = `/${entityName}`;
+  const listRoute = routes.find(
+    (r) => r.method === 'GET' && (r.path === suffix || r.path.endsWith(suffix)),
+  );
   if (listRoute) return listRoute.path;
-  // Fallback: convention-based
   return `/api/${entityName}`;
 }
 
+/**
+ * Matches service routes by looking for "/<serviceName>/" as a segment boundary.
+ * Uses a regex to ensure we match whole segments, not substrings.
+ * E.g. for service "health": matches "/api/health/check" but not "/api/health-check/action".
+ */
 function resolveServiceBasePath(server: AppBuilder, serviceName: string): string {
   const routes = server.router.routes;
-  // Service action route pattern: POST <prefix>/<serviceName>/<actionName>
-  const serviceRoute = routes.find(
-    (r) => r.method === 'POST' && r.path.includes(`/${serviceName}/`),
-  );
+  const segmentPattern = new RegExp(`/${serviceName}/`);
+  const serviceRoute = routes.find((r) => r.method === 'POST' && segmentPattern.test(r.path));
   if (serviceRoute) {
-    // Extract base: /api/domain/serviceName/action → /api/domain/serviceName
-    const lastSlash = serviceRoute.path.lastIndexOf('/');
-    return serviceRoute.path.slice(0, lastSlash);
+    const idx = serviceRoute.path.indexOf(`/${serviceName}/`);
+    return serviceRoute.path.slice(0, idx + 1 + serviceName.length);
   }
-  // Fallback: convention-based
   return `/api/${serviceName}`;
 }
 
@@ -71,11 +78,22 @@ async function parseResponse<T>(raw: Response): Promise<TestResponse<T>> {
 }
 
 // ---------------------------------------------------------------------------
+// Request handler resolution — prefer requestHandler (auth-enabled) over handler
+// ---------------------------------------------------------------------------
+
+function getRequestHandler(server: AppBuilder): (request: Request) => Promise<Response> {
+  if ('requestHandler' in server && typeof server.requestHandler === 'function') {
+    return server.requestHandler as (request: Request) => Promise<Response>;
+  }
+  return server.handler;
+}
+
+// ---------------------------------------------------------------------------
 // Request dispatch
 // ---------------------------------------------------------------------------
 
 async function dispatch<T>(
-  server: AppBuilder,
+  handler: (request: Request) => Promise<Response>,
   method: string,
   path: string,
   defaultHeaders: Record<string, string>,
@@ -93,7 +111,7 @@ async function dispatch<T>(
     headers: mergedHeaders,
   });
 
-  const raw = await server.handler(request);
+  const raw = await handler(request);
   return parseResponse<T>(raw);
 }
 
@@ -102,12 +120,10 @@ async function dispatch<T>(
 // ---------------------------------------------------------------------------
 
 function createEntityProxy<TModel extends ModelDef>(
-  server: AppBuilder,
-  entityDef: EntityDefinition,
+  handler: (request: Request) => Promise<Response>,
+  basePath: string,
   defaultHeaders: Record<string, string>,
 ): EntityTestProxy<TModel> {
-  const basePath = resolveEntityBasePath(server, entityDef.name);
-
   return {
     list(options?: EntityListOptions) {
       const params = new URLSearchParams();
@@ -119,11 +135,11 @@ function createEntityProxy<TModel extends ModelDef>(
       if (options?.include) params.set('include', JSON.stringify(options.include));
       const qs = params.toString();
       const path = qs ? `${basePath}?${qs}` : basePath;
-      return dispatch(server, 'GET', path, { ...defaultHeaders, ...options?.headers });
+      return dispatch(handler, 'GET', path, { ...defaultHeaders, ...options?.headers });
     },
 
     get(id: string, options?: EntityRequestOptions) {
-      return dispatch(server, 'GET', `${basePath}/${id}`, {
+      return dispatch(handler, 'GET', `${basePath}/${id}`, {
         ...defaultHeaders,
         ...options?.headers,
       });
@@ -131,7 +147,7 @@ function createEntityProxy<TModel extends ModelDef>(
 
     create(body: unknown, options?: EntityRequestOptions) {
       return dispatch(
-        server,
+        handler,
         'POST',
         basePath,
         { ...defaultHeaders, ...options?.headers },
@@ -143,7 +159,7 @@ function createEntityProxy<TModel extends ModelDef>(
 
     update(id: string, body: unknown, options?: EntityRequestOptions) {
       return dispatch(
-        server,
+        handler,
         'PATCH',
         `${basePath}/${id}`,
         {
@@ -155,7 +171,7 @@ function createEntityProxy<TModel extends ModelDef>(
     },
 
     delete(id: string, options?: EntityRequestOptions) {
-      return dispatch(server, 'DELETE', `${basePath}/${id}`, {
+      return dispatch(handler, 'DELETE', `${basePath}/${id}`, {
         ...defaultHeaders,
         ...options?.headers,
       });
@@ -168,11 +184,11 @@ function createEntityProxy<TModel extends ModelDef>(
 // ---------------------------------------------------------------------------
 
 function createServiceProxy<TDef extends ServiceDefinition>(
-  server: AppBuilder,
+  handler: (request: Request) => Promise<Response>,
+  basePath: string,
   serviceDef: TDef,
   defaultHeaders: Record<string, string>,
 ): ServiceTestProxy<TDef> {
-  const basePath = resolveServiceBasePath(server, serviceDef.name);
   const actionNames = Object.keys(serviceDef.actions);
 
   return new Proxy({} as ServiceTestProxy<TDef>, {
@@ -201,7 +217,7 @@ function createServiceProxy<TDef extends ServiceDefinition>(
         const fullPath = `${basePath}${actionPath}`;
 
         return dispatch(
-          server,
+          handler,
           method,
           fullPath,
           {
@@ -221,15 +237,18 @@ function createServiceProxy<TDef extends ServiceDefinition>(
 
 export function createTestClient(server: AppBuilder, options?: TestClientOptions): TestClient {
   const defaultHeaders = options?.defaultHeaders ?? {};
+  const handler = getRequestHandler(server);
 
   function makeClient(headers: Record<string, string>): TestClient {
     return {
       entity<TModel extends ModelDef>(def: EntityDefinition<TModel>) {
-        return createEntityProxy<TModel>(server, def, headers);
+        const basePath = resolveEntityBasePath(server, def.name);
+        return createEntityProxy<TModel>(handler, basePath, headers);
       },
 
       service<TDef extends ServiceDefinition>(def: TDef) {
-        return createServiceProxy(server, def, headers);
+        const basePath = resolveServiceBasePath(server, def.name);
+        return createServiceProxy(handler, basePath, def, headers);
       },
 
       withHeaders(newHeaders: Record<string, string>) {
@@ -237,22 +256,22 @@ export function createTestClient(server: AppBuilder, options?: TestClientOptions
       },
 
       get(path: string, opts?: RequestOptions) {
-        return dispatch(server, 'GET', path, headers, opts);
+        return dispatch(handler, 'GET', path, headers, opts);
       },
       post(path: string, opts?: RequestOptions) {
-        return dispatch(server, 'POST', path, headers, opts);
+        return dispatch(handler, 'POST', path, headers, opts);
       },
       put(path: string, opts?: RequestOptions) {
-        return dispatch(server, 'PUT', path, headers, opts);
+        return dispatch(handler, 'PUT', path, headers, opts);
       },
       patch(path: string, opts?: RequestOptions) {
-        return dispatch(server, 'PATCH', path, headers, opts);
+        return dispatch(handler, 'PATCH', path, headers, opts);
       },
       delete(path: string, opts?: RequestOptions) {
-        return dispatch(server, 'DELETE', path, headers, opts);
+        return dispatch(handler, 'DELETE', path, headers, opts);
       },
       head(path: string, opts?: RequestOptions) {
-        return dispatch(server, 'HEAD', path, headers, opts);
+        return dispatch(handler, 'HEAD', path, headers, opts);
       },
     };
   }

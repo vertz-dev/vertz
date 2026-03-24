@@ -60,7 +60,6 @@ export interface ServiceCallOptions {
 
 export interface TestClientOptions {
   defaultHeaders?: Record<string, string>;
-  apiPrefix?: string;
 }
 
 // ---------------------------------------------------------------------------
