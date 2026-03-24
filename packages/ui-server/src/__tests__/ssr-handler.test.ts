@@ -789,6 +789,31 @@ describe('createSSRHandler', () => {
       });
     });
 
+    describe('Given a nav pre-fetch request to /tasks with no search params', () => {
+      describe('When the handler processes the request', () => {
+        it('Then ctx.url is the bare pathname without trailing ?', async () => {
+          let capturedUrl: string | undefined;
+          const module: SSRModule = {
+            default: () => {
+              const ctx = getSSRContext();
+              capturedUrl = ctx?.url;
+              const el = document.createElement('div');
+              el.textContent = 'App';
+              return el;
+            },
+          };
+
+          const handler = createSSRHandler({ module, template });
+          const request = new Request('http://localhost/tasks', {
+            headers: { 'X-Vertz-Nav': '1' },
+          });
+          await handler(request);
+
+          expect(capturedUrl).toBe('/tasks');
+        });
+      });
+    });
+
     describe('Given a nav pre-fetch request to /items?page=2&sort=price&order=desc', () => {
       describe('When the handler processes the request', () => {
         it('Then all search params are accessible via ctx.url', async () => {
