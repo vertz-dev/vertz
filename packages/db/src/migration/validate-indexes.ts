@@ -1,7 +1,13 @@
 import type { IndexType } from '../schema/table';
 import type { TableSnapshot } from './snapshot';
 
-const POSTGRES_ONLY_INDEX_TYPES: ReadonlySet<IndexType> = new Set(['hash', 'gin', 'gist', 'brin']);
+const POSTGRES_ONLY_INDEX_TYPES: ReadonlySet<IndexType> = new Set([
+  'hash',
+  'gin',
+  'gist',
+  'brin',
+  'hnsw',
+]);
 
 /**
  * Validate index definitions against a target dialect.

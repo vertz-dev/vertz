@@ -1,3 +1,4 @@
+import { snakeToCamel } from '../sql/casing';
 import type { ColumnSnapshot, ForeignKeySnapshot, SchemaSnapshot, TableSnapshot } from './snapshot';
 
 // ---------------------------------------------------------------------------
@@ -70,9 +71,9 @@ function generatePerTableFiles(snapshot: SchemaSnapshot, ordered: string[]): Gen
     const table = snapshot.tables[tableName];
     if (!table) continue;
 
-    const varBase = toCamelCase(tableName);
+    const varBase = snakeToCamel(tableName);
     const tableVar = `${varBase}Table`;
-    const fileName = toCamelCase(tableName);
+    const fileName = snakeToCamel(tableName);
 
     const lines: string[] = ["import { d } from '@vertz/db';"];
 
@@ -84,8 +85,8 @@ function generatePerTableFiles(snapshot: SchemaSnapshot, ordered: string[]): Gen
       }
     }
     for (const target of fkTargets) {
-      const targetVar = `${toCamelCase(target)}Table`;
-      const targetFile = toCamelCase(target);
+      const targetVar = `${snakeToCamel(target)}Table`;
+      const targetFile = snakeToCamel(target);
       lines.push(`import { ${targetVar} } from './${targetFile}';`);
     }
 
@@ -104,7 +105,7 @@ function generatePerTableFiles(snapshot: SchemaSnapshot, ordered: string[]): Gen
   // Barrel index.ts
   const indexLines: string[] = [];
   for (const tableName of ordered) {
-    const fileName = toCamelCase(tableName);
+    const fileName = snakeToCamel(tableName);
     const exports = exportMap.get(fileName);
     if (exports) {
       indexLines.push(`export { ${exports.join(', ')} } from './${fileName}';`);
@@ -125,7 +126,7 @@ function generateTableCode(
   snapshot: SchemaSnapshot,
   ordered: string[],
 ): string[] {
-  const varBase = toCamelCase(tableName);
+  const varBase = snakeToCamel(tableName);
   const tableVar = `${varBase}Table`;
   const lines: string[] = [];
 
@@ -137,7 +138,7 @@ function generateTableCode(
   lines.push(`export const ${tableVar} = d.table('${tableName}', {`);
 
   for (const [colName, col] of Object.entries(table.columns)) {
-    const camelName = toCamelCase(colName);
+    const camelName = snakeToCamel(colName);
     const { code, comment } = generateColumnCode(col, isCompositePK, snapshot);
     const commentStr = comment ? ` ${comment}` : '';
     lines.push(`  ${camelName}: ${code},${commentStr}`);
@@ -148,7 +149,7 @@ function generateTableCode(
   if (isCompositePK || hasIndexes) {
     lines.push('}, {');
     if (isCompositePK) {
-      const camelPKs = pkCols.map((c) => `'${toCamelCase(c)}'`);
+      const camelPKs = pkCols.map((c) => `'${snakeToCamel(c)}'`);
       lines.push(`  primaryKey: [${camelPKs.join(', ')}],`);
     }
     if (hasIndexes) {
@@ -170,7 +171,7 @@ function generateTableCode(
     lines.push('');
     lines.push(`export const ${modelVar} = d.model(${tableVar}, {`);
     for (const rel of relations) {
-      const targetTableVar = `${toCamelCase(rel.targetTable)}Table`;
+      const targetTableVar = `${snakeToCamel(rel.targetTable)}Table`;
       lines.push(`  ${rel.name}: d.ref.one(() => ${targetTableVar}, '${rel.fkCamel}'),`);
     }
     lines.push('});');
@@ -347,7 +348,12 @@ function formatDefault(defaultValue: string, colType: string): string | null {
   // String defaults (quoted)
   const stringMatch = defaultValue.match(/^'([^']*)'(::.*)?$/);
   if (stringMatch?.[1] != null) {
-    return `'${stringMatch[1]}'`;
+    const extracted = stringMatch[1];
+    // Timestamp columns need new Date() wrapping — d.timestamp() expects Date | 'now'
+    if (isTimestampType(colType)) {
+      return `new Date('${extracted}')`;
+    }
+    return `'${extracted}'`;
   }
 
   // Skip complex expressions (function calls, casts, etc.)
@@ -365,7 +371,7 @@ function generateIndexCode(idx: {
   type?: string;
   where?: string;
 }): string {
-  const camelCols = idx.columns.map((c) => toCamelCase(c));
+  const camelCols = idx.columns.map((c) => snakeToCamel(c));
   const cols =
     camelCols.length === 1 ? `'${camelCols[0]}'` : `[${camelCols.map((c) => `'${c}'`).join(', ')}]`;
 
@@ -399,12 +405,12 @@ function inferRelations(
   const usedNames = new Set<string>();
 
   for (const fk of foreignKeys) {
-    const fkCamel = toCamelCase(fk.column);
+    const fkCamel = snakeToCamel(fk.column);
     let name = stripFkSuffix(fkCamel);
 
     // Collision detection
     if (usedNames.has(name)) {
-      name = `${toCamelCase(fk.targetTable)}By${capitalize(fkCamel)}`;
+      name = `${snakeToCamel(fk.targetTable)}By${capitalize(fkCamel)}`;
     }
     usedNames.add(name);
 
@@ -496,8 +502,8 @@ function topologicalSort(tables: Record<string, TableSnapshot>): string[] {
 // Utilities
 // ---------------------------------------------------------------------------
 
-function toCamelCase(str: string): string {
-  return str.replace(/_([a-zA-Z0-9])/g, (_, c: string) => c.toUpperCase());
+function isTimestampType(colType: string): boolean {
+  return colType === 'timestamp with time zone' || colType === 'timestamp without time zone';
 }
 
 function capitalize(str: string): string {

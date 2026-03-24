@@ -555,6 +555,30 @@ describe('generateSchemaCode — SQLite type mapping', () => {
 // ---------------------------------------------------------------------------
 
 describe('generateSchemaCode — column name casing', () => {
+  it('preserves leading underscores in column names', () => {
+    const snapshot = makeSnapshot({
+      internals: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+          _private_field: {
+            type: 'text',
+            nullable: false,
+            primary: false,
+            unique: false,
+            udtName: 'text',
+          },
+        },
+        indexes: [],
+        foreignKeys: [],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain('_privateField: d.text()');
+    expect(file.content).not.toContain('PrivateField');
+  });
+
   it('converts snake_case column names to camelCase keys', () => {
     const snapshot = makeSnapshot({
       users: {
@@ -652,6 +676,31 @@ describe('generateSchemaCode — indexes', () => {
 
     const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
     expect(file.content).toContain("d.index('slug', { name: 'idx_posts_slug', unique: true })");
+  });
+
+  it('generates index with hnsw type', () => {
+    const snapshot = makeSnapshot({
+      documents: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+          embedding: {
+            type: 'text',
+            nullable: false,
+            primary: false,
+            unique: false,
+            udtName: 'text',
+          },
+        },
+        indexes: [{ columns: ['embedding'], name: 'idx_documents_embedding', type: 'hnsw' }],
+        foreignKeys: [],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain(
+      "d.index('embedding', { name: 'idx_documents_embedding', type: 'hnsw' })",
+    );
   });
 
   it('generates multi-column indexes with camelCased columns', () => {
@@ -1411,6 +1460,88 @@ describe('generateSchemaCode — index WHERE clause escaping', () => {
 
     const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
     expect(file.content).toContain("where: 'status = \\'active\\''");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Timestamp concrete date defaults
+// ---------------------------------------------------------------------------
+
+describe('generateSchemaCode — timestamp concrete date defaults', () => {
+  it('generates .default(new Date(...)) for timestamp columns with concrete date defaults', () => {
+    const snapshot = makeSnapshot({
+      events: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+          startsAt: {
+            type: 'timestamp with time zone',
+            nullable: false,
+            primary: false,
+            unique: false,
+            default: "'2024-01-15 00:00:00+00'::timestamp with time zone",
+            udtName: 'timestamptz',
+          },
+        },
+        indexes: [],
+        foreignKeys: [],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain(
+      "startsAt: d.timestamp().default(new Date('2024-01-15 00:00:00+00'))",
+    );
+  });
+
+  it('generates .default(new Date(...)) for timestamp without time zone with concrete defaults', () => {
+    const snapshot = makeSnapshot({
+      logs: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+          loggedAt: {
+            type: 'timestamp without time zone',
+            nullable: false,
+            primary: false,
+            unique: false,
+            default: "'2024-06-01 12:00:00'",
+            udtName: 'timestamp',
+          },
+        },
+        indexes: [],
+        foreignKeys: [],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain(
+      "loggedAt: d.timestamp().default(new Date('2024-06-01 12:00:00'))",
+    );
+  });
+
+  it('keeps .default(string) for date columns with concrete string defaults', () => {
+    const snapshot = makeSnapshot({
+      events: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+          eventDate: {
+            type: 'date',
+            nullable: false,
+            primary: false,
+            unique: false,
+            default: "'2024-01-15'::date",
+            udtName: 'date',
+          },
+        },
+        indexes: [],
+        foreignKeys: [],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain("eventDate: d.date().default('2024-01-15')");
   });
 });
 
