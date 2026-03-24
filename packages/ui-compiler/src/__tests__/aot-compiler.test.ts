@@ -358,16 +358,16 @@ function Counter({ initial }: { initial: number }) {
 
       const aotFn = extractAotFn(result.code, '__ssr_Counter');
       expect(aotFn).toContain('data-v-id="Counter"');
-      // Reactive expression should have child start marker (no end marker, matches DOM shim)
+      // Reactive expression should have both child start and end markers (#1815)
       expect(aotFn).toContain('<!--child-->');
-      expect(aotFn).not.toContain('<!--/child-->');
+      expect(aotFn).toContain('<!--/child-->');
 
       const html = evalAot(result.code, '__ssr_Counter', {
         __props: { initial: 42 },
         count: 42,
       });
       expect(html).toContain('data-v-id="Counter"');
-      expect(html).toContain('<!--child-->42');
+      expect(html).toContain('<!--child-->42<!--/child-->');
     });
 
     it('does NOT emit child markers for non-reactive expressions', () => {

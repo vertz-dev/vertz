@@ -817,11 +817,11 @@ export class AotStringTransformer {
       return `String(${exprText})`;
     }
 
-    // Wrap reactive expressions with child marker for hydration parity.
-    // Only a start marker — the DOM shim's __child() emits a single <!--child-->
-    // comment anchor with no end marker.
+    // Wrap reactive expressions with child markers for hydration parity.
+    // End marker (<!--/child-->) provides a precise boundary so hydration
+    // cleanup does not consume adjacent static text. See #1812, #1815.
     if (this._isReactiveExpression(expr)) {
-      return `'<!--child-->' + __esc(${exprText})`;
+      return `'<!--child-->' + __esc(${exprText}) + '<!--/child-->'`;
     }
     return `__esc(${exprText})`;
   }
