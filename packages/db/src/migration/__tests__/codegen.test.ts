@@ -356,6 +356,30 @@ describe('generateSchemaCode — Postgres type mapping', () => {
     expect(file.content).toContain('// TODO: unmapped type "tsvector"');
   });
 
+  it('generates d.jsonb() for jsonb columns', () => {
+    const snapshot = makeSnapshot({
+      data: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+          payload: {
+            type: 'jsonb',
+            nullable: false,
+            primary: false,
+            unique: false,
+            udtName: 'jsonb',
+          },
+        },
+        indexes: [],
+        foreignKeys: [],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain('payload: d.jsonb()');
+    expect(file.content).not.toContain('// Source:');
+  });
+
   it('adds source comment for lossy json → jsonb mapping', () => {
     const snapshot = makeSnapshot({
       logs: {
@@ -978,6 +1002,392 @@ describe('generateSchemaCode — per-table mode', () => {
 // ---------------------------------------------------------------------------
 // Does NOT generate app-level annotations
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Additional type coverage
+// ---------------------------------------------------------------------------
+
+describe('generateSchemaCode — additional type coverage', () => {
+  it('generates d.decimal(10, 2) fallback for numeric without precision/scale', () => {
+    const snapshot = makeSnapshot({
+      prices: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+          amount: {
+            type: 'numeric',
+            nullable: false,
+            primary: false,
+            unique: false,
+            udtName: 'numeric',
+          },
+        },
+        indexes: [],
+        foreignKeys: [],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain('amount: d.decimal(10, 2)');
+  });
+
+  it('generates d.time() for time columns', () => {
+    const snapshot = makeSnapshot({
+      schedules: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+          startTime: {
+            type: 'time without time zone',
+            nullable: false,
+            primary: false,
+            unique: false,
+            udtName: 'time',
+          },
+          endTime: {
+            type: 'time',
+            nullable: true,
+            primary: false,
+            unique: false,
+            udtName: 'time',
+          },
+        },
+        indexes: [],
+        foreignKeys: [],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain('startTime: d.time()');
+    expect(file.content).toContain('endTime: d.time().nullable()');
+  });
+
+  it('falls back to d.textArray() for unknown array udt', () => {
+    const snapshot = makeSnapshot({
+      data: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+          tags: {
+            type: 'ARRAY',
+            nullable: false,
+            primary: false,
+            unique: false,
+            udtName: '_varchar',
+          },
+        },
+        indexes: [],
+        foreignKeys: [],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain('d.textArray()');
+    expect(file.content).toContain('// TODO: unmapped type "ARRAY"');
+  });
+
+  it('falls back to d.text() for USER-DEFINED without matching enum', () => {
+    const snapshot = makeSnapshot({
+      items: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+          kind: {
+            type: 'USER-DEFINED',
+            nullable: false,
+            primary: false,
+            unique: false,
+            udtName: 'unknown_type',
+          },
+        },
+        indexes: [],
+        foreignKeys: [],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain('d.text()');
+    expect(file.content).toContain('// TODO: unmapped type "USER-DEFINED"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Default value coverage
+// ---------------------------------------------------------------------------
+
+describe('generateSchemaCode — default values', () => {
+  it('generates .default(false) for boolean false defaults', () => {
+    const snapshot = makeSnapshot({
+      flags: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+          disabled: {
+            type: 'boolean',
+            nullable: false,
+            primary: false,
+            unique: false,
+            default: 'false',
+            udtName: 'bool',
+          },
+        },
+        indexes: [],
+        foreignKeys: [],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain('disabled: d.boolean().default(false)');
+  });
+
+  it('generates .default(N) for numeric defaults', () => {
+    const snapshot = makeSnapshot({
+      items: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+          priority: {
+            type: 'integer',
+            nullable: false,
+            primary: false,
+            unique: false,
+            default: '0',
+            udtName: 'int4',
+          },
+          score: {
+            type: 'numeric',
+            nullable: false,
+            primary: false,
+            unique: false,
+            default: '3.14',
+            udtName: 'numeric',
+            precision: 5,
+            scale: 2,
+          },
+        },
+        indexes: [],
+        foreignKeys: [],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain('priority: d.integer().default(0)');
+    expect(file.content).toContain('score: d.decimal(5, 2).default(3.14)');
+  });
+
+  it('generates .default(string) for quoted string defaults', () => {
+    const snapshot = makeSnapshot({
+      configs: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+          locale: {
+            type: 'text',
+            nullable: false,
+            primary: false,
+            unique: false,
+            default: "'en-US'::text",
+            udtName: 'text',
+          },
+        },
+        indexes: [],
+        foreignKeys: [],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain("locale: d.text().default('en-US')");
+  });
+
+  it('generates CURRENT_TIMESTAMP as now default', () => {
+    const snapshot = makeSnapshot({
+      logs: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+          loggedAt: {
+            type: 'timestamp with time zone',
+            nullable: false,
+            primary: false,
+            unique: false,
+            default: 'CURRENT_TIMESTAMP',
+            udtName: 'timestamptz',
+          },
+        },
+        indexes: [],
+        foreignKeys: [],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain("loggedAt: d.timestamp().default('now')");
+  });
+
+  it('skips complex expression defaults', () => {
+    const snapshot = makeSnapshot({
+      items: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+          code: {
+            type: 'text',
+            nullable: false,
+            primary: false,
+            unique: false,
+            default: "concat('PFX-', gen_random_uuid())",
+            udtName: 'text',
+          },
+        },
+        indexes: [],
+        foreignKeys: [],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain('code: d.text()');
+    expect(file.content).not.toContain('.default(');
+  });
+
+  it('skips defaults for USER-DEFINED (enum) columns', () => {
+    const snapshot = makeSnapshot(
+      {
+        tasks: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+            status: {
+              type: 'USER-DEFINED',
+              nullable: false,
+              primary: false,
+              unique: false,
+              udtName: 'task_status',
+              default: "'pending'::task_status",
+            },
+          },
+          indexes: [],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+      { task_status: ['pending', 'done'] },
+    );
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain("d.enum('task_status', ['pending', 'done'])");
+    expect(file.content).not.toContain('.default(');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Relation edge cases
+// ---------------------------------------------------------------------------
+
+describe('generateSchemaCode — relation edge cases', () => {
+  it('strips Fk suffix from FK column names', () => {
+    const snapshot = makeSnapshot({
+      orgs: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+        },
+        indexes: [],
+        foreignKeys: [],
+        _metadata: {},
+      },
+      teams: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+          org_fk: {
+            type: 'uuid',
+            nullable: false,
+            primary: false,
+            unique: false,
+            udtName: 'uuid',
+          },
+        },
+        indexes: [],
+        foreignKeys: [{ column: 'org_fk', targetTable: 'orgs', targetColumn: 'id' }],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain("org: d.ref.one(() => orgsTable, 'orgFk')");
+  });
+
+  it('disambiguates collision when two FKs strip to the same relation name', () => {
+    const snapshot = makeSnapshot({
+      users: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+        },
+        indexes: [],
+        foreignKeys: [],
+        _metadata: {},
+      },
+      posts: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+          author_id: {
+            type: 'uuid',
+            nullable: false,
+            primary: false,
+            unique: false,
+            udtName: 'uuid',
+          },
+          author_fk: {
+            type: 'uuid',
+            nullable: false,
+            primary: false,
+            unique: false,
+            udtName: 'uuid',
+          },
+        },
+        indexes: [],
+        foreignKeys: [
+          { column: 'author_id', targetTable: 'users', targetColumn: 'id' },
+          { column: 'author_fk', targetTable: 'users', targetColumn: 'id' },
+        ],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    // First FK gets the clean name
+    expect(file.content).toContain("author: d.ref.one(() => usersTable, 'authorId')");
+    // Second FK collides → disambiguated as `${targetTable}By${FkColumn}`
+    expect(file.content).toContain("usersByAuthorFk: d.ref.one(() => usersTable, 'authorFk')");
+  });
+
+  it('uses raw column name when no Id/Fk suffix', () => {
+    const snapshot = makeSnapshot({
+      categories: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+        },
+        indexes: [],
+        foreignKeys: [],
+        _metadata: {},
+      },
+      products: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+          category: {
+            type: 'uuid',
+            nullable: false,
+            primary: false,
+            unique: false,
+            udtName: 'uuid',
+          },
+        },
+        indexes: [],
+        foreignKeys: [{ column: 'category', targetTable: 'categories', targetColumn: 'id' }],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain("category: d.ref.one(() => categoriesTable, 'category')");
+  });
+});
 
 describe('generateSchemaCode — index WHERE clause escaping', () => {
   it('escapes single quotes in WHERE clause', () => {
