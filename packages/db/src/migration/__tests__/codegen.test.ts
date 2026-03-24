@@ -374,6 +374,105 @@ describe('generateSchemaCode — Postgres type mapping', () => {
     expect(file.content).toContain('// Source: json');
   });
 
+  it('adds source comment for timestamp without time zone', () => {
+    const snapshot = makeSnapshot({
+      logs: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+          loggedAt: {
+            type: 'timestamp without time zone',
+            nullable: false,
+            primary: false,
+            unique: false,
+            udtName: 'timestamp',
+          },
+        },
+        indexes: [],
+        foreignKeys: [],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain('d.timestamp()');
+    expect(file.content).toContain('// Source: timestamp without time zone');
+  });
+
+  it('maps citext to d.text() without fallback comment', () => {
+    const snapshot = makeSnapshot({
+      users: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+          email: {
+            type: 'citext',
+            nullable: false,
+            primary: false,
+            unique: true,
+            udtName: 'citext',
+          },
+        },
+        indexes: [],
+        foreignKeys: [],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain('email: d.text().unique()');
+    expect(file.content).not.toContain('// TODO');
+  });
+
+  it('maps bytea to d.text() with binary TODO comment', () => {
+    const snapshot = makeSnapshot({
+      files: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+          data: {
+            type: 'bytea',
+            nullable: true,
+            primary: false,
+            unique: false,
+            udtName: 'bytea',
+          },
+        },
+        indexes: [],
+        foreignKeys: [],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain('d.text().nullable()');
+    expect(file.content).toContain('// TODO: binary type');
+  });
+
+  it('escapes single quotes in enum values', () => {
+    const snapshot = makeSnapshot(
+      {
+        items: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+            label: {
+              type: 'USER-DEFINED',
+              nullable: false,
+              primary: false,
+              unique: false,
+              udtName: 'item_label',
+            },
+          },
+          indexes: [],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+      { item_label: ["it's", 'normal', "won't"] },
+    );
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain("'it\\'s'");
+    expect(file.content).toContain("'won\\'t'");
+  });
+
   it('adds source comment for lossy smallint → integer mapping', () => {
     const snapshot = makeSnapshot({
       flags: {
@@ -423,7 +522,7 @@ describe('generateSchemaCode — SQLite type mapping', () => {
     expect(file.content).toContain('id: d.integer().primary()');
     expect(file.content).toContain('name: d.text()');
     expect(file.content).toContain('score: d.real().nullable()');
-    expect(file.content).toContain('// TODO: blob type');
+    expect(file.content).toContain('// TODO: binary type');
   });
 });
 
@@ -489,6 +588,31 @@ describe('generateSchemaCode — indexes', () => {
     expect(file.content).toContain("d.index('title', { name: 'idx_posts_title' })");
   });
 
+  it('camelCases snake_case column names in indexes', () => {
+    const snapshot = makeSnapshot({
+      users: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+          created_at: {
+            type: 'timestamp with time zone',
+            nullable: false,
+            primary: false,
+            unique: false,
+            udtName: 'timestamptz',
+            default: 'now()',
+          },
+        },
+        indexes: [{ columns: ['created_at'], name: 'idx_users_created_at' }],
+        foreignKeys: [],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain("d.index('createdAt', { name: 'idx_users_created_at' })");
+    expect(file.content).not.toContain("d.index('created_at'");
+  });
+
   it('generates unique indexes', () => {
     const snapshot = makeSnapshot({
       posts: {
@@ -506,22 +630,36 @@ describe('generateSchemaCode — indexes', () => {
     expect(file.content).toContain("d.index('slug', { name: 'idx_posts_slug', unique: true })");
   });
 
-  it('generates multi-column indexes', () => {
+  it('generates multi-column indexes with camelCased columns', () => {
     const snapshot = makeSnapshot({
       events: {
         columns: {
           id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
-          type: { type: 'text', nullable: false, primary: false, unique: false, udtName: 'text' },
-          date: { type: 'date', nullable: false, primary: false, unique: false, udtName: 'date' },
+          event_type: {
+            type: 'text',
+            nullable: false,
+            primary: false,
+            unique: false,
+            udtName: 'text',
+          },
+          event_date: {
+            type: 'date',
+            nullable: false,
+            primary: false,
+            unique: false,
+            udtName: 'date',
+          },
         },
-        indexes: [{ columns: ['type', 'date'], name: 'idx_events_type_date' }],
+        indexes: [{ columns: ['event_type', 'event_date'], name: 'idx_events_type_date' }],
         foreignKeys: [],
         _metadata: {},
       },
     });
 
     const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
-    expect(file.content).toContain("d.index(['type', 'date'], { name: 'idx_events_type_date' })");
+    expect(file.content).toContain(
+      "d.index(['eventType', 'eventDate'], { name: 'idx_events_type_date' })",
+    );
   });
 });
 
@@ -840,6 +978,31 @@ describe('generateSchemaCode — per-table mode', () => {
 // ---------------------------------------------------------------------------
 // Does NOT generate app-level annotations
 // ---------------------------------------------------------------------------
+
+describe('generateSchemaCode — index WHERE clause escaping', () => {
+  it('escapes single quotes in WHERE clause', () => {
+    const snapshot = makeSnapshot({
+      users: {
+        columns: {
+          id: { type: 'uuid', nullable: false, primary: true, unique: false, udtName: 'uuid' },
+          status: { type: 'text', nullable: false, primary: false, unique: false, udtName: 'text' },
+        },
+        indexes: [
+          {
+            columns: ['status'],
+            name: 'idx_active',
+            where: "status = 'active'",
+          },
+        ],
+        foreignKeys: [],
+        _metadata: {},
+      },
+    });
+
+    const [file] = generateSchemaCode(snapshot, { dialect: 'postgres', mode: 'single-file' });
+    expect(file.content).toContain("where: 'status = \\'active\\''");
+  });
+});
 
 describe('generateSchemaCode — no app-level annotations', () => {
   it('does NOT generate .readOnly(), .autoUpdate(), .hidden(), or .tenant()', () => {

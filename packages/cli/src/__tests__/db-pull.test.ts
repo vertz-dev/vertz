@@ -55,9 +55,7 @@ describe('dbPullAction', () => {
     const ctx = createMockIntrospectContext();
     const result = await dbPullAction({
       ctx,
-      output: undefined,
       dryRun: true,
-      force: false,
       mode: 'single-file',
     });
 
@@ -89,14 +87,38 @@ describe('dbPullAction', () => {
 
     const result = await dbPullAction({
       ctx,
-      output: undefined,
       dryRun: true,
-      force: false,
       mode: 'single-file',
     });
 
     expect(result.ok).toBe(true);
     expect(introspectSqliteMock).toHaveBeenCalledWith(ctx.queryFn);
+  });
+
+  it('passes per-table mode to generateSchemaCode', async () => {
+    const mockSnapshot = { version: 1, tables: { users: {} }, enums: {} };
+    introspectPostgresMock.mockResolvedValue(mockSnapshot);
+    generateSchemaCodeMock.mockReturnValue([
+      { path: 'users.ts', content: "import { d } from '@vertz/db';\n" },
+      { path: 'index.ts', content: "export { usersTable } from './users';\n" },
+    ]);
+
+    const ctx = createMockIntrospectContext();
+    const result = await dbPullAction({
+      ctx,
+      dryRun: false,
+      mode: 'per-table',
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.files).toHaveLength(2);
+    }
+
+    expect(generateSchemaCodeMock).toHaveBeenCalledWith(mockSnapshot, {
+      dialect: 'postgres',
+      mode: 'per-table',
+    });
   });
 
   it('returns error when introspection fails', async () => {
@@ -105,9 +127,7 @@ describe('dbPullAction', () => {
     const ctx = createMockIntrospectContext();
     const result = await dbPullAction({
       ctx,
-      output: undefined,
       dryRun: false,
-      force: false,
       mode: 'single-file',
     });
 

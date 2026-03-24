@@ -416,9 +416,7 @@ export function createCLI(): Command {
 
         const result = await dbPullAction({
           ctx,
-          output: outputPath,
           dryRun: opts.dryRun ?? false,
-          force: opts.force ?? false,
           mode,
         });
 

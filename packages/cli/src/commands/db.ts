@@ -195,9 +195,7 @@ export async function dbBaselineAction(
 
 export interface DbPullOptions {
   ctx: IntrospectContext;
-  output: string | undefined;
   dryRun: boolean;
-  force: boolean;
   mode: CodegenOptions['mode'];
 }
 

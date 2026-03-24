@@ -201,10 +201,12 @@ function generateColumnCode(
     comment = '// Source: json';
   } else if (col.type === 'smallint') {
     comment = '// Source: smallint';
+  } else if (col.type === 'timestamp without time zone') {
+    comment = '// Source: timestamp without time zone';
   } else if (col.type === 'bigint' && col.default?.startsWith('nextval(')) {
     comment = '// Source: bigserial';
-  } else if (builder.isBlob) {
-    comment = '// TODO: blob type';
+  } else if (builder.isBinary) {
+    comment = '// TODO: binary type';
   } else if (builder.fallback) {
     comment = `// TODO: unmapped type "${col.type}"`;
   }
@@ -241,17 +243,14 @@ interface BuilderResult {
   code: string;
   fallback?: boolean;
   skipDefault?: boolean;
-  isBlob?: boolean;
+  isBinary?: boolean;
 }
 
 function mapColumnType(col: ColumnSnapshot, snapshot: SchemaSnapshot): BuilderResult {
   const type = col.type;
 
   // Serial detection (integer + nextval default)
-  if (
-    (type === 'integer' || type === 'INT' || type === 'integer') &&
-    col.default?.startsWith('nextval(')
-  ) {
+  if ((type === 'integer' || type === 'INT') && col.default?.startsWith('nextval(')) {
     return { code: 'd.serial()', skipDefault: true };
   }
 
@@ -297,8 +296,11 @@ function mapColumnType(col: ColumnSnapshot, snapshot: SchemaSnapshot): BuilderRe
       return mapArrayType(col);
     case 'USER-DEFINED':
       return mapEnumType(col, snapshot);
+    case 'citext':
+      return { code: 'd.text()' };
     case 'blob':
-      return { code: 'd.text()', isBlob: true };
+    case 'bytea':
+      return { code: 'd.text()', isBinary: true };
     default:
       return { code: 'd.text()', fallback: true };
   }
@@ -313,8 +315,8 @@ function mapArrayType(col: ColumnSnapshot): BuilderResult {
 function mapEnumType(col: ColumnSnapshot, snapshot: SchemaSnapshot): BuilderResult {
   const enumName = col.udtName;
   if (enumName && snapshot.enums[enumName]) {
-    const values = snapshot.enums[enumName].map((v) => `'${v}'`).join(', ');
-    return { code: `d.enum('${enumName}', [${values}])`, skipDefault: true };
+    const values = snapshot.enums[enumName].map((v) => `'${escapeSingleQuotes(v)}'`).join(', ');
+    return { code: `d.enum('${escapeSingleQuotes(enumName)}', [${values}])`, skipDefault: true };
   }
   return { code: 'd.text()', fallback: true };
 }
@@ -363,16 +365,15 @@ function generateIndexCode(idx: {
   type?: string;
   where?: string;
 }): string {
+  const camelCols = idx.columns.map((c) => toCamelCase(c));
   const cols =
-    idx.columns.length === 1
-      ? `'${idx.columns[0]}'`
-      : `[${idx.columns.map((c) => `'${c}'`).join(', ')}]`;
+    camelCols.length === 1 ? `'${camelCols[0]}'` : `[${camelCols.map((c) => `'${c}'`).join(', ')}]`;
 
   const opts: string[] = [];
   if (idx.name) opts.push(`name: '${idx.name}'`);
   if (idx.unique) opts.push('unique: true');
   if (idx.type && idx.type !== 'btree') opts.push(`type: '${idx.type}'`);
-  if (idx.where) opts.push(`where: '${idx.where}'`);
+  if (idx.where) opts.push(`where: '${escapeSingleQuotes(idx.where)}'`);
 
   if (opts.length === 0) return `d.index(${cols})`;
   return `d.index(${cols}, { ${opts.join(', ')} })`;
@@ -496,9 +497,13 @@ function topologicalSort(tables: Record<string, TableSnapshot>): string[] {
 // ---------------------------------------------------------------------------
 
 function toCamelCase(str: string): string {
-  return str.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase());
+  return str.replace(/_([a-zA-Z0-9])/g, (_, c: string) => c.toUpperCase());
 }
 
 function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+function escapeSingleQuotes(str: string): string {
+  return str.replace(/'/g, "\\'");
 }
