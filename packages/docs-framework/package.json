@@ -30,12 +30,16 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@vertz/mdx": "workspace:^"
+    "@vertz/mdx": "workspace:^",
+    "@vertz/ui": "workspace:^"
   },
   "devDependencies": {
+    "@happy-dom/global-registrator": "^20.7.0",
     "@types/bun": "latest",
+    "@vertz/ui-compiler": "workspace:^",
     "bun-types": "^1.3.10",
     "bunup": "^0.16.31",
+    "happy-dom": "^20.7.0",
     "typescript": "^5.7.0"
   },
   "engines": {
