@@ -107,4 +107,82 @@ Content here.
     const result = await buildDocs({ projectDir: tempDir, outDir });
     expect(result.routes[0]?.title).toBe('Index');
   });
+
+  it('generates HTML files for each page', async () => {
+    await buildDocs({ projectDir: tempDir, outDir });
+    expect(existsSync(join(outDir, 'index.html'))).toBe(true);
+    const html = await Bun.file(join(outDir, 'index.html')).text();
+    expect(html).toContain('<!DOCTYPE html>');
+    expect(html).toContain('Welcome');
+  });
+
+  it('generates HTML with correct title and meta tags', async () => {
+    writeFileSync(
+      join(tempDir, 'pages', 'index.mdx'),
+      `---
+title: Custom Title
+description: A custom description for SEO.
+---
+
+# Custom Title
+
+Page content.
+`,
+    );
+    await buildDocs({ projectDir: tempDir, outDir });
+    const html = await Bun.file(join(outDir, 'index.html')).text();
+    expect(html).toContain('<title>Custom Title - Test Docs</title>');
+    expect(html).toContain('A custom description for SEO.');
+  });
+
+  it('generates sitemap.xml listing all pages', async () => {
+    await buildDocs({ projectDir: tempDir, outDir, baseUrl: 'https://docs.example.com' });
+    expect(existsSync(join(outDir, 'sitemap.xml'))).toBe(true);
+    const sitemap = await Bun.file(join(outDir, 'sitemap.xml')).text();
+    expect(sitemap).toContain('<?xml');
+    expect(sitemap).toContain('https://docs.example.com/');
+  });
+
+  it('generates robots.txt', async () => {
+    await buildDocs({ projectDir: tempDir, outDir, baseUrl: 'https://docs.example.com' });
+    expect(existsSync(join(outDir, 'robots.txt'))).toBe(true);
+    const robots = await Bun.file(join(outDir, 'robots.txt')).text();
+    expect(robots).toContain('Sitemap: https://docs.example.com/sitemap.xml');
+  });
+
+  it('generates redirect HTML for configured redirects', async () => {
+    writeFileSync(
+      join(tempDir, 'vertz.config.ts'),
+      `export default {
+  name: 'Test Docs',
+  sidebar: [{ tab: 'Guides', groups: [{ title: 'Start', pages: ['index.mdx'] }] }],
+  redirects: [{ source: '/old-page', destination: '/new-page' }],
+};`,
+    );
+    await buildDocs({ projectDir: tempDir, outDir });
+    expect(existsSync(join(outDir, 'old-page', 'index.html'))).toBe(true);
+    const html = await Bun.file(join(outDir, 'old-page', 'index.html')).text();
+    expect(html).toContain('/new-page');
+    expect(html).toContain('http-equiv="refresh"');
+  });
+
+  it('generates HTML for nested page paths', async () => {
+    mkdirSync(join(tempDir, 'pages', 'guides'), { recursive: true });
+    writeFileSync(
+      join(tempDir, 'pages', 'guides', 'advanced.mdx'),
+      `# Advanced Guide
+
+Deep content.
+`,
+    );
+    writeFileSync(
+      join(tempDir, 'vertz.config.ts'),
+      `export default {
+  name: 'Test Docs',
+  sidebar: [{ tab: 'Guides', groups: [{ title: 'Start', pages: ['index.mdx', 'guides/advanced.mdx'] }] }],
+};`,
+    );
+    await buildDocs({ projectDir: tempDir, outDir });
+    expect(existsSync(join(outDir, 'guides', 'advanced.html'))).toBe(true);
+  });
 });
