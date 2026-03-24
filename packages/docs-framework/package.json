@@ -1,0 +1,45 @@
+{
+  "name": "@vertz/docs-framework",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "description": "Documentation framework for Vertz — build docs with MDX, deploy to Cloudflare",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vertz-dev/vertz.git",
+    "directory": "packages/docs-framework"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bunup",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vertz/mdx": "workspace:^"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "bun-types": "^1.3.10",
+    "bunup": "^0.16.31",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "sideEffects": false
+}
