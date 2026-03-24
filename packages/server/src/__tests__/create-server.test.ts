@@ -187,6 +187,7 @@ describe('createServer', () => {
         dialect: { paramPlaceholder: () => '?', quoteName: (n: string) => `"${n}"` },
         tenantGraph: {
           root: null,
+          levels: [],
           directlyScoped: [],
           indirectlyScoped: [],
           shared: [],
@@ -263,6 +264,7 @@ describe('createServer', () => {
         dialect: { paramPlaceholder: () => '?', quoteName: (n: string) => `"${n}"` },
         tenantGraph: {
           root: null,
+          levels: [],
           directlyScoped: [],
           indirectlyScoped: [],
           shared: [],
@@ -315,6 +317,7 @@ describe('createServer', () => {
         dialect: { paramPlaceholder: () => '?', quoteName: (n: string) => `"${n}"` },
         tenantGraph: {
           root: null,
+          levels: [],
           directlyScoped: [],
           indirectlyScoped: [],
           shared: [],
@@ -376,6 +379,7 @@ describe('createServer', () => {
         dialect: { paramPlaceholder: () => '?', quoteName: (n: string) => `"${n}"` },
         tenantGraph: {
           root: null,
+          levels: [],
           directlyScoped: [],
           indirectlyScoped: [],
           shared: [],
@@ -439,6 +443,7 @@ describe('createServer', () => {
         dialect: { paramPlaceholder: () => '?', quoteName: (n: string) => `"${n}"` },
         tenantGraph: {
           root: null,
+          levels: [],
           directlyScoped: [],
           indirectlyScoped: [],
           shared: [],

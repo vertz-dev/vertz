@@ -65,6 +65,7 @@ function createMockDatabaseClient() {
       dialect: { paramPlaceholder: () => '?', quoteName: (n: string) => `"${n}"` },
       tenantGraph: {
         root: null,
+        levels: [],
         directlyScoped: [],
         indirectlyScoped: [],
         shared: [],
