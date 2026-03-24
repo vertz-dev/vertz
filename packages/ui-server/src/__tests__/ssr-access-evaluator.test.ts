@@ -223,4 +223,65 @@ describe('Feature: SSRAuth to PrefetchSession conversion', () => {
       }
     });
   });
+
+  describe('Given an authenticated SSRAuth with an access set', () => {
+    it('Then populates entitlements from the access set allowed flags', () => {
+      const ssrAuth = {
+        status: 'authenticated' as const,
+        user: { id: 'u1', email: 'a@b.com', role: 'user', tenantId: 't1' },
+        expiresAt: Date.now() + 3600_000,
+      };
+      const accessSet = {
+        entitlements: {
+          'task:read': { allowed: true, reasons: [] },
+          'task:write': { allowed: true, reasons: [] },
+          'task:delete': { allowed: false, reasons: ['no-role'], reason: 'no-role' as const },
+        },
+        flags: {},
+        plan: null,
+        computedAt: new Date().toISOString(),
+      };
+      const session = toPrefetchSession(ssrAuth, accessSet);
+      expect(session).toEqual({
+        status: 'authenticated',
+        roles: ['user'],
+        tenantId: 't1',
+        entitlements: {
+          'task:read': true,
+          'task:write': true,
+          'task:delete': false,
+        },
+      });
+    });
+  });
+
+  describe('Given an authenticated SSRAuth without an access set', () => {
+    it('Then entitlements are undefined', () => {
+      const ssrAuth = {
+        status: 'authenticated' as const,
+        user: { id: 'u1', email: 'a@b.com', role: 'user' },
+        expiresAt: Date.now() + 3600_000,
+      };
+      const session = toPrefetchSession(ssrAuth);
+      expect(session.status).toBe('authenticated');
+      if (session.status === 'authenticated') {
+        expect(session.entitlements).toBeUndefined();
+      }
+    });
+  });
+
+  describe('Given an access set with null (overflow)', () => {
+    it('Then entitlements are undefined', () => {
+      const ssrAuth = {
+        status: 'authenticated' as const,
+        user: { id: 'u1', email: 'a@b.com', role: 'user' },
+        expiresAt: Date.now() + 3600_000,
+      };
+      const session = toPrefetchSession(ssrAuth, null);
+      expect(session.status).toBe('authenticated');
+      if (session.status === 'authenticated') {
+        expect(session.entitlements).toBeUndefined();
+      }
+    });
+  });
 });

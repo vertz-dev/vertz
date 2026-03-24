@@ -42,19 +42,38 @@ export type PrefetchSession =
 // ─── Session conversion ─────────────────────────────────────────
 
 /**
+ * Minimal shape of an AccessSet for entitlement extraction.
+ * Avoids importing @vertz/server types into the SSR pipeline.
+ */
+interface AccessSetLike {
+  entitlements: Record<string, { allowed: boolean }>;
+}
+
+/**
  * Convert SSRAuth (from the JWT/session resolver) to PrefetchSession
  * for entity access evaluation during SSR prefetching.
+ *
+ * @param ssrAuth - Auth state from session resolver
+ * @param accessSet - Access set from JWT acl claim (null = overflow, undefined = not configured)
  */
 export function toPrefetchSession(
   ssrAuth: { status: string; user?: { role?: string; [key: string]: unknown } } | undefined,
+  accessSet?: AccessSetLike | null,
 ): PrefetchSession {
   if (!ssrAuth || ssrAuth.status !== 'authenticated' || !ssrAuth.user) {
     return { status: 'unauthenticated' };
   }
   const roles = ssrAuth.user.role ? [ssrAuth.user.role as string] : undefined;
+  const entitlements =
+    accessSet != null
+      ? Object.fromEntries(
+          Object.entries(accessSet.entitlements).map(([name, check]) => [name, check.allowed]),
+        )
+      : undefined;
   return {
     status: 'authenticated',
     roles,
+    entitlements,
     tenantId: ssrAuth.user.tenantId as string | undefined,
   };
 }
