@@ -270,6 +270,27 @@ describe('Feature: SSRAuth to PrefetchSession conversion', () => {
     });
   });
 
+  describe('Given an access set with no entitlements', () => {
+    it('Then returns an empty entitlements map', () => {
+      const ssrAuth = {
+        status: 'authenticated' as const,
+        user: { id: 'u1', email: 'a@b.com', role: 'user' },
+        expiresAt: Date.now() + 3600_000,
+      };
+      const accessSet = {
+        entitlements: {},
+        flags: {},
+        plan: null,
+        computedAt: new Date().toISOString(),
+      };
+      const session = toPrefetchSession(ssrAuth, accessSet);
+      expect(session.status).toBe('authenticated');
+      if (session.status === 'authenticated') {
+        expect(session.entitlements).toEqual({});
+      }
+    });
+  });
+
   describe('Given an access set with null (overflow)', () => {
     it('Then entitlements are undefined', () => {
       const ssrAuth = {
