@@ -131,6 +131,66 @@ describe('IR Adapter - Entities', () => {
     expect(action?.outputSchema).toBe('ActivateUserOutput');
   });
 
+  it('extracts resolvedFields from inline action body', () => {
+    const appIR = createEmptyAppIR();
+    const entity = createBasicEntity('user');
+    entity.actions = [
+      {
+        name: 'invite',
+        method: 'POST',
+        body: {
+          kind: 'inline',
+          sourceFile: '/test.ts',
+          resolvedFields: [
+            { name: 'email', tsType: 'string', optional: false },
+            { name: 'role', tsType: 'string', optional: true },
+          ],
+        },
+        sourceFile: '/test.ts',
+        sourceLine: 1,
+        sourceColumn: 1,
+      },
+    ];
+    appIR.entities = [entity];
+
+    const result = adaptIR(appIR);
+    const action = result.entities[0]?.actions[0];
+    expect(action?.resolvedInputFields).toEqual([
+      { name: 'email', tsType: 'string', optional: false },
+      { name: 'role', tsType: 'string', optional: true },
+    ]);
+  });
+
+  it('extracts resolvedFields from inline action response', () => {
+    const appIR = createEmptyAppIR();
+    const entity = createBasicEntity('user');
+    entity.actions = [
+      {
+        name: 'stats',
+        method: 'GET',
+        response: {
+          kind: 'inline',
+          sourceFile: '/test.ts',
+          resolvedFields: [
+            { name: 'count', tsType: 'number', optional: false },
+            { name: 'active', tsType: 'number', optional: false },
+          ],
+        },
+        sourceFile: '/test.ts',
+        sourceLine: 1,
+        sourceColumn: 1,
+      },
+    ];
+    appIR.entities = [entity];
+
+    const result = adaptIR(appIR);
+    const action = result.entities[0]?.actions[0];
+    expect(action?.resolvedOutputFields).toEqual([
+      { name: 'count', tsType: 'number', optional: false },
+      { name: 'active', tsType: 'number', optional: false },
+    ]);
+  });
+
   it('sets schema names when resolved', () => {
     const appIR = createEmptyAppIR();
     const entity = createBasicEntity('user');
@@ -490,6 +550,52 @@ describe('IR Adapter - Entities', () => {
           resolvedFields: [
             { name: 'id', tsType: 'string', optional: false },
             { name: 'name', tsType: 'string', optional: false },
+          ],
+        },
+      ]);
+    });
+
+    it('includes all target fields when expose.include has no select', () => {
+      const appIR = createEmptyAppIR();
+
+      // Target entity (users) with response fields
+      const usersEntity = createBasicEntity('users');
+      usersEntity.modelRef.schemaRefs = {
+        response: {
+          kind: 'inline',
+          sourceFile: '/test.ts',
+          resolvedFields: [
+            { name: 'id', tsType: 'string', optional: false },
+            { name: 'name', tsType: 'string', optional: false },
+            { name: 'email', tsType: 'string', optional: false },
+          ],
+        },
+        resolved: true,
+      };
+
+      // Source entity with expose.include WITHOUT select (should get all target fields)
+      const tasksEntity = createBasicEntity('tasks');
+      tasksEntity.relations = [
+        { name: 'assignee', type: 'one', entity: 'users', selection: 'all' },
+      ];
+      tasksEntity.expose = {
+        select: [{ name: 'id', conditional: false }],
+        include: [{ name: 'assignee', entity: 'users', type: 'one' }],
+      };
+
+      appIR.entities = [usersEntity, tasksEntity];
+
+      const result = adaptIR(appIR);
+      const tasksModule = result.entities.find((e) => e.entityName === 'tasks');
+      expect(tasksModule?.exposeInclude).toEqual([
+        {
+          name: 'assignee',
+          entity: 'users',
+          type: 'one',
+          resolvedFields: [
+            { name: 'id', tsType: 'string', optional: false },
+            { name: 'name', tsType: 'string', optional: false },
+            { name: 'email', tsType: 'string', optional: false },
           ],
         },
       ]);
