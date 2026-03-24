@@ -8,11 +8,11 @@ export function Header() {
 }
 `.trim();
 
-// Component that cannot be AOT-compiled (multiple returns)
+// Component that cannot be AOT-compiled (try/catch with multiple returns)
 const FALLBACK_COMPONENT = `
-export function Counter({ mode }: { mode: string }) {
-  if (mode === 'simple') return <span>Simple</span>;
-  return <span>Complex</span>;
+export function Counter() {
+  try { return <span>OK</span>; }
+  catch { return <span>Error</span>; }
 }
 `.trim();
 

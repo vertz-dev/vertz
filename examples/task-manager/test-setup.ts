@@ -1,7 +1,14 @@
 /**
  * Test setup for bun test with happy-dom
  */
+import { afterAll } from 'bun:test';
 import { GlobalWindow } from 'happy-dom';
+
+// Force-exit after all tests complete — mock-data delays use setTimeout
+// which keeps the event loop alive indefinitely after tests finish.
+afterAll(() => {
+  setTimeout(() => process.exit(0), 500);
+});
 
 // Create a happy-dom window and inject globals
 const window = new GlobalWindow();
