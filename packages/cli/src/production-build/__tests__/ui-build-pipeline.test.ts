@@ -89,7 +89,7 @@ function defaultBunBuildImpl(opts: { outdir: string; entrypoints: string[] }) {
   }
 
   const jsFile = join(opts.outdir, `${entryName.replace(/\.tsx?$/, '')}.js`);
-  writeFileSync(jsFile, '// built server');
+  writeFileSync(jsFile, 'export default {};');
   return {
     success: true,
     logs: [],
