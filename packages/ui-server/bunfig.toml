@@ -6,4 +6,5 @@ coveragePathIgnorePatterns = [
   "**/server/dist/**",
   "**/ui/dist/**",
   "**/ui/src/**",
+  "**/__tests__/**",
 ]

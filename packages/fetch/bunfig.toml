@@ -1,2 +1,2 @@
 [test]
-coveragePathIgnorePatterns = ["**/errors/dist/**"]
+coveragePathIgnorePatterns = ["**/errors/dist/**", "**/__tests__/**"]
