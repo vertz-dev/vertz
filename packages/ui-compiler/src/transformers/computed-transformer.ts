@@ -174,7 +174,9 @@ function transformComputedReads(
 
 		// Shorthand property: { total } → { total: total.value }
 		// Expand to a regular property assignment so the computed is unwrapped (#1858).
+		// Guard: skip if shadowed by a nested scope.
 		if (parent.isKind(SyntaxKind.ShorthandPropertyAssignment)) {
+			if (isShadowedInNestedScope(node, name, bodyNode)) return;
 			source.overwrite(
 				node.getStart(),
 				node.getEnd(),

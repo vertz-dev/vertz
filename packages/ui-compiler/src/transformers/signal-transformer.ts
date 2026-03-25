@@ -142,7 +142,10 @@ function transformReferences(
 
 		// Shorthand property: { count } → { count: count.value }
 		// Expand to a regular property assignment so the signal is unwrapped (#1858).
+		// Guard: skip if shadowed by a nested scope or inside a mutation range.
 		if (parent.isKind(SyntaxKind.ShorthandPropertyAssignment)) {
+			if (isShadowedInNestedScope(node, name, bodyNode)) return;
+			if (isInsideMutationRange(node.getStart(), mutationRanges)) return;
 			source.overwrite(
 				node.getStart(),
 				node.getEnd(),

@@ -118,6 +118,17 @@ describe("SignalTransformer", () => {
 		expect(result).toContain("other: 1");
 	});
 
+	it("does NOT expand shorthand when signal name is shadowed by nested scope (#1858)", () => {
+		const result = transform(
+			`function App() {\n  let count = 0;\n  const result = items.map((count) => ({ count }));\n  return <div>{count}</div>;\n}`,
+			[{ name: "count", kind: "signal", start: 0, end: 0 }],
+		);
+		// The `count` inside the arrow function's shorthand refers to the callback parameter,
+		// not the signal. It should NOT be expanded to count.value.
+		expect(result).not.toContain("count: count.value");
+		expect(result).toContain("({ count })");
+	});
+
 	it("auto-unwraps 3-level field signal property chain", () => {
 		const result = transform(
 			`function TaskForm() {\n  const taskForm = form({ title: '' });\n  const err = taskForm.title.error;\n  return <div>{err}</div>;\n}`,

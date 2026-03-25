@@ -177,4 +177,15 @@ describe("ComputedTransformer", () => {
 		expect(result).toContain("offset: offset.value");
 		expect(result).toContain("limit: 20");
 	});
+
+	it("does NOT expand shorthand when computed name is shadowed by nested scope (#1858)", () => {
+		const code = `function Page() {\n  const offset = (page - 1) * 10;\n  const result = items.map((offset) => ({ offset }));\n  return <div>{offset}</div>;\n}`;
+		const result = transform(code, [
+			{ name: "page", kind: "signal", start: 0, end: 0 },
+			{ name: "offset", kind: "computed", start: 0, end: 0 },
+		]);
+		// The `offset` inside the arrow's shorthand is the callback parameter, not the computed.
+		expect(result).not.toContain("offset: offset.value");
+		expect(result).toContain("({ offset })");
+	});
 });
