@@ -1,5 +1,6 @@
 mod component_analyzer;
 mod computed_transformer;
+mod jsx_transformer;
 mod magic_string;
 mod mount_frame_transformer;
 mod mutation_analyzer;
@@ -138,6 +139,10 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
                 comp,
                 &variables,
             );
+
+            // JSX transform runs AFTER signal/computed transforms so that
+            // MagicString already has .value insertions when we read expression text.
+            jsx_transformer::transform_jsx(&mut ms, &parser_ret.program, comp, &variables);
 
             // Mount frame wrapping runs AFTER all other transforms
             // Check if this is an arrow expression body first

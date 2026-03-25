@@ -58,6 +58,130 @@ impl MagicString {
     pub fn slice(&self, start: u32, end: u32) -> &str {
         &self.original[start as usize..end as usize]
     }
+
+    /// Get a slice of the source WITH queued mutations applied.
+    /// This is essential for the JSX transformer which needs to read expression text
+    /// that includes `.value` additions from signal/computed transforms.
+    pub fn get_transformed_slice(&self, start: u32, end: u32) -> String {
+        let start = start as usize;
+        let end = end as usize;
+
+        // Collect edits that fall within or affect [start, end)
+        let mut events: Vec<EditEvent> = Vec::new();
+        for (idx, edit) in self.edits.iter().enumerate() {
+            match edit {
+                Edit::Overwrite {
+                    start: es,
+                    end: ee,
+                    text,
+                } => {
+                    // Include if the overwrite overlaps with our range
+                    if *es < end && *ee > start {
+                        events.push(EditEvent {
+                            pos: *es,
+                            kind: EditEventKind::OverwriteStart {
+                                end: *ee,
+                                text: text.clone(),
+                                idx,
+                            },
+                        });
+                    }
+                }
+                Edit::InsertBefore { pos, text } => {
+                    if *pos >= start && *pos <= end {
+                        events.push(EditEvent {
+                            pos: *pos,
+                            kind: EditEventKind::InsertBefore {
+                                text: text.clone(),
+                                idx,
+                            },
+                        });
+                    }
+                }
+                Edit::InsertAfter { pos, text } => {
+                    // Use <= end to include appends at the end boundary
+                    // (e.g., .value appended right after an identifier that ends at `end`)
+                    if *pos >= start && *pos <= end {
+                        events.push(EditEvent {
+                            pos: *pos,
+                            kind: EditEventKind::InsertAfter {
+                                text: text.clone(),
+                                idx,
+                            },
+                        });
+                    }
+                }
+            }
+        }
+
+        if events.is_empty() {
+            return self.original[start..end].to_string();
+        }
+
+        // Sort same as Display impl
+        events.sort_by(|a, b| {
+            a.pos.cmp(&b.pos).then_with(|| {
+                let priority = |e: &EditEvent| match &e.kind {
+                    EditEventKind::InsertBefore { .. } => 0,
+                    EditEventKind::OverwriteStart { .. } => 1,
+                    EditEventKind::InsertAfter { .. } => 2,
+                };
+                priority(a).cmp(&priority(b)).then_with(|| {
+                    let idx_a = match &a.kind {
+                        EditEventKind::InsertBefore { idx, .. }
+                        | EditEventKind::InsertAfter { idx, .. }
+                        | EditEventKind::OverwriteStart { idx, .. } => *idx,
+                    };
+                    let idx_b = match &b.kind {
+                        EditEventKind::InsertBefore { idx, .. }
+                        | EditEventKind::InsertAfter { idx, .. }
+                        | EditEventKind::OverwriteStart { idx, .. } => *idx,
+                    };
+                    idx_a.cmp(&idx_b)
+                })
+            })
+        });
+
+        let mut result = String::new();
+        let mut cursor = start;
+
+        for event in &events {
+            match &event.kind {
+                EditEventKind::InsertBefore { text, .. } => {
+                    if cursor < event.pos {
+                        result.push_str(&self.original[cursor..event.pos]);
+                        cursor = event.pos;
+                    }
+                    result.push_str(text);
+                }
+                EditEventKind::OverwriteStart {
+                    end: oe_end, text, ..
+                } => {
+                    if cursor < event.pos {
+                        result.push_str(&self.original[cursor..event.pos]);
+                    }
+                    result.push_str(text);
+                    cursor = *oe_end;
+                }
+                EditEventKind::InsertAfter { text, .. } => {
+                    if cursor <= event.pos && event.pos <= end {
+                        let copy_end = event.pos.min(end);
+                        if cursor < copy_end {
+                            result.push_str(&self.original[cursor..copy_end]);
+                        }
+                        cursor = event.pos;
+                    }
+                    result.push_str(text);
+                }
+            }
+        }
+
+        if cursor < end {
+            result.push_str(&self.original[cursor..end]);
+        }
+
+        result
+    }
 }
 
 impl fmt::Display for MagicString {

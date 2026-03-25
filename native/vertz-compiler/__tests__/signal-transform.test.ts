@@ -265,8 +265,8 @@ describe('Feature: Signal transform', () => {
         // The count inside the callback refers to the parameter, not the signal
         expect(code).toContain('console.log(count)');
         expect(code).not.toContain('console.log(count.value)');
-        // But JSX reference should still get .value
-        expect(code).toContain('{count.value}');
+        // But JSX reference should still get .value (now inside transformed __child)
+        expect(code).toContain('count.value');
       });
     });
   });

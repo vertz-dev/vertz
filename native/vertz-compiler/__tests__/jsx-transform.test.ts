@@ -1,0 +1,288 @@
+import { describe, expect, it } from 'bun:test';
+import { join } from 'node:path';
+
+const NATIVE_MODULE_PATH = join(
+  import.meta.dir,
+  '..',
+  'vertz-compiler.darwin-arm64.node',
+);
+
+function loadCompiler() {
+  return require(NATIVE_MODULE_PATH) as {
+    compile: (
+      source: string,
+      options?: { filename?: string },
+    ) => { code: string };
+  };
+}
+
+function compileAndGetCode(source: string): string {
+  const { compile } = loadCompiler();
+  const result = compile(source, { filename: 'test.tsx' });
+  return result.code;
+}
+
+describe('Feature: JSX element transform', () => {
+  describe('Given a simple HTML element', () => {
+    describe('When compiled', () => {
+      it('Then produces __element() call', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <div></div>;\n}`,
+        );
+        expect(code).toContain('__element("div")');
+        expect(code).not.toContain('<div>');
+      });
+    });
+  });
+
+  describe('Given a self-closing HTML element', () => {
+    describe('When compiled', () => {
+      it('Then produces __element() call', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <input />;\n}`,
+        );
+        expect(code).toContain('__element("input")');
+        expect(code).not.toContain('<input');
+      });
+    });
+  });
+
+  describe('Given an element with static string attribute', () => {
+    describe('When compiled', () => {
+      it('Then sets attribute with setAttribute', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <div title="hello"></div>;\n}`,
+        );
+        expect(code).toContain('__element("div")');
+        expect(code).toContain('.setAttribute("title", "hello")');
+      });
+    });
+  });
+
+  describe('Given an element with className attribute', () => {
+    describe('When compiled', () => {
+      it('Then maps className to class', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <div className="container"></div>;\n}`,
+        );
+        expect(code).toContain('.setAttribute("class", "container")');
+      });
+    });
+  });
+
+  describe('Given an element with static text child', () => {
+    describe('When compiled', () => {
+      it('Then uses __staticText', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <div>hello world</div>;\n}`,
+        );
+        expect(code).toContain('__staticText("hello world")');
+      });
+    });
+  });
+
+  describe('Given an element with reactive expression child', () => {
+    describe('When compiled', () => {
+      it('Then wraps in __child(() => ...)', () => {
+        const code = compileAndGetCode(
+          `function Counter() {\n  let count = 0;\n  return <div>{count}</div>;\n}`,
+        );
+        expect(code).toContain('__child(');
+        expect(code).toContain('count.value');
+      });
+    });
+  });
+
+  describe('Given an element with static expression child', () => {
+    describe('When compiled', () => {
+      it('Then uses __insert (no effect overhead)', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <div>{"hello"}</div>;\n}`,
+        );
+        expect(code).toContain('__insert(');
+        expect(code).not.toContain('__child(');
+      });
+    });
+  });
+
+  describe('Given an element with event handler', () => {
+    describe('When compiled', () => {
+      it('Then uses __on', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <button onClick={handler}>click</button>;\n}`,
+        );
+        expect(code).toContain('__on(');
+        expect(code).toContain('"click"');
+        expect(code).toContain('handler');
+      });
+    });
+  });
+
+  describe('Given an element with reactive attribute', () => {
+    describe('When compiled', () => {
+      it('Then uses __attr with getter', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  let cls = 'active';\n  return <div className={cls}></div>;\n}`,
+        );
+        expect(code).toContain('__attr(');
+        expect(code).toContain('"class"');
+        expect(code).toContain('() =>');
+      });
+    });
+  });
+
+  describe('Given nested elements', () => {
+    describe('When compiled', () => {
+      it('Then uses __enterChildren/__exitChildren and __append', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <div><span>hello</span></div>;\n}`,
+        );
+        expect(code).toContain('__element("div")');
+        expect(code).toContain('__element("span")');
+        expect(code).toContain('__enterChildren(');
+        expect(code).toContain('__exitChildren()');
+        expect(code).toContain('__append(');
+      });
+    });
+  });
+
+  describe('Given a component call (PascalCase)', () => {
+    describe('When compiled', () => {
+      it('Then calls the component as a function with props object', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <Button label="hi" />;\n}`,
+        );
+        expect(code).toContain('Button(');
+        expect(code).toContain('label: "hi"');
+        expect(code).not.toContain('<Button');
+      });
+    });
+  });
+
+  describe('Given a component with reactive prop', () => {
+    describe('When compiled', () => {
+      it('Then wraps reactive prop in getter', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  let count = 0;\n  return <Display value={count} />;\n}`,
+        );
+        expect(code).toContain('Display(');
+        expect(code).toContain('get value()');
+        expect(code).toContain('count.value');
+      });
+    });
+  });
+
+  describe('Given a component with static non-literal prop', () => {
+    describe('When compiled', () => {
+      it('Then passes as plain value', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <Display value={someVar} />;\n}`,
+        );
+        expect(code).toContain('Display(');
+        expect(code).toContain('value: someVar');
+      });
+    });
+  });
+
+  describe('Given a component with children', () => {
+    describe('When compiled', () => {
+      it('Then passes children as thunk', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <Card><span>content</span></Card>;\n}`,
+        );
+        expect(code).toContain('Card(');
+        expect(code).toContain('children:');
+      });
+    });
+  });
+
+  describe('Given a JSX fragment', () => {
+    describe('When compiled', () => {
+      it('Then creates a DocumentFragment', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <><div>a</div><span>b</span></>;\n}`,
+        );
+        expect(code).toContain('createDocumentFragment');
+        expect(code).toContain('__element("div")');
+        expect(code).toContain('__element("span")');
+      });
+    });
+  });
+
+  describe('Given a conditional expression (ternary)', () => {
+    describe('When compiled', () => {
+      it('Then produces __conditional() call', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  let show = true;\n  return <div>{show ? <span>yes</span> : <span>no</span>}</div>;\n}`,
+        );
+        expect(code).toContain('__conditional(');
+      });
+    });
+  });
+
+  describe('Given a logical AND expression', () => {
+    describe('When compiled', () => {
+      it('Then produces __conditional() call', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  let loading = true;\n  return <div>{loading && <span>Loading...</span>}</div>;\n}`,
+        );
+        expect(code).toContain('__conditional(');
+      });
+    });
+  });
+
+  describe('Given a list rendering with .map()', () => {
+    describe('When compiled', () => {
+      it('Then produces __list() call', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  let items = [];\n  return <ul>{items.map(item => <li key={item.id}>{item.name}</li>)}</ul>;\n}`,
+        );
+        expect(code).toContain('__list(');
+      });
+    });
+  });
+
+  describe('Given a boolean shorthand attribute', () => {
+    describe('When compiled', () => {
+      it('Then sets attribute with empty string', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <input disabled />;\n}`,
+        );
+        expect(code).toContain('.setAttribute("disabled", "")');
+      });
+    });
+  });
+
+  describe('Given an element with spread attributes', () => {
+    describe('When compiled', () => {
+      it('Then uses __spread', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <div {...props}></div>;\n}`,
+        );
+        expect(code).toContain('__spread(');
+      });
+    });
+  });
+
+  describe('Given a ref attribute', () => {
+    describe('When compiled', () => {
+      it('Then assigns .current on the element variable', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <input ref={myRef} />;\n}`,
+        );
+        expect(code).toContain('myRef.current');
+      });
+    });
+  });
+
+  describe('Given JSX whitespace with newlines', () => {
+    describe('When compiled', () => {
+      it('Then collapses whitespace per React/Babel rules', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <div>\n    Hello\n    World\n  </div>;\n}`,
+        );
+        expect(code).toContain('Hello World');
+      });
+    });
+  });
+});
