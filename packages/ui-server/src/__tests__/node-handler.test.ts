@@ -304,7 +304,10 @@ describe('createNodeHandler', () => {
           },
         };
 
-        const handler = createNodeHandler({ module: moduleWithQuery, template });
+        const handler = createNodeHandler({
+          module: moduleWithQuery,
+          template,
+        });
         const result = await startServer(handler);
         server = result.server;
 
@@ -545,6 +548,84 @@ describe('createNodeHandler', () => {
     });
   });
 
+  describe('AOT manifest integration', () => {
+    describe('Given an AOT manifest with a matching route', () => {
+      describe('When a GET request arrives for that route', () => {
+        it('Then renders via AOT string concatenation', async () => {
+          const aotManifest = {
+            routes: {
+              '/projects/board': {
+                render: () => '<div class="board">AOT Board</div>',
+                holes: [],
+                queryKeys: [],
+              },
+            },
+          };
+
+          const handler = createNodeHandler({
+            module: simpleModule,
+            template,
+            aotManifest,
+          });
+          const result = await startServer(handler);
+          server = result.server;
+
+          const res = await fetch(`http://localhost:${result.port}/projects/board`);
+          expect(res.status).toBe(200);
+          const html = await res.text();
+          expect(html).toContain('AOT Board');
+        });
+      });
+    });
+
+    describe('Given an AOT manifest without a match for the requested route', () => {
+      describe('When a GET request arrives', () => {
+        it('Then falls back to ssrRenderSinglePass', async () => {
+          const aotManifest = {
+            routes: {
+              '/projects/board': {
+                render: () => '<div>AOT Board</div>',
+                holes: [],
+                queryKeys: [],
+              },
+            },
+          };
+
+          const handler = createNodeHandler({
+            module: simpleModule,
+            template,
+            aotManifest,
+          });
+          const result = await startServer(handler);
+          server = result.server;
+
+          const res = await fetch(`http://localhost:${result.port}/settings`);
+          const html = await res.text();
+          expect(html).toContain('Hello World');
+          expect(res.status).toBe(200);
+        });
+      });
+    });
+
+    describe('Given no AOT manifest', () => {
+      describe('When a GET request arrives', () => {
+        it('Then renders via ssrRenderSinglePass (backward compatible)', async () => {
+          const handler = createNodeHandler({
+            module: simpleModule,
+            template,
+          });
+          const result = await startServer(handler);
+          server = result.server;
+
+          const res = await fetch(`http://localhost:${result.port}/`);
+          const html = await res.text();
+          expect(html).toContain('Hello World');
+          expect(res.status).toBe(200);
+        });
+      });
+    });
+  });
+
   describe('Phase 3: SSE nav pre-fetch', () => {
     describe('Given a request with X-Vertz-Nav: 1 header', () => {
       describe('When queries are discovered for the URL', () => {
@@ -563,7 +644,10 @@ describe('createNodeHandler', () => {
             },
           };
 
-          const handler = createNodeHandler({ module: moduleWithQuery, template });
+          const handler = createNodeHandler({
+            module: moduleWithQuery,
+            template,
+          });
           const result = await startServer(handler);
           server = result.server;
 
