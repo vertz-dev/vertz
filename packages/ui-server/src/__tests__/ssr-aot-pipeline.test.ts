@@ -178,6 +178,18 @@ describe('Feature: Runtime holes and SSR integration', () => {
           expect(result.html).toBe('<div class="page"><h1>Projects</h1></div>');
         });
 
+        it('Then returns matchedRoutePatterns for per-route modulepreload', async () => {
+          const module = createMockModule();
+          const aotManifest: AotManifest = {
+            routes: {
+              '/projects': { render: staticAotFn('<div>Projects</div>'), holes: [] },
+            },
+          };
+
+          const result = await ssrRenderAot(module, '/projects', { aotManifest });
+          expect(result.matchedRoutePatterns).toEqual(['/projects']);
+        });
+
         it('Then ssrData is populated from query cache', async () => {
           const aotFn: AotRenderFn = (_data, ctx) => {
             return `<div>${__esc(String(ctx.getData('GET:/tasks')))}</div>`;
@@ -309,26 +321,50 @@ describe('Feature: Runtime holes and SSR integration', () => {
       });
     });
 
-    describe('Given ctx.getData() is called by the AOT function', () => {
-      describe('When the key exists in the query cache', () => {
-        it('Then returns the cached data', async () => {
+    describe('Given an AOT route with queryKeys and a prefetch manifest', () => {
+      describe('When ssrRenderAot() is called with an API client', () => {
+        it('Then prefetches data and populates the query cache', async () => {
           let receivedData: unknown;
           const aotFn: AotRenderFn = (_data, ctx) => {
-            receivedData = ctx.getData('GET:/tasks');
+            receivedData = ctx.getData('tasks-list');
             return '<div>Tasks</div>';
           };
 
-          // For now, queryCache is empty unless populated externally.
-          // Full prefetch integration comes in Phase 4.
           const module = createMockModule();
-          const aotManifest: AotManifest = {
-            routes: {
-              '/tasks': { render: aotFn, holes: [] },
+          // Simulate API client: module.api.tasks.list() → descriptor
+          (module as Record<string, unknown>).api = {
+            tasks: {
+              list: () => ({
+                _key: 'vertz:tasks:list:{}',
+                _fetch: () => Promise.resolve({ ok: true, data: [{ id: '1', title: 'Buy milk' }] }),
+              }),
             },
           };
 
-          await ssrRenderAot(module, '/tasks', { aotManifest });
-          expect(receivedData).toBeUndefined(); // No prefetch yet
+          const aotManifest: AotManifest = {
+            routes: {
+              '/tasks': {
+                render: aotFn,
+                holes: [],
+                queryKeys: ['tasks-list'],
+              },
+            },
+          };
+
+          const manifest = {
+            routePatterns: ['/tasks'],
+            routeEntries: {
+              '/tasks': {
+                queries: [
+                  { descriptorChain: 'api.tasks.list', entity: 'tasks', operation: 'list' },
+                ],
+              },
+            },
+          };
+
+          await ssrRenderAot(module, '/tasks', { aotManifest, manifest });
+
+          expect(receivedData).toEqual([{ id: '1', title: 'Buy milk' }]);
         });
       });
     });

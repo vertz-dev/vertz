@@ -157,7 +157,7 @@ All CSS is inlined in the HTML response — no extra network requests, no flash 
 
 ## AOT-compiled SSR
 
-The default SSR pipeline uses a DOM shim — it runs your component tree through a simulated DOM and serializes the result. This is correct and universal, but for high-traffic pages, Vertz offers **AOT (Ahead-of-Time) compiled SSR** that pre-compiles components into direct string concatenation functions at build time.
+The default SSR pipeline uses a DOM shim — it runs your component tree through a simulated DOM and serializes the result. This is correct and universal, but for high-traffic pages, Vertz offers **AOT (Ahead-of-Time) compiled SSR** that pre-compiles components into direct string concatenation functions at build time. AOT rendering is fully automatic — `vertz build` compiles the functions and `vertz start` loads them.
 
 ### How it works
 
@@ -185,6 +185,24 @@ function __ssr_Header(__props) {
 ```
 
 No DOM shim, no virtual nodes, no serialization — just string concatenation. This is the same approach used by Svelte and Marko for their SSR compilation.
+
+Components that use `query()` are compiled with data access via the AOT context. The query data is pre-fetched using the same zero-discovery pipeline as the prefetch manifest, then passed to the AOT function:
+
+```tsx
+// Your component:
+function ProjectsPage() {
+  const projects = query(api.projects.list());
+  return <ul>{projects.data?.items.map(p => <li>{p.name}</li>)}</ul>;
+}
+
+// AOT output (simplified):
+export function __ssr_ProjectsPage(data, ctx) {
+  const __q = ctx.getData('projects-list');
+  return '<ul>' + (__q?.items ?? []).map(p =>
+    '<li>' + __esc(p.name) + '</li>'
+  ).join('') + '</ul>';
+}
+```
 
 ### Runtime holes
 
@@ -308,6 +326,36 @@ This is the fastest SSR path: one render pass, no discovery, data already cached
 | `routeChunkManifest` | Per-route chunk manifest for targeted preloading | — |
 | `cacheControl` | Cache-Control header for HTML responses | — |
 | `sessionResolver` | Async function to resolve session from request | — |
+| `aotManifest` | AOT manifest for pre-compiled SSR rendering | — |
+
+### AOT rendering in production
+
+When you run `vertz build`, the build pipeline automatically generates `aot-manifest.json` and `aot-routes.js` in `dist/server/`. To use AOT rendering in production, load the manifest at startup and pass it to the handler:
+
+```ts
+import { createSSRHandler, loadAotManifest } from '@vertz/ui-server';
+
+const module = await import('./dist/server/index.js');
+const template = await Bun.file('./dist/client/index.html').text();
+
+// Load AOT manifest (returns null if not available)
+const aotManifest = await loadAotManifest('./dist/server');
+
+const handler = createSSRHandler({
+  module,
+  template,
+  ssrTimeout: 300,
+  aotManifest: aotManifest ?? undefined,
+});
+```
+
+When `aotManifest` is provided, routes that match an AOT entry are rendered via pre-compiled string-builder functions — bypassing the DOM shim entirely. Routes without AOT entries automatically fall back to `ssrRenderSinglePass()`. This is fully transparent: the HTML output is identical either way.
+
+`loadAotManifest()` returns `null` if the manifest files don't exist, so you can always call it — it degrades gracefully when AOT compilation is not available.
+
+<Note>
+`vertz start` loads the AOT manifest automatically. You only need `loadAotManifest()` when writing a custom production server.
+</Note>
 
 ## How hydration works
 

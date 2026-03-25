@@ -277,20 +277,114 @@ ${modulepreloadLinks}
 
     console.log('  Server entry: dist/server/app.js');
 
-    // ── 5b. AOT manifest generation ──────────────────────────────
+    // ── 5b. AOT manifest + route module emission ──────────────────
     console.log('📋 Generating AOT manifest...');
 
     try {
-      const { generateAotBuildManifest } = await import('@vertz/ui-server');
+      const { buildAotRouteMap, extractRoutes, generateAotBarrel, generateAotBuildManifest } =
+        await import('@vertz/ui-server');
       const srcDir = resolve(projectRoot, 'src');
       const aotManifest = generateAotBuildManifest(srcDir);
       const componentCount = Object.keys(aotManifest.components).length;
 
       if (componentCount > 0) {
-        const manifestPath = resolve(distServer, 'aot-manifest.json');
-        writeFileSync(manifestPath, JSON.stringify(aotManifest.components, null, 2));
         for (const line of aotManifest.classificationLog) {
           console.log(`  ${line}`);
+        }
+
+        // Discover router file for route → component mapping
+        const routerCandidates = [resolve(srcDir, 'router.tsx'), resolve(srcDir, 'router.ts')];
+        const routerPath = routerCandidates.find((p) => existsSync(p));
+
+        if (routerPath) {
+          const routerSource = readFileSync(routerPath, 'utf-8');
+          const routes = extractRoutes(routerSource, routerPath);
+
+          if (routes.length > 0) {
+            const routeEntries = routes.map((r) => ({
+              pattern: r.pattern,
+              componentName: r.componentName,
+            }));
+            const routeMap = buildAotRouteMap(aotManifest.components, routeEntries);
+            const routeCount = Object.keys(routeMap).length;
+
+            if (routeCount > 0) {
+              // Generate barrel + temp files and bundle with Bun.build()
+              const barrel = generateAotBarrel(aotManifest.compiledFiles, routeMap);
+              const aotTmpDir = resolve(distServer, '.aot-tmp');
+              mkdirSync(aotTmpDir, { recursive: true });
+
+              // Write compiled files
+              for (const [fileName, code] of Object.entries(barrel.files)) {
+                writeFileSync(resolve(aotTmpDir, fileName), code);
+              }
+
+              // Write barrel entry
+              const barrelPath = resolve(aotTmpDir, 'aot-barrel.ts');
+              writeFileSync(barrelPath, barrel.barrelSource);
+
+              // Bundle into aot-routes.js
+              // Externalize JSX runtime because compiled files contain original
+              // source (with JSX) alongside the generated __ssr_* functions.
+              // The barrel re-exports only __ssr_* fns; tree-shaking removes
+              // the JSX components but the bundler still needs to resolve imports.
+              const bundleResult = await Bun.build({
+                entrypoints: [barrelPath],
+                target: 'bun',
+                format: 'esm',
+                outdir: distServer,
+                naming: 'aot-routes.[ext]',
+                external: [
+                  '@vertz/ui-server',
+                  '@vertz/ui',
+                  '@vertz/ui/internals',
+                  'react',
+                  'react/jsx-dev-runtime',
+                  'react/jsx-runtime',
+                ],
+              });
+
+              // Clean up temp dir
+              rmSync(aotTmpDir, { recursive: true, force: true });
+
+              if (bundleResult.success) {
+                console.log(
+                  `  AOT routes: ${routeCount} route(s) bundled → dist/server/aot-routes.js`,
+                );
+
+                // Write aot-manifest.json with route mapping
+                const manifestPath = resolve(distServer, 'aot-manifest.json');
+                writeFileSync(manifestPath, JSON.stringify({ routes: routeMap }, null, 2));
+              } else {
+                const errors = bundleResult.logs
+                  .map((l: { message: string }) => l.message)
+                  .join('\n');
+                console.log(`  ⚠ AOT routes bundle failed: ${errors}`);
+                // Still write classification-only manifest
+                const manifestPath = resolve(distServer, 'aot-manifest.json');
+                writeFileSync(
+                  manifestPath,
+                  JSON.stringify({ components: aotManifest.components }, null, 2),
+                );
+              }
+            } else {
+              console.log('  No AOT-eligible routes found (all runtime-fallback)');
+              const manifestPath = resolve(distServer, 'aot-manifest.json');
+              writeFileSync(
+                manifestPath,
+                JSON.stringify({ components: aotManifest.components }, null, 2),
+              );
+            }
+          } else {
+            console.log('  No routes found in router file');
+          }
+        } else {
+          console.log('  No router file found (src/router.ts or src/router.tsx)');
+          const manifestPath = resolve(distServer, 'aot-manifest.json');
+          writeFileSync(
+            manifestPath,
+            JSON.stringify({ components: aotManifest.components }, null, 2),
+          );
         }
       } else {
         console.log('  No components found for AOT compilation');

@@ -51,12 +51,15 @@ function parseGeneratedCode(code: string) {
   return project.createSourceFile('output.tsx', code);
 }
 
-/** Strip TS type annotations from a function declaration for JS eval. */
+/** Strip TS type annotations and export keyword from a function declaration for JS eval. */
 function stripTypeAnnotations(text: string): string {
-  return text.replace(/\)\s*:\s*string\s*\{/, ') {').replace(/\(([^)]*)\)/, (_, params: string) => {
-    const stripped = params.replace(/:\s*[^,)]+/g, '');
-    return `(${stripped})`;
-  });
+  return text
+    .replace(/^export\s+/, '')
+    .replace(/\)\s*:\s*string\s*\{/, ') {')
+    .replace(/\(([^)]*)\)/, (_, params: string) => {
+      const stripped = params.replace(/:\s*[^,)]+/g, '');
+      return `(${stripped})`;
+    });
 }
 
 /** Evaluate the generated AOT function. */

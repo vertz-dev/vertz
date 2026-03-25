@@ -19,6 +19,8 @@ export interface AotComponentInfo {
   tier: AotTier;
   /** Component names that need runtime rendering (holes). */
   holes: string[];
+  /** Query cache keys this component reads via ctx.getData(). Empty for props-only components. */
+  queryKeys: string[];
 }
 
 /** Result of a compileForSSRAot() call. */

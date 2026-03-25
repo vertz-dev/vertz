@@ -59,7 +59,7 @@ On Node.js, bridging between Node's `IncomingMessage`/`ServerResponse` and web `
 `createNodeHandler` accepts the same options as `createSSRHandler`:
 
 ```ts
-import { createNodeHandler } from '@vertz/ui-server/node';
+import { createNodeHandler, loadAotManifest } from '@vertz/ui-server/node';
 
 const handler = createNodeHandler({
   // Required — your SSR module
@@ -93,6 +93,9 @@ const handler = createNodeHandler({
 
   // Optional — enable progressive HTML streaming
   progressiveHTML: true,
+
+  // Optional — AOT manifest for pre-compiled SSR (see SSR guide)
+  aotManifest: await loadAotManifest('./dist/server') ?? undefined,
 });
 ```
 

@@ -1080,4 +1080,78 @@ describe('createSSRHandler', () => {
       expect(text).toBe('Internal Server Error');
     });
   });
+
+  // ─── AOT manifest integration ──────────────────────────────────
+
+  describe('Given an AOT manifest with a matching route', () => {
+    describe('When createSSRHandler receives a request for that route', () => {
+      it('Then renders via AOT string concatenation', async () => {
+        const aotManifest = {
+          routes: {
+            '/projects/board': {
+              render: () => '<div class="board">AOT Board</div>',
+              holes: [],
+              queryKeys: [],
+            },
+          },
+        };
+
+        const handler = createSSRHandler({
+          module: simpleModule,
+          template,
+          aotManifest,
+        });
+
+        const response = await handler(new Request('http://localhost/projects/board'));
+        const html = await response.text();
+        expect(html).toContain('AOT Board');
+        expect(response.status).toBe(200);
+      });
+    });
+  });
+
+  describe('Given an AOT manifest without a match for the requested route', () => {
+    describe('When createSSRHandler receives a request', () => {
+      it('Then falls back to ssrRenderSinglePass', async () => {
+        const aotManifest = {
+          routes: {
+            '/projects/board': {
+              render: () => '<div>AOT Board</div>',
+              holes: [],
+              queryKeys: [],
+            },
+          },
+        };
+
+        const handler = createSSRHandler({
+          module: simpleModule,
+          template,
+          aotManifest,
+        });
+
+        // /settings doesn't match /projects/board
+        const response = await handler(new Request('http://localhost/settings'));
+        const html = await response.text();
+        // DOM shim renders simpleModule.default() → <div>Hello World</div>
+        expect(html).toContain('Hello World');
+        expect(response.status).toBe(200);
+      });
+    });
+  });
+
+  describe('Given no AOT manifest', () => {
+    describe('When createSSRHandler receives a request', () => {
+      it('Then renders via ssrRenderSinglePass (backward compatible)', async () => {
+        const handler = createSSRHandler({
+          module: simpleModule,
+          template,
+        });
+
+        const response = await handler(new Request('http://localhost/'));
+        const html = await response.text();
+        expect(html).toContain('Hello World');
+        expect(response.status).toBe(200);
+      });
+    });
+  });
 });

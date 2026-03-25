@@ -47,12 +47,15 @@ function extractAotFn(code: string, fnName: string): string {
   return fn.getText();
 }
 
-/** Strip TS type annotations from a function declaration for JS eval. */
+/** Strip TS type annotations and export keyword from a function declaration for JS eval. */
 function stripTypeAnnotations(text: string): string {
-  return text.replace(/\)\s*:\s*string\s*\{/, ') {').replace(/\(([^)]*)\)/, (_, params: string) => {
-    const stripped = params.replace(/:\s*[^,)]+/g, '');
-    return `(${stripped})`;
-  });
+  return text
+    .replace(/^export\s+/, '')
+    .replace(/\)\s*:\s*string\s*\{/, ') {')
+    .replace(/\(([^)]*)\)/, (_, params: string) => {
+      const stripped = params.replace(/:\s*[^,)]+/g, '');
+      return `(${stripped})`;
+    });
 }
 
 /** Evaluate the generated AOT function by running only __ssr_* functions (no regex). */
@@ -950,6 +953,112 @@ function Comp() {
 
       expect(result.diagnostics).toBeDefined();
       expect(Array.isArray(result.diagnostics)).toBe(true);
+    });
+  });
+
+  describe('query-sourced variables (standalone page functions)', () => {
+    it('emits queryKeys in AotComponentInfo for query() variables', () => {
+      const result = compileForSSRAot(
+        `
+import { query } from '@vertz/ui';
+
+function ProjectsPage() {
+  const projects = query(api.projects.list());
+  return <div>{projects.data}</div>;
+}
+        `.trim(),
+      );
+
+      expect(result.components).toHaveLength(1);
+      expect(result.components[0]!.queryKeys).toEqual(['projects-list']);
+    });
+
+    it('generates (data, ctx) signature for components with query()', () => {
+      const result = compileForSSRAot(
+        `
+import { query } from '@vertz/ui';
+
+function ProjectsPage() {
+  const projects = query(api.projects.list());
+  return <div>{projects.data}</div>;
+}
+        `.trim(),
+      );
+
+      const fnText = extractAotFn(result.code, '__ssr_ProjectsPage');
+      expect(fnText).toContain('data');
+      expect(fnText).toContain('ctx');
+    });
+
+    it('replaces query().data references with ctx.getData(key)', () => {
+      const result = compileForSSRAot(
+        `
+import { query } from '@vertz/ui';
+
+function ProjectsPage() {
+  const projects = query(api.projects.list());
+  return <div>{projects.data}</div>;
+}
+        `.trim(),
+      );
+
+      const fnText = extractAotFn(result.code, '__ssr_ProjectsPage');
+      expect(fnText).toContain("ctx.getData('projects-list')");
+      expect(fnText).not.toContain('projects.data');
+    });
+
+    it('replaces query().loading with false', () => {
+      const result = compileForSSRAot(
+        `
+import { query } from '@vertz/ui';
+
+function ProjectsPage() {
+  const projects = query(api.projects.list());
+  return <div>{projects.loading ? 'Loading...' : 'Done'}</div>;
+}
+        `.trim(),
+      );
+
+      const fnText = extractAotFn(result.code, '__ssr_ProjectsPage');
+      expect(fnText).not.toContain('projects.loading');
+    });
+
+    it('preserves (props) signature for components without query()', () => {
+      const result = compileForSSRAot(
+        `
+function ProjectCard(props) {
+  return <div>{props.name}</div>;
+}
+        `.trim(),
+      );
+
+      expect(result.components).toHaveLength(1);
+      expect(result.components[0]!.queryKeys).toEqual([]);
+
+      const fnText = extractAotFn(result.code, '__ssr_ProjectCard');
+      expect(fnText).toContain('props');
+      expect(fnText).not.toContain('ctx');
+    });
+
+    it('handles multiple query() calls in a single component', () => {
+      const result = compileForSSRAot(
+        `
+import { query } from '@vertz/ui';
+
+function DashboardPage() {
+  const projects = query(api.projects.list());
+  const tasks = query(api.tasks.list());
+  return <div>{projects.data}{tasks.data}</div>;
+}
+        `.trim(),
+      );
+
+      expect(result.components[0]!.queryKeys).toContain('projects-list');
+      expect(result.components[0]!.queryKeys).toContain('tasks-list');
+
+      const fnText = extractAotFn(result.code, '__ssr_DashboardPage');
+      expect(fnText).not.toContain('projects.data');
+      expect(fnText).not.toContain('tasks.data');
     });
   });
 });

@@ -224,6 +224,7 @@ export function compileForSSRAot(
         name: c.name,
         tier: 'runtime-fallback' as const,
         holes: [],
+        queryKeys: [],
       })),
       diagnostics: [],
     };
