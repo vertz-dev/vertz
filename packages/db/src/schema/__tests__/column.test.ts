@@ -175,6 +175,25 @@ describe('chainable builders', () => {
     expect(col._meta._annotations.hidden).toBe(true);
   });
 
+  it('.hidden() followed by .is() preserves both annotations', () => {
+    const col = d.text().hidden().is('patchable');
+    expect(col._meta._annotations.hidden).toBe(true);
+    expect(col._meta._annotations.patchable).toBe(true);
+  });
+
+  it('.hidden().hidden() is idempotent', () => {
+    const col = d.text().hidden().hidden();
+    expect(col._meta._annotations.hidden).toBe(true);
+    expect(col._meta._annotations).toEqual(d.text().hidden()._meta._annotations);
+  });
+
+  it('.hidden() works on base ColumnBuilder types', () => {
+    const bool = d.boolean().hidden();
+    expect(bool._meta._annotations.hidden).toBe(true);
+    const ts = d.timestamp().hidden();
+    expect(ts._meta._annotations.hidden).toBe(true);
+  });
+
   it('.check(sql) stores the check constraint', () => {
     const col = d.integer().check('value > 0');
     expect(col._meta.check).toBe('value > 0');
