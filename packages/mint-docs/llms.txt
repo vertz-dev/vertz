@@ -104,7 +104,7 @@ Define tables with `d.table()` and models with `d.model()`:
 
     const tasksModel = d.model(tasksTable);
 
-Column annotations: `.hidden()` excludes from API responses, `.readOnly()` excludes from create/update inputs, `.default(value)` makes the field optional on create.
+Column annotations: `.is('hidden')` excludes from API responses, `.is('sensitive')` excludes from responses, `.readOnly()` excludes from create/update inputs, `.default(value)` makes the field optional on create.
 
 ## Getting Started
 
