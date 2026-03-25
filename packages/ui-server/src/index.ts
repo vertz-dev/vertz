@@ -13,6 +13,7 @@ export {
   generateAotBarrel,
   generateAotBuildManifest,
 } from './aot-manifest-build';
+export { loadAotManifest } from './aot-manifest-loader';
 export { renderAssetTags } from './asset-pipeline';
 export { inlineCriticalCss } from './critical-css';
 export { detectFallbackFont, extractFontMetrics } from './font-metrics';

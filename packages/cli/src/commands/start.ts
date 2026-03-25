@@ -206,11 +206,21 @@ async function startUIOnly(
   // Inline CSS to prevent FOUC
   const inlineCSS = discoverInlineCSS(projectRoot);
 
-  const { createSSRHandler } = await import('@vertz/ui-server/ssr');
+  const { createSSRHandler, loadAotManifest } = await import('@vertz/ui-server/ssr');
+
+  // Load AOT manifest if available (optional — graceful degradation)
+  const serverDir = join(projectRoot, 'dist', 'server');
+  const aotManifest = await loadAotManifest(serverDir).catch(() => null);
+  if (aotManifest) {
+    const routeCount = Object.keys(aotManifest.routes).length;
+    console.log(`  AOT: ${routeCount} route(s) loaded`);
+  }
+
   const ssrHandler = createSSRHandler({
     module: ssrModule,
     template,
     inlineCSS,
+    aotManifest: aotManifest ?? undefined,
   });
 
   const clientDir = resolve(projectRoot, 'dist', 'client');
@@ -299,11 +309,21 @@ async function startFullStack(
 
   const inlineCSS = discoverInlineCSS(projectRoot);
 
-  const { createSSRHandler } = await import('@vertz/ui-server/ssr');
+  const { createSSRHandler, loadAotManifest } = await import('@vertz/ui-server/ssr');
+
+  // Load AOT manifest if available (optional — graceful degradation)
+  const serverDir = join(projectRoot, 'dist', 'server');
+  const aotManifest = await loadAotManifest(serverDir).catch(() => null);
+  if (aotManifest) {
+    const routeCount = Object.keys(aotManifest.routes).length;
+    console.log(`  AOT: ${routeCount} route(s) loaded`);
+  }
+
   const ssrHandler = createSSRHandler({
     module: ssrModule,
     template,
     inlineCSS,
+    aotManifest: aotManifest ?? undefined,
   });
 
   const clientDir = resolve(projectRoot, 'dist', 'client');

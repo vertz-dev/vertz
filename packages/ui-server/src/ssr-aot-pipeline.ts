@@ -11,11 +11,13 @@
 
 import type { FontFallbackMetrics } from '@vertz/ui';
 import type { SSRAuth } from '@vertz/ui/internals';
+import type { ExtractedQuery } from '@vertz/ui-compiler';
 import { installDomShim, toVNode } from './dom-shim';
 import { serializeToHtml } from './html-serializer';
 import type { PrefetchSession } from './ssr-access-evaluator';
 import type { AotDiagnostics } from './ssr-aot-diagnostics';
 import { clearGlobalSSRTimeout, setGlobalSSRTimeout, ssrStorage } from './ssr-context';
+import { reconstructDescriptors } from './ssr-manifest-prefetch';
 import {
   compileThemeCached,
   createRequestContext,
@@ -228,9 +230,23 @@ export async function ssrRenderAot(
   // 2. Build query cache from AOT entry's query keys
   const queryCache = new Map<string, unknown>();
 
-  // If the AOT entry specifies query keys and a data source is available,
-  // populate the cache. For now, the cache is populated by the caller
-  // or via the prefetch pipeline (Phase 4 will add prefetch integration).
+  // Prefetch query data via the SSR prefetch manifest (zero-discovery)
+  if (aotEntry.queryKeys && aotEntry.queryKeys.length > 0 && manifest?.routeEntries) {
+    const apiClient = (module as Record<string, unknown>).api as
+      | Record<string, Record<string, (...args: unknown[]) => unknown>>
+      | undefined;
+
+    if (apiClient) {
+      await prefetchForAot(
+        aotEntry.queryKeys,
+        manifest.routeEntries,
+        match,
+        apiClient,
+        ssrTimeout,
+        queryCache,
+      );
+    }
+  }
 
   try {
     // Set global SSR timeout so hole components' query() calls use it
@@ -281,10 +297,73 @@ export async function ssrRenderAot(
       css: css.cssString,
       ssrData,
       headTags: css.preloadTags,
+      matchedRoutePatterns: [match.pattern],
     };
   } finally {
     clearGlobalSSRTimeout();
   }
+}
+
+// ─── Data prefetch for AOT ────────────────────────────────────────
+
+/**
+ * Prefetch query data for an AOT-rendered route.
+ *
+ * Uses the SSR prefetch manifest to find query metadata for matched routes,
+ * reconstructs fetch descriptors via the API client, and fetches all data
+ * in parallel with a timeout. Results are stored in the queryCache keyed
+ * by AOT cache key format (`entity-operation`).
+ */
+async function prefetchForAot(
+  queryKeys: string[],
+  routeEntries: Record<string, { queries: ExtractedQuery[] }>,
+  match: { pattern: string; params: Record<string, string> },
+  apiClient: Record<string, Record<string, (...args: unknown[]) => unknown>>,
+  ssrTimeout: number,
+  queryCache: Map<string, unknown>,
+): Promise<void> {
+  // Collect queries from the prefetch manifest that match AOT queryKeys
+  const entry = routeEntries[match.pattern];
+  if (!entry) return;
+
+  const queryKeySet = new Set(queryKeys);
+  const fetchJobs: Array<{ aotKey: string; fetchFn: () => Promise<unknown> }> = [];
+
+  for (const query of entry.queries) {
+    if (!query.entity || !query.operation) continue;
+    const aotKey = `${query.entity}-${query.operation}`;
+    if (!queryKeySet.has(aotKey)) continue;
+
+    // Reconstruct a single descriptor from the query metadata
+    const descriptors = reconstructDescriptors([query], match.params, apiClient);
+    if (descriptors.length > 0 && descriptors[0]) {
+      fetchJobs.push({ aotKey, fetchFn: descriptors[0].fetch });
+    }
+  }
+
+  if (fetchJobs.length === 0) return;
+
+  // Fetch all data in parallel with timeout
+  await Promise.allSettled(
+    fetchJobs.map(({ aotKey, fetchFn }) =>
+      Promise.race([
+        fetchFn().then((result) => {
+          const data = unwrapResult(result);
+          queryCache.set(aotKey, data);
+        }),
+        new Promise((r) => setTimeout(r, ssrTimeout)),
+      ]),
+    ),
+  );
+}
+
+/** Unwrap a Result<T> into the data value. */
+function unwrapResult(result: unknown): unknown {
+  if (result && typeof result === 'object' && 'ok' in result && 'data' in result) {
+    const r = result as Record<string, unknown>;
+    if (r.ok) return r.data;
+  }
+  return result;
 }
 
 // ─── Internal helpers ────────────────────────────────────────────

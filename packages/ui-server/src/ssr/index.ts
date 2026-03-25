@@ -6,6 +6,7 @@
  * bundling vite, rollup, esbuild, lightningcss, and fsevents.
  */
 
+export { loadAotManifest } from '../aot-manifest-loader';
 export type { PrerenderOptions, PrerenderResult } from '../prerender';
 export {
   collectPrerenderPaths,

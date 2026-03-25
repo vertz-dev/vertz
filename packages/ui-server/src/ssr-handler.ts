@@ -10,6 +10,8 @@
 
 import type { FontFallbackMetrics } from '@vertz/ui';
 import type { SSRAuth } from '@vertz/ui/internals';
+import type { AotManifest } from './ssr-aot-pipeline';
+import { ssrRenderAot } from './ssr-aot-pipeline';
 import {
   precomputeHandlerState,
   resolveRouteModulepreload,
@@ -84,6 +86,16 @@ export interface SSRHandlerOptions {
    * which always use buffered rendering.
    */
   progressiveHTML?: boolean;
+  /**
+   * AOT manifest with pre-compiled render functions.
+   *
+   * When provided, routes matching AOT entries are rendered via string-builder
+   * functions (no DOM shim), bypassing the reactive runtime for 4-6x speedup.
+   * Routes not in the manifest fall back to `ssrRenderSinglePass()`.
+   *
+   * Load via `loadAotManifest(serverDir)` at startup.
+   */
+  aotManifest?: AotManifest;
 }
 
 import type { SessionResolver } from './ssr-session';
@@ -101,6 +113,7 @@ export function createSSRHandler(
     sessionResolver,
     manifest,
     progressiveHTML,
+    aotManifest,
   } = options;
 
   const { template, linkHeader, modulepreloadTags, splitResult } = precomputeHandlerState(options);
@@ -163,6 +176,7 @@ export function createSSRHandler(
       sessionScript,
       ssrAuth,
       manifest,
+      aotManifest,
     );
   };
 }
@@ -307,14 +321,25 @@ async function handleHTMLRequest(
   sessionScript?: string,
   ssrAuth?: SSRAuth,
   manifest?: SSRPrefetchManifest,
+  aotManifest?: AotManifest,
 ): Promise<Response> {
   try {
-    const result = await ssrRenderSinglePass(module, url, {
-      ssrTimeout,
-      fallbackMetrics,
-      ssrAuth,
-      manifest,
-    });
+    // Use AOT rendering when an AOT manifest is available.
+    // ssrRenderAot() falls back to ssrRenderSinglePass() for non-AOT routes.
+    const result = aotManifest
+      ? await ssrRenderAot(module, url, {
+          aotManifest,
+          manifest,
+          ssrTimeout,
+          fallbackMetrics,
+          ssrAuth,
+        })
+      : await ssrRenderSinglePass(module, url, {
+          ssrTimeout,
+          fallbackMetrics,
+          ssrAuth,
+          manifest,
+        });
 
     // SSR redirect — return 302 instead of rendered HTML
     if (result.redirect) {
