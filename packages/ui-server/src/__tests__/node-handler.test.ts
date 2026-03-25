@@ -366,4 +366,80 @@ describe('createNodeHandler', () => {
       });
     });
   });
+
+  describe('Phase 2: Progressive streaming', () => {
+    describe('Given createNodeHandler with progressiveHTML: true', () => {
+      describe('When a page request arrives', () => {
+        it('Then streams HTML chunks directly to ServerResponse', async () => {
+          const handler = createNodeHandler({
+            module: simpleModule,
+            template,
+            progressiveHTML: true,
+          });
+          const result = await startServer(handler);
+          server = result.server;
+
+          const res = await fetch(`http://localhost:${result.port}/`);
+          expect(res.status).toBe(200);
+          expect(res.headers.get('content-type')).toBe('text/html; charset=utf-8');
+          const html = await res.text();
+          expect(html).toContain('Hello World');
+          expect(html).toContain('<!DOCTYPE html>');
+          expect(html).toContain('</html>');
+        });
+
+        it('Then includes SSR data script in tail', async () => {
+          let callCount = 0;
+          const moduleWithQuery: SSRModule = {
+            default: () => {
+              callCount++;
+              if (callCount === 1) {
+                registerSSRQuery({
+                  key: 'stream-data',
+                  promise: Promise.resolve({ msg: 'hello' }),
+                  timeout: 300,
+                  resolve: () => {},
+                });
+              }
+              const el = document.createElement('div');
+              el.textContent = 'Streamed';
+              return el;
+            },
+          };
+
+          const handler = createNodeHandler({
+            module: moduleWithQuery,
+            template,
+            progressiveHTML: true,
+          });
+          const result = await startServer(handler);
+          server = result.server;
+
+          const res = await fetch(`http://localhost:${result.port}/`);
+          const html = await res.text();
+          expect(html).toContain('__VERTZ_SSR_DATA__');
+        });
+      });
+
+      describe('When render throws', () => {
+        it('Then writes 500 error response', async () => {
+          const crashModule: SSRModule = {
+            default: () => {
+              throw new Error('Stream crash');
+            },
+          };
+          const handler = createNodeHandler({
+            module: crashModule,
+            template,
+            progressiveHTML: true,
+          });
+          const result = await startServer(handler);
+          server = result.server;
+
+          const res = await fetch(`http://localhost:${result.port}/`);
+          expect(res.status).toBe(500);
+        });
+      });
+    });
+  });
 });
