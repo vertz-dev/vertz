@@ -18,7 +18,7 @@ export default defineConfig({
   webServer: {
     command: `cd e2e/fixture && PORT=${PORT} bun run dev-server.ts`,
     url: `http://localhost:${PORT}`,
-    reuseExistingServer: true,
+    reuseExistingServer: !process.env.CI,
     timeout: 20_000,
   },
 

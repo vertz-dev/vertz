@@ -24,13 +24,17 @@ test.describe('Feature: HMR text updates', () => {
     originalContent = readFileSync(APP_PATH, 'utf-8');
   });
 
+  // afterEach restores the file without delay. The next test's page.goto('/') triggers
+  // a fresh SSR render, and toHaveText('Hello HMR') auto-retries for 5s — plenty of time
+  // for the watcher cycle (~1.1s worst case) to complete. No sleep needed here.
   test.afterEach(() => {
     writeFileSync(APP_PATH, originalContent);
   });
 
   test.afterAll(async () => {
     writeFileSync(APP_PATH, originalContent);
-    // Wait for dev server to process restored file.
+    // Wait for dev server to process restored file before the NEXT describe block starts.
+    // afterAll → next beforeAll has no page.goto retry safety net, so we sleep explicitly.
     // Watcher debounce (100ms) + SSR re-import with retry (up to 2x500ms) = ~1100ms worst case.
     // 3000ms adds safety margin. Matches pattern from runtime-error-overlay.spec.ts.
     await new Promise((r) => setTimeout(r, 3000));
