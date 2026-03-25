@@ -1,5 +1,7 @@
 # @vertz/compiler
 
+## 0.2.33
+
 ## 0.2.32
 
 ## 0.2.31
@@ -42,6 +44,7 @@
 
   Breaking change to EntityRelationsConfig: flat field maps replaced with structured
   RelationConfigObject containing `select`, `allowWhere`, `allowOrderBy`, `maxLimit`.
+
   - Extended VertzQL include entries to support `where`, `orderBy`, `limit`, nested `include`
   - Recursive include validation with path-prefixed errors and maxLimit clamping
   - Include pass-through from route handler → CRUD pipeline → DB adapter
@@ -89,15 +92,18 @@
   Migrate from Dagger to Turborepo for improved reliability, caching, and local/CI parity.
 
   **Breaking changes:**
+
   - Removed `codegen` property from `VertzConfig` interface in `@vertz/compiler`. This was an unused configuration option that created a circular dependency. Codegen configuration should be passed directly to codegen functions.
 
   **Key improvements:**
+
   - Content-hash-based caching for deterministic builds
   - Identical commands run locally and in CI
   - No external engine dependencies (Dagger was causing instability)
   - Fixed circular dependency between @vertz/compiler and @vertz/codegen by removing type re-exports
 
   **Migration notes:**
+
   - `bun run ci` now uses Turborepo instead of Dagger
   - `bun run ci:affected` runs only tasks for packages changed since main
   - All existing package scripts remain unchanged
