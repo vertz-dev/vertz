@@ -1,5 +1,19 @@
 # @vertz/ui-compiler
 
+## 0.2.34
+
+### Patch Changes
+
+- [#1876](https://github.com/vertz-dev/vertz/pull/1876) [`8076db5`](https://github.com/vertz-dev/vertz/commit/8076db590be9a593321d6de4cad6590d41e3c83c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix AOT route extraction to handle dynamic imports, function calls, and bare identifiers alongside existing JSX patterns. Improve AOT bundle error logging with detailed messages and stack traces.
+
+- [#1877](https://github.com/vertz-dev/vertz/pull/1877) [`3399191`](https://github.com/vertz-dev/vertz/commit/339919192bd95b5d212abf7f6d3746101c8d5422) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix query() not re-fetching when reactive state changes after SSR hydration (#1861)
+
+  Runtime: call thunk during SSR hydration (when key is derived) to register reactive deps in the effect.
+  Compiler: auto-wrap `query(descriptor)` in a thunk when the argument references reactive variables.
+
+- Updated dependencies [[`3399191`](https://github.com/vertz-dev/vertz/commit/339919192bd95b5d212abf7f6d3746101c8d5422)]:
+  - @vertz/ui@0.2.34
+
 ## 0.2.33
 
 ### Patch Changes

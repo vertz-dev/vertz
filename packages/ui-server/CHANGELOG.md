@@ -1,5 +1,14 @@
 # @vertz/ui-server
 
+## 0.2.34
+
+### Patch Changes
+
+- Updated dependencies [[`8076db5`](https://github.com/vertz-dev/vertz/commit/8076db590be9a593321d6de4cad6590d41e3c83c), [`3399191`](https://github.com/vertz-dev/vertz/commit/339919192bd95b5d212abf7f6d3746101c8d5422)]:
+  - @vertz/ui-compiler@0.2.34
+  - @vertz/ui@0.2.34
+  - @vertz/core@0.2.34
+
 ## 0.2.33
 
 ### Patch Changes
