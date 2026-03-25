@@ -997,7 +997,7 @@ describe('Feature: Multi-level tenancy', () => {
 - **Acceptance:** Consuming at child level increments wallet at all ancestor levels; denial at any level blocks consumption
 
 ### Phase 4: Documentation + developer walkthrough
-- Update `packages/docs/` with multi-level tenancy guide
+- Update `packages/mint-docs/` with multi-level tenancy guide
 - Full walkthrough example (2-level and 3-level)
 - Migration guide from single-level
 - Edge enforcement boundary documentation

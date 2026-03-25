@@ -272,7 +272,7 @@ describe('Given a css() call with CSS object in array', () => {
 - All theme-shadcn styles (~22 files including focusRing/disabledStyles/svgStyles patterns): same migration
 - `_helpers.ts`: Change return types to specific object types (e.g. `{ animation: string }`)
 - Update `focusRing`, `disabledStyles`, `svgStyles` type annotations across theme files
-- Update `packages/docs/api-reference/ui/css.mdx` to reflect new API shape
+- Update `packages/mint-docs/api-reference/ui/css.mdx` to reflect new API shape
 
 **Acceptance criteria:**
 - All existing tests pass after migration

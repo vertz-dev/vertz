@@ -625,7 +625,7 @@ describe('Given --url and --dialect without config file', () => {
 
 ### Phase 3: Documentation
 
-- Add `vertz db pull` to `packages/docs/guides/db/migrations.mdx`
+- Add `vertz db pull` to `packages/mint-docs/guides/db/migrations.mdx`
 - Add adoption guide: "Migrating an existing database to Vertz"
 - Document type mapping table (including lossy mappings: json→jsonb, smallint→integer)
 - Document relation inference rules
@@ -653,7 +653,7 @@ describe('Given --url and --dialect without config file', () => {
 | `packages/cli/src/cli.ts` | Register `vertz db pull` subcommand |
 | `packages/cli/src/commands/db.ts` | Add `dbPullAction` |
 | `packages/cli/src/commands/load-db-context.ts` | Add `loadIntrospectContext()` (lightweight, supports CLI overrides) |
-| `packages/docs/guides/db/migrations.mdx` | Document `vertz db pull` |
+| `packages/mint-docs/guides/db/migrations.mdx` | Document `vertz db pull` |
 
 ### Existing files (reuse as-is)
 

@@ -38,7 +38,7 @@
 
 ## Motivation
 
-Vertz currently uses Mintlify for API/guide documentation (`packages/docs/`) and a custom Vertz app for component docs (`sites/component-docs/`). This creates three problems:
+Vertz currently uses Mintlify for API/guide documentation (`packages/mint-docs/`) and a custom Vertz app for component docs (`sites/component-docs/`). This creates three problems:
 
 1. **Split identity** — The framework that preaches "one stack" outsources its own docs to a third-party SaaS product. We can't add Vertz-specific components (live component previews, compiler playgrounds, interactive schema explorers) without hacking around Mintlify's closed component system.
 
@@ -717,7 +717,7 @@ During migration (Phase 5), both Mintlify and the new system run simultaneously:
 
 ### Rollback plan
 
-- Mintlify config (`packages/docs/docs.json` + all MDX files) preserved in git
+- Mintlify config (`packages/mint-docs/docs.json` + all MDX files) preserved in git
 - DNS switch is the last step — if issues found post-switch, revert DNS to Mintlify in minutes
 - Mintlify subscription kept active for 30 days after migration as safety net
 
@@ -1087,11 +1087,11 @@ describe('Given a built docs site with search', () => {
 
 ### Phase 6: Migrate Vertz docs from Mintlify
 
-**Goal:** Move all 57 MDX pages from `packages/docs/` to the new `@vertz/docs` system. Retire Mintlify.
+**Goal:** Move all 57 MDX pages from `packages/mint-docs/` to the new `@vertz/docs` system. Retire Mintlify.
 
 **Work:**
 - Convert `docs.json` navigation to `vertz.config.ts` with `defineDocsConfig()`
-- Move MDX files from `packages/docs/` to new `pages/` structure
+- Move MDX files from `packages/mint-docs/` to new `pages/` structure
 - Adapt any Mintlify-specific MDX syntax (minimal — component names match by design)
 - Deploy to `docs-next.vertz.dev` for parallel verification
 - Verify all pages render correctly against Mintlify baseline

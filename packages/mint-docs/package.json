@@ -1,0 +1,10 @@
+{
+  "name": "@vertz/mint-docs",
+  "private": true,
+  "version": "0.2.1",
+  "scripts": {
+    "dev": "mint dev",
+    "validate": "mint validate",
+    "broken-links": "mint broken-links"
+  }
+}

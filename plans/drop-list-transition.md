@@ -73,8 +73,8 @@ None identified. The migration path is well-documented and all consumers are int
 | `examples/linear/src/app.tsx` | Update comment referencing ListTransition |
 | `packages/create-vertz-app/src/templates/index.ts` | Migrate template to `<List animate>` |
 | `packages/create-vertz-app/src/templates/__tests__/templates.test.ts` | Update assertion |
-| `packages/docs/api-reference/ui/list.mdx` | Remove "Migration from ListTransition" section |
-| `packages/docs/guides/ui/auto-field-selection.mdx` | Remove ListTransition references |
+| `packages/mint-docs/api-reference/ui/list.mdx` | Remove "Migration from ListTransition" section |
+| `packages/mint-docs/guides/ui/auto-field-selection.mdx` | Remove ListTransition references |
 | `packages/ui-server/src/ssr-render.ts` | Update comment referencing list-transition |
 | `plans/relative-time.md` | Remove ListTransition from export example list |
 

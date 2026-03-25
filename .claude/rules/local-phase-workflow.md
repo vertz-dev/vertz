@@ -110,7 +110,7 @@ When all phases are complete:
 
 1. Rebase the feature branch on latest `main` to ensure no conflicts
 2. Run full quality gates one final time after rebase (tests, typecheck, lint)
-3. **Update docs** — if the feature touches public API, update `packages/docs/` (Mintlify): new APIs, changed behavior, gotchas
+3. **Update docs** — if the feature touches public API, update `packages/mint-docs/` (Mintlify): new APIs, changed behavior, gotchas
 4. Push the feature branch to GitHub
 5. Open a single PR: `feat/<feature-name>` → `main`
 6. PR description includes:

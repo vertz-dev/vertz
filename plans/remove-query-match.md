@@ -212,8 +212,8 @@ Single phase — remove implementation, compiler special-cases, and all usages.
 - `packages/create-vertz-app/src/__tests__/scaffold.test.ts` — update assertions
 
 **Files to update — docs:**
-- `packages/docs/guides/ui/data-fetching.mdx` — replace "Pattern matching with queryMatch" section with direct conditional rendering pattern
-- `packages/docs/guides/ui/auto-field-selection.mdx` — remove queryMatch references
+- `packages/mint-docs/guides/ui/data-fetching.mdx` — replace "Pattern matching with queryMatch" section with direct conditional rendering pattern
+- `packages/mint-docs/guides/ui/auto-field-selection.mdx` — remove queryMatch references
 
 **Files to update — internal references:**
 - `packages/ui/src/dom/element.ts` — update `__child` stable-node optimization comment (remove queryMatch as motivating case)

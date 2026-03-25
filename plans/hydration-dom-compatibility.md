@@ -689,7 +689,7 @@ describe('Given <Foreign> during SSR', () => {
 **Changes:**
 - `packages/ui/src/__tests__/foreign-integration.test.ts`: Integration tests simulating third-party DOM manipulation patterns.
 - `packages/ui/src/__tests__/mount-hydration.test.ts`: Add tests for post-hydration onMount timing with hydration scenarios.
-- `packages/docs/`: Add documentation page for `<Foreign>` component with usage examples, reactive bridge pattern (`watch()` inside `onReady`), and migration guidance.
+- `packages/mint-docs/`: Add documentation page for `<Foreign>` component with usage examples, reactive bridge pattern (`watch()` inside `onReady`), and migration guidance.
 
 **Acceptance criteria:**
 - Integration test: external code appending children to Foreign container after hydration

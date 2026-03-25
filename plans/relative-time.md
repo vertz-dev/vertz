@@ -486,8 +486,8 @@ describe('Feature: RelativeTime component', () => {
 ### Phase 3: Documentation
 
 **Deliverables:**
-- `packages/docs/api-reference/ui/relative-time.mdx` — API reference page
-- Update `packages/docs/docs.json` navigation to include the new page
+- `packages/mint-docs/api-reference/ui/relative-time.mdx` — API reference page
+- Update `packages/mint-docs/docs.json` navigation to include the new page
 - Update linear clone example to use the framework utility
 
 **Acceptance Criteria:**

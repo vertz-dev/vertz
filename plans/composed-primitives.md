@@ -798,5 +798,5 @@ describe('Feature: Select composed primitive', () => {
 
 **Deliverables:**
 1. Remove dead behavioral glue code from theme package
-2. Update `packages/docs/` with composed primitive docs
+2. Update `packages/mint-docs/` with composed primitive docs
 3. Changeset

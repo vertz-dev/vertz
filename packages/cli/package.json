@@ -35,7 +35,7 @@
   },
   "dependencies": {
     "@vertz/codegen": "workspace:^",
-    "@vertz/docs-framework": "workspace:^",
+    "@vertz/docs": "workspace:^",
     "@vertz/errors": "workspace:^",
     "@vertz/tui": "workspace:^",
     "@vertz/compiler": "workspace:^",

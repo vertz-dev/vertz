@@ -320,7 +320,7 @@ const _fractionH: UtilityClass = 'h:2/3';
 - `css-transformer.ts`: In `resolveColorInline()`, add `/N` suffix detection and `color-mix` wrapping
 - `extractor.ts`: In `resolveColor()`, add matching `/N` suffix detection and `color-mix` wrapping
 - `token-resolver.test.ts`: Test opacity with plain tokens, dotted tokens, pseudo selectors, error cases
-- `packages/docs/api-reference/ui/css.mdx`: Add sections for all four new token categories
+- `packages/mint-docs/api-reference/ui/css.mdx`: Add sections for all four new token categories
 - Changeset: `@vertz/ui` (patch), `@vertz/ui-compiler` (patch)
 
 **Acceptance criteria:**

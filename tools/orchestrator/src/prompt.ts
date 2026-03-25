@@ -179,9 +179,9 @@ ${workflow}
 - **No shortcuts** — no \`@ts-ignore\`, no \`as any\`, no skipped tests, no \`--no-verify\`
 - **Keep changes minimal** — only change what's needed to resolve the issue
 - **Update docs** — if your changes introduce new APIs, change existing behavior, or add features:
-  - **Public APIs** → update \`packages/docs/\` (Mintlify documentation). New APIs get new pages or sections; changed behavior gets existing pages updated.
+  - **Public APIs** → update \`packages/mint-docs/\` (Mintlify documentation). New APIs get new pages or sections; changed behavior gets existing pages updated.
   - **Internal/framework APIs** → add or update docs in the relevant package's \`docs/\` folder or README explaining how to use it.
-  - If you're unsure where the docs belong, default to \`packages/docs/\`. Missing docs = incomplete PR.
+  - If you're unsure where the docs belong, default to \`packages/mint-docs/\`. Missing docs = incomplete PR.
 - **Rebase before push** — ALWAYS \`git fetch origin main && git rebase origin/main\` before pushing. Resolve conflicts if any, then re-run quality gates. The PR MUST be conflict-free.
 - **Changeset** — add a changeset file if the change affects published packages (not needed for examples)
 `;

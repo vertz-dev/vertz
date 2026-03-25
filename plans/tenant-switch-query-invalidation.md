@@ -401,7 +401,7 @@ describe('Feature: TenantProvider auto-invalidation', () => {
 **Depends on:** Phase 2
 
 **Changes:**
-- `packages/docs/` — Document auto-invalidation behavior in multi-tenant guide. Note that `onSwitchComplete` is no longer needed for cache management (only for navigation side effects). Update any examples that used `onSwitchComplete` for invalidation.
+- `packages/mint-docs/` — Document auto-invalidation behavior in multi-tenant guide. Note that `onSwitchComplete` is no longer needed for cache management (only for navigation side effects). Update any examples that used `onSwitchComplete` for invalidation.
 - `.changeset/` — Patch changesets for `@vertz/fetch`, `@vertz/ui`, `@vertz/codegen`
 
 ---

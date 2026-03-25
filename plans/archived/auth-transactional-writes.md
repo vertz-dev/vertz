@@ -426,14 +426,14 @@ describe('Feature: Auth plan write atomicity', () => {
 **Goal:** Document the transaction API and transaction-per-request convention.
 
 **Files to update:**
-- `packages/docs/guides/db/queries.mdx` — add **"Transactions"** section covering:
+- `packages/mint-docs/guides/db/queries.mdx` — add **"Transactions"** section covering:
   - Basic `db.transaction()` usage with model delegates (`tx.users.create()`, `tx.tasks.update()`)
   - Raw SQL via `tx.query(sql`...`)`
   - Auto-commit on success, auto-rollback on throw
   - Error handling pattern (throw inside callback to trigger rollback)
   - Limitations: no nesting, no D1 support
-- `packages/docs/guides/db/overview.mdx` — add transactions to the feature list
-- `packages/docs/guides/server/services.mdx` — add **"Atomic request handling"** section covering:
+- `packages/mint-docs/guides/db/overview.mdx` — add transactions to the feature list
+- `packages/mint-docs/guides/server/services.mdx` — add **"Atomic request handling"** section covering:
   - Wrapping service handlers in `db.transaction()` for transaction-per-request
   - Reusable `withTransaction()` helper pattern
   - When to use it (multi-table writes, financial operations) vs when not to (read-heavy handlers)

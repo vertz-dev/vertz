@@ -5,7 +5,7 @@ const mockDocsInitAction = vi.fn();
 const mockDocsBuildAction = vi.fn();
 const mockDocsDevAction = vi.fn();
 
-vi.mock('@vertz/docs-framework', () => ({
+vi.mock('@vertz/docs', () => ({
   docsInitAction: (...args: unknown[]) => mockDocsInitAction(...args),
   docsBuildAction: (...args: unknown[]) => mockDocsBuildAction(...args),
   docsDevAction: (...args: unknown[]) => mockDocsDevAction(...args),

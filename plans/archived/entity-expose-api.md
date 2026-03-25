@@ -547,7 +547,7 @@ Add runtime evaluation of `rules.*` descriptors on `select` and `allowWhere` val
 
 ### Phase 3: Documentation
 
-Document the full `expose` API in `packages/docs/`.
+Document the full `expose` API in `packages/mint-docs/`.
 
 **Deliverables:**
 1. New page `guides/server/entity-exposure.mdx` — "Fields, Relations & Filters"
