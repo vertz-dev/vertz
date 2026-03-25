@@ -440,6 +440,41 @@ describe('DOM helpers — hydration branches', () => {
       warnSpy.mockRestore();
     });
 
+    it('clears nested <!--child--> markers from SSR content (#1853)', () => {
+      // Simulates the SSR output of a composed component (e.g., ComposedButton)
+      // that receives children through __child, which themselves contain
+      // nested __child markers for reactive text:
+      //   <button><!--child-->Theme: <!--child-->0<!--/child--><!--/child--></button>
+      const root = document.createElement('div');
+      const outer = document.createComment('child');
+      root.appendChild(outer);
+      root.appendChild(document.createTextNode('Theme: '));
+      root.appendChild(document.createComment('child'));
+      root.appendChild(document.createTextNode('0'));
+      root.appendChild(document.createComment('/child'));
+      root.appendChild(document.createComment('/child'));
+      startHydration(root);
+
+      const s = signal(0);
+      const result = __child(() => ['Theme: ', s.value]);
+      endHydration();
+
+      // The anchor should be followed by CSR-rendered content only.
+      // The stale SSR nested <!--child-->0<!--/child--> must be removed.
+      const anchor = result as Comment;
+      expect(root.textContent).toBe('Theme: 0');
+
+      // Verify no stale "0" text node from SSR remains
+      const allText = Array.from(root.childNodes)
+        .filter((n) => n.nodeType === 3)
+        .map((n) => (n as Text).data);
+      expect(allText).toEqual(['Theme: ', '0']);
+
+      // Reactive update should show correct value, not "10" (stale + new)
+      s.value = 1;
+      expect(root.textContent).toBe('Theme: 1');
+    });
+
     it('dispose cleans up effects on hydrated __child', () => {
       const root = document.createElement('div');
       root.appendChild(document.createComment('child'));
