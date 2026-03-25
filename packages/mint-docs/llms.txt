@@ -6,7 +6,7 @@
 
 ### Data Fetching (UI)
 
-Run `vertz codegen` (or `vertz dev`, which runs codegen automatically) to generate a typed SDK at `.vertz/generated/client.ts`. Create a client wrapper, then pass SDK method calls to `query()` for reactive data. Never pass raw entity name strings.
+Vertz automatically generates a typed SDK at `.vertz/generated/client.ts` during development (`vertz dev`) and builds. Create a client wrapper, then pass SDK method calls to `query()` for reactive data. Never pass raw entity name strings.
 
 Client setup (typically in `src/client.ts`):
 
