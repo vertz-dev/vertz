@@ -1,5 +1,14 @@
 # @vertz/core
 
+## 0.2.30
+
+### Patch Changes
+
+- [#1814](https://github.com/vertz-dev/vertz/pull/1814) [`e75e501`](https://github.com/vertz-dev/vertz/commit/e75e5014917608b33fca1668e275948e16a0d773) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add `.env` file loading to `createEnv()` via the `load` property. Files listed in `load` are parsed and merged in order, overriding `process.env`. Missing files are silently skipped.
+
+- Updated dependencies []:
+  - @vertz/schema@0.2.30
+
 ## 0.2.29
 
 ### Patch Changes
