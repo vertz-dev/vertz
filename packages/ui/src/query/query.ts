@@ -441,9 +441,40 @@ export function query<T, E = unknown>(
 
   if (!isSSR() && initialData === undefined) {
     // Derive the cache key for hydration matching.
-    // For custom keys this is straightforward; for derived keys we need
-    // to call the thunk once to capture deps and compute the key.
-    const hydrationKey = customKey ?? baseKey;
+    // For custom keys this is straightforward. For derived keys, we must
+    // call the thunk to capture signal values and compute the dep hash —
+    // SSR stores data with the full dep-hash key (baseKey:depHash), so
+    // looking up just baseKey would never match. (#1859)
+    let hydrationKey: string;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR global
+    const hasSSRData = !!(globalThis as any).__VERTZ_SSR_DATA__;
+
+    if (customKey) {
+      hydrationKey = customKey;
+    } else if (hasSSRData) {
+      // Only probe the thunk for dep hash when SSR data exists — avoids
+      // an unnecessary thunk invocation on pure client-side navigations.
+      try {
+        const raw = callThunkWithCapture();
+        if (raw !== null) {
+          if (isQueryDescriptor<T, E>(raw)) {
+            // Descriptor: capture entity metadata but don't call _fetch()
+            if (raw._entity && !entityMeta) {
+              entityMeta = raw._entity;
+            }
+          } else {
+            // Promise thunk: suppress the eagerly-fired fetch
+            (raw as Promise<T>).catch(() => {});
+          }
+        }
+      } catch {
+        // Thunk error during hydration key derivation — effect will handle it
+      }
+      hydrationKey = getCacheKey();
+    } else {
+      hydrationKey = baseKey;
+    }
 
     // During nav prefetch, use persistent: true so the listener stays active
     // for SWR revalidation (fresh data arriving after a cache hit).
@@ -454,6 +485,7 @@ export function query<T, E = unknown>(
         normalizeToEntityStore(result as T);
         rawData.value = result as T;
         loading.value = false;
+        idle.value = false;
         cache.set(hydrationKey, result as T);
         ssrHydrated = true;
       },
