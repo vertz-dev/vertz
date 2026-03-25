@@ -1,3 +1,12 @@
+mod component_analyzer;
+mod computed_transformer;
+mod magic_string;
+mod mutation_analyzer;
+mod mutation_transformer;
+mod reactivity_analyzer;
+mod signal_api_registry;
+mod signal_transformer;
+
 use napi_derive::napi;
 use oxc_allocator::Allocator;
 use oxc_codegen::{Codegen, CodegenOptions};
@@ -12,10 +21,31 @@ pub struct Diagnostic {
 }
 
 #[napi(object)]
+pub struct NapiVariableInfo {
+    pub name: String,
+    pub kind: String,
+    pub start: u32,
+    pub end: u32,
+    pub signal_properties: Option<Vec<String>>,
+    pub plain_properties: Option<Vec<String>>,
+    pub field_signal_properties: Option<Vec<String>>,
+    pub is_reactive_source: Option<bool>,
+}
+
+#[napi(object)]
+pub struct NapiComponentInfo {
+    pub name: String,
+    pub body_start: u32,
+    pub body_end: u32,
+    pub variables: Option<Vec<NapiVariableInfo>>,
+}
+
+#[napi(object)]
 pub struct CompileResult {
     pub code: String,
     pub map: Option<String>,
     pub diagnostics: Option<Vec<Diagnostic>>,
+    pub components: Option<Vec<NapiComponentInfo>>,
 }
 
 #[napi(object)]
@@ -59,15 +89,81 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
             })
             .collect();
 
-        // Return the original source with diagnostics on parse failure
         return CompileResult {
             code: format!("// compiled by vertz-native\n{source}"),
             map: None,
             diagnostics: Some(diagnostics),
+            components: None,
         };
     }
 
-    // Generate code with source map using oxc codegen
+    // Run component analysis
+    let components = component_analyzer::analyze_components(&parser_ret.program);
+
+    // Build import aliases for signal API detection
+    let import_aliases = reactivity_analyzer::build_import_aliases(&parser_ret.program);
+
+    // Run reactivity analysis and transforms per component
+    let mut ms = magic_string::MagicString::new(&source);
+
+    let napi_components: Vec<NapiComponentInfo> = components
+        .iter()
+        .map(|comp| {
+            let variables =
+                reactivity_analyzer::analyze_reactivity(&parser_ret.program, comp, &import_aliases);
+
+            // Analyze mutations before transforms
+            let mutations =
+                mutation_analyzer::analyze_mutations(&parser_ret.program, comp, &variables);
+            let mutation_ranges: Vec<(u32, u32)> =
+                mutations.iter().map(|m| (m.start, m.end)).collect();
+
+            // Apply transforms: mutations first, then signals, then computeds
+            mutation_transformer::transform_mutations(&mut ms, &mutations);
+            signal_transformer::transform_signals(
+                &mut ms,
+                &parser_ret.program,
+                comp,
+                &variables,
+                &mutation_ranges,
+            );
+            computed_transformer::transform_computeds(
+                &mut ms,
+                &parser_ret.program,
+                comp,
+                &variables,
+            );
+
+            NapiComponentInfo {
+                name: comp.name.clone(),
+                body_start: comp.body_start,
+                body_end: comp.body_end,
+                variables: Some(
+                    variables
+                        .into_iter()
+                        .map(|v| NapiVariableInfo {
+                            name: v.name,
+                            kind: v.kind.as_str().to_string(),
+                            start: v.start,
+                            end: v.end,
+                            signal_properties: v.signal_properties,
+                            plain_properties: v.plain_properties,
+                            field_signal_properties: v.field_signal_properties,
+                            is_reactive_source: if v.is_reactive_source {
+                                Some(true)
+                            } else {
+                                None
+                            },
+                        })
+                        .collect(),
+                ),
+            }
+        })
+        .collect();
+
+    let transformed_code = ms.to_string();
+
+    // Generate source map using oxc codegen (from original AST)
     let codegen_options = CodegenOptions {
         source_map_path: Some(std::path::PathBuf::from(filename)),
         ..CodegenOptions::default()
@@ -77,17 +173,15 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
         .with_options(codegen_options)
         .build(&parser_ret.program);
 
-    let generated_code = codegen_ret.code;
-
-    // Build source map if available
     let map = codegen_ret
         .map
         .map(|source_map| source_map.to_json_string());
 
     CompileResult {
-        code: format!("// compiled by vertz-native\n{generated_code}"),
+        code: format!("// compiled by vertz-native\n{transformed_code}"),
         map,
         diagnostics: None,
+        components: Some(napi_components),
     }
 }
 
