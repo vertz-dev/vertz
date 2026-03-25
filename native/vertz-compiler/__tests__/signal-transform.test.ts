@@ -251,4 +251,53 @@ describe('Feature: Signal transform', () => {
       });
     });
   });
+
+  describe('Given a signal variable shadowed by a callback parameter', () => {
+    describe('When compiled', () => {
+      it('Then does NOT add .value to the shadowed parameter', () => {
+        const code = compileAndGetCode(`
+          function Counter() {
+            let count = 0;
+            const handler = (count) => { console.log(count); };
+            return <div onClick={handler}>{count}</div>;
+          }
+        `);
+        // The count inside the callback refers to the parameter, not the signal
+        expect(code).toContain('console.log(count)');
+        expect(code).not.toContain('console.log(count.value)');
+        // But JSX reference should still get .value
+        expect(code).toContain('{count.value}');
+      });
+    });
+  });
+
+  describe('Given a signal used in a member expression', () => {
+    describe('When compiled', () => {
+      it('Then inserts .value on the signal object', () => {
+        const code = compileAndGetCode(`
+          function App() {
+            let count = 0;
+            const str = count.toString();
+            return <div>{str}</div>;
+          }
+        `);
+        expect(code).toContain('count.value.toString()');
+      });
+    });
+  });
+
+  describe('Given a signal API property accessed in JSX', () => {
+    describe('When compiled', () => {
+      it('Then appends .value on signal property in JSX child', () => {
+        const code = compileAndGetCode(`
+          import { query } from '@vertz/ui';
+          function TaskList() {
+            const tasks = query(() => fetchTasks());
+            return <div>{tasks.data}</div>;
+          }
+        `);
+        expect(code).toContain('tasks.data.value');
+      });
+    });
+  });
 });

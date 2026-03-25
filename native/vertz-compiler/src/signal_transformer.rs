@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use oxc_ast::ast::*;
 use oxc_ast_visit::Visit;
 use oxc_span::GetSpan;
+use oxc_syntax::scope::ScopeFlags;
 
 use crate::component_analyzer::ComponentInfo;
 use crate::magic_string::MagicString;
@@ -40,6 +41,7 @@ pub fn transform_signals(
             signals: &signals,
             component,
             mutation_ranges,
+            shadowed_stack: Vec::new(),
         };
         for stmt in &program.body {
             ref_walker.visit_statement(stmt);
@@ -118,6 +120,8 @@ struct RefTransformer<'a, 'b> {
     signals: &'b HashSet<String>,
     component: &'b ComponentInfo,
     mutation_ranges: &'b [(u32, u32)],
+    /// Stack of sets of names shadowed in nested scopes (function params, etc.)
+    shadowed_stack: Vec<HashSet<String>>,
 }
 
 impl<'a, 'b> RefTransformer<'a, 'b> {
@@ -134,6 +138,10 @@ impl<'a, 'b> RefTransformer<'a, 'b> {
     fn is_signal(&self, name: &str) -> bool {
         self.signals.contains(name)
     }
+
+    fn is_shadowed(&self, name: &str) -> bool {
+        self.shadowed_stack.iter().any(|s| s.contains(name))
+    }
 }
 
 impl<'a, 'b, 'c> Visit<'c> for RefTransformer<'a, 'b> {
@@ -146,6 +154,9 @@ impl<'a, 'b, 'c> Visit<'c> for RefTransformer<'a, 'b> {
             return;
         }
         if self.is_in_mutation_range(ident.span.start) {
+            return;
+        }
+        if self.is_shadowed(name) {
             return;
         }
 
@@ -175,7 +186,10 @@ impl<'a, 'b, 'c> Visit<'c> for RefTransformer<'a, 'b> {
         // For assignments like `count = 5`, transform to `count.value = 5`
         if let AssignmentTarget::AssignmentTargetIdentifier(ident) = &expr.left {
             let name = ident.name.as_str();
-            if self.is_signal(name) && !self.is_in_mutation_range(ident.span.start) {
+            if self.is_signal(name)
+                && !self.is_in_mutation_range(ident.span.start)
+                && !self.is_shadowed(name)
+            {
                 self.ms.append_right(ident.span.end, ".value");
                 // Walk only the right side
                 self.visit_expression(&expr.right);
@@ -193,7 +207,10 @@ impl<'a, 'b, 'c> Visit<'c> for RefTransformer<'a, 'b> {
         // For count++ or ++count, insert .value after the identifier
         if let SimpleAssignmentTarget::AssignmentTargetIdentifier(ref ident) = expr.argument {
             let name = ident.name.as_str();
-            if self.is_signal(name) && !self.is_in_mutation_range(ident.span.start) {
+            if self.is_signal(name)
+                && !self.is_in_mutation_range(ident.span.start)
+                && !self.is_shadowed(name)
+            {
                 self.ms.append_right(ident.span.end, ".value");
             }
         }
@@ -208,13 +225,61 @@ impl<'a, 'b, 'c> Visit<'c> for RefTransformer<'a, 'b> {
     }
 
     fn visit_member_expression(&mut self, expr: &MemberExpression<'c>) {
-        // For signal API property accesses like tasks.data,
-        // the signal API transform handles these separately.
-        // Skip plain identifier member access — we don't want to transform
-        // `count.toString()` as `count.value.toString()` when `count` is a signal.
-        // Actually, we DO want to transform signal references in member expressions.
-        // Let's walk normally.
         oxc_ast_visit::walk::walk_member_expression(self, expr);
+    }
+
+    fn visit_arrow_function_expression(&mut self, func: &ArrowFunctionExpression<'c>) {
+        let shadows = collect_param_names(&func.params);
+        self.shadowed_stack.push(shadows);
+        oxc_ast_visit::walk::walk_arrow_function_expression(self, func);
+        self.shadowed_stack.pop();
+    }
+
+    fn visit_function(&mut self, func: &Function<'c>, flags: ScopeFlags) {
+        let shadows = collect_param_names(&func.params);
+        self.shadowed_stack.push(shadows);
+        oxc_ast_visit::walk::walk_function(self, func, flags);
+        self.shadowed_stack.pop();
+    }
+}
+
+/// Collect parameter names from a function's formal parameters.
+pub fn collect_param_names(params: &FormalParameters) -> HashSet<String> {
+    let mut names = HashSet::new();
+    for param in &params.items {
+        collect_binding_pattern_names(&param.pattern, &mut names);
+    }
+    if let Some(ref rest) = params.rest {
+        collect_binding_pattern_names(&rest.rest.argument, &mut names);
+    }
+    names
+}
+
+/// Recursively collect identifier names from a binding pattern.
+fn collect_binding_pattern_names(pattern: &BindingPattern, names: &mut HashSet<String>) {
+    match pattern {
+        BindingPattern::BindingIdentifier(id) => {
+            names.insert(id.name.to_string());
+        }
+        BindingPattern::ObjectPattern(obj) => {
+            for prop in &obj.properties {
+                collect_binding_pattern_names(&prop.value, names);
+            }
+            if let Some(ref rest) = obj.rest {
+                collect_binding_pattern_names(&rest.argument, names);
+            }
+        }
+        BindingPattern::ArrayPattern(arr) => {
+            for elem in arr.elements.iter().flatten() {
+                collect_binding_pattern_names(elem, names);
+            }
+            if let Some(ref rest) = arr.rest {
+                collect_binding_pattern_names(&rest.argument, names);
+            }
+        }
+        BindingPattern::AssignmentPattern(assign) => {
+            collect_binding_pattern_names(&assign.left, names);
+        }
     }
 }
 

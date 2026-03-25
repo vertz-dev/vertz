@@ -48,7 +48,7 @@ fn replace_with_boundary(text: &str, var_name: &str, suffix: &str, replacement: 
     while let Some(pos) = remaining.find(&search) {
         // Check word boundary: character before must NOT be [a-zA-Z0-9_$]
         if pos > 0 {
-            let prev_char = remaining.as_bytes()[pos - 1] as char;
+            let prev_char = remaining[..pos].chars().next_back().unwrap();
             if prev_char.is_alphanumeric() || prev_char == '_' || prev_char == '$' {
                 // Not a word boundary — skip this match
                 result.push_str(&remaining[..pos + search.len()]);

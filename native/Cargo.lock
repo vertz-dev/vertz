@@ -895,6 +895,7 @@ dependencies = [
  "oxc_codegen",
  "oxc_parser",
  "oxc_span",
+ "oxc_syntax",
  "serde",
  "serde_json",
 ]

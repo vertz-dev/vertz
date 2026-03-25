@@ -30,6 +30,7 @@ pub fn transform_computeds(
         ms,
         computeds: &computeds,
         component,
+        shadowed_stack: Vec::new(),
     };
     for stmt in &program.body {
         read_walker.visit_statement(stmt);
@@ -51,6 +52,14 @@ struct ComputedReadTransformer<'a, 'b> {
     ms: &'a mut MagicString,
     computeds: &'b HashSet<String>,
     component: &'b ComponentInfo,
+    /// Stack of sets of names shadowed in nested scopes (function params, etc.)
+    shadowed_stack: Vec<HashSet<String>>,
+}
+
+impl<'a, 'b> ComputedReadTransformer<'a, 'b> {
+    fn is_shadowed(&self, name: &str) -> bool {
+        self.shadowed_stack.iter().any(|s| s.contains(name))
+    }
 }
 
 impl<'a, 'b, 'c> Visit<'c> for ComputedReadTransformer<'a, 'b> {
@@ -61,6 +70,9 @@ impl<'a, 'b, 'c> Visit<'c> for ComputedReadTransformer<'a, 'b> {
         }
         if ident.span.start < self.component.body_start || ident.span.end > self.component.body_end
         {
+            return;
+        }
+        if self.is_shadowed(name) {
             return;
         }
 
@@ -101,6 +113,20 @@ impl<'a, 'b, 'c> Visit<'c> for ComputedReadTransformer<'a, 'b> {
             }
         }
         oxc_ast_visit::walk::walk_object_property(self, prop);
+    }
+
+    fn visit_arrow_function_expression(&mut self, func: &ArrowFunctionExpression<'c>) {
+        let shadows = crate::signal_transformer::collect_param_names(&func.params);
+        self.shadowed_stack.push(shadows);
+        oxc_ast_visit::walk::walk_arrow_function_expression(self, func);
+        self.shadowed_stack.pop();
+    }
+
+    fn visit_function(&mut self, func: &Function<'c>, flags: oxc_syntax::scope::ScopeFlags) {
+        let shadows = crate::signal_transformer::collect_param_names(&func.params);
+        self.shadowed_stack.push(shadows);
+        oxc_ast_visit::walk::walk_function(self, func, flags);
+        self.shadowed_stack.pop();
     }
 }
 

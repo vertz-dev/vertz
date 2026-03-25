@@ -137,4 +137,38 @@ describe('Feature: Computed transform', () => {
       });
     });
   });
+
+  describe('Given a computed variable shadowed by a callback parameter', () => {
+    describe('When compiled', () => {
+      it('Then does NOT add .value to the shadowed parameter', () => {
+        const code = compileAndGetCode(`
+          function App() {
+            let count = 0;
+            const doubled = count * 2;
+            const handler = (doubled) => console.log(doubled);
+            return <div>{doubled}</div>;
+          }
+        `);
+        // The doubled inside the callback is the parameter, not the computed
+        expect(code).toContain('console.log(doubled)');
+        expect(code).not.toContain('console.log(doubled.value)');
+      });
+    });
+  });
+
+  describe('Given a const derived from a signal API property', () => {
+    describe('When compiled', () => {
+      it('Then wraps in computed() with .value on the signal property', () => {
+        const code = compileAndGetCode(`
+          import { query } from '@vertz/ui';
+          function TaskList() {
+            const tasks = query(() => fetchTasks());
+            const hasError = tasks.error ? true : false;
+            return <div>{hasError}</div>;
+          }
+        `);
+        expect(code).toContain('computed(() => tasks.error.value ? true : false)');
+      });
+    });
+  });
 });
