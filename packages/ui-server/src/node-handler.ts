@@ -52,8 +52,10 @@ export function createNodeHandler(
         const url = req.url ?? '/';
 
         // Nav pre-fetch: SSE response — session resolver NOT called
+        // Use pathname only (no query string) to match web handler behavior
         if (req.headers['x-vertz-nav'] === '1') {
-          await handleNavRequest(req, res, module, url, ssrTimeout);
+          const pathname = url.split('?')[0]!;
+          await handleNavRequest(req, res, module, pathname, ssrTimeout);
           return;
         }
 

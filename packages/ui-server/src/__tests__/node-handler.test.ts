@@ -421,6 +421,108 @@ describe('createNodeHandler', () => {
         });
       });
 
+      describe('When render returns a redirect', () => {
+        it('Then writes 302 with Location header', async () => {
+          const protectedModule: SSRModule = {
+            default: () => {
+              const container = document.createElement('div');
+              AuthProvider({
+                auth: createMockAuthSdk(),
+                children: () => {
+                  ProtectedRoute({
+                    loginPath: '/login',
+                    children: () => {
+                      container.textContent = 'Protected';
+                      return container;
+                    },
+                  });
+                  return container;
+                },
+              });
+              return container;
+            },
+          };
+          const handler = createNodeHandler({
+            module: protectedModule,
+            template,
+            progressiveHTML: true,
+            sessionResolver: async () => null,
+          });
+          const result = await startServer(handler);
+          server = result.server;
+
+          const res = await fetch(`http://localhost:${result.port}/protected`, {
+            redirect: 'manual',
+          });
+          expect(res.status).toBe(302);
+          expect(res.headers.get('location')).toContain('/login');
+        });
+      });
+
+      describe('When sessionResolver is configured', () => {
+        it('Then injects session script into streamed HTML', async () => {
+          const handler = createNodeHandler({
+            module: simpleModule,
+            template,
+            progressiveHTML: true,
+            sessionResolver: async () => ({
+              session: {
+                user: { id: '1', email: 'test@test.com', role: 'admin' },
+                expiresAt: Date.now() + 60_000,
+              },
+            }),
+          });
+          const result = await startServer(handler);
+          server = result.server;
+
+          const res = await fetch(`http://localhost:${result.port}/`);
+          const html = await res.text();
+          expect(html).toContain('__VERTZ_SESSION__');
+          expect(html).toContain('</head>');
+          expect(html).toContain('</html>');
+        });
+      });
+
+      describe('When template has no </head> tag', () => {
+        it('Then appends injections at end of head chunk', async () => {
+          const noHeadTemplate = `<!DOCTYPE html><html><body><div id="app"><!--ssr-outlet--></div></body></html>`;
+          const handler = createNodeHandler({
+            module: simpleModule,
+            template: noHeadTemplate,
+            progressiveHTML: true,
+            sessionResolver: async () => ({
+              session: {
+                user: { id: '1', email: 'test@test.com', role: 'admin' },
+                expiresAt: Date.now() + 60_000,
+              },
+            }),
+          });
+          const result = await startServer(handler);
+          server = result.server;
+
+          const res = await fetch(`http://localhost:${result.port}/`);
+          const html = await res.text();
+          expect(html).toContain('__VERTZ_SESSION__');
+          expect(html).toContain('Hello World');
+        });
+      });
+
+      describe('When Cache-Control is configured', () => {
+        it('Then sets Cache-Control header on streamed response', async () => {
+          const handler = createNodeHandler({
+            module: simpleModule,
+            template,
+            progressiveHTML: true,
+            cacheControl: 'no-store',
+          });
+          const result = await startServer(handler);
+          server = result.server;
+
+          const res = await fetch(`http://localhost:${result.port}/`);
+          expect(res.headers.get('cache-control')).toBe('no-store');
+        });
+      });
+
       describe('When render throws', () => {
         it('Then writes 500 error response', async () => {
           const crashModule: SSRModule = {
@@ -496,6 +598,20 @@ describe('createNodeHandler', () => {
             headers: { 'X-Vertz-Nav': '1' },
           });
           expect(res.headers.get('cache-control')).toBe('no-cache');
+        });
+      });
+
+      describe('When URL has query parameters', () => {
+        it('Then passes pathname without query string to SSR', async () => {
+          const handler = createNodeHandler({ module: simpleModule, template });
+          const result = await startServer(handler);
+          server = result.server;
+
+          const res = await fetch(`http://localhost:${result.port}/page?foo=bar`, {
+            headers: { 'X-Vertz-Nav': '1' },
+          });
+          expect(res.status).toBe(200);
+          expect(res.headers.get('content-type')).toBe('text/event-stream');
         });
       });
 

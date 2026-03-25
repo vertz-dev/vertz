@@ -21,13 +21,14 @@ If you're deploying to **Cloudflare Workers** or **Bun**, use the web-standard `
 
 ```ts
 // server.ts
+import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { createNodeHandler } from '@vertz/ui-server/node';
 import * as app from './dist/server/app';
 
 const handler = createNodeHandler({
   module: app,
-  template: await Bun.file('./dist/client/index.html').text(),
+  template: readFileSync('./dist/client/index.html', 'utf-8'),
 });
 
 const server = createServer(handler);
@@ -105,12 +106,13 @@ The `sessionResolver` receives a web `Request` object — the Node adapter const
 
 ```ts
 import express from 'express';
+import { readFileSync } from 'node:fs';
 import { createNodeHandler } from '@vertz/ui-server/node';
 import * as app from './dist/server/app';
 
 const ssrHandler = createNodeHandler({
   module: app,
-  template: await Bun.file('./dist/client/index.html').text(),
+  template: readFileSync('./dist/client/index.html', 'utf-8'),
 });
 
 const server = express();
@@ -129,12 +131,13 @@ server.listen(3000);
 ```ts
 import Fastify from 'fastify';
 import fastifyStatic from '@fastify/static';
+import { readFileSync } from 'node:fs';
 import { createNodeHandler } from '@vertz/ui-server/node';
 import * as app from './dist/server/app';
 
 const ssrHandler = createNodeHandler({
   module: app,
-  template: await Bun.file('./dist/client/index.html').text(),
+  template: readFileSync('./dist/client/index.html', 'utf-8'),
 });
 
 const fastify = Fastify();
