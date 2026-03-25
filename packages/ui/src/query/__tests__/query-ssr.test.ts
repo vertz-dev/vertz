@@ -4,6 +4,7 @@ import { signal } from '../../runtime/signal';
 import type { SSRRenderContext } from '../../ssr/ssr-render-context';
 import { disableTestSSR, enableTestSSR } from '../../ssr/test-ssr-helpers';
 import { MemoryCache } from '../cache';
+import { hashString } from '../key-derivation';
 import { query } from '../query';
 
 describe('query() SSR behavior', () => {
@@ -230,7 +231,7 @@ describe('query() client-side SSR hydration', () => {
     (globalThis as Record<string, unknown>).document = origDocument;
   });
 
-  it('picks up pre-existing SSR data without fetching', async () => {
+  it('picks up pre-existing SSR data and serves SSR result (#1861)', async () => {
     const fetchFn = vi.fn(() => Promise.resolve('fetched-from-server'));
 
     // Simulate SSR data already buffered
@@ -243,10 +244,13 @@ describe('query() client-side SSR hydration', () => {
     // Wait a tick for any async effects to settle
     await new Promise((r) => setTimeout(r, 10));
 
-    // Data should come from SSR, not from the fetch
+    // Data should come from SSR, not from the fetch.
+    // The thunk IS called once (for reactive dep tracking — #1861 fix),
+    // but the result is discarded. SSR data remains authoritative.
+    // For descriptor thunks (real API clients), calling the thunk does NOT
+    // fire a network request — only promise thunks trigger a suppressed fetch.
     expect(result.data.value).toBe('ssr-streamed-data');
     expect(result.loading.value).toBe(false);
-    expect(fetchFn).not.toHaveBeenCalled();
   });
 
   it('query without SSR data falls back to normal fetch', async () => {
@@ -259,6 +263,106 @@ describe('query() client-side SSR hydration', () => {
     await new Promise((r) => setTimeout(r, 10));
 
     expect(result.data.value).toBe('client-fetched');
+  });
+
+  it('re-fetches when reactive deps change after SSR hydration (#1861)', async () => {
+    const page = signal(1);
+
+    // Build the thunk first so we can compute its baseKey for hydration.
+    const fetchFn = vi.fn(async (offset: number) => {
+      return { items: [`item-at-${offset}`], total: 100 };
+    });
+
+    const thunk = () => {
+      const currentPage = page.value;
+      const offset = (currentPage - 1) * 20;
+      return fetchFn(offset) as Promise<{ items: string[]; total: number }>;
+    };
+
+    // Compute the baseKey (hydration key) for this thunk.
+    // hydrateQueryFromSSR uses `customKey ?? baseKey` where
+    // baseKey = deriveKey(thunk) = `__q:${hashString(thunk.toString())}`.
+    const baseKey = `__q:${hashString(thunk.toString())}`;
+
+    // Simulate SSR data already buffered under the derived key.
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [
+      { key: baseKey, data: { items: ['ssr-brand'], total: 100 } },
+    ];
+
+    const result = query(thunk);
+
+    // Wait for hydration to settle
+    await new Promise((r) => setTimeout(r, 10));
+
+    // SSR data should be used — displayed data comes from SSR.
+    expect(result.data.value).toEqual({ items: ['ssr-brand'], total: 100 });
+
+    // Reset mock to track only the re-fetch from dep change
+    fetchFn.mockClear();
+
+    // Change reactive dep — should trigger re-fetch
+    page.value = 2;
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    // BUG: without fix, fetchFn is never called again because the effect
+    // never tracked page.value as a dependency (skipped thunk call on first run)
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(fetchFn).toHaveBeenCalledWith(20);
+    expect(result.data.value).toEqual({ items: ['item-at-20'], total: 100 });
+
+    result.dispose();
+  });
+
+  it('re-fetches descriptor-in-thunk when reactive deps change after SSR hydration (#1861)', async () => {
+    const page = signal(1);
+
+    const fetchFn = vi.fn().mockImplementation(async (offset: number) => ({
+      ok: true as const,
+      data: { items: [`brand-at-${offset}`], total: 50 },
+    }));
+
+    // Build the thunk first to compute the baseKey for hydration.
+    const thunk = () => {
+      const currentPage = page.value;
+      const offset = (currentPage - 1) * 20;
+      return {
+        _tag: 'QueryDescriptor' as const,
+        _key: `GET:/brands?offset=${offset}`,
+        _fetch: () => fetchFn(offset),
+        // eslint-disable-next-line unicorn/no-thenable -- intentional PromiseLike mock
+        then(onFulfilled: any, onRejected: any) {
+          return this._fetch().then(onFulfilled, onRejected);
+        },
+      };
+    };
+
+    const baseKey = `__q:${hashString(thunk.toString())}`;
+
+    // SSR data buffered under the derived base key
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [
+      { key: baseKey, data: { items: ['ssr-brand'], total: 50 } },
+    ];
+
+    const result = query(thunk);
+
+    // Wait for hydration to settle
+    await new Promise((r) => setTimeout(r, 10));
+
+    // SSR data used — no fetch (descriptor thunk doesn't call _fetch during tracking)
+    expect(result.data.value).toEqual({ items: ['ssr-brand'], total: 50 });
+    expect(fetchFn).not.toHaveBeenCalled();
+
+    // Change reactive dep — should trigger re-fetch
+    page.value = 2;
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    // BUG: without fix, fetchFn is never called because effect has no deps
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(result.data.value).toEqual({ items: ['brand-at-20'], total: 50 });
+
+    result.dispose();
   });
 });
 
