@@ -53,9 +53,15 @@ function stripTypeAnnotations(text: string): string {
     .replace(/^export\s+/, '')
     .replace(/\)\s*:\s*string\s*\{/, ') {')
     .replace(/\(([^)]*)\)/, (_, params: string) => {
-      const stripped = params.replace(/:\s*[^,)]+/g, '');
+      // Handle generic types like Record<string, unknown> by matching angle brackets
+      const stripped = params.replace(/:\s*(?:[^,)<]+(?:<[^>]*>)?[^,)]*)/g, '');
       return `(${stripped})`;
     });
+}
+
+/** Create a mock SSRAotContext for testing query-based AOT functions. */
+function createMockCtx(data: Record<string, unknown> = {}) {
+  return { getData: (key: string) => data[key] };
 }
 
 /** Evaluate the generated AOT function by running only __ssr_* functions (no regex). */
@@ -79,6 +85,11 @@ function evalAot(code: string, fnName: string, args: Record<string, unknown> = {
     `${aotCode}\nreturn ${fnName};`,
   );
   const fn = wrapper(__esc, __esc_attr, __ssr_spread, __ssr_style_object, ...argValues);
+
+  // For query-based functions: (data, ctx) signature
+  if (args.__ctx) {
+    return fn(args.__data ?? {}, args.__ctx);
+  }
   return fn(args.__props ?? {});
 }
 
@@ -688,16 +699,21 @@ export default function F() {
           expect(result.code).toContain('__ssr_F');
           const aotFn = extractAotFn(result.code, '__ssr_F');
           expect(aotFn).toContain('Loading');
-          expect(aotFn).toContain('d.name');
+          // d is replaced with __q0 from ctx.getData('x')
+          expect(aotFn).toContain('__q0');
           expect(aotFn).toContain('<!--conditional-->');
 
           // Runtime correctness: loading branch
-          const loadingHtml = evalAot(result.code, '__ssr_F', { d: null });
+          const loadingHtml = evalAot(result.code, '__ssr_F', {
+            __ctx: createMockCtx({ x: null }),
+          });
           expect(loadingHtml).toContain('<!--conditional-->');
           expect(loadingHtml).toContain('Loading');
 
           // Runtime correctness: main branch
-          const mainHtml = evalAot(result.code, '__ssr_F', { d: { name: 'Test' } });
+          const mainHtml = evalAot(result.code, '__ssr_F', {
+            __ctx: createMockCtx({ x: { name: 'Test' } }),
+          });
           expect(mainHtml).toContain('Test');
           expect(mainHtml).not.toContain('Loading');
         });
@@ -752,15 +768,20 @@ export default function F() {
           const aotFn = extractAotFn(result.code, '__ssr_F');
           expect(aotFn).toContain('<!--conditional-->');
           expect(aotFn).toContain('Loading');
-          expect(aotFn).toContain('d.name');
+          // d is replaced with __q0 from ctx.getData('x')
+          expect(aotFn).toContain('__q0');
 
           // Runtime correctness: true branch
-          const trueHtml = evalAot(result.code, '__ssr_F', { d: { name: 'World' } });
+          const trueHtml = evalAot(result.code, '__ssr_F', {
+            __ctx: createMockCtx({ x: { name: 'World' } }),
+          });
           expect(trueHtml).toContain('World');
           expect(trueHtml).not.toContain('Loading');
 
           // Runtime correctness: false branch
-          const falseHtml = evalAot(result.code, '__ssr_F', { d: null });
+          const falseHtml = evalAot(result.code, '__ssr_F', {
+            __ctx: createMockCtx({ x: null }),
+          });
           expect(falseHtml).toContain('Loading');
         });
       });
@@ -1059,6 +1080,42 @@ function DashboardPage() {
       const fnText = extractAotFn(result.code, '__ssr_DashboardPage');
       expect(fnText).not.toContain('projects.data');
       expect(fnText).not.toContain('tasks.data');
+    });
+
+    it('extracts cache key from query() options object { key: "..." }', () => {
+      const result = compileForSSRAot(
+        `
+import { query } from '@vertz/ui';
+
+function GamesPage() {
+  const gamesQuery = query(async () => fetchGames(), { key: 'home-games' });
+  return <div>{gamesQuery.data}</div>;
+}
+        `.trim(),
+      );
+
+      expect(result.components).toHaveLength(1);
+      expect(result.components[0]!.queryKeys).toEqual(['home-games']);
+
+      const fnText = extractAotFn(result.code, '__ssr_GamesPage');
+      expect(fnText).toContain("ctx.getData('home-games')");
+      expect(fnText).not.toContain('gamesQuery.data');
+    });
+
+    it('falls back to runtime-fallback when query() has no extractable key', () => {
+      const result = compileForSSRAot(
+        `
+import { query } from '@vertz/ui';
+
+function SearchPage() {
+  const results = query(async () => fetchResults());
+  return <div>{results.data}</div>;
+}
+        `.trim(),
+      );
+
+      expect(result.components).toHaveLength(1);
+      expect(result.components[0]!.tier).toBe('runtime-fallback');
     });
   });
 });

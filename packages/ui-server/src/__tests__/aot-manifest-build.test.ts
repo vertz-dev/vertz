@@ -353,6 +353,24 @@ describe('generateAotBarrel', () => {
         expect(result.files[firstKey as string]).toContain('__ssr_HomePage');
       });
 
+      it('Then barrel source includes import for AOT runtime helpers', () => {
+        const compiledFiles: Record<string, AotCompiledFile> = {
+          '/src/home.tsx': {
+            code: 'export function __ssr_HomePage() { return __esc("hi"); }',
+            components: [{ name: 'HomePage', tier: 'static', holes: [], queryKeys: [] }],
+          },
+        };
+        const routeMap: Record<string, AotRouteMapEntry> = {
+          '/': { renderFn: '__ssr_HomePage', holes: [], queryKeys: [] },
+        };
+
+        const result = generateAotBarrel(compiledFiles, routeMap);
+
+        expect(result.barrelSource).toContain(
+          "import { __esc, __esc_attr, __ssr_spread, __ssr_style_object } from '@vertz/ui-server';",
+        );
+      });
+
       it('Then only includes functions that are in the route map', () => {
         const compiledFiles: Record<string, AotCompiledFile> = {
           '/src/home.tsx': {
