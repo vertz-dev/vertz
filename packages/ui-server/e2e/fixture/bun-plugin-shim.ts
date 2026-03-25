@@ -1,4 +1,4 @@
-import { createVertzBunPlugin } from '@vertz/ui-server/bun-plugin';
+import { createVertzBunPlugin } from "@vertz/ui-server/bun-plugin";
 
 const { plugin } = createVertzBunPlugin();
 

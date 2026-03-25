@@ -1,12 +1,12 @@
 {
-  "compilerOptions": {
-    "jsx": "react-jsx",
-    "jsxImportSource": "@vertz/ui",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "strict": true,
-    "target": "ES2022",
-    "types": ["bun-types"]
-  },
-  "include": ["src"]
+	"compilerOptions": {
+		"jsx": "react-jsx",
+		"jsxImportSource": "@vertz/ui",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"strict": true,
+		"target": "ES2022",
+		"types": ["bun-types"]
+	},
+	"include": ["src"]
 }
