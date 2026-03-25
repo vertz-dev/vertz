@@ -8,7 +8,7 @@
     "dev:worker": "wrangler dev",
     "build": "bun node_modules/@vertz/cli/dist/vertz.js build",
     "build:worker": "esbuild src/worker.ts --bundle --format=esm --outfile=dist/worker.js --platform=neutral --target=es2022",
-    "start": "bun run server.ts",
+    "start": "bun node_modules/@vertz/cli/dist/vertz.js start",
     "preview": "bun run build && bun run start",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
