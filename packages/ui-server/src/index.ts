@@ -1,6 +1,18 @@
 export type { FallbackFontName, FontFallbackMetrics } from '@vertz/ui';
-export type { AotBuildComponentEntry, AotBuildManifest } from './aot-manifest-build';
-export { generateAotBuildManifest } from './aot-manifest-build';
+export type { ExtractedRoute } from '@vertz/ui-compiler';
+export { extractRoutes } from '@vertz/ui-compiler';
+export type {
+  AotBarrelResult,
+  AotBuildComponentEntry,
+  AotBuildManifest,
+  AotCompiledFile,
+  AotRouteMapEntry,
+} from './aot-manifest-build';
+export {
+  buildAotRouteMap,
+  generateAotBarrel,
+  generateAotBuildManifest,
+} from './aot-manifest-build';
 export { renderAssetTags } from './asset-pipeline';
 export { inlineCriticalCss } from './critical-css';
 export { detectFallbackFont, extractFontMetrics } from './font-metrics';

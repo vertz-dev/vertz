@@ -1,7 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { generateAotBuildManifest } from '../aot-manifest-build';
+import type {
+  AotBuildComponentEntry,
+  AotCompiledFile,
+  AotRouteMapEntry,
+} from '../aot-manifest-build';
+import {
+  buildAotRouteMap,
+  generateAotBarrel,
+  generateAotBuildManifest,
+} from '../aot-manifest-build';
 
 describe('generateAotBuildManifest', () => {
   let tmpDir: string;
@@ -171,6 +180,197 @@ export function Page() { return <div><Header /><main>Body</main><Footer /></div>
 
         expect(Object.keys(result.components)).toEqual([]);
         expect(result.classificationLog).toEqual([]);
+      });
+    });
+  });
+
+  describe('Given compiled code preservation', () => {
+    describe('When generateAotBuildManifest is called', () => {
+      it('Then preserves compiled code in compiledFiles', () => {
+        writeFileSync(
+          join(srcDir, 'header.tsx'),
+          `export function Header() { return <header><h1>Hello</h1></header>; }`,
+        );
+
+        const result = generateAotBuildManifest(srcDir);
+        const filePath = join(srcDir, 'header.tsx');
+
+        expect(result.compiledFiles[filePath]).toBeDefined();
+        expect(result.compiledFiles[filePath].code).toContain('__ssr_Header');
+        expect(result.compiledFiles[filePath].components).toHaveLength(1);
+        expect(result.compiledFiles[filePath].components[0].name).toBe('Header');
+      });
+
+      it('Then includes queryKeys in compiled file components', () => {
+        writeFileSync(
+          join(srcDir, 'projects.tsx'),
+          `import { query } from '@vertz/ui';
+function ProjectsPage() {
+  const projects = query(api.projects.list());
+  return <div>Projects</div>;
+}`,
+        );
+
+        const result = generateAotBuildManifest(srcDir);
+        const filePath = join(srcDir, 'projects.tsx');
+
+        expect(result.compiledFiles[filePath]).toBeDefined();
+        expect(result.compiledFiles[filePath].components[0].queryKeys).toEqual(['projects-list']);
+      });
+
+      it('Then does not include compiledFiles for broken files', () => {
+        writeFileSync(join(srcDir, 'broken.tsx'), 'this is {{ not valid');
+        writeFileSync(join(srcDir, 'good.tsx'), `export function Good() { return <div>OK</div>; }`);
+
+        const result = generateAotBuildManifest(srcDir);
+
+        expect(result.compiledFiles[join(srcDir, 'broken.tsx')]).toBeUndefined();
+        expect(result.compiledFiles[join(srcDir, 'good.tsx')]).toBeDefined();
+      });
+    });
+  });
+});
+
+describe('buildAotRouteMap', () => {
+  describe('Given AOT components and route definitions', () => {
+    describe('When buildAotRouteMap is called', () => {
+      it('Then maps route patterns to render function names', () => {
+        const components: Record<string, AotBuildComponentEntry> = {
+          HomePage: { tier: 'static', holes: [], queryKeys: [] },
+          ProjectsPage: { tier: 'data-driven', holes: [], queryKeys: ['projects-list'] },
+        };
+        const routes = [
+          { pattern: '/', componentName: 'HomePage' },
+          { pattern: '/projects', componentName: 'ProjectsPage' },
+        ];
+
+        const routeMap = buildAotRouteMap(components, routes);
+
+        expect(routeMap['/']?.renderFn).toBe('__ssr_HomePage');
+        expect(routeMap['/']?.holes).toEqual([]);
+        expect(routeMap['/']?.queryKeys).toEqual([]);
+        expect(routeMap['/projects']?.renderFn).toBe('__ssr_ProjectsPage');
+        expect(routeMap['/projects']?.queryKeys).toEqual(['projects-list']);
+      });
+
+      it('Then skips routes for runtime-fallback components', () => {
+        const components: Record<string, AotBuildComponentEntry> = {
+          HomePage: { tier: 'static', holes: [], queryKeys: [] },
+          DynamicPage: { tier: 'runtime-fallback', holes: [], queryKeys: [] },
+        };
+        const routes = [
+          { pattern: '/', componentName: 'HomePage' },
+          { pattern: '/dynamic', componentName: 'DynamicPage' },
+        ];
+
+        const routeMap = buildAotRouteMap(components, routes);
+
+        expect(routeMap['/']).toBeDefined();
+        expect(routeMap['/dynamic']).toBeUndefined();
+      });
+
+      it('Then skips routes for unknown components', () => {
+        const components: Record<string, AotBuildComponentEntry> = {
+          HomePage: { tier: 'static', holes: [], queryKeys: [] },
+        };
+        const routes = [
+          { pattern: '/', componentName: 'HomePage' },
+          { pattern: '/missing', componentName: 'MissingPage' },
+        ];
+
+        const routeMap = buildAotRouteMap(components, routes);
+
+        expect(routeMap['/']).toBeDefined();
+        expect(routeMap['/missing']).toBeUndefined();
+      });
+
+      it('Then includes holes from the component entry', () => {
+        const components: Record<string, AotBuildComponentEntry> = {
+          Layout: { tier: 'static', holes: ['Sidebar', 'Footer'], queryKeys: [] },
+        };
+        const routes = [{ pattern: '/', componentName: 'Layout' }];
+
+        const routeMap = buildAotRouteMap(components, routes);
+
+        expect(routeMap['/']?.holes).toEqual(['Sidebar', 'Footer']);
+      });
+    });
+  });
+});
+
+describe('generateAotBarrel', () => {
+  describe('Given compiled files and a route map', () => {
+    describe('When generateAotBarrel is called', () => {
+      it('Then generates import/export statements for each route render function', () => {
+        const compiledFiles: Record<string, AotCompiledFile> = {
+          '/src/home.tsx': {
+            code: 'function __ssr_HomePage() { return "hi"; }',
+            components: [{ name: 'HomePage', tier: 'static', holes: [], queryKeys: [] }],
+          },
+          '/src/projects.tsx': {
+            code: 'function __ssr_ProjectsPage() { return "projects"; }',
+            components: [
+              {
+                name: 'ProjectsPage',
+                tier: 'data-driven',
+                holes: [],
+                queryKeys: ['projects-list'],
+              },
+            ],
+          },
+        };
+        const routeMap: Record<string, AotRouteMapEntry> = {
+          '/': { renderFn: '__ssr_HomePage', holes: [], queryKeys: [] },
+          '/projects': { renderFn: '__ssr_ProjectsPage', holes: [], queryKeys: ['projects-list'] },
+        };
+
+        const result = generateAotBarrel(compiledFiles, routeMap);
+
+        expect(result.barrelSource).toContain('__ssr_HomePage');
+        expect(result.barrelSource).toContain('__ssr_ProjectsPage');
+        expect(result.barrelSource).toContain('export');
+      });
+
+      it('Then returns compiled file mapping for temp dir writing', () => {
+        const compiledFiles: Record<string, AotCompiledFile> = {
+          '/src/home.tsx': {
+            code: 'export function __ssr_HomePage() { return "hi"; }',
+            components: [{ name: 'HomePage', tier: 'static', holes: [], queryKeys: [] }],
+          },
+        };
+        const routeMap: Record<string, AotRouteMapEntry> = {
+          '/': { renderFn: '__ssr_HomePage', holes: [], queryKeys: [] },
+        };
+
+        const result = generateAotBarrel(compiledFiles, routeMap);
+
+        // Should have a temp file with the compiled code
+        const fileKeys = Object.keys(result.files);
+        expect(fileKeys).toHaveLength(1);
+        expect(fileKeys[0]).toMatch(/^__aot_\d+_home\.ts$/);
+        const firstKey = fileKeys[0];
+        expect(firstKey).toBeDefined();
+        expect(result.files[firstKey as string]).toContain('__ssr_HomePage');
+      });
+
+      it('Then only includes functions that are in the route map', () => {
+        const compiledFiles: Record<string, AotCompiledFile> = {
+          '/src/home.tsx': {
+            code: 'function __ssr_HomePage() {} function __ssr_UnusedComponent() {}',
+            components: [
+              { name: 'HomePage', tier: 'static', holes: [], queryKeys: [] },
+              { name: 'UnusedComponent', tier: 'static', holes: [], queryKeys: [] },
+            ],
+          },
+        };
+        const routeMap: Record<string, AotRouteMapEntry> = {
+          '/': { renderFn: '__ssr_HomePage', holes: [], queryKeys: [] },
+        };
+
+        const result = generateAotBarrel(compiledFiles, routeMap);
+
+        expect(result.barrelSource).toContain('__ssr_HomePage');
+        expect(result.barrelSource).not.toContain('__ssr_UnusedComponent');
       });
     });
   });

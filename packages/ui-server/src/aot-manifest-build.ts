@@ -5,19 +5,41 @@
  * on each, and collects per-component classification and hole info.
  *
  * Used by the production build pipeline (`buildUI()`) to generate
- * `aot-manifest.json` and log per-component classification stats.
+ * `aot-manifest.json`, `aot-routes.js`, and log per-component classification stats.
  */
 import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
+import type { AotComponentInfo } from '@vertz/ui-compiler';
 import { compileForSSRAot } from '@vertz/ui-compiler';
 
 export interface AotBuildComponentEntry {
   tier: 'static' | 'data-driven' | 'conditional' | 'runtime-fallback';
   holes: string[];
+  queryKeys: string[];
+}
+
+/** Compiled file output from AOT compilation. */
+export interface AotCompiledFile {
+  /** Transformed source code containing __ssr_* functions. */
+  code: string;
+  /** Per-component AOT info from the compilation. */
+  components: AotComponentInfo[];
+}
+
+/** Route map entry for the AOT manifest JSON. */
+export interface AotRouteMapEntry {
+  /** Name of the __ssr_* render function (e.g., '__ssr_HomePage'). */
+  renderFn: string;
+  /** Component names that need runtime fallback rendering. */
+  holes: string[];
+  /** Query cache keys this route reads via ctx.getData(). */
+  queryKeys: string[];
 }
 
 export interface AotBuildManifest {
   components: Record<string, AotBuildComponentEntry>;
+  /** Compiled files keyed by source file path. */
+  compiledFiles: Record<string, AotCompiledFile>;
   classificationLog: string[];
 }
 
@@ -26,6 +48,7 @@ export interface AotBuildManifest {
  */
 export function generateAotBuildManifest(srcDir: string): AotBuildManifest {
   const components: Record<string, AotBuildComponentEntry> = {};
+  const compiledFiles: Record<string, AotCompiledFile> = {};
   const classificationLog: string[] = [];
   const tsxFiles = collectTsxFiles(srcDir);
 
@@ -38,6 +61,15 @@ export function generateAotBuildManifest(srcDir: string): AotBuildManifest {
         components[comp.name] = {
           tier: comp.tier,
           holes: comp.holes,
+          queryKeys: comp.queryKeys,
+        };
+      }
+
+      // Preserve compiled code for AOT module emission
+      if (result.components.length > 0) {
+        compiledFiles[filePath] = {
+          code: result.code,
+          components: result.components,
         };
       }
     } catch (e) {
@@ -72,7 +104,104 @@ export function generateAotBuildManifest(srcDir: string): AotBuildManifest {
     classificationLog.push(`Coverage: ${aotCount}/${total} components (${pct}%)`);
   }
 
-  return { components, classificationLog };
+  return { components, compiledFiles, classificationLog };
+}
+
+/**
+ * Build AOT route map — maps route patterns to render function names.
+ *
+ * Skips routes for runtime-fallback components (they can't be AOT-rendered)
+ * and routes for unknown components (not found in AOT manifest).
+ */
+export function buildAotRouteMap(
+  components: Record<string, AotBuildComponentEntry>,
+  routes: Array<{ pattern: string; componentName: string }>,
+): Record<string, AotRouteMapEntry> {
+  const routeMap: Record<string, AotRouteMapEntry> = {};
+
+  for (const route of routes) {
+    const comp = components[route.componentName];
+    if (!comp || comp.tier === 'runtime-fallback') continue;
+
+    routeMap[route.pattern] = {
+      renderFn: `__ssr_${route.componentName}`,
+      holes: comp.holes,
+      queryKeys: comp.queryKeys,
+    };
+  }
+
+  return routeMap;
+}
+
+/** Result of barrel generation — barrel source + file mapping for temp dir. */
+export interface AotBarrelResult {
+  /** Barrel module source code (import/re-export statements). */
+  barrelSource: string;
+  /**
+   * Mapping of temp file names → compiled source code.
+   * Write each entry as `<tempDir>/<filename>.ts` alongside the barrel.
+   */
+  files: Record<string, string>;
+}
+
+/**
+ * Generate a barrel module that re-exports __ssr_* functions from compiled files.
+ *
+ * Returns the barrel source code and a mapping of temp filenames → compiled code
+ * that must be written alongside the barrel for bundling.
+ */
+export function generateAotBarrel(
+  compiledFiles: Record<string, AotCompiledFile>,
+  routeMap: Record<string, AotRouteMapEntry>,
+): AotBarrelResult {
+  // Collect all render function names needed
+  const neededFns = new Set<string>();
+  for (const entry of Object.values(routeMap)) {
+    neededFns.add(entry.renderFn);
+  }
+
+  // Map function names → source file paths
+  const fnToFile = new Map<string, string>();
+  for (const [filePath, compiled] of Object.entries(compiledFiles)) {
+    for (const comp of compiled.components) {
+      const fnName = `__ssr_${comp.name}`;
+      if (neededFns.has(fnName)) {
+        fnToFile.set(fnName, filePath);
+      }
+    }
+  }
+
+  // Generate import/export lines grouped by source file
+  const fileToFns = new Map<string, string[]>();
+  for (const [fnName, filePath] of fnToFile) {
+    const existing = fileToFns.get(filePath) ?? [];
+    existing.push(fnName);
+    fileToFns.set(filePath, existing);
+  }
+
+  const lines: string[] = [];
+  const files: Record<string, string> = {};
+  let fileIndex = 0;
+  for (const [filePath, fns] of fileToFns) {
+    // Use relative module name based on source file basename
+    const moduleName = basename(filePath, '.tsx').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const tempFileName = `__aot_${fileIndex}_${moduleName}`;
+    const moduleRef = `./${tempFileName}`;
+    lines.push(`export { ${fns.sort().join(', ')} } from '${moduleRef}';`);
+
+    // Map the temp filename to the compiled source code
+    const compiled = compiledFiles[filePath];
+    if (compiled) {
+      files[`${tempFileName}.ts`] = compiled.code;
+    }
+
+    fileIndex++;
+  }
+
+  return {
+    barrelSource: lines.join('\n'),
+    files,
+  };
 }
 
 /** Recursively collect all .tsx files in a directory. */
