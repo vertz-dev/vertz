@@ -1,0 +1,65 @@
+name: Native Compiler
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'native/**'
+      - '.github/workflows/native-compiler.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'native/**'
+      - '.github/workflows/native-compiler.yml'
+
+concurrency:
+  group: native-compiler-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build & test (macOS arm64)
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+
+      - name: Check formatting
+        working-directory: native
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        working-directory: native
+        run: cargo clippy --all-targets --release -- -D warnings
+
+      - name: Build release
+        working-directory: native
+        run: cargo build --release
+
+      - name: Copy .node binary
+        run: cp native/target/release/libvertz_compiler.dylib native/vertz-compiler/vertz-compiler.darwin-arm64.node
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.9
+
+      - name: Run NAPI binding tests
+        run: bun test native/vertz-compiler/__tests__/
+
+      - name: Upload native module artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vertz-compiler-darwin-arm64
+          path: native/vertz-compiler/vertz-compiler.darwin-arm64.node
+          retention-days: 7
