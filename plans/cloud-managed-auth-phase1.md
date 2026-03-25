@@ -915,7 +915,7 @@ Full E2E integration tests, developer walkthrough verification, documentation up
 
 **Files:**
 - Integration test suite (full E2E — developer walkthrough passing)
-- `packages/docs/` (Mintlify — cloud auth guide, config reference, migration notes)
+- `packages/mint-docs/` (Mintlify — cloud auth guide, config reference, migration notes)
 - Changeset
 
 **Acceptance Criteria:**
@@ -957,7 +957,7 @@ describe('Feature: Developer walkthrough', () => {
 ```
 
 **Documentation deliverables:**
-- Cloud Auth quickstart guide (packages/docs/)
+- Cloud Auth quickstart guide (packages/mint-docs/)
 - `cloud` config reference in defineConfig()
 - Provider config changes (CloudOAuthProviderConfig)
 - SSR session resolution in cloud mode

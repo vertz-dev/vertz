@@ -983,7 +983,7 @@ Wire the spec generation into `createServer()` so it auto-serves the OpenAPI spe
 1. `ServerConfig.openapi` option to enable spec serving
 2. Auto-registered route at configurable `path` (defaults to `<apiPrefix>/openapi.json`)
 3. Spec generated once at startup, cached, served as JSON (in dev mode, regenerated per request)
-4. Documentation in `packages/docs/` — new page covering the full OpenAPI generation feature
+4. Documentation in `packages/mint-docs/` — new page covering the full OpenAPI generation feature
 5. Changeset
 
 **Acceptance criteria:**

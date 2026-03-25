@@ -615,7 +615,7 @@ describe('Feature: Per-request SET LOCAL scoping', () => {
 
 **Changes:**
 - Integration test: define entities with access rules → run codegen → generate migration → apply to test Postgres → make requests → verify RLS enforcement
-- `packages/docs/` — document the RLS workflow: define access rules → generate migration → deploy → automatic enforcement. Include guide for creating a separate application role (non-owner) for RLS.
+- `packages/mint-docs/` — document the RLS workflow: define access rules → generate migration → deploy → automatic enforcement. Include guide for creating a separate application role (non-owner) for RLS.
 - Changeset files for `@vertz/db` and `@vertz/codegen`
 
 **Acceptance criteria:**

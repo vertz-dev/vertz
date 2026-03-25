@@ -555,7 +555,7 @@ describe('Type: NavigateOptions.viewTransition', () => {
 - `examples/task-manager/src/router.ts` (add `viewTransition: true` to router options)
 - `examples/task-manager/src/pages/task-list.tsx` (add dynamic `view-transition-name` to task cards)
 - `examples/task-manager/src/pages/task-detail.tsx` (add matching `view-transition-name` to task detail header)
-- `packages/docs/` (document view transitions including shared element pattern)
+- `packages/mint-docs/` (document view transitions including shared element pattern)
 
 **Acceptance criteria:**
 ```typescript

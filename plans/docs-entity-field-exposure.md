@@ -202,7 +202,7 @@ description: "Control which fields, relations, and filters are exposed through y
 ### Phase 1: Write the documentation page
 
 **Deliverables:**
-1. Create `packages/docs/guides/server/entity-exposure.mdx`
+1. Create `packages/mint-docs/guides/server/entity-exposure.mdx`
 2. Add page to `docs.json` navigation under `vertz/server` group (after `entities`)
 3. Add card to `guides/server/overview.mdx` `<CardGroup>`
 

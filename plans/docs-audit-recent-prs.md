@@ -2,7 +2,7 @@
 
 ## Summary
 
-Seven recent PRs introduced features or changes that are missing or outdated in the docs. This plan covers updating `packages/docs/` to match the current library code.
+Seven recent PRs introduced features or changes that are missing or outdated in the docs. This plan covers updating `packages/mint-docs/` to match the current library code.
 
 ## Scope
 
@@ -26,7 +26,7 @@ Seven recent PRs introduced features or changes that are missing or outdated in 
 
 ## Phase 1: Server Docs — `domain()` Page + `rules.where()` DB Enforcement
 
-### New file: `packages/docs/guides/server/domains.mdx`
+### New file: `packages/mint-docs/guides/server/domains.mdx`
 
 Document the `domain()` API:
 - What it does (bounded context grouping with route prefixing)
@@ -40,19 +40,19 @@ Document the `domain()` API:
 - Cross-domain entity injection
 - Tenant scoping works seamlessly
 
-### Update: `packages/docs/guides/server/overview.mdx`
+### Update: `packages/mint-docs/guides/server/overview.mdx`
 
 - Add "Domains" row to the "What's included" table
 - Add a "Domains" card to the Guides card group
 
-### Update: `packages/docs/guides/server/auth.mdx`
+### Update: `packages/mint-docs/guides/server/auth.mdx`
 
 - Expand `rules.where()` section to explain DB-level enforcement
 - Note: where conditions are pushed into the SQL query for list, get, update, delete
 - Security benefit: zero row leakage, TOCTOU protection on mutations
 - Caveat: `rules.where()` inside `rules.any()` is still evaluated in-memory
 
-### Update: `packages/docs/docs.json`
+### Update: `packages/mint-docs/docs.json`
 
 - Add `"guides/server/domains"` to the vertz/server navigation group (after "entities")
 
@@ -86,7 +86,7 @@ describe('Phase 1: Server docs', () => {
 
 ## Phase 2: DB Docs — Composite PKs + RLS Pipeline + Prepared Statements
 
-### Update: `packages/docs/guides/db/schema.mdx`
+### Update: `packages/mint-docs/guides/db/schema.mdx`
 
 Add "Composite Primary Keys" section:
 - Syntax: `d.table(name, columns, { primaryKey: ['col1', 'col2'] })`
@@ -95,7 +95,7 @@ Add "Composite Primary Keys" section:
 - Validation: empty array rejected, non-existent columns rejected
 - Entity CRUD limitation: composite PKs not supported in entity CRUD (use surrogate PK + unique index)
 
-### Update: `packages/docs/guides/db/migrations.mdx`
+### Update: `packages/mint-docs/guides/db/migrations.mdx`
 
 Add "RLS Policies" section:
 - How codegen RLS output integrates with `migrateDev({ rlsPolicies })`
@@ -103,14 +103,14 @@ Add "RLS Policies" section:
 - Snapshot tracks RLS state for incremental diffs
 - Link to codegen guide for generation details
 
-### Update: `packages/docs/guides/db/queries.mdx`
+### Update: `packages/mint-docs/guides/db/queries.mdx`
 
 Add "Prepared Statements" section:
 - Automatic — enabled by default, no configuration needed
 - PostgreSQL caches query plans for repeated queries
 - Transparent to all query APIs (typed client, raw SQL, transactions)
 
-### Update: `packages/docs/guides/server/codegen.mdx`
+### Update: `packages/mint-docs/guides/server/codegen.mdx`
 
 - Update RLS section workflow: mention `migrateDev({ rlsPolicies })` integration as the recommended path (vs manual copy-paste)
 - Add `withSessionVars()` usage for per-request session variable scoping
@@ -145,18 +145,18 @@ describe('Phase 2: DB docs', () => {
 
 ## Phase 3: UI Docs — Form Revalidation + SSR Single-Pass
 
-### Update: `packages/docs/guides/ui/forms.mdx`
+### Update: `packages/mint-docs/guides/ui/forms.mdx`
 
 Add "Field Revalidation" section:
 - `revalidateOn` option: `'blur'` (default), `'change'`, `'submit'`
 - Behavior: only re-validates fields with prior errors, only after first submit
 - Example showing each mode
 
-### Update: `packages/docs/api-reference/ui/form.mdx`
+### Update: `packages/mint-docs/api-reference/ui/form.mdx`
 
 - Add `revalidateOn` to FormOptions table with type, default, and description
 
-### Update: `packages/docs/guides/ui/ssr.mdx`
+### Update: `packages/mint-docs/guides/ui/ssr.mdx`
 
 - Replace "How it works" three-step flow from two-pass to single-pass:
   1. Discovery-only execution — lightweight pass captures queries without rendering

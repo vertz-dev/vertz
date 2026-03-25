@@ -733,7 +733,7 @@ Simplify all dialog components across examples and documentation sites.
 
 ### Phase 5: Documentation
 
-- Update `packages/docs/` with new dialog pattern
+- Update `packages/mint-docs/` with new dialog pattern
 - Remove trigger-based dialog docs
 - Add stack-based dialog guide with sub-components
 - Document `useDialog()` as escape hatch (not primary pattern)

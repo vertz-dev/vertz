@@ -919,17 +919,17 @@ describe('Phase 1: Entity proxy + service proxy + raw HTTP', () => {
 
 ### Phase 2: Documentation
 
-**Goal:** Document `createTestClient` and server-side testing patterns in `packages/docs/`. Currently `guides/testing.mdx` only covers E2E/Playwright testing — there is no documentation for `@vertz/testing` or server-side integration testing.
+**Goal:** Document `createTestClient` and server-side testing patterns in `packages/mint-docs/`. Currently `guides/testing.mdx` only covers E2E/Playwright testing — there is no documentation for `@vertz/testing` or server-side integration testing.
 
 **Depends on:** Phase 1
 
 **Changes:**
 
-1. `packages/docs/guides/testing.mdx` — restructure into a testing hub
+1. `packages/mint-docs/guides/testing.mdx` — restructure into a testing hub
    - Keep existing E2E/Playwright content
    - Add a section or link to the new integration testing guide
 
-2. `packages/docs/guides/integration-testing.mdx` — new page
+2. `packages/mint-docs/guides/integration-testing.mdx` — new page
    - **createTestClient** — setup, entity proxy, service proxy, raw HTTP
    - **Entity testing** — typed CRUD operations, list with VertzQL options, error assertions
    - **Service testing** — direct method access, body-less actions, typed responses
@@ -938,7 +938,7 @@ describe('Phase 1: Entity proxy + service proxy + raw HTTP', () => {
    - **TestResponse API** — `ok`, `status`, `body`, `headers`, `raw` reference
    - **Migration from raw handler calls** — before/after comparison showing the old `server.handler(new Request(...))` pattern vs the new typed client
 
-3. `packages/docs/mint.json` (or equivalent nav config) — add integration testing page to sidebar
+3. `packages/mint-docs/mint.json` (or equivalent nav config) — add integration testing page to sidebar
 
 **Acceptance criteria:**
 
@@ -973,7 +973,7 @@ describe('Phase 2: Documentation', () => {
    - Separate from `createTestClient` — explicit, no magic
    - Only useful when the test has access to the signing key
 
-3. `packages/docs/guides/integration-testing.mdx` — update auth section with `asUser()` examples
+3. `packages/mint-docs/guides/integration-testing.mdx` — update auth section with `asUser()` examples
 
 **Note:** Phase 3 from Rev 1 was simplified. The original `withAuth(userId)` was underspecified and coupled the test client to auth internals. The revised approach is explicit: `asUser(token)` is just header injection, and JWT creation is a separate utility the developer controls.
 
@@ -1003,8 +1003,8 @@ describe('Phase 3: Auth helpers', () => {
 | `packages/server/src/service/__tests__/service.test-d.ts` | Modified | 1 | Phantom generic + array assignability tests |
 | `packages/testing/src/__tests__/test-client.test.ts` | New | 1 | Runtime tests |
 | `packages/testing/src/__tests__/test-client.test-d.ts` | New | 1 | Type-level tests |
-| `packages/docs/guides/integration-testing.mdx` | New | 2 | Integration testing guide with createTestClient |
-| `packages/docs/guides/testing.mdx` | Modified | 2 | Add link/section for integration testing |
+| `packages/mint-docs/guides/integration-testing.mdx` | New | 2 | Integration testing guide with createTestClient |
+| `packages/mint-docs/guides/testing.mdx` | Modified | 2 | Add link/section for integration testing |
 
 ## Validation Targets
 

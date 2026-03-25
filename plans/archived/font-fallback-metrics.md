@@ -575,13 +575,13 @@ Verify CLS improvement on landing site with Lighthouse. Update docs.
 - Landing page Lighthouse CLS score < 0.05 (target: 0, practical threshold accounting for system-ui variance)
 - `font-display: swap` is preserved (fast initial render)
 - No visual regression — fonts still load and display correctly
-- Docs updated in `packages/docs/` for `adjustFontFallback` option
+- Docs updated in `packages/mint-docs/` for `adjustFontFallback` option
 - Changeset added for `@vertz/ui` and `@vertz/ui-server`
 
 **Verification method:** Run Lighthouse via `npx lighthouse http://localhost:4200 --output json --chrome-flags="--headless"` and extract CLS from the JSON report. This can be done manually; CI integration for Lighthouse is a separate concern.
 
 **Files changed:**
-- `packages/docs/api-reference/ui/css.mdx` — document `adjustFontFallback`
+- `packages/mint-docs/api-reference/ui/css.mdx` — document `adjustFontFallback`
 - `.changeset/font-fallback-metrics.md` — changeset for `@vertz/ui` and `@vertz/ui-server`
 
 ## Review Sign-offs

@@ -549,5 +549,5 @@ describe('Feature: Reactive useSearchParams()', () => {
 
 - E2E test: SSR render with search params → verify HTML
 - Hydration test: SSR + client agree on rendered output
-- Update `packages/docs/` with `useSearchParams()` guide
+- Update `packages/mint-docs/` with `useSearchParams()` guide
 - Migration note: `URLSearchParams` → `ReactiveSearchParams` breaking change

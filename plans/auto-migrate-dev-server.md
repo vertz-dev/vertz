@@ -128,4 +128,4 @@ No unknowns. All pieces exist and are individually tested. This is pure wiring w
 
 ### Phase 4: Docs update
 
-Update `packages/docs/guides/db/migrations.mdx` to reflect auto-migrate during dev.
+Update `packages/mint-docs/guides/db/migrations.mdx` to reflect auto-migrate during dev.

@@ -141,7 +141,7 @@
         "@vertz/compiler": "workspace:^",
         "@vertz/create-vertz-app": "workspace:^",
         "@vertz/db": "workspace:^",
-        "@vertz/docs-framework": "workspace:^",
+        "@vertz/docs": "workspace:^",
         "@vertz/errors": "workspace:^",
         "@vertz/tui": "workspace:^",
         "@vertz/ui-server": "workspace:^",
@@ -283,10 +283,6 @@
     },
     "packages/docs": {
       "name": "@vertz/docs",
-      "version": "0.2.1",
-    },
-    "packages/docs-framework": {
-      "name": "@vertz/docs-framework",
       "version": "0.1.0",
       "dependencies": {
         "@mdx-js/mdx": "^3.0.0",
@@ -385,6 +381,10 @@
         "bunup": "^0.16.31",
         "typescript": "^5.7.0",
       },
+    },
+    "packages/mint-docs": {
+      "name": "@vertz/mint-docs",
+      "version": "0.2.1",
     },
     "packages/og": {
       "name": "@vertz/og",
@@ -1320,8 +1320,6 @@
 
     "@vertz/docs": ["@vertz/docs@workspace:packages/docs"],
 
-    "@vertz/docs-framework": ["@vertz/docs-framework@workspace:packages/docs-framework"],
-
     "@vertz/errors": ["@vertz/errors@workspace:packages/errors"],
 
     "@vertz/fetch": ["@vertz/fetch@workspace:packages/fetch"],
@@ -1337,6 +1335,8 @@
     "@vertz/landing-nextjs-vercel": ["@vertz/landing-nextjs-vercel@workspace:sites/landing-nextjs-vercel"],
 
     "@vertz/mdx": ["@vertz/mdx@workspace:packages/mdx"],
+
+    "@vertz/mint-docs": ["@vertz/mint-docs@workspace:packages/mint-docs"],
 
     "@vertz/og": ["@vertz/og@workspace:packages/og"],
 
@@ -2372,7 +2372,7 @@
 
     "@vertz/db/bun-types": ["bun-types@1.3.11", "", { "dependencies": { "@types/node": "*" } }, "sha512-1KGPpoxQWl9f6wcZh57LvrPIInQMn2TQ7jsgxqpRzg+l0QPOFvJVH7HmvHo/AiPgwXy+/Thf6Ov3EdVn1vOabg=="],
 
-    "@vertz/docs-framework/bun-types": ["bun-types@1.3.11", "", { "dependencies": { "@types/node": "*" } }, "sha512-1KGPpoxQWl9f6wcZh57LvrPIInQMn2TQ7jsgxqpRzg+l0QPOFvJVH7HmvHo/AiPgwXy+/Thf6Ov3EdVn1vOabg=="],
+    "@vertz/docs/bun-types": ["bun-types@1.3.11", "", { "dependencies": { "@types/node": "*" } }, "sha512-1KGPpoxQWl9f6wcZh57LvrPIInQMn2TQ7jsgxqpRzg+l0QPOFvJVH7HmvHo/AiPgwXy+/Thf6Ov3EdVn1vOabg=="],
 
     "@vertz/errors/bun-types": ["bun-types@1.3.11", "", { "dependencies": { "@types/node": "*" } }, "sha512-1KGPpoxQWl9f6wcZh57LvrPIInQMn2TQ7jsgxqpRzg+l0QPOFvJVH7HmvHo/AiPgwXy+/Thf6Ov3EdVn1vOabg=="],
 

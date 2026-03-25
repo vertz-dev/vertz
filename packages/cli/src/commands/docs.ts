@@ -22,7 +22,7 @@ export async function docsInitCommand(
   options: DocsInitCommandOptions = {},
 ): Promise<Result<void, Error>> {
   try {
-    const { docsInitAction } = await import('@vertz/docs-framework');
+    const { docsInitAction } = await import('@vertz/docs');
     const projectDir = resolve(process.cwd(), options.dir ?? '.');
     const result = await docsInitAction({ projectDir });
     if (!result.ok) {
@@ -45,7 +45,7 @@ export async function docsBuildCommand(
   options: DocsBuildCommandOptions = {},
 ): Promise<Result<void, Error>> {
   try {
-    const { docsBuildAction } = await import('@vertz/docs-framework');
+    const { docsBuildAction } = await import('@vertz/docs');
     const projectDir = process.cwd();
     const result = await docsBuildAction({
       projectDir,
@@ -71,7 +71,7 @@ export async function docsDevCommand(
   const { port = 3001, host = 'localhost' } = options;
 
   try {
-    const { docsDevAction } = await import('@vertz/docs-framework');
+    const { docsDevAction } = await import('@vertz/docs');
     const projectDir = process.cwd();
 
     const result = await docsDevAction({ projectDir, port, host });

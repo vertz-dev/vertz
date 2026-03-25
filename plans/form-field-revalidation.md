@@ -376,7 +376,7 @@ describe('Feature: revalidateOn submit', () => {
 
 **Changes:**
 - `packages/ui/src/__tests__/form-integration.test.ts` — end-to-end integration tests with `@vertz/schema` and real event simulation
-- `packages/docs/` — update form API documentation with `revalidateOn` option
+- `packages/mint-docs/` — update form API documentation with `revalidateOn` option
 - Changeset
 
 **Acceptance criteria:**

@@ -549,7 +549,7 @@ describe('Given a sortable animated list', () => {
 - `packages/ui-primitives/src/list/list-composed.tsx` — respect `prefers-reduced-motion` during drag (instant shifts, no transition)
 - `packages/ui-primitives/src/list/__tests__/list-drag.test.tsx` — reduced motion test
 - `sites/component-docs/src/content/list-content.tsx` — update demo to showcase animated reorder
-- `packages/docs/` — update List component docs if applicable
+- `packages/mint-docs/` — update List component docs if applicable
 
 **Acceptance criteria:**
 

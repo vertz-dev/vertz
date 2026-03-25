@@ -318,4 +318,4 @@ Migration is incremental: existing pattern continues to work. Components can be 
 ### Phase 4: Documentation
 
 **Files:**
-- Update `packages/docs/` with centralized theme API guide
+- Update `packages/mint-docs/` with centralized theme API guide

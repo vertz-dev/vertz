@@ -435,7 +435,7 @@ Update `ThemedPrimitives` interface to use PascalCase keys for all 7 components.
 **Files to modify:**
 - `packages/theme-shadcn/src/configure.ts` — replace lowercase keys with PascalCase in `ThemedPrimitives` interface and assembly
 - `packages/theme-shadcn/src/components/primitives/toast.ts` — keep as-is (factory wrapper)
-- `packages/docs/guides/ui/styling.mdx` — add JSX usage examples for the 7 primitives
+- `packages/mint-docs/guides/ui/styling.mdx` — add JSX usage examples for the 7 primitives
 - Any test files referencing old lowercase keys (e.g., walkthrough tests)
 
 **Acceptance criteria:**
@@ -456,7 +456,7 @@ describe('Feature: PascalCase ThemedPrimitives', () => {
 ```
 - No lowercase keys (`checkbox`, `switch`, etc.) exist on `ThemedPrimitives`
 - All test files updated to use PascalCase
-- Docs updated with JSX examples in `packages/docs/guides/ui/styling.mdx`
+- Docs updated with JSX examples in `packages/mint-docs/guides/ui/styling.mdx`
 
 ### Dependencies
 

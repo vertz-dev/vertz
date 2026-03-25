@@ -1249,7 +1249,7 @@ describe('Feature: AOT hydration compatibility', () => {
 
 ### Phase 5: Documentation
 
-- Update `packages/docs/` with AOT SSR documentation
+- Update `packages/mint-docs/` with AOT SSR documentation
 - Architecture decision record
 - Performance benchmarks published
 

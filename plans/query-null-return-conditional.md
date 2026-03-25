@@ -563,7 +563,7 @@ describe('Phase 1: null-return + idle + descriptor-in-thunk', () => {
 **Changes:**
 1. Update `examples/linear/src/pages/issue-detail-page.tsx` — convert to null-return for dependent queries
 2. Update `examples/linear/src/pages/issue-list-page.tsx` — if applicable
-3. Update `packages/docs/` with:
+3. Update `packages/mint-docs/` with:
    - Conditional query pattern (null-return)
    - Dependent query chains
    - Tab/section visibility deferral

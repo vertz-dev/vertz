@@ -391,7 +391,7 @@ describe('Feature: SSR session resolver algorithm support', () => {
 **Changes:**
 - `__tests__/test-keys.ts` — Add `generateTestKeyPair(algorithm)` helper that generates RSA or EC keys
 - Update any remaining hardcoded RSA key references in other test files
-- `packages/docs/` — Update auth configuration docs with `algorithm` option
+- `packages/mint-docs/` — Update auth configuration docs with `algorithm` option
 - Add changeset
 
 **Acceptance Criteria:**

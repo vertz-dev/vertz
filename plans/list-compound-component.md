@@ -378,7 +378,7 @@ describe('Feature: List drag-and-sort', () => {
 **Files to modify:**
 - `packages/ui/src/component/list-transition.ts` — add `@deprecated` JSDoc pointing to `<List animate>`
 - Example apps — migrate `ListTransition` usage to `<List animate>`
-- `packages/docs/` — document `<List>`, update field selection guide
+- `packages/mint-docs/` — document `<List>`, update field selection guide
 
 ---
 

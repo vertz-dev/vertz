@@ -134,7 +134,7 @@ All phases are sequential because Phase 2 depends on the new session-validation 
 - `bun.lock`
 - `packages/ui-server/package.json`
 - `docs/guides/authentication.md`
-- `packages/docs/guides/ui/auth.mdx`
+- `packages/mint-docs/guides/ui/auth.mdx`
 
 ### TDD / validation cycles
 

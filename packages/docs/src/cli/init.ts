@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-const CONFIG_TEMPLATE = `import { defineDocsConfig } from '@vertz/docs-framework';
+const CONFIG_TEMPLATE = `import { defineDocsConfig } from '@vertz/docs';
 
 export default defineDocsConfig({
   name: 'My Docs',
@@ -46,7 +46,7 @@ description: Get up and running quickly
 ## Installation
 
 \`\`\`bash
-bun add @vertz/docs-framework
+bun add @vertz/docs
 \`\`\`
 
 ## Create your first page

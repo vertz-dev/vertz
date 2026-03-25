@@ -26,7 +26,7 @@ Three sign-offs required before implementation:
 - Each phase lists: concrete integration tests as acceptance criteria
 - Dependencies between phases explicitly marked
 - Developer walkthrough per feature
-- **Documentation phase** — if the feature touches public API, plan a phase (or include in the final phase) for updating `packages/docs/`
+- **Documentation phase** — if the feature touches public API, plan a phase (or include in the final phase) for updating `packages/mint-docs/`
 
 ## Integration Tests
 
@@ -50,7 +50,7 @@ Three sign-offs required before implementation:
 - [ ] Developer walkthrough passing (public imports only)
 - [ ] Cross-package typecheck passing
 - [ ] Design doc updated if deviations occurred
-- [ ] **Docs updated** (`packages/docs/`) — new APIs documented, changed behavior reflected, gotchas noted
+- [ ] **Docs updated** (`packages/mint-docs/`) — new APIs documented, changed behavior reflected, gotchas noted
 - [ ] Changeset added
 - [ ] Retrospective written
 - [ ] PR rebased on latest `main`, pushed, and GitHub CI is green
