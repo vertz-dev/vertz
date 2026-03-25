@@ -146,7 +146,6 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
                     &mut ms,
                     &parser_ret.program,
                     comp,
-                    &source,
                 );
             } else {
                 mount_frame_transformer::transform_mount_frame(

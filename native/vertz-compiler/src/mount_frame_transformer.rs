@@ -226,10 +226,9 @@ pub fn transform_arrow_expression_body(
     ms: &mut MagicString,
     program: &Program,
     component: &ComponentInfo,
-    source: &str,
 ) {
     // Find the arrow function for this component
-    if let Some(arrow_info) = find_arrow_expression_body(program, component, source) {
+    if let Some(arrow_info) = find_arrow_expression_body(program, component) {
         // Convert expression body to block body with mount frame
         // Use targeted insertions to preserve signal/computed transforms within the expression
         ms.prepend_left(
@@ -251,7 +250,6 @@ struct ArrowExprBodyInfo {
 fn find_arrow_expression_body(
     program: &Program,
     component: &ComponentInfo,
-    _source: &str,
 ) -> Option<ArrowExprBodyInfo> {
     let mut finder = ArrowExprFinder {
         component,

@@ -107,6 +107,23 @@ describe('Feature: Props destructuring transform', () => {
     });
   });
 
+  describe('Given a component with a component-level re-declaration of a prop name', () => {
+    describe('When compiled', () => {
+      it('Then does NOT replace references after the re-declaration', () => {
+        const code = compileAndGetCode(`
+          function Card({ title }: { title: string }) {
+            const title = 'computed';
+            return <div>{title}</div>;
+          }
+        `);
+        // The const declaration should remain
+        expect(code).toContain("const title = 'computed'");
+        // The return reference should NOT be transformed (title is re-declared)
+        expect(code).not.toContain('__props.title');
+      });
+    });
+  });
+
   describe('Given a component with shorthand property using a prop', () => {
     describe('When compiled', () => {
       it('Then expands shorthand to key: __props.key', () => {
@@ -241,6 +258,45 @@ describe('Feature: Props destructuring transform', () => {
         `);
         expect(code).toContain('__props.title');
         expect(code).toContain('count.value');
+      });
+    });
+  });
+
+  describe('Given an arrow expression body with destructured props', () => {
+    describe('When compiled', () => {
+      it('Then both props and mount frame transforms apply correctly', () => {
+        const code = compileAndGetCode(`
+          const Card = ({ title }: { title: string }) => <div>{title}</div>;
+        `);
+        expect(code).toContain('__props.title');
+        expect(code).toContain('__pushMountFrame()');
+        expect(code).toContain('__flushMountFrame()');
+      });
+    });
+  });
+
+  describe('Given a component with export default function and destructured props', () => {
+    describe('When compiled', () => {
+      it('Then rewrites to __props access', () => {
+        const code = compileAndGetCode(`
+          export default function Card({ title }: { title: string }) {
+            return <div>{title}</div>;
+          }
+        `);
+        expect(code).toContain('__props.title');
+      });
+    });
+  });
+
+  describe('Given a component with export const and destructured props', () => {
+    describe('When compiled', () => {
+      it('Then rewrites to __props access', () => {
+        const code = compileAndGetCode(`
+          export const Card = ({ title }: { title: string }) => {
+            return <div>{title}</div>;
+          };
+        `);
+        expect(code).toContain('__props.title');
       });
     });
   });

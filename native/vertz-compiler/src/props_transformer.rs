@@ -203,7 +203,11 @@ fn extract_from_params<'a>(
         let mut has_nested = false;
 
         for prop in &obj_pattern.properties {
-            let prop_name = extract_prop_key_name(&prop.key)?;
+            // Skip non-identifier keys (e.g., computed keys, string literals)
+            let prop_name = match extract_prop_key_name(&prop.key) {
+                Some(name) => name,
+                None => continue,
+            };
 
             match &prop.value {
                 BindingPattern::BindingIdentifier(id) => {
@@ -397,7 +401,7 @@ impl<'a, 'b, 'c> Visit<'c> for PropsRefReplacer<'a, 'b> {
             crate::signal_transformer::collect_param_names(&func.params)
         };
         if let Some(ref body) = func.body {
-            collect_block_body_var_names(body, &mut shadows);
+            collect_block_var_names(body, &mut shadows);
         }
         self.shadowed_stack.push(shadows);
         oxc_ast_visit::walk::walk_function(self, func, flags);
@@ -405,20 +409,7 @@ impl<'a, 'b, 'c> Visit<'c> for PropsRefReplacer<'a, 'b> {
     }
 }
 
-/// Collect variable names declared directly in a function body (block statements only).
-fn collect_block_body_var_names(body: &FunctionBody, names: &mut HashSet<String>) {
-    for stmt in &body.statements {
-        if let Statement::VariableDeclaration(var_decl) = stmt {
-            for declarator in &var_decl.declarations {
-                if let BindingPattern::BindingIdentifier(ref id) = declarator.id {
-                    names.insert(id.name.to_string());
-                }
-            }
-        }
-    }
-}
-
-/// Collect variable names declared directly in an arrow function body.
+/// Collect variable names declared directly in a function body.
 fn collect_block_var_names(body: &FunctionBody, names: &mut HashSet<String>) {
     for stmt in &body.statements {
         if let Statement::VariableDeclaration(var_decl) = stmt {

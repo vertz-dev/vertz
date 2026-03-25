@@ -53,7 +53,7 @@ describe('Feature: Mount frame transform', () => {
           `function MyComponent() {\n  if (true) { return <div>A</div>; }\n  return <div>B</div>;\n}`,
         );
         const flushCount = (code.match(/__flushMountFrame\(\)/g) ?? []).length;
-        expect(flushCount).toBeGreaterThanOrEqual(2);
+        expect(flushCount).toBe(2);
       });
 
       it('Then uses unique variable names per return (__mfResult0, __mfResult1)', () => {
@@ -85,7 +85,7 @@ describe('Feature: Mount frame transform', () => {
           `function MyComponent() {\n  if (true) return;\n  return <div>Content</div>;\n}`,
         );
         const flushCount = (code.match(/__flushMountFrame\(\)/g) ?? []).length;
-        expect(flushCount).toBeGreaterThanOrEqual(2);
+        expect(flushCount).toBe(2);
       });
     });
   });
