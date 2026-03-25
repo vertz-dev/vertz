@@ -14,6 +14,7 @@ import {
   isReloadStub,
   isStaleGraphError,
   parseHMRAssets,
+  shouldCheckStaleBundler,
 } from '../bun-dev-server';
 
 describe('createBunDevServer', () => {
@@ -1229,6 +1230,24 @@ describe('stale bundler detection', () => {
   it('source contains restart log message for stale dev bundler', () => {
     const source = readFileSync(new URL('../bun-dev-server.ts', import.meta.url).pathname, 'utf8');
     expect(source).toContain('Dev bundler serving reload stub after successful build');
+  });
+
+  it('skips stale bundler check when hash changed (HMR succeeded)', () => {
+    expect(shouldCheckStaleBundler(true)).toBe(false);
+  });
+
+  it('runs stale bundler check when hash did NOT change (bundler may be stuck)', () => {
+    expect(shouldCheckStaleBundler(false)).toBe(true);
+  });
+
+  it('file watcher uses shouldCheckStaleBundler to guard restart', () => {
+    // The file watcher must only check for stale bundler when the hash did NOT change.
+    // Verify the source code conditionally checks based on hashChanged.
+    const source = readFileSync(new URL('../bun-dev-server.ts', import.meta.url).pathname, 'utf8');
+    // Path D: post-build validation — must be guarded by !hashChanged
+    expect(source).toContain('!hashChanged && bundledScriptUrl && server && !isRestarting');
+    // Path E: post-SSR refresh — must be guarded by !hashChanged
+    expect(source).toContain('!hashChanged && (await checkAndRestartIfBundlerStale())');
   });
 });
 

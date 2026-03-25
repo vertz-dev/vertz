@@ -183,6 +183,22 @@ export function isReloadStub(text: string): boolean {
   return text.trimStart().startsWith('try{location.reload()}');
 }
 
+/**
+ * Determine whether the dev server should check for a stale dev bundler
+ * (and potentially restart) after a file change.
+ *
+ * When the bundle hash changed, the dev bundler processed the update
+ * successfully — HMR will deliver it. Checking for a reload stub would
+ * race with Bun's internal update and produce false positives.
+ *
+ * When the hash did NOT change, the dev bundler may be stuck (e.g. new
+ * file imported for the first time). The stale check is needed to detect
+ * this and auto-restart.
+ */
+export function shouldCheckStaleBundler(hashChanged: boolean): boolean {
+  return !hashChanged;
+}
+
 /** A resolved stack frame for terminal logging. */
 interface TerminalStackFrame {
   functionName: string | null;
@@ -2123,6 +2139,10 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
 
           // Proactive build check — detect errors before the client fetches
           if (stopped) return;
+          // Track whether the dev bundler's hash changed — when it does, HMR is
+          // working and we should NOT restart the server. Only check for stale
+          // bundler when the hash is stuck (e.g. new file imported for the first time).
+          let hashChanged = false;
           try {
             const clientRelative = rawClientSrc.replace(/^\//, '');
             const result = await Bun.build({
@@ -2159,14 +2179,18 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
                 await new Promise((r) => setTimeout(r, 200));
                 if (stopped) return;
                 await discoverHMRAssets();
-                if (bundledScriptUrl !== prevUrl) break;
+                if (bundledScriptUrl !== prevUrl) {
+                  hashChanged = true;
+                  break;
+                }
               }
-              // Validate the dev bundler's actual output — if it's serving
-              // the reload stub despite the proactive Bun.build() succeeding,
-              // the dev bundler's module graph is stale (common when new files
-              // are imported for the first time). Auto-restart to get a fresh
-              // module graph.
-              if (bundledScriptUrl && server && !isRestarting) {
+              // Only check for a stale dev bundler when the hash did NOT change.
+              // A changed hash means Bun's dev bundler processed the update and
+              // HMR will deliver it to the client — no restart needed.
+              // When the hash is stuck (e.g. new file imported for the first time),
+              // the dev bundler's module graph may be stale. Self-fetch the bundle
+              // to confirm it's a reload stub before restarting.
+              if (!hashChanged && bundledScriptUrl && server && !isRestarting) {
                 try {
                   const bundleRes = await fetch(`http://${host}:${server.port}${bundledScriptUrl}`);
                   const bundleText = await bundleRes.text();
@@ -2303,10 +2327,10 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
             if (logRequests) {
               console.log('[Server] SSR module refreshed');
             }
-            // SSR succeeded — check if dev bundler is stale before clearing errors.
-            // This catches the case where Bun.build() passed and SSR refreshed
-            // but the persistent dev bundler graph is still stale (e.g. new file added).
-            if (await checkAndRestartIfBundlerStale()) return;
+            // SSR succeeded — only check for stale dev bundler when the bundle
+            // hash did NOT change. A changed hash means HMR is working and the
+            // dev bundler processed the update; restarting would be disruptive.
+            if (!hashChanged && (await checkAndRestartIfBundlerStale())) return;
             clearErrorForFileChange();
           } catch {
             logger.log('watcher', 'ssr-reload', { status: 'retry' });
@@ -2336,7 +2360,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
               if (logRequests) {
                 console.log('[Server] SSR module refreshed (retry)');
               }
-              if (await checkAndRestartIfBundlerStale()) return;
+              if (!hashChanged && (await checkAndRestartIfBundlerStale())) return;
               clearErrorForFileChange();
             } catch (e2) {
               console.error('[Server] Failed to refresh SSR module:', e2);
