@@ -1,5 +1,12 @@
 # @vertz/ui
 
+## 0.2.33
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vertz/fetch@0.2.33
+
 ## 0.2.32
 
 ### Patch Changes
@@ -78,7 +85,7 @@
 
   ```tsx
   // Before
-  import { ListTransition } from '@vertz/ui';
+  import { ListTransition } from "@vertz/ui";
 
   <ListTransition
     each={items}
@@ -87,7 +94,7 @@
   />;
 
   // After
-  import { List } from '@vertz/ui/components';
+  import { List } from "@vertz/ui/components";
 
   <List animate>
     {items.map((item) => (
@@ -146,6 +153,7 @@
 - [#1684](https://github.com/vertz-dev/vertz/pull/1684) [`e24615a`](https://github.com/vertz-dev/vertz/commit/e24615a8619ae84b993c18dbdca2671ca254f9bb) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui-compiler): support JSX spread attributes on intrinsic elements and components
 
   JSX spread attributes (`<button {...rest}>`, `<Button {...props}>`) were silently dropped by the compiler. Spread attributes now work correctly:
+
   - **Component calls**: spread emits `...expr` in the props object literal
   - **Intrinsic elements**: spread emits `__spread(el, props)` runtime call that handles event handlers, style, class/className, ref, SVG attributes, and standard HTML attributes
   - **theme-shadcn Button**: removed `applyProps` workaround in favor of native JSX spread
@@ -153,6 +161,7 @@
 - [#1707](https://github.com/vertz-dev/vertz/pull/1707) [`adea2f1`](https://github.com/vertz-dev/vertz/commit/adea2f15f306d09ecebc56fc1f3841ff4b14b2ba) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Auto-invalidate tenant-scoped queries on tenant switch. When `switchTenant()` succeeds, all active queries with `tenantScoped: true` metadata are automatically cleared and refetched, preventing stale cross-tenant data from being visible.
 
   **What changed:**
+
   - `EntityQueryMeta` now includes an optional `tenantScoped` boolean field
   - `registerActiveQuery()` accepts an optional `clearData` callback for data clearing before refetch
   - `invalidateTenantQueries()` exported from `@vertz/ui` — clears data + refetches all tenant-scoped queries
@@ -240,6 +249,7 @@
   Convert the `contextMenu` primitive from an imperative factory function to a
   declarative JSX component with `.Trigger`, `.Content`, `.Item`, `.Group`,
   `.Label`, and `.Separator` sub-components.
+
   - Add `ComposedContextMenu` in `@vertz/ui-primitives` (context-based sub-component wiring)
   - Replace imperative `createThemedContextMenu` factory with `withStyles()` wrapper
   - Promote from lowercase `contextMenu` factory to PascalCase `ContextMenu` compound proxy
@@ -376,6 +386,7 @@
 - [#1168](https://github.com/vertz-dev/vertz/pull/1168) [`d0e9dc5`](https://github.com/vertz-dev/vertz/commit/d0e9dc5065fea630cd046ef55f279fe9fb400086) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(ui): Image component with build-time optimization
 
   Add `<Image>` component to `@vertz/ui` that renders an `<img>` element with sensible defaults (lazy loading, async decoding). At build time, the Bun plugin detects static `<Image>` usage and replaces it with optimized `<picture>` markup containing WebP 1x/2x variants and an original-format fallback.
+
   - Runtime `<Image>` component with priority prop, pass-through attributes
   - AST-based transform using ts-morph for reliable detection
   - Sharp-based image processor with content-hash caching
@@ -440,6 +451,7 @@
 - [#1003](https://github.com/vertz-dev/vertz/pull/1003) [`de34f8d`](https://github.com/vertz-dev/vertz/commit/de34f8dc9d3e69b507874f33d80bf7dc4420001d) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add same-type query revalidation via MutationEventBus. Entity-backed queries now automatically revalidate when a mutation commits for the same entity type. Opt out per-mutation via `skipInvalidation: true` on MutationMeta.
 
 - [#1052](https://github.com/vertz-dev/vertz/pull/1052) [`4eac71c`](https://github.com/vertz-dev/vertz/commit/4eac71c98369d12a0cd7a3cbbeda60ea7cc5bd05) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add client-side auth session management (AuthProvider, useAuth, AuthGate)
+
   - AuthProvider wraps app with auth context, manages JWT session lifecycle
   - useAuth() returns reactive state + SdkMethods (signIn, signUp, signOut, mfaChallenge, forgotPassword, resetPassword)
   - SdkMethods work with form() for automatic validation and submission
@@ -517,16 +529,19 @@
 - [#267](https://github.com/vertz-dev/vertz/pull/267) [`0a33c14`](https://github.com/vertz-dev/vertz/commit/0a33c142a12a54e0da61423701ca338118ab9c98) Thanks [@vertz-dev-core](https://github.com/apps/vertz-dev-core)! - Zero-config SSR: `vertz({ ssr: true })` makes `vite dev` serve SSR'd HTML automatically.
 
   **@vertz/ui-server:**
+
   - Add `@vertz/ui-server/dom-shim` subpath with SSRElement, installDomShim, toVNode
   - Add `@vertz/ui-server/jsx-runtime` subpath for server-side JSX rendering
 
   **@vertz/ui-compiler:**
+
   - Add `ssr: boolean | SSROptions` to vertzPlugin options
   - Add `configureServer` hook that intercepts HTML requests and renders SSR'd HTML
   - Auto-generate virtual SSR entry module (`\0vertz:ssr-entry`)
   - Handle JSX runtime alias swap for SSR builds
 
   **@vertz/ui:**
+
   - Add `@vertz/ui/jsx-runtime` and `@vertz/ui/jsx-dev-runtime` subpath exports
   - Make router SSR-compatible (auto-detect `__SSR_URL__`, skip popstate in SSR)
 

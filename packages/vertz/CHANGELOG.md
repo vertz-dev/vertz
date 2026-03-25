@@ -1,5 +1,23 @@
 # vertz
 
+## 0.2.33
+
+### Patch Changes
+
+- Updated dependencies [[`37fb6dc`](https://github.com/vertz-dev/vertz/commit/37fb6dcb125c561ec0113a1ee9314426fa50255e)]:
+  - @vertz/ui-compiler@0.2.33
+  - @vertz/cloudflare@0.2.33
+  - @vertz/db@0.2.33
+  - @vertz/errors@0.2.33
+  - @vertz/fetch@0.2.33
+  - @vertz/schema@0.2.33
+  - @vertz/server@0.2.33
+  - @vertz/testing@0.2.33
+  - @vertz/tui@0.2.33
+  - @vertz/ui@0.2.33
+  - @vertz/ui-primitives@0.2.33
+  - @vertz/ui-server@0.2.33
+
 ## 0.2.32
 
 ### Patch Changes
