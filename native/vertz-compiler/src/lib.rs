@@ -1,8 +1,10 @@
 mod component_analyzer;
 mod computed_transformer;
 mod magic_string;
+mod mount_frame_transformer;
 mod mutation_analyzer;
 mod mutation_transformer;
+mod props_transformer;
 mod reactivity_analyzer;
 mod signal_api_registry;
 mod signal_transformer;
@@ -109,6 +111,9 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
     let napi_components: Vec<NapiComponentInfo> = components
         .iter()
         .map(|comp| {
+            // Props destructuring must run BEFORE reactivity analysis
+            props_transformer::transform_props(&mut ms, &parser_ret.program, comp, &source);
+
             let variables =
                 reactivity_analyzer::analyze_reactivity(&parser_ret.program, comp, &import_aliases);
 
@@ -133,6 +138,23 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
                 comp,
                 &variables,
             );
+
+            // Mount frame wrapping runs AFTER all other transforms
+            // Check if this is an arrow expression body first
+            if comp.is_arrow_expression {
+                mount_frame_transformer::transform_arrow_expression_body(
+                    &mut ms,
+                    &parser_ret.program,
+                    comp,
+                );
+            } else {
+                mount_frame_transformer::transform_mount_frame(
+                    &mut ms,
+                    &parser_ret.program,
+                    comp,
+                    &source,
+                );
+            }
 
             NapiComponentInfo {
                 name: comp.name.clone(),

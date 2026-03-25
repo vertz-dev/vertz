@@ -6,6 +6,8 @@ pub struct ComponentInfo {
     pub name: String,
     pub body_start: u32,
     pub body_end: u32,
+    /// Whether this component is an arrow function with expression body (no block).
+    pub is_arrow_expression: bool,
 }
 
 /// Analyze a program and detect function components (functions that return JSX).
@@ -30,6 +32,7 @@ fn collect_from_statement<'a>(stmt: &Statement<'a>, components: &mut Vec<Compone
                             name: id.name.to_string(),
                             body_start: body.span.start,
                             body_end: body.span.end,
+                            is_arrow_expression: false,
                         });
                     }
                 }
@@ -60,6 +63,7 @@ fn collect_from_statement<'a>(stmt: &Statement<'a>, components: &mut Vec<Compone
                                 name: id.name.to_string(),
                                 body_start: body.span.start,
                                 body_end: body.span.end,
+                                is_arrow_expression: false,
                             });
                         }
                     }
@@ -81,6 +85,7 @@ fn collect_from_declaration<'a>(decl: &Declaration<'a>, components: &mut Vec<Com
                             name: id.name.to_string(),
                             body_start: body.span.start,
                             body_end: body.span.end,
+                            is_arrow_expression: false,
                         });
                     }
                 }
@@ -120,6 +125,7 @@ fn check_expression_for_component<'a>(
                     name: name.to_string(),
                     body_start: start,
                     body_end: end,
+                    is_arrow_expression: arrow.expression,
                 });
             }
         }
@@ -132,6 +138,7 @@ fn check_expression_for_component<'a>(
                         name: name.to_string(),
                         body_start: body.span.start,
                         body_end: body.span.end,
+                        is_arrow_expression: false,
                     });
                 }
             }
