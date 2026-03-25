@@ -160,6 +160,20 @@ export function query<T, E = unknown>(
     ) as QueryResult<T, E>;
   }
 
+  // Mutation-bus and registry subscription handles.
+  //
+  // Declared at the top of the function body so they are guaranteed to be
+  // initialized before ANY code — including lifecycleEffect's synchronous
+  // first run and the hoisted `dispose` function — can reference them.
+  //
+  // Earlier fix (#1819 / PR #1822) placed these before lifecycleEffect,
+  // but bundlers that inline or scope-hoist the function can reorder `let`
+  // declarations, re-creating the TDZ in the compiled output.  Placing
+  // them as the first statements after the early return makes reordering
+  // past the function entry point impossible.
+  let unsubscribeBus: (() => void) | undefined;
+  let unregisterFromRegistry: (() => void) | undefined;
+
   const thunk = source as () => QueryDescriptor<T, E> | Promise<T> | null;
   const {
     initialData,
@@ -632,12 +646,6 @@ export function query<T, E = unknown>(
   // the thunk, so identical dependency values produce the same key.
   // This enables cache hits when switching back to previously-fetched
   // dependency combinations.
-  // Declare mutation-bus and registry handles before the lifecycleEffect so
-  // that the lazy entity-metadata path (line ~744) can assign to them during
-  // the first synchronous effect run without hitting a TDZ error (#1819).
-  let unsubscribeBus: (() => void) | undefined;
-  let unregisterFromRegistry: (() => void) | undefined;
-
   let disposeFn: (() => void) | undefined;
   let isFirst = true;
   disposeFn = lifecycleEffect(() => {
@@ -853,8 +861,13 @@ export function query<T, E = unknown>(
 
   /**
    * Dispose the query — stops the reactive effect and cleans up inflight state.
+   *
+   * Declared as a const arrow (not a function declaration) to prevent
+   * hoisting.  A hoisted `dispose` could be placed before `unsubscribeBus`
+   * / `unregisterFromRegistry` in bundled output, causing TDZ when the
+   * bundler tries to inline or scope-hoist this module (#1819).
    */
-  function dispose(): void {
+  const dispose = (): void => {
     // Decrement ref counts for all referenced entities
     if (referencedKeys.size > 0) {
       const store = getEntityStore();
@@ -891,7 +904,7 @@ export function query<T, E = unknown>(
       getInflight().delete(key);
     }
     inflightKeys.clear();
-  }
+  };
 
   /**
    * Create a clearData callback for tenant-switch invalidation.
