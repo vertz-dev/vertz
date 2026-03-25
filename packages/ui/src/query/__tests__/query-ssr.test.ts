@@ -231,7 +231,7 @@ describe('query() client-side SSR hydration', () => {
     (globalThis as Record<string, unknown>).document = origDocument;
   });
 
-  it('picks up pre-existing SSR data and serves SSR result (#1861)', async () => {
+  it('picks up pre-existing SSR data without fetching', async () => {
     const fetchFn = vi.fn(() => Promise.resolve('fetched-from-server'));
 
     // Simulate SSR data already buffered
@@ -245,12 +245,11 @@ describe('query() client-side SSR hydration', () => {
     await new Promise((r) => setTimeout(r, 10));
 
     // Data should come from SSR, not from the fetch.
-    // The thunk IS called once (for reactive dep tracking — #1861 fix),
-    // but the result is discarded. SSR data remains authoritative.
-    // For descriptor thunks (real API clients), calling the thunk does NOT
-    // fire a network request — only promise thunks trigger a suppressed fetch.
+    // This test uses customKey — the SSR hydration path skips the thunk
+    // call entirely (no deps to track when key is static).
     expect(result.data.value).toBe('ssr-streamed-data');
     expect(result.loading.value).toBe(false);
+    expect(fetchFn).not.toHaveBeenCalled();
   });
 
   it('query without SSR data falls back to normal fetch', async () => {
