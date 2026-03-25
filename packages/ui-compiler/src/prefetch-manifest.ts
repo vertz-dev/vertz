@@ -160,12 +160,21 @@ function parseRouteObject(obj: ts.ObjectLiteralExpression, sf: ts.SourceFile): E
 
 /**
  * Extract the outermost component name from a route's component property value.
- * Handles: `() => <ComponentName />` and `() => <Wrapper>...</Wrapper>` (extracts `Wrapper`).
+ * Handles:
+ * - `() => <ComponentName />`
+ * - `() => <Wrapper>...</Wrapper>` (extracts `Wrapper`)
+ * - `() => import('./pages/home')` (derives name from path)
+ * - `() => ComponentName()` (extracts from call identifier)
+ * - `ComponentName` (bare identifier reference)
  */
 function extractComponentName(expr: ts.Expression, sf: ts.SourceFile): string | undefined {
-  // Unwrap arrow function: () => <Foo />
+  // Unwrap arrow function: () => <Foo /> | () => import('./x') | () => Foo()
   if (ts.isArrowFunction(expr)) {
     return extractComponentNameFromExpr(expr.body as ts.Expression, sf);
+  }
+  // Bare identifier: component: HomePage
+  if (ts.isIdentifier(expr)) {
+    return expr.text;
   }
   return undefined;
 }
@@ -182,7 +191,38 @@ function extractComponentNameFromExpr(expr: ts.Expression, sf: ts.SourceFile): s
   if (ts.isJsxElement(expr)) {
     return expr.openingElement.tagName.getText(sf);
   }
+  // import('./pages/home') — dynamic import
+  if (ts.isCallExpression(expr) && expr.expression.kind === ts.SyntaxKind.ImportKeyword) {
+    if (expr.arguments.length > 0 && ts.isStringLiteral(expr.arguments[0])) {
+      const name = componentNameFromPath(expr.arguments[0].text);
+      if (name) return name;
+    }
+  }
+  // ComponentName() — function call
+  if (ts.isCallExpression(expr) && ts.isIdentifier(expr.expression)) {
+    return expr.expression.text;
+  }
+  // ComponentName — bare identifier in arrow body
+  if (ts.isIdentifier(expr)) {
+    return expr.text;
+  }
   return undefined;
+}
+
+/**
+ * Derive a PascalCase component name from a dynamic import path.
+ * './pages/home' → 'Home', './pages/games-list' → 'GamesList'
+ */
+function componentNameFromPath(importPath: string): string | undefined {
+  // Get last segment, strip extension if present
+  const lastSegment = importPath.split('/').pop() ?? importPath;
+  const name = lastSegment.replace(/\.[^.]+$/, '');
+  if (!name) return undefined;
+  // Convert kebab-case / snake_case to PascalCase
+  return name
+    .split(/[-_]/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('');
 }
 
 function flattenRoutes(routes: ExtractedRoute[], parentPattern: string): ExtractedRoute[] {
