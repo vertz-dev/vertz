@@ -109,6 +109,7 @@
             "group": "Deployment",
             "pages": [
               "guides/deploy/cloudflare",
+              "guides/deploy/node",
               "guides/deploy/static-sites",
               "guides/deploy/ssg",
               "guides/deploy/og-images"
