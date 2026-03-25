@@ -8,7 +8,6 @@ const NATIVE_MODULE_PATH = join(
 );
 
 function loadCompiler() {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   return require(NATIVE_MODULE_PATH) as {
     compile: (
       source: string,
