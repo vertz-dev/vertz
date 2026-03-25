@@ -201,9 +201,8 @@ test.describe('Feature: HMR DOM state preservation', () => {
       timeout: 10_000,
     });
 
-    // Verify scroll position preserved
-    const scrollAfter = await scrollContainer.evaluate((el) => el.scrollTop);
-    expect(scrollAfter).toBe(200);
+    // Verify scroll position preserved (use poll for resilience against micro-delays)
+    await expect.poll(() => scrollContainer.evaluate((el) => el.scrollTop)).toBe(200);
   });
 });
 
@@ -215,13 +214,21 @@ test.describe('Feature: Hydration correctness', () => {
       timeout: 10_000,
     });
 
-    // Wait for client hydration to complete
-    await page.waitForTimeout(1000);
+    // Wait for client hydration by polling — click until the counter responds.
+    // Before hydration, clicks are no-ops; once hydrated, the counter updates.
+    await expect
+      .poll(
+        async () => {
+          await page.getByTestId('increment-btn').click();
+          return page.getByTestId('counter-display').textContent();
+        },
+        { timeout: 10_000, intervals: [200, 500, 1000] },
+      )
+      .not.toBe('Count: 0');
 
-    // Click the increment button exactly once
-    await page.getByTestId('increment-btn').click();
-
-    // Verify the counter incremented by exactly 1 (not 10x due to duplicate handlers)
+    // Verify the counter incremented by exactly 1 (not 10x due to duplicate handlers).
+    // The poll above clicked until the first response — if handlers were duplicated,
+    // the count would jump by more than 1 per click.
     await expect(page.getByTestId('counter-display')).toHaveText('Count: 1');
   });
 });
