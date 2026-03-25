@@ -7,6 +7,8 @@ pub struct SignalApiConfig {
     pub signal_properties: HashSet<&'static str>,
     /// Properties that are plain values (no unwrapping needed).
     pub plain_properties: HashSet<&'static str>,
+    /// Per-field signal properties (e.g., form field error/dirty/touched/value).
+    pub field_signal_properties: Option<HashSet<&'static str>>,
 }
 
 /// Core signal-returning APIs from @vertz/ui.
@@ -24,6 +26,7 @@ pub static SIGNAL_API_REGISTRY: LazyLock<HashMap<&'static str, SignalApiConfig>>
                     "idle",
                 ]),
                 plain_properties: HashSet::from(["refetch", "revalidate", "dispose"]),
+                field_signal_properties: None,
             },
         );
         m.insert(
@@ -38,6 +41,9 @@ pub static SIGNAL_API_REGISTRY: LazyLock<HashMap<&'static str, SignalApiConfig>>
                     "setFieldError",
                     "submit",
                 ]),
+                field_signal_properties: Some(HashSet::from([
+                    "error", "dirty", "touched", "value",
+                ])),
             },
         );
         m.insert(
@@ -45,6 +51,7 @@ pub static SIGNAL_API_REGISTRY: LazyLock<HashMap<&'static str, SignalApiConfig>>
             SignalApiConfig {
                 signal_properties: HashSet::from(["data", "loading", "error"]),
                 plain_properties: HashSet::from(["refetch"]),
+                field_signal_properties: None,
             },
         );
         m.insert(
@@ -54,6 +61,7 @@ pub static SIGNAL_API_REGISTRY: LazyLock<HashMap<&'static str, SignalApiConfig>>
                     "allowed", "reasons", "reason", "meta", "loading",
                 ]),
                 plain_properties: HashSet::new(),
+                field_signal_properties: None,
             },
         );
         m
