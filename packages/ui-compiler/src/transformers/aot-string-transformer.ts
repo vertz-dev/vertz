@@ -267,9 +267,9 @@ export class AotStringTransformer {
         // Replace queryVar.error with undefined
         stringExpr = stringExpr.split(`${qv.varName}.error`).join('undefined');
         // Replace derived aliases (e.g., const d = q.data → d becomes __q0)
-        // Use word-boundary regex to avoid replacing inside strings like 'Loading'
+        // Use negative lookbehind for '.' to avoid matching property accesses like someObj.d
         for (const alias of qv.derivedAliases) {
-          stringExpr = stringExpr.replace(new RegExp(`\\b${alias}\\b`, 'g'), localVar);
+          stringExpr = stringExpr.replace(new RegExp(`(?<!\\.)\\b${alias}\\b`, 'g'), localVar);
         }
       }
     } else {
