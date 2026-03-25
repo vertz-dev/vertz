@@ -81,7 +81,7 @@ export type {
 export { createPrefetchManifestManager } from './ssr-prefetch-dev';
 export type { SSRDiscoverResult, SSRModule, SSRRenderResult } from './ssr-render';
 export { ssrDiscoverQueries, ssrRenderToString } from './ssr-render';
-export type { MatchedRoute } from './ssr-route-matcher';
+export type { MatchedRoute, MatchOptions } from './ssr-route-matcher';
 export { matchUrlToPatterns } from './ssr-route-matcher';
 export type { SessionData, SessionResolver, SSRSessionInfo } from './ssr-session';
 export { createSessionScript } from './ssr-session';

@@ -328,8 +328,31 @@ ${modulepreloadLinks}
               // source (with JSX) alongside the generated __ssr_* functions.
               // The barrel re-exports only __ssr_* fns; tree-shaking removes
               // the JSX components but the bundler still needs to resolve imports.
+              //
+              // Relative imports (../lib/db, ./utils) must also be externalized
+              // because compiled files are copied to .aot-tmp/ where relative
+              // paths no longer resolve. The barrel's own ./imports to temp files
+              // are excluded so they still resolve within .aot-tmp/.
+              const externalizeRelativePlugin = {
+                name: 'externalize-relative',
+                setup(build: {
+                  onResolve(
+                    opts: { filter: RegExp },
+                    cb: (args: { path: string; importer: string }) =>
+                      | { path: string; external: true }
+                      | undefined,
+                  ): void;
+                }) {
+                  build.onResolve({ filter: /^\.\.?\// }, (args) => {
+                    if (args.importer === barrelPath) return undefined;
+                    return { path: args.path, external: true };
+                  });
+                },
+              };
+
               const bundleResult = await Bun.build({
                 entrypoints: [barrelPath],
+                plugins: [externalizeRelativePlugin],
                 target: 'bun',
                 format: 'esm',
                 outdir: distServer,

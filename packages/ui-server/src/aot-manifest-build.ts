@@ -195,9 +195,12 @@ export function generateAotBarrel(
     // Map the temp filename to the compiled source code.
     // Use .tsx extension because compiled code includes the original source (with JSX)
     // alongside the generated __ssr_* functions.
+    // Each file needs its own helper import — the barrel's import doesn't flow into re-exported modules.
     const compiled = compiledFiles[filePath];
     if (compiled) {
-      files[`${tempFileName}.tsx`] = compiled.code;
+      const helperImport =
+        "import { __esc, __esc_attr, __ssr_spread, __ssr_style_object } from '@vertz/ui-server';\n";
+      files[`${tempFileName}.tsx`] = helperImport + compiled.code;
     }
 
     fileIndex++;

@@ -207,9 +207,9 @@ export async function ssrRenderAot(
     prefetchSession: options.prefetchSession,
   };
 
-  // 1. Match URL to route patterns in the AOT manifest
+  // 1. Match URL to route patterns in the AOT manifest (exact match — page routes, not layouts)
   const aotPatterns = Object.keys(aotManifest.routes);
-  const matches = matchUrlToPatterns(normalizedUrl, aotPatterns);
+  const matches = matchUrlToPatterns(normalizedUrl, aotPatterns, { exact: true });
 
   if (matches.length === 0) {
     return ssrRenderSinglePass(module, normalizedUrl, fallbackOptions);
@@ -245,6 +245,15 @@ export async function ssrRenderAot(
         ssrTimeout,
         queryCache,
       );
+    }
+  }
+
+  // If the AOT route needs query data but not all keys were resolved,
+  // fall back to runtime SSR — the AOT function would crash on undefined data.
+  if (aotEntry.queryKeys && aotEntry.queryKeys.length > 0) {
+    const allKeysResolved = aotEntry.queryKeys.every((k) => queryCache.has(k));
+    if (!allKeysResolved) {
+      return ssrRenderSinglePass(module, normalizedUrl, fallbackOptions);
     }
   }
 

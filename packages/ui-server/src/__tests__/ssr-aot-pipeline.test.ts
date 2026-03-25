@@ -523,5 +523,74 @@ describe('Feature: Runtime holes and SSR integration', () => {
         });
       });
     });
+
+    describe('Given an AOT route with queryKeys but no prefetch manifest', () => {
+      describe('When ssrRenderAot is called', () => {
+        it('Then falls back to ssrRenderSinglePass instead of crashing', async () => {
+          const aotFn: AotRenderFn = (_data, ctx) => {
+            // This would crash if called with empty queryCache
+            const items = ctx.getData('games-list') as unknown[];
+            return '<ul>' + items.map(() => '<li>x</li>').join('') + '</ul>';
+          };
+
+          const module = createMockModule();
+          const aotManifest: AotManifest = {
+            routes: {
+              '/games': { render: aotFn, holes: [], queryKeys: ['games-list'] },
+            },
+          };
+
+          // No manifest provided → no prefetch possible → should fall back
+          const result = await ssrRenderAot(module, '/games', { aotManifest });
+
+          // Should get a result from single-pass fallback, not a crash
+          expect(result.html).toBeDefined();
+        });
+      });
+    });
+
+    describe('Given an AOT route with queryKeys but no api export', () => {
+      describe('When ssrRenderAot is called', () => {
+        it('Then falls back to ssrRenderSinglePass instead of crashing', async () => {
+          const aotFn: AotRenderFn = (_data, ctx) => {
+            const items = ctx.getData('sellers-list') as unknown[];
+            return '<ul>' + items.map(() => '<li>x</li>').join('') + '</ul>';
+          };
+
+          // Module without api export
+          const module = createMockModule();
+          const aotManifest: AotManifest = {
+            routes: {
+              '/sellers': { render: aotFn, holes: [], queryKeys: ['sellers-list'] },
+            },
+          };
+
+          const result = await ssrRenderAot(module, '/sellers', {
+            aotManifest,
+            manifest: { routePatterns: ['/sellers'], routeEntries: {} },
+          });
+
+          expect(result.html).toBeDefined();
+        });
+      });
+    });
+
+    describe('Given an AOT route without queryKeys', () => {
+      describe('When ssrRenderAot is called without prefetch manifest', () => {
+        it('Then still uses AOT render (no fallback needed)', async () => {
+          const aotFn: AotRenderFn = () => '<div>Cart</div>';
+          const module = createMockModule();
+          const aotManifest: AotManifest = {
+            routes: {
+              '/cart': { render: aotFn, holes: [] },
+            },
+          };
+
+          const result = await ssrRenderAot(module, '/cart', { aotManifest });
+
+          expect(result.html).toBe('<div>Cart</div>');
+        });
+      });
+    });
   });
 });
