@@ -3,7 +3,7 @@
 '@vertz/ui-compiler': patch
 ---
 
-Fix query() not re-fetching when reactive state changes after SSR hydration (#1861)
+Fix query() SSR hydration data loss and reactive re-fetch (#1859, #1861)
 
-Runtime: call thunk during SSR hydration (when key is derived) to register reactive deps in the effect.
+Runtime: compute full dep-hash cache key during client hydration so it matches the SSR key format, fixing SSR data being discarded. Call thunk inside effect when SSR-hydrated to register reactive deps for re-fetch on state change.
 Compiler: auto-wrap `query(descriptor)` in a thunk when the argument references reactive variables.
