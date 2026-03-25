@@ -320,6 +320,45 @@ describe('introspectPostgres', () => {
     });
   });
 
+  it('detects unique indexes', async () => {
+    await db.exec('CREATE UNIQUE INDEX idx_posts_title_author ON posts(title, author_id)');
+
+    const snapshot = await introspectPostgres(queryFn);
+    const postIndexes = snapshot.tables.posts?.indexes;
+
+    const uniqueIdx = postIndexes?.find((i) => i.name === 'idx_posts_title_author');
+    expect(uniqueIdx).toEqual({
+      columns: ['title', 'author_id'],
+      name: 'idx_posts_title_author',
+      unique: true,
+    });
+  });
+
+  it('excludes constraint-backed unique indexes from indexes array', async () => {
+    // users.email has a UNIQUE column constraint — its backing index should NOT appear
+    const snapshot = await introspectPostgres(queryFn);
+    const userIndexes = snapshot.tables.users?.indexes;
+    const constraintIdx = userIndexes?.find((i) => i.name === 'users_email_key');
+    expect(constraintIdx).toBeUndefined();
+  });
+
+  it('excludes multi-column UNIQUE constraint-backed indexes', async () => {
+    await db.exec(`
+      CREATE TABLE multi_unique_test (
+        id uuid PRIMARY KEY,
+        col_a text NOT NULL,
+        col_b text NOT NULL,
+        UNIQUE(col_a, col_b)
+      )
+    `);
+
+    const snapshot = await introspectPostgres(queryFn);
+    const indexes = snapshot.tables.multi_unique_test?.indexes ?? [];
+
+    // The table-level UNIQUE(col_a, col_b) creates a constraint-backed index — should be excluded
+    expect(indexes).toHaveLength(0);
+  });
+
   it('detects index access method (type) and partial index predicate', async () => {
     await db.exec('CREATE INDEX idx_users_name_hash ON users USING hash (name)');
     await db.exec("CREATE INDEX idx_posts_title_partial ON posts(title) WHERE title != 'draft'");
