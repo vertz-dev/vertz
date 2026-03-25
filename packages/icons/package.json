@@ -1,6 +1,6 @@
 {
   "name": "@vertz/icons",
-  "version": "0.2.30",
+  "version": "0.2.31",
   "type": "module",
   "license": "MIT",
   "description": "Tree-shakeable Lucide icon components for Vertz",
