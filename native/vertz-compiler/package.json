@@ -1,0 +1,10 @@
+{
+  "name": "@vertz/native-compiler",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "cargo build --release --manifest-path ../Cargo.toml && cp ../target/release/libvertz_compiler.dylib ./vertz-compiler.darwin-arm64.node",
+    "build:debug": "cargo build --manifest-path ../Cargo.toml && cp ../target/debug/libvertz_compiler.dylib ./vertz-compiler.darwin-arm64.node",
+    "test": "bun test __tests__/"
+  }
+}
