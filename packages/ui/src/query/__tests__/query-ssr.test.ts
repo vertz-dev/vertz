@@ -264,10 +264,86 @@ describe('query() client-side SSR hydration', () => {
     expect(result.data.value).toBe('client-fetched');
   });
 
+  // Helper: compute the SSR key the same way query.ts does during SSR.
+  // During SSR, callThunkWithCapture() runs WITHOUT a subscriber, so the
+  // readValueCallback never fires and captured=[] → depHash=hashString("").
+  // The SSR key format is: `${baseKey}:${hashString("")}`.
+  function computeSSRKey(thunk: () => unknown): string {
+    const baseKey = `__q:${hashString(thunk.toString())}`;
+    // No subscriber → empty capture → dep hash from empty string
+    const depHash = hashString('');
+    return `${baseKey}:${depHash}`;
+  }
+
+  it('preserves SSR data during hydration for derived-key query (#1859)', async () => {
+    const page = signal(1);
+    const fetchFn = vi.fn(async () => ({ items: ['fetched'], total: 10 }));
+
+    const thunk = () => {
+      const currentPage = page.value;
+      return fetchFn(currentPage) as Promise<{ items: string[]; total: number }>;
+    };
+
+    // SSR stores data with the dep-hash key format.
+    const ssrKey = computeSSRKey(thunk);
+
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [
+      { key: ssrKey, data: { items: ['ssr-item'], total: 10 } },
+    ];
+
+    const result = query(thunk);
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    // SSR data must be preserved — no loading flash (#1859)
+    expect(result.data.value).toEqual({ items: ['ssr-item'], total: 10 });
+    expect(result.loading.value).toBe(false);
+
+    result.dispose();
+  });
+
+  it('preserves SSR data for descriptor-in-thunk during hydration (#1859)', async () => {
+    const page = signal(1);
+    const fetchFn = vi.fn().mockImplementation(async () => ({
+      ok: true as const,
+      data: { items: ['fetched'], total: 10 },
+    }));
+
+    const thunk = () => {
+      const currentPage = page.value;
+      const offset = (currentPage - 1) * 20;
+      return {
+        _tag: 'QueryDescriptor' as const,
+        _key: `GET:/brands?offset=${offset}`,
+        _fetch: () => fetchFn(offset),
+        // eslint-disable-next-line unicorn/no-thenable -- intentional PromiseLike mock
+        then(onFulfilled: any, onRejected: any) {
+          return this._fetch().then(onFulfilled, onRejected);
+        },
+      };
+    };
+
+    const ssrKey = computeSSRKey(thunk);
+
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [
+      { key: ssrKey, data: { items: ['ssr-brand'], total: 10 } },
+    ];
+
+    const result = query(thunk);
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    // SSR data preserved — no fetch triggered during hydration
+    expect(result.data.value).toEqual({ items: ['ssr-brand'], total: 10 });
+    expect(result.loading.value).toBe(false);
+    expect(fetchFn).not.toHaveBeenCalled();
+
+    result.dispose();
+  });
+
   it('re-fetches when reactive deps change after SSR hydration (#1861)', async () => {
     const page = signal(1);
 
-    // Build the thunk first so we can compute its baseKey for hydration.
     const fetchFn = vi.fn(async (offset: number) => {
       return { items: [`item-at-${offset}`], total: 100 };
     });
@@ -278,22 +354,17 @@ describe('query() client-side SSR hydration', () => {
       return fetchFn(offset) as Promise<{ items: string[]; total: number }>;
     };
 
-    // Compute the baseKey (hydration key) for this thunk.
-    // hydrateQueryFromSSR uses `customKey ?? baseKey` where
-    // baseKey = deriveKey(thunk) = `__q:${hashString(thunk.toString())}`.
-    const baseKey = `__q:${hashString(thunk.toString())}`;
+    const ssrKey = computeSSRKey(thunk);
 
-    // Simulate SSR data already buffered under the derived key.
     (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [
-      { key: baseKey, data: { items: ['ssr-brand'], total: 100 } },
+      { key: ssrKey, data: { items: ['ssr-brand'], total: 100 } },
     ];
 
     const result = query(thunk);
 
-    // Wait for hydration to settle
     await new Promise((r) => setTimeout(r, 10));
 
-    // SSR data should be used — displayed data comes from SSR.
+    // SSR data hydrated
     expect(result.data.value).toEqual({ items: ['ssr-brand'], total: 100 });
 
     // Reset mock to track only the re-fetch from dep change
@@ -304,8 +375,6 @@ describe('query() client-side SSR hydration', () => {
 
     await new Promise((r) => setTimeout(r, 10));
 
-    // BUG: without fix, fetchFn is never called again because the effect
-    // never tracked page.value as a dependency (skipped thunk call on first run)
     expect(fetchFn).toHaveBeenCalledTimes(1);
     expect(fetchFn).toHaveBeenCalledWith(20);
     expect(result.data.value).toEqual({ items: ['item-at-20'], total: 100 });
@@ -321,7 +390,6 @@ describe('query() client-side SSR hydration', () => {
       data: { items: [`brand-at-${offset}`], total: 50 },
     }));
 
-    // Build the thunk first to compute the baseKey for hydration.
     const thunk = () => {
       const currentPage = page.value;
       const offset = (currentPage - 1) * 20;
@@ -336,19 +404,17 @@ describe('query() client-side SSR hydration', () => {
       };
     };
 
-    const baseKey = `__q:${hashString(thunk.toString())}`;
+    const ssrKey = computeSSRKey(thunk);
 
-    // SSR data buffered under the derived base key
     (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [
-      { key: baseKey, data: { items: ['ssr-brand'], total: 50 } },
+      { key: ssrKey, data: { items: ['ssr-brand'], total: 50 } },
     ];
 
     const result = query(thunk);
 
-    // Wait for hydration to settle
     await new Promise((r) => setTimeout(r, 10));
 
-    // SSR data used — no fetch (descriptor thunk doesn't call _fetch during tracking)
+    // SSR data hydrated — no fetch
     expect(result.data.value).toEqual({ items: ['ssr-brand'], total: 50 });
     expect(fetchFn).not.toHaveBeenCalled();
 
@@ -357,9 +423,90 @@ describe('query() client-side SSR hydration', () => {
 
     await new Promise((r) => setTimeout(r, 10));
 
-    // BUG: without fix, fetchFn is never called because effect has no deps
     expect(fetchFn).toHaveBeenCalledTimes(1);
     expect(result.data.value).toEqual({ items: ['brand-at-20'], total: 50 });
+
+    result.dispose();
+  });
+
+  it('full lifecycle: SSR hydrate → preserve data → dep change → re-fetch (#1859 + #1861)', async () => {
+    const page = signal(1);
+
+    const fetchFn = vi.fn(async (offset: number) => ({
+      items: [`item-at-${offset}`],
+      total: 100,
+    }));
+
+    const thunk = () => {
+      const currentPage = page.value;
+      const offset = (currentPage - 1) * 20;
+      return fetchFn(offset) as Promise<{ items: string[]; total: number }>;
+    };
+
+    const ssrKey = computeSSRKey(thunk);
+
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [
+      { key: ssrKey, data: { items: ['ssr-brand'], total: 100 } },
+    ];
+
+    const result = query(thunk);
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Phase 1: SSR data preserved (no flash)
+    expect(result.data.value).toEqual({ items: ['ssr-brand'], total: 100 });
+    expect(result.loading.value).toBe(false);
+
+    fetchFn.mockClear();
+
+    // Phase 2: Change dep → re-fetch
+    page.value = 2;
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(fetchFn).toHaveBeenCalledWith(20);
+    expect(result.data.value).toEqual({ items: ['item-at-20'], total: 100 });
+
+    fetchFn.mockClear();
+
+    // Phase 3: Change dep again → re-fetch again
+    page.value = 3;
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(fetchFn).toHaveBeenCalledWith(40);
+    expect(result.data.value).toEqual({ items: ['item-at-40'], total: 100 });
+
+    result.dispose();
+  });
+
+  it('null-returning thunk during hydration falls through to normal effect path', async () => {
+    let ready = false;
+    const fetchFn = vi.fn(async () => 'data');
+    const thunk = () => (ready ? fetchFn() : null) as Promise<string> | null;
+
+    const ssrKey = computeSSRKey(thunk);
+
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [
+      { key: ssrKey, data: 'ssr-data-for-null-thunk' },
+    ];
+
+    const result = query(thunk);
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Thunk returns null during init probe — SSR data key computed but the
+    // thunk's null causes the effect to skip on first run too.
+    // loading should be false because SSR hydration resolved.
+    expect(result.loading.value).toBe(false);
+
+    // Make thunk ready and trigger a re-fetch
+    ready = true;
+    result.refetch();
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(result.data.value).toBe('data');
 
     result.dispose();
   });
