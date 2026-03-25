@@ -1,5 +1,18 @@
 # @vertz/ui
 
+## 0.2.30
+
+### Patch Changes
+
+- [#1817](https://github.com/vertz-dev/vertz/pull/1817) [`0ba086d`](https://github.com/vertz-dev/vertz/commit/0ba086d9bca13cac9e0a27a1cbd199c8b5ca6a07) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix SSR hydration dropping static text between adjacent reactive expressions (#1812)
+
+  Added `<!--/child-->` end markers to precisely bound each `__child`'s content during hydration. Previously, the browser would merge adjacent text nodes across `<!--child-->` comment boundaries, causing the hydration cleanup to consume static text that didn't belong to the reactive expression (e.g., "Showing 1–{a} of {b} items" would render as "Showing 1–11 items").
+
+- [#1822](https://github.com/vertz-dev/vertz/pull/1822) [`1d36182`](https://github.com/vertz-dev/vertz/commit/1d36182b0678378d50d9a063d6471a9114712b6a) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix TDZ error when using `query()` with a thunk that returns a descriptor with entity metadata on the first synchronous effect run. Also prevents a double-subscription leak by guarding the eager subscription path.
+
+- Updated dependencies []:
+  - @vertz/fetch@0.2.30
+
 ## 0.2.29
 
 ### Patch Changes

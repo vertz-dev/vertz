@@ -1,5 +1,15 @@
 # @vertz/db
 
+## 0.2.30
+
+### Patch Changes
+
+- [#1840](https://github.com/vertz-dev/vertz/pull/1840) [`126bff9`](https://github.com/vertz-dev/vertz/commit/126bff96c0b09b5ab954ca7130857fbca165327e) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fixed Postgres introspection to include explicitly-created unique indexes in the snapshot. Previously, `NOT ix.indisunique` filtered out all unique indexes. Now only constraint-backed unique indexes are excluded (they are already represented as `column.unique = true`).
+
+- Updated dependencies []:
+  - @vertz/errors@0.2.30
+  - @vertz/schema@0.2.30
+
 ## 0.2.29
 
 ### Patch Changes

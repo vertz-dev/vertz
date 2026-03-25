@@ -1,5 +1,15 @@
 # @vertz/server
 
+## 0.2.30
+
+### Patch Changes
+
+- Updated dependencies [[`e75e501`](https://github.com/vertz-dev/vertz/commit/e75e5014917608b33fca1668e275948e16a0d773), [`126bff9`](https://github.com/vertz-dev/vertz/commit/126bff96c0b09b5ab954ca7130857fbca165327e)]:
+  - @vertz/core@0.2.30
+  - @vertz/db@0.2.30
+  - @vertz/errors@0.2.30
+  - @vertz/schema@0.2.30
+
 ## 0.2.29
 
 ### Patch Changes

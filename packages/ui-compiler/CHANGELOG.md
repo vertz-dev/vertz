@@ -1,5 +1,16 @@
 # @vertz/ui-compiler
 
+## 0.2.30
+
+### Patch Changes
+
+- [#1823](https://github.com/vertz-dev/vertz/pull/1823) [`3bf1c88`](https://github.com/vertz-dev/vertz/commit/3bf1c882c258ba9989feac2b27d00809af1d6415) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Emit `<!--/child-->` end markers in AOT SSR compiler (#1815)
+
+  The AOT SSR path now emits `<!--/child-->` end markers after reactive text expressions, matching the DOM-shim SSR behavior added in #1812. Without end markers, AOT-generated SSR output was vulnerable to the same text node merging issue where hydration cleanup could consume adjacent static text.
+
+- Updated dependencies [[`0ba086d`](https://github.com/vertz-dev/vertz/commit/0ba086d9bca13cac9e0a27a1cbd199c8b5ca6a07), [`1d36182`](https://github.com/vertz-dev/vertz/commit/1d36182b0678378d50d9a063d6471a9114712b6a)]:
+  - @vertz/ui@0.2.30
+
 ## 0.2.29
 
 ### Patch Changes
