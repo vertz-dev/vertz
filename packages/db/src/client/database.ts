@@ -166,8 +166,9 @@ interface CreateDbBaseOptions<TModels extends Record<string, ModelEntry>> {
 }
 
 /** Options for PostgreSQL dialect (default). */
-interface CreateDbPostgresOptions<TModels extends Record<string, ModelEntry>>
-  extends CreateDbBaseOptions<TModels> {
+interface CreateDbPostgresOptions<
+  TModels extends Record<string, ModelEntry>,
+> extends CreateDbBaseOptions<TModels> {
   readonly dialect?: 'postgres';
   /** PostgreSQL connection URL. */
   readonly url?: string;
@@ -179,8 +180,9 @@ interface CreateDbPostgresOptions<TModels extends Record<string, ModelEntry>>
 }
 
 /** Options for SQLite dialect with local file path. */
-interface CreateDbSqlitePathOptions<TModels extends Record<string, ModelEntry>>
-  extends CreateDbBaseOptions<TModels> {
+interface CreateDbSqlitePathOptions<
+  TModels extends Record<string, ModelEntry>,
+> extends CreateDbBaseOptions<TModels> {
   readonly dialect: 'sqlite';
   /** Path to SQLite database file, or ':memory:' for in-memory. */
   readonly path: string;
@@ -192,8 +194,9 @@ interface CreateDbSqlitePathOptions<TModels extends Record<string, ModelEntry>>
 }
 
 /** Options for SQLite dialect with Cloudflare D1 binding. */
-interface CreateDbSqliteD1Options<TModels extends Record<string, ModelEntry>>
-  extends CreateDbBaseOptions<TModels> {
+interface CreateDbSqliteD1Options<
+  TModels extends Record<string, ModelEntry>,
+> extends CreateDbBaseOptions<TModels> {
   readonly dialect: 'sqlite';
   /** D1 database binding (Cloudflare Workers). */
   readonly d1: D1Database;
@@ -488,7 +491,7 @@ const RESERVED_MODEL_NAMES = new Set(['query', 'transaction', 'close', 'isHealth
 // buildDelegates — creates model delegates for a given queryFn
 // ---------------------------------------------------------------------------
 
-// biome-ignore lint/suspicious/noExplicitAny: Internal — delegates are typed externally via DatabaseClient/TransactionClient
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Internal — delegates are typed externally via DatabaseClient/TransactionClient
 type AnyResult = any;
 
 /**
@@ -791,7 +794,7 @@ function buildDelegates<TModels extends Record<string, ModelEntry>>(
     })();
   }
 
-  // biome-ignore lint/suspicious/noExplicitAny: Delegates are typed externally via DatabaseClient<TModels>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Delegates are typed externally via DatabaseClient<TModels>
   const delegates: Record<string, any> = {};
 
   for (const name of Object.keys(models)) {
@@ -1090,7 +1093,7 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
 
   const delegates = buildDelegates(queryFn, models, dialectObj, modelsRegistry);
 
-  // biome-ignore lint/suspicious/noExplicitAny: Delegates are typed externally via DatabaseClient<TModels>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Delegates are typed externally via DatabaseClient<TModels>
   const client: Record<string, any> = { ...delegates };
 
   // -----------------------------------------------------------------------

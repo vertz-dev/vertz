@@ -37,12 +37,14 @@ private _getOrCreateTypeMap(type: string): Map<string, Signal<any>> {
 
 **Issue:** The EntityStore uses `Signal<any>` to store entities of different types in a single map. This is a legitimate typing challenge (heterogeneous collections are inherently hard to type), but `any` bypasses all type checking.
 
-**Impact:** 
+**Impact:**
+
 - Type information is lost when entities are stored
 - `get<T>()` return type relies on the caller's generic parameter, not the actual stored type
 - No compile-time protection against type mismatches (e.g., `store.get<User>('Product', '1')`)
 
 **Recommendation:**
+
 ```typescript
 // Option 1: Use a branded type for entity type names
 type EntityTypeMap = {
@@ -68,19 +70,21 @@ private _entities = new Map<string, Map<string, Signal<unknown>>>();
 **Lines:** 204-205
 
 ```typescript
-const entities = Object.values(typeEntities).map(entity => ({
+const entities = Object.values(typeEntities).map((entity) => ({
   ...(entity as any),
-  id: (entity as any).id
+  id: (entity as any).id,
 }));
 ```
 
 **Issue:** Deserialized JSON is cast to `any` to extract the `id` property. This is necessary because the SerializedStore type uses `unknown` for entity values, but the cast loses type safety.
 
 **Impact:**
+
 - Runtime errors possible if `entity.id` doesn't exist or isn't a string
 - No validation of entity shape before merging
 
 **Recommendation:**
+
 ```typescript
 // Define a base entity type with required id
 interface SerializedEntity {
@@ -116,10 +120,12 @@ for (const [type, typeEntities] of Object.entries(data.entities)) {
 **Issue:** The function casts the result to `any` to assign dynamic keys. This is a common pattern but loses type safety for the return value.
 
 **Impact:**
+
 - The return type `T` is asserted but not guaranteed
 - Mutating properties via dynamic keys bypasses TypeScript's index signature checking
 
 **Recommendation:**
+
 ```typescript
 // Use a mapped type approach
 export function shallowMerge<T extends Record<string, unknown>>(
@@ -127,7 +133,7 @@ export function shallowMerge<T extends Record<string, unknown>>(
   incoming: Partial<T>,
 ): T {
   const result = { ...existing };
-  
+
   for (const key in incoming) {
     const value = incoming[key];
     if (value !== undefined) {
@@ -135,7 +141,7 @@ export function shallowMerge<T extends Record<string, unknown>>(
       result[key] = value as T[typeof key];
     }
   }
-  
+
   return result;
 }
 ```
@@ -154,10 +160,12 @@ store.merge(type, entityArray as any);
 **Issue:** Test utility bypasses type checking when merging test entities. This is acceptable for test code but indicates friction in the EntityStore API.
 
 **Impact:**
+
 - Tests may pass with invalid entity types
 - API friction suggests the EntityStore.merge() signature could be improved
 
 **Recommendation:**
+
 - Accept as test code, but consider adding a `mergeUntyped()` method for testing scenarios
 - Or improve the `SerializedStore` type to include entity type information
 
@@ -179,10 +187,12 @@ function asKey<T>(ctx: Context<T>): Context<unknown> {
 **Issue:** Context values are erased to `unknown` when stored in the scope map. This is a common pattern for dependency injection containers but creates a disconnect between the typed Context<T> and the stored value.
 
 **Impact:**
+
 - Runtime cast required when retrieving values (`currentScope.get(key) as T`)
 - No compile-time guarantee that the stored value matches the Context's type parameter
 
 **Recommendation:**
+
 - This is an acceptable trade-off for this pattern
 - Consider documenting the invariant: "Context<T> must always store values of type T"
 - The `useContext<T>` return type of `T | undefined` correctly handles the uncertainty
@@ -206,12 +216,15 @@ export interface HTMLAttributes {
 **Issue:** The index signature allows any property with any type. This is necessary for flexibility but loses type information for standard HTML attributes.
 
 **Impact:**
+
 - No autocomplete or type checking for HTML attributes
 - Typos like `onclic` instead of `onClick` won't be caught
 
 **Recommendation:**
+
 - This is acceptable for a JSX runtime that supports custom attributes
 - Consider adding a stricter type for known HTML attributes:
+
 ```typescript
 interface HTMLAttributes<T extends HTMLElement> extends KnownAttributes<T> {
   [key: string]: unknown;
@@ -233,16 +246,19 @@ type JSXComponentFn = (props: Record<string, unknown>) => JSX.Element;
 **Issue:** Component props are typed as `Record<string, unknown>`, losing prop type information.
 
 **Impact:**
+
 - JSX component props are not type-checked at the call site
 - No autocomplete for component props
 
 **Recommendation:**
+
 - This is a known limitation of the current JSX runtime
 - The overload signatures in `jsx()` do provide type inference for function components:
+
 ```typescript
 export function jsx<P extends Record<string, unknown>, R extends JSX.Element>(
   tag: (props: P) => R,
-  props: P
+  props: P,
 ): R;
 ```
 
@@ -263,11 +279,14 @@ const issues = (err as Error & { issues?: { path: (string | number)[]; message: 
 **Issue:** Error objects are cast to check for convention-based properties (`fieldErrors`, `issues`). This is necessary for handling unknown error types but relies on runtime conventions.
 
 **Impact:**
+
 - No compile-time guarantee that error objects have these properties
 - Changes to error shape in @vertz/schema won't be caught at compile time
 
 **Recommendation:**
+
 - Document the expected error interfaces:
+
 ```typescript
 interface FieldErrors {
   fieldErrors?: Record<string, string>;
@@ -302,9 +321,11 @@ function isPromise(value: unknown): value is Promise<unknown> {
 **Issue:** The type guard correctly narrows the type but uses an assertion to check the `.then` property.
 
 **Impact:**
+
 - Minor: could use a safer check
 
 **Recommendation:**
+
 ```typescript
 function isPromise(value: unknown): value is Promise<unknown> {
   return (
@@ -323,6 +344,7 @@ function isPromise(value: unknown): value is Promise<unknown> {
 ### Excellent Type-Level Test Coverage
 
 The package includes comprehensive type-level tests (`.test-d.ts` files) for:
+
 - Signal types (`src/runtime/__tests__/signal.test-d.ts`)
 - JSX types (`src/jsx-runtime/__tests__/jsx-types.test-d.ts`)
 - Context types (`src/component/__tests__/context.test-d.ts`)
@@ -347,6 +369,7 @@ export type ExtractParams<T extends string> = ...
 ```
 
 Excellent use of template literal types to extract route parameters. Type-level tests verify:
+
 - Static paths return `Record<string, never>`
 - `:param` segments produce `{ param: string }`
 - Wildcards produce `{ '*': string }`
@@ -359,7 +382,7 @@ The JSX runtime uses function overloads to provide correct return types:
 // src/jsx-runtime/index.ts
 export function jsx<K extends keyof HTMLElementTagNameMap>(
   tag: K,
-  props: Record<string, unknown> | null | undefined
+  props: Record<string, unknown> | null | undefined,
 ): HTMLElementTagNameMap[K];
 ```
 
@@ -392,15 +415,15 @@ Correctly enforces that SDK methods without `.meta.bodySchema` require an explic
 
 ## Type Safety Metrics
 
-| Metric | Value |
-|--------|-------|
-| Total `any` usages (non-test) | 5 |
-| Total `@ts-ignore` usages | 0 |
-| Total `@ts-expect-error` usages | 0 |
-| Type-level test files | 8 |
-| Generic type parameters | 15+ |
-| Template literal types | 1 (ExtractParams) |
-| Function overloads | 12+ |
+| Metric                          | Value             |
+| ------------------------------- | ----------------- |
+| Total `any` usages (non-test)   | 5                 |
+| Total `@ts-ignore` usages       | 0                 |
+| Total `@ts-expect-error` usages | 0                 |
+| Type-level test files           | 8                 |
+| Generic type parameters         | 15+               |
+| Template literal types          | 1 (ExtractParams) |
+| Function overloads              | 12+               |
 
 ---
 

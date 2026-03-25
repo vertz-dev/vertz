@@ -1,6 +1,6 @@
 ---
 title: E2E Testing
-description: "Set up Playwright tests with authenticated users, test databases, and isolated test contexts"
+description: 'Set up Playwright tests with authenticated users, test databases, and isolated test contexts'
 ---
 
 End-to-end tests verify your entire Vertz app — server, database, auth, and UI — from the user's perspective. This guide covers setting up Playwright, authenticating test users programmatically, and managing test databases.
@@ -117,7 +117,9 @@ import { createServer } from '@vertz/server';
 
 export const app = createServer({
   basePath: '/api',
-  entities: [/* ... */],
+  entities: [
+    /* ... */
+  ],
   db,
   auth: {
     session: { strategy: 'jwt', ttl: '15m', cookie: { secure: false } },

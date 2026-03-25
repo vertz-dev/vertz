@@ -50,8 +50,7 @@ const usersModule = createModule(moduleDef, {
 });
 
 // 4. Create and start the app
-const app = createApp({})
-  .register(usersModule);
+const app = createApp({}).register(usersModule);
 
 await app.listen(3000);
 // Server running on http://localhost:3000
@@ -80,9 +79,15 @@ const moduleDef = createModuleDef({ name: 'products' });
 
 // Define services, routers, and exports...
 const productsModule = createModule(moduleDef, {
-  services: [/* service definitions */],
-  routers: [/* router definitions */],
-  exports: [/* exported services for other modules */],
+  services: [
+    /* service definitions */
+  ],
+  routers: [
+    /* router definitions */
+  ],
+  exports: [
+    /* exported services for other modules */
+  ],
 });
 ```
 
@@ -172,9 +177,7 @@ const authMiddleware = createMiddleware({
 });
 
 // Apply middleware globally
-const app = createApp({})
-  .middlewares([authMiddleware])
-  .register(usersModule);
+const app = createApp({}).middlewares([authMiddleware]).register(usersModule);
 
 // Now all routes have access to ctx.user
 router.get('/profile', {
@@ -300,6 +303,7 @@ For comprehensive documentation on schema definition, validation methods, type i
 Creates a new application builder.
 
 **Parameters:**
+
 - `config: AppConfig` — App configuration
   - `basePath?: string` — Base path prefix for all routes (e.g., `/api`)
   - `cors?: CorsConfig` — CORS configuration
@@ -330,6 +334,7 @@ const app = createApp({
 Registers a module with the app.
 
 **Parameters:**
+
 - `module: NamedModule` — The module to register
 - `options?: Record<string, unknown>` — Module-specific options (available via `ctx.options`)
 
@@ -346,6 +351,7 @@ app.register(usersModule, { maxRetries: 3 });
 Registers global middleware that runs before all route handlers.
 
 **Parameters:**
+
 - `list: NamedMiddlewareDef[]` — Array of middleware definitions
 
 **Returns:** `AppBuilder` (chainable)
@@ -373,6 +379,7 @@ const response = await app.handler(new Request('http://localhost/users'));
 Starts the HTTP server.
 
 **Parameters:**
+
 - `port?: number` — Port to listen on (default: 3000)
 - `options?: ListenOptions`
   - `logRoutes?: boolean` — Log registered routes on startup (default: `true`)
@@ -391,6 +398,7 @@ console.log(`Server running on http://${server.hostname}:${server.port}`);
 Creates a module definition — the factory for services and routers.
 
 **Parameters:**
+
 - `config: { name: string }` — Module name (must be unique)
 
 **Returns:** Module definition builder
@@ -408,6 +416,7 @@ const moduleDef = createModuleDef({ name: 'products' });
 Defines a service with optional dependencies, state, and methods.
 
 **Parameters:**
+
 - `config: ServiceConfig`
   - `methods: (deps, state) => TMethods` — Factory function that returns service methods
 
@@ -429,6 +438,7 @@ const productService = moduleDef.service({
 Defines a router with routes.
 
 **Parameters:**
+
 - `config: RouterConfig`
   - `prefix: string` — URL prefix for all routes in this router (e.g., `/users`)
   - `inject?: Record<string, NamedServiceDef>` — Services to inject into route handlers
@@ -462,11 +472,11 @@ All routers expose these HTTP method functions:
 
 ```typescript
 interface RouteConfig {
-  params?: SchemaType;     // Schema for URL params
-  query?: SchemaType;      // Schema for query string
-  headers?: SchemaType;    // Schema for headers
-  body?: SchemaType;       // Schema for request body
-  response?: SchemaType;   // Schema for response (documentation)
+  params?: SchemaType; // Schema for URL params
+  query?: SchemaType; // Schema for query string
+  headers?: SchemaType; // Schema for headers
+  body?: SchemaType; // Schema for request body
+  response?: SchemaType; // Schema for response (documentation)
   handler: (ctx) => unknown; // Route handler
 }
 ```
@@ -476,6 +486,7 @@ interface RouteConfig {
 Creates a concrete module instance from a module definition.
 
 **Parameters:**
+
 - `moduleDef: NamedModuleDef` — Module definition
 - `config: ModuleConfig`
   - `services: NamedServiceDef[]` — List of services in this module
@@ -499,6 +510,7 @@ const usersModule = createModule(moduleDef, {
 Creates reusable middleware.
 
 **Parameters:**
+
 - `config: MiddlewareConfig`
   - `name: string` — Middleware name
   - `handler: (ctx) => TProvides` — Middleware handler that returns context contributions
@@ -534,13 +546,13 @@ Every route handler receives a context object with:
 ```typescript
 interface HandlerCtx {
   // Request properties
-  method: string;           // HTTP method (GET, POST, etc.)
-  path: string;            // Request path
+  method: string; // HTTP method (GET, POST, etc.)
+  path: string; // Request path
   params: Record<string, string>; // URL params
   query: Record<string, unknown>; // Query string (parsed)
-  headers: Headers;        // Request headers
-  body: unknown;           // Parsed request body (JSON)
-  request: Request;        // Raw Request object
+  headers: Headers; // Request headers
+  body: unknown; // Parsed request body (JSON)
+  request: Request; // Raw Request object
 
   // Module context
   options: Record<string, unknown>; // Module registration options
@@ -559,8 +571,8 @@ interface HandlerCtx {
 
 ```typescript
 interface AppConfig {
-  basePath?: string;     // Global path prefix (e.g., "/api")
-  cors?: CorsConfig;     // CORS settings
+  basePath?: string; // Global path prefix (e.g., "/api")
+  cors?: CorsConfig; // CORS settings
 }
 ```
 
@@ -568,11 +580,11 @@ interface AppConfig {
 
 ```typescript
 interface CorsConfig {
-  origins?: boolean | string[];  // true = allow all, or array of allowed origins
-  methods?: string[];           // Allowed HTTP methods
-  headers?: string[];           // Allowed headers
-  credentials?: boolean;        // Allow credentials
-  maxAge?: number;             // Preflight cache duration (seconds)
+  origins?: boolean | string[]; // true = allow all, or array of allowed origins
+  methods?: string[]; // Allowed HTTP methods
+  headers?: string[]; // Allowed headers
+  credentials?: boolean; // Allow credentials
+  maxAge?: number; // Preflight cache duration (seconds)
 }
 ```
 
@@ -602,10 +614,7 @@ const usersModule = createModule(/* ... */);
 const productsModule = createModule(/* ... */);
 const ordersModule = createModule(/* ... */);
 
-const app = createApp({})
-  .register(usersModule)
-  .register(productsModule)
-  .register(ordersModule);
+const app = createApp({}).register(usersModule).register(productsModule).register(ordersModule);
 ```
 
 ### Module Options
@@ -667,11 +676,11 @@ const env = createEnv({
 });
 ```
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `schema` | `Schema<T>` | A `@vertz/schema` schema to validate against |
-| `env` | `Record<string, string \| undefined>` | Explicit env record. Defaults to `process.env` with a `typeof process` guard for non-Node runtimes |
-| `load` | `string[]` | Dotenv file paths to load before validation |
+| Option   | Type                                  | Description                                                                                        |
+| -------- | ------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `schema` | `Schema<T>`                           | A `@vertz/schema` schema to validate against                                                       |
+| `env`    | `Record<string, string \| undefined>` | Explicit env record. Defaults to `process.env` with a `typeof process` guard for non-Node runtimes |
+| `load`   | `string[]`                            | Dotenv file paths to load before validation                                                        |
 
 ### Custom Server Adapters
 

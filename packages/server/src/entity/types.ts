@@ -15,7 +15,7 @@ type ExtractModel<T> = T extends EntityDefinition<infer M> ? M : ModelDef;
  * Maps an inject config `{ key: EntityDefinition<TModel> }` to
  * `{ key: EntityOperations<TModel> }` for typed ctx.entities access.
  */
-// biome-ignore lint/complexity/noBannedTypes: {} represents no injected entities — the correct default
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} represents no injected entities — the correct default
 type InjectToOperations<TInject extends Record<string, EntityDefinition> = {}> = {
   readonly [K in keyof TInject]: EntityOperations<ExtractModel<TInject[K]>>;
 };
@@ -38,7 +38,7 @@ export interface BaseContext {
 
 export interface EntityContext<
   TModel extends ModelDef = ModelDef,
-  // biome-ignore lint/complexity/noBannedTypes: {} represents no injected entities — the correct default
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} represents no injected entities — the correct default
   TInject extends Record<string, EntityDefinition> = {},
 > extends BaseContext {
   /** Typed CRUD on the current entity */
@@ -256,10 +256,10 @@ export interface TypedQueryOptions<
 
 export interface EntityConfig<
   TModel extends ModelDef = ModelDef,
-  // biome-ignore lint/suspicious/noExplicitAny: constraint uses any to accept all action type parameter combinations
-  // biome-ignore lint/complexity/noBannedTypes: {} represents an empty actions record — the correct default for entities without custom actions
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} represents an empty actions record — the correct default for entities without custom actions
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- constraint uses any to accept all action type parameter combinations
   TActions extends Record<string, EntityActionDef<any, any, any, any>> = {},
-  // biome-ignore lint/complexity/noBannedTypes: {} represents no injected entities — the correct default
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} represents no injected entities — the correct default
   TInject extends Record<string, EntityDefinition> = {},
 > {
   readonly model: TModel;

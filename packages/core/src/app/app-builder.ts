@@ -16,7 +16,7 @@ export interface AppBuilder<
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- TMiddlewareCtx carries the accumulated middleware type through .middlewares() chaining
   _TMiddlewareCtx extends Record<string, unknown> = Record<string, unknown>,
 > {
-  // biome-ignore lint/suspicious/noExplicitAny: variance boundary — middleware TProvides must be accepted as-is
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- variance boundary — middleware TProvides must be accepted as-is
   middlewares<const M extends readonly NamedMiddlewareDef<any, any>[]>(
     list: M,
   ): AppBuilder<AccumulateProvides<M>>;
@@ -27,7 +27,7 @@ export interface AppBuilder<
 }
 
 export function createApp(config: AppConfig): AppBuilder {
-  // biome-ignore lint/suspicious/noExplicitAny: runtime layer accepts any middleware generics
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime layer accepts any middleware generics
   let globalMiddlewares: NamedMiddlewareDef<any, any>[] = [];
   let cachedHandler: ((request: Request) => Promise<Response>) | null = null;
 

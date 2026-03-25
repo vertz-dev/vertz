@@ -22,7 +22,13 @@ function isSafeUrl(url: string): boolean {
  */
 function brandedIcon(providerId: string, size: number): HTMLSpanElement {
   const span = document.createElement('span');
-  Object.assign(span.style, { display: 'inline-flex', alignItems: 'center', width: `${size}px`, height: `${size}px`, flexShrink: '0' });
+  Object.assign(span.style, {
+    display: 'inline-flex',
+    alignItems: 'center',
+    width: `${size}px`,
+    height: `${size}px`,
+    flexShrink: '0',
+  });
   span.innerHTML = getProviderIcon(providerId, size);
   return span;
 }

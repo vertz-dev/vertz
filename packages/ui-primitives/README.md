@@ -23,23 +23,23 @@ This package depends on `@vertz/ui` for reactive state.
 
 ## Available Primitives
 
-| Primitive | Description |
-|-----------|-------------|
+| Primitive     | Description                                            |
+| ------------- | ------------------------------------------------------ |
 | **Accordion** | Collapsible sections with single or multiple expansion |
-| **Button** | Accessible button with press state |
-| **Checkbox** | Checkbox with indeterminate state support |
-| **Combobox** | Searchable dropdown with filtering |
-| **Dialog** | Modal dialog with focus trap and backdrop |
-| **Menu** | Dropdown menu with arrow key navigation |
-| **Popover** | Floating content anchored to a trigger |
-| **Progress** | Progress bar with indeterminate mode |
-| **Radio** | Radio button group with arrow key navigation |
-| **Select** | Single-select dropdown |
-| **Slider** | Range input with thumb and track |
-| **Switch** | Toggle switch (on/off) |
-| **Tabs** | Tabbed interface with keyboard navigation |
-| **Toast** | Notification toast with auto-dismiss |
-| **Tooltip** | Hover tooltip with pointer positioning |
+| **Button**    | Accessible button with press state                     |
+| **Checkbox**  | Checkbox with indeterminate state support              |
+| **Combobox**  | Searchable dropdown with filtering                     |
+| **Dialog**    | Modal dialog with focus trap and backdrop              |
+| **Menu**      | Dropdown menu with arrow key navigation                |
+| **Popover**   | Floating content anchored to a trigger                 |
+| **Progress**  | Progress bar with indeterminate mode                   |
+| **Radio**     | Radio button group with arrow key navigation           |
+| **Select**    | Single-select dropdown                                 |
+| **Slider**    | Range input with thumb and track                       |
+| **Switch**    | Toggle switch (on/off)                                 |
+| **Tabs**      | Tabbed interface with keyboard navigation              |
+| **Toast**     | Notification toast with auto-dismiss                   |
+| **Tooltip**   | Hover tooltip with pointer positioning                 |
 
 ## Usage
 
@@ -169,7 +169,7 @@ function LoginDialog() {
 
   const trigger = document.createElement('button');
   trigger.textContent = 'Open Dialog';
-  trigger.onclick = () => state.open.value = true;
+  trigger.onclick = () => (state.open.value = true);
 
   const container = document.createElement('div');
   container.appendChild(trigger);
@@ -192,6 +192,7 @@ Dialog.Root(options: DialogOptions): {
 ```
 
 The dialog handles:
+
 - Focus trapping (Tab cycles through focusable elements)
 - Escape key to close
 - Click outside overlay to close
@@ -243,6 +244,7 @@ Menu.Item(options: { onSelect?: () => void }): HTMLDivElement
 ```
 
 Menu handles:
+
 - Arrow Up/Down navigation
 - Enter/Space to select
 - Escape to close
@@ -271,7 +273,12 @@ function LanguageSelect() {
     content.appendChild(option);
   }
 
-  return <div>{trigger}{content}</div>;
+  return (
+    <div>
+      {trigger}
+      {content}
+    </div>
+  );
 }
 ```
 
@@ -340,6 +347,7 @@ Tabs.Content(options: { value: string }): HTMLDivElement
 ```
 
 Tabs handle:
+
 - Arrow Left/Right navigation
 - Home/End keys to jump to first/last tab
 - Automatic panel switching
@@ -457,12 +465,22 @@ Primitives provide **zero styles**. You can style them with:
 Most primitives set `data-state` attributes you can use for CSS:
 
 ```css
-button[data-state="idle"] { /* ... */ }
-button[data-state="pressed"] { /* ... */ }
-button[data-state="disabled"] { /* ... */ }
+button[data-state='idle'] {
+  /* ... */
+}
+button[data-state='pressed'] {
+  /* ... */
+}
+button[data-state='disabled'] {
+  /* ... */
+}
 
-[aria-expanded="true"] { /* ... */ }
-[aria-checked="true"] { /* ... */ }
+[aria-expanded='true'] {
+  /* ... */
+}
+[aria-checked='true'] {
+  /* ... */
+}
 ```
 
 ## Accessibility

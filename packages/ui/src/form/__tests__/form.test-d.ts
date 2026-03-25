@@ -249,11 +249,11 @@ type OrderBody = { items: Array<{ product: string; quantity: number }> };
 declare const orderForm: FormInstance<OrderBody, void>;
 
 const _orderItem = orderForm.items[0];
-// biome-ignore lint/style/noNonNullAssertion: type test needs definite access
+// eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- type test needs definite access
 const _itemProductError: Signal<string | undefined> = _orderItem!.product.error;
 void _itemProductError;
 
-// biome-ignore lint/style/noNonNullAssertion: type test needs definite access
+// eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- type test needs definite access
 const _itemQuantityValue: Signal<number> = _orderItem!.quantity.value;
 void _itemQuantityValue;
 

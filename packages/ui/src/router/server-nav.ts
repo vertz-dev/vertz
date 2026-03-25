@@ -58,7 +58,7 @@ export function parseSSE(buffer: string): { events: SSEEvent[]; remaining: strin
  * data via the same buffer + event mechanism.
  */
 export function ensureSSRDataBus(): void {
-  // biome-ignore lint/suspicious/noExplicitAny: SSR global requires globalThis augmentation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR global requires globalThis augmentation
   const g = globalThis as any;
   // Always reset to empty — clear stale data from previous navigations
   g.__VERTZ_SSR_DATA__ = [];
@@ -73,7 +73,7 @@ export function ensureSSRDataBus(): void {
  * This triggers the vertz:ssr-data CustomEvent that hydrateQueryFromSSR() listens to.
  */
 export function pushNavData(key: string, data: unknown): void {
-  // biome-ignore lint/suspicious/noExplicitAny: SSR global requires globalThis augmentation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR global requires globalThis augmentation
   const push = (globalThis as any).__VERTZ_SSR_PUSH__;
   if (typeof push === 'function') {
     push(key, data);
@@ -85,12 +85,12 @@ export function pushNavData(key: string, data: unknown): void {
  * Used by query.ts to defer client-side fetching.
  */
 export function isNavPrefetchActive(): boolean {
-  // biome-ignore lint/suspicious/noExplicitAny: SSR global requires globalThis augmentation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR global requires globalThis augmentation
   return (globalThis as any).__VERTZ_NAV_PREFETCH_ACTIVE__ === true;
 }
 
 function setNavPrefetchActive(active: boolean): void {
-  // biome-ignore lint/suspicious/noExplicitAny: SSR global requires globalThis augmentation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR global requires globalThis augmentation
   (globalThis as any).__VERTZ_NAV_PREFETCH_ACTIVE__ = active;
 }
 

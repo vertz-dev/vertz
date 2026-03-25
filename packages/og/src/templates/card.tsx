@@ -7,7 +7,7 @@
  * Similar to the landing page OG image.
  */
 
-// biome-ignore lint/correctness/noUnusedImports: JSX factory used via pragma
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- JSX factory used via pragma
 import { h } from '../h';
 import type { SatoriElement } from '../types';
 

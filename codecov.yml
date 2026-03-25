@@ -34,7 +34,7 @@ ignore:
   - "**/*.test-d.ts"
   - "**/index.ts"
   - "ci/**"
-  - "biome-plugins/**"
+  - "oxlint-plugins/**"
 
 # Flag-based coverage for per-package tracking
 flags:

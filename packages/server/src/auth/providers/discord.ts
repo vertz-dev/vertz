@@ -43,16 +43,24 @@ export function discord(config: OAuthProviderConfig | CloudOAuthProviderConfig):
   // Cloud mode — OAuth flows are handled by the cloud proxy
   if (!('clientId' in config)) {
     const cloudError = (method: string) =>
-      new Error(`${method}() is not available in cloud mode. OAuth flows are handled by the cloud proxy.`);
+      new Error(
+        `${method}() is not available in cloud mode. OAuth flows are handled by the cloud proxy.`,
+      );
 
     return {
       id: 'discord',
       name: 'Discord',
       scopes,
       trustEmail: false,
-      getAuthorizationUrl() { throw cloudError('getAuthorizationUrl'); },
-      async exchangeCode() { throw cloudError('exchangeCode'); },
-      async getUserInfo() { throw cloudError('getUserInfo'); },
+      getAuthorizationUrl() {
+        throw cloudError('getAuthorizationUrl');
+      },
+      async exchangeCode() {
+        throw cloudError('exchangeCode');
+      },
+      async getUserInfo() {
+        throw cloudError('getUserInfo');
+      },
     };
   }
 

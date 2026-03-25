@@ -665,6 +665,7 @@ export interface RateLimitResult {
 // ============================================================================
 
 // Users table entry type (will be provided by user)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- type-level bound requires any
 export interface UserTableEntry extends ModelEntry<any, any> {
   table: {
     id: { type: string };
@@ -677,6 +678,7 @@ export interface UserTableEntry extends ModelEntry<any, any> {
 }
 
 // Role assignments table
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- type-level bound requires any
 export interface RoleAssignmentTableEntry extends ModelEntry<any, any> {
   table: {
     id: { type: string };

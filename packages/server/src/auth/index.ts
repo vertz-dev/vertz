@@ -2761,12 +2761,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
   };
 }
 
-export type {
-  AccessConfig,
-  AccessInstance,
-  EntitlementDefinition,
-  Resource,
-} from './access';
+export type { AccessConfig, AccessInstance, EntitlementDefinition, Resource } from './access';
 // Re-export access control from auth/access.ts
 export { AuthorizationError, createAccess, defaultAccess } from './access';
 export type {

@@ -56,7 +56,7 @@ plans/         # Design docs and implementation plans
 ## Code Conventions
 
 - **TypeScript strict mode** — all strict flags enabled, no `any`
-- **Biome** for formatting and linting
+- **oxlint** for linting, **oxfmt** for formatting
 - **Strict TDD** — every behavior has a failing test before implementation
 - **One PR per feature/phase** — atomic, reviewable changes
 

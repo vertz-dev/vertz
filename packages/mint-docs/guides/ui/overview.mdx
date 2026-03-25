@@ -1,6 +1,6 @@
 ---
 title: Overview
-description: "vertz/ui — a compiled UI layer with fine-grained reactivity, routing, and SSR"
+description: 'vertz/ui — a compiled UI layer with fine-grained reactivity, routing, and SSR'
 ---
 
 `vertz/ui` is the UI layer of the Vertz stack. You write standard TypeScript and JSX — the compiler transforms it into fine-grained DOM updates at build time. No virtual DOM, no hooks, no manual subscriptions.
@@ -27,16 +27,16 @@ The result: components run **once** to set up the DOM. After that, only the spec
 
 `vertz/ui` is a single package that covers what typically requires multiple libraries:
 
-| Feature | What it replaces |
-|---------|-----------------|
+| Feature              | What it replaces                                 |
+| -------------------- | ------------------------------------------------ |
 | **Reactive signals** | React hooks (`useState`, `useMemo`, `useEffect`) |
-| **JSX runtime** | React DOM |
-| **Router** | React Router / Next.js App Router |
-| **Data fetching** | TanStack Query / SWR |
-| **Form handling** | React Hook Form / Formik |
-| **Scoped CSS** | Tailwind / CSS Modules / styled-components |
-| **Context** | React Context |
-| **SSR + Hydration** | Next.js / Remix |
+| **JSX runtime**      | React DOM                                        |
+| **Router**           | React Router / Next.js App Router                |
+| **Data fetching**    | TanStack Query / SWR                             |
+| **Form handling**    | React Hook Form / Formik                         |
+| **Scoped CSS**       | Tailwind / CSS Modules / styled-components       |
+| **Context**          | React Context                                    |
+| **SSR + Hydration**  | Next.js / Remix                                  |
 
 ## Architecture
 
@@ -59,6 +59,7 @@ bun add vertz
 Unlike React, Vertz components are not re-executed when state changes. The function runs once to create the DOM tree. Signals and effects handle all subsequent updates.
 
 This means:
+
 - No stale closure bugs
 - No dependency arrays
 - No `useCallback` / `useMemo` wrappers

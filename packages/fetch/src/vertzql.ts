@@ -36,10 +36,7 @@ const ENCODED_KEYS = new Set(['select', 'include']);
  * - `{ field: value }`          → `{ 'where[field]': String(value) }`
  * - `{ field: { op: value } }`  → `{ 'where[field][op]': String(value) }`
  */
-function flattenWhere(
-  where: Record<string, unknown>,
-  target: Record<string, unknown>,
-): void {
+function flattenWhere(where: Record<string, unknown>, target: Record<string, unknown>): void {
   for (const [field, value] of Object.entries(where)) {
     if (value === undefined || value === null) continue;
     if (typeof value === 'object' && !Array.isArray(value)) {

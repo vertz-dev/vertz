@@ -1,14 +1,18 @@
 {
   "name": "@vertz/cli-runtime",
   "version": "0.2.32",
-  "type": "module",
-  "license": "MIT",
+  "private": true,
   "description": "Vertz CLI runtime internals — internal, no stability guarantee",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/vertz-dev/vertz.git",
     "directory": "packages/cli-runtime"
   },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
@@ -17,9 +21,6 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "files": [
-    "dist"
-  ],
   "scripts": {
     "build": "bunup",
     "test": "bun test",
@@ -35,6 +36,5 @@
   },
   "engines": {
     "node": ">=22"
-  },
-  "private": true
+  }
 }

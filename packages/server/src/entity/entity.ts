@@ -17,13 +17,13 @@ function resolveTenantColumn(model: ModelDef): string | null {
 
 export function entity<
   TModel extends ModelDef,
-  // biome-ignore lint/complexity/noBannedTypes: {} represents no injected entities
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} represents no injected entities
   TInject extends Record<string, EntityDefinition> = {},
   TActions extends Record<
     string,
-    // biome-ignore lint/suspicious/noExplicitAny: TInput/TOutput must remain any — TypeScript infers concrete types from SchemaLike per-action
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TInput/TOutput must remain any — TypeScript infers concrete types from SchemaLike per-action
     EntityActionDef<any, any, TModel['table']['$response'], EntityContext<TModel, TInject>>
-    // biome-ignore lint/complexity/noBannedTypes: {} represents an empty actions record
+    // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} represents an empty actions record
   > = {},
 >(name: string, config: EntityConfig<TModel, TActions, TInject>): EntityDefinition<TModel> {
   if (!name || !ENTITY_NAME_PATTERN.test(name)) {

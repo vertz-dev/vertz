@@ -19,10 +19,10 @@ function unwrapSignal(value: unknown): unknown {
     value != null &&
     typeof value === 'object' &&
     'peek' in value &&
-    // biome-ignore lint/suspicious/noExplicitAny: duck-typing check for signal interface
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- duck-typing check for signal interface
     typeof (value as any).peek === 'function'
   ) {
-    // biome-ignore lint/suspicious/noExplicitAny: duck-typing check for signal interface
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- duck-typing check for signal interface
     return (value as any).peek();
   }
   return value;

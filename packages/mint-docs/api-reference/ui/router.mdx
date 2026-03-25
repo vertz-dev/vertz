@@ -1,6 +1,6 @@
 ---
 title: Router
-description: "API reference for defineRoutes(), createRouter(), RouterView, and Link"
+description: 'API reference for defineRoutes(), createRouter(), RouterView, and Link'
 ---
 
 The Vertz router provides type-safe, file-system-free routing with loaders, nested layouts, and search param parsing. Route patterns are inferred from your route map, so typos in `navigate()` calls and missing params are caught at compile time.
@@ -33,23 +33,21 @@ const routes = defineRoutes({
 ### Signature
 
 ```ts
-function defineRoutes<const T extends Record<string, RouteConfigLike>>(
-  map: T
-): TypedRoutes<T>
+function defineRoutes<const T extends Record<string, RouteConfigLike>>(map: T): TypedRoutes<T>;
 ```
 
 ### RouteConfig
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `component` | `() => Node \| Promise<{ default: () => Node }>` | Component to render (supports lazy imports) |
-| `loader` | `(ctx: { params, signal }) => Promise<T> \| T` | Data loader — runs before the component renders |
-| `errorComponent` | `(error: Error) => Node` | Fallback component when loader fails |
-| `params` | `ParamSchema` | Parse and validate route params (`:id` → `number`) |
-| `searchParams` | `SearchParamSchema` | Parse and validate search/query params |
-| `children` | `RouteDefinitionMap` | Nested routes (rendered via `Outlet`) |
-| `prerender` | `boolean` | Pre-render this route at build time (`true` = SSG, `false` = skip) |
-| `generateParams` | `() => Record<string, string>[] \| Promise<Record<string, string>[]>` | Generate param combinations for pre-rendering dynamic routes |
+| Property         | Type                                                                  | Description                                                        |
+| ---------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `component`      | `() => Node \| Promise<{ default: () => Node }>`                      | Component to render (supports lazy imports)                        |
+| `loader`         | `(ctx: { params, signal }) => Promise<T> \| T`                        | Data loader — runs before the component renders                    |
+| `errorComponent` | `(error: Error) => Node`                                              | Fallback component when loader fails                               |
+| `params`         | `ParamSchema`                                                         | Parse and validate route params (`:id` → `number`)                 |
+| `searchParams`   | `SearchParamSchema`                                                   | Parse and validate search/query params                             |
+| `children`       | `RouteDefinitionMap`                                                  | Nested routes (rendered via `Outlet`)                              |
+| `prerender`      | `boolean`                                                             | Pre-render this route at build time (`true` = SSG, `false` = skip) |
+| `generateParams` | `() => Record<string, string>[] \| Promise<Record<string, string>[]>` | Generate param combinations for pre-rendering dynamic routes       |
 
 ---
 
@@ -60,7 +58,9 @@ Create a router instance from a route definition.
 ```ts
 import { createRouter, defineRoutes } from '@vertz/ui/router';
 
-const routes = defineRoutes({ /* ... */ });
+const routes = defineRoutes({
+  /* ... */
+});
 const router = createRouter(routes);
 ```
 
@@ -70,35 +70,35 @@ const router = createRouter(routes);
 function createRouter<T extends Record<string, RouteConfigLike>>(
   routes: TypedRoutes<T>,
   initialUrl?: string,
-  options?: RouterOptions
-): Router<T>
+  options?: RouterOptions,
+): Router<T>;
 ```
 
 ### Parameters
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `routes` | `TypedRoutes<T>` | Compiled route list from `defineRoutes()` |
-| `initialUrl` | `string` | Override URL (used in SSR to set the server request URL) |
-| `options` | `RouterOptions` | Configuration for server navigation and prefetching |
+| Parameter    | Type             | Description                                              |
+| ------------ | ---------------- | -------------------------------------------------------- |
+| `routes`     | `TypedRoutes<T>` | Compiled route list from `defineRoutes()`                |
+| `initialUrl` | `string`         | Override URL (used in SSR to set the server request URL) |
+| `options`    | `RouterOptions`  | Configuration for server navigation and prefetching      |
 
 ### RouterOptions
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
+| Option      | Type                              | Default | Description                                              |
+| ----------- | --------------------------------- | ------- | -------------------------------------------------------- |
 | `serverNav` | `boolean \| { timeout?: number }` | `false` | Enable server-side navigation (SSR prefetch on navigate) |
 
 ### Router\<T\>
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `current` | `RouteMatch \| null` | Current matched route (reactive) |
-| `loaderData` | `unknown[]` | Data from the matched route's loader (reactive) |
-| `loaderError` | `Error \| null` | Error from the loader, if any (reactive) |
-| `searchParams` | `Record<string, unknown>` | Parsed search params (reactive) |
-| `navigate(input)` | `<TPath extends keyof T & string>(input: { to: TPath, ... }) => Promise<void>` | Navigate to a route pattern with typed params |
-| `revalidate()` | `() => Promise<void>` | Re-run the current route's loader |
-| `dispose()` | `() => void` | Clean up the router |
+| Property          | Type                                                                           | Description                                     |
+| ----------------- | ------------------------------------------------------------------------------ | ----------------------------------------------- |
+| `current`         | `RouteMatch \| null`                                                           | Current matched route (reactive)                |
+| `loaderData`      | `unknown[]`                                                                    | Data from the matched route's loader (reactive) |
+| `loaderError`     | `Error \| null`                                                                | Error from the loader, if any (reactive)        |
+| `searchParams`    | `Record<string, unknown>`                                                      | Parsed search params (reactive)                 |
+| `navigate(input)` | `<TPath extends keyof T & string>(input: { to: TPath, ... }) => Promise<void>` | Navigate to a route pattern with typed params   |
+| `revalidate()`    | `() => Promise<void>`                                                          | Re-run the current route's loader               |
+| `dispose()`       | `() => void`                                                                   | Clean up the router                             |
 
 ---
 
@@ -109,7 +109,9 @@ Renders the component matched by the current route.
 ```tsx
 import { createRouter, defineRoutes, RouterView } from '@vertz/ui/router';
 
-const routes = defineRoutes({ /* ... */ });
+const routes = defineRoutes({
+  /* ... */
+});
 const router = createRouter(routes);
 
 function App() {
@@ -124,9 +126,9 @@ function App() {
 
 ### Props
 
-| Prop | Type | Description |
-|------|------|-------------|
-| `router` | `Router` | Router instance |
+| Prop       | Type         | Description                               |
+| ---------- | ------------ | ----------------------------------------- |
+| `router`   | `Router`     | Router instance                           |
 | `fallback` | `() => Node` | Component to render when no route matches |
 
 ---
@@ -181,7 +183,7 @@ function TaskCard({ taskId }: { taskId: string }) {
 ### Signature
 
 ```ts
-function useRouter<T extends Record<string, RouteConfigLike>>(): UnwrapSignals<Router<T>>
+function useRouter<T extends Record<string, RouteConfigLike>>(): UnwrapSignals<Router<T>>;
 ```
 
 In scaffolded apps, codegen writes `.vertz/generated/router.d.ts`, which augments
@@ -207,7 +209,7 @@ function TaskDetailPage() {
 ### Signature
 
 ```ts
-function useParams<TPath extends string>(): ExtractParams<TPath>
+function useParams<TPath extends string>(): ExtractParams<TPath>;
 ```
 
 When a `params` schema is defined on the route config, `useParams()` returns the parsed values (e.g., `id` as `number` instead of `string`).
@@ -279,14 +281,14 @@ function useSearchParams(): ReactiveSearchParams<Record<string, string>>;
 
 ### ReactiveSearchParams
 
-| Property/Method | Type | Description |
-|-----------------|------|-------------|
-| `sp[key]` | `unknown` | Read a search param (reactive) |
-| `sp[key] = value` | — | Write a search param (batched, replaces URL) |
-| `delete sp[key]` | — | Remove a search param |
-| `sp.navigate(partial, opts?)` | `void` | Merge params and navigate. `{ push: true }` creates history entry |
-| `Object.keys(sp)` | `string[]` | Current param names |
-| `{ ...sp }` | `object` | Snapshot of current params |
+| Property/Method               | Type       | Description                                                       |
+| ----------------------------- | ---------- | ----------------------------------------------------------------- |
+| `sp[key]`                     | `unknown`  | Read a search param (reactive)                                    |
+| `sp[key] = value`             | —          | Write a search param (batched, replaces URL)                      |
+| `delete sp[key]`              | —          | Remove a search param                                             |
+| `sp.navigate(partial, opts?)` | `void`     | Merge params and navigate. `{ push: true }` creates history entry |
+| `Object.keys(sp)`             | `string[]` | Current param names                                               |
+| `{ ...sp }`                   | `object`   | Snapshot of current params                                        |
 
 ### SSR behavior
 
@@ -308,13 +310,13 @@ const Link = createLink(router.current, (url) =>
 
 ### LinkProps
 
-| Prop | Type | Description |
-|------|------|-------------|
-| `href` | `string` | Target URL |
-| `children` | `string \| (() => Node)` | Link content |
-| `activeClass` | `string` | CSS class applied when the link matches the current route |
-| `className` | `string` | Base CSS class |
-| `prefetch` | `'hover'` | Prefetch route data on hover |
+| Prop          | Type                     | Description                                               |
+| ------------- | ------------------------ | --------------------------------------------------------- |
+| `href`        | `string`                 | Target URL                                                |
+| `children`    | `string \| (() => Node)` | Link content                                              |
+| `activeClass` | `string`                 | CSS class applied when the link matches the current route |
+| `className`   | `string`                 | Base CSS class                                            |
+| `prefetch`    | `'hover'`                | Prefetch route data on hover                              |
 
 ---
 

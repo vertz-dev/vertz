@@ -1,13 +1,16 @@
 {
   "name": "@vertz/tui",
   "version": "0.2.32",
-  "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/vertz-dev/vertz.git",
     "directory": "packages/tui"
   },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
@@ -32,14 +35,15 @@
       "import": "./dist/test/index.js"
     }
   },
-  "files": [
-    "dist"
-  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "bunup",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "lint": "biome check src/"
+    "lint": "oxlint src/"
   },
   "dependencies": {
     "@vertz/ui": "workspace:^"
@@ -51,9 +55,5 @@
   },
   "engines": {
     "node": ">=22"
-  },
-  "publishConfig": {
-    "access": "public",
-    "provenance": true
   }
 }

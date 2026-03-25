@@ -1,14 +1,6 @@
 export type { TaskGroup, TaskHandle, TaskRunner } from '@vertz/tui';
 // Re-export reusable TUI components from @vertz/tui for backwards compatibility
-export {
-  colors,
-  createTaskRunner,
-  Message,
-  SelectList,
-  symbols,
-  Task,
-  TaskList,
-} from '@vertz/tui';
+export { colors, createTaskRunner, Message, SelectList, symbols, Task, TaskList } from '@vertz/tui';
 export { createCLI } from './cli';
 export { buildAction } from './commands/build';
 export { checkAction } from './commands/check';

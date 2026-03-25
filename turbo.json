@@ -7,7 +7,7 @@
       "outputs": ["dist/**"]
     },
     "lint": {
-      "inputs": ["src/**", "package.json"],
+      "inputs": ["src/**", "package.json", "../../.oxlintrc.json"],
       "outputs": []
     },
     "test": {

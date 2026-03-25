@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'bun:test';
-import { formatWithBiome } from '../format';
+import { formatGeneratedFiles } from '../format';
 import type { GeneratedFile } from '../types';
 
-describe('formatWithBiome', () => {
-  it('formats TypeScript files using Biome', async () => {
+describe('formatGeneratedFiles', () => {
+  it('formats TypeScript files using oxfmt', async () => {
     const files: GeneratedFile[] = [
       {
         path: 'types/users.ts',
@@ -11,11 +11,11 @@ describe('formatWithBiome', () => {
       },
     ];
 
-    const result = await formatWithBiome(files);
+    const result = await formatGeneratedFiles(files);
 
     expect(result).toHaveLength(1);
     expect(result[0].path).toBe('types/users.ts');
-    // Biome should add proper spacing and formatting
+    // oxfmt should add proper spacing and formatting
     expect(result[0].content).toContain('name: string');
     expect(result[0].content).toContain('email: string');
   });
@@ -32,7 +32,7 @@ describe('formatWithBiome', () => {
       },
     ];
 
-    const result = await formatWithBiome(files);
+    const result = await formatGeneratedFiles(files);
 
     expect(result).toHaveLength(2);
     expect(result[0].path).toBe('types/users.ts');
@@ -48,16 +48,16 @@ describe('formatWithBiome', () => {
       },
     ];
 
-    const result = await formatWithBiome(files);
+    const result = await formatGeneratedFiles(files);
 
     expect(result).toHaveLength(1);
     expect(result[0].path).toBe('package.json');
-    // JSON files should pass through (Biome can format JSON too, but the key thing is it doesn't error)
+    // JSON files should pass through (oxfmt can format JSON too, but the key thing is it doesn't error)
     expect(result[0].content).toBeTruthy();
   });
 
   it('returns an empty array when given no files', async () => {
-    const result = await formatWithBiome([]);
+    const result = await formatGeneratedFiles([]);
 
     expect(result).toEqual([]);
   });
@@ -70,7 +70,7 @@ describe('formatWithBiome', () => {
       },
     ];
 
-    const result = await formatWithBiome(files);
+    const result = await formatGeneratedFiles(files);
 
     expect(result[0].path).toBe('modules/billing.ts');
   });

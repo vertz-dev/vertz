@@ -39,7 +39,11 @@ export function createScrollAreaStyles(): CSSOutput<ScrollAreaBlocks> {
       'relative',
       'flex-1',
       'rounded:full',
-      { '&': { 'background-color': 'color-mix(in oklch, var(--color-foreground) 40%, transparent)' } },
+      {
+        '&': {
+          'background-color': 'color-mix(in oklch, var(--color-foreground) 40%, transparent)',
+        },
+      },
     ],
   });
   return {

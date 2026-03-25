@@ -6,7 +6,8 @@
 
 - Runtime: Bun
 - Language: TypeScript (strict mode)
-- Linter/Formatter: Biome
+- Linter: oxlint
+- Formatter: oxfmt
 - Test runner: `bun test`
 - Monorepo: Bun workspaces under `packages/`
 
@@ -16,8 +17,9 @@
 bun run build        # Build all packages
 bun test             # Run tests
 bun run typecheck    # TypeScript strict checking
-bun run lint         # Biome lint check
+bun run lint         # oxlint check
 bun run lint:fix     # Auto-fix lint issues
+bun run format       # oxfmt format check
 bun run format:fix   # Auto-fix formatting
 ```
 

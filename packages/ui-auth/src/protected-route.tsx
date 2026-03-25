@@ -32,7 +32,9 @@ export function ProtectedRoute({
       console.warn('ProtectedRoute used without AuthProvider — rendering children unprotected');
     }
     return (
-      <span style={{ display: 'contents' }}>{typeof children === 'function' ? children() : children}</span>
+      <span style={{ display: 'contents' }}>
+        {typeof children === 'function' ? children() : children}
+      </span>
     );
   }
 

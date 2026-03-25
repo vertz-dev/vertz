@@ -28,7 +28,7 @@ describe('query() deep normalization', () => {
       _key: `GET:/${entityType}/${id}`,
       _entity: { entityType, kind: 'get' as const, id },
       _fetch: () => Promise.resolve(ok(data)),
-      // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+
       then(onFulfilled: any, onRejected: any) {
         return this._fetch().then(onFulfilled, onRejected);
       },
@@ -45,7 +45,7 @@ describe('query() deep normalization', () => {
       _key: key ?? `GET:/${entityType}`,
       _entity: { entityType, kind: 'list' as const },
       _fetch: () => Promise.resolve(ok(data)),
-      // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+
       then(onFulfilled: any, onRejected: any) {
         return this._fetch().then(onFulfilled, onRejected);
       },

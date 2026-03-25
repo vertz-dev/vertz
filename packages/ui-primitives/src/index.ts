@@ -61,11 +61,7 @@ export type {
   ComposedCollapsibleProps,
 } from './collapsible/collapsible-composed';
 export { ComposedCollapsible } from './collapsible/collapsible-composed';
-export type {
-  ComboboxElements,
-  ComboboxOptions,
-  ComboboxState,
-} from './combobox/combobox';
+export type { ComboboxElements, ComboboxOptions, ComboboxState } from './combobox/combobox';
 export { Combobox } from './combobox/combobox';
 export type {
   ComboboxClasses,
@@ -257,11 +253,7 @@ export type { SwitchOptions } from './switch/switch';
 export { Switch } from './switch/switch';
 export type { ComposedSwitchProps, SwitchClasses } from './switch/switch-composed';
 export { ComposedSwitch } from './switch/switch-composed';
-export type {
-  ComposedTableProps,
-  TableClasses,
-  TableClassKey,
-} from './table/table-composed';
+export type { ComposedTableProps, TableClasses, TableClassKey } from './table/table-composed';
 export { ComposedTable } from './table/table-composed';
 export type { TabsElements, TabsOptions, TabsState } from './tabs/tabs';
 export { Tabs } from './tabs/tabs';

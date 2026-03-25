@@ -34,26 +34,27 @@ Global state:
 Every compiler output function either **advances** the cursor, **ignores** it,
 or **manipulates the stack**:
 
-| Function | During Hydration | Cursor Effect |
-|---|---|---|
-| `__element(tag)` | `claimElement(tag)` → returns matching element | **Advances** to nextSibling |
-| `__staticText(text)` | `claimText()` → returns text node | **Advances** to nextSibling |
-| `__text(fn)` | `claimText()` + `deferredDomEffect` (deferred until `endHydration` flush) | **Advances** to nextSibling |
-| `__child(fn)` | `claimComment('child')` anchor + end marker + **pause** hydration + CSR render between markers + **resume** | **Advances** past markers; inner content is CSR |
-| `__insert(parent, value)` | **Resolves** functions/arrays, claims text for primitives | **Advances** only for text claims |
-| `__append(parent, child)` | **No-op** (child already in DOM) | None |
-| `__enterChildren(el)` | `enterChildren(el)` | **Pushes** cursor to stack, cursor = el.firstChild |
-| `__exitChildren()` | `exitChildren()` | **Pops** cursor from stack |
-| `__on(el, event, handler)` | `addEventListener` (same as CSR) | None |
-| `__attr(el, name, fn)` | `deferredDomEffect` (deferred until `endHydration` flush) | None |
-| `__conditional(...)` | `claimComment()` + run active branch | **Advances** past anchor + branch nodes |
-| `__list(...)` | First run: claim all item nodes via renderFn | **Advances** past all items |
+| Function                   | During Hydration                                                                                            | Cursor Effect                                      |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `__element(tag)`           | `claimElement(tag)` → returns matching element                                                              | **Advances** to nextSibling                        |
+| `__staticText(text)`       | `claimText()` → returns text node                                                                           | **Advances** to nextSibling                        |
+| `__text(fn)`               | `claimText()` + `deferredDomEffect` (deferred until `endHydration` flush)                                   | **Advances** to nextSibling                        |
+| `__child(fn)`              | `claimComment('child')` anchor + end marker + **pause** hydration + CSR render between markers + **resume** | **Advances** past markers; inner content is CSR    |
+| `__insert(parent, value)`  | **Resolves** functions/arrays, claims text for primitives                                                   | **Advances** only for text claims                  |
+| `__append(parent, child)`  | **No-op** (child already in DOM)                                                                            | None                                               |
+| `__enterChildren(el)`      | `enterChildren(el)`                                                                                         | **Pushes** cursor to stack, cursor = el.firstChild |
+| `__exitChildren()`         | `exitChildren()`                                                                                            | **Pops** cursor from stack                         |
+| `__on(el, event, handler)` | `addEventListener` (same as CSR)                                                                            | None                                               |
+| `__attr(el, name, fn)`     | `deferredDomEffect` (deferred until `endHydration` flush)                                                   | None                                               |
+| `__conditional(...)`       | `claimComment()` + run active branch                                                                        | **Advances** past anchor + branch nodes            |
+| `__list(...)`              | First run: claim all item nodes via renderFn                                                                | **Advances** past all items                        |
 
 ## Claim Functions
 
 ### claimElement(tag)
 
 Scans forward through siblings looking for `<TAG>`. Skips:
+
 - Non-matching elements (browser extensions, mismatches)
 - Text nodes (whitespace between elements)
 
@@ -88,7 +89,7 @@ never attached.
 
 This was the root cause of #842.
 
-## The __child Pause/Resume Pattern
+## The \_\_child Pause/Resume Pattern
 
 `__child(() => expr)` wraps reactive expressions. During hydration:
 
@@ -137,17 +138,18 @@ cursor movement logs in the browser console. This bypasses the
 
 ### Common symptoms and causes
 
-| Symptom | Likely Cause |
-|---|---|
-| Event handlers not attached | Element not claimed (cursor skipped past it) |
-| Duplicate DOM nodes | `__append` running in CSR mode during hydration |
-| Wrong element adopted | Tag mismatch in SSR vs client |
-| Content flash on load | Hydration failed, fell back to CSR |
-| Effects from hydration leak | Scope not cleaned up after hydration error |
+| Symptom                     | Likely Cause                                    |
+| --------------------------- | ----------------------------------------------- |
+| Event handlers not attached | Element not claimed (cursor skipped past it)    |
+| Duplicate DOM nodes         | `__append` running in CSR mode during hydration |
+| Wrong element adopted       | Tag mismatch in SSR vs client                   |
+| Content flash on load       | Hydration failed, fell back to CSR              |
+| Effects from hydration leak | Scope not cleaned up after hydration error      |
 
 ### Tracing cursor position
 
 If a claim fails, the cursor was not where expected. Check:
+
 1. Did a previous `__child` or `__text` consume too many/few nodes?
 2. Did `__insert` skip a function/array value without resolving it?
 3. Did `__enterChildren`/`__exitChildren` pairs get mismatched?

@@ -1,6 +1,6 @@
 ---
 title: Multi-Tenancy
-description: "Tenant switching, listing, last-accessed tracking, and auto-resolve for multi-tenant apps"
+description: 'Tenant switching, listing, last-accessed tracking, and auto-resolve for multi-tenant apps'
 ---
 
 Vertz supports multi-tenant applications where a single user belongs to multiple tenants (organizations, workspaces, teams). The `tenant` config in `createAuth()` enables:
@@ -45,7 +45,13 @@ const auth = createAuth({
   },
 });
 
-const app = createServer({ entities: [/* ... */], db, auth });
+const app = createServer({
+  entities: [
+    /* ... */
+  ],
+  db,
+  auth,
+});
 ```
 
 This generates:
@@ -62,7 +68,7 @@ POST /api/auth/switch-tenant  → Switch tenant (re-issues JWT)
 Called before every tenant switch. Return `false` to deny — the endpoint returns `403`.
 
 ```ts
-verifyMembership: async (userId: string, tenantId: string) => boolean
+verifyMembership: async (userId: string, tenantId: string) => boolean;
 ```
 
 ### `tenant.listTenants` (optional)
@@ -88,10 +94,11 @@ interface TenantInfo {
 Determines which tenant to auto-select when a session has no `tenantId` (e.g., right after login). Called during `GET /api/auth/tenants`.
 
 ```ts
-resolveDefault: async (userId: string, tenants: TenantInfo[]) => string | undefined
+resolveDefault: async (userId: string, tenants: TenantInfo[]) => string | undefined;
 ```
 
 **Default behavior** (when `resolveDefault` is not provided):
+
 1. Use `lastTenantId` (the last tenant the user switched to)
 2. Fall back to the first tenant in the list
 3. Return `undefined` if the user has no tenants
@@ -128,19 +135,19 @@ Returns the user's tenants, current session tenant, last-accessed tenant, and th
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `tenants` | `TenantInfo[]` | All tenants the user belongs to |
-| `currentTenantId` | `string \| undefined` | Tenant in the current JWT (if any) |
-| `lastTenantId` | `string \| undefined` | Last tenant the user switched to |
-| `resolvedDefaultId` | `string \| undefined` | Recommended tenant to auto-select |
+| Field               | Type                  | Description                        |
+| ------------------- | --------------------- | ---------------------------------- |
+| `tenants`           | `TenantInfo[]`        | All tenants the user belongs to    |
+| `currentTenantId`   | `string \| undefined` | Tenant in the current JWT (if any) |
+| `lastTenantId`      | `string \| undefined` | Last tenant the user switched to   |
+| `resolvedDefaultId` | `string \| undefined` | Recommended tenant to auto-select  |
 
 **Errors:**
 
-| Status | When |
-|--------|------|
-| `401` | No valid session |
-| `404` | `listTenants` not configured |
+| Status | When                         |
+| ------ | ---------------------------- |
+| `401`  | No valid session             |
+| `404`  | `listTenants` not configured |
 
 ### `POST /api/auth/switch-tenant`
 
@@ -166,11 +173,11 @@ New session cookies (`vertz.sid`, `vertz.ref`) are set automatically.
 
 **Errors:**
 
-| Status | When |
-|--------|------|
-| `401` | No valid session |
-| `403` | User is not a member of the target tenant |
-| `404` | Tenant config not enabled |
+| Status | When                                      |
+| ------ | ----------------------------------------- |
+| `401`  | No valid session                          |
+| `403`  | User is not a member of the target tenant |
+| `404`  | Tenant config not enabled                 |
 
 ## Entity tenant scoping
 

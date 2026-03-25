@@ -5,12 +5,12 @@ import type { ServiceActionDef, ServiceConfig, ServiceDefinition } from './types
 const SERVICE_NAME_PATTERN = /^[a-z][a-z0-9-]*$/;
 
 export function service<
-  // biome-ignore lint/complexity/noBannedTypes: {} represents no injected entities
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} represents no injected entities
   TInject extends Record<string, EntityDefinition> = {},
-  // biome-ignore lint/suspicious/noExplicitAny: constraint uses any to accept all action type parameter combinations
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- constraint uses any to accept all action type parameter combinations
   TActions extends Record<string, ServiceActionDef<any, any, any>> = Record<
     string,
-    // biome-ignore lint/suspicious/noExplicitAny: constraint uses any to accept all action type parameter combinations
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- constraint uses any to accept all action type parameter combinations
     ServiceActionDef<any, any, any>
   >,
 >(name: string, config: ServiceConfig<TActions, TInject>): ServiceDefinition<TActions> {

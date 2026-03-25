@@ -381,7 +381,7 @@ describe('500 Internal Server Error response body', () => {
 
   it('returns 500 when a non-Error value is thrown', async () => {
     const app = makeApp('GET', '/users', () => {
-      // biome-ignore lint/suspicious/noExplicitAny: intentional non-Error throw for test
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentional non-Error throw for test
       throw 'string error' as any;
     });
 

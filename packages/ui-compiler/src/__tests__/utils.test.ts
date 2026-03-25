@@ -31,9 +31,9 @@ describe('isShadowedInNestedScope', () => {
     // The `count` inside `return count;` is in the arrow function body
     const arrowBody = sf.getDescendantsOfKind(ts.SyntaxKind.ArrowFunction)[0]!;
     const returnStmt = arrowBody.getDescendantsOfKind(ts.SyntaxKind.ReturnStatement)[0]!;
-    const countInArrow = returnStmt.getDescendantsOfKind(ts.SyntaxKind.Identifier).find(
-      (id) => id.getText() === 'count',
-    )!;
+    const countInArrow = returnStmt
+      .getDescendantsOfKind(ts.SyntaxKind.Identifier)
+      .find((id) => id.getText() === 'count')!;
 
     expect(isShadowedInNestedScope(countInArrow, 'count', bodyNode!)).toBe(true);
   });
@@ -54,9 +54,9 @@ describe('isShadowedInNestedScope', () => {
 
     const arrowBody = sf.getDescendantsOfKind(ts.SyntaxKind.ArrowFunction)[0]!;
     const returnStmt = arrowBody.getDescendantsOfKind(ts.SyntaxKind.ReturnStatement)[0]!;
-    const itemInArrow = returnStmt.getDescendantsOfKind(ts.SyntaxKind.Identifier).find(
-      (id) => id.getText() === 'item',
-    )!;
+    const itemInArrow = returnStmt
+      .getDescendantsOfKind(ts.SyntaxKind.Identifier)
+      .find((id) => id.getText() === 'item')!;
 
     expect(isShadowedInNestedScope(itemInArrow, 'item', bodyNode!)).toBe(true);
   });

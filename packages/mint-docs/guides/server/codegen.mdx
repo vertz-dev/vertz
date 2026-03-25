@@ -1,6 +1,6 @@
 ---
 title: Code Generation
-description: "Generate type-safe client SDKs, entitlement types, and RLS policies from your server configuration"
+description: 'Generate type-safe client SDKs, entitlement types, and RLS policies from your server configuration'
 ---
 
 Vertz's code generator analyzes your server configuration at build time and produces:
@@ -63,7 +63,9 @@ bunx vertz codegen
 ```
 
 <Note>
-  If your app uses a custom dev server (calling `createBunDevServer` directly instead of `vertz dev`), you must run codegen explicitly before starting the server. The `vertz dev` unified command handles this automatically.
+  If your app uses a custom dev server (calling `createBunDevServer` directly instead of `vertz
+  dev`), you must run codegen explicitly before starting the server. The `vertz dev` unified command
+  handles this automatically.
 </Note>
 
 ### Generated output
@@ -194,6 +196,7 @@ When the registry is populated, the `Entitlement` type narrows from `string` to 
       },
     });
     ```
+
   </Step>
   <Step title="Run codegen">
     The access type generator runs as part of the standard Vertz codegen pipeline:
@@ -203,6 +206,7 @@ When the registry is populated, the `Entitlement` type narrows from `string` to 
     ```
 
     This produces `.vertz/generated/access.d.ts`.
+
   </Step>
   <Step title="Include generated types in tsconfig">
     Make sure `.vertz/generated` is included in your TypeScript config:
@@ -217,6 +221,7 @@ When the registry is populated, the `Entitlement` type narrows from `string` to 
     ```
 
     Scaffolded apps include this by default.
+
   </Step>
 </Steps>
 
@@ -226,15 +231,15 @@ After codegen, entitlement strings are fully typed across both server and client
 
 ```ts
 // Server — ctx.can() is now type-safe
-await ctx.can('project:delete', resource);    // OK
-await ctx.can('projecct:delete', resource);   // TS error — typo caught
+await ctx.can('project:delete', resource); // OK
+await ctx.can('projecct:delete', resource); // TS error — typo caught
 
 // Client — can() is now type-safe
-const check = can('ai:generate');             // OK — with autocomplete
-const check = can('ai:genrate');              // TS error — typo caught
+const check = can('ai:generate'); // OK — with autocomplete
+const check = can('ai:genrate'); // TS error — typo caught
 
 // ctx.authorize() is also typed
-await ctx.authorize('project:create', resource);  // OK
+await ctx.authorize('project:create', resource); // OK
 ```
 
 ### Backward compatibility
@@ -254,10 +259,11 @@ In addition to the `EntitlementRegistry`, the generator also produces:
 export type ResourceType = 'organization' | 'project';
 
 // Per-entity role unions
-export type Role<T extends ResourceType> =
-  T extends 'organization' ? 'owner' | 'admin' | 'member' :
-  T extends 'project' ? 'manager' | 'contributor' | 'viewer' :
-  string;
+export type Role<T extends ResourceType> = T extends 'organization'
+  ? 'owner' | 'admin' | 'member'
+  : T extends 'project'
+    ? 'manager' | 'contributor' | 'viewer'
+    : string;
 ```
 
 These types are available from `.vertz/generated/access.d.ts` for use in your application code.
@@ -267,7 +273,10 @@ These types are available from `.vertz/generated/access.d.ts` for use in your ap
 If your entitlements use `rules.where()` conditions, the code generator can produce PostgreSQL Row-Level Security (RLS) policy SQL from them. This is **opt-in** — you must enable it in your codegen config.
 
 <Note>
-  RLS generation produces a SQL file as a **starting point**. Vertz does not automatically apply or enforce these policies — access control is enforced at the application layer via `enforceAccess()`. The generated SQL is for teams that want to add database-level row filtering as an additional security layer on PostgreSQL.
+  RLS generation produces a SQL file as a **starting point**. Vertz does not automatically apply or
+  enforce these policies — access control is enforced at the application layer via
+  `enforceAccess()`. The generated SQL is for teams that want to add database-level row filtering as
+  an additional security layer on PostgreSQL.
 </Note>
 
 ### Enabling RLS generation
@@ -320,13 +329,13 @@ CREATE POLICY task_view ON tasks FOR ALL
 
 The static analyzer extracts conditions from `rules.where()` calls. Each condition maps to a SQL expression:
 
-| Condition | Example | Generated SQL |
-|-----------|---------|---------------|
-| User ID marker | `r.user.id` | `column = current_setting('app.user_id')::UUID` |
+| Condition        | Example           | Generated SQL                                     |
+| ---------------- | ----------------- | ------------------------------------------------- |
+| User ID marker   | `r.user.id`       | `column = current_setting('app.user_id')::UUID`   |
 | Tenant ID marker | `r.user.tenantId` | `column = current_setting('app.tenant_id')::UUID` |
-| String literal | `'active'` | `column = 'active'` |
-| Boolean literal | `false` | `column = false` |
-| Numeric literal | `1` | `column = 1` |
+| String literal   | `'active'`        | `column = 'active'`                               |
+| Boolean literal  | `false`           | `column = false`                                  |
+| Numeric literal  | `1`               | `column = 1`                                      |
 
 Multiple conditions in a single `where()` call are combined with `AND`.
 
@@ -385,7 +394,9 @@ COMMIT;
 `SET LOCAL` scopes the variables to the current transaction — they're automatically cleared on commit or rollback. The framework's entity CRUD pipeline handles this automatically when RLS policies are present.
 
 <Note>
-  The generated policies use `FOR ALL`, applying to SELECT, INSERT, UPDATE, and DELETE. If you need operation-specific policies (e.g., `FOR SELECT` only), customize the generated SQL before applying.
+  The generated policies use `FOR ALL`, applying to SELECT, INSERT, UPDATE, and DELETE. If you need
+  operation-specific policies (e.g., `FOR SELECT` only), customize the generated SQL before
+  applying.
 </Note>
 
 ### Non-translatable conditions

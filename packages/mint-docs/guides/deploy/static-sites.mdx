@@ -1,6 +1,6 @@
 ---
 title: Static Sites
-description: "Deploy a static Vertz site (landing page, docs, marketing) to Cloudflare Workers"
+description: 'Deploy a static Vertz site (landing page, docs, marketing) to Cloudflare Workers'
 ---
 
 Vertz apps can be deployed as fully static sites — no server required. The build script SSR-renders your pages at build time, bundles client JS for interactivity, and outputs a `dist/` directory you can deploy anywhere. This guide uses Cloudflare Workers, but the output works with any static host.
@@ -8,6 +8,7 @@ Vertz apps can be deployed as fully static sites — no server required. The bui
 ## When to use this
 
 Static deployment is ideal for:
+
 - Landing pages
 - Marketing sites
 - Documentation
@@ -193,14 +194,9 @@ let clean = html
   .replace(/<script type="module" src="\/src\/entry-client\.ts"><\/script>/g, '');
 
 // ── 6. Inject production head + client bundle ──────────────
-const cssLinks = clientCssPaths
-  .map((p) => `  <link rel="stylesheet" href="${p}" />`)
-  .join('\n');
+const cssLinks = clientCssPaths.map((p) => `  <link rel="stylesheet" href="${p}" />`).join('\n');
 
-clean = clean.replace(
-  /(<title>[^<]*<\/title>)/,
-  `$1\n${cssLinks}`,
-);
+clean = clean.replace(/(<title>[^<]*<\/title>)/, `$1\n${cssLinks}`);
 
 clean = clean.replace(
   /<\/body>/,
@@ -212,7 +208,9 @@ console.log('✓ Build complete: dist/');
 ```
 
 <Note>
-The build script starts the dev server temporarily to SSR-render the page. This ensures the production HTML matches exactly what you see in development — same components, same data, same CSS. The dev server is killed immediately after the fetch.
+  The build script starts the dev server temporarily to SSR-render the page. This ensures the
+  production HTML matches exactly what you see in development — same components, same data, same
+  CSS. The dev server is killed immediately after the fetch.
 </Note>
 
 ## Injecting meta tags
@@ -237,10 +235,7 @@ const PRODUCTION_HEAD = `
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=..." rel="stylesheet" />`;
 
-clean = clean.replace(
-  /(<title>[^<]*<\/title>)/,
-  `$1\n${PRODUCTION_HEAD}`,
-);
+clean = clean.replace(/(<title>[^<]*<\/title>)/, `$1\n${PRODUCTION_HEAD}`);
 ```
 
 For generating OG images programmatically, see the [OG Images guide](/guides/deploy/og-images).
@@ -303,18 +298,20 @@ dist/
 ```
 
 <Warning>
-The dev server's SSR output includes HMR scripts, WebSocket overlays, and Bun dev server bootstrapping code. The build script strips all of these — never deploy the raw dev server output directly.
+  The dev server's SSR output includes HMR scripts, WebSocket overlays, and Bun dev server
+  bootstrapping code. The build script strips all of these — never deploy the raw dev server output
+  directly.
 </Warning>
 
 ## How it differs from full-stack deployment
 
-| | Static site | Full-stack (Workers) |
-|---|---|---|
-| **Server** | None — static files only | Cloudflare Worker with SSR |
-| **Data** | Build-time only | Per-request (queries, auth) |
+|                  | Static site                  | Full-stack (Workers)            |
+| ---------------- | ---------------------------- | ------------------------------- |
+| **Server**       | None — static files only     | Cloudflare Worker with SSR      |
+| **Data**         | Build-time only              | Per-request (queries, auth)     |
 | **Build output** | `dist/` with HTML + JS + CSS | `dist/client/` + `dist/server/` |
-| **Use case** | Landing pages, marketing | Apps with dynamic data |
-| **Command** | `bun run build` | `vertz build` |
+| **Use case**     | Landing pages, marketing     | Apps with dynamic data          |
+| **Command**      | `bun run build`              | `vertz build`                   |
 
 <CardGroup cols={2}>
   <Card title="SSG with generateParams" icon="bolt" href="/guides/deploy/ssg">

@@ -84,10 +84,13 @@ All 3 unknowns were validated successfully. 36 tests pass, including an end-to-e
 ### What needs to change in the design plan
 
 - **Type-safe operation methods**: the generated module methods should have typed parameters and return types, not `unknown`. This requires wiring the adapted schema information through to the emitter. Each operation method should look like:
+
   ```typescript
   createUser(body: CreateUserBody): Promise<ReadUserResponse>
   ```
+
   not:
+
   ```typescript
   createUser(options?: { body?: unknown }): Promise<unknown>
   ```

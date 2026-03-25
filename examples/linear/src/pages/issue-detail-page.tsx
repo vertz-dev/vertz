@@ -65,7 +65,7 @@ export function IssueDetailPage() {
     author?: { id: string; name: string; avatarUrl: string | null };
   }
 
-  // biome-ignore lint/suspicious/noExplicitAny: issue.data includes nested relations from include
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- issue.data includes nested relations from include
   const issueData = issue.data as Record<string, any> | undefined;
   const issueComments = (issueData?.comments ?? []) as IncludedComment[];
   const projectData = issueData?.project as { key?: string } | undefined;

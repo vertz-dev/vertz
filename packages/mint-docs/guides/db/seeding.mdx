@@ -1,6 +1,6 @@
 ---
 title: Seeding
-description: "Populate your database with initial data for development, testing, and production"
+description: 'Populate your database with initial data for development, testing, and production'
 ---
 
 Seeding fills your database with initial data — dev fixtures, test scenarios, or production defaults like roles and categories. Vertz recommends using the entity API (`db.create`, `db.createMany`) for seeding, not raw SQL.
@@ -230,7 +230,10 @@ test('assigns task to user', async () => {
 });
 ```
 
-<Tip>Use unique values (timestamps, counters) in test seeds to avoid collisions when tests run in parallel.</Tip>
+<Tip>
+  Use unique values (timestamps, counters) in test seeds to avoid collisions when tests run in
+  parallel.
+</Tip>
 
 ### Production fixtures
 
@@ -250,7 +253,10 @@ export async function seedProductionDefaults(db: AppDb) {
 }
 ```
 
-<Warning>Never seed user accounts, API keys, or sensitive data in production. Use environment variables and admin tooling for those.</Warning>
+<Warning>
+  Never seed user accounts, API keys, or sensitive data in production. Use environment variables and
+  admin tooling for those.
+</Warning>
 
 ## Tips
 

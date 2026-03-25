@@ -43,12 +43,12 @@ describe('Outlet', () => {
       result = Outlet() as HTMLElement;
     });
 
-    // biome-ignore lint/style/noNonNullAssertion: value is guaranteed set inside Provider callback
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- value is guaranteed set inside Provider callback
     expect(result!.textContent).toBe('First');
 
     // Update the signal — Outlet should reactively swap
     childComponent.value = () => child2;
-    // biome-ignore lint/style/noNonNullAssertion: value is guaranteed set inside Provider callback
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- value is guaranteed set inside Provider callback
     expect(result!.textContent).toBe('Second');
   });
 

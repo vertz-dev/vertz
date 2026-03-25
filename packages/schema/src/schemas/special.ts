@@ -4,9 +4,9 @@ import { Schema } from '../core/schema';
 import { SchemaType } from '../core/types';
 import type { JSONSchemaObject, RefTracker } from '../introspection/json-schema';
 
-// biome-ignore lint/suspicious/noExplicitAny: AnySchema intentionally models the any type
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- AnySchema intentionally models the any type
 export class AnySchema extends Schema<any> {
-  // biome-ignore lint/suspicious/noExplicitAny: AnySchema intentionally returns any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AnySchema intentionally returns any
   _parse(value: unknown, _ctx: ParseContext): any {
     return value;
   }

@@ -26,9 +26,9 @@ describe('BaseAnalyzer', () => {
     const project = new Project({ useInMemoryFileSystem: true });
     const config = resolveConfig({ strict: true });
     const analyzer = new TestAnalyzer(project, config);
-    // biome-ignore lint/complexity/useLiteralKeys: accessing protected member for testing
+    // eslint-disable-next-line dot-notation -- accessing protected member for testing
     expect(analyzer['project']).toBe(project);
-    // biome-ignore lint/complexity/useLiteralKeys: accessing protected member for testing
+    // eslint-disable-next-line dot-notation -- accessing protected member for testing
     expect(analyzer['config']).toBe(config);
   });
 

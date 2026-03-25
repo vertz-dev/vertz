@@ -1,6 +1,6 @@
 ---
 title: Introspection
-description: "Generate a Vertz schema from an existing database with vertz db pull"
+description: 'Generate a Vertz schema from an existing database with vertz db pull'
 ---
 
 `vertz db pull` connects to an existing database, reads its tables, columns, indexes, and foreign keys, and generates a TypeScript schema file using the `d` builder. This is the fastest way to bring an existing database into Vertz.
@@ -18,6 +18,7 @@ description: "Generate a Vertz schema from an existing database with vertz db pu
       schema: './src/schema.ts',
     };
     ```
+
   </Step>
   <Step title="Pull the schema">
     Run `vertz db pull` to introspect the database and generate a schema file:
@@ -25,6 +26,7 @@ description: "Generate a Vertz schema from an existing database with vertz db pu
     ```bash
     vertz db pull --output src/schema.ts
     ```
+
   </Step>
   <Step title="Review and customize">
     The generated schema is a starting point. Review it, add [annotations](/guides/db/schema#column-modifiers) like `.readOnly()`, `.autoUpdate()`, and `.hidden()`, then use it like any hand-written schema.
@@ -37,13 +39,13 @@ description: "Generate a Vertz schema from an existing database with vertz db pu
 vertz db pull [options]
 ```
 
-| Option | Description |
-|--------|-------------|
+| Option                | Description                                                                        |
+| --------------------- | ---------------------------------------------------------------------------------- |
 | `-o, --output <path>` | Output file or directory. If the path ends with `/`, generates one file per table. |
-| `--dry-run` | Preview the generated code without writing files. |
-| `-f, --force` | Overwrite existing files. |
-| `--url <url>` | Database URL (overrides `vertz.config.ts`). |
-| `--dialect <dialect>` | Database dialect: `postgres` or `sqlite`. |
+| `--dry-run`           | Preview the generated code without writing files.                                  |
+| `-f, --force`         | Overwrite existing files.                                                          |
+| `--url <url>`         | Database URL (overrides `vertz.config.ts`).                                        |
+| `--dialect <dialect>` | Database dialect: `postgres` or `sqlite`.                                          |
 
 ## Output modes
 
@@ -69,16 +71,18 @@ export const usersTable = d.table('users', {
 
 // ---------- posts ----------
 
-export const postsTable = d.table('posts', {
-  id: d.uuid().primary(),
-  title: d.text(),
-  body: d.text().nullable(),
-  authorId: d.uuid(),
-}, {
-  indexes: [
-    d.index('authorId', { name: 'idx_posts_author_id' }),
-  ],
-});
+export const postsTable = d.table(
+  'posts',
+  {
+    id: d.uuid().primary(),
+    title: d.text(),
+    body: d.text().nullable(),
+    authorId: d.uuid(),
+  },
+  {
+    indexes: [d.index('authorId', { name: 'idx_posts_author_id' })],
+  },
+);
 
 export const postsModel = d.model(postsTable, {
   author: d.ref.one(() => usersTable, 'authorId'),
@@ -134,39 +138,39 @@ The code generator maps database types to `d` builder calls:
 
 ### Postgres
 
-| SQL type | Generated code | Notes |
-|----------|---------------|-------|
-| `uuid` | `d.uuid()` | |
-| `text` | `d.text()` | |
-| `character varying(n)` | `d.varchar(n)` | Falls back to `d.text()` without length |
-| `boolean` | `d.boolean()` | |
-| `integer` | `d.integer()` | |
-| `integer` + `nextval()` | `d.serial()` | Auto-increment detection |
-| `bigint` | `d.bigint()` | |
-| `numeric(p,s)` | `d.decimal(p, s)` | |
-| `real` | `d.real()` | |
-| `double precision` | `d.doublePrecision()` | |
-| `timestamptz` | `d.timestamp()` | |
-| `timestamp` | `d.timestamp()` | Annotated with `// Source: timestamp without time zone` |
-| `date` | `d.date()` | |
-| `time` | `d.time()` | |
-| `jsonb` | `d.jsonb()` | |
-| `json` | `d.jsonb()` | Annotated with `// Source: json` |
-| `text[]` | `d.textArray()` | |
-| `integer[]` | `d.integerArray()` | |
-| `USER-DEFINED` | `d.enum(name, values)` | Reads enum values from `pg_enum` |
-| `smallint` | `d.integer()` | Annotated with `// Source: smallint` |
-| `citext` | `d.text()` | Case-insensitive text extension |
-| `bytea` | `d.text()` | Annotated with `// TODO: binary type` |
+| SQL type                | Generated code         | Notes                                                   |
+| ----------------------- | ---------------------- | ------------------------------------------------------- |
+| `uuid`                  | `d.uuid()`             |                                                         |
+| `text`                  | `d.text()`             |                                                         |
+| `character varying(n)`  | `d.varchar(n)`         | Falls back to `d.text()` without length                 |
+| `boolean`               | `d.boolean()`          |                                                         |
+| `integer`               | `d.integer()`          |                                                         |
+| `integer` + `nextval()` | `d.serial()`           | Auto-increment detection                                |
+| `bigint`                | `d.bigint()`           |                                                         |
+| `numeric(p,s)`          | `d.decimal(p, s)`      |                                                         |
+| `real`                  | `d.real()`             |                                                         |
+| `double precision`      | `d.doublePrecision()`  |                                                         |
+| `timestamptz`           | `d.timestamp()`        |                                                         |
+| `timestamp`             | `d.timestamp()`        | Annotated with `// Source: timestamp without time zone` |
+| `date`                  | `d.date()`             |                                                         |
+| `time`                  | `d.time()`             |                                                         |
+| `jsonb`                 | `d.jsonb()`            |                                                         |
+| `json`                  | `d.jsonb()`            | Annotated with `// Source: json`                        |
+| `text[]`                | `d.textArray()`        |                                                         |
+| `integer[]`             | `d.integerArray()`     |                                                         |
+| `USER-DEFINED`          | `d.enum(name, values)` | Reads enum values from `pg_enum`                        |
+| `smallint`              | `d.integer()`          | Annotated with `// Source: smallint`                    |
+| `citext`                | `d.text()`             | Case-insensitive text extension                         |
+| `bytea`                 | `d.text()`             | Annotated with `// TODO: binary type`                   |
 
 ### SQLite
 
-| SQL type | Generated code | Notes |
-|----------|---------------|-------|
-| `integer` | `d.integer()` | |
-| `text` | `d.text()` | |
-| `real` / `float` | `d.real()` | |
-| `blob` | `d.text()` | Annotated with `// TODO: binary type` |
+| SQL type         | Generated code | Notes                                 |
+| ---------------- | -------------- | ------------------------------------- |
+| `integer`        | `d.integer()`  |                                       |
+| `text`           | `d.text()`     |                                       |
+| `real` / `float` | `d.real()`     |                                       |
+| `blob`           | `d.text()`     | Annotated with `// TODO: binary type` |
 
 Types that don't map directly get `d.text()` with a `// TODO: unmapped type` comment so you can fix them manually.
 
@@ -202,7 +206,10 @@ export const postsModel = d.model(postsTable, {
 - Self-referential FKs work (`managerId` on `employees` references `employees`)
 - Multiple FKs to the same table are disambiguated (`sender`, `usersByReceiverId`)
 
-<Note>Only `d.ref.one()` (many-to-one) relations are generated. Inverse `d.ref.many()` relations are not inferred — add them manually if needed.</Note>
+<Note>
+  Only `d.ref.one()` (many-to-one) relations are generated. Inverse `d.ref.many()` relations are not
+  inferred — add them manually if needed.
+</Note>
 
 ### Table ordering
 
@@ -217,27 +224,31 @@ Tables are topologically sorted so FK targets are defined before the tables that
 Tables with multiple primary key columns use the `primaryKey` option instead of `.primary()` on individual columns:
 
 ```ts
-export const postTagsTable = d.table('post_tags', {
-  postId: d.uuid(),
-  tagId: d.uuid(),
-  createdAt: d.timestamp().default('now'),
-}, {
-  primaryKey: ['postId', 'tagId'],
-});
+export const postTagsTable = d.table(
+  'post_tags',
+  {
+    postId: d.uuid(),
+    tagId: d.uuid(),
+    createdAt: d.timestamp().default('now'),
+  },
+  {
+    primaryKey: ['postId', 'tagId'],
+  },
+);
 ```
 
 ## What is NOT generated
 
 The code generator produces a **database-level schema** — the structural representation of what exists in the database. App-level annotations that carry semantic meaning are left for you to add:
 
-| Annotation | Why it's not generated |
-|-----------|----------------------|
-| `.readOnly()` | Database can't tell which columns are read-only in your app |
-| `.autoUpdate()` | Database triggers exist but don't map cleanly to Vertz's auto-update |
-| `.hidden()` | Field visibility is an app concern |
-| `.tenant()` | Tenant scoping is a framework convention, not a DB concept |
-| `.email()`, `.url()` | Format validation is application logic |
-| `d.ref.many()` | Inverse relations require knowing which side is "primary" |
+| Annotation           | Why it's not generated                                               |
+| -------------------- | -------------------------------------------------------------------- |
+| `.readOnly()`        | Database can't tell which columns are read-only in your app          |
+| `.autoUpdate()`      | Database triggers exist but don't map cleanly to Vertz's auto-update |
+| `.hidden()`          | Field visibility is an app concern                                   |
+| `.tenant()`          | Tenant scoping is a framework convention, not a DB concept           |
+| `.email()`, `.url()` | Format validation is application logic                               |
+| `d.ref.many()`       | Inverse relations require knowing which side is "primary"            |
 
 After pulling, review the generated schema and add these annotations where appropriate.
 
@@ -258,22 +269,18 @@ vertz db pull --dry-run > schema-preview.ts
 ## Workflow: adopting Vertz on an existing database
 
 <Steps>
-  <Step title="Pull the schema">
-    ```bash
-    vertz db pull --output src/schema.ts
-    ```
-  </Step>
+  <Step title="Pull the schema">```bash vertz db pull --output src/schema.ts ```</Step>
   <Step title="Review and annotate">
-    Add `.readOnly()`, `.autoUpdate()`, `.hidden()`, `.tenant()`, and other annotations. Fix any `// TODO` comments for unmapped types.
+    Add `.readOnly()`, `.autoUpdate()`, `.hidden()`, `.tenant()`, and other annotations. Fix any `//
+    TODO` comments for unmapped types.
   </Step>
   <Step title="Baseline the migration history">
-    ```bash
-    vertz db baseline
-    ```
-    This marks the current database state as the starting point — no SQL is applied.
+    ```bash vertz db baseline ``` This marks the current database state as the starting point — no
+    SQL is applied.
   </Step>
   <Step title="Start developing">
-    From here, use `vertz dev` for automatic migrations or `vertz db migrate` for explicit migration files. See the [migrations guide](/guides/db/migrations) for details.
+    From here, use `vertz dev` for automatic migrations or `vertz db migrate` for explicit migration
+    files. See the [migrations guide](/guides/db/migrations) for details.
   </Step>
 </Steps>
 

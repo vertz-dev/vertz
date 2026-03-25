@@ -14,6 +14,7 @@ import type { EntityStoreOptions, MergeSelectOptions, SerializedStore } from './
  */
 interface EntityEntry {
   /** The reactive signal exposed to consumers — always reflects visible state. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type-level bound requires any
   signal: Signal<any>;
   /** Server-confirmed ground truth. */
   base: Record<string, unknown>;

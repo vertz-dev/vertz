@@ -153,7 +153,7 @@ describe('Link XSS prevention', () => {
     const navigate = vi.fn();
     const Link = createLink(currentPath, navigate);
 
-    // biome-ignore lint/suspicious/noExplicitAny: testing runtime safety against untyped input
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing runtime safety against untyped input
     const el = Link({ children: 'XSS', href: 'javascript:alert(1)' as any });
 
     expect(el.getAttribute('href')).toBe('#');
@@ -164,7 +164,7 @@ describe('Link XSS prevention', () => {
     const navigate = vi.fn();
     const Link = createLink(currentPath, navigate);
 
-    // biome-ignore lint/suspicious/noExplicitAny: testing runtime safety against untyped input
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing runtime safety against untyped input
     const el = Link({ children: 'XSS', href: 'JAVASCRIPT:alert(1)' as any });
 
     expect(el.getAttribute('href')).toBe('#');
@@ -175,7 +175,7 @@ describe('Link XSS prevention', () => {
     const navigate = vi.fn();
     const Link = createLink(currentPath, navigate);
 
-    // biome-ignore lint/suspicious/noExplicitAny: testing runtime safety against untyped input
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing runtime safety against untyped input
     const el = Link({
       children: 'XSS',
       href: 'data:text/html,<script>alert(1)</script>' as any,
@@ -189,7 +189,7 @@ describe('Link XSS prevention', () => {
     const navigate = vi.fn();
     const Link = createLink(currentPath, navigate);
 
-    // biome-ignore lint/suspicious/noExplicitAny: testing runtime safety against untyped input
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing runtime safety against untyped input
     const el = Link({ children: 'XSS', href: 'vbscript:msgbox' as any });
 
     expect(el.getAttribute('href')).toBe('#');
@@ -200,7 +200,7 @@ describe('Link XSS prevention', () => {
     const navigate = vi.fn();
     const Link = createLink(currentPath, navigate);
 
-    // biome-ignore lint/suspicious/noExplicitAny: testing runtime safety against untyped input
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing runtime safety against untyped input
     const el = Link({ children: 'XSS', href: '//evil.com/phishing' as any });
 
     expect(el.getAttribute('href')).toBe('#');
@@ -211,7 +211,7 @@ describe('Link XSS prevention', () => {
     const navigate = vi.fn();
     const Link = createLink(currentPath, navigate);
 
-    // biome-ignore lint/suspicious/noExplicitAny: testing runtime safety against untyped input
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing runtime safety against untyped input
     const el = Link({ children: 'XSS', href: ' javascript:alert(1)' as any });
 
     expect(el.getAttribute('href')).toBe('#');
@@ -222,7 +222,7 @@ describe('Link XSS prevention', () => {
     const navigate = vi.fn();
     const Link = createLink(currentPath, navigate);
 
-    // biome-ignore lint/suspicious/noExplicitAny: testing runtime safety against untyped input
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing runtime safety against untyped input
     const el = Link({ children: 'XSS', href: 'javascript:alert(1)' as any });
 
     const event = new MouseEvent('click', { bubbles: true, cancelable: true });
@@ -239,7 +239,7 @@ describe('Link XSS prevention', () => {
     const safeHrefs = ['/about', '#section', 'https://example.com', 'http://example.com'];
 
     for (const href of safeHrefs) {
-      // biome-ignore lint/suspicious/noExplicitAny: testing runtime safety with external URLs
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing runtime safety with external URLs
       const el = Link({ children: 'Link', href: href as any });
       expect(el.getAttribute('href')).toBe(href);
     }
@@ -326,7 +326,7 @@ describe('Link (context-based)', () => {
       result = fn();
     });
     router.dispose();
-    // biome-ignore lint/style/noNonNullAssertion: result is assigned synchronously in Provider callback
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- result is assigned synchronously in Provider callback
     return result!;
   }
 
@@ -392,7 +392,7 @@ describe('Link (context-based)', () => {
 
   test('blocks dangerous href schemes', () => {
     const el = renderInRouter('/', () =>
-      // biome-ignore lint/suspicious/noExplicitAny: testing runtime safety against untyped input
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing runtime safety against untyped input
       Link({ children: 'XSS', href: 'javascript:alert(1)' as any }),
     );
     expect(el.getAttribute('href')).toBe('#');

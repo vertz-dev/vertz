@@ -1,6 +1,6 @@
 ---
 title: List
-description: "API reference for the <List> compound component with animation and drag-sort"
+description: 'API reference for the <List> compound component with animation and drag-sort'
 ---
 
 `<List>` is a compound component for rendering lists with built-in animation and drag-sort support. It works with `.map()` children to preserve VertzQL field selection.
@@ -13,7 +13,7 @@ import { List } from '@vertz/ui/components';
 function TaskList({ tasks }) {
   return (
     <List>
-      {tasks.map(task => (
+      {tasks.map((task) => (
         <List.Item key={task.id}>{task.title}</List.Item>
       ))}
     </List>
@@ -27,7 +27,7 @@ Enable FLIP animations for enter, exit, and reorder transitions:
 
 ```tsx
 <List animate>
-  {items.map(item => (
+  {items.map((item) => (
     <List.Item key={item.id}>{item.name}</List.Item>
   ))}
 </List>
@@ -36,10 +36,10 @@ Enable FLIP animations for enter, exit, and reorder transitions:
 New items get `data-presence="enter"`, removed items get `data-presence="exit"`. Use CSS to define enter/exit animations:
 
 ```css
-[data-presence="enter"] {
+[data-presence='enter'] {
   animation: fadeIn 200ms ease-out;
 }
-[data-presence="exit"] {
+[data-presence='exit'] {
   animation: fadeOut 200ms ease-out;
 }
 ```
@@ -47,9 +47,7 @@ New items get `data-presence="enter"`, removed items get `data-presence="exit"`.
 ### Custom Animation Config
 
 ```tsx
-<List animate={{ duration: 300, easing: 'ease-in-out' }}>
-  {/* ... */}
-</List>
+<List animate={{ duration: 300, easing: 'ease-in-out' }}>{/* ... */}</List>
 ```
 
 `prefers-reduced-motion` is automatically respected. When the user prefers reduced motion, FLIP reorder animations are skipped.
@@ -62,7 +60,7 @@ Enable drag reordering with `sortable` and `onReorder`:
 function SortableList({ items, onReorder }) {
   return (
     <List sortable onReorder={onReorder}>
-      {items.map(item => (
+      {items.map((item) => (
         <List.Item key={item.id}>
           <List.DragHandle>&#x2630;</List.DragHandle>
           {item.name}
@@ -74,6 +72,7 @@ function SortableList({ items, onReorder }) {
 ```
 
 When `sortable` is true:
+
 - `<List.DragHandle>` elements initiate drag on `pointerdown`
 - If no `<List.DragHandle>` is present, the entire `<List.Item>` acts as the drag handle
 - `onReorder(fromIndex, toIndex)` is called on drop
@@ -101,27 +100,27 @@ Renders a drag handle element inside a `<List.Item>`. Only active when `sortable
 
 ### List (root)
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `classes` | `ListClasses` | — | Class distribution for `root`, `item`, `dragHandle` |
-| `className` | `string` | — | Class for the root `<ul>` element |
-| `animate` | `boolean \| AnimateConfig` | `false` | Enable FLIP animations |
-| `sortable` | `boolean` | `false` | Enable drag-and-sort |
-| `onReorder` | `(from: number, to: number) => void` | — | Called when an item is dragged to a new position |
+| Prop        | Type                                 | Default | Description                                         |
+| ----------- | ------------------------------------ | ------- | --------------------------------------------------- |
+| `classes`   | `ListClasses`                        | —       | Class distribution for `root`, `item`, `dragHandle` |
+| `className` | `string`                             | —       | Class for the root `<ul>` element                   |
+| `animate`   | `boolean \| AnimateConfig`           | `false` | Enable FLIP animations                              |
+| `sortable`  | `boolean`                            | `false` | Enable drag-and-sort                                |
+| `onReorder` | `(from: number, to: number) => void` | —       | Called when an item is dragged to a new position    |
 
 ### AnimateConfig
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `duration` | `number` | `200` | FLIP animation duration in ms |
-| `easing` | `string` | `'ease-out'` | CSS easing function |
+| Prop       | Type     | Default      | Description                   |
+| ---------- | -------- | ------------ | ----------------------------- |
+| `duration` | `number` | `200`        | FLIP animation duration in ms |
+| `easing`   | `string` | `'ease-out'` | CSS easing function           |
 
 ### List.Item / List.DragHandle
 
-| Prop | Type | Description |
-|------|------|-------------|
-| `children` | `ChildValue` | Content |
-| `className` | `string` | Additional CSS class |
+| Prop        | Type         | Description          |
+| ----------- | ------------ | -------------------- |
+| `children`  | `ChildValue` | Content              |
+| `className` | `string`     | Additional CSS class |
 
 ## Theming
 
@@ -132,12 +131,11 @@ import { List } from '@vertz/ui/components';
 
 // Themed automatically — no manual class distribution needed
 <List animate sortable onReorder={handleReorder}>
-  {items.map(item => (
+  {items.map((item) => (
     <List.Item key={item.id}>
       <List.DragHandle>&#x2630;</List.DragHandle>
       {item.name}
     </List.Item>
   ))}
-</List>
+</List>;
 ```
-

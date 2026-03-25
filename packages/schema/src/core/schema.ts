@@ -7,16 +7,16 @@ import { ParseContext } from './parse-context';
 import { SchemaRegistry } from './registry';
 import type { SchemaMetadata, SchemaType } from './types';
 
-// biome-ignore lint/suspicious/noExplicitAny: Schema is invariant; any is required for type-level bounds
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Schema is invariant; any is required for type-level bounds
 export type SchemaAny = Schema<any, any>;
 
 /** Apply Readonly only to object types; leave primitives and `any` unchanged. */
 export type ReadonlyOutput<O> = 0 extends 1 & O ? O : O extends object ? Readonly<O> : O;
 
-// biome-ignore lint/suspicious/noExplicitAny: inner schema with erased output type for wrapper schemas
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- inner schema with erased output type for wrapper schemas
 type InnerSchema<I = unknown> = Schema<any, I>;
 
-// biome-ignore lint/suspicious/noExplicitAny: transform accepts inner schema's erased output
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- transform accepts inner schema's erased output
 type InnerTransformFn<O> = (value: any) => O;
 
 export abstract class Schema<O, I = O> {

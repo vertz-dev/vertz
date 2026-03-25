@@ -68,7 +68,7 @@ function createDatasetProxy(element: SSRElement): DOMStringMap {
 /**
  * Proxy-based CSSStyleDeclaration shim
  */
-// biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
 function createStyleProxy(element: SSRElement): { display: string; [key: string]: any } {
   const styles: Record<string, string> = {};
 
@@ -108,7 +108,7 @@ export class SSRElement extends SSRNode {
   _classList: Set<string> = new Set();
   _textContent: string | null = null;
   _innerHTML: string | null = null;
-  // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
   style: { display: string; [key: string]: any };
   dataset: DOMStringMap;
 
@@ -119,7 +119,7 @@ export class SSRElement extends SSRNode {
     this.dataset = createDatasetProxy(this);
   }
 
-  // biome-ignore lint/suspicious/noExplicitAny: accepts string or style object
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accepts string or style object
   setAttribute(name: string, value: string | Record<string, any>): void {
     if (name === 'style' && typeof value === 'object' && value !== null) {
       // Convert object to CSS string and populate the style proxy's internal map
@@ -422,12 +422,12 @@ export class SSRElement extends SSRNode {
     this.attrs.href = value;
   }
 
-  // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
   addEventListener(_event: string, _handler: any): void {
     // No-op in SSR — event handlers are client-side only
   }
 
-  // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
   removeEventListener(_event: string, _handler: any): void {
     // No-op in SSR — event handlers are client-side only
   }

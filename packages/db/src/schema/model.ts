@@ -17,7 +17,7 @@ import type { ColumnRecord, TableDef } from './table';
 
 export interface ModelDef<
   TTable extends TableDef<ColumnRecord> = TableDef<ColumnRecord>,
-  // biome-ignore lint/complexity/noBannedTypes: {} represents an empty relations record — the correct default for models without relations
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} represents an empty relations record — the correct default for models without relations
   TRelations extends Record<string, RelationDef> = {},
 > {
   readonly table: TTable;

@@ -1,6 +1,6 @@
 ---
 title: Forms
-description: "Type-safe form handling with schema validation"
+description: 'Type-safe form handling with schema validation'
 ---
 
 `form()` connects an HTML form to your API with client-side validation, per-field error tracking, and progressive enhancement.
@@ -15,11 +15,7 @@ export function CreateTaskForm({ onSuccess }: CreateTaskFormProps) {
   const taskForm = form(api.tasks.create, { onSuccess });
 
   return (
-    <form
-      action={taskForm.action}
-      method={taskForm.method}
-      onSubmit={taskForm.onSubmit}
-    >
+    <form action={taskForm.action} method={taskForm.method} onSubmit={taskForm.onSubmit}>
       <input name={taskForm.fields.title} placeholder="Task title" />
       {taskForm.title.error && <span>{taskForm.title.error}</span>}
 
@@ -31,7 +27,11 @@ export function CreateTaskForm({ onSuccess }: CreateTaskFormProps) {
 }
 ```
 
-<Note>When using a generated SDK method, `form()` automatically extracts the validation schema from the method's metadata — no need to pass `schema` manually. You only need to provide a schema explicitly when using a custom (non-generated) SDK method.</Note>
+<Note>
+  When using a generated SDK method, `form()` automatically extracts the validation schema from the
+  method's metadata — no need to pass `schema` manually. You only need to provide a schema
+  explicitly when using a custom (non-generated) SDK method.
+</Note>
 
 ## How it works
 
@@ -49,10 +49,10 @@ Access per-field state via the form instance using the field name:
 const taskForm = form(api.tasks.create, { schema });
 
 // Per-field reactive properties
-taskForm.title.error     // Validation error message (signal)
-taskForm.title.value     // Current value (signal)
-taskForm.title.dirty     // Changed from initial value (signal)
-taskForm.title.touched   // User has focused and blurred (signal)
+taskForm.title.error; // Validation error message (signal)
+taskForm.title.value; // Current value (signal)
+taskForm.title.dirty; // Changed from initial value (signal)
+taskForm.title.touched; // User has focused and blurred (signal)
 
 // Methods
 taskForm.title.setValue('New title');
@@ -83,9 +83,7 @@ The schema must implement a `parse` method:
 
 ```tsx
 interface FormSchema<T> {
-  parse(data: unknown):
-    | { ok: true; data: T }
-    | { ok: false; error: unknown };
+  parse(data: unknown): { ok: true; data: T } | { ok: false; error: unknown };
 }
 ```
 
@@ -102,9 +100,9 @@ taskForm.setFieldError('title', 'Title already exists');
 ## Form-level state
 
 ```tsx
-taskForm.submitting   // true while the API call is in progress
-taskForm.dirty        // true if any field has changed from initial values
-taskForm.valid        // true if no field errors exist
+taskForm.submitting; // true while the API call is in progress
+taskForm.dirty; // true if any field has changed from initial values
+taskForm.valid; // true if no field errors exist
 ```
 
 ## Initial values
@@ -189,15 +187,15 @@ Control this with the `revalidateOn` option:
 ```tsx
 const taskForm = form(api.tasks.create, {
   schema: createTaskSchema,
-  revalidateOn: 'blur',    // default — revalidate on blur
+  revalidateOn: 'blur', // default — revalidate on blur
 });
 ```
 
-| Value | Behavior |
-|-------|----------|
-| `'blur'` (default) | Re-validates errored fields when the user blurs them |
-| `'change'` | Re-validates errored fields on every input or change event |
-| `'submit'` | No re-validation between submissions — errors only update on submit |
+| Value              | Behavior                                                            |
+| ------------------ | ------------------------------------------------------------------- |
+| `'blur'` (default) | Re-validates errored fields when the user blurs them                |
+| `'change'`         | Re-validates errored fields on every input or change event          |
+| `'submit'`         | No re-validation between submissions — errors only update on submit |
 
 Revalidation only activates **after the first form submission**. Before the user submits, no field-level validation feedback is shown. This avoids premature error messages on untouched forms.
 

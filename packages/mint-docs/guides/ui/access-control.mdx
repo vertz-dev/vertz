@@ -1,6 +1,6 @@
 ---
 title: Access Control
-description: "Client-side entitlement checks with can(), AccessGate, and SSR hydration"
+description: 'Client-side entitlement checks with can(), AccessGate, and SSR hydration'
 ---
 
 The `@vertz/ui/auth` module provides UI-advisory access checks. The server computes an access set (what the user can do), embeds it in the JWT, and the client uses it to show/hide UI elements without network requests.
@@ -38,15 +38,15 @@ import { createAccessProvider } from '@vertz/ui/auth';
 **Signature:**
 
 ```ts
-function createAccessProvider(): AccessContextValue
+function createAccessProvider(): AccessContextValue;
 ```
 
 **Returns** an `AccessContextValue` with two signal properties:
 
-| Property | Type | Description |
-|----------|------|-------------|
+| Property    | Type                        | Description                                         |
+| ----------- | --------------------------- | --------------------------------------------------- |
 | `accessSet` | `Signal<AccessSet \| null>` | The decoded access set, or `null` if not yet loaded |
-| `loading` | `Signal<boolean>` | `true` while the access set is being loaded |
+| `loading`   | `Signal<boolean>`           | `true` while the access set is being loaded         |
 
 On initialization, `createAccessProvider()` checks for `window.__VERTZ_ACCESS_SET__`. If present (injected during SSR), the access set is immediately available and `loading` is `false` — no loading flicker. If not present, `loading` starts as `true` until you hydrate it by setting `accessValue.accessSet.value` directly.
 
@@ -127,9 +127,7 @@ function ProjectSettings() {
   return (
     <div>
       <h1>Settings</h1>
-      {deleteCheck.allowed && (
-        <button onClick={handleDelete}>Delete Project</button>
-      )}
+      {deleteCheck.allowed && <button onClick={handleDelete}>Delete Project</button>}
       {!deleteCheck.allowed && deleteCheck.reason === 'plan_required' && (
         <p>Upgrade to delete projects.</p>
       )}
@@ -142,13 +140,13 @@ function ProjectSettings() {
 
 `can()` returns an `AccessCheck` with reactive properties:
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `allowed` | `boolean` | Whether the entitlement is granted |
-| `reasons` | `DenialReason[]` | All denial reasons, ordered by actionability |
-| `reason` | `DenialReason \| undefined` | The most actionable denial reason |
-| `meta` | `DenialMeta \| undefined` | Metadata (usage limits, required plans, etc.) |
-| `loading` | `boolean` | `true` while the access set is loading |
+| Property  | Type                        | Description                                   |
+| --------- | --------------------------- | --------------------------------------------- |
+| `allowed` | `boolean`                   | Whether the entitlement is granted            |
+| `reasons` | `DenialReason[]`            | All denial reasons, ordered by actionability  |
+| `reason`  | `DenialReason \| undefined` | The most actionable denial reason             |
+| `meta`    | `DenialMeta \| undefined`   | Metadata (usage limits, required plans, etc.) |
+| `loading` | `boolean`                   | `true` while the access set is loading        |
 
 All properties are reactive signals under the hood. The compiler auto-unwraps `.value` -- you use them like plain values in JSX and event handlers.
 
@@ -156,15 +154,15 @@ All properties are reactive signals under the hood. The compiler auto-unwraps `.
 
 Reasons are ordered from most actionable (things the user can fix) to least:
 
-| Reason | Meaning | User action |
-|--------|---------|-------------|
-| `plan_required` | Entitlement requires a higher plan | Upgrade |
-| `role_required` | User lacks the required role | Request access |
-| `limit_reached` | Usage limit exceeded for the billing period | Wait or upgrade |
-| `flag_disabled` | Feature flag is off | None |
-| `hierarchy_denied` | No access path through the resource hierarchy | Request access |
-| `step_up_required` | Needs recent MFA verification | Re-authenticate |
-| `not_authenticated` | No user session | Sign in |
+| Reason              | Meaning                                       | User action     |
+| ------------------- | --------------------------------------------- | --------------- |
+| `plan_required`     | Entitlement requires a higher plan            | Upgrade         |
+| `role_required`     | User lacks the required role                  | Request access  |
+| `limit_reached`     | Usage limit exceeded for the billing period   | Wait or upgrade |
+| `flag_disabled`     | Feature flag is off                           | None            |
+| `hierarchy_denied`  | No access path through the resource hierarchy | Request access  |
+| `step_up_required`  | Needs recent MFA verification                 | Re-authenticate |
+| `not_authenticated` | No user session                               | Sign in         |
 
 ### `DenialMeta` structure
 
@@ -179,12 +177,12 @@ interface DenialMeta {
 }
 ```
 
-| Field | Present when | Description |
-|-------|-------------|-------------|
-| `requiredPlans` | `reason === 'plan_required'` | Plans that include this entitlement (e.g., `['pro', 'enterprise']`) |
-| `requiredRoles` | `reason === 'role_required'` | Roles that grant this entitlement (e.g., `['admin', 'editor']`) |
-| `limit` | `reason === 'limit_reached'` | Current usage state: `max` (quota), `consumed` (used), `remaining` (available) |
-| `fvaMaxAge` | `reason === 'step_up_required'` | Max seconds since last MFA verification |
+| Field           | Present when                    | Description                                                                    |
+| --------------- | ------------------------------- | ------------------------------------------------------------------------------ |
+| `requiredPlans` | `reason === 'plan_required'`    | Plans that include this entitlement (e.g., `['pro', 'enterprise']`)            |
+| `requiredRoles` | `reason === 'role_required'`    | Roles that grant this entitlement (e.g., `['admin', 'editor']`)                |
+| `limit`         | `reason === 'limit_reached'`    | Current usage state: `max` (quota), `consumed` (used), `remaining` (available) |
+| `fvaMaxAge`     | `reason === 'step_up_required'` | Max seconds since last MFA verification                                        |
 
 Use `meta` to build contextual UI messages:
 
@@ -244,9 +242,7 @@ function ProjectCard({ project }) {
   return (
     <div>
       <h3>{project.name}</h3>
-      {deleteCheck.allowed && (
-        <button onClick={() => deleteProject(project.id)}>Delete</button>
-      )}
+      {deleteCheck.allowed && <button onClick={() => deleteProject(project.id)}>Delete</button>}
     </div>
   );
 }
@@ -266,9 +262,7 @@ function App() {
 
   return (
     <AccessContext.Provider value={accessValue}>
-      <AccessGate fallback={() => <LoadingSpinner />}>
-        {() => <Router />}
-      </AccessGate>
+      <AccessGate fallback={() => <LoadingSpinner />}>{() => <Router />}</AccessGate>
     </AccessContext.Provider>
   );
 }
@@ -299,7 +293,11 @@ If `can()` is called without an `AccessContext.Provider` in the tree, it returns
   <Card title="Authentication" icon="user" href="/guides/ui/auth">
     AuthProvider, useAuth(), sign-in forms, and token refresh.
   </Card>
-  <Card title="Server-Side Access Control" icon="lock" href="/guides/server/auth#access-control-with-defineaccess">
+  <Card
+    title="Server-Side Access Control"
+    icon="lock"
+    href="/guides/server/auth#access-control-with-defineaccess"
+  >
     Configure hierarchy, roles, plans, and usage limits.
   </Card>
   <Card title="Code Generation" icon="wand-magic-sparkles" href="/guides/server/codegen">

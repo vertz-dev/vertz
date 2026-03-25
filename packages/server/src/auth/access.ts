@@ -45,6 +45,7 @@ export interface AccessInstance {
   /** Get all entitlements for a role */
   getEntitlementsForRole(role: string): string[];
   /** Middleware that adds ctx.can() and ctx.authorize() to context */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type-level bound requires any
   middleware: () => any;
 }
 
@@ -230,6 +231,7 @@ export function createAccess(config: AccessConfig): AccessInstance {
   // ==========================================================================
 
   function createMiddleware() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type-level bound requires any
     return async (ctx: any, next: () => Promise<void>) => {
       // Attach can and authorize to context
       ctx.can = async (entitlement: string, resource?: Resource) => {

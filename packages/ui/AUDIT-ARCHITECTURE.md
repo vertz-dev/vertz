@@ -53,6 +53,7 @@ The `package.json` exports are well-designed:
 ```
 
 This separation:
+
 - Keeps internal implementation details hidden from consumers
 - Provides explicit contracts for the `@vertz/ui-compiler` integration
 - Allows tree-shaking and reduces bundle sizes for partial consumers
@@ -80,6 +81,7 @@ The CSS module (`css/`) has excellent architecture:
 - **`variants.ts`**: Type-safe variant system inspired by Stitches/CVA
 
 The `variants()` function provides excellent TypeScript inference:
+
 ```ts
 const button = variants({
   base: ['flex', 'rounded:md'],
@@ -123,17 +125,20 @@ import { type ContextScope, getContextScope, setContextScope } from '../componen
 ```
 
 This creates a bidirectional dependency:
+
 - `runtime/signal.ts` → `component/context.ts`
 - `component/lifecycle.ts` → `runtime/signal.ts`
 - `component/context.ts` is used by effects to restore context
 
 **Why it matters:**
+
 - Violates the "runtime is foundation" principle
 - Makes it impossible to use signals independently of the component model
 - Could cause issues with tree-shaking or circular import resolution at scale
 
-**Recommendation:** 
+**Recommendation:**
 Move context scope management into the runtime layer:
+
 ```
 src/runtime/
 ├── signal.ts         # Remove context dependency
@@ -157,18 +162,21 @@ export {
 While this is intentional (compiler needs access), it exposes implementation details that could change.
 
 **Recommendation:**
+
 - Consider a `@vertz/ui/tokens` subpath for stable token access
 - Document token stability guarantees in `token-tables.ts` header
 
 ### 3. JSX Runtime Duplication (MEDIUM IMPACT)
 
 **Issue:** Two JSX runtime files exist:
+
 - `src/jsx-runtime.ts` (root level, 80 lines)
 - `src/jsx-runtime/index.ts` (subfolder, 150 lines with full JSX namespace)
 
 The root `jsx-runtime.ts` appears to be a simpler version while `jsx-runtime/index.ts` has the full TypeScript types.
 
 **Recommendation:**
+
 - Consolidate into a single source of truth
 - If both are needed, document why and their different purposes
 
@@ -181,6 +189,7 @@ The root `jsx-runtime.ts` appears to be a simpler version while `jsx-runtime/ind
 - Effect disposal is internal (`_dispose()` on `EffectImpl`)
 
 **Recommendation:**
+
 ```typescript
 // Add to signal-types.ts
 export interface WritableSignal<T> extends Signal<T> {
@@ -211,6 +220,7 @@ export interface SdkMethod<TBody, TResult> {
 This assumes a specific generated SDK pattern. While this works with `@vertz/codegen`, it limits form usage to that ecosystem.
 
 **Recommendation:**
+
 - Add a lower-level `form()` overload that accepts any `(data) => Promise<T>` function
 - Document the SDK pattern as the recommended approach but not the only one
 
@@ -228,6 +238,7 @@ export function deriveKey(thunk: () => Promise<unknown>): string {
 This can produce unexpected cache collisions if two different thunks stringify to the same string.
 
 **Recommendation:**
+
 - Document the cache key derivation strategy clearly
 - Consider adding a `key` option override at the top level (already exists but under-documented)
 
@@ -322,27 +333,27 @@ test/         ← imports router
 
 ### What's Extensible
 
-| Feature | Mechanism | Verdict |
-|---------|-----------|---------|
-| Custom components | Function returning `Node` | ✅ Excellent |
-| CSS variants | `variants()` function with full type inference | ✅ Excellent |
-| Form schemas | `FormSchema<T>` interface | ✅ Good |
-| Routes | `RouteDefinitionMap` with nested support | ✅ Good |
-| Signals | `Signal<T>`, `Computed<T>` interfaces | ⚠️ Good (see concern #4) |
+| Feature           | Mechanism                                      | Verdict                  |
+| ----------------- | ---------------------------------------------- | ------------------------ |
+| Custom components | Function returning `Node`                      | ✅ Excellent             |
+| CSS variants      | `variants()` function with full type inference | ✅ Excellent             |
+| Form schemas      | `FormSchema<T>` interface                      | ✅ Good                  |
+| Routes            | `RouteDefinitionMap` with nested support       | ✅ Good                  |
+| Signals           | `Signal<T>`, `Computed<T>` interfaces          | ⚠️ Good (see concern #4) |
 
 ### What's Not Extensible
 
-| Feature | Limitation |
-|---------|------------|
-| Effect disposal | Internal `_dispose()` method |
-| Custom reactive containers | No factory pattern exported |
-| Token scale customization | Hardcoded in `token-tables.ts` |
+| Feature                    | Limitation                     |
+| -------------------------- | ------------------------------ |
+| Effect disposal            | Internal `_dispose()` method   |
+| Custom reactive containers | No factory pattern exported    |
+| Token scale customization  | Hardcoded in `token-tables.ts` |
 
 ---
 
 ## Conclusion
 
-`@vertz/ui` is a well-designed reactive UI framework with clear architectural boundaries. The signal-based reactivity is cleanly implemented, and the separation of public/ internal APIs is exemplary. 
+`@vertz/ui` is a well-designed reactive UI framework with clear architectural boundaries. The signal-based reactivity is cleanly implemented, and the separation of public/ internal APIs is exemplary.
 
 The primary architectural concern is the bidirectional dependency between `runtime` and `component` modules via context scope management. Resolving this would solidify the runtime as a true foundation layer.
 

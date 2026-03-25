@@ -1,6 +1,6 @@
 ---
 title: Services
-description: "Standalone operations and cross-entity workflows"
+description: 'Standalone operations and cross-entity workflows'
 ---
 
 Services are standalone operation groups that aren't tied to a single entity's CRUD lifecycle. Use them for domain services, cross-entity workflows, or any operation that doesn't fit the entity model.
@@ -55,12 +55,12 @@ const notifications = service('notifications', {
 
 ## Services vs. entity custom actions
 
-| | Entity custom actions | Services |
-|---|---|---|
-| **Scope** | Tied to a single entity instance (`:id`) | Independent — no parent entity |
-| **Route** | `POST /api/tasks/:id/archive` | `POST /api/notifications/send-email` |
-| **Context** | Gets the existing record as 3rd argument | No record — just input and context |
-| **Use case** | Operations on a specific record | Cross-entity workflows, domain services |
+|              | Entity custom actions                    | Services                                |
+| ------------ | ---------------------------------------- | --------------------------------------- |
+| **Scope**    | Tied to a single entity instance (`:id`) | Independent — no parent entity          |
+| **Route**    | `POST /api/tasks/:id/archive`            | `POST /api/notifications/send-email`    |
+| **Context**  | Gets the existing record as 3rd argument | No record — just input and context      |
+| **Use case** | Operations on a specific record          | Cross-entity workflows, domain services |
 
 Use entity custom actions when the operation targets a specific record (archive a task, mark as complete). Use services when the operation spans multiple entities or doesn't belong to any single entity.
 
@@ -143,12 +143,12 @@ const saml = service('saml', {
 
 ### Available descriptors
 
-| Descriptor | Content-Type | TypeScript type |
-|---|---|---|
-| `content.xml()` | `application/xml` | `string` |
-| `content.html()` | `text/html` | `string` |
-| `content.text()` | `text/plain` | `string` |
-| `content.binary()` | `application/octet-stream` | `Uint8Array` |
+| Descriptor         | Content-Type               | TypeScript type |
+| ------------------ | -------------------------- | --------------- |
+| `content.xml()`    | `application/xml`          | `string`        |
+| `content.html()`   | `text/html`                | `string`        |
+| `content.text()`   | `text/plain`               | `string`        |
+| `content.binary()` | `application/octet-stream` | `Uint8Array`    |
 
 ### How it works
 
@@ -195,7 +195,9 @@ actions: {
 ```
 
 <Note>
-JSON endpoints **must** always use `s.*` schemas for `body` and `response`. Content descriptors are for non-JSON content types only. This ensures all JSON endpoints are fully validated and typed.
+  JSON endpoints **must** always use `s.*` schemas for `body` and `response`. Content descriptors
+  are for non-JSON content types only. This ensures all JSON endpoints are fully validated and
+  typed.
 </Note>
 
 ## Custom response headers and status codes
@@ -214,9 +216,12 @@ const cloud = service('cloud', {
       response: s.object({ keys: s.array(jwkSchema) }),
       handler: async (_input, ctx) => {
         const keys = await getPublicKeys(ctx);
-        return response({ keys }, {
-          headers: { 'Cache-Control': 'public, max-age=3600' },
-        });
+        return response(
+          { keys },
+          {
+            headers: { 'Cache-Control': 'public, max-age=3600' },
+          },
+        );
       },
     },
 
@@ -236,8 +241,8 @@ Plain return values still work — `response()` is purely opt-in:
 
 ```ts
 // These two are equivalent:
-handler: async () => ({ token: 'tok' })
-handler: async () => response({ token: 'tok' })
+handler: async () => ({ token: 'tok' });
+handler: async () => response({ token: 'tok' });
 ```
 
 ### Rules
@@ -248,7 +253,8 @@ handler: async () => response({ token: 'tok' })
 - `response()` works with both JSON and content descriptor responses
 
 <Note>
-Entity custom actions also support `response()`. The same pattern applies — wrap the return value to set custom headers or status codes.
+  Entity custom actions also support `response()`. The same pattern applies — wrap the return value
+  to set custom headers or status codes.
 </Note>
 
 ## Request metadata
@@ -261,7 +267,7 @@ handler: async (_input, ctx) => {
   const requestUrl = ctx.request.url;
   const httpMethod = ctx.request.method;
   // ctx.request.body contains the pre-parsed body
-}
+};
 ```
 
 ## Atomic request handling
@@ -329,6 +335,5 @@ createServer({
   entities: [users, tasks],
   services: [notifications, reports],
   db,
-})
-  .listen({ port: 3000 });
+}).listen({ port: 3000 });
 ```

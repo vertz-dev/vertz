@@ -1,6 +1,6 @@
 ---
 title: OAuth Providers
-description: "Add Google, GitHub, or Discord sign-in with provider factory functions"
+description: 'Add Google, GitHub, or Discord sign-in with provider factory functions'
 ---
 
 Vertz ships factory functions for OAuth providers. Configure your credentials, add the provider to `createAuth()`, and the framework handles the full flow: authorization redirect, callback handling, PKCE, token exchange, and account linking.
@@ -55,18 +55,18 @@ All providers share the same config interface:
 interface OAuthProviderConfig {
   clientId: string;
   clientSecret: string;
-  redirectUrl?: string;   // Callback URL registered with the provider
-  scopes?: string[];      // Override default scopes
+  redirectUrl?: string; // Callback URL registered with the provider
+  scopes?: string[]; // Override default scopes
 }
 ```
 
 ### Default scopes
 
-| Provider | Default scopes | Email trust |
-|----------|---------------|-------------|
-| **Google** | `openid`, `email`, `profile` | Trusted (verified by OIDC) |
-| **GitHub** | `read:user`, `user:email` | Untrusted |
-| **Discord** | `identify`, `email` | Untrusted |
+| Provider    | Default scopes               | Email trust                |
+| ----------- | ---------------------------- | -------------------------- |
+| **Google**  | `openid`, `email`, `profile` | Trusted (verified by OIDC) |
+| **GitHub**  | `read:user`, `user:email`    | Untrusted                  |
+| **Discord** | `identify`, `email`          | Untrusted                  |
 
 ## Account linking
 
@@ -77,7 +77,9 @@ When a user signs in via OAuth, the system follows a three-path resolution:
 3. **No match** — Create a new user account and link the provider account.
 
 <Note>
-GitHub and Discord don't verify email ownership at the OAuth level, so they never auto-link to existing accounts. Each GitHub/Discord sign-in creates a new account unless a link already exists in the `OAuthAccountStore`.
+  GitHub and Discord don't verify email ownership at the OAuth level, so they never auto-link to
+  existing accounts. Each GitHub/Discord sign-in creates a new account unless a link already exists
+  in the `OAuthAccountStore`.
 </Note>
 
 ## Required configuration
@@ -130,20 +132,20 @@ Control where users land after OAuth:
 ```ts
 const auth = createAuth({
   // ...
-  oauthSuccessRedirect: '/dashboard',     // Default: '/'
-  oauthErrorRedirect: '/auth/error',      // Default: '/auth/error'
+  oauthSuccessRedirect: '/dashboard', // Default: '/'
+  oauthErrorRedirect: '/auth/error', // Default: '/auth/error'
 });
 ```
 
 ## Security
 
-| Protection | How |
-|-----------|-----|
-| **PKCE** | S256 code challenge for Google and Discord (GitHub doesn't support PKCE) |
-| **State cookie** | AES-256-GCM encrypted, prevents CSRF on the callback |
-| **OIDC nonce** | Validated in Google ID tokens to prevent replay attacks |
-| **Rate limiting** | 10 OAuth initiations per 5 minutes per IP |
-| **Email validation** | Empty emails rejected before user creation |
+| Protection           | How                                                                      |
+| -------------------- | ------------------------------------------------------------------------ |
+| **PKCE**             | S256 code challenge for Google and Discord (GitHub doesn't support PKCE) |
+| **State cookie**     | AES-256-GCM encrypted, prevents CSRF on the callback                     |
+| **OIDC nonce**       | Validated in Google ID tokens to prevent replay attacks                  |
+| **Rate limiting**    | 10 OAuth initiations per 5 minutes per IP                                |
+| **Email validation** | Empty emails rejected before user creation                               |
 
 ## Environment variables
 

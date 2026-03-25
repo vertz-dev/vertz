@@ -34,6 +34,7 @@ curl http://localhost:3000/users
 ```
 
 Response:
+
 ```json
 {
   "users": [
@@ -52,6 +53,7 @@ curl http://localhost:3000/users/1
 ```
 
 Response:
+
 ```json
 {
   "id": "1",
@@ -71,6 +73,7 @@ curl -X POST http://localhost:3000/users \
 ```
 
 Response:
+
 ```json
 {
   "created": true,
@@ -93,6 +96,7 @@ curl -X PUT http://localhost:3000/users/1 \
 ```
 
 Response:
+
 ```json
 {
   "updated": true,
@@ -113,6 +117,7 @@ curl -X DELETE http://localhost:3000/users/1
 ```
 
 Response:
+
 ```json
 {
   "deleted": true
@@ -127,6 +132,7 @@ Response:
 - **App**: Registers modules and starts the server
 
 This separation allows for:
+
 - Easy testing (mock services in tests)
 - Reusability (services can be used by multiple routers)
 - Scalability (add more modules as the app grows)

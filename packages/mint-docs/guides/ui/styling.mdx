@@ -1,6 +1,6 @@
 ---
 title: Styling
-description: "Scoped styles with css() and parameterized styles with variants()"
+description: 'Scoped styles with css() and parameterized styles with variants()'
 ---
 
 Vertz provides a built-in styling system based on design tokens. No CSS files, no class name collisions, no build-step CSS tooling. You write styles in TypeScript and get scoped class names at runtime.
@@ -34,18 +34,18 @@ Each key in the object becomes a scoped class name. The token syntax (`bg:card`,
 
 Tokens follow the pattern `property:value`:
 
-| Token | CSS output |
-|-------|-----------|
-| `bg:card` | `background-color: var(--color-card)` |
-| `text:foreground` | `color: var(--color-foreground)` |
-| `font:lg` | `font-size: 1.125rem` |
-| `font:bold` | `font-weight: 700` |
-| `rounded:lg` | `border-radius: 0.5rem` |
-| `p:4` | `padding: 1rem` |
-| `px:4` | `padding-inline: 1rem` |
-| `flex` | `display: flex` |
-| `items:center` | `align-items: center` |
-| `gap:2` | `gap: 0.5rem` |
+| Token             | CSS output                            |
+| ----------------- | ------------------------------------- |
+| `bg:card`         | `background-color: var(--color-card)` |
+| `text:foreground` | `color: var(--color-foreground)`      |
+| `font:lg`         | `font-size: 1.125rem`                 |
+| `font:bold`       | `font-weight: 700`                    |
+| `rounded:lg`      | `border-radius: 0.5rem`               |
+| `p:4`             | `padding: 1rem`                       |
+| `px:4`            | `padding-inline: 1rem`                |
+| `flex`            | `display: flex`                       |
+| `items:center`    | `align-items: center`                 |
+| `gap:2`           | `gap: 0.5rem`                         |
 
 The full token set comes from your theme (`@vertz/theme-shadcn` or a custom theme defined with `defineTheme()`).
 
@@ -65,19 +65,19 @@ const styles = css({
 
 **Available namespaces** -- these are the color namespaces that support shade notation:
 
-| Namespace | Example | CSS output |
-|-----------|---------|-----------|
-| `primary` | `bg:primary.600` | `background-color: var(--color-primary-600)` |
-| `secondary` | `text:secondary.400` | `color: var(--color-secondary-400)` |
-| `accent` | `bg:accent.100` | `background-color: var(--color-accent-100)` |
-| `gray` | `text:gray.500` | `color: var(--color-gray-500)` |
+| Namespace     | Example              | CSS output                                       |
+| ------------- | -------------------- | ------------------------------------------------ |
+| `primary`     | `bg:primary.600`     | `background-color: var(--color-primary-600)`     |
+| `secondary`   | `text:secondary.400` | `color: var(--color-secondary-400)`              |
+| `accent`      | `bg:accent.100`      | `background-color: var(--color-accent-100)`      |
+| `gray`        | `text:gray.500`      | `color: var(--color-gray-500)`                   |
 | `destructive` | `bg:destructive.600` | `background-color: var(--color-destructive-600)` |
-| `danger` | `text:danger.500` | `color: var(--color-danger-500)` |
-| `success` | `bg:success.100` | `background-color: var(--color-success-100)` |
-| `warning` | `border:warning.300` | `border-color: var(--color-warning-300)` |
-| `info` | `bg:info.50` | `background-color: var(--color-info-50)` |
-| `muted` | `text:muted.600` | `color: var(--color-muted-600)` |
-| `surface` | `bg:surface.100` | `background-color: var(--color-surface-100)` |
+| `danger`      | `text:danger.500`    | `color: var(--color-danger-500)`                 |
+| `success`     | `bg:success.100`     | `background-color: var(--color-success-100)`     |
+| `warning`     | `border:warning.300` | `border-color: var(--color-warning-300)`         |
+| `info`        | `bg:info.50`         | `background-color: var(--color-info-50)`         |
+| `muted`       | `text:muted.600`     | `color: var(--color-muted-600)`                  |
+| `surface`     | `bg:surface.100`     | `background-color: var(--color-surface-100)`     |
 
 **Shade scale** -- each namespace supports shades from `50` (lightest) to `950` (darkest):
 
@@ -93,7 +93,7 @@ import { palettes } from '@vertz/ui/css';
 
 const theme = defineTheme({
   colors: {
-    primary: palettes.blue,    // all shades 50-950
+    primary: palettes.blue, // all shades 50-950
     danger: palettes.red,
     success: palettes.emerald,
     gray: palettes.zinc,
@@ -177,7 +177,9 @@ let isActive = false;
 return (
   <button
     className={button({ intent: isActive ? 'primary' : 'ghost' })}
-    onClick={() => { isActive = !isActive; }}
+    onClick={() => {
+      isActive = !isActive;
+    }}
   >
     Toggle
   </button>
@@ -187,6 +189,7 @@ return (
 ## When to use `css()` vs inline styles
 
 **Use `css()` for:**
+
 - Layout and spacing (`flex`, `grid`, `p:4`, `gap:2`)
 - Sizing (`w:full`, `h:screen`, `max-w:lg`)
 - Typography scales (`font:lg`, `font:semibold`, `text:sm`)
@@ -195,6 +198,7 @@ return (
 - Pseudo-states (`&:hover`, `&:focus`, `&:disabled`)
 
 **Use inline `style` for:**
+
 - Truly dynamic values computed at runtime (`transform`, `translate`)
 - Syntax highlight colors or external color values
 - Complex CSS that has no token equivalent (gradients, `clamp()`, `backdrop-filter`)
@@ -202,21 +206,25 @@ return (
 - CSS custom property references (`var(--my-custom-prop)`)
 
 ```tsx
-{/* css() -- theme-aware, scoped, pseudo-state support */}
+{
+  /* css() -- theme-aware, scoped, pseudo-state support */
+}
 const styles = css({
   card: ['bg:card', 'rounded:lg', 'p:6', 'shadow:md'],
   title: ['font:xl', 'font:bold', 'text:foreground'],
 });
 
-{/* inline style -- dynamic runtime value */}
-<div style={`transform: translateX(${offset}px)`}>
-  Sliding content
-</div>
+{
+  /* inline style -- dynamic runtime value */
+}
+<div style={`transform: translateX(${offset}px)`}>Sliding content</div>;
 
-{/* inline style -- complex CSS without token equivalent */}
+{
+  /* inline style -- complex CSS without token equivalent */
+}
 <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%)">
   Gradient background
-</div>
+</div>;
 ```
 
 ## Theme

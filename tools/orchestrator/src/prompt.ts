@@ -43,7 +43,7 @@ Follow the bug fix workflow from .claude/rules/:
 7. **Quality gates** — run ALL:
    - \`bun test\` (at minimum the changed packages)
    - \`bun run typecheck\`
-   - \`bunx biome check --write <changed-files>\`
+   - \`bunx oxlint --fix <changed-files> && bunx oxfmt <changed-files>\`
 8. **Commit** — \`<type>(<scope>): <description> (#ISSUE)\`
 9. **Rebase on latest main** — MANDATORY before pushing:
    \`\`\`bash
@@ -77,7 +77,7 @@ If the feature is a straightforward addition (wiring props, adding a missing exp
 3. **Quality gates after every green**:
    - \`bun test\`
    - \`bun run typecheck\`
-   - \`bunx biome check --write <changed-files>\`
+   - \`bunx oxlint --fix <changed-files> && bunx oxfmt <changed-files>\`
 4. **Commit each phase**
 5. **Self-review** — adversarially review your own changes. Look for:
    - Does it deliver what the issue asks?
@@ -105,7 +105,7 @@ const TEST_WORKFLOW = `
 5. **Quality gates**:
    - \`bun test\`
    - \`bun run typecheck\`
-   - \`bunx biome check --write <changed-files>\`
+   - \`bunx oxlint --fix <changed-files> && bunx oxfmt <changed-files>\`
 6. **Commit**
 7. **Rebase on latest main** — MANDATORY before pushing:
    \`\`\`bash

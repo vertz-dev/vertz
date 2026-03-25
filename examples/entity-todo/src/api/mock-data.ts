@@ -29,7 +29,7 @@ const todos: TodosResponse[] = [
 /** Reset mock data to initial state and install fetch mock. */
 export function resetMockData(): void {
   // Clear the query cache so each test starts with loading=true
-  // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR global hook requires globalThis augmentation
   (globalThis as any).__VERTZ_CLEAR_QUERY_CACHE__?.();
   todos.length = 0;
   todos.push(

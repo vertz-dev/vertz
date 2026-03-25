@@ -181,7 +181,7 @@ export const s = {
     new LiteralSchema(value),
   union: <T extends [SchemaAny, ...SchemaAny[]]>(options: [...T]): UnionSchema<T> =>
     new UnionSchema(options),
-  // biome-ignore lint/suspicious/noExplicitAny: ObjectSchema<any> needed for covariant constraint on concrete shapes
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ObjectSchema<any> needed for covariant constraint on concrete shapes
   discriminatedUnion: <T extends [ObjectSchema<any>, ...ObjectSchema<any>[]]>(
     discriminator: string,
     options: [...T],
@@ -197,7 +197,7 @@ export const s = {
   file: (): FileSchema => new FileSchema(),
   custom: <T>(check: (value: unknown) => boolean, message?: string): CustomSchema<T> =>
     new CustomSchema<T>(check, message),
-  // biome-ignore lint/suspicious/noExplicitAny: standard TS pattern for any-constructor constraint
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- standard TS pattern for any-constructor constraint
   instanceof: <T>(cls: new (...args: any[]) => T): InstanceOfSchema<T> => new InstanceOfSchema(cls),
   lazy: <T>(getter: () => Schema<T>): LazySchema<T> => new LazySchema(getter),
 

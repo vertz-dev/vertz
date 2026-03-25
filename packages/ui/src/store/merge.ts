@@ -13,6 +13,7 @@ export function shallowMerge<T extends Record<string, unknown>>(
   for (const key of Object.keys(incoming)) {
     const value = incoming[key as keyof T];
     if (value !== undefined) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type-level bound requires any
       (result as any)[key] = value;
     }
   }

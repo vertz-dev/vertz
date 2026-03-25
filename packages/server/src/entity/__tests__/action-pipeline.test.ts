@@ -191,7 +191,7 @@ describe('Feature: action pipeline', () => {
         },
       },
       after: {
-        // biome-ignore lint/suspicious/noExplicitAny: testing dynamic after hooks
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing dynamic after hooks
         complete: afterCompleteSpy,
       } as any,
     });

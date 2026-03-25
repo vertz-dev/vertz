@@ -66,7 +66,7 @@ describe('Router Integration Tests', () => {
       outletResult = Outlet();
     });
 
-    // biome-ignore lint/style/noNonNullAssertion: value is guaranteed set inside Provider callback
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- value is guaranteed set inside Provider callback
     parentLayout.appendChild(outletResult!);
 
     // Outlet container is a div, with the child content inside
@@ -105,7 +105,7 @@ describe('Router Integration Tests', () => {
     expect(match).not.toBeNull();
     expect(match?.matched).toHaveLength(2);
 
-    // biome-ignore lint/style/noNonNullAssertion: asserted non-null above
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- asserted non-null above
     const results = await executeLoaders(match!.matched, match!.params);
 
     // Both loaders started before either finished (parallel execution)
@@ -228,7 +228,7 @@ describe('Router Integration Tests', () => {
     // Error component can render using the error
     const errorFn = router.current.value?.route.errorComponent;
     expect(errorFn).toBeDefined();
-    // biome-ignore lint/style/noNonNullAssertion: asserted non-null above
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- asserted non-null above
     const errorNode = errorFn!({ error: router.loaderError.value!, retry: () => {} });
     expect(errorNode.textContent).toBe('Error: Data fetch failed');
     expect((errorNode as HTMLElement).className).toBe('error');

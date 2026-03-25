@@ -1,6 +1,6 @@
 ---
 title: Form
-description: "API reference for form() — type-safe form handling with validation"
+description: 'API reference for form() — type-safe form handling with validation'
 ---
 
 `form()` creates a type-safe form instance bound to a [generated SDK](/api-reference/fetch/sdk) mutation method. It provides reactive field state, schema validation, progressive enhancement attributes (`action`, `method`), and per-field error tracking.
@@ -25,7 +25,9 @@ function CreateTaskForm({ onSuccess }: { onSuccess: () => void }) {
       <textarea name={taskForm.fields.description} />
       {taskForm.description.error && <span>{taskForm.description.error}</span>}
 
-      <button type="submit" disabled={taskForm.submitting}>Create</button>
+      <button type="submit" disabled={taskForm.submitting}>
+        Create
+      </button>
     </form>
   );
 }
@@ -36,8 +38,8 @@ function CreateTaskForm({ onSuccess }: { onSuccess: () => void }) {
 ```ts
 function form<TBody, TResult>(
   sdkMethod: SdkMethod<TBody, TResult>,
-  options?: FormOptions<TBody, TResult>
-): FormInstance<TBody, TResult>
+  options?: FormOptions<TBody, TResult>,
+): FormInstance<TBody, TResult>;
 ```
 
 ---
@@ -48,43 +50,43 @@ The returned instance has two kinds of properties: reserved form properties and 
 
 ### Form properties
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `action` | `string` | URL for the form's `action` attribute (progressive enhancement) |
-| `method` | `string` | HTTP method for the form's `method` attribute |
-| `onSubmit` | `(e: Event) => Promise<void>` | Submit handler — validates, then calls the SDK method |
-| `submitting` | `boolean` | `true` while the submission is in flight |
-| `dirty` | `boolean` | `true` if any field has been modified |
-| `valid` | `boolean` | `true` if all fields pass validation |
-| `reset()` | `() => void` | Reset all fields to initial values |
-| `submit()` | `(formData?: FormData) => Promise<void>` | Programmatic submit |
-| `setFieldError()` | `(field: string, message: string) => void` | Set a custom error on a field |
+| Property          | Type                                       | Description                                                     |
+| ----------------- | ------------------------------------------ | --------------------------------------------------------------- |
+| `action`          | `string`                                   | URL for the form's `action` attribute (progressive enhancement) |
+| `method`          | `string`                                   | HTTP method for the form's `method` attribute                   |
+| `onSubmit`        | `(e: Event) => Promise<void>`              | Submit handler — validates, then calls the SDK method           |
+| `submitting`      | `boolean`                                  | `true` while the submission is in flight                        |
+| `dirty`           | `boolean`                                  | `true` if any field has been modified                           |
+| `valid`           | `boolean`                                  | `true` if all fields pass validation                            |
+| `reset()`         | `() => void`                               | Reset all fields to initial values                              |
+| `submit()`        | `(formData?: FormData) => Promise<void>`   | Programmatic submit                                             |
+| `setFieldError()` | `(field: string, message: string) => void` | Set a custom error on a field                                   |
 
 ### Per-field accessors
 
 Access any field by name on the form instance (e.g., `taskForm.title`). Each field is a `FieldState`:
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `value` | `T` | Current field value |
-| `error` | `string \| undefined` | Validation error message |
-| `dirty` | `boolean` | `true` if the field has been modified |
-| `touched` | `boolean` | `true` if the field has been focused and blurred |
-| `setValue()` | `(value: T) => void` | Update value and mark dirty |
-| `reset()` | `() => void` | Reset to initial value, clear error/dirty/touched |
+| Property     | Type                  | Description                                       |
+| ------------ | --------------------- | ------------------------------------------------- |
+| `value`      | `T`                   | Current field value                               |
+| `error`      | `string \| undefined` | Validation error message                          |
+| `dirty`      | `boolean`             | `true` if the field has been modified             |
+| `touched`    | `boolean`             | `true` if the field has been focused and blurred  |
+| `setValue()` | `(value: T) => void`  | Update value and mark dirty                       |
+| `reset()`    | `() => void`          | Reset to initial value, clear error/dirty/touched |
 
 ---
 
 ## FormOptions
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `schema` | `FormSchema<TBody>` | — | Validation schema (auto-inferred from SDK metadata when available) |
-| `initial` | `Partial<TBody> \| () => Partial<TBody>` | — | Initial field values |
-| `onSuccess` | `(result: TResult) => void` | — | Callback after successful submission |
-| `onError` | `(errors: Record<string, string>) => void` | — | Callback on validation or submission error |
-| `resetOnSuccess` | `boolean` | `false` | Reset fields after successful submission |
-| `revalidateOn` | `'blur' \| 'change' \| 'submit'` | `'blur'` | When to re-validate fields with errors after first submission |
+| Option           | Type                                       | Default  | Description                                                        |
+| ---------------- | ------------------------------------------ | -------- | ------------------------------------------------------------------ |
+| `schema`         | `FormSchema<TBody>`                        | —        | Validation schema (auto-inferred from SDK metadata when available) |
+| `initial`        | `Partial<TBody> \| () => Partial<TBody>`   | —        | Initial field values                                               |
+| `onSuccess`      | `(result: TResult) => void`                | —        | Callback after successful submission                               |
+| `onError`        | `(errors: Record<string, string>) => void` | —        | Callback on validation or submission error                         |
+| `resetOnSuccess` | `boolean`                                  | `false`  | Reset fields after successful submission                           |
+| `revalidateOn`   | `'blur' \| 'change' \| 'submit'`           | `'blur'` | When to re-validate fields with errors after first submission      |
 
 ---
 
@@ -122,7 +124,7 @@ type FormInstance<TBody, TResult> = {
   submitting: boolean;
   dirty: boolean;
   valid: boolean;
-} & { [K in keyof TBody]: FieldState<TBody[K]> }
+} & { [K in keyof TBody]: FieldState<TBody[K]> };
 
 interface FieldState<T = unknown> {
   value: T;

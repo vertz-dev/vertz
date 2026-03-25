@@ -29,14 +29,14 @@ One dependency. Tree-shakeable. No barrel file — every import is explicit.
 
 ## Available subpaths
 
-| Subpath | Package |
-|---------|---------|
-| `vertz/server` | `@vertz/server` |
-| `vertz/schema` | `@vertz/schema` |
-| `vertz/db` | `@vertz/db` |
-| `vertz/testing` | `@vertz/testing` |
-| `vertz/ui` | `@vertz/ui` |
-| `vertz/ui-server` | `@vertz/ui-server` |
+| Subpath             | Package              |
+| ------------------- | -------------------- |
+| `vertz/server`      | `@vertz/server`      |
+| `vertz/schema`      | `@vertz/schema`      |
+| `vertz/db`          | `@vertz/db`          |
+| `vertz/testing`     | `@vertz/testing`     |
+| `vertz/ui`          | `@vertz/ui`          |
+| `vertz/ui-server`   | `@vertz/ui-server`   |
 | `vertz/ui-compiler` | `@vertz/ui-compiler` |
 
 ## Documentation

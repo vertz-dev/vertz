@@ -79,7 +79,6 @@
 - [#1684](https://github.com/vertz-dev/vertz/pull/1684) [`e24615a`](https://github.com/vertz-dev/vertz/commit/e24615a8619ae84b993c18dbdca2671ca254f9bb) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui-compiler): support JSX spread attributes on intrinsic elements and components
 
   JSX spread attributes (`<button {...rest}>`, `<Button {...props}>`) were silently dropped by the compiler. Spread attributes now work correctly:
-
   - **Component calls**: spread emits `...expr` in the props object literal
   - **Intrinsic elements**: spread emits `__spread(el, props)` runtime call that handles event handlers, style, class/className, ref, SVG attributes, and standard HTML attributes
   - **theme-shadcn Button**: removed `applyProps` workaround in favor of native JSX spread
@@ -178,7 +177,6 @@
   Convert the `contextMenu` primitive from an imperative factory function to a
   declarative JSX component with `.Trigger`, `.Content`, `.Item`, `.Group`,
   `.Label`, and `.Separator` sub-components.
-
   - Add `ComposedContextMenu` in `@vertz/ui-primitives` (context-based sub-component wiring)
   - Replace imperative `createThemedContextMenu` factory with `withStyles()` wrapper
   - Promote from lowercase `contextMenu` factory to PascalCase `ContextMenu` compound proxy
@@ -192,7 +190,6 @@
 - [#1355](https://github.com/vertz-dev/vertz/pull/1355) [`cda8b4b`](https://github.com/vertz-dev/vertz/commit/cda8b4b75a52eab1459b41adf686bbe90e5fcf97) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Move event handler wiring (`wireEventHandlers`, `isKnownEventHandler`, `ElementEventHandlers`) from `@vertz/theme-shadcn` to `@vertz/ui-primitives/utils`. Add `applyProps()` utility that combines event wiring and attribute forwarding. Theme components now delegate DOM behavior to primitives.
 
 - [#1383](https://github.com/vertz-dev/vertz/pull/1383) [`4f5c101`](https://github.com/vertz-dev/vertz/commit/4f5c101424c2f7009ef750b2c12c220f377e0813) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(ui-primitives,theme-shadcn): wire missing DropdownMenu onOpenChange, AlertDialog Header, and Select indicator/chevron
-
   - DropdownMenu: add `onOpenChange` to `ComposedDropdownMenuProps` and themed `DropdownMenuRootProps`, forward to `Menu.Root`
   - AlertDialog: expose `Header` sub-component on `ThemedAlertDialogComponent` type and factory
   - Select: add check indicator (`data-part="indicator"`) to items and chevron icon (`data-part="chevron"`) to trigger, wire `itemIndicator` class through themed factory

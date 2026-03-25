@@ -99,7 +99,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   }
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: backdrop overlay dismissal
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- backdrop overlay dismissal
     <div
       role="presentation"
       data-backdrop="true"

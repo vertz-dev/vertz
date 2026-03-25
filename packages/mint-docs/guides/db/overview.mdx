@@ -1,6 +1,6 @@
 ---
 title: Overview
-description: "vertz/db — schema-first database layer with typed queries and automatic migrations"
+description: 'vertz/db — schema-first database layer with typed queries and automatic migrations'
 ---
 
 `vertz/db` is the database layer of the Vertz stack. You define schemas with the `d` builder, query with typed operations, and run migrations with a single command. Types are inferred from your schema — no code generation step, no separate type files.
@@ -9,13 +9,16 @@ description: "vertz/db — schema-first database layer with typed queries and au
 
 <Steps>
   <Step title="Define your schema">
-    Use the `d` builder to declare tables, columns, and relations. Column types, constraints, and annotations are all defined in TypeScript.
+    Use the `d` builder to declare tables, columns, and relations. Column types, constraints, and
+    annotations are all defined in TypeScript.
   </Step>
   <Step title="Query with types">
-    The database client provides typed CRUD operations. Filters, selects, and includes are all type-checked at compile time.
+    The database client provides typed CRUD operations. Filters, selects, and includes are all
+    type-checked at compile time.
   </Step>
   <Step title="Migrate automatically">
-    The CLI diffs your schema against the database and generates migrations. No manual SQL, no migration files to maintain during development.
+    The CLI diffs your schema against the database and generates migrations. No manual SQL, no
+    migration files to maintain during development.
   </Step>
 </Steps>
 
@@ -63,10 +66,11 @@ All databases use the same `createDb()` API — the only difference is the optio
 import { createDb } from 'vertz/db';
 
 const db = createDb({
-  url: process.env.DATABASE_URL!,
-  models: { users: usersModel, tasks: tasksModel },
+url: process.env.DATABASE_URL!,
+models: { users: usersModel, tasks: tasksModel },
 });
-```
+
+````
 
 ```ts SQLite (local file)
 import { createDb } from 'vertz/db';
@@ -77,7 +81,7 @@ const db = createDb({
   models: { users: usersModel, tasks: tasksModel },
   migrations: { autoApply: true },
 });
-```
+````
 
 ```ts Cloudflare D1
 import { createDb, type D1Database } from 'vertz/db';
@@ -90,31 +94,34 @@ export function createD1Db(d1: D1Database) {
   });
 }
 ```
+
 </CodeGroup>
 
-| Option | PostgreSQL | SQLite (local) | Cloudflare D1 |
-|--------|-----------|---------------|--------------|
-| `dialect` | `'postgres'` (default) | `'sqlite'` | `'sqlite'` |
-| Connection | `url: string` | `path: string` | `d1: D1Database` |
-| Migrations | CLI (`vertz db migrate`) | `migrations: { autoApply: true }` | Not available (`autoApply` is disallowed for D1 — use wrangler migrations) |
-| Transactions | `db.transaction()` | `db.transaction()` | Not supported (use `D1Database.batch()`) |
+| Option       | PostgreSQL               | SQLite (local)                    | Cloudflare D1                                                              |
+| ------------ | ------------------------ | --------------------------------- | -------------------------------------------------------------------------- |
+| `dialect`    | `'postgres'` (default)   | `'sqlite'`                        | `'sqlite'`                                                                 |
+| Connection   | `url: string`            | `path: string`                    | `d1: D1Database`                                                           |
+| Migrations   | CLI (`vertz db migrate`) | `migrations: { autoApply: true }` | Not available (`autoApply` is disallowed for D1 — use wrangler migrations) |
+| Transactions | `db.transaction()`       | `db.transaction()`                | Not supported (use `D1Database.batch()`)                                   |
 
 <Note>
-SQLite with `autoApply: true` automatically creates tables on first query — no migration commands needed during development. Boolean values are stored as `0`/`1` and timestamps as ISO strings, but the query layer converts them to native JS types automatically.
+  SQLite with `autoApply: true` automatically creates tables on first query — no migration commands
+  needed during development. Boolean values are stored as `0`/`1` and timestamps as ISO strings, but
+  the query layer converts them to native JS types automatically.
 </Note>
 
 ## What's included
 
-| Feature | Description |
-|---------|-------------|
-| **Schema builder** | Declarative `d` API for tables, columns, relations |
-| **Typed queries** | CRUD operations with compile-time type checking |
-| **Automatic migrations** | Schema diffing with CLI commands |
-| **Multi-dialect** | PostgreSQL and SQLite with a unified API |
-| **Relations** | One-to-many, many-to-one, many-to-many through join tables |
-| **Transactions** | Atomic multi-operation writes with `db.transaction()` |
-| **Error handling** | Result-based errors — never throws |
-| **Multi-tenancy** | Built-in tenant scoping at the model level |
+| Feature                  | Description                                                |
+| ------------------------ | ---------------------------------------------------------- |
+| **Schema builder**       | Declarative `d` API for tables, columns, relations         |
+| **Typed queries**        | CRUD operations with compile-time type checking            |
+| **Automatic migrations** | Schema diffing with CLI commands                           |
+| **Multi-dialect**        | PostgreSQL and SQLite with a unified API                   |
+| **Relations**            | One-to-many, many-to-one, many-to-many through join tables |
+| **Transactions**         | Atomic multi-operation writes with `db.transaction()`      |
+| **Error handling**       | Result-based errors — never throws                         |
+| **Multi-tenancy**        | Built-in tenant scoping at the model level                 |
 
 ## Core principles
 

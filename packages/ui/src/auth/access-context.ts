@@ -52,7 +52,7 @@ export function useAccessContext(): UnwrapSignals<AccessContextValue> {
  * Entitlement registry — augmented by @vertz/codegen to narrow entitlement strings.
  * When empty (no codegen), Entitlement falls back to `string`.
  */
-// biome-ignore lint/suspicious/noEmptyInterface: augmented by codegen
+// eslint-disable-next-line @typescript-eslint/no-empty-interface -- augmented by codegen
 export interface EntitlementRegistry {}
 
 /** Entitlement type — narrows to literal union when codegen populates EntitlementRegistry. */

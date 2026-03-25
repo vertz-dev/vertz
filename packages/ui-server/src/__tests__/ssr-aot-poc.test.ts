@@ -58,7 +58,7 @@ function mockDescriptor<T>(method: string, path: string, data: T) {
     _tag: 'QueryDescriptor' as const,
     _key: key,
     _fetch: fetchResult,
-    // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike
+
     then(onFulfilled?: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) {
       return fetchResult().then(onFulfilled, onRejected);
     },
@@ -72,7 +72,11 @@ function __esc(value: unknown): string {
   if (value == null || value === false) return '';
   if (Array.isArray(value)) return value.map((v) => __esc(v)).join('');
   const s = String(value);
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 /** Boolean attribute — matches DOM shim behavior: true → name="" */
@@ -129,7 +133,11 @@ function __ssr_ProjectCard(project: Project): string {
     escapeHtml(project.key) +
     '</div>' +
     (project.description
-      ? '<p class="' + escapeAttr(cardStyles.description) + '">' + escapeHtml(project.description) + '</p>'
+      ? '<p class="' +
+        escapeAttr(cardStyles.description) +
+        '">' +
+        escapeHtml(project.description) +
+        '</p>'
       : '') +
     '</div>'
   );
@@ -157,7 +165,9 @@ function __ssr_ProjectsPage(data: ProjectListResult | undefined, loading: boolea
     // Loading state conditional
     (loading ? '<div data-testid="projects-skeleton">Loading...</div>' : '') +
     // Empty state conditional
-    (!loading && data?.items.length === 0 ? '<div data-testid="projects-empty">No projects yet</div>' : '') +
+    (!loading && data?.items.length === 0
+      ? '<div data-testid="projects-empty">No projects yet</div>'
+      : '') +
     // Project list
     '<div class="' +
     escapeAttr(pageStyles.grid) +
@@ -185,7 +195,9 @@ function __ssr_ProjectsPage_inlined(data: ProjectListResult | undefined, loading
     '">Projects</h1>' +
     '</header>' +
     (loading ? '<div data-testid="projects-skeleton">Loading...</div>' : '') +
-    (!loading && data?.items.length === 0 ? '<div data-testid="projects-empty">No projects yet</div>' : '') +
+    (!loading && data?.items.length === 0
+      ? '<div data-testid="projects-empty">No projects yet</div>'
+      : '') +
     '<div class="' +
     escapeAttr(pageStyles.grid) +
     '">' +
@@ -268,10 +280,7 @@ function domShim_ProjectCard(project: Project): Element {
 /**
  * Render ProjectsPage via DOM shim (for comparison).
  */
-function domShim_ProjectsPage(
-  data: ProjectListResult | undefined,
-  loading: boolean,
-): Element {
+function domShim_ProjectsPage(data: ProjectListResult | undefined, loading: boolean): Element {
   const container = document.createElement('div');
   container.setAttribute('class', pageStyles.container);
 
@@ -586,7 +595,9 @@ describe('POC 2: Style object serialization parity', () => {
           flexGrow: 1,
           lineHeight: 1.5,
         });
-        expect(result).toBe('opacity: 0.5; z-index: 999; font-weight: 600; flex-grow: 1; line-height: 1.5');
+        expect(result).toBe(
+          'opacity: 0.5; z-index: 999; font-weight: 600; flex-grow: 1; line-height: 1.5',
+        );
       });
 
       it('Then zero values do NOT get px suffix', () => {
@@ -727,7 +738,11 @@ describe('Summary: AOT vs DOM shim across all tiers', () => {
     console.log('  ═══════════════════════════════════════════════════════');
 
     // Tier 1: Static
-    const skelDom = benchmarkSync('', () => domShimToHtml(domShim_ProjectGridSkeleton()), ITERATIONS);
+    const skelDom = benchmarkSync(
+      '',
+      () => domShimToHtml(domShim_ProjectGridSkeleton()),
+      ITERATIONS,
+    );
     const skelAot = benchmarkSync('', () => __ssr_ProjectGridSkeleton, ITERATIONS);
 
     // Tier 2: Data-driven (single component)
@@ -756,11 +771,7 @@ describe('Summary: AOT vs DOM shim across all tiers', () => {
       () => domShimToHtml(domShim_ProjectsPage(largeData, false)),
       ITERATIONS,
     );
-    const page50Aot = benchmarkSync(
-      '',
-      () => __ssr_ProjectsPage(largeData, false),
-      ITERATIONS,
-    );
+    const page50Aot = benchmarkSync('', () => __ssr_ProjectsPage(largeData, false), ITERATIONS);
 
     // Tier 3 inlined (50 items)
     const page50AotInlined = benchmarkSync(
@@ -794,9 +805,15 @@ describe('Summary: AOT vs DOM shim across all tiers', () => {
     const tier3Speedup = page50Dom.avgMs / page50Aot.avgMs;
 
     console.log('  Success thresholds:');
-    console.log(`    Tier 1 (target ≥5x): ${round(tier1Speedup, 1)}x — ${tier1Speedup >= 5 ? 'PASS' : 'FAIL'}`);
-    console.log(`    Tier 2 (target ≥5x): ${round(tier2Speedup, 1)}x — ${tier2Speedup >= 5 ? 'PASS' : 'FAIL'}`);
-    console.log(`    Tier 3 (target ≥3x): ${round(tier3Speedup, 1)}x — ${tier3Speedup >= 3 ? 'PASS' : 'FAIL'}`);
+    console.log(
+      `    Tier 1 (target ≥5x): ${round(tier1Speedup, 1)}x — ${tier1Speedup >= 5 ? 'PASS' : 'FAIL'}`,
+    );
+    console.log(
+      `    Tier 2 (target ≥5x): ${round(tier2Speedup, 1)}x — ${tier2Speedup >= 5 ? 'PASS' : 'FAIL'}`,
+    );
+    console.log(
+      `    Tier 3 (target ≥3x): ${round(tier3Speedup, 1)}x — ${tier3Speedup >= 3 ? 'PASS' : 'FAIL'}`,
+    );
     console.log('');
   });
 });

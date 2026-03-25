@@ -1,6 +1,6 @@
 ---
 title: Domains
-description: "Group entities and services into bounded contexts with automatic route prefixing"
+description: 'Group entities and services into bounded contexts with automatic route prefixing'
 ---
 
 `domain()` groups related entities and services under a shared namespace. Entities and services inside a domain get route-prefixed with the domain name — no manual path configuration needed.
@@ -10,8 +10,13 @@ description: "Group entities and services into bounded contexts with automatic r
 ```ts
 import { createServer, domain, entity, service } from 'vertz/server';
 
-const invoices = entity('invoices', { model: invoicesModel, access: { list: rules.authenticated() } });
-const payments = service('payments', { /* ... */ });
+const invoices = entity('invoices', {
+  model: invoicesModel,
+  access: { list: rules.authenticated() },
+});
+const payments = service('payments', {
+  /* ... */
+});
 
 const billing = domain('billing', {
   entities: [invoices],
@@ -39,11 +44,11 @@ function domain(name: string, config: DomainConfig): DomainDefinition;
 
 ### DomainConfig
 
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
-| `entities` | `EntityDefinition[]` | No* | Entities in this domain |
-| `services` | `ServiceDefinition[]` | No* | Services in this domain |
-| `middleware` | `NamedMiddlewareDef[]` | No | Domain-scoped middleware |
+| Property     | Type                   | Required | Description              |
+| ------------ | ---------------------- | -------- | ------------------------ |
+| `entities`   | `EntityDefinition[]`   | No\*     | Entities in this domain  |
+| `services`   | `ServiceDefinition[]`  | No\*     | Services in this domain  |
+| `middleware` | `NamedMiddlewareDef[]` | No       | Domain-scoped middleware |
 
 \* At least one of `entities` or `services` must be provided.
 

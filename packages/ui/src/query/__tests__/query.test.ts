@@ -656,7 +656,7 @@ describe('query()', () => {
       _tag: 'QueryDescriptor' as const,
       _key: 'GET:/tasks',
       _fetch: () => Promise.resolve(ok([1, 2, 3])),
-      // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+
       then(onFulfilled: any, onRejected: any) {
         return this._fetch().then(onFulfilled, onRejected);
       },
@@ -678,7 +678,7 @@ describe('query()', () => {
       _tag: 'QueryDescriptor' as const,
       _key: 'GET:/tasks/1',
       _fetch: fetchFn,
-      // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+
       then(onFulfilled: any, onRejected: any) {
         return this._fetch().then(onFulfilled, onRejected);
       },
@@ -1435,7 +1435,7 @@ describe('query()', () => {
         _key: 'GET:/todos/1',
         _entity: { entityType: 'todos', kind: 'get' as const, id: '1' },
         _fetch: () => Promise.resolve(ok({ id: '1', title: 'Buy milk', completed: false })),
-        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+
         then(onFulfilled: any, onRejected: any) {
           return this._fetch().then(onFulfilled, onRejected);
         },
@@ -1468,7 +1468,7 @@ describe('query()', () => {
         _key: 'GET:/todos/2',
         _entity: { entityType: 'todos', kind: 'get' as const, id: '2' },
         _fetch: () => Promise.resolve(ok({ id: '2', title: 'Buy milk', completed: false })),
-        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+
         then(onFulfilled: any, onRejected: any) {
           return this._fetch().then(onFulfilled, onRejected);
         },
@@ -1507,7 +1507,7 @@ describe('query()', () => {
               total: 2,
             }),
           ),
-        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+
         then(onFulfilled: any, onRejected: any) {
           return this._fetch().then(onFulfilled, onRejected);
         },
@@ -1549,7 +1549,7 @@ describe('query()', () => {
               total: 2,
             }),
           ),
-        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+
         then(onFulfilled: any, onRejected: any) {
           return this._fetch().then(onFulfilled, onRejected);
         },
@@ -1560,7 +1560,7 @@ describe('query()', () => {
         _key: 'GET:/todos-shared/20',
         _entity: { entityType: 'shared-todos', kind: 'get' as const, id: '20' },
         _fetch: () => Promise.resolve(ok({ id: '20', title: 'Buy milk', completed: false })),
-        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+
         then(onFulfilled: any, onRejected: any) {
           return this._fetch().then(onFulfilled, onRejected);
         },
@@ -1610,7 +1610,7 @@ describe('query()', () => {
               hasNextPage: true,
             }),
           ),
-        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+
         then(onFulfilled: any, onRejected: any) {
           return this._fetch().then(onFulfilled, onRejected);
         },
@@ -1641,7 +1641,7 @@ describe('query()', () => {
         _key: 'GET:/todos/30',
         _entity: { entityType: 'todos', kind: 'get' as const, id: '30' },
         _fetch: () => Promise.resolve(ok({ id: '30', title: 'Persist me', completed: false })),
-        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+
         then(onFulfilled: any, onRejected: any) {
           return this._fetch().then(onFulfilled, onRejected);
         },
@@ -1684,7 +1684,7 @@ describe('query()', () => {
               total: 2,
             }),
           ),
-        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+
         then(onFulfilled: any, onRejected: any) {
           return this._fetch().then(onFulfilled, onRejected);
         },
@@ -1769,7 +1769,7 @@ describe('query()', () => {
             }),
           );
         },
-        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+
         then(onFulfilled: any, onRejected: any) {
           return this._fetch().then(onFulfilled, onRejected);
         },
@@ -1816,7 +1816,7 @@ describe('query()', () => {
             }),
           );
         },
-        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+
         then(onFulfilled: any, onRejected: any) {
           return this._fetch().then(onFulfilled, onRejected);
         },
@@ -1885,7 +1885,7 @@ describe('query()', () => {
             }),
           );
         },
-        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+
         then(onFulfilled: any, onRejected: any) {
           return this._fetch().then(onFulfilled, onRejected);
         },
@@ -1933,7 +1933,7 @@ describe('query()', () => {
             );
           });
         },
-        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+
         then(onFulfilled: any, onRejected: any) {
           return this._fetch().then(onFulfilled, onRejected);
         },
@@ -2080,7 +2080,7 @@ describe('query()', () => {
           _key: `GET:/tasks/${id}`,
           _fetch: fetchFn,
           _entity: { entityType: 'task', kind: 'get' as const, id },
-          // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike mock
+
           then(onFulfilled: any, onRejected: any) {
             return this._fetch().then(onFulfilled, onRejected);
           },
@@ -2196,7 +2196,7 @@ describe('query()', () => {
         _key: `GET:/brands?offset=${dep.value}`,
         _fetch: fetchFn,
         _entity: { entityType: 'brands', kind: 'list' as const },
-        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike mock
+
         then(onFulfilled: any, onRejected: any) {
           return this._fetch().then(onFulfilled, onRejected);
         },
@@ -2250,7 +2250,7 @@ describe('query()', () => {
         _key: `GET:/brands?offset=${offset.value}`,
         _fetch: fetchFn,
         _entity: { entityType: 'brands', kind: 'list' as const },
-        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike mock
+        // eslint-disable-next-line unicorn/no-thenable -- intentional PromiseLike mock
         then(onFulfilled: any, onRejected: any) {
           return this._fetch().then(onFulfilled, onRejected);
         },
@@ -2294,7 +2294,7 @@ describe('query()', () => {
         _key: `GET:/brands?offset=${dep.value}`,
         _fetch: fetchFn,
         _entity: { entityType: 'brands', kind: 'list' as const },
-        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike mock
+        // eslint-disable-next-line unicorn/no-thenable -- intentional PromiseLike mock
         then(onFulfilled: any, onRejected: any) {
           return this._fetch().then(onFulfilled, onRejected);
         },

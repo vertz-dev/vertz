@@ -1,6 +1,6 @@
 ---
 title: Auto Field Selection
-description: "How VertzQL optimizes queries automatically and what to do at third-party component boundaries"
+description: 'How VertzQL optimizes queries automatically and what to do at third-party component boundaries'
 ---
 
 When you use `query()` with the generated SDK, the Vertz compiler automatically analyzes which fields your components access and injects a `select` parameter — so the server only returns the columns you actually use. No manual field picking, no over-fetching.
@@ -18,7 +18,9 @@ const tasks = query(api.tasks.list());
 return (
   <ul>
     {tasks.data?.items.map((task) => (
-      <li>{task.title} — {task.status}</li>
+      <li>
+        {task.title} — {task.status}
+      </li>
     ))}
   </ul>
 );
@@ -34,9 +36,7 @@ return (
 // TaskListPage.tsx
 const tasks = query(api.tasks.list());
 
-return tasks.data?.items.map((task) => (
-  <TaskCard task={task} />
-));
+return tasks.data?.items.map((task) => <TaskCard task={task} />);
 
 // TaskCard.tsx — accesses task.title, task.status, task.assignee
 export function TaskCard({ task }: { task: Task }) {
@@ -58,11 +58,11 @@ The cross-file analysis follows barrel re-exports (`export { Foo } from './bar'`
 
 Auto field selection operates in three tiers:
 
-| Tier | Condition | Result |
-|------|-----------|--------|
-| **Fully optimized** | Compiler resolves all field access | `select` injected with only used fields |
-| **Opaque fallback** | Compiler can't analyze a consumer | No `select` injected — all fields fetched |
-| **User-narrowed** | Developer manually narrows props | `select` injected based on narrowed access |
+| Tier                | Condition                          | Result                                     |
+| ------------------- | ---------------------------------- | ------------------------------------------ |
+| **Fully optimized** | Compiler resolves all field access | `select` injected with only used fields    |
+| **Opaque fallback** | Compiler can't analyze a consumer  | No `select` injected — all fields fetched  |
+| **User-narrowed**   | Developer manually narrows props   | `select` injected based on narrowed access |
 
 Most of the time you're fully optimized — zero effort. The rest of this guide covers the opaque fallback and how to narrow your way back to optimization.
 
@@ -81,9 +81,7 @@ const issues = query(api.issues.list());
 
 // OPAQUE — compiler can't analyze ExternalCard
 // Falls back to fetching ALL issue fields
-return issues.data?.items.map((issue) => (
-  <ExternalCard data={issue} />
-));
+return issues.data?.items.map((issue) => <ExternalCard data={issue} />);
 ```
 
 ### Dynamic imports
@@ -92,7 +90,7 @@ return issues.data?.items.map((issue) => (
 const DynamicComponent = await import(`./components/${name}`);
 
 // OPAQUE — import path is a runtime value
-<DynamicComponent.default data={task} />
+<DynamicComponent.default data={task} />;
 ```
 
 ### Circular re-exports
@@ -114,15 +112,19 @@ Direct expressions and `.map()` callbacks on query data are **fully optimized** 
 
 ```tsx
 // ✅ OPTIMIZED — compiler traces .map() callback field access
-{issues.data?.items.map(issue => (
-  <li>{issue.title} — {issue.status}</li>
-))}
+{
+  issues.data?.items.map((issue) => (
+    <li>
+      {issue.title} — {issue.status}
+    </li>
+  ));
+}
 // Injects: select: { id: true, title: true, status: true }
 
 // ✅ OPTIMIZED — cross-file prop passing works too
-{issues.data?.items.map(issue => (
-  <IssueRow issue={issue} />
-))}
+{
+  issues.data?.items.map((issue) => <IssueRow issue={issue} />);
+}
 // Compiler follows import to IssueRow, merges its field accesses
 ```
 
@@ -139,9 +141,9 @@ However, when query data passes through an **indirection layer** — a component
 
 ```tsx
 // ✅ OPTIMIZED — .map() directly on query data, compiler traces field access
-{issues.data?.items.map(issue => (
-  <IssueRow issue={issue} />
-))}
+{
+  issues.data?.items.map((issue) => <IssueRow issue={issue} />);
+}
 ```
 
 For animated lists, use `<List animate>` which uses `.map()` children — field selection works automatically.
@@ -173,9 +175,7 @@ import { ExternalCard } from 'some-npm-package';
 const issues = query(api.issues.list());
 
 // BEFORE — opaque, fetches all fields
-return issues.data?.items.map((issue) => (
-  <ExternalCard data={issue} />
-));
+return issues.data?.items.map((issue) => <ExternalCard data={issue} />);
 
 // AFTER — compiler sees .title and .number accessed in parent
 // Injects: select: { id: true, title: true, number: true }
@@ -198,14 +198,18 @@ const tasks = query(api.tasks.list());
 
 return (
   <div>
-    <ChartLib data={tasks.data?.items.map((t) => ({
-      label: t.title,
-      value: t.estimate,
-    }))} />
-    <ExportButton rows={tasks.data?.items.map((t) => ({
-      name: t.title,
-      status: t.status,
-    }))} />
+    <ChartLib
+      data={tasks.data?.items.map((t) => ({
+        label: t.title,
+        value: t.estimate,
+      }))}
+    />
+    <ExportButton
+      rows={tasks.data?.items.map((t) => ({
+        name: t.title,
+        status: t.status,
+      }))}
+    />
   </div>
 );
 // Injects: select: { id: true, title: true, estimate: true, status: true }

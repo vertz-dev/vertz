@@ -112,7 +112,12 @@ function ComposedSliderRoot({
         document.addEventListener('pointerup', onUp);
       }}
     >
-      <div ref={trackRef} data-part="track" style={{ position: 'relative' }} class={cn(classes?.track)}>
+      <div
+        ref={trackRef}
+        data-part="track"
+        style={{ position: 'relative' }}
+        class={cn(classes?.track)}
+      >
         <div
           ref={fillRef}
           data-part="fill"

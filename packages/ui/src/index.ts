@@ -107,12 +107,7 @@ export { isBrowser } from './env/is-browser';
 // Forms
 export type { FieldState } from './form/field-state';
 export { createFieldState } from './form/field-state';
-export type {
-  FormInstance,
-  FormOptions,
-  SdkMethod,
-  SdkMethodWithMeta,
-} from './form/form';
+export type { FormInstance, FormOptions, SdkMethod, SdkMethodWithMeta } from './form/form';
 export { form } from './form/form';
 export type { FormDataOptions } from './form/form-data';
 export { formDataToObject } from './form/form-data';
@@ -140,12 +135,7 @@ export type { MountHandle, MountOptions } from './mount';
 // Mount API
 export { mount } from './mount';
 // Data fetching
-export type {
-  CacheStore,
-  QueryDescriptor,
-  QueryOptions,
-  QueryResult,
-} from './query';
+export type { CacheStore, QueryDescriptor, QueryOptions, QueryResult } from './query';
 export { invalidate, invalidateTenantQueries, isQueryDescriptor, query } from './query';
 // Router
 export type {

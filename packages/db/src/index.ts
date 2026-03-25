@@ -62,10 +62,7 @@ export { d } from './d';
 export type { DiagnosticResult } from './diagnostic/index';
 export { diagnoseError, explainError, formatDiagnostic } from './diagnostic/index';
 // Dialect
-export type {
-  ColumnTypeMeta,
-  Dialect,
-} from './dialect';
+export type { ColumnTypeMeta, Dialect } from './dialect';
 export {
   defaultPostgresDialect,
   defaultSqliteDialect,

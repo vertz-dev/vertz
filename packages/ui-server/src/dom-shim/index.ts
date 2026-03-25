@@ -44,9 +44,9 @@ let installedGlobals: string[] = [];
 
 /** Install a global only if it doesn't already exist. */
 function installGlobal(name: string, value: unknown): void {
-  // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR shim requires globalThis augmentation
   if ((globalThis as any)[name] === undefined) {
-    // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR shim requires globalThis augmentation
     Object.defineProperty(globalThis, name, {
       value,
       writable: true,
@@ -68,7 +68,7 @@ export function installDomShim(): void {
   // Clean up any previously tracked globals from a prior install
   // to prevent leaking if installDomShim is called twice without removeDomShim.
   for (const g of installedGlobals) {
-    // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
     delete (globalThis as any)[g];
   }
   installedGlobals = [];
@@ -83,7 +83,7 @@ export function installDomShim(): void {
     savedGlobals = new Map();
     for (const g of SHIM_GLOBALS) {
       if (g in globalThis) {
-        // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
         savedGlobals.set(g, (globalThis as any)[g]);
       }
     }
@@ -116,7 +116,7 @@ export function installDomShim(): void {
     cookie: '',
   };
 
-  // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR shim requires globalThis augmentation
   (globalThis as any).document = fakeDocument;
 
   // Window shim stubs — safe no-ops for SSR
@@ -132,7 +132,7 @@ export function installDomShim(): void {
 
   // Provide a minimal window shim if not present
   if (typeof window === 'undefined') {
-    // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR shim requires globalThis augmentation
     (globalThis as any).window = {
       location: { pathname: ssrStorage.getStore()?.url || '/', search: '', hash: '' },
       history: {
@@ -145,7 +145,7 @@ export function installDomShim(): void {
     // CRITICAL FIX: Update window.location.pathname even if window already exists
     // This handles module caching where router.ts was already loaded but we're
     // rendering a different URL
-    // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR shim requires globalThis augmentation
     const win = (globalThis as any).window;
     win.location = {
       ...(win.location || {}),
@@ -160,27 +160,27 @@ export function installDomShim(): void {
   }
 
   // Provide global DOM constructors for instanceof checks
-  // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR shim requires globalThis augmentation
   (globalThis as any).Node = SSRNode;
-  // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR shim requires globalThis augmentation
   (globalThis as any).HTMLElement = SSRElement;
-  // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR shim requires globalThis augmentation
   (globalThis as any).HTMLAnchorElement = SSRElement;
-  // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR shim requires globalThis augmentation
   (globalThis as any).HTMLDivElement = SSRElement;
-  // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR shim requires globalThis augmentation
   (globalThis as any).HTMLInputElement = SSRElement;
-  // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR shim requires globalThis augmentation
   (globalThis as any).HTMLButtonElement = SSRElement;
-  // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR shim requires globalThis augmentation
   (globalThis as any).HTMLSelectElement = SSRElement;
-  // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR shim requires globalThis augmentation
   (globalThis as any).HTMLTextAreaElement = SSRElement;
-  // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR shim requires globalThis augmentation
   (globalThis as any).DocumentFragment = SSRDocumentFragment;
-  // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR shim requires globalThis augmentation
   (globalThis as any).MouseEvent = class MockMouseEvent {};
-  // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR shim requires globalThis augmentation
   (globalThis as any).Event = class MockEvent {};
 
   // Storage stubs
@@ -269,24 +269,24 @@ export function removeDomShim(): void {
     // Restore globals that existed before install
     for (const g of SHIM_GLOBALS) {
       if (savedGlobals.has(g)) {
-        // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
         (globalThis as any)[g] = savedGlobals.get(g);
       } else {
-        // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
         delete (globalThis as any)[g];
       }
     }
     savedGlobals = null;
   } else {
     for (const g of SHIM_GLOBALS) {
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
       delete (globalThis as any)[g];
     }
   }
 
   // Clean up browser-only stubs that we installed (skip runtime-provided ones)
   for (const g of installedGlobals) {
-    // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
     delete (globalThis as any)[g];
   }
   installedGlobals = [];
@@ -295,7 +295,7 @@ export function removeDomShim(): void {
 /**
  * Convert an SSRElement to a VNode
  */
-// biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
 export function toVNode(element: any): VNode {
   if (element instanceof SSRElement) {
     return element.toVNode();

@@ -6,7 +6,7 @@ import type { JSONSchemaObject, RefTracker } from '../introspection/json-schema'
 import { LiteralSchema } from './literal';
 import type { ObjectSchema } from './object';
 
-// biome-ignore lint/suspicious/noExplicitAny: ObjectSchema<any> needed for covariant constraint on concrete shapes
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- ObjectSchema<any> needed for covariant constraint on concrete shapes
 type DiscriminatedOptions = [ObjectSchema<any>, ...ObjectSchema<any>[]];
 type InferDiscriminatedUnion<T extends DiscriminatedOptions> = T[number] extends infer U
   ? U extends Schema<infer O>
@@ -25,7 +25,7 @@ export class DiscriminatedUnionSchema<T extends DiscriminatedOptions> extends Sc
 > {
   private readonly _discriminator: string;
   private readonly _options: T;
-  // biome-ignore lint/suspicious/noExplicitAny: erased shape type for runtime lookup
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- erased shape type for runtime lookup
   private readonly _lookup: Map<unknown, ObjectSchema<any>>;
 
   constructor(discriminator: string, options: T) {

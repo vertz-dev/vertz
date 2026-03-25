@@ -16,7 +16,7 @@ For each phase:
 2. **Quality gates** — ALL must pass before review:
    - `bun test` (changed packages)
    - `bun run typecheck` (changed packages)
-   - `bunx biome check --fix <changed-files>`
+   - `bunx oxlint --fix <changed-files> && bunx oxfmt <changed-files>`
 3. **Commit** — stage and commit all changes for the phase
 4. **Adversarial review** — spawn 1 review agent:
    - Reviews check: delivers what ticket asks, TDD compliance, no type gaps, no security issues, API matches design doc

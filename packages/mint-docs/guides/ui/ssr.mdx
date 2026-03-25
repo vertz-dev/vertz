@@ -1,6 +1,6 @@
 ---
 title: Server-Side Rendering
-description: "SSR — single-pass rendering, query pre-fetch, and hydration"
+description: 'SSR — single-pass rendering, query pre-fetch, and hydration'
 ---
 
 Vertz SSR is built into the stack — not bolted on. The dev server renders every page on the server, pre-fetches query data, and hydrates on the client. No separate SSR configuration needed.
@@ -51,6 +51,7 @@ export function App() {
 ```
 
 The SSR handler reads these exports:
+
 - `App` (or `default`) — the app component
 - `theme` — design tokens compiled to CSS
 - `styles` — global CSS strings injected into `<head>`
@@ -139,6 +140,7 @@ bunx vertz dev
 ```
 
 The dev server:
+
 - Compiles `.tsx` files through the Vertz compiler
 - Server-side renders every page request
 - Pre-fetches query data during SSR
@@ -163,11 +165,11 @@ Vertz production builds use **AOT (Ahead-of-Time) compiled SSR** by default — 
 
 The compiler analyzes each component and classifies it into a tier:
 
-| Tier | What it means | Example |
-|------|---------------|---------|
-| **Static** | No dynamic data — pure string | `<footer>© 2026</footer>` |
-| **Data-driven** | Uses props/data, but no reactivity | `<h1>{title}</h1>` |
-| **Conditional** | Has ternaries, `&&`, or `.map()` | `{isAdmin && <AdminPanel />}` |
+| Tier                 | What it means                                                      | Example                                     |
+| -------------------- | ------------------------------------------------------------------ | ------------------------------------------- |
+| **Static**           | No dynamic data — pure string                                      | `<footer>© 2026</footer>`                   |
+| **Data-driven**      | Uses props/data, but no reactivity                                 | `<h1>{title}</h1>`                          |
+| **Conditional**      | Has ternaries, `&&`, or `.map()`                                   | `{isAdmin && <AdminPanel />}`               |
 | **Runtime fallback** | Contains hooks, effects, or complex state — falls back to DOM shim | Components using `useContext()`, `effect()` |
 
 Components in the first three tiers are compiled to string-builder functions:
@@ -175,7 +177,11 @@ Components in the first three tiers are compiled to string-builder functions:
 ```tsx
 // Your component:
 function Header({ title }: { title: string }) {
-  return <header><h1>{title}</h1></header>;
+  return (
+    <header>
+      <h1>{title}</h1>
+    </header>
+  );
 }
 
 // AOT output (simplified):
@@ -192,15 +198,21 @@ Components that use `query()` are compiled with data access via the AOT context.
 // Your component:
 function ProjectsPage() {
   const projects = query(api.projects.list());
-  return <ul>{projects.data?.items.map(p => <li>{p.name}</li>)}</ul>;
+  return (
+    <ul>
+      {projects.data?.items.map((p) => (
+        <li>{p.name}</li>
+      ))}
+    </ul>
+  );
 }
 
 // AOT output (simplified):
 export function __ssr_ProjectsPage(data, ctx) {
   const __q = ctx.getData('projects-list');
-  return '<ul>' + (__q?.items ?? []).map(p =>
-    '<li>' + __esc(p.name) + '</li>'
-  ).join('') + '</ul>';
+  return (
+    '<ul>' + (__q?.items ?? []).map((p) => '<li>' + __esc(p.name) + '</li>').join('') + '</ul>'
+  );
 }
 ```
 
@@ -211,10 +223,12 @@ When the AOT compiler encounters a component it can't compile (tier: runtime-fal
 ```tsx
 // AOT function with a hole:
 function __ssr_Dashboard(data, ctx) {
-  return '<div>' +
+  return (
+    '<div>' +
     '<h1>Dashboard</h1>' +
-    ctx.holes['SidePanel']() +  // ← runtime fallback
-    '</div>';
+    ctx.holes['SidePanel']() + // ← runtime fallback
+    '</div>'
+  );
 }
 ```
 
@@ -261,6 +275,7 @@ const appRouter = createRouter(routes, initialPath, {
 ```
 
 With `serverNav` enabled:
+
 1. Client sends a pre-fetch request with `X-Vertz-Nav: 1` header
 2. Server runs discovery and prefetch for the target page
 3. Data streams back via Server-Sent Events
@@ -313,20 +328,20 @@ This is the fastest SSR path: one render pass, no discovery, data already cached
 
 ### Handler options
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `module` | The SSR module (server entry) | Required |
-| `template` | HTML template string | Required |
-| `ssrTimeout` | Per-query timeout in ms | `300` |
-| `manifest` | Prefetch manifest for zero-discovery SSR | — |
-| `inlineCSS` | Map of CSS URLs to content for inlining | — |
-| `nonce` | CSP nonce for inline scripts | — |
-| `fallbackMetrics` | Pre-computed font fallback metrics | — |
-| `modulepreload` | Paths to inject as modulepreload links | — |
-| `routeChunkManifest` | Per-route chunk manifest for targeted preloading | — |
-| `cacheControl` | Cache-Control header for HTML responses | — |
-| `sessionResolver` | Async function to resolve session from request | — |
-| `aotManifest` | AOT manifest for pre-compiled SSR rendering | — |
+| Option               | Description                                      | Default  |
+| -------------------- | ------------------------------------------------ | -------- |
+| `module`             | The SSR module (server entry)                    | Required |
+| `template`           | HTML template string                             | Required |
+| `ssrTimeout`         | Per-query timeout in ms                          | `300`    |
+| `manifest`           | Prefetch manifest for zero-discovery SSR         | —        |
+| `inlineCSS`          | Map of CSS URLs to content for inlining          | —        |
+| `nonce`              | CSP nonce for inline scripts                     | —        |
+| `fallbackMetrics`    | Pre-computed font fallback metrics               | —        |
+| `modulepreload`      | Paths to inject as modulepreload links           | —        |
+| `routeChunkManifest` | Per-route chunk manifest for targeted preloading | —        |
+| `cacheControl`       | Cache-Control header for HTML responses          | —        |
+| `sessionResolver`    | Async function to resolve session from request   | —        |
+| `aotManifest`        | AOT manifest for pre-compiled SSR rendering      | —        |
 
 ### AOT is enabled by default
 
@@ -335,7 +350,9 @@ AOT rendering requires zero configuration. `vertz build` generates the AOT manif
 If the build can't generate the AOT manifest (e.g., components that can't be statically analyzed), the server falls back to DOM shim rendering for those routes. There's nothing to configure — it just works.
 
 <Note>
-If you're writing a custom production server instead of using `vertz start`, call `loadAotManifest()` to load the manifest and pass it as the `aotManifest` option to `createSSRHandler()`. See the [custom server example](#custom-server-with-aot) below.
+  If you're writing a custom production server instead of using `vertz start`, call
+  `loadAotManifest()` to load the manifest and pass it as the `aotManifest` option to
+  `createSSRHandler()`. See the [custom server example](#custom-server-with-aot) below.
 </Note>
 
 ### Disabling AOT

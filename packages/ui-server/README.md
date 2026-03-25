@@ -85,14 +85,14 @@ const html = await renderToHTML(App, {
 
 **Options:**
 
-| Option | Type | Description |
-|---|---|---|
-| `app` | `() => VNode` | App component function |
-| `url` | `string` | Request URL for SSR routing |
-| `theme` | `Theme` | Theme definition for CSS vars |
-| `styles` | `string[]` | Global CSS strings to inject |
-| `head` | `object` | Head config: `title`, `meta[]`, `links[]` |
-| `container` | `string` | Container selector (default `'#app'`) |
+| Option      | Type          | Description                               |
+| ----------- | ------------- | ----------------------------------------- |
+| `app`       | `() => VNode` | App component function                    |
+| `url`       | `string`      | Request URL for SSR routing               |
+| `theme`     | `Theme`       | Theme definition for CSS vars             |
+| `styles`    | `string[]`    | Global CSS strings to inject              |
+| `head`      | `object`      | Head config: `title`, `meta[]`, `links[]` |
+| `container` | `string`      | Container selector (default `'#app'`)     |
 
 ### `renderPage(vnode, options?)`
 
@@ -113,18 +113,18 @@ return renderPage(<App />, {
 
 **Options:**
 
-| Option | Type | Description |
-|---|---|---|
-| `status` | `number` | HTTP status code (default `200`) |
-| `title` | `string` | Page title |
-| `description` | `string` | Meta description |
-| `lang` | `string` | HTML lang attribute (default `'en'`) |
-| `favicon` | `string` | Favicon URL |
-| `og` | `object` | Open Graph: `title`, `description`, `image`, `url`, `type` |
-| `twitter` | `object` | Twitter card: `card`, `site` |
-| `scripts` | `string[]` | Script URLs for end of body |
-| `styles` | `string[]` | Stylesheet URLs for head |
-| `head` | `string` | Raw HTML escape hatch for head |
+| Option        | Type       | Description                                                |
+| ------------- | ---------- | ---------------------------------------------------------- |
+| `status`      | `number`   | HTTP status code (default `200`)                           |
+| `title`       | `string`   | Page title                                                 |
+| `description` | `string`   | Meta description                                           |
+| `lang`        | `string`   | HTML lang attribute (default `'en'`)                       |
+| `favicon`     | `string`   | Favicon URL                                                |
+| `og`          | `object`   | Open Graph: `title`, `description`, `image`, `url`, `type` |
+| `twitter`     | `object`   | Twitter card: `card`, `site`                               |
+| `scripts`     | `string[]` | Script URLs for end of body                                |
+| `styles`      | `string[]` | Stylesheet URLs for head                                   |
+| `head`        | `string`   | Raw HTML escape hatch for head                             |
 
 ### `renderToStream(tree, options?)`
 
@@ -148,6 +148,7 @@ return new Response(stream, {
 ```
 
 **Options:**
+
 - `nonce?: string` — CSP nonce for inline scripts
 
 ### `serializeToHtml(node)`
@@ -203,11 +204,11 @@ removeDomShim();
 
 **Note:** `renderToHTML` handles DOM shim setup and teardown automatically. You only need these when using lower-level rendering APIs.
 
-| Export | Description |
-|---|---|
+| Export             | Description                                  |
+| ------------------ | -------------------------------------------- |
 | `installDomShim()` | Install the minimal DOM shim on `globalThis` |
-| `removeDomShim()` | Remove the DOM shim from `globalThis` |
-| `toVNode(element)` | Convert an SSR element to a VNode |
+| `removeDomShim()`  | Remove the DOM shim from `globalThis`        |
+| `toVNode(element)` | Convert an SSR element to a VNode            |
 
 ---
 
@@ -228,6 +229,7 @@ const headHtml = renderHeadToHtml(headCollector.getEntries());
 ```
 
 **`HeadCollector` methods:**
+
 - `addTitle(text)` — Add a `<title>` tag
 - `addMeta(attrs)` — Add a `<meta>` tag
 - `addLink(attrs)` — Add a `<link>` tag
@@ -266,7 +268,9 @@ const hydratedNode = wrapWithHydrationMarkers(counterNode, {
 <div data-v-id="Counter" data-v-key="counter-0">
   <span>Count: 0</span>
   <button>+</button>
-  <script type="application/json">{"initial":0}</script>
+  <script type="application/json">
+    { "initial": 0 }
+  </script>
 </div>
 ```
 
@@ -363,24 +367,24 @@ await server.listen();
 
 **Options:**
 
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `entry` | `string` | (required) | Path to the SSR entry module |
-| `port` | `number` | `5173` | Port to listen on |
-| `host` | `string` | `'0.0.0.0'` | Host to bind to |
-| `viteConfig` | `InlineConfig` | `{}` | Custom Vite configuration |
-| `middleware` | `function` | — | Custom middleware before SSR handler |
-| `skipModuleInvalidation` | `boolean` | `false` | Skip invalidating modules on each request |
-| `logRequests` | `boolean` | `true` | Log requests to console |
+| Option                   | Type           | Default     | Description                               |
+| ------------------------ | -------------- | ----------- | ----------------------------------------- |
+| `entry`                  | `string`       | (required)  | Path to the SSR entry module              |
+| `port`                   | `number`       | `5173`      | Port to listen on                         |
+| `host`                   | `string`       | `'0.0.0.0'` | Host to bind to                           |
+| `viteConfig`             | `InlineConfig` | `{}`        | Custom Vite configuration                 |
+| `middleware`             | `function`     | —           | Custom middleware before SSR handler      |
+| `skipModuleInvalidation` | `boolean`      | `false`     | Skip invalidating modules on each request |
+| `logRequests`            | `boolean`      | `true`      | Log requests to console                   |
 
 **`DevServer` interface:**
 
-| Property/Method | Description |
-|---|---|
-| `listen()` | Start the server |
-| `close()` | Stop the server |
-| `vite` | The underlying `ViteDevServer` |
-| `httpServer` | The underlying `http.Server` |
+| Property/Method | Description                    |
+| --------------- | ------------------------------ |
+| `listen()`      | Start the server               |
+| `close()`       | Stop the server                |
+| `vite`          | The underlying `ViteDevServer` |
+| `httpServer`    | The underlying `http.Server`   |
 
 The entry module should export a `renderToString(url: string)` function that returns HTML.
 
@@ -390,11 +394,11 @@ The entry module should export a `renderToString(url: string)` function that ret
 
 The `@vertz/ui-server/jsx-runtime` subpath provides a server-side JSX factory that produces VNode trees compatible with `renderToStream`. During SSR, Vite's `ssrLoadModule` swaps this in automatically.
 
-| Export | Description |
-|---|---|
-| `jsx` | JSX factory for single-child elements |
-| `jsxs` | JSX factory for multi-child elements |
-| `Fragment` | Fragment component |
+| Export     | Description                           |
+| ---------- | ------------------------------------- |
+| `jsx`      | JSX factory for single-child elements |
+| `jsxs`     | JSX factory for multi-child elements  |
+| `Fragment` | Fragment component                    |
 
 ---
 
@@ -430,11 +434,11 @@ import type {
 
 ## Utilities
 
-| Export | Description |
-|---|---|
-| `streamToString(stream)` | Convert a `ReadableStream<Uint8Array>` to a string |
-| `collectStreamChunks(stream)` | Collect stream chunks as a `string[]` |
-| `encodeChunk(html)` | Encode a string to a `Uint8Array` chunk |
+| Export                        | Description                                        |
+| ----------------------------- | -------------------------------------------------- |
+| `streamToString(stream)`      | Convert a `ReadableStream<Uint8Array>` to a string |
+| `collectStreamChunks(stream)` | Collect stream chunks as a `string[]`              |
+| `encodeChunk(html)`           | Encode a string to a `Uint8Array` chunk            |
 
 ---
 

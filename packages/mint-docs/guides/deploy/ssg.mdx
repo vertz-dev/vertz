@@ -1,6 +1,6 @@
 ---
 title: Static Site Generation (SSG)
-description: "Pre-render routes at build time with generateParams and prerender"
+description: 'Pre-render routes at build time with generateParams and prerender'
 ---
 
 Vertz can pre-render routes to static HTML at build time. Static pages load instantly — no server-side rendering per request, no JavaScript needed for content-only pages.
@@ -61,6 +61,7 @@ const routes = defineRoutes({
 ```
 
 At build time, this expands to three pages:
+
 - `dist/client/blog/intro-to-vertz/index.html`
 - `dist/client/blog/reactive-signals/index.html`
 - `dist/client/blog/type-safe-routing/index.html`
@@ -175,12 +176,12 @@ The build console shows what was pre-rendered:
 
 ## When to use SSG vs SSR
 
-| | SSG (`prerender: true`) | SSR (default) |
-|---|---|---|
-| **Rendered** | Once, at build time | Every request |
-| **Data** | Build-time only | Per-request (fresh) |
-| **Performance** | Instant — served from CDN | Server render + data fetch |
-| **Use case** | Blog posts, docs, landing pages | Dashboards, auth-gated pages |
+|                 | SSG (`prerender: true`)         | SSR (default)                |
+| --------------- | ------------------------------- | ---------------------------- |
+| **Rendered**    | Once, at build time             | Every request                |
+| **Data**        | Build-time only                 | Per-request (fresh)          |
+| **Performance** | Instant — served from CDN       | Server render + data fetch   |
+| **Use case**    | Blog posts, docs, landing pages | Dashboards, auth-gated pages |
 
 You can mix both in the same app. Pre-render your marketing pages and blog, while keeping your dashboard as SSR.
 
@@ -189,6 +190,7 @@ You can mix both in the same app. Pre-render your marketing pages and blog, whil
 ### "Pre-render failed for /path"
 
 The route's component or loader threw during build-time rendering. Common causes:
+
 - The loader depends on runtime-only data (auth, cookies, request headers)
 - A component accesses `window` or `document` unconditionally
 

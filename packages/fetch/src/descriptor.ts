@@ -52,7 +52,7 @@ export function createDescriptor<T>(
     _key: key,
     _fetch: fetchResult,
     ...(entity ? { _entity: entity } : {}),
-    // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation
+
     then(onFulfilled, onRejected) {
       return fetchResult().then(onFulfilled, onRejected);
     },
@@ -91,7 +91,7 @@ export function createMutationDescriptor<T>(
     _key: key,
     _mutation: mutation,
     _fetch: fetchResult,
-    // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation
+
     then(onFulfilled, onRejected) {
       const id = `m_${++mutationCounter}_${Date.now().toString(36)}`;
 

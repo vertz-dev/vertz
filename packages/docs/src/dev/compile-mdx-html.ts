@@ -85,7 +85,7 @@ export async function compileMdxToHtml(source: string): Promise<string> {
   const { compile } = await import('@mdx-js/mdx');
 
   // Build rehype plugins: Shiki for syntax highlighting, then enhanced code blocks
-  // biome-ignore lint/suspicious/noExplicitAny: unified PluggableList requires flexible typing
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- unified PluggableList requires flexible typing
   const rehypePlugins: any[] = [];
 
   if (!highlighterPromise) {

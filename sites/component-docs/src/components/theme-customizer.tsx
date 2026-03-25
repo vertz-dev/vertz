@@ -192,8 +192,7 @@ export function ThemeCustomizer() {
       </button>
 
       {/* Backdrop — only closes panel when not pinned */}
-      {/* biome-ignore lint/a11y/useKeyWithClickEvents: backdrop dismiss pattern */}
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: backdrop dismiss pattern */}
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- backdrop dismiss pattern */}
       <div
         style={{
           display: isOpen && !isPinned ? 'block' : 'none',
@@ -332,7 +331,7 @@ export function ThemeCustomizer() {
             {NEUTRAL_OPTIONS.map((p) => {
               const isSelected = selectedPalette === p.name;
               return (
-                // biome-ignore lint/a11y/useSemanticElements: styled button with radio semantics
+                // eslint-disable-next-line jsx-a11y/prefer-tag-over-role -- styled button with radio semantics
                 <button
                   type="button"
                   role="radio"
@@ -422,7 +421,7 @@ export function ThemeCustomizer() {
                   ? 'var(--color-muted-foreground)'
                   : ACCENT_PRESETS[a.name].swatch;
               return (
-                // biome-ignore lint/a11y/useSemanticElements: styled button with radio semantics
+                // eslint-disable-next-line jsx-a11y/prefer-tag-over-role -- styled button with radio semantics
                 <button
                   type="button"
                   role="radio"
@@ -480,7 +479,7 @@ export function ThemeCustomizer() {
             {RADIUS_OPTIONS.map((r) => {
               const isSelected = selectedRadius === r.value;
               return (
-                // biome-ignore lint/a11y/useSemanticElements: styled button with radio semantics
+                // eslint-disable-next-line jsx-a11y/prefer-tag-over-role -- styled button with radio semantics
                 <button
                   key={r.value}
                   type="button"

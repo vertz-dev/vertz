@@ -1,6 +1,6 @@
 ---
 title: Authentication & Access Control
-description: "Email/password auth, JWT sessions, RBAC with hierarchy, plans & billing, and client-side access checks"
+description: 'Email/password auth, JWT sessions, RBAC with hierarchy, plans & billing, and client-side access checks'
 ---
 
 `createAuth()` gives you a complete authentication system: sign-up, sign-in, JWT sessions with refresh token rotation, session management, rate limiting, and CSRF protection. One function call, no boilerplate.
@@ -15,7 +15,9 @@ const auth = createAuth({
 });
 
 const app = createServer({
-  entities: [/* ... */],
+  entities: [
+    /* ... */
+  ],
   db,
   auth,
 });
@@ -38,10 +40,10 @@ DELETE /api/auth/sessions     → Revoke all other sessions
 
 Vertz uses a **dual-token model** for sessions:
 
-| Token | Cookie | TTL | Purpose |
-|-------|--------|-----|---------|
-| **JWT** | `vertz.sid` | 60 seconds | Stateless authentication — verified by signature, no DB lookup |
-| **Refresh token** | `vertz.ref` | 7 days | Long-lived, stored hashed in the session store. Used to get a new JWT. |
+| Token             | Cookie      | TTL        | Purpose                                                                |
+| ----------------- | ----------- | ---------- | ---------------------------------------------------------------------- |
+| **JWT**           | `vertz.sid` | 60 seconds | Stateless authentication — verified by signature, no DB lookup         |
+| **Refresh token** | `vertz.ref` | 7 days     | Long-lived, stored hashed in the session store. Used to get a new JWT. |
 
 Both cookies are `HttpOnly`, `Secure`, `SameSite=Lax` by default.
 
@@ -60,18 +62,18 @@ const auth = createAuth({
   // Required — session strategy and timing
   session: {
     strategy: 'jwt',
-    ttl: '60s',           // JWT lifetime
-    refreshTtl: '7d',     // Refresh token lifetime
+    ttl: '60s', // JWT lifetime
+    refreshTtl: '7d', // Refresh token lifetime
     cookie: {
-      secure: true,       // HTTPS only (default: true)
-      sameSite: 'lax',    // CSRF protection (default: 'lax')
+      secure: true, // HTTPS only (default: true)
+      sameSite: 'lax', // CSRF protection (default: 'lax')
     },
   },
 
   // Optional — password policy
   emailPassword: {
     password: {
-      minLength: 8,           // Default: 8
+      minLength: 8, // Default: 8
       requireUppercase: true,
       requireNumbers: true,
     },
@@ -107,10 +109,10 @@ const auth = createAuth({
 });
 ```
 
-| Algorithm | Key type | Use case |
-|-----------|----------|----------|
-| `RS256` (default) | RSA 2048 | General-purpose, widest compatibility |
-| `ES256` | EC P-256 | Smaller signatures (64 vs 256 bytes), faster on edge runtimes |
+| Algorithm         | Key type | Use case                                                      |
+| ----------------- | -------- | ------------------------------------------------------------- |
+| `RS256` (default) | RSA 2048 | General-purpose, widest compatibility                         |
+| `ES256`           | EC P-256 | Smaller signatures (64 vs 256 bytes), faster on edge runtimes |
 
 - **Production:** You must provide `privateKey` and `publicKey` (PEM strings matching the algorithm). The auth system throws if they're missing or if the key type doesn't match the algorithm.
 - **Development:** A key pair is auto-generated and saved to `.vertz/jwt-private.pem` and `.vertz/jwt-public.pem`. Add `.vertz/` to your `.gitignore`. If you change the algorithm, the dev keys are automatically regenerated.
@@ -146,12 +148,12 @@ List, revoke, and manage active sessions from server code. Every method requires
 const listResult = await auth.api.listSessions(request.headers);
 if (listResult.ok) {
   for (const session of listResult.data) {
-    console.log(session.id);          // Session ID
-    console.log(session.deviceName);  // Parsed from user-agent (e.g., "Chrome on macOS")
-    console.log(session.ipAddress);   // Client IP
-    console.log(session.isCurrent);   // true if this is the caller's session
-    console.log(session.createdAt);   // When the session was created
-    console.log(session.lastActiveAt);// Last token refresh
+    console.log(session.id); // Session ID
+    console.log(session.deviceName); // Parsed from user-agent (e.g., "Chrome on macOS")
+    console.log(session.ipAddress); // Client IP
+    console.log(session.isCurrent); // true if this is the caller's session
+    console.log(session.createdAt); // When the session was created
+    console.log(session.lastActiveAt); // Last token refresh
   }
 }
 
@@ -182,7 +184,7 @@ const auth = createAuth({
   session: { strategy: 'jwt', ttl: '60s' },
   emailVerification: {
     enabled: true,
-    tokenTtl: '24h',           // Default: '24h'
+    tokenTtl: '24h', // Default: '24h'
     onSend: async (user, token) => {
       await sendEmail({
         to: user.email,
@@ -228,8 +230,8 @@ const auth = createAuth({
   session: { strategy: 'jwt', ttl: '60s' },
   passwordReset: {
     enabled: true,
-    tokenTtl: '1h',                 // Default: '1h'
-    revokeSessionsOnReset: true,     // Default: true — revokes all sessions after reset
+    tokenTtl: '1h', // Default: '1h'
+    revokeSessionsOnReset: true, // Default: true — revokes all sessions after reset
     onSend: async (user, token) => {
       await sendEmail({
         to: user.email,
@@ -272,7 +274,9 @@ The default `InMemoryPasswordResetStore` works for development. Provide your own
 The auth middleware injects `ctx.user` and `ctx.session` into your request context:
 
 ```ts
-const auth = createAuth({ /* ... */ });
+const auth = createAuth({
+  /* ... */
+});
 
 // In entity access rules, ctx has the authenticated user
 const posts = entity('posts', {
@@ -374,7 +378,11 @@ This provides two security benefits:
 - **Zero row leakage** — the database filters rows before they reach application code. A user can't infer whether a row exists based on 403 vs 404 responses.
 - **TOCTOU protection** — for `update` and `delete`, the where condition is applied to both the initial lookup and the mutation query, preventing race conditions where a concurrent write could change the row between check and action.
 
-<Note>`rules.where()` inside `rules.any()` is still evaluated in memory, not at the database level. Database extraction only works with AND logic (`rules.all()`), because OR logic could bypass enforcement.</Note>
+<Note>
+  `rules.where()` inside `rules.any()` is still evaluated in memory, not at the database level.
+  Database extraction only works with AND logic (`rules.all()`), because OR logic could bypass
+  enforcement.
+</Note>
 
 ### `rules.all(...rules)`
 
@@ -422,9 +430,9 @@ access: {
 
 Declarative user markers resolved at evaluation time. Available markers:
 
-| Marker | Resolves to |
-|--------|-------------|
-| `rules.user.id` | The current user's ID |
+| Marker                | Resolves to                  |
+| --------------------- | ---------------------------- |
+| `rules.user.id`       | The current user's ID        |
 | `rules.user.tenantId` | The current user's tenant ID |
 
 Used inside `rules.where()` for row-level access checks (see example above).
@@ -441,18 +449,18 @@ try {
 } catch (error) {
   if (error instanceof AuthorizationError) {
     console.log(error.entitlement); // 'project:delete'
-    console.log(error.userId);      // 'user-123' | undefined
-    console.log(error.message);     // 'Not authorized: project:delete'
+    console.log(error.userId); // 'user-123' | undefined
+    console.log(error.message); // 'Not authorized: project:delete'
   }
 }
 ```
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `entitlement` | `string` | The entitlement that was denied |
-| `userId` | `string \| undefined` | The user ID that was denied (undefined if unauthenticated) |
-| `message` | `string` | Human-readable error message |
-| `name` | `string` | Always `'AuthorizationError'` |
+| Property      | Type                  | Description                                                |
+| ------------- | --------------------- | ---------------------------------------------------------- |
+| `entitlement` | `string`              | The entitlement that was denied                            |
+| `userId`      | `string \| undefined` | The user ID that was denied (undefined if unauthenticated) |
+| `message`     | `string`              | Human-readable error message                               |
+| `name`        | `string`              | Always `'AuthorizationError'`                              |
 
 ## DB-backed stores
 
@@ -464,7 +472,7 @@ import { authModels, createAuth, createDb, createServer } from '@vertz/server';
 const db = createDb({
   dialect: 'sqlite',
   models: {
-    ...authModels,  // sessions, users, oauth_accounts, etc.
+    ...authModels, // sessions, users, oauth_accounts, etc.
     // ... your app models
   },
 });
@@ -474,7 +482,9 @@ const auth = createAuth({
 });
 
 const app = createServer({
-  entities: [/* ... */],
+  entities: [
+    /* ... */
+  ],
   db,
   auth,
 });
@@ -521,19 +531,27 @@ All storage is abstracted behind interfaces. The defaults use in-memory stores �
 
 ```ts
 interface SessionStore {
-  createSessionWithId(id: string, data: {
-    userId: string;
-    refreshTokenHash: string;
-    ipAddress: string;
-    userAgent: string;
-    expiresAt: Date;
-  }): Promise<StoredSession>;
+  createSessionWithId(
+    id: string,
+    data: {
+      userId: string;
+      refreshTokenHash: string;
+      ipAddress: string;
+      userAgent: string;
+      expiresAt: Date;
+    },
+  ): Promise<StoredSession>;
   findByRefreshHash(hash: string): Promise<StoredSession | null>;
   findByPreviousRefreshHash(hash: string): Promise<StoredSession | null>;
   revokeSession(id: string): Promise<void>;
   listActiveSessions(userId: string): Promise<StoredSession[]>;
   countActiveSessions(userId: string): Promise<number>;
-  updateSession(id: string, data: { /* ... */ }): Promise<void>;
+  updateSession(
+    id: string,
+    data: {
+      /* ... */
+    },
+  ): Promise<void>;
   dispose(): void;
 }
 ```
@@ -561,28 +579,28 @@ interface RateLimitStore {
 
 Built-in protections — no configuration required:
 
-| Protection | How |
-|-----------|-----|
-| **CSRF** | Validates `Origin`/`Referer` headers + requires `X-VTZ-Request: 1` on mutations |
-| **Rate limiting** | Per-endpoint limits (see table below) |
-| **Timing-safe** | Constant-time hash comparison prevents timing attacks on passwords and tokens |
-| **User enumeration** | Dummy bcrypt comparison on unknown emails — response timing is identical |
-| **Session limits** | Max 50 sessions per user — oldest auto-revoked on overflow |
-| **Secure cookies** | HttpOnly, Secure, SameSite=Lax by default |
-| **Cache headers** | All auth responses include `Cache-Control: no-store` |
+| Protection           | How                                                                             |
+| -------------------- | ------------------------------------------------------------------------------- |
+| **CSRF**             | Validates `Origin`/`Referer` headers + requires `X-VTZ-Request: 1` on mutations |
+| **Rate limiting**    | Per-endpoint limits (see table below)                                           |
+| **Timing-safe**      | Constant-time hash comparison prevents timing attacks on passwords and tokens   |
+| **User enumeration** | Dummy bcrypt comparison on unknown emails — response timing is identical        |
+| **Session limits**   | Max 50 sessions per user — oldest auto-revoked on overflow                      |
+| **Secure cookies**   | HttpOnly, Secure, SameSite=Lax by default                                       |
+| **Cache headers**    | All auth responses include `Cache-Control: no-store`                            |
 
 ### Rate limits per endpoint
 
-| Endpoint | Max attempts | Window | Key |
-|----------|-------------|--------|-----|
-| `POST /signup` | 3 | 1 hour | Per email |
-| `POST /signin` | 5 | 15 min | Per email |
-| `POST /refresh` | 10 | 1 min | Per IP |
-| `GET /oauth/:provider` | 10 | 5 min | Per IP |
-| `POST /mfa/challenge` | 5 | 15 min | Per IP |
-| `POST /mfa/step-up` | 5 | 15 min | Per IP |
-| `POST /resend-verification` | 3 | 1 hour | Per user ID |
-| `POST /forgot-password` | 3 | 1 hour | Per email |
+| Endpoint                    | Max attempts | Window | Key         |
+| --------------------------- | ------------ | ------ | ----------- |
+| `POST /signup`              | 3            | 1 hour | Per email   |
+| `POST /signin`              | 5            | 15 min | Per email   |
+| `POST /refresh`             | 10           | 1 min  | Per IP      |
+| `GET /oauth/:provider`      | 10           | 5 min  | Per IP      |
+| `POST /mfa/challenge`       | 5            | 15 min | Per IP      |
+| `POST /mfa/step-up`         | 5            | 15 min | Per IP      |
+| `POST /resend-verification` | 3            | 1 hour | Per user ID |
+| `POST /forgot-password`     | 3            | 1 hour | Per email   |
 
 Sign-in and sign-up limits are configurable via `emailPassword.rateLimit`. All other limits are fixed defaults. When a rate limit is hit, the endpoint returns `429 Too Many Requests` (except `/forgot-password`, which always returns `200` to prevent email enumeration).
 
@@ -626,9 +644,9 @@ const access = defineAccess({
   entitlements: {
     'project:create': { roles: ['admin', 'editor'] },
     'project:delete': { roles: ['admin'] },
-    'project:read':   { roles: ['admin', 'editor', 'viewer'] },
-    'ai:generate':    { roles: ['editor'], plans: ['pro', 'enterprise'] },
-    'export:pdf':     { roles: ['viewer'], plans: ['pro', 'enterprise'] },
+    'project:read': { roles: ['admin', 'editor', 'viewer'] },
+    'ai:generate': { roles: ['editor'], plans: ['pro', 'enterprise'] },
+    'export:pdf': { roles: ['viewer'], plans: ['pro', 'enterprise'] },
   },
 });
 ```
@@ -639,13 +657,13 @@ The hierarchy is inferred from `inherits` declarations. If a user is an `owner` 
 
 When you call `can()` or `check()`, the access context evaluates 5 layers in order:
 
-| Layer | What it checks | Denial reason |
-|-------|---------------|---------------|
-| 1. Feature flags | Whether the feature is enabled (stub -- always passes for now) | `flag_disabled` |
-| 2. RBAC | Does the user have a required role on the resource? | `role_required` |
-| 3. Hierarchy | Does the role propagate via the closure table? (implicit via Layer 2) | `hierarchy_denied` |
-| 4. Plan | Is the org on a plan that includes this entitlement? | `plan_required` |
-| 5. Wallet | Has the org exceeded its usage limit for the billing period? | `limit_reached` |
+| Layer            | What it checks                                                        | Denial reason      |
+| ---------------- | --------------------------------------------------------------------- | ------------------ |
+| 1. Feature flags | Whether the feature is enabled (stub -- always passes for now)        | `flag_disabled`    |
+| 2. RBAC          | Does the user have a required role on the resource?                   | `role_required`    |
+| 3. Hierarchy     | Does the role propagate via the closure table? (implicit via Layer 2) | `hierarchy_denied` |
+| 4. Plan          | Is the org on a plan that includes this entitlement?                  | `plan_required`    |
+| 5. Wallet        | Has the org exceeded its usage limit for the billing period?          | `limit_reached`    |
 
 `can()` short-circuits on the first denial (cheapest first). `check()` evaluates all layers and returns every reason, ordered by actionability.
 
@@ -659,10 +677,10 @@ import { createAccessContext } from '@vertz/server';
 const ctx = createAccessContext({
   userId: session.userId,
   accessDef: access,
-  closureStore,     // closure table for hierarchy lookups
-  roleStore,        // user-to-role assignments
+  closureStore, // closure table for hierarchy lookups
+  roleStore, // user-to-role assignments
   subscriptionStore, // tenant-to-plan assignments (optional)
-  walletStore,      // usage counters (optional)
+  walletStore, // usage counters (optional)
   orgResolver: async (resource) => {
     // resolve which org a resource belongs to
     return resource ? lookupOrgId(resource) : session.orgId;
@@ -729,10 +747,12 @@ Plans use a **feature-based** shape. Each plan declares which entitlements it un
 
 ```ts
 const access = defineAccess({
-  entities: { /* ... */ },
+  entities: {
+    /* ... */
+  },
   entitlements: {
-    'ai:generate':    { roles: ['editor'] },
-    'export:pdf':     { roles: ['viewer'] },
+    'ai:generate': { roles: ['editor'] },
+    'export:pdf': { roles: ['viewer'] },
     'members:invite': { roles: ['admin'] },
   },
   plans: {

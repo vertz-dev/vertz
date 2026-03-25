@@ -65,13 +65,13 @@ new FetchClient(config: FetchClientConfig)
 interface FetchClientConfig {
   /** Base URL for all requests (e.g., 'https://api.example.com') */
   baseURL?: string;
-  
+
   /** Default headers added to every request */
   headers?: Record<string, string>;
-  
+
   /** Request timeout in milliseconds */
   timeoutMs?: number;
-  
+
   /** Retry configuration */
   retry?: {
     retries: number;
@@ -80,7 +80,7 @@ interface FetchClientConfig {
     retryOn: number[]; // Status codes to retry (default: [429, 500, 502, 503, 504])
     retryOnError?: (error: Error) => boolean;
   };
-  
+
   /** Lifecycle hooks */
   hooks?: {
     beforeRequest?: (request: Request) => void | Promise<void>;
@@ -91,13 +91,13 @@ interface FetchClientConfig {
     onStreamChunk?: (chunk: unknown) => void;
     onStreamEnd?: () => void;
   };
-  
+
   /** Authentication strategies (applied in order) */
   authStrategies?: AuthStrategy[];
-  
+
   /** Custom fetch implementation (default: globalThis.fetch) */
   fetch?: typeof fetch;
-  
+
   /** Credentials mode */
   credentials?: RequestCredentials;
 }
@@ -358,10 +358,10 @@ const client = new FetchClient({
   },
 });
 
-for await (const event of client.requestStream({ 
-  method: 'GET', 
-  path: '/events', 
-  format: 'sse' 
+for await (const event of client.requestStream({
+  method: 'GET',
+  path: '/events',
+  format: 'sse',
 })) {
   // Process event
 }

@@ -133,7 +133,7 @@ function DialogRoot(options: DialogOptions = {}): DialogElements & { state: Dial
   setLabelledBy(content, titleId);
   setDescribedBy(content, descriptionId);
 
-  // biome-ignore lint/a11y/useHeadingContent: primitive — consumer provides content
+  // eslint-disable-next-line jsx-a11y/heading-has-content -- primitive — consumer provides content
   const title = (<h2 id={titleId} />) as HTMLHeadingElement;
 
   const description = (<p id={descriptionId} />) as HTMLParagraphElement;

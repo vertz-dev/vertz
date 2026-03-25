@@ -85,7 +85,6 @@
 - [#1695](https://github.com/vertz-dev/vertz/pull/1695) [`de3cb15`](https://github.com/vertz-dev/vertz/commit/de3cb15e9ecad1a4cec60cc21b6a9236fd4e6324) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix auto field selection not tracking field accesses in child components. Previously, when query data was passed to child components via props, the child's field accesses were silently missed, causing the query to under-fetch (only fields accessed directly in the parent were included in `select`).
 
   **What changed:**
-
   - Cross-file field resolution now falls back to fetching all fields (opaque) when a child component's field accesses can't be determined, instead of silently under-fetching
   - Barrel file re-exports (`export { Foo } from './bar'`) are now followed to find the actual component definition
   - Renamed re-exports (`export { Internal as Public }`) are handled correctly
@@ -195,7 +194,6 @@
 - [#1168](https://github.com/vertz-dev/vertz/pull/1168) [`d0e9dc5`](https://github.com/vertz-dev/vertz/commit/d0e9dc5065fea630cd046ef55f279fe9fb400086) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - feat(ui): Image component with build-time optimization
 
   Add `<Image>` component to `@vertz/ui` that renders an `<img>` element with sensible defaults (lazy loading, async decoding). At build time, the Bun plugin detects static `<Image>` usage and replaces it with optimized `<picture>` markup containing WebP 1x/2x variants and an original-format fallback.
-
   - Runtime `<Image>` component with priority prop, pass-through attributes
   - AST-based transform using ts-morph for reliable detection
   - Sharp-based image processor with content-hash caching
@@ -248,7 +246,6 @@
   EntityStore gains an optimistic layer stack (applyLayer/commitLayer/rollbackLayer) that overlays in-flight mutation patches on top of server-truth base data. MutationDescriptor in @vertz/fetch orchestrates the apply→fetch→commit/rollback lifecycle. The query() source switcher reads entity-backed data from EntityStore, so optimistic patches propagate reactively to all consuming queries. Generated createClient auto-wires the handler — zero boilerplate for `await api.todos.update(id, { completed: true })` to optimistically update all queries immediately.
 
 - [#1052](https://github.com/vertz-dev/vertz/pull/1052) [`4eac71c`](https://github.com/vertz-dev/vertz/commit/4eac71c98369d12a0cd7a3cbbeda60ea7cc5bd05) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add client-side auth session management (AuthProvider, useAuth, AuthGate)
-
   - AuthProvider wraps app with auth context, manages JWT session lifecycle
   - useAuth() returns reactive state + SdkMethods (signIn, signUp, signOut, mfaChallenge, forgotPassword, resetPassword)
   - SdkMethods work with form() for automatic validation and submission
@@ -291,7 +288,6 @@
 - [#918](https://github.com/vertz-dev/vertz/pull/918) [`1fc9e33`](https://github.com/vertz-dev/vertz/commit/1fc9e33a9aa5283898c8974084f519a3caacbabb) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Remove index.html from the framework
 
   UI apps no longer require an `index.html` file in the project root. The production build now generates the HTML shell programmatically with the correct asset references, eliminating the need for:
-
   - Manual `index.html` maintenance
   - Fast Refresh runtime stripping during build
   - Dev script tag replacement with hashed entries
@@ -382,26 +378,22 @@
 - [#267](https://github.com/vertz-dev/vertz/pull/267) [`0a33c14`](https://github.com/vertz-dev/vertz/commit/0a33c142a12a54e0da61423701ca338118ab9c98) Thanks [@vertz-dev-core](https://github.com/apps/vertz-dev-core)! - Zero-config SSR: `vertz({ ssr: true })` makes `vite dev` serve SSR'd HTML automatically.
 
   **@vertz/ui-server:**
-
   - Add `@vertz/ui-server/dom-shim` subpath with SSRElement, installDomShim, toVNode
   - Add `@vertz/ui-server/jsx-runtime` subpath for server-side JSX rendering
 
   **@vertz/ui-compiler:**
-
   - Add `ssr: boolean | SSROptions` to vertzPlugin options
   - Add `configureServer` hook that intercepts HTML requests and renders SSR'd HTML
   - Auto-generate virtual SSR entry module (`\0vertz:ssr-entry`)
   - Handle JSX runtime alias swap for SSR builds
 
   **@vertz/ui:**
-
   - Add `@vertz/ui/jsx-runtime` and `@vertz/ui/jsx-dev-runtime` subpath exports
   - Make router SSR-compatible (auto-detect `__SSR_URL__`, skip popstate in SSR)
 
 ### Patch Changes
 
 - [#199](https://github.com/vertz-dev/vertz/pull/199) [`63f074e`](https://github.com/vertz-dev/vertz/commit/63f074eefa96b49eb72724f8ec377a14a1f2c630) Thanks [@vertz-tech-lead](https://github.com/apps/vertz-tech-lead)! - Initial release of @vertz/ui v0.1 — a compiler-driven reactive UI framework.
-
   - Reactivity: `signal()`, `computed()`, `effect()`, `batch()`, `untrack()`
   - Compiler: `let` → signal, `const` derived → computed, JSX → DOM helpers, mutation → peek/notify
   - Component model: `ref()`, `onMount()`, `onCleanup()`, `watch()`, `children()`, `createContext()`
@@ -429,42 +421,35 @@
 ### Features
 
 - **SSR Core:** Initial server-side rendering implementation
-
   - `renderToStream()` — Streaming HTML renderer returning `ReadableStream<Uint8Array>`
   - Component-to-HTML serialization with proper escaping
   - Void element handling (no closing tags for `<input>`, `<br>`, etc.)
   - Raw text element handling (`<script>`, `<style>` content not escaped)
 
 - **Out-of-Order Streaming:** Suspense boundary support
-
   - Slot placeholders (`v-slot-N`) for async content
   - Template chunks (`v-tmpl-N`) streamed when data resolves
   - Client-side replacement scripts with DOM manipulation
 
 - **Hydration Markers:** Atomic component hydration
-
   - `data-v-id` attributes for component identification
   - `data-v-key` for unique instance tracking
   - Serialized props embedded as `<script type="application/json">`
   - Static components produce zero hydration markers
 
 - **Head Management:** `<head>` metadata collection
-
   - `HeadCollector` for collecting `<title>`, `<meta>`, `<link>` during render
   - `renderHeadToHtml()` for serializing head entries
 
 - **Asset Pipeline:** Script and stylesheet injection
-
   - `renderAssetTags()` for generating `<script>` and `<link>` tags
   - Support for `async` and `defer` attributes on scripts
 
 - **Critical CSS:** Above-the-fold CSS inlining
-
   - `inlineCriticalCss()` with injection prevention
   - Escapes `</style>` sequences to prevent breakout
 
 - **CSP Nonce Support:** Content Security Policy compliance
-
   - Optional `nonce` parameter on `renderToStream()`
   - All inline scripts include `nonce` attribute when provided
   - Nonce value escaping to prevent attribute injection

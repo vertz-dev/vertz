@@ -1,6 +1,6 @@
 ---
 title: OG Images
-description: "Generate Open Graph images for social sharing using Satori"
+description: 'Generate Open Graph images for social sharing using Satori'
 ---
 
 When you share a link on Twitter, Discord, Slack, or LinkedIn, the platform renders a preview card. The image in that card comes from the `og:image` meta tag. This guide shows how to generate OG images programmatically — define the image as a component, render to PNG at build time.
@@ -176,14 +176,14 @@ Satori supports `radialGradient` and `linearGradient` via CSS:
 
 Satori renders a subset of CSS. Key things to know:
 
-| Supported | Not supported |
-|---|---|
-| Flexbox (`display: flex`) | Grid (`display: grid`) |
-| `border-radius`, `box-shadow` | `filter`, `backdrop-filter` |
-| `background` (gradients, colors) | `clip-path` |
-| `position: absolute/relative` | `transform` (limited) |
-| Google Fonts (ttf/woff) | Local system fonts, woff2 |
-| `<img>` with data URIs or URLs | `<svg>` inline (use `<img>` with data URI) |
+| Supported                        | Not supported                              |
+| -------------------------------- | ------------------------------------------ |
+| Flexbox (`display: flex`)        | Grid (`display: grid`)                     |
+| `border-radius`, `box-shadow`    | `filter`, `backdrop-filter`                |
+| `background` (gradients, colors) | `clip-path`                                |
+| `position: absolute/relative`    | `transform` (limited)                      |
+| Google Fonts (ttf/woff)          | Local system fonts, woff2                  |
+| `<img>` with data URIs or URLs   | `<svg>` inline (use `<img>` with data URI) |
 
 <Note>
 Satori doesn't support woff2 fonts. When loading from Google Fonts, use the Googlebot user agent to get ttf format: `{ headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' } }`.
@@ -211,7 +211,8 @@ Reference the generated image in your HTML `<head>`. In a [static site build scr
 ```
 
 <Warning>
-The `og:image` URL must be an absolute URL (with `https://`), not a relative path. Social media crawlers fetch images from the full URL, not relative to the page.
+  The `og:image` URL must be an absolute URL (with `https://`), not a relative path. Social media
+  crawlers fetch images from the full URL, not relative to the page.
 </Warning>
 
 ## Integrating with the build

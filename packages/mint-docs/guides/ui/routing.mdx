@@ -1,6 +1,6 @@
 ---
 title: Routing
-description: "Type-safe client-side routing with defineRoutes and createRouter"
+description: 'Type-safe client-side routing with defineRoutes and createRouter'
 ---
 
 Vertz routing is fully typed — route patterns, parameters, and navigation are all checked at compile time. If you add a route for `/tasks/:id`, then `navigate({ to: '/tasks/:id', params: { id: 'abc' } })` compiles but `navigate({ to: '/bogus' })` doesn't.
@@ -64,10 +64,7 @@ export function App() {
       <div>
         <Header />
         <main>
-          <RouterView
-            router={appRouter}
-            fallback={() => <div>Page not found</div>}
-          />
+          <RouterView router={appRouter} fallback={() => <div>Page not found</div>} />
         </main>
       </div>
     </RouterContext.Provider>
@@ -76,6 +73,7 @@ export function App() {
 ```
 
 `RouterView` handles:
+
 - Sync and async (lazy-loaded) components
 - Stale resolution guards — if a slow route resolves after a newer navigation, it's discarded
 - Automatic cleanup of the previous page
@@ -92,11 +90,7 @@ import { useRouter } from 'vertz/ui';
 export function TaskListPage() {
   const { navigate } = useRouter();
 
-  return (
-    <button onClick={() => navigate({ to: '/tasks/new' })}>
-      New Task
-    </button>
-  );
+  return <button onClick={() => navigate({ to: '/tasks/new' })}>New Task</button>;
 }
 ```
 
@@ -178,6 +172,7 @@ defineRoutes({
 ```
 
 When a route has a `params` schema:
+
 - Valid params are parsed and available via `useParams()` with the parsed types
 - Invalid params (e.g., `/tasks/not-a-uuid`) don't match the route — the fallback renders instead
 

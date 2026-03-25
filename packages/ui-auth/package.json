@@ -1,18 +1,18 @@
 {
   "name": "@vertz/ui-auth",
   "version": "0.2.19",
-  "type": "module",
-  "license": "MIT",
   "description": "Auth UI components for Vertz — Avatar, OAuthButton, AuthGate, ProtectedRoute",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/vertz-dev/vertz.git",
     "directory": "packages/ui-auth"
   },
-  "publishConfig": {
-    "access": "public",
-    "provenance": true
-  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
@@ -21,9 +21,10 @@
       "import": "./dist/index.js"
     }
   },
-  "files": [
-    "dist"
-  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "bunup",
     "test": "bun test",
@@ -43,6 +44,5 @@
   },
   "engines": {
     "node": ">=22"
-  },
-  "sideEffects": false
+  }
 }
