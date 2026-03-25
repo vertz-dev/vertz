@@ -1,5 +1,16 @@
 # @vertz/ui-server
 
+## 0.2.32
+
+### Patch Changes
+
+- [#1854](https://github.com/vertz-dev/vertz/pull/1854) [`ce47098`](https://github.com/vertz-dev/vertz/commit/ce47098edb664d7a005dbdca881efbe63fb4dda2) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Wire AOT SSR pipeline end-to-end: compiler generates standalone `(data, ctx)` render functions for query-using components, build emits `aot-routes.js` + `aot-manifest.json`, and `createSSRHandler()` uses AOT render with data prefetch when manifest is available. Falls back to single-pass SSR for routes without AOT entries.
+
+- Updated dependencies [[`ce47098`](https://github.com/vertz-dev/vertz/commit/ce47098edb664d7a005dbdca881efbe63fb4dda2), [`ca59e8b`](https://github.com/vertz-dev/vertz/commit/ca59e8b824806cc222521677abbdcbb753347969)]:
+  - @vertz/ui-compiler@0.2.32
+  - @vertz/ui@0.2.32
+  - @vertz/core@0.2.32
+
 ## 0.2.31
 
 ### Patch Changes
