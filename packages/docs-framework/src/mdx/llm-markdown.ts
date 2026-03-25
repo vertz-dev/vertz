@@ -42,12 +42,26 @@ export function mdxToMarkdown(content: string): string {
   // Convert <Frame> to content + caption
   result = convertFrames(result);
 
+  // Convert API docs components
+  result = convertParamFields(result);
+  result = convertResponseFields(result);
+  result = convertExpandables(result);
+  result = convertTooltips(result);
+
   // Strip wrapper elements, keep inner content
   result = result.replace(/<\/?CodeGroup>/g, '');
   result = result.replace(/<\/?CardGroup[^>]*>/g, '');
   result = result.replace(/<\/?AccordionGroup>/g, '');
   result = result.replace(/<\/?Columns>/g, '');
   result = result.replace(/<\/?Column>/g, '');
+  result = result.replace(/<Icon\s+[^/]*\/>/g, '');
+
+  // Rewrite internal links: [text](/path) → [text](llm/path.md)
+  // Only outside code blocks
+  result = rewriteInternalLinks(result);
+
+  // Add language metadata comments before code blocks
+  result = annotateCodeBlocks(result);
 
   // Clean up excess blank lines
   result = result.replace(/\n{3,}/g, '\n\n');
@@ -144,4 +158,94 @@ function convertFrames(content: string): string {
       return `${inner.trim()}\n\n*${caption}*`;
     },
   );
+}
+
+function convertParamFields(content: string): string {
+  return content.replace(
+    /<ParamField\s+([^>]*)>\s*\n?([\s\S]*?)\n?<\/ParamField>/g,
+    (_match, attrs: string, inner: string) => {
+      const nameMatch = attrs.match(/name="([^"]*)"/);
+      const typeMatch = attrs.match(/type="([^"]*)"/);
+      const name = nameMatch?.[1] ?? '';
+      const type = typeMatch?.[1] ?? '';
+      const required = /\brequired\b/.test(attrs) ? ' (required)' : '';
+      return `- **\`${name}\`** *${type}*${required} — ${inner.trim()}`;
+    },
+  );
+}
+
+function convertResponseFields(content: string): string {
+  return content.replace(
+    /<ResponseField\s+([^>]*)>\s*\n?([\s\S]*?)\n?<\/ResponseField>/g,
+    (_match, attrs: string, inner: string) => {
+      const nameMatch = attrs.match(/name="([^"]*)"/);
+      const typeMatch = attrs.match(/type="([^"]*)"/);
+      const name = nameMatch?.[1] ?? '';
+      const type = typeMatch?.[1] ?? '';
+      return `- **\`${name}\`** *${type}* — ${inner.trim()}`;
+    },
+  );
+}
+
+function convertExpandables(content: string): string {
+  return content.replace(
+    /<Expandable\s+title="([^"]*)"[^>]*>\s*\n?([\s\S]*?)\n?<\/Expandable>/g,
+    (_match, title: string, inner: string) => {
+      return `**${title}**\n\n${inner.trim()}`;
+    },
+  );
+}
+
+function convertTooltips(content: string): string {
+  return content.replace(/<Tooltip\s+[^>]*>([^<]*)<\/Tooltip>/g, (_match, inner: string) => {
+    return inner.trim();
+  });
+}
+
+/**
+ * Rewrite internal markdown links to point to LLM markdown files.
+ * [text](/path) → [text](llm/path.md)
+ * Skips links inside code blocks and external links.
+ */
+function rewriteInternalLinks(content: string): string {
+  const lines = content.split('\n');
+  let inCodeBlock = false;
+  const result: string[] = [];
+
+  for (const line of lines) {
+    if (line.startsWith('```')) {
+      inCodeBlock = !inCodeBlock;
+      result.push(line);
+      continue;
+    }
+    if (inCodeBlock) {
+      result.push(line);
+      continue;
+    }
+    // Rewrite [text](/path) → [text](llm/path.md) — skip image links (![...])
+    result.push(
+      line.replace(/(?<!!)\[([^\]]+)\]\(\/([^)]+)\)/g, (_match, text: string, path: string) => {
+        const hashIdx = path.indexOf('#');
+        if (hashIdx === -1) {
+          return `[${text}](llm/${path}.md)`;
+        }
+        const basePath = path.slice(0, hashIdx);
+        const anchor = path.slice(hashIdx);
+        return `[${text}](llm/${basePath}.md${anchor})`;
+      }),
+    );
+  }
+
+  return result.join('\n');
+}
+
+/**
+ * Add language metadata comments before fenced code blocks.
+ * ```ts → <!-- language: ts -->\n```ts
+ */
+function annotateCodeBlocks(content: string): string {
+  return content.replace(/^(```(\w+).*)/gm, (_match, full: string, lang: string) => {
+    if (!lang) return full;
+    return `<!-- language: ${lang} -->\n${full}`;
+  });
 }

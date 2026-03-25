@@ -29,9 +29,11 @@ description: A test page
   it('compiles code blocks', async () => {
     const source = '```ts\nconst x = 1;\n```';
     const html = await compileMdxToHtml(source);
-    expect(html).toContain('<pre>');
+    expect(html).toContain('<pre');
     expect(html).toContain('<code');
-    expect(html).toContain('const x = 1;');
+    // Shiki tokenizes code into separate spans
+    expect(html).toContain('const');
+    expect(html).toContain('data-code-block');
   });
 
   it('compiles lists', async () => {
