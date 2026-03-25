@@ -274,9 +274,8 @@ describe('Feature: E2E AOT Pipeline', () => {
         );
 
         // 2. Generate build manifest
-        const { generateAotBuildManifest, buildAotRouteMap, generateAotBarrel } = await import(
-          '../aot-manifest-build'
-        );
+        const { generateAotBuildManifest, buildAotRouteMap, generateAotBarrel } =
+          await import('../aot-manifest-build');
         const buildManifest = generateAotBuildManifest(srcDir);
 
         expect(buildManifest.components.HomePage).toBeDefined();

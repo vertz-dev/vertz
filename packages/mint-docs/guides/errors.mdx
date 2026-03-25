@@ -1,6 +1,6 @@
 ---
 title: Errors
-description: "Errors as values — typed Results, domain errors, and boundary mapping"
+description: 'Errors as values — typed Results, domain errors, and boundary mapping'
 ---
 
 Vertz treats errors as **values, not exceptions**. Every operation that can fail returns a `Result<T, E>` — a discriminated union that makes success and failure explicit in the type system. You handle errors by matching on them, not by wrapping code in try-catch.
@@ -53,9 +53,9 @@ return err(createNotFoundError('users'));
 const result = await db.users.get({ where: { id: userId } });
 
 if (result.ok) {
-  console.log(result.data.name);  // typed as User
+  console.log(result.data.name); // typed as User
 } else {
-  console.log(result.error.code);  // typed as error union
+  console.log(result.error.code); // typed as error union
 }
 ```
 
@@ -114,7 +114,10 @@ import { unwrap } from 'vertz/errors';
 const user = unwrap(result);
 ```
 
-<Warning>`unwrap` throws on error. Use it only in test setup, scripts, or contexts where you're certain the result is `Ok`. In application code, always handle both branches.</Warning>
+<Warning>
+  `unwrap` throws on error. Use it only in test setup, scripts, or contexts where you're certain the
+  result is `Ok`. In application code, always handle both branches.
+</Warning>
 
 ## Domain errors
 
@@ -124,13 +127,13 @@ Errors are organized by **domain** — each boundary has its own error vocabular
 
 Returned by `db.*` operations:
 
-| Error code | Meaning | Typical cause |
-|------------|---------|---------------|
-| `NotFound` | Record doesn't exist | `.get()` with a missing ID |
-| `UNIQUE_VIOLATION` | Duplicate unique value | Inserting an email that already exists |
-| `FK_VIOLATION` | Referenced record missing | Setting `assigneeId` to a non-existent user |
-| `NOT_NULL_VIOLATION` | Required field missing | Omitting a non-nullable column |
-| `CHECK_VIOLATION` | Constraint violated | Value outside allowed range |
+| Error code           | Meaning                   | Typical cause                               |
+| -------------------- | ------------------------- | ------------------------------------------- |
+| `NotFound`           | Record doesn't exist      | `.get()` with a missing ID                  |
+| `UNIQUE_VIOLATION`   | Duplicate unique value    | Inserting an email that already exists      |
+| `FK_VIOLATION`       | Referenced record missing | Setting `assigneeId` to a non-existent user |
+| `NOT_NULL_VIOLATION` | Required field missing    | Omitting a non-nullable column              |
+| `CHECK_VIOLATION`    | Constraint violated       | Value outside allowed range                 |
 
 ```ts
 const result = await db.users.create({
@@ -153,14 +156,14 @@ if (!result.ok) {
 
 Returned by the generated SDK on the client side. These use a simpler vocabulary — no database internals leak to the frontend:
 
-| Error code | HTTP status | Meaning |
-|------------|-------------|---------|
-| `ValidationError` | 400/422 | Input validation failed |
-| `NotFound` | 404 | Resource doesn't exist |
-| `Conflict` | 409 | Duplicate value |
-| `Unauthorized` | 401 | Not authenticated |
-| `Forbidden` | 403 | Not authorized |
-| `RATE_LIMITED` | 429 | Too many requests |
+| Error code        | HTTP status | Meaning                 |
+| ----------------- | ----------- | ----------------------- |
+| `ValidationError` | 400/422     | Input validation failed |
+| `NotFound`        | 404         | Resource doesn't exist  |
+| `Conflict`        | 409         | Duplicate value         |
+| `Unauthorized`    | 401         | Not authenticated       |
+| `Forbidden`       | 403         | Not authorized          |
+| `RATE_LIMITED`    | 429         | Too many requests       |
 
 ### Validation errors
 
@@ -190,13 +193,13 @@ Database → Server → Client
 
 Database errors map to HTTP status codes automatically:
 
-| DB error | HTTP status |
-|----------|-------------|
-| `NotFound` | 404 |
-| `UNIQUE_VIOLATION` | 409 |
-| `FK_VIOLATION` | 422 |
-| `NOT_NULL_VIOLATION` | 422 |
-| `CHECK_VIOLATION` | 422 |
+| DB error             | HTTP status |
+| -------------------- | ----------- |
+| `NotFound`           | 404         |
+| `UNIQUE_VIOLATION`   | 409         |
+| `FK_VIOLATION`       | 422         |
+| `NOT_NULL_VIOLATION` | 422         |
+| `CHECK_VIOLATION`    | 422         |
 
 The entity framework handles this mapping — you don't write it manually.
 
@@ -204,15 +207,15 @@ The entity framework handles this mapping — you don't write it manually.
 
 HTTP responses map to client error types:
 
-| HTTP status | Client error |
-|-------------|-------------|
-| 400 | `ValidationError` |
-| 401 | `Unauthorized` |
-| 403 | `Forbidden` |
-| 404 | `NotFound` |
-| 409 | `Conflict` |
-| 422 | `ValidationError` |
-| 429 | `RATE_LIMITED` |
+| HTTP status | Client error      |
+| ----------- | ----------------- |
+| 400         | `ValidationError` |
+| 401         | `Unauthorized`    |
+| 403         | `Forbidden`       |
+| 404         | `NotFound`        |
+| 409         | `Conflict`        |
+| 422         | `ValidationError` |
+| 429         | `RATE_LIMITED`    |
 
 The generated SDK handles this mapping — the client receives typed `Result<T, ApiError>` values.
 
@@ -238,6 +241,7 @@ class InsufficientBalanceError extends AppError<'INSUFFICIENT_BALANCE'> {
 ```
 
 `AppError` provides:
+
 - A typed `code` field for pattern matching
 - `toJSON()` for automatic HTTP serialization
 - Consistent structure across all custom errors
@@ -246,12 +250,12 @@ class InsufficientBalanceError extends AppError<'INSUFFICIENT_BALANCE'> {
 
 Not all errors are domain errors. Infrastructure failures — database connection lost, request timeout, pool exhausted — are truly exceptional. These **do** throw, and are caught by global middleware that returns a 503:
 
-| Error | Meaning |
-|-------|---------|
-| `ConnectionError` | Database unreachable |
+| Error                | Meaning                  |
+| -------------------- | ------------------------ |
+| `ConnectionError`    | Database unreachable     |
 | `PoolExhaustedError` | No connections available |
-| `TimeoutError` | Operation timed out |
-| `NetworkError` | HTTP request failed |
+| `TimeoutError`       | Operation timed out      |
+| `NetworkError`       | HTTP request failed      |
 
 You don't handle these in business logic. They're caught at the top level and produce appropriate error responses automatically.
 

@@ -1,6 +1,6 @@
 ---
 title: Cloudflare Workers
-description: "Deploy a full-stack Vertz app to Cloudflare Workers with SSR, API routing, and ISR caching"
+description: 'Deploy a full-stack Vertz app to Cloudflare Workers with SSR, API routing, and ISR caching'
 ---
 
 `@vertz/cloudflare` provides `createHandler` — a single function that wires up your API, SSR, security headers, and optional ISR caching into a Cloudflare Worker module.
@@ -39,6 +39,7 @@ export default createHandler({
 ```
 
 That's it. The handler automatically:
+
 - Routes `/api/*` requests to your server (entities, auth, services)
 - Renders all other routes via SSR
 - Adds security headers with per-request nonce-based CSP
@@ -110,18 +111,18 @@ ssr: async (request) => {
   return new Response(html, {
     headers: { 'Content-Type': 'text/html' },
   });
-}
+};
 ```
 
 ## Route splitting
 
 The handler splits requests by URL path:
 
-| Route | Handler |
-|---|---|
-| `/api/*` | Server handler (entities, auth, services) |
-| `/_vertz/image` | Image optimizer (if configured) |
-| Everything else | SSR |
+| Route           | Handler                                   |
+| --------------- | ----------------------------------------- |
+| `/api/*`        | Server handler (entities, auth, services) |
+| `/_vertz/image` | Image optimizer (if configured)           |
+| Everything else | SSR                                       |
 
 Static assets (JS, CSS, images) are served by Cloudflare's `[assets]` directive in `wrangler.toml` **before** the Worker runs — they never reach `createHandler`.
 
@@ -146,11 +147,12 @@ When your server uses auth (OAuth, sessions), `createServer` returns a `ServerIn
 ```ts
 // requestHandler is auto-detected — auth routes just work
 createHandler({
-  app: (env) => createServer({
-    entities: [todos],
-    db,
-    auth: { providers: [github()] },
-  }),
+  app: (env) =>
+    createServer({
+      entities: [todos],
+      db,
+      auth: { providers: [github()] },
+    }),
   ssr: { module: app },
 });
 ```
@@ -163,14 +165,14 @@ If your app is a plain `AppBuilder` without auth, the handler falls back to `app
 
 Security headers are enabled by default. Every response includes:
 
-| Header | Value |
-|---|---|
-| `Content-Security-Policy` | `default-src 'self'; script-src 'self' 'nonce-<random>'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;` |
-| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` |
-| `X-Content-Type-Options` | `nosniff` |
-| `X-Frame-Options` | `DENY` |
-| `X-XSS-Protection` | `1; mode=block` |
-| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| Header                      | Value                                                                                                             |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `Content-Security-Policy`   | `default-src 'self'; script-src 'self' 'nonce-<random>'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;` |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains`                                                                             |
+| `X-Content-Type-Options`    | `nosniff`                                                                                                         |
+| `X-Frame-Options`           | `DENY`                                                                                                            |
+| `X-XSS-Protection`          | `1; mode=block`                                                                                                   |
+| `Referrer-Policy`           | `strict-origin-when-cross-origin`                                                                                 |
 
 Each request gets a unique cryptographic nonce for CSP. Script tags in SSR output use this nonce.
 
@@ -281,7 +283,9 @@ id = "your-kv-namespace-id"
 ```
 
 <Note>
-The `[assets]` directive serves static files (JS bundles, CSS, images) directly from Cloudflare's edge — they never hit the Worker. Only dynamic requests (API calls, page navigations) reach `createHandler`.
+  The `[assets]` directive serves static files (JS bundles, CSS, images) directly from Cloudflare's
+  edge — they never hit the Worker. Only dynamic requests (API calls, page navigations) reach
+  `createHandler`.
 </Note>
 
 ## Deploy
@@ -296,13 +300,13 @@ bunx wrangler deploy
 
 ## How it differs from static deployment
 
-| | Static site | Full-stack (Workers) |
-|---|---|---|
-| **Server** | None — static files only | Cloudflare Worker with SSR |
-| **Data** | Build-time only | Per-request (queries, auth) |
-| **Package** | Custom build script | `@vertz/cloudflare` |
-| **Caching** | Edge CDN (immutable assets) | ISR via KV (optional) |
-| **Use case** | Landing pages, marketing | Apps with dynamic data |
+|              | Static site                 | Full-stack (Workers)        |
+| ------------ | --------------------------- | --------------------------- |
+| **Server**   | None — static files only    | Cloudflare Worker with SSR  |
+| **Data**     | Build-time only             | Per-request (queries, auth) |
+| **Package**  | Custom build script         | `@vertz/cloudflare`         |
+| **Caching**  | Edge CDN (immutable assets) | ISR via KV (optional)       |
+| **Use case** | Landing pages, marketing    | Apps with dynamic data      |
 
 <CardGroup cols={2}>
   <Card title="Static Sites" icon="file" href="/guides/deploy/static-sites">

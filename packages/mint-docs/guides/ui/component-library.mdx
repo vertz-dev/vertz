@@ -1,6 +1,6 @@
 ---
 title: Component Library
-description: "Accessible, styled components — Button, Dialog, Select, Tabs, Table, Card, and more. Use these instead of building from scratch."
+description: 'Accessible, styled components — Button, Dialog, Select, Tabs, Table, Card, and more. Use these instead of building from scratch.'
 ---
 
 Vertz ships a full set of ready-to-use UI components with a shadcn-inspired theme. Use them instead of building from scratch.
@@ -37,8 +37,9 @@ import { Button, Input, Dialog, Select } from '@vertz/ui/components';
 ```
 
 <Note>
-**Direct components** (`Button`, `Card`, etc.) are simple styled wrappers.
-**Primitive components** (`Dialog`, `Select`, etc.) are themed wrappers around `@vertz/ui-primitives` with compound sub-components (e.g., `Dialog.Title`, `Dialog.Footer`, `Select.Content`).
+  **Direct components** (`Button`, `Card`, etc.) are simple styled wrappers. **Primitive
+  components** (`Dialog`, `Select`, etc.) are themed wrappers around `@vertz/ui-primitives` with
+  compound sub-components (e.g., `Dialog.Title`, `Dialog.Footer`, `Select.Content`).
 </Note>
 
 ---
@@ -79,7 +80,7 @@ Multi-line text input.
 ```tsx
 import { Textarea } from '@vertz/ui/components';
 
-<Textarea placeholder="Write a message..." />
+<Textarea placeholder="Write a message..." />;
 ```
 
 ### Label
@@ -104,7 +105,7 @@ import { FormGroup, Label, Input } from '@vertz/ui/components';
   <Label>Email</Label>
   <Input name="email" placeholder="Enter email" />
   <FormGroup.FormError>Please enter a valid email address</FormGroup.FormError>
-</FormGroup.FormGroup>
+</FormGroup.FormGroup>;
 ```
 
 ### Select
@@ -125,7 +126,7 @@ import { Select } from '@vertz/ui/components';
       <Select.Item value="carrot">Carrot</Select.Item>
     </Select.Group>
   </Select.Content>
-</Select>
+</Select>;
 ```
 
 ---
@@ -144,14 +145,16 @@ import { Card, Button } from '@vertz/ui/components';
     <Card.CardTitle>Card Title</Card.CardTitle>
     <Card.CardDescription>Card description goes here.</Card.CardDescription>
   </Card.CardHeader>
-  <Card.CardContent>
-    This is the card content area.
-  </Card.CardContent>
+  <Card.CardContent>This is the card content area.</Card.CardContent>
   <Card.CardFooter>
-    <Button intent="outline" size="sm">Cancel</Button>
-    <Button intent="primary" size="sm">Save</Button>
+    <Button intent="outline" size="sm">
+      Cancel
+    </Button>
+    <Button intent="primary" size="sm">
+      Save
+    </Button>
   </Card.CardFooter>
-</Card.Card>
+</Card.Card>;
 ```
 
 ### Separator
@@ -161,7 +164,7 @@ Visual divider between content.
 ```tsx
 import { Separator } from '@vertz/ui/components';
 
-<Separator />
+<Separator />;
 ```
 
 ### Accordion
@@ -180,7 +183,7 @@ import { Accordion } from '@vertz/ui/components';
     <Accordion.Trigger>Is it styled?</Accordion.Trigger>
     <Accordion.Content>Yes. It matches the theme.</Accordion.Content>
   </Accordion.Item>
-</Accordion>
+</Accordion>;
 ```
 
 ### Tabs
@@ -197,7 +200,7 @@ import { Tabs } from '@vertz/ui/components';
   </Tabs.List>
   <Tabs.Content value="account">Account settings here.</Tabs.Content>
   <Tabs.Content value="password">Password settings here.</Tabs.Content>
-</Tabs>
+</Tabs>;
 ```
 
 Supports `variant="line"` for an underline tab style.
@@ -229,7 +232,7 @@ import { Avatar } from '@vertz/ui/components';
 
 <Avatar.Avatar>
   <Avatar.AvatarFallback>JD</Avatar.AvatarFallback>
-</Avatar.Avatar>
+</Avatar.Avatar>;
 ```
 
 ### Table
@@ -254,7 +257,7 @@ import { Table } from '@vertz/ui/components';
       <Table.TableCell>Admin</Table.TableCell>
     </Table.TableRow>
   </Table.TableBody>
-</Table.Table>
+</Table.Table>;
 ```
 
 ### Skeleton
@@ -292,9 +295,11 @@ import { Button, EmptyState } from '@vertz/ui/components';
   <EmptyState.Title>No issues yet</EmptyState.Title>
   <EmptyState.Description>Create your first issue to get started.</EmptyState.Description>
   <EmptyState.Action>
-    <Button intent="primary" size="sm">New Issue</Button>
+    <Button intent="primary" size="sm">
+      New Issue
+    </Button>
   </EmptyState.Action>
-</EmptyState>
+</EmptyState>;
 ```
 
 All slots are optional — use only what you need:
@@ -330,7 +335,9 @@ function EditProfileDialog({ dialog }: { dialog: DialogHandle<void> }) {
       <Dialog.Body>{/* Form fields go here */}</Dialog.Body>
       <Dialog.Footer>
         <Dialog.Cancel>Cancel</Dialog.Cancel>
-        <Button intent="primary" size="md" onClick={() => dialog.close()}>Save changes</Button>
+        <Button intent="primary" size="md" onClick={() => dialog.close()}>
+          Save changes
+        </Button>
       </Dialog.Footer>
     </>
   );
@@ -365,7 +372,11 @@ function DeleteButton() {
     }
   }
 
-  return <Button intent="destructive" size="md" onClick={handleDelete}>Delete Account</Button>;
+  return (
+    <Button intent="destructive" size="md" onClick={handleDelete}>
+      Delete Account
+    </Button>
+  );
 }
 ```
 
@@ -379,14 +390,16 @@ import { Sheet } from '@vertz/ui/components';
 
 <Sheet>
   <Sheet.Trigger>
-    <Button intent="outline" size="md">Open Sheet</Button>
+    <Button intent="outline" size="md">
+      Open Sheet
+    </Button>
   </Sheet.Trigger>
   <Sheet.Content>
     <Sheet.Title>Edit profile</Sheet.Title>
     <Sheet.Description>Make changes to your profile here.</Sheet.Description>
     {/* Content goes here */}
   </Sheet.Content>
-</Sheet>
+</Sheet>;
 ```
 
 Supports `side="left"`, `side="right"` (default), `side="top"`, `side="bottom"`.
@@ -401,7 +414,9 @@ import { Popover } from '@vertz/ui/components';
 
 <Popover>
   <Popover.Trigger>
-    <Button intent="outline" size="md">Open popover</Button>
+    <Button intent="outline" size="md">
+      Open popover
+    </Button>
   </Popover.Trigger>
   <Popover.Content>
     <div style="padding: 16px; width: 280px;">
@@ -409,7 +424,7 @@ import { Popover } from '@vertz/ui/components';
       <p>Set the dimensions for the layer.</p>
     </div>
   </Popover.Content>
-</Popover>
+</Popover>;
 ```
 
 ### Tooltip
@@ -422,10 +437,12 @@ import { Tooltip } from '@vertz/ui/components';
 
 <Tooltip>
   <Tooltip.Trigger>
-    <Button intent="outline" size="md">Hover me</Button>
+    <Button intent="outline" size="md">
+      Hover me
+    </Button>
   </Tooltip.Trigger>
   <Tooltip.Content>Add to library</Tooltip.Content>
-</Tooltip>
+</Tooltip>;
 ```
 
 ---
@@ -439,11 +456,13 @@ Navigation breadcrumb trail.
 ```tsx
 import { Breadcrumb } from '@vertz/ui/components';
 
-<Breadcrumb items={[
-  { label: 'Home', href: '/' },
-  { label: 'Projects', href: '/projects' },
-  { label: 'Current Project' },
-]} />
+<Breadcrumb
+  items={[
+    { label: 'Home', href: '/' },
+    { label: 'Projects', href: '/projects' },
+    { label: 'Current Project' },
+  ]}
+/>;
 ```
 
 The last item renders as the current page (no link). Supports a custom `separator` prop (defaults to `/`).
@@ -458,8 +477,10 @@ import { Pagination } from '@vertz/ui/components';
 <Pagination
   currentPage={2}
   totalPages={10}
-  onPageChange={(page) => { /* navigate to page */ }}
-/>
+  onPageChange={(page) => {
+    /* navigate to page */
+  }}
+/>;
 ```
 
 Supports `siblingCount` to control how many page numbers show around the current page.
@@ -474,7 +495,9 @@ import { DropdownMenu } from '@vertz/ui/components';
 
 <DropdownMenu>
   <DropdownMenu.Trigger>
-    <Button intent="outline" size="md">Open</Button>
+    <Button intent="outline" size="md">
+      Open
+    </Button>
   </DropdownMenu.Trigger>
   <DropdownMenu.Content>
     <DropdownMenu.Label>My Account</DropdownMenu.Label>
@@ -484,7 +507,7 @@ import { DropdownMenu } from '@vertz/ui/components';
     <DropdownMenu.Separator />
     <DropdownMenu.Item value="logout">Log out</DropdownMenu.Item>
   </DropdownMenu.Content>
-</DropdownMenu>
+</DropdownMenu>;
 ```
 
 ---
@@ -516,7 +539,8 @@ import { Alert } from '@vertz/ui/components';
 These components use an imperative factory API — they return DOM elements rather than JSX compound components. Import them from `@vertz/ui/components`.
 
 <Note>
-These primitives haven't been converted to JSX compound components yet. They work by returning DOM elements that you embed in your JSX tree. JSX versions are planned.
+  These primitives haven't been converted to JSX compound components yet. They work by returning DOM
+  elements that you embed in your JSX tree. JSX versions are planned.
 </Note>
 
 ### Checkbox
@@ -529,7 +553,7 @@ import { Checkbox } from '@vertz/ui/components';
 <label style="display: flex; align-items: center; gap: 8px">
   {Checkbox({ defaultChecked: true })}
   Accept terms and conditions
-</label>
+</label>;
 ```
 
 ### Switch
@@ -539,7 +563,9 @@ Toggle between on and off states.
 ```tsx
 import { Switch } from '@vertz/ui/components';
 
-{Switch({ defaultChecked: true })}
+{
+  Switch({ defaultChecked: true });
+}
 ```
 
 Supports `size: 'sm'` for compact variant.
@@ -557,7 +583,9 @@ radio.Item('comfortable', 'Comfortable');
 radio.Item('compact', 'Compact');
 
 // Use radio.root in your JSX
-{radio.root}
+{
+  radio.root;
+}
 ```
 
 ### Slider
@@ -567,7 +595,9 @@ Range input with track and thumb.
 ```tsx
 import { Slider } from '@vertz/ui/components';
 
-{Slider({ defaultValue: 50, min: 0, max: 100 }).root}
+{
+  Slider({ defaultValue: 50, min: 0, max: 100 }).root;
+}
 ```
 
 ### Toggle
@@ -577,7 +607,9 @@ Toggle button with pressed state.
 ```tsx
 import { Toggle } from '@vertz/ui/components';
 
-{Toggle()}
+{
+  Toggle();
+}
 ```
 
 ### Progress
@@ -587,7 +619,9 @@ Shows task completion percentage.
 ```tsx
 import { Progress } from '@vertz/ui/components';
 
-{Progress({ defaultValue: 66 }).root}
+{
+  Progress({ defaultValue: 66 }).root;
+}
 ```
 
 ### Toast
@@ -601,34 +635,30 @@ import { Toast } from '@vertz/ui/components';
 const t = Toast({});
 document.body.appendChild(t.region);
 
-<Button
-  intent="outline"
-  size="md"
-  onClick={() => t.announce('Event has been created.')}
->
+<Button intent="outline" size="md" onClick={() => t.announce('Event has been created.')}>
   Show Toast
-</Button>
+</Button>;
 ```
 
 ## Additional primitives
 
 These components are available via `@vertz/ui/components`, but are less commonly used:
 
-| Component | Description |
-|-----------|-------------|
-| Calendar | Date grid with month navigation |
-| DatePicker | Date picker composing Calendar + Popover |
-| Carousel | Slide navigation with prev/next controls |
-| Collapsible | Expandable/collapsible content section |
-| Command | Searchable command palette |
-| ContextMenu | Right-click context menu |
-| Drawer | Bottom/side panel wrapping Dialog |
-| HoverCard | Hover-triggered interactive card |
-| Menubar | Horizontal menu bar with dropdowns |
-| NavigationMenu | Site navigation with hover dropdowns |
+| Component      | Description                              |
+| -------------- | ---------------------------------------- |
+| Calendar       | Date grid with month navigation          |
+| DatePicker     | Date picker composing Calendar + Popover |
+| Carousel       | Slide navigation with prev/next controls |
+| Collapsible    | Expandable/collapsible content section   |
+| Command        | Searchable command palette               |
+| ContextMenu    | Right-click context menu                 |
+| Drawer         | Bottom/side panel wrapping Dialog        |
+| HoverCard      | Hover-triggered interactive card         |
+| Menubar        | Horizontal menu bar with dropdowns       |
+| NavigationMenu | Site navigation with hover dropdowns     |
 | ResizablePanel | Resizable panel layout with drag handles |
-| ScrollArea | Custom scrollbars |
-| ToggleGroup | Group of toggle buttons |
+| ScrollArea     | Custom scrollbars                        |
+| ToggleGroup    | Group of toggle buttons                  |
 
 All are importable from `@vertz/ui/components` after registering a theme with `registerTheme()`.
 
@@ -652,8 +682,8 @@ See [Styling](/guides/ui/styling) for details on `css()` and `variants()`.
 
 ```tsx
 const config = configureTheme({
-  palette: 'zinc',  // zinc, slate, stone, gray, neutral
-  radius: 'md',     // none, sm, md, lg, full
+  palette: 'zinc', // zinc, slate, stone, gray, neutral
+  radius: 'md', // none, sm, md, lg, full
 });
 ```
 

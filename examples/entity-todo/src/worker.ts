@@ -23,13 +23,13 @@ export default createHandler({
     const db = createDb({
       models: { todos: todosModel },
       dialect: 'sqlite',
-      // biome-ignore lint/suspicious/noExplicitAny: Cloudflare D1 binding → @vertz/db D1Database
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Cloudflare D1 binding → @vertz/db D1Database
       d1: typedEnv.DB as any,
     });
 
     return createServer({
       entities: [todos],
-      // biome-ignore lint/suspicious/noExplicitAny: DatabaseClient variance — specific model → generic
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- DatabaseClient variance — specific model → generic
       db: db as any as ServerConfig['db'],
     });
   },

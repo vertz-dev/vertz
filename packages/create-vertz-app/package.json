@@ -1,21 +1,21 @@
 {
   "name": "@vertz/create-vertz-app",
   "version": "0.2.32",
-  "type": "module",
-  "license": "MIT",
   "description": "Create a new Vertz application",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/vertz-dev/vertz.git",
     "directory": "packages/create-vertz-app"
   },
-  "publishConfig": {
-    "access": "public",
-    "provenance": true
-  },
   "bin": {
     "create-vertz-app": "./bin/create-vertz-app.ts"
   },
+  "files": [
+    "dist",
+    "bin"
+  ],
+  "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -24,10 +24,10 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "files": [
-    "dist",
-    "bin"
-  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",

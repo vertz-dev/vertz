@@ -471,6 +471,7 @@ export class FieldAccessAnalyzer extends BaseAnalyzer<FieldAccessAnalyzerResult>
         if (Node.isIdentifier(expr) && expr.getText() === varName) {
           // Build the path but exclude the variable name itself
           const parts: string[] = [];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type-level bound requires any
           let current: any = node;
 
           while (current && Node.isPropertyAccessExpression(current)) {
@@ -543,6 +544,7 @@ export class FieldAccessAnalyzer extends BaseAnalyzer<FieldAccessAnalyzerResult>
     varName: string,
     dataProperty: string,
   ): boolean {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type-level bound requires any
     let current: any = node;
 
     while (current) {
@@ -574,6 +576,7 @@ export class FieldAccessAnalyzer extends BaseAnalyzer<FieldAccessAnalyzerResult>
     dataProperty: string,
   ): boolean {
     // Walk up to find if this chain starts with varName.data
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type-level bound requires any
     let current: any = node;
     while (current && Node.isPropertyAccessExpression(current)) {
       const expr = current.getExpression();
@@ -591,6 +594,7 @@ export class FieldAccessAnalyzer extends BaseAnalyzer<FieldAccessAnalyzerResult>
 
   private buildPropertyPath(node: PropertyAccessExpression): string | null {
     const parts: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type-level bound requires any
     let current: any = node;
 
     while (current && Node.isPropertyAccessExpression(current)) {
@@ -611,6 +615,7 @@ export class FieldAccessAnalyzer extends BaseAnalyzer<FieldAccessAnalyzerResult>
     propsName: string,
   ): { propName: string; isLeaf: boolean } | null {
     // Walk down to find if this chain starts with props.propName
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type-level bound requires any
     let current: any = node;
     const chain: string[] = [];
 
@@ -644,6 +649,7 @@ export class FieldAccessAnalyzer extends BaseAnalyzer<FieldAccessAnalyzerResult>
     propName: string,
   ): string | null {
     const parts: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type-level bound requires any
     let current: any = node;
 
     // Build the full chain

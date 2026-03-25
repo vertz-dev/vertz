@@ -8,7 +8,7 @@ All framework development follows strict Test-Driven Development.
 2. **Green** — Write the MINIMAL code to make that one test pass. **Green means ALL of:**
    - Tests pass (`bun test`)
    - Typecheck passes (`bun run typecheck` on changed packages)
-   - Lint/format passes (`bunx biome check --fix <files>`)
+   - Lint/format passes (`bunx oxlint --fix <files> && bunx oxfmt <files>`)
    - If any of these fail, you are NOT green. Fix before proceeding.
 3. **Refactor** — Clean up while keeping all checks green
 4. **Repeat** — Go back to step 1 with the next behavior

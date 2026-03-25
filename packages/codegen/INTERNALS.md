@@ -138,5 +138,5 @@ console.log(result.incremental?.stats);
 - `jsonSchemaToTS(schema)` — Convert JSON Schema to TypeScript
 - `hashContent(content)` — Content-based hashing for incremental generation
 - `writeIncremental(files, outputDir, options)` — Write only changed files
-- `formatWithBiome(code)` — Format generated code
+- `formatGeneratedFiles(files)` — Format generated code with oxfmt
 - `toPascalCase(str)`, `toCamelCase(str)`, `toKebabCase(str)`, `toSnakeCase(str)` — Naming utilities

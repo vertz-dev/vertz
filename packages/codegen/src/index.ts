@@ -6,7 +6,7 @@ export type {
   ResolvedCodegenConfig,
 } from './config';
 export { defineCodegenConfig, resolveCodegenConfig, validateCodegenConfig } from './config';
-export { formatWithBiome } from './format';
+export { formatGeneratedFiles } from './format';
 export type { GenerateResult } from './generate';
 export { generate, mergeImportsToPackageJson } from './generate';
 export { AuthSdkGenerator } from './generators/auth-sdk-generator';

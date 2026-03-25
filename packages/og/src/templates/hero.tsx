@@ -6,7 +6,7 @@
  * Large title with optional subtitle and gradient background.
  */
 
-// biome-ignore lint/correctness/noUnusedImports: JSX factory used via pragma
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- JSX factory used via pragma
 import { h } from '../h';
 import type { SatoriElement } from '../types';
 

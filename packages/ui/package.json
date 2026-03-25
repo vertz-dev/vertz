@@ -1,18 +1,21 @@
 {
   "name": "@vertz/ui",
   "version": "0.2.32",
-  "type": "module",
-  "license": "MIT",
   "description": "Vertz UI framework — signals, components, JSX runtime",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/vertz-dev/vertz.git",
     "directory": "packages/ui"
   },
-  "publishConfig": {
-    "access": "public",
-    "provenance": true
-  },
+  "files": [
+    "dist",
+    "reactivity.json"
+  ],
+  "type": "module",
+  "sideEffects": [
+    "dist/shared/*.js"
+  ],
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
   "exports": {
@@ -62,10 +65,10 @@
     },
     "./reactivity.json": "./reactivity.json"
   },
-  "files": [
-    "dist",
-    "reactivity.json"
-  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "bunup",
     "test": "bun test",
@@ -85,8 +88,5 @@
   },
   "engines": {
     "node": ">=22"
-  },
-  "sideEffects": [
-    "dist/shared/*.js"
-  ]
+  }
 }

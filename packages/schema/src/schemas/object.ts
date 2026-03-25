@@ -109,7 +109,7 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
   }
 
   merge<O extends Shape>(other: ObjectSchema<O>): ObjectSchema<Omit<S, keyof O> & O> {
-    // biome-ignore lint/suspicious/noExplicitAny: TS can't verify merged shape satisfies Omit<S, keyof O> & O
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TS can't verify merged shape satisfies Omit<S, keyof O> & O
     return new ObjectSchema({ ...this._shape, ...other.shape } as any);
   }
 
@@ -137,7 +137,7 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
         requiredShape[key] = schema;
       }
     }
-    // biome-ignore lint/suspicious/noExplicitAny: TS can't verify runtime shape matches required mapped type
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TS can't verify runtime shape matches required mapped type
     return new ObjectSchema(requiredShape as any);
   }
 
@@ -148,7 +148,7 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
     for (const [key, schema] of Object.entries(this._shape)) {
       partialShape[key] = schema instanceof OptionalSchema ? schema : schema.optional();
     }
-    // biome-ignore lint/suspicious/noExplicitAny: TS can't verify runtime shape matches partial mapped type
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TS can't verify runtime shape matches partial mapped type
     return new ObjectSchema(partialShape as any);
   }
 

@@ -83,7 +83,7 @@ function AlertDialogContentEl(
 }
 
 function AlertDialogTitleEl(titleId: string): HTMLElement {
-  // biome-ignore lint/a11y/useHeadingContent: primitive — consumer provides content
+  // eslint-disable-next-line jsx-a11y/heading-has-content -- primitive — consumer provides content
   return (<h2 id={titleId} />) as HTMLElement;
 }
 

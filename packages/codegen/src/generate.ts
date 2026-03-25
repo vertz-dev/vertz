@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import type { AppIR } from '@vertz/compiler';
 import type { ResolvedCodegenConfig } from './config';
-import { formatWithBiome } from './format';
+import { formatGeneratedFiles } from './format';
 import { AccessTypesGenerator } from './generators/access-types-generator';
 import { AuthSdkGenerator } from './generators/auth-sdk-generator';
 import { ClientGenerator } from './generators/client-generator';
@@ -171,10 +171,10 @@ export async function generate(
   const result = generateSync(ir, config);
   let { files } = result;
 
-  // Step 3: Format with Biome (if enabled)
+  // Step 3: Format with oxfmt (if enabled)
   const shouldFormat = config.format !== false;
   if (shouldFormat) {
-    files = await formatWithBiome(files);
+    files = await formatGeneratedFiles(files);
   }
 
   // Step 4: Write files to disk

@@ -1,6 +1,6 @@
 ---
 title: Migrations
-description: "Automatic schema migrations during development, explicit migrations for production"
+description: 'Automatic schema migrations during development, explicit migrations for production'
 ---
 
 Vertz handles migrations by diffing your TypeScript schema against the database. During development, migrations run automatically when you save a schema file — no commands needed. For production, you generate migration files and apply them explicitly.
@@ -9,26 +9,29 @@ Vertz handles migrations by diffing your TypeScript schema against the database.
 
 <Steps>
   <Step title="Define your schema">
-    Create a `.schema.ts` file with your table definitions using the `d` builder. See the [schema guide](/guides/db/schema) for details.
+    Create a `.schema.ts` file with your table definitions using the `d` builder. See the [schema
+    guide](/guides/db/schema) for details.
   </Step>
   <Step title="Start the dev server">
-    Run `vertz dev`. The dev server watches your schema files and applies migrations automatically when you save.
+    Run `vertz dev`. The dev server watches your schema files and applies migrations automatically
+    when you save.
   </Step>
   <Step title="Generate migration files before deploying">
-    When you're ready to deploy, run `vertz db migrate` to create a migration file, then `vertz db deploy` in production to apply it.
+    When you're ready to deploy, run `vertz db migrate` to create a migration file, then `vertz db
+    deploy` in production to apply it.
   </Step>
 </Steps>
 
 ## Command comparison
 
-| Command | Creates migration file? | Applies to DB? | Use when |
-|---------|:-:|:-:|----------|
-| `vertz dev` | No | Yes (auto) | Local development — schema changes apply on save |
-| `vertz db push` | No | Yes | Quick one-off schema sync without a migration file |
-| `vertz db migrate` | Yes | Yes | Generating a reviewable migration file for production |
-| `vertz db deploy` | No | Yes (pending only) | Production deployments — applies committed migration files |
-| `vertz db pull` | No | No | Generate a schema file from an existing database |
-| `autoMigrate()` | No | Yes | Programmatic dev setup (test suites, scripts). **SQLite only.** |
+| Command            | Creates migration file? |   Applies to DB?   | Use when                                                        |
+| ------------------ | :---------------------: | :----------------: | --------------------------------------------------------------- |
+| `vertz dev`        |           No            |     Yes (auto)     | Local development — schema changes apply on save                |
+| `vertz db push`    |           No            |        Yes         | Quick one-off schema sync without a migration file              |
+| `vertz db migrate` |           Yes           |        Yes         | Generating a reviewable migration file for production           |
+| `vertz db deploy`  |           No            | Yes (pending only) | Production deployments — applies committed migration files      |
+| `vertz db pull`    |           No            |         No         | Generate a schema file from an existing database                |
+| `autoMigrate()`    |           No            |        Yes         | Programmatic dev setup (test suites, scripts). **SQLite only.** |
 
 - **`vertz dev`** — the default for local development. No commands to remember.
 - **`vertz db push`** — useful when you want to apply changes outside the dev server without generating a migration file (e.g., CI test databases).
@@ -53,11 +56,11 @@ my-app/
 └── vertz.config.ts
 ```
 
-| File | Purpose |
-|------|---------|
-| `migrations/*.sql` | Numbered migration files containing DDL statements. Commit these. |
-| `migrations/_journal.json` | Tracks which migrations exist, their checksums, and creation timestamps. Commit this. |
-| `migrations/_snapshot.json` | The current schema state used for diffing. Commit this. |
+| File                        | Purpose                                                                               |
+| --------------------------- | ------------------------------------------------------------------------------------- |
+| `migrations/*.sql`          | Numbered migration files containing DDL statements. Commit these.                     |
+| `migrations/_journal.json`  | Tracks which migrations exist, their checksums, and creation timestamps. Commit this. |
+| `migrations/_snapshot.json` | The current schema state used for diffing. Commit this.                               |
 
 The migrations directory defaults to `./migrations/` and can be changed via `migrationsDir` in `vertz.config.ts`.
 
@@ -175,7 +178,7 @@ await migrateDev({
   currentSnapshot: db.snapshot,
   previousSnapshot: loadFromFile(),
   migrationsDir: './migrations',
-  rlsPolicies: codegenOutput.rlsPolicies,  // from codegen
+  rlsPolicies: codegenOutput.rlsPolicies, // from codegen
 });
 ```
 
@@ -213,6 +216,7 @@ COMMIT;
 **Cause:** The `_snapshot.json` file doesn't match the actual database state. This can happen if you applied schema changes manually or edited the database outside the migration system.
 
 **Fix:**
+
 1. Run `vertz db status` to see what the system thinks the current state is.
 2. If the database is correct and the snapshot is wrong, run `vertz db push` to sync the snapshot to match your current schema, then run `vertz db migrate` to generate a clean migration.
 3. If the database is wrong, run `vertz db reset` (development only) to rebuild from migration files.
@@ -222,6 +226,7 @@ COMMIT;
 **Symptom:** `vertz db deploy` or `vertz db migrate` fails with a SQL error.
 
 **Fix:**
+
 1. Read the error — it usually points to a specific SQL statement (e.g., column already exists, constraint violation).
 2. If the migration was partially applied, check `vertz db status` to see which migrations succeeded.
 3. Fix the failing migration SQL file manually, then re-run `vertz db deploy`.
@@ -234,6 +239,7 @@ COMMIT;
 **Symptom:** Two developers edit the schema at the same time and both run `vertz db migrate`. The second migration may conflict with the first.
 
 **Fix:**
+
 1. The journal system detects sequence number collisions. If two migrations share the same number, `vertz db migrate` will warn you.
 2. Pull the latest migrations from version control, resolve any conflicts in the SQL files and `_journal.json`, then re-run `vertz db migrate`.
 

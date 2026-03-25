@@ -1,6 +1,6 @@
 ---
 title: Compiler Plugin
-description: "vertz/ui-compiler — the build plugin that transforms JSX and signals"
+description: 'vertz/ui-compiler — the build plugin that transforms JSX and signals'
 ---
 
 The Vertz compiler is a build plugin that transforms your code at compile time. It turns idiomatic TypeScript into fine-grained reactive DOM operations — so you write simple code and get optimal performance.
@@ -53,12 +53,14 @@ JSX is compiled into direct DOM creation with reactive bindings:
 
 ```tsx
 // You write:
-<div className={styles.card}>{title}</div>
+<div className={styles.card}>{title}</div>;
 
 // Compiler outputs:
 const el = document.createElement('div');
 el.className = styles.card;
-effect(() => { el.textContent = title.value; });
+effect(() => {
+  el.textContent = title.value;
+});
 ```
 
 This is simplified — the actual output handles fragments, components, event delegation, and more. But the principle is the same: no virtual DOM, no diffing, direct DOM mutations.
@@ -70,7 +72,11 @@ For server-side rendering, the compiler can generate string-builder functions th
 ```tsx
 // Your component:
 function Header({ title }: { title: string }) {
-  return <header><h1>{title}</h1></header>;
+  return (
+    <header>
+      <h1>{title}</h1>
+    </header>
+  );
 }
 
 // AOT SSR output:
@@ -98,12 +104,16 @@ When you pass expressions to a component, the compiler generates getter-based pr
 
 ```tsx
 // You write:
-<TaskCard task={tasks[0]} disabled={isLoading} />
+<TaskCard task={tasks[0]} disabled={isLoading} />;
 
 // Compiler outputs:
 TaskCard({
-  get task() { return tasks.value[0]; },
-  get disabled() { return isLoading.value; },
+  get task() {
+    return tasks.value[0];
+  },
+  get disabled() {
+    return isLoading.value;
+  },
 });
 ```
 
@@ -135,9 +145,11 @@ The compiler knows which APIs return objects with signal properties. For example
 const tasks = query(api.tasks.list());
 
 // The compiler knows tasks.data is a signal, so:
-<div>{tasks.data?.items.length}</div>
+<div>{tasks.data?.items.length}</div>;
 // becomes:
-effect(() => { el.textContent = tasks.data.value?.items.length; });
+effect(() => {
+  el.textContent = tasks.data.value?.items.length;
+});
 ```
 
 This registry includes `query()`, `form()`, and other framework APIs.
@@ -156,9 +168,11 @@ For manual setup, add the compiler plugin to your Bun configuration:
 ```tsx
 import { vertzPlugin } from 'vertz/ui-compiler';
 
-Bun.plugin(vertzPlugin({
-  // Options
-}));
+Bun.plugin(
+  vertzPlugin({
+    // Options
+  }),
+);
 ```
 
 ## TypeScript configuration

@@ -88,7 +88,7 @@ export const d: {
     ): RelationDef<TTarget, 'many'>;
     many<TTarget extends TableDef<ColumnRecord>>(target: () => TTarget): ManyRelationDef<TTarget>;
   };
-  // biome-ignore lint/complexity/noBannedTypes: {} represents an empty relations record — the correct default for models without relations
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} represents an empty relations record — the correct default for models without relations
   model<TTable extends TableDef<ColumnRecord>>(table: TTable): ModelDef<TTable, {}>;
   model<TTable extends TableDef<ColumnRecord>, TRelations extends Record<string, RelationDef>>(
     table: TTable,

@@ -30,7 +30,7 @@ const ThemeContext = createContext<ThemeContextValue>();
 export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext);
   if (!ctx) {
-    // biome-ignore lint: app-level context guard, not a server error
+    // eslint-disable-next-line -- app-level context guard, not a server error
     throw new Error('useTheme must be called within ThemeContext.Provider');
   }
   return ctx;

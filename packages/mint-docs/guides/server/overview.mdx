@@ -1,6 +1,6 @@
 ---
 title: Overview
-description: "vertz/server — entity-driven backend with auto-generated CRUD, access control, and SDK generation"
+description: 'vertz/server — entity-driven backend with auto-generated CRUD, access control, and SDK generation'
 ---
 
 `vertz/server` is the backend layer of the Vertz stack. You define entities with schemas, access rules, and hooks — the framework generates typed CRUD routes, validates inputs, enforces access control, and produces a typed client SDK. No boilerplate controllers, no manual route wiring.
@@ -12,26 +12,28 @@ description: "vertz/server — entity-driven backend with auto-generated CRUD, a
     Declare the data model, who can do what, and any side effects (hooks). One object, one place.
   </Step>
   <Step title="Framework generates routes">
-    CRUD endpoints are auto-generated with validation, access enforcement, and error handling built in.
+    CRUD endpoints are auto-generated with validation, access enforcement, and error handling built
+    in.
   </Step>
   <Step title="SDK is generated">
-    A fully typed client SDK is produced from your entity definitions — used by the UI layer with `query()` and `form()`.
+    A fully typed client SDK is produced from your entity definitions — used by the UI layer with
+    `query()` and `form()`.
   </Step>
 </Steps>
 
 ## What's included
 
-| Feature | Description |
-|---------|-------------|
-| **Entities** | Declarative data models with CRUD, access rules, hooks, and custom actions |
-| **Domains** | Group entities and services into bounded contexts with automatic route prefixing |
-| **Field & relation exposure** | Control which fields, filters, and relations are exposed in query responses |
-| **Services** | Standalone operations not tied to a single entity |
-| **Access control** | Deny-by-default, per-operation access rules with row-level checks |
-| **Environment** | Validated, typed, frozen config via `createEnv()` |
-| **Authentication** | Email/password, JWT sessions, refresh rotation, OAuth providers |
-| **Middleware** | Request pipeline with typed context propagation |
-| **SDK generation** | Auto-generated typed client from entity definitions |
+| Feature                       | Description                                                                      |
+| ----------------------------- | -------------------------------------------------------------------------------- |
+| **Entities**                  | Declarative data models with CRUD, access rules, hooks, and custom actions       |
+| **Domains**                   | Group entities and services into bounded contexts with automatic route prefixing |
+| **Field & relation exposure** | Control which fields, filters, and relations are exposed in query responses      |
+| **Services**                  | Standalone operations not tied to a single entity                                |
+| **Access control**            | Deny-by-default, per-operation access rules with row-level checks                |
+| **Environment**               | Validated, typed, frozen config via `createEnv()`                                |
+| **Authentication**            | Email/password, JWT sessions, refresh rotation, OAuth providers                  |
+| **Middleware**                | Request pipeline with typed context propagation                                  |
+| **SDK generation**            | Auto-generated typed client from entity definitions                              |
 
 ## Quick example
 
@@ -64,8 +66,7 @@ const db = createDb({
   models: { tasks: tasksModel },
 });
 
-createServer({ entities: [tasks], db })
-  .listen({ port: 3000 });
+createServer({ entities: [tasks], db }).listen({ port: 3000 });
 ```
 
 This generates:

@@ -1,6 +1,6 @@
 ---
 title: Generated SDK
-description: "API reference for the generated typed client — entity methods, Result type, and query/form integration"
+description: 'API reference for the generated typed client — entity methods, Result type, and query/form integration'
 ---
 
 The Vertz codegen produces a fully typed SDK from your entity and service definitions. Every method returns a `Result` — no thrown exceptions for HTTP errors. SDK methods plug directly into `query()` and `form()`.
@@ -21,22 +21,22 @@ The codegen generates `createClient()` based on your entity definitions. Each en
 
 ```ts
 // List — returns QueryDescriptor, works with query()
-api.tasks.list({ status: 'todo' })
+api.tasks.list({ status: 'todo' });
 
 // Get by ID
-api.tasks.get('task-123')
+api.tasks.get('task-123');
 
 // Create — works with form()
-api.tasks.create
+api.tasks.create;
 
 // Update
-api.tasks.update
+api.tasks.update;
 
 // Delete
-api.tasks.delete('task-123')
+api.tasks.delete('task-123');
 
 // Custom actions (if defined on the entity)
-api.tasks.archive('task-123', { reason: 'Sprint complete' })
+api.tasks.archive('task-123', { reason: 'Sprint complete' });
 ```
 
 ### Read methods return QueryDescriptor
@@ -76,7 +76,9 @@ function CreateTaskForm({ onSuccess }: { onSuccess: () => void }) {
     <form action={taskForm.action} method={taskForm.method} onSubmit={taskForm.onSubmit}>
       <input name="title" />
       {taskForm.title.error && <span>{taskForm.title.error}</span>}
-      <button type="submit" disabled={taskForm.submitting}>Create</button>
+      <button type="submit" disabled={taskForm.submitting}>
+        Create
+      </button>
     </form>
   );
 }
@@ -108,17 +110,17 @@ if (result.ok) {
 
 When `result.ok` is `false`, `result.error` has a `status` property matching the HTTP response:
 
-| Status | Error class |
-|--------|-------------|
-| 400 | `BadRequestError` |
-| 401 | `UnauthorizedError` |
-| 403 | `ForbiddenError` |
-| 404 | `NotFoundError` |
-| 409 | `ConflictError` |
-| 422 | `UnprocessableEntityError` |
-| 429 | `RateLimitError` |
-| 500 | `InternalServerError` |
-| 503 | `ServiceUnavailableError` |
+| Status | Error class                |
+| ------ | -------------------------- |
+| 400    | `BadRequestError`          |
+| 401    | `UnauthorizedError`        |
+| 403    | `ForbiddenError`           |
+| 404    | `NotFoundError`            |
+| 409    | `ConflictError`            |
+| 422    | `UnprocessableEntityError` |
+| 429    | `RateLimitError`           |
+| 500    | `InternalServerError`      |
+| 503    | `ServiceUnavailableError`  |
 
 ### Handling errors in SDK calls
 
@@ -138,7 +140,9 @@ if (!result.ok) {
 ```
 
 <Warning>
-SDK methods never throw for HTTP errors. Always check `result.ok` before accessing `result.data`. If you `await` a QueryDescriptor directly (outside of `query()`), you get a `Result` back — not the data directly.
+  SDK methods never throw for HTTP errors. Always check `result.ok` before accessing `result.data`.
+  If you `await` a QueryDescriptor directly (outside of `query()`), you get a `Result` back — not
+  the data directly.
 </Warning>
 
 ---
@@ -150,7 +154,9 @@ A QueryDescriptor is `PromiseLike` — you can await it directly for one-off cal
 ```ts
 // One-off call (e.g., in a loader or event handler) — returns Result
 const result = await api.tasks.get('task-123');
-if (result.ok) { /* ... */ }
+if (result.ok) {
+  /* ... */
+}
 
 // Reactive UI — use query() for automatic updates
 const task = query(api.tasks.get('task-123'));

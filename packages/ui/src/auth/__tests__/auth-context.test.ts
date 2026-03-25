@@ -100,7 +100,7 @@ function captureAuth(options?: { auth?: AuthSdk; basePath?: string; accessContro
       auth = useAuth();
     },
   });
-  // biome-ignore lint/style/noNonNullAssertion: test helper always assigns
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- test helper always assigns
   return auth!;
 }
 
@@ -125,7 +125,7 @@ function captureAuthWithRouter(options?: {
         },
       }),
   });
-  // biome-ignore lint/style/noNonNullAssertion: test helper always assigns
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- test helper always assigns
   return { auth: auth!, mockRouter };
 }
 
@@ -488,13 +488,13 @@ describe('AuthProvider', () => {
           }),
       });
 
-      // biome-ignore lint/style/noNonNullAssertion: test helper always assigns
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- test helper always assigns
       await auth!.signIn({ email: 'a@b.com', password: 'pass' });
       // Should not throw
-      // biome-ignore lint/style/noNonNullAssertion: test helper always assigns
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- test helper always assigns
       await auth!.signOut({ redirectTo: '/login' });
 
-      // biome-ignore lint/style/noNonNullAssertion: test helper always assigns
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- test helper always assigns
       expect(auth!.status).toBe('unauthenticated');
     });
 
@@ -964,7 +964,7 @@ describe('AuthProvider', () => {
         },
       });
 
-      // biome-ignore lint/style/noNonNullAssertion: test helper always assigns
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- test helper always assigns
       await auth!.signIn({ email: 'a@b.com', password: 'pass123' });
 
       // Wait for the access set fetch to complete
@@ -1244,9 +1244,9 @@ describe('AuthProvider', () => {
 
       const sdk = createMockAuthSdk();
 
-      // biome-ignore lint/style/noNonNullAssertion: test helper always assigns
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- test helper always assigns
       let auth: ReturnType<typeof useAuth> = undefined!;
-      // biome-ignore lint/style/noNonNullAssertion: test helper always assigns
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- test helper always assigns
       let accessCtx: { accessSet: AccessSet | null; loading: boolean } = undefined!;
 
       AuthProvider({

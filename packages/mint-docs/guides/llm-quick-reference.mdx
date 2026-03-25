@@ -1,6 +1,6 @@
 ---
 title: LLM Quick Reference
-description: "Critical patterns for AI code generation — data fetching via typed SDK, forms, reactivity, entities, and schema. Read this before generating any Vertz code."
+description: 'Critical patterns for AI code generation — data fetching via typed SDK, forms, reactivity, entities, and schema. Read this before generating any Vertz code.'
 ---
 
 This page summarizes the patterns that matter most when generating Vertz code. Reading this first prevents the most common class of mistakes.
@@ -38,12 +38,13 @@ Never pass raw strings to `query()`:
 query('tasks');
 query('tasks', { limit: 5 });
 ```
+
 </Warning>
 
 For custom (non-SDK) endpoints, pass a thunk with a cache key:
 
 ```ts
-const data = query(() => fetch('/custom/endpoint').then(r => r.json()), {
+const data = query(() => fetch('/custom/endpoint').then((r) => r.json()), {
   key: 'my-custom-data',
 });
 ```

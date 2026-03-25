@@ -48,7 +48,7 @@ describe('DOM Shim', () => {
       ssrStorage.run(testCtx('/test-path'), () => {
         installDomShim();
         expect(globalThis).toHaveProperty('window');
-        // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
         expect((window as any).location.pathname).toBe('/test-path');
       });
     });
@@ -69,7 +69,7 @@ describe('DOM Shim', () => {
     it('should create an element with the given tag', () => {
       const el = document.createElement('div');
       expect(el).toBeDefined();
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
       expect((el as any).tag).toBe('div');
     });
 
@@ -83,31 +83,31 @@ describe('DOM Shim', () => {
       const parent = document.createElement('div');
       const child = document.createElement('span');
       parent.appendChild(child);
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
       expect((parent as any).children).toHaveLength(1);
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
       expect((parent as any).children[0]).toBe(child);
     });
 
     it('should handle className property', () => {
       const el = document.createElement('div');
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
       (el as any).className = 'foo bar';
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
       expect((el as any).className).toBe('foo bar');
       expect(el.getAttribute('class')).toBe('foo bar');
     });
 
     it('should support classList.add and classList.remove', () => {
       const el = document.createElement('div');
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
       (el as any).classList.add('foo');
       expect(el.getAttribute('class')).toBe('foo');
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
       (el as any).classList.add('bar');
       expect(el.getAttribute('class')).toContain('foo');
       expect(el.getAttribute('class')).toContain('bar');
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
       (el as any).classList.remove('foo');
       expect(el.getAttribute('class')).toBe('bar');
     });
@@ -130,17 +130,17 @@ describe('DOM Shim', () => {
 
     it('should create a text node with the given text', () => {
       const textNode = document.createTextNode('Hello');
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
       expect((textNode as any).text).toBe('Hello');
     });
 
     it('should support data property', () => {
       const textNode = document.createTextNode('Hello');
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
       expect((textNode as any).data).toBe('Hello');
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
       (textNode as any).data = 'World';
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
       expect((textNode as any).text).toBe('World');
     });
   });
@@ -154,7 +154,7 @@ describe('DOM Shim', () => {
       const fragment = document.createDocumentFragment();
       const child = document.createElement('div');
       fragment.appendChild(child);
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
       expect((fragment as any).childNodes).toHaveLength(1);
     });
 
@@ -169,7 +169,7 @@ describe('DOM Shim', () => {
       parent.appendChild(fragment);
 
       // Fragment children should be moved to parent
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
       expect((parent as any).children).toHaveLength(2);
     });
   });
@@ -240,7 +240,7 @@ describe('DOM Shim', () => {
     it('should include insertBefore-ed element in toVNode output', () => {
       const parent = document.createElement('div');
       const child = document.createElement('span');
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim test
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim test
       (parent as any).insertBefore(child, null);
 
       const vnode = toVNode(parent);
@@ -255,7 +255,7 @@ describe('DOM Shim', () => {
     it('should include insertBefore-ed text node in toVNode output', () => {
       const parent = document.createElement('div');
       const text = document.createTextNode('hello');
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim test
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim test
       (parent as any).insertBefore(text, null);
 
       const vnode = toVNode(parent);
@@ -269,7 +269,7 @@ describe('DOM Shim', () => {
       parent.appendChild(first);
 
       const inserted = document.createElement('em');
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim test
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim test
       (parent as any).insertBefore(inserted, first);
 
       const vnode = toVNode(parent);
@@ -293,7 +293,7 @@ describe('DOM Shim', () => {
 
       // Replace the SECOND "same" text node with a new element
       const replacement = document.createElement('span');
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim test
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim test
       (parent as any).replaceChild(replacement, text2);
 
       const vnode = toVNode(parent);
@@ -313,7 +313,7 @@ describe('DOM Shim', () => {
       parent.appendChild(text2);
 
       // Remove the FIRST "dup" text node
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim test
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim test
       (parent as any).removeChild(text1);
 
       const vnode = toVNode(parent);
@@ -335,7 +335,7 @@ describe('DOM Shim', () => {
       parent.appendChild(original);
 
       const replacement = document.createElement('em');
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim test
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim test
       (parent as any).replaceChild(replacement, original);
 
       const vnode = toVNode(parent);
@@ -446,7 +446,7 @@ describe('DOM Shim', () => {
     });
 
     it('should stub document.querySelectorAll returning empty array', () => {
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
       expect((document as any).querySelectorAll('.foo')).toEqual([]);
     });
 
@@ -490,9 +490,15 @@ describe('DOM Shim', () => {
     it('should remove globals that were installed by the shim', () => {
       // Clear pre-existing globals to test in isolation
       const globalsToCheck = [
-        'localStorage', 'sessionStorage', 'IntersectionObserver',
-        'ResizeObserver', 'MutationObserver', 'requestAnimationFrame',
-        'cancelAnimationFrame', 'requestIdleCallback', 'cancelIdleCallback',
+        'localStorage',
+        'sessionStorage',
+        'IntersectionObserver',
+        'ResizeObserver',
+        'MutationObserver',
+        'requestAnimationFrame',
+        'cancelAnimationFrame',
+        'requestIdleCallback',
+        'cancelIdleCallback',
       ] as const;
       const saved: Record<string, unknown> = {};
       for (const g of globalsToCheck) {
@@ -689,7 +695,7 @@ describe('DOM Shim', () => {
   describe('installDomShim with existing window', () => {
     it('should update window.location.pathname when window already exists', () => {
       // Pre-create a window-like global
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim test
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim test
       (globalThis as any).window = {
         location: { pathname: '/old', search: '', hash: '' },
         addEventListener: () => {},
@@ -699,7 +705,7 @@ describe('DOM Shim', () => {
 
       ssrStorage.run(testCtx('/new-path'), () => {
         installDomShim();
-        // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim test
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim test
         expect((window as any).location.pathname).toBe('/new-path');
       });
     });
@@ -773,7 +779,7 @@ describe('DOM Shim', () => {
 
     it('should coerce numeric values to string', () => {
       const el = new SSRElement('div');
-      // biome-ignore lint/suspicious/noExplicitAny: testing numeric coercion
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing numeric coercion
       (el.dataset as any).count = 42;
       expect(el.getAttribute('data-count')).toBe('42');
     });
@@ -802,9 +808,9 @@ describe('DOM Shim', () => {
 
     it('should update style attribute when setting style properties', () => {
       const el = document.createElement('div');
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
       (el as any).style.color = 'red';
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
       (el as any).style.fontSize = '16px';
 
       const styleAttr = el.getAttribute('style');
@@ -814,7 +820,7 @@ describe('DOM Shim', () => {
 
     it('should convert camelCase to kebab-case', () => {
       const el = document.createElement('div');
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR DOM shim requires dynamic typing
       (el as any).style.backgroundColor = 'blue';
 
       const styleAttr = el.getAttribute('style');
@@ -825,7 +831,7 @@ describe('DOM Shim', () => {
   describe('setAttribute with style objects', () => {
     it('should convert object style to CSS string', () => {
       const el = new SSRElement('div');
-      // biome-ignore lint/suspicious/noExplicitAny: testing object style support
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing object style support
       (el as any).setAttribute('style', { backgroundColor: 'red', marginTop: '1rem' });
       expect(el.attrs.style).toBe('background-color: red; margin-top: 1rem');
     });
@@ -838,7 +844,7 @@ describe('DOM Shim', () => {
 
     it('should handle object style followed by el.style.display = none', () => {
       const el = new SSRElement('div');
-      // biome-ignore lint/suspicious/noExplicitAny: testing object style support
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing object style support
       (el as any).setAttribute('style', { backgroundColor: 'red' });
       el.style.display = 'none';
       expect(el.attrs.style).toContain('background-color: red');

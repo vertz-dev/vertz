@@ -293,6 +293,7 @@ export class CrossComponentAnalyzer extends BaseAnalyzer<CrossComponentAnalyzerR
     const paramName = identifier.getText();
 
     // Walk up to find if this identifier is a callback parameter
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type-level bound requires any
     let current: any = identifier;
     while (current) {
       const parent = current.getParent();

@@ -11,7 +11,7 @@
  * - No dependencies beyond this file
  */
 
-// biome-ignore lint/suspicious/noExplicitAny: runtime helper accepts any renderable value
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime helper accepts any renderable value
 type Renderable = any;
 
 /**

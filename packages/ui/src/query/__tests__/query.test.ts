@@ -2250,7 +2250,7 @@ describe('query()', () => {
         _key: `GET:/brands?offset=${offset.value}`,
         _fetch: fetchFn,
         _entity: { entityType: 'brands', kind: 'list' as const },
-        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike mock
+        // eslint-disable-next-line unicorn/no-thenable -- intentional PromiseLike mock
         then(onFulfilled: any, onRejected: any) {
           return this._fetch().then(onFulfilled, onRejected);
         },
@@ -2294,7 +2294,7 @@ describe('query()', () => {
         _key: `GET:/brands?offset=${dep.value}`,
         _fetch: fetchFn,
         _entity: { entityType: 'brands', kind: 'list' as const },
-        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike mock
+        // eslint-disable-next-line unicorn/no-thenable -- intentional PromiseLike mock
         then(onFulfilled: any, onRejected: any) {
           return this._fetch().then(onFulfilled, onRejected);
         },

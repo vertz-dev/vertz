@@ -1,22 +1,18 @@
 {
   "name": "vertz",
   "version": "0.2.32",
-  "type": "module",
-  "license": "MIT",
   "description": "The first TypeScript stack built for LLMs",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/vertz-dev/vertz.git",
     "directory": "packages/vertz"
   },
-  "publishConfig": {
-    "access": "public",
-    "provenance": true
-  },
-  "sideEffects": false,
   "files": [
     "dist"
   ],
+  "type": "module",
+  "sideEffects": false,
   "exports": {
     "./server": {
       "import": "./dist/server.js",
@@ -75,24 +71,28 @@
       "types": "./dist/ui-auth.d.ts"
     }
   },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "tsc && bun test"
   },
   "dependencies": {
-    "@vertz/server": "workspace:^",
-    "@vertz/schema": "workspace:^",
-    "@vertz/db": "workspace:^",
-    "@vertz/testing": "workspace:^",
-    "@vertz/ui": "workspace:^",
-    "@vertz/ui-compiler": "workspace:^",
-    "@vertz/fetch": "workspace:^",
-    "@vertz/errors": "workspace:^",
     "@vertz/cloudflare": "workspace:^",
+    "@vertz/db": "workspace:^",
+    "@vertz/errors": "workspace:^",
+    "@vertz/fetch": "workspace:^",
+    "@vertz/schema": "workspace:^",
+    "@vertz/server": "workspace:^",
+    "@vertz/testing": "workspace:^",
     "@vertz/tui": "workspace:^",
-    "@vertz/ui-primitives": "workspace:^",
+    "@vertz/ui": "workspace:^",
     "@vertz/ui-auth": "workspace:^",
+    "@vertz/ui-compiler": "workspace:^",
+    "@vertz/ui-primitives": "workspace:^",
     "@vertz/ui-server": "workspace:^"
   },
   "devDependencies": {}

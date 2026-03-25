@@ -290,7 +290,7 @@ describe('Prisma-style API (db.model.method)', () => {
     expect(() =>
       createDb({
         models: {
-          // biome-ignore lint/suspicious/noExplicitAny: Testing reserved name validation
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing reserved name validation
           query: queryModel as any,
         },
         url: 'pglite://memory',

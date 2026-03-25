@@ -75,7 +75,7 @@ export interface AccessContextConfig {
  * When empty (no codegen), Entitlement falls back to `string`.
  * When codegen runs, it populates this with `{ 'entity:action': true }` entries.
  */
-// biome-ignore lint/suspicious/noEmptyInterface: augmented by codegen
+// eslint-disable-next-line @typescript-eslint/no-empty-interface -- augmented by codegen
 export interface EntitlementRegistry {}
 
 /** Entitlement type — narrows to literal union when codegen populates EntitlementRegistry. */

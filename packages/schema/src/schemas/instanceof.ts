@@ -4,7 +4,7 @@ import { Schema } from '../core/schema';
 import { SchemaType } from '../core/types';
 import type { JSONSchemaObject, RefTracker } from '../introspection/json-schema';
 
-// biome-ignore lint/suspicious/noExplicitAny: standard TS pattern for any-constructor constraint
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- standard TS pattern for any-constructor constraint
 type Constructor<T> = new (...args: any[]) => T;
 
 export class InstanceOfSchema<T> extends Schema<T> {

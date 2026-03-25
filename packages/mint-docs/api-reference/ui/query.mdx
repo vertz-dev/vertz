@@ -1,6 +1,6 @@
 ---
 title: Query
-description: "API reference for query() — data fetching and caching"
+description: 'API reference for query() — data fetching and caching'
 ---
 
 `query()` creates a reactive data-fetching primitive. Pass it a SDK method call and it returns reactive properties (`data`, `loading`, `error`) that auto-update in the DOM. It supports SSR data pre-fetching and integrates with the entity store for cross-component cache invalidation.
@@ -34,8 +34,8 @@ SDK methods return a `QueryDescriptor` — an object that carries the fetch func
 ```ts
 function query<T, E>(
   descriptor: QueryDescriptor<T, E>,
-  options?: Omit<QueryOptions<T>, 'key'>
-): QueryResult<T, E>
+  options?: Omit<QueryOptions<T>, 'key'>,
+): QueryResult<T, E>;
 ```
 
 ---
@@ -44,32 +44,33 @@ function query<T, E>(
 
 The returned object has reactive properties that auto-update in the DOM — the compiler handles reactivity for you.
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `data` | `T \| undefined` | Resolved data, or `undefined` while loading |
-| `loading` | `boolean` | `true` during the initial fetch |
-| `revalidating` | `boolean` | `true` during background refetch (stale-while-revalidate) |
-| `error` | `E \| undefined` | Error from the last failed fetch |
-| `idle` | `boolean` | `true` when the query has never fetched (e.g. thunk returned `null`) |
-| `refetch()` | `() => void` | Re-execute the query (shows loading state) |
-| `revalidate()` | `() => void` | Background refetch (keeps current data visible) |
-| `dispose()` | `() => void` | Cancel the query and clean up subscriptions |
+| Property       | Type             | Description                                                          |
+| -------------- | ---------------- | -------------------------------------------------------------------- |
+| `data`         | `T \| undefined` | Resolved data, or `undefined` while loading                          |
+| `loading`      | `boolean`        | `true` during the initial fetch                                      |
+| `revalidating` | `boolean`        | `true` during background refetch (stale-while-revalidate)            |
+| `error`        | `E \| undefined` | Error from the last failed fetch                                     |
+| `idle`         | `boolean`        | `true` when the query has never fetched (e.g. thunk returned `null`) |
+| `refetch()`    | `() => void`     | Re-execute the query (shows loading state)                           |
+| `revalidate()` | `() => void`     | Background refetch (keeps current data visible)                      |
+| `dispose()`    | `() => void`     | Cancel the query and clean up subscriptions                          |
 
 <Note>
-`refetch()` resets `data` to `undefined` and shows loading state. `revalidate()` keeps the current data visible while fetching fresh data in the background (stale-while-revalidate pattern).
+  `refetch()` resets `data` to `undefined` and shows loading state. `revalidate()` keeps the current
+  data visible while fetching fresh data in the background (stale-while-revalidate pattern).
 </Note>
 
 ---
 
 ## QueryOptions
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `key` | `string` | — | Cache key (auto-inferred from SDK descriptors) |
-| `initialData` | `T` | — | Initial data to use before the first fetch completes |
-| `debounce` | `number` | — | Debounce interval in ms before executing |
-| `cache` | `CacheStore<T>` | — | Custom cache store |
-| `ssrTimeout` | `number` | — | Max time to wait for the query during SSR (ms) |
+| Option            | Type                                                      | Default | Description                                                 |
+| ----------------- | --------------------------------------------------------- | ------- | ----------------------------------------------------------- |
+| `key`             | `string`                                                  | —       | Cache key (auto-inferred from SDK descriptors)              |
+| `initialData`     | `T`                                                       | —       | Initial data to use before the first fetch completes        |
+| `debounce`        | `number`                                                  | —       | Debounce interval in ms before executing                    |
+| `cache`           | `CacheStore<T>`                                           | —       | Custom cache store                                          |
+| `ssrTimeout`      | `number`                                                  | —       | Max time to wait for the query during SSR (ms)              |
 | `refetchInterval` | `number \| false \| (data, iteration) => number \| false` | `false` | Polling interval in ms, or a function for dynamic intervals |
 
 ---
@@ -91,7 +92,7 @@ if (result.ok) {
 ### Signature
 
 ```ts
-function invalidate(key: string): void
+function invalidate(key: string): void;
 ```
 
 ---

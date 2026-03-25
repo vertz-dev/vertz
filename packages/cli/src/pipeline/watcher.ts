@@ -200,6 +200,7 @@ export function createWatcher(config: WatcherConfig): Watcher {
  * It wraps the basic watcher with pipeline stage determination.
  */
 export class PipelineWatcherImpl implements PipelineWatcher {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type-level bound requires any
   private handlers: Map<string, Array<any>> = new Map();
   private watcher: Watcher;
   private config: WatcherConfig;

@@ -38,7 +38,10 @@ interface TypedRef<
   many<
     TTargetName extends Extract<keyof TModels, string>,
     TFK extends ColumnKeys<TModels[TTargetName]>,
-  >(target: TTargetName, foreignKey: TFK): RelationDef<TModels[TTargetName], 'many'>;
+  >(
+    target: TTargetName,
+    foreignKey: TFK,
+  ): RelationDef<TModels[TTargetName], 'many'>;
 }
 
 // ---------------------------------------------------------------------------
@@ -71,9 +74,9 @@ type RegistryOutput<
     K extends keyof TRelMap
       ? TRelMap[K] extends Record<string, RelationDef>
         ? TRelMap[K]
-        : // biome-ignore lint/complexity/noBannedTypes: {} represents an empty relations record for tables not in the callback
+        : // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} represents an empty relations record for tables not in the callback
           {}
-      : // biome-ignore lint/complexity/noBannedTypes: {} represents an empty relations record for tables not in the callback
+      : // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} represents an empty relations record for tables not in the callback
         {}
   >;
 };

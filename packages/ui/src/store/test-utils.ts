@@ -24,6 +24,7 @@ export function createTestStore(data: Record<string, Record<string, unknown>>): 
   for (const [type, entities] of Object.entries(data)) {
     const entityArray = Object.values(entities);
     if (entityArray.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- type-level bound requires any
       store.merge(type, entityArray as any);
     }
   }

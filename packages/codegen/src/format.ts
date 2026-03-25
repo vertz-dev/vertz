@@ -9,38 +9,24 @@ import type { GeneratedFile } from './types';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-/** Minimal Biome configuration for formatting generated code. */
-const BIOME_CONFIG = JSON.stringify({
-  $schema: 'https://biomejs.dev/schemas/2.0.0/schema.json',
-  formatter: {
-    enabled: true,
-    indentStyle: 'space',
-    indentWidth: 2,
-    lineWidth: 100,
-  },
-  javascript: {
-    formatter: {
-      quoteStyle: 'single',
-      semicolons: 'always',
-      trailingCommas: 'all',
-    },
-  },
-  linter: {
-    enabled: false,
-  },
-  vcs: {
-    enabled: false,
-  },
+/** Minimal oxfmt configuration for formatting generated code. */
+const OXFMT_CONFIG = JSON.stringify({
+  printWidth: 100,
+  tabWidth: 2,
+  useTabs: false,
+  semi: true,
+  singleQuote: true,
+  trailingComma: 'all',
 });
 
-function findBiomeBin(): string {
+function findOxfmtBin(): string {
   const candidates = [
     // From source: packages/codegen/src/ -> monorepo root
-    resolve(__dirname, '..', '..', '..', 'node_modules', '.bin', 'biome'),
+    resolve(__dirname, '..', '..', '..', 'node_modules', '.bin', 'oxfmt'),
     // From package node_modules
-    resolve(__dirname, '..', 'node_modules', '.bin', 'biome'),
+    resolve(__dirname, '..', 'node_modules', '.bin', 'oxfmt'),
     // From cwd (test context)
-    resolve(process.cwd(), 'node_modules', '.bin', 'biome'),
+    resolve(process.cwd(), 'node_modules', '.bin', 'oxfmt'),
   ];
 
   for (const candidate of candidates) {
@@ -51,7 +37,7 @@ function findBiomeBin(): string {
   }
 
   // Last resort: assume it's on PATH
-  return 'biome';
+  return 'oxfmt';
 }
 
 function spawnAsync(
@@ -66,13 +52,13 @@ function spawnAsync(
 }
 
 /**
- * Format generated files using Biome.
+ * Format generated files using oxfmt.
  *
- * Writes files to a temp directory with a standalone biome.json config,
- * runs `biome format --write --config-path <tempDir>`,
+ * Writes files to a temp directory with a standalone .oxfmtrc.json config,
+ * runs `oxfmt <tempDir>`,
  * reads them back, and cleans up.
  */
-export async function formatWithBiome(files: GeneratedFile[]): Promise<GeneratedFile[]> {
+export async function formatGeneratedFiles(files: GeneratedFile[]): Promise<GeneratedFile[]> {
   if (files.length === 0) {
     return [];
   }
@@ -86,8 +72,8 @@ export async function formatWithBiome(files: GeneratedFile[]): Promise<Generated
   try {
     await mkdir(tempDir, { recursive: true });
 
-    // Write a standalone biome.json so formatting works outside the repo
-    await writeFile(join(tempDir, 'biome.json'), BIOME_CONFIG, 'utf-8');
+    // Write a standalone .oxfmtrc.json so formatting works outside the repo
+    await writeFile(join(tempDir, '.oxfmtrc.json'), OXFMT_CONFIG, 'utf-8');
 
     // Write all files to the temp directory
     for (const file of files) {
@@ -97,12 +83,12 @@ export async function formatWithBiome(files: GeneratedFile[]): Promise<Generated
       await writeFile(filePath, file.content, 'utf-8');
     }
 
-    // Run Biome format with explicit config-path so it uses our config, not the repo root's
-    const biomeBin = findBiomeBin();
+    // Run oxfmt to format files in-place
+    const oxfmtBin = findOxfmtBin();
     try {
-      await spawnAsync(biomeBin, ['format', '--write', `--config-path=${tempDir}`, tempDir]);
+      await spawnAsync(oxfmtBin, [tempDir]);
     } catch {
-      // If biome format fails (e.g. syntax error), return files as-is
+      // If oxfmt format fails (e.g. syntax error), return files as-is
       // This is a best-effort formatter
     }
 

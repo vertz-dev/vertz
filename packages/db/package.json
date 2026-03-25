@@ -1,18 +1,17 @@
 {
   "name": "@vertz/db",
   "version": "0.2.32",
-  "type": "module",
-  "license": "MIT",
   "description": "Database layer for Vertz — typed queries, migrations, codegen",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/vertz-dev/vertz.git",
     "directory": "packages/db"
   },
-  "publishConfig": {
-    "access": "public",
-    "provenance": true
-  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
@@ -45,14 +44,22 @@
       "import": "./dist/postgres/index.js"
     }
   },
-  "files": [
-    "dist"
-  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "bunup",
     "test": "bun test",
     "test:watch": "bun test --watch",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json"
+  },
+  "dependencies": {
+    "@paralleldrive/cuid2": "^3.3.0",
+    "@vertz/errors": "workspace:^",
+    "@vertz/schema": "workspace:^",
+    "nanoid": "^5.1.5",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260305.0",
@@ -65,16 +72,6 @@
     "postgres": "^3.4.8",
     "typescript": "^5.7.0"
   },
-  "engines": {
-    "node": ">=22"
-  },
-  "dependencies": {
-    "@vertz/errors": "workspace:^",
-    "@vertz/schema": "workspace:^",
-    "@paralleldrive/cuid2": "^3.3.0",
-    "nanoid": "^5.1.5",
-    "uuid": "^13.0.0"
-  },
   "peerDependencies": {
     "better-sqlite3": "^12.0.0",
     "postgres": "^3.4.8"
@@ -86,5 +83,8 @@
     "postgres": {
       "optional": true
     }
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

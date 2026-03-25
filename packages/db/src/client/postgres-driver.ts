@@ -28,7 +28,7 @@ type PostgresSql = import('postgres').Sql<{}>;
 
 function loadPostgres(): (...args: unknown[]) => PostgresSql {
   try {
-    // biome-ignore lint/suspicious/noExplicitAny: lazy-loaded optional dep
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- lazy-loaded optional dep
     const mod = require('postgres') as any;
     // Handle ESM interop: require() may return { default: fn } or fn directly
     return typeof mod === 'function' ? mod : mod.default;
@@ -124,7 +124,7 @@ export function createPostgresDriver(url: string, pool?: PoolConfig): PostgresDr
 
   const queryFn: QueryFn = async <T>(sqlStr: string, params: readonly unknown[]) => {
     try {
-      // biome-ignore lint/suspicious/noExplicitAny: postgres.js unsafe() expects any[] for dynamic params
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- postgres.js unsafe() expects any[] for dynamic params
       const result = await sql.unsafe<Record<string, unknown>[]>(sqlStr, params as any[], {
         prepare: true,
       });
@@ -155,7 +155,7 @@ export function createPostgresDriver(url: string, pool?: PoolConfig): PostgresDr
       return sql.begin(async (txSql) => {
         const txQueryFn: QueryFn = async <R>(sqlStr: string, params: readonly unknown[]) => {
           try {
-            // biome-ignore lint/suspicious/noExplicitAny: postgres.js unsafe() expects any[] for dynamic params
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- postgres.js unsafe() expects any[] for dynamic params
             const result = await txSql.unsafe<Record<string, unknown>[]>(sqlStr, params as any[], {
               prepare: true,
             });
@@ -192,4 +192,3 @@ export function createPostgresDriver(url: string, pool?: PoolConfig): PostgresDr
     },
   };
 }
-

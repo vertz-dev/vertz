@@ -39,7 +39,14 @@
         "groups": [
           {
             "group": "Getting Started",
-            "pages": ["index", "quickstart", "installation", "conventions", "philosophy", "guides/llm-quick-reference"]
+            "pages": [
+              "index",
+              "quickstart",
+              "installation",
+              "conventions",
+              "philosophy",
+              "guides/llm-quick-reference"
+            ]
           },
           {
             "group": "vertz/ui",

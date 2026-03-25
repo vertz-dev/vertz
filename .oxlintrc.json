@@ -1,0 +1,76 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "style": "off",
+    "pedantic": "off",
+    "nursery": "off",
+    "restriction": "off"
+  },
+  "plugins": ["typescript", "react", "jsx-a11y", "import", "unicorn"],
+  "jsPlugins": ["./oxlint-plugins/vertz-rules.js"],
+  "rules": {
+    "typescript/no-explicit-any": "error",
+    "typescript/ban-ts-comment": ["error", {
+      "ts-ignore": true,
+      "ts-expect-error": false,
+      "ts-nocheck": false
+    }],
+    "react/react-in-jsx-scope": "off",
+    "react/jsx-key": "off",
+    "react/no-children-prop": "off",
+    "react/style-prop-object": "off",
+    "eslint/no-unused-vars": "off",
+    "eslint/no-unused-expressions": "off",
+    "eslint/no-shadow": "off",
+    "eslint/no-shadow-restricted-names": "off",
+    "eslint/no-new": "off",
+    "eslint/no-useless-constructor": "off",
+    "eslint/no-useless-concat": "off",
+    "eslint/no-unsafe-optional-chaining": "off",
+    "eslint/no-unmodified-loop-condition": "off",
+    "eslint/preserve-caught-error": "off",
+    "typescript/no-extraneous-class": "off",
+    "typescript/no-this-alias": "off",
+    "import/no-named-as-default-member": "off",
+    "import/no-empty-named-blocks": "off",
+    "unicorn/no-array-sort": "off",
+    "unicorn/no-array-reverse": "off",
+    "unicorn/no-new-array": "off",
+    "unicorn/no-empty-file": "off",
+    "unicorn/no-thenable": "off",
+    "unicorn/prefer-add-event-listener": "off",
+    "unicorn/consistent-function-scoping": "off",
+    "unicorn/no-useless-fallback-in-spread": "off",
+    "unicorn/no-useless-spread": "off",
+    "unicorn/require-module-specifiers": "off",
+    "vertz-rules/no-double-cast": "warn",
+    "vertz-rules/no-internals-import": "warn",
+    "vertz-rules/no-throw-plain-error": "warn",
+    "vertz-rules/no-wrong-effect": "warn",
+    "vertz-rules/no-body-jsx": "warn",
+    "vertz-rules/no-try-catch-result": "warn"
+  },
+  "overrides": [
+    {
+      "files": ["**/__tests__/**/*.{ts,tsx}", "**/*.test.{ts,tsx}", "**/*.test-d.{ts,tsx}"],
+      "rules": {
+        "typescript/no-explicit-any": "off"
+      }
+    },
+    {
+      "files": ["packages/ui-primitives/src/**/*.tsx"],
+      "rules": {
+        "jsx-a11y/no-noninteractive-element-to-interactive-role": "off",
+        "jsx-a11y/no-redundant-roles": "off",
+        "jsx-a11y/no-static-element-interactions": "off",
+        "jsx-a11y/role-has-required-aria-props": "off",
+        "jsx-a11y/role-supports-aria-props": "off",
+        "jsx-a11y/interactive-supports-focus": "off",
+        "jsx-a11y/click-events-have-key-events": "off",
+        "jsx-a11y/prefer-tag-over-role": "off"
+      }
+    }
+  ]
+}

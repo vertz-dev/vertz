@@ -16,14 +16,14 @@ import { createDOMAdapter } from './dom-adapter';
  */
 export const RENDER_NODE_BRAND: unique symbol = Symbol.for('vertz:render-node');
 
-// biome-ignore lint/suspicious/noEmptyInterface: structural marker — extended by RenderElement and RenderText
+// eslint-disable-next-line @typescript-eslint/no-empty-interface -- structural marker — extended by RenderElement and RenderText
 export interface RenderNode {}
 
 export interface RenderElement extends RenderNode {
   setAttribute(name: string, value: string): void;
   removeAttribute(name: string): void;
   getAttribute(name: string): string | null;
-  // biome-ignore lint/suspicious/noExplicitAny: must accept both CSSStyleDeclaration and SSR Proxy
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- must accept both CSSStyleDeclaration and SSR Proxy
   style: { display: string; [key: string]: any };
   classList: { add(cls: string): void; remove(cls: string): void };
   addEventListener(event: string, handler: EventListener): void;

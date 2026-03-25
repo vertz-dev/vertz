@@ -31,7 +31,7 @@ describe('BaseGenerator', () => {
   it('stores config', () => {
     const config = resolveConfig({ strict: true });
     const gen = new TestGenerator(config);
-    // biome-ignore lint/complexity/useLiteralKeys: accessing protected member for testing
+    // eslint-disable-next-line dot-notation -- accessing protected member for testing
     expect(gen['config']).toBe(config);
   });
 });

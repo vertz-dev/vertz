@@ -1031,7 +1031,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
   // HMR re-mount error: "[browser] [vertz-hmr] Error re-mounting <Component>: <Error>"
   const hmrErrorPattern = /\[vertz-hmr\] Error re-mounting (\w+): ([\s\S]*?)(?:\n\s+at |$)/;
   // Bun's ANSI-colored frontend error: "\x1b[31mfrontend\x1b[0m <ErrorType>: <message>"
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape codes from Bun's dev console
+  // eslint-disable-next-line no-control-regex -- ANSI escape codes from Bun's dev console
   const frontendErrorPattern = /\x1b\[31mfrontend\x1b\[0m ([\s\S]*?)(?:\n\s+from browser|$)/;
 
   /** Parse source file location from a stack trace, preferring project src/ paths. */
@@ -1506,7 +1506,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     });
 
     // Build routes object conditionally (Bun doesn't accept undefined route values).
-    // biome-ignore lint/suspicious/noExplicitAny: Bun routes are dynamically composed from user config
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Bun routes are dynamically composed from user config
     const routes: Record<string, any> = {
       '/__vertz_hmr': hmrShellModule,
     };

@@ -1,6 +1,6 @@
 ---
 title: Entities
-description: "Define data models with CRUD, access rules, hooks, and custom actions"
+description: 'Define data models with CRUD, access rules, hooks, and custom actions'
 ---
 
 An entity is a declarative definition of a data model and its behavior. It combines the schema, access rules, lifecycle hooks, and custom actions into a single object. The framework reads this definition and generates everything: routes, validation, access enforcement, error handling.
@@ -23,10 +23,18 @@ const usersModel = d.model(
 
 const users = entity('users', {
   model: usersModel,
-  access: { /* ... */ },
-  before: { /* ... */ },
-  after: { /* ... */ },
-  actions: { /* ... */ },
+  access: {
+    /* ... */
+  },
+  before: {
+    /* ... */
+  },
+  after: {
+    /* ... */
+  },
+  actions: {
+    /* ... */
+  },
 });
 ```
 
@@ -34,11 +42,11 @@ The entity name (`'users'`) determines the API path (`/api/users`). The model de
 
 ### Column annotations
 
-| Annotation | Effect |
-|------------|--------|
-| `.hidden()` | Never sent to the client (e.g., internal fields) |
-| `.readOnly()` | Included in responses, excluded from create/update inputs |
-| `.default(value)` | Default value — field becomes optional in create input |
+| Annotation        | Effect                                                    |
+| ----------------- | --------------------------------------------------------- |
+| `.hidden()`       | Never sent to the client (e.g., internal fields)          |
+| `.readOnly()`     | Included in responses, excluded from create/update inputs |
+| `.default(value)` | Default value — field becomes optional in create input    |
 
 These annotations drive automatic input/output filtering. You don't write serializers — the framework strips hidden fields from responses and rejects read-only fields in mutations automatically.
 
@@ -112,7 +120,11 @@ before: {
 
 Before hooks receive the input data and return the (possibly modified) data to write.
 
-<Note>Before hooks are for data enrichment, not data transformation. The return type must match the input type — you can set or modify values within the schema's shape, but you can't add new fields or change field types. The schema defines the shape, the hook fills in values.</Note>
+<Note>
+  Before hooks are for data enrichment, not data transformation. The return type must match the
+  input type — you can set or modify values within the schema's shape, but you can't add new fields
+  or change field types. The schema defines the shape, the hook fills in values.
+</Note>
 
 ### After hooks
 
@@ -164,6 +176,7 @@ const tasks = entity('tasks', {
 ```
 
 This generates `POST /api/tasks/:id/archive`. The handler receives:
+
 - `input` — validated request body
 - `ctx` — the entity context
 - `task` — the existing record (loaded by `:id`)
@@ -197,11 +210,11 @@ Only injected entities are accessible — TypeScript prevents accessing any enti
 Inside hooks and actions, `ctx.entity` provides typed CRUD operations for the current entity:
 
 ```ts
-ctx.entity.get(id)
-ctx.entity.list({ where: { status: 'active' }, limit: 10 })
-ctx.entity.create(data)
-ctx.entity.update(id, data)
-ctx.entity.delete(id)
+ctx.entity.get(id);
+ctx.entity.list({ where: { status: 'active' }, limit: 10 });
+ctx.entity.create(data);
+ctx.entity.update(id, data);
+ctx.entity.delete(id);
 ```
 
 These bypass access rules (they're internal operations), but still run hooks and validation.
@@ -210,14 +223,14 @@ These bypass access rules (they're internal operations), but still run hooks and
 
 For each entity, the framework generates up to 5 CRUD routes plus custom action routes:
 
-| Method | Path | Operation |
-|--------|------|-----------|
-| `GET` | `/api/{entity}` | List with filtering and pagination |
-| `GET` | `/api/{entity}/:id` | Get by ID |
-| `POST` | `/api/{entity}` | Create |
-| `PATCH` | `/api/{entity}/:id` | Update |
-| `DELETE` | `/api/{entity}/:id` | Delete |
-| `POST` | `/api/{entity}/:id/{action}` | Custom action |
+| Method   | Path                         | Operation                          |
+| -------- | ---------------------------- | ---------------------------------- |
+| `GET`    | `/api/{entity}`              | List with filtering and pagination |
+| `GET`    | `/api/{entity}/:id`          | Get by ID                          |
+| `POST`   | `/api/{entity}`              | Create                             |
+| `PATCH`  | `/api/{entity}/:id`          | Update                             |
+| `DELETE` | `/api/{entity}/:id`          | Delete                             |
+| `POST`   | `/api/{entity}/:id/{action}` | Custom action                      |
 
 The request pipeline for each route:
 
@@ -245,12 +258,16 @@ const db = createDb({
 createServer({
   entities: [users, tasks],
   db,
-  apiPrefix: '/api',   // default
+  apiPrefix: '/api', // default
   cors: { origin: '*' },
-})
-  .listen({ port: 3000 });
+}).listen({ port: 3000 });
 ```
 
 All entity routes are generated under `apiPrefix`. The server validates inputs against the model schema, enforces access rules, and returns appropriate HTTP status codes (200, 201, 204, 400, 403, 404, 405, 409, 500).
 
-<Note>Every entity's model must be registered in `createDb({ models })`. This is validated at two levels: the **compiler** catches missing models at build time (flagging `ENTITY_MODEL_NOT_REGISTERED` errors), and `createServer()` validates again at startup with a clear error listing all missing models. You'll never hit a cryptic runtime failure on first request.</Note>
+<Note>
+  Every entity's model must be registered in `createDb({models})`. This is validated at two levels:
+  the **compiler** catches missing models at build time (flagging `ENTITY_MODEL_NOT_REGISTERED`
+  errors), and `createServer()` validates again at startup with a clear error listing all missing
+  models. You'll never hit a cryptic runtime failure on first request.
+</Note>

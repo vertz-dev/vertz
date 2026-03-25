@@ -14,7 +14,7 @@ export function measureTextWidth(text: string): number {
 
 /** Strip ANSI escape sequences from a string. */
 export function stripAnsi(text: string): string {
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape code stripping
+  // eslint-disable-next-line no-control-regex -- ANSI escape code stripping
   return text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
 }
 

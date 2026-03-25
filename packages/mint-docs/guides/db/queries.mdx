@@ -1,6 +1,6 @@
 ---
 title: Queries
-description: "Typed CRUD operations, filters, pagination, and error handling"
+description: 'Typed CRUD operations, filters, pagination, and error handling'
 ---
 
 The database client provides typed CRUD operations derived from your schema. Every query is type-checked — column names, filter values, and return types are all inferred from the model definition.
@@ -12,10 +12,11 @@ The database client provides typed CRUD operations derived from your schema. Eve
 import { createDb } from 'vertz/db';
 
 const db = createDb({
-  url: process.env.DATABASE_URL!,
-  models: { users: usersModel, tasks: tasksModel },
+url: process.env.DATABASE_URL!,
+models: { users: usersModel, tasks: tasksModel },
 });
-```
+
+````
 
 ```ts SQLite (local file)
 import { createDb } from 'vertz/db';
@@ -26,7 +27,8 @@ const db = createDb({
   models: { users: usersModel, tasks: tasksModel },
   migrations: { autoApply: true },
 });
-```
+````
+
 </CodeGroup>
 
 Each model becomes a property on `db` with typed query methods. The query API is identical across all dialects — only the `createDb()` options differ.
@@ -55,8 +57,8 @@ const result = await db.tasks.list({
 });
 
 if (result.ok) {
-  console.log(result.data.items);    // Task[]
-  console.log(result.data.total);    // total count
+  console.log(result.data.items); // Task[]
+  console.log(result.data.total); // total count
   console.log(result.data.hasNextPage);
 }
 ```
@@ -294,14 +296,14 @@ await db.transaction(async (tx) => {
 
 All operations return `Result<T, Error>` — they never throw. Error types map to specific database conditions:
 
-| Error | HTTP equivalent | Cause |
-|-------|----------------|-------|
-| `NotFoundError` | 404 | Record not found |
-| `UniqueConstraintError` | 409 | Duplicate unique value |
-| `ForeignKeyError` | 409 | Referenced record doesn't exist |
-| `NotNullError` | 422 | Required field missing |
-| `CheckConstraintError` | 422 | CHECK constraint violated |
-| `ConnectionError` | 503 | Database unreachable |
+| Error                   | HTTP equivalent | Cause                           |
+| ----------------------- | --------------- | ------------------------------- |
+| `NotFoundError`         | 404             | Record not found                |
+| `UniqueConstraintError` | 409             | Duplicate unique value          |
+| `ForeignKeyError`       | 409             | Referenced record doesn't exist |
+| `NotNullError`          | 422             | Required field missing          |
+| `CheckConstraintError`  | 422             | CHECK constraint violated       |
+| `ConnectionError`       | 503             | Database unreachable            |
 
 Handle errors with pattern matching:
 
@@ -329,9 +331,7 @@ For queries that the builder can't express, use tagged template SQL:
 ```ts
 import { sql } from 'vertz/db/sql';
 
-const result = await db.query(
-  sql`SELECT * FROM users WHERE email = ${email} AND active = ${true}`
-);
+const result = await db.query(sql`SELECT * FROM users WHERE email = ${email} AND active = ${true}`);
 ```
 
 Parameters are automatically escaped — no SQL injection risk.
@@ -342,17 +342,20 @@ All queries to PostgreSQL use prepared statements automatically — no configura
 
 This applies to all query paths: typed client operations (`db.users.list()`), raw SQL (`db.query()`), and queries inside transactions. There is no opt-out — prepared statements are always enabled for PostgreSQL connections.
 
-<Note>SQLite and Cloudflare D1 handle statement caching internally at the driver level, so this optimization is specific to PostgreSQL.</Note>
+<Note>
+  SQLite and Cloudflare D1 handle statement caching internally at the driver level, so this
+  optimization is specific to PostgreSQL.
+</Note>
 
 ## Database support
 
 All databases use the same import and `createDb()` API:
 
-| Database | Dialect | Connection option | Notes |
-|----------|---------|-------------------|-------|
-| PostgreSQL | `'postgres'` (default) | `url: string` | Full feature support |
-| SQLite | `'sqlite'` | `path: string` | Development, embedded, and local use |
-| Cloudflare D1 | `'sqlite'` | `d1: D1Database` | Edge deployment |
+| Database      | Dialect                | Connection option | Notes                                |
+| ------------- | ---------------------- | ----------------- | ------------------------------------ |
+| PostgreSQL    | `'postgres'` (default) | `url: string`     | Full feature support                 |
+| SQLite        | `'sqlite'`             | `path: string`    | Development, embedded, and local use |
+| Cloudflare D1 | `'sqlite'`             | `d1: D1Database`  | Edge deployment                      |
 
 ```ts
 import { createDb } from 'vertz/db';

@@ -105,7 +105,7 @@ interface RouteEntry {
 }
 
 function resolveMiddlewares(
-  // biome-ignore lint/suspicious/noExplicitAny: runtime layer accepts any middleware generics
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime layer accepts any middleware generics
   globalMiddlewares: NamedMiddlewareDef<any, any>[],
 ): ResolvedMiddleware[] {
   return globalMiddlewares.map((mw) => ({
@@ -117,7 +117,7 @@ function resolveMiddlewares(
 
 export function buildHandler(
   config: AppConfig,
-  // biome-ignore lint/suspicious/noExplicitAny: runtime layer accepts any middleware generics
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime layer accepts any middleware generics
   globalMiddlewares: NamedMiddlewareDef<any, any>[],
 ): (request: Request) => Promise<Response> {
   const trie = new Trie<RouteEntry>();

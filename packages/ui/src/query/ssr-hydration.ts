@@ -41,7 +41,7 @@ export function hydrateQueryFromSSR(
   resolve: (data: unknown) => void,
   options?: HydrateOptions,
 ): (() => void) | null {
-  // biome-ignore lint/suspicious/noExplicitAny: SSR global requires globalThis augmentation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR global requires globalThis augmentation
   const ssrData = (globalThis as any).__VERTZ_SSR_DATA__ as SSRDataEntry[] | undefined;
 
   // Not an SSR-rendered page — no data to hydrate
@@ -80,8 +80,8 @@ export function hydrateQueryFromSSR(
  * Called once all queries have either received streamed data or started client-side fetching.
  */
 export function cleanupSSRData(): void {
-  // biome-ignore lint/suspicious/noExplicitAny: SSR global requires globalThis augmentation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR global requires globalThis augmentation
   delete (globalThis as any).__VERTZ_SSR_DATA__;
-  // biome-ignore lint/suspicious/noExplicitAny: SSR global requires globalThis augmentation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SSR global requires globalThis augmentation
   delete (globalThis as any).__VERTZ_SSR_PUSH__;
 }

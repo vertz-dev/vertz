@@ -1,6 +1,6 @@
 import type { SchemaAny } from './schema';
 
-// biome-ignore lint/complexity/noStaticOnlyClass: registry pattern — class groups related operations under a namespace
+// eslint-disable-next-line @typescript-eslint/no-extraneous-class -- registry pattern — class groups related operations under a namespace
 export class SchemaRegistry {
   private static _schemas = new Map<string, SchemaAny>();
 

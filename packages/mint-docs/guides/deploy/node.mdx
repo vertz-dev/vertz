@@ -1,6 +1,6 @@
 ---
 title: Node.js
-description: "Deploy a full-stack Vertz app on Node.js with native HTTP performance"
+description: 'Deploy a full-stack Vertz app on Node.js with native HTTP performance'
 ---
 
 `@vertz/ui-server/node` provides `createNodeHandler` — a native Node HTTP adapter that writes SSR output directly to `ServerResponse`, avoiding the overhead of web Request/Response conversions on every request.
@@ -38,6 +38,7 @@ server.listen(3000, () => {
 ```
 
 That's it. The handler:
+
 - Renders SSR HTML directly into `ServerResponse` (no intermediate `Response` object)
 - Streams progressive HTML when enabled
 - Handles nav pre-fetch SSE requests
@@ -95,12 +96,14 @@ const handler = createNodeHandler({
   progressiveHTML: true,
 
   // Optional — AOT manifest for pre-compiled SSR (loaded automatically by `vertz start`)
-  aotManifest: await loadAotManifest('./dist/server') ?? undefined,
+  aotManifest: (await loadAotManifest('./dist/server')) ?? undefined,
 });
 ```
 
 <Note>
-The `sessionResolver` receives a web `Request` object — the Node adapter constructs one from `IncomingMessage` headers for this call only. This is the only web API conversion, and it's limited to session resolution.
+  The `sessionResolver` receives a web `Request` object — the Node adapter constructs one from
+  `IncomingMessage` headers for this call only. This is the only web API conversion, and it's
+  limited to session resolution.
 </Note>
 
 ## Integration with frameworks
@@ -201,13 +204,13 @@ Node's HTTP server has keep-alive enabled by default. For long-lived SSE connect
 
 ## How it differs from the web-standard handler
 
-| | `createSSRHandler` | `createNodeHandler` |
-|---|---|---|
-| **Signature** | `(Request) => Promise<Response>` | `(IncomingMessage, ServerResponse) => void` |
-| **Best for** | Bun, Cloudflare Workers, Deno | Node.js, Express, Fastify |
-| **Conversion cost** | None (native) | None (writes directly) |
-| **Backpressure** | Web stream API | Node `drain` events |
-| **Progressive HTML** | `ReadableStream` response body | Direct `res.write()` chunks |
+|                      | `createSSRHandler`               | `createNodeHandler`                         |
+| -------------------- | -------------------------------- | ------------------------------------------- |
+| **Signature**        | `(Request) => Promise<Response>` | `(IncomingMessage, ServerResponse) => void` |
+| **Best for**         | Bun, Cloudflare Workers, Deno    | Node.js, Express, Fastify                   |
+| **Conversion cost**  | None (native)                    | None (writes directly)                      |
+| **Backpressure**     | Web stream API                   | Node `drain` events                         |
+| **Progressive HTML** | `ReadableStream` response body   | Direct `res.write()` chunks                 |
 
 Both handlers share the same rendering pipeline (`ssr-handler-shared.ts`) and produce identical output.
 

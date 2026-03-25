@@ -1,6 +1,6 @@
 ---
 title: Data Fetching
-description: "Fetch and cache data with query()"
+description: 'Fetch and cache data with query()'
 ---
 
 `query()` connects your UI to your API with reactive data fetching, caching, and automatic cleanup.
@@ -33,7 +33,7 @@ export function TaskListPage() {
 const tasks = query(api.tasks.list());
 
 // From a thunk — provide a key for caching
-const data = query(() => fetch('/api/data').then(r => r.json()), {
+const data = query(() => fetch('/api/data').then((r) => r.json()), {
   key: 'my-data',
 });
 ```
@@ -42,13 +42,13 @@ const data = query(() => fetch('/api/data').then(r => r.json()), {
 
 A query result exposes five reactive properties:
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `data` | `T \| undefined` | The fetched data, or `undefined` while loading |
-| `loading` | `boolean` | `true` only on initial load (not during revalidation) |
-| `revalidating` | `boolean` | `true` when refetching with existing data |
-| `error` | `Error \| undefined` | The error from the last failed fetch |
-| `idle` | `boolean` | `true` when the query has never fetched (thunk returned `null`) |
+| Property       | Type                 | Description                                                     |
+| -------------- | -------------------- | --------------------------------------------------------------- |
+| `data`         | `T \| undefined`     | The fetched data, or `undefined` while loading                  |
+| `loading`      | `boolean`            | `true` only on initial load (not during revalidation)           |
+| `revalidating` | `boolean`            | `true` when refetching with existing data                       |
+| `error`        | `Error \| undefined` | The error from the last failed fetch                            |
+| `idle`         | `boolean`            | `true` when the query has never fetched (thunk returned `null`) |
 
 These are reactive — use them directly in JSX and event handlers:
 
@@ -206,9 +206,15 @@ selectedTaskId = 'task-123';
 The `idle` property distinguishes "hasn't fetched yet" from "fetched but got no results" — useful for showing different UI states:
 
 ```tsx
-{task.idle && <div>Select a task to view details</div>}
-{task.loading && <div>Loading...</div>}
-{task.data && <TaskDetail task={task.data} />}
+{
+  task.idle && <div>Select a task to view details</div>;
+}
+{
+  task.loading && <div>Loading...</div>;
+}
+{
+  task.data && <TaskDetail task={task.data} />;
+}
 ```
 
 ### Dependent query chains
@@ -227,7 +233,9 @@ const owner = query(() => {
 ```
 
 <Note>
-`idle` is a one-way flag — once the query fetches for the first time, `idle` becomes `false` and never returns to `true`, even if the thunk returns `null` again later. This prevents UI flicker when conditions change temporarily.
+  `idle` is a one-way flag — once the query fetches for the first time, `idle` becomes `false` and
+  never returns to `true`, even if the thunk returns `null` again later. This prevents UI flicker
+  when conditions change temporarily.
 </Note>
 
 ## Options
@@ -299,7 +307,10 @@ invalidate(api.todos.get('123'));
 
 Existing data stays visible while the refetch happens in the background (SWR pattern).
 
-<Note>`invalidate()` is an escape hatch. In most cases, automatic revalidation from entity mutations handles everything. Use it only for operations outside the standard entity CRUD flow.</Note>
+<Note>
+  `invalidate()` is an escape hatch. In most cases, automatic revalidation from entity mutations
+  handles everything. Use it only for operations outside the standard entity CRUD flow.
+</Note>
 
 ### Tenant-scoped invalidation
 
@@ -324,6 +335,7 @@ await api.tasks.update(taskId, { status: 'done' });
 ```
 
 No configuration needed. The generated SDK automatically:
+
 1. **Applies** the mutation optimistically to all queries that reference the entity
 2. **Commits** when the server confirms success
 3. **Rolls back** if the server returns an error
@@ -351,7 +363,11 @@ This is automatic for all CRUD operations (`create`, `update`, `delete`) on gene
 4. **Hydration** — The client picks up the streamed data from `window.__VERTZ_SSR_DATA__` and skips the initial fetch.
 
 <Warning>
-SSR data loading requires your API calls to use `FetchClient` (or the generated SDK). During SSR, Vertz installs a fetch proxy that routes relative API URLs (e.g., `/api/tasks`) through the in-memory request handler — no HTTP round-trip needed. If you use raw `fetch()` instead, the query will fail during SSR and the page will render with a loading state, causing a visible flash when the client-side fetch completes.
+  SSR data loading requires your API calls to use `FetchClient` (or the generated SDK). During SSR,
+  Vertz installs a fetch proxy that routes relative API URLs (e.g., `/api/tasks`) through the
+  in-memory request handler — no HTTP round-trip needed. If you use raw `fetch()` instead, the query
+  will fail during SSR and the page will render with a loading state, causing a visible flash when
+  the client-side fetch completes.
 </Warning>
 
 ### Configuration
@@ -369,5 +385,6 @@ const liveData = query(api.metrics.current(), { ssrTimeout: 0 });
 The Vertz compiler automatically analyzes which fields your components access on query results and injects a `select` parameter — so the server only returns the columns you actually use. This works transparently for components within your codebase. For third-party npm components, you can optimize by narrowing the data you pass across the boundary.
 
 <Card title="Auto Field Selection" icon="bolt" href="/guides/ui/auto-field-selection">
-  How auto field selection works, what triggers fallback to all fields, and how to optimize at third-party component boundaries.
+  How auto field selection works, what triggers fallback to all fields, and how to optimize at
+  third-party component boundaries.
 </Card>

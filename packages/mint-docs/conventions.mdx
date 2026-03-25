@@ -1,6 +1,6 @@
 ---
 title: Conventions
-description: "Code style conventions for Vertz projects — no magic, just consistency"
+description: 'Code style conventions for Vertz projects — no magic, just consistency'
 ---
 
 Vertz has strong conventions. None of these are enforced by the compiler or runtime — they're patterns that keep your code consistent, readable, and predictable for both humans and LLMs.
@@ -61,7 +61,12 @@ let count = 0;
 let isOpen = false;
 
 return (
-  <button onClick={() => { count++; isOpen = true; }}>
+  <button
+    onClick={() => {
+      count++;
+      isOpen = true;
+    }}
+  >
     {count}
   </button>
 );
@@ -99,25 +104,31 @@ If you can't express something declaratively, that's a framework gap — not a r
 
 ```tsx
 // Preferred
-<TaskCard task={task} onClick={handleClick} />
+<TaskCard task={task} onClick={handleClick} />;
 
 // Avoid
-{TaskCard({ task, onClick: handleClick })}
+{
+  TaskCard({ task, onClick: handleClick });
+}
 ```
 
 ### Conditionals with `&&` and ternary
 
 ```tsx
-{isLoading && <div>Loading...</div>}
-{error ? <ErrorView error={error} /> : <Content data={data} />}
+{
+  isLoading && <div>Loading...</div>;
+}
+{
+  error ? <ErrorView error={error} /> : <Content data={data} />;
+}
 ```
 
 ### Lists with `.map()` and `key`
 
 ```tsx
-{tasks.map((task) => (
-  <TaskCard key={task.id} task={task} />
-))}
+{
+  tasks.map((task) => <TaskCard key={task.id} task={task} />);
+}
 ```
 
 ## Styling
@@ -163,7 +174,7 @@ const styles = css({
 // Dynamic one-off layout — inline style is fine
 <div className={styles.panel} style={`margin-top: ${offset}px`}>
   {content}
-</div>
+</div>;
 ```
 
 ## Data fetching
@@ -199,9 +210,7 @@ return (
     {tasks.data?.items.map((task) => (
       <li key={task.id}>{task.title}</li>
     ))}
-    <button onClick={() => console.log(tasks.data?.items.length)}>
-      Log count
-    </button>
+    <button onClick={() => console.log(tasks.data?.items.length)}>Log count</button>
   </div>
 );
 ```

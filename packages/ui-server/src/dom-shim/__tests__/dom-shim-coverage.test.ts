@@ -128,9 +128,9 @@ describe('dom-shim coverage: installDomShim internals', () => {
 
   it('cleans up previously tracked globals on double install', () => {
     // Clear pre-existing localStorage (e.g., from happydom in other test files)
-    // biome-ignore lint/suspicious/noExplicitAny: test isolation requires dynamic global access
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test isolation requires dynamic global access
     const savedLs = 'localStorage' in globalThis ? (globalThis as any).localStorage : undefined;
-    // biome-ignore lint/suspicious/noExplicitAny: test isolation requires dynamic global access
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test isolation requires dynamic global access
     if (savedLs !== undefined) delete (globalThis as any).localStorage;
 
     try {
@@ -141,7 +141,7 @@ describe('dom-shim coverage: installDomShim internals', () => {
       removeDomShim();
       expect(globalThis).not.toHaveProperty('localStorage');
     } finally {
-      // biome-ignore lint/suspicious/noExplicitAny: test isolation requires dynamic global access
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test isolation requires dynamic global access
       if (savedLs !== undefined) (globalThis as any).localStorage = savedLs;
     }
   });

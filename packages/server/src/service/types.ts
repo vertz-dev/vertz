@@ -14,7 +14,7 @@ type ExtractModel<T> = T extends EntityDefinition<infer M> ? M : never;
  * Maps an inject config `{ key: EntityDefinition<TModel> }` to
  * `{ key: EntityOperations<TModel> }` for typed ctx.entities access.
  */
-// biome-ignore lint/complexity/noBannedTypes: {} represents no injected entities — the correct default
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} represents no injected entities — the correct default
 type InjectToOperations<TInject extends Record<string, EntityDefinition> = {}> = {
   readonly [K in keyof TInject]: EntityOperations<ExtractModel<TInject[K]>>;
 };
@@ -33,7 +33,7 @@ export interface ServiceRequestInfo {
 }
 
 export interface ServiceContext<
-  // biome-ignore lint/complexity/noBannedTypes: {} represents no injected entities — the correct default
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} represents no injected entities — the correct default
   TInject extends Record<string, EntityDefinition> = {},
 > extends BaseContext {
   /** Typed access to injected entities only */
@@ -63,13 +63,13 @@ export interface ServiceActionDef<
 // ---------------------------------------------------------------------------
 
 export interface ServiceConfig<
-  // biome-ignore lint/suspicious/noExplicitAny: constraint uses any to accept all action type parameter combinations
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- constraint uses any to accept all action type parameter combinations
   TActions extends Record<string, ServiceActionDef<any, any, any>> = Record<
     string,
-    // biome-ignore lint/suspicious/noExplicitAny: constraint uses any to accept all action type parameter combinations
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- constraint uses any to accept all action type parameter combinations
     ServiceActionDef<any, any, any>
   >,
-  // biome-ignore lint/complexity/noBannedTypes: {} represents no injected entities — the correct default
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- {} represents no injected entities — the correct default
   TInject extends Record<string, EntityDefinition> = {},
 > {
   readonly inject?: TInject;
@@ -82,7 +82,7 @@ export interface ServiceConfig<
 // ---------------------------------------------------------------------------
 
 export interface ServiceDefinition<
-  // biome-ignore lint/suspicious/noExplicitAny: constraint uses any to accept all action type parameter combinations
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- constraint uses any to accept all action type parameter combinations
   TActions extends Record<string, ServiceActionDef<any, any, any>> = Record<
     string,
     ServiceActionDef

@@ -108,7 +108,7 @@ describe('createTokenRefresh', () => {
     expect(callCount).toBe(1);
 
     // Resolve the refresh — now a new call should work
-    // biome-ignore lint/style/noNonNullAssertion: test helper always assigns
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- test helper always assigns
     resolveRefresh!();
     await refreshPromise;
 

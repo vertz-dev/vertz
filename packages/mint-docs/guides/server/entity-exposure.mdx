@@ -1,5 +1,5 @@
 ---
-title: "Fields, Relations & Filters"
+title: 'Fields, Relations & Filters'
 description: "Control which fields, filters, and relations are exposed in your entity's query API"
 ---
 
@@ -14,11 +14,11 @@ Field visibility operates at two levels:
 
 Schema annotations are the baseline. `expose` can only narrow further — you cannot expose a `.hidden()` field through `expose`.
 
-| Annotation | API response | Filterable | Sortable |
-|------------|-------------|-----------|---------|
-| *(none)* | Included | Yes | Yes |
-| `.hidden()` | Excluded | No | No |
-| `.readOnly()` | Included | Yes | Yes |
+| Annotation    | API response | Filterable | Sortable |
+| ------------- | ------------ | ---------- | -------- |
+| _(none)_      | Included     | Yes        | Yes      |
+| `.hidden()`   | Excluded     | No         | No       |
+| `.readOnly()` | Included     | Yes        | Yes      |
 
 ## Basic usage
 
@@ -143,10 +143,10 @@ If a client filters by a field not in `allowWhere`, the server returns `400`:
 
 ### Defaults
 
-| Config | Default | Meaning |
-|--------|---------|---------|
-| `allowWhere` omitted | No filtering allowed | Explicit opt-in |
-| No `expose` at all | All public fields filterable | Backwards compatible |
+| Config               | Default                      | Meaning              |
+| -------------------- | ---------------------------- | -------------------- |
+| `allowWhere` omitted | No filtering allowed         | Explicit opt-in      |
+| No `expose` at all   | All public fields filterable | Backwards compatible |
 
 ## Sort allowlists (`allowOrderBy`)
 
@@ -165,11 +165,11 @@ Sort directions are `'asc'` or `'desc'`.
 
 Relations are configured inside `include`. Each relation entry can be:
 
-| Value | Meaning |
-|-------|---------|
-| `true` | Expose with all non-hidden fields |
-| `false` | Do not expose — clients cannot include this relation |
-| `{ select, allowWhere, allowOrderBy, maxLimit, include }` | Fine-grained control |
+| Value                                                     | Meaning                                              |
+| --------------------------------------------------------- | ---------------------------------------------------- |
+| `true`                                                    | Expose with all non-hidden fields                    |
+| `false`                                                   | Do not expose — clients cannot include this relation |
+| `{ select, allowWhere, allowOrderBy, maxLimit, include }` | Fine-grained control                                 |
 
 ```ts
 expose: {
@@ -190,12 +190,12 @@ expose: {
 
 The `expose` config mirrors the DB query API at every level:
 
-| DB Query | Entity Expose | Purpose |
-|----------|---------------|---------|
-| `select: { id: true }` | `select: { id: true }` | Which fields are available |
-| `where: { status: 'active' }` | `allowWhere: { status: true }` | Which fields can be filtered |
-| `orderBy: { createdAt: 'desc' }` | `allowOrderBy: { createdAt: true }` | Which fields can be sorted |
-| `include: { comments: { ... } }` | `include: { comments: { ... } }` | Relation config (recursive) |
+| DB Query                         | Entity Expose                       | Purpose                      |
+| -------------------------------- | ----------------------------------- | ---------------------------- |
+| `select: { id: true }`           | `select: { id: true }`              | Which fields are available   |
+| `where: { status: 'active' }`    | `allowWhere: { status: true }`      | Which fields can be filtered |
+| `orderBy: { createdAt: 'desc' }` | `allowOrderBy: { createdAt: true }` | Which fields can be sorted   |
+| `include: { comments: { ... } }` | `include: { comments: { ... } }`    | Relation config (recursive)  |
 
 Same shape, same names, same nesting.
 
@@ -268,10 +268,7 @@ const employees = entity('employees', {
       email: true,
       department: true,
       salary: rules.entitlement('hr:view-compensation'),
-      ssn: rules.all(
-        rules.entitlement('hr:view-pii'),
-        rules.fva(300),
-      ),
+      ssn: rules.all(rules.entitlement('hr:view-pii'), rules.fva(300)),
     },
     allowWhere: {
       department: true,
@@ -299,6 +296,7 @@ When a user doesn't satisfy a descriptor, the field returns `null` — not omitt
 ```
 
 Using `null` is intentional:
+
 - Signals "this field exists but you can't see its value"
 - The client always knows the field shape
 - No runtime type surprises — the field is always in the object
@@ -351,7 +349,12 @@ The server returns `400 Bad Request` with clear error messages for every rejecti
 ### Relation field not in `select`
 
 ```json
-{ "error": { "code": "BadRequest", "message": "Field \"email\" is not exposed on relation \"author\"" } }
+{
+  "error": {
+    "code": "BadRequest",
+    "message": "Field \"email\" is not exposed on relation \"author\""
+  }
+}
 ```
 
 ### Nested relation error paths
@@ -365,6 +368,7 @@ Errors include the full relation path:
 ## Backwards compatibility
 
 If you don't provide `expose`, the entity behaves as before:
+
 - All non-hidden fields are included in responses
 - All non-hidden fields are filterable and sortable
 - No relations are exposed (you must opt in)

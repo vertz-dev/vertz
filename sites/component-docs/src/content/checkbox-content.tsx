@@ -9,7 +9,7 @@ export function Content() {
   return (
     <>
       <ComponentPreview>
-        {/* biome-ignore lint/a11y/noLabelWithoutControl: Checkbox is a custom form control */}
+        {/* eslint-disable-next-line jsx-a11y/label-has-associated-control -- Checkbox is a custom form control */}
         <label
           style={{
             display: 'flex',

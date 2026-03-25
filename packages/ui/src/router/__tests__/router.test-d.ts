@@ -195,7 +195,7 @@ const _rpFallback: FallbackPaths = '/literally-anything';
 void _rpFallback;
 
 // Empty route map (literal object with no keys) produces never
-// biome-ignore lint/complexity/noBannedTypes: testing empty object type behavior
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- testing empty object type behavior
 type EmptyMap = {};
 type EmptyPaths = RoutePaths<EmptyMap>;
 // @ts-expect-error - never accepts nothing

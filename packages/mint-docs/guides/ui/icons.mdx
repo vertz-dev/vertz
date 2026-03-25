@@ -1,6 +1,6 @@
 ---
 title: Icons
-description: "Tree-shakeable Lucide icons for Vertz components"
+description: 'Tree-shakeable Lucide icons for Vertz components'
 ---
 
 Vertz provides `@vertz/icons`, a package of 1,932 tree-shakeable [Lucide](https://lucide.dev) icon components. Each icon is an individual named export, so your bundler only includes the icons you actually use.
@@ -21,9 +21,15 @@ import { SearchIcon, SettingsIcon, UserIcon } from '@vertz/icons';
 export function Toolbar() {
   return (
     <nav className={styles.toolbar}>
-      <button><SearchIcon /> Search</button>
-      <button><SettingsIcon /> Settings</button>
-      <button><UserIcon /> Profile</button>
+      <button>
+        <SearchIcon /> Search
+      </button>
+      <button>
+        <SettingsIcon /> Settings
+      </button>
+      <button>
+        <UserIcon /> Profile
+      </button>
     </nav>
   );
 }
@@ -35,22 +41,28 @@ Icons render as `<span>` elements containing an inline SVG. They use `currentCol
 
 Every icon function accepts an optional `IconProps` object:
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `size` | `number` | `16` | Width and height in pixels |
-| `className` | `string` | -- | CSS class name applied to the wrapper `<span>` |
+| Prop        | Type     | Default | Description                                    |
+| ----------- | -------- | ------- | ---------------------------------------------- |
+| `size`      | `number` | `16`    | Width and height in pixels                     |
+| `className` | `string` | --      | CSS class name applied to the wrapper `<span>` |
 
 ```tsx
 import { GithubIcon, ExternalLinkIcon } from '@vertz/icons';
 
-{/* Default size (16px) */}
-<GithubIcon />
+{
+  /* Default size (16px) */
+}
+<GithubIcon />;
 
-{/* Custom size */}
-<GithubIcon size={24} />
+{
+  /* Custom size */
+}
+<GithubIcon size={24} />;
 
-{/* With a CSS class */}
-<ExternalLinkIcon className={styles.icon} />
+{
+  /* With a CSS class */
+}
+<ExternalLinkIcon className={styles.icon} />;
 ```
 
 ## Styling icons
@@ -85,12 +97,12 @@ function StatusMessage({ type, message }: StatusMessageProps) {
 
 Icon names follow the pattern `PascalCaseIcon` -- the Lucide icon name in PascalCase with an `Icon` suffix:
 
-| Lucide name | Import |
-|-------------|--------|
-| `github` | `GithubIcon` |
-| `arrow-right` | `ArrowRightIcon` |
-| `check-circle` | `CheckCircleIcon` |
+| Lucide name     | Import             |
+| --------------- | ------------------ |
+| `github`        | `GithubIcon`       |
+| `arrow-right`   | `ArrowRightIcon`   |
+| `check-circle`  | `CheckCircleIcon`  |
 | `external-link` | `ExternalLinkIcon` |
-| `search` | `SearchIcon` |
+| `search`        | `SearchIcon`       |
 
 Browse all available icons at [lucide.dev/icons](https://lucide.dev/icons).

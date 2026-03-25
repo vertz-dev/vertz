@@ -1,6 +1,6 @@
 ---
 title: Server Testing
-description: "Type-safe test client for entity CRUD, service actions, and raw HTTP requests"
+description: 'Type-safe test client for entity CRUD, service actions, and raw HTTP requests'
 ---
 
 The typed test client gives you 100% type-safe access to your server's entities and services in tests — no path strings, no manual casting, no guessing.
@@ -95,9 +95,9 @@ if (result.ok) {
 }
 
 // Always available:
-result.status;  // HTTP status code
+result.status; // HTTP status code
 result.headers; // Record<string, string>
-result.raw;     // original Response object (escape hatch)
+result.raw; // original Response object (escape hatch)
 ```
 
 ## Custom headers
@@ -107,9 +107,12 @@ result.raw;     // original Response object (escape hatch)
 Pass `headers` in the options for any method:
 
 ```ts
-await todos.create({ title: 'Test' }, {
-  headers: { 'x-custom': 'value' },
-});
+await todos.create(
+  { title: 'Test' },
+  {
+    headers: { 'x-custom': 'value' },
+  },
+);
 
 await health.check({ headers: { authorization: 'Bearer tok' } });
 ```

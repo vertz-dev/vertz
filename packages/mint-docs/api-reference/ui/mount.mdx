@@ -1,6 +1,6 @@
 ---
 title: Mount
-description: "API reference for mount() — rendering your app to the DOM"
+description: 'API reference for mount() — rendering your app to the DOM'
 ---
 
 `mount()` renders your app component into the `#app` root element. It handles both fresh rendering and hydration of server-rendered HTML.
@@ -15,18 +15,18 @@ mount(App, options?);
 
 ### Parameters
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `app` | `() => Element \| DocumentFragment` | Component function that returns the app's root element |
-| `options` | `MountOptions` | Optional configuration |
+| Parameter | Type                                | Description                                            |
+| --------- | ----------------------------------- | ------------------------------------------------------ |
+| `app`     | `() => Element \| DocumentFragment` | Component function that returns the app's root element |
+| `options` | `MountOptions`                      | Optional configuration                                 |
 
 ### MountOptions
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `theme` | `Theme` | Design tokens from `defineTheme()` — compiled to CSS and injected |
-| `styles` | `string[]` | Global CSS strings to inject into `<head>` |
-| `onMount` | `(root: HTMLElement) => void` | Callback fired after mount completes |
+| Option    | Type                          | Description                                                       |
+| --------- | ----------------------------- | ----------------------------------------------------------------- |
+| `theme`   | `Theme`                       | Design tokens from `defineTheme()` — compiled to CSS and injected |
+| `styles`  | `string[]`                    | Global CSS strings to inject into `<head>`                        |
+| `onMount` | `(root: HTMLElement) => void` | Callback fired after mount completes                              |
 
 ### Returns
 

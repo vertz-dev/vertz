@@ -1,18 +1,18 @@
 {
   "name": "@vertz/ui-primitives",
   "version": "0.2.32",
-  "type": "module",
-  "license": "MIT",
   "description": "Headless UI primitives for Vertz — Accordion, Dialog, Select, and more",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/vertz-dev/vertz.git",
     "directory": "packages/ui-primitives"
   },
-  "publishConfig": {
-    "access": "public",
-    "provenance": true
-  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
   "exports": {
@@ -25,9 +25,10 @@
       "types": "./dist/src/utils.d.ts"
     }
   },
-  "files": [
-    "dist"
-  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "bunup",
     "test": "bun test",
@@ -47,6 +48,5 @@
   },
   "engines": {
     "node": ">=22"
-  },
-  "sideEffects": false
+  }
 }

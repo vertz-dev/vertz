@@ -67,8 +67,9 @@ jobs:
           SOURCE_PATTERNS=(
             "packages/"
             "examples/task-manager/"
-            "biome-plugins/"
-            "biome.json"
+            "oxlint-plugins/"
+            ".oxlintrc.json"
+            ".oxfmtrc.json"
             "tsconfig.json"
             "package.json"
             "bun.lock"

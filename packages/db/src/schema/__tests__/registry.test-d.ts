@@ -134,7 +134,7 @@ describe('createRegistry() types', () => {
     }));
 
     // Users has no explicit relations — should have empty object type
-    // biome-ignore lint/complexity/noBannedTypes: testing that the actual return type is {} (empty relations)
+    // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- testing that the actual return type is {} (empty relations)
     type _t1 = Expect<Equal<typeof models.users.relations, {}>>;
   });
 });
