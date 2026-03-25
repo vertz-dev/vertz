@@ -125,4 +125,41 @@ describe('query() auto-thunk transform (#1861)', () => {
     expect(result.code).toContain('{ ssrTimeout: 500 }');
     expect(result.diagnostics).toHaveLength(0);
   });
+
+  it('wraps when reactive dep appears as shorthand property', () => {
+    const source = `
+      import { query } from '@vertz/ui';
+
+      function BrandsPage() {
+        let page = 1;
+        const offset = (page - 1) * 20;
+        const brands = query(api.brands.list({ offset }));
+        return <div>{brands.data}</div>;
+      }
+    `;
+
+    const result = compile(source, 'test.tsx');
+
+    // Shorthand { offset } references the computed variable — should trigger wrapping
+    expect(result.code).toContain('query(() => api.brands.list(');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('works with aliased query import', () => {
+    const source = `
+      import { query as q } from '@vertz/ui';
+
+      function BrandsPage() {
+        let page = 1;
+        const offset = (page - 1) * 20;
+        const brands = q(api.brands.list({ offset: offset }));
+        return <div>{brands.data}</div>;
+      }
+    `;
+
+    const result = compile(source, 'test.tsx');
+
+    expect(result.code).toContain('q(() => api.brands.list(');
+    expect(result.diagnostics).toHaveLength(0);
+  });
 });
