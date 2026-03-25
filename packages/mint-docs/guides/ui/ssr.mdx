@@ -157,7 +157,7 @@ All CSS is inlined in the HTML response — no extra network requests, no flash 
 
 ## AOT-compiled SSR
 
-The default SSR pipeline uses a DOM shim — it runs your component tree through a simulated DOM and serializes the result. This is correct and universal, but for high-traffic pages, Vertz offers **AOT (Ahead-of-Time) compiled SSR** that pre-compiles components into direct string concatenation functions at build time. AOT rendering is fully automatic — `vertz build` compiles the functions and `vertz start` loads them.
+Vertz production builds use **AOT (Ahead-of-Time) compiled SSR** by default — components are pre-compiled into direct string concatenation functions at build time. No configuration needed: `vertz build` compiles the functions and `vertz start` loads them. Components that can't be statically analyzed fall back to the DOM shim automatically.
 
 ### How it works
 
@@ -328,9 +328,23 @@ This is the fastest SSR path: one render pass, no discovery, data already cached
 | `sessionResolver` | Async function to resolve session from request | — |
 | `aotManifest` | AOT manifest for pre-compiled SSR rendering | — |
 
-### AOT rendering in production
+### AOT is enabled by default
 
-When you run `vertz build`, the build pipeline automatically generates `aot-manifest.json` and `aot-routes.js` in `dist/server/`. To use AOT rendering in production, load the manifest at startup and pass it to the handler:
+AOT rendering requires zero configuration. `vertz build` generates the AOT manifest automatically, and `vertz start` loads it at startup. Routes with AOT-compiled components are rendered via string-builder functions; routes without AOT entries fall back to `ssrRenderSinglePass()` transparently. The HTML output is identical either way — AOT is purely a performance optimization.
+
+If the build can't generate the AOT manifest (e.g., components that can't be statically analyzed), the server falls back to DOM shim rendering for those routes. There's nothing to configure — it just works.
+
+<Note>
+If you're writing a custom production server instead of using `vertz start`, call `loadAotManifest()` to load the manifest and pass it as the `aotManifest` option to `createSSRHandler()`. See the [custom server example](#custom-server-with-aot) below.
+</Note>
+
+### Disabling AOT
+
+To disable AOT rendering (e.g., for benchmarking the DOM shim path), omit the `aotManifest` option when creating a custom handler, or delete the generated `aot-manifest.json` from `dist/server/`.
+
+### Custom server with AOT
+
+When writing a custom production server, load the manifest explicitly:
 
 ```ts
 import { createSSRHandler, loadAotManifest } from '@vertz/ui-server';
@@ -338,7 +352,6 @@ import { createSSRHandler, loadAotManifest } from '@vertz/ui-server';
 const module = await import('./dist/server/index.js');
 const template = await Bun.file('./dist/client/index.html').text();
 
-// Load AOT manifest (returns null if not available)
 const aotManifest = await loadAotManifest('./dist/server');
 
 const handler = createSSRHandler({
@@ -349,13 +362,7 @@ const handler = createSSRHandler({
 });
 ```
 
-When `aotManifest` is provided, routes that match an AOT entry are rendered via pre-compiled string-builder functions — bypassing the DOM shim entirely. Routes without AOT entries automatically fall back to `ssrRenderSinglePass()`. This is fully transparent: the HTML output is identical either way.
-
-`loadAotManifest()` returns `null` if the manifest files don't exist, so you can always call it — it degrades gracefully when AOT compilation is not available.
-
-<Note>
-`vertz start` loads the AOT manifest automatically. You only need `loadAotManifest()` when writing a custom production server.
-</Note>
+`loadAotManifest()` returns `null` if the manifest files don't exist, so it degrades gracefully.
 
 ## How hydration works
 
