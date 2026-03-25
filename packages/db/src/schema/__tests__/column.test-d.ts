@@ -322,6 +322,41 @@ describe('metadata type-level tracking', () => {
     void _notHidden;
   });
 
+  it('.hidden() sets hidden annotation in metadata type', () => {
+    const col = d.text().hidden();
+    const _hidden: typeof col._meta._annotations.hidden = true;
+    // @ts-expect-error -- hidden is true after .hidden(), false should not be assignable
+    const _notHidden: typeof col._meta._annotations.hidden = false;
+    void _hidden;
+    void _notHidden;
+  });
+
+  it('.hidden() is type-equivalent to .is("hidden")', () => {
+    const viaHidden = d.text().hidden();
+    const viaIs = d.text().is('hidden');
+    type A = typeof viaHidden._meta._annotations;
+    type B = typeof viaIs._meta._annotations;
+    type _t1 = Expect<Equal<A, B>>;
+  });
+
+  it('.hidden() preserves StringColumnBuilder return type', () => {
+    // .min() is only on StringColumnBuilder — this must compile
+    d.text().hidden().min(1).max(10);
+  });
+
+  it('.hidden() preserves NumericColumnBuilder return type', () => {
+    // .min() is only on NumericColumnBuilder — this must compile
+    d.integer().hidden().min(0).max(100);
+  });
+
+  it('.hidden() accumulates with .is() annotations at type level', () => {
+    const col = d.text().is('sensitive').hidden();
+    const _sensitive: typeof col._meta._annotations.sensitive = true;
+    const _hidden: typeof col._meta._annotations.hidden = true;
+    void _sensitive;
+    void _hidden;
+  });
+
   it('serial has hasDefault true by default', () => {
     const col = d.serial();
     const _hasDefault: typeof col._meta.hasDefault = true;

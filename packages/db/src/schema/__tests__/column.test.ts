@@ -137,6 +137,63 @@ describe('chainable builders', () => {
     expect(col._meta._annotations.hidden).toBe(true);
   });
 
+  it('.hidden() adds hidden to _annotations', () => {
+    const col = d.text().hidden();
+    expect(col._meta._annotations.hidden).toBe(true);
+  });
+
+  it('.hidden() is equivalent to .is("hidden") at runtime', () => {
+    const viaHidden = d.text().hidden();
+    const viaIs = d.text().is('hidden');
+    expect(viaHidden._meta._annotations).toEqual(viaIs._meta._annotations);
+  });
+
+  it('.hidden() chains with other builders', () => {
+    const col = d.text().hidden().nullable().unique();
+    expect(col._meta._annotations.hidden).toBe(true);
+    expect(col._meta.nullable).toBe(true);
+    expect(col._meta.unique).toBe(true);
+  });
+
+  it('.hidden() chains with string constraints', () => {
+    const col = d.text().hidden().min(1).max(100);
+    expect(col._meta._annotations.hidden).toBe(true);
+    expect(col._meta._minLength).toBe(1);
+    expect(col._meta._maxLength).toBe(100);
+  });
+
+  it('.hidden() chains with numeric constraints', () => {
+    const col = d.integer().hidden().min(0).max(100);
+    expect(col._meta._annotations.hidden).toBe(true);
+    expect(col._meta._minValue).toBe(0);
+    expect(col._meta._maxValue).toBe(100);
+  });
+
+  it('.hidden() accumulates with other annotations', () => {
+    const col = d.text().is('sensitive').hidden();
+    expect(col._meta._annotations.sensitive).toBe(true);
+    expect(col._meta._annotations.hidden).toBe(true);
+  });
+
+  it('.hidden() followed by .is() preserves both annotations', () => {
+    const col = d.text().hidden().is('patchable');
+    expect(col._meta._annotations.hidden).toBe(true);
+    expect(col._meta._annotations.patchable).toBe(true);
+  });
+
+  it('.hidden().hidden() is idempotent', () => {
+    const col = d.text().hidden().hidden();
+    expect(col._meta._annotations.hidden).toBe(true);
+    expect(col._meta._annotations).toEqual(d.text().hidden()._meta._annotations);
+  });
+
+  it('.hidden() works on base ColumnBuilder types', () => {
+    const bool = d.boolean().hidden();
+    expect(bool._meta._annotations.hidden).toBe(true);
+    const ts = d.timestamp().hidden();
+    expect(ts._meta._annotations.hidden).toBe(true);
+  });
+
   it('.check(sql) stores the check constraint', () => {
     const col = d.integer().check('value > 0');
     expect(col._meta.check).toBe('value > 0');

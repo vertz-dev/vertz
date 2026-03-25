@@ -62,6 +62,12 @@ export interface ColumnBuilder<TType, TMeta extends ColumnMetadata = ColumnMetad
       readonly _annotations: TMeta['_annotations'] & { readonly [K in TFlag]: true };
     }
   >;
+  hidden(): ColumnBuilder<
+    TType,
+    Omit<TMeta, '_annotations'> & {
+      readonly _annotations: TMeta['_annotations'] & { readonly hidden: true };
+    }
+  >;
   readOnly(): ColumnBuilder<TType, Omit<TMeta, 'isReadOnly'> & { readonly isReadOnly: true }>;
   autoUpdate(): ColumnBuilder<
     TType,
@@ -116,6 +122,12 @@ export interface StringColumnBuilder<TType, TMeta extends ColumnMetadata = Colum
       readonly _annotations: TMeta['_annotations'] & { readonly [K in TFlag]: true };
     }
   >;
+  hidden(): StringColumnBuilder<
+    TType,
+    Omit<TMeta, '_annotations'> & {
+      readonly _annotations: TMeta['_annotations'] & { readonly hidden: true };
+    }
+  >;
   readOnly(): StringColumnBuilder<TType, Omit<TMeta, 'isReadOnly'> & { readonly isReadOnly: true }>;
   autoUpdate(): StringColumnBuilder<
     TType,
@@ -163,6 +175,12 @@ export interface NumericColumnBuilder<TType, TMeta extends ColumnMetadata = Colu
     TType,
     Omit<TMeta, '_annotations'> & {
       readonly _annotations: TMeta['_annotations'] & { readonly [K in TFlag]: true };
+    }
+  >;
+  hidden(): NumericColumnBuilder<
+    TType,
+    Omit<TMeta, '_annotations'> & {
+      readonly _annotations: TMeta['_annotations'] & { readonly hidden: true };
     }
   >;
   readOnly(): NumericColumnBuilder<
@@ -243,6 +261,7 @@ interface ColumnBuilderImpl {
   nullable(): ColumnBuilderImpl;
   default(value: unknown): ColumnBuilderImpl;
   is(flag: string): ColumnBuilderImpl;
+  hidden(): ColumnBuilderImpl;
   readOnly(): ColumnBuilderImpl;
   autoUpdate(): ColumnBuilderImpl;
   check(sql: string): ColumnBuilderImpl;
@@ -284,6 +303,9 @@ function createColumnWithMeta(meta: ColumnMetadata): ColumnBuilderImpl {
         ...this._meta,
         _annotations: { ...this._meta._annotations, [flag]: true as const },
       });
+    },
+    hidden() {
+      return this.is('hidden');
     },
     readOnly() {
       return cloneWith(this, { isReadOnly: true });

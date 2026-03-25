@@ -41,6 +41,20 @@ describe('$infer', () => {
     type _t1 = Expect<Not<HasKey<User, 'passwordHash'>>>;
   });
 
+  it('excludes .hidden() columns from $infer (shorthand)', () => {
+    const accounts = d.table('accounts', {
+      id: d.uuid().primary(),
+      name: d.text(),
+      secret: d.text().hidden(),
+    });
+    type Account = typeof accounts.$infer;
+
+    type _t1 = Expect<HasKey<Account, 'id'>>;
+    type _t2 = Expect<HasKey<Account, 'name'>>;
+    // secret uses .hidden() shorthand -- should NOT appear on $infer
+    type _t3 = Expect<Not<HasKey<Account, 'secret'>>>;
+  });
+
   it('infers correct TypeScript types for each column', () => {
     type User = typeof users.$infer;
 
