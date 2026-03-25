@@ -296,7 +296,10 @@ export async function introspectPostgres(queryFn: MigrationQueryFn): Promise<Sch
        WHERE t.relname = $1
          AND ns.nspname = 'public'
          AND NOT ix.indisprimary
-         AND NOT ix.indisunique
+         AND NOT EXISTS (
+           SELECT 1 FROM pg_constraint c
+           WHERE c.conindid = ix.indexrelid AND c.contype = 'u'
+         )
        GROUP BY i.relname, ix.indisunique, am.amname, ix.indpred, ix.indrelid`,
       [tableName],
     );

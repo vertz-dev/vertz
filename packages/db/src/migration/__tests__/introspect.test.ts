@@ -320,6 +320,20 @@ describe('introspectPostgres', () => {
     });
   });
 
+  it('detects unique indexes', async () => {
+    await db.exec('CREATE UNIQUE INDEX idx_posts_slug ON posts(title, author_id)');
+
+    const snapshot = await introspectPostgres(queryFn);
+    const postIndexes = snapshot.tables.posts?.indexes;
+
+    const slugIdx = postIndexes?.find((i) => i.name === 'idx_posts_slug');
+    expect(slugIdx).toEqual({
+      columns: ['title', 'author_id'],
+      name: 'idx_posts_slug',
+      unique: true,
+    });
+  });
+
   it('detects index access method (type) and partial index predicate', async () => {
     await db.exec('CREATE INDEX idx_users_name_hash ON users USING hash (name)');
     await db.exec("CREATE INDEX idx_posts_title_partial ON posts(title) WHERE title != 'draft'");
