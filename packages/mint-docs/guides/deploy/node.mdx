@@ -94,7 +94,7 @@ const handler = createNodeHandler({
   // Optional — enable progressive HTML streaming
   progressiveHTML: true,
 
-  // Optional — AOT manifest for pre-compiled SSR (see SSR guide)
+  // Optional — AOT manifest for pre-compiled SSR (loaded automatically by `vertz start`)
   aotManifest: await loadAotManifest('./dist/server') ?? undefined,
 });
 ```
