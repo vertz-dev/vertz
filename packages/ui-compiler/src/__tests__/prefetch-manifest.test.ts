@@ -196,6 +196,79 @@ describe('Feature: Route extraction from defineRoutes()', () => {
     });
   });
 
+  describe('Given routes with dynamic imports', () => {
+    const source = `
+      import { defineRoutes } from '@vertz/ui';
+
+      export const routes = defineRoutes({
+        '/': { component: () => import('./pages/home') },
+        '/games': { component: () => import('./pages/games-list') },
+      });
+    `;
+
+    describe('When extractRoutes() is called', () => {
+      it('Then it extracts component names from dynamic import paths', () => {
+        const routes = extractRoutes(source, 'src/router.ts');
+
+        expect(routes).toHaveLength(2);
+        expect(routes[0].pattern).toBe('/');
+        expect(routes[0].componentName).toBe('Home');
+        expect(routes[0].type).toBe('page');
+      });
+
+      it('Then it converts kebab-case import paths to PascalCase', () => {
+        const routes = extractRoutes(source, 'src/router.ts');
+
+        expect(routes[1].pattern).toBe('/games');
+        expect(routes[1].componentName).toBe('GamesList');
+      });
+    });
+  });
+
+  describe('Given routes with function call components', () => {
+    const source = `
+      import { defineRoutes } from '@vertz/ui';
+      import { HomePage } from './pages/home-page';
+
+      export const routes = defineRoutes({
+        '/': { component: () => HomePage() },
+      });
+    `;
+
+    describe('When extractRoutes() is called', () => {
+      it('Then it extracts the component name from the function call', () => {
+        const routes = extractRoutes(source, 'src/router.tsx');
+
+        expect(routes).toHaveLength(1);
+        expect(routes[0].pattern).toBe('/');
+        expect(routes[0].componentName).toBe('HomePage');
+        expect(routes[0].type).toBe('page');
+      });
+    });
+  });
+
+  describe('Given routes with bare identifier components', () => {
+    const source = `
+      import { defineRoutes } from '@vertz/ui';
+      import { HomePage } from './pages/home-page';
+
+      export const routes = defineRoutes({
+        '/': { component: HomePage },
+      });
+    `;
+
+    describe('When extractRoutes() is called', () => {
+      it('Then it extracts the component name from the identifier', () => {
+        const routes = extractRoutes(source, 'src/router.tsx');
+
+        expect(routes).toHaveLength(1);
+        expect(routes[0].pattern).toBe('/');
+        expect(routes[0].componentName).toBe('HomePage');
+        expect(routes[0].type).toBe('page');
+      });
+    });
+  });
+
   describe('Given no defineRoutes() call in the source', () => {
     const source = `
       import { createRouter } from '@vertz/ui';

@@ -359,7 +359,15 @@ ${modulepreloadLinks}
                 const errors = bundleResult.logs
                   .map((l: { message: string }) => l.message)
                   .join('\n');
-                console.log(`  ⚠ AOT routes bundle failed: ${errors}`);
+                console.log(`  ⚠ AOT routes bundle failed:`);
+                if (errors) {
+                  for (const line of errors.split('\n')) {
+                    console.log(`    ${line}`);
+                  }
+                } else {
+                  console.log('    No detailed error info from Bun.build()');
+                  console.log(`    Entry: ${barrelPath}`);
+                }
                 // Still write classification-only manifest
                 const manifestPath = resolve(distServer, 'aot-manifest.json');
                 writeFileSync(
@@ -390,9 +398,12 @@ ${modulepreloadLinks}
         console.log('  No components found for AOT compilation');
       }
     } catch (error) {
-      console.log(
-        `  ⚠ AOT manifest generation failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      const message = error instanceof Error ? error.message : String(error);
+      const stack = error instanceof Error ? error.stack : undefined;
+      console.log(`  ⚠ AOT manifest generation failed: ${message}`);
+      if (stack) {
+        console.log(`  ${stack}`);
+      }
     }
 
     // ── 6. Static pre-rendering ──────────────────────────────────
