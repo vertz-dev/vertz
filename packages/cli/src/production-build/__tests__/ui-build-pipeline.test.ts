@@ -55,6 +55,7 @@ const mockStripScriptsFromStaticHTML = vi.fn((html: string) =>
 
 vi.mock('@vertz/ui-server/ssr', () => ({
   createSSRHandler: vi.fn(() => async () => new Response('ssr-mock')),
+  loadAotManifest: vi.fn(async () => null),
   collectPrerenderPaths: (...args: unknown[]) => mockCollectPrerenderPaths(...args),
   discoverRoutes: (...args: unknown[]) => mockDiscoverRoutes(...args),
   filterPrerenderableRoutes: (...args: unknown[]) =>
@@ -521,7 +522,9 @@ describe('buildUI', () => {
       const aotPath = join(tmpDir, 'dist', 'server', 'aot-manifest.json');
       expect(existsSync(aotPath)).toBe(true);
       const aotContent = JSON.parse(readFileSync(aotPath, 'utf-8'));
-      expect(aotContent).toEqual({ App: { type: 'client' }, Header: { type: 'server' } });
+      expect(aotContent).toEqual({
+        components: { App: { type: 'client' }, Header: { type: 'server' } },
+      });
     });
 
     it('should skip AOT manifest when no components found', async () => {
