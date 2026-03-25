@@ -179,7 +179,10 @@ export function generateAotBarrel(
     fileToFns.set(filePath, existing);
   }
 
-  const lines: string[] = [];
+  // Import AOT runtime helpers used by all __ssr_* functions
+  const lines: string[] = [
+    "import { __esc, __esc_attr, __ssr_spread, __ssr_style_object } from '@vertz/ui-server';",
+  ];
   const files: Record<string, string> = {};
   let fileIndex = 0;
   for (const [filePath, fns] of fileToFns) {
