@@ -1,5 +1,15 @@
 # @vertz/db
 
+## 0.2.31
+
+### Patch Changes
+
+- [#1847](https://github.com/vertz-dev/vertz/pull/1847) [`75ed113`](https://github.com/vertz-dev/vertz/commit/75ed113c54cf7fdf0d928a300f71fadd58e27ebe) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add `.hidden()` shorthand on column builders as sugar for `.is('hidden')`
+
+- Updated dependencies []:
+  - @vertz/errors@0.2.31
+  - @vertz/schema@0.2.31
+
 ## 0.2.30
 
 ### Patch Changes

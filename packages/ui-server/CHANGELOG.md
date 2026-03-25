@@ -1,5 +1,16 @@
 # @vertz/ui-server
 
+## 0.2.31
+
+### Patch Changes
+
+- [#1846](https://github.com/vertz-dev/vertz/pull/1846) [`86b1b76`](https://github.com/vertz-dev/vertz/commit/86b1b763b3b7598be442c04afe94acae0b5603c2) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add native Node HTTP adapter (`createNodeHandler`) that writes SSR output directly to `ServerResponse`, eliminating web Request/Response conversion overhead on Node.js. Import from `@vertz/ui-server/node`.
+
+- Updated dependencies []:
+  - @vertz/core@0.2.31
+  - @vertz/ui@0.2.31
+  - @vertz/ui-compiler@0.2.31
+
 ## 0.2.30
 
 ### Patch Changes
