@@ -1,6 +1,6 @@
 import type { AppBuilder } from '@vertz/core';
 import { installFetchProxy, runWithScopedFetch } from '@vertz/ui-server/fetch-scope';
-import type { SSRModule } from '@vertz/ui-server/ssr';
+import type { AotManifest, SSRModule } from '@vertz/ui-server/ssr';
 import { injectNonce, lookupCache, storeCache, stripNonce } from './isr-cache.js';
 
 // ---------------------------------------------------------------------------
@@ -26,6 +26,12 @@ export interface SSRModuleConfig {
   title?: string;
   /** SSR query timeout in ms. Default: 5000 (generous for D1 cold starts). */
   ssrTimeout?: number;
+  /**
+   * AOT manifest with pre-compiled SSR render functions.
+   * On Cloudflare Workers (no filesystem), import the manifest at build time
+   * and pass it here.
+   */
+  aotManifest?: AotManifest;
 }
 
 /**
@@ -319,6 +325,7 @@ function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWork
         clientScript = '/assets/entry-client.js',
         title = 'Vertz App',
         ssrTimeout = 5000,
+        aotManifest,
       } = ssr;
       // Return a factory that creates an SSR handler with the per-request nonce
       ssrHandlerFactory = (nonce?: string) =>
@@ -327,6 +334,7 @@ function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWork
           template: generateHTMLTemplate(clientScript, title, nonce),
           ssrTimeout,
           nonce,
+          aotManifest,
         });
     } else {
       // Custom callback — wrap it in a factory that ignores the nonce

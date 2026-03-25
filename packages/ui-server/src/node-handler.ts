@@ -10,6 +10,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { SSRAuth } from '@vertz/ui/internals';
 import { escapeAttr } from './html-serializer';
+import { toPrefetchSession } from './ssr-access-evaluator';
+import { ssrRenderAot } from './ssr-aot-pipeline';
 import type { SSRHandlerOptions } from './ssr-handler';
 import {
   precomputeHandlerState,
@@ -36,6 +38,7 @@ export function createNodeHandler(
     sessionResolver,
     manifest,
     progressiveHTML,
+    aotManifest,
   } = options;
 
   const { template, linkHeader, modulepreloadTags, splitResult } = precomputeHandlerState(options);
@@ -95,12 +98,24 @@ export function createNodeHandler(
         }
 
         // Buffered path: render to string, write to res.end()
-        const result = await ssrRenderSinglePass(module, url, {
-          ssrTimeout,
-          fallbackMetrics,
-          ssrAuth,
-          manifest,
-        });
+        const prefetchSession = ssrAuth ? toPrefetchSession(ssrAuth) : undefined;
+
+        const result = aotManifest
+          ? await ssrRenderAot(module, url, {
+              aotManifest,
+              manifest,
+              ssrTimeout,
+              fallbackMetrics,
+              ssrAuth,
+              prefetchSession,
+            })
+          : await ssrRenderSinglePass(module, url, {
+              ssrTimeout,
+              fallbackMetrics,
+              ssrAuth,
+              manifest,
+              prefetchSession,
+            });
 
         // SSR redirect
         if (result.redirect) {
