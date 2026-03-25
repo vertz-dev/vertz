@@ -14,6 +14,7 @@ import { JsxTransformer } from './transformers/jsx-transformer';
 import { MountFrameTransformer } from './transformers/mount-frame-transformer';
 import { MutationTransformer } from './transformers/mutation-transformer';
 import { PropsDestructuringTransformer } from './transformers/props-destructuring-transformer';
+import { QueryAutoThunkTransformer } from './transformers/query-auto-thunk-transformer';
 import { SignalTransformer } from './transformers/signal-transformer';
 import type { AotCompileOutput, CompileOptions, CompileOutput, CompilerDiagnostic } from './types';
 
@@ -69,6 +70,24 @@ export function compile(
   // Track which runtime features are used
   const usedFeatures = new Set<string>();
 
+  // Collect local aliases for `query` (used by auto-thunk transform)
+  const queryAliases = new Set<string>();
+  for (const importDecl of sourceFile.getImportDeclarations()) {
+    const moduleSpecifier = importDecl.getModuleSpecifierValue();
+    if (
+      moduleSpecifier === '@vertz/ui' ||
+      moduleSpecifier.startsWith('@vertz/ui/') ||
+      moduleSpecifier === 'vertz/ui' ||
+      moduleSpecifier.startsWith('vertz/ui/')
+    ) {
+      for (const namedImport of importDecl.getNamedImports()) {
+        if (namedImport.getName() === 'query') {
+          queryAliases.add(namedImport.getAliasNode()?.getText() ?? 'query');
+        }
+      }
+    }
+  }
+
   // Process each component
   for (const component of components) {
     // 3. Reactivity analysis
@@ -91,6 +110,15 @@ export function compile(
     if (mutations.length > 0) {
       const mutationTransformer = new MutationTransformer();
       mutationTransformer.transform(s, component, mutations);
+    }
+
+    // 4.5. Query auto-thunk transform (#1861)
+    // Wrap query(descriptor) in a thunk when descriptor args contain reactive deps,
+    // so that reactive reads happen inside the effect's tracking context.
+    // Must run BEFORE signal transform so .value is inserted inside the thunk.
+    if (hasSignals || hasComputeds) {
+      const queryAutoThunk = new QueryAutoThunkTransformer();
+      queryAutoThunk.transform(s, sourceFile, component, variables, queryAliases);
     }
 
     // 5. Signal transform (skips identifiers inside mutation ranges)
