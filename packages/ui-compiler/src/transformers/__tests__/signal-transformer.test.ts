@@ -91,35 +91,16 @@ describe('SignalTransformer', () => {
     expect(result).not.toContain('count.value: 10');
   });
 
-  it('expands shorthand property to unwrap signal .value (#1858)', () => {
+  it('does NOT expand signal shorthand — signals flow as objects for reactivity (#1858)', () => {
     const result = transform(
       `function App() {\n  let count = 0;\n  const obj = { count };\n  return <div>{count}</div>;\n}`,
       [{ name: 'count', kind: 'signal', start: 0, end: 0 }],
     );
-    // Shorthand { count } → { count: count.value }
-    expect(result).toContain('{ count: count.value }');
-  });
-
-  it('expands shorthand property among other properties (#1858)', () => {
-    const result = transform(
-      `function App() {\n  let count = 0;\n  const obj = { label: "x", count, other: 1 };\n  return <div>{count}</div>;\n}`,
-      [{ name: 'count', kind: 'signal', start: 0, end: 0 }],
-    );
-    expect(result).toContain('count: count.value');
-    // Regular property names should not be affected
-    expect(result).toContain('label: "x"');
-    expect(result).toContain('other: 1');
-  });
-
-  it('does NOT expand shorthand when signal name is shadowed by nested scope (#1858)', () => {
-    const result = transform(
-      `function App() {\n  let count = 0;\n  const result = items.map((count) => ({ count }));\n  return <div>{count}</div>;\n}`,
-      [{ name: 'count', kind: 'signal', start: 0, end: 0 }],
-    );
-    // The `count` inside the arrow function's shorthand refers to the callback parameter,
-    // not the signal. It should NOT be expanded to count.value.
+    // Signals must pass through shorthand as SignalImpl objects so that context
+    // providers and data structures can maintain reactive subscriptions.
+    // Computed vars (see computed-transformer.test.ts) DO get expanded.
+    expect(result).toContain('{ count }');
     expect(result).not.toContain('count: count.value');
-    expect(result).toContain('({ count })');
   });
 
   it('auto-unwraps 3-level field signal property chain', () => {

@@ -123,13 +123,12 @@ function transformReferences(
       return;
     }
 
-    // Shorthand property: { count } → { count: count.value }
-    // Expand to a regular property assignment so the signal is unwrapped (#1858).
-    // Guard: skip if shadowed by a nested scope or inside a mutation range.
+    // Skip shorthand property assignment: { count } — don't touch 'count' as a key.
+    // Signals must flow as SignalImpl objects through data structures (context values,
+    // props) so that consumers can subscribe to changes. Eagerly unwrapping here
+    // would break reactivity for context providers like `{ activeValue }` in tabs.
+    // Note: computeds DO get expanded in shorthand — see computed-transformer.ts.
     if (parent.isKind(SyntaxKind.ShorthandPropertyAssignment)) {
-      if (isShadowedInNestedScope(node, name, bodyNode)) return;
-      if (isInsideMutationRange(node.getStart(), mutationRanges)) return;
-      source.overwrite(node.getStart(), node.getEnd(), `${name}: ${name}.value`);
       return;
     }
 
