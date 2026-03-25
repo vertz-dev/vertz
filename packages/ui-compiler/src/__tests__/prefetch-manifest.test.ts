@@ -247,7 +247,29 @@ describe('Feature: Route extraction from defineRoutes()', () => {
     });
   });
 
-  describe('Given routes with bare identifier components', () => {
+  describe('Given routes with arrow returning bare identifier', () => {
+    const source = `
+      import { defineRoutes } from '@vertz/ui';
+      import { HomePage } from './pages/home-page';
+
+      export const routes = defineRoutes({
+        '/': { component: () => HomePage },
+      });
+    `;
+
+    describe('When extractRoutes() is called', () => {
+      it('Then it extracts the component name from the arrow body identifier', () => {
+        const routes = extractRoutes(source, 'src/router.tsx');
+
+        expect(routes).toHaveLength(1);
+        expect(routes[0].pattern).toBe('/');
+        expect(routes[0].componentName).toBe('HomePage');
+        expect(routes[0].type).toBe('page');
+      });
+    });
+  });
+
+  describe('Given routes with bare identifier (no arrow) components', () => {
     const source = `
       import { defineRoutes } from '@vertz/ui';
       import { HomePage } from './pages/home-page';
@@ -265,6 +287,25 @@ describe('Feature: Route extraction from defineRoutes()', () => {
         expect(routes[0].pattern).toBe('/');
         expect(routes[0].componentName).toBe('HomePage');
         expect(routes[0].type).toBe('page');
+      });
+    });
+  });
+
+  describe('Given routes with snake_case dynamic import paths', () => {
+    const source = `
+      import { defineRoutes } from '@vertz/ui';
+
+      export const routes = defineRoutes({
+        '/': { component: () => import('./pages/home_page') },
+      });
+    `;
+
+    describe('When extractRoutes() is called', () => {
+      it('Then it converts snake_case to PascalCase', () => {
+        const routes = extractRoutes(source, 'src/router.ts');
+
+        expect(routes).toHaveLength(1);
+        expect(routes[0].componentName).toBe('HomePage');
       });
     });
   });

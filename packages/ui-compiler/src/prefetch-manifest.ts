@@ -194,7 +194,8 @@ function extractComponentNameFromExpr(expr: ts.Expression, sf: ts.SourceFile): s
   // import('./pages/home') — dynamic import
   if (ts.isCallExpression(expr) && expr.expression.kind === ts.SyntaxKind.ImportKeyword) {
     if (expr.arguments.length > 0 && ts.isStringLiteral(expr.arguments[0])) {
-      return componentNameFromPath(expr.arguments[0].text);
+      const name = componentNameFromPath(expr.arguments[0].text);
+      if (name) return name;
     }
   }
   // ComponentName() — function call
@@ -212,13 +213,14 @@ function extractComponentNameFromExpr(expr: ts.Expression, sf: ts.SourceFile): s
  * Derive a PascalCase component name from a dynamic import path.
  * './pages/home' → 'Home', './pages/games-list' → 'GamesList'
  */
-function componentNameFromPath(importPath: string): string {
+function componentNameFromPath(importPath: string): string | undefined {
   // Get last segment, strip extension if present
   const lastSegment = importPath.split('/').pop() ?? importPath;
   const name = lastSegment.replace(/\.[^.]+$/, '');
-  // Convert kebab-case to PascalCase
+  if (!name) return undefined;
+  // Convert kebab-case / snake_case to PascalCase
   return name
-    .split('-')
+    .split(/[-_]/)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join('');
 }
