@@ -195,19 +195,35 @@ export function __child(
       // via CSR below. JSX inside callbacks is not hydration-aware, so
       // attempting to hydrate would create detached DOM nodes with dead
       // event handlers. See #826.
-      // Stop at the <!--/child--> end marker (precise boundary) or the next
-      // <!--child--> comment (legacy fallback for SSR without end markers).
+      // Stop at the matching <!--/child--> end marker. Nested <!--child-->
+      // / <!--/child--> pairs (from composed components passing children
+      // through __child) are tracked by depth so they are fully removed.
+      // See #1853.
       let sibling = anchor.nextSibling;
+      let depth = 0;
       while (sibling) {
         const next = sibling.nextSibling;
-        // End marker: remove it and stop — content boundary reached.
-        if (sibling.nodeType === 8 && (sibling as Comment).data.trim() === '/child') {
-          sibling.parentNode?.removeChild(sibling);
-          break;
-        }
-        // Next __child boundary (legacy SSR without end markers): stop without removing.
-        if (sibling.nodeType === 8 && (sibling as Comment).data.trim() === 'child') {
-          break;
+        if (sibling.nodeType === 8) {
+          const data = (sibling as Comment).data.trim();
+          if (data === '/child') {
+            if (depth > 0) {
+              // Nested end marker — remove and continue.
+              depth--;
+              sibling.parentNode?.removeChild(sibling);
+              sibling = next;
+              continue;
+            }
+            // Matching end marker — remove and stop.
+            sibling.parentNode?.removeChild(sibling);
+            break;
+          }
+          if (data === 'child') {
+            // Nested child marker — track depth and remove.
+            depth++;
+            sibling.parentNode?.removeChild(sibling);
+            sibling = next;
+            continue;
+          }
         }
         sibling.parentNode?.removeChild(sibling);
         sibling = next;

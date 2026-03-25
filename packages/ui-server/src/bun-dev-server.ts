@@ -751,6 +751,7 @@ const BUILD_ERROR_LOADER = [
   // If build check has actual errors → show overlay. If no errors but reload stub
   // was served, Bun is transitioning (hash not updated yet) → retry after delay.
   // Use sessionStorage counter to cap retries at 3 and avoid infinite loops.
+  "if(j.restarting){showOverlay('Restarting dev server','<p style=\"margin:0;color:#666;font-size:12px\">Stale module graph detected. Restarting...</p>');sessionStorage.removeItem('__vertz_stub_retry');return}",
   "if(j.errors&&j.errors.length>0){showOverlay('Build failed',formatErrors(j.errors),j)}",
   // No build errors but reload stub detected → dev bundler is stale.
   // Try auto-restart via WS first; fall back to retry loop if unavailable.
@@ -989,6 +990,8 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
       pendingRuntimeError = null;
     }
     clearGraceUntil = Date.now() + 5000;
+    // Reset auto-restart cap — a successful clear means recovery worked
+    autoRestartTimestamps.length = 0;
     const msg = JSON.stringify({ type: 'clear' });
     for (const ws of wsClients) {
       ws.sendText(msg);
@@ -1007,6 +1010,8 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     }
     // No grace period — HMR errors from this save cycle are legitimate
     clearGraceUntil = 0;
+    // Reset auto-restart cap — recovery from error state should not be throttled
+    autoRestartTimestamps.length = 0;
     const msg = JSON.stringify({ type: 'clear' });
     for (const ws of wsClients) {
       ws.sendText(msg);
@@ -1582,6 +1587,25 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
             if (lastBuildError) {
               return Response.json({ errors: [{ message: lastBuildError }] });
             }
+            // Build passed with no errors — but the client detected a reload stub,
+            // which means the dev bundler's graph is stale. Trigger auto-restart
+            // so the client doesn't get stuck in retry limbo.
+            if (bundledScriptUrl && !isRestarting && canAutoRestart()) {
+              try {
+                const bundleRes = await fetch(`http://${host}:${server?.port}${bundledScriptUrl}`);
+                const bundleText = await bundleRes.text();
+                if (isReloadStub(bundleText)) {
+                  autoRestartTimestamps.push(Date.now());
+                  if (logRequests) {
+                    console.log('[Server] Build check: dev bundler stale — restarting');
+                  }
+                  devServer.restart();
+                  return Response.json({ errors: [], restarting: true });
+                }
+              } catch {
+                // Self-fetch failed — ignore
+              }
+            }
             return Response.json({ errors: [] });
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
@@ -2045,6 +2069,32 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
       }
     }
 
+    /** Check if the dev bundler is serving a reload stub and trigger restart if so. */
+    async function checkAndRestartIfBundlerStale(): Promise<boolean> {
+      if (!bundledScriptUrl || !server || isRestarting) return false;
+      try {
+        const bundleRes = await fetch(`http://${host}:${server.port}${bundledScriptUrl}`);
+        const bundleText = await bundleRes.text();
+        if (isReloadStub(bundleText)) {
+          if (canAutoRestart()) {
+            autoRestartTimestamps.push(Date.now());
+            if (logRequests) {
+              console.log(
+                '[Server] Dev bundler still serving reload stub after SSR recovery — restarting',
+              );
+            }
+            devServer.restart();
+            return true;
+          } else if (logRequests) {
+            console.log('[Server] Dev bundler stale but auto-restart cap reached');
+          }
+        }
+      } catch {
+        // Self-fetch failed — server may be stopping, ignore
+      }
+      return false;
+    }
+
     // Watch for file changes — re-discover hash + re-import SSR module
     stopped = false;
 
@@ -2138,10 +2188,9 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
                   // Self-fetch failed — server may be stopping, ignore
                 }
               }
-              // Clear optimistically — if HMR fails, new errors will come in.
-              // Don't set grace period: errors from this save cycle are
-              // legitimate, not stale leftovers.
-              clearErrorForFileChange();
+              // Don't clear error here — wait until SSR re-import succeeds.
+              // Premature clearing causes a race: the client receives 'clear',
+              // reloads, but hits a still-broken SSR module or stale bundler.
             }
           } catch {
             // Bun.build() itself failed — ignore, the fetch-validate loader
@@ -2221,10 +2270,14 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
               onRestartNeeded();
               return;
             }
-            // No restart callback — try normal re-import as best effort
+            // No onRestartNeeded callback — use soft restart to get a fresh ESM cache.
+            // devServer.restart() resets ssrFallback, clears all caches, and
+            // creates a fresh Bun.serve() with a clean module graph.
             if (logRequests) {
-              console.log('[Server] SSR in fallback mode — attempting re-import (best effort)');
+              console.log('[Server] SSR in fallback mode — restarting dev server');
             }
+            devServer.restart();
+            return;
           }
 
           const cacheCleared = clearSSRRequireCache();
@@ -2250,6 +2303,11 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
             if (logRequests) {
               console.log('[Server] SSR module refreshed');
             }
+            // SSR succeeded — check if dev bundler is stale before clearing errors.
+            // This catches the case where Bun.build() passed and SSR refreshed
+            // but the persistent dev bundler graph is still stale (e.g. new file added).
+            if (await checkAndRestartIfBundlerStale()) return;
+            clearErrorForFileChange();
           } catch {
             logger.log('watcher', 'ssr-reload', { status: 'retry' });
             // First import may fail due to stale Bun module cache (race between
@@ -2278,6 +2336,8 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
               if (logRequests) {
                 console.log('[Server] SSR module refreshed (retry)');
               }
+              if (await checkAndRestartIfBundlerStale()) return;
+              clearErrorForFileChange();
             } catch (e2) {
               console.error('[Server] Failed to refresh SSR module:', e2);
               const errMsg = e2 instanceof Error ? e2.message : String(e2);
