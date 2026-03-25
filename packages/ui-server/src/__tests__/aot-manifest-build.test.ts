@@ -353,6 +353,50 @@ describe('generateAotBarrel', () => {
         expect(result.files[firstKey as string]).toContain('__ssr_HomePage');
       });
 
+      it('Then barrel source includes import for AOT runtime helpers', () => {
+        const compiledFiles: Record<string, AotCompiledFile> = {
+          '/src/home.tsx': {
+            code: 'export function __ssr_HomePage() { return __esc("hi"); }',
+            components: [{ name: 'HomePage', tier: 'static', holes: [], queryKeys: [] }],
+          },
+        };
+        const routeMap: Record<string, AotRouteMapEntry> = {
+          '/': { renderFn: '__ssr_HomePage', holes: [], queryKeys: [] },
+        };
+
+        const result = generateAotBarrel(compiledFiles, routeMap);
+
+        expect(result.barrelSource).toContain(
+          "import { __esc, __esc_attr, __ssr_spread, __ssr_style_object } from '@vertz/ui-server';",
+        );
+      });
+
+      it('Then each compiled file includes its own AOT runtime helper import', () => {
+        const compiledFiles: Record<string, AotCompiledFile> = {
+          '/src/home.tsx': {
+            code: 'export function __ssr_HomePage() { return __esc("hi"); }',
+            components: [{ name: 'HomePage', tier: 'static', holes: [], queryKeys: [] }],
+          },
+          '/src/about.tsx': {
+            code: 'export function __ssr_AboutPage() { return __esc("about"); }',
+            components: [{ name: 'AboutPage', tier: 'static', holes: [], queryKeys: [] }],
+          },
+        };
+        const routeMap: Record<string, AotRouteMapEntry> = {
+          '/': { renderFn: '__ssr_HomePage', holes: [], queryKeys: [] },
+          '/about': { renderFn: '__ssr_AboutPage', holes: [], queryKeys: [] },
+        };
+
+        const result = generateAotBarrel(compiledFiles, routeMap);
+
+        const helperImport =
+          "import { __esc, __esc_attr, __ssr_spread, __ssr_style_object } from '@vertz/ui-server';";
+        for (const [fileName, code] of Object.entries(result.files)) {
+          expect(code).toContain(helperImport);
+          expect(code.indexOf(helperImport)).toBe(0);
+        }
+      });
+
       it('Then only includes functions that are in the route map', () => {
         const compiledFiles: Record<string, AotCompiledFile> = {
           '/src/home.tsx': {

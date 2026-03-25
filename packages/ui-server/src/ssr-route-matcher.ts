@@ -13,19 +13,33 @@ export interface MatchedRoute {
   params: Record<string, string>;
 }
 
+export interface MatchOptions {
+  /**
+   * When true, require exact segment count match (no prefix matching).
+   * Use for AOT routes (page-level). When false (default), prefix matching
+   * is used for layout matching where `/` matches all nested routes.
+   */
+  exact?: boolean;
+}
+
 /**
  * Match a URL path against a list of route patterns.
  * Returns all matching patterns (layouts + page) ordered from most general to most specific.
  *
  * Patterns use Express-style `:param` syntax.
  */
-export function matchUrlToPatterns(url: string, patterns: string[]): MatchedRoute[] {
+export function matchUrlToPatterns(
+  url: string,
+  patterns: string[],
+  options?: MatchOptions,
+): MatchedRoute[] {
   // Strip query string and hash
   const path = (url.split('?')[0] ?? '').split('#')[0] ?? '';
+  const exact = options?.exact ?? false;
   const matches: MatchedRoute[] = [];
 
   for (const pattern of patterns) {
-    const result = matchPattern(path, pattern);
+    const result = matchPattern(path, pattern, exact);
     if (result) {
       matches.push(result);
     }
@@ -45,13 +59,17 @@ export function matchUrlToPatterns(url: string, patterns: string[]): MatchedRout
  * Match a single URL path against a route pattern.
  * Returns the match with extracted params, or undefined if no match.
  */
-function matchPattern(path: string, pattern: string): MatchedRoute | undefined {
+function matchPattern(path: string, pattern: string, exact: boolean): MatchedRoute | undefined {
   const pathSegments = path.split('/').filter(Boolean);
   const patternSegments = pattern.split('/').filter(Boolean);
 
-  // Pattern segments must match path segments exactly in count
-  // (unless the pattern is a prefix — handled by the caller collecting all matches)
-  if (patternSegments.length > pathSegments.length) return undefined;
+  // In exact mode, segment counts must match exactly (AOT page routes).
+  // In prefix mode, the pattern can be shorter (layout matching).
+  if (exact) {
+    if (patternSegments.length !== pathSegments.length) return undefined;
+  } else {
+    if (patternSegments.length > pathSegments.length) return undefined;
+  }
 
   const params: Record<string, string> = {};
 

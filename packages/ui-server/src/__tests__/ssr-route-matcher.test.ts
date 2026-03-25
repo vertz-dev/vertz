@@ -13,6 +13,42 @@ const PATTERNS = [
   '/projects/:projectId/issues/:issueId',
 ];
 
+describe('Feature: Exact URL to route pattern matching', () => {
+  const AOT_PATTERNS = ['/', '/games', '/sellers', '/cart', '/games/:id'];
+
+  describe('Given AOT patterns and exact mode', () => {
+    it('Then / only matches the root URL, not /games or /cards/abc', () => {
+      expect(
+        matchUrlToPatterns('/games/pokemon', AOT_PATTERNS, { exact: true }).map((m) => m.pattern),
+      ).toEqual(['/games/:id']);
+
+      expect(
+        matchUrlToPatterns('/cards/pokemon-set-01-001', AOT_PATTERNS, { exact: true }),
+      ).toEqual([]);
+
+      expect(matchUrlToPatterns('/', AOT_PATTERNS, { exact: true }).map((m) => m.pattern)).toEqual([
+        '/',
+      ]);
+    });
+
+    it('Then /games matches exactly, not /games/pokemon', () => {
+      const matches = matchUrlToPatterns('/games', AOT_PATTERNS, { exact: true });
+      expect(matches.map((m) => m.pattern)).toEqual(['/games']);
+    });
+
+    it('Then /sellers does not match /sellers/some-seller', () => {
+      expect(matchUrlToPatterns('/sellers/some-seller', AOT_PATTERNS, { exact: true })).toEqual([]);
+    });
+
+    it('Then parameterized patterns still extract params in exact mode', () => {
+      const matches = matchUrlToPatterns('/games/pokemon', AOT_PATTERNS, { exact: true });
+      expect(matches).toHaveLength(1);
+      expect(matches[0]?.pattern).toBe('/games/:id');
+      expect(matches[0]?.params).toEqual({ id: 'pokemon' });
+    });
+  });
+});
+
 describe('Feature: URL to route pattern matching', () => {
   describe('Given /projects/abc123/board', () => {
     it('Then matches layout and page patterns with extracted params', () => {

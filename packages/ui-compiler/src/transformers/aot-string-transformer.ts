@@ -12,6 +12,8 @@ interface QueryVarMeta {
   cacheKey: string;
   /** Index for the local binding in the AOT function (e.g., 0 → __q0). */
   index: number;
+  /** Derived aliases (e.g., `const d = q.data` → d is alias for __q{index}). */
+  derivedAliases: string[];
 }
 
 /** Get node as a generic Node to avoid ts-morph's over-narrowing. */
@@ -110,6 +112,20 @@ export class AotStringTransformer {
 
     // Extract query variable metadata for standalone page functions
     const queryVars = this._extractQueryVars(sourceFile, component, variables);
+
+    // If there are query-like variables that couldn't be resolved, fall back to runtime
+    const signalApiVarCount = variables.filter(
+      (v) => v.signalProperties && v.signalProperties.has('data'),
+    ).length;
+    if (signalApiVarCount > 0 && queryVars.length < signalApiVarCount) {
+      this._components.push({
+        name: component.name,
+        tier: 'runtime-fallback',
+        holes: [],
+        queryKeys: [],
+      });
+      return;
+    }
 
     // Only count direct returns (not returns inside nested callbacks/functions)
     const allReturnStmts = bodyNode.getDescendantsOfKind(SyntaxKind.ReturnStatement);
@@ -250,6 +266,11 @@ export class AotStringTransformer {
         stringExpr = stringExpr.split(`${qv.varName}.loading`).join('false');
         // Replace queryVar.error with undefined
         stringExpr = stringExpr.split(`${qv.varName}.error`).join('undefined');
+        // Replace derived aliases (e.g., const d = q.data → d becomes __q0)
+        // Use negative lookbehind for '.' to avoid matching property accesses like someObj.d
+        for (const alias of qv.derivedAliases) {
+          stringExpr = stringExpr.replace(new RegExp(`(?<!\\.)\\b${alias}\\b`, 'g'), localVar);
+        }
       }
     } else {
       const propsParam = component.propsParam;
@@ -314,29 +335,62 @@ export class AotStringTransformer {
         const args = init.getArguments();
         if (args.length === 0) continue;
 
+        let cacheKey: string | null = null;
+
         const firstArg = args[0]!;
-        // The argument is itself a call expression: api.entity.operation(...)
-        let descriptorExpr: Node;
+        // Strategy 1: api.entity.operation() pattern
         if (firstArg.isKind(SyntaxKind.CallExpression)) {
-          descriptorExpr = firstArg.getExpression();
+          const descriptorExpr = firstArg.getExpression();
+          const chain = this._extractPropertyAccessChain(descriptorExpr);
+          if (chain && chain.length >= 3) {
+            cacheKey = `${chain[1]}-${chain[2]}`;
+          }
         } else if (firstArg.isKind(SyntaxKind.PropertyAccessExpression)) {
-          // Direct reference without call: api.entity.operation (less common)
-          descriptorExpr = firstArg;
-        } else {
-          continue;
+          const chain = this._extractPropertyAccessChain(firstArg);
+          if (chain && chain.length >= 3) {
+            cacheKey = `${chain[1]}-${chain[2]}`;
+          }
         }
 
-        // Extract the property access chain: api.entity.operation → ['api', 'entity', 'operation']
-        const chain = this._extractPropertyAccessChain(descriptorExpr);
-        if (!chain || chain.length < 3) continue;
+        // Strategy 2: { key: '...' } options object (second argument)
+        if (!cacheKey && args.length >= 2) {
+          const secondArg = args[1]!;
+          if (secondArg.isKind(SyntaxKind.ObjectLiteralExpression)) {
+            for (const prop of secondArg.getProperties()) {
+              if (prop.isKind(SyntaxKind.PropertyAssignment) && prop.getName() === 'key') {
+                const initializer = prop.getInitializer();
+                if (initializer?.isKind(SyntaxKind.StringLiteral)) {
+                  cacheKey = initializer.getLiteralText();
+                }
+                break;
+              }
+            }
+          }
+        }
 
-        // Cache key: entity-operation (e.g., 'projects-list')
-        const cacheKey = `${chain[1]}-${chain[2]}`;
+        if (!cacheKey) continue;
+
+        // Find derived aliases: const d = queryVar.data → d aliases __q{N}
+        const aliases: string[] = [];
+        for (const d of varDecls) {
+          if (isInNestedFunction(d, bodyNode)) continue;
+          const dInit = d.getInitializer();
+          if (!dInit) continue;
+          // Match: const d = queryVar.data
+          if (
+            dInit.isKind(SyntaxKind.PropertyAccessExpression) &&
+            dInit.getExpression().getText() === qv.name &&
+            dInit.getName() === 'data'
+          ) {
+            aliases.push(d.getName());
+          }
+        }
 
         queryVars.push({
           varName: qv.name,
           cacheKey,
           index: queryVars.length,
+          derivedAliases: aliases,
         });
         break;
       }
