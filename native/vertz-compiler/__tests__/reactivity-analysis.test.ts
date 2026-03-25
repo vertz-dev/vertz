@@ -14,6 +14,8 @@ interface VariableInfo {
   end: number;
   signalProperties?: string[];
   plainProperties?: string[];
+  fieldSignalProperties?: string[];
+  isReactiveSource?: boolean;
 }
 
 interface ComponentInfo {
@@ -273,6 +275,182 @@ describe('Feature: Reactivity classification', () => {
         expect(
           findVar(result.components, 'App', 'internalCounter')!.kind,
         ).toBe('static');
+      });
+    });
+  });
+
+  describe('Given a let variable only used in a non-JSX context', () => {
+    describe('When analyzed', () => {
+      it('Then classifies both the let and its derived const as static', () => {
+        const { compile } = loadCompiler();
+        const source = `
+          function App() {
+            let temp = 0;
+            const derived = temp + 1;
+            console.log(derived);
+            return <div>hello</div>;
+          }
+        `;
+        const result = compile(source, { filename: 'test.tsx' });
+        expect(findVar(result.components, 'App', 'temp')!.kind).toBe(
+          'static',
+        );
+        expect(findVar(result.components, 'App', 'derived')!.kind).toBe(
+          'static',
+        );
+      });
+    });
+  });
+
+  describe('Given a let variable transitively reachable from JSX via const', () => {
+    describe('When analyzed', () => {
+      it('Then classifies the let as signal and the const as computed', () => {
+        const { compile } = loadCompiler();
+        const source = `
+          function App() {
+            let temp = 0;
+            const derived = temp + 1;
+            return <div>{derived}</div>;
+          }
+        `;
+        const result = compile(source, { filename: 'test.tsx' });
+        // temp is transitively JSX-reachable (through derived) → signal
+        expect(findVar(result.components, 'App', 'temp')!.kind).toBe(
+          'signal',
+        );
+        // derived depends on a signal → computed
+        expect(findVar(result.components, 'App', 'derived')!.kind).toBe(
+          'computed',
+        );
+      });
+    });
+  });
+
+  describe('Given a form() call with field signal properties', () => {
+    describe('When analyzed', () => {
+      it('Then includes fieldSignalProperties in the output', () => {
+        const { compile } = loadCompiler();
+        const source = `
+          import { form } from '@vertz/ui';
+          function CreateTask() {
+            const taskForm = form(() => createTask());
+            return <form>{taskForm.submitting}</form>;
+          }
+        `;
+        const result = compile(source, { filename: 'test.tsx' });
+        const formVar = findVar(result.components, 'CreateTask', 'taskForm');
+        expect(formVar).toBeDefined();
+        expect(formVar!.fieldSignalProperties).toBeDefined();
+        expect(formVar!.fieldSignalProperties).toContain('error');
+        expect(formVar!.fieldSignalProperties).toContain('dirty');
+        expect(formVar!.fieldSignalProperties).toContain('touched');
+        expect(formVar!.fieldSignalProperties).toContain('value');
+      });
+    });
+  });
+
+  describe('Given a destructured signal API call', () => {
+    describe('When analyzed', () => {
+      it('Then classifies destructured bindings based on property type', () => {
+        const { compile } = loadCompiler();
+        const source = `
+          import { query } from '@vertz/ui';
+          function TaskList() {
+            const { data, loading, refetch } = query(() => fetchTasks());
+            return <div>{data}{loading}</div>;
+          }
+        `;
+        const result = compile(source, { filename: 'test.tsx' });
+        const dataVar = findVar(result.components, 'TaskList', 'data');
+        expect(dataVar).toBeDefined();
+        expect(dataVar!.kind).toBe('signal');
+        const loadingVar = findVar(result.components, 'TaskList', 'loading');
+        expect(loadingVar).toBeDefined();
+        expect(loadingVar!.kind).toBe('signal');
+        const refetchVar = findVar(result.components, 'TaskList', 'refetch');
+        expect(refetchVar).toBeDefined();
+        expect(refetchVar!.kind).toBe('static');
+      });
+    });
+  });
+
+  describe('Given a useContext() call with non-null assertion', () => {
+    describe('When analyzed', () => {
+      it('Then detects it as a reactive source', () => {
+        const { compile } = loadCompiler();
+        const source = `
+          import { useContext } from '@vertz/ui';
+          function App() {
+            const ctx = useContext(SomeCtx)!;
+            return <div>{ctx.value}</div>;
+          }
+        `;
+        const result = compile(source, { filename: 'test.tsx' });
+        const ctxVar = findVar(result.components, 'App', 'ctx');
+        expect(ctxVar).toBeDefined();
+        expect(ctxVar!.isReactiveSource).toBe(true);
+      });
+    });
+  });
+
+  describe('Given a useAuth() reactive source API', () => {
+    describe('When analyzed', () => {
+      it('Then marks the variable as a reactive source', () => {
+        const { compile } = loadCompiler();
+        const source = `
+          import { useAuth } from '@vertz/ui';
+          function App() {
+            const auth = useAuth();
+            return <div>{auth.user}</div>;
+          }
+        `;
+        const result = compile(source, { filename: 'test.tsx' });
+        const authVar = findVar(result.components, 'App', 'auth');
+        expect(authVar).toBeDefined();
+        expect(authVar!.isReactiveSource).toBe(true);
+      });
+    });
+  });
+
+  describe('Given a createLoader() call', () => {
+    describe('When analyzed', () => {
+      it('Then tracks createLoader signal properties', () => {
+        const { compile } = loadCompiler();
+        const source = `
+          import { createLoader } from '@vertz/ui';
+          function App() {
+            const loader = createLoader(() => fetchData());
+            return <div>{loader.data}</div>;
+          }
+        `;
+        const result = compile(source, { filename: 'test.tsx' });
+        const loaderVar = findVar(result.components, 'App', 'loader');
+        expect(loaderVar).toBeDefined();
+        expect(loaderVar!.signalProperties).toContain('data');
+        expect(loaderVar!.signalProperties).toContain('loading');
+        expect(loaderVar!.signalProperties).toContain('error');
+        expect(loaderVar!.plainProperties).toContain('refetch');
+      });
+    });
+  });
+
+  describe('Given a can() call', () => {
+    describe('When analyzed', () => {
+      it('Then tracks can signal properties', () => {
+        const { compile } = loadCompiler();
+        const source = `
+          import { can } from '@vertz/ui';
+          function App() {
+            const perm = can('task:update');
+            return <div>{perm.allowed}</div>;
+          }
+        `;
+        const result = compile(source, { filename: 'test.tsx' });
+        const permVar = findVar(result.components, 'App', 'perm');
+        expect(permVar).toBeDefined();
+        expect(permVar!.signalProperties).toContain('allowed');
+        expect(permVar!.signalProperties).toContain('loading');
+        expect(permVar!.signalProperties).toContain('reasons');
       });
     });
   });

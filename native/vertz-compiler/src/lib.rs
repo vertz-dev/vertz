@@ -23,6 +23,8 @@ pub struct NapiVariableInfo {
     pub end: u32,
     pub signal_properties: Option<Vec<String>>,
     pub plain_properties: Option<Vec<String>>,
+    pub field_signal_properties: Option<Vec<String>>,
+    pub is_reactive_source: Option<bool>,
 }
 
 #[napi(object)]
@@ -117,6 +119,12 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
                             end: v.end,
                             signal_properties: v.signal_properties,
                             plain_properties: v.plain_properties,
+                            field_signal_properties: v.field_signal_properties,
+                            is_reactive_source: if v.is_reactive_source {
+                                Some(true)
+                            } else {
+                                None
+                            },
                         })
                         .collect(),
                 ),

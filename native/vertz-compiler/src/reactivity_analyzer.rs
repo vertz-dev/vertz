@@ -32,6 +32,8 @@ pub struct VariableInfo {
     pub end: u32,
     pub signal_properties: Option<Vec<String>>,
     pub plain_properties: Option<Vec<String>>,
+    pub field_signal_properties: Option<Vec<String>>,
+    pub is_reactive_source: bool,
 }
 
 /// Internal variable metadata during collection phase.
@@ -48,6 +50,8 @@ struct VarMeta {
     is_signal_api: bool,
     signal_api_name: Option<String>,
     is_reactive_source: bool,
+    /// For destructured bindings, the pre-classified kind
+    destructured_kind: Option<DestructuredKind>,
 }
 
 /// Analyze variables within a component body and classify their reactivity.
@@ -230,6 +234,9 @@ fn collect_vars_from_component_init<'a>(
         Expression::TSAsExpression(ts_as) => {
             collect_vars_from_component_init(&ts_as.expression, import_aliases, metas);
         }
+        Expression::TSSatisfiesExpression(ts_sat) => {
+            collect_vars_from_component_init(&ts_sat.expression, import_aliases, metas);
+        }
         _ => {}
     }
 }
@@ -243,64 +250,168 @@ fn collect_vars_from_body_stmt<'a>(
         let is_let = matches!(var_decl.kind, VariableDeclarationKind::Let);
 
         for declarator in &var_decl.declarations {
-            if let BindingPattern::BindingIdentifier(ref id) = declarator.id {
-                let name = id.name.to_string();
-                let mut deps = HashSet::new();
-                let mut property_accesses: HashMap<String, HashSet<String>> = HashMap::new();
-                let mut is_function_def = false;
-                let mut is_structural_literal = false;
-                let mut is_signal_api = false;
-                let mut signal_api_name = None;
-                let mut is_reactive_source = false;
-
-                if let Some(ref init) = declarator.init {
-                    // Collect identifier dependencies
-                    let mut dep_collector = DepCollector::new();
-                    dep_collector.visit_expression(init);
-                    deps = dep_collector.identifiers;
-                    property_accesses = dep_collector.property_accesses;
-
-                    // Check if init is a function/arrow definition
-                    is_function_def = is_function_expression(init);
-
-                    // Check if init is an object/array literal
-                    is_structural_literal = is_structural(init);
-
-                    // Check if init is a call to a signal API
-                    if let Some(callee_name) = get_call_expression_name(init) {
-                        // Resolve through aliases
-                        let original_name = import_aliases
-                            .get(&callee_name)
-                            .cloned()
-                            .unwrap_or_else(|| callee_name.clone());
-
-                        if REACTIVE_SOURCE_APIS.contains(original_name.as_str()) {
-                            is_reactive_source = true;
-                        }
-
-                        if get_signal_api_config(&original_name).is_some() {
-                            is_signal_api = true;
-                            signal_api_name = Some(original_name);
-                        }
+            match &declarator.id {
+                BindingPattern::BindingIdentifier(id) => {
+                    collect_binding_identifier(id, declarator, is_let, import_aliases, metas);
+                }
+                BindingPattern::ObjectPattern(obj_pattern) => {
+                    // Handle destructured bindings: const { data, error } = query(...)
+                    if let Some(ref init) = declarator.init {
+                        collect_destructured_bindings(
+                            obj_pattern,
+                            init,
+                            declarator,
+                            import_aliases,
+                            metas,
+                        );
                     }
                 }
-
-                metas.push(VarMeta {
-                    name,
-                    start: declarator.span.start,
-                    end: declarator.span.end,
-                    is_let,
-                    deps,
-                    property_accesses,
-                    is_function_def,
-                    is_structural_literal,
-                    is_signal_api,
-                    signal_api_name,
-                    is_reactive_source,
-                });
+                _ => {}
             }
         }
     }
+}
+
+fn collect_binding_identifier<'a>(
+    id: &BindingIdentifier<'a>,
+    declarator: &VariableDeclarator<'a>,
+    is_let: bool,
+    import_aliases: &HashMap<String, String>,
+    metas: &mut Vec<VarMeta>,
+) {
+    let name = id.name.to_string();
+    let mut deps = HashSet::new();
+    let mut property_accesses: HashMap<String, HashSet<String>> = HashMap::new();
+    let mut is_function_def = false;
+    let mut is_structural_literal = false;
+    let mut is_signal_api = false;
+    let mut signal_api_name = None;
+    let mut is_reactive_source = false;
+
+    if let Some(ref init) = declarator.init {
+        // Collect identifier dependencies
+        let mut dep_collector = DepCollector::new();
+        dep_collector.visit_expression(init);
+        deps = dep_collector.identifiers;
+        property_accesses = dep_collector.property_accesses;
+
+        // Check if init is a function/arrow definition
+        is_function_def = is_function_expression(init);
+
+        // Check if init is an object/array literal
+        is_structural_literal = is_structural(init);
+
+        // Check if init is a call to a signal API (unwrap NonNull first)
+        let unwrapped_init = unwrap_ts_non_null(init);
+        if let Some(callee_name) = get_call_expression_name(unwrapped_init) {
+            // Resolve through aliases
+            let original_name = import_aliases
+                .get(&callee_name)
+                .cloned()
+                .unwrap_or_else(|| callee_name.clone());
+
+            if REACTIVE_SOURCE_APIS.contains(original_name.as_str()) {
+                is_reactive_source = true;
+            }
+
+            if get_signal_api_config(&original_name).is_some() {
+                is_signal_api = true;
+                signal_api_name = Some(original_name);
+            }
+        }
+    }
+
+    metas.push(VarMeta {
+        name,
+        start: declarator.span.start,
+        end: declarator.span.end,
+        is_let,
+        deps,
+        property_accesses,
+        is_function_def,
+        is_structural_literal,
+        is_signal_api,
+        signal_api_name,
+        is_reactive_source,
+        destructured_kind: None,
+    });
+}
+
+fn collect_destructured_bindings<'a>(
+    obj_pattern: &ObjectPattern<'a>,
+    init: &Expression<'a>,
+    declarator: &VariableDeclarator<'a>,
+    import_aliases: &HashMap<String, String>,
+    metas: &mut Vec<VarMeta>,
+) {
+    // Check if the init is a call to a signal API
+    let unwrapped_init = unwrap_ts_non_null(init);
+    let callee_name = get_call_expression_name(unwrapped_init);
+    let original_api_name = callee_name.as_ref().map(|name| {
+        import_aliases
+            .get(name)
+            .cloned()
+            .unwrap_or_else(|| name.clone())
+    });
+
+    let signal_config = original_api_name
+        .as_ref()
+        .and_then(|name| get_signal_api_config(name));
+
+    let is_reactive_source = original_api_name
+        .as_ref()
+        .is_some_and(|name| REACTIVE_SOURCE_APIS.contains(name.as_str()));
+
+    for prop in &obj_pattern.properties {
+        if let BindingPattern::BindingIdentifier(ref binding_id) = prop.value {
+            let local_name = binding_id.name.to_string();
+
+            // Use the key name for property lookup (handles renamed destructuring)
+            let source_prop_name =
+                extract_property_key_name(&prop.key).unwrap_or_else(|| local_name.clone());
+
+            // Determine the kind based on signal API config
+            let is_signal_prop = signal_config
+                .is_some_and(|config| config.signal_properties.contains(source_prop_name.as_str()));
+            let is_plain_prop = signal_config
+                .is_some_and(|config| config.plain_properties.contains(source_prop_name.as_str()));
+
+            // Destructured signal properties become signal variables,
+            // destructured plain properties become static
+            let kind_hint = if is_signal_prop {
+                DestructuredKind::Signal
+            } else if is_plain_prop || signal_config.is_some() {
+                DestructuredKind::Static
+            } else if is_reactive_source {
+                DestructuredKind::ReactiveSource
+            } else {
+                DestructuredKind::Unknown
+            };
+
+            metas.push(VarMeta {
+                name: local_name,
+                start: declarator.span.start,
+                end: declarator.span.end,
+                is_let: false,
+                deps: HashSet::new(),
+                property_accesses: HashMap::new(),
+                is_function_def: false,
+                is_structural_literal: false,
+                is_signal_api: false,
+                signal_api_name: None,
+                is_reactive_source: matches!(kind_hint, DestructuredKind::ReactiveSource),
+                destructured_kind: Some(kind_hint),
+            });
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+enum DestructuredKind {
+    Signal,
+    Static,
+    ReactiveSource,
+    Unknown,
 }
 
 /// Phase 2: Classify variables based on JSX reachability.
@@ -344,7 +455,15 @@ fn classify_variables<'a>(
     metas
         .iter()
         .map(|meta| {
-            let kind = if meta.is_let {
+            let kind = if let Some(ref dk) = meta.destructured_kind {
+                // Destructured bindings are pre-classified
+                match dk {
+                    DestructuredKind::Signal => ReactivityKind::Signal,
+                    DestructuredKind::Static => ReactivityKind::Static,
+                    DestructuredKind::ReactiveSource => ReactivityKind::Signal,
+                    DestructuredKind::Unknown => ReactivityKind::Static,
+                }
+            } else if meta.is_let {
                 // let variables: signal if JSX-reachable
                 if jsx_reachable.contains(&meta.name) {
                     ReactivityKind::Signal
@@ -359,15 +478,15 @@ fn classify_variables<'a>(
                 ReactivityKind::Static
             } else {
                 // Check if this const depends on any reactive thing
-                if depends_on_reactive(meta, &meta_map) {
+                if depends_on_reactive(meta, &meta_map, &jsx_reachable) {
                     ReactivityKind::Computed
                 } else {
                     ReactivityKind::Static
                 }
             };
 
-            // Build signal/plain properties for signal API vars
-            let (signal_props, plain_props) = if meta.is_signal_api {
+            // Build signal/plain/field properties for signal API vars
+            let (signal_props, plain_props, field_props) = if meta.is_signal_api {
                 if let Some(ref api_name) = meta.signal_api_name {
                     if let Some(config) = get_signal_api_config(api_name) {
                         (
@@ -385,15 +504,19 @@ fn classify_variables<'a>(
                                     .map(|s| s.to_string())
                                     .collect(),
                             ),
+                            config
+                                .field_signal_properties
+                                .as_ref()
+                                .map(|fps| fps.iter().map(|s| s.to_string()).collect()),
                         )
                     } else {
-                        (None, None)
+                        (None, None, None)
                     }
                 } else {
-                    (None, None)
+                    (None, None, None)
                 }
             } else {
-                (None, None)
+                (None, None, None)
             };
 
             VariableInfo {
@@ -403,20 +526,27 @@ fn classify_variables<'a>(
                 end: meta.end,
                 signal_properties: signal_props,
                 plain_properties: plain_props,
+                field_signal_properties: field_props,
+                is_reactive_source: meta.is_reactive_source,
             }
         })
         .collect()
 }
 
 /// Check if a variable transitively depends on any reactive source.
-fn depends_on_reactive(meta: &VarMeta, meta_map: &HashMap<&str, &VarMeta>) -> bool {
+fn depends_on_reactive(
+    meta: &VarMeta,
+    meta_map: &HashMap<&str, &VarMeta>,
+    jsx_reachable: &HashSet<String>,
+) -> bool {
     let mut visited = HashSet::new();
-    depends_on_reactive_inner(meta, meta_map, &mut visited)
+    depends_on_reactive_inner(meta, meta_map, jsx_reachable, &mut visited)
 }
 
 fn depends_on_reactive_inner(
     meta: &VarMeta,
     meta_map: &HashMap<&str, &VarMeta>,
+    jsx_reachable: &HashSet<String>,
     visited: &mut HashSet<String>,
 ) -> bool {
     if !visited.insert(meta.name.clone()) {
@@ -425,13 +555,8 @@ fn depends_on_reactive_inner(
 
     for dep in &meta.deps {
         if let Some(dep_meta) = meta_map.get(dep.as_str()) {
-            // Depends on a signal (let that's JSX-reachable? No - we need to check kind)
-            // Actually, during classification we don't have kinds yet.
-            // So we check: is the dep a `let` that's JSX-reachable? We don't know yet.
-            // Instead, we check properties:
-
-            // Depends on a let variable → could be reactive (will be signal if JSX-reachable)
-            if dep_meta.is_let {
+            // Depends on a let variable that is JSX-reachable (i.e., a signal)
+            if dep_meta.is_let && jsx_reachable.contains(&dep_meta.name) {
                 return true;
             }
 
@@ -460,7 +585,7 @@ fn depends_on_reactive_inner(
             if !dep_meta.is_function_def
                 && !dep_meta.is_structural_literal
                 && !dep_meta.is_signal_api
-                && depends_on_reactive_inner(dep_meta, meta_map, visited)
+                && depends_on_reactive_inner(dep_meta, meta_map, jsx_reachable, visited)
             {
                 return true;
             }
@@ -571,6 +696,24 @@ fn is_structural(expr: &Expression) -> bool {
         Expression::ObjectExpression(_) | Expression::ArrayExpression(_) => true,
         Expression::ParenthesizedExpression(paren) => is_structural(&paren.expression),
         _ => false,
+    }
+}
+
+/// Extract the name from a PropertyKey, if it's a static identifier.
+fn extract_property_key_name(key: &PropertyKey) -> Option<String> {
+    if let PropertyKey::StaticIdentifier(id) = key {
+        Some(id.name.to_string())
+    } else {
+        None
+    }
+}
+
+/// Unwrap TSNonNullExpression (the `!` postfix operator).
+fn unwrap_ts_non_null<'a, 'b>(expr: &'b Expression<'a>) -> &'b Expression<'a> {
+    if let Expression::TSNonNullExpression(ts_nn) = expr {
+        unwrap_ts_non_null(&ts_nn.expression)
+    } else {
+        expr
     }
 }
 

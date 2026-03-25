@@ -138,7 +138,7 @@ describe('Feature: Component detection in native compiler', () => {
     });
   });
 
-  describe('Given a file with export default arrow function', () => {
+  describe('Given a file with an exported const arrow function', () => {
     describe('When analyzed', () => {
       it('Then detects the exported const component', () => {
         const { compile } = loadCompiler();
@@ -148,6 +148,20 @@ describe('Feature: Component detection in native compiler', () => {
         expect(result.components).toBeDefined();
         expect(result.components!.length).toBe(1);
         expect(result.components![0].name).toBe('TaskCard');
+      });
+    });
+  });
+
+  describe('Given a file with export default function', () => {
+    describe('When analyzed', () => {
+      it('Then detects the default exported component', () => {
+        const { compile } = loadCompiler();
+        const source =
+          'export default function App() { return <div />; }';
+        const result = compile(source, { filename: 'test.tsx' });
+        expect(result.components).toBeDefined();
+        expect(result.components!.length).toBe(1);
+        expect(result.components![0].name).toBe('App');
       });
     });
   });
