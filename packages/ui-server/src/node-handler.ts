@@ -16,6 +16,7 @@ import {
   resolveRouteModulepreload,
   resolveSession,
 } from './ssr-handler-shared';
+import { ssrStreamNavQueries } from './ssr-render';
 import { ssrRenderProgressive, ssrRenderSinglePass } from './ssr-single-pass';
 import { safeSerialize } from './ssr-streaming-runtime';
 import { injectIntoTemplate } from './template-inject';
@@ -49,6 +50,12 @@ export function createNodeHandler(
     void (async () => {
       try {
         const url = req.url ?? '/';
+
+        // Nav pre-fetch: SSE response — session resolver NOT called
+        if (req.headers['x-vertz-nav'] === '1') {
+          await handleNavRequest(req, res, module, url, ssrTimeout);
+          return;
+        }
 
         // Resolve session (construct minimal Request for the resolver)
         let sessionScript = '';
@@ -272,4 +279,57 @@ async function handleProgressiveRequest(
   }
   tail += split.tailTemplate;
   res.end(tail);
+}
+
+/**
+ * Handle a nav pre-fetch request.
+ * Streams SSE events directly to ServerResponse with disconnect detection.
+ */
+async function handleNavRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  module: SSRHandlerOptions['module'],
+  url: string,
+  ssrTimeout?: number,
+): Promise<void> {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+  });
+
+  try {
+    const stream = await ssrStreamNavQueries(module, url, { ssrTimeout });
+
+    let clientDisconnected = false;
+    req.on('close', () => {
+      clientDisconnected = true;
+    });
+
+    const reader = stream.getReader();
+    try {
+      for (;;) {
+        if (clientDisconnected) {
+          reader.cancel();
+          break;
+        }
+
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const canContinue = res.write(value);
+        if (!canContinue && !clientDisconnected) {
+          await new Promise<void>((resolve) => res.once('drain', resolve));
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  } catch {
+    // Graceful degradation — send done event so client falls back
+    res.write('event: done\ndata: {}\n\n');
+  }
+
+  if (!res.writableEnded) {
+    res.end();
+  }
 }

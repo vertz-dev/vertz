@@ -442,4 +442,83 @@ describe('createNodeHandler', () => {
       });
     });
   });
+
+  describe('Phase 3: SSE nav pre-fetch', () => {
+    describe('Given a request with X-Vertz-Nav: 1 header', () => {
+      describe('When queries are discovered for the URL', () => {
+        it('Then streams SSE events directly to ServerResponse', async () => {
+          const moduleWithQuery: SSRModule = {
+            default: () => {
+              registerSSRQuery({
+                key: 'nav-data',
+                promise: Promise.resolve({ id: 42 }),
+                timeout: 300,
+                resolve: () => {},
+              });
+              const el = document.createElement('div');
+              el.textContent = 'App';
+              return el;
+            },
+          };
+
+          const handler = createNodeHandler({ module: moduleWithQuery, template });
+          const result = await startServer(handler);
+          server = result.server;
+
+          const res = await fetch(`http://localhost:${result.port}/tasks/42`, {
+            headers: { 'X-Vertz-Nav': '1' },
+          });
+
+          expect(res.status).toBe(200);
+          const body = await res.text();
+          expect(body).toContain('event: data');
+          expect(body).toContain('"nav-data"');
+          expect(body).toContain('event: done');
+        });
+
+        it('Then sets Content-Type to text/event-stream', async () => {
+          const handler = createNodeHandler({ module: simpleModule, template });
+          const result = await startServer(handler);
+          server = result.server;
+
+          const res = await fetch(`http://localhost:${result.port}/`, {
+            headers: { 'X-Vertz-Nav': '1' },
+          });
+          expect(res.headers.get('content-type')).toBe('text/event-stream');
+        });
+
+        it('Then sets Cache-Control to no-cache', async () => {
+          const handler = createNodeHandler({ module: simpleModule, template });
+          const result = await startServer(handler);
+          server = result.server;
+
+          const res = await fetch(`http://localhost:${result.port}/`, {
+            headers: { 'X-Vertz-Nav': '1' },
+          });
+          expect(res.headers.get('cache-control')).toBe('no-cache');
+        });
+      });
+
+      describe('When SSE streaming fails', () => {
+        it('Then writes graceful fallback (done event)', async () => {
+          const crashModule: SSRModule = {
+            default: () => {
+              throw new Error('SSE crash');
+            },
+          };
+          const handler = createNodeHandler({ module: crashModule, template });
+          const result = await startServer(handler);
+          server = result.server;
+
+          const res = await fetch(`http://localhost:${result.port}/`, {
+            headers: { 'X-Vertz-Nav': '1' },
+          });
+          expect(res.status).toBe(200);
+          const body = await res.text();
+          expect(body).toContain('event: done');
+          expect(body).toContain('data: {}');
+        });
+      });
+    });
+  });
 });
