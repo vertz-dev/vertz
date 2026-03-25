@@ -259,7 +259,7 @@ export class AotStringTransformer {
     const body = preamble
       ? `${preamble}\n  return ${stringExpr};\n`
       : `\n  return ${stringExpr};\n`;
-    const aotFn = `\nfunction ${aotFnName}(${paramStr}): string {${body}}\n`;
+    const aotFn = `\nexport function ${aotFnName}(${paramStr}): string {${body}}\n`;
     s.appendRight(component.bodyEnd + 1, aotFn);
 
     this._components.push({

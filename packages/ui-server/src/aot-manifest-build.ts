@@ -189,10 +189,12 @@ export function generateAotBarrel(
     const moduleRef = `./${tempFileName}`;
     lines.push(`export { ${fns.sort().join(', ')} } from '${moduleRef}';`);
 
-    // Map the temp filename to the compiled source code
+    // Map the temp filename to the compiled source code.
+    // Use .tsx extension because compiled code includes the original source (with JSX)
+    // alongside the generated __ssr_* functions.
     const compiled = compiledFiles[filePath];
     if (compiled) {
-      files[`${tempFileName}.ts`] = compiled.code;
+      files[`${tempFileName}.tsx`] = compiled.code;
     }
 
     fileIndex++;

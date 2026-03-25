@@ -324,13 +324,24 @@ ${modulepreloadLinks}
               writeFileSync(barrelPath, barrel.barrelSource);
 
               // Bundle into aot-routes.js
+              // Externalize JSX runtime because compiled files contain original
+              // source (with JSX) alongside the generated __ssr_* functions.
+              // The barrel re-exports only __ssr_* fns; tree-shaking removes
+              // the JSX components but the bundler still needs to resolve imports.
               const bundleResult = await Bun.build({
                 entrypoints: [barrelPath],
                 target: 'bun',
                 format: 'esm',
                 outdir: distServer,
                 naming: 'aot-routes.[ext]',
-                external: ['@vertz/ui-server', '@vertz/ui', '@vertz/ui/internals'],
+                external: [
+                  '@vertz/ui-server',
+                  '@vertz/ui',
+                  '@vertz/ui/internals',
+                  'react',
+                  'react/jsx-dev-runtime',
+                  'react/jsx-runtime',
+                ],
               });
 
               // Clean up temp dir

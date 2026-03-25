@@ -347,7 +347,7 @@ describe('generateAotBarrel', () => {
         // Should have a temp file with the compiled code
         const fileKeys = Object.keys(result.files);
         expect(fileKeys).toHaveLength(1);
-        expect(fileKeys[0]).toMatch(/^__aot_\d+_home\.ts$/);
+        expect(fileKeys[0]).toMatch(/^__aot_\d+_home\.tsx$/);
         const firstKey = fileKeys[0];
         expect(firstKey).toBeDefined();
         expect(result.files[firstKey as string]).toContain('__ssr_HomePage');
