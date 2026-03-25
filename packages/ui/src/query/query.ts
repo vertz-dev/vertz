@@ -653,22 +653,26 @@ export function query<T, E = unknown>(
     refetchTrigger.value;
 
     // Skip initial fetch if SSR hydration already provided data.
-    // Still call the thunk so reactive deps are tracked — without this,
-    // the effect has no signal dependencies and never re-runs when deps
-    // change (e.g. pagination offset). (#1861)
+    // When no customKey, still call the thunk so reactive deps are tracked —
+    // without this, the effect has no signal dependencies and never re-runs
+    // when deps change (e.g. pagination offset). (#1861)
+    // With customKey, the cache key is static so dep tracking is unnecessary,
+    // and calling the thunk would fire a wasteful fetch for promise thunks.
     if (isFirst && ssrHydrated) {
-      const trackRaw = callThunkWithCapture();
-      if (trackRaw !== null) {
-        if (isQueryDescriptor<T, E>(trackRaw)) {
-          // Descriptor-in-thunk: capture entity metadata lazily but do NOT
-          // call _fetch() — SSR already provided data.
-          if (trackRaw._entity && !entityMeta) {
-            entityMeta = trackRaw._entity;
+      if (!customKey) {
+        const trackRaw = callThunkWithCapture();
+        if (trackRaw !== null) {
+          if (isQueryDescriptor<T, E>(trackRaw)) {
+            // Descriptor-in-thunk: capture entity metadata lazily but do NOT
+            // call _fetch() — SSR already provided data.
+            if (trackRaw._entity && !entityMeta) {
+              entityMeta = trackRaw._entity;
+            }
+          } else {
+            // Promise thunk: suppress the promise (the thunk call triggered a
+            // real fetch as a side effect, but SSR data is authoritative).
+            (trackRaw as Promise<T>).catch(() => {});
           }
-        } else {
-          // Promise thunk: suppress the promise (fetch was triggered by calling
-          // the thunk, but we don't need the result — SSR data is authoritative).
-          (trackRaw as Promise<T>).catch(() => {});
         }
       }
       isFirst = false;
