@@ -10,6 +10,7 @@
 
 import type { FontFallbackMetrics } from '@vertz/ui';
 import type { SSRAuth } from '@vertz/ui/internals';
+import { toPrefetchSession } from './ssr-access-evaluator';
 import type { AotManifest } from './ssr-aot-pipeline';
 import { ssrRenderAot } from './ssr-aot-pipeline';
 import {
@@ -324,6 +325,9 @@ async function handleHTMLRequest(
   aotManifest?: AotManifest,
 ): Promise<Response> {
   try {
+    // Derive prefetch session from ssrAuth for access rule evaluation
+    const prefetchSession = ssrAuth ? toPrefetchSession(ssrAuth) : undefined;
+
     // Use AOT rendering when an AOT manifest is available.
     // ssrRenderAot() falls back to ssrRenderSinglePass() for non-AOT routes.
     const result = aotManifest
@@ -333,12 +337,14 @@ async function handleHTMLRequest(
           ssrTimeout,
           fallbackMetrics,
           ssrAuth,
+          prefetchSession,
         })
       : await ssrRenderSinglePass(module, url, {
           ssrTimeout,
           fallbackMetrics,
           ssrAuth,
           manifest,
+          prefetchSession,
         });
 
     // SSR redirect — return 302 instead of rendered HTML

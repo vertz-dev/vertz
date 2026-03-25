@@ -345,15 +345,19 @@ async function prefetchForAot(
 
   // Fetch all data in parallel with timeout
   await Promise.allSettled(
-    fetchJobs.map(({ aotKey, fetchFn }) =>
-      Promise.race([
+    fetchJobs.map(({ aotKey, fetchFn }) => {
+      let timer: ReturnType<typeof setTimeout>;
+      return Promise.race([
         fetchFn().then((result) => {
+          clearTimeout(timer);
           const data = unwrapResult(result);
           queryCache.set(aotKey, data);
         }),
-        new Promise((r) => setTimeout(r, ssrTimeout)),
-      ]),
-    ),
+        new Promise<void>((r) => {
+          timer = setTimeout(r, ssrTimeout);
+        }),
+      ]);
+    }),
   );
 }
 

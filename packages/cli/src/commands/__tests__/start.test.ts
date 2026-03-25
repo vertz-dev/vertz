@@ -21,6 +21,7 @@ import { join } from 'node:path';
 // which would break our server startup tests when the full suite runs together.
 vi.mock('@vertz/ui-server/ssr', () => ({
   createSSRHandler: vi.fn(() => async (_req: Request) => new Response('ssr-mock')),
+  loadAotManifest: vi.fn(async () => null),
   collectPrerenderPaths: async () => [],
   discoverRoutes: async () => [],
   filterPrerenderableRoutes: (patterns: string[]) => patterns,

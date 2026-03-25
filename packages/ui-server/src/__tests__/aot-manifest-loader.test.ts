@@ -124,4 +124,51 @@ export function __ssr_AboutPage() { return '<div>About</div>'; }`,
       });
     });
   });
+
+  describe('Given invalid JSON in aot-manifest.json', () => {
+    describe('When loadAotManifest is called', () => {
+      it('Then returns null', async () => {
+        writeFileSync(join(tmpDir, 'aot-manifest.json'), 'not valid json {{{');
+        writeFileSync(
+          join(tmpDir, 'aot-routes.js'),
+          `export function __ssr_HomePage() { return '<div>Home</div>'; }`,
+        );
+
+        const manifest = await loadAotManifest(tmpDir);
+        expect(manifest).toBeNull();
+      });
+    });
+  });
+
+  describe('Given aot-manifest.json with empty routes object', () => {
+    describe('When loadAotManifest is called', () => {
+      it('Then returns null', async () => {
+        writeFileSync(join(tmpDir, 'aot-manifest.json'), JSON.stringify({ routes: {} }));
+        writeFileSync(
+          join(tmpDir, 'aot-routes.js'),
+          `export function __ssr_HomePage() { return '<div>Home</div>'; }`,
+        );
+
+        const manifest = await loadAotManifest(tmpDir);
+        expect(manifest).toBeNull();
+      });
+    });
+  });
+
+  describe('Given aot-routes.js that fails to import', () => {
+    describe('When loadAotManifest is called', () => {
+      it('Then returns null', async () => {
+        writeFileSync(
+          join(tmpDir, 'aot-manifest.json'),
+          JSON.stringify({
+            routes: { '/': { renderFn: '__ssr_HomePage', holes: [], queryKeys: [] } },
+          }),
+        );
+        writeFileSync(join(tmpDir, 'aot-routes.js'), 'throw new Error("broken module");');
+
+        const manifest = await loadAotManifest(tmpDir);
+        expect(manifest).toBeNull();
+      });
+    });
+  });
 });
