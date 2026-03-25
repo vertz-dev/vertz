@@ -12,7 +12,6 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@mjackson/node-fetch-server": "^0.7.0",
     "@types/node": "^25.3.1",
     "@vertz/codegen": "workspace:^",
     "@vertz/core": "workspace:^",
