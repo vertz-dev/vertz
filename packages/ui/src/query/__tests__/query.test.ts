@@ -2231,5 +2231,93 @@ describe('query()', () => {
       await Promise.resolve();
       expect(fetchFn).toHaveBeenCalledTimes(callsBeforeEmit);
     });
+
+    test('descriptor-in-thunk re-fetches without TDZ on reactive dep change (#1819)', async () => {
+      resetDefaultQueryCache();
+      resetMutationEventBus();
+      resetEntityStore();
+
+      const offset = signal(0);
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValue(ok({ items: [{ id: 'b1', name: 'Brand A' }], total: 1 }));
+
+      // Thunk reads a reactive signal and returns a descriptor with _entity metadata.
+      // When offset changes, the effect re-runs. The re-run must not throw TDZ
+      // because the lazy entity-metadata path only fires on the first run.
+      const result = query(() => ({
+        _tag: 'QueryDescriptor' as const,
+        _key: `GET:/brands?offset=${offset.value}`,
+        _fetch: fetchFn,
+        _entity: { entityType: 'brands', kind: 'list' as const },
+        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike mock
+        then(onFulfilled: any, onRejected: any) {
+          return this._fetch().then(onFulfilled, onRejected);
+        },
+      }));
+
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+
+      // Change the reactive dependency — triggers effect re-run
+      fetchFn.mockResolvedValue(ok({ items: [{ id: 'b2', name: 'Brand B' }], total: 1 }));
+      offset.value = 20;
+
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+
+      result.dispose();
+    });
+
+    test('descriptor-in-thunk cleans up via scope disposal without TDZ (#1819)', async () => {
+      resetDefaultQueryCache();
+      resetMutationEventBus();
+      resetEntityStore();
+
+      const dep = signal(0);
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValue(ok({ items: [{ id: 'b1', name: 'Brand A' }], total: 1 }));
+
+      // Simulate component scope: query is created inside a scope, and the
+      // scope teardown should call dispose() without hitting TDZ.
+      const scope = pushScope();
+
+      const _result = query(() => ({
+        _tag: 'QueryDescriptor' as const,
+        _key: `GET:/brands?offset=${dep.value}`,
+        _fetch: fetchFn,
+        _entity: { entityType: 'brands', kind: 'list' as const },
+        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike mock
+        then(onFulfilled: any, onRejected: any) {
+          return this._fetch().then(onFulfilled, onRejected);
+        },
+      }));
+      void _result; // keep reference alive during scope lifetime
+
+      popScope();
+
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+
+      // Teardown the scope — this runs dispose() through cleanup chain
+      runCleanups(scope);
+
+      // After scope cleanup, mutation events should not trigger refetch
+      const callsAfterCleanup = fetchFn.mock.calls.length;
+      getMutationEventBus().emit('brands');
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      expect(fetchFn).toHaveBeenCalledTimes(callsAfterCleanup);
+    });
   });
 });
