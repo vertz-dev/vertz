@@ -123,7 +123,11 @@ function transformReferences(
       return;
     }
 
-    // Skip shorthand property assignment: { count } — don't touch 'count' as a key
+    // Skip shorthand property assignment: { count } — don't touch 'count' as a key.
+    // Signals must flow as SignalImpl objects through data structures (context values,
+    // props) so that consumers can subscribe to changes. Eagerly unwrapping here
+    // would break reactivity for context providers like `{ activeValue }` in tabs.
+    // Note: computeds DO get expanded in shorthand — see computed-transformer.ts.
     if (parent.isKind(SyntaxKind.ShorthandPropertyAssignment)) {
       return;
     }
@@ -236,7 +240,10 @@ function transformSignalApiProperties(
     if (parent?.isKind(SyntaxKind.PropertyAccessExpression)) {
       const parentProp = parent.asKindOrThrow(SyntaxKind.PropertyAccessExpression);
       if (parentProp.getExpression() === outerExpr && parentProp.getName() === 'value') {
-        fieldChainRanges.push({ start: outerExpr.getStart(), end: outerExpr.getEnd() });
+        fieldChainRanges.push({
+          start: outerExpr.getStart(),
+          end: outerExpr.getEnd(),
+        });
         return;
       }
     }
@@ -248,14 +255,20 @@ function transformSignalApiProperties(
       if (subExpr.isKind(SyntaxKind.PropertyAccessExpression)) {
         const subLeaf = subExpr.asKindOrThrow(SyntaxKind.PropertyAccessExpression).getName();
         if (fieldSignalProps.has(subLeaf)) {
-          fieldChainRanges.push({ start: outerExpr.getStart(), end: outerExpr.getEnd() });
+          fieldChainRanges.push({
+            start: outerExpr.getStart(),
+            end: outerExpr.getEnd(),
+          });
           return;
         }
       }
     }
 
     source.appendLeft(outerExpr.getEnd(), '.value');
-    fieldChainRanges.push({ start: outerExpr.getStart(), end: outerExpr.getEnd() });
+    fieldChainRanges.push({
+      start: outerExpr.getStart(),
+      end: outerExpr.getEnd(),
+    });
   });
 
   // Pass 2: Transform 2-level chains, skipping nodes inside N-level chain ranges

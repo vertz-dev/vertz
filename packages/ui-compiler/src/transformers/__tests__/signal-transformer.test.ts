@@ -91,13 +91,16 @@ describe('SignalTransformer', () => {
     expect(result).not.toContain('count.value: 10');
   });
 
-  it('does NOT transform shorthand property names in object literals', () => {
+  it('does NOT expand signal shorthand — signals flow as objects for reactivity (#1858)', () => {
     const result = transform(
       `function App() {\n  let count = 0;\n  const obj = { count };\n  return <div>{count}</div>;\n}`,
       [{ name: 'count', kind: 'signal', start: 0, end: 0 }],
     );
-    // Shorthand property should not be transformed
-    expect(result).not.toContain('count.value }');
+    // Signals must pass through shorthand as SignalImpl objects so that context
+    // providers and data structures can maintain reactive subscriptions.
+    // Computed vars (see computed-transformer.test.ts) DO get expanded.
+    expect(result).toContain('{ count }');
+    expect(result).not.toContain('count: count.value');
   });
 
   it('auto-unwraps 3-level field signal property chain', () => {

@@ -68,8 +68,20 @@ describe('ComputedTransformer', () => {
         signalProperties: new Set(['data', 'loading', 'error']),
         plainProperties: new Set(['refetch']),
       },
-      { name: 'data', kind: 'computed', start: 0, end: 0, destructuredFrom: '__query_0' },
-      { name: 'loading', kind: 'computed', start: 0, end: 0, destructuredFrom: '__query_0' },
+      {
+        name: 'data',
+        kind: 'computed',
+        start: 0,
+        end: 0,
+        destructuredFrom: '__query_0',
+      },
+      {
+        name: 'loading',
+        kind: 'computed',
+        start: 0,
+        end: 0,
+        destructuredFrom: '__query_0',
+      },
     ]);
     expect(result).toContain("const __query_0 = query('/api/tasks')");
     expect(result).toContain('const data = computed(() => __query_0.data.value)');
@@ -87,8 +99,20 @@ describe('ComputedTransformer', () => {
         signalProperties: new Set(['data', 'loading', 'error']),
         plainProperties: new Set(['refetch']),
       },
-      { name: 'data', kind: 'computed', start: 0, end: 0, destructuredFrom: '__query_0' },
-      { name: 'refetch', kind: 'static', start: 0, end: 0, destructuredFrom: '__query_0' },
+      {
+        name: 'data',
+        kind: 'computed',
+        start: 0,
+        end: 0,
+        destructuredFrom: '__query_0',
+      },
+      {
+        name: 'refetch',
+        kind: 'static',
+        start: 0,
+        end: 0,
+        destructuredFrom: '__query_0',
+      },
     ]);
     expect(result).toContain('const data = computed(() => __query_0.data.value)');
     expect(result).toContain('const refetch = __query_0.refetch');
@@ -106,7 +130,13 @@ describe('ComputedTransformer', () => {
         signalProperties: new Set(['data', 'loading', 'error']),
         plainProperties: new Set(['refetch']),
       },
-      { name: 'tasks', kind: 'computed', start: 0, end: 0, destructuredFrom: '__query_0' },
+      {
+        name: 'tasks',
+        kind: 'computed',
+        start: 0,
+        end: 0,
+        destructuredFrom: '__query_0',
+      },
     ]);
     expect(result).toContain('const tasks = computed(() => __query_0.data.value)');
   });
@@ -118,5 +148,36 @@ describe('ComputedTransformer', () => {
       { name: 'total', kind: 'computed', start: 0, end: 0 },
     ]);
     expect(result).toContain('{total.value}');
+  });
+
+  it('expands shorthand property to unwrap computed .value (#1858)', () => {
+    const code = `function Page() {\n  const offset = (page - 1) * 10;\n  return <div>{query(() => fetch({ offset }))}</div>;\n}`;
+    const result = transform(code, [
+      { name: 'page', kind: 'signal', start: 0, end: 0 },
+      { name: 'offset', kind: 'computed', start: 0, end: 0 },
+    ]);
+    // Shorthand { offset } → { offset: offset.value }
+    expect(result).toContain('{ offset: offset.value }');
+  });
+
+  it('expands shorthand property among other properties (#1858)', () => {
+    const code = `function Page() {\n  const offset = (page - 1) * 10;\n  return <div>{query(() => fetch({ limit: 20, offset }))}</div>;\n}`;
+    const result = transform(code, [
+      { name: 'page', kind: 'signal', start: 0, end: 0 },
+      { name: 'offset', kind: 'computed', start: 0, end: 0 },
+    ]);
+    expect(result).toContain('offset: offset.value');
+    expect(result).toContain('limit: 20');
+  });
+
+  it('does NOT expand shorthand when computed name is shadowed by nested scope (#1858)', () => {
+    const code = `function Page() {\n  const offset = (page - 1) * 10;\n  const result = items.map((offset) => ({ offset }));\n  return <div>{offset}</div>;\n}`;
+    const result = transform(code, [
+      { name: 'page', kind: 'signal', start: 0, end: 0 },
+      { name: 'offset', kind: 'computed', start: 0, end: 0 },
+    ]);
+    // The `offset` inside the arrow's shorthand is the callback parameter, not the computed.
+    expect(result).not.toContain('offset: offset.value');
+    expect(result).toContain('({ offset })');
   });
 });
