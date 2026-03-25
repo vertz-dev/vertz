@@ -71,11 +71,10 @@ describe('RouteAnalyzer', () => {
       moduleDefVariables: new Map([['myModule', 'test']]),
     });
     const routes = result.routers[0]?.routes ?? [];
-    if (routes.length >= 2) {
-      const ids = routes.map((r) => r.operationId);
-      // IDs should be unique (first = test_listItems, second = test_listItems_2)
-      expect(new Set(ids).size).toBe(ids.length);
-    }
+    expect(routes.length).toBeGreaterThanOrEqual(2);
+    const ids = routes.map((r) => r.operationId);
+    // IDs should be unique (first = test_listItems, second = test_listItems_2)
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it('emits warning for missing prefix', async () => {

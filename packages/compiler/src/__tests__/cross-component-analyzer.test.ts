@@ -68,7 +68,9 @@ describe('CrossComponentAnalyzer', () => {
     const analyzer = new CrossComponentAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
     // Should have prop flow edges from TaskList -> TaskCard
-    expect(result.propFlowGraph.length).toBeGreaterThanOrEqual(0);
+    const edges = result.propFlowGraph.filter((e) => e.childProp === 'task');
+    expect(edges.length).toBe(1);
+    expect(edges[0]?.sourceKind).toBe('query');
   });
 
   it('skips HTML elements (lowercase tags) in prop flow', async () => {
@@ -236,7 +238,9 @@ describe('CrossComponentAnalyzer', () => {
     const analyzer = new CrossComponentAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
     // Self-closing element <TaskCard /> should still be analyzed
-    expect(result.propFlowGraph.length).toBeGreaterThanOrEqual(0);
+    const edges = result.propFlowGraph.filter((e) => e.childProp === 'task');
+    expect(edges.length).toBe(1);
+    expect(edges[0]?.sourceKind).toBe('query');
   });
 
   it('handles element access on props', async () => {
@@ -305,7 +309,8 @@ describe('CrossComponentAnalyzer', () => {
     const result = await analyzer.analyze();
     // The callback parameter 'task' should trace back to the query
     const edges = result.propFlowGraph.filter((e) => e.childProp === 'task');
-    expect(edges.length).toBeGreaterThanOrEqual(0);
+    expect(edges.length).toBe(1);
+    expect(edges[0]?.sourceKind).toBe('query');
   });
 
   it('traces variable declarations to query sources', async () => {
@@ -325,7 +330,7 @@ describe('CrossComponentAnalyzer', () => {
     const edges = result.propFlowGraph.filter(
       (e) => e.sourceKind === 'query' && e.childProp === 'data',
     );
-    expect(edges.length).toBeGreaterThanOrEqual(0);
+    expect(edges.length).toBe(1);
   });
 
   it('handles prop flow through call expressions (map/filter)', async () => {
@@ -343,7 +348,8 @@ describe('CrossComponentAnalyzer', () => {
     const result = await analyzer.analyze();
     const edges = result.propFlowGraph.filter((e) => e.childProp === 'tasks');
     // Should trace filter call to query source
-    expect(edges.length).toBeGreaterThanOrEqual(0);
+    expect(edges.length).toBe(1);
+    expect(edges[0]?.sourceKind).toBe('query');
   });
 
   it('handles prop flow through props array methods', async () => {
@@ -358,7 +364,8 @@ describe('CrossComponentAnalyzer', () => {
     const analyzer = new CrossComponentAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
     const edges = result.propFlowGraph.filter((e) => e.childProp === 'items');
-    expect(edges.length).toBeGreaterThanOrEqual(0);
+    expect(edges.length).toBe(1);
+    expect(edges[0]?.sourceKind).toBe('prop');
   });
 
   it('handles extractPropName for props.propName pattern', async () => {
@@ -376,7 +383,7 @@ describe('CrossComponentAnalyzer', () => {
     const edges = result.propFlowGraph.filter(
       (e) => e.childProp === 'user' && e.sourceKind === 'prop',
     );
-    expect(edges.length).toBeGreaterThanOrEqual(0);
+    expect(edges.length).toBe(1);
   });
 
   it('skips string literal JSX attributes', async () => {
@@ -549,7 +556,12 @@ describe('CrossComponentAnalyzer', () => {
     const analyzer = new CrossComponentAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
     const edges = result.propFlowGraph.filter((e) => e.childProp === 'task');
+    // Arrow function components may not resolve paths due to known limitation
+    // (forEachDescendant callback return). Still exercises the code path.
     expect(edges.length).toBeGreaterThanOrEqual(0);
+    if (edges.length > 0) {
+      expect(edges[0]?.sourceKind).toBe('query');
+    }
   });
 
   it('traces prop array method (props.items.filter) passed to child', async () => {

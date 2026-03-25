@@ -33,9 +33,11 @@ describe('ServiceAnalyzer', () => {
         });
       `,
     });
-    // Direct test of extractMethodSignatures for parenthesized expression body
-    const _file = project.getSourceFileOrThrow('src/service.ts');
-    // We test extractMethodSignatures directly below for parenthesized expression
+    const file = project.getSourceFileOrThrow('src/service.ts');
+    // Verify the file contains the expected structure
+    const decl = file.getVariableDeclaration('userService');
+    expect(decl).toBeDefined();
+    expect(decl?.getInitializer()?.getText()).toContain('myModule.service');
   });
 });
 

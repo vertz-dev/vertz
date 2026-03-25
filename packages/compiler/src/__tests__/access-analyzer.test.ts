@@ -67,10 +67,10 @@ describe('AccessAnalyzer', () => {
     expect(clause).toBeDefined();
     const isPublic = clause?.conditions.find((c) => c.column === 'isPublic');
     expect(isPublic?.kind).toBe('literal');
-    expect((isPublic as any)?.value).toBe(true);
+    expect(isPublic?.kind === 'literal' && isPublic.value).toBe(true);
     const isArchived = clause?.conditions.find((c) => c.column === 'isArchived');
     expect(isArchived?.kind).toBe('literal');
-    expect((isArchived as any)?.value).toBe(false);
+    expect(isArchived?.kind === 'literal' && isArchived.value).toBe(false);
   });
 
   it('extracts numeric where conditions', async () => {
@@ -89,7 +89,7 @@ describe('AccessAnalyzer', () => {
     const clause = result.access?.whereClauses.find((c) => c.entitlement === 'task:view');
     const priority = clause?.conditions.find((c) => c.column === 'priority');
     expect(priority?.kind).toBe('literal');
-    expect((priority as any)?.value).toBe(1);
+    expect(priority?.kind === 'literal' && priority.value).toBe(1);
   });
 
   it('emits warning for non-translatable where conditions', async () => {
@@ -125,12 +125,14 @@ describe('AccessAnalyzer', () => {
     const analyzer = new AccessAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
     const editClause = result.access?.whereClauses.find((c) => c.entitlement === 'task:edit');
-    expect(editClause?.conditions[0]?.kind).toBe('marker');
-    expect((editClause?.conditions[0] as any)?.marker).toBe('user.id');
+    const editCond = editClause?.conditions[0];
+    expect(editCond?.kind).toBe('marker');
+    expect(editCond?.kind === 'marker' && editCond.marker).toBe('user.id');
 
     const viewClause = result.access?.whereClauses.find((c) => c.entitlement === 'task:view');
-    expect(viewClause?.conditions[0]?.kind).toBe('marker');
-    expect((viewClause?.conditions[0] as any)?.marker).toBe('user.tenantId');
+    const viewCond = viewClause?.conditions[0];
+    expect(viewCond?.kind).toBe('marker');
+    expect(viewCond?.kind === 'marker' && viewCond.marker).toBe('user.tenantId');
   });
 
   it('emits error for multiple defineAccess calls', async () => {
