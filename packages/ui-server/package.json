@@ -43,6 +43,10 @@
     "./fetch-scope": {
       "import": "./dist/fetch-scope.js",
       "types": "./dist/fetch-scope.d.ts"
+    },
+    "./node": {
+      "import": "./dist/node-handler.js",
+      "types": "./dist/node-handler.d.ts"
     }
   },
   "files": [

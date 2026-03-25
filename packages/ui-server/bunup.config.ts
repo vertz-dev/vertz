@@ -8,6 +8,7 @@ export default defineConfig([
       'src/dom-shim/index.ts',
       'src/jsx-runtime/index.ts',
       'src/fetch-scope.ts',
+      'src/node-handler.ts',
     ],
     dts: true,
   },

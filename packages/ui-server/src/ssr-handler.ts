@@ -8,18 +8,18 @@
  * Does NOT serve static files — that's the adapter/platform's job.
  */
 
-import type { FontFallbackMetrics, PreloadItem } from '@vertz/ui';
+import type { FontFallbackMetrics } from '@vertz/ui';
 import type { SSRAuth } from '@vertz/ui/internals';
-import { escapeAttr } from './html-serializer';
-import { createAccessSetScript } from './ssr-access-set';
+import {
+  precomputeHandlerState,
+  resolveRouteModulepreload,
+  resolveSession,
+} from './ssr-handler-shared';
 import { buildProgressiveResponse } from './ssr-progressive-response';
-import { compileThemeCached, type SSRModule, ssrStreamNavQueries } from './ssr-render';
-import type { SessionResolver } from './ssr-session';
-import { createSessionScript } from './ssr-session';
+import { type SSRModule, ssrStreamNavQueries } from './ssr-render';
 import type { SSRPrefetchManifest } from './ssr-single-pass';
 import { ssrRenderProgressive, ssrRenderSinglePass } from './ssr-single-pass';
 import { injectIntoTemplate } from './template-inject';
-import { splitTemplate } from './template-split';
 
 export interface SSRHandlerOptions {
   /** The loaded SSR module (import('./dist/server/index.js')) */
@@ -86,73 +86,7 @@ export interface SSRHandlerOptions {
   progressiveHTML?: boolean;
 }
 
-/**
- * Sanitize a URL for use in an HTTP Link header href.
- * Encodes characters that are meaningful in Link header syntax (<, >, ;, ,)
- * to prevent header injection attacks.
- */
-function sanitizeLinkHref(href: string): string {
-  return href.replace(/[<>,;\s"']/g, (ch) => `%${ch.charCodeAt(0).toString(16).toUpperCase()}`);
-}
-
-/** Sanitize a parameter value for Link header (alphanumeric + / only). */
-function sanitizeLinkParam(value: string): string {
-  return value.replace(/[^a-zA-Z0-9/_.-]/g, '');
-}
-
-/** Build an HTTP Link header value from structured preload items. */
-function buildLinkHeader(items: PreloadItem[]): string {
-  return items
-    .map((item) => {
-      const parts = [
-        `<${sanitizeLinkHref(item.href)}>`,
-        'rel=preload',
-        `as=${sanitizeLinkParam(item.as)}`,
-      ];
-      if (item.type) parts.push(`type=${sanitizeLinkParam(item.type)}`);
-      if (item.crossorigin) parts.push('crossorigin');
-      return parts.join('; ');
-    })
-    .join(', ');
-}
-
-/**
- * Create a web-standard SSR request handler.
- *
- * Handles two types of requests:
- * - X-Vertz-Nav: 1 -> SSE Response with pre-fetched query data
- * - Normal HTML request -> SSR-rendered HTML Response
- *
- * Does NOT serve static files — that's the adapter/platform's job.
- */
-
-/** Build modulepreload `<link>` tags for injection into `<head>`. */
-function buildModulepreloadTags(paths: string[]): string {
-  return paths.map((p) => `<link rel="modulepreload" href="${escapeAttr(p)}">`).join('\n');
-}
-
-/** Resolve per-route modulepreload tags from matched route patterns. */
-function resolveRouteModulepreload(
-  routeChunkManifest: { routes: Record<string, string[]> } | undefined,
-  matchedPatterns: string[] | undefined,
-  fallback: string | undefined,
-): string | undefined {
-  if (routeChunkManifest && matchedPatterns?.length) {
-    const chunkPaths = new Set<string>();
-    for (const pattern of matchedPatterns) {
-      const chunks = routeChunkManifest.routes[pattern];
-      if (chunks) {
-        for (const chunk of chunks) {
-          chunkPaths.add(chunk);
-        }
-      }
-    }
-    if (chunkPaths.size > 0) {
-      return buildModulepreloadTags([...chunkPaths]);
-    }
-  }
-  return fallback;
-}
+import type { SessionResolver } from './ssr-session';
 
 export function createSSRHandler(
   options: SSRHandlerOptions,
@@ -160,10 +94,8 @@ export function createSSRHandler(
   const {
     module,
     ssrTimeout,
-    inlineCSS,
     nonce,
     fallbackMetrics,
-    modulepreload,
     routeChunkManifest,
     cacheControl,
     sessionResolver,
@@ -171,46 +103,7 @@ export function createSSRHandler(
     progressiveHTML,
   } = options;
 
-  // Pre-process template: inline CSS assets to eliminate extra requests
-  let template = options.template;
-  if (inlineCSS) {
-    for (const [href, css] of Object.entries(inlineCSS)) {
-      const escapedHref = href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const linkPattern = new RegExp(`<link[^>]*href=["']${escapedHref}["'][^>]*>`);
-      const safeCss = css.replace(/<\//g, '<\\/');
-      template = template.replace(linkPattern, `<style data-vertz-css>${safeCss}</style>`);
-    }
-  }
-
-  // Pre-compute Link header from theme's preload items (computed once, not per-request)
-  let linkHeader: string | undefined;
-  if (module.theme) {
-    const compiled = compileThemeCached(module.theme, fallbackMetrics);
-    if (compiled.preloadItems.length > 0) {
-      linkHeader = buildLinkHeader(compiled.preloadItems);
-    }
-  }
-
-  // Pre-compute modulepreload tags (static, computed once)
-  const modulepreloadTags = modulepreload?.length
-    ? buildModulepreloadTags(modulepreload)
-    : undefined;
-
-  // Pre-split template for progressive streaming (computed once, not per-request).
-  // Note: inlineCSS is already applied to `template` above, so we don't pass it
-  // to splitTemplate again — it would double-process the same links.
-  const splitResult = progressiveHTML ? splitTemplate(template) : undefined;
-
-  // For progressive path: convert remaining stylesheet <link> tags to async loading.
-  // The buffered path handles this inside injectIntoTemplate() when theme CSS is present.
-  // Progressive path pre-processes at creation time since theme availability is static.
-  if (splitResult && module.theme) {
-    splitResult.headTemplate = splitResult.headTemplate.replace(
-      /<link\s+rel="stylesheet"\s+href="([^"]+)"[^>]*>/g,
-      (match, href) =>
-        `<link rel="stylesheet" href="${href}" media="print" onload="this.media='all'">\n    <noscript>${match}</noscript>`,
-    );
-  }
+  const { template, linkHeader, modulepreloadTags, splitResult } = precomputeHandlerState(options);
 
   return async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
@@ -225,30 +118,9 @@ export function createSSRHandler(
     let sessionScript = '';
     let ssrAuth: SSRAuth | undefined;
     if (sessionResolver) {
-      try {
-        const sessionResult = await sessionResolver(request);
-        if (sessionResult) {
-          ssrAuth = {
-            status: 'authenticated',
-            user: sessionResult.session.user,
-            expiresAt: sessionResult.session.expiresAt,
-          };
-          const scripts: string[] = [];
-          scripts.push(createSessionScript(sessionResult.session, nonce));
-          if (sessionResult.accessSet != null) {
-            scripts.push(createAccessSetScript(sessionResult.accessSet, nonce));
-          }
-          sessionScript = scripts.join('\n');
-        } else {
-          ssrAuth = { status: 'unauthenticated' };
-        }
-      } catch (resolverErr) {
-        // ssrAuth stays undefined → auth unknown during SSR → no redirect
-        console.warn(
-          '[Server] Session resolver failed:',
-          resolverErr instanceof Error ? resolverErr.message : resolverErr,
-        );
-      }
+      const result = await resolveSession(request, sessionResolver, nonce);
+      sessionScript = result.sessionScript;
+      ssrAuth = result.ssrAuth;
     }
 
     // Normal HTML request: SSR render
