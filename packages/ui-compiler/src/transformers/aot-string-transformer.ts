@@ -4,6 +4,16 @@ import { type SourceFile, SyntaxKind } from 'ts-morph';
 import type { AotComponentInfo, AotTier, ComponentInfo, VariableInfo } from '../types';
 import { findBodyNode, isInNestedFunction } from '../utils';
 
+/** Metadata for a query variable extracted from the component AST. */
+interface QueryVarMeta {
+  /** Original variable name (e.g., 'projects'). */
+  varName: string;
+  /** Cache key in entity-operation format (e.g., 'projects-list'). */
+  cacheKey: string;
+  /** Index for the local binding in the AOT function (e.g., 0 → __q0). */
+  index: number;
+}
+
 /** Get node as a generic Node to avoid ts-morph's over-narrowing. */
 function asNode(n: unknown): Node {
   return n as Node;
@@ -98,6 +108,9 @@ export class AotStringTransformer {
     const bodyNode = findBodyNode(sourceFile, component);
     if (!bodyNode) return;
 
+    // Extract query variable metadata for standalone page functions
+    const queryVars = this._extractQueryVars(sourceFile, component, variables);
+
     // Only count direct returns (not returns inside nested callbacks/functions)
     const allReturnStmts = bodyNode.getDescendantsOfKind(SyntaxKind.ReturnStatement);
     const directReturns = allReturnStmts.filter((ret) => !isInNestedFunction(ret, bodyNode));
@@ -118,7 +131,7 @@ export class AotStringTransformer {
           s,
           isInteractive ? component.name : null,
         );
-        this._emitAotFunction(s, component, 'conditional', stringExpr);
+        this._emitAotFunction(s, component, 'conditional', stringExpr, queryVars);
         return;
       }
       // Not a guard pattern → runtime-fallback
@@ -126,6 +139,7 @@ export class AotStringTransformer {
         name: component.name,
         tier: 'runtime-fallback',
         holes: [],
+        queryKeys: [],
       });
       return;
     }
@@ -144,7 +158,7 @@ export class AotStringTransformer {
         } else {
           stringExpr = this._binaryToString(conditionalExpr, variables, s);
         }
-        this._emitAotFunction(s, component, 'conditional', stringExpr);
+        this._emitAotFunction(s, component, 'conditional', stringExpr, queryVars);
         return;
       }
       return;
@@ -167,7 +181,7 @@ export class AotStringTransformer {
       isInteractive ? component.name : null,
     );
 
-    this._emitAotFunction(s, component, tier, stringExpr);
+    this._emitAotFunction(s, component, tier, stringExpr, queryVars);
   }
 
   private _findReturnJsx(bodyNode: Node): Node | null {
@@ -210,18 +224,147 @@ export class AotStringTransformer {
     component: ComponentInfo,
     tier: AotTier,
     stringExpr: string,
+    queryVars?: QueryVarMeta[],
   ): void {
     const aotFnName = `__ssr_${component.name}`;
-    const propsParam = component.propsParam;
-    const paramStr = propsParam ? `${propsParam}` : '';
-    const aotFn = `\nfunction ${aotFnName}(${paramStr}): string {\n  return ${stringExpr};\n}\n`;
+    const hasQueries = queryVars && queryVars.length > 0;
+
+    let paramStr: string;
+    let preamble = '';
+
+    if (hasQueries) {
+      // Page-level function with query data: (data: Record<string, unknown>, ctx: SSRAotContext)
+      paramStr = 'data: Record<string, unknown>, ctx: SSRAotContext';
+
+      // Build local bindings for query data
+      for (const qv of queryVars) {
+        preamble += `\n  const __q${qv.index} = ctx.getData('${qv.cacheKey}');`;
+      }
+
+      // Post-process string expression to replace query variable references
+      for (const qv of queryVars) {
+        const localVar = `__q${qv.index}`;
+        // Replace queryVar.data with the local binding
+        stringExpr = stringExpr.split(`${qv.varName}.data`).join(localVar);
+        // Replace queryVar.loading with false (SSR always resolves)
+        stringExpr = stringExpr.split(`${qv.varName}.loading`).join('false');
+        // Replace queryVar.error with undefined
+        stringExpr = stringExpr.split(`${qv.varName}.error`).join('undefined');
+      }
+    } else {
+      const propsParam = component.propsParam;
+      paramStr = propsParam ? `${propsParam}` : '';
+    }
+
+    const body = preamble
+      ? `${preamble}\n  return ${stringExpr};\n`
+      : `\n  return ${stringExpr};\n`;
+    const aotFn = `\nfunction ${aotFnName}(${paramStr}): string {${body}}\n`;
     s.appendRight(component.bodyEnd + 1, aotFn);
 
     this._components.push({
       name: component.name,
       tier,
       holes: [...this._currentHoles],
+      queryKeys: hasQueries ? queryVars.map((qv) => qv.cacheKey) : [],
     });
+  }
+
+  /**
+   * Extract query variable metadata from the component body.
+   *
+   * Scans variable declarations for `query(api.entity.operation())` calls
+   * and extracts the cache key in `entity-operation` format.
+   */
+  private _extractQueryVars(
+    sourceFile: SourceFile,
+    component: ComponentInfo,
+    variables: VariableInfo[],
+  ): QueryVarMeta[] {
+    const queryVars: QueryVarMeta[] = [];
+
+    // Find variables that come from query() — they have signal properties with 'data'
+    const signalApiVars = variables.filter(
+      (v) => v.signalProperties && v.signalProperties.has('data'),
+    );
+
+    if (signalApiVars.length === 0) return queryVars;
+
+    const bodyNode = findBodyNode(sourceFile, component);
+    if (!bodyNode) return queryVars;
+
+    const varDecls = bodyNode.getDescendantsOfKind(SyntaxKind.VariableDeclaration);
+
+    for (const qv of signalApiVars) {
+      // Find the matching variable declaration in the AST
+      for (const decl of varDecls) {
+        if (decl.getName() !== qv.name) continue;
+        if (isInNestedFunction(decl, bodyNode)) continue;
+
+        const init = decl.getInitializer();
+        if (!init || !init.isKind(SyntaxKind.CallExpression)) continue;
+
+        // Verify the callee is 'query' (or an alias)
+        const callee = init.getExpression();
+        if (!callee.isKind(SyntaxKind.Identifier)) continue;
+        const calleeName = callee.getText();
+        if (calleeName !== 'query' && calleeName !== 'q') continue;
+
+        // Get the first argument — the descriptor factory call: api.entity.operation()
+        const args = init.getArguments();
+        if (args.length === 0) continue;
+
+        const firstArg = args[0]!;
+        // The argument is itself a call expression: api.entity.operation(...)
+        let descriptorExpr: Node;
+        if (firstArg.isKind(SyntaxKind.CallExpression)) {
+          descriptorExpr = firstArg.getExpression();
+        } else if (firstArg.isKind(SyntaxKind.PropertyAccessExpression)) {
+          // Direct reference without call: api.entity.operation (less common)
+          descriptorExpr = firstArg;
+        } else {
+          continue;
+        }
+
+        // Extract the property access chain: api.entity.operation → ['api', 'entity', 'operation']
+        const chain = this._extractPropertyAccessChain(descriptorExpr);
+        if (!chain || chain.length < 3) continue;
+
+        // Cache key: entity-operation (e.g., 'projects-list')
+        const cacheKey = `${chain[1]}-${chain[2]}`;
+
+        queryVars.push({
+          varName: qv.name,
+          cacheKey,
+          index: queryVars.length,
+        });
+        break;
+      }
+    }
+
+    return queryVars;
+  }
+
+  /** Extract a property access chain from a node. Returns segments like ['api', 'projects', 'list']. */
+  private _extractPropertyAccessChain(node: Node): string[] | null {
+    if (node.isKind(SyntaxKind.Identifier)) {
+      return [node.getText()];
+    }
+
+    if (node.isKind(SyntaxKind.PropertyAccessExpression)) {
+      const children = node.getChildren();
+      // PropertyAccessExpression: [object, DotToken, name]
+      const object = children[0];
+      const name = children[children.length - 1];
+      if (!object || !name) return null;
+
+      const prefix = this._extractPropertyAccessChain(object);
+      if (!prefix) return null;
+
+      return [...prefix, name.getText()];
+    }
+
+    return null;
   }
 
   /**
