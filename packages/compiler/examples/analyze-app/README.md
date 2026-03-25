@@ -31,6 +31,7 @@ The example will:
 4. **Generate** runtime artifacts
 
 Output includes:
+
 - Number of modules, middleware, schemas, routes
 - List of all routes with their HTTP methods and paths
 - Diagnostics (errors/warnings/info)
@@ -47,6 +48,7 @@ sample-app/
 ## Generated Artifacts
 
 After running, check `.vertz/` directory for:
+
 - `boot.ts` — Module registration code
 - `manifest.json` — JSON representation of the app
 - `routes.ts` — Runtime route table

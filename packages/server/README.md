@@ -47,13 +47,13 @@ app.listen(3000);
 
 This generates 5 REST endpoints:
 
-| Method | Path | Operation |
-|---|---|---|
-| `GET` | `/api/todos` | List all |
-| `GET` | `/api/todos/:id` | Get by ID |
-| `POST` | `/api/todos` | Create |
-| `PATCH` | `/api/todos/:id` | Update |
-| `DELETE` | `/api/todos/:id` | Delete |
+| Method   | Path             | Operation |
+| -------- | ---------------- | --------- |
+| `GET`    | `/api/todos`     | List all  |
+| `GET`    | `/api/todos/:id` | Get by ID |
+| `POST`   | `/api/todos`     | Create    |
+| `PATCH`  | `/api/todos/:id` | Update    |
+| `DELETE` | `/api/todos/:id` | Delete    |
 
 ## Entities
 
@@ -66,10 +66,18 @@ import { entity } from '@vertz/server';
 
 const users = entity('users', {
   model: usersModel,
-  access: { /* ... */ },
-  before: { /* ... */ },
-  after: { /* ... */ },
-  actions: { /* ... */ },
+  access: {
+    /* ... */
+  },
+  before: {
+    /* ... */
+  },
+  after: {
+    /* ... */
+  },
+  actions: {
+    /* ... */
+  },
 });
 ```
 
@@ -104,12 +112,12 @@ Access rules, hooks, and actions receive an `EntityContext`:
 ```typescript
 interface EntityContext {
   userId: string | null;
-  authenticated(): boolean;     // true if userId !== null
-  tenant(): boolean;            // true if tenantId !== null
-  role(...roles: string[]): boolean;  // check user roles
+  authenticated(): boolean; // true if userId !== null
+  tenant(): boolean; // true if tenantId !== null
+  role(...roles: string[]): boolean; // check user roles
 
-  entity: EntityOperations;     // typed CRUD on the current entity
-  entities: Record<string, EntityOperations>;  // CRUD on any entity
+  entity: EntityOperations; // typed CRUD on the current entity
+  entities: Record<string, EntityOperations>; // CRUD on any entity
 }
 ```
 
@@ -124,7 +132,7 @@ const posts = entity('posts', {
   before: {
     create: (data, ctx) => ({
       ...data,
-      authorId: ctx.userId,  // inject current user
+      authorId: ctx.userId, // inject current user
       slug: slugify(data.title),
     }),
     update: (data, ctx) => ({
@@ -198,8 +206,8 @@ Column annotations from `@vertz/db` are automatically enforced:
 const users = d.table('users', {
   id: d.uuid().primary(),
   name: d.text(),
-  passwordHash: d.text().hidden(),   // never in responses
-  createdAt: d.timestamp().default('now').readOnly(),  // can't be set by client
+  passwordHash: d.text().hidden(), // never in responses
+  createdAt: d.timestamp().default('now').readOnly(), // can't be set by client
 });
 ```
 
@@ -208,7 +216,7 @@ const users = d.table('users', {
 ```typescript
 const app = createServer({
   entities: [users, posts, comments],
-  apiPrefix: '/api',          // API prefix (default: '/api')
+  apiPrefix: '/api', // API prefix (default: '/api')
 });
 ```
 
@@ -235,19 +243,20 @@ const auth = createAuth({
 
 ### Auth Configuration
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `session` | `SessionConfig` | *required* | Session strategy, TTL, and cookie settings |
-| `privateKey` | `string` | — | RSA private key (PKCS#8 PEM). **Required in production** |
-| `publicKey` | `string` | — | RSA public key (SPKI PEM). **Required in production** |
-| `emailPassword` | `EmailPasswordConfig` | — | Password requirements and rate limiting |
-| `claims` | `(user: AuthUser) => Record<string, unknown>` | — | Custom JWT claims |
-| `isProduction` | `boolean` | auto-detected | Override production mode detection |
-| `devKeyPath` | `string` | `.vertz` | Directory for auto-generated dev key pair |
+| Option          | Type                                          | Default       | Description                                              |
+| --------------- | --------------------------------------------- | ------------- | -------------------------------------------------------- |
+| `session`       | `SessionConfig`                               | _required_    | Session strategy, TTL, and cookie settings               |
+| `privateKey`    | `string`                                      | —             | RSA private key (PKCS#8 PEM). **Required in production** |
+| `publicKey`     | `string`                                      | —             | RSA public key (SPKI PEM). **Required in production**    |
+| `emailPassword` | `EmailPasswordConfig`                         | —             | Password requirements and rate limiting                  |
+| `claims`        | `(user: AuthUser) => Record<string, unknown>` | —             | Custom JWT claims                                        |
+| `isProduction`  | `boolean`                                     | auto-detected | Override production mode detection                       |
+| `devKeyPath`    | `string`                                      | `.vertz`      | Directory for auto-generated dev key pair                |
 
 ### Production Mode
 
 By default, `createAuth` auto-detects production mode from `NODE_ENV`. In production mode:
+
 - RSA key pair (`privateKey` + `publicKey`) is **required** (throws if missing)
 - CSRF validation is enforced on state-changing requests
 
@@ -270,14 +279,14 @@ const auth = createAuth({
 
 Auth generates endpoints:
 
-| Method | Path | Operation |
-|---|---|---|
-| `POST` | `/api/auth/signup` | Create account |
-| `POST` | `/api/auth/signin` | Authenticate |
-| `POST` | `/api/auth/signout` | Invalidate session |
-| `GET` | `/api/auth/session` | Get current session |
-| `POST` | `/api/auth/refresh` | Refresh JWT |
-| `GET` | `/api/auth/.well-known/jwks.json` | Public key (JWKS) |
+| Method | Path                              | Operation           |
+| ------ | --------------------------------- | ------------------- |
+| `POST` | `/api/auth/signup`                | Create account      |
+| `POST` | `/api/auth/signin`                | Authenticate        |
+| `POST` | `/api/auth/signout`               | Invalidate session  |
+| `GET`  | `/api/auth/session`               | Get current session |
+| `POST` | `/api/auth/refresh`               | Refresh JWT         |
+| `GET`  | `/api/auth/.well-known/jwks.json` | Public key (JWKS)   |
 
 Server-side API:
 
@@ -312,7 +321,7 @@ const access = defineAccess({
   },
   entitlements: {
     'project:create': { roles: ['admin', 'editor'] },
-    'ai:generate':    { roles: ['editor'], plans: ['pro', 'enterprise'] },
+    'ai:generate': { roles: ['editor'], plans: ['pro', 'enterprise'] },
   },
   plans: {
     free: {
@@ -381,16 +390,16 @@ Entity routes return consistent error responses:
 }
 ```
 
-| Status | Code | When |
-|---|---|---|
-| 400 | `BAD_REQUEST` | Invalid request |
-| 401 | `UNAUTHORIZED` | Not authenticated |
-| 403 | `FORBIDDEN` | Access denied |
-| 404 | `NOT_FOUND` | Resource not found |
-| 405 | `METHOD_NOT_ALLOWED` | Operation disabled (`access: false`) |
-| 409 | `CONFLICT` | Unique/FK constraint violation |
-| 422 | `VALIDATION_ERROR` | Schema validation failed |
-| 500 | `INTERNAL_ERROR` | Unexpected error |
+| Status | Code                 | When                                 |
+| ------ | -------------------- | ------------------------------------ |
+| 400    | `BAD_REQUEST`        | Invalid request                      |
+| 401    | `UNAUTHORIZED`       | Not authenticated                    |
+| 403    | `FORBIDDEN`          | Access denied                        |
+| 404    | `NOT_FOUND`          | Resource not found                   |
+| 405    | `METHOD_NOT_ALLOWED` | Operation disabled (`access: false`) |
+| 409    | `CONFLICT`           | Unique/FK constraint violation       |
+| 422    | `VALIDATION_ERROR`   | Schema validation failed             |
+| 500    | `INTERNAL_ERROR`     | Unexpected error                     |
 
 Validation errors include details:
 
@@ -399,9 +408,7 @@ Validation errors include details:
   "error": {
     "code": "VALIDATION_ERROR",
     "message": "Validation failed",
-    "details": [
-      { "path": ["title"], "message": "Required" }
-    ]
+    "details": [{ "path": ["title"], "message": "Required" }]
   }
 }
 ```

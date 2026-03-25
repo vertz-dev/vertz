@@ -154,7 +154,9 @@ describe('ServiceDefinition phantom TActions preservation', () => {
     type LoginAction = Actions['login'];
 
     // Input type should be { email: string } (from bodySchema)
-    type LoginInput = LoginAction extends { handler: (input: infer I, ...args: unknown[]) => unknown }
+    type LoginInput = LoginAction extends {
+      handler: (input: infer I, ...args: unknown[]) => unknown;
+    }
       ? I
       : never;
     const _check: { email: string } = {} as LoginInput;

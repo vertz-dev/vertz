@@ -2,14 +2,7 @@
 
 export type { Computed, DisposeFn, ReadonlySignal, Signal } from '@vertz/ui';
 // Reactivity re-exports from @vertz/ui
-export {
-  batch,
-  computed,
-  createContext,
-  onMount,
-  signal,
-  useContext,
-} from '@vertz/ui';
+export { batch, computed, createContext, onMount, signal, useContext } from '@vertz/ui';
 export type { TuiHandle, TuiMountOptions } from './app';
 export { tui } from './app';
 // Auth — Device Code Flow
@@ -38,11 +31,7 @@ export type { ConfirmProps } from './components/Confirm';
 export { Confirm } from './components/Confirm';
 export type { DashboardProps } from './components/Dashboard';
 export { Dashboard } from './components/Dashboard';
-export type {
-  DiagnosticItem,
-  DiagnosticViewProps,
-  SourceLine,
-} from './components/DiagnosticView';
+export type { DiagnosticItem, DiagnosticViewProps, SourceLine } from './components/DiagnosticView';
 export { DiagnosticView } from './components/DiagnosticView';
 export type { DividerProps } from './components/Divider';
 export { Divider } from './components/Divider';

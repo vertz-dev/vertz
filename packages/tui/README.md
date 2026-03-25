@@ -69,7 +69,7 @@ const result = await wizard({
   ] as const,
 });
 
-console.log(result.name);    // string
+console.log(result.name); // string
 console.log(result.runtime); // typed from options
 ```
 

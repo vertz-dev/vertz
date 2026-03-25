@@ -31,8 +31,9 @@ export interface TestResponse<TResponse = unknown> {
   ok: boolean;
 }
 
-export interface TestRequestBuilder<TResponse = unknown>
-  extends PromiseLike<TestResponse<TResponse>> {
+export interface TestRequestBuilder<TResponse = unknown> extends PromiseLike<
+  TestResponse<TResponse>
+> {
   mockMiddleware<TReq extends Record<string, unknown>, TProv extends Record<string, unknown>>(
     middleware: NamedMiddlewareDef<TReq, TProv>,
     result: TProv,
@@ -366,7 +367,7 @@ export function createTestApp(config?: TestAppConfig): UntypedTestApp {
         perRequest.middlewares.set(middleware, result);
         return builder;
       },
-      // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike for await support
+
       then(onfulfilled, onrejected) {
         return executeRequest(method, path, options, perRequest).then(onfulfilled, onrejected);
       },

@@ -147,11 +147,7 @@ export type {
 } from './incremental';
 export { categorizeChanges, findAffectedModules, IncrementalCompiler } from './incremental';
 // IR builders
-export {
-  addDiagnosticsToIR,
-  createEmptyAppIR,
-  createEmptyDependencyGraph,
-} from './ir/builder';
+export { addDiagnosticsToIR, createEmptyAppIR, createEmptyDependencyGraph } from './ir/builder';
 // Entity route injector
 export { detectRouteCollisions, injectEntityRoutes } from './ir/entity-route-injector';
 // IR merge

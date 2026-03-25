@@ -160,9 +160,7 @@ import { query } from '@vertz/ui';
 function UserProfile() {
   let userId = 1;
 
-  const { data, loading } = query(() =>
-    fetch(`/api/users/${userId}`).then((r) => r.json())
-  );
+  const { data, loading } = query(() => fetch(`/api/users/${userId}`).then((r) => r.json()));
 
   return (
     <div>
@@ -316,10 +314,12 @@ const createUser = Object.assign(
     const res = await fetch('/api/users', { method: 'POST', body: JSON.stringify(body) });
     return res.json() as Promise<{ id: string }>;
   },
-  { url: '/api/users', method: 'POST' }
+  { url: '/api/users', method: 'POST' },
 );
 
-const userSchema = { /* validation schema */ };
+const userSchema = {
+  /* validation schema */
+};
 
 function CreateUser() {
   const f = form(createUser, {
@@ -442,9 +442,7 @@ function ProjectToolbar() {
     <div>
       {deleteCheck.allowed && <button onClick={handleDelete}>Delete</button>}
       {deleteCheck.reason === 'plan_required' && <span>Upgrade to unlock</span>}
-      {deleteCheck.meta?.limit && (
-        <span>{deleteCheck.meta.limit.remaining} uses left</span>
-      )}
+      {deleteCheck.meta?.limit && <span>{deleteCheck.meta.limit.remaining} uses left</span>}
     </div>
   );
 }
@@ -471,9 +469,7 @@ function App() {
 
   return (
     <AccessContext.Provider value={accessValue}>
-      <AccessGate fallback={() => <Spinner />}>
-        {() => <Router />}
-      </AccessGate>
+      <AccessGate fallback={() => <Spinner />}>{() => <Router />}</AccessGate>
     </AccessContext.Provider>
   );
 }
@@ -497,7 +493,7 @@ function Logger() {
 
   watch(
     () => count,
-    (value) => console.log('count changed to', value)
+    (value) => console.log('count changed to', value),
   );
 
   return <button onClick={() => count++}>Increment</button>;
@@ -545,23 +541,23 @@ unmount();
 
 ### Query Helpers
 
-| Export | Description |
-|---|---|
-| `findByTestId(id)` | Find element by `data-testid` — throws if not found |
-| `findByText(text)` | Find element by text content — throws if not found |
-| `queryByTestId(id)` | Find element by `data-testid` — returns `null` if not found |
-| `queryByText(text)` | Find element by text content — returns `null` if not found |
-| `waitFor(fn, options?)` | Retry an assertion until it passes |
+| Export                  | Description                                                 |
+| ----------------------- | ----------------------------------------------------------- |
+| `findByTestId(id)`      | Find element by `data-testid` — throws if not found         |
+| `findByText(text)`      | Find element by text content — throws if not found          |
+| `queryByTestId(id)`     | Find element by `data-testid` — returns `null` if not found |
+| `queryByText(text)`     | Find element by text content — returns `null` if not found  |
+| `waitFor(fn, options?)` | Retry an assertion until it passes                          |
 
 ### Interaction Helpers
 
-| Export | Description |
-|---|---|
-| `click(el)` | Simulate a click event |
-| `type(el, text)` | Simulate typing into an input |
-| `press(key)` | Simulate a key press |
-| `fillForm(form, values)` | Fill multiple form fields |
-| `submitForm(form)` | Submit a form |
+| Export                   | Description                   |
+| ------------------------ | ----------------------------- |
+| `click(el)`              | Simulate a click event        |
+| `type(el, text)`         | Simulate typing into an input |
+| `press(key)`             | Simulate a key press          |
+| `fillForm(form, values)` | Fill multiple form fields     |
+| `submitForm(form)`       | Submit a form                 |
 
 ### Route Testing
 
@@ -573,7 +569,7 @@ const { component, router, navigate } = await createTestRouter(
     '/': { component: () => <Home /> },
     '/about': { component: () => <About /> },
   },
-  { initialPath: '/' }
+  { initialPath: '/' },
 );
 
 await navigate('/about');
@@ -638,93 +634,93 @@ onMount(() => {
 
 ### Lifecycle
 
-| Export | Description |
-|---|---|
+| Export    | Description                                                           |
+| --------- | --------------------------------------------------------------------- |
 | `onMount` | Run code once when a component mounts (return a function for cleanup) |
-| `watch` | Watch a dependency and run a callback on change |
+| `watch`   | Watch a dependency and run a callback on change                       |
 
 ### Components
 
-| Export | Description |
-|---|---|
+| Export          | Description                               |
+| --------------- | ----------------------------------------- |
 | `createContext` | Create a context for dependency injection |
-| `useContext` | Read a context value |
-| `children` | Access resolved children |
-| `ref` | Create a ref for DOM element access |
-| `ErrorBoundary` | Catch errors in a component tree |
-| `Suspense` | Show fallback while async content loads |
+| `useContext`    | Read a context value                      |
+| `children`      | Access resolved children                  |
+| `ref`           | Create a ref for DOM element access       |
+| `ErrorBoundary` | Catch errors in a component tree          |
+| `Suspense`      | Show fallback while async content loads   |
 
 ### Mounting
 
-| Export | Description |
-|---|---|
+| Export  | Description                   |
+| ------- | ----------------------------- |
 | `mount` | Mount an app to a DOM element |
 
 ### CSS (`@vertz/ui/css`)
 
-| Export | Description |
-|---|---|
-| `css` | Create scoped styles |
-| `variants` | Create typed variant styles |
-| `s` | Inline dynamic styles |
-| `defineTheme` | Define a theme |
-| `compileTheme` | Compile a theme to CSS |
-| `ThemeProvider` | Provide a theme to descendants |
-| `globalCss` | Inject global CSS |
-| `font` | Declare a font family descriptor |
-| `compileFonts` | Compile font descriptors into CSS, vars, and preload tags |
+| Export          | Description                                               |
+| --------------- | --------------------------------------------------------- |
+| `css`           | Create scoped styles                                      |
+| `variants`      | Create typed variant styles                               |
+| `s`             | Inline dynamic styles                                     |
+| `defineTheme`   | Define a theme                                            |
+| `compileTheme`  | Compile a theme to CSS                                    |
+| `ThemeProvider` | Provide a theme to descendants                            |
+| `globalCss`     | Inject global CSS                                         |
+| `font`          | Declare a font family descriptor                          |
+| `compileFonts`  | Compile font descriptors into CSS, vars, and preload tags |
 
 ### Forms
 
-| Export | Description |
-|---|---|
-| `form` | Create a form bound to an SDK method |
-| `formDataToObject` | Convert FormData to a plain object |
-| `validate` | Run schema validation |
+| Export             | Description                          |
+| ------------------ | ------------------------------------ |
+| `form`             | Create a form bound to an SDK method |
+| `formDataToObject` | Convert FormData to a plain object   |
+| `validate`         | Run schema validation                |
 
 ### Data
 
-| Export | Description |
-|---|---|
+| Export  | Description            |
+| ------- | ---------------------- |
 | `query` | Reactive data fetching |
 
 ### Routing (`@vertz/ui/router`)
 
-| Export | Description |
-|---|---|
-| `defineRoutes` | Define route configuration |
-| `createRouter` | Create a router instance |
-| `createLink` | Create a `<Link>` component |
-| `createOutlet` | Create a route outlet |
+| Export              | Description                 |
+| ------------------- | --------------------------- |
+| `defineRoutes`      | Define route configuration  |
+| `createRouter`      | Create a router instance    |
+| `createLink`        | Create a `<Link>` component |
+| `createOutlet`      | Create a route outlet       |
 | `parseSearchParams` | Parse URL search parameters |
-| `useSearchParams` | Reactive search parameters |
+| `useSearchParams`   | Reactive search parameters  |
 
 ### Auth (`@vertz/ui/auth`)
 
-| Export | Description |
-|---|---|
-| `AccessContext` | Context for access set data |
-| `can` | Check if the user has an entitlement |
-| `AccessGate` | Gate rendering until access set loads |
-| `createAccessProvider` | Bootstrap access context from SSR data |
-| `useAccessContext` | Read the access context (throws without provider) |
+| Export                 | Description                                       |
+| ---------------------- | ------------------------------------------------- |
+| `AccessContext`        | Context for access set data                       |
+| `can`                  | Check if the user has an entitlement              |
+| `AccessGate`           | Gate rendering until access set loads             |
+| `createAccessProvider` | Bootstrap access context from SSR data            |
+| `useAccessContext`     | Read the access context (throws without provider) |
 
 ### Testing (`@vertz/ui/test`)
 
-| Export | Description |
-|---|---|
-| `renderTest` | Mount a component for testing |
-| `findByTestId` | Find element by `data-testid` (throws) |
-| `findByText` | Find element by text content (throws) |
-| `queryByTestId` | Find element by `data-testid` (nullable) |
-| `queryByText` | Find element by text content (nullable) |
-| `waitFor` | Retry an assertion until it passes |
-| `click` | Simulate a click |
-| `type` | Simulate typing |
-| `press` | Simulate a key press |
-| `fillForm` | Fill multiple form fields |
-| `submitForm` | Submit a form |
-| `createTestRouter` | Create a router for testing |
+| Export             | Description                              |
+| ------------------ | ---------------------------------------- |
+| `renderTest`       | Mount a component for testing            |
+| `findByTestId`     | Find element by `data-testid` (throws)   |
+| `findByText`       | Find element by text content (throws)    |
+| `queryByTestId`    | Find element by `data-testid` (nullable) |
+| `queryByText`      | Find element by text content (nullable)  |
+| `waitFor`          | Retry an assertion until it passes       |
+| `click`            | Simulate a click                         |
+| `type`             | Simulate typing                          |
+| `press`            | Simulate a key press                     |
+| `fillForm`         | Fill multiple form fields                |
+| `submitForm`       | Submit a form                            |
+| `createTestRouter` | Create a router for testing              |
 
 ---
 

@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { createContext, useContext } from '../../component/context';
-import {
-  type ListAnimationHooks,
-  ListAnimationContext,
-} from '../list-animation-context';
+import { type ListAnimationHooks, ListAnimationContext } from '../list-animation-context';
 
 describe('ListAnimationContext', () => {
   it('is a context that can be provided and consumed', () => {

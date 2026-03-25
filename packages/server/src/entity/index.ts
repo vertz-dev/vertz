@@ -25,11 +25,7 @@ export {
   stripHiddenFields,
   stripReadOnlyFields,
 } from './field-filter';
-export type {
-  EntitySchemaObject,
-  JSONSchemaObject,
-  OpenAPISpecOptions,
-} from './openapi-generator';
+export type { EntitySchemaObject, JSONSchemaObject, OpenAPISpecOptions } from './openapi-generator';
 export {
   columnToJsonSchema,
   entityCreateInputSchema,

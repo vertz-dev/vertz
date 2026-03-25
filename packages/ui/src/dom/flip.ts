@@ -12,9 +12,7 @@
  * Snapshot bounding rects for all Element nodes in the map.
  * Non-Element nodes (text, comment) are skipped.
  */
-export function snapshotRects(
-  nodeMap: Map<string | number, Node>,
-): Map<string | number, DOMRect> {
+export function snapshotRects(nodeMap: Map<string | number, Node>): Map<string | number, DOMRect> {
   const rects = new Map<string | number, DOMRect>();
   for (const [key, node] of nodeMap) {
     if (node instanceof Element) {

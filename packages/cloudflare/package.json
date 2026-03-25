@@ -2,14 +2,14 @@
   "name": "@vertz/cloudflare",
   "version": "0.2.32",
   "description": "Cloudflare Workers adapter for vertz",
-  "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/vertz-dev/vertz.git",
     "directory": "packages/cloudflare"
   },
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

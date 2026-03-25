@@ -182,16 +182,16 @@ export default config;
 
 ### Configuration Reference
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `strict` | `boolean` | `false` | Treat warnings as errors |
-| `compiler.sourceDir` | `string` | `'src'` | Source directory |
-| `compiler.entryFile` | `string` | `'src/app.ts'` | Entry file |
-| `compiler.outputDir` | `string` | `'.vertz/generated'` | Generated code output |
-| `dev.port` | `number` | `3000` | Dev server port |
-| `dev.host` | `string` | `'localhost'` | Dev server host |
-| `dev.open` | `boolean` | `false` | Open browser on start |
-| `dev.typecheck` | `boolean` | `true` | Background type-checking |
+| Option               | Type      | Default              | Description              |
+| -------------------- | --------- | -------------------- | ------------------------ |
+| `strict`             | `boolean` | `false`              | Treat warnings as errors |
+| `compiler.sourceDir` | `string`  | `'src'`              | Source directory         |
+| `compiler.entryFile` | `string`  | `'src/app.ts'`       | Entry file               |
+| `compiler.outputDir` | `string`  | `'.vertz/generated'` | Generated code output    |
+| `dev.port`           | `number`  | `3000`               | Dev server port          |
+| `dev.host`           | `string`  | `'localhost'`        | Dev server host          |
+| `dev.open`           | `boolean` | `false`              | Open browser on start    |
+| `dev.typecheck`      | `boolean` | `true`               | Background type-checking |
 
 ---
 

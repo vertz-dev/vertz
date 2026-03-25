@@ -7,7 +7,12 @@ import { createPrivateKey, createPublicKey } from 'node:crypto';
 import { createJWT } from '../jwt';
 import { resolveSessionForSSR } from '../resolve-session-for-ssr';
 import type { AuthUser } from '../types';
-import { TEST_EC_PRIVATE_KEY, TEST_EC_PUBLIC_KEY, TEST_PRIVATE_KEY, TEST_PUBLIC_KEY } from './test-keys';
+import {
+  TEST_EC_PRIVATE_KEY,
+  TEST_EC_PUBLIC_KEY,
+  TEST_PRIVATE_KEY,
+  TEST_PUBLIC_KEY,
+} from './test-keys';
 
 const COOKIE_NAME = 'vertz.sid';
 

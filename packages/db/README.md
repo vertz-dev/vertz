@@ -9,6 +9,7 @@ bun add @vertz/db
 ```
 
 **Prerequisites:**
+
 - PostgreSQL or SQLite database
 - Node.js >= 22 or Bun
 
@@ -54,33 +55,33 @@ if (result.ok) {
 import { d } from '@vertz/db';
 
 // Text
-d.text()                    // TEXT → string
-d.varchar(255)              // VARCHAR(255) → string
-d.email()                   // TEXT with email format → string
+d.text(); // TEXT → string
+d.varchar(255); // VARCHAR(255) → string
+d.email(); // TEXT with email format → string
 
 // Identifiers
-d.uuid()                    // UUID → string
+d.uuid(); // UUID → string
 
 // Numeric
-d.integer()                 // INTEGER → number
-d.bigint()                  // BIGINT → bigint
-d.serial()                  // SERIAL (auto-increment) → number
-d.decimal(10, 2)            // NUMERIC(10,2) → string
-d.real()                    // REAL → number
-d.doublePrecision()         // DOUBLE PRECISION → number
+d.integer(); // INTEGER → number
+d.bigint(); // BIGINT → bigint
+d.serial(); // SERIAL (auto-increment) → number
+d.decimal(10, 2); // NUMERIC(10,2) → string
+d.real(); // REAL → number
+d.doublePrecision(); // DOUBLE PRECISION → number
 
 // Date/Time
-d.timestamp()               // TIMESTAMP WITH TIME ZONE → Date
-d.date()                    // DATE → string
-d.time()                    // TIME → string
+d.timestamp(); // TIMESTAMP WITH TIME ZONE → Date
+d.date(); // DATE → string
+d.time(); // TIME → string
 
 // Other
-d.boolean()                 // BOOLEAN → boolean
-d.jsonb<MyType>()           // JSONB → MyType
-d.jsonb<MyType>(schema)     // JSONB with runtime validation
-d.textArray()               // TEXT[] → string[]
-d.integerArray()            // INTEGER[] → number[]
-d.enum('status', ['active', 'inactive'])  // ENUM → 'active' | 'inactive'
+d.boolean(); // BOOLEAN → boolean
+d.jsonb<MyType>(); // JSONB → MyType
+d.jsonb<MyType>(schema); // JSONB with runtime validation
+d.textArray(); // TEXT[] → string[]
+d.integerArray(); // INTEGER[] → number[]
+d.enum('status', ['active', 'inactive']); // ENUM → 'active' | 'inactive'
 
 // Multi-tenancy — see d.model() options below
 ```
@@ -91,28 +92,28 @@ Columns are **required by default**. Use modifiers to change behavior:
 
 ```typescript
 d.text()
-  .primary()                // PRIMARY KEY (auto-excludes from inputs)
-  .primary({ generate: 'cuid' })  // PRIMARY KEY with ID generation
-  .unique()                 // UNIQUE constraint
-  .nullable()               // Allows NULL (T | null)
-  .default('hello')         // DEFAULT value (makes field optional in inserts)
-  .default('now')           // DEFAULT NOW() for timestamps
-  .hidden()                 // Excluded from default SELECT queries
-  .readOnly()               // Excluded from INSERT/UPDATE inputs
-  .sensitive()              // Excluded when select: { not: 'sensitive' }
-  .autoUpdate()             // Read-only + auto-updated on every write
-  .check('length(name) > 0')  // SQL CHECK constraint
-  // Foreign keys: use d.ref.one() in d.model() — see Relations section below
+  .primary() // PRIMARY KEY (auto-excludes from inputs)
+  .primary({ generate: 'cuid' }) // PRIMARY KEY with ID generation
+  .unique() // UNIQUE constraint
+  .nullable() // Allows NULL (T | null)
+  .default('hello') // DEFAULT value (makes field optional in inserts)
+  .default('now') // DEFAULT NOW() for timestamps
+  .hidden() // Excluded from default SELECT queries
+  .readOnly() // Excluded from INSERT/UPDATE inputs
+  .sensitive() // Excluded when select: { not: 'sensitive' }
+  .autoUpdate() // Read-only + auto-updated on every write
+  .check('length(name) > 0'); // SQL CHECK constraint
+// Foreign keys: use d.ref.one() in d.model() — see Relations section below
 ```
 
 ### ID Generation
 
 ```typescript
-d.uuid().primary()                      // No auto-generation
-d.uuid().primary({ generate: 'cuid' }) // CUID2
-d.uuid().primary({ generate: 'uuid' }) // UUID v7
-d.uuid().primary({ generate: 'nanoid' }) // Nano ID
-d.serial().primary()                    // Auto-increment
+d.uuid().primary(); // No auto-generation
+d.uuid().primary({ generate: 'cuid' }); // CUID2
+d.uuid().primary({ generate: 'uuid' }); // UUID v7
+d.uuid().primary({ generate: 'nanoid' }); // Nano ID
+d.serial().primary(); // Auto-increment
 ```
 
 ### Tables
@@ -134,18 +135,22 @@ const users = d.table('users', {
 Define indexes on tables via the `indexes` option:
 
 ```typescript
-const posts = d.table('posts', {
-  id: d.uuid().primary(),
-  title: d.text(),
-  status: d.text(),
-  authorId: d.uuid(),
-}, {
-  indexes: [
-    d.index('title'),                          // basic index
-    d.index('authorId', { unique: true }),      // unique index
-    d.index(['status', 'authorId']),            // composite index
-  ],
-});
+const posts = d.table(
+  'posts',
+  {
+    id: d.uuid().primary(),
+    title: d.text(),
+    status: d.text(),
+    authorId: d.uuid(),
+  },
+  {
+    indexes: [
+      d.index('title'), // basic index
+      d.index('authorId', { unique: true }), // unique index
+      d.index(['status', 'authorId']), // composite index
+    ],
+  },
+);
 ```
 
 #### Index Types (PostgreSQL)
@@ -153,11 +158,11 @@ const posts = d.table('posts', {
 PostgreSQL supports multiple index types via the `type` option. The default is `btree`.
 
 ```typescript
-d.index('title', { type: 'gin' })    // GIN — full-text search, arrays, JSONB
-d.index('location', { type: 'gist' }) // GiST — geometric/spatial data
-d.index('email', { type: 'hash' })   // Hash — equality-only lookups
-d.index('created_at', { type: 'brin' }) // BRIN — large sorted datasets
-d.index('name', { type: 'btree' })   // B-tree (default)
+d.index('title', { type: 'gin' }); // GIN — full-text search, arrays, JSONB
+d.index('location', { type: 'gist' }); // GiST — geometric/spatial data
+d.index('email', { type: 'hash' }); // Hash — equality-only lookups
+d.index('created_at', { type: 'brin' }); // BRIN — large sorted datasets
+d.index('name', { type: 'btree' }); // B-tree (default)
 ```
 
 Available types: `'btree' | 'hash' | 'gin' | 'gist' | 'brin'`
@@ -172,7 +177,7 @@ Use the `where` option to create partial indexes that only index rows matching a
 d.index('email', {
   unique: true,
   where: "status = 'active'",
-})
+});
 // SQL: CREATE UNIQUE INDEX ... ON ... ("email") WHERE status = 'active';
 ```
 
@@ -180,23 +185,23 @@ Partial indexes are supported on both PostgreSQL and SQLite.
 
 #### Index Options
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `unique` | `boolean` | Create a UNIQUE index |
-| `type` | `IndexType` | Index type — PostgreSQL only (`btree`, `hash`, `gin`, `gist`, `brin`) |
-| `where` | `string` | WHERE clause for partial indexes |
-| `name` | `string` | Custom index name (auto-generated if omitted) |
+| Option   | Type        | Description                                                           |
+| -------- | ----------- | --------------------------------------------------------------------- |
+| `unique` | `boolean`   | Create a UNIQUE index                                                 |
+| `type`   | `IndexType` | Index type — PostgreSQL only (`btree`, `hash`, `gin`, `gist`, `brin`) |
+| `where`  | `string`    | WHERE clause for partial indexes                                      |
+| `name`   | `string`    | Custom index name (auto-generated if omitted)                         |
 
 ### Annotations
 
 Column annotations control visibility and mutability across the stack:
 
-| Annotation | Effect on queries | Effect on inputs | Use case |
-|---|---|---|---|
-| `.hidden()` | Excluded from default SELECT | N/A | Internal fields (password hashes) |
-| `.readOnly()` | Included in responses | Excluded from create/update | Server-managed fields |
-| `.autoUpdate()` | Included in responses | Excluded from create/update | `updatedAt` timestamps |
-| `.sensitive()` | Excluded with `select: { not: 'sensitive' }` | N/A | Fields to exclude in bulk queries |
+| Annotation      | Effect on queries                            | Effect on inputs            | Use case                          |
+| --------------- | -------------------------------------------- | --------------------------- | --------------------------------- |
+| `.hidden()`     | Excluded from default SELECT                 | N/A                         | Internal fields (password hashes) |
+| `.readOnly()`   | Included in responses                        | Excluded from create/update | Server-managed fields             |
+| `.autoUpdate()` | Included in responses                        | Excluded from create/update | `updatedAt` timestamps            |
+| `.sensitive()`  | Excluded with `select: { not: 'sensitive' }` | N/A                         | Fields to exclude in bulk queries |
 
 ### Phantom Types
 
@@ -227,16 +232,16 @@ type Insert = typeof users.$insert;
 // (id excluded — has default, createdAt optional — has default)
 ```
 
-| Phantom type | Description |
-|---|---|
-| `$response` | API response shape (excludes hidden) |
-| `$create_input` | API create input (excludes readOnly + primary) |
-| `$update_input` | API update input (same exclusions, all optional) |
-| `$insert` | DB insert shape (columns with defaults are optional) |
-| `$update` | DB update shape (non-PK columns, all optional) |
-| `$infer` | Default SELECT (excludes hidden) |
-| `$infer_all` | All columns including hidden |
-| `$not_sensitive` | Excludes sensitive + hidden |
+| Phantom type     | Description                                          |
+| ---------------- | ---------------------------------------------------- |
+| `$response`      | API response shape (excludes hidden)                 |
+| `$create_input`  | API create input (excludes readOnly + primary)       |
+| `$update_input`  | API update input (same exclusions, all optional)     |
+| `$insert`        | DB insert shape (columns with defaults are optional) |
+| `$update`        | DB update shape (non-PK columns, all optional)       |
+| `$infer`         | Default SELECT (excludes hidden)                     |
+| `$infer_all`     | All columns including hidden                         |
+| `$not_sensitive` | Excludes sensitive + hidden                          |
 
 ### Models
 
@@ -260,11 +265,11 @@ const postsModel = d.model(postsTable, {
 Every model exposes:
 
 ```typescript
-postsModel.table       // the table definition
-postsModel.relations   // { author, comments }
-postsModel.schemas.response     // SchemaLike<$response>
-postsModel.schemas.createInput  // SchemaLike<$create_input>
-postsModel.schemas.updateInput  // SchemaLike<$update_input>
+postsModel.table; // the table definition
+postsModel.relations; // { author, comments }
+postsModel.schemas.response; // SchemaLike<$response>
+postsModel.schemas.createInput; // SchemaLike<$create_input>
+postsModel.schemas.updateInput; // SchemaLike<$update_input>
 ```
 
 Models are used by `@vertz/server`'s `entity()` to derive validation and type-safe CRUD.
@@ -314,13 +319,13 @@ const commentsModel = d.model(commentsTable, {
 
 ```typescript
 // belongsTo — FK lives on source table
-d.ref.one(() => usersTable, 'authorId')
+d.ref.one(() => usersTable, 'authorId');
 
 // hasMany — FK lives on target table
-d.ref.many(() => postsTable, 'authorId')
+d.ref.many(() => postsTable, 'authorId');
 
 // Many-to-many — via join table
-d.ref.many(() => coursesTable).through(() => enrollmentsTable, 'studentId', 'courseId')
+d.ref.many(() => coursesTable).through(() => enrollmentsTable, 'studentId', 'courseId');
 ```
 
 ## Database Client
@@ -331,14 +336,14 @@ d.ref.many(() => coursesTable).through(() => enrollmentsTable, 'studentId', 'cou
 const db = createDb({
   url: 'postgresql://user:pass@localhost:5432/mydb',
   models: { users: usersModel, posts: postsModel },
-  dialect: 'postgres',           // 'postgres' (default) or 'sqlite'
+  dialect: 'postgres', // 'postgres' (default) or 'sqlite'
   pool: {
     max: 20,
     idleTimeout: 30000,
     connectionTimeout: 5000,
     replicas: ['postgresql://...'],
   },
-  casing: 'snake_case',          // column name transformation
+  casing: 'snake_case', // column name transformation
   log: (msg) => console.log(msg),
 });
 ```
@@ -441,7 +446,7 @@ await db.get('users', {
 
 // Exclude by visibility
 await db.list('users', {
-  select: { not: 'sensitive' },  // excludes sensitive + hidden fields
+  select: { not: 'sensitive' }, // excludes sensitive + hidden fields
 });
 
 // Include relations
@@ -488,14 +493,14 @@ import {
 } from '@vertz/db';
 ```
 
-| Error | HTTP Status | When |
-|---|---|---|
-| `NotFoundError` | 404 | Record not found |
-| `UniqueConstraintError` | 409 | Duplicate unique value |
-| `ForeignKeyError` | 409 | Referenced record doesn't exist |
-| `NotNullError` | 422 | Required field missing |
-| `CheckConstraintError` | 422 | CHECK constraint violated |
-| `ConnectionError` | 503 | Database unreachable |
+| Error                   | HTTP Status | When                            |
+| ----------------------- | ----------- | ------------------------------- |
+| `NotFoundError`         | 404         | Record not found                |
+| `UniqueConstraintError` | 409         | Duplicate unique value          |
+| `ForeignKeyError`       | 409         | Referenced record doesn't exist |
+| `NotNullError`          | 422         | Required field missing          |
+| `CheckConstraintError`  | 422         | CHECK constraint violated       |
+| `ConnectionError`       | 503         | Database unreachable            |
 
 ```typescript
 const httpError = dbErrorToHttpError(error);
@@ -539,19 +544,23 @@ const orgsModel = d.model(orgsTable);
 const usersModel = d.model(
   usersTable,
   { organization: d.ref.one(() => orgsTable, 'orgId') },
-  { tenant: 'organization' },  // scopes this model to a tenant via relation
+  { tenant: 'organization' }, // scopes this model to a tenant via relation
 );
 
 const tenantGraph = computeTenantGraph({ organizations: orgsModel, users: usersModel });
 
-tenantGraph.root;            // 'organizations'
-tenantGraph.directlyScoped;  // ['users']
+tenantGraph.root; // 'organizations'
+tenantGraph.directlyScoped; // ['users']
 ```
 
 Tables can be marked as shared (cross-tenant):
 
 ```typescript
-const settings = d.table('settings', { /* ... */ }).shared();
+const settings = d
+  .table('settings', {
+    /* ... */
+  })
+  .shared();
 ```
 
 ## Dialects
@@ -566,7 +575,7 @@ const pgDb = createDb({ url: 'postgresql://...', models });
 const sqliteDb = createDb({
   models,
   dialect: 'sqlite',
-  d1: d1Database,  // Cloudflare D1 or compatible
+  d1: d1Database, // Cloudflare D1 or compatible
 });
 ```
 
@@ -662,20 +671,18 @@ await autoMigrate({
 });
 ```
 
-| Interface | Method | Description |
-|-----------|--------|-------------|
-| `SnapshotStorage` | `load(key: string)` | Load a snapshot by key. Returns `null` on first run |
-| `SnapshotStorage` | `save(key: string, snapshot)` | Persist a snapshot |
-| `NodeSnapshotStorage` | (class) | Built-in filesystem implementation using `node:fs` |
+| Interface             | Method                        | Description                                         |
+| --------------------- | ----------------------------- | --------------------------------------------------- |
+| `SnapshotStorage`     | `load(key: string)`           | Load a snapshot by key. Returns `null` on first run |
+| `SnapshotStorage`     | `save(key: string, snapshot)` | Persist a snapshot                                  |
+| `NodeSnapshotStorage` | (class)                       | Built-in filesystem implementation using `node:fs`  |
 
 ## Raw SQL
 
 ```typescript
 import { sql } from '@vertz/db/sql';
 
-const result = await db.query(
-  sql`SELECT * FROM users WHERE email = ${email}`
-);
+const result = await db.query(sql`SELECT * FROM users WHERE email = ${email}`);
 
 // Composition
 const where = sql`WHERE active = ${true}`;

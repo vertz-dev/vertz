@@ -297,9 +297,8 @@ describe('SSRRenderContext', () => {
 
     const { EntityStore } = await import('../store/entity-store');
     const { QueryEnvelopeStore } = await import('../store/query-envelope-store');
-    const { getEntityStore, getQueryEnvelopeStore } = await import(
-      '../store/entity-store-singleton'
-    );
+    const { getEntityStore, getQueryEnvelopeStore } =
+      await import('../store/entity-store-singleton');
 
     const store1 = new EntityStore();
     const store2 = new EntityStore();

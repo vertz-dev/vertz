@@ -97,24 +97,22 @@ function buildPageItems(
   ellipsisContent: ChildValue,
 ): ChildValue[] {
   return range.map((page) =>
-    page === '...'
-      ? (
-          <li class={cn(classes?.item)}>
-            <span aria-hidden="true" class={cn(classes?.ellipsis)}>
-              {ellipsisContent}
-            </span>
-          </li>
-        )
-      : (
-          <li class={cn(classes?.item)}>
-            <PageButton
-              page={page}
-              currentPage={currentPage}
-              onPageChange={onPageChange}
-              classes={classes}
-            />
-          </li>
-        ),
+    page === '...' ? (
+      <li class={cn(classes?.item)}>
+        <span aria-hidden="true" class={cn(classes?.ellipsis)}>
+          {ellipsisContent}
+        </span>
+      </li>
+    ) : (
+      <li class={cn(classes?.item)}>
+        <PageButton
+          page={page}
+          currentPage={currentPage}
+          onPageChange={onPageChange}
+          classes={classes}
+        />
+      </li>
+    ),
   );
 }
 

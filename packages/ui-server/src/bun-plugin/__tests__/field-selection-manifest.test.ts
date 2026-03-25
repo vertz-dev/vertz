@@ -268,10 +268,7 @@ describe('FieldSelectionManifest', () => {
       manifest.registerFile('/src/index.ts', `export { IssueRow } from './components';`);
 
       // Sub-barrel
-      manifest.registerFile(
-        '/src/components/index.ts',
-        `export { IssueRow } from './issue-row';`,
-      );
+      manifest.registerFile('/src/components/index.ts', `export { IssueRow } from './issue-row';`);
 
       // Actual component
       manifest.registerFile(

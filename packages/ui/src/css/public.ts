@@ -24,12 +24,7 @@ export { compileFonts, font } from './font';
 export type { GlobalCSSInput, GlobalCSSOutput } from './global-css';
 export { globalCss } from './global-css';
 export { s } from './s';
-export type {
-  CompiledTheme,
-  CompileThemeOptions,
-  Theme,
-  ThemeInput,
-} from './theme';
+export type { CompiledTheme, CompileThemeOptions, Theme, ThemeInput } from './theme';
 export { compileTheme, defineTheme } from './theme';
 export type { ThemeProviderProps } from './theme-provider';
 export { ThemeProvider } from './theme-provider';

@@ -32,43 +32,37 @@ function increment() {
 
 ## Quick Reference
 
-| React | Vertz |
-|-------|-------|
-| `useState()` | `let` variable |
-| `useMemo()` | `const` (derived) |
-| `useEffect()` | `effect()` |
-| `useRef()` | `let` (no reactivity needed) |
-| Props | Props (with getter functions for reactive props) |
-| Context | Modules with dependency injection |
-| `useCallback()` | Rarely needed |
+| React           | Vertz                                            |
+| --------------- | ------------------------------------------------ |
+| `useState()`    | `let` variable                                   |
+| `useMemo()`     | `const` (derived)                                |
+| `useEffect()`   | `effect()`                                       |
+| `useRef()`      | `let` (no reactivity needed)                     |
+| Props           | Props (with getter functions for reactive props) |
+| Context         | Modules with dependency injection                |
+| `useCallback()` | Rarely needed                                    |
 
 ---
 
 ## State: `let` = Reactive
 
 **React:**
+
 ```tsx
 function Counter() {
   const [count, setCount] = useState(0);
 
-  return (
-    <button onClick={() => setCount(count + 1)}>
-      {count}
-    </button>
-  );
+  return <button onClick={() => setCount(count + 1)}>{count}</button>;
 }
 ```
 
 **Vertz:**
+
 ```tsx
 function Counter() {
   let count = 0;
 
-  return (
-    <button onClick={() => count++}>
-      {count}
-    </button>
-  );
+  return <button onClick={() => count++}>{count}</button>;
 }
 ```
 
@@ -79,6 +73,7 @@ Just use `let`. The compiler turns it into a signal automatically.
 ## Derived State: Just Use `const`
 
 **React:**
+
 ```tsx
 function Pricing() {
   const [quantity, setQuantity] = useState(1);
@@ -90,6 +85,7 @@ function Pricing() {
 ```
 
 **Vertz:**
+
 ```tsx
 function Pricing() {
   let quantity = 1;
@@ -107,6 +103,7 @@ No `useMemo` needed. The compiler sees `total` depends on `quantity` and makes i
 ## Effects: `effect()`
 
 **React:**
+
 ```tsx
 useEffect(() => {
   console.log('Count changed:', count);
@@ -114,6 +111,7 @@ useEffect(() => {
 ```
 
 **Vertz:**
+
 ```tsx
 effect(() => {
   console.log('Count changed:', count);
@@ -159,6 +157,7 @@ function App() {
 Props work similarly, with one key difference:
 
 **React:**
+
 ```tsx
 function Greeting({ name, onClick }) {
   return <button onClick={onClick}>{name}</button>;
@@ -166,13 +165,14 @@ function Greeting({ name, onClick }) {
 ```
 
 **Vertz:**
+
 ```tsx
 function Greeting(props: { name: () => number; onClick: () => void }) {
   return <button onClick={props.onClick}>{props.name()}</button>;
 }
 
 // Usage
-<Greeting name={() => count} onClick={() => count++} />
+<Greeting name={() => count} onClick={() => count++} />;
 ```
 
 The `() =>` is a **getter function**. It makes the prop reactive—when the signal changes, the component updates. If you pass a plain value, it's static (computed once).
@@ -196,6 +196,7 @@ function Card({ title }: { title: () => string }) {
 ```
 
 Key differences from React:
+
 - No `return null` for no-output—use an empty fragment `<>...</>`
 - No `React.FC` types—just plain function types
 - Events are native: `onClick`, `onInput`, etc. (camelCase)
@@ -216,6 +217,7 @@ Vertz doesn't have hooks. There's no `useState`, `useEffect`, `useContext`, etc.
 ## Forms
 
 **React:**
+
 ```tsx
 function LoginForm() {
   const [email, setEmail] = useState('');
@@ -228,8 +230,8 @@ function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit}>
-      <input value={email} onChange={e => setEmail(e.target.value)} />
-      <input type="password" value={password} onChange={e => setPassword(e.target.value)} />
+      <input value={email} onChange={(e) => setEmail(e.target.value)} />
+      <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
       <button type="submit">Login</button>
     </form>
   );
@@ -237,6 +239,7 @@ function LoginForm() {
 ```
 
 **Vertz:**
+
 ```tsx
 import { form } from '@vertz/ui';
 
@@ -245,7 +248,7 @@ const login = ((body: { email: string; password: string }) =>
   fetch('/api/login', {
     method: 'POST',
     body: JSON.stringify(body),
-  }).then(r => r.json())) as typeof login & { url: string; method: string };
+  }).then((r) => r.json())) as typeof login & { url: string; method: string };
 login.url = '/api/login';
 login.method = 'POST';
 
@@ -256,7 +259,7 @@ const loginSchema = {
     if (!d.email) throw { fieldErrors: { email: 'Email is required' } };
     if (!d.password) throw { fieldErrors: { password: 'Password is required' } };
     return d as { email: string; password: string };
-  }
+  },
 };
 
 function LoginForm() {
@@ -275,6 +278,7 @@ function LoginForm() {
 ```
 
 The `form()` helper takes an SDK method (with `.url` and `.method` properties) and a validation schema. It provides:
+
 - Direct properties: `action`, `method`, `onSubmit` for progressive enhancement
 - Per-field reactive signals: `form.<field>.error`, `.dirty`, `.touched`, `.value`
 - `submitting` signal for loading state
@@ -285,6 +289,7 @@ The `form()` helper takes an SDK method (with `.url` and `.method` properties) a
 ## Data Fetching
 
 **React:**
+
 ```tsx
 function UserList() {
   const [users, setUsers] = useState([]);
@@ -292,8 +297,8 @@ function UserList() {
 
   useEffect(() => {
     fetch('/api/users')
-      .then(res => res.json())
-      .then(data => {
+      .then((res) => res.json())
+      .then((data) => {
         setUsers(data);
         setLoading(false);
       });
@@ -301,29 +306,39 @@ function UserList() {
 
   if (loading) return <Spinner />;
 
-  return <ul>{users.map(u => <li>{u.name}</li>)}</ul>;
+  return (
+    <ul>
+      {users.map((u) => (
+        <li>{u.name}</li>
+      ))}
+    </ul>
+  );
 }
 ```
 
 **Vertz:**
+
 ```tsx
 import { query } from '@vertz/ui';
 
 function UserList() {
-  const q = query(() => fetch('/api/users').then(r => r.json()));
+  const q = query(() => fetch('/api/users').then((r) => r.json()));
 
   if (q.loading.value) return <Spinner />;
   if (q.error.value) return <Error error={q.error.value} />;
 
   return (
     <ul>
-      {q.data.value?.map(u => <li key={u.id}>{u.name}</li>)}
+      {q.data.value?.map((u) => (
+        <li key={u.id}>{u.name}</li>
+      ))}
     </ul>
   );
 }
 ```
 
 The `query()` helper wraps fetch and gives you reactive signals:
+
 - `loading.value` — true while fetching
 - `error.value` — error object if fetch failed
 - `data.value` — the fetched data
@@ -333,6 +348,7 @@ The `query()` helper wraps fetch and gives you reactive signals:
 ## Lists
 
 **React:**
+
 ```tsx
 function TodoList() {
   const [todos, setTodos] = useState([...]);
@@ -348,6 +364,7 @@ function TodoList() {
 ```
 
 **Vertz:**
+
 ```tsx
 function TodoList() {
   let todos = [...];
@@ -369,15 +386,25 @@ Same syntax! The compiler handles the list reactivity.
 ## Conditional Rendering
 
 **React:**
+
 ```tsx
-{isLoggedIn ? <Dashboard /> : <Login />}
-{showModal && <Modal />}
+{
+  isLoggedIn ? <Dashboard /> : <Login />;
+}
+{
+  showModal && <Modal />;
+}
 ```
 
 **Vertz:**
+
 ```tsx
-{isLoggedIn() ? <Dashboard /> : <Login />}
-{showModal && <Modal />}
+{
+  isLoggedIn() ? <Dashboard /> : <Login />;
+}
+{
+  showModal && <Modal />;
+}
 ```
 
 Same syntax. Note the `()` for reactive boolean checks.
@@ -387,12 +414,14 @@ Same syntax. Note the `()` for reactive boolean checks.
 ## Styling
 
 **React:**
+
 ```tsx
 <div className={`card ${active ? 'active' : ''}`} />
 <button style={{ marginTop: 10 }} />
 ```
 
 **Vertz:**
+
 ```tsx
 <div class={`card ${active ? 'active' : ''}`} />
 <button style={{ marginTop: 10 }} />
@@ -420,13 +449,13 @@ Use `class` instead of `className`. Attributes are camelCase like JavaScript.
 
 ## Common Gotchas
 
-| Issue | Solution |
-|-------|----------|
-| "Why isn't my variable reactive?" | Make sure it's used in JSX |
-| "My effect runs too often" | Move it outside JSX or use `const` for derived values |
-| "Props aren't updating" | Pass getter functions: `prop={() => value}` |
-| "I need a non-reactive counter" | Use a plain variable (not in JSX) or `let` outside component |
-| "How do I share state?" | Use modules with dependency injection |
+| Issue                             | Solution                                                     |
+| --------------------------------- | ------------------------------------------------------------ |
+| "Why isn't my variable reactive?" | Make sure it's used in JSX                                   |
+| "My effect runs too often"        | Move it outside JSX or use `const` for derived values        |
+| "Props aren't updating"           | Pass getter functions: `prop={() => value}`                  |
+| "I need a non-reactive counter"   | Use a plain variable (not in JSX) or `let` outside component |
+| "How do I share state?"           | Use modules with dependency injection                        |
 
 ---
 

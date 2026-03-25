@@ -29,8 +29,9 @@ export interface RelationDef<
 // ManyRelationDef -- intermediate type that exposes .through()
 // ---------------------------------------------------------------------------
 
-export interface ManyRelationDef<TTarget extends TableDef<ColumnRecord> = TableDef<ColumnRecord>>
-  extends RelationDef<TTarget, 'many'> {
+export interface ManyRelationDef<
+  TTarget extends TableDef<ColumnRecord> = TableDef<ColumnRecord>,
+> extends RelationDef<TTarget, 'many'> {
   through<TJoin extends TableDef<ColumnRecord>>(
     joinTable: () => TJoin,
     thisKey: Extract<keyof TJoin['_columns'], string>,

@@ -29,24 +29,22 @@ import { describe, expect, it } from 'vitest';
 describe('User routes', () => {
   it('returns list of users', async () => {
     const app = createTestApp().register(UserModule);
-    
+
     const res = await app.get('/users');
-    
+
     expect(res.ok).toBe(true);
     expect(res.body).toEqual({
-      users: expect.arrayContaining([
-        expect.objectContaining({ name: expect.any(String) }),
-      ]),
+      users: expect.arrayContaining([expect.objectContaining({ name: expect.any(String) })]),
     });
   });
-  
+
   it('creates a new user', async () => {
     const app = createTestApp().register(UserModule);
-    
+
     const res = await app.post('/users', {
       body: { name: 'Jane Doe', email: 'jane@example.com' },
     });
-    
+
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({
       id: expect.any(String),
@@ -65,13 +63,12 @@ import { describe, expect, it } from 'vitest';
 
 describe('UserService', () => {
   it('finds user by ID', async () => {
-    const userService = await createTestService(UserService)
-      .mock(DatabaseService, {
-        query: () => Promise.resolve([{ id: '1', name: 'Jane' }]),
-      });
-    
+    const userService = await createTestService(UserService).mock(DatabaseService, {
+      query: () => Promise.resolve([{ id: '1', name: 'Jane' }]),
+    });
+
     const user = await userService.findById('1');
-    
+
     expect(user).toEqual({ id: '1', name: 'Jane' });
   });
 });
@@ -101,6 +98,7 @@ app.register(UserModule, { apiKey: 'test-key' });
 ```
 
 **Parameters:**
+
 - `module` — A Vertz module created with `createModule()`
 - `options` — Optional configuration passed to the module
 
@@ -117,6 +115,7 @@ app.mock(DatabaseService, {
 ```
 
 **Parameters:**
+
 - `service` — A service definition created with `moduleDef.service()`
 - `implementation` — Partial implementation of the service methods
 
@@ -133,6 +132,7 @@ app.mockMiddleware(AuthMiddleware, { user: { id: '1' } });
 ```
 
 **Parameters:**
+
 - `middleware` — A middleware definition created with `createMiddleware()`
 - `result` — The value the middleware should provide
 
@@ -147,6 +147,7 @@ app.env({ DATABASE_URL: 'test-db', API_KEY: 'test-key' });
 ```
 
 **Parameters:**
+
 - `vars` — Object with environment variable key-value pairs
 
 **Returns:** `TestApp` (chainable)
@@ -158,13 +159,14 @@ Make HTTP requests to your application.
 ```ts
 const res = await app.get('/users');
 const res = await app.post('/users', { body: { name: 'Jane' } });
-const res = await app.put('/users/1', { 
+const res = await app.put('/users/1', {
   body: { name: 'Jane Doe' },
-  headers: { 'Authorization': 'Bearer token' },
+  headers: { Authorization: 'Bearer token' },
 });
 ```
 
 **Parameters:**
+
 - `path` — Request path (e.g., `/users`, `/users/123`)
 - `options` — Optional request options:
   - `body` — Request body (automatically serialized as JSON)
@@ -186,10 +188,10 @@ Returns a `TestResponse`:
 
 ```ts
 interface TestResponse {
-  status: number;           // HTTP status code
-  body: unknown;            // Parsed response body (JSON)
+  status: number; // HTTP status code
+  body: unknown; // Parsed response body (JSON)
   headers: Record<string, string>; // Response headers
-  ok: boolean;              // true if status 2xx
+  ok: boolean; // true if status 2xx
 }
 ```
 
@@ -198,7 +200,8 @@ interface TestResponse {
 Override mocks for a single request:
 
 ```ts
-const res = await app.get('/users')
+const res = await app
+  .get('/users')
   .mock(DatabaseService, {
     query: () => Promise.resolve([{ id: '1', name: 'Mock User' }]),
   })
@@ -206,6 +209,7 @@ const res = await app.get('/users')
 ```
 
 **Methods:**
+
 - `mock(service, implementation)` — Mock a service for this request only
 - `mockMiddleware(middleware, result)` — Mock a middleware for this request only
 
@@ -222,6 +226,7 @@ const serviceInstance = await createTestService(UserService);
 ```
 
 **Parameters:**
+
 - `service` — A service definition created with `moduleDef.service()`
 
 **Returns:** `TestServiceBuilder` (awaitable, see below)
@@ -249,6 +254,7 @@ const service = await createTestService(UserService)
 ```
 
 **Method:**
+
 - `mock(dependency, implementation)` — Mock an injected dependency
 
 **Returns:** `TestServiceBuilder` (chainable and awaitable)
@@ -260,8 +266,7 @@ const service = await createTestService(UserService)
 const service = await createTestService(UserService);
 
 // ✅ Correct
-const service = await createTestService(UserService)
-  .mock(DatabaseService, { query: () => [] });
+const service = await createTestService(UserService).mock(DatabaseService, { query: () => [] });
 ```
 
 ### `DeepPartial<T>`
@@ -291,12 +296,12 @@ Mock the auth middleware to simulate authenticated requests:
 it('returns user profile when authenticated', async () => {
   const app = createTestApp()
     .register(UserModule)
-    .mockMiddleware(AuthMiddleware, { 
-      user: { id: 'user-123', role: 'admin' } 
+    .mockMiddleware(AuthMiddleware, {
+      user: { id: 'user-123', role: 'admin' },
     });
-  
+
   const res = await app.get('/users/me');
-  
+
   expect(res.ok).toBe(true);
   expect(res.body).toMatchObject({ id: 'user-123' });
 });
@@ -307,13 +312,14 @@ Per-request authentication:
 ```ts
 it('requires authentication', async () => {
   const app = createTestApp().register(UserModule);
-  
+
   // No auth
   const unauthorized = await app.get('/users/me');
   expect(unauthorized.status).toBe(401);
-  
+
   // With auth
-  const authorized = await app.get('/users/me')
+  const authorized = await app
+    .get('/users/me')
     .mockMiddleware(AuthMiddleware, { user: { id: '1' } });
   expect(authorized.ok).toBe(true);
 });
@@ -329,16 +335,12 @@ it('creates a user in the database', async () => {
     insert: vi.fn().mockResolvedValue({ id: 'new-id' }),
     query: vi.fn(),
   };
-  
-  const app = createTestApp()
-    .register(UserModule)
-    .mock(DatabaseService, mockDb);
-  
+
+  const app = createTestApp().register(UserModule).mock(DatabaseService, mockDb);
+
   await app.post('/users', { body: { name: 'Jane' } });
-  
-  expect(mockDb.insert).toHaveBeenCalledWith(
-    expect.objectContaining({ name: 'Jane' })
-  );
+
+  expect(mockDb.insert).toHaveBeenCalledWith(expect.objectContaining({ name: 'Jane' }));
 });
 ```
 
@@ -351,9 +353,9 @@ it('returns 404 for missing user', async () => {
     .mock(DatabaseService, {
       findById: () => null,
     });
-  
+
   const res = await app.get('/users/999');
-  
+
   expect(res.status).toBe(404);
   expect(res.body).toMatchObject({
     error: 'NotFound',
@@ -363,11 +365,11 @@ it('returns 404 for missing user', async () => {
 
 it('returns 400 for invalid input', async () => {
   const app = createTestApp().register(UserModule);
-  
+
   const res = await app.post('/users', {
     body: { email: 'not-an-email' }, // Invalid email
   });
-  
+
   expect(res.status).toBe(400);
 });
 ```
@@ -376,18 +378,17 @@ it('returns 400 for invalid input', async () => {
 
 ```ts
 it('user service finds user by email', async () => {
-  const userService = await createTestService(UserService)
-    .mock(DatabaseService, {
-      query: (sql: string) => {
-        if (sql.includes('email')) {
-          return Promise.resolve([{ id: '1', email: 'jane@example.com' }]);
-        }
-        return Promise.resolve([]);
-      },
-    });
-  
+  const userService = await createTestService(UserService).mock(DatabaseService, {
+    query: (sql: string) => {
+      if (sql.includes('email')) {
+        return Promise.resolve([{ id: '1', email: 'jane@example.com' }]);
+      }
+      return Promise.resolve([]);
+    },
+  });
+
   const user = await userService.findByEmail('jane@example.com');
-  
+
   expect(user).toMatchObject({ id: '1', email: 'jane@example.com' });
 });
 ```
@@ -397,14 +398,12 @@ it('user service finds user by email', async () => {
 ```ts
 it('filters users by query params', async () => {
   const app = createTestApp().register(UserModule);
-  
+
   const res = await app.get('/users?role=admin&active=true');
-  
+
   expect(res.ok).toBe(true);
   expect(res.body.users).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({ role: 'admin', active: true }),
-    ])
+    expect.arrayContaining([expect.objectContaining({ role: 'admin', active: true })]),
   );
 });
 ```
@@ -414,9 +413,9 @@ it('filters users by query params', async () => {
 ```ts
 it('sets cache headers', async () => {
   const app = createTestApp().register(UserModule);
-  
+
   const res = await app.get('/users');
-  
+
   expect(res.headers['cache-control']).toBe('public, max-age=3600');
 });
 ```
@@ -426,14 +425,14 @@ it('sets cache headers', async () => {
 ```ts
 it('accepts custom headers', async () => {
   const app = createTestApp().register(ApiModule);
-  
+
   const res = await app.get('/data', {
     headers: {
       'X-API-Key': 'test-key',
       'Accept-Language': 'en-US',
     },
   });
-  
+
   expect(res.ok).toBe(true);
 });
 ```
@@ -445,11 +444,11 @@ Vertz automatically validates request/response schemas. Test that validation wor
 ```ts
 it('validates request body against schema', async () => {
   const app = createTestApp().register(UserModule);
-  
+
   const res = await app.post('/users', {
     body: { name: '', email: 'invalid' }, // Invalid data
   });
-  
+
   expect(res.status).toBe(400);
   expect(res.body).toMatchObject({
     error: 'BadRequest',
@@ -462,9 +461,9 @@ it('validates request body against schema', async () => {
 ```ts
 it('handles route parameters', async () => {
   const app = createTestApp().register(UserModule);
-  
+
   const res = await app.get('/users/user-123');
-  
+
   expect(res.ok).toBe(true);
   expect(res.body.id).toBe('user-123');
 });
@@ -474,22 +473,19 @@ it('handles route parameters', async () => {
 
 ```ts
 it('integrates multiple modules', async () => {
-  const app = createTestApp()
-    .register(UserModule)
-    .register(AuthModule)
-    .register(PaymentModule);
-  
+  const app = createTestApp().register(UserModule).register(AuthModule).register(PaymentModule);
+
   // Test cross-module behavior
   const loginRes = await app.post('/auth/login', {
     body: { email: 'jane@example.com', password: 'secret' },
   });
-  
+
   const token = loginRes.body.token;
-  
+
   const profileRes = await app.get('/users/me', {
     headers: { Authorization: `Bearer ${token}` },
   });
-  
+
   expect(profileRes.ok).toBe(true);
 });
 ```
@@ -500,14 +496,13 @@ If a service maintains state via `onInit`:
 
 ```ts
 it('initializes service with state', async () => {
-  const service = await createTestService(CounterService)
-    .mock(StorageService, {
-      load: () => Promise.resolve({ count: 5 }),
-    });
-  
+  const service = await createTestService(CounterService).mock(StorageService, {
+    load: () => Promise.resolve({ count: 5 }),
+  });
+
   const count = await service.getCount();
   expect(count).toBe(5);
-  
+
   await service.increment();
   const newCount = await service.getCount();
   expect(newCount).toBe(6);
@@ -524,7 +519,7 @@ it('uses module options', async () => {
     maxUsers: 100,
     enableCache: false,
   });
-  
+
   const res = await app.get('/users');
   expect(res.ok).toBe(true);
 });
@@ -553,11 +548,11 @@ import { describe, expect, it, beforeEach, vi } from 'vitest';
 
 describe('User routes', () => {
   let app: ReturnType<typeof createTestApp>;
-  
+
   beforeEach(() => {
     app = createTestApp().register(UserModule);
   });
-  
+
   it('returns users', async () => {
     const res = await app.get('/users');
     expect(res.ok).toBe(true);
@@ -572,17 +567,12 @@ Combine with `vi.fn()` for advanced mocking:
 ```ts
 it('calls database with correct params', async () => {
   const queryFn = vi.fn().mockResolvedValue([]);
-  
-  const app = createTestApp()
-    .register(UserModule)
-    .mock(DatabaseService, { query: queryFn });
-  
+
+  const app = createTestApp().register(UserModule).mock(DatabaseService, { query: queryFn });
+
   await app.get('/users?role=admin');
-  
-  expect(queryFn).toHaveBeenCalledWith(
-    expect.stringContaining('role = $1'),
-    ['admin']
-  );
+
+  expect(queryFn).toHaveBeenCalledWith(expect.stringContaining('role = $1'), ['admin']);
 });
 ```
 
@@ -627,14 +617,16 @@ When you need different behavior per test case, use per-request mocks:
 ```ts
 it('handles different user states', async () => {
   const app = createTestApp().register(UserModule);
-  
+
   // Active user
-  const activeRes = await app.get('/users/1')
+  const activeRes = await app
+    .get('/users/1')
     .mock(DatabaseService, { findById: () => ({ id: '1', active: true }) });
   expect(activeRes.body.active).toBe(true);
-  
+
   // Inactive user
-  const inactiveRes = await app.get('/users/1')
+  const inactiveRes = await app
+    .get('/users/1')
     .mock(DatabaseService, { findById: () => ({ id: '1', active: false }) });
   expect(inactiveRes.body.active).toBe(false);
 });
@@ -657,15 +649,19 @@ app.mock(DatabaseService, {
 ```ts
 describe('User API', () => {
   let app: ReturnType<typeof createTestApp>;
-  
+
   beforeEach(() => {
-    app = createTestApp()
-      .register(UserModule)
-      .mock(DatabaseService, { /* common mocks */ });
+    app = createTestApp().register(UserModule).mock(DatabaseService, {
+      /* common mocks */
+    });
   });
-  
-  it('test 1', async () => { /* ... */ });
-  it('test 2', async () => { /* ... */ });
+
+  it('test 1', async () => {
+    /* ... */
+  });
+  it('test 2', async () => {
+    /* ... */
+  });
 });
 ```
 
@@ -678,11 +674,13 @@ it('handles database errors', async () => {
   const app = createTestApp()
     .register(UserModule)
     .mock(DatabaseService, {
-      query: () => { throw new Error('Connection failed'); },
+      query: () => {
+        throw new Error('Connection failed');
+      },
     });
-  
+
   const res = await app.get('/users');
-  
+
   expect(res.status).toBe(500);
 });
 ```
@@ -694,9 +692,9 @@ If you define response schemas, Vertz validates them automatically:
 ```ts
 it('response matches schema', async () => {
   const app = createTestApp().register(UserModule);
-  
+
   const res = await app.get('/users/1');
-  
+
   // If the handler returns data that doesn't match the schema,
   // the test will throw a ResponseValidationError
   expect(res.ok).toBe(true);
@@ -715,8 +713,7 @@ Call .mock(dbService, impl) before awaiting.
 **Solution:** Mock all injected dependencies:
 
 ```ts
-const service = await createTestService(UserService)
-  .mock(DatabaseService, { query: () => [] });
+const service = await createTestService(UserService).mock(DatabaseService, { query: () => [] });
 ```
 
 ### Response Validation Error

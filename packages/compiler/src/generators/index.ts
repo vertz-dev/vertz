@@ -39,10 +39,7 @@ export {
   RouteTableGenerator,
   renderRouteTableFile,
 } from './route-table-generator';
-export type {
-  SchemaRegistryEntry,
-  SchemaRegistryManifest,
-} from './schema-registry-generator';
+export type { SchemaRegistryEntry, SchemaRegistryManifest } from './schema-registry-generator';
 export {
   buildSchemaRegistry,
   renderSchemaRegistryFile,

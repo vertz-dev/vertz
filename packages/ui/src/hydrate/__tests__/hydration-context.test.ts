@@ -498,9 +498,7 @@ describe('hydration-context', () => {
       const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
       endHydration();
 
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('<!-- orphan -->'),
-      );
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('<!-- orphan -->'));
 
       warnSpy.mockRestore();
       debugSpy.mockRestore();
@@ -765,9 +763,7 @@ describe('hydration-context', () => {
         // claimElement emits debug logs when isDebug() is true
         const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
         claimElement('span');
-        expect(debugSpy).toHaveBeenCalledWith(
-          expect.stringContaining('claimElement(<span>)'),
-        );
+        expect(debugSpy).toHaveBeenCalledWith(expect.stringContaining('claimElement(<span>)'));
         debugSpy.mockRestore();
       } finally {
         process.env.NODE_ENV = origEnv;

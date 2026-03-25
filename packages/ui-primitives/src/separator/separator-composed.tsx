@@ -24,7 +24,13 @@ function ComposedSeparatorRoot({
   orientation = 'horizontal',
 }: ComposedSeparatorProps) {
   const orientationClass = orientation === 'vertical' ? classes?.vertical : classes?.horizontal;
-  return <hr class={cn(classes?.base, orientationClass, className ?? classProp)} role="separator" aria-orientation={orientation} />;
+  return (
+    <hr
+      class={cn(classes?.base, orientationClass, className ?? classProp)}
+      role="separator"
+      aria-orientation={orientation}
+    />
+  );
 }
 
 export const ComposedSeparator: ComposedPrimitive<SeparatorClassKey, HTMLElement> =

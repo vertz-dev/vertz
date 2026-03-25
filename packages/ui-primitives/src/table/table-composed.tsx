@@ -76,7 +76,10 @@ function ComposedTableRoot({ children, classes, className, class: classProp }: C
   return (
     <TableContext.Provider value={{ classes }}>
       <div style={{ position: 'relative', width: '100%', overflowX: 'auto' }}>
-        <table style={{ borderCollapse: 'collapse' }} class={cn(classes?.root, className ?? classProp)}>
+        <table
+          style={{ borderCollapse: 'collapse' }}
+          class={cn(classes?.root, className ?? classProp)}
+        >
           {children}
         </table>
       </div>

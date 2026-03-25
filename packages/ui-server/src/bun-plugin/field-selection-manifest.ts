@@ -58,9 +58,7 @@ function parseReExports(sourceText: string, filePath: string): ReExportEntry[] {
       for (const el of stmt.exportClause.elements) {
         const exportedName = el.name.getText(sourceFile);
         // propertyName is set when using `as` alias: export { Original as Alias }
-        const originalName = el.propertyName
-          ? el.propertyName.getText(sourceFile)
-          : exportedName;
+        const originalName = el.propertyName ? el.propertyName.getText(sourceFile) : exportedName;
         reExports.push({ name: exportedName, originalName, source });
       }
     }

@@ -56,13 +56,13 @@
 
   ```ts
   const tenantMembers = d.table(
-    "tenant_members",
+    'tenant_members',
     {
       tenantId: d.uuid(),
       userId: d.uuid(),
-      role: d.text().default("member"),
+      role: d.text().default('member'),
     },
-    { primaryKey: ["tenantId", "userId"] }
+    { primaryKey: ['tenantId', 'userId'] },
   );
   ```
 
@@ -121,7 +121,6 @@
   Added `.min()`, `.max()`, and `.regex()` chainable methods to column builders so validation
   constraints can be defined directly on the DB schema. These constraints flow through
   `tableToSchemas()` to `@vertz/schema` validators for automatic API-level validation.
-
   - `d.text().min(1).max(5).regex(/^[A-Z]+$/)` — string length and pattern constraints
   - `d.integer().min(0).max(100)` — numeric range constraints
   - Type-safe scoping: `.regex()` only available on string columns, `.min()`/`.max()` only on
@@ -138,7 +137,6 @@
 ### Patch Changes
 
 - [#1437](https://github.com/vertz-dev/vertz/pull/1437) [`a897b19`](https://github.com/vertz-dev/vertz/commit/a897b19b36f0851e373f4dce31298c52c11328c7) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(db): externalize better-sqlite3 and improve SQLite fallback error messages
-
   - Externalize `better-sqlite3` from the bundle to prevent hardcoded build-machine paths in the dist (fixes Electrobun and other bundled runtimes)
   - Move `better-sqlite3` to optional `peerDependencies` (same pattern as `postgres`)
   - Extract `resolveLocalSqliteDatabase()` with proper error handling — when both `bun:sqlite` and `better-sqlite3` fail, the error now includes both failure reasons and actionable guidance
@@ -184,7 +182,6 @@
 ### Patch Changes
 
 - [#1179](https://github.com/vertz-dev/vertz/pull/1179) [`2f574cc`](https://github.com/vertz-dev/vertz/commit/2f574cce9e941c63503efb2e32ecef7b53951725) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add transaction support to DatabaseClient with full model delegates
-
   - `db.transaction(async (tx) => { ... })` wraps multiple operations atomically
   - `TransactionClient` provides the same model delegates as `DatabaseClient` (`tx.users.create()`, `tx.tasks.list()`, etc.)
   - PostgreSQL uses `sql.begin()` for connection-scoped transactions
@@ -204,7 +201,6 @@
 
   Breaking change to EntityRelationsConfig: flat field maps replaced with structured
   RelationConfigObject containing `select`, `allowWhere`, `allowOrderBy`, `maxLimit`.
-
   - Extended VertzQL include entries to support `where`, `orderBy`, `limit`, nested `include`
   - Recursive include validation with path-prefixed errors and maxLimit clamping
   - Include pass-through from route handler → CRUD pipeline → DB adapter
@@ -315,7 +311,6 @@
 ### Minor Changes
 
 - [#160](https://github.com/vertz-dev/vertz/pull/160) [`db53497`](https://github.com/vertz-dev/vertz/commit/db534979df714d51227a34b4d5b80960e34ec33c) Thanks [@vertz-tech-lead](https://github.com/apps/vertz-tech-lead)! - Initial release of @vertz/db — a type-safe PostgreSQL ORM.
-
   - Schema definition with `d.table()`, `d.uuid()`, `d.text()`, and 15+ column types
   - Full type inference: `$infer`, `$insert`, `$update`, `$not_sensitive`, `$not_hidden`
   - Relations: `d.ref.one()`, `d.ref.many()`, `d.ref.many().through()`
@@ -335,7 +330,6 @@
 - [#200](https://github.com/vertz-dev/vertz/pull/200) [`b2d43d4`](https://github.com/vertz-dev/vertz/commit/b2d43d4f265e4b1a806b3e96f00721cc38cc07e8) Thanks [@vertz-dev-core](https://github.com/apps/vertz-dev-core)! - Published types now correctly preserve generic type parameters in `.d.ts` files. Switched DTS bundler to use `inferTypes` mode, preventing potential erasure of generics to `Record<string, unknown>` or `unknown` in the emitted declarations.
 
 - [#291](https://github.com/vertz-dev/vertz/pull/291) [`2ec4dd3`](https://github.com/vertz-dev/vertz/commit/2ec4dd3be1ac13f74015e977a699cd59fd7291bc) Thanks [@vertz-dev-core](https://github.com/apps/vertz-dev-core)! - fix(db): address 5 postgres driver issues
-
   - #203: Add 5s timeout to `isHealthy()` via `Promise.race` to prevent hangs
   - #204: Document timestamp coercion false-positive risk in JSDoc
   - #205: Route `db.query()` through `executeQuery` for consistent error mapping
@@ -343,7 +337,6 @@
   - #207: Improve postgres integration test isolation with per-test setup/teardown
 
 - [#202](https://github.com/vertz-dev/vertz/pull/202) [`f3b132a`](https://github.com/vertz-dev/vertz/commit/f3b132af4f6ff39e967d4ca3d33f7e6ee12eff84) Thanks [@vertz-dev-core](https://github.com/apps/vertz-dev-core)! - Wire up real PostgreSQL driver using porsager/postgres.
-
   - `createDb({ url })` now creates a real postgres connection pool when `_queryFn` is not provided
   - Connection pool config from `PoolConfig` (max, idleTimeout, connectionTimeout) is passed through
   - `close()` properly shuts down the connection pool

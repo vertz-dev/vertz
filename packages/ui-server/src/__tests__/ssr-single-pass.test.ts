@@ -54,7 +54,7 @@ function mockDescriptor<T>(
     _tag: 'QueryDescriptor' as const,
     _key: key,
     _fetch: fetchResult,
-    // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike
+
     then(onFulfilled?: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) {
       return fetchResult().then(onFulfilled, onRejected);
     },
@@ -986,7 +986,7 @@ describe('Feature: Zero-discovery SSR rendering', () => {
                 _tag: 'QueryDescriptor' as const,
                 _key: key,
                 _fetch: fetchResult,
-                // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike
+
                 then(onFulfilled?: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) {
                   return fetchResult().then(onFulfilled, onRejected);
                 },

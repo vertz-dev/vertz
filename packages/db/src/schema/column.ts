@@ -85,8 +85,10 @@ export interface ColumnBuilder<TType, TMeta extends ColumnMetadata = ColumnMetad
 // ---------------------------------------------------------------------------
 
 /** String column builder — adds .min(), .max(), .regex() for string-type columns. */
-export interface StringColumnBuilder<TType, TMeta extends ColumnMetadata = ColumnMetadata>
-  extends ColumnBuilder<TType, TMeta> {
+export interface StringColumnBuilder<
+  TType,
+  TMeta extends ColumnMetadata = ColumnMetadata,
+> extends ColumnBuilder<TType, TMeta> {
   min(n: number): StringColumnBuilder<TType, TMeta>;
   max(n: number): StringColumnBuilder<TType, TMeta>;
   regex(pattern: RegExp): StringColumnBuilder<TType, TMeta>;
@@ -141,8 +143,10 @@ export interface StringColumnBuilder<TType, TMeta extends ColumnMetadata = Colum
 }
 
 /** Numeric column builder — adds .min(), .max() for numeric-type columns. */
-export interface NumericColumnBuilder<TType, TMeta extends ColumnMetadata = ColumnMetadata>
-  extends ColumnBuilder<TType, TMeta> {
+export interface NumericColumnBuilder<
+  TType,
+  TMeta extends ColumnMetadata = ColumnMetadata,
+> extends ColumnBuilder<TType, TMeta> {
   min(n: number): NumericColumnBuilder<TType, TMeta>;
   max(n: number): NumericColumnBuilder<TType, TMeta>;
 

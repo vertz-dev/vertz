@@ -121,7 +121,11 @@ function AlertDialogContent({ children, className: cls, class: classProp }: Slot
 function AlertDialogTitle({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useAlertDialogContext('Title');
   return (
-    <h2 id={ctx.titleId} data-slot="alertdialog-title" class={cn(ctx.classes?.title, cls ?? classProp)}>
+    <h2
+      id={ctx.titleId}
+      data-slot="alertdialog-title"
+      class={cn(ctx.classes?.title, cls ?? classProp)}
+    >
       {children}
     </h2>
   );
@@ -130,7 +134,11 @@ function AlertDialogTitle({ children, className: cls, class: classProp }: SlotPr
 function AlertDialogDescription({ children, className: cls, class: classProp }: SlotProps) {
   const ctx = useAlertDialogContext('Description');
   return (
-    <p id={ctx.descriptionId} data-slot="alertdialog-description" class={cn(ctx.classes?.description, cls ?? classProp)}>
+    <p
+      id={ctx.descriptionId}
+      data-slot="alertdialog-description"
+      class={cn(ctx.classes?.description, cls ?? classProp)}
+    >
       {children}
     </p>
   );

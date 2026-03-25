@@ -318,7 +318,11 @@ function NavMenuViewport({ className: cls, class: classProp }: ViewportProps) {
   const ctx = useNavigationMenuContext('Viewport');
 
   return (
-    <div data-part="nav-viewport" data-navmenu-viewport="" class={cn(ctx.classes?.viewport, cls ?? classProp)} />
+    <div
+      data-part="nav-viewport"
+      data-navmenu-viewport=""
+      class={cn(ctx.classes?.viewport, cls ?? classProp)}
+    />
   );
 }
 

@@ -33,8 +33,9 @@ export interface RenderToHTMLOptions<AppFn extends () => VNode> {
   fallbackMetrics?: Record<string, FontFallbackMetrics>;
 }
 
-export interface RenderToHTMLStreamOptions<AppFn extends () => VNode>
-  extends RenderToHTMLOptions<AppFn> {
+export interface RenderToHTMLStreamOptions<
+  AppFn extends () => VNode,
+> extends RenderToHTMLOptions<AppFn> {
   /** CSP nonce for inline scripts */
   nonce?: string;
   /** Global default for per-query ssrTimeout (ms) */

@@ -57,7 +57,8 @@ describe('injectIntoTemplate', () => {
 </html>`;
     const result = injectIntoTemplate({
       template: preRenderedTemplate,
-      appHtml: '<div data-testid="app-root"><div class="shell"><nav><div class="nav-title">App</div></nav><main data-testid="main-content"><p>New SSR</p></main></div></div>',
+      appHtml:
+        '<div data-testid="app-root"><div class="shell"><nav><div class="nav-title">App</div></nav><main data-testid="main-content"><p>New SSR</p></main></div></div>',
       appCss: '',
       ssrData: [],
     });

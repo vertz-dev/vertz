@@ -33,7 +33,6 @@ and HMR bootstrap snippet by self-fetching the `/__vertz_hmr` shell route and
 parsing the HTML Bun returns. This is the only integration point with Bun's
 opaque dev bundler.
 
-
 ## 2. Request Flow
 
 HTTP requests arrive at `Bun.serve()` and are routed through a priority chain.
@@ -86,7 +85,6 @@ HTTP Request
             Returns HTML with inline CSS, SSR data, and script tags.
             On error: returns empty shell with client script (CSR fallback).
 ```
-
 
 ## 3. Plugin Pipeline
 
@@ -194,14 +192,14 @@ Returns `{ contents, loader: 'tsx' }` so Bun processes the output as TSX
 
 The plugin is instantiated twice:
 
-| Setting | Server (SSR) | Client (HMR) |
-|---|---|---|
-| `hmr` | `false` | `true` (default) |
-| `fastRefresh` | `false` | `true` (default, follows hmr) |
-| Context stable IDs | skipped | injected |
-| FR wrappers | skipped | injected |
-| `import.meta.hot.accept()` | skipped | appended |
-| CSS sidecar files | not written | written to `.vertz/css/` |
+| Setting                    | Server (SSR) | Client (HMR)                  |
+| -------------------------- | ------------ | ----------------------------- |
+| `hmr`                      | `false`      | `true` (default)              |
+| `fastRefresh`              | `false`      | `true` (default, follows hmr) |
+| Context stable IDs         | skipped      | injected                      |
+| FR wrappers                | skipped      | injected                      |
+| `import.meta.hot.accept()` | skipped      | appended                      |
+| CSS sidecar files          | not written  | written to `.vertz/css/`      |
 
 ### Critical: Filter Matching Behavior
 
@@ -214,7 +212,6 @@ does NOT match `/\.tsx$/`.
 This is why SSR module reload uses a `.ts` wrapper file -- the wrapper's import
 of the actual `.tsx` entry goes through Bun's normal resolution (no query
 string), matching the plugin filter correctly.
-
 
 ## 4. SSR Render Pipeline (Two-Pass)
 
@@ -262,12 +259,12 @@ ssrRenderToString(module, url)
 
 The following globals must be set before rendering and cleaned up after:
 
-| Global | Purpose |
-|---|---|
-| `__SSR_URL__` | Current request URL for router matching |
-| `document` / `window` | DOM shim for component createElement calls |
-| `__VERTZ_CLEAR_QUERY_CACHE__` | Clears stale query cache from previous renders |
-| `__VERTZ_SSR_SYNC_ROUTER__` | Syncs routers created at import time to current URL |
+| Global                        | Purpose                                             |
+| ----------------------------- | --------------------------------------------------- |
+| `__SSR_URL__`                 | Current request URL for router matching             |
+| `document` / `window`         | DOM shim for component createElement calls          |
+| `__VERTZ_CLEAR_QUERY_CACHE__` | Clears stale query cache from previous renders      |
+| `__VERTZ_SSR_SYNC_ROUTER__`   | Syncs routers created at import time to current URL |
 
 These globals cannot be isolated per-request, which is why the render lock
 exists. Concurrent SSR requests race on this state.
@@ -275,11 +272,11 @@ exists. Concurrent SSR requests race on this state.
 ### CSS Collection
 
 CSS is collected from three sources (deduplicated):
+
 1. **Theme CSS** -- compiled from `module.theme` via `compileTheme()`
 2. **Global styles** -- `module.styles` array (resets, body styles)
 3. **Component CSS** -- from `module.getInjectedCSS()` (bundled `@vertz/ui`
    instance) or fallback from DOM shim's `document.head` style elements
-
 
 ## 5. File Watcher Flow
 
@@ -333,7 +330,6 @@ disk write) and Bun's internal dev bundler (which recompiles asynchronously).
 The first `import()` may execute before Bun has finished recompiling, loading
 stale bytecode. The 500ms delay gives Bun time to complete recompilation.
 
-
 ## 6. Native JSX vs Compiled JSX
 
 This is one of the most important architectural boundaries to understand.
@@ -376,6 +372,7 @@ which runs before `Provider()` receives its arguments.
 ### When does native JSX run?
 
 The plugin filter is `/\.tsx$/`. Files that do not match include:
+
 - `.ts` files (no JSX)
 - `.tsx` files loaded with query strings (`?t=...`) -- the full specifier
   includes the query, breaking the regex match
@@ -383,7 +380,6 @@ The plugin filter is `/\.tsx$/`. Files that do not match include:
 
 The SSR module reload works around this by using a `.ts` wrapper that imports
 the `.tsx` entry without a query string.
-
 
 ## 7. Context System (Provider/useContext)
 
@@ -440,7 +436,6 @@ callbacks (`watch`, `effect`) where the synchronous call stack is gone.
 
 `getContextScope()` and `setContextScope()` allow the disposal/effect system
 to save and restore context across async boundaries.
-
 
 ## 8. Key Footguns
 
@@ -531,6 +526,7 @@ fail to compile. The stub executes immediately, reloading the page, which
 fetches the same stub.
 
 **Fix:** Three layers of defense:
+
 1. **Build error loader**: fetches the bundle URL before executing it. If the
    response is the reload stub, shows an error overlay instead of loading.
 2. **Reload guard script**: tracks rapid reloads via sessionStorage. After 10

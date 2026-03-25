@@ -257,9 +257,7 @@ describe('Feature: entity() definition', () => {
   });
 
   describe('Given a model with a custom tenant FK column via ref.one to .tenant() root', () => {
-    const orgsTable = d
-      .table('organizations', { id: d.uuid().primary(), name: d.text() })
-      .tenant();
+    const orgsTable = d.table('organizations', { id: d.uuid().primary(), name: d.text() }).tenant();
     const employeesTable = d.table('employees', {
       id: d.uuid().primary(),
       name: d.text(),

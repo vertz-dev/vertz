@@ -1075,9 +1075,7 @@ describe('OAuth Routes', () => {
         oauthEncryptionKey: undefined,
       });
 
-      const res = await auth.handler(
-        new Request('http://localhost:3000/api/auth/oauth/mock'),
-      );
+      const res = await auth.handler(new Request('http://localhost:3000/api/auth/oauth/mock'));
 
       expect(res.status).toBe(500);
       const body = await res.json();

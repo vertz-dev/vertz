@@ -5,11 +5,7 @@ export type {
   GeneratorName,
   ResolvedCodegenConfig,
 } from './config';
-export {
-  defineCodegenConfig,
-  resolveCodegenConfig,
-  validateCodegenConfig,
-} from './config';
+export { defineCodegenConfig, resolveCodegenConfig, validateCodegenConfig } from './config';
 export { formatWithBiome } from './format';
 export type { GenerateResult } from './generate';
 export { generate, mergeImportsToPackageJson } from './generate';
