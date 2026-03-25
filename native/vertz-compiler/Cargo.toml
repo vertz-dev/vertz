@@ -10,6 +10,8 @@ crate-type = ["cdylib"]
 napi = { version = "3.8.3", features = ["serde-json"] }
 napi-derive = "3.5.2"
 oxc_allocator = "0.122.0"
+oxc_ast = "0.122.0"
+oxc_ast_visit = "0.122.0"
 oxc_codegen = "0.122.0"
 oxc_parser = "0.122.0"
 oxc_span = "0.122.0"

@@ -1,3 +1,7 @@
+mod component_analyzer;
+mod reactivity_analyzer;
+mod signal_api_registry;
+
 use napi_derive::napi;
 use oxc_allocator::Allocator;
 use oxc_codegen::{Codegen, CodegenOptions};
@@ -12,10 +16,29 @@ pub struct Diagnostic {
 }
 
 #[napi(object)]
+pub struct NapiVariableInfo {
+    pub name: String,
+    pub kind: String,
+    pub start: u32,
+    pub end: u32,
+    pub signal_properties: Option<Vec<String>>,
+    pub plain_properties: Option<Vec<String>>,
+}
+
+#[napi(object)]
+pub struct NapiComponentInfo {
+    pub name: String,
+    pub body_start: u32,
+    pub body_end: u32,
+    pub variables: Option<Vec<NapiVariableInfo>>,
+}
+
+#[napi(object)]
 pub struct CompileResult {
     pub code: String,
     pub map: Option<String>,
     pub diagnostics: Option<Vec<Diagnostic>>,
+    pub components: Option<Vec<NapiComponentInfo>>,
 }
 
 #[napi(object)]
@@ -59,13 +82,47 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
             })
             .collect();
 
-        // Return the original source with diagnostics on parse failure
         return CompileResult {
             code: format!("// compiled by vertz-native\n{source}"),
             map: None,
             diagnostics: Some(diagnostics),
+            components: None,
         };
     }
+
+    // Run component analysis
+    let components = component_analyzer::analyze_components(&parser_ret.program);
+
+    // Build import aliases for signal API detection
+    let import_aliases = reactivity_analyzer::build_import_aliases(&parser_ret.program);
+
+    // Run reactivity analysis per component
+    let napi_components: Vec<NapiComponentInfo> = components
+        .iter()
+        .map(|comp| {
+            let variables =
+                reactivity_analyzer::analyze_reactivity(&parser_ret.program, comp, &import_aliases);
+
+            NapiComponentInfo {
+                name: comp.name.clone(),
+                body_start: comp.body_start,
+                body_end: comp.body_end,
+                variables: Some(
+                    variables
+                        .into_iter()
+                        .map(|v| NapiVariableInfo {
+                            name: v.name,
+                            kind: v.kind.as_str().to_string(),
+                            start: v.start,
+                            end: v.end,
+                            signal_properties: v.signal_properties,
+                            plain_properties: v.plain_properties,
+                        })
+                        .collect(),
+                ),
+            }
+        })
+        .collect();
 
     // Generate code with source map using oxc codegen
     let codegen_options = CodegenOptions {
@@ -79,7 +136,6 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
 
     let generated_code = codegen_ret.code;
 
-    // Build source map if available
     let map = codegen_ret
         .map
         .map(|source_map| source_map.to_json_string());
@@ -88,6 +144,7 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
         code: format!("// compiled by vertz-native\n{generated_code}"),
         map,
         diagnostics: None,
+        components: Some(napi_components),
     }
 }
 
