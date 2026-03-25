@@ -479,6 +479,38 @@ describe('query() client-side SSR hydration', () => {
 
     result.dispose();
   });
+
+  it('null-returning thunk during hydration falls through to normal effect path', async () => {
+    let ready = false;
+    const fetchFn = vi.fn(async () => 'data');
+    const thunk = () => (ready ? fetchFn() : null) as Promise<string> | null;
+
+    const ssrKey = computeSSRKey(thunk);
+
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [
+      { key: ssrKey, data: 'ssr-data-for-null-thunk' },
+    ];
+
+    const result = query(thunk);
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Thunk returns null during init probe — SSR data key computed but the
+    // thunk's null causes the effect to skip on first run too.
+    // loading should be false because SSR hydration resolved.
+    // However, since the thunk returns null, the query correctly skips fetch.
+    expect(result.loading.value).toBe(false);
+
+    // Make thunk ready and trigger a re-fetch
+    ready = true;
+    result.refetch();
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(result.data.value).toBe('data');
+
+    result.dispose();
+  });
 });
 
 // ─── Nav prefetch integration ─────────────────────────────────

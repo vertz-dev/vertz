@@ -485,6 +485,7 @@ export function query<T, E = unknown>(
         normalizeToEntityStore(result as T);
         rawData.value = result as T;
         loading.value = false;
+        idle.value = false;
         cache.set(hydrationKey, result as T);
         ssrHydrated = true;
       },
