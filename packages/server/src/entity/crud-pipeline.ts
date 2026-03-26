@@ -141,6 +141,10 @@ export interface CrudPipelineOptions {
   accessConfig?: CrudAccessConfig;
   /** The resource type for the tenant root (e.g., 'workspace'). Used for entitlement RBAC checks. */
   tenantResourceType?: string;
+  /** Closure store — for auto-populating tenant hierarchy on .tenant() entity creation. */
+  closureStore?: import('../auth/closure-store').ClosureStore;
+  /** Tenant levels — ordered chain of .tenant() levels from root to leaf. */
+  tenantLevels?: readonly import('@vertz/db').TenantLevel[];
 }
 
 export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
@@ -169,6 +173,8 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
   const isIndirectlyScoped = tenantChain !== null;
   const queryParentIds = options?.queryParentIds ?? null;
   const accessConfig = options?.accessConfig ?? null;
+  const closureStore = options?.closureStore ?? null;
+  const tenantLevels = options?.tenantLevels ?? null;
   const tenantResourceType = options?.tenantResourceType ?? null;
 
   /** Builds enforce access options with entitlement evaluation for the given request context. */
@@ -407,6 +413,48 @@ export function createCrudHandlers<TModel extends ModelDef = ModelDef>(
 
       const result = await db.create(input);
       const strippedResult = stripHiddenFields(table, result);
+
+      // Auto-populate closure table for .tenant() entities
+      if (closureStore && tenantLevels?.length && table._tenant) {
+        const entityLevel = tenantLevels.find((l) => l.tableName === table._name);
+        if (entityLevel) {
+          const pkColumn = resolvePrimaryKeyColumn(table);
+          const row = result as Record<string, unknown>;
+          const newId = row[pkColumn];
+          if (entityLevel.parentFk && entityLevel.parentKey) {
+            const parentId = row[entityLevel.parentFk] ?? input[entityLevel.parentFk];
+            if (parentId) {
+              try {
+                await closureStore.addResource(entityLevel.key, String(newId), {
+                  parentType: entityLevel.parentKey,
+                  parentId: String(parentId),
+                });
+              } catch (e) {
+                console.warn(
+                  `[vertz] Failed to populate closure table for ${entityLevel.key}:${newId}:`,
+                  e,
+                );
+              }
+            } else {
+              console.warn(
+                `[vertz] Tenant entity ${entityLevel.key} created without parent FK ` +
+                  `(${entityLevel.parentFk}). Closure table NOT populated. ` +
+                  `Ancestor resolution will fail for this entity.`,
+              );
+            }
+          } else {
+            // Root tenant — no parent
+            try {
+              await closureStore.addResource(entityLevel.key, String(newId));
+            } catch (e) {
+              console.warn(
+                `[vertz] Failed to populate closure table for root ${entityLevel.key}:${newId}:`,
+                e,
+              );
+            }
+          }
+        }
+      }
 
       // Fire after.create (fire-and-forget, errors swallowed)
       // Pass stripped result to prevent hidden field leakage

@@ -32,6 +32,10 @@ export interface EntityRouteOptions {
   accessConfig?: import('./crud-pipeline').CrudAccessConfig;
   /** The resource type for the tenant root (e.g., 'workspace'). */
   tenantResourceType?: string;
+  /** Closure store — for auto-populating tenant hierarchy on .tenant() entity creation. */
+  closureStore?: import('../auth/closure-store').ClosureStore;
+  /** Tenant levels — ordered chain of .tenant() levels from root to leaf. */
+  tenantLevels?: readonly import('@vertz/db').TenantLevel[];
 }
 
 // ---------------------------------------------------------------------------
@@ -150,6 +154,8 @@ export function generateEntityRoutes(
     queryParentIds: options?.queryParentIds,
     accessConfig: options?.accessConfig,
     tenantResourceType: options?.tenantResourceType,
+    closureStore: options?.closureStore,
+    tenantLevels: options?.tenantLevels,
   });
   const inject = def.inject ?? {};
   const registryProxy =

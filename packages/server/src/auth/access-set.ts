@@ -163,18 +163,56 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
     }
   }
 
+  // Detect multi-level mode early — reused for flags and plans
+  const isMultiLevel = !!(config.ancestorResolver && config.tenantLevel && tenantId);
+
   // Populate flags and check flag-gated entitlements
   const resolvedFlags: Record<string, boolean> = {};
   if (flagStore && tenantId) {
-    const orgFlags = flagStore.getFlags(tenantId);
-    Object.assign(resolvedFlags, orgFlags);
+    if (isMultiLevel) {
+      // Multi-level flag resolution: deepest wins
+      const ancestors = await config.ancestorResolver!(config.tenantLevel!, tenantId);
+      const chain: AncestorChainEntry[] = [
+        { type: config.tenantLevel!, id: tenantId, depth: 0 },
+        ...ancestors.sort((a, b) => a.depth - b.depth),
+      ];
 
-    // Check each entitlement for flag requirements
+      // Collect all flag keys across all levels
+      const allFlagKeys = new Set<string>();
+      const flagsByLevel: { depth: number; flags: Record<string, boolean> }[] = [];
+      for (const entry of chain) {
+        const levelFlags = flagStore.getFlags(entry.id);
+        for (const key of Object.keys(levelFlags)) allFlagKeys.add(key);
+        flagsByLevel.push({ depth: entry.depth, flags: levelFlags });
+      }
+
+      // Deepest wins: iterate from deepest (lowest depth) to shallowest
+      // flagsByLevel is already sorted child→root by depth
+      for (const key of allFlagKeys) {
+        let resolved = false;
+        for (const { flags } of flagsByLevel) {
+          if (key in flags) {
+            resolvedFlags[key] = flags[key]!;
+            resolved = true;
+            break;
+          }
+        }
+        if (!resolved) {
+          resolvedFlags[key] = false;
+        }
+      }
+    } else {
+      // Single-level: existing behavior
+      const orgFlags = flagStore.getFlags(tenantId);
+      Object.assign(resolvedFlags, orgFlags);
+    }
+
+    // Check each entitlement for flag requirements (uses resolvedFlags)
     for (const [name, entDef] of Object.entries(accessDef.entitlements)) {
       if (entDef.flags?.length) {
         const disabledFlags: string[] = [];
         for (const flag of entDef.flags) {
-          if (!flagStore.getFlag(tenantId, flag)) {
+          if (!resolvedFlags[flag]) {
             disabledFlags.push(flag);
           }
         }
@@ -196,7 +234,6 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
 
   // Enrich with plan/wallet info if stores are available
   const resolvedPlans: Record<string, string | null> = {};
-  const isMultiLevel = !!(config.ancestorResolver && config.tenantLevel && tenantId);
 
   if (subscriptionStore && tenantId) {
     if (isMultiLevel) {
