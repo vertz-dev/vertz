@@ -12,6 +12,7 @@ mod import_injection;
 mod jsx_transformer;
 mod magic_string;
 mod mount_frame_transformer;
+mod prefetch_manifest;
 mod mutation_analyzer;
 mod mutation_diagnostics;
 mod mutation_transformer;
@@ -76,6 +77,21 @@ pub struct NapiFieldSelection {
 }
 
 #[napi(object)]
+pub struct NapiExtractedRoute {
+    pub pattern: String,
+    pub component_name: String,
+    pub route_type: String,
+}
+
+#[napi(object)]
+pub struct NapiExtractedQuery {
+    pub descriptor_chain: String,
+    pub entity: Option<String>,
+    pub operation: Option<String>,
+    pub id_param: Option<String>,
+}
+
+#[napi(object)]
 pub struct CompileResult {
     pub code: String,
     pub css: Option<String>,
@@ -84,6 +100,9 @@ pub struct CompileResult {
     pub components: Option<Vec<NapiComponentInfo>>,
     pub hydration_ids: Option<Vec<String>>,
     pub field_selections: Option<Vec<NapiFieldSelection>>,
+    pub extracted_routes: Option<Vec<NapiExtractedRoute>>,
+    pub extracted_queries: Option<Vec<NapiExtractedQuery>>,
+    pub route_params: Option<Vec<String>>,
 }
 
 #[napi(object)]
@@ -105,6 +124,7 @@ pub struct CompileOptions {
     pub hydration_markers: Option<bool>,
     pub route_splitting: Option<bool>,
     pub field_selection: Option<bool>,
+    pub prefetch_manifest: Option<bool>,
 }
 
 #[napi]
@@ -137,6 +157,11 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
     let enable_field_selection = options
         .as_ref()
         .and_then(|o| o.field_selection)
+        .unwrap_or(false);
+
+    let enable_prefetch_manifest = options
+        .as_ref()
+        .and_then(|o| o.prefetch_manifest)
         .unwrap_or(false);
 
     let source_type = SourceType::from_path(filename).unwrap_or_default();
@@ -176,6 +201,9 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
             components: None,
             hydration_ids: None,
             field_selections: None,
+            extracted_routes: None,
+            extracted_queries: None,
+            route_params: None,
         };
     }
 
@@ -216,6 +244,13 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
         field_selection::analyze_field_selection(&parser_ret.program, &source)
     } else {
         Vec::new()
+    };
+
+    // Prefetch manifest analysis — extract routes and queries for SSR prefetching.
+    let prefetch_analysis = if enable_prefetch_manifest {
+        Some(prefetch_manifest::analyze_prefetch(&parser_ret.program, &source))
+    } else {
+        None
     };
 
     // Hydration markers — determine which components are interactive.
@@ -426,6 +461,46 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
                     .collect(),
             )
         },
+        extracted_routes: prefetch_analysis.as_ref().and_then(|pa| {
+            if pa.routes.is_empty() {
+                None
+            } else {
+                Some(
+                    pa.routes
+                        .iter()
+                        .map(|r| NapiExtractedRoute {
+                            pattern: r.pattern.clone(),
+                            component_name: r.component_name.clone(),
+                            route_type: r.route_type.clone(),
+                        })
+                        .collect(),
+                )
+            }
+        }),
+        extracted_queries: prefetch_analysis.as_ref().and_then(|pa| {
+            if pa.queries.is_empty() {
+                None
+            } else {
+                Some(
+                    pa.queries
+                        .iter()
+                        .map(|q| NapiExtractedQuery {
+                            descriptor_chain: q.descriptor_chain.clone(),
+                            entity: q.entity.clone(),
+                            operation: q.operation.clone(),
+                            id_param: q.id_param.clone(),
+                        })
+                        .collect(),
+                )
+            }
+        }),
+        route_params: prefetch_analysis.and_then(|pa| {
+            if pa.route_params.is_empty() {
+                None
+            } else {
+                Some(pa.route_params)
+            }
+        }),
     }
 }
 
