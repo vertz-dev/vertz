@@ -9,6 +9,7 @@
  */
 
 import { afterAll, describe, expect, test } from 'bun:test';
+import { GlobalWindow } from 'happy-dom';
 import { ssrRenderToString } from '@vertz/ui-server';
 import { removeDomShim } from '@vertz/ui-server/dom-shim';
 
@@ -26,6 +27,35 @@ async function renderApp(url: string): Promise<string> {
 describe('SSR integration (zero-config)', () => {
   afterAll(() => {
     removeDomShim();
+    // installDomShim() replaces window.location with a plain object and
+    // removeDomShim() can't undo in-place mutations on the saved window
+    // reference. Re-create fresh happy-dom globals so component/navigation
+    // tests in subsequent files get a fully working DOM environment.
+    const w = new GlobalWindow();
+    // @ts-expect-error - re-injecting DOM globals after SSR shim
+    globalThis.window = w;
+    // @ts-expect-error - re-injecting DOM globals after SSR shim
+    globalThis.document = w.document;
+    // @ts-expect-error - re-injecting DOM globals after SSR shim
+    globalThis.HTMLElement = w.HTMLElement;
+    // @ts-expect-error - re-injecting DOM globals after SSR shim
+    globalThis.Element = w.Element;
+    // @ts-expect-error - re-injecting DOM globals after SSR shim
+    globalThis.Node = w.Node;
+    // @ts-expect-error - re-injecting DOM globals after SSR shim
+    globalThis.NodeList = w.NodeList;
+    // @ts-expect-error - re-injecting DOM globals after SSR shim
+    globalThis.NodeFilter = w.NodeFilter;
+    // @ts-expect-error - re-injecting DOM globals after SSR shim
+    globalThis.MouseEvent = w.MouseEvent;
+    // @ts-expect-error - re-injecting DOM globals after SSR shim
+    globalThis.KeyboardEvent = w.KeyboardEvent;
+    // @ts-expect-error - re-injecting DOM globals after SSR shim
+    globalThis.Event = w.Event;
+    // @ts-expect-error - re-injecting DOM globals after SSR shim
+    globalThis.navigator = w.navigator;
+    // @ts-expect-error - re-injecting DOM globals after SSR shim
+    globalThis.FormData = w.FormData;
   });
 
   test('renders app root with testid', async () => {
