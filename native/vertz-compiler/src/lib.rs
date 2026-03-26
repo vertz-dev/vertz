@@ -3,6 +3,7 @@ mod component_analyzer;
 mod computed_transformer;
 mod context_stable_ids;
 mod css_diagnostics;
+mod field_selection;
 mod css_token_tables;
 mod css_transform;
 mod fast_refresh;
@@ -58,6 +59,23 @@ pub struct NapiComponentInfo {
 }
 
 #[napi(object)]
+pub struct NapiNestedFieldAccess {
+    pub field: String,
+    pub nested_path: Vec<String>,
+}
+
+#[napi(object)]
+pub struct NapiFieldSelection {
+    pub query_var: String,
+    pub injection_pos: u32,
+    pub injection_kind: String,
+    pub fields: Vec<String>,
+    pub has_opaque_access: bool,
+    pub nested_access: Vec<NapiNestedFieldAccess>,
+    pub inferred_entity_name: Option<String>,
+}
+
+#[napi(object)]
 pub struct CompileResult {
     pub code: String,
     pub css: Option<String>,
@@ -65,6 +83,7 @@ pub struct CompileResult {
     pub diagnostics: Option<Vec<Diagnostic>>,
     pub components: Option<Vec<NapiComponentInfo>>,
     pub hydration_ids: Option<Vec<String>>,
+    pub field_selections: Option<Vec<NapiFieldSelection>>,
 }
 
 #[napi(object)]
@@ -85,6 +104,7 @@ pub struct CompileOptions {
     pub manifests: Option<Vec<NapiManifestEntry>>,
     pub hydration_markers: Option<bool>,
     pub route_splitting: Option<bool>,
+    pub field_selection: Option<bool>,
 }
 
 #[napi]
@@ -112,6 +132,11 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
     let enable_route_splitting = options
         .as_ref()
         .and_then(|o| o.route_splitting)
+        .unwrap_or(false);
+
+    let enable_field_selection = options
+        .as_ref()
+        .and_then(|o| o.field_selection)
         .unwrap_or(false);
 
     let source_type = SourceType::from_path(filename).unwrap_or_default();
@@ -150,6 +175,7 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
             diagnostics: Some(diagnostics),
             components: None,
             hydration_ids: None,
+            field_selections: None,
         };
     }
 
@@ -184,6 +210,13 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
     if enable_route_splitting {
         route_splitting::transform_route_splitting(&mut ms, &parser_ret.program, &source);
     }
+
+    // Field selection analysis — extract field access patterns from query() calls.
+    let field_selections = if enable_field_selection {
+        field_selection::analyze_field_selection(&parser_ret.program, &source)
+    } else {
+        Vec::new()
+    };
 
     // Hydration markers — determine which components are interactive.
     // The JSX transformer will inject data-v-id setAttribute calls for these.
@@ -367,6 +400,31 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
             None
         } else {
             Some(hydration_ids)
+        },
+        field_selections: if field_selections.is_empty() {
+            None
+        } else {
+            Some(
+                field_selections
+                    .into_iter()
+                    .map(|fs| NapiFieldSelection {
+                        query_var: fs.query_var,
+                        injection_pos: fs.injection_pos,
+                        injection_kind: fs.injection_kind.as_str().to_string(),
+                        fields: fs.fields,
+                        has_opaque_access: fs.has_opaque_access,
+                        nested_access: fs
+                            .nested_access
+                            .into_iter()
+                            .map(|n| NapiNestedFieldAccess {
+                                field: n.field,
+                                nested_path: n.nested_path,
+                            })
+                            .collect(),
+                        inferred_entity_name: fs.inferred_entity_name,
+                    })
+                    .collect(),
+            )
         },
     }
 }
