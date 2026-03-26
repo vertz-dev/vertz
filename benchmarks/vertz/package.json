@@ -1,6 +1,6 @@
 {
   "name": "@vertz-benchmarks/vertz-app",
-  "version": "0.0.34",
+  "version": "0.0.35",
   "private": true,
   "type": "module",
   "scripts": {

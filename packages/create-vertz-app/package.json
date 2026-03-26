@@ -1,6 +1,6 @@
 {
   "name": "@vertz/create-vertz-app",
-  "version": "0.2.36",
+  "version": "0.2.37",
   "description": "Create a new Vertz application",
   "license": "MIT",
   "repository": {

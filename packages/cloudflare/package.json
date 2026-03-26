@@ -1,6 +1,6 @@
 {
   "name": "@vertz/cloudflare",
-  "version": "0.2.36",
+  "version": "0.2.37",
   "description": "Cloudflare Workers adapter for vertz",
   "repository": {
     "type": "git",
