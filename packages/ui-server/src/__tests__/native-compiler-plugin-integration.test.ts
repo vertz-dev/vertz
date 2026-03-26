@@ -43,20 +43,23 @@ async function runPluginOnLoad(
   plugin: { name: string; setup: (build: any) => void },
   filePath: string,
 ): Promise<{ contents: string; loader: string }> {
-  let handler: ((args: { path: string }) => Promise<any>) | null = null;
+  const handlers: Array<{ filter: RegExp; cb: (args: { path: string }) => Promise<any> }> = [];
 
   plugin.setup({
     onLoad(opts: any, cb: any) {
-      // Capture the first (tsx) handler
-      if (!handler && String(opts.filter).includes('tsx')) {
-        handler = cb;
-      }
+      handlers.push({ filter: opts.filter as RegExp, cb });
     },
   });
 
-  if (!handler) throw new Error('Plugin did not register an onLoad handler');
-  const onLoad = handler as (args: { path: string }) => Promise<any>;
-  return onLoad({ path: filePath });
+  // Find the handler whose filter matches the file path
+  const match = handlers.find((h) => h.filter.test(filePath));
+  if (!match) {
+    throw new Error(
+      `Plugin has no onLoad handler matching "${filePath}". ` +
+        `Registered filters: ${handlers.map((h) => h.filter).join(', ')}`,
+    );
+  }
+  return match.cb({ path: filePath });
 }
 
 // ── Tests ────────────────────────────────────────────────────────

@@ -323,4 +323,49 @@ function TaskList() {
       expect(nativeResult.code).toContain('@vertz/tui/internals');
     });
   });
+
+  describe('Known limitation: cross-file reactivity manifests', () => {
+    it('Then TS compiler with manifests inserts .value for user hook signal props', () => {
+      // This test documents the known gap: the native compiler does NOT
+      // support cross-file reactivity manifests. When a component imports
+      // a custom hook that returns signal properties, the TS compiler
+      // (with manifests) correctly inserts .value, but the native compiler
+      // cannot because it has no manifest support.
+      //
+      // This gap is gated behind VERTZ_NATIVE_COMPILER=1 (opt-in) and
+      // the plugin logs a warning when user manifests are detected.
+      const source = `import { useTaskStore } from './stores';
+function TaskList() {
+  const store = useTaskStore();
+  return <div>{store.tasks}</div>;
+}`;
+      // TS compiler WITH manifests would insert store.tasks.value
+      // (only if the manifest tells it that useTaskStore returns {tasks: Signal})
+      const tsResult = tsCompile(source, {
+        filename,
+        manifests: {
+          './stores': {
+            exports: {
+              useTaskStore: {
+                kind: 'function',
+                reactivity: {
+                  type: 'signal-api',
+                  signalProperties: new Set(['tasks']),
+                  plainProperties: new Set([]),
+                },
+              },
+            },
+          },
+        },
+      });
+
+      // Native compiler WITHOUT manifests treats store.tasks as plain access
+      const nativeResult = nativeCompiler.compile(source, { filename });
+
+      // TS with manifests: inserts .value
+      expect(tsResult.code).toContain('store.tasks.value');
+      // Native without manifests: does NOT insert .value (known limitation)
+      expect(nativeResult.code).not.toContain('store.tasks.value');
+    });
+  });
 });

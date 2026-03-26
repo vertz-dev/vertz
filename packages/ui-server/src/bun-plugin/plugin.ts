@@ -213,6 +213,7 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
 
   // ── Native compiler (optional, behind VERTZ_NATIVE_COMPILER=1) ──
   const nativeCompiler = tryLoadNativeCompiler();
+  let nativeManifestWarningLogged = false;
 
   // Ensure CSS output directory exists
   mkdirSync(cssOutDir, { recursive: true });
@@ -381,6 +382,24 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
           // otherwise fall back to ts-morph TypeScript compiler.
           const compileResult = nativeCompiler
             ? (() => {
+                // Warn once that native compiler does not support cross-file
+                // reactivity manifests. User-defined hooks returning signal APIs
+                // won't have .value inserted for their properties.
+                if (!nativeManifestWarningLogged && manifests.size > 0) {
+                  nativeManifestWarningLogged = true;
+                  const userManifestCount = [...manifests.keys()].filter(
+                    (k) => !k.includes('node_modules'),
+                  ).length;
+                  if (userManifestCount > 0) {
+                    console.warn(
+                      `[vertz-bun-plugin] Native compiler does not support cross-file reactivity manifests. ` +
+                        `${userManifestCount} user module(s) with exported signal APIs will not have ` +
+                        `.value insertion for their signal properties. ` +
+                        `Set VERTZ_NATIVE_COMPILER=0 if cross-file reactivity is needed.`,
+                    );
+                  }
+                }
+
                 const nativeResult = nativeCompiler.compile(codeAfterImageTransform, {
                   filename: args.path,
                   target: options?.target,
@@ -393,9 +412,11 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
                     ? (JSON.parse(nativeResult.map) as EncodedSourceMap)
                     : ({ version: 3, sources: [], mappings: '', names: [] } as EncodedSourceMap),
                   diagnostics: (nativeResult.diagnostics ?? []).map((d) => ({
+                    code: 'native-diagnostic',
                     message: d.message,
-                    line: d.line,
-                    column: d.column,
+                    severity: 'warning' as const,
+                    line: d.line ?? 1,
+                    column: d.column ?? 0,
                   })),
                 };
               })()

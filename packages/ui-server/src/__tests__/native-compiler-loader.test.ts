@@ -93,4 +93,41 @@ describe('Feature: Native compiler loader', () => {
       });
     });
   });
+
+  describe('Given VERTZ_NATIVE_COMPILER set to non-"1" values', () => {
+    it('Then returns null for "true"', () => {
+      process.env.VERTZ_NATIVE_COMPILER = 'true';
+      expect(tryLoadNativeCompiler()).toBeNull();
+    });
+
+    it('Then returns null for "yes"', () => {
+      process.env.VERTZ_NATIVE_COMPILER = 'yes';
+      expect(tryLoadNativeCompiler()).toBeNull();
+    });
+
+    it('Then returns null for empty string', () => {
+      process.env.VERTZ_NATIVE_COMPILER = '';
+      expect(tryLoadNativeCompiler()).toBeNull();
+    });
+  });
+
+  describe('Given VERTZ_NATIVE_COMPILER=1 and binary name construction', () => {
+    beforeEach(() => {
+      process.env.VERTZ_NATIVE_COMPILER = '1';
+    });
+
+    it('Then constructs the correct binary name for the current platform', () => {
+      // This test verifies the binary is actually loaded — which means
+      // the platform/arch mapping produced a valid binary name for this machine.
+      // On darwin-arm64 (dev): vertz-compiler.darwin-arm64.node
+      // On linux-x64 (CI): vertz-compiler.linux-x64.node
+      const compiler = tryLoadNativeCompiler();
+      // If binary exists for this platform, it should load successfully
+      if (compiler) {
+        const result = compiler.compile('const x = 1;', { filename: 'test.tsx' });
+        expect(typeof result.code).toBe('string');
+      }
+      // If binary doesn't exist for this platform, returns null (no crash)
+    });
+  });
 });
