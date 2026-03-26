@@ -162,6 +162,14 @@ impl MagicString {
         let mut cursor = start;
 
         for event in &events {
+            // Skip events at positions the cursor has already passed
+            if event.pos < cursor {
+                if let EditEventKind::OverwriteStart { end: oe_end, .. } = &event.kind {
+                    cursor = cursor.max(*oe_end);
+                }
+                continue;
+            }
+
             match &event.kind {
                 EditEventKind::InsertBefore { text, .. } => {
                     if cursor < event.pos {
@@ -177,7 +185,7 @@ impl MagicString {
                         result.push_str(&self.original[cursor..event.pos]);
                     }
                     result.push_str(text);
-                    cursor = *oe_end;
+                    cursor = cursor.max(*oe_end);
                 }
                 EditEventKind::InsertAfter { text, .. } => {
                     if cursor <= event.pos && event.pos <= end {
@@ -272,6 +280,16 @@ impl fmt::Display for MagicString {
         let mut cursor = 0;
 
         for event in &events {
+            // Skip events at positions the cursor has already passed
+            // (they fall within a larger overwrite that already replaced that range)
+            if event.pos < cursor {
+                // Still track nested overwrite ends to prevent cursor going backward
+                if let EditEventKind::OverwriteStart { end, .. } = &event.kind {
+                    cursor = cursor.max(*end);
+                }
+                continue;
+            }
+
             match &event.kind {
                 EditEventKind::InsertBefore { text, .. } => {
                     if cursor < event.pos {
@@ -285,7 +303,7 @@ impl fmt::Display for MagicString {
                         f.write_str(&self.original[cursor..event.pos])?;
                     }
                     f.write_str(text)?;
-                    cursor = *end;
+                    cursor = cursor.max(*end);
                 }
                 EditEventKind::InsertAfter { text, .. } => {
                     if cursor <= event.pos && event.pos < bytes.len() {

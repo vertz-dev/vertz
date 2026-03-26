@@ -14,10 +14,12 @@ mod mutation_analyzer;
 mod mutation_diagnostics;
 mod mutation_transformer;
 mod props_transformer;
+mod query_auto_thunk;
 mod reactivity_analyzer;
 mod signal_api_registry;
 mod signal_transformer;
 mod ssr_safety_diagnostics;
+mod typescript_strip;
 mod utils;
 
 use napi_derive::napi;
@@ -63,10 +65,21 @@ pub struct CompileResult {
 }
 
 #[napi(object)]
+pub struct NapiManifestEntry {
+    pub module_specifier: String,
+    pub export_name: String,
+    pub reactivity_type: String,
+    pub signal_properties: Option<Vec<String>>,
+    pub plain_properties: Option<Vec<String>>,
+    pub field_signal_properties: Option<Vec<String>>,
+}
+
+#[napi(object)]
 pub struct CompileOptions {
     pub filename: Option<String>,
     pub fast_refresh: Option<bool>,
     pub target: Option<String>,
+    pub manifests: Option<Vec<NapiManifestEntry>>,
 }
 
 #[napi]
@@ -127,12 +140,28 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
     // Run component analysis
     let components = component_analyzer::analyze_components(&parser_ret.program);
 
-    // Build import aliases for signal API detection
-    let import_aliases = reactivity_analyzer::build_import_aliases(&parser_ret.program);
+    // Build manifest registry from NAPI options
+    let manifest_registry = build_manifest_registry(&options);
+
+    // Build import aliases for signal API detection (includes manifest-derived entries)
+    let (import_aliases, dynamic_configs) =
+        reactivity_analyzer::build_import_aliases(&parser_ret.program, &manifest_registry);
+
+    let import_ctx = reactivity_analyzer::ImportContext {
+        aliases: import_aliases,
+        dynamic_configs,
+    };
+
+    // Build query aliases for auto-thunk transform
+    let query_aliases = reactivity_analyzer::build_query_aliases(&parser_ret.program);
 
     // Run reactivity analysis and transforms per component
     let mut ms = magic_string::MagicString::new(&source);
     let mut all_diagnostics: Vec<Diagnostic> = Vec::new();
+
+    // Strip TypeScript syntax first (interfaces, type aliases, as casts, type annotations, etc.)
+    // Must run before JSX transform so that get_transformed_slice() returns clean JavaScript.
+    typescript_strip::strip_typescript_syntax(&mut ms, &parser_ret.program, &source);
 
     let napi_components: Vec<NapiComponentInfo> = components
         .iter()
@@ -141,7 +170,7 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
             props_transformer::transform_props(&mut ms, &parser_ret.program, comp, &source);
 
             let variables =
-                reactivity_analyzer::analyze_reactivity(&parser_ret.program, comp, &import_aliases);
+                reactivity_analyzer::analyze_reactivity(&parser_ret.program, comp, &import_ctx);
 
             // Run per-component diagnostics BEFORE transforms (on original AST positions)
             all_diagnostics.extend(ssr_safety_diagnostics::analyze_ssr_safety(
@@ -167,8 +196,19 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
             let mutation_ranges: Vec<(u32, u32)> =
                 mutations.iter().map(|m| (m.start, m.end)).collect();
 
-            // Apply transforms: mutations first, then signals, then computeds
+            // Apply transforms: mutations first, then query auto-thunk, then signals, then computeds
             mutation_transformer::transform_mutations(&mut ms, &mutations);
+
+            // Query auto-thunk must run BEFORE signal transform so that
+            // .value reads happen inside the generated thunk
+            query_auto_thunk::transform_query_auto_thunk(
+                &mut ms,
+                &parser_ret.program,
+                comp,
+                &variables,
+                &query_aliases,
+            );
+
             signal_transformer::transform_signals(
                 &mut ms,
                 &parser_ret.program,
@@ -281,4 +321,40 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
         },
         components: Some(napi_components),
     }
+}
+
+/// Build manifest registry from NAPI compile options.
+fn build_manifest_registry(
+    options: &Option<CompileOptions>,
+) -> reactivity_analyzer::ManifestRegistry {
+    let mut registry = std::collections::HashMap::new();
+
+    if let Some(ref opts) = options {
+        if let Some(ref manifests) = opts.manifests {
+            for entry in manifests {
+                let module_exports = registry
+                    .entry(entry.module_specifier.clone())
+                    .or_insert_with(std::collections::HashMap::new);
+
+                module_exports.insert(
+                    entry.export_name.clone(),
+                    reactivity_analyzer::ManifestExportInfo {
+                        reactivity_type: entry.reactivity_type.clone(),
+                        signal_properties: entry.signal_properties.as_ref().map(|props| {
+                            props.iter().cloned().collect()
+                        }),
+                        plain_properties: entry.plain_properties.as_ref().map(|props| {
+                            props.iter().cloned().collect()
+                        }),
+                        field_signal_properties: entry
+                            .field_signal_properties
+                            .as_ref()
+                            .map(|props| props.iter().cloned().collect()),
+                    },
+                );
+            }
+        }
+    }
+
+    registry
 }

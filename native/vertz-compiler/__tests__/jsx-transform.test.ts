@@ -592,6 +592,53 @@ describe('Feature: JSX element transform', () => {
     });
   });
 
+  // ─── S-12: JSX inside non-.map() callbacks (Array.from, etc.) ───────────
+
+  describe('Given JSX inside Array.from() callback', () => {
+    describe('When compiled', () => {
+      it('Then transforms the JSX inside the callback', () => {
+        const code = compileAndGetCode(`
+          function Grid() {
+            return (
+              <div>
+                {Array.from({ length: 5 }, (_, i) => (
+                  <span key={i}>{i}</span>
+                ))}
+              </div>
+            );
+          }
+        `);
+
+        expect(code).not.toMatch(/<span/);
+        expect(code).toContain('__element("span")');
+        expect(code).toContain('__element("div")');
+      });
+    });
+  });
+
+  describe('Given JSX inside .filter().map() chain', () => {
+    describe('When compiled', () => {
+      it('Then transforms JSX in both callbacks', () => {
+        const code = compileAndGetCode(`
+          function App() {
+            let items = [];
+            return (
+              <ul>
+                {items.filter(i => i.active).map(item => (
+                  <li key={item.id}>{item.name}</li>
+                ))}
+              </ul>
+            );
+          }
+        `);
+
+        expect(code).not.toMatch(/<li/);
+        expect(code).toContain('__list(');
+        expect(code).toContain('__element("li")');
+      });
+    });
+  });
+
   // ─── Non-IDL disabled stays as setAttribute ──────────────────────────────
 
   describe('Given a non-IDL boolean shorthand on non-input element', () => {

@@ -40,8 +40,12 @@ pub fn transform_jsx(
 
     let mut counter = 0;
 
-    // Find all top-level JSX nodes in the component body and transform them
-    let jsx_nodes = collect_top_level_jsx(program, component);
+    // Find all top-level JSX nodes in the component body and transform them.
+    // Nodes are collected depth-first, so inner (callback) JSX comes after outer JSX.
+    // We process in REVERSE order so that inner JSX is transformed first — its IIFE
+    // is then visible via get_transformed_slice() when the outer JSX reads expression text.
+    let mut jsx_nodes = collect_top_level_jsx(program, component);
+    jsx_nodes.reverse();
 
     for jsx_info in &jsx_nodes {
         let transformed = transform_jsx_node(
@@ -109,8 +113,14 @@ impl<'a, 'c> Visit<'c> for JsxCollector<'a> {
             return;
         }
         if self.in_component && self.is_in_component(span.start, span.end) {
-            // Nested function — still walk it to find JSX inside callbacks
+            // Nested function inside component — if we're inside JSX, reset in_jsx
+            // so that JSX inside callback expressions is collected separately.
+            let was_in_jsx = self.in_jsx;
+            if self.in_jsx {
+                self.in_jsx = false;
+            }
             oxc_ast_visit::walk::walk_function(self, func, flags);
+            self.in_jsx = was_in_jsx;
             return;
         }
         oxc_ast_visit::walk::walk_function(self, func, flags);
@@ -126,8 +136,15 @@ impl<'a, 'c> Visit<'c> for JsxCollector<'a> {
             return;
         }
         if self.in_component && self.is_in_component(span.start, span.end) {
-            // Nested arrow — still walk to find JSX
+            // Nested arrow inside component — if we're inside JSX, reset in_jsx
+            // so that JSX inside callback expressions (Array.from, .filter, etc.)
+            // is collected as a separate node to be transformed independently.
+            let was_in_jsx = self.in_jsx;
+            if self.in_jsx {
+                self.in_jsx = false;
+            }
             oxc_ast_visit::walk::walk_arrow_function_expression(self, func);
+            self.in_jsx = was_in_jsx;
             return;
         }
         oxc_ast_visit::walk::walk_arrow_function_expression(self, func);

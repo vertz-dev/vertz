@@ -145,7 +145,7 @@ describe('Feature: Signal transform', () => {
 
   describe('Given a signal variable used in shorthand property', () => {
     describe('When compiled', () => {
-      it('Then does NOT expand shorthand (signals flow as objects)', () => {
+      it('Then expands shorthand to { name: name.value }', () => {
         const code = compileAndGetCode(`
           function App() {
             let count = 0;
@@ -153,10 +153,38 @@ describe('Feature: Signal transform', () => {
             return <div>{obj}</div>;
           }
         `);
-        // Shorthand should remain as { count }, NOT { count: count.value }
-        // Signals must flow as SignalImpl objects
+        // Shorthand expands: { count } → { count: count.value }
+        expect(code).toContain('count: count.value');
+        expect(code).not.toContain('{ count }');
+      });
+
+      it('Then does NOT expand shorthand for non-signal variables', () => {
+        const code = compileAndGetCode(`
+          function App() {
+            const label = 'hello';
+            const obj = { label };
+            return <div>{obj}</div>;
+          }
+        `);
+        // Non-signal shorthand stays as-is
+        expect(code).toContain('{ label }');
+        expect(code).not.toContain('label: label.value');
+      });
+
+      it('Then does NOT expand shorthand for shadowed signal names', () => {
+        const code = compileAndGetCode(`
+          function App() {
+            let count = 0;
+            const handler = (count) => {
+              const obj = { count };
+              return obj;
+            };
+            return <div onClick={handler}>{count}</div>;
+          }
+        `);
+        // Inside the callback, count is shadowed by the parameter
+        // The shorthand should NOT be expanded there
         expect(code).toContain('{ count }');
-        expect(code).not.toContain('count: count.value');
       });
     });
   });
