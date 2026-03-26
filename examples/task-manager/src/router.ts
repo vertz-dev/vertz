@@ -10,11 +10,21 @@
  */
 
 import { computed, createLink, createRouter, defineRoutes, Outlet, OutletContext } from '@vertz/ui';
+import type { SearchParamSchema } from '@vertz/ui';
 import { api } from './api/mock-data';
 import { CreateTaskPage } from './pages/create-task';
 import { SettingsPage } from './pages/settings';
 import { TaskDetailPage } from './pages/task-detail';
 import { TaskListPage } from './pages/task-list';
+
+/** Search params schema for the task list page — provides defaults. */
+const taskListSearchParams: SearchParamSchema<{ page: number }> = {
+  parse(data: unknown) {
+    const raw = data as Record<string, string>;
+    const page = Number(raw.page) || 1;
+    return { ok: true as const, data: { page } };
+  },
+};
 
 /**
  * Define the app routes.
@@ -29,6 +39,7 @@ import { TaskListPage } from './pages/task-list';
 export const routes = defineRoutes({
   '/': {
     component: () => TaskListPage(),
+    searchParams: taskListSearchParams,
     loader: async () => {
       return await api.tasks.list();
     },
