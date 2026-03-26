@@ -209,6 +209,8 @@ describe('Feature: TypeScript syntax stripping', () => {
         `);
 
         expect(code).not.toContain('type A');
+        expect(code).not.toContain('{ }');
+        expect(code).not.toContain('{  }');
         expect(code).toContain('Lib');
         expect(code).toContain("from 'lib'");
       });

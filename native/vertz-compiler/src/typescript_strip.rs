@@ -149,6 +149,64 @@ fn strip_type_import_specifiers(ms: &mut MagicString, stmt: &Statement, source: 
         return;
     }
 
+    // If default/namespace import + all named are type-only,
+    // remove the comma and braces: `import Lib, { type A } from 'lib'` → `import Lib from 'lib'`
+    if type_count > 0 && value_count == 0 && has_default_or_namespace {
+        // Find the first named specifier to locate the opening brace region
+        let first_named = specifiers.iter().find_map(|s| {
+            if let ImportDeclarationSpecifier::ImportSpecifier(named) = s {
+                Some(named.span.start)
+            } else {
+                None
+            }
+        });
+        let last_named = specifiers.iter().rev().find_map(|s| {
+            if let ImportDeclarationSpecifier::ImportSpecifier(named) = s {
+                Some(named.span.end)
+            } else {
+                None
+            }
+        });
+
+        if let (Some(first_start), Some(last_end)) = (first_named, last_named) {
+            // Scan backward from first named specifier to find `, {` (comma + optional whitespace + brace)
+            let before = &source[..first_start as usize];
+            // Walk back past whitespace, then '{', then whitespace, then ','
+            let chars: Vec<char> = before.chars().collect();
+            let mut i = chars.len();
+            // Skip whitespace
+            while i > 0 && (chars[i - 1] == ' ' || chars[i - 1] == '\t') {
+                i -= 1;
+            }
+            // Skip '{'
+            if i > 0 && chars[i - 1] == '{' {
+                i -= 1;
+            }
+            // Skip whitespace
+            while i > 0 && (chars[i - 1] == ' ' || chars[i - 1] == '\t') {
+                i -= 1;
+            }
+            // Skip ','
+            if i > 0 && chars[i - 1] == ',' {
+                i -= 1;
+            }
+            let remove_start = i;
+
+            // Scan forward from last named specifier to find '}' (optional whitespace + brace)
+            let after = &source[last_end as usize..];
+            let mut remove_end = last_end as usize;
+            for ch in after.chars() {
+                remove_end += ch.len_utf8();
+                if ch == '}' {
+                    break;
+                }
+            }
+
+            ms.overwrite(remove_start as u32, remove_end as u32, "");
+            return;
+        }
+    }
+
     // Otherwise, remove individual type specifiers
     for spec in specifiers {
         if let ImportDeclarationSpecifier::ImportSpecifier(named) = spec {
