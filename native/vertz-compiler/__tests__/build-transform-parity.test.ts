@@ -178,7 +178,7 @@ export const routes = defineRoutes({
 // ═══════════════════════════════════════════════════════════════════
 
 describe('Build-time transform parity: Hydration markers', () => {
-  it('Both compilers mark interactive components with data-v-id', () => {
+  it('Native compiler marks interactive components with data-v-id', () => {
     const source = `
 function Counter() {
   let count = 0;
@@ -200,7 +200,7 @@ function Counter() {
     expect(nativeResult.code).toContain('Counter');
   });
 
-  it('Both compilers skip static components', () => {
+  it('Native compiler skips static components', () => {
     const source = `
 function Header() {
   return <header><h1>Static Title</h1></header>;
@@ -796,24 +796,3 @@ export const routes = defineRoutes({
   });
 });
 
-// ═══════════════════════════════════════════════════════════════════
-// Helper
-// ═══════════════════════════════════════════════════════════════════
-
-function extractSsrFunction(code: string, fnName: string): string {
-  const pattern = new RegExp(
-    `(?:export\\s+)?function\\s+${fnName}\\s*\\([^)]*\\)(?:\\s*:\\s*\\w+)?\\s*\\{`,
-  );
-  const match = pattern.exec(code);
-  if (!match) return '';
-  const start = match.index;
-  const braceStart = code.indexOf('{', start + match[0].length - 1);
-  let depth = 1;
-  let i = braceStart + 1;
-  while (i < code.length && depth > 0) {
-    if (code[i] === '{') depth++;
-    else if (code[i] === '}') depth--;
-    i++;
-  }
-  return code.substring(start, i);
-}

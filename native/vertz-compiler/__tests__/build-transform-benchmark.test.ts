@@ -107,15 +107,6 @@ function Page({ loading, items }: { loading: boolean; items: Array<{ id: string;
 }
 `.trim();
 
-const QUERY_COMPONENT_SOURCE = `
-import { query } from '@vertz/ui';
-
-function TaskList() {
-  const tasks = query(() => api.task.list());
-  return <div>{tasks.data?.map(t => <span>{t.title}</span>)}</div>;
-}
-`.trim();
-
 // Combined source for pipeline benchmark
 const COMBINED_SOURCE = `
 import { defineRoutes, query } from '@vertz/ui';
