@@ -31,9 +31,7 @@ pub fn transform_query_auto_thunk(
     let reactive_vars: HashSet<String> = variables
         .iter()
         .filter(|v| {
-            v.kind.as_str() == "signal"
-                || v.kind.as_str() == "computed"
-                || v.is_reactive_source
+            v.kind.as_str() == "signal" || v.kind.as_str() == "computed" || v.is_reactive_source
         })
         .map(|v| v.name.clone())
         .collect();
@@ -93,8 +91,7 @@ impl<'a, 'b, 'c> Visit<'c> for QueryThunkWalker<'a, 'b> {
                     // Skip if already a function/arrow expression
                     if matches!(
                         expr,
-                        Expression::ArrowFunctionExpression(_)
-                            | Expression::FunctionExpression(_)
+                        Expression::ArrowFunctionExpression(_) | Expression::FunctionExpression(_)
                     ) {
                         oxc_ast_visit::walk::walk_call_expression(self, call);
                         return;
@@ -116,10 +113,7 @@ impl<'a, 'b, 'c> Visit<'c> for QueryThunkWalker<'a, 'b> {
 
 /// Check if an expression contains references to any reactive variables.
 /// Skips identifiers that are property names, object literal keys, or shadowed.
-fn contains_reactive_ref(
-    expr: &Expression,
-    reactive_vars: &HashSet<String>,
-) -> bool {
+fn contains_reactive_ref(expr: &Expression, reactive_vars: &HashSet<String>) -> bool {
     let mut checker = ReactiveRefChecker {
         reactive_vars,
         found: false,

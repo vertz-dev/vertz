@@ -52,9 +52,9 @@ pub fn transform_jsx(
         signal_api_props: variables
             .iter()
             .filter_map(|v| {
-                v.signal_properties.as_ref().map(|props| {
-                    (v.name.clone(), props.iter().cloned().collect())
-                })
+                v.signal_properties
+                    .as_ref()
+                    .map(|props| (v.name.clone(), props.iter().cloned().collect()))
             })
             .collect(),
     };
@@ -851,19 +851,17 @@ fn transform_component(
                 }
                 // Use slice_with_transformed_jsx to handle JSX nested inside prop values
                 // (e.g., fallback={() => <div>Not found</div>})
-                let expr_text = slice_with_transformed_jsx(
-                    ms,
-                    program,
-                    *expr_start,
-                    *expr_end,
-                    rx,
-                    counter,
-                );
+                let expr_text =
+                    slice_with_transformed_jsx(ms, program, *expr_start, *expr_end, rx, counter);
                 // For component props, ALL non-literal expressions become getters.
                 // This is by design: getter-backed props enable cross-component
                 // reactivity — the child reads lazily when signals change.
                 if *is_reactive {
-                    props.push(format!("get {}() {{ return {}; }}", quote_getter_key(name), expr_text));
+                    props.push(format!(
+                        "get {}() {{ return {}; }}",
+                        quote_getter_key(name),
+                        expr_text
+                    ));
                 } else {
                     props.push(format!("{}: {}", quote_prop_key(name), expr_text));
                 }
@@ -896,8 +894,7 @@ fn transform_component(
             .collect();
 
         if !non_empty.is_empty() {
-            let children_thunk =
-                build_children_thunk(ms, program, &non_empty, rx, counter);
+            let children_thunk = build_children_thunk(ms, program, &non_empty, rx, counter);
             if !children_thunk.is_empty() {
                 props.push(format!("children: {}", children_thunk));
             }
@@ -954,20 +951,12 @@ fn transform_child_as_value(
             // Conditionals
             if let ExprKind::Conditional { .. } = expr_kind {
                 return Some(transform_conditional_code(
-                    ms,
-                    program,
-                    expr_kind,
-                    rx,
-                    counter,
+                    ms, program, expr_kind, rx, counter,
                 ));
             }
             if let ExprKind::LogicalAnd { .. } = expr_kind {
                 return Some(transform_conditional_code(
-                    ms,
-                    program,
-                    expr_kind,
-                    rx,
-                    counter,
+                    ms, program, expr_kind, rx, counter,
                 ));
             }
 
@@ -990,15 +979,7 @@ fn transform_child_as_value(
                     let body_jsx =
                         find_jsx_in_span(program, *callback_body_start, *callback_body_end);
                     if let Some(jsx) = body_jsx {
-                        transform_jsx_node(
-                            ms,
-                            program,
-                            jsx.start,
-                            jsx.end,
-                            &jsx.kind,
-                            rx,
-                            counter,
-                        )
+                        transform_jsx_node(ms, program, jsx.start, jsx.end, &jsx.kind, rx, counter)
                     } else {
                         ms.get_transformed_slice(*callback_body_start, *callback_body_end)
                     }
@@ -1014,28 +995,16 @@ fn transform_child_as_value(
             }
 
             let expr_text = ms.get_transformed_slice(*expr_start, *expr_end);
-            let is_truly_reactive = !is_literal
-                && is_expr_reactive_in_scope(ms, *expr_start, *expr_end, rx);
+            let is_truly_reactive =
+                !is_literal && is_expr_reactive_in_scope(ms, *expr_start, *expr_end, rx);
             if is_truly_reactive {
                 Some(format!("__child(() => {})", expr_text))
             } else {
                 Some(expr_text)
             }
         }
-        ChildInfo::Element(info) => Some(transform_element(
-            ms,
-            program,
-            info,
-            rx,
-            counter,
-        )),
-        ChildInfo::Fragment(info) => Some(transform_fragment(
-            ms,
-            program,
-            info,
-            rx,
-            counter,
-        )),
+        ChildInfo::Element(info) => Some(transform_element(ms, program, info, rx, counter)),
+        ChildInfo::Fragment(info) => Some(transform_fragment(ms, program, info, rx, counter)),
     }
 }
 
@@ -1055,8 +1024,7 @@ fn transform_fragment(
     ));
 
     for child in &info.children {
-        if let Some(stmt) = transform_child(ms, program, child, &frag_var, rx, counter)
-        {
+        if let Some(stmt) = transform_child(ms, program, child, &frag_var, rx, counter) {
             stmts.push(stmt);
         }
     }
@@ -1136,8 +1104,8 @@ fn process_attr(
             }
 
             // Reactive expression → __attr or __prop
-            let is_reactive_in_scope = *is_reactive
-                && is_expr_reactive_in_scope(ms, *expr_start, *expr_end, rx);
+            let is_reactive_in_scope =
+                *is_reactive && is_expr_reactive_in_scope(ms, *expr_start, *expr_end, rx);
 
             if is_reactive_in_scope {
                 if use_property {
@@ -1232,13 +1200,11 @@ fn transform_child(
         } => {
             // Conditional
             if let ExprKind::Conditional { .. } = expr_kind {
-                let code =
-                    transform_conditional_code(ms, program, expr_kind, rx, counter);
+                let code = transform_conditional_code(ms, program, expr_kind, rx, counter);
                 return Some(format!("__append({}, {})", parent_var, code));
             }
             if let ExprKind::LogicalAnd { .. } = expr_kind {
-                let code =
-                    transform_conditional_code(ms, program, expr_kind, rx, counter);
+                let code = transform_conditional_code(ms, program, expr_kind, rx, counter);
                 return Some(format!("__append({}, {})", parent_var, code));
             }
 
@@ -1262,15 +1228,7 @@ fn transform_child(
                     let body_jsx =
                         find_jsx_in_span(program, *callback_body_start, *callback_body_end);
                     if let Some(jsx) = body_jsx {
-                        transform_jsx_node(
-                            ms,
-                            program,
-                            jsx.start,
-                            jsx.end,
-                            &jsx.kind,
-                            rx,
-                            counter,
-                        )
+                        transform_jsx_node(ms, program, jsx.start, jsx.end, &jsx.kind, rx, counter)
                     } else {
                         ms.get_transformed_slice(*callback_body_start, *callback_body_end)
                     }
@@ -1289,8 +1247,8 @@ fn transform_child(
 
             // Use __child() only for truly reactive expressions (references a signal/computed).
             // Use __insert() for static non-literal expressions (no effect overhead).
-            let is_truly_reactive = !is_literal
-                && is_expr_reactive_in_scope(ms, *expr_start, *expr_end, rx);
+            let is_truly_reactive =
+                !is_literal && is_expr_reactive_in_scope(ms, *expr_start, *expr_end, rx);
             if is_truly_reactive {
                 Some(format!(
                     "__append({}, __child(() => {}))",
@@ -1391,15 +1349,7 @@ fn transform_branch(
     if is_jsx {
         let jsx = find_jsx_in_span(program, start, end);
         if let Some(jsx) = jsx {
-            return transform_jsx_node(
-                ms,
-                program,
-                jsx.start,
-                jsx.end,
-                &jsx.kind,
-                rx,
-                counter,
-            );
+            return transform_jsx_node(ms, program, jsx.start, jsx.end, &jsx.kind, rx, counter);
         }
     }
     ms.get_transformed_slice(start, end)
@@ -1432,15 +1382,8 @@ fn slice_with_transformed_jsx(
             result.push_str(&ms.get_transformed_slice(cursor, jsx.start));
         }
         // Transform and insert the JSX
-        let transformed = transform_jsx_node(
-            ms,
-            program,
-            jsx.start,
-            jsx.end,
-            &jsx.kind,
-            rx,
-            counter,
-        );
+        let transformed =
+            transform_jsx_node(ms, program, jsx.start, jsx.end, &jsx.kind, rx, counter);
         result.push_str(&transformed);
         cursor = jsx.end;
     }

@@ -42,17 +42,11 @@ fn get_removable_statement_span(stmt: &Statement) -> Option<(u32, u32)> {
             Some((decl.span.start, decl.span.end))
         }
         // declare function
-        Statement::FunctionDeclaration(func)
-            if func.declare =>
-        {
+        Statement::FunctionDeclaration(func) if func.declare => {
             Some((func.span.start, func.span.end))
         }
         // declare class
-        Statement::ClassDeclaration(cls)
-            if cls.declare =>
-        {
-            Some((cls.span.start, cls.span.end))
-        }
+        Statement::ClassDeclaration(cls) if cls.declare => Some((cls.span.start, cls.span.end)),
         // declare module / declare namespace (NOT runtime namespaces without declare)
         Statement::TSModuleDeclaration(decl) if decl.declare => {
             Some((decl.span.start, decl.span.end))
@@ -371,10 +365,7 @@ impl<'a, 'b, 'c> Visit<'c> for InlineTsStripper<'a, 'b> {
         self.visit_expression(&expr.expression);
     }
 
-    fn visit_ts_type_parameter_instantiation(
-        &mut self,
-        params: &TSTypeParameterInstantiation<'c>,
-    ) {
+    fn visit_ts_type_parameter_instantiation(&mut self, params: &TSTypeParameterInstantiation<'c>) {
         if self.is_in_removed_span(params.span.start) {
             return;
         }

@@ -456,13 +456,7 @@ fn track_field_access_in_stmt(
                 has_opaque_access,
             );
             if let Some(ref alt) = if_stmt.alternate {
-                track_field_access_in_stmt(
-                    alt,
-                    var_name,
-                    fields,
-                    nested_access,
-                    has_opaque_access,
-                );
+                track_field_access_in_stmt(alt, var_name, fields, nested_access, has_opaque_access);
             }
         }
         Statement::BlockStatement(block) => {
@@ -592,9 +586,8 @@ fn track_field_access_in_expr(
                         // Check if access stops at structural level (data, items)
                         // without further field access
                         let path = &chain[1..];
-                        let all_structural = path.iter().all(|p| {
-                            STRUCTURAL_PROPS.contains(&p.as_str())
-                        });
+                        let all_structural =
+                            path.iter().all(|p| STRUCTURAL_PROPS.contains(&p.as_str()));
                         if all_structural {
                             *has_opaque_access = true;
                         }
@@ -603,7 +596,13 @@ fn track_field_access_in_expr(
             }
 
             // Recurse into call arguments
-            track_field_access_in_expr(&call.callee, var_name, fields, nested_access, has_opaque_access);
+            track_field_access_in_expr(
+                &call.callee,
+                var_name,
+                fields,
+                nested_access,
+                has_opaque_access,
+            );
             for arg in &call.arguments {
                 track_field_access_in_expr(
                     arg.to_expression(),
@@ -756,11 +755,9 @@ fn track_field_access_in_expr(
                                     {
                                         if let Some(callback) = call.arguments.first() {
                                             let callback_expr = callback.to_expression();
-                                            let param_name =
-                                                get_callback_param_name(callback_expr);
+                                            let param_name = get_callback_param_name(callback_expr);
                                             if let Some(param_name) = param_name {
-                                                let parent_result =
-                                                    extract_field_from_chain(chain);
+                                                let parent_result = extract_field_from_chain(chain);
                                                 let parent_field = parent_result
                                                     .as_ref()
                                                     .filter(|r| r.nested_path.is_empty())
@@ -963,9 +960,7 @@ fn build_property_chain_from_chain_element(elem: &ChainElement) -> Option<Vec<St
             chain.push(member.property.name.as_str().to_string());
             Some(chain)
         }
-        ChainElement::ComputedMemberExpression(computed) => {
-            build_property_chain(&computed.object)
-        }
+        ChainElement::ComputedMemberExpression(computed) => build_property_chain(&computed.object),
         _ => None,
     }
 }
@@ -1046,13 +1041,7 @@ fn track_callback_field_access(
         Expression::FunctionExpression(func) => {
             if let Some(ref body) = func.body {
                 for stmt in &body.statements {
-                    track_callback_stmt(
-                        stmt,
-                        param_name,
-                        fields,
-                        nested_access,
-                        has_opaque_access,
-                    );
+                    track_callback_stmt(stmt, param_name, fields, nested_access, has_opaque_access);
                 }
             }
         }
@@ -1207,8 +1196,7 @@ fn track_callback_expr(
                 if let JSXAttributeItem::Attribute(jsx_attr) = attr {
                     if let Some(ref value) = jsx_attr.value {
                         if let JSXAttributeValue::ExpressionContainer(container) = value {
-                            if let Some(inner_expr) = container.expression.as_expression()
-                            {
+                            if let Some(inner_expr) = container.expression.as_expression() {
                                 track_callback_expr(
                                     inner_expr,
                                     param_name,

@@ -6,10 +6,7 @@ use crate::component_analyzer::ComponentInfo;
 /// and should receive hydration markers.
 ///
 /// Returns a list of component names that need `data-v-id` markers.
-pub fn find_interactive_components(
-    program: &Program,
-    components: &[ComponentInfo],
-) -> Vec<String> {
+pub fn find_interactive_components(program: &Program, components: &[ComponentInfo]) -> Vec<String> {
     let mut hydration_ids = Vec::new();
 
     for comp in components {
@@ -119,9 +116,7 @@ fn find_body_in_expr<'a>(
         }
         Expression::FunctionExpression(func) => {
             if let Some(ref body) = func.body {
-                if body.span.start == component.body_start
-                    && body.span.end == component.body_end
-                {
+                if body.span.start == component.body_start && body.span.end == component.body_end {
                     return Some(body);
                 }
             }

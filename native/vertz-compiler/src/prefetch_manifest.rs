@@ -108,8 +108,7 @@ fn find_define_routes_in_stmt<'a>(stmt: &'a Statement<'a>) -> Option<&'a ObjectE
             }
         }
         Statement::ExportDefaultDeclaration(export_default) => {
-            if let ExportDefaultDeclarationKind::CallExpression(call) =
-                &export_default.declaration
+            if let ExportDefaultDeclarationKind::CallExpression(call) = &export_default.declaration
             {
                 if is_define_routes_call(call) {
                     if let Some(arg) = call.arguments.first() {
@@ -250,9 +249,7 @@ fn extract_component_name(expr: &Expression, source: &str) -> Option<String> {
     }
 }
 
-fn get_arrow_body_expr<'a>(
-    arrow: &'a ArrowFunctionExpression<'a>,
-) -> Option<&'a Expression<'a>> {
+fn get_arrow_body_expr<'a>(arrow: &'a ArrowFunctionExpression<'a>) -> Option<&'a Expression<'a>> {
     if arrow.expression {
         if let Some(stmt) = arrow.body.statements.first() {
             if let Statement::ExpressionStatement(expr_stmt) = stmt {
@@ -279,9 +276,7 @@ fn extract_component_name_from_expr(expr: &Expression, source: &str) -> Option<S
             // <ComponentName /> or <ComponentName>...</ComponentName>
             match &jsx.opening_element.name {
                 JSXElementName::Identifier(ident) => Some(ident.name.as_str().to_string()),
-                JSXElementName::IdentifierReference(ident) => {
-                    Some(ident.name.as_str().to_string())
-                }
+                JSXElementName::IdentifierReference(ident) => Some(ident.name.as_str().to_string()),
                 _ => None,
             }
         }
@@ -500,9 +495,10 @@ fn extract_queries_in_expr(
         // Check if it's query(...)
         if let Expression::Identifier(callee) = &call.callee {
             if callee.name == "query" && !call.arguments.is_empty() {
-                if let Some(query) =
-                    extract_query_info(call.arguments.first().unwrap().to_expression(), route_params)
-                {
+                if let Some(query) = extract_query_info(
+                    call.arguments.first().unwrap().to_expression(),
+                    route_params,
+                ) {
                     queries.push(query);
                 }
             }
@@ -511,10 +507,7 @@ fn extract_queries_in_expr(
 }
 
 /// Extract full query info from a query() argument.
-fn extract_query_info(
-    arg: &Expression,
-    route_params: &[String],
-) -> Option<ExtractedQuery> {
+fn extract_query_info(arg: &Expression, route_params: &[String]) -> Option<ExtractedQuery> {
     // query(api.entity.method(...)) — the arg is a call expression
     if let Expression::CallExpression(call) = arg {
         let chain = extract_property_access_chain(&call.callee)?;
@@ -575,10 +568,7 @@ fn parse_entity_operation(chain: &str) -> (Option<String>, Option<String>) {
     let parts: Vec<&str> = chain.split('.').collect();
     // Expected format: api.<entity>.<operation>
     if parts.len() >= 3 {
-        (
-            Some(parts[1].to_string()),
-            Some(parts[2].to_string()),
-        )
+        (Some(parts[1].to_string()), Some(parts[2].to_string()))
     } else {
         (None, None)
     }

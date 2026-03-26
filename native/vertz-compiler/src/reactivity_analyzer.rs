@@ -122,8 +122,9 @@ pub fn build_import_aliases<'a>(
                                 match export_info.reactivity_type.as_str() {
                                     "signal-api" => {
                                         // Register as a dynamic signal API
-                                        let key =
-                                            format!("__manifest__{module_specifier}__{imported_name}");
+                                        let key = format!(
+                                            "__manifest__{module_specifier}__{imported_name}"
+                                        );
                                         aliases.insert(local_name.to_string(), key.clone());
                                         dynamic_configs.insert(
                                             key,
@@ -144,8 +145,9 @@ pub fn build_import_aliases<'a>(
                                     }
                                     "reactive-source" => {
                                         // Register as a reactive source
-                                        let key =
-                                            format!("__manifest__{module_specifier}__{imported_name}");
+                                        let key = format!(
+                                            "__manifest__{module_specifier}__{imported_name}"
+                                        );
                                         aliases.insert(local_name.to_string(), key.clone());
                                         dynamic_configs.insert(
                                             key,
@@ -212,9 +214,10 @@ impl ImportContext {
                     .iter()
                     .map(|s| s.to_string())
                     .collect(),
-                field_signal_properties: static_config.field_signal_properties.as_ref().map(|fs| {
-                    fs.iter().map(|s| s.to_string()).collect()
-                }),
+                field_signal_properties: static_config
+                    .field_signal_properties
+                    .as_ref()
+                    .map(|fs| fs.iter().map(|s| s.to_string()).collect()),
             });
         }
         // Check dynamic configs
@@ -730,13 +733,7 @@ fn depends_on_reactive_inner(
             if !dep_meta.is_function_def
                 && !dep_meta.is_structural_literal
                 && !dep_meta.is_signal_api
-                && depends_on_reactive_inner(
-                    dep_meta,
-                    meta_map,
-                    jsx_reachable,
-                    import_ctx,
-                    visited,
-                )
+                && depends_on_reactive_inner(dep_meta, meta_map, jsx_reachable, import_ctx, visited)
             {
                 return true;
             }

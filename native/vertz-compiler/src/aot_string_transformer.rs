@@ -160,7 +160,10 @@ pub fn compile_for_ssr_aot(
         format!("{source}{appended}")
     };
 
-    AotResult { code, components: results }
+    AotResult {
+        code,
+        components: results,
+    }
 }
 
 fn transform_component(
@@ -246,11 +249,9 @@ fn transform_component(
     }
 
     // Find the single return JSX expression
-    let return_jsx_expr = direct_returns.iter().find_map(|ret| {
-        ret.argument
-            .as_ref()
-            .and_then(|arg| find_jsx_in_expr(arg))
-    });
+    let return_jsx_expr = direct_returns
+        .iter()
+        .find_map(|ret| ret.argument.as_ref().and_then(|arg| find_jsx_in_expr(arg)));
 
     if return_jsx_expr.is_none() {
         // Check for conditional return: ternary or &&
@@ -393,9 +394,7 @@ fn expr_to_string(
         Expression::JSXElement(elem) => {
             element_to_string(elem, reactive_names, ms, hydration_id, holes)
         }
-        Expression::JSXFragment(frag) => {
-            fragment_to_string(frag, reactive_names, ms, holes)
-        }
+        Expression::JSXFragment(frag) => fragment_to_string(frag, reactive_names, ms, holes),
         Expression::ParenthesizedExpression(paren) => {
             expr_to_string(&paren.expression, reactive_names, ms, hydration_id, holes)
         }
@@ -523,9 +522,7 @@ fn component_call_to_string(
     if let Some(child_nodes) = children {
         let child_parts: Vec<String> = child_nodes
             .iter()
-            .map(|child| {
-                child_to_string(child, &HashSet::new(), false, ms, &mut HashSet::new())
-            })
+            .map(|child| child_to_string(child, &HashSet::new(), false, ms, &mut HashSet::new()))
             .filter(|s| s != "''")
             .collect();
         if !child_parts.is_empty() {
@@ -585,9 +582,7 @@ fn child_to_string(
         JSXChild::ExpressionContainer(container) => {
             jsx_expression_to_string(container, reactive_names, is_raw_text, ms, holes)
         }
-        JSXChild::Element(elem) => {
-            element_to_string(elem, reactive_names, ms, None, holes)
-        }
+        JSXChild::Element(elem) => element_to_string(elem, reactive_names, ms, None, holes),
         JSXChild::Fragment(frag) => fragment_to_string(frag, reactive_names, ms, holes),
         _ => "''".to_string(),
     }
@@ -664,9 +659,7 @@ fn logical_and_to_string(
     let left_span = logical.left.span();
     let left_text = ms.get_transformed_slice(left_span.start, left_span.end);
     let right_str = expression_node_to_string(&logical.right, reactive_names, ms, holes);
-    format!(
-        "'<!--conditional-->' + ({left_text} ? {right_str} : '') + '<!--/conditional-->'"
-    )
+    format!("'<!--conditional-->' + ({left_text} ? {right_str} : '') + '<!--/conditional-->'")
 }
 
 fn map_call_to_string(
@@ -724,9 +717,7 @@ fn map_call_to_string(
         for stmt in &arrow.body.statements {
             if let Statement::ReturnStatement(ret) = stmt {
                 if let Some(ref arg) = ret.argument {
-                    if let Some(jsx_str) =
-                        try_jsx_expr_to_string(arg, reactive_names, ms, holes)
-                    {
+                    if let Some(jsx_str) = try_jsx_expr_to_string(arg, reactive_names, ms, holes) {
                         return format!(
                             "'<!--list-->' + {caller_text}.map({param_name} => {jsx_str}).join('') + '<!--/list-->'"
                         );
@@ -751,9 +742,7 @@ fn try_jsx_expr_to_string(
         Expression::JSXElement(elem) => {
             Some(element_to_string(elem, reactive_names, ms, None, holes))
         }
-        Expression::JSXFragment(frag) => {
-            Some(fragment_to_string(frag, reactive_names, ms, holes))
-        }
+        Expression::JSXFragment(frag) => Some(fragment_to_string(frag, reactive_names, ms, holes)),
         Expression::ParenthesizedExpression(paren) => {
             try_jsx_expr_to_string(&paren.expression, reactive_names, ms, holes)
         }
@@ -771,9 +760,7 @@ fn expression_node_to_string(
         Expression::ParenthesizedExpression(paren) => {
             expression_node_to_string(&paren.expression, reactive_names, ms, holes)
         }
-        Expression::JSXElement(elem) => {
-            element_to_string(elem, reactive_names, ms, None, holes)
-        }
+        Expression::JSXElement(elem) => element_to_string(elem, reactive_names, ms, None, holes),
         Expression::JSXFragment(frag) => fragment_to_string(frag, reactive_names, ms, holes),
         Expression::ConditionalExpression(cond) => {
             ternary_to_string(cond, reactive_names, ms, holes)
@@ -852,9 +839,7 @@ fn attr_to_string(attr: &JSXAttribute, ms: &MagicString) -> Option<String> {
             let expr_text = ms.get_transformed_slice(span.start, span.end);
 
             if html_name == "style" {
-                return Some(format!(
-                    "style=\"' + __ssr_style_object({expr_text}) + '\""
-                ));
+                return Some(format!("style=\"' + __ssr_style_object({expr_text}) + '\""));
             }
 
             if is_boolean_attribute(&html_name) {
@@ -868,10 +853,7 @@ fn attr_to_string(attr: &JSXAttribute, ms: &MagicString) -> Option<String> {
     }
 }
 
-fn extract_dangerous_inner_html(
-    opening: &JSXOpeningElement,
-    ms: &MagicString,
-) -> Option<String> {
+fn extract_dangerous_inner_html(opening: &JSXOpeningElement, ms: &MagicString) -> Option<String> {
     for attr in &opening.attributes {
         if let JSXAttributeItem::Attribute(jsx_attr) = attr {
             if get_jsx_attr_name(jsx_attr) == "dangerouslySetInnerHTML" {
@@ -883,9 +865,9 @@ fn extract_dangerous_inner_html(
                                     if let PropertyKey::StaticIdentifier(key) = &p.key {
                                         if key.name == "__html" {
                                             let span = p.value.span();
-                                            return Some(ms.get_transformed_slice(
-                                                span.start, span.end,
-                                            ));
+                                            return Some(
+                                                ms.get_transformed_slice(span.start, span.end),
+                                            );
                                         }
                                     }
                                 }
@@ -911,9 +893,7 @@ fn classify_tier_from_expr(expr: &Expression, variables: &[VariableInfo]) -> Aot
 
     match expr {
         Expression::JSXElement(elem) => classify_element_tier(elem, has_reactive),
-        Expression::JSXFragment(frag) => {
-            classify_children_tier(&frag.children, has_reactive)
-        }
+        Expression::JSXFragment(frag) => classify_children_tier(&frag.children, has_reactive),
         Expression::ParenthesizedExpression(paren) => {
             classify_tier_from_expr(&paren.expression, variables)
         }
@@ -958,8 +938,7 @@ fn classify_children_tier(
                 has_expressions = true;
                 if let Some(expr) = container.expression.as_expression() {
                     match expr {
-                        Expression::ConditionalExpression(_)
-                        | Expression::LogicalExpression(_) => {
+                        Expression::ConditionalExpression(_) | Expression::LogicalExpression(_) => {
                             return AotTier::Conditional;
                         }
                         Expression::CallExpression(call) if is_map_call(call) => {
@@ -1064,11 +1043,7 @@ impl<'a, 'b> Visit<'b> for DirectReturnFinder<'a, 'b> {
         }
     }
 
-    fn visit_function(
-        &mut self,
-        func: &Function<'b>,
-        _flags: oxc_syntax::scope::ScopeFlags,
-    ) {
+    fn visit_function(&mut self, func: &Function<'b>, _flags: oxc_syntax::scope::ScopeFlags) {
         if self.in_target_body {
             self.nesting_depth += 1;
             if let Some(ref body) = func.body {
@@ -1212,7 +1187,10 @@ fn analyze_guard_pattern<'a, 'b>(
             cond_text
         };
 
-        let jsx = ret.argument.as_ref().and_then(|arg| find_jsx_in_expr(arg))?;
+        let jsx = ret
+            .argument
+            .as_ref()
+            .and_then(|arg| find_jsx_in_expr(arg))?;
         guards.push(Guard {
             condition: guard_condition,
             jsx_expr: jsx,
@@ -1448,9 +1426,7 @@ impl<'a, 'b> Visit<'b> for DerivedAliasFinder<'a> {
             }
 
             if let BindingPattern::BindingIdentifier(ref id) = declarator.id {
-                if let Some(Expression::StaticMemberExpression(member)) =
-                    declarator.init.as_ref()
-                {
+                if let Some(Expression::StaticMemberExpression(member)) = declarator.init.as_ref() {
                     if member.property.name == "data" {
                         if let Expression::Identifier(obj_id) = &member.object {
                             for qv in self.query_vars.iter_mut() {

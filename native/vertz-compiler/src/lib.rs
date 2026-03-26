@@ -4,19 +4,19 @@ mod component_analyzer;
 mod computed_transformer;
 mod context_stable_ids;
 mod css_diagnostics;
-mod field_selection;
 mod css_token_tables;
 mod css_transform;
 mod fast_refresh;
+mod field_selection;
 mod hydration_markers;
 mod import_injection;
 mod jsx_transformer;
 mod magic_string;
 mod mount_frame_transformer;
-mod prefetch_manifest;
 mod mutation_analyzer;
 mod mutation_diagnostics;
 mod mutation_transformer;
+mod prefetch_manifest;
 mod props_transformer;
 mod query_auto_thunk;
 mod reactivity_analyzer;
@@ -249,7 +249,10 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
 
     // Prefetch manifest analysis — extract routes and queries for SSR prefetching.
     let prefetch_analysis = if enable_prefetch_manifest {
-        Some(prefetch_manifest::analyze_prefetch(&parser_ret.program, &source))
+        Some(prefetch_manifest::analyze_prefetch(
+            &parser_ret.program,
+            &source,
+        ))
     } else {
         None
     };
@@ -261,8 +264,7 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
     } else {
         Vec::new()
     };
-    let hydration_set: std::collections::HashSet<String> =
-        hydration_ids.iter().cloned().collect();
+    let hydration_set: std::collections::HashSet<String> = hydration_ids.iter().cloned().collect();
 
     let napi_components: Vec<NapiComponentInfo> = components
         .iter()
@@ -620,12 +622,14 @@ fn build_manifest_registry(
                     entry.export_name.clone(),
                     reactivity_analyzer::ManifestExportInfo {
                         reactivity_type: entry.reactivity_type.clone(),
-                        signal_properties: entry.signal_properties.as_ref().map(|props| {
-                            props.iter().cloned().collect()
-                        }),
-                        plain_properties: entry.plain_properties.as_ref().map(|props| {
-                            props.iter().cloned().collect()
-                        }),
+                        signal_properties: entry
+                            .signal_properties
+                            .as_ref()
+                            .map(|props| props.iter().cloned().collect()),
+                        plain_properties: entry
+                            .plain_properties
+                            .as_ref()
+                            .map(|props| props.iter().cloned().collect()),
                         field_signal_properties: entry
                             .field_signal_properties
                             .as_ref()

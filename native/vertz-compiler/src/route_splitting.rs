@@ -47,14 +47,7 @@ pub fn transform_route_splitting(ms: &mut MagicString, program: &Program, source
     for call in &define_routes_calls {
         if let Some(arg) = call.arguments.first() {
             if let Expression::ObjectExpression(obj) = arg.to_expression() {
-                process_route_object(
-                    obj,
-                    ms,
-                    &import_map,
-                    program,
-                    source,
-                    &mut lazified_symbols,
-                );
+                process_route_object(obj, ms, &import_map, program, source, &mut lazified_symbols);
             }
         }
     }
@@ -121,8 +114,7 @@ fn build_import_map(program: &Program, _source: &str) -> HashMap<String, ImportI
                         }
                         ImportDeclarationSpecifier::ImportSpecifier(named_spec) => {
                             let local_name = named_spec.local.name.as_str().to_string();
-                            let exported_name =
-                                named_spec.imported.name().as_str().to_string();
+                            let exported_name = named_spec.imported.name().as_str().to_string();
                             map.insert(
                                 local_name,
                                 ImportInfo {
@@ -182,8 +174,7 @@ fn collect_define_routes_calls_in_stmt<'a>(
             }
         }
         Statement::ExportDefaultDeclaration(export_default) => {
-            if let ExportDefaultDeclarationKind::CallExpression(call) =
-                &export_default.declaration
+            if let ExportDefaultDeclarationKind::CallExpression(call) = &export_default.declaration
             {
                 if is_define_routes_call(call) {
                     calls.push(call);
@@ -364,7 +355,9 @@ fn process_component_factory(
 }
 
 /// Get the expression body of an arrow function (when expression: true).
-fn get_arrow_expression_body<'a>(arrow: &'a ArrowFunctionExpression<'a>) -> Option<&'a Expression<'a>> {
+fn get_arrow_expression_body<'a>(
+    arrow: &'a ArrowFunctionExpression<'a>,
+) -> Option<&'a Expression<'a>> {
     if !arrow.expression {
         return None;
     }
@@ -514,25 +507,18 @@ fn visit_identifiers_in_stmt(
                 if let Declaration::VariableDeclaration(var_decl) = decl {
                     for declarator in &var_decl.declarations {
                         if let Some(ref init) = declarator.init {
-                            visit_identifiers_in_expr(
-                                init,
-                                symbol_name,
-                                factory_spans,
-                                found,
-                            );
+                            visit_identifiers_in_expr(init, symbol_name, factory_spans, found);
                         }
                     }
                 }
             }
         }
-        Statement::ExportDefaultDeclaration(export_default) => {
-            match &export_default.declaration {
-                ExportDefaultDeclarationKind::CallExpression(call) => {
-                    visit_identifiers_in_call_expr(call, symbol_name, factory_spans, found);
-                }
-                _ => {}
+        Statement::ExportDefaultDeclaration(export_default) => match &export_default.declaration {
+            ExportDefaultDeclarationKind::CallExpression(call) => {
+                visit_identifiers_in_call_expr(call, symbol_name, factory_spans, found);
             }
-        }
+            _ => {}
+        },
         _ => {}
     }
 }
@@ -570,23 +556,13 @@ fn visit_identifiers_in_expr(
         Expression::ObjectExpression(obj) => {
             for prop in &obj.properties {
                 if let ObjectPropertyKind::ObjectProperty(property) = prop {
-                    visit_identifiers_in_expr(
-                        &property.value,
-                        symbol_name,
-                        factory_spans,
-                        found,
-                    );
+                    visit_identifiers_in_expr(&property.value, symbol_name, factory_spans, found);
                 }
             }
         }
         _ if expr.as_member_expression().is_some() => {
             let member = expr.as_member_expression().unwrap();
-            visit_identifiers_in_expr(
-                member.object(),
-                symbol_name,
-                factory_spans,
-                found,
-            );
+            visit_identifiers_in_expr(member.object(), symbol_name, factory_spans, found);
         }
         Expression::AssignmentExpression(assign) => {
             visit_identifiers_in_expr(&assign.right, symbol_name, factory_spans, found);
@@ -731,14 +707,16 @@ fn cleanup_imports(
                         if exported.as_str() == local_name {
                             remaining_named.push(local_name.to_string());
                         } else {
-                            remaining_named
-                                .push(format!("{} as {}", exported.as_str(), local_name));
+                            remaining_named.push(format!(
+                                "{} as {}",
+                                exported.as_str(),
+                                local_name
+                            ));
                         }
                     }
                 }
                 ImportDeclarationSpecifier::ImportNamespaceSpecifier(ns_spec) => {
-                    remaining_named
-                        .push(format!("* as {}", ns_spec.local.name.as_str()));
+                    remaining_named.push(format!("* as {}", ns_spec.local.name.as_str()));
                 }
             }
         }
