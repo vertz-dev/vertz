@@ -485,3 +485,93 @@ void _p6RtPage;
 // Phase 6 Cycle 7: ReactiveSearchParams.navigate is typed
 _p6RouteTyped.navigate({ q: 'dragon' });
 _p6RouteTyped.navigate({ page: 2 }, { push: true });
+
+// ─── Phase 7: Nested route type inference ────────────────────────────────────
+
+import type { RoutePattern } from '../params';
+
+// Phase 7 Cycle 1: RoutePattern includes nested children keys with concatenated paths
+type P7RouteMap = {
+  '/': {
+    component: () => Node;
+    children: {
+      '/': { component: () => Node };
+      '/brands': {
+        component: () => Node;
+        searchParams: SearchParamSchema<{ page: number }>;
+      };
+    };
+  };
+};
+
+type P7Patterns = RoutePattern<P7RouteMap>;
+const _p7Pat1: P7Patterns = '/';
+const _p7Pat2: P7Patterns = '/brands';
+void _p7Pat1;
+void _p7Pat2;
+
+// @ts-expect-error - '/nonexistent' is not a valid route pattern in nested map
+const _p7PatBad: P7Patterns = '/nonexistent';
+void _p7PatBad;
+
+// Phase 7 Cycle 2: ExtractSearchParams resolves search params from nested children
+type P7Extracted = ExtractSearchParams<'/brands', P7RouteMap>;
+const _p7Page: P7Extracted['page'] = 42;
+void _p7Page;
+
+// @ts-expect-error - page is number, not string
+const _p7BadPage: P7Extracted['page'] = 'not-a-number';
+void _p7BadPage;
+
+// Phase 7 Cycle 3: Nested route without schema falls back to Record<string, string>
+type P7NestedNoSchema = ExtractSearchParams<'/', P7RouteMap>;
+const _p7NoSchema: P7NestedNoSchema = { anyKey: 'value' };
+void _p7NoSchema;
+
+// Phase 7 Cycle 4: Deeply nested routes (grandchild)
+type P7DeepMap = {
+  '/admin': {
+    component: () => Node;
+    children: {
+      '/settings': {
+        component: () => Node;
+        children: {
+          '/profile': {
+            component: () => Node;
+            searchParams: SearchParamSchema<{ tab: string }>;
+          };
+        };
+      };
+    };
+  };
+};
+
+type P7DeepPatterns = RoutePattern<P7DeepMap>;
+const _p7DeepPat1: P7DeepPatterns = '/admin';
+const _p7DeepPat2: P7DeepPatterns = '/admin/settings';
+const _p7DeepPat3: P7DeepPatterns = '/admin/settings/profile';
+void _p7DeepPat1;
+void _p7DeepPat2;
+void _p7DeepPat3;
+
+// @ts-expect-error - '/settings' alone is not a valid pattern (must include parent prefix)
+const _p7DeepBad: P7DeepPatterns = '/settings';
+void _p7DeepBad;
+
+type P7DeepExtracted = ExtractSearchParams<'/admin/settings/profile', P7DeepMap>;
+const _p7DeepTab: P7DeepExtracted['tab'] = 'general';
+void _p7DeepTab;
+
+// @ts-expect-error - tab is string, not number
+const _p7DeepBadTab: P7DeepExtracted['tab'] = 42;
+void _p7DeepBadTab;
+
+// Phase 7 Cycle 5: ExtractSearchParams falls back for nonexistent path in nested map
+type P7NestedUnknown = ExtractSearchParams<'/nonexistent', P7RouteMap>;
+const _p7NestedUnknownRaw: P7NestedUnknown = { anyKey: 'value' };
+void _p7NestedUnknownRaw;
+
+// Phase 7 Cycle 6: RoutePattern backward compat — index signature returns string
+type P7FallbackPatterns = RoutePattern<RouteDefinitionMap>;
+const _p7Fallback: P7FallbackPatterns = '/anything-goes';
+void _p7Fallback;
