@@ -175,4 +175,27 @@ describe('SSR CSS tree-shaking (#1912)', () => {
     // (Theme CSS may still be present if module.theme is set, but we didn't set it.)
     expect(result.css).toBe('');
   });
+
+  it('falls back to getInjectedCSS when cssTracker is empty (import-time CSS)', async () => {
+    // Simulate the pattern where CSS is injected at module import time
+    // (before any SSR context), e.g., via configureTheme() + registerTheme().
+    // The global injectedCSS Set has entries but cssTracker is empty.
+    const importTimeCss = '.eagerly-loaded { padding: 16px; }';
+
+    const module = {
+      default: () => {
+        // Render does NOT call injectCSS — CSS was created at import time
+        const el = document.createElement('div');
+        el.textContent = 'Eager Page';
+        return el;
+      },
+      // getInjectedCSS bridges the global Set from the bundled @vertz/ui instance
+      getInjectedCSS: () => [importTimeCss],
+    };
+
+    const result = await ssrRenderToString(module, '/eager');
+
+    // Even though cssTracker is empty, collectCSS falls back to getInjectedCSS
+    expect(result.css).toContain(importTimeCss);
+  });
 });

@@ -142,7 +142,7 @@ export function variants<V extends VariantDefinitions>(
 
   /** Lazily compile a variant option, returning its className. */
   function ensureVariantOption(variantName: string, optionName: string): string | undefined {
-    const cacheKey = `${variantName}_${optionName}`;
+    const cacheKey = `${variantName}::${optionName}`;
     const cached = variantCache.get(cacheKey);
     if (cached) return cached.className;
 
