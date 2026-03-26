@@ -54,6 +54,22 @@ impl MagicString {
         });
     }
 
+    /// Prepend text at the very beginning of the file.
+    pub fn prepend(&mut self, text: &str) {
+        self.edits.push(Edit::InsertBefore {
+            pos: 0,
+            text: text.to_string(),
+        });
+    }
+
+    /// Append text at the very end of the file.
+    pub fn append(&mut self, text: &str) {
+        self.edits.push(Edit::InsertAfter {
+            pos: self.original.len(),
+            text: text.to_string(),
+        });
+    }
+
     /// Get a slice of the original source.
     pub fn slice(&self, start: u32, end: u32) -> &str {
         &self.original[start as usize..end as usize]

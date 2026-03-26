@@ -1,5 +1,9 @@
 mod component_analyzer;
 mod computed_transformer;
+mod context_stable_ids;
+mod css_token_tables;
+mod css_transform;
+mod fast_refresh;
 mod jsx_transformer;
 mod magic_string;
 mod mount_frame_transformer;
@@ -46,6 +50,7 @@ pub struct NapiComponentInfo {
 #[napi(object)]
 pub struct CompileResult {
     pub code: String,
+    pub css: Option<String>,
     pub map: Option<String>,
     pub diagnostics: Option<Vec<Diagnostic>>,
     pub components: Option<Vec<NapiComponentInfo>>,
@@ -54,6 +59,7 @@ pub struct CompileResult {
 #[napi(object)]
 pub struct CompileOptions {
     pub filename: Option<String>,
+    pub fast_refresh: Option<bool>,
 }
 
 #[napi]
@@ -62,6 +68,11 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
         .as_ref()
         .and_then(|o| o.filename.as_deref())
         .unwrap_or("input.ts");
+
+    let fast_refresh = options
+        .as_ref()
+        .and_then(|o| o.fast_refresh)
+        .unwrap_or(false);
 
     let source_type = SourceType::from_path(filename).unwrap_or_default();
     let allocator = Allocator::default();
@@ -94,6 +105,7 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
 
         return CompileResult {
             code: format!("// compiled by vertz-native\n{source}"),
+            css: None,
             map: None,
             diagnostics: Some(diagnostics),
             components: None,
@@ -188,6 +200,19 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
         })
         .collect();
 
+    // Context stable ID injection (module-level, only in dev/fastRefresh mode)
+    if fast_refresh {
+        context_stable_ids::inject_context_stable_ids(&mut ms, &parser_ret.program, filename);
+    }
+
+    // CSS transform (module-level)
+    let extracted_css = css_transform::transform_css(&mut ms, &parser_ret.program, filename);
+
+    // Fast refresh codegen (module-level, only in dev/fastRefresh mode)
+    if fast_refresh {
+        fast_refresh::inject_fast_refresh(&mut ms, &napi_components, &source, filename);
+    }
+
     let transformed_code = ms.to_string();
 
     // Generate source map using oxc codegen (from original AST)
@@ -206,6 +231,11 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
 
     CompileResult {
         code: format!("// compiled by vertz-native\n{transformed_code}"),
+        css: if extracted_css.is_empty() {
+            None
+        } else {
+            Some(extracted_css)
+        },
         map,
         diagnostics: None,
         components: Some(napi_components),

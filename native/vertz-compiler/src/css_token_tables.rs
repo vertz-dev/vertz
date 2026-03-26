@@ -1,0 +1,456 @@
+//! CSS token resolution tables — embedded from @vertz/ui/internals token-tables.ts.
+//! Single source of truth is the TS file; these must stay in sync.
+
+/// Property mapping: shorthand → (CSS properties, value type).
+pub fn property_map(key: &str) -> Option<(&[&str], &str)> {
+    match key {
+        // Padding
+        "p" => Some((&["padding"], "spacing")),
+        "px" => Some((&["padding-inline"], "spacing")),
+        "py" => Some((&["padding-block"], "spacing")),
+        "pt" => Some((&["padding-top"], "spacing")),
+        "pr" => Some((&["padding-right"], "spacing")),
+        "pb" => Some((&["padding-bottom"], "spacing")),
+        "pl" => Some((&["padding-left"], "spacing")),
+        // Margin
+        "m" => Some((&["margin"], "spacing")),
+        "mx" => Some((&["margin-inline"], "spacing")),
+        "my" => Some((&["margin-block"], "spacing")),
+        "mt" => Some((&["margin-top"], "spacing")),
+        "mr" => Some((&["margin-right"], "spacing")),
+        "mb" => Some((&["margin-bottom"], "spacing")),
+        "ml" => Some((&["margin-left"], "spacing")),
+        // Sizing
+        "w" => Some((&["width"], "size")),
+        "h" => Some((&["height"], "size")),
+        "min-w" => Some((&["min-width"], "size")),
+        "max-w" => Some((&["max-width"], "size")),
+        "min-h" => Some((&["min-height"], "size")),
+        "max-h" => Some((&["max-height"], "size")),
+        // Colors
+        "bg" => Some((&["background-color"], "color")),
+        "text" => Some((&["color"], "color")),
+        "border" => Some((&["border-color"], "color")),
+        // Border width (directional)
+        "border-r" => Some((&["border-right-width"], "raw")),
+        "border-l" => Some((&["border-left-width"], "raw")),
+        "border-t" => Some((&["border-top-width"], "raw")),
+        "border-b" => Some((&["border-bottom-width"], "raw")),
+        // Border radius
+        "rounded" => Some((&["border-radius"], "radius")),
+        // Shadow
+        "shadow" => Some((&["box-shadow"], "shadow")),
+        // Layout
+        "gap" => Some((&["gap"], "spacing")),
+        "items" => Some((&["align-items"], "alignment")),
+        "justify" => Some((&["justify-content"], "alignment")),
+        "grid-cols" => Some((&["grid-template-columns"], "raw")),
+        // Typography
+        "font" => Some((&["font-size"], "font-size")),
+        "weight" => Some((&["font-weight"], "font-weight")),
+        "leading" => Some((&["line-height"], "line-height")),
+        "tracking" => Some((&["letter-spacing"], "raw")),
+        "decoration" => Some((&["text-decoration"], "raw")),
+        // List
+        "list" => Some((&["list-style"], "raw")),
+        // Ring
+        "ring" => Some((&["outline"], "ring")),
+        // Overflow
+        "overflow" => Some((&["overflow"], "raw")),
+        "overflow-x" => Some((&["overflow-x"], "raw")),
+        "overflow-y" => Some((&["overflow-y"], "raw")),
+        // Misc
+        "cursor" => Some((&["cursor"], "raw")),
+        "transition" => Some((&["transition"], "raw")),
+        "resize" => Some((&["resize"], "raw")),
+        "opacity" => Some((&["opacity"], "raw")),
+        "inset" => Some((&["inset"], "raw")),
+        "z" => Some((&["z-index"], "raw")),
+        // View Transitions
+        "vt-name" | "view-transition-name" => Some((&["view-transition-name"], "raw")),
+        // Content
+        "content" => Some((&["content"], "content")),
+        _ => None,
+    }
+}
+
+/// Keyword map: single keywords → one or more CSS declarations.
+/// Returns `(property, value)` pairs.
+pub fn keyword_map(key: &str) -> Option<&[(&str, &str)]> {
+    match key {
+        // Display
+        "flex" => Some(&[("display", "flex")]),
+        "grid" => Some(&[("display", "grid")]),
+        "block" => Some(&[("display", "block")]),
+        "inline" => Some(&[("display", "inline")]),
+        "hidden" => Some(&[("display", "none")]),
+        "inline-flex" => Some(&[("display", "inline-flex")]),
+        // Flex utilities
+        "flex-1" => Some(&[("flex", "1 1 0%")]),
+        "flex-col" => Some(&[("flex-direction", "column")]),
+        "flex-row" => Some(&[("flex-direction", "row")]),
+        "flex-wrap" => Some(&[("flex-wrap", "wrap")]),
+        "flex-nowrap" => Some(&[("flex-wrap", "nowrap")]),
+        // Position
+        "fixed" => Some(&[("position", "fixed")]),
+        "absolute" => Some(&[("position", "absolute")]),
+        "relative" => Some(&[("position", "relative")]),
+        "sticky" => Some(&[("position", "sticky")]),
+        // Text
+        "uppercase" => Some(&[("text-transform", "uppercase")]),
+        "lowercase" => Some(&[("text-transform", "lowercase")]),
+        "capitalize" => Some(&[("text-transform", "capitalize")]),
+        // Outline
+        "outline-none" => Some(&[("outline", "none")]),
+        // Overflow
+        "overflow-hidden" => Some(&[("overflow", "hidden")]),
+        // User interaction
+        "select-none" => Some(&[("user-select", "none")]),
+        "pointer-events-none" => Some(&[("pointer-events", "none")]),
+        // Text wrapping
+        "whitespace-nowrap" => Some(&[("white-space", "nowrap")]),
+        // Flex shrink
+        "shrink-0" => Some(&[("flex-shrink", "0")]),
+        // Font style
+        "italic" => Some(&[("font-style", "italic")]),
+        "not-italic" => Some(&[("font-style", "normal")]),
+        // Transform scale
+        "scale-0" => Some(&[("transform", "scale(0)")]),
+        "scale-75" => Some(&[("transform", "scale(0.75)")]),
+        "scale-90" => Some(&[("transform", "scale(0.9)")]),
+        "scale-95" => Some(&[("transform", "scale(0.95)")]),
+        "scale-100" => Some(&[("transform", "scale(1)")]),
+        "scale-105" => Some(&[("transform", "scale(1.05)")]),
+        "scale-110" => Some(&[("transform", "scale(1.1)")]),
+        "scale-125" => Some(&[("transform", "scale(1.25)")]),
+        "scale-150" => Some(&[("transform", "scale(1.5)")]),
+        _ => None,
+    }
+}
+
+/// Spacing scale: token → CSS value.
+pub fn spacing_scale(key: &str) -> Option<&str> {
+    match key {
+        "0" => Some("0"),
+        "0.5" => Some("0.125rem"),
+        "1" => Some("0.25rem"),
+        "1.5" => Some("0.375rem"),
+        "2" => Some("0.5rem"),
+        "2.5" => Some("0.625rem"),
+        "3" => Some("0.75rem"),
+        "3.5" => Some("0.875rem"),
+        "4" => Some("1rem"),
+        "5" => Some("1.25rem"),
+        "6" => Some("1.5rem"),
+        "7" => Some("1.75rem"),
+        "8" => Some("2rem"),
+        "9" => Some("2.25rem"),
+        "10" => Some("2.5rem"),
+        "11" => Some("2.75rem"),
+        "12" => Some("3rem"),
+        "14" => Some("3.5rem"),
+        "16" => Some("4rem"),
+        "20" => Some("5rem"),
+        "24" => Some("6rem"),
+        "28" => Some("7rem"),
+        "32" => Some("8rem"),
+        "36" => Some("9rem"),
+        "40" => Some("10rem"),
+        "44" => Some("11rem"),
+        "48" => Some("12rem"),
+        "52" => Some("13rem"),
+        "56" => Some("14rem"),
+        "60" => Some("15rem"),
+        "64" => Some("16rem"),
+        "72" => Some("18rem"),
+        "80" => Some("20rem"),
+        "96" => Some("24rem"),
+        "auto" => Some("auto"),
+        _ => None,
+    }
+}
+
+/// Radius scale: token → CSS value.
+pub fn radius_scale(key: &str) -> Option<&str> {
+    match key {
+        "none" => Some("0"),
+        "xs" => Some("calc(var(--radius) * 0.33)"),
+        "sm" => Some("calc(var(--radius) * 0.67)"),
+        "md" => Some("var(--radius)"),
+        "lg" => Some("calc(var(--radius) * 1.33)"),
+        "xl" => Some("calc(var(--radius) * 2)"),
+        "2xl" => Some("calc(var(--radius) * 2.67)"),
+        "3xl" => Some("calc(var(--radius) * 4)"),
+        "full" => Some("9999px"),
+        _ => None,
+    }
+}
+
+/// Shadow scale: token → CSS value.
+pub fn shadow_scale(key: &str) -> Option<&str> {
+    match key {
+        "xs" => Some("0 1px 1px 0 rgb(0 0 0 / 0.03)"),
+        "sm" => Some("0 1px 2px 0 rgb(0 0 0 / 0.05)"),
+        "md" => Some("0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)"),
+        "lg" => Some("0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)"),
+        "xl" => Some("0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)"),
+        "2xl" => Some("0 25px 50px -12px rgb(0 0 0 / 0.25)"),
+        "none" => Some("none"),
+        _ => None,
+    }
+}
+
+/// Font size scale: token → CSS value.
+pub fn font_size_scale(key: &str) -> Option<&str> {
+    match key {
+        "xs" => Some("0.75rem"),
+        "sm" => Some("0.875rem"),
+        "base" => Some("1rem"),
+        "lg" => Some("1.125rem"),
+        "xl" => Some("1.25rem"),
+        "2xl" => Some("1.5rem"),
+        "3xl" => Some("1.875rem"),
+        "4xl" => Some("2.25rem"),
+        "5xl" => Some("3rem"),
+        _ => None,
+    }
+}
+
+/// Font weight scale: token → CSS value.
+pub fn font_weight_scale(key: &str) -> Option<&str> {
+    match key {
+        "thin" => Some("100"),
+        "extralight" => Some("200"),
+        "light" => Some("300"),
+        "normal" => Some("400"),
+        "medium" => Some("500"),
+        "semibold" => Some("600"),
+        "bold" => Some("700"),
+        "extrabold" => Some("800"),
+        "black" => Some("900"),
+        _ => None,
+    }
+}
+
+/// Line height scale: token → CSS value.
+pub fn line_height_scale(key: &str) -> Option<&str> {
+    match key {
+        "none" => Some("1"),
+        "tight" => Some("1.25"),
+        "snug" => Some("1.375"),
+        "normal" => Some("1.5"),
+        "relaxed" => Some("1.625"),
+        "loose" => Some("2"),
+        _ => None,
+    }
+}
+
+/// Alignment map: token → CSS value.
+pub fn alignment_map(key: &str) -> Option<&str> {
+    match key {
+        "start" => Some("flex-start"),
+        "end" => Some("flex-end"),
+        "center" => Some("center"),
+        "between" => Some("space-between"),
+        "around" => Some("space-around"),
+        "evenly" => Some("space-evenly"),
+        "stretch" => Some("stretch"),
+        "baseline" => Some("baseline"),
+        _ => None,
+    }
+}
+
+/// Size keywords: token → CSS value.
+pub fn size_keywords(key: &str) -> Option<&str> {
+    match key {
+        "full" => Some("100%"),
+        "svw" => Some("100svw"),
+        "dvw" => Some("100dvw"),
+        "min" => Some("min-content"),
+        "max" => Some("max-content"),
+        "fit" => Some("fit-content"),
+        "auto" => Some("auto"),
+        "xs" => Some("20rem"),
+        "sm" => Some("24rem"),
+        "md" => Some("28rem"),
+        "lg" => Some("32rem"),
+        "xl" => Some("36rem"),
+        "2xl" => Some("42rem"),
+        "3xl" => Some("48rem"),
+        "4xl" => Some("56rem"),
+        "5xl" => Some("64rem"),
+        "6xl" => Some("72rem"),
+        "7xl" => Some("80rem"),
+        _ => None,
+    }
+}
+
+/// Content keywords: token → CSS value.
+pub fn content_map(key: &str) -> Option<&str> {
+    match key {
+        "empty" => Some("''"),
+        "none" => Some("none"),
+        _ => None,
+    }
+}
+
+/// Pseudo prefix → CSS pseudo-selector.
+pub fn pseudo_map(key: &str) -> Option<&str> {
+    match key {
+        "hover" => Some(":hover"),
+        "focus" => Some(":focus"),
+        "focus-visible" => Some(":focus-visible"),
+        "active" => Some(":active"),
+        "disabled" => Some(":disabled"),
+        "first" => Some(":first-child"),
+        "last" => Some(":last-child"),
+        _ => None,
+    }
+}
+
+/// Check if a key is a pseudo prefix.
+pub fn is_pseudo_prefix(key: &str) -> bool {
+    pseudo_map(key).is_some()
+}
+
+/// Color namespace set.
+pub fn is_color_namespace(key: &str) -> bool {
+    matches!(
+        key,
+        "primary"
+            | "secondary"
+            | "accent"
+            | "background"
+            | "foreground"
+            | "muted"
+            | "surface"
+            | "destructive"
+            | "danger"
+            | "success"
+            | "warning"
+            | "info"
+            | "border"
+            | "ring"
+            | "input"
+            | "card"
+            | "popover"
+            | "gray"
+            | "primary-foreground"
+            | "secondary-foreground"
+            | "accent-foreground"
+            | "destructive-foreground"
+            | "muted-foreground"
+            | "card-foreground"
+            | "popover-foreground"
+    )
+}
+
+/// CSS color keywords that pass through without resolution.
+pub fn is_css_color_keyword(key: &str) -> bool {
+    matches!(
+        key,
+        "transparent" | "inherit" | "currentColor" | "initial" | "unset" | "white" | "black"
+    )
+}
+
+/// Height-axis properties that use vh units.
+pub fn is_height_axis(property: &str) -> bool {
+    matches!(property, "h" | "min-h" | "max-h")
+}
+
+/// Resolve a color token to a CSS value.
+pub fn resolve_color(value: &str) -> Option<String> {
+    // Check for opacity modifier: 'primary/50', 'primary.700/50'
+    if let Some(slash_idx) = value.rfind('/') {
+        let color_part = &value[..slash_idx];
+        let opacity_str = &value[slash_idx + 1..];
+        if let Ok(opacity) = opacity_str.parse::<u32>() {
+            if opacity <= 100 {
+                if let Some(resolved) = resolve_color_token(color_part) {
+                    return Some(format!(
+                        "color-mix(in oklch, {resolved} {opacity}%, transparent)"
+                    ));
+                }
+            }
+        }
+        return None;
+    }
+    resolve_color_token(value)
+}
+
+/// Resolve a color token (without opacity) to a CSS value.
+fn resolve_color_token(token: &str) -> Option<String> {
+    if let Some(dot_idx) = token.find('.') {
+        let namespace = &token[..dot_idx];
+        let shade = &token[dot_idx + 1..];
+        if is_color_namespace(namespace) {
+            return Some(format!("var(--color-{namespace}-{shade})"));
+        }
+        return None;
+    }
+    if is_color_namespace(token) {
+        return Some(format!("var(--color-{token})"));
+    }
+    if is_css_color_keyword(token) {
+        return Some(token.to_string());
+    }
+    None
+}
+
+/// Resolve a value token based on its type.
+pub fn resolve_value(value: &str, value_type: &str, property: &str) -> Option<String> {
+    match value_type {
+        "spacing" => spacing_scale(value).map(|v| v.to_string()),
+        "color" => resolve_color(value),
+        "radius" => radius_scale(value).map(|v| v.to_string()),
+        "shadow" => shadow_scale(value).map(|v| v.to_string()),
+        "size" => resolve_size(value, property),
+        "alignment" => alignment_map(value).map(|v| v.to_string()),
+        "font-size" => font_size_scale(value).map(|v| v.to_string()),
+        "font-weight" => font_weight_scale(value).map(|v| v.to_string()),
+        "line-height" => line_height_scale(value).map(|v| v.to_string()),
+        "ring" => resolve_ring(value),
+        "content" => content_map(value).map(|v| v.to_string()),
+        "raw" => Some(value.to_string()),
+        _ => Some(value.to_string()),
+    }
+}
+
+fn resolve_size(value: &str, property: &str) -> Option<String> {
+    if value == "screen" {
+        return if is_height_axis(property) {
+            Some("100vh".to_string())
+        } else {
+            Some("100vw".to_string())
+        };
+    }
+    if let Some(v) = spacing_scale(value) {
+        return Some(v.to_string());
+    }
+    if let Some(v) = size_keywords(value) {
+        return Some(v.to_string());
+    }
+    // Fraction: N/M → percentage (integers only, matching TS regex /^(\d+)\/(\d+)$/)
+    if let Some(slash_idx) = value.find('/') {
+        let num_str = &value[..slash_idx];
+        let den_str = &value[slash_idx + 1..];
+        if let (Ok(num), Ok(den)) = (num_str.parse::<u64>(), den_str.parse::<u64>()) {
+            if den != 0 {
+                let pct = (num as f64 / den as f64) * 100.0;
+                if pct % 1.0 == 0.0 {
+                    return Some(format!("{}%", pct as i64));
+                }
+                return Some(format!("{:.6}%", pct));
+            }
+        }
+    }
+    None
+}
+
+fn resolve_ring(value: &str) -> Option<String> {
+    let num: f64 = value.parse().ok()?;
+    if num < 0.0 || num.is_nan() {
+        return None;
+    }
+    Some(format!("{}px solid var(--color-ring)", num))
+}
