@@ -2275,6 +2275,53 @@ describe('query()', () => {
       result.dispose();
     });
 
+    test('descriptor-in-thunk with static _key re-fetches when reactive dep changes', async () => {
+      resetDefaultQueryCache();
+
+      const page = signal(1);
+      let fetchCallCount = 0;
+
+      // Thunk reads `page` signal inside the thunk body (where
+      // callThunkWithCapture captures deps), but the descriptor _key is
+      // STATIC — it does NOT include the page number.  Before the fix, the
+      // cache key was always "GET:/tasks" regardless of page, causing cache
+      // hits with stale data.  After the fix, the dep hash (derived from
+      // captured signal reads) is appended to differentiate.
+      const result = query(() => {
+        const p = page.value; // read inside thunk → captured in dep hash
+        fetchCallCount++;
+        return {
+          _tag: 'QueryDescriptor' as const,
+          _key: 'GET:/tasks',
+          _fetch: () => Promise.resolve(ok({ items: [`page-${p}-item`], page: p })),
+          // eslint-disable-next-line unicorn/no-thenable -- intentional PromiseLike mock
+          then(onFulfilled: any, onRejected: any) {
+            return this._fetch().then(onFulfilled, onRejected);
+          },
+        };
+      });
+
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(fetchCallCount).toBeGreaterThanOrEqual(1);
+      expect(result.data.value).toEqual({ items: ['page-1-item'], page: 1 });
+
+      // Change the reactive dep — should produce a different dep hash,
+      // yielding a different composite cache key and triggering a new fetch
+      // instead of returning stale page-1 data from cache.
+      page.value = 2;
+
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(result.data.value).toEqual({ items: ['page-2-item'], page: 2 });
+
+      result.dispose();
+    });
+
     test('descriptor-in-thunk cleans up via scope disposal without TDZ (#1819)', async () => {
       resetDefaultQueryCache();
       resetMutationEventBus();
