@@ -1,3 +1,4 @@
+mod aot_string_transformer;
 mod body_jsx_diagnostics;
 mod component_analyzer;
 mod computed_transformer;
@@ -501,6 +502,104 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
                 Some(pa.route_params)
             }
         }),
+    }
+}
+
+#[napi(object)]
+pub struct NapiAotComponentInfo {
+    pub name: String,
+    pub tier: String,
+    pub holes: Vec<String>,
+    pub query_keys: Vec<String>,
+}
+
+#[napi(object)]
+pub struct AotCompileResult {
+    pub code: String,
+    pub components: Vec<NapiAotComponentInfo>,
+}
+
+#[napi(object)]
+pub struct AotCompileOptions {
+    pub filename: Option<String>,
+}
+
+#[napi]
+pub fn compile_for_ssr_aot(source: String, options: Option<AotCompileOptions>) -> AotCompileResult {
+    let filename = options
+        .as_ref()
+        .and_then(|o| o.filename.as_deref())
+        .unwrap_or("input.tsx");
+
+    let source_type = SourceType::from_path(filename).unwrap_or_default();
+    let allocator = Allocator::default();
+
+    let parser_ret = Parser::new(&allocator, &source, source_type).parse();
+
+    if !parser_ret.errors.is_empty() {
+        return AotCompileResult {
+            code: source,
+            components: Vec::new(),
+        };
+    }
+
+    // Run component analysis
+    let components = component_analyzer::analyze_components(&parser_ret.program);
+
+    if components.is_empty() {
+        return AotCompileResult {
+            code: source,
+            components: Vec::new(),
+        };
+    }
+
+    // Build import context for reactivity analysis
+    let empty_registry = std::collections::HashMap::new();
+    let (import_aliases, dynamic_configs) =
+        reactivity_analyzer::build_import_aliases(&parser_ret.program, &empty_registry);
+    let import_ctx = reactivity_analyzer::ImportContext {
+        aliases: import_aliases,
+        dynamic_configs,
+    };
+
+    // Run props transform + reactivity analysis per component
+    let mut ms = magic_string::MagicString::new(&source);
+
+    // Strip TypeScript syntax first
+    typescript_strip::strip_typescript_syntax(&mut ms, &parser_ret.program, &source);
+
+    let mut variables_per_component: Vec<Vec<reactivity_analyzer::VariableInfo>> = Vec::new();
+
+    for comp in &components {
+        // Props destructuring must run BEFORE reactivity analysis
+        props_transformer::transform_props(&mut ms, &parser_ret.program, comp, &source);
+
+        let variables =
+            reactivity_analyzer::analyze_reactivity(&parser_ret.program, comp, &import_ctx);
+        variables_per_component.push(variables);
+    }
+
+    // Run AOT transform
+    let aot_result = aot_string_transformer::compile_for_ssr_aot(
+        &ms,
+        &parser_ret.program,
+        &source,
+        &components,
+        &variables_per_component,
+    );
+
+    AotCompileResult {
+        code: aot_result.code,
+        components: aot_result
+            .components
+            .into_iter()
+            .map(|c| NapiAotComponentInfo {
+                name: c.name,
+                tier: c.tier.as_str().to_string(),
+                holes: c.holes,
+                query_keys: c.query_keys,
+            })
+            .collect(),
     }
 }
 
