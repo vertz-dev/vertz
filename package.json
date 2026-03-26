@@ -7,7 +7,8 @@
     "packages/*",
     "examples/*",
     "sites/*",
-    "benchmarks/vertz"
+    "benchmarks/vertz",
+    "native/*"
   ],
   "scripts": {
     "test:watch": "bun run --filter '*' test:watch",

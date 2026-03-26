@@ -34,6 +34,7 @@ import type { BunPlugin } from 'bun';
 import MagicString from 'magic-string';
 import { Project, ts } from 'ts-morph';
 import { injectContextStableIds } from './context-stable-ids';
+import { tryLoadNativeCompiler } from './native-compiler-loader';
 import { loadEntitySchema } from './entity-schema-loader';
 import { generateRefreshCode } from './fast-refresh-codegen';
 import type { EntitySchemaManifest } from './field-selection-inject';
@@ -210,6 +211,10 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
     });
   }
 
+  // ── Native compiler (optional, behind VERTZ_NATIVE_COMPILER=1) ──
+  const nativeCompiler = tryLoadNativeCompiler();
+  let nativeManifestWarningLogged = false;
+
   // Ensure CSS output directory exists
   mkdirSync(cssOutDir, { recursive: true });
 
@@ -373,11 +378,53 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
           }
 
           // ── 3. Compile (reactive + JSX transforms) ─────────────
-          const compileResult = compile(codeAfterImageTransform, {
-            filename: args.path,
-            target: options?.target,
-            manifests: getManifestsRecord(),
-          });
+          // Use native Rust compiler when available (20-50x faster),
+          // otherwise fall back to ts-morph TypeScript compiler.
+          const compileResult = nativeCompiler
+            ? (() => {
+                // Warn once that native compiler does not support cross-file
+                // reactivity manifests. User-defined hooks returning signal APIs
+                // won't have .value inserted for their properties.
+                if (!nativeManifestWarningLogged && manifests.size > 0) {
+                  nativeManifestWarningLogged = true;
+                  const userManifestCount = [...manifests.keys()].filter(
+                    (k) => !k.includes('node_modules'),
+                  ).length;
+                  if (userManifestCount > 0) {
+                    console.warn(
+                      `[vertz-bun-plugin] Native compiler does not support cross-file reactivity manifests. ` +
+                        `${userManifestCount} user module(s) with exported signal APIs will not have ` +
+                        `.value insertion for their signal properties. ` +
+                        `Set VERTZ_NATIVE_COMPILER=0 if cross-file reactivity is needed.`,
+                    );
+                  }
+                }
+
+                const nativeResult = nativeCompiler.compile(codeAfterImageTransform, {
+                  filename: args.path,
+                  target: options?.target,
+                  // Plugin handles context stable IDs and fast refresh separately
+                  fastRefresh: false,
+                });
+                return {
+                  code: nativeResult.code,
+                  map: nativeResult.map
+                    ? (JSON.parse(nativeResult.map) as EncodedSourceMap)
+                    : ({ version: 3, sources: [], mappings: '', names: [] } as EncodedSourceMap),
+                  diagnostics: (nativeResult.diagnostics ?? []).map((d) => ({
+                    code: 'native-diagnostic',
+                    message: d.message,
+                    severity: 'warning' as const,
+                    line: d.line ?? 1,
+                    column: d.column ?? 0,
+                  })),
+                };
+              })()
+            : compile(codeAfterImageTransform, {
+                filename: args.path,
+                target: options?.target,
+                manifests: getManifestsRecord(),
+              });
 
           // ── 4. Source map chaining ──────────────────────────────
           // Chain maps in output→source order: compile → image → hydration
