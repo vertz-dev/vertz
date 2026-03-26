@@ -777,6 +777,41 @@ export function query<T, E = unknown>(
           isFirst = false;
           return;
         }
+        // Fallback: the depHash may differ between component mounts when
+        // auto-field-selection produces a different `select` object before
+        // the component renders.  The effectKey (descriptor _key) already
+        // encodes the user-controlled params (page, limit, etc.), so
+        // matching any entry with the same effectKey prefix is safe — it's
+        // the same logical query, just with a different field-selection
+        // snapshot.  Also check baseKey:depHash (SSR hydration format).
+        if (descriptorKey) {
+          // Try baseKey:depHash format (SSR hydration stores under this key)
+          const baseKeyFallback = untrack(() => getCacheKey());
+          const baseCached = untrack(() => cache.get(baseKeyFallback));
+          if (baseCached !== undefined) {
+            retainKey(baseKeyFallback);
+            untrack(() => {
+              rawData.value = baseCached;
+              loading.value = false;
+            });
+            isFirst = false;
+            return;
+          }
+          // Try effectKey prefix match — depHash may differ due to
+          // auto-field-selection tracking differences across mounts
+          if (cache instanceof MemoryCache) {
+            const match = cache.findByPrefix(`${descriptorKey}:`);
+            if (match) {
+              retainKey(match.key);
+              untrack(() => {
+                rawData.value = match.value;
+                loading.value = false;
+              });
+              isFirst = false;
+              return;
+            }
+          }
+        }
       }
       // No cache hit — defer to the SSE stream / doneHandler fallback.
       isFirst = false;
