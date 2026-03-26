@@ -3,7 +3,7 @@
  */
 
 import { matchPath } from './matcher';
-import type { ExtractParams } from './params';
+import type { ExtractParams, JoinPaths } from './params';
 import type { ViewTransitionConfig } from './view-transitions';
 
 /** Schema interface for parsing and validating values (search params, path params). */
@@ -91,8 +91,29 @@ export type TypedRoutes<T extends Record<string, RouteConfigLike> = RouteDefinit
 export type InferRouteMap<T> = T extends TypedRoutes<infer R> ? R : T;
 
 /**
+ * Search nested children for a route's search params schema.
+ * Returns the schema output type if found, `never` if not found.
+ */
+type FindSearchParamsInChildren<
+  TPath extends string,
+  TMap extends Record<string, RouteConfigLike>,
+  _Prefix extends string = '',
+> = string extends keyof TMap
+  ? never
+  : {
+      [K in keyof TMap & string]: JoinPaths<_Prefix, K> extends TPath
+        ? TMap[K] extends { searchParams: SearchParamSchema<infer S> }
+          ? S
+          : never
+        : TMap[K] extends { children: infer C extends Record<string, RouteConfigLike> }
+          ? FindSearchParamsInChildren<TPath, C, JoinPaths<_Prefix, K>>
+          : never;
+    }[keyof TMap & string];
+
+/**
  * Extract the search params type from a route definition map for a given path.
  *
+ * Recursively searches nested `children` when the path is not a top-level key.
  * If the route at `TPath` has a `searchParams` schema, resolves to the schema's
  * output type `T`. Otherwise resolves to `Record<string, string>` (raw URL params).
  *
@@ -105,7 +126,9 @@ export type ExtractSearchParams<
   ? TMap[TPath] extends { searchParams: SearchParamSchema<infer T> }
     ? T
     : Record<string, string>
-  : Record<string, string>;
+  : [FindSearchParamsInChildren<TPath, TMap>] extends [never]
+    ? Record<string, string>
+    : FindSearchParamsInChildren<TPath, TMap>;
 
 /** Internal compiled route. */
 export interface CompiledRoute {

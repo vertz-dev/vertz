@@ -55,8 +55,35 @@ export type PathWithParams<T extends string> = T extends `${infer Before}*`
       ? `${Before}${string}`
       : T;
 
-/** Union of route pattern keys from a route map. */
-export type RoutePattern<TRouteMap extends Record<string, unknown>> = keyof TRouteMap & string;
+/**
+ * Join parent and child route path segments.
+ * - `JoinPaths<'/', '/brands'>` → `'/brands'`
+ * - `JoinPaths<'/admin', '/settings'>` → `'/admin/settings'`
+ * - `JoinPaths<'', '/brands'>` → `'/brands'`
+ */
+export type JoinPaths<Parent extends string, Child extends string> = Parent extends '' | '/'
+  ? Child
+  : Child extends '/'
+    ? Parent
+    : `${Parent}${Child}`;
+
+/**
+ * Union of all route pattern keys from a route map, including nested children.
+ * Recursively walks `children` and concatenates parent + child paths.
+ * Short-circuits to `string` for index signatures (backward compat).
+ */
+export type RoutePattern<
+  TRouteMap extends Record<string, unknown>,
+  _Prefix extends string = '',
+> = string extends keyof TRouteMap
+  ? string
+  : {
+      [K in keyof TRouteMap & string]:
+        | JoinPaths<_Prefix, K>
+        | (TRouteMap[K] extends { children: infer C extends Record<string, unknown> }
+            ? RoutePattern<C, JoinPaths<_Prefix, K>>
+            : never);
+    }[keyof TRouteMap & string];
 
 // ─── RoutePaths ─────────────────────────────────────────────────────────────
 
