@@ -8,8 +8,9 @@
  * via SSR-aware getters — no manual router.current.value assignment needed.
  */
 
-import { describe, expect, test } from 'bun:test';
+import { afterAll, describe, expect, test } from 'bun:test';
 import { ssrRenderToString } from '@vertz/ui-server';
+import { removeDomShim } from '@vertz/ui-server/dom-shim';
 
 /**
  * Helper: render the app at a given URL using the framework's SSR pipeline.
@@ -23,6 +24,10 @@ async function renderApp(url: string): Promise<string> {
 }
 
 describe('SSR integration (zero-config)', () => {
+  afterAll(() => {
+    removeDomShim();
+  });
+
   test('renders app root with testid', async () => {
     const html = await renderApp('/');
     expect(html).toContain('data-testid="app-root"');
