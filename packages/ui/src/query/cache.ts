@@ -95,6 +95,14 @@ export class MemoryCache<T = unknown> implements CacheStore<T> {
     this._orphans.delete(key);
   }
 
+  /** Find the first entry whose key starts with `prefix`. */
+  findByPrefix(prefix: string): { key: string; value: T } | undefined {
+    for (const [k, v] of this._store) {
+      if (k.startsWith(prefix)) return { key: k, value: v };
+    }
+    return undefined;
+  }
+
   /** Release a cache key when a query instance disposes or changes key. */
   release(key: string): void {
     const current = this._refs.get(key);

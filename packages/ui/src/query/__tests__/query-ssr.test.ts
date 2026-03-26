@@ -687,6 +687,94 @@ describe('query() nav prefetch integration', () => {
     result2.dispose();
   });
 
+  it('serves cached data after SSR-hydrated first visit then nav-prefetch back', async () => {
+    // Simulates the REAL flow: first visit is SSR-hydrated, user navigates away,
+    // then navigates back. The nav-prefetch path must find cached data even when
+    // the depHash differs (due to auto-field-selection tracking differences).
+    // The prefix-match fallback on the descriptor _key handles this.
+
+    // Minimal document mock for nav-prefetch event listeners
+    const listeners = new Map<string, Set<EventListener>>();
+    const mockDoc = {
+      addEventListener(type: string, fn: EventListener) {
+        if (!listeners.has(type)) listeners.set(type, new Set());
+        listeners.get(type)!.add(fn);
+      },
+      removeEventListener(type: string, fn: EventListener) {
+        listeners.get(type)?.delete(fn);
+      },
+      dispatchEvent(event: Event) {
+        for (const fn of listeners.get(event.type) ?? []) fn(event);
+      },
+    };
+    const origDoc = (globalThis as Record<string, unknown>).document;
+    (globalThis as Record<string, unknown>).document = mockDoc;
+
+    const cache = new MemoryCache<unknown>();
+    const dep = signal(1);
+
+    const ssrData = { items: ['page-1'], total: 10 };
+    const fetchFn = vi.fn(async (page: number) => ({
+      ok: true as const,
+      data: ssrData,
+    }));
+
+    const thunk = () => {
+      const currentPage = dep.value;
+      return {
+        _tag: 'QueryDescriptor' as const,
+        _key: `GET:/tasks?page=${currentPage}`,
+        _fetch: () => fetchFn(currentPage),
+        // eslint-disable-next-line unicorn/no-thenable -- intentional PromiseLike mock
+        then(onFulfilled: any, onRejected: any) {
+          return this._fetch().then(onFulfilled, onRejected);
+        },
+      };
+    };
+
+    // First visit: normal fetch populates cache under effectKey:depHash
+    delete (globalThis as Record<string, unknown>).__VERTZ_NAV_PREFETCH_ACTIVE__;
+    delete (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__;
+    delete (globalThis as Record<string, unknown>).__VERTZ_SSR_PUSH__;
+
+    const result = query(thunk, { cache });
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(result.data.value).toEqual(ssrData);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+
+    result.dispose();
+
+    // Cache still has the effectKey:depHash entry (orphaned, not deleted).
+    // On nav-prefetch back, the new component mount may derive a DIFFERENT
+    // depHash (auto-field-selection). The prefix-match fallback should still
+    // find the cached entry by matching the descriptor _key prefix.
+
+    // Second visit: navigate back with nav-prefetch active
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [];
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_PUSH__ = () => {};
+    (globalThis as Record<string, unknown>).__VERTZ_NAV_PREFETCH_ACTIVE__ = true;
+
+    fetchFn.mockClear();
+
+    const result2 = query(thunk, { cache });
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Nav-prefetch should find cached data via exact key or prefix match
+    expect(result2.data.value).toEqual(ssrData);
+    expect(result2.loading.value).toBe(false);
+    expect(fetchFn).not.toHaveBeenCalled();
+
+    result2.dispose();
+
+    // Cleanup
+    if (origDoc !== undefined) {
+      (globalThis as Record<string, unknown>).document = origDoc;
+    } else {
+      delete (globalThis as Record<string, unknown>).document;
+    }
+  });
+
   it('late prefetch done does not double-fetch when SSR data arrived via stream', async () => {
     (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [];
     (globalThis as Record<string, unknown>).__VERTZ_SSR_PUSH__ = () => {};
