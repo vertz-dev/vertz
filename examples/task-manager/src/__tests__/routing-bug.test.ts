@@ -5,11 +5,12 @@
  * server-side using the framework's zero-config SSR pipeline.
  */
 
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
 import {
   EntityStore,
   MemoryCache,
   QueryEnvelopeStore,
+  registerSSRResolver,
   type SSRRenderContext,
 } from '@vertz/ui/internals';
 import { createSSRAdapter, renderToStream, ssrStorage, streamToString } from '@vertz/ui-server';
@@ -47,8 +48,22 @@ async function renderApp(url: string): Promise<string> {
 }
 
 describe('SSR routing', () => {
+  // Importing @vertz/ui-server registers an SSR resolver on globalThis as a
+  // module-level side effect. Re-register explicitly so this file works even
+  // when a previous test file cleared the resolver.
+  beforeAll(() => {
+    registerSSRResolver(() => ssrStorage.getStore());
+  });
+
   afterEach(() => {
     removeDomShim();
+  });
+
+  // Clear the SSR resolver so subsequent test files see isBrowser()=true.
+  // Without this, navigation tests in later files get the SSR (read-only)
+  // router, breaking client-side navigation assertions.
+  afterAll(() => {
+    registerSSRResolver(null);
   });
 
   test('/ route should match TaskListPage, not 404', async () => {
