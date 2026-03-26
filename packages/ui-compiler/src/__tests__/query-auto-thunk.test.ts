@@ -162,4 +162,95 @@ describe('query() auto-thunk transform (#1861)', () => {
     expect(result.code).toContain('q(() => api.brands.list(');
     expect(result.diagnostics).toHaveLength(0);
   });
+
+  it('wraps when argument contains a useSearchParams() reactive source property', () => {
+    const source = `
+      import { query, useSearchParams } from '@vertz/ui';
+
+      function TaskListPage() {
+        const sp = useSearchParams();
+        const tasks = query(api.tasks.list({ page: sp.page }));
+        return <div>{tasks.data}</div>;
+      }
+    `;
+
+    const result = compile(source, 'test.tsx');
+
+    // sp is a reactive source — auto-thunk must wrap the arg
+    expect(result.code).toContain('query(() => api.tasks.list(');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('wraps when reactive source is the ONLY reactive thing (no signals/computeds)', () => {
+    const source = `
+      import { query, useSearchParams } from '@vertz/ui';
+
+      function TaskListPage() {
+        const sp = useSearchParams();
+        const tasks = query(api.tasks.list({ page: sp.page, limit: 10 }));
+        return <div>{tasks.data}</div>;
+      }
+    `;
+
+    const result = compile(source, 'test.tsx');
+
+    // No let signals, no derived computeds — only the reactive source.
+    // The outer guard in compiler.ts and the transformer filter both must
+    // account for reactive sources.
+    expect(result.code).toContain('query(() => api.tasks.list(');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('wraps when argument contains a useContext() reactive source property', () => {
+    const source = `
+      import { query, useContext } from '@vertz/ui';
+
+      function FilteredList() {
+        const ctx = useContext(SettingsCtx);
+        const items = query(api.items.list({ locale: ctx.locale }));
+        return <div>{items.data}</div>;
+      }
+    `;
+
+    const result = compile(source, 'test.tsx');
+
+    expect(result.code).toContain('query(() => api.items.list(');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('wraps when argument contains a useAuth() reactive source property', () => {
+    const source = `
+      import { query, useAuth } from '@vertz/ui';
+
+      function UserItems() {
+        const auth = useAuth();
+        const items = query(api.items.list({ userId: auth.userId }));
+        return <div>{items.data}</div>;
+      }
+    `;
+
+    const result = compile(source, 'test.tsx');
+
+    expect(result.code).toContain('query(() => api.items.list(');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('does NOT wrap when reactive source is not referenced in query arg', () => {
+    const source = `
+      import { query, useSearchParams } from '@vertz/ui';
+
+      function TaskListPage() {
+        const sp = useSearchParams();
+        const tasks = query(api.tasks.list({ limit: 20 }));
+        return <div>{sp.page}{tasks.data}</div>;
+      }
+    `;
+
+    const result = compile(source, 'test.tsx');
+
+    // sp is used in JSX but NOT in the query arg — no wrapping needed
+    expect(result.code).not.toContain('query(() =>');
+    expect(result.code).toContain('query(api.tasks.list(');
+    expect(result.diagnostics).toHaveLength(0);
+  });
 });

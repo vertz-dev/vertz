@@ -825,9 +825,16 @@ export function query<T, E = unknown>(
       idle.value = false;
     });
 
-    // Snapshot the cache key for this effect run. For descriptor-in-thunk,
-    // use the descriptor's _key. Otherwise use the dep-hash-derived key.
-    const key = effectKey ?? untrack(() => getCacheKey());
+    // Snapshot the cache key for this effect run.
+    // For descriptor-in-thunk, combine the descriptor's _key with the dep
+    // hash so that different reactive deps produce different cache keys —
+    // the descriptor's URL may not include all parameters (e.g., when
+    // params are in the fetch closure or request body, not the URL).
+    // For plain thunks (no descriptor), use the dep-hash-derived key.
+    const depHash = untrack(() => depHashSignal.value);
+    const key = effectKey
+      ? (depHash ? `${effectKey}:${depHash}` : effectKey)
+      : untrack(() => getCacheKey());
 
     // Deduplication check for derived keys: now that the thunk has been
     // called and the dep hash updated, check if an in-flight request

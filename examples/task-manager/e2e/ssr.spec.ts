@@ -20,10 +20,11 @@ test.describe('SSR — Server-Side Rendering', () => {
       await page.goto('/');
 
       // Task cards should appear — either pre-rendered by SSR or loaded client-side
+      // Page 1 shows 10 tasks (50 total, 10 per page)
       const cards = page.getByTestId('task-list').locator('[data-testid^="task-card-"]');
-      await expect(cards).toHaveCount(3, { timeout: 10000 });
+      await expect(cards).toHaveCount(10, { timeout: 10000 });
 
-      // Once loaded, all task titles should be visible
+      // First few task titles should be visible on page 1
       await expect(page.getByText('Set up CI/CD pipeline')).toBeVisible();
       await expect(page.getByText('Implement user authentication')).toBeVisible();
       await expect(page.getByText('Write API documentation')).toBeVisible();
@@ -77,23 +78,24 @@ test.describe('SSR — Server-Side Rendering', () => {
     test('task list loads and becomes interactive', async ({ page }) => {
       await page.goto('/');
       const cards = page.getByTestId('task-list').locator('[data-testid^="task-card-"]');
-      await expect(cards).toHaveCount(3, { timeout: 10000 });
+      await expect(cards).toHaveCount(10, { timeout: 10000 });
 
       // Client-side filtering should work after hydration
+      // Page 1 has 3 done tasks (cycling statuses across 10 items)
       await page.getByTestId('filter-done').click();
       const doneCards = page.getByTestId('task-list').locator('[data-testid^="task-card-"]');
-      await expect(doneCards).toHaveCount(1);
+      await expect(doneCards).toHaveCount(3);
 
       // Go back to all
       await page.getByTestId('filter-all').click();
       const allCards = page.getByTestId('task-list').locator('[data-testid^="task-card-"]');
-      await expect(allCards).toHaveCount(3);
+      await expect(allCards).toHaveCount(10);
     });
 
     test('client-side navigation to detail page works after SSR', async ({ page }) => {
       await page.goto('/');
       const cards = page.getByTestId('task-list').locator('[data-testid^="task-card-"]');
-      await expect(cards).toHaveCount(3, { timeout: 10000 });
+      await expect(cards).toHaveCount(10, { timeout: 10000 });
 
       // Click a task card to navigate
       await page.getByTestId('task-list').locator('[data-testid^="task-card-"]').first().click();

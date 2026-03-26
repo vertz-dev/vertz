@@ -29,9 +29,16 @@ export interface UpdateTaskBody {
   priority?: TaskPriority;
 }
 
+export interface TaskListParams {
+  page?: number;
+  limit?: number;
+}
+
 export interface TaskListResponse {
   items: Task[];
   total: number;
+  page: number;
+  totalPages: number;
 }
 
 export interface Settings {

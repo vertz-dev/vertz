@@ -11,7 +11,7 @@ test.describe('Server Nav — Client-Side Navigation Pre-Fetch', () => {
 
     // Task data should be pre-rendered from SSR
     const cards = page.getByTestId('task-list').locator('[data-testid^="task-card-"]');
-    await expect(cards).toHaveCount(3);
+    await expect(cards).toHaveCount(10);
   });
 
   test('client nav sends X-Vertz-Nav pre-fetch request', async ({ page }) => {
@@ -47,7 +47,7 @@ test.describe('Server Nav — Client-Side Navigation Pre-Fetch', () => {
     await expect(page.getByTestId('task-list-page')).toBeVisible();
     await expect(page.getByTestId('task-list')).toBeVisible();
     const cards = page.getByTestId('task-list').locator('[data-testid^="task-card-"]');
-    await expect(cards).toHaveCount(3);
+    await expect(cards).toHaveCount(10);
   });
 
   test('rapid re-navigation is safe', async ({ page }) => {
