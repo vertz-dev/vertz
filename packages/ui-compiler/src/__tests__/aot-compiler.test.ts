@@ -1102,6 +1102,142 @@ function GamesPage() {
       expect(fnText).not.toContain('gamesQuery.data');
     });
 
+    it('classifies component with useParams() and api.entity.get(param) as data-driven', () => {
+      const result = compileForSSRAot(
+        `
+import { query } from '@vertz/ui';
+
+function CardDetailPage() {
+  const { id } = useParams();
+  const card = query(api.cards.get(id));
+  return <div>{card.data.name}</div>;
+}
+        `.trim(),
+      );
+
+      expect(result.components).toHaveLength(1);
+      expect(result.components[0]!.tier).not.toBe('runtime-fallback');
+      expect(result.components[0]!.queryKeys).toEqual(['cards-get']);
+
+      const fnText = extractAotFn(result.code, '__ssr_CardDetailPage');
+      expect(fnText).toContain("ctx.getData('cards-get')");
+    });
+
+    it('classifies component with useParams() and template-literal query key as data-driven', () => {
+      const result = compileForSSRAot(
+        `
+import { query } from '@vertz/ui';
+
+function GameDetailPage() {
+  const { slug } = useParams();
+  const game = query(async () => fetchGame(slug), { key: \`game-\${slug}\` });
+  return <h1>{game.data.name}</h1>;
+}
+        `.trim(),
+      );
+
+      expect(result.components).toHaveLength(1);
+      expect(result.components[0]!.tier).not.toBe('runtime-fallback');
+      expect(result.components[0]!.queryKeys).toEqual(['game-${slug}']);
+    });
+
+    it('generates ctx.getData with backtick template for parameterized query keys', () => {
+      const result = compileForSSRAot(
+        `
+import { query } from '@vertz/ui';
+
+function GameDetailPage() {
+  const { slug } = useParams();
+  const game = query(async () => fetchGame(slug), { key: \`game-\${slug}\` });
+  return <h1>{game.data.name}</h1>;
+}
+        `.trim(),
+      );
+
+      const fnText = extractAotFn(result.code, '__ssr_GameDetailPage');
+      // Should use backtick template with ctx.params, not single-quoted string
+      expect(fnText).toContain('ctx.getData(`game-${ctx.params.slug}`)');
+      expect(fnText).not.toContain("ctx.getData('game-${slug}')");
+    });
+
+    it('handles aliased useParams() destructuring — uses route param name in ctx.params', () => {
+      const result = compileForSSRAot(
+        `
+import { query } from '@vertz/ui';
+
+function GameDetailPage() {
+  const { slug: gameSlug } = useParams();
+  const game = query(async () => fetchGame(gameSlug), { key: \`game-\${gameSlug}\` });
+  return <h1>{game.data.name}</h1>;
+}
+        `.trim(),
+      );
+
+      expect(result.components[0]!.tier).not.toBe('runtime-fallback');
+      expect(result.components[0]!.queryKeys).toEqual(['game-${slug}']);
+
+      const fnText = extractAotFn(result.code, '__ssr_GameDetailPage');
+      // Should use the route param name 'slug', not the local alias 'gameSlug'
+      expect(fnText).toContain('ctx.params.slug');
+      expect(fnText).not.toContain('ctx.params.gameSlug');
+    });
+
+    it('handles multiple params in template-literal query keys', () => {
+      const result = compileForSSRAot(
+        `
+import { query } from '@vertz/ui';
+
+function OrgProjectPage() {
+  const { orgId, projectId } = useParams();
+  const project = query(async () => fetchProject(orgId, projectId), { key: \`org-\${orgId}-project-\${projectId}\` });
+  return <div>{project.data.name}</div>;
+}
+        `.trim(),
+      );
+
+      expect(result.components[0]!.tier).not.toBe('runtime-fallback');
+      expect(result.components[0]!.queryKeys).toEqual(['org-${orgId}-project-${projectId}']);
+
+      const fnText = extractAotFn(result.code, '__ssr_OrgProjectPage');
+      expect(fnText).toContain('ctx.params.orgId');
+      expect(fnText).toContain('ctx.params.projectId');
+    });
+
+    it('falls back to runtime-fallback when template key has non-useParams interpolation', () => {
+      const result = compileForSSRAot(
+        `
+import { query } from '@vertz/ui';
+
+function SearchPage() {
+  const { slug } = useParams();
+  const computedKey = slug + '-extra';
+  const results = query(async () => fetchResults(), { key: \`search-\${computedKey}\` });
+  return <div>{results.data}</div>;
+}
+        `.trim(),
+      );
+
+      expect(result.components[0]!.tier).toBe('runtime-fallback');
+    });
+
+    it('includes fallbackReason when query key is unresolvable', () => {
+      const result = compileForSSRAot(
+        `
+import { query } from '@vertz/ui';
+
+function SearchPage() {
+  const results = query(async () => fetchResults());
+  return <div>{results.data}</div>;
+}
+        `.trim(),
+      );
+
+      expect(result.components[0]!.tier).toBe('runtime-fallback');
+      expect(result.components[0]!.fallbackReason).toBe(
+        'query key is not a static string or template literal with useParams() interpolation',
+      );
+    });
+
     it('falls back to runtime-fallback when query() has no extractable key', () => {
       const result = compileForSSRAot(
         `

@@ -11,6 +11,7 @@ import {
   type AotManifest,
   type AotRenderFn,
   createHoles,
+  resolveParamQueryKeys,
   ssrRenderAot,
 } from '../ssr-aot-pipeline';
 import { __esc } from '../ssr-aot-runtime';
@@ -986,6 +987,150 @@ describe('Feature: Runtime holes and SSR integration', () => {
 
             expect(aotCalled).toBe(true);
             expect(result.html).toContain('sync-value');
+          });
+        });
+      });
+    });
+
+    // ─── Parameterized query key resolution ─────────────────────────
+
+    describe('Feature: parameterized query key resolution', () => {
+      describe('resolveParamQueryKeys()', () => {
+        describe('Given queryKeys with ${param} placeholders', () => {
+          it('Then resolves placeholders from route params', () => {
+            const resolved = resolveParamQueryKeys(
+              ['game-${slug}'],
+              { slug: 'pokemon-tcg' },
+            );
+            expect(resolved).toEqual(['game-pokemon-tcg']);
+          });
+
+          it('Then resolves multiple params in a single key', () => {
+            const resolved = resolveParamQueryKeys(
+              ['org-${orgId}-team-${teamId}'],
+              { orgId: 'acme', teamId: 'eng' },
+            );
+            expect(resolved).toEqual(['org-acme-team-eng']);
+          });
+
+          it('Then leaves static keys unchanged', () => {
+            const resolved = resolveParamQueryKeys(
+              ['tasks-list', 'game-${slug}'],
+              { slug: 'chess' },
+            );
+            expect(resolved).toEqual(['tasks-list', 'game-chess']);
+          });
+        });
+
+        describe('Given a missing param in the params record', () => {
+          it('Then replaces with empty string', () => {
+            const resolved = resolveParamQueryKeys(
+              ['game-${slug}'],
+              {},
+            );
+            expect(resolved).toEqual(['game-']);
+          });
+        });
+      });
+
+      describe('ssrRenderAot() with parameterized queryKeys', () => {
+        describe('Given an AOT route with parameterized queryKeys and aotDataResolver', () => {
+          describe('When the URL provides params that resolve the keys', () => {
+            it('Then aotDataResolver receives resolved keys (not templates)', async () => {
+              let capturedKeys: string[] | undefined;
+
+              const aotFn: AotRenderFn = (_data, ctx) => {
+                const game = ctx.getData('game-pokemon-tcg') as string;
+                return `<div>${__esc(String(game))}</div>`;
+              };
+
+              const module = createMockModule();
+              const aotManifest: AotManifest = {
+                routes: {
+                  '/games/:slug': {
+                    render: aotFn,
+                    holes: [],
+                    queryKeys: ['game-${slug}'],
+                  },
+                },
+              };
+
+              const aotDataResolver: AotDataResolver = async (_pattern, _params, unresolvedKeys) => {
+                capturedKeys = unresolvedKeys;
+                return new Map([['game-pokemon-tcg', 'Pokemon TCG']]);
+              };
+
+              const result = await ssrRenderAot(module, '/games/pokemon-tcg', {
+                aotManifest,
+                aotDataResolver,
+              });
+
+              expect(capturedKeys).toEqual(['game-pokemon-tcg']);
+              expect(result.html).toContain('Pokemon TCG');
+            });
+
+            it('Then ssrData uses resolved keys for client hydration', async () => {
+              const aotFn: AotRenderFn = (_data, ctx) => {
+                return `<div>${__esc(String(ctx.getData('card-abc-123')))}</div>`;
+              };
+
+              const module = createMockModule();
+              const aotManifest: AotManifest = {
+                routes: {
+                  '/cards/:id': {
+                    render: aotFn,
+                    holes: [],
+                    queryKeys: ['card-${id}'],
+                  },
+                },
+              };
+
+              const aotDataResolver: AotDataResolver = async () => {
+                return new Map([['card-abc-123', { name: 'Pikachu' }]]);
+              };
+
+              const result = await ssrRenderAot(module, '/cards/abc-123', {
+                aotManifest,
+                aotDataResolver,
+              });
+
+              expect(result.ssrData).toEqual([
+                { key: 'card-abc-123', data: { name: 'Pikachu' } },
+              ]);
+            });
+          });
+
+          describe('When allKeysResolved check uses resolved keys', () => {
+            it('Then falls back when resolved key is not in cache', async () => {
+              const aotFn: AotRenderFn = (_data, ctx) => {
+                const d = ctx.getData('game-chess') as string;
+                return `<div>${d}</div>`;
+              };
+
+              const module = createMockModule();
+              const aotManifest: AotManifest = {
+                routes: {
+                  '/games/:slug': {
+                    render: aotFn,
+                    holes: [],
+                    queryKeys: ['game-${slug}'],
+                  },
+                },
+              };
+
+              // Resolver returns nothing → allKeysResolved should be false → fallback
+              const aotDataResolver: AotDataResolver = async () => {
+                return new Map();
+              };
+
+              const result = await ssrRenderAot(module, '/games/chess', {
+                aotManifest,
+                aotDataResolver,
+              });
+
+              // Falls back to single-pass
+              expect(result.html).toContain('app');
+            });
           });
         });
       });

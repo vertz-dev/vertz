@@ -284,6 +284,32 @@ describe('buildAotRouteMap', () => {
         expect(routeMap['/missing']).toBeUndefined();
       });
 
+      it('Then populates paramBindings from parameterized queryKeys', () => {
+        const components: Record<string, AotBuildComponentEntry> = {
+          GameDetailPage: {
+            tier: 'data-driven',
+            holes: [],
+            queryKeys: ['game-${slug}'],
+          },
+        };
+        const routes = [{ pattern: '/games/:slug', componentName: 'GameDetailPage' }];
+
+        const routeMap = buildAotRouteMap(components, routes);
+
+        expect(routeMap['/games/:slug']?.paramBindings).toEqual(['slug']);
+      });
+
+      it('Then omits paramBindings when queryKeys are all static', () => {
+        const components: Record<string, AotBuildComponentEntry> = {
+          HomePage: { tier: 'static', holes: [], queryKeys: [] },
+        };
+        const routes = [{ pattern: '/', componentName: 'HomePage' }];
+
+        const routeMap = buildAotRouteMap(components, routes);
+
+        expect(routeMap['/']?.paramBindings).toBeUndefined();
+      });
+
       it('Then includes holes from the component entry', () => {
         const components: Record<string, AotBuildComponentEntry> = {
           Layout: { tier: 'static', holes: ['Sidebar', 'Footer'], queryKeys: [] },

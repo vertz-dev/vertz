@@ -8,12 +8,16 @@ import { findBodyNode, isInNestedFunction } from '../utils';
 interface QueryVarMeta {
   /** Original variable name (e.g., 'projects'). */
   varName: string;
-  /** Cache key in entity-operation format (e.g., 'projects-list'). */
+  /** Cache key in entity-operation format (e.g., 'projects-list') or template pattern (e.g., 'game-${slug}'). */
   cacheKey: string;
   /** Index for the local binding in the AOT function (e.g., 0 → __q0). */
   index: number;
   /** Derived aliases (e.g., `const d = q.data` → d is alias for __q{index}). */
   derivedAliases: string[];
+  /** Route param names referenced in the cache key (e.g., ['slug']). Empty for static keys. */
+  paramRefs: string[];
+  /** Maps local alias → route param name for aliased destructuring (e.g., gameSlug → slug). */
+  paramMap: Map<string, string>;
 }
 
 /** Get node as a generic Node to avoid ts-morph's over-narrowing. */
@@ -123,6 +127,8 @@ export class AotStringTransformer {
         tier: 'runtime-fallback',
         holes: [],
         queryKeys: [],
+        fallbackReason:
+          'query key is not a static string or template literal with useParams() interpolation',
       });
       return;
     }
@@ -254,7 +260,17 @@ export class AotStringTransformer {
 
       // Build local bindings for query data
       for (const qv of queryVars) {
-        preamble += `\n  const __q${qv.index} = ctx.getData('${qv.cacheKey}');`;
+        if (qv.paramRefs.length > 0) {
+          // Parameterized key: emit backtick template with ctx.params.* substitutions
+          // e.g., 'game-${slug}' → `game-${ctx.params.slug}`
+          const resolvedKey = qv.cacheKey.replace(
+            /\$\{(\w+)\}/g,
+            (_, paramName) => '${ctx.params.' + paramName + '}',
+          );
+          preamble += `\n  const __q${qv.index} = ctx.getData(\`${resolvedKey}\`);`;
+        } else {
+          preamble += `\n  const __q${qv.index} = ctx.getData('${qv.cacheKey}');`;
+        }
       }
 
       // Post-process string expression to replace query variable references
@@ -292,6 +308,98 @@ export class AotStringTransformer {
   }
 
   /**
+   * Collect useParams() destructured variable names from the component body.
+   *
+   * Returns a Map<string, string> of local name → route param name.
+   * For `const { slug } = useParams()`, maps slug → slug.
+   * For `const { slug: gameSlug } = useParams()`, maps gameSlug → slug.
+   */
+  private _collectUseParamsVars(bodyNode: Node): Map<string, string> {
+    const paramMap = new Map<string, string>();
+    const varDecls = bodyNode.getDescendantsOfKind(SyntaxKind.VariableDeclaration);
+
+    for (const decl of varDecls) {
+      if (isInNestedFunction(decl, bodyNode)) continue;
+      const nameNode = asNode(decl.getNameNode());
+      if (!nameNode.isKind(SyntaxKind.ObjectBindingPattern)) continue;
+
+      const init = decl.getInitializer();
+      if (!init || !init.isKind(SyntaxKind.CallExpression)) continue;
+
+      const callee = init.getExpression();
+      if (!callee.isKind(SyntaxKind.Identifier)) continue;
+      if (callee.getText() !== 'useParams') continue;
+
+      // Extract each binding element: { slug } or { slug: gameSlug }
+      for (const el of nameNode.getElements()) {
+        const localName = el.getNameNode().getText();
+        // propertyNameNode is present for aliased destructuring: { slug: gameSlug }
+        const propertyNameNode = el.getPropertyNameNode();
+        const routeParamName = propertyNameNode ? propertyNameNode.getText() : localName;
+        paramMap.set(localName, routeParamName);
+      }
+    }
+
+    return paramMap;
+  }
+
+  /**
+   * Extract a cache key pattern from a template literal expression.
+   *
+   * Returns the cache key with ${routeParamName} placeholders and the list of
+   * route param names referenced, or null if any interpolation is not a simple
+   * identifier from useParams().
+   *
+   * Example: `game-${slug}` where slug is from useParams() → { cacheKey: 'game-${slug}', paramRefs: ['slug'] }
+   * Example: `game-${gameSlug}` where { slug: gameSlug } from useParams() → { cacheKey: 'game-${slug}', paramRefs: ['slug'] }
+   */
+  private _extractTemplateLiteralKey(
+    node: Node,
+    useParamsMap: Map<string, string>,
+  ): { cacheKey: string; paramRefs: string[] } | null {
+    // TemplateExpression: head + spans[]
+    // Each span: expression + literal (TemplateMiddle or TemplateTail)
+    const head = node.getChildAtIndex(0); // TemplateHead
+    if (!head) return null;
+
+    const spans = node.getDescendantsOfKind(SyntaxKind.TemplateSpan);
+    if (spans.length === 0) return null;
+
+    const paramRefs: string[] = [];
+    // Get head text (e.g., "game-" from `game-${slug}`)
+    let cacheKey = head.getText().slice(1, -2); // Remove opening backtick and trailing ${
+
+    for (const span of spans) {
+      const expr = span.getChildAtIndex(0); // The interpolated expression
+      const literal = span.getChildAtIndex(1); // TemplateMiddle or TemplateTail
+
+      if (!expr || !literal) return null;
+
+      // Only support simple identifiers from useParams()
+      if (!expr.isKind(SyntaxKind.Identifier)) return null;
+
+      const localName = expr.getText();
+      const routeParamName = useParamsMap.get(localName);
+      if (!routeParamName) return null; // Not from useParams() — bail
+
+      paramRefs.push(routeParamName);
+      cacheKey += `\${${routeParamName}}`;
+
+      // Append the literal text after the interpolation (remove trailing ` or ${)
+      const litText = literal.getText();
+      if (litText.endsWith('`')) {
+        // TemplateTail — last span
+        cacheKey += litText.slice(1, -1); // Remove leading } and trailing `
+      } else {
+        // TemplateMiddle — more spans follow
+        cacheKey += litText.slice(1, -2); // Remove leading } and trailing ${
+      }
+    }
+
+    return { cacheKey, paramRefs };
+  }
+
+  /**
    * Extract query variable metadata from the component body.
    *
    * Scans variable declarations for `query(api.entity.operation())` calls
@@ -313,6 +421,9 @@ export class AotStringTransformer {
 
     const bodyNode = findBodyNode(sourceFile, component);
     if (!bodyNode) return queryVars;
+
+    // Collect useParams() destructured variables: local name → route param name
+    const useParamsMap = this._collectUseParamsVars(bodyNode);
 
     const varDecls = bodyNode.getDescendantsOfKind(SyntaxKind.VariableDeclaration);
 
@@ -336,9 +447,12 @@ export class AotStringTransformer {
         if (args.length === 0) continue;
 
         let cacheKey: string | null = null;
+        let paramRefs: string[] = [];
 
         const firstArg = args[0]!;
         // Strategy 1: api.entity.operation() pattern
+        // Note: When the first arg is an ArrowFunction (Pattern B), Strategy 1 returns null.
+        // This is expected — Strategy 3 (template literal in options) provides the key.
         if (firstArg.isKind(SyntaxKind.CallExpression)) {
           const descriptorExpr = firstArg.getExpression();
           const chain = this._extractPropertyAccessChain(descriptorExpr);
@@ -352,7 +466,7 @@ export class AotStringTransformer {
           }
         }
 
-        // Strategy 2: { key: '...' } options object (second argument)
+        // Strategy 2: { key: '...' } static string in options object (second argument)
         if (!cacheKey && args.length >= 2) {
           const secondArg = args[1]!;
           if (secondArg.isKind(SyntaxKind.ObjectLiteralExpression)) {
@@ -361,6 +475,28 @@ export class AotStringTransformer {
                 const initializer = prop.getInitializer();
                 if (initializer?.isKind(SyntaxKind.StringLiteral)) {
                   cacheKey = initializer.getLiteralText();
+                }
+                break;
+              }
+            }
+          }
+        }
+
+        // Strategy 3: { key: `...${param}...` } template literal in options object
+        // Handles Pattern B: query(async () => ..., { key: `game-${slug}` })
+        // where slug comes from useParams() destructuring.
+        if (!cacheKey && args.length >= 2) {
+          const secondArg = args[1]!;
+          if (secondArg.isKind(SyntaxKind.ObjectLiteralExpression)) {
+            for (const prop of secondArg.getProperties()) {
+              if (prop.isKind(SyntaxKind.PropertyAssignment) && prop.getName() === 'key') {
+                const initializer = prop.getInitializer();
+                if (initializer?.isKind(SyntaxKind.TemplateExpression)) {
+                  const extracted = this._extractTemplateLiteralKey(initializer, useParamsMap);
+                  if (extracted) {
+                    cacheKey = extracted.cacheKey;
+                    paramRefs = extracted.paramRefs;
+                  }
                 }
                 break;
               }
@@ -391,6 +527,8 @@ export class AotStringTransformer {
           cacheKey,
           index: queryVars.length,
           derivedAliases: aliases,
+          paramRefs,
+          paramMap: useParamsMap,
         });
         break;
       }
