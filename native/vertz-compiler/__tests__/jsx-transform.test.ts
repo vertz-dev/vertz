@@ -174,12 +174,13 @@ describe('Feature: JSX element transform', () => {
 
   describe('Given a component with static non-literal prop', () => {
     describe('When compiled', () => {
-      it('Then passes as plain value', () => {
+      it('Then wraps in getter (all non-literal props use getters for cross-component reactivity)', () => {
         const code = compileAndGetCode(
           `function App() {\n  return <Display value={someVar} />;\n}`,
         );
         expect(code).toContain('Display(');
-        expect(code).toContain('value: someVar');
+        expect(code).toContain('get value()');
+        expect(code).toContain('someVar');
       });
     });
   });
@@ -444,12 +445,26 @@ describe('Feature: JSX element transform', () => {
 
   describe('Given a static expression attribute (non-reactive)', () => {
     describe('When compiled', () => {
-      it('Then uses setAttribute instead of __attr', () => {
+      it('Then uses guarded setAttribute instead of __attr', () => {
         const code = compileAndGetCode(
           `function App() {\n  return <div className={someVar}></div>;\n}`,
         );
-        expect(code).toContain('.setAttribute("class", someVar)');
+        // Non-literal expressions get guarded setAttribute to handle null/false/true
+        expect(code).toContain('const __v = someVar');
+        expect(code).toContain('.setAttribute("class"');
         expect(code).not.toContain('__attr(');
+      });
+    });
+  });
+
+  describe('Given a literal expression attribute', () => {
+    describe('When compiled', () => {
+      it('Then uses direct setAttribute (no guard needed)', () => {
+        const code = compileAndGetCode(
+          `function App() {\n  return <div tabIndex={0}></div>;\n}`,
+        );
+        expect(code).toContain('.setAttribute("tabIndex", 0)');
+        expect(code).not.toContain('const __v');
       });
     });
   });

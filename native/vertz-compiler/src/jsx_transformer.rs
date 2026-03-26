@@ -245,7 +245,6 @@ enum ChildInfo {
         /// Start/end of inner expression (excluding { })
         expr_start: u32,
         expr_end: u32,
-        is_reactive: bool,
         is_literal: bool,
         expr_kind: ExprKind,
     },
@@ -472,11 +471,9 @@ fn extract_children(children: &oxc_allocator::Vec<JSXChild>) -> Vec<ChildInfo> {
                     let (expr_start, expr_end) = jsx_expr_span(&expr_container.expression);
                     let is_literal = is_jsx_expr_literal(&expr_container.expression);
                     let expr_kind = classify_expression(&expr_container.expression);
-                    let is_reactive = !is_literal;
                     result.push(ChildInfo::Expression {
                         expr_start,
                         expr_end,
-                        is_reactive,
                         is_literal,
                         expr_kind,
                     });
@@ -739,9 +736,10 @@ fn transform_component(
                     continue;
                 }
                 let expr_text = ms.get_transformed_slice(*expr_start, *expr_end);
-                let is_reactive_in_scope = *is_reactive
-                    && is_expr_reactive_in_scope(ms, *expr_start, *expr_end, reactive_names);
-                if is_reactive_in_scope {
+                // For component props, ALL non-literal expressions become getters.
+                // This is by design: getter-backed props enable cross-component
+                // reactivity — the child reads lazily when signals change.
+                if *is_reactive {
                     props.push(format!("get {}() {{ return {}; }}", name, expr_text));
                 } else {
                     props.push(format!("{}: {}", quote_prop_key(name), expr_text));
@@ -826,7 +824,6 @@ fn transform_child_as_value(
         ChildInfo::Expression {
             expr_start,
             expr_end,
-            is_reactive,
             is_literal,
             expr_kind,
             ..
@@ -852,7 +849,9 @@ fn transform_child_as_value(
             }
 
             let expr_text = ms.get_transformed_slice(*expr_start, *expr_end);
-            if !is_literal && *is_reactive {
+            let is_truly_reactive = !is_literal
+                && is_expr_reactive_in_scope(ms, *expr_start, *expr_end, reactive_names);
+            if is_truly_reactive {
                 Some(format!("__child(() => {})", expr_text))
             } else {
                 Some(expr_text)
@@ -983,13 +982,22 @@ fn process_attr(
                 ));
             }
 
-            // Static expression → setAttribute
-            Some(format!(
-                "{}.setAttribute({}, {})",
-                el_var,
-                json_quote(attr_name),
-                expr_text
-            ))
+            // Static non-literal expression → guarded setAttribute
+            // Guards against null/false/undefined and handles boolean true → ""
+            if *is_reactive {
+                Some(format!(
+                    "{{ const __v = {}; if (__v != null && __v !== false) {}.setAttribute({}, __v === true ? \"\" : __v); }}",
+                    expr_text, el_var, json_quote(attr_name)
+                ))
+            } else {
+                // Literal expressions are safe to pass directly
+                Some(format!(
+                    "{}.setAttribute({}, {})",
+                    el_var,
+                    json_quote(attr_name),
+                    expr_text
+                ))
+            }
         }
         AttrInfo::BooleanShorthand { name } => {
             if name == "key" {
@@ -1033,7 +1041,6 @@ fn transform_child(
         ChildInfo::Expression {
             expr_start,
             expr_end,
-            is_reactive,
             is_literal,
             expr_kind,
             ..
@@ -1097,7 +1104,11 @@ fn transform_child(
 
             let expr_text = ms.get_transformed_slice(*expr_start, *expr_end);
 
-            if !is_literal && *is_reactive {
+            // Use __child() only for truly reactive expressions (references a signal/computed).
+            // Use __insert() for static non-literal expressions (no effect overhead).
+            let is_truly_reactive = !is_literal
+                && is_expr_reactive_in_scope(ms, *expr_start, *expr_end, reactive_names);
+            if is_truly_reactive {
                 Some(format!(
                     "__append({}, __child(() => {}))",
                     parent_var, expr_text
@@ -1278,9 +1289,32 @@ fn is_expr_reactive_in_scope(
     let text = ms.get_transformed_slice(start, end);
     for name in reactive_names {
         let pattern = format!("{}.value", name);
-        if text.contains(&pattern) {
+        // Use word-boundary matching to avoid false positives
+        // (e.g., signal "x" matching "fox.value")
+        if contains_word_boundary(&text, &pattern) {
             return true;
         }
+    }
+    false
+}
+
+/// Check if `pattern` appears in `text` at a word boundary.
+/// The character before the pattern must not be alphanumeric or underscore.
+fn contains_word_boundary(text: &str, pattern: &str) -> bool {
+    let mut start = 0;
+    while let Some(pos) = text[start..].find(pattern) {
+        let abs_pos = start + pos;
+        // Check that the char before is not part of an identifier
+        let ok_before = if abs_pos == 0 {
+            true
+        } else {
+            let prev = text.as_bytes()[abs_pos - 1];
+            !prev.is_ascii_alphanumeric() && prev != b'_' && prev != b'$'
+        };
+        if ok_before {
+            return true;
+        }
+        start = abs_pos + 1;
     }
     false
 }
@@ -1294,7 +1328,13 @@ fn gen_var(counter: &mut u32) -> String {
 }
 
 fn json_quote(s: &str) -> String {
-    format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
+    let escaped = s
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t");
+    format!("\"{}\"", escaped)
 }
 
 fn quote_prop_key(name: &str) -> String {
@@ -1319,7 +1359,9 @@ fn clean_jsx_text(raw: &str) -> String {
         return raw.to_string();
     }
 
-    let lines: Vec<&str> = raw.split('\n').collect();
+    // Normalize \r\n and \r to \n, then split
+    let normalized = raw.replace("\r\n", "\n").replace('\r', "\n");
+    let lines: Vec<&str> = normalized.split('\n').collect();
     let mut cleaned: Vec<String> = Vec::new();
 
     for (i, line) in lines.iter().enumerate() {
