@@ -464,7 +464,7 @@ describe('createRouter serverNav', () => {
     router.dispose();
   });
 
-  test('same-route navigation without replace still runs prefetch', async () => {
+  test('same-pathname navigation without replace also skips prefetch', async () => {
     const routes = defineRoutes({
       '/': { component: () => document.createElement('div') },
     });
@@ -474,8 +474,26 @@ describe('createRouter serverNav', () => {
       _prefetchNavData: mockPrefetch,
     });
 
-    // Same route but NOT replace → not a search-param-only change
+    // Same pathname with different search params → search-param-only
+    // regardless of replace flag
     await router.navigate({ to: '/?page=2' });
+
+    expect(mockPrefetch).not.toHaveBeenCalled();
+    router.dispose();
+  });
+
+  test('different-pathname with same pattern still runs prefetch (dynamic route params)', async () => {
+    const routes = defineRoutes({
+      '/tasks/:id': { component: () => document.createElement('div') },
+    });
+    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const router = createRouter(routes, '/tasks/1', {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    // Different path param values → different resource → NOT search-param-only
+    await router.navigate({ to: '/tasks/:id', params: { id: '2' }, replace: true });
 
     expect(mockPrefetch).toHaveBeenCalled();
     router.dispose();

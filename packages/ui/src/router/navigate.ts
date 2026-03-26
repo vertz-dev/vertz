@@ -577,15 +577,17 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
   async function navigate(input: NavigateInput): Promise<void> {
     const navUrl = buildNavigationUrl(input.to, input);
 
-    // Detect search-param-only change: same route pattern, different search.
-    // These should be lightweight — no SSE prefetch wait, no view transition,
-    // no loader re-run.  The reactive query() system handles data fetching
-    // with its own cache, so the UI updates instantly.
+    // Detect search-param-only change: same resolved pathname, only search
+    // params differ.  These should be lightweight — no SSE prefetch wait,
+    // no view transition, no loader re-run.  The reactive query() system
+    // handles data fetching with its own cache, so the UI updates instantly.
+    //
+    // Compare resolved pathnames (not route patterns) so that dynamic-segment
+    // changes like /tasks/1 → /tasks/2 are correctly treated as different
+    // resources even though they match the same pattern (/tasks/:id).
     const navMatch = matchRoute(routes, navUrl);
-    const currentMatch = _current.peek();
-    const isSameRoute =
-      currentMatch && navMatch && currentMatch.route.pattern === navMatch.route.pattern;
-    const isSearchParamOnly = !!(isSameRoute && input.replace);
+    const navPathname = navUrl.split('?')[0]?.split('#')[0] || '/';
+    const isSearchParamOnly = window.location.pathname === navPathname;
 
     // Capture generation at start — if a newer navigate() starts while we
     // await prefetch, this navigate should skip applyNavigation.
