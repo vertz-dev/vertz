@@ -6,6 +6,7 @@
  */
 
 import { isBrowser } from '../env/is-browser';
+import { batch } from '../runtime/scheduler';
 import { signal } from '../runtime/signal';
 import type { Signal } from '../runtime/signal-types';
 import { getSSRContext } from '../ssr/ssr-render-context';
@@ -544,28 +545,25 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
 
     const match = preMatch !== undefined ? preMatch : matchRoute(routes, url);
 
-    // Update search params BEFORE the route change so that components
-    // mounting in response to `current.value = match` can read the
-    // new search params immediately (e.g. query() thunk probes need
-    // sp.page to compute the correct cache key).
+    // Batch searchParams + current updates so effects see both atomically.
+    // Without batch, setting current.value triggers component re-renders
+    // that read searchParams before it has been updated — causing stale
+    // reads (e.g., schema defaults missing on SPA navigation).
     if (match) {
       visitedUrls.add(normalizeUrl(url));
-      searchParams.value = match.search;
-    } else {
-      searchParams.value = {};
     }
-
-    // Wrap only the synchronous DOM swap in the view transition.
-    // Loaders run after the transition completes so the new page
-    // skeleton animates in immediately, then data loads reactively.
-    // Only call withViewTransition when transitions are configured
-    // to avoid introducing async overhead on every navigation.
     if (transitionConfig) {
       await withViewTransition(() => {
-        current.value = match;
+        batch(() => {
+          searchParams.value = match?.search ?? {};
+          current.value = match;
+        });
       }, transitionConfig);
     } else {
-      current.value = match;
+      batch(() => {
+        searchParams.value = match?.search ?? {};
+        current.value = match;
+      });
     }
 
     if (match) {
