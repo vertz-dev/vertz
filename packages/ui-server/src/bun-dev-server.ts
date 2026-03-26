@@ -189,7 +189,7 @@ export function parsePluginError(text: string): ErrorDetail | null {
   if (!match) return null;
 
   const file = match[1]!;
-  const message = match[2]?.trim() ?? 'Compilation failed';
+  const message = match[2]?.trim() || 'Compilation failed';
 
   // Best-effort line:column extraction from the error message
   const locMatch = message.match(LINE_COL_PATTERN);
