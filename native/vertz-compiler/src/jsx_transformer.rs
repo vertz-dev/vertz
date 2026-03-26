@@ -1069,42 +1069,23 @@ fn process_attr(
                 ));
             }
 
-            // Static non-literal expression → guarded setAttribute/property
-            if *is_reactive {
-                if attr_name == "style" {
-                    Some(format!(
-                        "{{ const __v = {}; if (__v != null && __v !== false) {}.setAttribute(\"style\", typeof __v === \"object\" ? __styleStr(__v) : __v === true ? \"\" : String(__v)); }}",
-                        expr_text, el_var
-                    ))
-                } else if use_property {
-                    Some(format!(
-                        "{{ const __v = {}; if (__v != null) {}.{} = __v; }}",
-                        expr_text, el_var, attr_name
-                    ))
-                } else {
-                    Some(format!(
-                        "{{ const __v = {}; if (__v != null && __v !== false) {}.setAttribute({}, __v === true ? \"\" : __v); }}",
-                        expr_text, el_var, json_quote(attr_name)
-                    ))
-                }
+            // Static expression → guarded setAttribute/property
+            // Guards against null/false/undefined and handles boolean true → ""
+            if attr_name == "style" {
+                Some(format!(
+                    "{{ const __v = {}; if (__v != null && __v !== false) {}.setAttribute(\"style\", typeof __v === \"object\" ? __styleStr(__v) : __v === true ? \"\" : String(__v)); }}",
+                    expr_text, el_var
+                ))
+            } else if use_property {
+                Some(format!(
+                    "{{ const __v = {}; if (__v != null) {}.{} = __v; }}",
+                    expr_text, el_var, attr_name
+                ))
             } else {
-                // Literal expressions — guarded to handle null/false/true correctly
-                if attr_name == "style" {
-                    Some(format!(
-                        "{{ const __v = {}; if (__v != null && __v !== false) {}.setAttribute(\"style\", typeof __v === \"object\" ? __styleStr(__v) : __v === true ? \"\" : String(__v)); }}",
-                        expr_text, el_var
-                    ))
-                } else if use_property {
-                    Some(format!(
-                        "{{ const __v = {}; if (__v != null) {}.{} = __v; }}",
-                        expr_text, el_var, attr_name
-                    ))
-                } else {
-                    Some(format!(
-                        "{{ const __v = {}; if (__v != null && __v !== false) {}.setAttribute({}, __v === true ? \"\" : __v); }}",
-                        expr_text, el_var, json_quote(attr_name)
-                    ))
-                }
+                Some(format!(
+                    "{{ const __v = {}; if (__v != null && __v !== false) {}.setAttribute({}, __v === true ? \"\" : __v); }}",
+                    expr_text, el_var, json_quote(attr_name)
+                ))
             }
         }
         AttrInfo::BooleanShorthand { name } => {
