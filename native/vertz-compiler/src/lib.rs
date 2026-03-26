@@ -1,18 +1,23 @@
+mod body_jsx_diagnostics;
 mod component_analyzer;
 mod computed_transformer;
 mod context_stable_ids;
+mod css_diagnostics;
 mod css_token_tables;
 mod css_transform;
 mod fast_refresh;
+mod import_injection;
 mod jsx_transformer;
 mod magic_string;
 mod mount_frame_transformer;
 mod mutation_analyzer;
+mod mutation_diagnostics;
 mod mutation_transformer;
 mod props_transformer;
 mod reactivity_analyzer;
 mod signal_api_registry;
 mod signal_transformer;
+mod ssr_safety_diagnostics;
 
 use napi_derive::napi;
 use oxc_allocator::Allocator;
@@ -60,6 +65,7 @@ pub struct CompileResult {
 pub struct CompileOptions {
     pub filename: Option<String>,
     pub fast_refresh: Option<bool>,
+    pub target: Option<String>,
 }
 
 #[napi]
@@ -73,6 +79,11 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
         .as_ref()
         .and_then(|o| o.fast_refresh)
         .unwrap_or(false);
+
+    let target = options
+        .as_ref()
+        .and_then(|o| o.target.as_deref())
+        .unwrap_or("dom");
 
     let source_type = SourceType::from_path(filename).unwrap_or_default();
     let allocator = Allocator::default();
@@ -120,6 +131,7 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
 
     // Run reactivity analysis and transforms per component
     let mut ms = magic_string::MagicString::new(&source);
+    let mut all_diagnostics: Vec<Diagnostic> = Vec::new();
 
     let napi_components: Vec<NapiComponentInfo> = components
         .iter()
@@ -129,6 +141,24 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
 
             let variables =
                 reactivity_analyzer::analyze_reactivity(&parser_ret.program, comp, &import_aliases);
+
+            // Run per-component diagnostics BEFORE transforms (on original AST positions)
+            all_diagnostics.extend(ssr_safety_diagnostics::analyze_ssr_safety(
+                &parser_ret.program,
+                comp,
+                &source,
+            ));
+            all_diagnostics.extend(mutation_diagnostics::analyze_mutation_diagnostics(
+                &parser_ret.program,
+                comp,
+                &variables,
+                &source,
+            ));
+            all_diagnostics.extend(body_jsx_diagnostics::analyze_body_jsx(
+                &parser_ret.program,
+                comp,
+                &source,
+            ));
 
             // Analyze mutations before transforms
             let mutations =
@@ -200,6 +230,9 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
         })
         .collect();
 
+    // Module-level CSS diagnostics
+    all_diagnostics.extend(css_diagnostics::analyze_css(&parser_ret.program, &source));
+
     // Context stable ID injection (module-level, only in dev/fastRefresh mode)
     if fast_refresh {
         context_stable_ids::inject_context_stable_ids(&mut ms, &parser_ret.program, filename);
@@ -212,6 +245,9 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
     if fast_refresh {
         fast_refresh::inject_fast_refresh(&mut ms, &napi_components, &source, filename);
     }
+
+    // Import injection (must run AFTER all transforms that emit helper calls)
+    import_injection::inject_imports(&mut ms, target);
 
     let transformed_code = ms.to_string();
 
@@ -237,7 +273,11 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
             Some(extracted_css)
         },
         map,
-        diagnostics: None,
+        diagnostics: if all_diagnostics.is_empty() {
+            None
+        } else {
+            Some(all_diagnostics)
+        },
         components: Some(napi_components),
     }
 }
