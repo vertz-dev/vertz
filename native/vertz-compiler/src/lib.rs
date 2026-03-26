@@ -6,6 +6,7 @@ mod css_diagnostics;
 mod css_token_tables;
 mod css_transform;
 mod fast_refresh;
+mod hydration_markers;
 mod import_injection;
 mod jsx_transformer;
 mod magic_string;
@@ -62,6 +63,7 @@ pub struct CompileResult {
     pub map: Option<String>,
     pub diagnostics: Option<Vec<Diagnostic>>,
     pub components: Option<Vec<NapiComponentInfo>>,
+    pub hydration_ids: Option<Vec<String>>,
 }
 
 #[napi(object)]
@@ -80,6 +82,7 @@ pub struct CompileOptions {
     pub fast_refresh: Option<bool>,
     pub target: Option<String>,
     pub manifests: Option<Vec<NapiManifestEntry>>,
+    pub hydration_markers: Option<bool>,
 }
 
 #[napi]
@@ -98,6 +101,11 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
         .as_ref()
         .and_then(|o| o.target.as_deref())
         .unwrap_or("dom");
+
+    let enable_hydration_markers = options
+        .as_ref()
+        .and_then(|o| o.hydration_markers)
+        .unwrap_or(false);
 
     let source_type = SourceType::from_path(filename).unwrap_or_default();
     let allocator = Allocator::default();
@@ -134,6 +142,7 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
             map: None,
             diagnostics: Some(diagnostics),
             components: None,
+            hydration_ids: None,
         };
     }
 
@@ -162,6 +171,16 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
     // Strip TypeScript syntax first (interfaces, type aliases, as casts, type annotations, etc.)
     // Must run before JSX transform so that get_transformed_slice() returns clean JavaScript.
     typescript_strip::strip_typescript_syntax(&mut ms, &parser_ret.program, &source);
+
+    // Hydration markers — determine which components are interactive.
+    // The JSX transformer will inject data-v-id setAttribute calls for these.
+    let hydration_ids = if enable_hydration_markers {
+        hydration_markers::find_interactive_components(&parser_ret.program, &components)
+    } else {
+        Vec::new()
+    };
+    let hydration_set: std::collections::HashSet<String> =
+        hydration_ids.iter().cloned().collect();
 
     let napi_components: Vec<NapiComponentInfo> = components
         .iter()
@@ -225,7 +244,18 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
 
             // JSX transform runs AFTER signal/computed transforms so that
             // MagicString already has .value insertions when we read expression text.
-            jsx_transformer::transform_jsx(&mut ms, &parser_ret.program, comp, &variables);
+            let hydration_id = if hydration_set.contains(&comp.name) {
+                Some(comp.name.as_str())
+            } else {
+                None
+            };
+            jsx_transformer::transform_jsx(
+                &mut ms,
+                &parser_ret.program,
+                comp,
+                &variables,
+                hydration_id,
+            );
 
             // Mount frame wrapping runs AFTER all other transforms
             // Check if this is an arrow expression body first
@@ -320,6 +350,11 @@ pub fn compile(source: String, options: Option<CompileOptions>) -> CompileResult
             Some(all_diagnostics)
         },
         components: Some(napi_components),
+        hydration_ids: if hydration_ids.is_empty() {
+            None
+        } else {
+            Some(hydration_ids)
+        },
     }
 }
 

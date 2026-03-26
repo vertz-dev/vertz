@@ -41,6 +41,7 @@ pub fn transform_jsx(
     program: &Program,
     component: &ComponentInfo,
     variables: &[VariableInfo],
+    hydration_id: Option<&str>,
 ) {
     let rx = ReactivityContext {
         names: variables
@@ -67,8 +68,12 @@ pub fn transform_jsx(
     let mut jsx_nodes = collect_top_level_jsx(program, component);
     jsx_nodes.reverse();
 
+    // The first JSX node in source order (last after reverse) gets the hydration marker.
+    // We use `is_first_root` to track this.
+    let mut hydration_used = false;
+
     for jsx_info in &jsx_nodes {
-        let transformed = transform_jsx_node(
+        let mut transformed = transform_jsx_node(
             ms,
             program,
             jsx_info.start,
@@ -77,8 +82,53 @@ pub fn transform_jsx(
             &rx,
             &mut counter,
         );
+
+        // Inject hydration marker into the first root element's IIFE.
+        // The IIFE looks like: (() => { const __el0 = __element("tag"); ... return __el0; })()
+        // We inject: __el0.setAttribute("data-v-id", "Name");
+        if !hydration_used {
+            if let Some(id) = hydration_id {
+                if let Some(injected) = inject_hydration_attr(&transformed, id) {
+                    transformed = injected;
+                    hydration_used = true;
+                }
+            }
+        }
+
         ms.overwrite(jsx_info.start, jsx_info.end, &transformed);
     }
+}
+
+/// Inject a `data-v-id` setAttribute call into the first __element() IIFE.
+fn inject_hydration_attr(code: &str, component_name: &str) -> Option<String> {
+    // Find pattern: `const __elN = __element("tag")`
+    // Insert after the semicolon: `__elN.setAttribute("data-v-id", "Name");`
+    let el_prefix = "const __el";
+    let pos = code.find(el_prefix)?;
+    let after = &code[pos..];
+
+    // Extract the variable name (e.g., "__el0")
+    let eq_pos = after.find(" = __element(")?;
+    let var_name = &after[6..eq_pos]; // skip "const "
+    let full_var = format!("__el{}", var_name);
+
+    // Find the end of this statement (the semicolon after __element(...))
+    let stmt_end = after.find("__element(")?;
+    let rest = &after[stmt_end..];
+    let paren_end = rest.find(')')?;
+    let insert_pos = pos + stmt_end + paren_end + 1;
+
+    // Check if there's already a semicolon
+    let insert_text = format!(
+        ";\n  {}.setAttribute(\"data-v-id\", \"{}\")",
+        full_var, component_name
+    );
+
+    let mut result = String::with_capacity(code.len() + insert_text.len());
+    result.push_str(&code[..insert_pos]);
+    result.push_str(&insert_text);
+    result.push_str(&code[insert_pos..]);
+    Some(result)
 }
 
 // ─── JSX node collection ────────────────────────────────────────────────────
