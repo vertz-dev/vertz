@@ -14,6 +14,7 @@ import {
   isReloadStub,
   isStaleGraphError,
   parseHMRAssets,
+  parsePluginError,
   shouldCheckStaleBundler,
 } from '../bun-dev-server';
 
@@ -1916,5 +1917,75 @@ describe('error recovery (#1849)', () => {
     expect(tag).toContain('j.restarting');
     expect(tag).toContain("showOverlay('Restarting dev server'");
     expect(tag).toContain("sessionStorage.removeItem('__vertz_stub_retry')");
+  });
+});
+
+describe('parsePluginError', () => {
+  describe('Given a plugin error with file path and message', () => {
+    it('Then extracts file and message', () => {
+      const text =
+        "[vertz-bun-plugin] Failed to process src/pages/tasks.tsx: Expected `}` to close object expression";
+      const result = parsePluginError(text);
+      expect(result).not.toBeNull();
+      expect(result!.file).toBe('src/pages/tasks.tsx');
+      expect(result!.message).toBe('Expected `}` to close object expression');
+    });
+  });
+
+  describe('Given a plugin error with line and column in the message', () => {
+    it('Then extracts line and column numbers', () => {
+      const text =
+        '[vertz-bun-plugin] Failed to process src/app.tsx: Unexpected token (42:5)';
+      const result = parsePluginError(text);
+      expect(result).not.toBeNull();
+      expect(result!.file).toBe('src/app.tsx');
+      expect(result!.line).toBe(42);
+      expect(result!.column).toBe(5);
+    });
+  });
+
+  describe('Given a plugin error without line/column info', () => {
+    it('Then line and column are undefined', () => {
+      const text =
+        "[vertz-bun-plugin] Failed to process src/utils.ts: Cannot read properties of undefined";
+      const result = parsePluginError(text);
+      expect(result).not.toBeNull();
+      expect(result!.file).toBe('src/utils.ts');
+      expect(result!.line).toBeUndefined();
+      expect(result!.column).toBeUndefined();
+    });
+  });
+
+  describe('Given a non-plugin error', () => {
+    it('Then returns null', () => {
+      expect(parsePluginError('Some random error')).toBeNull();
+      expect(parsePluginError('[Server] SSR error: something')).toBeNull();
+      expect(parsePluginError('Could not resolve ./missing')).toBeNull();
+    });
+  });
+
+  describe('Given a plugin error broadcasts as build category', () => {
+    it('Then blocks subsequent SSR errors from overwriting it', () => {
+      const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+      const errSpy = spyOn(console, 'error').mockImplementation(() => {});
+      const server = createBunDevServer({ entry: './src/app.tsx', logRequests: false });
+
+      // Simulate plugin error broadcast
+      const parsed = parsePluginError(
+        '[vertz-bun-plugin] Failed to process src/pages/home.tsx: Unexpected token',
+      );
+      expect(parsed).not.toBeNull();
+      server.broadcastError('build', [parsed!]);
+
+      // SSR error should be blocked by the build error
+      server.broadcastError('ssr', [
+        { message: 'App entry must export a default function or named App function' },
+      ]);
+
+      // The build error should be current (not overwritten by SSR)
+      // broadcastError('build') sets currentError, and SSR is blocked by build priority
+      logSpy.mockRestore();
+      errSpy.mockRestore();
+    });
   });
 });

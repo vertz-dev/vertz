@@ -174,6 +174,32 @@ export function isStaleGraphError(message: string): boolean {
 }
 
 /**
+ * Parse a plugin transform error from the console.error output.
+ *
+ * Format: `[vertz-bun-plugin] Failed to process <relPath>: <message>`
+ *
+ * Returns an ErrorDetail with file path and error message, or null if
+ * the text doesn't match the plugin error pattern.
+ */
+const PLUGIN_ERROR_PATTERN = /\[vertz-bun-plugin\] Failed to process (.+?): ([\s\S]*)/;
+const LINE_COL_PATTERN = /\((\d+):(\d+)\)/;
+
+export function parsePluginError(text: string): ErrorDetail | null {
+  const match = text.match(PLUGIN_ERROR_PATTERN);
+  if (!match) return null;
+
+  const file = match[1]!;
+  const message = match[2]?.trim() ?? 'Compilation failed';
+
+  // Best-effort line:column extraction from the error message
+  const locMatch = message.match(LINE_COL_PATTERN);
+  const line = locMatch ? Number(locMatch[1]) : undefined;
+  const column = locMatch ? Number(locMatch[2]) : undefined;
+
+  return { message, file, line, column };
+}
+
+/**
  * Detect Bun's reload stub — the response served when the dev bundler
  * fails to compile a client module. The stub is literally:
  *   try{location.reload()}catch(_){}
@@ -1097,8 +1123,17 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     if (!text.startsWith('[Server]')) {
       lastBuildError = text;
 
+      // Plugin transform errors: broadcast as build (highest priority)
+      const pluginErr = parsePluginError(text);
+      if (pluginErr && text !== lastBroadcastedError) {
+        lastBroadcastedError = text;
+        const absFile = pluginErr.file ? resolve(projectRoot, pluginErr.file) : undefined;
+        const lineText =
+          pluginErr.line && absFile ? readLineText(absFile, pluginErr.line) : undefined;
+        broadcastError('build', [{ ...pluginErr, absFile, lineText }]);
+      }
       // Broadcast resolution errors via WebSocket, suppressing duplicates
-      if (resolvePatterns.some((p) => text.includes(p)) && text !== lastBroadcastedError) {
+      else if (resolvePatterns.some((p) => text.includes(p)) && text !== lastBroadcastedError) {
         lastBroadcastedError = text;
         broadcastError('resolve', [{ message: text }]);
       }
