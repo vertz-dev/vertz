@@ -30,10 +30,19 @@ export interface PlanVersionStore {
   getCurrentVersion(planId: string): Promise<number | null>;
   /** Get a specific version's info. Returns null if not found. */
   getVersion(planId: string, version: number): Promise<PlanVersionInfo | null>;
-  /** Get the version number a tenant is on for a given plan. Returns null if not set. */
-  getTenantVersion(tenantId: string, planId: string): Promise<number | null>;
-  /** Set the version number a tenant is on for a given plan. */
-  setTenantVersion(tenantId: string, planId: string, version: number): Promise<void>;
+  /** Get the version number a resource is on for a given plan. Returns null if not set. */
+  getTenantVersion(
+    resourceType: string,
+    resourceId: string,
+    planId: string,
+  ): Promise<number | null>;
+  /** Set the version number a resource is on for a given plan. */
+  setTenantVersion(
+    resourceType: string,
+    resourceId: string,
+    planId: string,
+    version: number,
+  ): Promise<void>;
   /** Get the hash of the current (latest) version for a plan. Returns null if no versions. */
   getCurrentHash(planId: string): Promise<string | null>;
   /** Clean up resources. */
@@ -77,12 +86,21 @@ export class InMemoryPlanVersionStore implements PlanVersionStore {
     return planVersions[version - 1] ?? null;
   }
 
-  async getTenantVersion(tenantId: string, planId: string): Promise<number | null> {
-    return this.tenantVersions.get(`${tenantId}:${planId}`) ?? null;
+  async getTenantVersion(
+    resourceType: string,
+    resourceId: string,
+    planId: string,
+  ): Promise<number | null> {
+    return this.tenantVersions.get(`${resourceType}:${resourceId}:${planId}`) ?? null;
   }
 
-  async setTenantVersion(tenantId: string, planId: string, version: number): Promise<void> {
-    this.tenantVersions.set(`${tenantId}:${planId}`, version);
+  async setTenantVersion(
+    resourceType: string,
+    resourceId: string,
+    planId: string,
+    version: number,
+  ): Promise<void> {
+    this.tenantVersions.set(`${resourceType}:${resourceId}:${planId}`, version);
   }
 
   async getCurrentHash(planId: string): Promise<string | null> {

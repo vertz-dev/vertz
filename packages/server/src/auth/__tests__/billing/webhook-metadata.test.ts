@@ -90,7 +90,7 @@ describe('Webhook Metadata Edge Cases', () => {
         const response = await handler(await makeRequest(body));
 
         expect(response.status).toBe(200);
-        const plan = await subscriptionStore.get('org-1');
+        const plan = await subscriptionStore.get('tenant', 'org-1');
         expect(plan).not.toBeNull();
         expect(plan?.planId).toBe('enterprise');
       });
@@ -122,7 +122,7 @@ describe('Webhook Metadata Edge Cases', () => {
 
         expect(response.status).toBe(200);
         // Should fall back to assign() since attachAddOn is undefined
-        const plan = await subscriptionStore.get('org-1');
+        const plan = await subscriptionStore.get('tenant', 'org-1');
         expect(plan).not.toBeNull();
         expect(plan?.planId).toBe('extra_seats');
       });

@@ -87,7 +87,7 @@ async function createStores() {
     if (!resource) return null;
     const ancestors = await closureStore.getAncestors(resource.type, resource.id);
     const org = ancestors.find((a) => a.type === 'organization');
-    return org?.id ?? null;
+    return org ? { type: 'organization', id: org.id } : null;
   };
 
   return { closureStore, roleStore, flagStore, orgResolver };

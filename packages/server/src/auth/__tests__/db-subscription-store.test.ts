@@ -39,8 +39,8 @@ describe('DbSubscriptionStore transaction atomicity', () => {
   describe('assign() rollback', () => {
     it('rolls back plan upsert when override clear fails', async () => {
       // Set up existing plan with overrides
-      await store.assign('org-1', 'free');
-      await store.updateOverrides('org-1', { 'project:create': { max: 100 } });
+      await store.assign('tenant', 'org-1', 'free');
+      await store.updateOverrides('tenant', 'org-1', { 'project:create': { max: 100 } });
 
       // Inject failure at the raw SQLite level: intercept prepare() to fail on DELETE FROM auth_overrides
       const origPrepare = testDb.rawDb.prepare.bind(testDb.rawDb);
@@ -53,13 +53,13 @@ describe('DbSubscriptionStore transaction atomicity', () => {
       }) as typeof testDb.rawDb.prepare;
 
       // assign should fail
-      await expect(store.assign('org-1', 'pro')).rejects.toThrow('Injected failure');
+      await expect(store.assign('tenant', 'org-1', 'pro')).rejects.toThrow('Injected failure');
 
       // Restore original
       testDb.rawDb.prepare = origPrepare;
 
       // Plan should remain unchanged (rolled back)
-      const plan = await store.get('org-1');
+      const plan = await store.get('tenant', 'org-1');
       expect(plan).not.toBeNull();
       expect(plan!.planId).toBe('free');
       expect(plan!.overrides).toEqual({ 'project:create': { max: 100 } });
@@ -69,8 +69,8 @@ describe('DbSubscriptionStore transaction atomicity', () => {
   describe('remove() rollback', () => {
     it('rolls back plan delete when override delete fails', async () => {
       // Set up existing plan with overrides
-      await store.assign('org-1', 'free');
-      await store.updateOverrides('org-1', { 'project:create': { max: 100 } });
+      await store.assign('tenant', 'org-1', 'free');
+      await store.updateOverrides('tenant', 'org-1', { 'project:create': { max: 100 } });
 
       // Inject failure: make DELETE FROM auth_overrides fail at SQLite level
       const origPrepare = testDb.rawDb.prepare.bind(testDb.rawDb);
@@ -82,13 +82,13 @@ describe('DbSubscriptionStore transaction atomicity', () => {
       }) as typeof testDb.rawDb.prepare;
 
       // remove should fail
-      await expect(store.remove('org-1')).rejects.toThrow('Injected failure');
+      await expect(store.remove('tenant', 'org-1')).rejects.toThrow('Injected failure');
 
       // Restore original
       testDb.rawDb.prepare = origPrepare;
 
       // Plan should remain unchanged (rolled back)
-      const plan = await store.get('org-1');
+      const plan = await store.get('tenant', 'org-1');
       expect(plan).not.toBeNull();
       expect(plan!.planId).toBe('free');
     });
@@ -97,8 +97,8 @@ describe('DbSubscriptionStore transaction atomicity', () => {
   describe('updateOverrides() rollback', () => {
     it('rolls back when override write fails', async () => {
       // Set up existing plan with overrides
-      await store.assign('org-1', 'free');
-      await store.updateOverrides('org-1', { 'project:create': { max: 100 } });
+      await store.assign('tenant', 'org-1', 'free');
+      await store.updateOverrides('tenant', 'org-1', { 'project:create': { max: 100 } });
 
       // Inject failure: make UPDATE auth_overrides fail at SQLite level
       const origPrepare = testDb.rawDb.prepare.bind(testDb.rawDb);
@@ -110,15 +110,15 @@ describe('DbSubscriptionStore transaction atomicity', () => {
       }) as typeof testDb.rawDb.prepare;
 
       // updateOverrides should fail
-      await expect(store.updateOverrides('org-1', { 'api:call': { max: 5000 } })).rejects.toThrow(
-        'Injected failure',
-      );
+      await expect(
+        store.updateOverrides('tenant', 'org-1', { 'api:call': { max: 5000 } }),
+      ).rejects.toThrow('Injected failure');
 
       // Restore original
       testDb.rawDb.prepare = origPrepare;
 
       // Overrides should remain unchanged (rolled back)
-      const plan = await store.get('org-1');
+      const plan = await store.get('tenant', 'org-1');
       expect(plan).not.toBeNull();
       expect(plan!.overrides).toEqual({ 'project:create': { max: 100 } });
     });

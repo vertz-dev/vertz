@@ -105,8 +105,8 @@ describe('E2E: Multi-level billing + access set (#1787)', () => {
         parentId: 'acct-1',
       });
       await roleStore.assign('user-1', 'account', 'acct-1', 'owner');
-      await subscriptionStore.assign('acct-1', 'enterprise');
-      await subscriptionStore.assign('proj-1', 'pro');
+      await subscriptionStore.assign('account', 'acct-1', 'enterprise');
+      await subscriptionStore.assign('project', 'proj-1', 'pro');
 
       const result = await computeAccessSet({
         userId: 'user-1',
@@ -141,8 +141,8 @@ describe('E2E: Multi-level billing + access set (#1787)', () => {
         parentId: 'acct-1',
       });
       await roleStore.assign('user-1', 'account', 'acct-1', 'owner');
-      await subscriptionStore.assign('acct-1', 'enterprise');
-      await subscriptionStore.assign('proj-1', 'free');
+      await subscriptionStore.assign('account', 'acct-1', 'enterprise');
+      await subscriptionStore.assign('project', 'proj-1', 'free');
 
       const result = await computeAccessSet({
         userId: 'user-1',
@@ -177,8 +177,8 @@ describe('E2E: Multi-level billing + access set (#1787)', () => {
         parentId: 'acct-1',
       });
       await roleStore.assign('user-1', 'account', 'acct-1', 'owner');
-      await subscriptionStore.assign('acct-1', 'starter');
-      await subscriptionStore.assign('proj-1', 'pro');
+      await subscriptionStore.assign('account', 'acct-1', 'starter');
+      await subscriptionStore.assign('project', 'proj-1', 'pro');
 
       const result = await computeAccessSet({
         userId: 'user-1',
@@ -212,8 +212,8 @@ describe('E2E: Multi-level billing + access set (#1787)', () => {
         parentId: 'acct-1',
       });
       await roleStore.assign('user-1', 'account', 'acct-1', 'owner');
-      await subscriptionStore.assign('acct-1', 'starter');
-      await subscriptionStore.assign('proj-1', 'free');
+      await subscriptionStore.assign('account', 'acct-1', 'starter');
+      await subscriptionStore.assign('project', 'proj-1', 'free');
 
       const result = await computeAccessSet({
         userId: 'user-1',
@@ -255,8 +255,8 @@ describe('E2E: Multi-level billing + access set (#1787)', () => {
         parentId: 'acct-1',
       });
       await roleStore.assign('user-1', 'account', 'acct-1', 'owner');
-      await subscriptionStore.assign('acct-1', 'enterprise');
-      await subscriptionStore.assign('proj-1', 'pro');
+      await subscriptionStore.assign('account', 'acct-1', 'enterprise');
+      await subscriptionStore.assign('project', 'proj-1', 'pro');
 
       const original = await computeAccessSet({
         userId: 'user-1',

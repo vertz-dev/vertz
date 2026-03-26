@@ -257,7 +257,7 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
         const levelPlans = accessDef._billingLevels[entry.type];
         if (!levelPlans?.length) continue;
 
-        const sub = await subscriptionStore.get(entry.id);
+        const sub = await subscriptionStore.get(entry.type, entry.id);
         let planId: string | null = null;
         // Level-specific default avoids resolveEffectivePlan's hardcoded 'free' fallback
         // which could pick up a plan from the wrong level
@@ -289,7 +289,7 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
         }
 
         // Collect add-on features for this level
-        const addOns = await subscriptionStore.getAddOns?.(entry.id);
+        const addOns = await subscriptionStore.getAddOns?.(entry.type, entry.id);
         if (addOns) {
           for (const addOnId of addOns) {
             const addOnDef = accessDef.plans?.[addOnId];
@@ -343,10 +343,10 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
 
       // Wallet/limit enrichment: use deepest level's subscription for limit checks
       if (walletStore && deepestPlan) {
-        const deepestSub = await subscriptionStore.get(tenantId);
+        const deepestSub = await subscriptionStore.get(config.tenantLevel!, tenantId);
         const deepestPlanDef = accessDef.plans?.[deepestPlan];
         if (deepestSub && deepestPlanDef) {
-          const deepestAddOns = await subscriptionStore.getAddOns?.(tenantId);
+          const deepestAddOns = await subscriptionStore.getAddOns?.(config.tenantLevel!, tenantId);
           for (const name of Object.keys(accessDef.entitlements)) {
             const limitKeys = accessDef._entitlementToLimitKeys[name];
             if (!limitKeys?.length) continue;
@@ -422,7 +422,8 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
       }
     } else {
       // Single-level: existing behavior
-      const subscription = await subscriptionStore.get(tenantId);
+      const resourceType = config.tenantLevel ?? 'tenant';
+      const subscription = await subscriptionStore.get(resourceType, tenantId);
       if (subscription) {
         const effectivePlanId = resolveEffectivePlan(
           subscription,
@@ -435,7 +436,7 @@ export async function computeAccessSet(config: ComputeAccessSetConfig): Promise<
           if (planDef) {
             // Compute effective features (base plan + add-ons)
             const effectiveFeatures = new Set<string>(planDef.features ?? []);
-            const addOns = await subscriptionStore.getAddOns?.(tenantId);
+            const addOns = await subscriptionStore.getAddOns?.(resourceType, tenantId);
             if (addOns) {
               for (const addOnId of addOns) {
                 const addOnDef = accessDef.plans?.[addOnId];

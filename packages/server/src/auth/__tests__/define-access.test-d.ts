@@ -144,18 +144,21 @@ describe('Type-level: SubscriptionStore', () => {
 
   it('Subscription has correct shape', () => {
     const plan: Subscription = {
-      tenantId: 'org-1',
+      resourceType: 'tenant',
+      resourceId: 'org-1',
       planId: 'free',
       startedAt: new Date(),
       expiresAt: null,
       overrides: {},
     };
-    const _tenantId: string = plan.tenantId;
+    const _resourceType: string = plan.resourceType;
+    const _resourceId: string = plan.resourceId;
     const _planId: string = plan.planId;
     const _startedAt: Date = plan.startedAt;
     const _expiresAt: Date | null = plan.expiresAt;
     const _overrides: Record<string, LimitOverride> = plan.overrides;
-    void _tenantId;
+    void _resourceType;
+    void _resourceId;
     void _planId;
     void _startedAt;
     void _expiresAt;

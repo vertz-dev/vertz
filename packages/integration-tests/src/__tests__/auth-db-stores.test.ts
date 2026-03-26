@@ -271,27 +271,27 @@ describe('DB-Backed Auth Stores Integration', () => {
 
     // Assign plan
     const startedAt = new Date('2026-01-01T00:00:00Z');
-    await subscriptionStore.assign('org-1', 'pro', startedAt);
+    await subscriptionStore.assign('tenant', 'org-1', 'pro', startedAt);
 
-    const plan = await subscriptionStore.get('org-1');
+    const plan = await subscriptionStore.get('tenant', 'org-1');
     expect(plan).not.toBeNull();
     expect(plan?.planId).toBe('pro');
     expect(plan?.startedAt.getTime()).toBe(startedAt.getTime());
     expect(plan?.overrides).toEqual({});
 
     // Add overrides
-    await subscriptionStore.updateOverrides('org-1', {
+    await subscriptionStore.updateOverrides('tenant', 'org-1', {
       'project:create': { max: 500 },
     });
 
-    const planWithOverrides = await subscriptionStore.get('org-1');
+    const planWithOverrides = await subscriptionStore.get('tenant', 'org-1');
     expect(planWithOverrides?.overrides).toEqual({
       'project:create': { max: 500 },
     });
 
     // Reassign plan — overrides reset
-    await subscriptionStore.assign('org-1', 'enterprise');
-    const newPlan = await subscriptionStore.get('org-1');
+    await subscriptionStore.assign('tenant', 'org-1', 'enterprise');
+    const newPlan = await subscriptionStore.get('tenant', 'org-1');
     expect(newPlan?.planId).toBe('enterprise');
     expect(newPlan?.overrides).toEqual({});
 
@@ -378,7 +378,7 @@ describe('DB-Backed Auth Stores Integration', () => {
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
 
     // 3. Assign plan
-    await subscriptionStore.assign('org-1', 'pro');
+    await subscriptionStore.assign('tenant', 'org-1', 'pro');
 
     // 4. Set feature flags
     flagStore.setFlag('org-1', 'advanced_analytics', true);
@@ -396,7 +396,7 @@ describe('DB-Backed Auth Stores Integration', () => {
     );
     expect(effectiveRole).toBe('contributor');
 
-    const plan = await subscriptionStore.get('org-1');
+    const plan = await subscriptionStore.get('tenant', 'org-1');
     expect(plan?.planId).toBe('pro');
 
     expect(flagStore.getFlag('org-1', 'advanced_analytics')).toBe(true);

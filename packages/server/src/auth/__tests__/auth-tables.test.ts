@@ -71,19 +71,24 @@ describe('generateAuthDDL', () => {
     expect(closureTable).toContain('depth INTEGER NOT NULL');
   });
 
-  it('creates auth_plans with unique tenant_id', () => {
+  it('creates auth_plans with (resource_type, resource_id) unique constraint', () => {
     const statements = generateAuthDDL('sqlite');
     const plansTable = statements[5]!;
     expect(plansTable).toContain('auth_plans');
-    expect(plansTable).toContain('tenant_id TEXT NOT NULL UNIQUE');
+    expect(plansTable).toContain('resource_type TEXT NOT NULL');
+    expect(plansTable).toContain('resource_id TEXT NOT NULL');
+    expect(plansTable).toContain('UNIQUE(resource_type, resource_id)');
   });
 
-  it('creates auth_plan_addons with quantity and is_one_off', () => {
+  it('creates auth_plan_addons with (resource_type, resource_id, addon_id) unique constraint', () => {
     const statements = generateAuthDDL('sqlite');
     const addonsTable = statements[6]!;
     expect(addonsTable).toContain('auth_plan_addons');
+    expect(addonsTable).toContain('resource_type TEXT NOT NULL');
+    expect(addonsTable).toContain('resource_id TEXT NOT NULL');
     expect(addonsTable).toContain('is_one_off INTEGER NOT NULL DEFAULT 0');
     expect(addonsTable).toContain('quantity INTEGER NOT NULL DEFAULT 1');
+    expect(addonsTable).toContain('UNIQUE(resource_type, resource_id, addon_id)');
   });
 
   it('creates auth_flags with unique tenant/flag constraint', () => {
@@ -93,11 +98,13 @@ describe('generateAuthDDL', () => {
     expect(flagsTable).toContain('UNIQUE(tenant_id, flag)');
   });
 
-  it('creates auth_overrides with unique tenant_id', () => {
+  it('creates auth_overrides with (resource_type, resource_id) unique constraint', () => {
     const statements = generateAuthDDL('sqlite');
     const overridesTable = statements[8]!;
     expect(overridesTable).toContain('auth_overrides');
-    expect(overridesTable).toContain('tenant_id TEXT NOT NULL UNIQUE');
+    expect(overridesTable).toContain('resource_type TEXT NOT NULL');
+    expect(overridesTable).toContain('resource_id TEXT NOT NULL');
+    expect(overridesTable).toContain('UNIQUE(resource_type, resource_id)');
     expect(overridesTable).toContain('overrides TEXT NOT NULL');
   });
 });

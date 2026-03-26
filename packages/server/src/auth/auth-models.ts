@@ -68,7 +68,8 @@ const authClosureTable = d.table('auth_closure', {
 
 const authPlansTable = d.table('auth_plans', {
   id: d.text().primary(),
-  tenantId: d.text(),
+  resourceType: d.text(),
+  resourceId: d.text(),
   planId: d.text(),
   startedAt: d.timestamp().default('now'),
   expiresAt: d.timestamp().nullable(),
@@ -76,7 +77,8 @@ const authPlansTable = d.table('auth_plans', {
 
 const authPlanAddonsTable = d.table('auth_plan_addons', {
   id: d.text().primary(),
-  tenantId: d.text(),
+  resourceType: d.text(),
+  resourceId: d.text(),
   addonId: d.text(),
   isOneOff: d.boolean().default(false),
   quantity: d.integer().default(1),
@@ -92,7 +94,8 @@ const authFlagsTable = d.table('auth_flags', {
 
 const authOverridesTable = d.table('auth_overrides', {
   id: d.text().primary(),
-  tenantId: d.text(),
+  resourceType: d.text(),
+  resourceId: d.text(),
   overrides: d.text(),
   updatedAt: d.timestamp().default('now'),
 });

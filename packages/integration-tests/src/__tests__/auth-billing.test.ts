@@ -160,7 +160,7 @@ describe('Feature: Billing E2E lifecycle', () => {
     expect(response.status).toBe(200);
 
     // Verify plan assignment
-    const plan = await subscriptionStore.get('org-acme');
+    const plan = await subscriptionStore.get('tenant', 'org-acme');
     expect(plan).not.toBeNull();
     expect(plan?.planId).toBe('pro_monthly');
 
@@ -196,7 +196,7 @@ describe('Feature: Billing E2E lifecycle', () => {
     );
 
     // Verify reverted to free plan
-    const afterDelete = await subscriptionStore.get('org-acme');
+    const afterDelete = await subscriptionStore.get('tenant', 'org-acme');
     expect(afterDelete?.planId).toBe('free');
 
     // Verify cancelation event

@@ -57,11 +57,11 @@ describe('Feature: Plan versioning E2E lifecycle', () => {
     expect(events[0].type).toBe('plan:version_created');
 
     // Tenant signs up and is assigned pro plan
-    await subscriptionStore.assign('org-acme', 'pro');
-    await versionStore.setTenantVersion('org-acme', 'pro', 1);
+    await subscriptionStore.assign('tenant', 'org-acme', 'pro');
+    await versionStore.setTenantVersion('tenant', 'org-acme', 'pro', 1);
 
     // Resolve shows tenant on v1
-    const state1 = await manager1.resolve('org-acme');
+    const state1 = await manager1.resolve('tenant', 'org-acme');
     expect(state1).not.toBeNull();
     expect(state1!.version).toBe(1);
     expect(state1!.currentVersion).toBe(1);
@@ -94,7 +94,7 @@ describe('Feature: Plan versioning E2E lifecycle', () => {
     expect(events[0].version).toBe(2);
 
     // Tenant is now grandfathered on v1
-    const state2 = await manager2.resolve('org-acme');
+    const state2 = await manager2.resolve('tenant', 'org-acme');
     expect(state2!.version).toBe(1);
     expect(state2!.currentVersion).toBe(2);
     expect(state2!.grandfathered).toBe(true);
@@ -103,8 +103,8 @@ describe('Feature: Plan versioning E2E lifecycle', () => {
     expect(state2!.snapshot.limits).toEqual({ prompts: { max: 50, gates: 'prompt:create' } });
 
     // New tenant gets v2
-    await subscriptionStore.assign('org-newco', 'pro');
-    const stateNew = await manager2.resolve('org-newco');
+    await subscriptionStore.assign('tenant', 'org-newco', 'pro');
+    const stateNew = await manager2.resolve('tenant', 'org-newco');
     expect(stateNew!.version).toBe(2);
     expect(stateNew!.grandfathered).toBe(false);
     expect(stateNew!.snapshot.limits).toEqual({ prompts: { max: 100, gates: 'prompt:create' } });
@@ -131,7 +131,7 @@ describe('Feature: Plan versioning E2E lifecycle', () => {
     await manager3.migrate('pro');
 
     // Tenant migrated to v2
-    const state3 = await manager3.resolve('org-acme');
+    const state3 = await manager3.resolve('tenant', 'org-acme');
     expect(state3!.version).toBe(2);
     expect(state3!.grandfathered).toBe(false);
     expect(state3!.snapshot.limits).toEqual({ prompts: { max: 100, gates: 'prompt:create' } });
@@ -139,7 +139,7 @@ describe('Feature: Plan versioning E2E lifecycle', () => {
     // Migration event emitted
     const migratedEvent = events.find((e) => e.type === 'plan:migrated');
     expect(migratedEvent).toBeDefined();
-    expect(migratedEvent!.tenantId).toBe('org-acme');
+    expect(migratedEvent!.resourceId).toBe('org-acme');
     expect(migratedEvent!.previousVersion).toBe(1);
     expect(migratedEvent!.version).toBe(2);
   });
@@ -185,8 +185,8 @@ describe('Feature: Grandfathering policy integration', () => {
       subscriptionStore,
     });
     await m1.initialize();
-    await subscriptionStore.assign('org-1', 'enterprise');
-    await versionStore.setTenantVersion('org-1', 'enterprise', 1);
+    await subscriptionStore.assign('tenant', 'org-1', 'enterprise');
+    await versionStore.setTenantVersion('tenant', 'org-1', 'enterprise', 1);
 
     // Deploy 2 — changed features
     const m2 = createPlanManager({
@@ -204,7 +204,7 @@ describe('Feature: Grandfathering policy integration', () => {
     await m2.initialize();
 
     // Tenant is grandfathered with null graceEnds
-    const gf = await grandfatheringStore.getGrandfathered('org-1', 'enterprise');
+    const gf = await grandfatheringStore.getGrandfathered('tenant', 'org-1', 'enterprise');
     expect(gf).not.toBeNull();
     expect(gf!.graceEnds).toBeNull();
 
@@ -226,11 +226,11 @@ describe('Feature: Grandfathering policy integration', () => {
     await m3.migrate('enterprise');
 
     // Still on v1
-    expect(await versionStore.getTenantVersion('org-1', 'enterprise')).toBe(1);
+    expect(await versionStore.getTenantVersion('tenant', 'org-1', 'enterprise')).toBe(1);
 
-    // But forced migration with tenantId works
-    await m3.migrate('enterprise', { tenantId: 'org-1' });
-    expect(await versionStore.getTenantVersion('org-1', 'enterprise')).toBe(2);
+    // But forced migration with resourceType/resourceId works
+    await m3.migrate('enterprise', { resourceType: 'tenant', resourceId: 'org-1' });
+    expect(await versionStore.getTenantVersion('tenant', 'org-1', 'enterprise')).toBe(2);
   });
 });
 
@@ -241,9 +241,9 @@ describe('Feature: Grace period events integration', () => {
     const subscriptionStore = new InMemorySubscriptionStore();
 
     // Grace ends 2026-04-01
-    await grandfatheringStore.setGrandfathered('org-a', 'pro', 1, new Date('2026-04-01T00:00:00Z'));
+    await grandfatheringStore.setGrandfathered('tenant', 'org-a', 'pro', 1, new Date('2026-04-01T00:00:00Z'));
     // Grace ends 2026-04-01 (same, for approaching test)
-    await grandfatheringStore.setGrandfathered('org-b', 'pro', 1, new Date('2026-04-01T00:00:00Z'));
+    await grandfatheringStore.setGrandfathered('tenant', 'org-b', 'pro', 1, new Date('2026-04-01T00:00:00Z'));
 
     // Clock: March 5 — 27 days before. Within 30-day window, > 7 days.
     const events1: PlanEvent[] = [];
@@ -281,8 +281,8 @@ describe('Feature: Schedule migration', () => {
     const grandfatheringStore = new InMemoryGrandfatheringStore();
     const subscriptionStore = new InMemorySubscriptionStore();
 
-    await grandfatheringStore.setGrandfathered('org-1', 'pro', 1, new Date('2099-01-01T00:00:00Z'));
-    await grandfatheringStore.setGrandfathered('org-2', 'pro', 1, new Date('2099-01-01T00:00:00Z'));
+    await grandfatheringStore.setGrandfathered('tenant', 'org-1', 'pro', 1, new Date('2099-01-01T00:00:00Z'));
+    await grandfatheringStore.setGrandfathered('tenant', 'org-2', 'pro', 1, new Date('2099-01-01T00:00:00Z'));
 
     const manager = createPlanManager({
       plans: { pro: { group: 'main', features: ['a'] } },
@@ -293,8 +293,8 @@ describe('Feature: Schedule migration', () => {
 
     await manager.schedule('pro', { at: '2026-06-01' });
 
-    const s1 = await grandfatheringStore.getGrandfathered('org-1', 'pro');
-    const s2 = await grandfatheringStore.getGrandfathered('org-2', 'pro');
+    const s1 = await grandfatheringStore.getGrandfathered('tenant', 'org-1', 'pro');
+    const s2 = await grandfatheringStore.getGrandfathered('tenant', 'org-2', 'pro');
     expect(s1!.graceEnds!.toISOString()).toContain('2026-06-01');
     expect(s2!.graceEnds!.toISOString()).toContain('2026-06-01');
   });

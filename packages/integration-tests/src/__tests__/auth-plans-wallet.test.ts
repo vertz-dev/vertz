@@ -130,7 +130,7 @@ describe('Plans & Wallet — Plan Layer (L3)', () => {
     const { roleStore, closureStore, subscriptionStore, walletStore } = createTestStores();
     await setupHierarchy(closureStore);
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-    await subscriptionStore.assign('org-1', 'free');
+    await subscriptionStore.assign('tenant', 'org-1', 'free');
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -139,7 +139,7 @@ describe('Plans & Wallet — Plan Layer (L3)', () => {
       roleStore,
       subscriptionStore,
       walletStore,
-      orgResolver: async () => 'org-1',
+      orgResolver: async () => ({ type: 'tenant', id: 'org-1' }),
     });
 
     // admin has role, but free plan's features don't include organization:create-project
@@ -154,7 +154,7 @@ describe('Plans & Wallet — Plan Layer (L3)', () => {
     const { roleStore, closureStore, subscriptionStore, walletStore } = createTestStores();
     await setupHierarchy(closureStore);
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-    await subscriptionStore.assign('org-1', 'pro');
+    await subscriptionStore.assign('tenant', 'org-1', 'pro');
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -163,7 +163,7 @@ describe('Plans & Wallet — Plan Layer (L3)', () => {
       roleStore,
       subscriptionStore,
       walletStore,
-      orgResolver: async () => 'org-1',
+      orgResolver: async () => ({ type: 'tenant', id: 'org-1' }),
     });
 
     // admin -> editor -> contributor via inheritance; pro plan features include project:edit
@@ -175,7 +175,7 @@ describe('Plans & Wallet — Plan Layer (L3)', () => {
     const { roleStore, closureStore, subscriptionStore, walletStore } = createTestStores();
     await setupHierarchy(closureStore);
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
-    await subscriptionStore.assign('org-1', 'free');
+    await subscriptionStore.assign('tenant', 'org-1', 'free');
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -184,7 +184,7 @@ describe('Plans & Wallet — Plan Layer (L3)', () => {
       roleStore,
       subscriptionStore,
       walletStore,
-      orgResolver: async () => 'org-1',
+      orgResolver: async () => ({ type: 'tenant', id: 'org-1' }),
     });
 
     const result = await ctx.check('organization:create-project', {
@@ -205,7 +205,7 @@ describe('Plans & Wallet — Plan Layer (L3)', () => {
     // Assign pro plan that expired yesterday
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    await subscriptionStore.assign('org-1', 'pro', new Date('2025-01-01'), yesterday);
+    await subscriptionStore.assign('tenant', 'org-1', 'pro', new Date('2025-01-01'), yesterday);
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -214,7 +214,7 @@ describe('Plans & Wallet — Plan Layer (L3)', () => {
       roleStore,
       subscriptionStore,
       walletStore,
-      orgResolver: async () => 'org-1',
+      orgResolver: async () => ({ type: 'tenant', id: 'org-1' }),
     });
 
     // Pro plan expired -> fallback to free -> organization:create-project not in free features
@@ -236,7 +236,7 @@ describe('Plans & Wallet — Wallet Layer (L4)', () => {
     await setupHierarchy(closureStore);
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    await subscriptionStore.assign('org-1', 'pro', planStart);
+    await subscriptionStore.assign('tenant', 'org-1', 'pro', planStart);
 
     // Consume all 10 units using the limit key 'projects'
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
@@ -249,7 +249,7 @@ describe('Plans & Wallet — Wallet Layer (L4)', () => {
       roleStore,
       subscriptionStore,
       walletStore,
-      orgResolver: async () => 'org-1',
+      orgResolver: async () => ({ type: 'tenant', id: 'org-1' }),
     });
 
     const allowed = await ctx.can('organization:create-project', {
@@ -264,7 +264,7 @@ describe('Plans & Wallet — Wallet Layer (L4)', () => {
     await setupHierarchy(closureStore);
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    await subscriptionStore.assign('org-1', 'pro', planStart);
+    await subscriptionStore.assign('tenant', 'org-1', 'pro', planStart);
 
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
     await walletStore.consume('org-1', 'projects', periodStart, periodEnd, 10, 10);
@@ -276,7 +276,7 @@ describe('Plans & Wallet — Wallet Layer (L4)', () => {
       roleStore,
       subscriptionStore,
       walletStore,
-      orgResolver: async () => 'org-1',
+      orgResolver: async () => ({ type: 'tenant', id: 'org-1' }),
     });
 
     const result = await ctx.check('organization:create-project', {
@@ -301,7 +301,7 @@ describe('Plans & Wallet — canAndConsume / unconsume', () => {
     await setupHierarchy(closureStore);
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    await subscriptionStore.assign('org-1', 'pro', planStart);
+    await subscriptionStore.assign('tenant', 'org-1', 'pro', planStart);
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -310,7 +310,7 @@ describe('Plans & Wallet — canAndConsume / unconsume', () => {
       roleStore,
       subscriptionStore,
       walletStore,
-      orgResolver: async () => 'org-1',
+      orgResolver: async () => ({ type: 'tenant', id: 'org-1' }),
     });
 
     // First consume should succeed (0/10)
@@ -331,7 +331,7 @@ describe('Plans & Wallet — canAndConsume / unconsume', () => {
     await setupHierarchy(closureStore);
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    await subscriptionStore.assign('org-1', 'pro', planStart);
+    await subscriptionStore.assign('tenant', 'org-1', 'pro', planStart);
 
     // Pre-consume 10 (the limit)
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
@@ -344,7 +344,7 @@ describe('Plans & Wallet — canAndConsume / unconsume', () => {
       roleStore,
       subscriptionStore,
       walletStore,
-      orgResolver: async () => 'org-1',
+      orgResolver: async () => ({ type: 'tenant', id: 'org-1' }),
     });
 
     const result = await ctx.canAndConsume('organization:create-project', {
@@ -363,7 +363,7 @@ describe('Plans & Wallet — canAndConsume / unconsume', () => {
     await setupHierarchy(closureStore);
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    await subscriptionStore.assign('org-1', 'pro', planStart);
+    await subscriptionStore.assign('tenant', 'org-1', 'pro', planStart);
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -372,7 +372,7 @@ describe('Plans & Wallet — canAndConsume / unconsume', () => {
       roleStore,
       subscriptionStore,
       walletStore,
-      orgResolver: async () => 'org-1',
+      orgResolver: async () => ({ type: 'tenant', id: 'org-1' }),
     });
 
     // Consume — use organization resource where user has admin role
@@ -402,9 +402,9 @@ describe('Plans & Wallet — Per-customer overrides', () => {
     await setupHierarchy(closureStore);
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    await subscriptionStore.assign('org-1', 'pro', planStart);
+    await subscriptionStore.assign('tenant', 'org-1', 'pro', planStart);
     // Override: max 20 instead of plan's 10 (keyed by limit key, not entitlement)
-    await subscriptionStore.updateOverrides('org-1', {
+    await subscriptionStore.updateOverrides('tenant', 'org-1', {
       projects: { max: 20 },
     });
 
@@ -419,7 +419,7 @@ describe('Plans & Wallet — Per-customer overrides', () => {
       roleStore,
       subscriptionStore,
       walletStore,
-      orgResolver: async () => 'org-1',
+      orgResolver: async () => ({ type: 'tenant', id: 'org-1' }),
     });
 
     // Should still be allowed because override raised the limit to 20
@@ -441,7 +441,7 @@ describe('Plans & Wallet — AccessSet with limits', () => {
     await setupHierarchy(closureStore);
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    await subscriptionStore.assign('org-1', 'pro', planStart);
+    await subscriptionStore.assign('tenant', 'org-1', 'pro', planStart);
 
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
     await walletStore.consume('org-1', 'projects', periodStart, periodEnd, 10, 3);
@@ -469,7 +469,7 @@ describe('Plans & Wallet — AccessSet with limits', () => {
     await setupHierarchy(closureStore);
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    await subscriptionStore.assign('org-1', 'pro', planStart);
+    await subscriptionStore.assign('tenant', 'org-1', 'pro', planStart);
 
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
     await walletStore.consume('org-1', 'projects', periodStart, periodEnd, 10, 5);
@@ -551,7 +551,7 @@ describe('Plans & Wallet — E2E Acceptance: free -> exhaust -> upgrade -> succe
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
 
     // Step 1: Assign org to free plan with limit 5 projects/month
-    await subscriptionStore.assign('org-1', 'free');
+    await subscriptionStore.assign('tenant', 'org-1', 'free');
 
     const ctx = createAccessContext({
       userId: 'user-1',
@@ -560,7 +560,7 @@ describe('Plans & Wallet — E2E Acceptance: free -> exhaust -> upgrade -> succe
       roleStore,
       subscriptionStore,
       walletStore,
-      orgResolver: async () => 'org-1',
+      orgResolver: async () => ({ type: 'tenant', id: 'org-1' }),
     });
 
     // Step 2: Create 5 projects via canAndConsume() — all succeed
@@ -580,7 +580,7 @@ describe('Plans & Wallet — E2E Acceptance: free -> exhaust -> upgrade -> succe
     expect(sixthDenied).toBe(false);
 
     // Step 4: Upgrade to pro (limit 100)
-    await subscriptionStore.assign('org-1', 'pro');
+    await subscriptionStore.assign('tenant', 'org-1', 'pro');
 
     // Step 5: 6th project now succeeds (pro limit is 100, only 5 consumed)
     const sixthAllowed = await ctx.canAndConsume('organization:create-project', {
@@ -634,7 +634,7 @@ describe('Feature: Override store integration', () => {
 
     await closureStore.addResource('organization', 'org-1');
     await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
-    await subscriptionStore.assign('org-1', 'free');
+    await subscriptionStore.assign('tenant', 'org-1', 'free');
 
     // Free plan does not include 'organization:create-project'
     // Override grants it
@@ -650,7 +650,7 @@ describe('Feature: Override store integration', () => {
       subscriptionStore,
       walletStore,
       overrideStore,
-      orgResolver: async () => 'org-1',
+      orgResolver: async () => ({ type: 'tenant', id: 'org-1' }),
     });
 
     const allowed = await ctx.can('organization:create-project', {
@@ -670,7 +670,7 @@ describe('Feature: Override store integration', () => {
     await closureStore.addResource('organization', 'org-1');
     await roleStore.assign('user-1', 'organization', 'org-1', 'owner');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    await subscriptionStore.assign('org-1', 'pro', planStart);
+    await subscriptionStore.assign('tenant', 'org-1', 'pro', planStart);
 
     // Pro has 10 projects/month. Override adds 5 more.
     await overrideStore.set('org-1', { limits: { projects: { add: 5 } } });
@@ -687,7 +687,7 @@ describe('Feature: Override store integration', () => {
       subscriptionStore,
       walletStore,
       overrideStore,
-      orgResolver: async () => 'org-1',
+      orgResolver: async () => ({ type: 'tenant', id: 'org-1' }),
     });
 
     const allowed = await ctx.can('organization:create-project', {
@@ -784,7 +784,7 @@ describe('Feature: Overage billing integration', () => {
     await closureStore.addResource('organization', 'org-1');
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    await subscriptionStore.assign('org-1', 'pro', planStart);
+    await subscriptionStore.assign('tenant', 'org-1', 'pro', planStart);
 
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
     await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 200, 150);
@@ -796,7 +796,7 @@ describe('Feature: Overage billing integration', () => {
       roleStore,
       subscriptionStore,
       walletStore,
-      orgResolver: async () => 'org-1',
+      orgResolver: async () => ({ type: 'tenant', id: 'org-1' }),
     });
 
     const allowed = await ctx.can('organization:create', {
@@ -815,7 +815,7 @@ describe('Feature: Overage billing integration', () => {
     await closureStore.addResource('organization', 'org-1');
     await roleStore.assign('user-1', 'organization', 'org-1', 'admin');
     const planStart = new Date('2026-01-01T00:00:00Z');
-    await subscriptionStore.assign('org-1', 'pro', planStart);
+    await subscriptionStore.assign('tenant', 'org-1', 'pro', planStart);
 
     const { periodStart, periodEnd } = calculateBillingPeriod(planStart, 'month');
     await walletStore.consume('org-1', 'prompts', periodStart, periodEnd, 200, 150);
@@ -827,7 +827,7 @@ describe('Feature: Overage billing integration', () => {
       roleStore,
       subscriptionStore,
       walletStore,
-      orgResolver: async () => 'org-1',
+      orgResolver: async () => ({ type: 'tenant', id: 'org-1' }),
     });
 
     const result = await ctx.check('organization:create', {

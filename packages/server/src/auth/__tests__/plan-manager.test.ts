@@ -160,8 +160,8 @@ describe('Feature: Plan version detection on initialize()', () => {
         subscriptionStore,
       });
       await manager1.initialize();
-      await subscriptionStore.assign('org-1', 'pro');
-      await versionStore.setTenantVersion('org-1', 'pro', 1);
+      await subscriptionStore.assign('tenant', 'org-1', 'pro');
+      await versionStore.setTenantVersion('tenant', 'org-1', 'pro', 1);
 
       // Deploy 2 — changed limits
       const manager2 = createPlanManager({
@@ -181,7 +181,7 @@ describe('Feature: Plan version detection on initialize()', () => {
       await manager2.initialize();
 
       // Tenant should be grandfathered on v1
-      const grandfathered = await grandfatheringStore.getGrandfathered('org-1', 'pro');
+      const grandfathered = await grandfatheringStore.getGrandfathered('tenant', 'org-1', 'pro');
       expect(grandfathered).not.toBeNull();
       expect(grandfathered!.version).toBe(1);
       expect(grandfathered!.graceEnds).not.toBeNull(); // monthly plan => 1 month grace
@@ -227,9 +227,9 @@ describe('Feature: Plan version detection on initialize()', () => {
       await manager2.initialize();
 
       // New tenant assigned after v2
-      await subscriptionStore.assign('org-new', 'pro');
+      await subscriptionStore.assign('tenant', 'org-new', 'pro');
       // Not setting tenant version => resolve defaults to current
-      const state = await manager2.resolve('org-new');
+      const state = await manager2.resolve('tenant', 'org-new');
       expect(state).not.toBeNull();
       expect(state!.version).toBe(2);
       expect(state!.grandfathered).toBe(false);
@@ -256,10 +256,11 @@ describe('Feature: Plan migration', () => {
           limits: {},
           price: null,
         });
-        await versionStore.setTenantVersion('org-1', 'pro', 1);
-        await subscriptionStore.assign('org-1', 'pro');
+        await versionStore.setTenantVersion('tenant', 'org-1', 'pro', 1);
+        await subscriptionStore.assign('tenant', 'org-1', 'pro');
         // Grace ended yesterday
         await grandfatheringStore.setGrandfathered(
+          'tenant',
           'org-1',
           'pro',
           1,
@@ -277,7 +278,7 @@ describe('Feature: Plan migration', () => {
 
         await manager.migrate('pro');
 
-        const tenantVersion = await versionStore.getTenantVersion('org-1', 'pro');
+        const tenantVersion = await versionStore.getTenantVersion('tenant', 'org-1', 'pro');
         expect(tenantVersion).toBe(2);
       });
 
@@ -297,9 +298,10 @@ describe('Feature: Plan migration', () => {
           limits: {},
           price: null,
         });
-        await versionStore.setTenantVersion('org-1', 'pro', 1);
-        await subscriptionStore.assign('org-1', 'pro');
+        await versionStore.setTenantVersion('tenant', 'org-1', 'pro', 1);
+        await subscriptionStore.assign('tenant', 'org-1', 'pro');
         await grandfatheringStore.setGrandfathered(
+          'tenant',
           'org-1',
           'pro',
           1,
@@ -320,7 +322,7 @@ describe('Feature: Plan migration', () => {
 
         expect(events.length).toBe(1);
         expect(events[0].type).toBe('plan:migrated');
-        expect(events[0].tenantId).toBe('org-1');
+        expect(events[0].resourceId).toBe('org-1');
         expect(events[0].previousVersion).toBe(1);
         expect(events[0].version).toBe(2);
       });
@@ -340,9 +342,10 @@ describe('Feature: Plan migration', () => {
           limits: {},
           price: null,
         });
-        await versionStore.setTenantVersion('org-1', 'pro', 1);
-        await subscriptionStore.assign('org-1', 'pro');
+        await versionStore.setTenantVersion('tenant', 'org-1', 'pro', 1);
+        await subscriptionStore.assign('tenant', 'org-1', 'pro');
         await grandfatheringStore.setGrandfathered(
+          'tenant',
           'org-1',
           'pro',
           1,
@@ -360,7 +363,7 @@ describe('Feature: Plan migration', () => {
 
         await manager.migrate('pro');
 
-        const state = await grandfatheringStore.getGrandfathered('org-1', 'pro');
+        const state = await grandfatheringStore.getGrandfathered('tenant', 'org-1', 'pro');
         expect(state).toBeNull();
       });
     });
@@ -383,10 +386,11 @@ describe('Feature: Plan migration', () => {
           limits: {},
           price: null,
         });
-        await versionStore.setTenantVersion('org-1', 'pro', 1);
-        await subscriptionStore.assign('org-1', 'pro');
+        await versionStore.setTenantVersion('tenant', 'org-1', 'pro', 1);
+        await subscriptionStore.assign('tenant', 'org-1', 'pro');
         // Grace ends in the future
         await grandfatheringStore.setGrandfathered(
+          'tenant',
           'org-1',
           'pro',
           1,
@@ -404,7 +408,7 @@ describe('Feature: Plan migration', () => {
 
         await manager.migrate('pro');
 
-        const tenantVersion = await versionStore.getTenantVersion('org-1', 'pro');
+        const tenantVersion = await versionStore.getTenantVersion('tenant', 'org-1', 'pro');
         expect(tenantVersion).toBe(1); // Still on v1
       });
     });
@@ -426,10 +430,11 @@ describe('Feature: Plan migration', () => {
         limits: {},
         price: null,
       });
-      await versionStore.setTenantVersion('org-1', 'pro', 1);
-      await subscriptionStore.assign('org-1', 'pro');
+      await versionStore.setTenantVersion('tenant', 'org-1', 'pro', 1);
+      await subscriptionStore.assign('tenant', 'org-1', 'pro');
       // Grace ends far in the future
       await grandfatheringStore.setGrandfathered(
+        'tenant',
         'org-1',
         'pro',
         1,
@@ -445,9 +450,9 @@ describe('Feature: Plan migration', () => {
         clock,
       });
 
-      await manager.migrate('pro', { tenantId: 'org-1' });
+      await manager.migrate('pro', { resourceType: 'tenant', resourceId: 'org-1' });
 
-      const tenantVersion = await versionStore.getTenantVersion('org-1', 'pro');
+      const tenantVersion = await versionStore.getTenantVersion('tenant', 'org-1', 'pro');
       expect(tenantVersion).toBe(2);
     });
   });
@@ -469,9 +474,9 @@ describe('Feature: Clock injection', () => {
       limits: {},
       price: null,
     });
-    await versionStore.setTenantVersion('org-1', 'pro', 1);
-    await subscriptionStore.assign('org-1', 'pro');
-    await grandfatheringStore.setGrandfathered('org-1', 'pro', 1, new Date('2026-06-15T00:00:00Z'));
+    await versionStore.setTenantVersion('tenant', 'org-1', 'pro', 1);
+    await subscriptionStore.assign('tenant', 'org-1', 'pro');
+    await grandfatheringStore.setGrandfathered('tenant', 'org-1', 'pro', 1, new Date('2026-06-15T00:00:00Z'));
 
     // Clock before grace end — should NOT migrate
     const clockBefore = () => new Date('2026-06-14T00:00:00Z');
@@ -483,7 +488,7 @@ describe('Feature: Clock injection', () => {
       clock: clockBefore,
     });
     await manager1.migrate('pro');
-    expect(await versionStore.getTenantVersion('org-1', 'pro')).toBe(1);
+    expect(await versionStore.getTenantVersion('tenant', 'org-1', 'pro')).toBe(1);
 
     // Clock after grace end — SHOULD migrate
     const clockAfter = () => new Date('2026-06-16T00:00:00Z');
@@ -495,7 +500,7 @@ describe('Feature: Clock injection', () => {
       clock: clockAfter,
     });
     await manager2.migrate('pro');
-    expect(await versionStore.getTenantVersion('org-1', 'pro')).toBe(2);
+    expect(await versionStore.getTenantVersion('tenant', 'org-1', 'pro')).toBe(2);
   });
 });
 
@@ -507,8 +512,8 @@ describe('Feature: Plan resolution', () => {
 
     const snap = { features: ['a', 'b'], limits: {}, price: null };
     await versionStore.createVersion('pro', 'hash-1', snap);
-    await versionStore.setTenantVersion('org-1', 'pro', 1);
-    await subscriptionStore.assign('org-1', 'pro');
+    await versionStore.setTenantVersion('tenant', 'org-1', 'pro', 1);
+    await subscriptionStore.assign('tenant', 'org-1', 'pro');
 
     const manager = createPlanManager({
       plans: { pro: { group: 'main', features: ['a', 'b'] } },
@@ -517,7 +522,7 @@ describe('Feature: Plan resolution', () => {
       subscriptionStore,
     });
 
-    const state = await manager.resolve('org-1');
+    const state = await manager.resolve('tenant', 'org-1');
     expect(state).not.toBeNull();
     expect(state!.planId).toBe('pro');
     expect(state!.version).toBe(1);
@@ -533,7 +538,7 @@ describe('Feature: Plan resolution', () => {
     });
     await manager.initialize();
 
-    const state = await manager.resolve('unknown-org');
+    const state = await manager.resolve('tenant', 'unknown-org');
     expect(state).toBeNull();
   });
 
@@ -552,10 +557,10 @@ describe('Feature: Plan resolution', () => {
       limits: {},
       price: null,
     });
-    await versionStore.setTenantVersion('org-1', 'pro', 1);
-    await subscriptionStore.assign('org-1', 'pro');
+    await versionStore.setTenantVersion('tenant', 'org-1', 'pro', 1);
+    await subscriptionStore.assign('tenant', 'org-1', 'pro');
     const graceEnds = new Date('2027-01-15T00:00:00Z');
-    await grandfatheringStore.setGrandfathered('org-1', 'pro', 1, graceEnds);
+    await grandfatheringStore.setGrandfathered('tenant', 'org-1', 'pro', 1, graceEnds);
 
     const manager = createPlanManager({
       plans: { pro: { group: 'main', features: ['a', 'b'] } },
@@ -564,7 +569,7 @@ describe('Feature: Plan resolution', () => {
       subscriptionStore,
     });
 
-    const state = await manager.resolve('org-1');
+    const state = await manager.resolve('tenant', 'org-1');
     expect(state!.version).toBe(1);
     expect(state!.currentVersion).toBe(2);
     expect(state!.grandfathered).toBe(true);
@@ -591,8 +596,8 @@ describe('Feature: Schedule migration', () => {
       price: null,
     });
 
-    await grandfatheringStore.setGrandfathered('org-1', 'pro', 1, new Date('2099-01-01T00:00:00Z'));
-    await grandfatheringStore.setGrandfathered('org-2', 'pro', 1, new Date('2099-01-01T00:00:00Z'));
+    await grandfatheringStore.setGrandfathered('tenant', 'org-1', 'pro', 1, new Date('2099-01-01T00:00:00Z'));
+    await grandfatheringStore.setGrandfathered('tenant', 'org-2', 'pro', 1, new Date('2099-01-01T00:00:00Z'));
 
     const manager = createPlanManager({
       plans: { pro: { group: 'main', features: ['a', 'b'] } },
@@ -603,8 +608,8 @@ describe('Feature: Schedule migration', () => {
 
     await manager.schedule('pro', { at: '2026-06-01' });
 
-    const s1 = await grandfatheringStore.getGrandfathered('org-1', 'pro');
-    const s2 = await grandfatheringStore.getGrandfathered('org-2', 'pro');
+    const s1 = await grandfatheringStore.getGrandfathered('tenant', 'org-1', 'pro');
+    const s2 = await grandfatheringStore.getGrandfathered('tenant', 'org-2', 'pro');
     expect(s1!.graceEnds!.toISOString()).toContain('2026-06-01');
     expect(s2!.graceEnds!.toISOString()).toContain('2026-06-01');
   });
@@ -616,8 +621,8 @@ describe('Feature: Grandfathered listing', () => {
     const grandfatheringStore = new InMemoryGrandfatheringStore();
     const subscriptionStore = new InMemorySubscriptionStore();
 
-    await grandfatheringStore.setGrandfathered('org-1', 'pro', 1, new Date('2027-01-01'));
-    await grandfatheringStore.setGrandfathered('org-2', 'pro', 1, new Date('2027-01-01'));
+    await grandfatheringStore.setGrandfathered('tenant', 'org-1', 'pro', 1, new Date('2027-01-01'));
+    await grandfatheringStore.setGrandfathered('tenant', 'org-2', 'pro', 1, new Date('2027-01-01'));
 
     const manager = createPlanManager({
       plans: { pro: { group: 'main', features: ['a'] } },
@@ -628,7 +633,7 @@ describe('Feature: Grandfathered listing', () => {
 
     const list = await manager.grandfathered('pro');
     expect(list.length).toBe(2);
-    expect(list.map((s) => s.tenantId).sort()).toEqual(['org-1', 'org-2']);
+    expect(list.map((s) => s.resourceId).sort()).toEqual(['org-1', 'org-2']);
   });
 });
 
@@ -654,8 +659,8 @@ describe('Feature: Grandfathering policy', () => {
       clock: () => fixedNow,
     });
     await manager1.initialize();
-    await subscriptionStore.assign('org-1', 'pro');
-    await versionStore.setTenantVersion('org-1', 'pro', 1);
+    await subscriptionStore.assign('tenant', 'org-1', 'pro');
+    await versionStore.setTenantVersion('tenant', 'org-1', 'pro', 1);
 
     // Deploy 2 — changed features
     const manager2 = createPlanManager({
@@ -673,7 +678,7 @@ describe('Feature: Grandfathering policy', () => {
     });
     await manager2.initialize();
 
-    const state = await grandfatheringStore.getGrandfathered('org-1', 'pro');
+    const state = await grandfatheringStore.getGrandfathered('tenant', 'org-1', 'pro');
     expect(state).not.toBeNull();
     // 1 month ≈ 30 days from March 1
     const expectedGraceEnd = new Date(fixedNow.getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -700,8 +705,8 @@ describe('Feature: Grandfathering policy', () => {
       clock: () => fixedNow,
     });
     await manager1.initialize();
-    await subscriptionStore.assign('org-1', 'pro');
-    await versionStore.setTenantVersion('org-1', 'pro', 1);
+    await subscriptionStore.assign('tenant', 'org-1', 'pro');
+    await versionStore.setTenantVersion('tenant', 'org-1', 'pro', 1);
 
     const manager2 = createPlanManager({
       plans: {
@@ -718,7 +723,7 @@ describe('Feature: Grandfathering policy', () => {
     });
     await manager2.initialize();
 
-    const state = await grandfatheringStore.getGrandfathered('org-1', 'pro');
+    const state = await grandfatheringStore.getGrandfathered('tenant', 'org-1', 'pro');
     expect(state).not.toBeNull();
     // 3 months ≈ 90 days
     const expectedGraceEnd = new Date(fixedNow.getTime() + 90 * 24 * 60 * 60 * 1000);
@@ -746,8 +751,8 @@ describe('Feature: Grandfathering policy', () => {
       clock: () => fixedNow,
     });
     await manager1.initialize();
-    await subscriptionStore.assign('org-1', 'pro');
-    await versionStore.setTenantVersion('org-1', 'pro', 1);
+    await subscriptionStore.assign('tenant', 'org-1', 'pro');
+    await versionStore.setTenantVersion('tenant', 'org-1', 'pro', 1);
 
     const manager2 = createPlanManager({
       plans: { pro: { ...planConfig, features: ['a', 'b'] } },
@@ -758,7 +763,7 @@ describe('Feature: Grandfathering policy', () => {
     });
     await manager2.initialize();
 
-    const state = await grandfatheringStore.getGrandfathered('org-1', 'pro');
+    const state = await grandfatheringStore.getGrandfathered('tenant', 'org-1', 'pro');
     expect(state).not.toBeNull();
     // 12 months ≈ 365 days
     const expectedGraceEnd = new Date(fixedNow.getTime() + 365 * 24 * 60 * 60 * 1000);
@@ -783,8 +788,8 @@ describe('Feature: Grandfathering policy', () => {
       subscriptionStore,
     });
     await manager1.initialize();
-    await subscriptionStore.assign('org-1', 'pro');
-    await versionStore.setTenantVersion('org-1', 'pro', 1);
+    await subscriptionStore.assign('tenant', 'org-1', 'pro');
+    await versionStore.setTenantVersion('tenant', 'org-1', 'pro', 1);
 
     const manager2 = createPlanManager({
       plans: { pro: { ...planConfig, features: ['a', 'b'] } },
@@ -794,7 +799,7 @@ describe('Feature: Grandfathering policy', () => {
     });
     await manager2.initialize();
 
-    const state = await grandfatheringStore.getGrandfathered('org-1', 'pro');
+    const state = await grandfatheringStore.getGrandfathered('tenant', 'org-1', 'pro');
     expect(state).not.toBeNull();
     expect(state!.graceEnds).toBeNull();
   });
@@ -808,7 +813,7 @@ describe('Feature: Grace period events', () => {
     const events: PlanEvent[] = [];
 
     // Grace ends April 1, clock is March 10 (22 days before => within 30 day window, > 7 days)
-    await grandfatheringStore.setGrandfathered('org-1', 'pro', 1, new Date('2026-04-01T00:00:00Z'));
+    await grandfatheringStore.setGrandfathered('tenant', 'org-1', 'pro', 1, new Date('2026-04-01T00:00:00Z'));
 
     const clock = () => new Date('2026-03-10T00:00:00Z');
     const manager = createPlanManager({
@@ -824,7 +829,7 @@ describe('Feature: Grace period events', () => {
 
     expect(events.length).toBe(1);
     expect(events[0].type).toBe('plan:grace_approaching');
-    expect(events[0].tenantId).toBe('org-1');
+    expect(events[0].resourceId).toBe('org-1');
   });
 
   it('emits plan:grace_expiring when 7 days before grace end', async () => {
@@ -834,7 +839,7 @@ describe('Feature: Grace period events', () => {
     const events: PlanEvent[] = [];
 
     // Grace ends April 1, clock is March 28 (4 days before => within 7 day window)
-    await grandfatheringStore.setGrandfathered('org-1', 'pro', 1, new Date('2026-04-01T00:00:00Z'));
+    await grandfatheringStore.setGrandfathered('tenant', 'org-1', 'pro', 1, new Date('2026-04-01T00:00:00Z'));
 
     const clock = () => new Date('2026-03-28T00:00:00Z');
     const manager = createPlanManager({
@@ -850,7 +855,7 @@ describe('Feature: Grace period events', () => {
 
     expect(events.length).toBe(1);
     expect(events[0].type).toBe('plan:grace_expiring');
-    expect(events[0].tenantId).toBe('org-1');
+    expect(events[0].resourceId).toBe('org-1');
   });
 
   it('no event when grace end is far in the future', async () => {
@@ -859,7 +864,7 @@ describe('Feature: Grace period events', () => {
     const subscriptionStore = new InMemorySubscriptionStore();
     const events: PlanEvent[] = [];
 
-    await grandfatheringStore.setGrandfathered('org-1', 'pro', 1, new Date('2027-01-01T00:00:00Z'));
+    await grandfatheringStore.setGrandfathered('tenant', 'org-1', 'pro', 1, new Date('2027-01-01T00:00:00Z'));
 
     const clock = () => new Date('2026-01-01T00:00:00Z');
     const manager = createPlanManager({
@@ -882,7 +887,7 @@ describe('Feature: Grace period events', () => {
     const subscriptionStore = new InMemorySubscriptionStore();
     const events: PlanEvent[] = [];
 
-    await grandfatheringStore.setGrandfathered('org-1', 'pro', 1, null);
+    await grandfatheringStore.setGrandfathered('tenant', 'org-1', 'pro', 1, null);
 
     const clock = () => new Date('2099-01-01T00:00:00Z');
     const manager = createPlanManager({
@@ -916,10 +921,10 @@ describe('Feature: Indefinite grandfathering', () => {
       limits: {},
       price: null,
     });
-    await versionStore.setTenantVersion('org-1', 'pro', 1);
-    await subscriptionStore.assign('org-1', 'pro');
+    await versionStore.setTenantVersion('tenant', 'org-1', 'pro', 1);
+    await subscriptionStore.assign('tenant', 'org-1', 'pro');
     // null graceEnds = indefinite
-    await grandfatheringStore.setGrandfathered('org-1', 'pro', 1, null);
+    await grandfatheringStore.setGrandfathered('tenant', 'org-1', 'pro', 1, null);
 
     const clock = () => new Date('2099-12-31T00:00:00Z');
     const manager = createPlanManager({
@@ -933,6 +938,6 @@ describe('Feature: Indefinite grandfathering', () => {
     await manager.migrate('pro');
 
     // Still on v1 — indefinite grandfathering not migrated
-    expect(await versionStore.getTenantVersion('org-1', 'pro')).toBe(1);
+    expect(await versionStore.getTenantVersion('tenant', 'org-1', 'pro')).toBe(1);
   });
 });
