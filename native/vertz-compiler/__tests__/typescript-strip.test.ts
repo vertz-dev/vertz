@@ -369,4 +369,65 @@ describe('Feature: TypeScript syntax stripping', () => {
       });
     });
   });
+
+  // ─── F-12: export type stripping ──────────────────────────────────────────
+
+  describe('Given export type { ... } re-exports', () => {
+    describe('When compiled', () => {
+      it('Then strips export type { Foo }', () => {
+        const code = compileAndGetCode(`
+          export type { Foo };
+
+          function App() {
+            return <div>hello</div>;
+          }
+        `);
+
+        expect(code).not.toContain('export type');
+        expect(code).not.toContain('Foo');
+      });
+
+      it('Then strips export type { Foo } from source', () => {
+        const code = compileAndGetCode(`
+          export type { Foo } from './types';
+
+          function App() {
+            return <div>hello</div>;
+          }
+        `);
+
+        expect(code).not.toContain('export type');
+        expect(code).not.toContain('Foo');
+        expect(code).not.toContain('./types');
+      });
+
+      it('Then strips individual type specifiers from mixed exports', () => {
+        const code = compileAndGetCode(`
+          export { type Foo, bar } from './module';
+
+          function App() {
+            return <div>hello</div>;
+          }
+        `);
+
+        expect(code).not.toContain('Foo');
+        expect(code).toContain('bar');
+        expect(code).toContain("'./module'");
+      });
+
+      it('Then strips all-type specifier exports entirely', () => {
+        const code = compileAndGetCode(`
+          export { type Foo, type Bar } from './types';
+
+          function App() {
+            return <div>hello</div>;
+          }
+        `);
+
+        expect(code).not.toContain('Foo');
+        expect(code).not.toContain('Bar');
+        expect(code).not.toContain('./types');
+      });
+    });
+  });
 });

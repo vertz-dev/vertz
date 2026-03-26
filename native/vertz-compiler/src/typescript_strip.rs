@@ -18,6 +18,8 @@ pub fn strip_typescript_syntax(ms: &mut MagicString, program: &Program, source: 
 
         // Handle mixed type/value imports (remove only type specifiers)
         strip_type_import_specifiers(ms, stmt, source);
+        // Handle mixed type/value exports: `export { type Foo, value }` → `export { value }`
+        strip_type_export_specifiers(ms, stmt, source);
     }
 
     // Phase 2: Walk AST for inline TS syntax (as, !, type params, type annotations)
@@ -60,6 +62,10 @@ fn get_removable_statement_span(stmt: &Statement) -> Option<(u32, u32)> {
             Some((decl.span.start, decl.span.end))
         }
         Statement::ExportNamedDeclaration(export_decl) => {
+            // `export type { Foo }` or `export type { Foo } from './types'`
+            if matches!(export_decl.export_kind, ImportOrExportKind::Type) {
+                return Some((export_decl.span.start, export_decl.span.end));
+            }
             if let Some(ref decl) = export_decl.declaration {
                 match decl {
                     Declaration::TSInterfaceDeclaration(_)
@@ -213,6 +219,55 @@ fn strip_type_import_specifiers(ms: &mut MagicString, stmt: &Statement, source: 
             if matches!(named.import_kind, ImportOrExportKind::Type) {
                 remove_specifier_with_comma(ms, source, named.span.start, named.span.end);
             }
+        }
+    }
+}
+
+/// Remove type-only specifiers from mixed exports.
+/// `export { type FC, useState }` → `export { useState }`
+/// If ALL specifiers are type-only, remove the entire export (caught in phase 1 via export_kind check,
+/// but this handles `export { type A, type B }` where export_kind is Value but all specifiers are type).
+fn strip_type_export_specifiers(ms: &mut MagicString, stmt: &Statement, source: &str) {
+    let export_decl = match stmt {
+        Statement::ExportNamedDeclaration(decl) => decl,
+        _ => return,
+    };
+
+    // Skip type-only exports (already handled in phase 1)
+    if matches!(export_decl.export_kind, ImportOrExportKind::Type) {
+        return;
+    }
+
+    // Only handle re-exports with specifiers, no declaration
+    if export_decl.declaration.is_some() || export_decl.specifiers.is_empty() {
+        return;
+    }
+
+    let mut type_count = 0usize;
+    let mut value_count = 0usize;
+
+    for spec in &export_decl.specifiers {
+        if matches!(spec.export_kind, ImportOrExportKind::Type) {
+            type_count += 1;
+        } else {
+            value_count += 1;
+        }
+    }
+
+    if type_count == 0 {
+        return;
+    }
+
+    // If ALL specifiers are type-only, remove the entire export
+    if value_count == 0 {
+        ms.overwrite(export_decl.span.start, export_decl.span.end, "");
+        return;
+    }
+
+    // Otherwise, remove individual type specifiers
+    for spec in &export_decl.specifiers {
+        if matches!(spec.export_kind, ImportOrExportKind::Type) {
+            remove_specifier_with_comma(ms, source, spec.span.start, spec.span.end);
         }
     }
 }
